@@ -69,3 +69,42 @@ async def test_unconfigured_upstream_is_503(client, auth_headers):
     r = await client.post("/api/ai/chat/completions", json=BODY, headers=auth_headers)
     assert r.status_code == 503
     assert r.json()["error"] == "LLM upstream is not configured"
+
+
+async def test_invalid_json_body_is_400(client, auth_headers):
+    r = await client.post(
+        "/api/ai/chat/completions",
+        content=b"not json",
+        headers={**auth_headers, "content-type": "application/json"},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "Invalid JSON body"
+
+
+async def test_non_dict_json_body_is_400(client, auth_headers):
+    r = await client.post(
+        "/api/ai/chat/completions", json=["not", "a", "dict"], headers=auth_headers
+    )
+    assert r.status_code == 400
+    assert r.json()["error"] == "Invalid JSON body"
+
+
+async def test_streaming_upstream_connect_error_is_502(client, auth_headers, respx_mock):
+    respx_mock.post(URL).mock(side_effect=httpx.ConnectError("boom"))
+    r = await client.post(
+        "/api/ai/chat/completions", json={**BODY, "stream": True}, headers=auth_headers
+    )
+    assert r.status_code == 502
+    assert r.json()["error"] == "Upstream unavailable"
+
+
+async def test_streaming_upstream_4xx_preserves_status_and_body(client, auth_headers, respx_mock):
+    error_body = b'data: {"error": {"message": "rate limited"}}\n\n'
+    respx_mock.post(URL).mock(
+        return_value=httpx.Response(429, content=error_body, headers={"content-type": "text/event-stream"})
+    )
+    r = await client.post(
+        "/api/ai/chat/completions", json={**BODY, "stream": True}, headers=auth_headers
+    )
+    assert r.status_code == 429
+    assert r.content == error_body

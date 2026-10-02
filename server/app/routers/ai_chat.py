@@ -1,6 +1,8 @@
+import anyio
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 from app.config import Settings
 from app.deps import current_user, get_settings
@@ -18,7 +20,14 @@ async def chat_completions(
     if not settings.upstream_llm_base_url:
         raise HTTPException(503, "LLM upstream is not configured")
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Invalid JSON body")
+
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Invalid JSON body")
+
     if body.get("model") not in settings.llm_model_list:
         body["model"] = settings.default_llm_model
 
@@ -39,14 +48,26 @@ async def chat_completions(
                 try:
                     async for chunk in upstream.aiter_bytes():
                         yield chunk
+                except httpx.HTTPError:
+                    yield b'data: {"error": "Upstream unavailable"}\n\n'
                 finally:
-                    await upstream.aclose()
+                    with anyio.CancelScope(shield=True):
+                        await upstream.aclose()
 
-            return StreamingResponse(
-                relay(),
-                status_code=upstream.status_code,
-                media_type=upstream.headers.get("content-type", "text/event-stream"),
-            )
+            try:
+                return StreamingResponse(
+                    relay(),
+                    status_code=upstream.status_code,
+                    media_type=upstream.headers.get("content-type", "text/event-stream"),
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "X-Accel-Buffering": "no",
+                    },
+                    background=BackgroundTask(upstream.aclose),
+                )
+            except Exception:
+                await upstream.aclose()
+                raise
 
         upstream = await http.post(url, json=body, headers=headers)
     except httpx.HTTPError:
