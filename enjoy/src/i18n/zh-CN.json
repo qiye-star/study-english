@@ -941,5 +941,11 @@
   "checkingForUpdate": "正在检查更新",
   "updateAvailable": "有新版本",
   "quitAndInstall": "退出并安装新版本",
-  "pleaseSelect": "请选择"
+  "pleaseSelect": "请选择",
+  "authUsername": "用户名",
+  "authPassword": "密码",
+  "authRegister": "注册",
+  "authInviteCode": "邀请码(如需要)",
+  "authSwitchToRegister": "没有账号?去注册",
+  "authSwitchToLogin": "已有账号?去登录"
 }

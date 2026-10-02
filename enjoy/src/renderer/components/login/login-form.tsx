@@ -17,14 +17,11 @@ import { t } from "i18next";
 import {
   UserSettings,
   LanguageSettings,
-  GithubLoginButton,
-  BanduLoginButton,
-  MixinLoginButton,
   ProxySettings,
   ApiUrlSettings,
   NetworkState,
 } from "@renderer/components";
-import { EmailLoginForm } from "./email-login-form";
+import { PasswordLoginForm } from "./password-login-form";
 
 export const LoginForm = () => {
   const { user, EnjoyApp, login } = useContext(AppSettingsProviderContext);
@@ -110,19 +107,7 @@ export const LoginForm = () => {
       <TabsContent value="login">
         <Card className="w-full max-w-md">
           <CardContent className="mt-6">
-            <EmailLoginForm />
-
-            <div className="">
-              <Separator className="my-4" />
-              <div className="flex items-center justify-center text-xs text-muted-foreground mb-4">
-                {t("youCanAlsoLoginWith")}
-              </div>
-              <div className="flex items-center space-x-2 justify-center">
-                <GithubLoginButton />
-                <MixinLoginButton />
-                <BanduLoginButton />
-              </div>
-            </div>
+            <PasswordLoginForm />
           </CardContent>
         </Card>
       </TabsContent>

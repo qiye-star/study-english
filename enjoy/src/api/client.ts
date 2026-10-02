@@ -96,14 +96,24 @@ export class Client {
   }
 
   auth(params: {
-    provider: "mixin" | "github" | "bandu" | "email";
+    provider: "mixin" | "github" | "bandu" | "email" | "password";
     code?: string;
     deviceCode?: string;
     phoneNumber?: string;
     email?: string;
     mixinId?: string;
+    username?: string;
+    password?: string;
   }): Promise<UserType> {
     return this.api.post("/api/sessions", decamelizeKeys(params));
+  }
+
+  register(params: {
+    username: string;
+    password: string;
+    inviteCode?: string;
+  }): Promise<UserType> {
+    return this.api.post("/api/users", decamelizeKeys(params));
   }
 
   oauthState(state: string): Promise<UserType> {

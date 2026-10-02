@@ -941,5 +941,11 @@
   "checkingForUpdate": "Buscando actualización",
   "updateAvailable": "Actualización disponible",
   "quitAndInstall": "Salir e instalar",
-  "pleaseSelect": "Por favor, selecciona"
+  "pleaseSelect": "Por favor, selecciona",
+  "authUsername": "Username",
+  "authPassword": "Password",
+  "authRegister": "Register",
+  "authInviteCode": "Invite code (if required)",
+  "authSwitchToRegister": "No account? Register",
+  "authSwitchToLogin": "Already have an account? Log in"
 }
