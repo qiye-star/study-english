@@ -65,19 +65,6 @@ export const AISettingsProvider = ({
       console.warn(`Failed to fetch remote GPT config: ${e.message}`);
     }
 
-    try {
-      const response = await fetch(providers["ollama"]?.baseUrl + "/api/tags");
-      providers["ollama"].models = (await response.json()).models.map(
-        (m: any) => m.name
-      );
-    } catch (e) {
-      console.warn(`No ollama server found: ${e.message}`);
-    }
-
-    if (openai?.models) {
-      providers["openai"].models = openai.models.split(",");
-    }
-
     setGptProviders({ ...providers });
   };
 

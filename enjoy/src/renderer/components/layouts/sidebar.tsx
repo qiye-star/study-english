@@ -22,11 +22,9 @@ import {
   BookMarkedIcon,
   UserIcon,
   BotIcon,
-  UsersRoundIcon,
   LucideIcon,
   NotebookPenIcon,
   SpeechIcon,
-  GraduationCapIcon,
   MessagesSquareIcon,
   PanelLeftOpenIcon,
   PanelLeftCloseIcon,
@@ -119,24 +117,6 @@ export const Sidebar = (props: {
               tooltip={t("sidebar.chats")}
               active={activeTab.startsWith("/chats")}
               Icon={MessagesSquareIcon}
-              isCollapsed={isCollapsed}
-            />
-
-            <SidebarItem
-              href="/courses"
-              label={t("sidebar.courses")}
-              tooltip={t("sidebar.courses")}
-              active={activeTab.startsWith("/courses")}
-              Icon={GraduationCapIcon}
-              isCollapsed={isCollapsed}
-            />
-
-            <SidebarItem
-              href="/community"
-              label={t("sidebar.community")}
-              tooltip={t("sidebar.community")}
-              active={activeTab.startsWith("/community")}
-              Icon={UsersRoundIcon}
               isCollapsed={isCollapsed}
             />
 

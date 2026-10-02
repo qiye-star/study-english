@@ -7,11 +7,9 @@ import {
   DefaultEngineSettings,
   Hotkeys,
   UserSettings,
-  BalanceSettings,
   LibrarySettings,
   SttSettings,
   TtsSettings,
-  OpenaiSettings,
   ProxySettings,
   ResetSettings,
   ResetAllSettings,
@@ -25,7 +23,6 @@ import {
 } from "@renderer/components";
 import { useState } from "react";
 import { Tooltip } from "react-tooltip";
-import { EmailSettings } from "./email-settings";
 
 export const Preferences = () => {
   const TABS = [
@@ -79,8 +76,6 @@ export const Preferences = () => {
           <Separator />
           <NetworkState />
           <Separator />
-          <OpenaiSettings />
-          <Separator />
           <RecorderSettings />
           <Separator />
           <ResetSettings />
@@ -103,10 +98,6 @@ export const Preferences = () => {
           <LibrarySettings />
           <Separator />
           <DiskUsage />
-          <Separator />
-          <EmailSettings />
-          <Separator />
-          <BalanceSettings />
           <Separator />
         </div>
       ),

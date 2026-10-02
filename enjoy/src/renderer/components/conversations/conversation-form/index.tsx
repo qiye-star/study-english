@@ -91,19 +91,6 @@ export const ConversationForm = (props: {
       console.warn(`Failed to fetch remote GPT config: ${e.message}`);
     }
 
-    try {
-      const response = await fetch(providers["ollama"]?.baseUrl + "/api/tags");
-      providers["ollama"].models = (await response.json()).models.map(
-        (m: any) => m.name
-      );
-    } catch (e) {
-      console.warn(`No ollama server found: ${e.message}`);
-    }
-
-    if (openai.models) {
-      providers["openai"].models = openai.models.split(",");
-    }
-
     setGptProviders({ ...providers });
   };
 
@@ -272,7 +259,7 @@ export const ConversationForm = (props: {
       configuration.tts.model = "openai/tts-1";
     }
 
-    if (ttsEngine === "openai") {
+    if (ttsEngine === "openai" && ttsProviders["openai"]) {
       const options = ttsProviders["openai"].voices;
       if (!options.includes(voice)) {
         configuration.tts.voice = options[0];

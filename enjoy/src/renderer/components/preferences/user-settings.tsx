@@ -4,31 +4,12 @@ import {
   AvatarImage,
   AvatarFallback,
   Button,
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Label,
-  Input,
-  toast,
 } from "@renderer/components/ui";
 import { AppSettingsProviderContext } from "@renderer/context";
-import { useContext, useState } from "react";
-import { redirect } from "react-router-dom";
+import { useContext } from "react";
 
 export const UserSettings = () => {
-  const { user, login, logout, webApi } = useContext(
-    AppSettingsProviderContext
-  );
-  const [name, setName] = useState(user?.name);
-  const [editing, setEditing] = useState(false);
-
-  const refreshProfile = () => {
-    webApi.me().then((profile: UserType) => {
-      login(Object.assign({}, user, profile));
-    });
-  };
+  const { user, logout } = useContext(AppSettingsProviderContext);
 
   if (!user) return null;
   return (
@@ -49,51 +30,7 @@ export const UserSettings = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Dialog open={editing} onOpenChange={(value) => setEditing(value)}>
-            <DialogTrigger asChild>
-              <Button variant="secondary" size="sm">
-                {t("edit")}
-              </Button>
-            </DialogTrigger>
-
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t("editUserName")}</DialogTitle>
-              </DialogHeader>
-
-              <div className="w-full max-w-sm mx-auto py-6">
-                <div className="grid gap-2 mb-6">
-                  <Label htmlFor="name">{t("userName")}</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      webApi
-                        .updateProfile(user.id, { name })
-                        .then(() => {
-                          toast.success("profileUpdated");
-                          setEditing(false);
-                          refreshProfile();
-                        })
-                        .catch((err) => {
-                          toast.error(err.message);
-                        });
-                    }}
-                  >
-                    {t("save")}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
+        <div className="grid gap-2">
           <Button
             variant="secondary"
             className="text-destructive"
