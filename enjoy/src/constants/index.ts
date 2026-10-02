@@ -31,7 +31,8 @@ export const STORAGE_WORKER_ENDPOINTS = [
 
 export const AI_WORKER_ENDPOINT = "https://ai-worker.enjoy.bot";
 
-export const WEB_API_URL = "https://enjoy.bot";
+export const WEB_API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const WS_URL = "wss://enjoy.bot";
 export const DISCUSS_URL = "https://discuss.enjoy.bot";
 
