@@ -20,4 +20,4 @@ def test_upgrade_head_creates_tables(tmp_path, monkeypatch):
         names = {row[0] for row in con.execute("select name from sqlite_master where type='table'")}
     finally:
         con.close()
-    assert {"users", "access_tokens", "alembic_version"} <= names
+    assert {"users", "access_tokens", "speech_tokens", "alembic_version"} <= names
