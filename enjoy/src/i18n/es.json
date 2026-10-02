@@ -462,6 +462,7 @@
   "whisperIsNotWorking": "Whisper no está funcionando",
   "whisperTranscribeFailed": "La transcripción con Whisper falló. Tal vez tu máquina no es compatible. Por favor, usa otro servicio STT. {{error}}",
   "openaiTranscribeFailed": "La transcripción con OpenAI falló. {{error}}",
+  "serverTranscribeFailed": "Server transcribe failed: {{error}}",
   "cloudflareTranscribeFailed": "La transcripción con Cloudflare falló. {{error}}",
   "azureTranscribeFailed": "La transcripción con Azure falló. {{error}}",
   "transcribeFailed": "La transcripción falló.",

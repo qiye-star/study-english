@@ -462,6 +462,7 @@
   "whisperIsNotWorking": "Whisper 无法正常工作，请尝试更换模型后重试，或联系开发者",
   "whisperTranscribeFailed": "Whisper 语音转文本失败。您的设备可能不兼容该功能，请选择其他语音转文本服务。{{error}}",
   "openaiTranscribeFailed": "OpenAI 语音转文本失败。{{error}}",
+  "serverTranscribeFailed": "服务器转写失败:{{error}}",
   "cloudflareTranscribeFailed": "Cloudflare 语音转文本失败。{{error}}",
   "azureTranscribeFailed": "Azure 语音转文本失败。{{error}}",
   "transcribeFailed": "语音转文本失败。",

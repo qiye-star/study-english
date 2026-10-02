@@ -379,7 +379,7 @@ export const useTranscribe = () => {
         segmentTimeline,
       };
     } catch (err) {
-      throw new Error(t("openaiTranscribeFailed", { error: err.message }));
+      throw new Error(t("serverTranscribeFailed", { error: err.message }));
     }
   };
 

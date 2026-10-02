@@ -59,7 +59,7 @@ export const ConversationForm = (props: {
 
   const conversationFormSchema = z.object({
     name: z.string().optional(),
-    engine: z.enum(["enjoyai", "openai", "ollama"]).default("openai"),
+    engine: z.enum(["enjoyai", "openai", "ollama"]).default("enjoyai"),
     configuration: z.object({
       type: z.enum(["gpt", "tts"]),
       model: z.string().optional(),
@@ -246,14 +246,15 @@ export const ConversationForm = (props: {
     }
 
     // validates tts voice
-    const ttsEngine = configuration.tts.engine;
+    let ttsEngine = configuration.tts.engine;
     const voice = configuration.tts.voice;
     const language = configuration.tts.language;
     if (!language) {
       configuration.tts.language === learningLanguage;
     }
     if (!ttsEngine) {
-      configuration.tts.engine = "openai";
+      configuration.tts.engine = "enjoyai";
+      ttsEngine = "enjoyai";
     }
     if (!configuration.tts.model) {
       configuration.tts.model = "openai/tts-1";
