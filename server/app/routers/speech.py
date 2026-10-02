@@ -1,7 +1,7 @@
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,8 +52,8 @@ async def create_token(
 
 @router.put("/tokens/{token_id}")
 async def update_token(
-    token_id: int,
     payload: SpeechTokenState,
+    token_id: int = Path(ge=1, le=2**31 - 1),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):

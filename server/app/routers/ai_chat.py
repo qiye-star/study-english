@@ -7,6 +7,7 @@ from starlette.background import BackgroundTask
 from app.config import Settings
 from app.deps import current_user, get_settings
 from app.models import User
+from app.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 
@@ -44,6 +45,12 @@ async def chat_completions(
                 http.build_request("POST", url, json=body, headers=headers), stream=True
             )
 
+            try:
+                check_upstream_auth(upstream.status_code)
+            except HTTPException:
+                await upstream.aclose()
+                raise
+
             async def relay():
                 try:
                     async for chunk in upstream.aiter_bytes():
@@ -72,6 +79,8 @@ async def chat_completions(
         upstream = await http.post(url, json=body, headers=headers)
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+
+    check_upstream_auth(upstream.status_code)
 
     return Response(
         content=upstream.content,

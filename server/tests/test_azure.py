@@ -70,3 +70,8 @@ async def test_synthesize_posts_ssml(respx_mock):
     assert req.headers["content-type"] == "application/ssml+xml"
     assert req.headers["x-microsoft-outputformat"] == "audio-24khz-48kbitrate-mono-mp3"
     assert b"name='en-US-AvaNeural'" in req.content
+
+
+def test_ssml_rejects_trailing_newline():
+    with pytest.raises(ValueError):
+        build_ssml("hi", "en-US-AvaNeural\n")

@@ -74,3 +74,9 @@ async def test_unconfigured_is_503(client, auth_headers):
     r = await client.post("/api/speech/tokens", json={}, headers=auth_headers)
     assert r.status_code == 503
     assert r.json()["error"] == "Azure Speech is not configured"
+
+
+@pytest.mark.parametrize("tid", [0, -1, 2**31])
+async def test_token_id_out_of_range_is_422(client, auth_headers, tid):
+    r = await client.put(f"/api/speech/tokens/{tid}", json={"state": "consumed"}, headers=auth_headers)
+    assert r.status_code == 422

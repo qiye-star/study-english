@@ -138,3 +138,81 @@ async def test_transcriptions_require_auth(client):
         "/api/ai/audio/transcriptions", files={"file": ("a.mp3", b"x", "audio/mpeg")}
     )
     assert r.status_code == 401
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_openai_tts_upstream_auth_failure_is_502(client, auth_headers, respx_mock, status):
+    respx_mock.post(OPENAI_TTS).mock(return_value=httpx.Response(status, text="bad key"))
+    r = await client.post(
+        "/api/ai/audio/speech",
+        json={"input": "hi", "model": "openai/tts-1", "voice": "alloy"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 502
+    assert r.json()["error"] == "Upstream authentication failed"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_whisper_upstream_auth_failure_is_502(client, auth_headers, respx_mock, status):
+    respx_mock.post(WHISPER).mock(return_value=httpx.Response(status, text="bad key"))
+    r = await client.post(
+        "/api/ai/audio/transcriptions",
+        files={"file": ("a.mp3", b"x", "audio/mpeg")},
+        headers=auth_headers,
+    )
+    assert r.status_code == 502
+    assert r.json()["error"] == "Upstream authentication failed"
+
+
+async def test_whisper_upstream_other_error_passes_through(client, auth_headers, respx_mock):
+    respx_mock.post(WHISPER).mock(return_value=httpx.Response(429, json={"e": 1}))
+    r = await client.post(
+        "/api/ai/audio/transcriptions",
+        files={"file": ("a.mp3", b"x", "audio/mpeg")},
+        headers=auth_headers,
+    )
+    assert r.status_code == 429
+
+
+async def test_whisper_too_large_by_content_length_is_413(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.routers.ai_audio.MAX_AUDIO_BYTES", 100)
+    r = await client.post(
+        "/api/ai/audio/transcriptions",
+        files={"file": ("a.mp3", b"x" * 500, "audio/mpeg")},
+        headers=auth_headers,
+    )
+    assert r.status_code == 413
+    assert r.json()["error"] == "Audio file is too large"
+
+
+async def test_whisper_too_large_without_content_length_is_413(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.routers.ai_audio.MAX_AUDIO_BYTES", 100)
+    body = b"--b\r\n\r\n" + b"x" * 500 + b"\r\n--b--\r\n"
+
+    async def gen():
+        yield body
+
+    r = await client.post(
+        "/api/ai/audio/transcriptions",
+        content=gen(),
+        headers={**auth_headers, "Content-Type": "multipart/form-data; boundary=b"},
+    )
+    assert r.status_code == 413
+
+
+async def test_whisper_content_type_is_case_insensitive(client, auth_headers, respx_mock):
+    respx_mock.post(WHISPER).mock(return_value=httpx.Response(200, json={"text": "ok"}))
+    r = await client.post(
+        "/api/ai/audio/transcriptions",
+        content=b"--b\r\n\r\nx\r\n--b--\r\n",
+        headers={**auth_headers, "Content-Type": "Multipart/Form-Data; boundary=b"},
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.parametrize("settings_overrides", [{"tts_models": "openai/tts-1,other/x"}], indirect=True)
+async def test_listed_but_unknown_provider_tts_model_is_400(client, auth_headers):
+    r = await client.post(
+        "/api/ai/audio/speech", json={"input": "hi", "model": "other/x"}, headers=auth_headers
+    )
+    assert r.status_code == 400

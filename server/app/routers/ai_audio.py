@@ -7,10 +7,12 @@ from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import current_user, get_settings
 from app.models import User
+from app.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 
 MAX_TTS_INPUT = 4096
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 
 class SpeechIn(BaseModel):
@@ -28,7 +30,9 @@ async def speech(
     settings: Settings = Depends(get_settings),
     azure: AzureSpeech = Depends(get_azure),
 ):
-    if payload.model not in settings.tts_model_list:
+    if payload.model not in settings.tts_model_list or not (
+        payload.model == "azure/speech" or payload.model.startswith("openai/")
+    ):
         raise HTTPException(400, f"Unsupported TTS model: {payload.model}")
     if len(payload.input) > MAX_TTS_INPUT:
         raise HTTPException(400, "Input is too long")
@@ -60,6 +64,7 @@ async def speech(
         )
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+    check_upstream_auth(upstream.status_code)
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,
@@ -74,16 +79,29 @@ async def transcriptions(
     settings: Settings = Depends(get_settings),
 ):
     content_type = request.headers.get("content-type", "")
-    if not content_type.startswith("multipart/form-data"):
+    if not content_type.lower().startswith("multipart/form-data"):
         raise HTTPException(400, "Expected multipart/form-data")
     if not settings.upstream_whisper_base_url:
         raise HTTPException(503, "Whisper upstream is not configured")
+
+    too_large = HTTPException(413, "Audio file is too large")
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_AUDIO_BYTES:
+        raise too_large
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_AUDIO_BYTES:
+            raise too_large
+        chunks.append(chunk)
+    data = b"".join(chunks)
 
     http: httpx.AsyncClient = request.app.state.http
     try:
         upstream = await http.post(
             settings.upstream_whisper_base_url.rstrip("/") + "/audio/transcriptions",
-            content=await request.body(),
+            content=data,
             headers={
                 "Authorization": f"Bearer {settings.upstream_whisper_key}",
                 "Content-Type": content_type,
@@ -91,6 +109,7 @@ async def transcriptions(
         )
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+    check_upstream_auth(upstream.status_code)
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,

@@ -20,7 +20,7 @@ class AzureError(Exception):
 
 
 def build_ssml(text: str, voice: str) -> str:
-    if not VOICE_RE.match(voice):
+    if not VOICE_RE.fullmatch(voice):
         raise ValueError("invalid voice")
     lang = "-".join(voice.split("-")[:2])
     return (

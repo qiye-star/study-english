@@ -108,3 +108,25 @@ async def test_streaming_upstream_4xx_preserves_status_and_body(client, auth_hea
     )
     assert r.status_code == 429
     assert r.content == error_body
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_upstream_auth_failure_is_502(client, auth_headers, respx_mock, status):
+    respx_mock.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(status, text="bad key")
+    )
+    r = await client.post("/api/ai/chat/completions", json=BODY, headers=auth_headers)
+    assert r.status_code == 502
+    assert r.json()["error"] == "Upstream authentication failed"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_streaming_upstream_auth_failure_is_502(client, auth_headers, respx_mock, status):
+    respx_mock.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(status, text="bad key")
+    )
+    r = await client.post(
+        "/api/ai/chat/completions", json={**BODY, "stream": True}, headers=auth_headers
+    )
+    assert r.status_code == 502
+    assert r.json()["error"] == "Upstream authentication failed"
