@@ -137,3 +137,9 @@ enjoy/lib/dictionaries
 public/jupyter-notebooks/*.mp3
 
 *.sqlite
+# self-hosted backend
+server/.venv/
+server/data/
+server/.env
+enjoy/.env
+.superpowers/
