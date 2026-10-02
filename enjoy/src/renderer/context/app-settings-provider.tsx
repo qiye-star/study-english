@@ -3,7 +3,7 @@ import { WEB_API_URL, LANGUAGES, IPA_MAPPINGS } from "@/constants";
 import { Client } from "@/api";
 import i18n from "@renderer/i18n";
 import ahoy from "ahoy.js";
-import { type Consumer, createConsumer } from "@rails/actioncable";
+import { type Consumer } from "@rails/actioncable";
 import { DbProviderContext } from "@renderer/context";
 import { UserSettingKeyEnum } from "@/types/enums";
 import {
@@ -211,14 +211,6 @@ export const AppSettingsProvider = ({
     });
   };
 
-  const createCable = async (token: string) => {
-    if (!token) return;
-
-    const wsUrl = await EnjoyApp.app.wsUrl();
-    const consumer = createConsumer(wsUrl + "/cable?token=" + token);
-    setCable(consumer);
-  };
-
   const fetchRecorderConfig = async () => {
     const config = await EnjoyApp.userSettings.get(UserSettingKeyEnum.RECORDER);
     if (config) {
@@ -330,7 +322,6 @@ export const AppSettingsProvider = ({
       // Login via API, update profile to DB
       if (user.accessToken) {
         EnjoyApp.userSettings.set(UserSettingKeyEnum.PROFILE, user);
-        createCable(user.accessToken);
       } else {
         // Auto login from local settings, get full profile from DB
         const profile = await EnjoyApp.userSettings.get(
