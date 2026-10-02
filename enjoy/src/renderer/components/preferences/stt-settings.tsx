@@ -112,7 +112,6 @@ export const SttSettings = () => {
             <SelectItem value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}>
               {t("enjoyCloudflare")}
             </SelectItem>
-            <SelectItem value={SttEngineOptionEnum.OPENAI}>OpenAI</SelectItem>
           </SelectContent>
         </Select>
 

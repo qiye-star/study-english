@@ -5,9 +5,7 @@ import {
 import OpenAI from "openai";
 import { useContext, useState } from "react";
 import { t } from "i18next";
-import { AI_WORKER_ENDPOINT } from "@/constants";
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import axios from "axios";
 import { useAiCommand } from "./use-ai-command";
 import { toast } from "@renderer/components/ui";
 import {
@@ -28,7 +26,9 @@ const logger = log.scope("use-transcribe.tsx");
 const punctuationsPattern = /\w[.,!?](\s|$)/g;
 
 export const useTranscribe = () => {
-  const { EnjoyApp, user, webApi } = useContext(AppSettingsProviderContext);
+  const { EnjoyApp, user, webApi, apiUrl } = useContext(
+    AppSettingsProviderContext
+  );
   const { openai, echogardenSttConfig } = useContext(AISettingsProviderContext);
   const { punctuateText } = useAiCommand();
   const [output, setOutput] = useState<string>("");
@@ -86,7 +86,9 @@ export const useTranscribe = () => {
         language,
       });
     } else if (service === SttEngineOptionEnum.ENJOY_CLOUDFLARE) {
-      result = await transcribeByCloudflareAi(blob);
+      result = await transcribeByServerWhisper(
+        new File([blob], "audio.mp3", { type: "audio/mp3" })
+      );
     } else if (service === SttEngineOptionEnum.OPENAI) {
       result = await transcribeByOpenAi(
         new File([blob], "audio.mp3", { type: "audio/mp3" })
@@ -331,53 +333,53 @@ export const useTranscribe = () => {
     }
   };
 
-  const transcribeByCloudflareAi = async (
-    blob: Blob
+  const transcribeByServerWhisper = async (
+    file: File
   ): Promise<{
     engine: string;
     model: string;
     transcript: string;
     segmentTimeline: TimelineEntry[];
   }> => {
-    setOutput("Transcribing from Cloudflare...");
-    logger.info("Start transcribing from Cloudflare...");
-    try {
-      const res: CfWhipserOutputType = (
-        await axios.postForm(
-          `${AI_WORKER_ENDPOINT}/audio/transcriptions`,
-          blob,
-          {
-            headers: {
-              Authorization: `Bearer ${user.accessToken}`,
-            },
-            timeout: 1000 * 60 * 5,
-          }
-        )
-      ).data;
+    const client = new OpenAI({
+      apiKey: user.accessToken,
+      baseURL: `${apiUrl}/api/ai`,
+      dangerouslyAllowBrowser: true,
+      maxRetries: 0,
+    });
 
-      setOutput("Cloudflare transcribe done");
-      const segmentTimeline: TimelineEntry[] = [];
-      if (res.vtt) {
-        const caption = await parseText(res.vtt, { type: "vtt" });
-        for (const cue of caption.cues) {
-          segmentTimeline.push({
-            type: "segment",
-            text: cue.text,
-            startTime: cue.startTime,
-            endTime: cue.endTime,
-            timeline: [],
-          });
-        }
-      }
+    setOutput("Transcribing from server...");
+    logger.info("Start transcribing from server whisper...");
+    try {
+      const res: {
+        text: string;
+        segments?: { text: string; start: number; end: number }[];
+      } = (await client.audio.transcriptions.create({
+        file,
+        model: "whisper-1",
+        response_format: "verbose_json",
+        timestamp_granularities: ["word", "segment"],
+      })) as any;
+
+      setOutput("Server transcribe done");
+      const segmentTimeline = (res.segments || []).map((segment) => {
+        return {
+          type: "segment" as TimelineEntryType,
+          text: segment.text,
+          startTime: segment.start,
+          endTime: segment.end,
+          timeline: [] as TimelineEntry[],
+        };
+      });
 
       return {
-        engine: "cloudflare",
-        model: "@cf/openai/whisper",
+        engine: "enjoyai",
+        model: "whisper-1",
         transcript: res.text,
         segmentTimeline,
       };
     } catch (err) {
-      throw new Error(t("cloudflareTranscribeFailed", { error: err.message }));
+      throw new Error(t("openaiTranscribeFailed", { error: err.message }));
     }
   };
 
