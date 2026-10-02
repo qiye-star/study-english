@@ -68,20 +68,22 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 
 ```
 your.domain {
-    reverse_proxy server:8000
+    reverse_proxy 127.0.0.1:8000
 }
 ```
 
+`docker-compose.yml` 默认只把服务发布到 `127.0.0.1:8000:8000`,这是有意的安全默认:同一台主机上的反向代理转发到 `127.0.0.1:8000`(上面的示例即如此;Nginx 同理使用 `proxy_pass http://127.0.0.1:8000;`)。如需不经代理直接对外暴露(不推荐,密码将以明文传输),把端口映射改为 `0.0.0.0:8000:8000`。
+
 并在 `server/.env` 中设置 `TRUST_PROXY_HEADERS=true`,让限流使用 `X-Forwarded-For` 中的真实客户端 IP。
 
-重要:启用 `TRUST_PROXY_HEADERS=true` 后,反向代理必须**覆盖**(而不是追加)`X-Forwarded-For`,否则客户端可以伪造该头绕过限流。Caddy 默认会覆盖来自不受信任来源的该头;Nginx 请使用 `proxy_set_header X-Forwarded-For $remote_addr;`(不要用 `$proxy_add_x_forwarded_for`)。
+重要:这与端口绑定相关——只有当服务仅能通过你的反向代理访问时才应启用 `TRUST_PROXY_HEADERS=true`。启用后,反向代理必须**覆盖**(而不是追加)`X-Forwarded-For`,否则客户端可以伪造该头绕过限流。Caddy 默认会覆盖来自不受信任来源的该头;Nginx 请使用 `proxy_set_header X-Forwarded-For $remote_addr;`(不要用 `$proxy_add_x_forwarded_for`)。
 
 另外,反向代理需允许较大的请求体(音频上传转写),例如 Nginx 的 `client_max_body_size 25m;`。
 
 ## 让客户端指向它
 
-- 构建/开发时:在 `enjoy/.env` 中设置 `VITE_API_URL=https://your.domain`。
-- 如果客户端没有读到 `VITE_API_URL`,可以通过运行时环境变量 `WEB_API_URL` 设置,或在应用内「高级 → API 地址」(登录页的「高级」)中填写。
+- `VITE_API_URL` 在构建/开发时从 `enjoy/.env` 读取(默认 `http://localhost:8000`),例如 `VITE_API_URL=https://your.domain`。
+- 主进程运行时环境变量 `WEB_API_URL` 以及应用内「高级 → API 地址」设置会覆盖它;对已打包好的客户端请使用这两种方式。
 
 ## 冒烟脚本与配置快照
 
@@ -91,7 +93,17 @@ uv run python scripts/smoke.py --base-url http://localhost:8000     # 端到端�
 uv run python scripts/fetch_config.py                               # 刷新配置快照
 ```
 
-没有配置上游凭据时,注册检查通过,AI 相关检查会返回 503 而被跳过或失败。
+上游未配置的检查会返回 503,并被报告为 SKIP;没有配置上游凭据时,注册检查通过,AI 相关检查为 SKIP。
+
+## 构建说明
+
+`server/uv.lock` 中的包地址指向清华 PyPI 镜像(`pypi.tuna.tsinghua.edu.cn`),在中国大陆没问题,其他地区可能很慢或无法访问。如需改用官方源重新锁定:
+
+```bash
+cd server && uv lock --default-index https://pypi.org/simple
+```
+
+然后重新构建镜像。
 
 ## 已知限制
 
