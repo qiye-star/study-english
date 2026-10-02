@@ -36,6 +36,11 @@ Enjoy 浏览器插件已经上线，支持 YouTube 和 Netflix。可访问 [Chro
 
 新版桌面版将会是对网页版的套壳和增强，即将发布。
 
+## 自建后端(本分支)
+
+本分支新增 `server/`,用于脱离 enjoy.bot 自行部署:账号密码登录、AI 服务由自己的上游提供。
+详见 [server/README.md](./server/README.md) 与 [设计文档](./docs/superpowers/specs/2026-10-02-self-hosted-backend-design.md)。
+
 
 ## 相关阅读
 
