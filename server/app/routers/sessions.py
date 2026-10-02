@@ -1,3 +1,127 @@
-from fastapi import APIRouter
+import asyncio
+import re
+import secrets
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import Settings
+from app.deps import auth_rate_limit, current_user, get_session, get_settings
+from app.models import AccessToken, User
+from app.security import hash_password, hash_token, new_token, verify_password
 
 router = APIRouter(prefix="/api")
+
+USERNAME_RE = re.compile(r"^[a-z0-9_]{3,32}$")
+INVALID_LOGIN = "Invalid username or password"
+# 用户不存在时也做一次等耗时的校验,避免通过响应时间枚举用户名。
+_DUMMY_HASH = hash_password("dummy-password")
+
+
+class LoginIn(BaseModel):
+    provider: str = "password"
+    username: str
+    password: str
+
+
+class RegisterIn(BaseModel):
+    username: str
+    password: str = Field(min_length=8, max_length=128)
+    invite_code: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def _normalize_username(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not USERNAME_RE.match(value):
+            raise ValueError("must be 3-32 characters of letters, digits or underscore")
+        return value
+
+
+class UserOut(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+    access_token: str | None = None
+
+
+def _user_out(user: User, token: str | None = None) -> UserOut:
+    return UserOut(id=str(user.id), name=user.username, created_at=user.created_at, access_token=token)
+
+
+async def _get_by_username(session: AsyncSession, username: str) -> User | None:
+    result = await session.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
+
+
+async def _issue_token(session: AsyncSession, user: User) -> str:
+    token = new_token()
+    session.add(AccessToken(user_id=user.id, token_hash=hash_token(token)))
+    await session.commit()
+    return token
+
+
+def _new_user_id() -> int:
+    return secrets.randbelow(90_000_000) + 10_000_000
+
+
+@router.post(
+    "/users",
+    response_model=UserOut,
+    response_model_exclude_none=True,
+    dependencies=[Depends(auth_rate_limit)],
+)
+async def register(
+    payload: RegisterIn,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    if settings.registration_mode == "closed":
+        raise HTTPException(403, "Registration is closed")
+    if settings.registration_mode == "invite" and not secrets.compare_digest(
+        (payload.invite_code or "").encode(), settings.invite_code.encode()
+    ):
+        raise HTTPException(403, "Invalid invite code")
+
+    password_hash = await asyncio.to_thread(hash_password, payload.password)
+    for _ in range(5):
+        user = User(id=_new_user_id(), username=payload.username, password_hash=password_hash)
+        session.add(user)
+        try:
+            await session.commit()
+            break
+        except IntegrityError:
+            await session.rollback()
+            if await _get_by_username(session, payload.username):
+                raise HTTPException(409, "Username already taken")
+    else:
+        raise HTTPException(500, "Could not allocate a user id")
+
+    return _user_out(user, await _issue_token(session, user))
+
+
+@router.post(
+    "/sessions",
+    response_model=UserOut,
+    response_model_exclude_none=True,
+    dependencies=[Depends(auth_rate_limit)],
+)
+async def login(payload: LoginIn, session: AsyncSession = Depends(get_session)):
+    if payload.provider != "password":
+        raise HTTPException(400, "Unsupported login provider")
+    user = await _get_by_username(session, payload.username.strip().lower())
+    if user is None:
+        await asyncio.to_thread(verify_password, _DUMMY_HASH, payload.password)
+        raise HTTPException(401, INVALID_LOGIN)
+    if not await asyncio.to_thread(verify_password, user.password_hash, payload.password):
+        raise HTTPException(401, INVALID_LOGIN)
+    return _user_out(user, await _issue_token(session, user))
+
+
+@router.get("/me", response_model=UserOut, response_model_exclude_none=True)
+async def me(user: User = Depends(current_user)):
+    return _user_out(user)
