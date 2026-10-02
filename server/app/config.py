@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     invite_code: str = ""
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
+    ai_rate_limit_per_minute: int = 60
+    llm_max_tokens: int = 4096
 
     upstream_llm_base_url: str = ""
     upstream_llm_key: str = ""

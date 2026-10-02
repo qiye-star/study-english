@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
-from app.deps import current_user, get_session
+from app.deps import current_user, get_session, limited_user
 from app.models import SpeechToken, User
 
 router = APIRouter(prefix="/api/speech")
@@ -28,7 +28,7 @@ class SpeechTokenState(BaseModel):
 @router.post("/tokens")
 async def create_token(
     payload: SpeechTokenIn,
-    user: User = Depends(current_user),
+    user: User = Depends(limited_user),
     session: AsyncSession = Depends(get_session),
     azure: AzureSpeech = Depends(get_azure),
 ):

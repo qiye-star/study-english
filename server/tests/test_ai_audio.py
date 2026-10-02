@@ -216,3 +216,51 @@ async def test_listed_but_unknown_provider_tts_model_is_400(client, auth_headers
         "/api/ai/audio/speech", json={"input": "hi", "model": "other/x"}, headers=auth_headers
     )
     assert r.status_code == 400
+
+
+async def test_bare_model_name_is_normalised_and_forwarded_bare(client, auth_headers, respx_mock):
+    route = respx_mock.post(OPENAI_TTS).mock(
+        return_value=httpx.Response(200, content=b"AUDIO", headers={"content-type": "audio/mpeg"})
+    )
+    r = await client.post(
+        "/api/ai/audio/speech",
+        json={"input": "hello", "model": "tts-1", "voice": "alloy"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200 and r.content == b"AUDIO"
+    assert json.loads(route.calls.last.request.content)["model"] == "tts-1"
+
+
+async def test_prefixed_model_still_works(client, auth_headers, respx_mock):
+    route = respx_mock.post(OPENAI_TTS).mock(return_value=httpx.Response(200, content=b"A"))
+    r = await client.post(
+        "/api/ai/audio/speech", json={"input": "hi", "model": "openai/tts-1"}, headers=auth_headers
+    )
+    assert r.status_code == 200
+    assert json.loads(route.calls.last.request.content)["model"] == "tts-1"
+
+
+async def test_bare_unknown_model_is_400(client, auth_headers):
+    r = await client.post(
+        "/api/ai/audio/speech", json={"input": "hi", "model": "tts-1-hd"}, headers=auth_headers
+    )
+    assert r.status_code == 400
+
+
+async def test_bare_speech_never_maps_to_azure(client, auth_headers, respx_mock):
+    route = respx_mock.post(AZURE_TTS).mock(return_value=httpx.Response(200, content=b"A"))
+    r = await client.post(
+        "/api/ai/audio/speech",
+        json={"input": "hi", "model": "speech", "voice": "en-US-AvaNeural"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 400 and not route.called
+
+
+async def test_unencodable_input_is_invalid_input_not_invalid_voice(client, auth_headers):
+    r = await client.post(
+        "/api/ai/audio/speech",
+        content=b'{"input": "bad \ud800 text", "model": "azure/speech", "voice": "en-US-AvaNeural"}',
+        headers={**auth_headers, "content-type": "application/json"},
+    )
+    assert r.status_code == 400 and r.json() == {"error": "Invalid input"}

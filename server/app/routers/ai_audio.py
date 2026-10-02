@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
-from app.deps import current_user, get_settings
+from app.deps import get_settings, limited_user
 from app.models import User
 from app.upstream import check_upstream_auth
 
@@ -26,18 +26,26 @@ class SpeechIn(BaseModel):
 async def speech(
     payload: SpeechIn,
     request: Request,
-    _: User = Depends(current_user),
+    _: User = Depends(limited_user),
     settings: Settings = Depends(get_settings),
     azure: AzureSpeech = Depends(get_azure),
 ):
-    if payload.model not in settings.tts_model_list or not (
-        payload.model == "azure/speech" or payload.model.startswith("openai/")
+    # 客户端会去掉 openai/ 前缀(发送裸 tts-1),这里还原后再校验。
+    model = payload.model
+    if "/" not in model and f"openai/{model}" in settings.tts_model_list:
+        model = f"openai/{model}"
+    if model not in settings.tts_model_list or not (
+        model == "azure/speech" or model.startswith("openai/")
     ):
         raise HTTPException(400, f"Unsupported TTS model: {payload.model}")
     if len(payload.input) > MAX_TTS_INPUT:
         raise HTTPException(400, "Input is too long")
+    try:
+        payload.input.encode("utf-8")
+    except UnicodeEncodeError:
+        raise HTTPException(400, "Invalid input")
 
-    if payload.model == "azure/speech":
+    if model == "azure/speech":
         try:
             audio = await azure.synthesize(payload.input, payload.voice)
         except ValueError:
@@ -55,7 +63,7 @@ async def speech(
         upstream = await http.post(
             settings.upstream_tts_base_url.rstrip("/") + "/audio/speech",
             json={
-                "model": payload.model.removeprefix("openai/"),
+                "model": model.removeprefix("openai/"),
                 "input": payload.input,
                 "voice": payload.voice,
                 "response_format": payload.response_format or "mp3",
@@ -75,7 +83,7 @@ async def speech(
 @router.post("/audio/transcriptions")
 async def transcriptions(
     request: Request,
-    _: User = Depends(current_user),
+    _: User = Depends(limited_user),
     settings: Settings = Depends(get_settings),
 ):
     content_type = request.headers.get("content-type", "")
@@ -106,6 +114,7 @@ async def transcriptions(
                 "Authorization": f"Bearer {settings.upstream_whisper_key}",
                 "Content-Type": content_type,
             },
+            timeout=httpx.Timeout(300.0, connect=10.0),
         )
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")

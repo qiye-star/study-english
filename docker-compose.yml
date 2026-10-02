@@ -15,7 +15,12 @@ services:
   postgres:
     image: postgres:16-alpine
     profiles: ["postgres"]
-    env_file: ./server/.env
+    # 不要把 server/.env(含上游密钥)传给数据库容器;POSTGRES_* 由 compose 自己的
+    # 项目环境(根目录 .env 或 shell 环境变量)提供。
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-enjoy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-enjoy}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

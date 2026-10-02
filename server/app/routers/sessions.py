@@ -24,8 +24,8 @@ _DUMMY_HASH = hash_password("dummy-password")
 
 class LoginIn(BaseModel):
     provider: str = "password"
-    username: str
-    password: str
+    username: str = Field(max_length=64)
+    password: str = Field(max_length=128)
 
 
 class RegisterIn(BaseModel):

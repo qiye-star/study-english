@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.config import Settings
 from app.db import make_engine
 from app.errors import install_error_handlers
+from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
 from app.routers import ai_audio, ai_chat, config_api, health, sessions, speech, stubs
 
@@ -33,6 +34,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     app.state.http = http
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
+    app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
+    app.add_middleware(BodyLimitMiddleware)
 
     install_error_handlers(app)
     # stubs 含 /api/** 的兜底写入路由,必须最后注册。

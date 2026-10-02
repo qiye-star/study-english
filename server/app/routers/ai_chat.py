@@ -5,17 +5,29 @@ from fastapi.responses import Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.config import Settings
-from app.deps import current_user, get_settings
+from app.deps import get_settings, limited_user
 from app.models import User
 from app.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 
+MAX_N = 4
+
+
+def _clamp(body: dict, field: str, cap: int) -> None:
+    if field not in body or body[field] is None:
+        return
+    value = body[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise HTTPException(400, f"Invalid {field}")
+    if value > cap:
+        body[field] = cap
+
 
 @router.post("/chat/completions")
 async def chat_completions(
     request: Request,
-    _: User = Depends(current_user),
+    _: User = Depends(limited_user),
     settings: Settings = Depends(get_settings),
 ):
     if not settings.upstream_llm_base_url:
@@ -31,6 +43,10 @@ async def chat_completions(
 
     if body.get("model") not in settings.llm_model_list:
         body["model"] = settings.default_llm_model
+
+    _clamp(body, "n", MAX_N)
+    _clamp(body, "max_tokens", settings.llm_max_tokens)
+    _clamp(body, "max_completion_tokens", settings.llm_max_tokens)
 
     url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
     headers = {

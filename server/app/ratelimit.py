@@ -11,13 +11,24 @@ class RateLimiter:
         self.window = window
         self._clock = clock
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._last_sweep = clock()
+
+    def _sweep(self, now: float) -> None:
+        if now - self._last_sweep < self.window:
+            return
+        self._last_sweep = now
+        for key in [k for k, h in self._hits.items() if not h or now - h[-1] >= self.window]:
+            del self._hits[key]
 
     def allow(self, key: str) -> bool:
         now = self._clock()
+        self._sweep(now)
         hits = self._hits[key]
         while hits and now - hits[0] >= self.window:
             hits.popleft()
+        if not hits:
+            del self._hits[key]
         if len(hits) >= self.limit:
             return False
-        hits.append(now)
+        self._hits[key].append(now)
         return True

@@ -41,3 +41,8 @@ async def test_unknown_and_bugsnag_keys_are_404(client):
         r = await client.get(f"/api/config/{key}")
         assert r.status_code == 404
         assert r.json()["error"] == "Unknown config key"
+
+
+async def test_tts_providers_only_keeps_enjoyai(client):
+    data = (await client.get("/api/config/tts_providers_v2")).json()
+    assert list(data) == ["enjoyai"]

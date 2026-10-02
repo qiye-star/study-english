@@ -130,3 +130,35 @@ async def test_streaming_upstream_auth_failure_is_502(client, auth_headers, resp
     )
     assert r.status_code == 502
     assert r.json()["error"] == "Upstream authentication failed"
+
+
+import json as _json
+
+
+async def _sent_body(client, auth_headers, respx_mock, body):
+    route = respx_mock.post(URL).mock(return_value=httpx.Response(200, json={}))
+    r = await client.post("/api/ai/chat/completions", json=body, headers=auth_headers)
+    assert r.status_code == 200
+    return _json.loads(route.calls.last.request.content)
+
+
+async def test_n_and_token_limits_are_clamped(client, auth_headers, respx_mock):
+    sent = await _sent_body(
+        client, auth_headers, respx_mock,
+        {"model": "gpt-4o", "n": 100, "max_tokens": 999999, "max_completion_tokens": 999999},
+    )
+    assert sent["n"] == 4 and sent["max_tokens"] == 4096 and sent["max_completion_tokens"] == 4096
+
+
+async def test_small_limits_untouched_and_absent_stay_absent(client, auth_headers, respx_mock):
+    sent = await _sent_body(client, auth_headers, respx_mock, {"model": "gpt-4o", "n": 2, "max_tokens": 10})
+    assert sent["n"] == 2 and sent["max_tokens"] == 10 and "max_completion_tokens" not in sent
+    sent = await _sent_body(client, auth_headers, respx_mock, {"model": "gpt-4o"})
+    assert not {"n", "max_tokens", "max_completion_tokens"} & set(sent)
+
+
+async def test_non_numeric_limit_is_400(client, auth_headers):
+    r = await client.post(
+        "/api/ai/chat/completions", json={"model": "gpt-4o", "max_tokens": "9999999"}, headers=auth_headers
+    )
+    assert r.status_code == 400

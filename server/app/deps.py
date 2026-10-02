@@ -46,3 +46,10 @@ def client_ip(request: Request) -> str:
 async def auth_rate_limit(request: Request) -> None:
     if not request.app.state.limiter.allow(client_ip(request)):
         raise HTTPException(429, "Too many requests, please try again later")
+
+
+async def limited_user(request: Request, user: User = Depends(current_user)) -> User:
+    """已鉴权用户 + 按用户 ID 的每分钟限流(用于会消耗上游额度的接口)。"""
+    if not request.app.state.user_limiter.allow(str(user.id)):
+        raise HTTPException(429, "Too many requests, please try again later")
+    return user

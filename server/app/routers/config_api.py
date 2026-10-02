@@ -31,6 +31,8 @@ def apply_overrides(key: str, data, settings: Settings):
     if key == "gpt_providers" and "enjoyai" in data:
         data["enjoyai"]["models"] = settings.llm_model_list
     elif key == "tts_providers_v2" and "enjoyai" in data:
+        for name in [k for k in data if k != "enjoyai"]:
+            del data[name]
         data["enjoyai"]["models"] = settings.tts_model_list
     elif key == "gpt_presets":
         for preset in data:

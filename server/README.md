@@ -19,12 +19,17 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
 
 发音评测与默认 STT:客户端拿到 token 后直连 Azure,音频不经过后端。
 
+> **警告:`REGISTRATION_MODE=open` 部署在公网时,任何人都能注册并消耗你的 LLM / TTS / Whisper / Azure 密钥额度。**
+> 公网部署请使用 `invite` 或 `closed`(`server/.env.example` 默认即为 `closed`)。
+
 ## 快速开始
 
 ```bash
 cp server/.env.example server/.env
 # 编辑 server/.env,填写上游地址与密钥
-docker compose up -d --build
+# .env.example 默认 REGISTRATION_MODE=closed:创建第一批账号时,先临时改为 open(或 invite + INVITE_CODE),
+# 注册完毕后改回 closed 并 `docker compose up -d` 重启。
+docker compose up -d --build   # 需要 Docker Compose >= 2.20(depends_on 的 required: false)
 docker compose ps          # server 应为 healthy
 curl localhost:8000/up     # {"status":"ok"}
 ```
@@ -38,6 +43,8 @@ uv run pytest
 uv run uvicorn app.main:create_app --factory --reload
 ```
 
+注意:`.env.example` 中的 SQLite 路径 `sqlite+aiosqlite:////data/app.db` 是给 Docker 用的;本地 `uv run` 请改用 `DATABASE_URL=sqlite+aiosqlite:///./data/app.db`(或不设置,默认即此值)。
+
 使用 Postgres 跑测试套件(先创建 `enjoy_test` 库):
 
 ```bash
@@ -50,6 +57,8 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 - SQLite(默认):`DATABASE_URL=sqlite+aiosqlite:////data/app.db`,数据在 compose 卷 `enjoy-data` 中。
 - Postgres:把 `DATABASE_URL` 改为 `postgresql+asyncpg://enjoy:<密码>@postgres:5432/enjoy`(密码与 `POSTGRES_PASSWORD` 一致),并用 `docker compose --profile postgres up -d --build` 启动。
 
+`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` 由 compose 自己读取,**不再**从 `server/.env` 传入(避免把上游密钥给数据库容器)。请复制根目录的 `.env.example` 为 `.env`(与 `docker-compose.yml` 同目录),或在 shell 中导出这些变量;未设置时默认值为 `enjoy` / `change-me` / `enjoy`。密码须与 `DATABASE_URL` 中的一致。
+
 **注意:切换数据库不会迁移已有数据**,新库是空的。
 
 ## 注册保护
@@ -61,6 +70,12 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 - `closed`:关闭注册
 
 注册与登录接口按 IP 限流,上限由 `RATE_LIMIT_PER_MINUTE` 控制(每分钟次数)。
+
+## 成本保护
+
+- `/api/ai/*` 与 `POST /api/speech/tokens` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。
+- 聊天请求的 `n` 最多 4;`max_tokens` / `max_completion_tokens` 超过 `LLM_MAX_TOKENS`(默认 4096)会被压到该值,请求未带则保持缺省。
+- 非 multipart 请求体超过 1 MiB 返回 413;转写上传(multipart)上限 25 MiB。
 
 ## 必须使用 HTTPS
 
@@ -109,4 +124,5 @@ cd server && uv lock --default-index https://pypi.org/simple
 
 - 仅支持单 worker(限流与 Azure token 缓存都在进程内)。
 - 手机端使用官方网页版账号,与自建后端的账号不互通。
+- 桌面客户端在创建 segment 后仍会把片段音频上传到 `storage.enjoy.bot`(`enjoy/src/main/db/models/segment.ts`、`main/storage.ts`)。这是上游既有行为,不在本后端覆盖范围内。
 - 配置快照来自官方公开接口,需要时用 `fetch_config.py` 手动刷新。
