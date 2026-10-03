@@ -27,6 +27,7 @@ def make_wav(rate=16000, channels=1, width=2, seconds=0.5) -> bytes:
 class FakeXfyun:
     def __init__(self):
         self.calls = []
+        self.configured = True
         self.error = None
         self.xml = GOOD_XML
 
@@ -62,7 +63,9 @@ async def test_success(client, auth_headers, fake):
     assert r.status_code == 200, r.text
     assert r.json()["pronunciation_score"] == pytest.approx(98.87, abs=0.01)
     call = fake.calls[0]
-    assert len(call["pcm"]) == 16000 * 2 // 2
+    with wave.open(io.BytesIO(wav), "rb") as w:
+        expected = w.readframes(w.getnframes())
+    assert expected and call["pcm"] == expected
     assert call["ent"] == "en_vip"
     assert call["text"] == REFERENCE
 
@@ -164,3 +167,45 @@ async def test_missing_file_field(client, auth_headers, fake):
 async def test_rate_limited(client, auth_headers, fake):
     statuses = [(await post(client, auth_headers)).status_code for _ in range(3)]
     assert statuses == [200, 200, 429]
+
+
+async def test_reference_length_cap(client, auth_headers, fake):
+    ok = await post(client, auth_headers, reference="a" * 2000)
+    assert ok.status_code == 200
+    assert len(fake.calls) == 1
+    r = await post(client, auth_headers, reference="a" * 2001)
+    assert r.status_code == 400
+    assert r.json() == {"error": "Reference text is too long"}
+    r = await post(client, auth_headers, reference="  " + "a" * 2001 + "  ")
+    assert r.status_code == 400
+    assert len(fake.calls) == 1
+
+
+async def test_malformed_multipart(client, auth_headers, fake):
+    headers = {**auth_headers, "Content-Type": "multipart/form-data; boundary=xyz"}
+    r = await client.post(URL, headers=headers, content=b"garbage without boundaries")
+    assert r.status_code == 400
+    assert fake.calls == []
+
+
+async def test_streaming_body_too_large(client, auth_headers, fake, monkeypatch):
+    monkeypatch.setattr(speech_module, "MAX_ASSESSMENT_BYTES", 1000)
+
+    async def body():
+        for _ in range(5):
+            yield b"x" * 500
+
+    headers = {**auth_headers, "Content-Type": "multipart/form-data; boundary=xyz"}
+    r = await client.post(URL, headers=headers, content=body())
+    assert "content-length" not in r.request.headers
+    assert r.status_code == 413
+    assert r.json() == {"error": "Audio file is too large"}
+    assert fake.calls == []
+
+
+async def test_not_configured_before_body(client, auth_headers, fake):
+    fake.configured = False
+    r = await post(client, auth_headers)
+    assert r.status_code == 503
+    assert r.json() == {"error": "Pronunciation assessment is not configured"}
+    assert fake.calls == []

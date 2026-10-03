@@ -5,6 +5,7 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException
 from starlette.requests import Request as StarletteRequest
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/speech")
 
 MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
 MAX_ASSESSMENT_SECONDS = 300
+MAX_REFERENCE_CHARS = 2000
 ASSESSMENT_RATE = 16000
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
@@ -132,6 +134,8 @@ async def create_assessment(
     _: User = Depends(limited_user),
     xfyun: XfyunIse = Depends(get_xfyun),
 ):
+    if not xfyun.configured:
+        raise HTTPException(503, "Pronunciation assessment is not configured")
     content_type = request.headers.get("content-type", "")
     if not content_type.lower().startswith("multipart/form-data"):
         raise HTTPException(400, "Expected multipart/form-data")
@@ -149,20 +153,25 @@ async def create_assessment(
 
     try:
         form = await StarletteRequest(request.scope, replay).form()
-    except Exception:
+    except (MultiPartException, ValueError):
         raise HTTPException(400, "Invalid multipart body")
 
-    upload = form.get("file")
-    reference = form.get("reference")
-    language = form.get("language")
-    if not isinstance(upload, UploadFile):
-        raise HTTPException(400, "Audio file is required")
-    if not isinstance(language, str):
-        raise HTTPException(400, "Unsupported language")
-    ent = _ise_entry(language)
-    if not isinstance(reference, str) or not reference.strip():
-        raise HTTPException(400, "Reference text is required")
-    pcm = _wav_to_pcm(await upload.read())
+    try:
+        upload = form.get("file")
+        reference = form.get("reference")
+        language = form.get("language")
+        if not isinstance(upload, UploadFile):
+            raise HTTPException(400, "Audio file is required")
+        if not isinstance(language, str):
+            raise HTTPException(400, "Unsupported language")
+        ent = _ise_entry(language)
+        if not isinstance(reference, str) or not reference.strip():
+            raise HTTPException(400, "Reference text is required")
+        if len(reference.strip()) > MAX_REFERENCE_CHARS:
+            raise HTTPException(400, "Reference text is too long")
+        pcm = _wav_to_pcm(await upload.read())
+    finally:
+        await form.close()
 
     try:
         xml = await xfyun.evaluate(pcm, reference, ent)

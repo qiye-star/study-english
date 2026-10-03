@@ -117,7 +117,7 @@ XFYUN_API_SECRET=
 `POST /api/speech/assessments`(需登录,按用户限流,与 `/api/ai/*` 共用 `AI_RATE_LIMIT_PER_MINUTE`),multipart 字段:
 
 - `file`:WAV,16 kHz、16 bit、单声道
-- `reference`:参考文本
+- `reference`:参考文本(去除首尾空白后最多 2000 字符,超出返回 400)
 - `language`:`en*`(英文)或 `zh*`(中文),其他返回 400
 
 返回客户端评分界面使用的结构(snake_case,分数 0–100):总分、准确度、流畅度、完整度,以及逐词/音节/音素明细。
