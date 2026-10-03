@@ -20,6 +20,26 @@ export const TTSForm = (props: { form: ReturnType<typeof useForm> }) => {
   const { form } = props;
   const { ttsProviders } = useContext(AISettingsProviderContext);
 
+  // Keep the selected voice valid for the given model and language.
+  const resetVoice = (model?: string, language?: string) => {
+    if (form.getValues("config.tts.engine") !== "enjoyai") return;
+    const options: any[] =
+      ttsProviders.enjoyai?.voices?.[model?.split("/")?.[0] || ""] || [];
+    const voice = form.getValues("config.tts.voice");
+    const matches = (o: any) =>
+      typeof o === "string"
+        ? o === voice
+        : o.language === language && o.value === voice;
+    if (options.some(matches)) return;
+    const first = options.find(
+      (o: any) => typeof o === "string" || o.language === language,
+    );
+    form.setValue(
+      "config.tts.voice",
+      typeof first === "string" ? first : first?.value,
+    );
+  };
+
   return (
     <>
       <FormField
@@ -58,7 +78,13 @@ export const TTSForm = (props: { form: ReturnType<typeof useForm> }) => {
             <FormLabel>{t("tts.model")}</FormLabel>
             <Select
               required
-              onValueChange={field.onChange}
+              onValueChange={(value) => {
+                field.onChange(value);
+                resetVoice(
+                  value,
+                  form.getValues("config.tts.language") as string,
+                );
+              }}
               value={field.value as string}
             >
               <FormControl>
@@ -91,7 +117,10 @@ export const TTSForm = (props: { form: ReturnType<typeof useForm> }) => {
             <Select
               required
               value={field.value as string}
-              onValueChange={field.onChange}
+              onValueChange={(value) => {
+                field.onChange(value);
+                resetVoice(form.getValues("config.tts.model") as string, value);
+              }}
             >
               <SelectTrigger className="text-xs">
                 <SelectValue placeholder={t("selectTtsLanguage")} />
@@ -134,7 +163,7 @@ export const TTSForm = (props: { form: ReturnType<typeof useForm> }) => {
                   (form.watch("config.tts.engine") === "enjoyai"
                     ? ttsProviders.enjoyai.voices[
                         (form.watch("config.tts.model") as string)?.split(
-                          "/"
+                          "/",
                         )?.[0]
                       ]
                     : ttsProviders[form.watch("config.tts.engine") as string]
