@@ -1,9 +1,11 @@
 import base64
 import json
+from pathlib import Path
 
 import httpx
 import pytest
 
+from app.routers.ai_audio import VOLCENGINE_VOICE
 from app.volcengine import VolcengineError, parse_stream
 
 URL = "https://volc.test/api/v3/tts/unidirectional"
@@ -81,7 +83,7 @@ async def test_unknown_resource_rejected(client, auth_headers, respx_mock):
     assert not route.called
 
 
-@pytest.mark.parametrize("voice", ["bad voice", 'a"b"c', "x" * 101, "ab", ""])
+@pytest.mark.parametrize("voice", ["bad voice", 'a"b"c', "x" * 101, "ab", "", "a/b/c", "a.b.c", "../etc", "ab\n"])
 async def test_invalid_voice(client, auth_headers, respx_mock, voice):
     route = respx_mock.post(URL)
     r = await speak(client, auth_headers, voice=voice)
@@ -156,3 +158,19 @@ def test_parse_stream_errors(raw):
     with pytest.raises(VolcengineError) as e:
         parse_stream(raw)
     assert e.value.kind == "upstream"
+
+
+def test_every_official_voice_passes_validation():
+    path = Path(__file__).resolve().parent.parent / "app" / "static_config" / "volcengine_voices.json"
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    assert rows
+    bad = [r[1] for r in rows if not VOLCENGINE_VOICE.fullmatch(r[1])]
+    assert bad == []
+
+
+async def test_hyphenated_voice_is_accepted(client, auth_headers, respx_mock):
+    voice = "en_female_authoritative-british_uranus_bigtts"
+    route = respx_mock.post(URL).mock(return_value=httpx.Response(200, content=stream(b"\n")))
+    r = await speak(client, auth_headers, voice=voice)
+    assert r.status_code == 200
+    assert json.loads(route.calls.last.request.content)["req_params"]["speaker"] == voice

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/ai")
 
 MAX_TTS_INPUT = 4096
 VOLCENGINE_RESOURCES = {"seed-tts-1.0", "seed-tts-2.0", "seed-tts-1.0-concurr"}
-VOLCENGINE_VOICE = re.compile(r"^[A-Za-z0-9_]{3,100}$")
+VOLCENGINE_VOICE = re.compile(r"^[A-Za-z0-9_-]{3,100}$")
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 # Raw audio cap for chat mode: base64 is 4/3 larger, so 18 MB -> 24 MB, under
 # the upstream's 25 MB limit whether that means MB or MiB.
