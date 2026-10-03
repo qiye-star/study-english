@@ -12,7 +12,8 @@ export const usePronunciationAssessments = () => {
     targetId?: string;
     targetType?: string;
   }) => {
-    let { recording, targetId, targetType } = params;
+    let { recording } = params;
+    const { targetId, targetType } = params;
     if (targetId && targetType && !recording) {
       recording = await EnjoyApp.recordings.findOne({ targetId });
     }
@@ -20,8 +21,6 @@ export const usePronunciationAssessments = () => {
     EnjoyApp.recordings.sync(recording.id);
     const url = await EnjoyApp.echogarden.transcode(recording.src);
     const blob = await (await fetch(url)).blob();
-    targetId = recording.id;
-    targetType = "Recording";
 
     const { language, reference = recording.referenceText } = params;
 

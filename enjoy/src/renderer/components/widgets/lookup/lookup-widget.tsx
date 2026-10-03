@@ -374,7 +374,7 @@ export const VocabularyPronunciationAssessment = (props: { word: string }) => {
         <CollapsibleContent className="mt-2">
           <div className="space-y-2">
             <PronunciationAssessmentPhonemeResult
-              result={assessment.result.words[0]}
+              result={assessment.result?.words?.[0]}
             />
             <PronunciationAssessmentScoreDetail
               assessment={assessment}
