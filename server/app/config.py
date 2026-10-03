@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     azure_speech_key: str = ""
     azure_speech_region: str = ""
 
+    xfyun_app_id: str = ""
+    xfyun_api_key: str = ""
+    xfyun_api_secret: str = ""
+    xfyun_ws_url: str = "wss://ise-api.xfyun.cn/v2/open-ise"
+
     app_version: str = "0.7.9"
 
     @property
