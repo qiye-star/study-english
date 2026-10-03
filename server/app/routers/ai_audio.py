@@ -1,18 +1,29 @@
+import base64
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from starlette.datastructures import UploadFile
 
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import get_settings, limited_user
 from app.models import User
 from app.upstream import check_upstream_auth
+from app.uploads import parse_buffered_form, read_limited_body
 
 router = APIRouter(prefix="/api/ai")
 
 MAX_TTS_INPUT = 4096
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
+# Raw audio cap for chat mode: keeps the base64 payload (x4/3) under 25 MB.
+MAX_CHAT_AUDIO_BYTES = 18 * 1024 * 1024
+MULTIPART_OVERHEAD = 64 * 1024
+CHAT_PROMPT = (
+    "Transcribe the audio verbatim in its original language. "
+    "Output only the transcript text, without any extra words, quotes or timestamps."
+)
 
 
 class SpeechIn(BaseModel):
@@ -89,21 +100,12 @@ async def transcriptions(
     content_type = request.headers.get("content-type", "")
     if not content_type.lower().startswith("multipart/form-data"):
         raise HTTPException(400, "Expected multipart/form-data")
+    if settings.upstream_whisper_mode == "chat":
+        return await _chat_transcription(request, settings)
     if not settings.upstream_whisper_base_url:
         raise HTTPException(503, "Whisper upstream is not configured")
 
-    too_large = HTTPException(413, "Audio file is too large")
-    declared = request.headers.get("content-length", "")
-    if declared.isdigit() and int(declared) > MAX_AUDIO_BYTES:
-        raise too_large
-    chunks: list[bytes] = []
-    size = 0
-    async for chunk in request.stream():
-        size += len(chunk)
-        if size > MAX_AUDIO_BYTES:
-            raise too_large
-        chunks.append(chunk)
-    data = b"".join(chunks)
+    data = await read_limited_body(request, MAX_AUDIO_BYTES)
 
     http: httpx.AsyncClient = request.app.state.http
     try:
@@ -124,3 +126,78 @@ async def transcriptions(
         status_code=upstream.status_code,
         media_type=upstream.headers.get("content-type", "application/json"),
     )
+
+
+def _audio_format(data: bytes) -> str:
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return "wav"
+    if data[:3] == b"ID3" or (len(data) >= 2 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0):
+        return "mp3"
+    raise HTTPException(400, "Unsupported audio format (wav or mp3)")
+
+
+def _extract_text(response: httpx.Response) -> str:
+    try:
+        text = response.json()["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise HTTPException(502, "Upstream unavailable")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(502, "Upstream unavailable")
+    return text.strip()
+
+
+async def _chat_transcription(request: Request, settings: Settings) -> Response:
+    if not settings.upstream_whisper_base_url or not settings.upstream_whisper_model:
+        raise HTTPException(503, "Whisper upstream is not configured")
+    body = await read_limited_body(request, MAX_CHAT_AUDIO_BYTES + MULTIPART_OVERHEAD)
+    form = await parse_buffered_form(request, body)
+    try:
+        upload = form.get("file")
+        language = form.get("language")
+        if not isinstance(upload, UploadFile):
+            raise HTTPException(400, "Audio file is required")
+        audio = await upload.read()
+    finally:
+        await form.close()
+    if len(audio) > MAX_CHAT_AUDIO_BYTES:
+        raise HTTPException(413, "Audio file is too large")
+    fmt = _audio_format(audio)
+
+    prompt = CHAT_PROMPT
+    if isinstance(language, str):
+        primary = language.strip().replace("_", "-").split("-")[0].lower()
+        if primary.isalpha() and len(primary) <= 8:
+            prompt += f" The audio language is {primary}."
+
+    http: httpx.AsyncClient = request.app.state.http
+    try:
+        upstream = await http.post(
+            settings.upstream_whisper_base_url.rstrip("/") + "/chat/completions",
+            json={
+                "model": settings.upstream_whisper_model,
+                "temperature": 0,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_audio",
+                                "input_audio": {
+                                    "data": base64.b64encode(audio).decode("ascii"),
+                                    "format": fmt,
+                                },
+                            },
+                            {"type": "text", "text": prompt},
+                        ],
+                    }
+                ],
+            },
+            headers={"Authorization": f"Bearer {settings.upstream_whisper_key}"},
+            timeout=httpx.Timeout(300.0, connect=10.0),
+        )
+    except httpx.HTTPError:
+        raise HTTPException(502, "Upstream unavailable")
+    check_upstream_auth(upstream.status_code)
+    if not upstream.is_success:
+        raise HTTPException(502, "Upstream unavailable")
+    return JSONResponse({"text": _extract_text(upstream), "segments": []})

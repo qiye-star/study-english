@@ -90,6 +90,20 @@ TTS(`openai/*` 模型走 OpenAI 兼容的 `/audio/speech`,或 `azure/speech`)与
 
 > **警告:`api.openai.com` 只是模板默认值。** 若 LLM 换成其他厂商,TTS / Whisper 的地址与密钥也要相应检查,不要沿用默认值指向不提供这些接口的服务。
 
+**火山方舟转写(`chat` 模式)**:Whisper 上游也可以改用支持音频输入的对话模型:
+
+```env
+UPSTREAM_WHISPER_MODE=chat
+UPSTREAM_WHISPER_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+UPSTREAM_WHISPER_KEY=<方舟 API Key>
+UPSTREAM_WHISPER_MODEL=doubao-seed-2-0-lite-260428
+```
+
+- 转写由大模型完成,返回 `{"text": "...", "segments": []}`,没有时间戳(客户端会在本地对齐),可能做少量润色。
+- 仅支持 wav / mp3,音频不超过 18 MiB(base64 后须在 25 MB 内)。
+- 方舟 API Key 与「豆包语音」控制台的 UUID 格式 Key 不是同一种,不能混用。
+- 默认 `UPSTREAM_WHISPER_MODE=openai`,行为不变。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

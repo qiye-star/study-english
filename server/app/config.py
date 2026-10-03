@@ -30,6 +30,8 @@ class Settings(BaseSettings):
 
     upstream_whisper_base_url: str = ""
     upstream_whisper_key: str = ""
+    upstream_whisper_mode: Literal["openai", "chat"] = "openai"
+    upstream_whisper_model: str = ""
 
     azure_speech_key: str = ""
     azure_speech_region: str = ""
