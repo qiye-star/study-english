@@ -948,5 +948,6 @@
   "authRegister": "注册",
   "authInviteCode": "邀请码(如需要)",
   "authSwitchToRegister": "没有账号?去注册",
-  "authSwitchToLogin": "已有账号?去登录"
+  "authSwitchToLogin": "已有账号?去登录",
+  "referenceTextRequired": "发音评测需要参考文本。"
 }

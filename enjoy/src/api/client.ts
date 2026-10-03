@@ -345,6 +345,31 @@ export class Client {
     return this.api.post("/api/speech/tokens", decamelizeKeys(params || {}));
   }
 
+  assessPronunciation(params: {
+    blob: Blob;
+    reference: string;
+    language: string;
+  }): Promise<{
+    pronunciationScore: number;
+    accuracyScore: number;
+    completenessScore: number;
+    fluencyScore: number;
+    detailResult: any;
+  }> {
+    const { blob, reference, language } = params;
+    const form = new FormData();
+    form.append("file", new File([blob], "audio.wav", { type: "audio/wav" }));
+    form.append("reference", reference);
+    form.append("language", language);
+
+    // No decamelizeKeys for FormData. The default JSON Content-Type is
+    // cleared so the browser sets multipart/form-data with its boundary.
+    return this.api.post("/api/speech/assessments", form, {
+      timeout: 5 * 60 * 1000,
+      headers: { "Content-Type": undefined },
+    });
+  }
+
   consumeSpeechToken(id: number) {
     return this.api.put(`/api/speech/tokens/${id}`, {
       state: "consumed",

@@ -948,5 +948,6 @@
   "authRegister": "Register",
   "authInviteCode": "Invite code (if required)",
   "authSwitchToRegister": "No account? Register",
-  "authSwitchToLogin": "Already have an account? Log in"
+  "authSwitchToLogin": "Already have an account? Log in",
+  "referenceTextRequired": "Reference text is required for pronunciation assessment."
 }
