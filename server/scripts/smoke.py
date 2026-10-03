@@ -88,16 +88,6 @@ def main() -> int:
         }))
         json.loads(r.json()["choices"][0]["message"]["content"])
 
-    def chat_tool_call():
-        r = require_ok(http.post("/api/ai/chat/completions", headers=state["headers"], json={
-            "model": state["model"],
-            "messages": [{"role": "user", "content": "answer: 42"}],
-            "tools": [{"type": "function", "function": {"name": "emit", "parameters": {
-                "type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}}}],
-            "tool_choice": {"type": "function", "function": {"name": "emit"}},
-        }))
-        assert r.json()["choices"][0]["message"].get("tool_calls"), "no tool_calls in response"
-
     def tts_openai():
         r = require_ok(http.post("/api/ai/audio/speech", headers=state["headers"], json={
             "model": "openai/tts-1", "voice": "alloy", "input": "Hello world"}))
@@ -145,7 +135,6 @@ def main() -> int:
         ("chat", chat),
         ("chat stream", chat_stream),
         ("chat json mode", chat_json_mode),
-        ("chat tool call", chat_tool_call),
         ("tts openai/tts-1", tts_openai),
         ("tts azure/speech", tts_azure),
         ("whisper (tts -> stt round trip)", whisper),

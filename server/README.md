@@ -72,6 +72,24 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 
 注册与登录接口按 IP 限流,上限由 `RATE_LIMIT_PER_MINUTE` 控制(每分钟次数)。
 
+## 上游服务选择
+
+LLM 上游只需支持 chat completions(含流式)与 JSON 模式(`response_format: json_object`)。客户端只用 JSON 模式(`withStructuredOutput(..., {method: "jsonMode"})`),不使用 tool calling。
+
+DeepSeek 示例(官方 OpenAI 兼容地址,请求发往 `/chat/completions`):
+
+```bash
+UPSTREAM_LLM_BASE_URL=https://api.deepseek.com
+LLM_MODELS=deepseek-v4-pro,deepseek-v4-flash
+DEFAULT_LLM_MODEL=deepseek-v4-flash
+```
+
+注意:DeepSeek V4 模型默认运行在 thinking 模式,该模式不支持强制 `tool_choice`(本客户端不使用)。
+
+TTS(`openai/*` 模型走 OpenAI 兼容的 `/audio/speech`,或 `azure/speech`)与 Whisper(`/audio/transcriptions`,OpenAI 兼容,需返回带 word/segment 时间戳的 `verbose_json`)必须指向真正提供这些确切接口的服务。
+
+> **警告:`api.openai.com` 只是模板默认值。** 若 LLM 换成其他厂商,TTS / Whisper 的地址与密钥也要相应检查,不要沿用默认值指向不提供这些接口的服务。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

@@ -58,8 +58,8 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
 - **LLM**:`POST /api/ai/chat/completions`。校验 token → 若 `model` 不在 `LLM_MODELS` 内,改写为
   `DEFAULT_LLM_MODEL`(防止用户调用任意昂贵模型,也兼容客户端写死的 `gpt-4o`)→ 用服务端 key 转发。
   `stream:true` 时 SSE 透传(使用 `aiter_bytes`,不转发 `content-encoding`)。
-  客户端用 `response_format: json_object` 和 LangChain `withStructuredOutput`(`enjoy/src/commands/json.command.ts`),
-  所以**上游必须支持 JSON 模式与 tool calling / structured output**。
+  客户端只使用 JSON 模式(`response_format: json_object`,即 `withStructuredOutput(..., {method: "jsonMode"})`,
+  见 `enjoy/src/commands/json.command.ts`),所以**上游必须支持 JSON 模式**;不需要 tool calling。
 - **TTS**:`POST /api/ai/audio/speech`。`azure/speech` → 构造 SSML 调用 Azure TTS REST,返回 mp3;
   `openai/<model>` → 去掉前缀转发上游;其他模型 400;`input` 超过 4096 字符 400。
 - **STT**:Azure 路径无需后端代码(共用 token 接口)。客户端原 `ENJOY_CLOUDFLARE` 选项写死
@@ -101,7 +101,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
 
 ## 10. 风险与未验证项
 
-- 上游 LLM 是否支持 JSON 模式 / tool calling、是否有 `whisper-1`:需用真实 key 验证(计划阶段 4 的冒烟脚本)。
+- 上游 LLM 是否支持 JSON 模式(客户端只用 JSON 模式,不需要 tool calling)、是否有 `whisper-1`:需用真实 key 验证(计划阶段 4 的冒烟脚本)。
 - Azure 区域与 key 的有效性:同上。
 - `import.meta.env.VITE_*` 在 electron-forge 的主进程构建中是否生效:计划阶段 5 有验证步骤。
 - 上游项目正转向「网页版 + 桌面套壳」,本分支会长期与上游分叉,不指望合并上游。
