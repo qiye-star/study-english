@@ -2,6 +2,7 @@
 
 Usage: uv run python scripts/smoke.py --base-url http://localhost:8000
 会注册一个随机用户。未配置的能力(503)显示为 SKIP。
+可选:--wav PATH --reference TEXT [--language en-US] 额外检查发音评测(讯飞)。
 """
 import argparse
 import json
@@ -26,7 +27,12 @@ def require_ok(r: httpx.Response) -> httpx.Response:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument("--wav", help="16 kHz mono 16-bit WAV for the pronunciation assessment check")
+    parser.add_argument("--reference", help="reference text for --wav")
+    parser.add_argument("--language", default="en-US")
     args = parser.parse_args()
+    if bool(args.wav) != bool(args.reference):
+        parser.error("--wav and --reference must be given together")
 
     http = httpx.Client(base_url=args.base_url, timeout=120)
     failures: list[str] = []
@@ -123,7 +129,18 @@ def main() -> int:
         require_ok(http.put(f"/api/speech/tokens/{body['id']}", headers=state["headers"], json={"state": "consumed"}))
         return f"region={body['region']}"
 
-    for name, fn in [
+    def assessment():
+        with open(args.wav, "rb") as f:
+            wav = f.read()
+        r = require_ok(http.post("/api/speech/assessments", headers=state["headers"],
+            files={"file": ("audio.wav", wav, "audio/wav")},
+            data={"reference": args.reference, "language": args.language}))
+        body = r.json()
+        assert "pronunciation_score" in body, body
+        words = body.get("detail_result", {}).get("words", [])
+        return f"score={body['pronunciation_score']} words={len(words)}"
+
+    checks = [
         ("register", register),
         ("chat", chat),
         ("chat stream", chat_stream),
@@ -133,7 +150,11 @@ def main() -> int:
         ("tts azure/speech", tts_azure),
         ("whisper (tts -> stt round trip)", whisper),
         ("speech token", speech_token),
-    ]:
+    ]
+    if args.wav:
+        checks.append(("pronunciation assessment (xfyun)", assessment))
+
+    for name, fn in checks:
         check(name, fn)
         if name == "register" and "register" in failures:
             break

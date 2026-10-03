@@ -13,11 +13,12 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)
+                                ├ /api/speech/assessments       ──▶ 讯飞 ISE 发音评测(multipart 上传 WAV)
                                 └ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
                               DB: users / access_tokens / speech_tokens
 ```
 
-发音评测与默认 STT:客户端拿到 token 后直连 Azure,音频不经过后端。
+默认 STT:客户端拿到 token 后直连 Azure,音频不经过后端。发音评测:客户端上传音频到 `/api/speech/assessments`,由后端调用讯飞 ISE。
 
 > **警告:`REGISTRATION_MODE=open` 部署在公网时,任何人都能注册并消耗你的 LLM / TTS / Whisper / Azure 密钥额度。**
 > 公网部署请使用 `invite` 或 `closed`(`server/.env.example` 默认即为 `closed`)。
@@ -100,12 +101,41 @@ your.domain {
 - `VITE_API_URL` 在构建/开发时从 `enjoy/.env` 读取(默认 `http://localhost:8000`),例如 `VITE_API_URL=https://your.domain`。
 - 主进程运行时环境变量 `WEB_API_URL` 以及应用内「高级 → API 地址」设置会覆盖它;对已打包好的客户端请使用这两种方式。
 
+## 发音评测(讯飞)
+
+发音评测由后端调用讯飞开放平台的语音评测(ISE)完成。在 `server/.env` 中配置(密钥只放在被 git 忽略的 `.env`,不要提交):
+
+```
+XFYUN_APP_ID=
+XFYUN_API_KEY=
+XFYUN_API_SECRET=
+# XFYUN_WS_URL=wss://ise-api.xfyun.cn/v2/open-ise   # 默认官方地址,一般无需修改
+```
+
+三项密钥在讯飞开放平台控制台(语音评测应用)中获取;未配置时接口返回 503 `Pronunciation assessment is not configured`。如密钥泄露,请在讯飞控制台重置 APIKey / APISecret,更新 `.env` 后重启服务。
+
+`POST /api/speech/assessments`(需登录,按用户限流,与 `/api/ai/*` 共用 `AI_RATE_LIMIT_PER_MINUTE`),multipart 字段:
+
+- `file`:WAV,16 kHz、16 bit、单声道
+- `reference`:参考文本
+- `language`:`en*`(英文)或 `zh*`(中文),其他返回 400
+
+返回客户端评分界面使用的结构(snake_case,分数 0–100):总分、准确度、流畅度、完整度,以及逐词/音节/音素明细。
+
+限制:
+
+- 必须提供参考文本,为空返回 400(不做无参考文本的评测)。
+- 音频必须是 16 kHz 单声道 16 bit WAV,时长不超过 5 分钟,文件不超过 25 MiB。
+- 讯飞没有语调指标,因此不返回 `prosody_score`。
+
 ## 冒烟脚本与配置快照
 
 ```bash
 cd server
 uv run python scripts/smoke.py --base-url http://localhost:8000     # 端到端检查(需要真实上游才能全部通过)
 uv run python scripts/fetch_config.py                               # 刷新配置快照
+# 可选:发音评测检查(需要配置讯飞密钥;未配置时为 SKIP)
+uv run python scripts/smoke.py --wav sample.wav --reference "Hello, nice to meet you." --language en-US
 ```
 
 上游未配置的检查会返回 503,并被报告为 SKIP;没有配置上游凭据时,注册检查通过,AI 相关检查为 SKIP。
