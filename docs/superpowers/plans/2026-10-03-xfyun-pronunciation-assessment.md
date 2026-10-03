@@ -58,7 +58,7 @@
 
 ## 阶段 A:后端
 
-### Task X.1:结果解析与结构转换(纯函数)
+### Task 7.1:结果解析与结构转换(纯函数)
 
 **Files:**
 - Create: `server/app/xfyun_result.py`, `server/tests/test_xfyun_result.py`
@@ -95,14 +95,14 @@ git add server/app/xfyun_result.py server/tests/test_xfyun_result.py server/test
 git commit -m "feat(server): convert iFlytek ISE results to the client's assessment shape" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-### Task X.2:讯飞 WebSocket 客户端(签名与会话)
+### Task 7.2:讯飞 WebSocket 客户端(签名与会话)
 
 **Files:**
 - Modify: `server/pyproject.toml`(加依赖 `websockets>=13`,`uv lock` 后提交 `uv.lock`)、`server/app/config.py`、`server/.env.example`
 - Create: `server/app/xfyun.py`, `server/tests/test_xfyun.py`
 
 **Interfaces:**
-- Consumes: `to_assessment`(Task X.1,本任务不直接调用)
+- Consumes: `to_assessment`(Task 7.1,本任务不直接调用)
 - Produces:
   - `Settings` 新字段:`xfyun_app_id: str = ""`、`xfyun_api_key: str = ""`、`xfyun_api_secret: str = ""`、`xfyun_ws_url: str = "wss://ise-api.xfyun.cn/v2/open-ise"`
   - `class XfyunError(Exception)`:属性 `code: int | None`、`message: str`
@@ -134,14 +134,14 @@ git add server/
 git commit -m "feat(server): add iFlytek ISE websocket client with signed URL" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-### Task X.3:`POST /api/speech/assessments`
+### Task 7.3:`POST /api/speech/assessments`
 
 **Files:**
 - Modify: `server/app/routers/speech.py`
 - Create: `server/tests/test_speech_assessments.py`
 
 **Interfaces:**
-- Consumes: `get_xfyun`、`XfyunIse.evaluate`、`XfyunError`、`XfyunNotConfigured`(Task X.2);`to_assessment`(Task X.1);`limited_user`(已有,见 `server/app/deps.py`)
+- Consumes: `get_xfyun`、`XfyunIse.evaluate`、`XfyunError`、`XfyunNotConfigured`(Task 7.2);`to_assessment`(Task 7.1);`limited_user`(已有,见 `server/app/deps.py`)
 - Produces: HTTP 契约见「设计」。成功响应体即 `to_assessment` 的返回值。
 
 - [ ] **Step 1: 写失败测试** `server/tests/test_speech_assessments.py`。用 `app.dependency_overrides[get_xfyun]` 注入一个假对象(记录调用参数、返回 `ise_good.xml` 的内容,可配置成抛 `XfyunError`/`XfyunNotConfigured`);WAV 用标准库 `wave` 在内存里生成(16 kHz/16 bit/单声道,0.5 秒静音)。用例:
@@ -169,7 +169,7 @@ git add server/
 git commit -m "feat(server): add pronunciation assessment endpoint backed by iFlytek ISE" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-### Task X.4:README 与冒烟脚本
+### Task 7.4:README 与冒烟脚本
 
 **Files:**
 - Modify: `server/README.md`, `server/scripts/smoke.py`
@@ -193,7 +193,7 @@ git commit -m "docs(server): document iFlytek pronunciation assessment and exten
 
 ## 阶段 B:客户端
 
-### Task X.5:评测改为上传音频
+### Task 7.5:评测改为上传音频
 
 **Files:**
 - Modify: `enjoy/src/api/client.ts`, `enjoy/src/renderer/hooks/use-pronunciation-assessments.tsx`, `enjoy/src/i18n/{en,zh-CN,es}.json`
@@ -227,5 +227,5 @@ git commit -m "feat(enjoy): assess pronunciation through the self-hosted backend
 
 ## 可并行开发
 
-- X.1(纯函数)与 X.2(WebSocket 客户端)互不依赖,可并行;X.3 依赖两者。
-- 阶段 B 的 X.5 只依赖阶段 A 的**接口契约**(已在「设计」中固定),可与 X.3、X.4 并行编码,但验证需等阶段 A 通过。
+- 7.1(纯函数)与 7.2(WebSocket 客户端)互不依赖,可并行;7.3 依赖两者。
+- 阶段 B 的 7.5 只依赖阶段 A 的**接口契约**(已在「设计」中固定),可与 7.3、7.4 并行编码,但验证需等阶段 A 通过。
