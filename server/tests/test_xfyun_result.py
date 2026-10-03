@@ -140,3 +140,28 @@ def test_scores_clamped_and_rounded():
     assert normalise_score(100.0049) == 100.0
     assert normalise_score(-0.1) == 0.0
     assert normalise_score(12.3456) == 12.35
+
+
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+def test_non_finite_scores_rejected(bad):
+    xml = (
+        '<xml_result><read_sentence><rec_paper>'
+        f'<read_chapter total_score="{bad}" accuracy_score="90" fluency_score="90" integrity_score="100">'
+        "</read_chapter></rec_paper></read_sentence></xml_result>"
+    )
+    with pytest.raises(ValueError):
+        to_assessment(xml, "hello")
+
+
+def test_missing_syll_score_falls_back_to_word_score():
+    xml = (
+        '<xml_result><read_sentence><rec_paper>'
+        '<read_chapter total_score="80" accuracy_score="80" fluency_score="80" integrity_score="100"><sentence>'
+        '<word content="hi" total_score="85" dp_message="0" beg_pos="0" end_pos="10">'
+        '<syll content="hh ay" beg_pos="0" end_pos="10">'
+        '<phone content="hh" dp_message="0" beg_pos="0" end_pos="5"/>'
+        "</syll></word></sentence></read_chapter></rec_paper></read_sentence></xml_result>"
+    )
+    word = to_assessment(xml, "hi")["detail_result"]["words"][0]
+    assert word["syllables"][0]["pronunciation_assessment"]["accuracy_score"] == 85.0
+    assert word["phonemes"][0]["pronunciation_assessment"]["accuracy_score"] == 85.0

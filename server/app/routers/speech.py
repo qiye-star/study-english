@@ -22,6 +22,8 @@ router = APIRouter(prefix="/api/speech")
 MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
 MAX_ASSESSMENT_SECONDS = 300
 MAX_REFERENCE_CHARS = 2000
+TIMEOUT_BASE_SECONDS = 30
+TIMEOUT_CAP_SECONDS = 330
 ASSESSMENT_RATE = 16000
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
@@ -82,11 +84,11 @@ async def update_token(
 
 
 def _ise_entry(language: str) -> str:
+    # English only for now: the result converter is validated against English
+    # results; iFlytek's Chinese format (pinyin phones, other scores) differs.
     code = language.strip().lower()
     if code == "en" or code.startswith(("en-", "en_")):
         return "en_vip"
-    if code == "zh" or code.startswith(("zh-", "zh_")):
-        return "cn_vip"
     raise HTTPException(400, "Unsupported language")
 
 
@@ -167,14 +169,17 @@ async def create_assessment(
         ent = _ise_entry(language)
         if not isinstance(reference, str) or not reference.strip():
             raise HTTPException(400, "Reference text is required")
-        if len(reference.strip()) > MAX_REFERENCE_CHARS:
+        reference = reference.strip()
+        if len(reference) > MAX_REFERENCE_CHARS:
             raise HTTPException(400, "Reference text is too long")
         pcm = _wav_to_pcm(await upload.read())
     finally:
         await form.close()
 
+    duration = len(pcm) / (2 * ASSESSMENT_RATE)
+    timeout = min(TIMEOUT_BASE_SECONDS + duration, TIMEOUT_CAP_SECONDS)
     try:
-        xml = await xfyun.evaluate(pcm, reference, ent)
+        xml = await xfyun.evaluate(pcm, reference, ent, timeout=timeout)
     except XfyunNotConfigured:
         raise HTTPException(503, "Pronunciation assessment is not configured")
     except XfyunError as exc:

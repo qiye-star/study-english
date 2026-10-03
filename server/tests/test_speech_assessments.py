@@ -32,7 +32,7 @@ class FakeXfyun:
         self.xml = GOOD_XML
 
     async def evaluate(self, pcm, text, ent, timeout=60.0):
-        self.calls.append({"pcm": pcm, "text": text, "ent": ent})
+        self.calls.append({"pcm": pcm, "text": text, "ent": ent, "timeout": timeout})
         if self.error:
             raise self.error
         return self.xml
@@ -70,10 +70,19 @@ async def test_success(client, auth_headers, fake):
     assert call["text"] == REFERENCE
 
 
-async def test_chinese_language(client, auth_headers, fake):
-    r = await post(client, auth_headers, language="zh-CN")
+@pytest.mark.parametrize("language", ["zh-CN", "zh", "fr-FR", "", "english"])
+async def test_non_english_languages_rejected(client, auth_headers, fake, language):
+    r = await post(client, auth_headers, language=language)
+    assert r.status_code == 400
+    assert r.json() == {"error": "Unsupported language"}
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("language", ["en", "en-US", "en_GB", "EN-us"])
+async def test_english_variants(client, auth_headers, fake, language):
+    r = await post(client, auth_headers, language=language)
     assert r.status_code == 200
-    assert fake.calls[0]["ent"] == "cn_vip"
+    assert fake.calls[0]["ent"] == "en_vip"
 
 
 async def test_unsupported_language(client, auth_headers, fake):
@@ -209,3 +218,20 @@ async def test_not_configured_before_body(client, auth_headers, fake):
     assert r.status_code == 503
     assert r.json() == {"error": "Pronunciation assessment is not configured"}
     assert fake.calls == []
+
+
+async def test_timeout_scales_with_duration(client, auth_headers, fake):
+    await post(client, auth_headers, wav=make_wav(seconds=10))
+    assert fake.calls[0]["timeout"] == pytest.approx(40.0, abs=0.01)
+
+
+async def test_timeout_is_capped(client, auth_headers, fake):
+    await post(client, auth_headers, wav=make_wav(seconds=300))
+    assert fake.calls[0]["timeout"] == pytest.approx(330.0, abs=0.01)
+
+
+async def test_reference_is_stripped_before_upstream(client, auth_headers, fake):
+    padded = "  " + chr(10) + REFERENCE + " " + chr(9) + " "
+    r = await post(client, auth_headers, reference=padded)
+    assert r.status_code == 200
+    assert fake.calls[0]["text"] == REFERENCE

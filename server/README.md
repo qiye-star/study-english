@@ -74,9 +74,9 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 
 ## 成本保护
 
-- `/api/ai/*` 与 `POST /api/speech/tokens` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。
+- `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。
 - 聊天请求的 `n` 最多 4;`max_tokens` / `max_completion_tokens` 超过 `LLM_MAX_TOKENS`(默认 4096)会被压到该值,请求未带则保持缺省。
-- 非 multipart 请求体超过 1 MiB 返回 413;转写上传(multipart)上限 25 MiB。
+- 非 multipart 请求体超过 1 MiB 返回 413;转写与发音评测上传(multipart)上限 25 MiB。讯飞免费额度可能远低于用户限流上限。
 
 ## 必须使用 HTTPS
 
@@ -118,7 +118,7 @@ XFYUN_API_SECRET=
 
 - `file`:WAV,16 kHz、16 bit、单声道
 - `reference`:参考文本(去除首尾空白后最多 2000 字符,超出返回 400)
-- `language`:`en*`(英文)或 `zh*`(中文),其他返回 400
+- `language`:`en`、`en-*`、`en_*`;目前只支持英文(Only English is supported at the moment),其他返回 400
 
 返回客户端评分界面使用的结构(snake_case,分数 0–100):总分、准确度、流畅度、完整度,以及逐词/音节/音素明细。
 
@@ -127,6 +127,8 @@ XFYUN_API_SECRET=
 - 必须提供参考文本,为空返回 400(不做无参考文本的评测)。
 - 音频必须是 16 kHz 单声道 16 bit WAV,时长不超过 5 分钟,文件不超过 25 MiB。
 - 讯飞没有语调指标,因此不返回 `prosody_score`。
+- 等待讯飞结果的超时按音频时长计算:`30 + 时长(秒)`,上限 330 秒。长音频时,反向代理的读超时必须不小于约 5 分钟(Nginx 需设置 `proxy_read_timeout`,Caddy 默认即可)。
+- 讯飞免费额度可能远低于每用户的限流上限,请留意额度消耗。
 
 ## 冒烟脚本与配置快照
 

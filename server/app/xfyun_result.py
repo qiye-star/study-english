@@ -1,5 +1,6 @@
 """Convert iFlytek ISE XML results into the Azure-shaped structure the client expects."""
 
+import math
 import xml.etree.ElementTree as ET
 
 TICKS_PER_FRAME = 100_000  # ISE positions are 10 ms frames; Azure uses 100 ns ticks.
@@ -39,9 +40,12 @@ def _score(element: ET.Element, attr: str, default: float | None = None) -> floa
             raise ValueError(f"Missing attribute {attr!r} on <{element.tag}>")
         return default
     try:
-        return normalise_score(float(raw))
+        value = float(raw)
     except ValueError as exc:
         raise ValueError(f"Invalid {attr!r} on <{element.tag}>") from exc
+    if not math.isfinite(value):
+        raise ValueError(f"Invalid {attr!r} on <{element.tag}>")
+    return normalise_score(value)
 
 
 def _int(element: ET.Element, attr: str, default: int = 0) -> int:
@@ -92,7 +96,7 @@ def _convert_phoneme(phone: ET.Element, word_score: float, syll_score: float) ->
 
 
 def _convert_syllable(syll: ET.Element, word_score: float) -> tuple[dict, list[dict]]:
-    syll_score = _score(syll, "syll_score", 0.0)
+    syll_score = _score(syll, "syll_score", word_score)
     phonemes = [_convert_phoneme(p, word_score, syll_score) for p in syll.findall("phone")]
     syllable = {
         "syllable": "".join(p["phoneme"] for p in phonemes),
