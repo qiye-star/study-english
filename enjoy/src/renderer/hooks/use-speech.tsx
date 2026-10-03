@@ -18,10 +18,10 @@ export const useSpeech = () => {
     const { engine, model, voice } = configuration || ttsConfig;
 
     let buffer;
-    if (model.match(/^(openai|tts-)/)) {
-      buffer = await openaiTTS(params);
-    } else if (model.startsWith("azure")) {
+    if (model.startsWith("azure")) {
       buffer = await azureTTS(params);
+    } else {
+      buffer = await openaiTTS(params);
     }
 
     return EnjoyApp.speeches.create(

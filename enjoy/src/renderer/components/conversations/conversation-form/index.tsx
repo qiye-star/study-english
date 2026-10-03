@@ -280,6 +280,17 @@ export const ConversationForm = (props: {
         configuration.tts.voice = options.find(
           (o: any) => o.language === language
         )?.value;
+      } else if (model === "volcengine") {
+        const ttsLanguage = language || learningLanguage;
+        if (
+          !options?.some(
+            (o: any) => o.language === ttsLanguage && o.value === voice
+          )
+        ) {
+          configuration.tts.voice = options?.find(
+            (o: any) => o.language === ttsLanguage
+          )?.value;
+        }
       }
     }
 

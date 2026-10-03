@@ -100,8 +100,8 @@ export const AGENT_FIXTURE_AVA = {
       "You are an experienced English teacher who excels at improving students' speaking skills. You always use simple yet authentic words and sentences to help students understand.",
     temperature: 1,
     ttsEngine: "enjoyai",
-    ttsModel: "azure/speech",
-    ttsVoice: "en-US-AvaNeural",
+    ttsModel: "volcengine/seed-tts-2.0",
+    ttsVoice: "en_female_dacey_uranus_bigtts",
   },
 };
 
@@ -116,8 +116,8 @@ export const AGENT_FIXTURE_ANDREW = {
       "You're a native American who speaks authentic American English, familiar with the culture and customs of the U.S. You're warm and welcoming, eager to make friends from abroad and share all aspects of American life.",
     temperature: 0.9,
     ttsEngine: "enjoyai",
-    ttsModel: "azure/speech",
-    ttsVoice: "en-US-AndrewNeural",
+    ttsModel: "volcengine/seed-tts-2.0",
+    ttsVoice: "en_male_tim_uranus_bigtts",
   },
 };
 
