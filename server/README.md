@@ -97,6 +97,8 @@ TTS_MODELS=openai/tts-1,azure/speech,volcengine/seed-tts-2.0
 VOLCENGINE_TTS_KEY=<豆包语音控制台的 API Key,UUID 格式,不是方舟 Key>
 ```
 
+音色列表来自官方「音色列表」页面(https://docs.volcengine.com/docs/DoubaoVoice/Tonelist-1)中「豆包语音合成模型 2.0」的部分,保存在 `app/static_config/volcengine_voices.json`(每行 `[显示名, voice_type, 语言, 性别 M/F]`),共 158 个,仅收录英文(en-US、en-GB)和中文(zh-CN)。前缀为 `ICL_` 的声音复刻预置音色未收录:按官方文档它们需要资源 ID `seed-icl-2.0`,`seed-tts-2.0` 无法调用。服务启动时会校验该文件(格式损坏则无法启动)。刷新方法:重新读取官方页面,按同样的格式更新该 JSON 后重启服务。
+
 需要先在豆包语音控制台开通「语音合成大模型 2.0」,开通后可能有几分钟的生效延迟(期间会返回未授权,服务端表现为 502)。英文(美式)音色示例:`en_male_tim_uranus_bigtts`(Tim)、`en_female_dacey_uranus_bigtts`(Dacey)、`en_female_stokie_uranus_bigtts`(Stokie)。
 
 **火山方舟转写(`chat` 模式)**:Whisper 上游也可以改用支持音频输入的对话模型:

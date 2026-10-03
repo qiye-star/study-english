@@ -21,6 +21,43 @@ SNAPSHOT_KEYS = {
 }
 
 
+VOLCENGINE_VOICES_FILE = STATIC / "volcengine_voices.json"
+
+
+class VoiceListError(RuntimeError):
+    pass
+
+
+def load_volcengine_voices(path: Path = VOLCENGINE_VOICES_FILE) -> list[dict]:
+    """Read and validate rows of [name, voice_type, language, "M"|"F"] into client voice dicts."""
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise VoiceListError(f"Cannot load {path.name}: {type(e).__name__}") from None
+    if not isinstance(rows, list):
+        raise VoiceListError(f"Invalid {path.name}: expected a list")
+    voices, seen = [], set()
+    for i, row in enumerate(rows):
+        if (
+            not isinstance(row, list)
+            or len(row) != 4
+            or not all(isinstance(x, str) and x for x in row)
+            or row[3] not in ("M", "F")
+        ):
+            raise VoiceListError(f"Invalid {path.name}: bad row {i}")
+        name, value, language, gender = row
+        if value in seen:
+            raise VoiceListError(f"Invalid {path.name}: duplicate voice {value}")
+        seen.add(value)
+        label = f"{name} ({'Male' if gender == 'M' else 'Female'})"
+        voices.append({"label": label, "value": value, "language": language})
+    return voices
+
+
+# Loaded and validated once at import, so a corrupt file fails server startup.
+VOLCENGINE_VOICES = load_volcengine_voices()
+
+
 def _set_model(preset: dict, model: str) -> None:
     cfg = preset.get("configuration")
     if preset.get("engine") == "enjoyai" and isinstance(cfg, dict) and "model" in cfg:
@@ -58,6 +95,7 @@ def apply_overrides(key: str, data, settings: Settings):
         for name in [k for k in data if k != "enjoyai"]:
             del data[name]
         data["enjoyai"]["models"] = settings.tts_model_list
+        data["enjoyai"].setdefault("voices", {})["volcengine"] = [dict(v) for v in VOLCENGINE_VOICES]
     elif key == "gpt_presets":
         for preset in data:
             _set_model(preset, settings.default_llm_model)
