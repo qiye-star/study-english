@@ -1,4 +1,5 @@
 import base64
+import re
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,11 +12,14 @@ from app.config import Settings
 from app.deps import get_settings, limited_user
 from app.models import User
 from app.upstream import check_upstream_auth
+from app.volcengine import VolcengineError, synthesize as volcengine_synthesize
 from app.uploads import parse_buffered_form, read_limited_body
 
 router = APIRouter(prefix="/api/ai")
 
 MAX_TTS_INPUT = 4096
+VOLCENGINE_RESOURCES = {"seed-tts-1.0", "seed-tts-2.0", "seed-tts-1.0-concurr"}
+VOLCENGINE_VOICE = re.compile(r"^[A-Za-z0-9_]{3,100}$")
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 # Raw audio cap for chat mode: base64 is 4/3 larger, so 18 MB -> 24 MB, under
 # the upstream's 25 MB limit whether that means MB or MiB.
@@ -38,7 +42,7 @@ class SpeechIn(BaseModel):
 async def speech(
     payload: SpeechIn,
     request: Request,
-    _: User = Depends(limited_user),
+    user: User = Depends(limited_user),
     settings: Settings = Depends(get_settings),
     azure: AzureSpeech = Depends(get_azure),
 ):
@@ -46,8 +50,11 @@ async def speech(
     model = payload.model
     if "/" not in model and f"openai/{model}" in settings.tts_model_list:
         model = f"openai/{model}"
+    is_volcengine = model.startswith("volcengine/") and (
+        model.removeprefix("volcengine/") in VOLCENGINE_RESOURCES
+    )
     if model not in settings.tts_model_list or not (
-        model == "azure/speech" or model.startswith("openai/")
+        model == "azure/speech" or model.startswith("openai/") or is_volcengine
     ):
         raise HTTPException(400, f"Unsupported TTS model: {payload.model}")
     if len(payload.input) > MAX_TTS_INPUT:
@@ -56,6 +63,27 @@ async def speech(
         payload.input.encode("utf-8")
     except UnicodeEncodeError:
         raise HTTPException(400, "Invalid input")
+
+    if is_volcengine:
+        if not VOLCENGINE_VOICE.fullmatch(payload.voice):
+            raise HTTPException(400, "Invalid voice")
+        if not settings.volcengine_tts_key:
+            raise HTTPException(503, "Volcengine TTS is not configured")
+        try:
+            audio = await volcengine_synthesize(
+                request.app.state.http,
+                settings.volcengine_tts_url,
+                settings.volcengine_tts_key,
+                model.removeprefix("volcengine/"),
+                payload.input,
+                payload.voice,
+                str(user.id),
+            )
+        except VolcengineError as e:
+            if e.kind == "auth":
+                raise HTTPException(502, "Upstream authentication failed")
+            raise HTTPException(502, "Upstream unavailable")
+        return Response(content=audio, media_type="audio/mpeg")
 
     if model == "azure/speech":
         try:

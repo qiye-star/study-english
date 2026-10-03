@@ -10,7 +10,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/sessions, /api/users, /api/me   认证
                                 ├ /api/config/{key}             配置快照
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
-                                ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS
+                                ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)
                                 ├ /api/speech/assessments       ──▶ 讯飞 ISE 发音评测(multipart 上传 WAV)
@@ -89,6 +89,15 @@ DEFAULT_LLM_MODEL=deepseek-v4-flash
 TTS(`openai/*` 模型走 OpenAI 兼容的 `/audio/speech`,或 `azure/speech`)与 Whisper(`/audio/transcriptions`,OpenAI 兼容,需返回带 word/segment 时间戳的 `verbose_json`)必须指向真正提供这些确切接口的服务。
 
 > **警告:`api.openai.com` 只是模板默认值。** 若 LLM 换成其他厂商,TTS / Whisper 的地址与密钥也要相应检查,不要沿用默认值指向不提供这些接口的服务。
+
+**豆包语音合成(`volcengine/*` TTS)**:在 `TTS_MODELS` 中加入 `volcengine/seed-tts-2.0`(也支持 `volcengine/seed-tts-1.0`、`volcengine/seed-tts-1.0-concurr`,模型名即火山的资源 ID),并配置:
+
+```env
+TTS_MODELS=openai/tts-1,azure/speech,volcengine/seed-tts-2.0
+VOLCENGINE_TTS_KEY=<豆包语音控制台的 API Key,UUID 格式,不是方舟 Key>
+```
+
+需要先在豆包语音控制台开通「语音合成大模型 2.0」,开通后可能有几分钟的生效延迟(期间会返回未授权,服务端表现为 502)。英文(美式)音色示例:`en_male_tim_uranus_bigtts`(Tim)、`en_female_dacey_uranus_bigtts`(Dacey)、`en_female_stokie_uranus_bigtts`(Stokie)。
 
 **火山方舟转写(`chat` 模式)**:Whisper 上游也可以改用支持音频输入的对话模型:
 

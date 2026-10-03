@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     upstream_whisper_mode: Literal["openai", "chat"] = "openai"
     upstream_whisper_model: str = ""
 
+    volcengine_tts_key: str = ""
+    volcengine_tts_url: str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+
     azure_speech_key: str = ""
     azure_speech_region: str = ""
 
