@@ -27,6 +27,30 @@ def _set_model(preset: dict, model: str) -> None:
         cfg["model"] = model
 
 
+DEFAULT_VOICES = {"volcengine/": "en_female_dacey_uranus_bigtts", "openai/": "alloy"}
+
+
+def _canonical_model(model: str) -> str:
+    # Snapshots sometimes carry the bare OpenAI name ("tts-1") the client strips to.
+    return model if "/" in model else f"openai/{model}"
+
+
+def rewrite_tts(preset: dict, tts_models: list[str]) -> None:
+    """Point an enjoyai preset's TTS model/voice at a configured model."""
+    cfg = preset.get("configuration")
+    tts = cfg.get("tts") if isinstance(cfg, dict) else None
+    if preset.get("engine") != "enjoyai" or not isinstance(tts, dict) or not tts_models:
+        return
+    model = tts.get("model")
+    if isinstance(model, str) and _canonical_model(model) in tts_models:
+        return
+    tts["model"] = tts_models[0]
+    for prefix, voice in DEFAULT_VOICES.items():
+        if tts_models[0].startswith(prefix):
+            tts["voice"] = voice
+            break
+
+
 def apply_overrides(key: str, data, settings: Settings):
     if key == "gpt_providers" and "enjoyai" in data:
         data["enjoyai"]["models"] = settings.llm_model_list
@@ -37,8 +61,12 @@ def apply_overrides(key: str, data, settings: Settings):
     elif key == "gpt_presets":
         for preset in data:
             _set_model(preset, settings.default_llm_model)
+            rewrite_tts(preset, settings.tts_model_list)
     elif key == "default_gpt_preset":
         _set_model(data, settings.default_llm_model)
+        rewrite_tts(data, settings.tts_model_list)
+    elif key == "default_tts_preset":
+        rewrite_tts(data, settings.tts_model_list)
     return data
 
 

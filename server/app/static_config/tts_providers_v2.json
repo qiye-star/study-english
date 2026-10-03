@@ -15,6 +15,23 @@
         "nova",
         "shimmer"
       ],
+      "volcengine": [
+        {
+          "label": "Tim (Male)",
+          "value": "en_male_tim_uranus_bigtts",
+          "language": "en-US"
+        },
+        {
+          "label": "Dacey (Female)",
+          "value": "en_female_dacey_uranus_bigtts",
+          "language": "en-US"
+        },
+        {
+          "label": "Stokie (Female)",
+          "value": "en_female_stokie_uranus_bigtts",
+          "language": "en-US"
+        }
+      ],
       "azure": [
         {
           "label": "Katja (Female)",
