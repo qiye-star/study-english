@@ -64,7 +64,7 @@ def _set_model(preset: dict, model: str) -> None:
         cfg["model"] = model
 
 
-DEFAULT_VOICES = {"volcengine/": "en_female_dacey_uranus_bigtts", "openai/": "alloy"}
+DEFAULT_VOICES = {"volcengine/": "en_female_dacey_uranus_bigtts", "openai/": "alloy", "azure/": "en-US-AvaNeural"}
 
 
 def _canonical_model(model: str) -> str:

@@ -1,6 +1,8 @@
 import base64
 import binascii
 import json
+import logging
+import re
 from typing import Literal
 
 import httpx
@@ -10,10 +12,32 @@ AUTH_STATUSES = {401, 403}
 TIMEOUT = httpx.Timeout(120.0, connect=10.0)
 
 
+logger = logging.getLogger(__name__)
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _clean(value, limit: int = 200) -> str:
+    return _CONTROL.sub(" ", str(value))[:limit]
+
+
+def _error_info(raw: bytes) -> tuple[str, str]:
+    """Best-effort upstream code/message from an error body (never the text or key)."""
+    try:
+        item = json.loads(raw)
+    except ValueError:
+        return "", ""
+    if isinstance(item, dict) and isinstance(item.get("header"), dict):
+        item = item["header"]
+    if not isinstance(item, dict):
+        return "", ""
+    return _clean(item.get("code", "")), _clean(item.get("message", ""))
+
+
 class VolcengineError(Exception):
-    def __init__(self, kind: Literal["auth", "upstream"]):
+    def __init__(self, kind: Literal["auth", "upstream"], detail: str = ""):
         super().__init__(kind)
         self.kind = kind
+        self.detail = detail
 
 
 def parse_stream(raw: bytes) -> bytes:
@@ -38,7 +62,9 @@ def parse_stream(raw: bytes) -> bytes:
             raise VolcengineError("upstream")
         code = item.get("code")
         if code not in (None, 0, SUCCESS_END_CODE):
-            raise VolcengineError("upstream")
+            raise VolcengineError(
+                "upstream", f"code={_clean(code)} message={_clean(item.get('message', ''))}"
+            )
         data = item.get("data")
         if isinstance(data, str) and data:
             try:
@@ -74,10 +100,18 @@ async def synthesize(
             headers={"X-Api-Key": api_key, "X-Api-Resource-Id": resource_id},
             timeout=TIMEOUT,
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
+        logger.warning("Volcengine TTS request failed: %s", type(e).__name__)
         raise VolcengineError("upstream")
-    if response.status_code in AUTH_STATUSES:
-        raise VolcengineError("auth")
     if response.status_code != 200:
-        raise VolcengineError("upstream")
-    return parse_stream(response.content)
+        code, message = _error_info(response.content)
+        logger.warning(
+            "Volcengine TTS HTTP %s code=%s message=%s", response.status_code, code, message
+        )
+        kind = "auth" if response.status_code in AUTH_STATUSES else "upstream"
+        raise VolcengineError(kind)
+    try:
+        return parse_stream(response.content)
+    except VolcengineError as e:
+        logger.warning("Volcengine TTS bad response: %s", e.detail or "no audio data")
+        raise

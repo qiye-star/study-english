@@ -90,7 +90,7 @@ TTS(`openai/*` 模型走 OpenAI 兼容的 `/audio/speech`,或 `azure/speech`)与
 
 > **警告:`api.openai.com` 只是模板默认值。** 若 LLM 换成其他厂商,TTS / Whisper 的地址与密钥也要相应检查,不要沿用默认值指向不提供这些接口的服务。
 
-**豆包语音合成(`volcengine/*` TTS)**:在 `TTS_MODELS` 中加入 `volcengine/seed-tts-2.0`(也支持 `volcengine/seed-tts-1.0`、`volcengine/seed-tts-1.0-concurr`,模型名即火山的资源 ID),并配置:
+**豆包语音合成(`volcengine/*` TTS)**:在 `TTS_MODELS` 中加入 `volcengine/seed-tts-2.0`(模型名即火山的资源 ID;仅支持 2.0,官方音色列表中的 1.0 音色不提供),并配置:
 
 ```env
 TTS_MODELS=openai/tts-1,azure/speech,volcengine/seed-tts-2.0

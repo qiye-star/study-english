@@ -97,10 +97,10 @@ async def test_preset_already_configured_is_kept_when_azure_is_first(client):
     assert data["configuration"]["tts"] == {"engine": "enjoyai", "model": "openai/tts-1", "voice": "alloy"}
 
 
-def test_rewrite_to_azure_keeps_voice():
-    preset = {"engine": "enjoyai", "configuration": {"tts": {"model": "x/y", "voice": "v"}}}
+def test_rewrite_to_azure_uses_azure_default_voice():
+    preset = {"engine": "enjoyai", "configuration": {"tts": {"model": "x/y", "voice": "alloy"}}}
     rewrite_tts(preset, ["azure/speech"])
-    assert preset["configuration"]["tts"] == {"model": "azure/speech", "voice": "v"}
+    assert preset["configuration"]["tts"] == {"model": "azure/speech", "voice": "en-US-AvaNeural"}
 
 
 @pytest.mark.parametrize("settings_overrides", [{"tts_models": "volcengine/seed-tts-2.0,openai/tts-1"}], indirect=True)

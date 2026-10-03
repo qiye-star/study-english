@@ -68,11 +68,37 @@ async def test_success(client, auth_headers, respx_mock, sep):
     assert isinstance(body["user"]["uid"], str)
 
 
-async def test_resource_id_from_model(client, auth_headers, respx_mock):
-    route = respx_mock.post(URL).mock(return_value=httpx.Response(200, content=stream(b"\n")))
-    r = await speak(client, auth_headers, model="volcengine/seed-tts-1.0")
-    assert r.status_code == 200
-    assert route.calls.last.request.headers["x-api-resource-id"] == "seed-tts-1.0"
+@pytest.mark.parametrize("model", ["volcengine/seed-tts-1.0", "volcengine/seed-tts-1.0-concurr"])
+async def test_only_seed_tts_2_is_accepted(client, auth_headers, respx_mock, model):
+    route = respx_mock.post(URL)
+    r = await speak(client, auth_headers, model=model)
+    assert r.status_code == 400
+    assert r.json()["error"].startswith("Unsupported TTS model")
+    assert not route.called
+
+
+async def test_upstream_failure_is_logged_without_secrets(client, auth_headers, respx_mock, caplog):
+    body = obj(code=45000001, message="bad\x07thing secret-upstream-text " + "x" * 300)
+    respx_mock.post(URL).mock(return_value=httpx.Response(200, content=body))
+    with caplog.at_level("WARNING", logger="app.volcengine"):
+        r = await speak(client, auth_headers, text="private sentence")
+    assert r.status_code == 502
+    assert "secret-upstream-text" not in r.text and "volc-secret" not in r.text
+    text = caplog.text
+    assert "45000001" in text
+    assert "volc-secret" not in text and "private sentence" not in text
+    assert "\x07" not in text
+    assert "x" * 201 not in text
+
+
+async def test_http_failure_is_logged_with_status(client, auth_headers, respx_mock, caplog):
+    respx_mock.post(URL).mock(
+        return_value=httpx.Response(403, json={"header": {"code": 45000030, "message": "not granted"}})
+    )
+    with caplog.at_level("WARNING", logger="app.volcengine"):
+        await speak(client, auth_headers)
+    assert "403" in caplog.text and "45000030" in caplog.text
+    assert "volc-secret" not in caplog.text
 
 
 async def test_unknown_resource_rejected(client, auth_headers, respx_mock):
