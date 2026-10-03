@@ -1,7 +1,11 @@
+import io
+import wave
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from starlette.datastructures import UploadFile
+from starlette.requests import Request as StarletteRequest
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.deps import current_user, get_session, limited_user
 from app.models import SpeechToken, User
+from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, get_xfyun
+from app.xfyun_result import to_assessment
 
 router = APIRouter(prefix="/api/speech")
+
+MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
+MAX_ASSESSMENT_SECONDS = 300
+ASSESSMENT_RATE = 16000
+BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
 
 class SpeechTokenIn(BaseModel):
@@ -66,3 +77,107 @@ async def update_token(
     row.state = payload.state
     await session.commit()
     return {"id": row.id, "state": row.state}
+
+
+def _ise_entry(language: str) -> str:
+    code = language.strip().lower()
+    if code == "en" or code.startswith(("en-", "en_")):
+        return "en_vip"
+    if code == "zh" or code.startswith(("zh-", "zh_")):
+        return "cn_vip"
+    raise HTTPException(400, "Unsupported language")
+
+
+def _wav_to_pcm(data: bytes) -> bytes:
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            if (
+                w.getframerate() != ASSESSMENT_RATE
+                or w.getnchannels() != 1
+                or w.getsampwidth() != 2
+                or w.getcomptype() != "NONE"
+            ):
+                raise HTTPException(400, BAD_WAV)
+            frames = w.getnframes()
+            if frames <= 0:
+                raise HTTPException(400, BAD_WAV)
+            if frames / ASSESSMENT_RATE > MAX_ASSESSMENT_SECONDS:
+                raise HTTPException(400, "Audio is too long")
+            pcm = w.readframes(frames)
+    except (wave.Error, EOFError):
+        raise HTTPException(400, BAD_WAV)
+    if not pcm:
+        raise HTTPException(400, BAD_WAV)
+    return pcm
+
+
+async def _read_limited_body(request: Request) -> bytes:
+    too_large = HTTPException(413, "Audio file is too large")
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_ASSESSMENT_BYTES:
+        raise too_large
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_ASSESSMENT_BYTES:
+            raise too_large
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@router.post("/assessments")
+async def create_assessment(
+    request: Request,
+    _: User = Depends(limited_user),
+    xfyun: XfyunIse = Depends(get_xfyun),
+):
+    content_type = request.headers.get("content-type", "")
+    if not content_type.lower().startswith("multipart/form-data"):
+        raise HTTPException(400, "Expected multipart/form-data")
+    body = await _read_limited_body(request)
+
+    # The body is already buffered under the size cap; replay it to parse the form.
+    sent = False
+
+    async def replay():
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    try:
+        form = await StarletteRequest(request.scope, replay).form()
+    except Exception:
+        raise HTTPException(400, "Invalid multipart body")
+
+    upload = form.get("file")
+    reference = form.get("reference")
+    language = form.get("language")
+    if not isinstance(upload, UploadFile):
+        raise HTTPException(400, "Audio file is required")
+    if not isinstance(language, str):
+        raise HTTPException(400, "Unsupported language")
+    ent = _ise_entry(language)
+    if not isinstance(reference, str) or not reference.strip():
+        raise HTTPException(400, "Reference text is required")
+    pcm = _wav_to_pcm(await upload.read())
+
+    try:
+        xml = await xfyun.evaluate(pcm, reference, ent)
+    except XfyunNotConfigured:
+        raise HTTPException(503, "Pronunciation assessment is not configured")
+    except XfyunError as exc:
+        # Map by code only; exc.message may contain provider text.
+        if exc.code in (10163, 48195):
+            raise HTTPException(400, "Invalid assessment parameters")
+        if exc.code == 11200:
+            raise HTTPException(503, "Speech evaluation is not authorized")
+        if exc.code in (10114, 60114):
+            raise HTTPException(400, "Audio is too long")
+        raise HTTPException(502, "Upstream unavailable")
+    try:
+        return to_assessment(xml, reference)
+    except ValueError:
+        raise HTTPException(502, "Upstream unavailable")
