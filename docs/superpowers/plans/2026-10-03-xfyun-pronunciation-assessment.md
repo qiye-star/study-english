@@ -220,7 +220,7 @@ git commit -m "feat(enjoy): assess pronunciation through the self-hosted backend
 ### 验收门槛 B
 
 - [ ] `tsc` 错误行与基线一致。
-- [ ] `git grep -n "generateSpeechToken" enjoy/src` 的剩余命中只出现在 `use-transcribe.tsx`(默认语音转写仍用 Azure token)与 `client.ts` 的方法定义里。
+- [x] `git grep -n "generateSpeechToken" enjoy/src` 的剩余命中只出现在 `use-transcribe.tsx`、`use-speech.tsx`(客户端 Azure 语音合成/转写仍用 Azure token)与 `client.ts` 的方法定义里。(原计划漏写了 `use-speech.tsx`。)
 - [ ] 手动清单(需要能运行客户端的机器,未执行则如实标注):录音后评测 → 评分环与单词/音素色块正常;读错内容 → 多个词标为遗漏;无参考文本的录音 → 提示需要参考文本。把这三项追加到 `docs/superpowers/plans/e2e-results.md`,状态「未执行」。
 
 ---
