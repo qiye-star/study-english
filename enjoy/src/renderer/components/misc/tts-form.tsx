@@ -16,29 +16,38 @@ import { t } from "i18next";
 import { useContext } from "react";
 import { AISettingsProviderContext } from "@renderer/context";
 
+// Keep the selected voice valid for the given model and language.
+export const resetTtsVoice = (
+  form: ReturnType<typeof useForm>,
+  ttsProviders: any,
+  prefix: string,
+  model?: string,
+  language?: string
+) => {
+  if (form.getValues(`${prefix}.engine`) !== "enjoyai") return;
+  const options: any[] =
+    ttsProviders?.enjoyai?.voices?.[model?.split("/")?.[0] || ""] || [];
+  const voice = form.getValues(`${prefix}.voice`);
+  const matches = (o: any) =>
+    typeof o === "string"
+      ? o === voice
+      : o.language === language && o.value === voice;
+  if (options.some(matches)) return;
+  const first = options.find(
+    (o: any) => typeof o === "string" || o.language === language
+  );
+  form.setValue(
+    `${prefix}.voice`,
+    typeof first === "string" ? first : first?.value
+  );
+};
+
 export const TTSForm = (props: { form: ReturnType<typeof useForm> }) => {
   const { form } = props;
   const { ttsProviders } = useContext(AISettingsProviderContext);
 
-  // Keep the selected voice valid for the given model and language.
-  const resetVoice = (model?: string, language?: string) => {
-    if (form.getValues("config.tts.engine") !== "enjoyai") return;
-    const options: any[] =
-      ttsProviders.enjoyai?.voices?.[model?.split("/")?.[0] || ""] || [];
-    const voice = form.getValues("config.tts.voice");
-    const matches = (o: any) =>
-      typeof o === "string"
-        ? o === voice
-        : o.language === language && o.value === voice;
-    if (options.some(matches)) return;
-    const first = options.find(
-      (o: any) => typeof o === "string" || o.language === language,
-    );
-    form.setValue(
-      "config.tts.voice",
-      typeof first === "string" ? first : first?.value,
-    );
-  };
+  const resetVoice = (model?: string, language?: string) =>
+    resetTtsVoice(form, ttsProviders, "config.tts", model, language);
 
   return (
     <>

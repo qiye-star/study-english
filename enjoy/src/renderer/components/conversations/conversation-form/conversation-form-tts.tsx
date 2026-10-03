@@ -14,6 +14,7 @@ import {
   SelectItem,
 } from "@renderer/components/ui";
 import { LANGUAGES } from "@/constants";
+import { resetTtsVoice } from "@renderer/components/misc/tts-form";
 
 export const ConversationFormTTS = (props: {
   form: ReturnType<typeof useForm>;
@@ -62,7 +63,16 @@ export const ConversationFormTTS = (props: {
             <FormItem>
               <FormLabel>{t("models.conversation.ttsModel")}</FormLabel>
               <Select
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  resetTtsVoice(
+                    form,
+                    ttsProviders,
+                    "configuration.tts",
+                    value,
+                    form.getValues("configuration.tts.language") as string
+                  );
+                }}
                 defaultValue={field.value}
                 value={field.value}
               >

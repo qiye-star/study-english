@@ -45,6 +45,10 @@ export const AISettingsProvider = ({
     SttEngineOptionEnum.ENJOY_AZURE
   );
   const [ttsConfig, setTtsConfig] = useState<TtsConfigType>(null);
+  // Providers have been fetched (or the fetch failed and the static fallback is in use).
+  const [ttsProvidersLoaded, setTtsProvidersLoaded] = useState(false);
+  // No saved TTS config exists; a default must be derived from the provider lists.
+  const [ttsConfigNeedsDefault, setTtsConfigNeedsDefault] = useState(false);
   const [echogardenSttConfig, setEchogardenSttConfig] =
     useState<EchogardenSttConfigType>(null);
   const [gptEngine, setGptEngine] = useState<GptEngineSettingType>({
@@ -79,21 +83,47 @@ export const AISettingsProvider = ({
     }
 
     setTtsProviders({ ...providers });
+    setTtsProvidersLoaded(true);
   };
 
   const refreshTtsConfig = async () => {
-    let config = await EnjoyApp.userSettings.get(UserSettingKeyEnum.TTS_CONFIG);
-    if (!config) {
-      config = {
-        engine: "enjoyai",
-        model: "openai/tts-1",
-        voice: "alloy",
-        language: learningLanguage,
-      };
-      EnjoyApp.userSettings.set(UserSettingKeyEnum.TTS_CONFIG, config);
+    const config = await EnjoyApp.userSettings.get(
+      UserSettingKeyEnum.TTS_CONFIG
+    );
+    if (config) {
+      setTtsConfig(config);
+    } else {
+      // The default is derived once the server's provider lists are loaded.
+      setTtsConfigNeedsDefault(true);
     }
-    setTtsConfig(config);
   };
+
+  useEffect(() => {
+    if (!ttsConfigNeedsDefault || !ttsProvidersLoaded) return;
+
+    const enjoyai = ttsProviders?.enjoyai;
+    const model: string = enjoyai?.models?.[0] || "openai/tts-1";
+    const voices: any[] = enjoyai?.voices?.[model.split("/")[0]] || [];
+    let voice: string | undefined;
+    if (typeof voices[0] === "string") {
+      voice = voices[0];
+    } else if (voices.length > 0) {
+      voice = (
+        voices.find((v: any) => v.language === learningLanguage) || voices[0]
+      ).value;
+    }
+    if (!voice && model.startsWith("openai/")) voice = "alloy";
+
+    const config = {
+      engine: "enjoyai",
+      model,
+      voice,
+      language: learningLanguage,
+    };
+    EnjoyApp.userSettings.set(UserSettingKeyEnum.TTS_CONFIG, config);
+    setTtsConfig(config);
+    setTtsConfigNeedsDefault(false);
+  }, [ttsConfigNeedsDefault, ttsProvidersLoaded, ttsProviders]);
 
   const handleSetTtsConfig = async (config: TtsConfigType) => {
     return EnjoyApp.userSettings

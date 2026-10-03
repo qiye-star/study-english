@@ -195,7 +195,8 @@ export default () => {
             ...preset.configuration.tts,
             engine: currentGptEngine.name,
             model:
-              currentGptEngine.name === "enjoyai" ? "openai/tts-1" : "tts-1",
+              preset.configuration.tts?.model ||
+              (currentGptEngine.name === "enjoyai" ? "openai/tts-1" : "tts-1"),
           },
         },
       })
