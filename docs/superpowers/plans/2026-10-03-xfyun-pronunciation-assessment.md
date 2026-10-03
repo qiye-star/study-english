@@ -187,7 +187,7 @@ git commit -m "docs(server): document iFlytek pronunciation assessment and exten
 
 - [ ] `cd server && uv run pytest -q` → 0 failed。
 - [ ] **真实调用**:`server/.env`(被 git 忽略)写入讯飞三项密钥后启动服务,用 `smoke.py --wav <good.wav> --reference "<原文>"` 与读错内容的 WAV 各跑一次:读对的总分 > 90;读错的总分 < 10 且有多个 `Omission`。
-- [ ] `git grep -n "0cd2865b\|MzVjYjNm\|eabc23e9"` 无任何输出(仓库里没有真实密钥)。
+- [ ] 仓库里没有真实密钥:用 `server/.env` 里三项 `XFYUN_*` 的值逐个做 `git grep -nF "<值>"`,均无任何输出(检查时从 `.env` 读取,不要把值写进任何文件或命令历史)。
 
 ---
 
