@@ -54,6 +54,7 @@ class FakeIse:
         self.frames: list[dict] = []
         self.mode = "ok"
         self.big = 0
+        self.raw = ""
         self.url = ""
 
     async def handler(self, ws):
@@ -62,6 +63,14 @@ class FakeIse:
             self.frames.append(frame)
             if self.mode == "silent":
                 continue
+            if self.mode in ("early_error", "early_close"):
+                if self.mode == "early_error":
+                    await ws.send(json.dumps({"code": 10163, "message": "bad param"}))
+                await ws.close()
+                return
+            if self.mode == "raw":
+                await ws.send(self.raw)
+                return
             if self.mode == "error":
                 await ws.send(json.dumps({"code": 10163, "message": "bad param", "data": None}))
                 return
@@ -152,6 +161,7 @@ async def test_timeout_raises_xfyun_error(fake):
     with pytest.raises(XfyunError) as exc:
         await _client(fake.url).evaluate(pcm=b"\x00\x00" * 100, text="Hi", ent="en_vip", timeout=0.3)
     assert exc.value.code is None
+    assert "timed out" in exc.value.message
 
 
 async def test_connection_refused_raises_xfyun_error():
@@ -189,3 +199,88 @@ def test_settings_defaults():
     assert s.xfyun_api_key == ""
     assert s.xfyun_api_secret == ""
     assert s.xfyun_ws_url == "wss://ise-api.xfyun.cn/v2/open-ise"
+
+
+async def test_early_error_frame_with_close_keeps_provider_code(fake):
+    fake.mode = "early_error"
+    with pytest.raises(XfyunError) as exc:
+        await _client(fake.url).evaluate(pcm=b"\x01\x02" * 1_000_000, text="Hi", ent="en_vip")
+    assert exc.value.code == 10163
+
+
+async def test_close_without_frame_is_generic_error(fake):
+    fake.mode = "early_close"
+    with pytest.raises(XfyunError) as exc:
+        await _client(fake.url).evaluate(pcm=b"\x01\x02" * 1_000_000, text="Hi", ent="en_vip")
+    assert exc.value.code is None
+
+
+async def test_early_close_after_small_send_reports_early_close(fake):
+    fake.mode = "early_close"
+    with pytest.raises(XfyunError) as exc:
+        await _client(fake.url).evaluate(pcm=b"\x01\x02" * 10, text="Hi", ent="en_vip")
+    assert exc.value.code is None
+    assert "early" in exc.value.message
+
+
+async def test_empty_pcm_sends_one_empty_last_frame(fake):
+    xml = await _client(fake.url).evaluate(pcm=b"", text="Hi", ent="en_vip")
+    assert xml == FIXTURE_XML
+    audio = fake.frames[1:]
+    assert len(audio) == 1
+    assert audio[0]["business"]["aus"] == 4
+    assert audio[0]["data"]["status"] == 2
+    assert audio[0]["data"]["data"] == ""
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json",
+        "[1, 2]",
+        '"str"',
+        "5",
+        '{"code": "0", "data": {"status": 2}}',
+        '{"code": null}',
+        '{"code": true}',
+        '{"code": 0, "data": "oops"}',
+        '{"code": 0, "data": [1]}',
+        '{"code": 0, "data": {"status": 1, "data": 123}}',
+        '{"code": 0, "data": {"status": 1, "data": "@@@"}}',
+    ],
+)
+async def test_malformed_messages_raise_xfyun_error(fake, raw):
+    fake.mode = "raw"
+    fake.raw = raw
+    with pytest.raises(XfyunError):
+        await _client(fake.url).evaluate(pcm=b"\x00\x00" * 100, text="Hi", ent="en_vip")
+
+
+async def test_provider_message_is_truncated_and_sanitised(fake):
+    fake.mode = "raw"
+    fake.raw = json.dumps({"code": 10163, "message": "a\x00b\n" + "x" * 500})
+    with pytest.raises(XfyunError) as exc:
+        await _client(fake.url).evaluate(pcm=b"\x00\x00" * 100, text="Hi", ent="en_vip")
+    assert exc.value.code == 10163
+    assert len(exc.value.message) <= 200
+    assert "\x00" not in exc.value.message and "\n" not in exc.value.message
+
+
+def test_signed_url_ignores_userinfo():
+    url = signed_url("wss://user:pw@ise-api.xfyun.cn:8443/v2/open-ise", "key", "secret", now=NOW)
+    assert "user" not in url and "pw@" not in url
+    assert _query(url)["host"] == "ise-api.xfyun.cn:8443"
+
+
+def test_get_xfyun_caches_on_app_state():
+    from types import SimpleNamespace
+
+    from app.xfyun import get_xfyun
+
+    settings = Settings(_env_file=None, xfyun_app_id="a", xfyun_api_key="k", xfyun_api_secret="s")
+    state = SimpleNamespace(settings=settings)
+    request = SimpleNamespace(app=SimpleNamespace(state=state))
+    first = get_xfyun(request)
+    assert get_xfyun(request) is first
+    assert state.xfyun is first
+    assert first.configured is True
