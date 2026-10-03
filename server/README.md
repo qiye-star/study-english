@@ -183,7 +183,7 @@ uv run python scripts/fetch_config.py                               # 刷新配�
 uv run python scripts/smoke.py --wav sample.wav --reference "Hello, nice to meet you." --language en-US
 ```
 
-上游未配置的检查会返回 503,并被报告为 SKIP;没有配置上游凭据时,注册检查通过,AI 相关检查为 SKIP。
+上游未配置的检查会返回 503,并被报告为 SKIP;没有配置上游凭据时,注册检查通过,AI 相关检查为 SKIP。TTS 检查会读取 `/api/config/tts_providers_v2` 中实际配置的模型,对每个模型各跑一次(`tts <model>`);未配置任何 TTS 模型时为一行 SKIP。
 
 ## 构建说明
 

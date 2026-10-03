@@ -88,19 +88,43 @@ def main() -> int:
         }))
         json.loads(r.json()["choices"][0]["message"]["content"])
 
-    def tts_openai():
-        r = require_ok(http.post("/api/ai/audio/speech", headers=state["headers"], json={
-            "model": "openai/tts-1", "voice": "alloy", "input": "Hello world"}))
-        assert len(r.content) > 1000
-        state["mp3"] = r.content
-        return f"{len(r.content)} bytes"
+    def looks_like_audio(data: bytes) -> bool:
+        return data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0)
 
-    def tts_azure():
-        r = require_ok(http.post("/api/ai/audio/speech", headers=state["headers"], json={
-            "model": "azure/speech", "voice": "en-US-AvaNeural", "input": "Hello world"}))
-        assert len(r.content) > 1000
-        state["mp3"] = r.content
-        return f"{len(r.content)} bytes"
+    def make_tts(model, voice):
+        def run():
+            r = require_ok(http.post("/api/ai/audio/speech", headers=state["headers"], json={
+                "model": model, "voice": voice, "input": "Hello world"}))
+            assert r.status_code == 200 and len(r.content) > 1000, f"{r.status_code} {len(r.content)} bytes"
+            assert looks_like_audio(r.content), f"not audio: {r.content[:8]!r}"
+            state["mp3"] = r.content
+            return f"voice={voice} {len(r.content)} bytes"
+        return run
+
+    def pick_voice(model):
+        if model.startswith("openai/"):
+            return "alloy"
+        if model == "azure/speech":
+            return "en-US-AvaNeural"
+        if model.startswith("volcengine/"):
+            preset = require_ok(http.get("/api/config/default_tts_preset")).json()
+            tts = preset.get("configuration", {}).get("tts", {})
+            if tts.get("model") == model and tts.get("voice"):
+                return tts["voice"]
+            for v in state["voices"].get("volcengine", []):
+                if v.get("language") == "en-US":
+                    return v["value"]
+            raise RuntimeError("no en-US volcengine voice in the server voice list")
+        raise RuntimeError(f"unknown TTS model {model}")
+
+    def tts_discover():
+        enjoyai = require_ok(http.get("/api/config/tts_providers_v2")).json()["enjoyai"]
+        state["tts_models"] = list(enjoyai.get("models") or [])
+        state["voices"] = enjoyai.get("voices") or {}
+        return f"models={state['tts_models']}"
+
+    def tts_check(model):
+        return lambda: make_tts(model, pick_voice(model))()
 
     def whisper():
         if "mp3" not in state:
@@ -135,18 +159,28 @@ def main() -> int:
         ("chat", chat),
         ("chat stream", chat_stream),
         ("chat json mode", chat_json_mode),
-        ("tts openai/tts-1", tts_openai),
-        ("tts azure/speech", tts_azure),
+        ("tts config", tts_discover),
         ("whisper (tts -> stt round trip)", whisper),
         ("speech token", speech_token),
     ]
     if args.wav:
         checks.append(("pronunciation assessment (xfyun)", assessment))
 
-    for name, fn in checks:
+    i = 0
+    while i < len(checks):
+        name, fn = checks[i]
+        i += 1
         check(name, fn)
         if name == "register" and "register" in failures:
             break
+        if name == "tts config":
+            if "tts config" in failures:
+                continue
+            models = state.get("tts_models", [])
+            if not models:
+                print("SKIP  tts  (no TTS models configured)")
+            new_checks = [(f"tts {m}", tts_check(m)) for m in models]
+            checks[i:i] = new_checks
 
     print("\nFAILED: " + ", ".join(failures) if failures else "\nAll checks passed (SKIP = not configured).")
     return 1 if failures else 0
