@@ -162,3 +162,16 @@ def test_settings_defaults():
     s = Settings(_env_file=None)
     assert s.upstream_whisper_mode == "openai"
     assert s.upstream_whisper_model == ""
+
+
+async def test_cap_boundary(client, auth_headers, respx_mock):
+    from app.routers.ai_audio import MAX_CHAT_AUDIO_BYTES
+
+    assert MAX_CHAT_AUDIO_BYTES == 18_000_000
+    assert MAX_CHAT_AUDIO_BYTES * 4 // 3 + 4 < 25_000_000
+    route = respx_mock.post(ARK).mock(return_value=ok())
+    r = await post(client, auth_headers, data=WAV + b"\x00" * (MAX_CHAT_AUDIO_BYTES - len(WAV)))
+    assert r.status_code == 200
+    n = len(route.calls)
+    r = await post(client, auth_headers, data=WAV + b"\x00" * (MAX_CHAT_AUDIO_BYTES + 1 - len(WAV)))
+    assert r.status_code == 413 and len(route.calls) == n

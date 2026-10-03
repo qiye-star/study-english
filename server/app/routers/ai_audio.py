@@ -17,8 +17,9 @@ router = APIRouter(prefix="/api/ai")
 
 MAX_TTS_INPUT = 4096
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
-# Raw audio cap for chat mode: keeps the base64 payload (x4/3) under 25 MB.
-MAX_CHAT_AUDIO_BYTES = 18 * 1024 * 1024
+# Raw audio cap for chat mode: base64 is 4/3 larger, so 18 MB -> 24 MB, under
+# the upstream's 25 MB limit whether that means MB or MiB.
+MAX_CHAT_AUDIO_BYTES = 18_000_000
 MULTIPART_OVERHEAD = 64 * 1024
 CHAT_PROMPT = (
     "Transcribe the audio verbatim in its original language. "
@@ -159,6 +160,7 @@ async def _chat_transcription(request: Request, settings: Settings) -> Response:
         audio = await upload.read()
     finally:
         await form.close()
+    del body, form, upload
     if len(audio) > MAX_CHAT_AUDIO_BYTES:
         raise HTTPException(413, "Audio file is too large")
     fmt = _audio_format(audio)

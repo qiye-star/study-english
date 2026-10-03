@@ -100,7 +100,7 @@ UPSTREAM_WHISPER_MODEL=doubao-seed-2-0-lite-260428
 ```
 
 - 转写由大模型完成,返回 `{"text": "...", "segments": []}`,没有时间戳(客户端会在本地对齐),可能做少量润色。
-- 仅支持 wav / mp3,音频不超过 18 MiB(base64 后须在 25 MB 内)。
+- 仅支持 wav / mp3,音频不超过 18 MB(18,000,000 字节;base64 后 ≤ 24 MB,低于方舟 25 MB 的限制)。
 - 方舟 API Key 与「豆包语音」控制台的 UUID 格式 Key 不是同一种,不能混用。
 - 默认 `UPSTREAM_WHISPER_MODE=openai`,行为不变。
 
