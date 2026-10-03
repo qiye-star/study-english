@@ -93,3 +93,26 @@
 - [ ] 真实调用(由控制者执行):本地启动服务(环境变量传入豆包语音 Key,`TTS_MODELS` 含 `volcengine/seed-tts-2.0`),`POST /api/ai/audio/speech` 用 Tim/Dacey/Stokie 三个音色各合成一句英文,得到有效 MP3(以 `ID3` 开头、时长合理);`GET /api/config/tts_providers_v2` 与 `default_tts_preset` 返回改写后的内容;错误音色 → 400;没有 key → 503。
 - [ ] 客户端 `tsc` 错误行与基线一致。
 - [ ] 手动清单追加到 `docs/superpowers/plans/e2e-results.md`(未执行状态):默认角色 Ava 语音播放;新建对话选择 volcengine 音色并播放;切换模型后音色自动重置。
+
+---
+
+### Task 9.4:完整英文音色列表(来自官方音色列表)
+
+用户只学英语,所以只提供**英文**音色,但要让用户在界面里自由选择官方列表里的全部英文音色。
+
+**数据来源(已核对):** 官方「音色列表」页面 https://docs.volcengine.com/docs/DoubaoVoice/Tonelist-1 中「豆包语音合成模型 2.0」的中文主表与外语音色表(2026-10-03 读取)。排除了前缀为 `ICL_` 的声音复刻预置音色(按官方文档它们需要资源 ID `seed-icl-2.0`,`seed-tts-2.0` 调不了)。数据已筛成仅含美式英语(`en-US`)和英式英语(`en-GB`)共 **68** 个音色(64 + 4;男 41、女 27),保存在仓库里的 `server/app/static_config/volcengine_voices.json`,格式为紧凑数组 `[显示名, voice_type, 语言代码, 性别(M/F)]`。其中 Tim、Dacey、Stokie 已用真实接口验证可合成;多语种抽样验证表明不需要 `explicit_language` 参数。
+
+**Files:**
+- Create(已由控制者放入工作区,未提交): `server/app/static_config/volcengine_voices.json`
+- Modify: `server/app/routers/config_api.py`(以及 9.2 里放置 3 个音色的位置)、`server/README.md`
+- Modify tests: `server/tests/test_config_api.py`
+
+**Interfaces:**
+- `GET /api/config/tts_providers_v2` → `enjoyai.voices.volcengine` 由该 JSON 生成,元素 `{"label": "<显示名> (Male|Female)", "value": "<voice_type>", "language": "en-US|en-GB"}`,顺序与文件一致,**取代** 9.2 里手写的 3 个音色(Tim/Dacey/Stokie 仍在其中)。
+- 默认音色(预设改写用)仍为 `en_female_dacey_uranus_bigtts`,测试断言它存在于列表中。
+
+- [ ] **Step 1: 写失败测试**:(a) 列表长度 68,且全部 `language ∈ {en-US, en-GB}`;(b) `value` 全部唯一、都以 `en_` 开头、以 `_uranus_bigtts` 结尾,且不含 `ICL_`;(c) Tim/Dacey/Stokie 存在且 label 形如 `Tim (Male)`、`Dacey (Female)`;(d) 英式音色恰为 4 个(Charlotte、Alfred、Knightley、Russell);(e) 默认音色在列表中;(f) 数据文件不存在或格式损坏时,服务启动期/请求期给出明确错误(用一个临时损坏文件的测试说明行为)。
+- [ ] **Step 2: 实现**:启动时一次性读取并校验该 JSON(行数组、每行 4 个字符串、性别 ∈ M/F),缓存;`apply_overrides` 使用它;不再包含手写音色。
+- [ ] **Step 3: 全量测试** → 0 failed。
+- [ ] **Step 4: README**:在火山 TTS 小节说明音色来源、仅收录英文、排除声音复刻音色的原因、如何刷新(重新读取官方页面并更新 JSON)。
+- [ ] **Step 5: 提交** `feat(server): offer the full official English voice list for volcengine TTS`(把 `volcengine_voices.json` 一并提交)。
