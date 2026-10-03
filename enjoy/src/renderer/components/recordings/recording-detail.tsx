@@ -33,6 +33,8 @@ export const RecordingDetail = (props: {
   const assess = () => {
     if (assessing) return;
     if (result) return;
+    // Assessment needs reference text; skip silently without one.
+    if (!recording.referenceText?.trim()) return;
 
     if (recording.duration > 60 * 1000) {
       toast.error(t("recordingIsTooLongToAssess"));

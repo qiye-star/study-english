@@ -72,6 +72,12 @@ export const PronunciationAssessmentForm = () => {
     }
     const { language, referenceText } = data;
 
+    if (!referenceText?.trim()) {
+      toast.error(t("referenceTextRequired"));
+      form.setError("referenceText", { message: t("referenceTextRequired") });
+      return;
+    }
+
     let recording: RecordingType;
     try {
       recording = await createRecording(data);
