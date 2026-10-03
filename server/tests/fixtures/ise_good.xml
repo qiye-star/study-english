@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <xml_result>
+      <read_sentence lan="en" type="study" version="7.0.0.1020">
+          <rec_paper>
+              <read_chapter accuracy_score="99.541700" beg_pos="0" content="Hello, nice to meet you. I would like a cup of coffee, please." end_pos="584" except_info="0" fluency_score="97.135540" integrity_score="100.000000" is_rejected="false" reject_type="0" score_pattern="loose" standard_score="100.000000" total_score="98.865680" word_count="13">
+                  <sentence accuracy_score="91.066800" beg_pos="0" content="hello, nice to meet you" end_pos="184" fluency_score="88.143820" index="0" standard_score="97.153280" total_score="90.798560" word_count="5">
+                      <word beg_pos="1" content="hello" dp_message="0" end_pos="54" global_index="0" index="0" property="12" total_score="100.000000">
+                          <syll beg_pos="1" content="hh eh" end_pos="22" syll_accent="0" syll_score="99.800680">
+                              <phone beg_pos="1" content="hh" dp_message="0" end_pos="16" gwpp="-0.001736"></phone>
+                              <phone beg_pos="16" content="eh" dp_message="0" end_pos="22" gwpp="-0.002254"></phone>
+                          </syll>
+                          <syll beg_pos="22" content="l ow" end_pos="54" syll_accent="1" syll_score="99.856740">
+                              <phone beg_pos="22" content="l" dp_message="0" end_pos="34" gwpp="-0.000017"></phone>
+                              <phone beg_pos="34" content="ow" dp_message="0" end_pos="54" gwpp="-0.002852"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="54" content="sil" end_pos="80"></word>
+                      <word beg_pos="80" content="nice" dp_message="0" end_pos="118" global_index="1" index="1" property="0" total_score="100.000000">
+                          <syll beg_pos="80" content="n ay s" end_pos="118" syll_accent="0" syll_score="99.743660">
+                              <phone beg_pos="80" content="n" dp_message="0" end_pos="96" gwpp="-0.000458"></phone>
+                              <phone beg_pos="96" content="ay" dp_message="0" end_pos="110" gwpp="-0.000030"></phone>
+                              <phone beg_pos="110" content="s" dp_message="0" end_pos="118" gwpp="-0.007229"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="118" content="to" dp_message="0" end_pos="130" global_index="2" index="2" property="0" total_score="99.608940">
+                          <syll beg_pos="118" content="t uw" end_pos="130" syll_accent="0" syll_score="94.888200">
+                              <phone beg_pos="118" content="t" dp_message="0" end_pos="125" gwpp="-0.000376"></phone>
+                              <phone beg_pos="125" content="uw" dp_message="0" end_pos="130" gwpp="-0.107429"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="130" content="meet" dp_message="0" end_pos="153" global_index="3" index="3" property="0" total_score="90.216680">
+                          <syll beg_pos="130" content="m iy t" end_pos="153" syll_accent="0" syll_score="78.848840">
+                              <phone beg_pos="130" content="m" dp_message="0" end_pos="136" gwpp="-0.000060"></phone>
+                              <phone beg_pos="136" content="iy" dp_message="0" end_pos="149" gwpp="-0.002356"></phone>
+                              <phone beg_pos="149" content="t" dp_message="0" end_pos="153" gwpp="-7.484325"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="153" content="you" dp_message="0" end_pos="184" global_index="4" index="4" property="0" total_score="100.000000">
+                          <syll beg_pos="153" content="y uw" end_pos="184" syll_accent="0" syll_score="99.869380">
+                              <phone beg_pos="153" content="y" dp_message="0" end_pos="162" gwpp="-0.000090"></phone>
+                              <phone beg_pos="162" content="uw" dp_message="0" end_pos="184" gwpp="-0.002526"></phone>
+                          </syll>
+                      </word>
+                  </sentence>
+                  <sentence accuracy_score="96.822100" beg_pos="184" content="i would like a cup of coffee, please" end_pos="584" fluency_score="93.672680" index="1" standard_score="98.127900" total_score="96.007860" word_count="8">
+                      <word beg_pos="254" content="i" dp_message="0" end_pos="272" global_index="5" index="0" property="0" total_score="100.000000">
+                          <syll beg_pos="254" content="ay" end_pos="272" syll_accent="0" syll_score="99.978860">
+                              <phone beg_pos="254" content="ay" dp_message="0" end_pos="272" gwpp="-0.000211"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="272" content="would" dp_message="0" end_pos="294" global_index="6" index="1" property="0" total_score="100.000000">
+                          <syll beg_pos="272" content="w uh d" end_pos="294" syll_accent="0" syll_score="99.905960">
+                              <phone beg_pos="272" content="w" dp_message="0" end_pos="280" gwpp="-0.000036"></phone>
+                              <phone beg_pos="280" content="uh" dp_message="0" end_pos="288" gwpp="-0.002227"></phone>
+                              <phone beg_pos="288" content="d" dp_message="0" end_pos="294" gwpp="-0.000560"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="294" content="like" dp_message="0" end_pos="318" global_index="7" index="2" property="0" total_score="100.000000">
+                          <syll beg_pos="294" content="l ay k" end_pos="318" syll_accent="0" syll_score="99.972720">
+                              <phone beg_pos="294" content="l" dp_message="0" end_pos="300" gwpp="-0.000021"></phone>
+                              <phone beg_pos="300" content="ay" dp_message="0" end_pos="310" gwpp="-0.000735"></phone>
+                              <phone beg_pos="310" content="k" dp_message="0" end_pos="318" gwpp="-0.000062"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="318" content="a" dp_message="0" end_pos="324" global_index="8" index="3" property="0" total_score="100.000000">
+                          <syll beg_pos="318" content="ax" end_pos="324" syll_accent="0" syll_score="99.678460">
+                              <phone beg_pos="318" content="ax" dp_message="0" end_pos="324" gwpp="-0.003221"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="324" content="cup" dp_message="0" end_pos="352" global_index="9" index="4" property="0" total_score="90.472440">
+                          <syll beg_pos="324" content="k ah p" end_pos="352" syll_accent="0" syll_score="77.477540">
+                              <phone beg_pos="324" content="k" dp_message="0" end_pos="336" gwpp="-0.014762"></phone>
+                              <phone beg_pos="336" content="ah" dp_message="0" end_pos="344" gwpp="-0.029325"></phone>
+                              <phone beg_pos="344" content="p" dp_message="0" end_pos="352" gwpp="-4.753391"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="352" content="of" dp_message="0" end_pos="362" global_index="10" index="5" property="0" total_score="100.000000">
+                          <syll beg_pos="352" content="ax v" end_pos="362" syll_accent="0" syll_score="99.922940">
+                              <phone beg_pos="352" content="ax" dp_message="0" end_pos="356" gwpp="-0.001173"></phone>
+                              <phone beg_pos="356" content="v" dp_message="0" end_pos="362" gwpp="-0.000369"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="362" content="coffee" dp_message="0" end_pos="423" global_index="11" index="6" property="12" total_score="99.884360">
+                          <syll beg_pos="362" content="k oo" end_pos="390" syll_accent="1" syll_score="98.607640">
+                              <phone beg_pos="362" content="k" dp_message="0" end_pos="376" gwpp="-0.000252"></phone>
+                              <phone beg_pos="376" content="oo" dp_message="0" end_pos="390" gwpp="-0.027983"></phone>
+                          </syll>
+                          <syll beg_pos="390" content="f ih" end_pos="423" syll_accent="0" syll_score="95.752500">
+                              <phone beg_pos="390" content="f" dp_message="0" end_pos="398" gwpp="-0.006478"></phone>
+                              <phone beg_pos="398" content="ih" dp_message="0" end_pos="423" gwpp="-0.081745"></phone>
+                          </syll>
+                      </word>
+                      <word beg_pos="423" content="sil" end_pos="450"></word>
+                      <word beg_pos="450" content="please" dp_message="0" end_pos="514" global_index="12" index="7" property="0" total_score="94.869760">
+                          <syll beg_pos="450" content="p l iy z" end_pos="514" syll_accent="0" syll_score="74.874520">
+                              <phone beg_pos="450" content="p" dp_message="0" end_pos="466" gwpp="-0.885556"></phone>
+                              <phone beg_pos="466" content="l" dp_message="0" end_pos="472" gwpp="-0.000084"></phone>
+                              <phone beg_pos="472" content="iy" dp_message="0" end_pos="492" gwpp="-0.016364"></phone>
+                              <phone beg_pos="492" content="z" dp_message="0" end_pos="514" gwpp="-0.512809"></phone>
+                          </syll>
+                      </word>
+                  </sentence>
+              </read_chapter>
+          </rec_paper>
+      </read_sentence>
+  </xml_result>
