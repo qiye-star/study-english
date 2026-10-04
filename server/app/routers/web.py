@@ -35,8 +35,12 @@ async def web_app(path: str, settings: Settings = Depends(get_settings)):
     if not index.is_file():
         raise HTTPException(404, "Web app is not built")
     if path:
-        candidate = (root / path).resolve()
-        if candidate.is_relative_to(root) and candidate.is_file():
+        try:
+            candidate = (root / path).resolve()
+            is_file = candidate.is_relative_to(root) and candidate.is_file()
+        except (ValueError, OSError):
+            is_file = False
+        if is_file:
             cache = IMMUTABLE if path.startswith("assets/") else NO_CACHE
             return FileResponse(candidate, headers={"Cache-Control": cache})
         if path.startswith("assets/"):

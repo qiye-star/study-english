@@ -78,10 +78,16 @@ async def test_service_worker_and_manifest(client):
     assert manifest.headers["content-type"].startswith("application/manifest+json")
 
 
-@pytest.mark.parametrize("path", ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt", "/..%2fsecret.txt"])
+@pytest.mark.parametrize(
+    "path",
+    ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt", "/..%2fsecret.txt", "/%00", "/foo%00.js"],
+)
 async def test_no_path_traversal(client, path):
     r = await client.get(path)
+    assert r.status_code in (200, 404)
     assert "TOP-SECRET" not in r.text
+    if r.status_code == 200:
+        assert r.text == INDEX
 
 
 async def test_post_to_spa_path_not_allowed(client):
