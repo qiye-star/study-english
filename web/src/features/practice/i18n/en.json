@@ -1,0 +1,22 @@
+{
+  "web": {
+    "practice": {
+      "title": "Read aloud", "history": "History", "referenceLabel": "Reference text",
+      "referencePlaceholder": "Type or paste the English text you will read.",
+      "referenceHint": "Enter the text first, then tap the microphone.",
+      "assessing": "Assessing…", "assessKept": "Assess this", "discard": "Record again",
+      "errors": {
+        "referenceRequired": "Please enter the reference text first.", "referenceTooLong": "The reference text is too long (2000 characters max).",
+        "audioTooLong": "The recording is longer than 5 minutes.", "badAudio": "The recording format was not accepted.",
+        "language": "Only English is supported.", "notConfigured": "Pronunciation assessment is not configured on the server.",
+        "quota": "Your recording storage is full. Delete some old recordings.", "upstream": "The assessment service is unavailable. Please try again.",
+        "notFound": "This recording does not exist."
+      },
+      "result": {
+        "title": "Result", "again": "Practice again", "deleteConfirm": "Delete this recording?",
+        "deleteDescription": "The recording and its score will be removed.", "audioUnavailable": "The recording is unavailable."
+      },
+      "historyTitle": "History", "empty": "No practice yet."
+    }
+  }
+}
