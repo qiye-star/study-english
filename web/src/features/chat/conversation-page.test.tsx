@@ -3,9 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
+import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationPage } from "./conversation-page";
+
+vi.mock("~/audio/convert", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/audio/convert")>()),
+  toAssessmentWav: vi.fn(async () => ({ wav: new Blob(["RIFF"], { type: "audio/wav" }), durationMs: 1000 })),
+}));
 
 const sse = (parts: string[]) => {
   const enc = new TextEncoder();
@@ -28,9 +34,9 @@ function routes(extra: Record<string, Handler> = {}): Record<string, Handler> {
   };
 }
 
-function setup(r: Record<string, Handler>) {
+function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"]) {
   const mock = createFetchMock(r);
-  const view = renderWithProviders(<ConversationPage />, {
+  const view = renderWithProviders(<ConversationPage recorderEnv={recorderEnv} />, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: "/chat/c1",
     path: "/chat/:id",
@@ -205,6 +211,23 @@ describe("ConversationPage", () => {
     await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
     await waitFor(() => expect(screen.getByTestId("settings-save")).not.toBeDisabled());
     expect(screen.getByTestId("settings-save")).toBeInTheDocument();
+  });
+
+  it("offers read-aloud on finished assistant messages", async () => {
+    setup(routes());
+    await screen.findByText("reply");
+    expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle");
+  });
+
+  it("puts the transcription into the input without sending it", async () => {
+    const { mock } = setup(routes({
+      "POST /api/ai/audio/transcriptions": () => json({ text: "spoken words" }),
+    }), createFakeRecorderEnv().env);
+    await screen.findByText("reply");
+    await userEvent.click(screen.getByTestId("chat-mic"));
+    await userEvent.click(screen.getByTestId("chat-mic"));
+    await waitFor(() => expect(screen.getByTestId("chat-input")).toHaveValue("spoken words"));
+    expect(mock.calls.some((c) => c.url.pathname === "/api/ai/chat/completions")).toBe(false);
   });
 
   describe("auto-scroll", () => {

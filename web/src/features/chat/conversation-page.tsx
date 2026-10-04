@@ -1,4 +1,4 @@
-import { SendIcon, Settings2Icon } from "lucide-react";
+import { LoaderIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
@@ -19,11 +19,13 @@ import {
 import { buildChatMessages, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { MessageBubble, type UiMessage } from "./message-bubble";
+import { useTtsPlayer } from "./use-tts-player";
+import { VoiceInputButton } from "./voice-input-button";
 
 let keySeq = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keySeq}`;
 
-export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: RecorderEnv }) {
+export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const { id = "" } = useParams();
   const { api } = useAuth();
   const { t } = useTranslation();
@@ -34,6 +36,12 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const tts = useTtsPlayer(api, {
+    onError: (err) => toast.error(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)),
+  });
+  const stopTts = tts.stop;
+  // 切换会话或离开页面时停止朗读
+  useEffect(() => () => stopTts(), [id, stopTts]);
   const abortRef = useRef<AbortController | null>(null);
   // 同步发送锁:state 在同一帧的连续提交里仍是旧值
   const busyRef = useRef(false);
@@ -190,10 +198,21 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
       {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => (
-          <MessageBubble key={m.key} message={m} onRetry={m.status === "error" && !sending && m.key === messages[messages.length - 1]?.key ? retry : undefined} />
+          <MessageBubble key={m.key} message={m}
+            actions={
+              <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
+                className="mt-1 h-11 px-2" aria-label={tts.states[m.key] === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.speak")}
+                onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
+                {tts.states[m.key] === "loading" ? <LoaderIcon className="h-4 w-4 animate-spin" />
+                  : tts.states[m.key] === "playing" ? <SquareIcon className="h-4 w-4" /> : <Volume2Icon className="h-4 w-4" />}
+              </Button>
+            }
+            onRetry={m.status === "error" && !sending && m.key === messages[messages.length - 1]?.key ? retry : undefined} />
         ))}
       </div>
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
+        <VoiceInputButton recorderEnv={recorderEnv} disabled={sending}
+          onText={(text) => setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))} />
         <Textarea data-testid="chat-input" rows={1} value={input} placeholder={t("web.chat.placeholder")}
           className="max-h-40 min-h-11 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
         <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
