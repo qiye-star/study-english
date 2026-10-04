@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/components": ["./src/shims/enjoy-components.ts"],
+      "@renderer/components/ui": ["./src/shims/enjoy-ui.ts"],
+      "@/renderer/components/ui": ["./src/shims/enjoy-ui.ts"],
+      "@renderer/*": ["../enjoy/src/renderer/*"],
+      "@/*": ["../enjoy/src/*"],
+      "~/*": ["./src/*"],
+      "*": ["./node_modules/@types/*", "./node_modules/*"]
+    }
+  },
+  "include": ["src", "e2e", "playwright.config.ts", "vite.config.ts", "../enjoy/src/types/pronunciation-assessment.d.ts"]
+}

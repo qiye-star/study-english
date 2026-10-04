@@ -1,0 +1,34 @@
+{
+  "web": {
+    "appName": "Enjoy English Practice",
+    "common": { "loading": "Loading…", "retry": "Retry", "cancel": "Cancel", "delete": "Delete", "loadMore": "Load more", "back": "Back" },
+    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "me": "Me" },
+    "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
+    "login": {
+      "username": "Username", "password": "Password", "submit": "Log in", "registerSubmit": "Create account",
+      "switchToRegister": "No account? Register", "switchToLogin": "Have an account? Log in",
+      "inviteCode": "Invite code (if required)", "inviteHint": "Leave empty if the server allows open registration.",
+      "required": "Please enter username and password.",
+      "usernameInvalid": "Username: 3–32 lowercase letters, digits or underscores.",
+      "passwordLength": "Password must be 8–128 characters."
+    },
+    "errors": {
+      "invalidLogin": "Invalid username or password.", "usernameTaken": "This username is already taken.",
+      "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
+      "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",
+      "timeout": "The request timed out.", "unknown": "Something went wrong."
+    },
+    "me": {
+      "title": "Me", "username": "Account", "language": "Language",
+      "languageHint": "Also used as the target language for translations.",
+      "services": "Server speech services", "stt": "Speech-to-text: server Whisper",
+      "tts": "Text-to-speech models: {{models}}", "ttsDefault": "Default voice: {{voice}}",
+      "logout": "Log out", "install": "Add to Home Screen"
+    },
+    "install": {
+      "title": "Add to Home Screen", "step1": "Tap the Share button in Safari's toolbar.",
+      "step2": "Scroll down and choose “Add to Home Screen”.", "step3": "Open Enjoy from the new icon on your Home Screen.",
+      "httpsNote": "Recording and installing require an HTTPS address."
+    }
+  }
+}
