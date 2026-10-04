@@ -1,0 +1,20 @@
+{
+  "web": {
+    "recorder": {
+      "insecure_context": "Recording needs a secure (HTTPS) connection.",
+      "unsupported": "This browser cannot record audio.",
+      "permission_denied": "Microphone access was denied. Allow it in the browser settings and try again.",
+      "no_device": "No microphone was found.",
+      "failed": "Recording failed. Please try again.",
+      "start": "Start recording",
+      "stop": "Stop recording",
+      "background": "Recording stopped because the app went to the background. {{seconds}} s were kept.",
+      "trackEnded": "Recording stopped because the microphone was disconnected. {{seconds}} s were kept."
+    },
+    "audio": {
+      "decode_failed": "The recording could not be decoded.",
+      "empty": "The recording is empty.",
+      "too_long": "The recording is longer than 5 minutes."
+    }
+  }
+}

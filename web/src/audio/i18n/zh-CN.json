@@ -1,0 +1,20 @@
+{
+  "web": {
+    "recorder": {
+      "insecure_context": "录音需要安全连接(HTTPS)。",
+      "unsupported": "当前浏览器不支持录音。",
+      "permission_denied": "麦克风权限被拒绝,请在浏览器设置中允许后重试。",
+      "no_device": "没有找到麦克风。",
+      "failed": "录音失败,请重试。",
+      "start": "开始录音",
+      "stop": "停止录音",
+      "background": "应用切到后台,录音已停止,保留了 {{seconds}} 秒。",
+      "trackEnded": "麦克风断开,录音已停止,保留了 {{seconds}} 秒。"
+    },
+    "audio": {
+      "decode_failed": "无法解码这段录音。",
+      "empty": "录音是空的。",
+      "too_long": "录音超过 5 分钟。"
+    }
+  }
+}
