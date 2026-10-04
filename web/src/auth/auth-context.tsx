@@ -9,7 +9,10 @@ export interface AuthContextValue {
   api: ApiClient;
   login(username: string, password: string): Promise<void>;
   register(username: string, password: string, inviteCode?: string): Promise<void>;
-  logout(): void;
+  /** `byUser`:用户主动退出,重新登录后不再回到退出前的页面(会话过期则会回到)。 */
+  logout(byUser?: boolean): void;
+  /** 最近一次退出是用户主动发起的。 */
+  signedOutByUser?: boolean;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -19,14 +22,17 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   const tokenRef = useRef<string | null>(auth?.token ?? null);
   tokenRef.current = auth?.token ?? null;
 
-  const logout = useCallback(() => {
+  const [signedOutByUser, setSignedOutByUser] = useState(false);
+
+  const logout = useCallback((byUser?: boolean) => {
+    setSignedOutByUser(byUser === true);
     clearAuth();
     tokenRef.current = null;
     setAuth(null);
   }, []);
 
   const api = useMemo(
-    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: logout, fetchImpl }),
+    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logout(), fetchImpl }),
     [logout, fetchImpl],
   );
 
@@ -38,6 +44,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     const next: StoredAuth = { token: user.accessToken, user: { id: user.id, name: user.name } };
     saveAuth(next);
     tokenRef.current = next.token;
+    setSignedOutByUser(false);
     setAuth(next);
   }, []);
 
@@ -52,8 +59,8 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user: auth?.user ?? null, api, login, register, logout }),
-    [auth, api, login, register, logout],
+    () => ({ user: auth?.user ?? null, api, login, register, logout, signedOutByUser }),
+    [auth, api, login, register, logout, signedOutByUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

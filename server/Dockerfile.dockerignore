@@ -14,7 +14,9 @@ web/node_modules
 web/dist
 web/test-results
 web/playwright-report
-web/.env
+web/.env*
+web/.vite
+web/coverage
 !server/pyproject.toml
 !server/uv.lock
 !server/app

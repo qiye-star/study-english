@@ -1,0 +1,12 @@
+# E2E 专用覆盖文件,配合独立项目名使用(独立卷,不碰日常数据):
+#   export E2E_INVITE_CODE=<随机值>
+#   docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+services:
+  server:
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////data/app.db
+      REGISTRATION_MODE: invite
+      INVITE_CODE: ${E2E_INVITE_CODE:?set E2E_INVITE_CODE}
+      RATE_LIMIT_PER_MINUTE: "1000"
+    ports: !override
+      - "127.0.0.1:8100:8000"

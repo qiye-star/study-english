@@ -57,7 +57,7 @@ export function MePage() {
             <Link to="/install">{t("web.me.install")}</Link>
           </Button>
         )}
-        <Button variant="destructive" data-testid="me-logout" className="h-11 w-full" onClick={logout}>
+        <Button variant="destructive" data-testid="me-logout" className="h-11 w-full" onClick={() => logout(true)}>
           {t("web.me.logout")}
         </Button>
       </div>

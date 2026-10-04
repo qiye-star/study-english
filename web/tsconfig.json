@@ -23,5 +23,5 @@
       "*": ["./node_modules/@types/*", "./node_modules/*"]
     }
   },
-  "include": ["src", "e2e", "playwright.config.ts", "vite.config.ts", "../enjoy/src/types/pronunciation-assessment.d.ts"]
+  "include": ["src", "e2e", "playwright.config.cts", "vite.config.ts", "../enjoy/src/types/pronunciation-assessment.d.ts"]
 }
