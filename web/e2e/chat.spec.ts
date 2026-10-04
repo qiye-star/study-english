@@ -14,6 +14,11 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
   const conversationId = page.url().split("/").pop()!;
 
+  // 持久化写入(POST .../messages)在流结束后发生;先挂好监听,刷新前等它完成,避免竞态
+  const persisted = page.waitForResponse(
+    (r) => /\/api\/conversations\/[^/]+\/messages$/.test(r.url()) && r.request().method() === "POST",
+    { timeout: 120_000 },
+  );
   const streamed = page.waitForResponse((r) => r.url().endsWith("/api/ai/chat/completions"), { timeout: 60_000 });
   await page.getByTestId("chat-input").fill("Hi! Please reply with one short sentence about the weather.");
   await page.getByTestId("chat-send").click();
@@ -24,6 +29,7 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   const replyText = (await reply.innerText()).trim();
   expect(replyText).not.toBe("");
 
+  expect((await persisted).ok()).toBe(true);
   // 服务端已持久化:刷新后恢复同样的两条消息,助手回复文本与刷新前一致
   await page.reload();
   await expect(page.getByTestId("message-user")).toHaveCount(1);
