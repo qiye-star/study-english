@@ -1,4 +1,5 @@
 import io
+import uuid
 import wave
 from typing import Literal
 
@@ -11,9 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import recordings
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
-from app.deps import current_user, get_session, limited_user
-from app.models import SpeechToken, User
+from app.config import Settings
+from app.deps import current_user, get_session, get_settings, limited_user
+from app.models import Assessment, SpeechToken, User
 from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, get_xfyun
 from app.xfyun_result import to_assessment
 
@@ -25,6 +28,8 @@ MAX_REFERENCE_CHARS = 2000
 TIMEOUT_BASE_SECONDS = 30
 TIMEOUT_CAP_SECONDS = 330
 ASSESSMENT_RATE = 16000
+SCORE_KEYS = ("pronunciation_score", "accuracy_score", "fluency_score", "completeness_score")
+TRUTHY = {"true", "1", "yes"}
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
 
@@ -133,8 +138,10 @@ async def _read_limited_body(request: Request) -> bytes:
 @router.post("/assessments")
 async def create_assessment(
     request: Request,
-    _: User = Depends(limited_user),
+    user: User = Depends(limited_user),
     xfyun: XfyunIse = Depends(get_xfyun),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
     if not xfyun.configured:
         raise HTTPException(503, "Pronunciation assessment is not configured")
@@ -162,6 +169,7 @@ async def create_assessment(
         upload = form.get("file")
         reference = form.get("reference")
         language = form.get("language")
+        save = form.get("save")
         if not isinstance(upload, UploadFile):
             raise HTTPException(400, "Audio file is required")
         if not isinstance(language, str):
@@ -172,9 +180,16 @@ async def create_assessment(
         reference = reference.strip()
         if len(reference) > MAX_REFERENCE_CHARS:
             raise HTTPException(400, "Reference text is too long")
-        pcm = _wav_to_pcm(await upload.read())
+        wav_bytes = await upload.read()
+        pcm = _wav_to_pcm(wav_bytes)
     finally:
         await form.close()
+
+    want_save = isinstance(save, str) and save.strip().lower() in TRUTHY
+    if want_save:
+        quota = settings.recording_quota_mb * 1024 * 1024
+        if await recordings.used_bytes(session, user.id) + len(wav_bytes) > quota:
+            raise HTTPException(413, "Recording storage quota exceeded")
 
     duration = len(pcm) / (2 * ASSESSMENT_RATE)
     timeout = min(TIMEOUT_BASE_SECONDS + duration, TIMEOUT_CAP_SECONDS)
@@ -192,6 +207,35 @@ async def create_assessment(
             raise HTTPException(400, "Audio is too long")
         raise HTTPException(502, "Upstream unavailable")
     try:
-        return to_assessment(xml, reference)
+        result = to_assessment(xml, reference)
     except ValueError:
         raise HTTPException(502, "Upstream unavailable")
+    if not want_save:
+        return result
+
+    assessment_id = str(uuid.uuid4())
+    relpath = recordings.recording_relpath(user.id, assessment_id)
+    data_dir = settings.resolved_data_dir
+    try:
+        recordings.write_recording(data_dir, relpath, wav_bytes)
+    except OSError:
+        raise HTTPException(500, "Could not save the recording")
+    session.add(
+        Assessment(
+            id=assessment_id,
+            user_id=user.id,
+            reference_text=reference,
+            language=language.strip()[:16],
+            duration_ms=round(duration * 1000),
+            audio_bytes=len(wav_bytes),
+            scores={key: result.get(key) for key in SCORE_KEYS},
+            result=result,
+            audio_path=relpath,
+        )
+    )
+    try:
+        await session.commit()
+    except Exception:
+        recordings.delete_recording(data_dir, relpath)
+        raise
+    return {**result, "assessment_id": assessment_id}
