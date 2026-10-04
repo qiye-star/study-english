@@ -18,6 +18,13 @@ describe("tts helpers", () => {
     expect(speakableText("# Title\n**Bold** `code` [link](http://x) and _it_\n- item\n```js\nx()\n```")).toBe("Title Bold code link and it item");
     expect(speakableText("x".repeat(5000))).toHaveLength(4096);
   });
+  it("never splits a surrogate pair when truncating", () => {
+    const text = "a".repeat(4095) + "😀" + "tail";
+    const out = speakableText(text);
+    expect(out).toBe("a".repeat(4095));
+    expect(out.length).toBeLessThanOrEqual(4096);
+    expect(speakableText("a".repeat(4094) + "😀")).toBe("a".repeat(4094) + "😀");
+  });
   it("keys by model, voice and text", () => {
     expect(ttsKey("m", "v", "t")).not.toBe(ttsKey("m", "v2", "t"));
   });

@@ -1,15 +1,20 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { TtsCache } from "./tts";
-import { useTtsPlayer } from "./use-tts-player";
+import { TtsPlaybackError, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 
 function fakeAudio() {
   return { src: "", play: vi.fn(() => Promise.resolve()), pause: vi.fn(), onended: null as null | (() => void) } as unknown as HTMLAudioElement;
 }
 const mkCache = () => new TtsCache(5, { create: () => "blob:1", revoke: () => {} });
 const apiFor = (mock: ReturnType<typeof createFetchMock>) => new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+
+beforeAll(() => {
+  Object.assign(URL, { createObjectURL: vi.fn(() => "blob:silent"), revokeObjectURL: vi.fn() });
+});
 
 describe("useTtsPlayer", () => {
   it("fetches once, then plays from the cache", async () => {
@@ -72,5 +77,56 @@ describe("useTtsPlayer", () => {
     unmount();
     expect(signal?.aborted).toBe(true);
     expect(audio.pause).toHaveBeenCalled();
+  });
+  it("iOS: starts the silent clip synchronously inside the tap, before the fetch completes", async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const mock = createFetchMock({ "POST /api/ai/audio/speech": async () => { order.push("fetch-start"); await gate; order.push("fetch-done"); return new Response(new Uint8Array([1])); } });
+    const audio = fakeAudio();
+    (audio.play as ReturnType<typeof vi.fn>).mockImplementation(() => { order.push(`play:${audio.src}`); return Promise.resolve(); });
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: () => audio }));
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.play("m1", "Hello", "m", "alloy"); }); // the synchronous tap handler
+    expect(order[0]).toBe("play:blob:silent");
+    expect(order).not.toContain("fetch-done");
+    expect(result.current.states.m1).toBe("loading");
+    release();
+    await act(() => pending);
+    expect(order.slice(0, 3)).toEqual(["play:blob:silent", "fetch-start", "fetch-done"]);
+    expect(order.at(-1)).toBe("play:blob:1");
+  });
+  it("does not request or unlock anything when there is nothing speakable", async () => {
+    const mock = createFetchMock({});
+    const audio = fakeAudio();
+    const onNothingToRead = vi.fn();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: () => audio, onNothingToRead }));
+    await act(() => result.current.play("m1", "```js" + String.fromCharCode(10) + "x()" + String.fromCharCode(10) + "```", "m", "alloy"));
+    expect(onNothingToRead).toHaveBeenCalledTimes(1);
+    expect(mock.calls).toHaveLength(0);
+    expect(result.current.states.m1).toBeUndefined();
+  });
+  it("reports a blocked or undecodable playback as a playback error", async () => {
+    const mock = createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    const audio = fakeAudio();
+    let calls = 0;
+    (audio.play as ReturnType<typeof vi.fn>).mockImplementation(() => (++calls === 1 ? Promise.resolve() : Promise.reject(new DOMException("blocked", "NotAllowedError"))));
+    const onError = vi.fn();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: () => audio, onError }));
+    await act(() => result.current.play("m1", "Hello", "m", "alloy"));
+    expect(result.current.states.m1).toBe("error");
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(TtsPlaybackError);
+    expect(ttsErrorMessage(i18n.t, onError.mock.calls[0][0])).toBe("Could not play the reply.");
+  });
+  it("reports a decode error from the audio element", async () => {
+    const mock = createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    const audio = fakeAudio() as HTMLAudioElement & { onerror: null | (() => void) };
+    const onError = vi.fn();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: () => audio, onError }));
+    await act(() => result.current.play("m1", "Hello", "m", "alloy"));
+    expect(result.current.states.m1).toBe("playing");
+    act(() => audio.onerror?.());
+    expect(result.current.states.m1).toBe("error");
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(TtsPlaybackError);
   });
 });

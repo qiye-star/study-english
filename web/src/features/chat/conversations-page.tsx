@@ -1,6 +1,7 @@
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -25,24 +26,44 @@ export function ConversationsPage() {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // 用 ref 读取最新的 t:切换语言不应让 load 变化,否则会重置已加载的分页。
+  const tRef = useRef(t);
+  tRef.current = t;
+  const loadingRef = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const load = useCallback(async (page: number) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(page > 1);
+    setError(null);
     try {
       const res = await listConversations(api, page);
-      setItems((prev) => (page === 1 ? res.conversations : [...prev, ...res.conversations]));
+      setItems((prev) => {
+        const base = page === 1 ? [] : prev;
+        const seen = new Set(base.map((c) => c.id));
+        return [...base, ...res.conversations.filter((c) => !seen.has(c.id))];
+      });
       setNext(res.next);
     } catch (err) {
-      setError(translateServerError(t, err, CHAT_SERVER_ERRORS));
+      setError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS));
     } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
       setLoaded(true);
     }
-  }, [api, t]);
+  }, [api]);
 
   useEffect(() => { void load(1); }, [load]);
 
   const create = async () => {
     setCreating(true);
+    setError(null);
     try {
-      const ai = await loadServerAiConfig(api).catch((): null => null);
+      const ai = await loadServerAiConfig(api).catch((): null => {
+        toast.error(t("web.chat.configFallback"));
+        return null;
+      });
       const created = await createConversation(api, { config: defaultConversationConfig(ai) });
       navigate(`/chat/${created.id}`);
     } catch (err) {
@@ -53,6 +74,7 @@ export function ConversationsPage() {
   };
 
   const remove = async (conversation: Conversation) => {
+    setError(null);
     try {
       await deleteConversation(api, conversation.id);
       setItems((prev) => prev.filter((c) => c.id !== conversation.id));
@@ -68,7 +90,15 @@ export function ConversationsPage() {
           <PlusIcon className="mr-1 h-4 w-4" />{t("web.chat.new")}
         </Button>
       } />
-      {error && <p role="alert" className="p-4 text-sm text-destructive">{error}</p>}
+      {!loaded && <p className="p-8 text-center text-muted-foreground">{t("web.common.loading")}</p>}
+      {error && (
+        <div role="alert" className="flex items-center gap-2 p-4 text-sm text-destructive">
+          <span className="flex-1">{error}</span>
+          {!items.length && (
+            <Button variant="outline" className="h-11" onClick={() => void load(1)}>{t("web.common.retry")}</Button>
+          )}
+        </div>
+      )}
       {loaded && !items.length && !error && (
         <p data-testid="conversations-empty" className="p-8 text-center text-muted-foreground">{t("web.chat.empty")}</p>
       )}
@@ -86,7 +116,7 @@ export function ConversationsPage() {
           </li>
         ))}
       </ul>
-      {next && <Button variant="ghost" className="m-4 h-11" onClick={() => void load(next)}>{t("web.common.loadMore")}</Button>}
+      {next && <Button variant="ghost" className="m-4 h-11" disabled={loadingMore} onClick={() => void load(next)}>{t("web.common.loadMore")}</Button>}
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{t("web.chat.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>

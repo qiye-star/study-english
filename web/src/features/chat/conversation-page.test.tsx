@@ -1,6 +1,8 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
@@ -20,6 +22,7 @@ const sse = (parts: string[]) => {
   });
 };
 const delta = (text: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`;
+const DONE_EVENT = "data: [DONE]\n\n";
 const CONFIG = { system_prompt: "SYS", model: "gpt-4o", temperature: 0.7, tts_model: "openai/tts-1", tts_voice: "alloy" };
 
 function routes(extra: Record<string, Handler> = {}): Record<string, Handler> {
@@ -34,9 +37,15 @@ function routes(extra: Record<string, Handler> = {}): Record<string, Handler> {
   };
 }
 
+let goTo: (path: string) => void = () => {};
+function NavProbe(): null {
+  goTo = useNavigate();
+  return null;
+}
+
 function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"]) {
   const mock = createFetchMock(r);
-  const view = renderWithProviders(<ConversationPage recorderEnv={recorderEnv} />, {
+  const view = renderWithProviders(<><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></>, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: "/chat/c1",
     path: "/chat/:id",
@@ -46,6 +55,11 @@ function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof creat
 
 const posted = (mock: ReturnType<typeof createFetchMock>) =>
   mock.calls.filter((c) => c.url.pathname.endsWith("/messages") && c.method === "POST");
+
+beforeAll(() => {
+  Object.assign(URL, { createObjectURL: vi.fn(() => "blob:tts"), revokeObjectURL: vi.fn() });
+  Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
+});
 
 describe("ConversationPage", () => {
   beforeEach(() => resetServerAiConfigCache());
@@ -277,6 +291,81 @@ describe("ConversationPage", () => {
       if (follows) expect(scrollTo).toHaveBeenCalled();
       else expect(scrollTo).not.toHaveBeenCalled();
       await act(async () => { stream.close(); });
+    });
+  });
+
+  it("tells the user when a reply has nothing to read aloud, without calling the speech API", async () => {
+    const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const { mock } = setup(routes({
+      "GET /api/conversations/c1/messages": () => json({ messages: [{ id: "m0", conversation_id: "c1", role: "assistant", content: "```js" + String.fromCharCode(10) + "x()" + String.fromCharCode(10) + "```" }] }),
+    }));
+    await userEvent.click(await screen.findByTestId("message-tts"));
+    expect(spy).toHaveBeenCalledWith("There is nothing to read aloud in this reply.");
+    expect(mock.calls.some((c) => c.url.pathname === "/api/ai/audio/speech")).toBe(false);
+    spy.mockRestore();
+  });
+
+  describe("switching conversations", () => {
+    const c2Routes = {
+      "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+      "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+    };
+
+    it("does not apply a late rename of the previous conversation to the new one", async () => {
+      let releasePatch!: () => void;
+      const patchGate = new Promise<void>((r) => (releasePatch = r));
+      const second = (() => {
+        let close!: () => void;
+        const res = new Response(new ReadableStream({ start(c) { close = () => c.close(); } }), { headers: { "Content-Type": "text/event-stream" } });
+        return { res, close };
+      })();
+      let turn = 0;
+      setup(routes({
+        ...c2Routes,
+        "POST /api/ai/chat/completions": () => (++turn === 1 ? sse([delta("Hello"), DONE_EVENT]) : second.res),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+        "PATCH /api/conversations/c1": async () => { await patchGate; return json({ id: "c1", name: "Renamed first", config: CONFIG }); },
+      }));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hello"));
+      await waitFor(() => expect(screen.getByTestId("chat-send")).toBeDisabled()); // input emptied; sending finished
+      await userEvent.type(screen.getByTestId("chat-input"), "Again");
+      await userEvent.click(screen.getByTestId("chat-send")); // second turn overlaps the pending rename
+      await waitFor(() => expect(turn).toBe(2));
+      await act(async () => { goTo("/chat/c2"); });
+      expect(await screen.findByText("Second chat hello")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Other chat");
+      await act(async () => { releasePatch(); });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Other chat");
+    });
+
+    it("stops read-aloud playback when the conversation changes", async () => {
+      setup(routes({ ...c2Routes, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) }));
+      await userEvent.click(await screen.findByTestId("message-tts"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+      vi.mocked(HTMLMediaElement.prototype.pause).mockClear();
+      await act(async () => { goTo("/chat/c2"); });
+      await screen.findByText("Second chat hello");
+      expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+      expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle");
+    });
+
+    it("scrolls a newly opened conversation to the bottom even if the previous one was scrolled up", async () => {
+      setup(routes(c2Routes));
+      await screen.findByText("reply");
+      const list = screen.getByTestId("message-list");
+      Object.defineProperty(list, "scrollHeight", { configurable: true, value: 1000 });
+      Object.defineProperty(list, "clientHeight", { configurable: true, value: 400 });
+      Object.defineProperty(list, "scrollTop", { configurable: true, writable: true, value: 100 });
+      act(() => { list.dispatchEvent(new Event("scroll")); });
+      const scrollTo = vi.fn();
+      list.scrollTo = scrollTo as unknown as typeof list.scrollTo;
+      await act(async () => { goTo("/chat/c2"); });
+      await screen.findByText("Second chat hello");
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1000 });
     });
   });
 });

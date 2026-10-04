@@ -19,7 +19,7 @@ import {
 import { buildChatMessages, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { MessageBubble, type UiMessage } from "./message-bubble";
-import { useTtsPlayer } from "./use-tts-player";
+import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 import { VoiceInputButton } from "./voice-input-button";
 
 let keySeq = 0;
@@ -37,7 +37,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const tts = useTtsPlayer(api, {
-    onError: (err) => toast.error(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)),
+    onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
+    onNothingToRead: () => toast.error(tRef.current("web.chat.nothingToRead")),
   });
   const stopTts = tts.stop;
   // 切换会话或离开页面时停止朗读
@@ -50,6 +51,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   tRef.current = t;
   // 保存串行化:上一轮的保存未完成时,下一轮排队,保证服务端消息顺序
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const idRef = useRef(id);
+  idRef.current = id;
   const nearBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -60,6 +63,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setSending(false);
     setMessages([]);
     setLoadError(null);
+    nearBottomRef.current = true; // 新会话加载完成后滚到底
+    forceScrollRef.current = false;
     loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined);
     Promise.all([getConversation(api, id), listMessages(api, id)])
       .then(([c, list]) => {
@@ -150,7 +155,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     if (conversation.name === DEFAULT_CONVERSATION_NAME) {
       try {
         const renamed = await updateConversation(api, conversation.id, { name: titleFrom(content) });
-        if (mountedRef.current && !controller.signal.aborted) setConversation(renamed);
+        // 两轮重叠 + 切换会话时,上一个会话的改名结果不能覆盖当前会话
+        if (mountedRef.current && !controller.signal.aborted && renamed.id === idRef.current) setConversation(renamed);
       } catch {
         // 改名失败不影响已保存的消息
       }

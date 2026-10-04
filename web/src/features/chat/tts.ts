@@ -40,8 +40,15 @@ export class TtsCache {
   }
 }
 
+/** 按 UTF-16 码元截断,但不劈开代理对(否则会留下孤立的高代理项)。 */
+function truncateSafely(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
 export function speakableText(markdown: string): string {
-  return markdown
+  return truncateSafely(markdown
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -49,8 +56,7 @@ export function speakableText(markdown: string): string {
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
     .replace(/[*_~>#|]/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_TTS_INPUT);
+    .trim(), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();
