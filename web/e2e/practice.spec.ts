@@ -14,9 +14,14 @@ test("record, assess with the real service, replay and delete", async ({ page, r
   await page.getByTestId("record-toggle").click();
   await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
   // 等录满整段素材(约 11 s),以计时器为准而不是固定睡眠
-  await expect(page.getByTestId("record-timer")).toHaveText(/^00:1[1-9] \//, { timeout: 30_000 });
+  await expect(page.getByTestId("record-timer")).toHaveText(/^00:(1[1-9]|[2-9]\d) \//, { timeout: 30_000 });
   const assessed = page.waitForResponse(
     (r) => r.url().endsWith("/api/speech/assessments") && r.request().method() === "POST",
+    { timeout: 150_000 },
+  );
+  // 结果页由应用自己带令牌请求录音,这是"回放可用"的真实路径:先挂好监听再点停止
+  const appAudio = page.waitForResponse(
+    (r) => /\/api\/assessments\/[^/]+\/audio$/.test(r.url()) && r.request().method() === "GET",
     { timeout: 150_000 },
   );
   await page.getByTestId("record-toggle").click();
@@ -31,6 +36,12 @@ test("record, assess with the real service, replay and delete", async ({ page, r
   await expect(page).toHaveURL(new RegExp(`/practice/assessments/${body.assessment_id}$`));
   await expect(page.getByTestId("assessment-scores")).toBeVisible();
   await expect(page.getByTestId("assessment-words")).toContainText(/country/i);
+  const playerAudio = await appAudio;
+  expect(playerAudio.status()).toBe(200);
+  expect(playerAudio.headers()["content-type"]).toMatch(/audio\/(wav|x-wav|wave)/);
+  // 播放器真的加载了应用拿到的 blob:没有"录音不可用"提示,且渲染出波形
+  await expect(page.getByTestId("assessment-audio").locator("canvas").first()).toBeVisible();
+  await expect(page.getByTestId("assessment-audio")).not.toContainText(/unavailable|不可用/i);
   const audio = await page.evaluate(async (id) => {
     const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
     const r = await fetch(`/api/assessments/${id}/audio`, { headers: { Authorization: `Bearer ${token}` } });
@@ -41,12 +52,19 @@ test("record, assess with the real service, replay and delete", async ({ page, r
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 
   await page.goto("/practice/history");
+  // signIn 每次注册全新用户,所以该用户历史里只有刚才这一条
   await expect(page.getByTestId("assessment-item")).toHaveCount(1);
   await page.getByTestId("assessment-item").first().click();
   await page.getByTestId("assessment-delete").click();
   await page.getByTestId("assessment-delete-confirm").click();
   await expect(page).toHaveURL(/\/practice\/history$/);
   await expect(page.getByTestId("history-empty")).toBeVisible();
+  // 服务端行确实已删除
+  const gone = await page.evaluate(async (id) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    return (await fetch(`/api/assessments/${id}/audio`, { headers: { Authorization: `Bearer ${token}` } })).status;
+  }, body.assessment_id);
+  expect(gone).toBe(404);
 });
 
 test("going to the background keeps what was recorded", async ({ page, request, browserName }) => {
