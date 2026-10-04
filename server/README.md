@@ -44,10 +44,11 @@ curl localhost:8000/up     # {"status":"ok"}
 cd server
 uv sync
 uv run pytest
+uv run alembic upgrade head   # 全新克隆必须先建表,否则每个 API 请求都会 500("no such table")
 uv run uvicorn app.main:create_app --factory --reload
 ```
 
-注意:`.env.example` 中的 SQLite 路径 `sqlite+aiosqlite:////data/app.db` 是给 Docker 用的;本地 `uv run` 请改用 `DATABASE_URL=sqlite+aiosqlite:///./data/app.db`(或不设置,默认即此值)。
+注意:`.env.example` 中的 SQLite 路径 `sqlite+aiosqlite:////data/app.db` 是给 Docker 用的;本地 `uv run` 请改用 `DATABASE_URL=sqlite+aiosqlite:///./data/app.db`(或不设置,默认即此值)。若使用 Postgres 的 `DATABASE_URL` 且未设置 `DATA_DIR`,录音目录会解析为 `/data`,本地运行请显式设置 `DATA_DIR`(例如 `DATA_DIR=./data`)。
 
 使用 Postgres 跑测试套件(先创建 `enjoy_test` 库):
 
@@ -58,7 +59,7 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 
 ## 切换数据库
 
-- SQLite(默认):`DATABASE_URL=sqlite+aiosqlite:////data/app.db`,数据在 compose 卷 `enjoy-data` 中。
+- SQLite(默认):`DATABASE_URL=sqlite+aiosqlite:////data/app.db`,数据在 compose 卷 `enjoy-data` 中。若把 `/data` 改为宿主机目录(bind mount)而非该命名卷,须执行 `chown -R 10001:10001 <目录>`(容器以 uid 10001 运行),否则保存评测会返回 500。
 - Postgres:把 `DATABASE_URL` 改为 `postgresql+asyncpg://enjoy:<密码>@postgres:5432/enjoy`(密码与 `POSTGRES_PASSWORD` 一致),并用 `docker compose --profile postgres up -d --build` 启动。
 
 `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` 由 compose 自己读取,**不再**从 `server/.env` 传入(避免把上游密钥给数据库容器)。请复制根目录的 `.env.example` 为 `.env`(与 `docker-compose.yml` 同目录),或在 shell 中导出这些变量;未设置时默认值为 `enjoy` / `change-me` / `enjoy`。密码须与 `DATABASE_URL` 中的一致。
@@ -149,7 +150,7 @@ your.domain {
 同一个镜像同时托管手机网页版(`web/`,PWA):`docker compose up -d --build` 后访问 `https://<你的域名>/` 即可,API 与网页同源,无需 CORS。网页版只覆盖练习子集(登录、跟读评测、AI 对话、查词翻译)。
 
 - **必须 HTTPS**:手机浏览器只在安全上下文里允许录音;iOS 的「添加到主屏幕」也需要 HTTPS。反向代理配置同上一节,请求体上限保持 `25m`(录音上传)。
-- **数据**:对话、消息、评测记录存数据库;评测录音存 `DATA_DIR/recordings/<用户 ID>/`。`DATA_DIR` 留空时:SQLite 文件库取库文件所在目录,否则为 `/data`(默认 compose 卷)。备份时同时备份数据库与该目录。
+- **数据**:对话、消息、评测记录存数据库;评测录音存 `DATA_DIR/recordings/<用户 ID>/`。`DATA_DIR` 留空时:SQLite 文件库取库文件所在目录,否则为 `/data`(默认 compose 卷)。备份时同时备份数据库与该目录。每个账号的对话/消息存储上限为 `MAX_CONVERSATIONS` x `MAX_MESSAGES_PER_CONVERSATION` x 20000 字符;公网部署建议使用 `REGISTRATION_MODE=invite` 或 `closed`。
 - **上限**:`RECORDING_QUOTA_MB`(每用户录音总量,默认 500)、`MAX_CONVERSATIONS`(默认 200)、`MAX_MESSAGES_PER_CONVERSATION`(默认 1000);单条录音 ≤ 5 分钟。超限分别返回 413(录音配额)/ 429(对话、消息数)。用户可在网页里删除旧录音。
 - **前端目录**:`WEB_DIST_DIR` 指定网页构建产物目录;留空使用 `<仓库根>/web/dist`(Docker 镜像内为 `/web/dist`)。
 - **更新**:前端资源带哈希(`/assets/*` 长期缓存),`index.html` 与 `sw.js` 不做强缓存;重新部署后用户刷新即得到新版本(service worker 只缓存 `/assets/*`,不做离线学习)。

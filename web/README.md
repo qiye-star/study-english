@@ -4,6 +4,7 @@
 
 ## 开发
 
+    cd server && uv run alembic upgrade head                                 # 全新克隆首次运行必须先建表,否则 API 报 "no such table"
     cd server && uv run uvicorn app.main:create_app --factory --port 8000   # 另一个终端
     yarn web:dev                                                           # http://localhost:5173,/api 代理到 8000
 
