@@ -7272,7 +7272,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-slot@npm:1.3.3":
+"@radix-ui/react-slot@npm:1.3.3, @radix-ui/react-slot@npm:^1.3.3":
   version: 1.3.3
   resolution: "@radix-ui/react-slot@npm:1.3.3"
   dependencies:
@@ -29221,7 +29221,7 @@ __metadata:
     "@radix-ui/react-progress": "npm:^1.1.2"
     "@radix-ui/react-scroll-area": "npm:^1.2.3"
     "@radix-ui/react-separator": "npm:^1.1.2"
-    "@radix-ui/react-slot": "npm:^1.1.2"
+    "@radix-ui/react-slot": "npm:^1.3.3"
     "@radix-ui/react-switch": "npm:^1.1.3"
     "@tailwindcss/typography": "npm:^0.5.16"
     "@testing-library/dom": "npm:^10.4.0"
