@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
+    "decamelize-keys": "^2.0.1",
     "i18next": "^24.2.3",
     "lucide-react": "^0.479.0",
     "pitchfinder": "^2.3.2",
