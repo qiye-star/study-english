@@ -12,6 +12,7 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  const conversationId = page.url().split("/").pop()!;
 
   const streamed = page.waitForResponse((r) => r.url().endsWith("/api/ai/chat/completions"), { timeout: 60_000 });
   await page.getByTestId("chat-input").fill("Hi! Please reply with one short sentence about the weather.");
@@ -20,12 +21,14 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   const reply = page.getByTestId("message-assistant").last();
   await expect(reply).toHaveAttribute("data-status", "done", { timeout: 90_000 });
   await expect(reply).toHaveText(/\S/);
+  const replyText = (await reply.innerText()).trim();
+  expect(replyText).not.toBe("");
 
-  // 服务端已持久化:刷新后恢复同样的两条消息(内容非空)
+  // 服务端已持久化:刷新后恢复同样的两条消息,助手回复文本与刷新前一致
   await page.reload();
   await expect(page.getByTestId("message-user")).toHaveCount(1);
   await expect(page.getByTestId("message-assistant")).toHaveCount(1);
-  await expect(page.getByTestId("message-assistant")).toHaveText(/\S/);
+  await expect(page.getByTestId("message-assistant")).toHaveText(replyText);
 
   // 朗读:真实 TTS 请求 200 + audio/*,按钮状态机经过 loading -> playing(无头环境不出声,但会进入播放态)
   const tts = page.getByTestId("message-assistant").locator("xpath=..").getByTestId("message-tts").last();
@@ -48,17 +51,28 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
     .toContain("playing");
   const states = await page.evaluate(() => (window as unknown as { __ttsStates: string[] }).__ttsStates);
   expect(states).not.toContain("error");
-  console.log(`tts states=${states.join(">")} content-type=${speechResponse.headers()["content-type"]}`);
 
   await page.getByTestId("nav-chat").click();
   await expect(page.getByTestId("conversation-item")).toHaveCount(1);
   await page.getByTestId("conversation-delete").first().click();
   await page.getByTestId("conversation-delete-confirm").click();
   await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  // 服务端确实删除:刷新后仍为空,且按 id 查询返回 404
+  await page.reload();
+  await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  const gone = await page.evaluate(async (id) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    return (await fetch(`/api/conversations/${id}`, { headers: { Authorization: `Bearer ${token}` } })).status;
+  }, conversationId);
+  expect(gone).toBe(404);
 });
 
 test("chat: dictation fills the input with the real transcription and does not send", async ({ page, request, browserName }) => {
   test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
+  const completionRequests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/chat/completions")) completionRequests.push(r.url());
+  });
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
   await page.getByTestId("nav-chat").click();
@@ -78,6 +92,7 @@ test("chat: dictation fills the input with the real transcription and does not s
   // 听写只填入输入框,不自动发送
   await expect(page.getByTestId("message-user")).toHaveCount(0);
   await expect(page.getByTestId("message-assistant")).toHaveCount(0);
+  expect(completionRequests).toEqual([]);
 });
 
 test("composer stays visible on a phone-sized screen", async ({ page, request }) => {
