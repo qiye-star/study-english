@@ -9,7 +9,7 @@ from app.db import make_engine
 from app.errors import install_error_handlers
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
-from app.routers import ai_audio, ai_chat, config_api, conversations, health, sessions, speech, stubs
+from app.routers import ai_audio, ai_chat, assessments, config_api, conversations, health, sessions, speech, stubs
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -39,6 +39,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     # stubs 含 /api/** 的兜底写入路由,必须最后注册。
-    for module in (health, sessions, config_api, speech, conversations, ai_chat, ai_audio, stubs):
+    for module in (health, sessions, config_api, speech, conversations, assessments, ai_chat, ai_audio, stubs):
         app.include_router(module.router)
     return app
