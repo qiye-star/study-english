@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
@@ -13,32 +13,48 @@ export function HistoryPage() {
   const { api } = useAuth();
   const { t } = useTranslation();
   const [items, setItems] = useState<AssessmentSummary[]>([]);
-  const [next, setNext] = useState<number | null>(1);
+  const [next, setNext] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const tRef = useRef(t);
+  tRef.current = t;
+  const loadingRef = useRef(false);
+
   const load = useCallback(async (page: number) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
+    setError(null);
     try {
       const res = await listAssessments(api, page);
-      setItems((prev) => (page === 1 ? res.assessments : [...prev, ...res.assessments]));
+      setItems((prev) => {
+        const base = page === 1 ? [] : prev;
+        const seen = new Set(base.map((a) => a.id));
+        return [...base, ...res.assessments.filter((a) => !seen.has(a.id))];
+      });
       setNext(res.next);
-      setError(null);
     } catch (err) {
-      setError(translateServerError(t, err));
+      setError(translateServerError(tRef.current, err));
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setLoaded(true);
     }
-  }, [api, t]);
+  }, [api]);
 
   useEffect(() => { void load(1); }, [load]);
 
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.practice.historyTitle")} back="/practice" />
-      {error && <p role="alert" className="p-4 text-sm text-destructive">{error}</p>}
+      {error && (
+        <div role="alert" className="flex items-center gap-2 p-4 text-sm text-destructive">
+          <span className="flex-1">{error}</span>
+          {!items.length && <Button variant="outline" className="h-11" onClick={() => void load(1)}>{t("web.common.retry")}</Button>}
+        </div>
+      )}
       {loaded && !items.length && !error && (
         <p data-testid="history-empty" className="p-8 text-center text-muted-foreground">{t("web.practice.empty")}</p>
       )}

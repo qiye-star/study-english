@@ -1,5 +1,5 @@
 import { RotateCcwIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -27,6 +27,8 @@ export function AssessmentPage() {
   const [audioError, setAudioError] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     let alive = true;
@@ -35,9 +37,11 @@ export function AssessmentPage() {
     setError(null);
     setAudioUrl(null);
     setAudioError(false);
+    setCurrentTime(0);
+    setConfirming(false);
     getAssessment(api, id)
       .then((d) => alive && setDetail(d))
-      .catch((err) => alive && setError(translateServerError(t, err, PRACTICE_SERVER_ERRORS)));
+      .catch((err) => alive && setError(translateServerError(tRef.current, err, PRACTICE_SERVER_ERRORS)));
     getAssessmentAudio(api, id)
       .then((blob) => {
         if (!alive) return;
@@ -49,7 +53,7 @@ export function AssessmentPage() {
       alive = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [api, id, t]);
+  }, [api, id]);
 
   const remove = async () => {
     try {

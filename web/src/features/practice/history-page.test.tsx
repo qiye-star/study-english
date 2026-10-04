@@ -1,6 +1,7 @@
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -31,5 +32,41 @@ describe("HistoryPage", () => {
     const mock = createFetchMock({ "GET /api/assessments": () => json({ assessments: [], page: 1, next: null }) });
     renderWithProviders(<HistoryPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     expect(await screen.findByTestId("history-empty")).toHaveTextContent("No practice yet.");
+  });
+
+  it("shows an error with an explicit retry button when the first load fails", async () => {
+    let fail = true;
+    const mock = createFetchMock({ "GET /api/assessments": () => (fail ? json({ error: "Network error" }, 500) : json({ assessments: [item("a1", "First")], page: 1, next: null })) });
+    renderWithProviders(<HistoryPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Network error. Check your connection.");
+    expect(screen.queryByTestId("history-load-more")).toBeNull();
+    expect(screen.queryByTestId("history-empty")).toBeNull();
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByTestId("assessment-item")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("de-duplicates by id, ignores double taps and survives a language change", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const mock = createFetchMock({
+      "GET /api/assessments": async (call) => {
+        if (call.url.searchParams.get("page") === "2") {
+          await gate;
+          return json({ assessments: [item("a2", "Second"), item("a3", "Third")], page: 2, next: null });
+        }
+        return json({ assessments: [item("a1", "First"), item("a2", "Second")], page: 1, next: 2 });
+      },
+    });
+    renderWithProviders(<HistoryPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await screen.findAllByTestId("assessment-item");
+    await act(async () => { await i18n.changeLanguage("zh-CN"); });
+    await act(async () => { await i18n.changeLanguage("en"); });
+    expect(mock.calls.filter((c) => c.url.searchParams.get("page") === "1")).toHaveLength(1);
+    await userEvent.dblClick(screen.getByTestId("history-load-more"));
+    release();
+    await waitFor(() => expect(screen.getAllByTestId("assessment-item")).toHaveLength(3));
+    expect(mock.calls.filter((c) => c.url.searchParams.get("page") === "2")).toHaveLength(1);
   });
 });

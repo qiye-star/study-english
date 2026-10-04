@@ -1,6 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { useNavigate } from "react-router-dom";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import raw from "~/test/fixtures/assessment-good.json";
@@ -20,14 +22,25 @@ beforeAll(() => {
   Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
 });
 
+let goTo: (path: string) => void = () => {};
+function NavProbe(): null {
+  goTo = useNavigate();
+  return null;
+}
+
+beforeEach(() => {
+  vi.mocked(URL.createObjectURL).mockClear();
+  vi.mocked(URL.revokeObjectURL).mockClear();
+});
+
 function setup(routes: Parameters<typeof createFetchMock>[0]) {
   const mock = createFetchMock(routes);
-  renderWithProviders(<AssessmentPage />, {
+  const view = renderWithProviders(<><AssessmentPage /><NavProbe /></>, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: "/practice/assessments/a1",
     path: "/practice/assessments/:id",
   });
-  return mock;
+  return Object.assign(mock, { view });
 }
 
 describe("AssessmentPage", () => {
@@ -70,5 +83,49 @@ describe("AssessmentPage", () => {
     expect(await screen.findByText("The recording is unavailable.")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("assessment-again"));
     expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+  });
+
+  it("shows the server error and keeps the page when delete fails", async () => {
+    setup({
+      "GET /api/assessments/a1": () => json(DETAIL),
+      "GET /api/assessments/a1/audio": () => new Response(new Uint8Array([1])),
+      "DELETE /api/assessments/a1": () => json({ error: "Assessment not found" }, 404),
+    });
+    await userEvent.click(await screen.findByTestId("assessment-delete"));
+    await userEvent.click(await screen.findByTestId("assessment-delete-confirm"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This recording does not exist.");
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a1");
+    expect(screen.getByTestId("assessment-reference")).toBeInTheDocument();
+  });
+
+  it("revokes the blob URL on unmount", async () => {
+    const mock = setup({
+      "GET /api/assessments/a1": () => json(DETAIL),
+      "GET /api/assessments/a1/audio": () => new Response(new Uint8Array([1])),
+    });
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    mock.view.unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:audio-1");
+  });
+
+  it("revokes the old blob URL, resets the confirm dialog and does not refetch on language change when the id changes", async () => {
+    const mock = setup({
+      "GET /api/assessments/a1": () => json(DETAIL),
+      "GET /api/assessments/a2": () => json({ ...DETAIL, id: "a2", reference_text: "Second one" }),
+      "GET /api/assessments/a1/audio": () => new Response(new Uint8Array([1])),
+      "GET /api/assessments/a2/audio": () => new Response(new Uint8Array([2])),
+    });
+    await userEvent.click(await screen.findByTestId("assessment-delete"));
+    expect(await screen.findByTestId("assessment-delete-confirm")).toBeInTheDocument();
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await act(async () => { goTo("/practice/assessments/a2"); });
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:audio-1"));
+    expect(screen.queryByTestId("assessment-delete-confirm")).toBeNull();
+    await screen.findByText("Second one");
+    const before = mock.calls.length;
+    await act(async () => { await i18n.changeLanguage("zh-CN"); });
+    await act(async () => { await i18n.changeLanguage("en"); });
+    expect(mock.calls.length).toBe(before);
   });
 });
