@@ -1,8 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import "fake-indexeddb/auto";
+import { render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearAuth, saveAuth } from "~/api/auth-storage";
+import { PRACTICE_DRAFT_KEY } from "~/lib/device-data";
+import { kvGet, kvSet } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { AuthProvider, useAuth } from "./auth-context";
 import { RequireAuth } from "./require-auth";
@@ -52,9 +55,13 @@ describe("RequireAuth", () => {
   });
   it("logs out and returns to /login on any 401", async () => {
     saveAuth({ token: "expired", user: { id: "1", name: "a" } });
+    localStorage.setItem(PRACTICE_DRAFT_KEY, JSON.stringify("draft"));
+    await kvSet("lookup", 1);
     setup({ "GET /api/me": () => json({ error: "Unauthorized" }, 401) });
     expect(await screen.findByText(/^login from=/)).toBeInTheDocument();
     expect(localStorage.getItem("enjoy-web.auth")).toBeNull();
+    expect(localStorage.getItem(PRACTICE_DRAFT_KEY)).toBeNull();
+    await waitFor(async () => expect(await kvGet("lookup")).toBeUndefined());
   });
   it("remembers the page on session expiry", async () => {
     saveAuth({ token: "expired", user: { id: "1", name: "a" } });
@@ -76,7 +83,11 @@ describe("RequireAuth", () => {
         </AuthProvider>
       </MemoryRouter>,
     );
+    localStorage.setItem(PRACTICE_DRAFT_KEY, JSON.stringify("draft"));
+    await kvSet("lookup", 1);
     screen.getByText("sign out").click();
     expect(await screen.findByText("login from=none")).toBeInTheDocument();
+    expect(localStorage.getItem(PRACTICE_DRAFT_KEY)).toBeNull();
+    await waitFor(async () => expect(await kvGet("lookup")).toBeUndefined());
   });
 });

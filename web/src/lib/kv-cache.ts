@@ -157,6 +157,16 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   }
 }
 
+/** Drop every cached entry (memory layer and IndexedDB store). Never throws. */
+export async function kvClear(): Promise<void> {
+  memory = new Map();
+  try {
+    await run("readwrite", (store) => store.clear());
+  } catch {
+    /* IndexedDB 不可用:内存层已清空 */
+  }
+}
+
 export function resetKvCacheForTests(): void {
   dbPromise?.then((db) => db.close()).catch(() => {});
   dbPromise = null;

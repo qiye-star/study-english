@@ -12,10 +12,10 @@ import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder } from "~/audio/use-recorder";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
+import { PRACTICE_DRAFT_KEY as DRAFT_KEY } from "~/lib/device-data";
 import { readJson, writeJson } from "~/lib/storage";
 import { PRACTICE_SERVER_ERRORS, assessPronunciation } from "./assessment-api";
 
-const DRAFT_KEY = "enjoy-web.practice.reference";
 const isString = (v: unknown): v is string => typeof v === "string";
 
 export function formatClock(ms: number): string {

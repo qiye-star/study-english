@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { kvGet, kvIdleForTests, kvSet, resetKvCacheForTests } from "./kv-cache";
+import { kvClear, kvGet, kvIdleForTests, kvSet, resetKvCacheForTests } from "./kv-cache";
 
 describe("kv cache", () => {
   afterEach(() => {
@@ -17,6 +17,18 @@ describe("kv cache", () => {
     await kvSet("k3", "v");
     resetKvCacheForTests(); // drops memory + connection, keeps the database
     expect(await kvGet("k3")).toBe("v");
+  });
+  it("kvClear empties memory and IndexedDB, and works without IndexedDB", async () => {
+    await kvSet("c1", 1);
+    await kvClear();
+    expect(await kvGet("c1")).toBeUndefined();
+    resetKvCacheForTests(); // memory dropped: only IndexedDB could still answer
+    expect(await kvGet("c1")).toBeUndefined();
+    vi.stubGlobal("indexedDB", undefined);
+    resetKvCacheForTests();
+    await kvSet("c2", 2);
+    await expect(kvClear()).resolves.toBeUndefined();
+    expect(await kvGet("c2")).toBeUndefined();
   });
   it("falls back to memory without IndexedDB and never throws", async () => {
     resetKvCacheForTests();

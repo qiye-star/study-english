@@ -26,6 +26,17 @@ export class TtsCache {
     return url;
   }
 
+  clear(): void {
+    for (const url of this.map.values()) {
+      try {
+        this.urls.revoke(url);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.map.clear();
+  }
+
   set(key: string, blob: Blob): string {
     const existing = this.get(key);
     if (existing) return existing;

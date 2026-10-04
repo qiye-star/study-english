@@ -219,7 +219,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
         <VoiceInputButton recorderEnv={recorderEnv} disabled={sending}
           onText={(text) => setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))} />
-        <Textarea data-testid="chat-input" rows={1} value={input} placeholder={t("web.chat.placeholder")}
+        <Textarea data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
           className="max-h-40 min-h-11 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
         <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
           aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation}>

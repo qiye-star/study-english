@@ -64,6 +64,11 @@ beforeAll(() => {
 describe("ConversationPage", () => {
   beforeEach(() => resetServerAiConfigCache());
 
+  it("caps the composer at the server message limit", async () => {
+    setup(routes({}));
+    expect(await screen.findByTestId("chat-input")).toHaveAttribute("maxlength", "20000");
+  });
+
   it("streams a reply, saves the pair and names the conversation", async () => {
     const { mock } = setup(routes({
       "POST /api/ai/chat/completions": () => sse([delta("Hello "), delta("there!"), "data: [DONE]\n\n"]),
