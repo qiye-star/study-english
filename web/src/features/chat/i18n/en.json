@@ -1,0 +1,18 @@
+{
+  "web": {
+    "chat": {
+      "title": "Chat", "new": "New", "empty": "No conversations yet. Start one!", "untitled": "Untitled conversation",
+      "deleteConfirm": "Delete this conversation and its messages?", "placeholder": "Message in English…",
+      "send": "Send", "settings": "Conversation settings", "notSaved": "The reply was shown but could not be saved.",
+      "noSpeech": "No speech was recognized.", "mic": "Speak instead of typing", "transcribing": "Transcribing…",
+      "speak": "Read aloud", "stopSpeaking": "Stop", "speakFailed": "Could not play the reply.",
+      "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default" },
+      "errors": {
+        "notConfigured": "The AI service is not configured on the server.", "upstream": "The AI service is unavailable. Please try again.",
+        "empty": "The AI returned an empty reply.", "messageLimit": "This conversation is full. Start a new one.",
+        "conversationLimit": "You have too many conversations. Delete some first.", "notFound": "This conversation does not exist.",
+        "sttNotConfigured": "Speech-to-text is not configured on the server.", "sttFormat": "The recording format was not accepted."
+      }
+    }
+  }
+}

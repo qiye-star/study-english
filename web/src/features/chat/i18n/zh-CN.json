@@ -1,0 +1,18 @@
+{
+  "web": {
+    "chat": {
+      "title": "对话", "new": "新建", "empty": "还没有对话,开始一个吧!", "untitled": "未命名对话",
+      "deleteConfirm": "删除这个对话及其消息?", "placeholder": "用英文输入…",
+      "send": "发送", "settings": "对话设置", "notSaved": "回复已显示,但未能保存。",
+      "noSpeech": "没有识别到语音。", "mic": "说话代替打字", "transcribing": "正在转写…",
+      "speak": "朗读", "stopSpeaking": "停止", "speakFailed": "无法播放回复。",
+      "settingsForm": { "systemPrompt": "角色 / 指令", "model": "模型", "ttsModel": "语音模型", "voice": "音色", "save": "保存", "serverDefault": "服务器默认" },
+      "errors": {
+        "notConfigured": "服务器未配置 AI 服务。", "upstream": "AI 服务暂不可用,请重试。",
+        "empty": "AI 返回了空回复。", "messageLimit": "这个对话的消息已满,请新建对话。",
+        "conversationLimit": "对话数量已达上限,请先删除一些。", "notFound": "这个对话不存在。",
+        "sttNotConfigured": "服务器未配置语音转文字。", "sttFormat": "录音格式未被服务器接受。"
+      }
+    }
+  }
+}
