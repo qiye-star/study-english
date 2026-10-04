@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
@@ -18,7 +18,10 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   const { t } = useTranslation();
   const [draft, setDraft] = useState(config);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (open) setDraft(config); }, [open, config]);
+  // 仅在打开时(false -> true)重置草稿;父组件重渲染产生的新 config 对象不能冲掉用户正在输入的内容
+  const configRef = useRef(config);
+  configRef.current = config;
+  useEffect(() => { if (open) setDraft(configRef.current); }, [open]);
   const voices = ai ? voicesFor(ai, draft.ttsModel) : [];
 
   const save = async () => {

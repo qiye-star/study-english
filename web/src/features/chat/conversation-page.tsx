@@ -38,6 +38,12 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
   // 同步发送锁:state 在同一帧的连续提交里仍是旧值
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
+  const tRef = useRef(t);
+  tRef.current = t;
+  // 保存串行化:上一轮的保存未完成时,下一轮排队,保证服务端消息顺序
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const nearBottomRef = useRef(true);
+  const forceScrollRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,7 +61,7 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
           .filter((m) => m.role !== "system")
           .map((m) => ({ key: m.id, id: m.id, role: m.role as "user" | "assistant", content: m.content, status: "done" })));
       })
-      .catch((err) => alive && setLoadError(translateServerError(t, err, CHAT_SERVER_ERRORS)));
+      .catch((err) => alive && setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)));
     return () => {
       alive = false;
       // 离开页面或切换会话:中止进行中的流,之后不再 setState
@@ -63,13 +69,24 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
       abortRef.current = null;
       busyRef.current = false;
     };
-  }, [api, id, t]);
+  }, [api, id]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
-  useEffect(() => { listRef.current?.scrollTo?.({ top: listRef.current.scrollHeight }); }, [messages]);
+  // 只在用户已在底部附近、或刚发送消息时自动滚动;向上翻阅的用户不会被流式输出拉回底部
+  const onListScroll = () => {
+    const el = listRef.current;
+    if (el) nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !(forceScrollRef.current || nearBottomRef.current)) return;
+    forceScrollRef.current = false;
+    nearBottomRef.current = true;
+    el.scrollTo?.({ top: el.scrollHeight });
+  }, [messages]);
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
 
@@ -86,14 +103,13 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
     const patch = (key: string, change: Partial<UiMessage>) => {
       if (live()) setMessages((prev) => prev.map((m) => (m.key === key ? { ...m, ...change } : m)));
     };
+    forceScrollRef.current = true;
     setMessages([...base, { key: userKey, role: "user", content, status: "done" },
       { key: botKey, role: "assistant", content: "", status: "streaming" }]);
     setSending(true);
     const finish = () => {
-      if (abortRef.current === controller) {
-        abortRef.current = null;
-        busyRef.current = false;
-      }
+      // 不清空 abortRef:保存/改名阶段切换会话时,清理函数仍能让 live() 变 false
+      if (abortRef.current === controller) busyRef.current = false;
       if (live()) setSending(false);
     };
     let reply = "";
@@ -106,18 +122,21 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
     } catch (err) {
       // 离开页面/中止时 live() 为 false,patch 不生效,也不弹错误;
       // 流式失败:部分回复被错误气泡取代,且不保存
-      patch(botKey, { status: "error", content: translateServerError(t, err, CHAT_SERVER_ERRORS) });
+      patch(botKey, { status: "error", content: translateServerError(tRef.current, err, CHAT_SERVER_ERRORS) });
       finish();
       return;
     }
     finish();
     if (controller.signal.aborted) return;
     try {
-      const saved = await createMessages(api, conversation.id, [{ role: "user", content }, { role: "assistant", content: reply }]);
+      const run = saveChainRef.current.then(() =>
+        createMessages(api, conversation.id, [{ role: "user", content }, { role: "assistant", content: reply }]));
+      saveChainRef.current = run.catch(() => undefined);
+      const saved = await run;
       patch(userKey, { id: saved.messages[0]?.id });
       patch(botKey, { id: saved.messages[1]?.id });
     } catch {
-      if (mountedRef.current) toast.error(t("web.chat.notSaved"));
+      if (live()) toast.error(tRef.current("web.chat.notSaved"));
       return;
     }
     if (conversation.name === DEFAULT_CONVERSATION_NAME) {
@@ -132,19 +151,22 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (busyRef.current) return;
     const text = input;
-    if (!text.trim()) return;
+    if (busyRef.current || !conversation || !text.trim()) return;
     setInput("");
-    void send(text, messages);
+    // 规则:失败的一轮(用户消息 + 错误气泡)从未保存。发送新消息时直接丢弃它,
+    // 因此它既不进入后续历史,刷新后界面也与服务端一致;重试只对最后一个错误气泡开放。
+    const last = messages[messages.length - 1];
+    const base = last?.status === "error" ? messages.slice(0, -2) : messages;
+    void send(text, base);
   };
 
-  const retry = (botKey: string) => {
+  const retry = () => {
     if (busyRef.current) return;
-    const index = messages.findIndex((m) => m.key === botKey);
-    const user = messages[index - 1];
-    if (!user || user.role !== "user") return;
-    void send(user.content, messages.slice(0, index - 1));
+    const last = messages[messages.length - 1];
+    const user = messages[messages.length - 2];
+    if (last?.status !== "error" || user?.role !== "user") return;
+    void send(user.content, messages.slice(0, -2));
   };
 
   const saveSettings = async (next: ConversationConfig) => {
@@ -166,9 +188,9 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
           </Button>
         } />
       {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
-      <div ref={listRef} data-testid="message-list" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => (
-          <MessageBubble key={m.key} message={m} onRetry={m.status === "error" && !sending ? () => retry(m.key) : undefined} />
+          <MessageBubble key={m.key} message={m} onRetry={m.status === "error" && !sending && m.key === messages[messages.length - 1]?.key ? retry : undefined} />
         ))}
       </div>
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">

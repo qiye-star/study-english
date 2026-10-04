@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
@@ -83,6 +83,11 @@ describe("ConversationPage", () => {
     await userEvent.click(screen.getByTestId("message-retry"));
     await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("OK"));
     expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+    const chats = mock.calls.filter((c) => c.url.pathname === "/api/ai/chat/completions");
+    expect(chats).toHaveLength(2);
+    expect(chats[1].body).toEqual(chats[0].body);
+    await waitFor(() => expect(posted(mock)).toHaveLength(1));
+    expect(JSON.parse(posted(mock)[0].body as string).messages).toEqual([{ role: "user", content: "Hi" }, { role: "assistant", content: "OK" }]);
   });
 
   it("saves conversation settings", async () => {
@@ -160,5 +165,95 @@ describe("ConversationPage", () => {
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Answer"));
     expect(screen.queryByText(/SECRET THOUGHTS/)).toBeNull();
+  });
+
+  it("drops a failed unsent turn when a new message is sent, keeping it out of history", async () => {
+    let attempt = 0;
+    const { mock } = setup(routes({
+      "POST /api/ai/chat/completions": () => (++attempt === 1 ? sse(['data: {"error": "Upstream unavailable"}\n\n']) : sse([delta("Fine"), "data: [DONE]\n\n"])),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Next", config: CONFIG }),
+    }));
+    await screen.findByText("reply");
+    await userEvent.type(screen.getByTestId("chat-input"), "Failed one");
+    await userEvent.click(screen.getByTestId("chat-send"));
+    await screen.findByTestId("message-retry");
+    await userEvent.type(screen.getByTestId("chat-input"), "Next");
+    await userEvent.click(screen.getByTestId("chat-send"));
+    await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fine"));
+    expect(screen.queryByText("Failed one")).toBeNull();
+    expect(screen.queryByTestId("message-retry")).toBeNull();
+    const second = JSON.parse(mock.calls.filter((c) => c.url.pathname === "/api/ai/chat/completions")[1].body as string);
+    expect(second.messages.map((m: any) => m.content)).toEqual(["SYS", "Earlier **reply**", "Next"]);
+    await waitFor(() => expect(posted(mock)).toHaveLength(1));
+  });
+
+  it("shows the generic empty-reply message for a 502 empty stream and does not save", async () => {
+    const { mock } = setup(routes({ "POST /api/ai/chat/completions": () => sse(["data: [DONE]\n\n"]) }));
+    await screen.findByText("reply");
+    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.click(screen.getByTestId("chat-send"));
+    expect(await screen.findByText("The AI returned an empty reply.")).toBeInTheDocument();
+    expect(posted(mock)).toHaveLength(0);
+  });
+
+  it("keeps the settings sheet open when saving fails", async () => {
+    const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ error: "boom" }, 500) }));
+    await screen.findByText("reply");
+    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(screen.getByTestId("settings-save"));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+    await waitFor(() => expect(screen.getByTestId("settings-save")).not.toBeDisabled());
+    expect(screen.getByTestId("settings-save")).toBeInTheDocument();
+  });
+
+  describe("auto-scroll", () => {
+    const layout = (el: HTMLElement, scrollTop: number) => {
+      Object.defineProperty(el, "scrollHeight", { configurable: true, value: 1000 });
+      Object.defineProperty(el, "clientHeight", { configurable: true, value: 400 });
+      Object.defineProperty(el, "scrollTop", { configurable: true, writable: true, value: scrollTop });
+    };
+    const streaming = () => {
+      let push!: (s: string) => void;
+      let close!: () => void;
+      const enc = new TextEncoder();
+      const res = new Response(new ReadableStream({ start(c) { push = (s) => c.enqueue(enc.encode(s)); close = () => c.close(); } }), {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+      return { res, push: (t: string) => push(delta(t)), close: () => { push("data: [DONE]\n\n"); close(); } };
+    };
+
+    it.each([
+      ["a scrolled-up user is not pulled down while streaming", 100, false],
+      ["a user at the bottom follows the stream", 590, true],
+    ])("%s", async (_name, scrollTop, follows) => {
+      const stream = streaming();
+      setup(routes({
+        "POST /api/ai/chat/completions": () => stream.res,
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
+      }));
+      await screen.findByText("reply");
+      const list = screen.getByTestId("message-list");
+      const scrollTo = vi.fn();
+      list.scrollTo = scrollTo as unknown as typeof list.scrollTo;
+      layout(list, scrollTop);
+      act(() => { list.dispatchEvent(new Event("scroll")); });
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      // sending itself scrolls once (user just sent a message)
+      await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+      scrollTo.mockClear();
+      // user then scrolls to the position under test
+      layout(list, scrollTop);
+      act(() => { list.dispatchEvent(new Event("scroll")); });
+      await act(async () => { stream.push("token one "); });
+      await screen.findByText(/token one/);
+      await act(async () => { stream.push("token two"); });
+      await screen.findByText(/token two/);
+      if (follows) expect(scrollTo).toHaveBeenCalled();
+      else expect(scrollTo).not.toHaveBeenCalled();
+      await act(async () => { stream.close(); });
+    });
   });
 });
