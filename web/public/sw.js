@@ -24,9 +24,11 @@ self.addEventListener("fetch", (event) => {
       const hit = await cache.match(request);
       if (hit) return hit;
       const response = await fetch(request);
-      if (response.ok) {
+      // 缺失的资源可能被 SPA 回退成 200 的 index.html:不缓存 HTML
+      const type = response.headers.get("content-type") || "";
+      if (response.ok && !type.includes("text/html")) {
         await cache.put(request, response.clone());
-        trim(cache);
+        event.waitUntil(trim(cache).catch(() => undefined));
       }
       return response;
     }),

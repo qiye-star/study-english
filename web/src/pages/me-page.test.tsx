@@ -32,4 +32,14 @@ describe("MePage", () => {
     expect(await screen.findByText("退出登录")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByTestId("me-language"), "en");
   });
+  it("shows a translated error with a retry button when the server config fails", async () => {
+    let fail = true;
+    const mock = createFetchMock({ ...ROUTES, "GET /api/config/gpt_providers": () => (fail ? json({ error: "boom" }, 500) : json({ enjoyai: { models: ["gpt-4o"] } })) });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    expect(await screen.findByTestId("me-ai-error")).toHaveTextContent("Something went wrong.");
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1"));
+    expect(screen.queryByTestId("me-ai-error")).toBeNull();
+  });
 });

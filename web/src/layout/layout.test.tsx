@@ -1,8 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { toast } from "sonner";
 import { describe, expect, it } from "vitest";
+import { ThemedToaster } from "~/app";
+import { AppShell } from "./app-shell";
 import { BottomNav } from "./bottom-nav";
-import { initColorScheme } from "./color-scheme";
+import { initColorScheme, useIsDark } from "./color-scheme";
+import { renderWithProviders } from "~/test/render";
+import { PageHeader } from "./page-header";
 import { useAppHeight } from "./use-app-height";
 
 function HeightProbe({ win }: { win: Window }): null {
@@ -40,5 +45,28 @@ describe("layout", () => {
     handler();
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     stop();
+  });
+
+  it("the sticky header owns the safe-area inset and the shell main does not double it", () => {
+    const { container } = render(
+      <MemoryRouter><PageHeader title="T" /></MemoryRouter>,
+    );
+    const header = container.querySelector("header")!;
+    expect(header.className).toMatch(/(^| )top-0( |$)/);
+    expect(header.className).toContain("pt-[env(safe-area-inset-top)]");
+    const shell = renderWithProviders(<AppShell />);
+    expect(shell.container.querySelector("main")!.className).not.toContain("safe-area-inset-top");
+  });
+
+  it("useIsDark follows the html.dark class and ThemedToaster uses it", async () => {
+    function Probe() { return <span data-testid="dark">{String(useIsDark())}</span>; }
+    document.documentElement.classList.remove("dark");
+    render(<><Probe /><ThemedToaster /></>);
+    expect(screen.getByTestId("dark")).toHaveTextContent("false");
+    await act(async () => { document.documentElement.classList.add("dark"); });
+    expect(screen.getByTestId("dark")).toHaveTextContent("true");
+    await act(async () => { toast("hello"); });
+    await waitFor(() => expect(document.querySelector("[data-sonner-toaster]")?.getAttribute("data-theme")).toBe("dark"));
+    document.documentElement.classList.remove("dark");
   });
 });

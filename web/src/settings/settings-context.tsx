@@ -26,11 +26,14 @@ export function nativeLanguageCode(language: UiLanguage): "en-US" | "zh-CN" | "e
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<UiLanguage>(
-    () => readJson(KEY, isSettings)?.language ?? detectLanguage(typeof navigator === "undefined" ? undefined : navigator.language),
-  );
+  const [language, setLanguageState] = useState<UiLanguage>(() => {
+    const initial = readJson(KEY, isSettings)?.language ?? detectLanguage(typeof navigator === "undefined" ? undefined : navigator.language);
+    // 资源是内联的,changeLanguage 同步生效;放在初始化器里避免首屏先闪一下默认语言。
+    if (i18n.language !== initial) void i18n.changeLanguage(initial);
+    return initial;
+  });
   useEffect(() => {
-    void i18n.changeLanguage(language);
+    if (i18n.language !== language) void i18n.changeLanguage(language);
     document.documentElement.lang = language;
   }, [language]);
   const setLanguage = useCallback((next: UiLanguage) => {

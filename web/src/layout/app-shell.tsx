@@ -7,7 +7,7 @@ export function AppShell() {
   useAppHeight();
   return (
     <div className="relative flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
         <Outlet />
       </main>
       <BottomNav />

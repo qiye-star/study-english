@@ -27,7 +27,8 @@ function load() {
 }
 
 const fetchEvent = (url: string, method = "GET") => {
-  const event = { request: new Request(url, { method }), respondWith: vi.fn() };
+  const waited: Promise<unknown>[] = [];
+  const event = { request: new Request(url, { method }), respondWith: vi.fn(), waitUntil: vi.fn((p: Promise<unknown>) => void waited.push(p)), waited };
   return event;
 };
 
@@ -74,6 +75,40 @@ describe("service worker", () => {
     const res = await event.respondWith.mock.calls[0][0];
     expect(res.status).toBe(404);
     expect(cache.put).not.toHaveBeenCalled();
+  });
+
+  it("does not cache an HTML response served for a missing asset (SPA fallback)", async () => {
+    const { listeners, cache, fetchMock } = load();
+    fetchMock.mockResolvedValueOnce(new Response("<!doctype html>", { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
+    const event = fetchEvent("https://app.test/assets/gone.js");
+    listeners.fetch(event);
+    const res = await event.respondWith.mock.calls[0][0];
+    expect(await res.text()).toBe("<!doctype html>");
+    expect(cache.put).not.toHaveBeenCalled();
+  });
+
+  it("trims the cache to its limit inside waitUntil", async () => {
+    const { listeners, cache } = load();
+    for (let i = 0; i < 85; i++) await cache.put(new Request(`https://app.test/assets/old-${i}.js`), new Response("x"));
+    const event = fetchEvent("https://app.test/assets/new.js");
+    listeners.fetch(event);
+    await event.respondWith.mock.calls[0][0];
+    expect(event.waitUntil).toHaveBeenCalled();
+    await Promise.all(event.waited);
+    const left = (await cache.keys()).map((r: Request) => r.url);
+    expect(left).toHaveLength(80);
+    expect(left).toContain("https://app.test/assets/new.js");
+    expect(left).not.toContain("https://app.test/assets/old-0.js");
+  });
+
+  it("a failing trim neither rejects the response nor leaks an unhandled rejection", async () => {
+    const { listeners, cache } = load();
+    cache.keys.mockRejectedValueOnce(new Error("quota"));
+    const event = fetchEvent("https://app.test/assets/new.js");
+    listeners.fetch(event);
+    const res = await event.respondWith.mock.calls[0][0];
+    expect(res.status).toBe(200);
+    await expect(Promise.all(event.waited)).resolves.toBeDefined();
   });
 
   it("activates immediately on install", () => {

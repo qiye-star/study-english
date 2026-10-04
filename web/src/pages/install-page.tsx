@@ -5,7 +5,7 @@ import { PageHeader } from "~/layout/page-header";
 export function InstallPage() {
   const { t } = useTranslation();
   return (
-    <div className="min-h-[100dvh] pt-[env(safe-area-inset-top)]">
+    <div className="min-h-[100dvh]">
       <PageHeader title={t("web.install.title")} back="/me" />
       <ol className="list-decimal space-y-4 p-6 pl-10 text-base">
         <li>{t("web.install.step1")} <ShareIcon className="inline h-4 w-4" aria-hidden /></li>

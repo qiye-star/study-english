@@ -27,4 +27,14 @@ describe("settings", () => {
     expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN" });
     await act(async () => { await i18n.changeLanguage("en"); });
   });
+
+  it("applies the saved language synchronously on the first render (no flash of the default)", async () => {
+    await act(async () => { await i18n.changeLanguage("en"); });
+    localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+    const seen: string[] = [];
+    function Spy(): null { seen.push(i18n.language); return null; }
+    render(<SettingsProvider><Spy /></SettingsProvider>);
+    expect(seen[0]).toBe("zh-CN");
+    await act(async () => { await i18n.changeLanguage("en"); });
+  });
 });

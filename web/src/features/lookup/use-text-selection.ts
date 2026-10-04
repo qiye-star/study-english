@@ -24,12 +24,14 @@ function boundContext(raw: string, start: number, end: number): string {
   while (from > 0 && !SENTENCE_END.test(raw[from - 1])) from -= 1;
   let to = end;
   while (to < raw.length && !SENTENCE_END.test(raw[to - 1] ?? "")) to += 1;
-  if (to - from > MAX_CONTEXT * 2) {
-    // No usable punctuation nearby: take a window around the selection instead.
-    from = Math.max(from, start - MAX_CONTEXT / 3);
-    to = Math.min(to, from + MAX_CONTEXT * 2);
+  if (to - from > MAX_CONTEXT) {
+    // Sentence too long: take a MAX_CONTEXT window centred on the selection (clamped to the
+    // sentence) so the selected word is never cut off. Slicing raw keeps the window <= MAX_CONTEXT.
+    const centre = Math.floor((start + end) / 2);
+    const wFrom = Math.max(from, Math.min(centre - MAX_CONTEXT / 2, to - MAX_CONTEXT));
+    return normalizeSelection(raw.slice(wFrom, Math.min(to, wFrom + MAX_CONTEXT)));
   }
-  return normalizeSelection(raw.slice(from, to)).slice(0, MAX_CONTEXT);
+  return normalizeSelection(raw.slice(from, to));
 }
 
 export function readSelection(selection: Selection | null): TextSelectionInfo | null {

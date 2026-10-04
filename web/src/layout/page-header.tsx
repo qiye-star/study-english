@@ -8,7 +8,8 @@ export function PageHeader({ title, back, actions }: { title: string; back?: str
   const { t } = useTranslation();
   const navigate = useNavigate();
   return (
-    <header className="sticky top-0 z-10 flex h-12 items-center gap-1 border-b bg-background/95 px-1 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <div className="flex h-12 items-center gap-1 px-1">
       {back ? (
         <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t("web.common.back")} onClick={() => navigate(back)}>
           <ChevronLeftIcon className="h-5 w-5" />
@@ -18,6 +19,7 @@ export function PageHeader({ title, back, actions }: { title: string; back?: str
       )}
       <h1 className="flex-1 truncate text-base font-semibold">{title}</h1>
       {actions}
+      </div>
     </header>
   );
 }

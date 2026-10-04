@@ -102,4 +102,43 @@ describe("LookupLayer", () => {
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });
+
+  it("positions the overlay and the drawer against the viewport (both fixed)", async () => {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","definition":"a nation"}' } }] }) });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    const overlay = await screen.findByTestId("sheet-overlay");
+    const drawer = screen.getByTestId("lookup-drawer");
+    for (const el of [overlay, drawer]) {
+      expect(el.className).toMatch(/(^| )fixed( |$)/);
+      expect(el.className).not.toMatch(/(^| )absolute( |$)/);
+    }
+  });
+
+  it("ignores text selected inside the open drawer", async () => {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","definition":"a nation"}' } }] }) });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    const callsBefore = mock.calls.length;
+    const node = screen.getByText("a nation").firstChild!;
+    await act(async () => {
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.setEnd(node, 6);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      document.dispatchEvent(new Event("selectionchange"));
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(screen.queryByTestId("lookup-trigger")).toBeNull();
+    expect(screen.getByTestId("lookup-drawer")).toBeInTheDocument();
+    expect(mock.calls.length).toBe(callsBefore);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull());
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.queryByTestId("lookup-trigger")).toBeNull();
+  });
 });

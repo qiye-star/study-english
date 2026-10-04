@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
+import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
@@ -14,12 +15,19 @@ export function MePage() {
   const { user, api, logout } = useAuth();
   const { language, setLanguage } = useSettings();
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     let alive = true;
-    loadServerAiConfig(api).then((config): void => { if (alive) setAi(config); }).catch((): void => undefined);
+    setAiError(null);
+    loadServerAiConfig(api)
+      .then((config): void => { if (alive) setAi(config); })
+      .catch((err): void => { if (alive) setAiError(translateServerError(tRef.current, err)); });
     return () => { alive = false; };
-  }, [api]);
+  }, [api, attempt]);
 
   const showInstall = shouldShowIosInstallHint(
     navigator.userAgent,
@@ -49,6 +57,12 @@ export function MePage() {
         <section data-testid="me-services" className="space-y-1 text-sm">
           <h2 className="text-sm text-muted-foreground">{t("web.me.services")}</h2>
           <p>{t("web.me.stt")}</p>
+          {aiError && (
+            <div data-testid="me-ai-error" role="alert" className="flex items-center gap-2 text-destructive">
+              <span className="flex-1">{aiError}</span>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setAttempt((n) => n + 1)}>{t("web.common.retry")}</Button>
+            </div>
+          )}
           {ai && <p>{t("web.me.tts", { models: ai.ttsModels.join(", ") || "—" })}</p>}
           {ai?.defaultTts.voice && <p>{t("web.me.ttsDefault", { voice: ai.defaultTts.voice })}</p>}
         </section>

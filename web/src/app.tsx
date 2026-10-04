@@ -8,6 +8,7 @@ import { AssessmentPage } from "~/features/practice/assessment-page";
 import { HistoryPage } from "~/features/practice/history-page";
 import { PracticePage } from "~/features/practice/practice-page";
 import { AppShell } from "~/layout/app-shell";
+import { useIsDark } from "~/layout/color-scheme";
 import { InstallPage } from "~/pages/install-page";
 import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
@@ -33,13 +34,17 @@ export function AppRoutes() {
   );
 }
 
+export function ThemedToaster() {
+  return <Toaster position="top-center" richColors closeButton theme={useIsDark() ? "dark" : "light"} />;
+}
+
 export function App() {
   return (
     <BrowserRouter>
       <SettingsProvider>
         <AuthProvider>
           <AppRoutes />
-          <Toaster position="top-center" richColors closeButton />
+          <ThemedToaster />
         </AuthProvider>
       </SettingsProvider>
     </BrowserRouter>

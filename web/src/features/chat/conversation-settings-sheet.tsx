@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
+import { SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
+import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";
@@ -37,8 +38,8 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+    <BottomSheet open={open} onOpenChange={onOpenChange}>
+      <BottomSheetContent className="max-h-[85dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <SheetHeader><SheetTitle className="text-left">{t("web.chat.settings")}</SheetTitle></SheetHeader>
         <div className="mt-4 space-y-4">
           <label className="block space-y-1 text-sm">
@@ -77,7 +78,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             {t("web.chat.settingsForm.save")}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </BottomSheetContent>
+    </BottomSheet>
   );
 }

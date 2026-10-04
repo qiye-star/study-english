@@ -2,7 +2,8 @@ import { LanguagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
+import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
+import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
@@ -92,8 +93,8 @@ export function LookupLayer() {
           {suggested === "lookup" ? t("web.lookup.lookup") : t("web.lookup.translate")}
         </Button>
       )}
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" data-testid="lookup-drawer" style={{ position: "fixed" }}
+      <BottomSheet open={open} onOpenChange={onOpenChange}>
+        <BottomSheetContent data-testid="lookup-drawer"
           className="max-h-[70dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <div className="-mt-3 mb-2 flex h-6 touch-none justify-center" aria-hidden="true" data-testid="lookup-grabber"
             onTouchStart={(e) => { touchStart.current = e.touches[0].clientY; }} onTouchEnd={onTouchEnd}>
@@ -135,8 +136,8 @@ export function LookupLayer() {
               <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </BottomSheetContent>
+      </BottomSheet>
     </>
   );
 }

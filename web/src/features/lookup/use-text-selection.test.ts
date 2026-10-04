@@ -55,6 +55,29 @@ describe("readSelection", () => {
     expect(info.context.length).toBeLessThanOrEqual(300);
     expect(info.context).toContain("word");
   });
+  it("centres the window on the selection when the sentence is longer than the context limit", () => {
+    // one 450-character sentence; the selected word sits in its second half
+    const filler = Array.from({ length: 100 }, (_, i) => "w" + String(i).padStart(3, "0")).join(" ");
+    const raw = filler.slice(0, 380) + "needle" + filler.slice(386, 450);
+    expect(raw).toHaveLength(450);
+    document.body.innerHTML = `<div data-lookup-context id="a">${raw}</div>`;
+    const text = document.getElementById("a")!.firstChild!;
+    const start = raw.indexOf("needle");
+    const info = readSelection(select(text, start, text, start + 6))!;
+    expect(info.text).toBe("needle");
+    expect(info.context).toContain("needle");
+    expect(info.context.length).toBeLessThanOrEqual(300);
+    expect(info.context.length).toBeGreaterThan(200);
+  });
+  it("keeps a selection near the end of a long sentence inside the context", () => {
+    const raw = "word ".repeat(100) + "needle" + " word".repeat(2) + ".";
+    document.body.innerHTML = `<div data-lookup-context id="a">${raw}</div>`;
+    const text = document.getElementById("a")!.firstChild!;
+    const start = raw.indexOf("needle");
+    const info = readSelection(select(text, start, text, start + 6))!;
+    expect(info.context).toContain("needle");
+    expect(info.context.length).toBeLessThanOrEqual(300);
+  });
   it("ignores selections inside form fields", () => {
     document.body.innerHTML = `<div data-lookup-context><textarea id="t">hello world</textarea></div>`;
     const ta = document.getElementById("t")!;
