@@ -12,6 +12,9 @@ describe("prompts reused from enjoy/src/commands", () => {
   it("fails loudly when the source changes shape", () => {
     expect(() => extractPrompt("const X = 1;", /const Y = `([\s\S]*?)`;/, "Y")).toThrow("Prompt Y not found");
   });
+  it("rejects an empty or whitespace-only capture", () => {
+    expect(() => extractPrompt("const Y = `   `;", /const Y = `([\s\S]*?)`;/, "Y")).toThrow("Prompt Y not found");
+  });
   it("renders LangChain-style templates", () => {
     expect(renderTemplate("A {x} {{literal}} {missing}", { x: "1" })).toBe("A 1 {literal} {missing}");
     const rendered = renderTemplate(DICTIONARY_PROMPT, { learning_language: "English (United States)", native_language: "普通话" });

@@ -132,4 +132,16 @@ describe("lookup", () => {
     ctl.abort();
     await expect(cachedTranslate(api, { text: "other", nativeLanguage: "zh-CN" }, ctl.signal)).rejects.toMatchObject({ name: "AbortError" });
   });
+
+  it("aborting one of two concurrent identical lookups rejects only that caller", async () => {
+    const { mock, api } = mk('{"word":"w","definition":"d"}');
+    const p = { word: "w", context: "c", nativeLanguage: "zh-CN" };
+    const ctl = new AbortController();
+    const aborted = cachedLookup(api, p, ctl.signal);
+    const other = cachedLookup(api, p);
+    ctl.abort();
+    await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
+    expect((await other).definition).toBe("d");
+    expect(mock.calls).toHaveLength(1);
+  });
 });

@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { kvGet, kvSet, resetKvCacheForTests } from "./kv-cache";
+import { kvGet, kvIdleForTests, kvSet, resetKvCacheForTests } from "./kv-cache";
 
 describe("kv cache", () => {
   afterEach(() => {
@@ -50,8 +50,53 @@ describe("kv cache", () => {
       vi.setSystemTime(1_000_000 + i);
       await kvSet(`b${i}`, i);
     }
+    await kvIdleForTests();
     resetKvCacheForTests();
     expect(await kvGet("b0")).toBeUndefined();
     expect(await kvGet("b559")).toBe(559);
+  });
+
+  it("prunes on the first write of a fresh page load, enforcing count and TTL", async () => {
+    const now = Date.now();
+    // Pre-fill the real database: 600 fresh rows + 50 long-expired rows, as left by earlier page loads.
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const open = indexedDB.open("enjoy-web", 1);
+      open.onupgradeneeded = () => open.result.createObjectStore("kv");
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("kv", "readwrite");
+      const store = tx.objectStore("kv");
+      for (let i = 0; i < 600; i++) store.put({ v: i, at: now - 600 + i }, `fresh${i}`);
+      for (let i = 0; i < 50; i++) store.put({ v: i, at: now - 90 * 24 * 3600 * 1000 }, `stale${i}`);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    vi.resetModules();
+    const fresh = await import("./kv-cache");
+    await fresh.kvSet("new", 1); // a single write in a new session
+    await fresh.kvIdleForTests();
+    fresh.resetKvCacheForTests();
+
+    const count = await new Promise<number>((resolve, reject) => {
+      const open = indexedDB.open("enjoy-web", 1);
+      open.onsuccess = () => {
+        const req = open.result.transaction("kv").objectStore("kv").count();
+        req.onsuccess = () => {
+          open.result.close();
+          resolve(req.result);
+        };
+        req.onerror = () => reject(req.error);
+      };
+      open.onerror = () => reject(open.error);
+    });
+    expect(count).toBe(500);
+    expect(await fresh.kvGet("stale0")).toBeUndefined();
+    expect(await fresh.kvGet("fresh0")).toBeUndefined(); // oldest evicted
+    expect(await fresh.kvGet("new")).toBe(1);
+    expect(await fresh.kvGet("fresh599")).toBe(599);
   });
 });

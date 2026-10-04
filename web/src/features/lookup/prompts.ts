@@ -10,6 +10,7 @@ export function extractPrompt(source: string, pattern: RegExp, name: string): st
   // Windows checkouts may use CRLF; normalise so prompts are identical everywhere.
   const match = source.replace(/\r\n?/g, "\n").match(pattern);
   if (!match) throw new Error(`Prompt ${name} not found in enjoy source`);
+  if (!match[1].trim()) throw new Error(`Prompt ${name} not found in enjoy source (empty)`);
   return match[1];
 }
 
