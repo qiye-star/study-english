@@ -35,6 +35,16 @@ async def list_translations(_: User = Depends(current_user)):
     return {"translations": [], "page": 1, "next": None, "last": 1}
 
 
+@router.get("/enrollments")
+async def list_enrollments(_: User = Depends(current_user)):
+    return {"enrollments": [], "page": 1, "next": None, "last": 1}
+
+
+@router.get("/transcriptions")
+async def list_transcriptions(_: User = Depends(current_user)):
+    return {"transcriptions": [], "page": 1, "next": None, "last": 1}
+
+
 @router.post("/translations")
 async def create_translation(_: User = Depends(current_user)):
     return {}

@@ -1,3 +1,5 @@
+import pytest
+
 async def test_lookup_returns_pending_record(client, auth_headers):
     r = await client.post(
         "/api/lookups",
@@ -62,3 +64,22 @@ async def test_catch_all_does_not_shadow_login(client):
         "/api/sessions", json={"provider": "password", "username": "alice", "password": "password123"}
     )
     assert r.status_code == 200 and r.json()["access_token"]
+
+
+async def test_enrollments_and_transcriptions_require_auth(client):
+    for path in ("/api/enrollments", "/api/transcriptions"):
+        assert (await client.get(path)).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "path,key,params",
+    [
+        ("/api/enrollments", "enrollments", {"page": 2, "items": 5}),
+        ("/api/transcriptions", "transcriptions", {"target_md5": "abc", "items": 10}),
+    ],
+)
+async def test_enrollments_and_transcriptions_are_empty_pages(client, auth_headers, path, key, params):
+    for p in (None, params):
+        r = await client.get(path, params=p, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json() == {key: [], "page": 1, "next": None, "last": 1}
