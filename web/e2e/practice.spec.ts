@@ -1,0 +1,68 @@
+import { expect, test } from "@playwright/test";
+import { signIn } from "./support/auth";
+import { SPEECH_REFERENCE, useFakeMicrophone } from "./support/fake-mic";
+
+// 阶段 0 结论(docs/superpowers/plans/2026-10-04-mobile-web-spike-results.md 第 B 节):
+// Playwright 的 WebKit 构建(Windows 与 Linux)都没有 MediaRecorder,录音类用例只能在 Chromium 上运行。
+const WEBKIT_NO_RECORDER = "Playwright WebKit has no MediaRecorder (see 2026-10-04-mobile-web-spike-results.md, section B)";
+
+test("record, assess with the real service, replay and delete", async ({ page, request, browserName }) => {
+  test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
+  await useFakeMicrophone(page, browserName);
+  await signIn(page, request);
+  await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
+  await page.getByTestId("record-toggle").click();
+  await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
+  // 等录满整段素材(约 11 s),以计时器为准而不是固定睡眠
+  await expect(page.getByTestId("record-timer")).toHaveText(/^00:1[1-9] \//, { timeout: 30_000 });
+  const assessed = page.waitForResponse(
+    (r) => r.url().endsWith("/api/speech/assessments") && r.request().method() === "POST",
+    { timeout: 150_000 },
+  );
+  await page.getByTestId("record-toggle").click();
+  const response = await assessed;
+  expect(response.status()).toBe(200); // 服务端只接受 16 kHz/单声道/16 位 WAV,200 即格式被接受
+  const body = await response.json();
+  expect(body.assessment_id).toBeTruthy();
+  expect(body.pronunciation_score).toBeGreaterThan(50);
+  expect(body.detail_result.words.length).toBeGreaterThan(10);
+  console.log(`assessment score=${body.pronunciation_score} words=${body.detail_result.words.length}`);
+
+  await expect(page).toHaveURL(new RegExp(`/practice/assessments/${body.assessment_id}$`));
+  await expect(page.getByTestId("assessment-scores")).toBeVisible();
+  await expect(page.getByTestId("assessment-words")).toContainText(/country/i);
+  const audio = await page.evaluate(async (id) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    const r = await fetch(`/api/assessments/${id}/audio`, { headers: { Authorization: `Bearer ${token}` } });
+    const view = new DataView(await r.arrayBuffer());
+    return { status: r.status, rate: view.getUint32(24, true), channels: view.getUint16(22, true), bits: view.getUint16(34, true) };
+  }, body.assessment_id);
+  expect(audio).toEqual({ status: 200, rate: 16000, channels: 1, bits: 16 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+  await page.goto("/practice/history");
+  await expect(page.getByTestId("assessment-item")).toHaveCount(1);
+  await page.getByTestId("assessment-item").first().click();
+  await page.getByTestId("assessment-delete").click();
+  await page.getByTestId("assessment-delete-confirm").click();
+  await expect(page).toHaveURL(/\/practice\/history$/);
+  await expect(page.getByTestId("history-empty")).toBeVisible();
+});
+
+test("going to the background keeps what was recorded", async ({ page, request, browserName }) => {
+  test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
+  await useFakeMicrophone(page, browserName);
+  await signIn(page, request);
+  await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
+  await page.getByTestId("record-toggle").click();
+  await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
+  await expect(page.getByTestId("record-timer")).toHaveText(/^00:0[2-9] \//, { timeout: 15_000 });
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "kept");
+  await page.evaluate(() => Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }));
+  await page.getByTestId("practice-discard").click();
+  await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "idle");
+});
