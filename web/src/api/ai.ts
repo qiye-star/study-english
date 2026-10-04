@@ -67,49 +67,107 @@ function chatBody(req: ChatRequest) {
   };
 }
 
+export interface StreamOptions {
+  /** Abort if no chunk arrives for this long (default 120 s; 0 disables). */
+  idleTimeoutMs?: number;
+}
+
+const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
+
 export async function streamChatCompletion(
   api: ApiClient,
   req: ChatRequest,
   onDelta: (full: string, piece: string) => void,
   signal?: AbortSignal,
+  options: StreamOptions = {},
 ): Promise<string> {
-  const response = await api.request<Response>("POST", "/api/ai/chat/completions", {
-    json: { ...chatBody(req), stream: true },
-    as: "raw",
-    signal,
-  });
-  const state = { full: "", failure: null as string | null, done: false };
-  const parser = createSseParser((data) => {
-    if (state.done || state.failure) return;
-    const event = parseSseData(data);
-    if (event.kind === "delta") {
-      state.full += event.text;
-      onDelta(state.full, event.text);
-    } else if (event.kind === "done") {
-      state.done = true;
-    } else if (event.kind === "error") {
-      state.failure = event.message;
+  const idleMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const controller = new AbortController();
+  let idleFired = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abortOuter = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", abortOuter, { once: true });
+  const armIdle = () => {
+    if (timer) clearTimeout(timer);
+    if (idleMs > 0) {
+      timer = setTimeout(() => {
+        idleFired = true;
+        controller.abort();
+      }, idleMs);
     }
-  });
-  if (!response.body) {
-    parser.push(await response.text());
-  } else {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      parser.push(decoder.decode(value, { stream: true }));
-      if (state.done || state.failure) {
-        await reader.cancel().catch((): void => undefined);
-        break;
+  };
+  const abortError = () => (idleFired ? new ApiError(0, "AI response timed out") : new ApiError(0, "Request aborted"));
+  const cleanup = () => {
+    if (timer) clearTimeout(timer);
+    signal?.removeEventListener("abort", abortOuter);
+  };
+  try {
+    armIdle();
+    let response: Response;
+    try {
+      response = await api.request<Response>("POST", "/api/ai/chat/completions", {
+        json: { ...chatBody(req), stream: true },
+        as: "raw",
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 0 && controller.signal.aborted) throw abortError();
+      throw err;
+    }
+    const state = { full: "", failure: null as string | null, done: false };
+    const parser = createSseParser((data) => {
+      if (state.done || state.failure) return;
+      const event = parseSseData(data);
+      if (event.kind === "delta") {
+        state.full += event.text;
+        onDelta(state.full, event.text);
+      } else if (event.kind === "done") {
+        state.done = true;
+      } else if (event.kind === "error") {
+        state.failure = event.message;
       }
+    });
+    if (!response.body) {
+      parser.push(await response.text());
+    } else {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const aborted = new Promise<never>((_, reject) => {
+        const fail = () => reject(abortError());
+        if (controller.signal.aborted) fail();
+        else controller.signal.addEventListener("abort", fail, { once: true });
+      });
+      aborted.catch((): void => undefined);
+      try {
+        for (;;) {
+          let result: ReadableStreamReadResult<Uint8Array>;
+          try {
+            result = await Promise.race([reader.read(), aborted]);
+          } catch (err) {
+            if (err instanceof ApiError) throw err;
+            if (controller.signal.aborted) throw abortError();
+            throw err;
+          }
+          if (result.done) break;
+          armIdle();
+          parser.push(decoder.decode(result.value, { stream: true }));
+          if (state.done || state.failure) break;
+        }
+      } catch (err) {
+        await reader.cancel().catch((): void => undefined);
+        throw err;
+      }
+      if (state.done || state.failure) await reader.cancel().catch((): void => undefined);
+      parser.push(decoder.decode());
     }
-    parser.push(decoder.decode());
+    parser.flush();
+    if (state.failure) throw new ApiError(502, state.failure);
+    if (!state.full) throw new ApiError(502, "Empty AI response");
+    return state.full;
+  } finally {
+    cleanup();
   }
-  parser.flush();
-  if (state.failure) throw new ApiError(502, state.failure);
-  return state.full;
 }
 
 export async function completeChat(

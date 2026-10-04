@@ -58,6 +58,75 @@ describe("streamChatCompletion", () => {
   });
 });
 
+describe("streamChatCompletion robustness", () => {
+  const route = (res: () => Response) => createFetchMock({ "POST /api/ai/chat/completions": res });
+  const makeApi = (mock: ReturnType<typeof createFetchMock>) => new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+  const pending = () =>
+    new Response(new ReadableStream<Uint8Array>({ start() {} }), { headers: { "Content-Type": "text/event-stream" } });
+
+  it("maps a mid-stream caller abort to ApiError(0, Request aborted)", async () => {
+    const ac = new AbortController();
+    const encoder = new TextEncoder();
+    const mock = route(
+      () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(c) {
+              c.enqueue(encoder.encode(chunk("Hi")));
+            },
+          }),
+        ),
+    );
+    const p = streamChatCompletion(makeApi(mock), { messages: [] }, () => ac.abort(), ac.signal);
+    await expect(p).rejects.toMatchObject({ name: "ApiError", status: 0, message: "Request aborted" });
+  });
+
+  it("times out when the stream stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      const mock = route(pending);
+      const p = streamChatCompletion(makeApi(mock), { messages: [] }, () => {}, undefined, { idleTimeoutMs: 1000 });
+      const assertion = expect(p).rejects.toMatchObject({ status: 0, message: "AI response timed out" });
+      await vi.advanceTimersByTimeAsync(1001);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resolves with content when the stream ends without [DONE]", async () => {
+    const mock = route(() => streamOf([chunk("Hi")]));
+    await expect(streamChatCompletion(makeApi(mock), { messages: [] }, () => {})).resolves.toBe("Hi");
+  });
+
+  it("throws on an empty stream", async () => {
+    const mock = route(() => streamOf([]));
+    await expect(streamChatCompletion(makeApi(mock), { messages: [] }, () => {})).rejects.toMatchObject({
+      status: 502,
+      message: "Empty AI response",
+    });
+  });
+
+  it("decodes a multi-byte character split across chunks", async () => {
+    const bytes = new TextEncoder().encode(chunk("你好"));
+    const cut = bytes.indexOf(0xe4) + 1;
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(bytes.slice(0, cut));
+        c.enqueue(bytes.slice(cut));
+        c.close();
+      },
+    });
+    const mock = route(() => new Response(body));
+    await expect(streamChatCompletion(makeApi(mock), { messages: [] }, () => {})).resolves.toBe("你好");
+  });
+
+  it("flushes a trailing event without a final blank line", async () => {
+    const mock = route(() => streamOf([`data: ${JSON.stringify({ choices: [{ delta: { content: "tail" } }] })}`]));
+    await expect(streamChatCompletion(makeApi(mock), { messages: [] }, () => {})).resolves.toBe("tail");
+  });
+});
+
 describe("completeChat", () => {
   it("requests JSON mode and returns the message content", async () => {
     const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"x"}' } }] }) });
