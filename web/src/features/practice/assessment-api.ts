@@ -41,20 +41,21 @@ export const PRACTICE_SERVER_ERRORS: Record<string, string> = {
   "Recording storage quota exceeded": "web.practice.errors.quota",
   "Upstream unavailable": "web.practice.errors.upstream",
   "Assessment not found": "web.practice.errors.notFound",
+  "Could not save the recording": "web.practice.errors.saveFailed",
 };
 
 const path = (id: string) => `/api/assessments/${encodeURIComponent(id)}`;
 
 export function assessPronunciation(
   api: ApiClient,
-  params: { wav: Blob; reference: string; language: string; save: boolean },
+  params: { wav: Blob; reference: string; language: string; save: boolean; signal?: AbortSignal },
 ): Promise<AssessResponse> {
   const form = new FormData();
   form.append("file", new File([params.wav], "recording.wav", { type: "audio/wav" }));
   form.append("reference", params.reference);
   form.append("language", params.language);
   if (params.save) form.append("save", "true");
-  return api.request("POST", "/api/speech/assessments", { form, timeoutMs: ASSESSMENT_TIMEOUT_MS });
+  return api.request("POST", "/api/speech/assessments", { form, timeoutMs: ASSESSMENT_TIMEOUT_MS, signal: params.signal });
 }
 
 export function listAssessments(api: ApiClient, page = 1, perPage = 20): Promise<Paged<"assessments", AssessmentSummary>> {

@@ -6,7 +6,7 @@ import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "@renderer/lib/utils";
 import { ApiError } from "~/api/client";
-import { toAssessmentWav } from "~/audio/convert";
+import { MAX_RECORDING_MS, toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder } from "~/audio/use-recorder";
@@ -35,11 +35,14 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const [kept, setKept] = useState<RecordingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
+  const submitting = useRef(false);
+  const inflight = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      inflight.current?.abort(); // 卸载时中止进行中的上传
     };
   }, []);
 
@@ -49,19 +52,26 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
 
   const submit = useCallback(
     async (recording: RecordingResult) => {
-      setKept(null);
+      if (submitting.current) return; // 防止重复提交
+      submitting.current = true;
+      setKept(recording); // 上传成功前一直保留录音,失败后可重试
       setBusy(true);
       setError(null);
+      const controller = new AbortController();
+      inflight.current = controller;
       try {
         const { wav } = await toAssessmentWav(recording.blob);
-        const res = await assessPronunciation(api, { wav, reference: reference.trim(), language: "en-US", save: true });
+        const res = await assessPronunciation(api, { wav, reference: reference.trim(), language: "en-US", save: true, signal: controller.signal });
         if (!mounted.current) return;
         if (!res.assessmentId) throw new ApiError(500, "Could not save the recording");
+        setKept(null);
         navigate(`/practice/assessments/${res.assessmentId}`);
       } catch (err) {
         // 非 JSON 的 2xx 等未知错误由 translateServerError 落到通用文案
         if (mounted.current) setError(describeAudioError(t, err, PRACTICE_SERVER_ERRORS));
       } finally {
+        submitting.current = false;
+        if (inflight.current === controller) inflight.current = null;
         if (mounted.current) setBusy(false);
       }
     },
@@ -87,7 +97,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
 
   const recording = recorder.state === "recording";
   const shownError = error ?? (recorder.error ? describeAudioError(t, recorder.error) : null);
-  const status = busy ? "processing" : recording ? "recording" : kept ? "kept" : shownError ? "error" : "idle";
+  const status = busy ? "processing" : recording ? "recording" : shownError ? "error" : kept ? "kept" : "idle";
   // 停止按钮只在状态确为 "recording" 时可用;"starting" 期间整体禁用
   const canRecord = recording || (reference.trim().length > 0 && !busy && recorder.state === "idle");
 
@@ -109,7 +119,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
         {!reference.trim() && <p className="text-xs text-muted-foreground">{t("web.practice.referenceHint")}</p>}
         <div data-testid="practice-status" data-state={status} className="mt-auto flex flex-col items-center gap-3 pb-4">
           <span data-testid="record-timer" className="font-mono text-sm tabular-nums">
-            {formatClock(recorder.elapsedMs)} / 05:00
+            {formatClock(recorder.elapsedMs)} / {formatClock(MAX_RECORDING_MS)}
           </span>
           <button type="button" data-testid="record-toggle" onClick={toggle} disabled={!canRecord}
             aria-label={recording ? t("web.recorder.stop") : t("web.recorder.start")}
@@ -120,12 +130,14 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
             {busy ? <LoaderIcon className="h-8 w-8 animate-spin" /> : recording ? <SquareIcon className="h-8 w-8" /> : <MicIcon className="h-8 w-8" />}
           </button>
           {busy && <p className="text-sm text-muted-foreground">{t("web.practice.assessing")}</p>}
-          {kept && (
+          {kept && !busy && (
             <div className="w-full space-y-2 rounded-md border p-3 text-sm">
-              <p>{t(kept.stoppedBy === "background" ? "web.recorder.background" : "web.recorder.trackEnded", { seconds: Math.round(kept.durationMs / 1000) })}</p>
+              {(kept.stoppedBy === "background" || kept.stoppedBy === "track_ended") && (
+                <p>{t(kept.stoppedBy === "background" ? "web.recorder.background" : "web.recorder.trackEnded", { seconds: Math.round(kept.durationMs / 1000) })}</p>
+              )}
               <div className="flex gap-2">
                 <Button data-testid="practice-assess-kept" className="h-11 flex-1" onClick={() => void submit(kept)}>{t("web.practice.assessKept")}</Button>
-                <Button data-testid="practice-discard" variant="outline" className="h-11 flex-1" onClick={() => setKept(null)}>{t("web.practice.discard")}</Button>
+                <Button data-testid="practice-discard" variant="outline" className="h-11 flex-1" onClick={() => { setKept(null); setError(null); }}>{t("web.practice.discard")}</Button>
               </div>
             </div>
           )}

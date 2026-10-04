@@ -15,11 +15,11 @@ vi.mock("~/audio/convert", async (importOriginal) => ({
 function setup(routes: Parameters<typeof createFetchMock>[0], envOverrides = {}) {
   const mock = createFetchMock(routes);
   const fake = createFakeRecorderEnv(envOverrides);
-  renderWithProviders(<PracticePage recorderEnv={fake.env} />, {
+  const view = renderWithProviders(<PracticePage recorderEnv={fake.env} />, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: "/practice",
   });
-  return { mock, fake };
+  return { mock, fake, unmount: view.unmount };
 }
 
 describe("PracticePage", () => {
@@ -85,5 +85,75 @@ describe("PracticePage", () => {
     await userEvent.click(await screen.findByTestId("practice-discard"));
     expect(screen.getByTestId("practice-status")).toHaveAttribute("data-state", "idle");
     expect(mock.calls).toHaveLength(0);
+  });
+
+  const recordOnce = async () => {
+    await userEvent.type(screen.getByTestId("reference-input"), "Hi");
+    await userEvent.click(screen.getByTestId("record-toggle"));
+  };
+
+  it("shows a generic localized message for unknown server errors", async () => {
+    setup({ "POST /api/speech/assessments": () => json({ error: "pq: relation exploded" }, 500) });
+    await recordOnce();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    const err = await screen.findByTestId("practice-error");
+    expect(err).toHaveTextContent("Something went wrong.");
+    expect(err).not.toHaveTextContent("exploded");
+  });
+
+  it("shows a translated save error when no assessment id comes back", async () => {
+    setup({ "POST /api/speech/assessments": () => json({ pronunciation_score: 80 }) });
+    await recordOnce();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    expect(await screen.findByTestId("practice-error")).toHaveTextContent("The recording could not be saved. Please try again.");
+  });
+
+  it("keeps the recording after a failed upload and retries", async () => {
+    let attempt = 0;
+    const { mock } = setup({
+      "POST /api/speech/assessments": () => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json({ assessment_id: "a3" })),
+    });
+    await recordOnce();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    expect(await screen.findByTestId("practice-error")).toHaveTextContent("assessment service is unavailable");
+    await userEvent.click(await screen.findByTestId("practice-assess-kept"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a3"));
+    expect(mock.calls).toHaveLength(2);
+  });
+
+  it("uploads automatically when the 5-minute limit is reached", async () => {
+    const { mock, fake } = setup({ "POST /api/speech/assessments": () => json({ assessment_id: "a4" }) });
+    await recordOnce();
+    await act(async () => { fake.advance(300_000); fake.fireTimer(); });
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a4"));
+    expect(mock.calls).toHaveLength(1);
+  });
+
+  it("does not submit twice on a double click", async () => {
+    const { mock, fake } = setup({ "POST /api/speech/assessments": () => json({ assessment_id: "a5" }) });
+    await recordOnce();
+    await act(async () => fake.setHidden());
+    const button = await screen.findByTestId("practice-assess-kept");
+    await act(async () => { button.click(); button.click(); });
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a5"));
+    expect(mock.calls).toHaveLength(1);
+  });
+
+  it("releases the microphone when unmounted mid-recording", async () => {
+    const { fake, unmount } = setup({});
+    await recordOnce();
+    expect(fake.track.stop).not.toHaveBeenCalled();
+    unmount();
+    await waitFor(() => expect(fake.track.stop).toHaveBeenCalled());
+  });
+
+  it("aborts the upload when unmounted mid-upload", async () => {
+    const { mock, unmount } = setup({ "POST /api/speech/assessments": () => new Promise<Response>(() => {}) });
+    await recordOnce();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    await waitFor(() => expect(mock.calls).toHaveLength(1));
+    expect(mock.calls[0].signal?.aborted).toBe(false);
+    unmount();
+    expect(mock.calls[0].signal?.aborted).toBe(true);
   });
 });

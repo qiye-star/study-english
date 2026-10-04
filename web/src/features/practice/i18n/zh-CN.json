@@ -10,7 +10,7 @@
         "audioTooLong": "录音超过 5 分钟。", "badAudio": "录音格式未被服务器接受。",
         "language": "目前只支持英文。", "notConfigured": "服务器未配置发音评测。",
         "quota": "录音存储空间已满,请删除一些旧录音。", "upstream": "评测服务暂不可用,请重试。",
-        "notFound": "这条录音不存在。"
+        "notFound": "这条录音不存在。", "saveFailed": "录音未能保存,请重试。"
       },
       "result": {
         "title": "评测结果", "again": "再练一次", "deleteConfirm": "删除这条录音?",
