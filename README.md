@@ -41,6 +41,15 @@ Enjoy 浏览器插件已经上线，支持 YouTube 和 Netflix。可访问 [Chro
 本分支新增 `server/`,用于脱离 enjoy.bot 自行部署:账号密码登录、AI 服务由自己的上游提供。
 详见 [server/README.md](./server/README.md) 与 [设计文档](./docs/superpowers/specs/2026-10-02-self-hosted-backend-design.md)。
 
+### 手机网页版
+
+`web/` 是手机优先的 PWA,由同一个后端镜像同源托管,只覆盖练习子集:登录、跟读发音评测(含录音回放)、AI 对话(含朗读与听写)、查词与翻译。不含视频/音频库、字幕编辑等桌面端功能。
+
+    cp server/.env.example server/.env   # 填写上游配置;公网部署用 invite 或 closed 注册
+    docker compose up -d --build         # 同时构建并托管网页版,默认只监听 127.0.0.1:8000
+
+手机端录音与「添加到主屏幕」必须通过 HTTPS 访问(反向代理或隧道指向 127.0.0.1:8000),部署、数据与上限见 [server/README.md](./server/README.md)「手机网页版」,开发与测试见 [web/README.md](./web/README.md)。
+
 
 ## 相关阅读
 
