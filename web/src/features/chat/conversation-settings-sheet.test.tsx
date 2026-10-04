@@ -7,7 +7,7 @@ const base = { systemPrompt: "SYS", model: "", temperature: 0.7, ttsModel: "open
 
 describe("ConversationSettingsSheet", () => {
   it("keeps typed text when the parent re-renders with a new but equal config object", async () => {
-    const props = { open: true, onOpenChange: vi.fn(), ai: null, onSave: vi.fn() };
+    const props = { open: true, onOpenChange: vi.fn(), ai: null as null, onSave: vi.fn() };
     const { rerender } = render(<ConversationSettingsSheet {...props} config={{ ...base }} />);
     const box = screen.getByTestId("settings-system-prompt");
     await userEvent.clear(box);

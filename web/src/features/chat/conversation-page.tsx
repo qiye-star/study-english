@@ -131,7 +131,7 @@ export function ConversationPage({ recorderEnv: _recorderEnv }: { recorderEnv?: 
     try {
       const run = saveChainRef.current.then(() =>
         createMessages(api, conversation.id, [{ role: "user", content }, { role: "assistant", content: reply }]));
-      saveChainRef.current = run.catch(() => undefined);
+      saveChainRef.current = run.catch((): void => undefined);
       const saved = await run;
       patch(userKey, { id: saved.messages[0]?.id });
       patch(botKey, { id: saved.messages[1]?.id });
