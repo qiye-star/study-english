@@ -62,7 +62,7 @@ export function LoginPage() {
         {mode === "register" && (
           <div className="space-y-2">
             <Label htmlFor="invite">{t("web.login.inviteCode")}</Label>
-            <Input id="invite" data-testid="register-invite" autoCapitalize="none" className="h-11 text-base"
+            <Input id="invite" data-testid="register-invite" autoCapitalize="none" autoComplete="off" inputMode="text" className="h-11 text-base"
               value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
             <p className="text-xs text-muted-foreground">{t("web.login.inviteHint")}</p>
           </div>
