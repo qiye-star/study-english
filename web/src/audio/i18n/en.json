@@ -5,6 +5,7 @@
       "unsupported": "This browser cannot record audio.",
       "permission_denied": "Microphone access was denied. Allow it in the browser settings and try again.",
       "no_device": "No microphone was found.",
+      "mic_busy": "The microphone is busy or blocked by the system. Close other apps using it and try again.",
       "failed": "Recording failed. Please try again.",
       "start": "Start recording",
       "stop": "Stop recording",

@@ -1,4 +1,4 @@
-export type RecorderErrorCode = "insecure_context" | "unsupported" | "permission_denied" | "no_device" | "failed";
+export type RecorderErrorCode = "insecure_context" | "unsupported" | "permission_denied" | "no_device" | "mic_busy" | "failed";
 
 export class RecorderError extends Error {
   constructor(public readonly code: RecorderErrorCode, message?: string) {
@@ -33,6 +33,8 @@ export interface RecorderEnv {
   clearTimeout(handle: unknown): void;
 }
 
+const STOP_FALLBACK_MS = 2000;
+
 export const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
 };
@@ -53,7 +55,8 @@ export function browserRecorderEnv(): RecorderEnv {
 function mapGetUserMediaError(err: unknown): RecorderError {
   const name = (err as { name?: string })?.name;
   if (name === "NotAllowedError" || name === "SecurityError") return new RecorderError("permission_denied");
-  if (name === "NotFoundError" || name === "OverconstrainedError" || name === "NotReadableError") return new RecorderError("no_device");
+  if (name === "NotReadableError") return new RecorderError("mic_busy");
+  if (name === "NotFoundError" || name === "OverconstrainedError") return new RecorderError("no_device");
   return new RecorderError("failed", String(err));
 }
 
@@ -83,6 +86,7 @@ export async function startRecording(options: { maxDurationMs?: number; env?: Re
   let stopping = false;
   let settled = false;
   let timer: unknown;
+  let fallbackTimer: unknown;
   let resolveResult!: (value: RecordingResult) => void;
   let rejectResult!: (reason: unknown) => void;
   const result = new Promise<RecordingResult>((resolve, reject) => {
@@ -96,6 +100,7 @@ export async function startRecording(options: { maxDurationMs?: number; env?: Re
   const onEnded = () => finish("track_ended");
   const cleanup = () => {
     if (timer !== undefined) env.clearTimeout(timer);
+    if (fallbackTimer !== undefined) env.clearTimeout(fallbackTimer);
     env.document.removeEventListener("visibilitychange", onVisibility);
     tracks.forEach((t) => {
       t.removeEventListener?.("ended", onEnded);
@@ -121,6 +126,8 @@ export async function startRecording(options: { maxDurationMs?: number; env?: Re
     if (recorder.state === "inactive") return onStop();
     try {
       recorder.stop();
+      // Safari 有时不触发 stop 事件:兜底强制结束,确保释放麦克风、Promise 落定。
+      fallbackTimer = env.setTimeout(onStop, STOP_FALLBACK_MS);
     } catch {
       onStop();
     }
@@ -135,12 +142,30 @@ export async function startRecording(options: { maxDurationMs?: number; env?: Re
     if (settled) return;
     settled = true;
     cleanup();
+    if (chunks.length > 0) {
+      // 出错但已有数据:保留已录内容,不丢用户的录音。
+      const mimeType = recorder.mimeType || chunks[0]?.type || "";
+      resolveResult({
+        blob: new Blob(chunks, mimeType ? { type: mimeType } : undefined),
+        mimeType,
+        durationMs: env.now() - startedAt,
+        stoppedBy: "track_ended",
+      });
+      return;
+    }
     rejectResult(new RecorderError("failed", String((event as Event & { error?: unknown }).error ?? "MediaRecorder error")));
   });
   env.document.addEventListener("visibilitychange", onVisibility);
   tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
   if (options.maxDurationMs) timer = env.setTimeout(() => finish("max_duration"), options.maxDurationMs);
-  recorder.start(1000);
+  try {
+    recorder.start(1000);
+  } catch (err) {
+    settled = true;
+    stopping = true;
+    cleanup();
+    throw new RecorderError("failed", String(err));
+  }
 
   return {
     startedAt,

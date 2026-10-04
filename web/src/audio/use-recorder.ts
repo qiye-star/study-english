@@ -17,26 +17,43 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<RecorderError | null>(null);
   const session = useRef<RecordingSession | null>(null);
+  const mounted = useRef(true);
+  const starting = useRef(false);
+  const startedAt = useRef(0);
   const autoStop = useRef(onAutoStop);
   autoStop.current = onAutoStop;
 
   useEffect(() => {
     if (state !== "recording") return;
-    const started = Date.now();
-    const id = window.setInterval(() => setElapsedMs(Date.now() - started), 250);
+    const now = env?.now ?? Date.now;
+    const id = window.setInterval(() => setElapsedMs(now() - startedAt.current), 250);
     return () => window.clearInterval(id);
-  }, [state]);
+  }, [state, env]);
 
-  useEffect(() => () => session.current?.cancel(), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      const current = session.current;
+      session.current = null; // 先清空,结果处理器的守卫才会跳过(不再 setState / onAutoStop)
+      current?.cancel();
+    };
+  }, []);
 
   const start = useCallback(async () => {
-    if (session.current) return false;
+    if (session.current || starting.current) return false;
+    starting.current = true;
     setError(null);
     setElapsedMs(0);
     setState("starting");
     try {
       const current = await startRecording({ maxDurationMs, env });
+      if (!mounted.current) {
+        current.cancel(); // 启动期间已卸载:立刻释放麦克风
+        return false;
+      }
       session.current = current;
+      startedAt.current = current.startedAt;
       setState("recording");
       current.result.then(
         (result) => {
@@ -53,9 +70,13 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
       );
       return true;
     } catch (err) {
-      setState("idle");
-      setError(asRecorderError(err));
+      if (mounted.current) {
+        setState("idle");
+        setError(asRecorderError(err));
+      }
       return false;
+    } finally {
+      starting.current = false;
     }
   }, [maxDurationMs, env]);
 
