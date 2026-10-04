@@ -709,7 +709,7 @@
   "upload": "上传",
   "noFileOrRecording": "没有上传文件或录音",
   "referenceText": "参考文本",
-  "inputReferenceTextOrLeaveItBlank": "输入参考文本，或者留空",
+  "inputReferenceTextOrLeaveItBlank": "请输入参考文本(必填)",
   "assessing": "正在评估",
   "assessedSuccessfully": "评估成功",
   "optinal": "可选",

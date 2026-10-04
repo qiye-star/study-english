@@ -177,9 +177,6 @@ export const TranscriptionCreateForm = (props: {
                   <SelectItem value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}>
                     {t("enjoyCloudflare")}
                   </SelectItem>
-                  <SelectItem value={SttEngineOptionEnum.OPENAI}>
-                    OpenAI
-                  </SelectItem>
                   <SelectItem value="upload">{t("upload")}</SelectItem>
                 </SelectContent>
               </Select>

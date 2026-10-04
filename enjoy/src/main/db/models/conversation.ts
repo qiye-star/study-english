@@ -141,7 +141,7 @@ export class Conversation extends Model<Conversation> {
           name: t("newChat"),
           type: this.type === "tts" ? "TTS" : "CONVERSATION",
           config: {
-            stt: SttEngineOptionEnum.ENJOY_AZURE,
+            stt: SttEngineOptionEnum.ENJOY_CLOUDFLARE,
           },
         },
         {

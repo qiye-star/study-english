@@ -280,9 +280,6 @@ export const ChatForm = (props: { chat: ChatType; onFinish?: () => void }) => {
                           >
                             {t("enjoyCloudflare")}
                           </SelectItem>
-                          <SelectItem value={SttEngineOptionEnum.OPENAI}>
-                            {t("openai")}
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>

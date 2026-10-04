@@ -42,7 +42,7 @@ export const AISettingsProvider = ({
   const db = useContext(DbProviderContext);
 
   const [sttEngine, setSttEngine] = useState<SttEngineOptionEnum>(
-    SttEngineOptionEnum.ENJOY_AZURE
+    SttEngineOptionEnum.ENJOY_CLOUDFLARE
   );
   const [ttsConfig, setTtsConfig] = useState<TtsConfigType>(null);
   // Providers have been fetched (or the fetch failed and the static fallback is in use).

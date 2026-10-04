@@ -709,7 +709,7 @@
   "upload": "Subir",
   "noFileOrRecording": "No se ha subido ningún archivo o grabación",
   "referenceText": "Texto de referencia",
-  "inputReferenceTextOrLeaveItBlank": "Ingresa el texto de referencia o déjalo en blanco",
+  "inputReferenceTextOrLeaveItBlank": "Input the reference text (required)",
   "assessing": "Evaluando",
   "assessedSuccessfully": "Evaluado con éxito",
   "optinal": "Opcional",
