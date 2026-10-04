@@ -13,9 +13,12 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)
-                                ├ /api/speech/assessments       ──▶ 讯飞 ISE 发音评测(multipart 上传 WAV)
-                                └ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
-                              DB: users / access_tokens / speech_tokens
+                                ├ /api/speech/assessments       ──▶ 讯飞 ISE 发音评测(multipart 上传 WAV;`save=true` 时保存录音与记录)
+                                ├ /api/conversations[/{id}[/messages]], /api/messages/{id}   网页版对话(持久化)
+                                ├ /api/assessments[/{id}[/audio]]       网页版评测记录与录音回放
+                                ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
+                                └ 其他 GET                       网页版(web/dist,SPA 回退到 index.html)
+                              DB: users / access_tokens / speech_tokens / conversations / messages / assessments
 ```
 
 默认 STT:客户端拿到 token 后直连 Azure,音频不经过后端。发音评测:客户端上传音频到 `/api/speech/assessments`,由后端调用讯飞 ISE。
