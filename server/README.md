@@ -33,7 +33,7 @@ cp server/.env.example server/.env
 # 编辑 server/.env,填写上游地址与密钥
 # .env.example 默认 REGISTRATION_MODE=closed:创建第一批账号时,先临时改为 open(或 invite + INVITE_CODE),
 # 注册完毕后改回 closed 并 `docker compose up -d` 重启。
-docker compose up -d --build   # 需要 Docker Compose >= 2.20(depends_on 的 required: false)
+docker compose up -d --build   # 需要 Docker Compose >= 2.20(depends_on 的 required: false);镜像同时构建并托管手机网页版(`web/`),构建上下文为仓库根目录
 docker compose ps          # server 应为 healthy
 curl localhost:8000/up     # {"status":"ok"}
 ```
@@ -197,6 +197,8 @@ cd server && uv lock --default-index https://pypi.org/simple
 ```
 
 然后重新构建镜像。
+
+Docker 构建会在 Node 阶段运行 `yarn workspaces focus web` 与 `yarn workspace web build`,只安装网页版依赖;忽略规则见 `server/Dockerfile.dockerignore`。
 
 ## 已知限制
 
