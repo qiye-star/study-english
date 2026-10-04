@@ -25,8 +25,15 @@ def write_recording(data_dir: Path, relpath: str, data: bytes) -> None:
     path = absolute_path(data_dir, relpath)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def delete_recording(data_dir: Path, relpath: str) -> None:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
 from app.models import Assessment
@@ -172,3 +173,66 @@ def test_write_and_delete_recording(tmp_path):
     assert not (tmp_path / rel).exists()
     recordings.delete_recording(tmp_path, rel)          # 再删不报错
     recordings.delete_recording(tmp_path, "../x.wav")   # 越界静默
+
+
+def test_failed_replace_leaves_no_tmp_file(tmp_path, monkeypatch):
+    def boom(src, dst):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(recordings.os, "replace", boom)
+    with pytest.raises(OSError):
+        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
+    assert files_under(tmp_path) == []
+
+
+def test_failed_write_leaves_no_tmp_file(tmp_path, monkeypatch):
+    def boom(self, data):
+        self.touch()
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_bytes", boom)
+    with pytest.raises(OSError):
+        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
+    assert files_under(tmp_path) == []
+
+
+async def test_commit_failure_deletes_file_and_leaves_no_row(app, client, auth_headers, fake, monkeypatch):
+    async def boom(self):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(AsyncSession, "commit", boom)
+    with pytest.raises(RuntimeError):
+        await post(client, auth_headers, save="true")
+    monkeypatch.undo()
+    assert files_under(app.state.settings.resolved_data_dir) == []
+    assert await count_rows(app) == 0
+
+
+async def test_quota_is_per_user(app, client, auth_headers, fake):
+    app.state.settings.recording_quota_mb = 1
+    other = await client.post("/api/users", json={"username": "bob", "password": "password123"})
+    other_id = int(other.json()["user"]["id"]) if "user" in other.json() else int(
+        (await client.get("/api/me", headers={"Authorization": f"Bearer {other.json()['access_token']}"})).json()["id"]
+    )
+    async with app.state.sessionmaker() as s:
+        s.add(Assessment(
+            user_id=other_id, reference_text="x", language="en-US", duration_ms=1, audio_bytes=50 * 1024 * 1024,
+            scores={}, result={}, audio_path="recordings/x.wav",
+        ))
+        await s.commit()
+    assert (await post(client, auth_headers, save="true")).status_code == 200
+
+
+async def test_quota_exact_boundary_is_accepted(app, client, auth_headers, fake):
+    wav = make_wav()
+    app.state.settings.recording_quota_mb = 1
+    uid = int((await client.get("/api/me", headers=auth_headers)).json()["id"])
+    async with app.state.sessionmaker() as s:
+        s.add(Assessment(
+            user_id=uid, reference_text="x", language="en-US", duration_ms=1,
+            audio_bytes=1024 * 1024 - len(wav), scores={}, result={}, audio_path="recordings/x.wav",
+        ))
+        await s.commit()
+    assert (await post(client, auth_headers, save="true", wav=wav)).status_code == 200
+    # one more byte over the limit is rejected
+    assert (await post(client, auth_headers, save="true", wav=wav)).status_code == 413
