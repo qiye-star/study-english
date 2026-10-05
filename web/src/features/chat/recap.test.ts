@@ -37,6 +37,17 @@ describe("recap facts (R13)", () => {
     expect(facts.poorWords).toEqual(["goes"]);
   });
 
+  it("skips a corrupt stored grammar result instead of throwing", () => {
+    const corrupt = [
+      { key: "u1", role: "user", content: "a", status: "done", grammar: { status: "done", result: { hasErrors: true, corrected: "a.", errors: "broken" } } },
+      { key: "u2", role: "user", content: "b", status: "done", grammar: { status: "done", result: { hasErrors: true, corrected: "b.", errors: [null, { original: 1 }] } } },
+    ] as unknown as UiMessage[];
+    const facts = computeRecapFacts(corrupt);
+    expect(facts.userMessages).toBe(2);
+    expect(facts.grammarCounts).toEqual([]);
+    expect(facts.grammarItems).toEqual([]);
+  });
+
   it("is empty for a conversation without user messages", () => {
     expect(computeRecapFacts([MESSAGES[0]])).toEqual({ userMessages: 0, avgPronunciation: null, grammarCounts: [], grammarItems: [], poorWords: [] });
   });

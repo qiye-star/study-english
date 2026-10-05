@@ -2487,4 +2487,164 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
     });
   });
+
+  describe("recap (R13)", () => {
+    const LOADED = { messages: [
+      { id: "m0", conversation_id: "c1", role: "assistant", content: "Welcome!" },
+      { id: "m1", conversation_id: "c1", role: "user", content: "Nice to meet you", assessment_id: "a1",
+        assessment: { scores: { pronunciation_score: 72.6, accuracy_score: 70, fluency_score: 80, completeness_score: 90 }, words: [{ word: "meet", accuracy_score: 40, error_type: "Mispronunciation" }] } },
+      { id: "m2", conversation_id: "c1", role: "assistant", content: "You too!" },
+      { id: "m3", conversation_id: "c1", role: "user", content: "Yesterday I go home.",
+        grammar: { has_errors: true, corrected: "Yesterday I went home.", errors: [{ original: "go", corrected: "went", category: "tense", explanation: "past" }] } },
+    ] };
+    const RECAP = { summary_zh: "你们互相问候并聊了昨天。", new_expressions: [{ text: "head home", zh: "回家" }], suggestions_zh: ["注意过去时。"] };
+    const completion = () => json({ choices: [{ message: { content: JSON.stringify(RECAP) } }] });
+    const aiCalls = (mock: ReturnType<typeof createFetchMock>) => callsTo(mock, "POST", "/api/ai/chat/completions");
+
+    it("shows the facts from loaded messages without calling the AI, and never generates on its own", async () => {
+      const { mock } = setup(routes({ "GET /api/conversations/c1/messages": () => json(LOADED) }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      expect(await screen.findByTestId("recap-facts")).toBeInTheDocument();
+      expect(screen.getByTestId("recap-user-messages")).toHaveTextContent("2");
+      expect(screen.getByTestId("recap-avg-score")).toHaveTextContent("73");
+      expect(screen.getByTestId("recap-grammar-category")).toHaveTextContent("1");
+      expect(screen.getByTestId("recap-grammar-item")).toHaveTextContent("Yesterday I went home.");
+      expect(screen.getByTestId("recap-poor-word")).toHaveTextContent("meet");
+      expect(screen.getByTestId("recap-generate")).toBeEnabled();
+      expect(aiCalls(mock)).toHaveLength(0);
+    });
+
+    it("generates once and stores the result on top of the stored config", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": completion,
+        "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "New conversation", config: bodyOf(call).config }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-generate"));
+      await waitFor(() => expect(screen.getByTestId("recap-summary")).toHaveAttribute("data-status", "done"));
+      expect(screen.getByTestId("recap-summary")).toHaveTextContent(RECAP.summary_zh);
+      expect(screen.getByTestId("recap-expression")).toHaveTextContent("head home");
+      expect(aiCalls(mock)).toHaveLength(1);
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      const config = bodyOf(mock.calls.find((c) => c.method === "PATCH")!).config;
+      expect(config).toEqual({
+        ...CONFIG,
+        recap: { generated_at: expect.any(String), message_count: 4, level: "auto", summary_zh: RECAP.summary_zh, new_expressions: RECAP.new_expressions, suggestions_zh: RECAP.suggestions_zh },
+      });
+    });
+
+    it("shows a stored recap without calling the AI, flagged stale when there are more messages now", async () => {
+      const stored = { generated_at: "2026-10-05T10:00:00.000Z", message_count: 2, level: "auto", summary_zh: "旧的复盘", new_expressions: [] as unknown[], suggestions_zh: [] as string[] };
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CONFIG, recap: stored } }),
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      expect(await screen.findByTestId("recap-summary")).toHaveTextContent("旧的复盘");
+      expect(screen.getByTestId("recap-stale")).toBeInTheDocument();
+      expect(screen.getByTestId("recap-regenerate")).toBeEnabled();
+      expect(aiCalls(mock)).toHaveLength(0);
+    });
+
+    it("a malformed answer shows a retryable error", async () => {
+      let bad = true;
+      setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": () => (bad ? json({ choices: [{ message: { content: "{}" } }] }) : completion()),
+        "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "x", config: bodyOf(call).config }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-generate"));
+      expect(await screen.findByTestId("recap-error")).toHaveTextContent("The recap could not be read. Try again.");
+      bad = false;
+      await userEvent.click(screen.getByTestId("recap-retry"));
+      await waitFor(() => expect(screen.getByTestId("recap-summary")).toHaveAttribute("data-status", "done"));
+    });
+
+    it("keeps the recap on screen when saving the config fails", async () => {
+      const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
+      setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": completion,
+        "PATCH /api/conversations/c1": () => json({ error: "Config is too large" }, 400),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-generate"));
+      expect(await screen.findByTestId("recap-not-saved")).toBeInTheDocument();
+      expect(screen.getByTestId("recap-summary")).toHaveTextContent(RECAP.summary_zh);
+      expect(spy).toHaveBeenCalledWith("These settings are too large to save.");
+      spy.mockRestore();
+    });
+
+    it("saves a corrected sentence to the practice list as a grammar item", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/practice-items": () => json({ id: "p1", text: "Yesterday I went home.", source: "grammar", created_at: "2026-10-05T00:00:00+00:00" }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-grammar-save"));
+      await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "Yesterday I went home.", source: "grammar" }));
+      await userEvent.click(screen.getByTestId("recap-poor-word-practice"));
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+    });
+
+    it("with no user messages shows the empty state and cannot generate", async () => {
+      const { mock } = setup(routes({}));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      expect(await screen.findByTestId("recap-empty")).toBeInTheDocument();
+      expect(screen.getByTestId("recap-generate")).toBeDisabled();
+      expect(aiCalls(mock)).toHaveLength(0);
+    });
+
+    it("does not crash on a stored grammar result without an errors list", async () => {
+      setup(routes({ "GET /api/conversations/c1/messages": () => json({ messages: [
+        { id: "m1", conversation_id: "c1", role: "user", content: "Hello there", grammar: { has_errors: true, corrected: "Hello there.", errors: "broken" } },
+      ] }) }));
+      await screen.findByText("Hello there");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      expect(await screen.findByTestId("recap-user-messages")).toHaveTextContent("1");
+      expect(screen.queryByTestId("recap-grammar-item")).toBeNull();
+    });
+
+    it("reads a corrected sentence and a new expression aloud with the page player", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": completion,
+        "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "x", config: bodyOf(call).config }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-grammar-speak"));
+      await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/ai/audio/speech")[0]).input).toBe("Yesterday I went home."));
+      await userEvent.click(screen.getByTestId("recap-generate"));
+      await userEvent.click(await screen.findByTestId("recap-expression-speak"));
+      await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/ai/audio/speech")[1]).input).toBe("head home"));
+    });
+
+    it("switching conversations aborts the generation and never saves it", async () => {
+      let signal: AbortSignal | undefined;
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": (call) => { signal = call.signal!; return new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))); },
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [] }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-generate"));
+      await waitFor(() => expect(signal).toBeDefined());
+      act(() => goTo("/chat/c2"));
+      await waitFor(() => expect(screen.queryByTestId("recap-sheet")).toBeNull());
+      expect(signal!.aborted).toBe(true);
+      expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
+    });
+  });
 });

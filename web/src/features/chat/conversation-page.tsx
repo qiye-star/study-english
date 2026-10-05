@@ -31,6 +31,8 @@ import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble } from "./message-bubble";
 import { normalizeScenario, scenarioLabel } from "./scenarios";
+import { readStoredRecap } from "./recap";
+import { RecapSheet } from "./recap-sheet";
 import { fromServerMessage, hasResultFooter, type UiMessage, type VoiceView } from "./ui-message";
 import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
@@ -137,6 +139,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const hints = useHints(api);
   const resetHints = hints.reset;
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(false);
   const tts = useTtsPlayer(api, {
     createAudio: sharedAutoplayAudio,
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
@@ -223,6 +226,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setDetailKey(null);
     setOpeningKey(null);
     setHintsOpen(false);
+    setRecapOpen(false);
     resetHints(); // 切换会话:中止进行中的提示请求
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
@@ -716,7 +720,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         actions={
           <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
-            onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)} />
+            onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
+            onOpenRecap={() => setRecapOpen(true)} />
         } />
       {(scenario || options.level !== "auto") && (
         <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">
@@ -831,6 +836,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         speakStates={tts.states}
         onPractice={(text) => { setHintsOpen(false); goPractice(navigate, text); }}
         onSave={(text) => void savePracticeItem(api, t, text, "chat")} />
+      {/* key={id}:切换会话时面板状态整体重置;saveSettings 以已存配置为底只叠加 recap,失败时它负责 toast 并抛出 */}
+      <RecapSheet key={id} open={recapOpen} onOpenChange={setRecapOpen} messages={messages}
+        stored={readStoredRecap(conversation?.config.recap)} level={options.level}
+        scenarioId={normalizeScenario(conversation?.config.scenario)?.id ?? null}
+        onSave={(recap) => saveSettings({ recap })}
+        onSpeak={(key, text) => void tts.play(key, text, config.ttsModel, config.ttsVoice)}
+        speakStates={tts.states} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>
   );

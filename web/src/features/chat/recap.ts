@@ -50,11 +50,15 @@ export function computeRecapFacts(messages: UiMessage[]): RecapFacts {
         if (!words.includes(w) && words.length < RECAP_LIMITS.poorWords) words.push(w);
       }
     }
-    if (m.grammar?.status === "done" && m.grammar.result) {
-      for (const e of m.grammar.result.errors) {
+    // 已存的语法结果可能被写坏:errors 不是数组、条目缺字段时跳过,面板不能因此崩溃
+    const result = m.grammar?.status === "done" ? m.grammar.result : undefined;
+    if (result && Array.isArray(result.errors) && typeof result.corrected === "string") {
+      for (const e of result.errors) {
+        if (!e || typeof e !== "object" || typeof e.category !== "string"
+          || typeof e.original !== "string" || typeof e.corrected !== "string") continue;
         counts.set(e.category, (counts.get(e.category) ?? 0) + 1);
         if (grammarItems.length < RECAP_LIMITS.grammarItems) {
-          grammarItems.push({ category: e.category, original: e.original, corrected: e.corrected, sentence: m.grammar.result.corrected });
+          grammarItems.push({ category: e.category, original: e.original, corrected: e.corrected, sentence: result.corrected });
         }
       }
     }

@@ -1,4 +1,4 @@
-import { LanguagesIcon, Settings2Icon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import { ClipboardListIcon, LanguagesIcon, Settings2Icon, Volume2Icon, VolumeXIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
@@ -6,7 +6,7 @@ import { formatPlaybackRate, nextPlaybackRate, setPlaybackRate, usePlaybackRate 
 
 /** R21:对话页顶栏按钮(双语、自动朗读、语速、设置;Task 4.2 加复盘)。 */
 export function ConversationHeaderActions({
-  canTranslate, bilingual, autoSpeak, loaded, bilingualSaving, autoSpeakSaving, onToggleBilingual, onToggleAutoSpeak, onOpenSettings,
+  canTranslate, bilingual, autoSpeak, loaded, bilingualSaving, autoSpeakSaving, onToggleBilingual, onToggleAutoSpeak, onOpenSettings, onOpenRecap,
 }: {
   canTranslate: boolean;
   bilingual: boolean;
@@ -17,6 +17,7 @@ export function ConversationHeaderActions({
   onToggleBilingual(): void;
   onToggleAutoSpeak(): void;
   onOpenSettings(): void;
+  onOpenRecap(): void;
 }) {
   const { t } = useTranslation();
   const rate = usePlaybackRate();
@@ -37,6 +38,10 @@ export function ConversationHeaderActions({
       <Button variant="ghost" className="h-11 min-w-11 px-1 text-sm tabular-nums" data-testid="conversation-speed"
         aria-label={t("web.chat.speed.label", { rate: formatPlaybackRate(rate) })} onClick={() => setPlaybackRate(nextPlaybackRate(rate))}>
         {formatPlaybackRate(rate)}
+      </Button>
+      <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-recap"
+        aria-label={t("web.chat.recap.title")} disabled={!loaded} onClick={onOpenRecap}>
+        <ClipboardListIcon className="h-5 w-5" />
       </Button>
       <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-settings"
         aria-label={t("web.chat.settings")} onClick={onOpenSettings}>
