@@ -19,6 +19,7 @@ describe("scenarios", () => {
     }
     expect(SCENARIO_RULES).toMatch(/Stay in character/);
     expect(SCENARIO_RULES).toMatch(/only one question at a time/);
+    expect(SCENARIO_RULES).toMatch(/reply in English only/);
   });
 
   it("sanitizes custom text", () => {
