@@ -122,9 +122,11 @@ def test_drops_punctuation_case_and_filler_only_changes(original, corrected):
 
 def test_unknown_category_dedupe_cap_and_truncation():
     text = " ".join(f"w{i}" for i in range(20))
-    errors = [item(f"w{i}", f"x{i}", "style", "说" * 400) for i in range(12)] + [item("w0", "x0")]
+    errors = [item("w0", "x0", "style", "说" * 400), item("w0", "x0")] + [
+        item(f"w{i}", f"x{i}", "style", "说" * 400) for i in range(1, 12)]
     out = normalize_grammar({"errors": errors}, text)
     assert len(out["errors"]) == 8
+    assert [e["original"] for e in out["errors"]] == [f"w{i}" for i in range(8)]
     assert {e["category"] for e in out["errors"]} == {"other"}
     assert all(len(e["explanation"]) == 300 for e in out["errors"])
 
@@ -157,3 +159,83 @@ def test_overlong_fragments_are_dropped():
 def test_malformed_results_raise(raw):
     with pytest.raises(ValueError):
         normalize_grammar(raw, TEXT)
+
+
+# ---- 复审修复 ----
+
+SECRET = "TOPSECRET-MARKER-9137"
+
+
+def test_rules_length_cap_file_and_env(tmp_path, caplog):
+    ok = "a" * 2000
+    path = tmp_path / "rules.txt"
+    path.write_text(ok, encoding="utf-8")
+    assert load_grammar_rules(make_settings(grammar_prompt_file=str(path))) == ok
+    assert load_grammar_rules(make_settings(grammar_prompt=ok)) == ok
+    too_long = SECRET + "a" * 2000
+    path.write_text(too_long, encoding="utf-8")
+    for settings, source in ((make_settings(grammar_prompt_file=str(path)), "GRAMMAR_PROMPT_FILE"),
+                             (make_settings(grammar_prompt=too_long), "GRAMMAR_PROMPT")):
+        with pytest.raises(RuntimeError) as err:
+            load_grammar_rules(settings)
+        assert source in str(err.value) and "2000" in str(err.value) and SECRET not in str(err.value)
+    assert SECRET not in caplog.text
+
+
+def test_loaded_rules_are_cleaned_and_bom_tolerated(tmp_path):
+    path = tmp_path / "rules.txt"
+    path.write_bytes("﻿A\x00B C\r\nD\n".encode("utf-8"))
+    assert load_grammar_rules(make_settings(grammar_prompt_file=str(path))) == "ABC\nD"
+    assert load_grammar_rules(make_settings(grammar_prompt="x\x00y\x07z")) == "xyz"
+
+
+def test_control_only_rules_file_fails(tmp_path):
+    path = tmp_path / "rules.txt"
+    path.write_text("\x00\x07  \n", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        load_grammar_rules(make_settings(grammar_prompt_file=str(path)))
+
+
+def test_errors_never_contain_prompt_text(tmp_path, caplog):
+    path = tmp_path / "rules.txt"
+    path.write_text("   \x00\n", encoding="utf-8")
+    with pytest.raises(RuntimeError) as err:
+        load_grammar_rules(make_settings(grammar_prompt_file=str(path)))
+    assert SECRET not in str(err.value)
+    bad = {"errors": [{"original": SECRET, "corrected": None, "category": "x", "explanation": ""}]}
+    with pytest.raises(ValueError) as verr:
+        normalize_grammar(bad, TEXT)
+    assert SECRET not in str(verr.value)
+    assert SECRET not in caplog.text
+
+
+def test_fragment_inside_a_longer_word_is_not_matched_or_replaced():
+    text = "I like a good game and go home"
+    out = normalize_grammar({"errors": [item("go", "went")]}, text)
+    assert out["corrected"] == "I like a good game and went home"
+    assert out["errors"][0]["original"] == "go"
+    assert normalize_grammar({"errors": [item("goo", "x"), item("ago", "x")]}, text)["errors"] == []
+    assert normalize_grammar({"errors": [item("ood", "x")]}, "a good game")["errors"] == []
+
+
+def test_punctuated_fragments_still_match():
+    out = normalize_grammar({"errors": [item("don't", "doesn't", "agreement"), item("a apple", "an apple", "article")]},
+                            "She don't like a apple.")
+    assert [e["original"] for e in out["errors"]] == ["don't", "a apple"]
+    assert out["corrected"] == "She doesn't like an apple."
+
+
+def test_overlapping_later_fragment_is_skipped():
+    out = normalize_grammar({"errors": [item("go to", "went to"), item("to the", "at the")]}, "I go to the park")
+    assert [e["original"] for e in out["errors"]] == ["go to"]
+    assert out["corrected"] == "I went to the park"
+
+
+def test_repeated_fragment_uses_distinct_occurrences():
+    out = normalize_grammar({"errors": [item("go", "went"), item("go", "went")]}, "I go and go")
+    assert out["corrected"] == "I went and went"
+
+
+def test_unfaithful_corrected_sentence_is_rebuilt():
+    out = normalize_grammar({"corrected": "Hier je suis allé au parc.", "errors": [item("go", "went")]}, TEXT)
+    assert out["corrected"] == "Yesterday I went to the park and buy two apple."
