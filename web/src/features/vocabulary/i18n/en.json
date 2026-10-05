@@ -8,6 +8,7 @@
       "done": "Review finished.", "close": "Back to the list", "all": "All words", "box": "Box {{value}}", "nextDue": "Next review: {{value}}",
       "deleteConfirm": "Delete this word?",
       "errors": {
+        "emptyWord": "Nothing to add.",
         "limit": "Your vocabulary is full. Delete some words first.", "notFound": "This word no longer exists.",
         "notDue": "This word is not due yet.", "alreadyReviewed": "This word was already reviewed."
       }

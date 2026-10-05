@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { addVocabularyItem, listVocabulary, reviewVocabularyItem } from "./vocabulary-api";
+import { ApiError } from "~/api/client";
+import { addVocabularyItem, deleteVocabularyItem, listVocabulary, reviewVocabularyItem } from "./vocabulary-api";
 
 const ITEM = { id: "v1", word: "look up", meaning: "查找", example: null as string | null, source: "lookup", box: 0, due_at: "2026-10-05T00:00:00+00:00", reps: 0, lapses: 0, last_reviewed_at: null as string | null, created_at: "2026-10-05T00:00:00+00:00" };
 
@@ -36,5 +37,31 @@ describe("vocabulary api", () => {
     expect(body.word.startsWith("ab 😀")).toBe(true);
     expect(Array.from(body.meaning)).toHaveLength(1000);
     expect(body).not.toHaveProperty("example");
+  });
+
+  it("never sends a word that is empty after cleaning", async () => {
+    const mock = createFetchMock({ "POST /api/vocabulary": () => json(ITEM) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    for (const word of ["", "   ", "\u0007\u0001", " \u0007 \n "]) {
+      await expect(addVocabularyItem(api, { word, source: "manual" })).rejects.toBeInstanceOf(ApiError);
+    }
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  it("treats Python-whitespace control characters as spaces instead of deleting them", async () => {
+    const mock = createFetchMock({ "POST /api/vocabulary": () => json(ITEM) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await addVocabularyItem(api, { word: "a\u001cb\u0085c\u001fd\u0007e", source: "manual" });
+    expect(JSON.parse(mock.calls[0].body as string).word).toBe("a b c de");
+  });
+
+  it("deletes an item, and surfaces a 404", async () => {
+    const mock = createFetchMock({
+      "DELETE /api/vocabulary/v1": () => json({ id: "v1" }),
+      "DELETE /api/vocabulary/gone": () => json({ error: "Vocabulary item not found" }, 404),
+    });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await expect(deleteVocabularyItem(api, "v1")).resolves.toEqual({ id: "v1" });
+    await expect(deleteVocabularyItem(api, "gone")).rejects.toMatchObject({ status: 404, message: "Vocabulary item not found" });
   });
 });

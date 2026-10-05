@@ -1,4 +1,4 @@
-import type { ApiClient } from "~/api/client";
+import { ApiError, type ApiClient } from "~/api/client";
 import type { Paged } from "~/api/types";
 
 export type VocabularySource = "lookup" | "recap" | "progress" | "manual";
@@ -38,6 +38,7 @@ export const VOCABULARY_SERVER_ERRORS: Record<string, string> = {
   "Vocabulary item not found": "web.vocabulary.errors.notFound",
   "Vocabulary item is not due": "web.vocabulary.errors.notDue",
   "Vocabulary item was already reviewed": "web.vocabulary.errors.alreadyReviewed",
+  "Vocabulary word is empty": "web.vocabulary.errors.emptyWord",
 };
 
 /** 按码点截断(服务端按 Python 字符计数),不会把代理对劈成半个字符。 */
@@ -46,12 +47,14 @@ export function clipCodePoints(text: string, max: number): string {
   return points.length <= max ? text : points.slice(0, max).join("");
 }
 
-// 服务端拒绝非空白控制字符;空白控制符(\n、\t)在下面被折叠成空格。
+// 服务端拒绝非空白控制字符;Python 视为空白的 \x1c-\x1f、\x85 与换行、制表符一样折叠成空格(不能删除,否则 "a\x85b" 会变成 "ab")。
 // eslint-disable-next-line no-control-regex
-const CONTROL_CHARS = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g;
+const CONTROL_CHARS = /[\u0000-\u0008\u000e-\u001b\u007f-\u0084\u0086-\u009f]/g;
+// eslint-disable-next-line no-control-regex
+const PY_WHITESPACE_CONTROLS = /[\u001c-\u001f\u0085]/g;
 
 function cleanWord(word: string): string {
-  return clipCodePoints(word.replace(CONTROL_CHARS, "").replace(/\s+/g, " ").trim(), MAX_VOCAB_WORD).trim();
+  return clipCodePoints(word.replace(CONTROL_CHARS, "").replace(PY_WHITESPACE_CONTROLS, " ").replace(/\s+/g, " ").trim(), MAX_VOCAB_WORD).trim();
 }
 
 export function listVocabulary(
@@ -60,10 +63,13 @@ export function listVocabulary(
   return api.request("GET", "/api/vocabulary", { query: { page, per_page: perPage, due: due ? "true" : undefined }, signal });
 }
 
-export function addVocabularyItem(api: ApiClient, input: VocabularyInput): Promise<VocabularyItem> {
+export async function addVocabularyItem(api: ApiClient, input: VocabularyInput): Promise<VocabularyItem> {
+  const word = cleanWord(input.word);
+  // 清洗后为空则不发请求;走与服务端错误相同的翻译通道
+  if (!word) throw new ApiError(422, "Vocabulary word is empty");
   return api.request("POST", "/api/vocabulary", {
     json: {
-      word: cleanWord(input.word),
+      word,
       ...(input.meaning ? { meaning: clipCodePoints(input.meaning, MAX_VOCAB_MEANING) } : {}),
       ...(input.example ? { example: clipCodePoints(input.example, MAX_VOCAB_EXAMPLE) } : {}),
       source: input.source,

@@ -8,6 +8,7 @@
       "done": "本轮复习完成。", "close": "返回列表", "all": "全部单词", "box": "第 {{value}} 盒", "nextDue": "下次复习:{{value}}",
       "deleteConfirm": "删除这个单词?",
       "errors": {
+        "emptyWord": "没有可添加的内容。",
         "limit": "词汇本已满,请先删除一些单词。", "notFound": "这个单词已不存在。",
         "notDue": "这个单词还没到复习时间。", "alreadyReviewed": "这个单词已经复习过了。"
       }
