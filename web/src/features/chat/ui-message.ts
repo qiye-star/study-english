@@ -55,3 +55,8 @@ export function fromServerMessage(m: ChatMessage): UiMessage {
 export function isVoiceMessage(m: UiMessage): boolean {
   return m.role === "user" && (!!m.voice || !!m.assessmentId);
 }
+
+/** 用户消息页脚(评测/语法徽标)只在有内容可显示时渲染:有评测,或语法状态不是 skipped。 */
+export function hasResultFooter(m: UiMessage): boolean {
+  return !!m.assessment || (!!m.grammar && m.grammar.status !== "skipped");
+}

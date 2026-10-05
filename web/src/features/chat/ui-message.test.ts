@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "./chat-api";
-import { fromServerMessage, isVoiceMessage } from "./ui-message";
+import { fromServerMessage, hasResultFooter, isVoiceMessage } from "./ui-message";
 
 const base = { conversationId: "c", createdAt: "t" };
 
@@ -29,5 +29,14 @@ describe("ui-message", () => {
     expect(isVoiceMessage({ ...m, voice: { phase: "sent", durationMs: 1 } })).toBe(true);
     expect(isVoiceMessage(fromServerMessage({ ...base, id: "u3", role: "user", content: "a", assessmentId: "z" } as ChatMessage))).toBe(true);
     expect(isVoiceMessage({ ...m, role: "assistant", assessmentId: "z" })).toBe(false);
+  });
+
+  it("renders a result footer only when there is something to show", () => {
+    const m = { key: "u", role: "user" as const, content: "x", status: "done" as const };
+    expect(hasResultFooter(m)).toBe(false);
+    expect(hasResultFooter({ ...m, grammar: { status: "skipped" } })).toBe(false);
+    expect(hasResultFooter({ ...m, grammar: { status: "pending" } })).toBe(true);
+    expect(hasResultFooter({ ...m, assessment: { status: "skipped", reason: "non-english" } })).toBe(true);
+    expect(hasResultFooter({ ...m, assessment: { status: "done" }, grammar: { status: "skipped" } })).toBe(true);
   });
 });

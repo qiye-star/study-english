@@ -49,6 +49,8 @@ interface Draft {
   recording: RecordingResult;
   wav?: Blob;
   durationMs: number;
+  /** 已转写成功、等待(或重新)交给页面的结果 */
+  handoff?: { text: string; audioUrl: string };
 }
 
 const browserUrls = { create: (b: Blob) => URL.createObjectURL(b), revoke: (u: string) => URL.revokeObjectURL(u) };
@@ -96,24 +98,28 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     setProcessing(true);
     opts.current.onDraft({ kind: "transcribing", key, durationMs: draft.durationMs });
     try {
-      if (!draft.wav) {
-        const converted = await toAssessmentWav(draft.recording.blob);
-        draft.wav = converted.wav; // 重试时不再转换
-        draft.durationMs = converted.durationMs;
+      if (!draft.handoff) {
+        if (!draft.wav) {
+          const converted = await toAssessmentWav(draft.recording.blob);
+          draft.wav = converted.wav; // 重试时不再转换
+          draft.durationMs = converted.durationMs;
+        }
+        if (controller.signal.aborted) return;
+        const { text } = await transcribe(opts.current.api, draft.wav, null, controller.signal);
+        if (!mounted.current || controller.signal.aborted) return;
+        const clean = (text ?? "").trim();
+        if (!clean) {
+          opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
+          return;
+        }
+        const audioUrl = (opts.current.urls ?? browserUrls).create(draft.wav);
+        urls.current.push(audioUrl);
+        draft.handoff = { text: clean, audioUrl }; // 交接失败后重试只重新交接,不重新转写/上传、不再建 blob URL
       }
-      if (controller.signal.aborted) return;
-      const { text } = await transcribe(opts.current.api, draft.wav, null, controller.signal);
-      if (!mounted.current || controller.signal.aborted) return;
-      const clean = (text ?? "").trim();
-      if (!clean) {
-        opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
-        return;
-      }
+      const { text: clean, audioUrl } = draft.handoff;
       drafts.current.delete(key);
-      const audioUrl = (opts.current.urls ?? browserUrls).create(draft.wav);
-      urls.current.push(audioUrl);
       try {
-        opts.current.onTranscribed({ key, wav: draft.wav, durationMs: draft.durationMs, audioUrl }, clean);
+        opts.current.onTranscribed({ key, wav: draft.wav!, durationMs: draft.durationMs, audioUrl }, clean);
       } catch (handoffError) {
         // 页面处理转写结果时出错不是"转写失败":记录后把草稿留在 kept 状态,用户可再点发送或丢弃
         console.error("voice turn handoff failed", handoffError);

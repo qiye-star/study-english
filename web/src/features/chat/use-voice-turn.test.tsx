@@ -308,6 +308,10 @@ describe("useVoiceTurn", () => {
       act(() => t.result.current.retry("v1"));
       await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledTimes(2));
       expect(t.onTranscribed).toHaveBeenLastCalledWith(expect.objectContaining({ key: "v1" }), "Hello");
+      // the retry only hands over again: no second upload/transcription, no second blob URL
+      expect(t.mock.calls).toHaveLength(1);
+      expect(t.urls.create).toHaveBeenCalledTimes(1);
+      expect(t.onTranscribed.mock.calls[1][0].audioUrl).toBe(t.onTranscribed.mock.calls[0][0].audioUrl);
       spy.mockRestore();
     });
 

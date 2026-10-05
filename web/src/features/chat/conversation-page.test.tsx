@@ -62,6 +62,13 @@ const ASSESSED = {
   pronunciation_score: 82, accuracy_score: 80, fluency_score: 85, completeness_score: 90, assessment_id: "a1",
   detail_result: { display: "", words: [{ word: "like", pronunciation_assessment: { accuracy_score: 40, error_type: "Mispronunciation" } }] },
 };
+/** Await the IndexedDB delete so the next test's kv cache never queues behind a pending delete. */
+function deleteDb(): Promise<void> {
+  return new Promise((resolve) => {
+    const req = indexedDB.deleteDatabase("enjoy-web");
+    req.onsuccess = req.onerror = req.onblocked = () => resolve();
+  });
+}
 function gate() {
   let release!: () => void;
   const promise = new Promise<void>((r) => (release = r));
@@ -459,8 +466,8 @@ describe("ConversationPage", () => {
   });
 
   describe("translation", () => {
-    beforeEach(() => {
-      indexedDB.deleteDatabase("enjoy-web");
+    beforeEach(async () => {
+      await deleteDb();
       resetKvCacheForTests();
       localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
     });
@@ -509,8 +516,9 @@ describe("ConversationPage", () => {
       expect(screen.queryByTestId("message-translation")).toBeNull(); // 不补译旧消息
       await userEvent.type(screen.getByTestId("chat-input"), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
-      await waitFor(() => expect(screen.getAllByTestId("message-translation")).toHaveLength(1));
-      expect(calls).toEqual(["New reply"].map((s) => expect.stringContaining(s)));
+      await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveAttribute("data-status", "done"));
+      expect(screen.getAllByTestId("message-translation")).toHaveLength(1);
+      expect(calls).toEqual([expect.stringContaining("New reply")]);
     });
 
     it("does not write defaults-filled keys when toggling before the server config loads, and ignores a double click", async () => {
@@ -1161,6 +1169,7 @@ describe("ConversationPage", () => {
         const slowSave = gate();
         let c2Attempt = 0;
         let c2Committed = false;
+        let slowSaveDone = false;
         const N0 = { id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" };
         const { mock } = setup(routes({
           "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
@@ -1168,7 +1177,7 @@ describe("ConversationPage", () => {
             { id: "x1", conversation_id: "c2", role: "user", content: "Next" },
             { id: "x2", conversation_id: "c2", role: "assistant", content: "Reply" }] : [])] }),
           "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
-          "POST /api/conversations/c1/messages": async () => { await slowSave.promise; return json({ messages: [{ id: "s1" }, { id: "s2" }] }); },
+          "POST /api/conversations/c1/messages": async () => { await slowSave.promise; slowSaveDone = true; return json({ messages: [{ id: "s1" }, { id: "s2" }] }); },
           "POST /api/conversations/c2/messages": () => { if (++c2Attempt === 1) { c2Committed = true; return lose(); } return json({ messages: [{ id: "y1" }, { id: "y2" }] }); },
           "PATCH /api/conversations/c1": RENAME,
           "PATCH /api/conversations/c2": () => json({ id: "c2", name: "x", config: CONFIG }),
@@ -1179,12 +1188,13 @@ describe("ConversationPage", () => {
         await act(async () => { goTo("/chat/c2"); });
         await screen.findByText("Second chat hello");
         await act(async () => { slowSave.release(); }); // the stale save resolves inside the new conversation
-        await new Promise((r) => setTimeout(r, 30));
+        await waitFor(() => expect(slowSaveDone).toBe(true));
+        await act(async () => { await Promise.resolve(); });
         await sendTyped("Next");
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         await act(async () => { lastToastAction(spy).onClick(); });
         await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c2/messages")).toHaveLength(2));
-        await new Promise((r) => setTimeout(r, 30));
+        await act(async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); }); // let the claim finish
         expect(callsTo(mock, "POST", "/api/conversations/c2/messages")).toHaveLength(1); // adopted, never posted twice
       });
 
@@ -1673,7 +1683,7 @@ describe("ConversationPage", () => {
       "PATCH /api/messages/m1": () => json({ id: "m1" }),
       ...extra,
     });
-    beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+    beforeEach(async () => { await deleteDb(); resetKvCacheForTests(); localStorage.clear(); });
 
     it("flags errors in a typed message, shows details and offers the corrected sentence", async () => {
       const { mock } = setup(chatRoutes(() => json(WRONG), { "POST /api/practice-items": () => json({ id: "p1", text: "x", source: "grammar", created_at: "t" }) }));
@@ -1844,7 +1854,7 @@ describe("ConversationPage", () => {
       { id: "m2", conversation_id: "c1", role: "assistant", content: "Why?", assessment_id: null, assessment: null, grammar: null as null },
     ] };
     const NEVER: Handler = () => new Promise<Response>(() => undefined);
-    beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+    beforeEach(async () => { await deleteDb(); resetKvCacheForTests(); localStorage.clear(); });
 
     /** 第一次回复在 gate 放行后失败;返回两次聊天请求的系统提示词 */
     const failThenRetry = async (opts: {

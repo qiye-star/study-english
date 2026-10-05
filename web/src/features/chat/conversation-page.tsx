@@ -28,7 +28,7 @@ import { GrammarDetails } from "./grammar-details";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble } from "./message-bubble";
-import { fromServerMessage, type UiMessage, type VoiceView } from "./ui-message";
+import { fromServerMessage, hasResultFooter, type UiMessage, type VoiceView } from "./ui-message";
 import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
@@ -623,7 +623,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
           return (
             <MessageBubble key={m.key} message={m}
-              footer={m.assessment || (m.grammar && m.grammar.status !== "skipped") ? (
+              footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
                   <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} />
                   <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />

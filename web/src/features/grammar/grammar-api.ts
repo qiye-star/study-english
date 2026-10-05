@@ -27,6 +27,7 @@ export function grammarRev(): number {
   return readJson(GRAMMAR_REV_KEY, isCount) ?? 0;
 }
 
+// R15:版本号按设备计;另一设备改了提示词时,本机缓存最多 30 天内可能过期(已接受的取舍)。
 export function bumpGrammarRev(): void {
   writeJson(GRAMMAR_REV_KEY, grammarRev() + 1);
 }
