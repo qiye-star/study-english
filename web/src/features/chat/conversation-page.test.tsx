@@ -1,10 +1,10 @@
 import "fake-indexeddb/auto";
 import { StrictMode } from "react";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
@@ -524,6 +524,9 @@ describe("ConversationPage", () => {
   });
 
   describe("voice messages", () => {
+    let spy: MockInstance;
+    beforeEach(() => { spy = vi.spyOn(toast, "error").mockImplementation(() => ""); });
+    afterEach(() => spy.mockRestore());
     const SAVE_OK = () => json({ messages: [{ id: "m1" }, { id: "m2" }] });
     const RENAME = () => json({ id: "c1", name: "x", config: CONFIG });
     const NOT_SAVED = "The reply was shown but could not be saved.";
@@ -882,7 +885,6 @@ describe("ConversationPage", () => {
 
     describe("saving", () => {
       it("a failed pair-save is retried with the same turn and keeps its assessment", async () => {
-        const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
         let attempt = 0;
         const { mock } = setup(voiceRoutes({
           "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "boom" }, 500) : SAVE_OK()),
@@ -899,11 +901,9 @@ describe("ConversationPage", () => {
         expect(callsTo(mock, "POST", "/api/speech/assessments")).toHaveLength(1);
         expect(deletes(mock)).toHaveLength(0);
         expect(patchedMessages(mock)).toHaveLength(0);
-        spy.mockRestore();
       });
 
       it("an assessment that arrives after a failed save is attached to the retry", async () => {
-        const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
         const assessment = gate();
         let attempt = 0;
         const { mock } = setup(voiceRoutes({
@@ -921,11 +921,9 @@ describe("ConversationPage", () => {
         expect(bodyOf(msgPosts(mock)[1]).messages[0]).toEqual({ role: "user", content: "I like apples", assessment_id: "a1" });
         expect(patchedMessages(mock)).toHaveLength(0);
         expect(deletes(mock)).toHaveLength(0);
-        spy.mockRestore();
       });
 
       it("the next turn first re-saves the unsaved earlier one so the server order matches the screen", async () => {
-        const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
         let saves = 0;
         let replies = 0;
         const { mock } = setup(routes({
@@ -941,14 +939,12 @@ describe("ConversationPage", () => {
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(msgPosts(mock)).toHaveLength(3));
         expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["One", "One", "Two"]);
-        spy.mockRestore();
       });
 
-      it("a permanently rejected save does not block the following turns and cleans up its assessment", async () => {
-        const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
+      it("a definite 4xx rejection does not block the following turns and cleans up its assessment", async () => {
         let saves = 0;
         const { mock } = setup(voiceRoutes({
-          "POST /api/conversations/c1/messages": () => (++saves === 1 ? json({ error: "Message limit reached" }, 400) : SAVE_OK()),
+          "POST /api/conversations/c1/messages": () => (++saves === 1 ? json({ error: "Invalid message" }, 400) : SAVE_OK()),
           "DELETE /api/assessments/a1": () => json({ id: "a1" }),
         }), createFakeRecorderEnv().env);
         await screen.findByText("reply");
@@ -959,7 +955,6 @@ describe("ConversationPage", () => {
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
         expect(bodyOf(msgPosts(mock)[1]).messages[0]).toEqual({ role: "user", content: "Typed" });
-        spy.mockRestore();
       });
 
       describe("409 on a retried save (the first one succeeded but its response was lost)", () => {
@@ -972,12 +967,11 @@ describe("ConversationPage", () => {
         ] });
 
         it("reloads the messages and adopts the stored pair without deleting its assessment", async () => {
-          const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
           let attempt = 0;
           let loads = 0;
           const { mock } = setup(voiceRoutes({
-            "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "boom" }, 500)
-              : json({ error: "Assessment already linked to another message" }, 409)),
+            "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "Too many requests, please try again later" }, 429)
+              : attempt === 2 ? json({ error: "Assessment already linked to another message" }, 409) : SAVE_OK()),
             "GET /api/conversations/c1/messages": () => stored(++loads === 1 ? null : "a1"),
           }), createFakeRecorderEnv().env);
           await screen.findByText("reply");
@@ -985,21 +979,21 @@ describe("ConversationPage", () => {
           await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
           await act(async () => { lastToastAction(spy).onClick(); });
           await waitFor(() => expect(loads).toBe(2));
-          await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
-          await new Promise((r) => setTimeout(r, 20));
-          expect(msgPosts(mock)).toHaveLength(2); // 没有第三次保存
+          // 下一轮排在队列后面:它的保存出现时,前一对的认领必然已经完成(确定性地证明没有重复保存)
+          await userEvent.type(screen.getByTestId("chat-input"), "Next");
+          await userEvent.click(screen.getByTestId("chat-send"));
+          await waitFor(() => expect(msgPosts(mock)).toHaveLength(3));
+          expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["I like apples", "I like apples", "Next"]);
           expect(deletes(mock)).toHaveLength(0);
           expect(patchedMessages(mock)).toHaveLength(0);
           expect(notSavedToasts(spy)).toHaveLength(1); // 认领成功不再报错
           expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done");
-          spy.mockRestore();
         });
 
         it("saves again without the assessment when the reload shows nothing was stored, and never deletes it", async () => {
-          const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
           let attempt = 0;
           const { mock } = setup(voiceRoutes({
-            "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "boom" }, 500)
+            "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "Too many requests, please try again later" }, 429)
               : attempt === 2 ? json({ error: "Assessment already linked to another message" }, 409) : SAVE_OK()),
             "GET /api/conversations/c1/messages": () => stored(null),
           }), createFakeRecorderEnv().env);
@@ -1011,9 +1005,305 @@ describe("ConversationPage", () => {
           expect(bodyOf(msgPosts(mock)[2]).messages[0]).toEqual({ role: "user", content: "I like apples" });
           expect(deletes(mock)).toHaveLength(0);
           expect(patchedMessages(mock)).toHaveLength(0);
-          spy.mockRestore();
         });
       });
+    });
+
+    describe("lost responses (the server may have saved the pair)", () => {
+      const M0 = { id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" };
+      const pair = (user: string, reply: string, ids = ["s1", "s2"]) => [
+        { id: ids[0], conversation_id: "c1", role: "user", content: user },
+        { id: ids[1], conversation_id: "c1", role: "assistant", content: reply },
+      ];
+      const lose = () => { throw new TypeError("Failed to fetch"); };
+      const sendTyped = async (text: string) => {
+        await userEvent.type(screen.getByTestId("chat-input"), text);
+        await userEvent.click(screen.getByTestId("chat-send"));
+      };
+
+      it("a typed pair whose save response was lost is adopted on retry and never posted twice", async () => {
+        let attempt = 0;
+        let committed = false;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => { if (++attempt === 1) { committed = true; return lose(); } return SAVE_OK(); },
+          "GET /api/conversations/c1/messages": () => json({ messages: [M0, ...(committed ? pair("Typed", "Reply") : [])] }),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await sendTyped("Typed");
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await sendTyped("Next"); // 排在队列后面:它保存时,前一对的认领必然已经完成
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["Typed", "Next"]);
+        expect(notSavedToasts(spy)).toHaveLength(1);
+      });
+
+      it("a voice pair adopted after a lost response still gets its late assessment patched, once", async () => {
+        const assessment = gate();
+        let attempt = 0;
+        let committed = false;
+        const { mock } = setup(voiceRoutes({
+          "POST /api/speech/assessments": async () => { await assessment.promise; return json(ASSESSED); },
+          "POST /api/conversations/c1/messages": () => { if (++attempt === 1) { committed = true; return lose(); } return SAVE_OK(); },
+          "GET /api/conversations/c1/messages": () => json({ messages: [M0, ...(committed ? pair("I like apples", "Me too!") : [])] }),
+          "PATCH /api/messages/s1": () => json({ id: "s1" }),
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await recordAndSend();
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+        await act(async () => { assessment.release(); });
+        await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/s1")).toHaveLength(1));
+        expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/s1")[0])).toEqual({ assessment_id: "a1" });
+        expect(msgPosts(mock)).toHaveLength(1);
+        expect(deletes(mock)).toHaveLength(0);
+      });
+
+      it("an ambiguous failure where nothing was stored reloads first and then posts", async () => {
+        let attempt = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => (++attempt === 1 ? lose() : SAVE_OK()),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        const before = callsTo(mock, "GET", "/api/conversations/c1/messages").length;
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(before + 1);
+        expect(bodyOf(msgPosts(mock)[1]).messages[0].content).toBe("Typed");
+      });
+
+      it("a definite rejection is not treated as ambiguous: no reload before the retry", async () => {
+        let attempt = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "Too many requests, please try again later" }, 429) : SAVE_OK()),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        const before = callsTo(mock, "GET", "/api/conversations/c1/messages").length;
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(before);
+      });
+
+      it("keeps the order: an adopted earlier pair is followed by the next turn's own save", async () => {
+        let attempt = 0;
+        let committed = false;
+        let replies = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta(`Reply ${++replies}`), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => { if (++attempt === 1) { committed = true; return lose(); } return SAVE_OK(); },
+          "GET /api/conversations/c1/messages": () => json({ messages: [M0, ...(committed ? pair("One", "Reply 1") : [])] }),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await sendTyped("One");
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await sendTyped("Two");
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["One", "Two"]);
+      });
+
+      it("does not mistake an older identical pair for the lost one", async () => {
+        let attempt = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Hello"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => {
+            attempt += 1;
+            return attempt === 1 ? SAVE_OK() : attempt === 2 ? lose() : json({ messages: [{ id: "m3" }, { id: "m4" }] });
+          },
+          // 服务端只有第一对(m1/m2)——与第二对文字完全相同,但它早已知道是已保存的
+          "GET /api/conversations/c1/messages": () => json({ messages: [M0, ...pair("Hi", "Hello", ["m1", "m2"])] }),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await sendTyped("Hi");
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(1));
+        await sendTyped("Hi");
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(3));
+      });
+    });
+
+    describe("save failures that cannot be fixed by retrying", () => {
+      it("a message-limit 429 drops each pair with the translated reason and never blocks later turns", async () => {
+        const { mock } = setup(voiceRoutes({
+          "POST /api/conversations/c1/messages": () => json({ error: "Message limit reached" }, 429),
+          "DELETE /api/assessments/a1": () => json({ id: "a1" }),
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await recordAndSend();
+        await waitFor(() => expect(spy).toHaveBeenCalledWith("This conversation is full. Start a new one."));
+        await waitFor(() => expect(callsTo(mock, "DELETE", "/api/assessments/a1")).toHaveLength(1));
+        expect(notSavedToasts(spy)).toHaveLength(0);
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(spy.mock.calls.filter((c) => c[0] === "This conversation is full. Start a new one.")).toHaveLength(2));
+        expect(msgPosts(mock)).toHaveLength(2); // 第一对没有被重发,队列没有堆积
+        expect(bodyOf(msgPosts(mock)[1]).messages[0]).toEqual({ role: "user", content: "Typed" });
+        expect(spy.mock.calls.every((c) => c[1] === undefined)).toBe(true); // 不再提供重试按钮
+      });
+
+      it("a 404 Assessment not found saves the pair again without the assessment instead of dropping it", async () => {
+        const reply = gate();
+        let attempt = 0;
+        const { mock } = setup(voiceRoutes({
+          "POST /api/ai/chat/completions": async () => { await reply.promise; return sse([delta("Me too!"), DONE_EVENT]); },
+          "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "Assessment not found" }, 404) : SAVE_OK()),
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await recordAndSend();
+        await waitFor(() => expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done"));
+        await act(async () => { reply.release(); });
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(bodyOf(msgPosts(mock)[0]).messages[0].assessment_id).toBe("a1");
+        expect(bodyOf(msgPosts(mock)[1]).messages[0]).toEqual({ role: "user", content: "I like apples" });
+        expect(deletes(mock)).toHaveLength(0);
+        expect(patchedMessages(mock)).toHaveLength(0);
+        expect(spy).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("save retry feedback and naming", () => {
+      it("the toast Retry reports again when it fails again", async () => {
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => json({ error: "boom" }, 500),
+        }));
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(2));
+        expect(msgPosts(mock)).toHaveLength(2);
+        expect(lastToastAction(spy)).toBeDefined(); // 新的提示仍可再次重试
+      });
+
+      it("names the conversation from the first pair that gets saved, even when that happens on retry", async () => {
+        let attempt = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => (++attempt === 1 ? json({ error: "boom" }, 500) : SAVE_OK()),
+          "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Typed", config: CONFIG }),
+        }));
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(0);
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(1));
+        expect(bodyOf(callsTo(mock, "PATCH", "/api/conversations/c1")[0])).toEqual({ name: "Typed" });
+        await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Typed"));
+      });
+    });
+
+    describe("a voice message must not be lost to a reply retry", () => {
+      const failingThenGated = () => {
+        const second = gate();
+        let attempt = 0;
+        const handlers = voiceRoutes({
+          "POST /api/ai/chat/completions": async () => {
+            if (++attempt === 1) return sse(['data: {"error": "Upstream unavailable"}\n\n']);
+            if (attempt === 2) { await second.promise; return sse([delta("Retried"), DONE_EVENT]); }
+            return sse([delta("Voice reply"), DONE_EVENT]);
+          },
+        });
+        return { second, handlers };
+      };
+
+      it("hides the reply Retry while a recording is in progress and brings it back after cancel", async () => {
+        const { handlers } = failingThenGated();
+        setup(handlers, createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await screen.findByTestId("message-retry");
+        await userEvent.click(screen.getByTestId("chat-mic"));
+        expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
+        expect(screen.queryByTestId("message-retry")).toBeNull();
+        await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+        expect(await screen.findByTestId("message-retry")).toBeInTheDocument();
+      });
+
+      it("keeps a transcript that arrives while a retry streams as a draft the user can send or discard", async () => {
+        const { second, handlers } = failingThenGated();
+        const { mock } = setup(handlers, createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await screen.findByTestId("message-retry");
+        // 同一帧里点了录音和重试:两个点击都发生在重新渲染之前
+        act(() => {
+          fireEvent.click(screen.getByTestId("chat-mic"));
+          fireEvent.click(screen.getByTestId("message-retry"));
+        });
+        await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+        await userEvent.click(screen.getByTestId("chat-mic")); // 停止并发送
+        const held = await screen.findByTestId("voice-send-kept");
+        expect(screen.getAllByTestId("message-user").at(-1)).toHaveAttribute("data-voice", "kept");
+        expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("A reply was still in progress, so this recording was not sent yet.");
+        expect(screen.queryByTestId("voice-transcribing")).toBeNull();
+        expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(2); // 转写没有被悄悄吞掉也没有抢发
+        await userEvent.click(held); // 回复还没结束:不会抢发
+        expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(2);
+        await act(async () => { second.release(); });
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Retried"));
+        await userEvent.click(await screen.findByTestId("voice-send-kept"));
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Voice reply"));
+        const chats = callsTo(mock, "POST", "/api/ai/chat/completions");
+        expect(bodyOf(chats[2]).messages.at(-1)).toEqual({ role: "user", content: "I like apples" });
+        expect(callsTo(mock, "POST", "/api/ai/audio/transcriptions")).toHaveLength(1);
+        expect(screen.getAllByTestId("message-user").at(-1)).toHaveAttribute("data-voice", "sent");
+      });
+
+      it("a held transcript can be discarded", async () => {
+        const { second, handlers } = failingThenGated();
+        setup(handlers, createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await screen.findByTestId("message-retry");
+        act(() => {
+          fireEvent.click(screen.getByTestId("chat-mic"));
+          fireEvent.click(screen.getByTestId("message-retry"));
+        });
+        await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+        await userEvent.click(screen.getByTestId("chat-mic"));
+        await userEvent.click(await screen.findByTestId("voice-discard"));
+        expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+        await act(async () => { second.release(); });
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Retried"));
+        expect(screen.queryByTestId("voice-send-kept")).toBeNull();
+      });
+    });
+
+    it("starting a recording takes the audio focus: read-aloud stops and the focus is released afterwards", async () => {
+      const fake = createFakeRecorderEnv();
+      setup(routes({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) }), fake.env);
+      await userEvent.click(await screen.findByTestId("message-tts"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+      await userEvent.click(screen.getByTestId("chat-mic"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle"));
+      expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
+      await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      // 焦点已释放:再次朗读正常
+      await userEvent.click(screen.getByTestId("message-tts"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
     });
 
     describe("leaving the page", () => {
@@ -1036,7 +1326,7 @@ describe("ConversationPage", () => {
         await screen.findByTestId("voice-transcribing");
         view.unmount();
         await waitFor(() => expect(aborted).toBe(true));
-        await new Promise((r) => setTimeout(r, 20));
+        await act(async () => {});
         expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(0);
         expect(callsTo(mock, "POST", "/api/speech/assessments")).toHaveLength(0);
         expect(msgPosts(mock)).toHaveLength(0);

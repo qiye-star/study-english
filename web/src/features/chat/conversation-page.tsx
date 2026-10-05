@@ -20,6 +20,7 @@ import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, listMessages, updateConversation,
   type ChatMessage, type Conversation, type ConversationConfig, type MessageResultFields,
 } from "./chat-api";
+import { claimAudio, releaseAudio } from "./audio-focus";
 import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTail } from "./chat-turns";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
@@ -56,11 +57,48 @@ interface PendingSave {
   content: string;
   reply: string;
   saved: boolean;
+  /** 永久失败,已放弃 */
+  dropped?: boolean;
+  /** 曾发生"服务端可能已保存但响应丢了"的失败:重试前必须先核对服务端,避免重复 */
+  ambiguous?: boolean;
+  error?: unknown;
 }
 
-/** 不会因重试而好转的失败(4xx,除超时/限流):丢弃这一轮的保存,不阻塞后面的轮次 */
+const isKnownServerError = (err: unknown) =>
+  err instanceof ApiError && Object.prototype.hasOwnProperty.call(CHAT_SERVER_ERRORS, err.message);
+
+/**
+ * 不会因重试而好转的失败:明确的 4xx 拒绝,以及配额类 429(Message limit reached 等)。
+ * 丢弃这一轮的保存,不阻塞后面的轮次。限流类 429 与 408 仍可重试。
+ */
 const isPermanentSaveError = (err: unknown) =>
-  err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429;
+  err instanceof ApiError
+  && ((err.status === 429 && isKnownServerError(err))
+    || (err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429));
+
+/** 服务端可能已经保存、只是响应没到:网络错误/超时(status 0)、5xx、408 */
+const isAmbiguousSaveError = (err: unknown) =>
+  !(err instanceof ApiError) || err.status === 0 || err.status >= 500 || err.status === 408;
+
+const sameText = (a: string, b: string) => a.trim() === b.trim();
+
+/** 在已知已保存的末尾之后,查找与这一轮相同的消息对(用于认领"响应丢失"的保存)。 */
+function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: string | null | undefined): [ChatMessage, ChatMessage] | null {
+  if (knownTail === undefined) return null;
+  let from = 0;
+  if (knownTail !== null) {
+    const at = stored.findIndex((m) => m.id === knownTail);
+    if (at < 0) return null;
+    from = at + 1;
+  }
+  for (let i = from; i + 1 < stored.length; i++) {
+    if (stored[i].role === "user" && stored[i + 1].role === "assistant"
+      && sameText(stored[i].content, entry.content) && sameText(stored[i + 1].content, entry.reply)) {
+      return [stored[i], stored[i + 1]];
+    }
+  }
+  return null;
+}
 
 export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const { id = "" } = useParams();
@@ -98,6 +136,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const pendingSavesRef = useRef<PendingSave[]>([]);
   const genRef = useRef(0);
+  const conversationRef = useRef<Conversation | null>(null);
+  conversationRef.current = conversation;
+  /** 服务端已知已保存的最后一条消息 id(null:空会话;undefined:未知) */
+  const knownTailRef = useRef<string | null | undefined>(undefined);
+  const renamingRef = useRef(false);
+  /** 转写已完成、但因页面正忙而未能发送的语音:等用户"发送这段"或丢弃 */
+  const heldRef = useRef(new Map<string, { clip: VoiceClip; text: string }>());
   const idRef = useRef(id);
   idRef.current = id;
   const messagesRef = useRef<UiMessage[]>([]);
@@ -129,6 +174,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     resultsRef.current = results;
     genRef.current += 1;
     pendingSavesRef.current = [];
+    knownTailRef.current = undefined;
+    renamingRef.current = false;
+    heldRef.current.clear();
     setConversation(null);
     setSending(false);
     setMessages([]);
@@ -142,6 +190,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     Promise.all([getConversation(api, id), listMessages(api, id)])
       .then(([c, list]) => {
         if (!alive) return;
+        knownTailRef.current = list.messages.at(-1)?.id ?? null;
         setConversation(c);
         setMessages(list.messages
           .filter((m) => m.role !== "system")
@@ -156,6 +205,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       busyRef.current = false;
       genRef.current += 1;
       pendingSavesRef.current = [];
+      heldRef.current.clear();
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
       resetVoice(); // 取消录音、中止转写、回收 blob URL
     };
@@ -179,6 +229,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   // 译文展开/到达也会改变列表高度;仍受 nearBottomRef 约束(向上翻阅的用户不会被拉回)
   }, [messages, translations.open, translations.states]);
 
+  // 录音开始时占用全应用的音频焦点(先让回放/朗读停下,免得录进喇叭声);空闲时释放
+  const micFocus = useRef<() => void>(() => undefined).current;
+  useEffect(() => {
+    if (voice.state === "idle") releaseAudio(micFocus);
+  }, [voice.state, micFocus]);
+  useEffect(() => () => releaseAudio(micFocus), [micFocus]);
+
   useEffect(() => {
     if (voice.error) toast.error(describeAudioError(t, voice.error));
   }, [voice.error, t]);
@@ -195,6 +252,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     for (const m of dropped) {
       if (m.role !== "user") continue;
       resultsRef.current?.abandon(m.key);
+      heldRef.current.delete(m.key);
       discardVoice(m.key);
     }
   }, [discardVoice]);
@@ -205,58 +263,105 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     if (current?.assessment?.status === "pending") patchByKey(userKey, { assessment: { status: "error" } });
   }, [patchByKey]);
 
-  const finalizeSave = useCallback((entry: PendingSave, saved: Array<Pick<ChatMessage, "id"> | undefined>) => {
+  /** 会话还是默认名时,用第一对已保存消息自己的用户文字改名(不论是首次保存还是重试/排队保存)。 */
+  const renameAfterSave = useCallback((entry: PendingSave) => {
+    const current = conversationRef.current;
+    if (entry.gen !== genRef.current || renamingRef.current || current?.id !== entry.conversationId
+      || current.name !== DEFAULT_CONVERSATION_NAME) return;
+    renamingRef.current = true;
+    const gen = entry.gen;
+    updateConversation(api, entry.conversationId, { name: titleFrom(entry.content) })
+      .then((renamed) => {
+        // 切换会话后,上一个会话的改名结果不能覆盖当前会话
+        if (mountedRef.current && genRef.current === gen && renamed.id === idRef.current) setConversation(renamed);
+      })
+      .catch((): void => undefined) // 改名失败不影响已保存的消息
+      .finally(() => { renamingRef.current = false; });
+  }, [api]);
+
+  const finalizeSave = useCallback((entry: PendingSave, saved: Array<Pick<ChatMessage, "id"> | undefined>, mode: "link" | "forget" = "link") => {
     entry.saved = true;
     const userId = saved[0]?.id;
-    // saved() 需要用户消息 id;缺失时无法补写,停止跟踪这一轮(评测不删除)
-    if (typeof userId === "string") void entry.results.saved(entry.userKey, userId);
+    // saved() 需要用户消息 id;缺失(或评测已与别的消息脱钩)时停止跟踪这一轮(评测不删除)
+    if (mode === "link" && typeof userId === "string") void entry.results.saved(entry.userKey, userId);
     else {
       entry.results.forget(entry.userKey);
       settlePending(entry.userKey);
     }
+    const tail = saved[1]?.id ?? userId;
+    knownTailRef.current = typeof tail === "string" ? tail : undefined;
     patchByKey(entry.userKey, { id: userId });
     patchByKey(entry.botKey, { id: saved[1]?.id });
-  }, [patchByKey, settlePending]);
+    renameAfterSave(entry);
+  }, [patchByKey, settlePending, renameAfterSave]);
 
   /** 保存一对消息。返回 saved / failed(临时失败,保留重试)/ dropped(永久失败,已放弃)。 */
   const saveOne = useCallback(async (entry: PendingSave): Promise<"saved" | "failed" | "dropped"> => {
     const { results } = entry;
-    const fields: MessageResultFields = results.fieldsForSave(entry.userKey); // R3:已到达的结果随消息一起保存
     const post = (f: MessageResultFields) => createMessages(api, entry.conversationId, [
       { role: "user", content: entry.content, ...f }, { role: "assistant", content: entry.reply }]);
+    if (entry.ambiguous) {
+      // 上次失败时服务端可能已经保存:先核对,已有就认领(晚到的评测之后补写),没有再重新保存,绝不重复
+      try {
+        const { messages: stored } = await listMessages(api, entry.conversationId);
+        const pair = findStoredPair(stored, entry, knownTailRef.current);
+        if (pair) {
+          finalizeSave(entry, pair);
+          return "saved";
+        }
+      } catch (err) {
+        entry.error = err;
+        return "failed";
+      }
+    }
+    const fields: MessageResultFields = results.fieldsForSave(entry.userKey); // R3:已到达的结果随消息一起保存
+    let failure: unknown;
     try {
       finalizeSave(entry, (await post(fields)).messages);
       return "saved";
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && fields.assessmentId) {
-        // 上次保存其实成功了(响应丢失):不能 abandon(会删掉已链接的评测)。重新加载,认领已有消息,否则去掉评测重试
+      failure = err;
+    }
+    if (failure instanceof ApiError && fields.assessmentId) {
+      const lost = failure.status === 404 && failure.message === "Assessment not found";
+      if (failure.status === 409 || lost) {
+        // 409:上次保存其实成功了(响应丢失),不能 abandon(会删掉已链接的评测):重新加载,认领已有消息。
+        // 都不是(或评测已不存在):去掉评测重新保存,并停止跟踪评测。
         try {
-          const { messages: stored } = await listMessages(api, entry.conversationId);
-          const at = stored.findIndex((m) => m.role === "user" && m.assessmentId === fields.assessmentId);
-          if (at >= 0) {
-            const reply = stored[at + 1];
-            finalizeSave(entry, [stored[at], reply?.role === "assistant" ? reply : undefined]);
-            return "saved";
+          if (failure.status === 409) {
+            const { messages: stored } = await listMessages(api, entry.conversationId);
+            const at = stored.findIndex((m) => m.role === "user" && m.assessmentId === fields.assessmentId);
+            if (at >= 0) {
+              const reply = stored[at + 1];
+              finalizeSave(entry, [stored[at], reply?.role === "assistant" ? reply : undefined]);
+              return "saved";
+            }
           }
-          const res = await post({});
-          results.forget(entry.userKey);
-          settlePending(entry.userKey);
-          entry.saved = true;
-          patchByKey(entry.userKey, { id: res.messages[0]?.id });
-          patchByKey(entry.botKey, { id: res.messages[1]?.id });
+          finalizeSave(entry, (await post({})).messages, "forget");
           return "saved";
         } catch (inner) {
-          err = inner;
+          failure = inner;
         }
       }
-      results.saveFailed(entry.userKey);
-      if (isPermanentSaveError(err)) {
-        results.abandon(entry.userKey);
-        return "dropped";
-      }
-      return "failed";
     }
-  }, [api, finalizeSave, patchByKey, settlePending]);
+    entry.error = failure;
+    results.saveFailed(entry.userKey);
+    if (isPermanentSaveError(failure)) {
+      results.abandon(entry.userKey);
+      entry.dropped = true;
+      return "dropped";
+    }
+    if (isAmbiguousSaveError(failure)) entry.ambiguous = true;
+    return "failed";
+  }, [api, finalizeSave]);
+
+  /** 永久失败:配额等已知文案用翻译后的原因,其余用通用"未保存"。 */
+  const toastDropped = useCallback((entry: PendingSave) => {
+    if (!mountedRef.current || entry.gen !== genRef.current) return;
+    toast.error(isKnownServerError(entry.error)
+      ? translateServerError(tRef.current, entry.error, CHAT_SERVER_ERRORS)
+      : tRef.current("web.chat.notSaved"));
+  }, []);
 
   /** 依次保存队列里的消息对;遇到临时失败就停下(留待下次重试,顺序不变)。 */
   const drainSaves = useCallback(async (): Promise<"ok" | "failed" | "dropped"> => {
@@ -283,15 +388,28 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         return "failed";
       }
       remove();
-      if (result === "dropped") outcome = "dropped";
+      if (result === "dropped") {
+        outcome = "dropped";
+        toastDropped(entry);
+      }
     }
-  }, [saveOne]);
+  }, [saveOne, toastDropped]);
 
   const flushSaves = useCallback(() => {
     const run = saveChainRef.current.then(() => drainSaves());
     saveChainRef.current = run.catch((): void => undefined);
     return run;
   }, [drainSaves]);
+
+  /** 临时失败的提示:Retry 再失败时会再次提示,不会静默。 */
+  const toastNotSaved: () => void = useCallback(() => {
+    toast.error(tRef.current("web.chat.notSaved"), {
+      action: {
+        label: tRef.current("web.common.retry"),
+        onClick: () => { void flushSaves().then((o) => { if (o === "failed" && mountedRef.current) toastNotSaved(); }); },
+      },
+    });
+  }, [flushSaves]);
 
   const send = useCallback(async (text: string, base: UiMessage[], turn: TurnExtras = {}) => {
     const content = text.trim();
@@ -345,24 +463,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     };
     pendingSavesRef.current.push(entry);
     const outcome = await flushSaves();
-    if (!entry.saved) {
-      if (live() && outcome !== "ok") {
-        toast.error(tRef.current("web.chat.notSaved"), {
-          action: { label: tRef.current("web.common.retry"), onClick: () => { void flushSaves(); } },
-        });
-      }
-      return;
-    }
-    if (conversation.name === DEFAULT_CONVERSATION_NAME) {
-      try {
-        const renamed = await updateConversation(api, conversation.id, { name: titleFrom(content) });
-        // 两轮重叠 + 切换会话时,上一个会话的改名结果不能覆盖当前会话
-        if (mountedRef.current && !controller.signal.aborted && renamed.id === idRef.current) setConversation(renamed);
-      } catch {
-        // 改名失败不影响已保存的消息
-      }
-    }
-  }, [api, config, conversation, flushSaves, showTranslation]);
+    if (!entry.saved && !entry.dropped && outcome === "failed" && live()) toastNotSaved();
+  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved]);
 
   const voiceBusy = voice.state !== "idle";
 
@@ -379,7 +481,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   };
 
   const retry = () => {
-    if (busyRef.current) return;
+    if (busyRef.current || voice.state !== "idle") return;
     const last = messages[messages.length - 1];
     const user = messages[messages.length - 2];
     if (last?.status !== "error" || last.role !== "assistant" || user?.role !== "user") return;
@@ -419,6 +521,20 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
 
   function onVoiceTranscribed(clip: VoiceClip, text: string) {
     if (!mountedRef.current) return;
+    if (busyRef.current || !conversation || !resultsRef.current) {
+      // 页面正忙(例如同一帧里刚点了回复重试):转写不能丢,气泡变成可"发送这段"/丢弃的草稿
+      heldRef.current.set(clip.key, { clip, text });
+      patchByKey(clip.key, {
+        content: text,
+        status: "error",
+        voice: { phase: "kept", durationMs: clip.durationMs, audioUrl: clip.audioUrl, note: tRef.current("web.chat.voice.heldBusy") },
+      });
+      return;
+    }
+    startVoiceSend(clip, text);
+  }
+
+  function startVoiceSend(clip: VoiceClip, text: string) {
     const base = messagesRef.current.filter((m) => m.key !== clip.key);
     // 页面保留 (clip, text):回复失败时重试只重发转写文本,不重录、不重传
     void send(text, base, {
@@ -428,7 +544,19 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     });
   }
 
+  const sendDraft = (key: string) => {
+    const held = heldRef.current.get(key);
+    if (!held) {
+      voice.retry(key);
+      return;
+    }
+    if (busyRef.current || voice.state !== "idle") return;
+    heldRef.current.delete(key);
+    startVoiceSend(held.clip, held.text);
+  };
+
   const discardDraft = (key: string) => {
+    heldRef.current.delete(key);
     discardVoice(key);
     setMessages((prev) => prev.filter((m) => m.key !== key));
   };
@@ -506,8 +634,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
               translation={translations.open[m.key]
                 ? <MessageTranslation state={translations.states[m.key]} onRetry={() => translations.retry(m.key, m.content)} />
                 : null}
-              voiceDraft={draft ? { onRetry: () => voice.retry(m.key), onDiscard: () => discardDraft(m.key) } : undefined}
-              onRetry={m.role === "assistant" && m.status === "error" && !sending && m.key === lastKey ? retry : undefined} />
+              voiceDraft={draft ? { onRetry: () => sendDraft(m.key), onDiscard: () => discardDraft(m.key) } : undefined}
+              onRetry={m.role === "assistant" && m.status === "error" && !sending && voice.state === "idle" && m.key === lastKey ? retry : undefined} />
           );
         })}
       </div>
@@ -517,7 +645,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           disabled={voice.state === "starting" || voice.state === "processing" || (voice.state === "idle" && (sending || !conversation))}
           aria-label={voice.state === "recording" ? t("web.chat.voice.stopAndSend")
             : voice.state === "processing" ? t("web.chat.transcribing") : t("web.chat.mic")}
-          onClick={() => void (voice.state === "recording" ? voice.stop() : voice.start())}>
+          onClick={() => {
+            if (voice.state === "recording") void voice.stop();
+            else {
+              claimAudio(micFocus);
+              void voice.start();
+            }
+          }}>
           {voice.state === "processing" ? <LoaderIcon className="h-5 w-5 animate-spin" />
             : voice.state === "recording" ? <SquareIcon className="h-5 w-5" /> : <MicIcon className="h-5 w-5" />}
         </Button>

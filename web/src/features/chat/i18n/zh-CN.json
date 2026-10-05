@@ -16,7 +16,7 @@
         "skippedNonEnglish": "未评测(非英文)", "skippedTooLong": "未评测(过长)",
         "retryTranscribe": "重试转写", "sendKept": "发送这段", "discard": "丢弃",
         "details": "详情", "detailsDescription": "这条消息的发音分数与改正",
-        "practiceThis": "跟读这句", "recording": "录音中",
+        "practiceThis": "跟读这句", "recording": "录音中", "heldBusy": "上一条回复还在进行,这段录音尚未发送。",
         "playFailed": "无法播放这段录音", "weakWords": "需要加强的词:", "save": "收藏"
       },
       "configFallback": "无法加载服务器默认设置,已使用内置默认值。",
