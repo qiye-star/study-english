@@ -1,7 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import "fake-indexeddb/auto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
+import * as grammarApi from "~/features/grammar/grammar-api";
+import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
-import { TurnResults, type TurnChange } from "./turn-results";
+import { GRAMMAR_FOR_VOICE, TurnResults, type TurnChange } from "./turn-results";
+
+vi.mock("~/features/grammar/grammar-api", async (orig) => {
+  const actual = await orig<typeof import("~/features/grammar/grammar-api")>();
+  return { ...actual, cachedGrammar: vi.fn(actual.cachedGrammar) };
+});
+const grammarSignal = (n = 0) => vi.mocked(grammarApi.cachedGrammar).mock.calls[n][2] as AbortSignal;
 
 const WAV = new Blob(["RIFF"], { type: "audio/wav" });
 const ASSESSED = {
@@ -278,5 +287,237 @@ describe("TurnResults (assessment)", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(unhandled).not.toHaveBeenCalled();
     process.off("unhandledRejection", unhandled);
+  });
+});
+
+const GRAMMAR = { has_errors: true, corrected: "She doesn't like it.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "三单" }] };
+const GRAMMAR_VIEW = { hasErrors: true, corrected: "She doesn't like it.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "三单" }] };
+const on = (context = "") => ({ enabled: true, context });
+const TEXT = "She don't like it.";
+
+describe("TurnResults (grammar)", () => {
+  beforeEach(() => {
+    indexedDB.deleteDatabase("enjoy-web");
+    resetKvCacheForTests();
+    localStorage.clear();
+    vi.mocked(grammarApi.cachedGrammar).mockClear();
+  });
+
+  it("checks a typed message with the previous reply as context and saves the result with it", async () => {
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR) });
+    results.start("u1", { text: TEXT, grammar: on("Does she like tea?") });
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(changes).toEqual([["u1", { grammar: { status: "pending" } }], ["u1", { grammar: { status: "done", result: GRAMMAR_VIEW } }]]);
+    expect(JSON.parse(calls("POST", "/api/ai/grammar")[0].body as string)).toEqual({ text: TEXT, context: "Does she like tea?" });
+    expect(results.fieldsForSave("u1")).toEqual({ grammar: GRAMMAR_VIEW });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it("patches a grammar result that arrives after the save", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler });
+    results.start("u1", { text: TEXT, grammar: on() });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    grammar.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+    expect(JSON.parse(calls("PATCH", "/api/messages/m1")[0].body as string)).toEqual({ grammar: GRAMMAR });
+  });
+
+  it("patches a grammar result that arrives while the save is in flight", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": grammar.handler });
+    results.start("u1", { text: TEXT, grammar: on() });
+    expect(results.fieldsForSave("u1")).toEqual({});
+    grammar.release();
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+    await results.saved("u1", "m1");
+    expect(JSON.parse(calls("PATCH", "/api/messages/m1")[0].body as string)).toEqual({ grammar: GRAMMAR });
+  });
+
+  it("carries both results in one PATCH when both arrive after the save", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const assess = gated(() => json(ASSESSED));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler, "POST /api/speech/assessments": assess.handler });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    grammar.release();
+    assess.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1").length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 30));
+    const bodies = calls("PATCH", "/api/messages/m1").map((c) => JSON.parse(c.body as string));
+    expect(Object.assign({}, ...bodies)).toEqual({ assessment_id: "a1", grammar: GRAMMAR });
+    expect(bodies.flatMap((b) => Object.keys(b)).sort()).toEqual(["assessment_id", "grammar"]); // each field sent exactly once
+  });
+
+  it("serializes patches: a second result waits for the first PATCH", async () => {
+    let releasePatch!: () => void;
+    const patchGate = new Promise<void>((r) => (releasePatch = r));
+    const grammar = gated(() => json(GRAMMAR));
+    const assess = gated(() => json(ASSESSED));
+    let inflight = 0;
+    let maxInflight = 0;
+    const { results, calls } = setup({
+      "POST /api/ai/grammar": grammar.handler,
+      "POST /api/speech/assessments": assess.handler,
+      "PATCH /api/messages/m1": async () => { inflight++; maxInflight = Math.max(maxInflight, inflight); await patchGate; inflight--; return json({ id: "m1" }); },
+    });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    grammar.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+    assess.release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1);
+    releasePatch();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(2));
+    expect(maxInflight).toBe(1);
+  });
+
+  it("both results arriving before the save go into the save payload", async () => {
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR), "POST /api/speech/assessments": () => json(ASSESSED) });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    await vi.waitFor(() => expect(changes).toHaveLength(4));
+    expect(results.fieldsForSave("u1")).toEqual({ assessmentId: "a1", grammar: GRAMMAR_VIEW });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it.each([
+    ["disabled", { text: TEXT, grammar: { enabled: false, context: "" } }],
+    ["too short", { text: "Hi there", grammar: on() }],
+    ["not English", { text: "她不喜欢它今天", grammar: on() }],
+    ["too long", { text: "word ".repeat(450), grammar: on() }],
+    ["no grammar option", { text: TEXT }],
+  ])("skips grammar when %s", (_name, input) => {
+    const { results, changes, mock } = setup({});
+    results.start("u1", input);
+    expect(changes).toEqual([]);
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  it("checks voice messages too (GRAMMAR_FOR_VOICE)", async () => {
+    expect(GRAMMAR_FOR_VOICE).toBe(true);
+    const { results, calls } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR), "POST /api/speech/assessments": () => json(ASSESSED) });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    await vi.waitFor(() => expect(calls("POST", "/api/ai/grammar")).toHaveLength(1));
+    expect(calls("POST", "/api/speech/assessments")).toHaveLength(1);
+  });
+
+  it("abandon aborts the grammar wait, reports nothing more, patches nothing, and still deletes the assessment", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const assess = gated(() => json(ASSESSED));
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": grammar.handler, "POST /api/speech/assessments": assess.handler });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    await vi.waitFor(() => expect(calls("POST", "/api/ai/grammar")).toHaveLength(1));
+    expect(grammarSignal().aborted).toBe(false);
+    results.abandon("u1");
+    expect(grammarSignal().aborted).toBe(true);
+    grammar.release();
+    assess.release();
+    await vi.waitFor(() => expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(changes).toEqual([["u1", { assessment: { status: "pending" } }], ["u1", { grammar: { status: "pending" } }]]);
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it("forget aborts grammar but never deletes or patches", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, changes, calls, mock } = setup({ "POST /api/ai/grammar": grammar.handler, "POST /api/speech/assessments": () => json(ASSESSED) });
+    results.start("u1", { text: TEXT, wav: WAV, grammar: on() });
+    await vi.waitFor(() => expect(changes.some(([, c]) => c.assessment?.status === "done")).toBe(true));
+    results.forget("u1");
+    expect(grammarSignal().aborted).toBe(true);
+    grammar.release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(changes.filter(([, c]) => c.grammar && c.grammar.status !== "pending")).toEqual([]); // UI stays pending; the page handles it
+    expect(mock.calls.filter((c) => c.method === "DELETE" || c.method === "PATCH")).toHaveLength(0);
+    expect(calls("POST", "/api/ai/grammar")).toHaveLength(1);
+  });
+
+  it("abandonOpen aborts the grammar of unsaved turns", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler });
+    results.start("u1", { text: TEXT, grammar: on() });
+    await vi.waitFor(() => expect(calls("POST", "/api/ai/grammar")).toHaveLength(1));
+    results.abandonOpen();
+    expect(grammarSignal().aborted).toBe(true);
+    grammar.release(); // do not leave the shared in-flight request hanging for later tests
+  });
+
+  it("a grammar failure does not affect the assessment", async () => {
+    const { results, changes, calls } = setup({
+      "POST /api/ai/grammar": () => json({ error: "Upstream unavailable" }, 502),
+      "POST /api/speech/assessments": () => json(ASSESSED),
+    });
+    results.start("u1", { text: "He go to school.", wav: WAV, grammar: on() }); // distinct text: no cache/in-flight sharing with other tests
+    await vi.waitFor(() => expect(changes.filter(([, c]) => c.assessment?.status === "done" || c.grammar?.status === "error")).toHaveLength(2));
+    expect(results.fieldsForSave("u1")).toEqual({ assessmentId: "a1" });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it("reports errors with the original error for translation, and retries on demand", async () => {
+    let fail = true;
+    const { results, changes } = setup({ "POST /api/ai/grammar": () => (fail ? json({ error: "Upstream unavailable" }, 502) : json(GRAMMAR)) });
+    results.start("u1", { text: TEXT, grammar: on() });
+    await vi.waitFor(() => expect(changes.at(-1)?.[1].grammar?.status).toBe("error"));
+    const err = changes.at(-1)![1].grammar!.error as { message: string };
+    expect(err.message).toBe("Upstream unavailable");
+    fail = false;
+    results.retryGrammar("u1");
+    await vi.waitFor(() => expect(changes.at(-1)).toEqual(["u1", { grammar: { status: "done", result: GRAMMAR_VIEW } }]));
+  });
+
+  it("saveFailed keeps the grammar result for the retry save", async () => {
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR) });
+    results.start("u1", { text: TEXT, grammar: on() });
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(results.fieldsForSave("u1")).toEqual({ grammar: GRAMMAR_VIEW });
+    results.saveFailed("u1");
+    expect(results.fieldsForSave("u1")).toEqual({ grammar: GRAMMAR_VIEW });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it("a grammar result arriving after saveFailed is attached by the retry", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": grammar.handler });
+    results.start("u1", { text: TEXT, grammar: on() });
+    results.fieldsForSave("u1");
+    results.saveFailed("u1");
+    grammar.release();
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(results.fieldsForSave("u1")).toEqual({ grammar: GRAMMAR_VIEW });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+  });
+
+  it("ignores PATCH failures for grammar", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler, "PATCH /api/messages/m1": () => json({ error: "boom" }, 500) });
+    results.start("u1", { text: TEXT, grammar: on() });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    grammar.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off("unhandledRejection", unhandled);
+  });
+
+  it("reuses the cached result for the same text", async () => {
+    const { results, changes, calls } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR) });
+    results.start("u1", { text: TEXT, grammar: on() });
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    results.start("u2", { text: TEXT, grammar: on() });
+    await vi.waitFor(() => expect(changes).toHaveLength(4));
+    expect(calls("POST", "/api/ai/grammar")).toHaveLength(1);
   });
 });

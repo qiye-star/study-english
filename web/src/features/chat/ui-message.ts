@@ -14,6 +14,8 @@ export interface AssessmentView {
 export interface GrammarView {
   status: ResultStatus;
   result?: GrammarResult;
+  /** status 为 error 时的原始错误;界面用 translateServerError(t, error, GRAMMAR_SERVER_ERRORS) 翻译 */
+  error?: unknown;
 }
 
 /** transcribing:转写中;failed:转写失败(可重试/丢弃);kept:切后台等自动停止后保留待发送;sent:已作为消息发出 */
