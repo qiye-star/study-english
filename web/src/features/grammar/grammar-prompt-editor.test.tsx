@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { toast } from "sonner";
 import { grammarRev } from "./grammar-api";
 import { GrammarPromptEditor } from "./grammar-prompt-editor";
 
@@ -89,5 +90,64 @@ describe("GrammarPromptEditor", () => {
     fail = false;
     await userEvent.click(screen.getByTestId("grammar-prompt-retry"));
     expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue(DEFAULT);
+  });
+
+  it("bumps the revision when the request resolves after unmount, without console errors", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const mock = createFetchMock({
+      "GET /api/me/grammar-prompt": () => json(state("My rules")),
+      "DELETE /api/me/grammar-prompt": async () => { await gate; return json(state(null)); },
+    });
+    const view = renderWithProviders(<GrammarPromptEditor />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await screen.findByTestId("grammar-prompt-input");
+    await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
+    await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "DELETE")).toBe(true));
+    view.unmount();
+    release();
+    await waitFor(() => expect(grammarRev()).toBe(1));
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("does not bump the revision when a request fails after unmount", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const mock = createFetchMock({
+      "GET /api/me/grammar-prompt": () => json(state("My rules")),
+      "DELETE /api/me/grammar-prompt": async () => { await gate; return json({ error: "boom" }, 500); },
+    });
+    const view = renderWithProviders(<GrammarPromptEditor />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await screen.findByTestId("grammar-prompt-input");
+    await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
+    await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "DELETE")).toBe(true));
+    view.unmount();
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(grammarRev()).toBe(0);
+  });
+
+  it("caps pasted input softly, ignores trailing whitespace, counts code points, and toasts restore distinctly", async () => {
+    const mock = setup({
+      "GET /api/me/grammar-prompt": () => json({ ...state("My rules"), max_length: 4 }),
+      "DELETE /api/me/grammar-prompt": () => json(state(null)),
+    });
+    const input = await screen.findByTestId("grammar-prompt-input");
+    await userEvent.click(input);
+    await userEvent.paste("x".repeat(100));
+    expect((input as HTMLTextAreaElement).value.length).toBe(20); // 4 * 5
+    await userEvent.clear(input);
+    await userEvent.type(input, "My rules  ");
+    expect(screen.getByTestId("grammar-prompt-save")).toBeDisabled(); // 仅尾部空白
+    await userEvent.clear(input);
+    await userEvent.paste("😀😀😀😀");
+    expect(screen.getByTestId("grammar-prompt-count")).toHaveTextContent("4 / 4");
+    expect(mock.calls.some((c) => c.method === "PUT")).toBe(false);
+    await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
+    await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Default rules restored."));
   });
 });
