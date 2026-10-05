@@ -225,4 +225,19 @@ describe("LookupLayer", () => {
     await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
     expect(screen.queryByTestId("lookup-vocab")).toBeNull();
   });
+
+  it("offers no vocabulary button for a sentence switched to look up instead", async () => {
+    const mock = createFetchMock({
+      "POST /api/ai/chat/completions": (call) => (JSON.parse(call.body as string).response_format
+        ? json({ choices: [{ message: { content: '{"word":"ask not what your country can do","definition":"a quote"}' } }] })
+        : json({ choices: [{ message: { content: "不要问国家能为你做什么" } }] })),
+    });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("ask not what your country can do");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    await userEvent.click(screen.getByTestId("lookup-switch-mode"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveTextContent("a quote"));
+    expect(screen.queryByTestId("lookup-vocab")).toBeNull();
+  });
 });

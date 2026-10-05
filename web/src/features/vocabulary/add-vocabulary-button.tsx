@@ -46,7 +46,7 @@ export function AddVocabularyButton({ testId, input, withLabel = false, label }:
   return (
     <Button variant={withLabel ? "outline" : "ghost"} size="sm" data-testid={testId} data-state={saved ? "saved" : saving ? "saving" : "idle"}
       className={withLabel ? "h-11 min-w-11 flex-1" : "h-11 min-w-11 px-2"}
-      aria-label={saved ? text : (label ?? text)} disabled={saving || saved} onClick={() => void save()}>
+      aria-label={saved ? t("web.vocabulary.inVocabularyWord", { word: input.word }) : (label ?? text)} disabled={saving || saved} onClick={() => void save()}>
       <Icon className={withLabel ? "mr-2 h-4 w-4" : "h-4 w-4"} aria-hidden="true" />{withLabel ? text : null}
     </Button>
   );

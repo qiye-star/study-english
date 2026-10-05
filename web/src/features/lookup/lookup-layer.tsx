@@ -40,6 +40,8 @@ export function LookupLayer() {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const passageText = target ? normalizeSelection(target.text) : "";
   const isPassage = !!target && classifySelection(target.text) === "translate";
+  // 词汇本只收单词/短语:长句即使切到"查词"也不提供
+  const isWordOrPhrase = !!target && classifySelection(target.text) === "lookup";
   const tooLong = passageText.length > MAX_PRACTICE_TEXT;
 
   const save = async () => {
@@ -151,7 +153,7 @@ export function LookupLayer() {
               <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
-          {state.status === "done" && state.lookup && target && (
+          {state.status === "done" && state.lookup && isWordOrPhrase && target && (
             <div className="mt-2 flex">
               <AddVocabularyButton key={`${target.text}
 ${target.context}`} testId="lookup-vocab" input={vocabularyFromLookup(state.lookup, target)} withLabel />

@@ -29,7 +29,7 @@ describe("AddVocabularyButton", () => {
     expect(button).toBeDisabled();
     await act(async () => { release(); await new Promise((r) => setTimeout(r, 10)); });
     await waitFor(() => expect(button).toHaveAttribute("data-state", "saved"));
-    expect(button).toHaveAccessibleName("In your vocabulary");
+    expect(button).toHaveAccessibleName("In your vocabulary: think");
     expect(toast.success).toHaveBeenCalledWith("Added to your vocabulary.");
     await userEvent.click(button);
     expect(posts(mock)).toHaveLength(1);
