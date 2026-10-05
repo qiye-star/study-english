@@ -36,7 +36,7 @@ GRAMMAR_OUTPUT_CONTRACT = """Output contract (fixed by the server; the rules abo
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
-_WORD = re.compile(r"[a-z0-9']+")
+_WORD = re.compile(r"[\w']+")  # Unicode-aware: non-ASCII content must count as a difference
 
 
 def load_grammar_rules(settings: Settings) -> str:

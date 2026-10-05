@@ -236,6 +236,22 @@ def test_repeated_fragment_uses_distinct_occurrences():
     assert out["corrected"] == "I went and went"
 
 
+@pytest.mark.parametrize("injected", ["I went to the park. 昨天我去了公园", "昨天我去了公园", "I went to the park. Je suis allé"])
+def test_non_ascii_or_translated_corrected_sentence_is_rebuilt(injected):
+    out = normalize_grammar({"corrected": injected, "errors": [item("go", "went")]}, "I go to the park")
+    assert out["corrected"] == "I went to the park"
+
+
+def test_faithful_corrected_sentence_passes_through_unchanged():
+    out = normalize_grammar({"corrected": "I went to the park.", "errors": [item("go", "went")]}, "I go to the park")
+    assert out["corrected"] == "I went to the park."
+
+
+def test_non_ascii_only_change_is_not_a_noop():
+    out = normalize_grammar({"errors": [item("cafe", "café", "spelling")]}, "I like cafe")
+    assert [e["corrected"] for e in out["errors"]] == ["café"]
+
+
 def test_unfaithful_corrected_sentence_is_rebuilt():
     out = normalize_grammar({"corrected": "Hier je suis allé au parc.", "errors": [item("go", "went")]}, TEXT)
     assert out["corrected"] == "Yesterday I went to the park and buy two apple."
