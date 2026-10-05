@@ -36,6 +36,7 @@
       },
       "levels": { "auto": "Auto (no limit)", "A2": "A2 · Elementary", "B1": "B1 · Intermediate", "B2": "B2 · Upper intermediate", "C1": "C1 · Advanced" },
       "hints": { "button": "Not sure what to say?", "title": "Things you could say", "description": "Pick a reply, listen to it, practice it or save it.", "fill": "Use this reply", "speak": "Read aloud", "practice": "Practice", "save": "Save to practice list", "errors": { "invalid": "The suggestions could not be read. Try again." } },
+      "recap": { "errors": { "invalid": "The recap could not be read. Try again." } },
       "errors": {
         "notConfigured": "The AI service is not configured on the server.", "upstream": "The AI service is unavailable. Please try again.",
         "empty": "The AI returned an empty reply.", "messageLimit": "This conversation is full. Start a new one.",

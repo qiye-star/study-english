@@ -36,6 +36,7 @@
       },
       "levels": { "auto": "自动(不限制)", "A2": "A2 · 初级", "B1": "B1 · 中级", "B2": "B2 · 中高级", "C1": "C1 · 高级" },
       "hints": { "button": "不会说?", "title": "你可以这样说", "description": "选一句填入输入框,也可以朗读、跟读或收藏。", "fill": "用这句", "speak": "朗读", "practice": "跟读", "save": "收藏到练习清单", "errors": { "invalid": "没能读取提示内容,请重试。" } },
+      "recap": { "errors": { "invalid": "没能读取复盘内容,请重试。" } },
       "errors": {
         "notConfigured": "服务器未配置 AI 服务。", "upstream": "AI 服务暂不可用,请重试。",
         "empty": "AI 返回了空回复。", "messageLimit": "这个对话的消息已满,请新建对话。",
