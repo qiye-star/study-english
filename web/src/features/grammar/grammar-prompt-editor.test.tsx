@@ -146,6 +146,14 @@ describe("GrammarPromptEditor", () => {
     await userEvent.paste("😀😀😀😀");
     expect(screen.getByTestId("grammar-prompt-count")).toHaveTextContent("4 / 4");
     expect(mock.calls.some((c) => c.method === "PUT")).toBe(false);
+    await userEvent.clear(input);
+    await userEvent.paste("x".repeat(19) + "😀😀"); // the 20-unit soft cap would cut the first emoji's surrogate pair
+    expect((input as HTMLTextAreaElement).value).toBe("x".repeat(19) + "😀"); // 20 code points kept whole, no lone surrogate
+    expect(screen.getByTestId("grammar-prompt-count")).toHaveTextContent("20 / 4");
+    await userEvent.clear(input);
+    await userEvent.paste("😀".repeat(30)); // 30 code points -> capped at 20 code points, never mid-pair
+    expect([...(input as HTMLTextAreaElement).value]).toHaveLength(20);
+    expect((input as HTMLTextAreaElement).value).toBe("😀".repeat(20));
     await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
     await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Default rules restored."));

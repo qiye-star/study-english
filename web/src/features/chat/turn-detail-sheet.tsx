@@ -54,6 +54,9 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
     [detailWords, message?.assessment?.words],
   );
 
+  // 加载中给结果区一个接近最终高度的下限,避免骨架 → 结果时整张抽屉高度跳动
+  const loadingDetail = !error && !(scores && detail);
+
   const save = async () => {
     if (!content || savingRef.current) return;
     savingRef.current = true;
@@ -77,7 +80,7 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
           <div className="mt-3 space-y-4">
             <p data-lookup-context className="select-text break-words text-base">{message.content}</p>
             {assessmentId && (
-              <section data-testid="turn-detail-assessment" className="space-y-3">
+              <section data-testid="turn-detail-assessment" className={loadingDetail ? "min-h-72 space-y-3" : "space-y-3"}>
                 {scores ? <MobileScoreResult scores={scores} /> : error ? null : <Skeleton className="h-32" />}
                 {weak.length > 0 && (
                   <p data-testid="detail-weak-words" className="text-sm">

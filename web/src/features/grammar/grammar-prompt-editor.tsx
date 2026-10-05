@@ -89,7 +89,7 @@ export function GrammarPromptEditor() {
             {t(custom ? "web.grammarPrompt.custom" : "web.grammarPrompt.usingDefault")}
           </p>
           <Textarea data-testid="grammar-prompt-input" rows={8} className="text-base" value={draft} disabled={busy}
-            aria-label={t("web.grammarPrompt.title")} onChange={(e) => setDraft(e.target.value.slice(0, maxLength * 5))} />
+            aria-label={t("web.grammarPrompt.title")} onChange={(e) => setDraft([...e.target.value].slice(0, maxLength * 5).join(""))} />
           <p data-testid="grammar-prompt-count" className={cn("text-right text-xs", tooLong ? "text-destructive" : "text-muted-foreground")}>
             {length} / {maxLength}
           </p>

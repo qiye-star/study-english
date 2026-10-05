@@ -16,7 +16,11 @@ export function SentencePracticeSheet({ text, onClose }: { text: string | null; 
   const { api } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const sentences = useMemo(() => (text ? splitSentences(stripMarkdown(text)) : []), [text]);
+  // 关闭动画期间 text 已是 null:保留最后一次非空文本,避免列表被清空、闪出"没有可练的句子"
+  const lastTextRef = useRef("");
+  if (text) lastTextRef.current = text;
+  const shownText = text ?? lastTextRef.current;
+  const sentences = useMemo(() => (shownText ? splitSentences(stripMarkdown(shownText)) : []), [shownText]);
   const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
   const savingRef = useRef(new Set<string>()); // 同步防连点:state 在同一帧内仍是旧值
   const mountedRef = useRef(true);
@@ -44,7 +48,7 @@ export function SentencePracticeSheet({ text, onClose }: { text: string | null; 
           <SheetTitle className="text-left">{t("web.chat.practicePanel.title")}</SheetTitle>
           <SheetDescription className="text-left">{t("web.chat.practicePanel.description")}</SheetDescription>
         </SheetHeader>
-        {!sentences.length && <p className="mt-4 text-sm text-muted-foreground">{t("web.chat.practicePanel.empty")}</p>}
+        {text !== null && !sentences.length && <p className="mt-4 text-sm text-muted-foreground">{t("web.chat.practicePanel.empty")}</p>}
         <ul className="mt-3 divide-y">
           {sentences.map((sentence, i) => {
             const tooLong = sentence.length > MAX_PRACTICE_TEXT;

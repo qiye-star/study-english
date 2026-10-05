@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "~/i18n";
 import { ApiClient, ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { kvGet, resetKvCacheForTests } from "~/lib/kv-cache";
+import { kvGet, kvSet, resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { GRAMMAR_SERVER_ERRORS, bumpGrammarRev, cachedGrammar, checkGrammar, grammarCacheKey, grammarRev } from "./grammar-api";
 
@@ -63,6 +63,22 @@ describe("grammar api", () => {
     expect(await kvGet(grammarCacheKey("She don't like it."))).toBeUndefined();
     body = SERVER;
     expect(await cachedGrammar(api, { text: "She don't like it." })).toEqual(CLIENT);
+  });
+
+  it("refetches when a cached entry is corrupt and replaces it", async () => {
+    const mock = createFetchMock({ "POST /api/ai/grammar": () => json(SERVER) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await kvSet(grammarCacheKey("She don't like it."), { hasErrors: "maybe", errors: 5 });
+    expect(await cachedGrammar(api, { text: "She don't like it." })).toEqual(CLIENT);
+    expect(mock.calls).toHaveLength(1);
+    expect(await kvGet(grammarCacheKey("She don't like it."))).toEqual(CLIENT);
+  });
+
+  it("maps an unknown error category to other", async () => {
+    const mock = createFetchMock({ "POST /api/ai/grammar": () => json({ ...SERVER, errors: [{ ...SERVER.errors[0], category: "made_up" }, { original: "a", corrected: "b" }] }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const result = await checkGrammar(api, { text: "She don't like it." });
+    expect(result.errors.map((e) => e.category)).toEqual(["other", "other"]);
   });
 
   it("skips blank and over-long text without calling the server", async () => {

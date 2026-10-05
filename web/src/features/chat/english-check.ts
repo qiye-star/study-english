@@ -9,7 +9,8 @@ const LATIN = /\p{Script=Latin}/gu;
 const ENGLISH_WORD = /\p{Script=Latin}+(?:['’]\p{Script=Latin}+)*/gu;
 
 /** 注意:超过 2000 字符不评测的限制由调用方(Task 3.3)负责,此处不检查长度。 */
-export function checkability(text: string): Checkability {
+export function checkability(rawText: string): Checkability {
+  const text = rawText.normalize("NFC"); // NFD 的组合重音不属于 Latin 文字,会把单词拆开
   const letters = text.match(LETTER)?.length ?? 0;
   if (!letters) return { ok: false, reason: "empty" };
   const latin = text.match(LATIN)?.length ?? 0;

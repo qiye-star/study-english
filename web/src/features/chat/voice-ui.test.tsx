@@ -34,6 +34,17 @@ describe("voice UI", () => {
     expect(formatDuration(65_000)).toBe("1:05");
   });
 
+  it("keeps its own error message when another player claims the audio", async () => {
+    const { api } = apiFor({});
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => Promise.reject(new Error("blocked")));
+    renderWithProviders(<VoicePlayButton audioUrl="blob:local" />, { api });
+    await userEvent.click(screen.getByTestId("voice-play"));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    act(() => claimAudio(vi.fn())); // another player starts
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-play")).toHaveAttribute("data-state", "error");
+  });
+
   it("plays a local clip directly", async () => {
     const { api, mock } = apiFor({});
     renderWithProviders(<VoicePlayButton audioUrl="blob:local" />, { api });
@@ -146,6 +157,18 @@ describe("voice UI extras", () => {
     vi.mocked(URL.revokeObjectURL).mockClear();
     await userEvent.click(screen.getByTestId("switch"));
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fetched");
+  });
+
+  it("detail sheet reserves the result height while loading and releases it once loaded", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { api } = apiFor({ "GET /api/assessments/a1": async () => { await gate; return json({ id: "a1", reference_text: "Hello", language: "en-US", duration_ms: 1, scores: good, result: good, created_at: "t" }); } });
+    const message: UiMessage = { key: "u1", role: "user", status: "done", content: "Hello, nice to meet you.", assessmentId: "a1" };
+    renderWithProviders(<TurnDetailSheet message={message} onClose={vi.fn()} />, { api });
+    expect(screen.getByTestId("turn-detail-assessment")).toHaveClass("min-h-72");
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.getByTestId("assessment-scores")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("turn-detail-assessment")).not.toHaveClass("min-h-72"));
   });
 
   it("detail sheet shows summary scores and weak words without a request, then saves", async () => {

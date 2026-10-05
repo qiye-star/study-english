@@ -1,5 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
@@ -75,6 +76,29 @@ describe("SentencePracticeSheet", () => {
     setup({}, "```\ncode\n```");
     expect(screen.queryAllByTestId("practice-sentence")).toHaveLength(0);
     expect(screen.getByText("No sentences to practice.")).toBeInTheDocument();
+  });
+
+  it("keeps the sentences visible (no empty hint) while the sheet animates closed", () => {
+    // jsdom has no animations: pretend the content is animating so Radix keeps it mounted after close
+    const spy = vi.spyOn(globalThis, "getComputedStyle").mockImplementation(
+      (el: Element) => ({ get animationName() { return el.getAttribute("data-state") === "closed" ? "slide-out" : "slide-in"; }, display: "block" }) as unknown as CSSStyleDeclaration,
+    );
+    try {
+      const mock = createFetchMock({});
+      const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+      function Host() {
+        const [text, setText] = useState<string | null>("Great idea! Shall we go?");
+        return <><button data-testid="close" onClick={() => setText(null)}>c</button><SentencePracticeSheet text={text} onClose={vi.fn()} /></>;
+      }
+      renderWithProviders(<Host />, { api, route: "/chat/c1" });
+      expect(screen.getAllByTestId("practice-sentence")).toHaveLength(2);
+      act(() => screen.getByTestId("close").click());
+      expect(screen.getByTestId("practice-sheet")).toHaveAttribute("data-state", "closed");
+      expect(screen.getAllByTestId("practice-sentence")).toHaveLength(2);
+      expect(screen.queryByText("No sentences to practice.")).not.toBeInTheDocument();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("does not set state or toast after unmount", async () => {

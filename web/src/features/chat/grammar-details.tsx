@@ -1,4 +1,5 @@
-import { MicIcon, StarIcon } from "lucide-react";
+import { LoaderIcon, MicIcon, StarIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
@@ -10,6 +11,24 @@ export function GrammarDetails({ result, onClose }: { result: GrammarResult; onC
   const { api } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false); // 同步防连点:state 在同一帧内仍是旧值
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await savePracticeItem(api, t, result.corrected, "grammar");
+    } finally {
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
+    }
+  };
   return (
     <section data-testid="grammar-details" className="space-y-3">
       <h3 className="text-sm font-medium">{t("web.grammar.title")}</h3>
@@ -38,9 +57,9 @@ export function GrammarDetails({ result, onClose }: { result: GrammarResult; onC
                 onClick={() => { onClose(); goPractice(navigate, result.corrected); }}>
                 <MicIcon className="mr-2 h-4 w-4" />{t("web.grammar.practice")}
               </Button>
-              <Button variant="outline" data-testid="grammar-save" className="h-11 flex-1"
-                onClick={() => void savePracticeItem(api, t, result.corrected, "grammar")}>
-                <StarIcon className="mr-2 h-4 w-4" />{t("web.grammar.save")}
+              <Button variant="outline" data-testid="grammar-save" className="h-11 flex-1" disabled={saving}
+                onClick={() => void save()}>
+                {saving ? <LoaderIcon className="mr-2 h-4 w-4 animate-spin" /> : <StarIcon className="mr-2 h-4 w-4" />}{t("web.grammar.save")}
               </Button>
             </div>
           </div>

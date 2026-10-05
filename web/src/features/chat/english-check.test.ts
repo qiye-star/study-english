@@ -46,6 +46,13 @@ describe("checkability (R5)", () => {
     expect(checkability("café au lait 好")).toEqual({ ok: true });
   });
 
+  it("normalizes to NFC so decomposed accents do not split words", () => {
+    expect(checkability("café is good")).toEqual({ ok: true });
+    expect(checkability("café is good")).toEqual({ ok: true });
+    expect(checkability("Hi naïve")).toEqual({ ok: false, reason: "too-short" }); // 2 words, not 3
+    expect(checkability("Hi naïve")).toEqual({ ok: false, reason: "too-short" });
+  });
+
   it("is fast on very large input", () => {
     const big = "word ".repeat(25000);
     const t = Date.now();
