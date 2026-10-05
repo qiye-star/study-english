@@ -2,6 +2,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
+import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -21,6 +22,8 @@ function setup(routes: Parameters<typeof createFetchMock>[0], envOverrides = {})
   });
   return { mock, fake, unmount: view.unmount };
 }
+
+const assessCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.filter((c) => c.url.pathname === "/api/speech/assessments");
 
 describe("PracticePage", () => {
   beforeEach(() => localStorage.clear());
@@ -45,7 +48,7 @@ describe("PracticePage", () => {
     expect(screen.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
     await userEvent.click(screen.getByTestId("record-toggle"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a1"));
-    const form = mock.calls[0].body as FormData;
+    const form = assessCalls(mock)[0].body as FormData;
     expect(form.get("reference")).toBe("Hello world");
     expect(form.get("language")).toBe("en-US");
     expect(form.get("save")).toBe("true");
@@ -74,7 +77,7 @@ describe("PracticePage", () => {
     await waitFor(() => expect(screen.getByTestId("practice-status")).toHaveAttribute("data-state", "kept"));
     await userEvent.click(screen.getByTestId("practice-assess-kept"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a2"));
-    expect(mock.calls).toHaveLength(1);
+    expect(assessCalls(mock)).toHaveLength(1);
   });
 
   it("can discard the kept audio", async () => {
@@ -84,7 +87,7 @@ describe("PracticePage", () => {
     await act(async () => fake.setHidden());
     await userEvent.click(await screen.findByTestId("practice-discard"));
     expect(screen.getByTestId("practice-status")).toHaveAttribute("data-state", "idle");
-    expect(mock.calls).toHaveLength(0);
+    expect(assessCalls(mock)).toHaveLength(0);
   });
 
   const recordOnce = async () => {
@@ -118,7 +121,7 @@ describe("PracticePage", () => {
     expect(await screen.findByTestId("practice-error")).toHaveTextContent("assessment service is unavailable");
     await userEvent.click(await screen.findByTestId("practice-assess-kept"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a3"));
-    expect(mock.calls).toHaveLength(2);
+    expect(assessCalls(mock)).toHaveLength(2);
   });
 
   it("uploads automatically when the 5-minute limit is reached", async () => {
@@ -126,7 +129,7 @@ describe("PracticePage", () => {
     await recordOnce();
     await act(async () => { fake.advance(300_000); fake.fireTimer(); });
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a4"));
-    expect(mock.calls).toHaveLength(1);
+    expect(assessCalls(mock)).toHaveLength(1);
   });
 
   it("does not submit twice on a double click", async () => {
@@ -136,7 +139,7 @@ describe("PracticePage", () => {
     const button = await screen.findByTestId("practice-assess-kept");
     await act(async () => { button.click(); button.click(); });
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a5"));
-    expect(mock.calls).toHaveLength(1);
+    expect(assessCalls(mock)).toHaveLength(1);
   });
 
   it("releases the microphone when unmounted mid-recording", async () => {
@@ -151,10 +154,10 @@ describe("PracticePage", () => {
     const { mock, unmount } = setup({ "POST /api/speech/assessments": () => new Promise<Response>(() => {}) });
     await recordOnce();
     await userEvent.click(screen.getByTestId("record-toggle"));
-    await waitFor(() => expect(mock.calls).toHaveLength(1));
-    expect(mock.calls[0].signal?.aborted).toBe(false);
+    await waitFor(() => expect(assessCalls(mock)).toHaveLength(1));
+    expect(assessCalls(mock)[0].signal?.aborted).toBe(false);
     unmount();
-    expect(mock.calls[0].signal?.aborted).toBe(true);
+    expect(assessCalls(mock)[0].signal?.aborted).toBe(true);
   });
 });
 
@@ -163,5 +166,70 @@ describe("PracticePage header", () => {
     setup({});
     const link = screen.getByTestId("practice-list");
     expect(link).toHaveAttribute("href", "/practice/list");
+  });
+});
+
+const CONFIG_ROUTES = {
+  "GET /api/config/gpt_providers": () => json({ enjoyai: { models: ["gpt-4o"] } }),
+  "GET /api/config/default_gpt_preset": () => json({ configuration: { model: "gpt-4o" } }),
+  "GET /api/config/tts_providers_v2": () => json({ enjoyai: { models: ["openai/tts-1"], voices: { openai: ["alloy"] } } }),
+  "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }),
+};
+
+describe("PracticePage listen first", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetServerAiConfigCache();
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+    Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
+  });
+
+  it("reads the reference with the server default voice, unlocking audio inside the tap", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { mock } = setup({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": async () => { await gate; return new Response(new Uint8Array([1])); } });
+    expect(screen.getByTestId("practice-listen")).toBeDisabled();
+    await userEvent.type(screen.getByTestId("reference-input"), "Hello world");
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled(); // 静音解锁先于合成完成
+    expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "loading");
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "playing"));
+    const body = JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/ai/audio/speech")!.body as string);
+    expect(body).toEqual({ input: "Hello world", model: "openai/tts-1", voice: "alloy" });
+  });
+
+  it("stops the reading when recording starts", async () => {
+    setup({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    await userEvent.type(screen.getByTestId("reference-input"), "Hello world");
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "playing"));
+    vi.mocked(HTMLMediaElement.prototype.pause).mockClear();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "idle");
+  });
+
+  it("stops the reading when the reference text changes", async () => {
+    setup({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    await userEvent.type(screen.getByTestId("reference-input"), "Hello");
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "playing"));
+    await userEvent.type(screen.getByTestId("reference-input"), "!");
+    expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "idle");
+  });
+
+  it("stops the reading on unmount", async () => {
+    const { unmount } = setup({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    await userEvent.type(screen.getByTestId("reference-input"), "Hello");
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "playing"));
+    vi.mocked(HTMLMediaElement.prototype.pause).mockClear();
+    unmount();
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
 });

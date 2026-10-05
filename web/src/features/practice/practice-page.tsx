@@ -1,16 +1,19 @@
-import { HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon } from "lucide-react";
+import { HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "@renderer/lib/utils";
 import { ApiError } from "~/api/client";
+import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { MAX_RECORDING_MS, toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder } from "~/audio/use-recorder";
 import { useAuth } from "~/auth/auth-context";
+import { ttsErrorMessage, useTtsPlayer } from "~/features/chat/use-tts-player";
 import { PageHeader } from "~/layout/page-header";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY } from "~/lib/device-data";
 import { readJson, writeJson } from "~/lib/storage";
@@ -45,6 +48,26 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
       inflight.current?.abort(); // 卸载时中止进行中的上传
     };
   }, []);
+
+  const tRef = useRef(t);
+  tRef.current = t;
+  const [ai, setAi] = useState<ServerAiConfig | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined);
+    return () => { alive = false; };
+  }, [api]);
+  // 复用对话页的朗读播放器:点击的同步阶段先播放静音解锁 <audio>(iOS),卸载时自动中止并暂停
+  const tts = useTtsPlayer(api, {
+    onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
+    onNothingToRead: () => toast.error(tRef.current("web.chat.nothingToRead")),
+  });
+  const listenState = tts.states.reference ?? "idle";
+  const stopTts = tts.stop;
+  // 参考文本变化后,范读内容已过时,停止播放
+  useEffect(() => {
+    stopTts();
+  }, [reference, stopTts]);
 
   useEffect(() => {
     writeJson(DRAFT_KEY, reference);
@@ -92,6 +115,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
     if (recorder.state !== "idle") return; // "starting" 时 stop() 无效,不允许操作
     setError(null);
     setKept(null);
+    tts.stop(); // 不要把扬声器的范读录进麦克风
     await recorder.start();
   };
 
@@ -122,6 +146,13 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
           placeholder={t("web.practice.referencePlaceholder")} value={reference} disabled={recording || busy}
           onChange={(e) => setReference(e.target.value)} />
         {!reference.trim() && <p className="text-xs text-muted-foreground">{t("web.practice.referenceHint")}</p>}
+        <Button type="button" variant="outline" data-testid="practice-listen" data-state={listenState} className="h-11 self-start"
+          disabled={!reference.trim() || !ai?.defaultTts.model || recording || busy}
+          onClick={() => void tts.play("reference", reference, ai!.defaultTts.model, ai!.defaultTts.voice)}>
+          {listenState === "loading" ? <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+            : listenState === "playing" ? <SquareIcon className="mr-2 h-4 w-4" /> : <Volume2Icon className="mr-2 h-4 w-4" />}
+          {listenState === "playing" ? t("web.practice.stopListening") : t("web.practice.listen")}
+        </Button>
         <div data-testid="practice-status" data-state={status} className="mt-auto flex flex-col items-center gap-3 pb-4">
           <span data-testid="record-timer" className="font-mono text-sm tabular-nums">
             {formatClock(recorder.elapsedMs)} / {formatClock(MAX_RECORDING_MS)}
