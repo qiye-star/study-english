@@ -1,0 +1,424 @@
+import { StrictMode, type ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiClient } from "~/api/client";
+import { toAssessmentWav } from "~/audio/convert";
+import { createFakeRecorderEnv } from "~/test/fake-media";
+import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
+import { VOICE_MAX_MS, useVoiceTurn, type VoiceDraftEvent } from "./use-voice-turn";
+
+vi.mock("~/audio/convert", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/audio/convert")>()),
+  toAssessmentWav: vi.fn(async () => ({ wav: new Blob(["RIFF"], { type: "audio/wav" }), durationMs: 1000 })),
+}));
+
+interface SetupOptions {
+  strict?: boolean;
+  envOverrides?: Parameters<typeof createFakeRecorderEnv>[0];
+}
+
+function setup(route: Handler, options: SetupOptions = {}) {
+  const mock = createFetchMock({ "POST /api/ai/audio/transcriptions": route });
+  const fake = createFakeRecorderEnv(options.envOverrides);
+  const events: VoiceDraftEvent[] = [];
+  const onTranscribed = vi.fn();
+  let n = 0;
+  const urls = { create: vi.fn(() => `blob:${++n}`), revoke: vi.fn() };
+  const wrapper = options.strict ? ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode> : undefined;
+  const hook = renderHook(
+    () =>
+      useVoiceTurn({
+        api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
+        env: fake.env,
+        newKey: () => "v1",
+        onDraft: (e) => events.push(e),
+        onTranscribed,
+        urls,
+      }),
+    { wrapper },
+  );
+  return { ...hook, mock, fake, events, onTranscribed, urls };
+}
+
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+
+describe("useVoiceTurn", () => {
+  beforeEach(() => vi.mocked(toAssessmentWav).mockClear());
+
+  it("records, transcribes without a language hint and hands over the clip", async () => {
+    const t = setup(() => json({ text: "  Hello there  " }));
+    await act(async () => { await t.result.current.start(); });
+    expect(t.result.current.state).toBe("recording");
+    await act(async () => { await t.result.current.stop(); });
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    expect(t.events[0]).toEqual({ kind: "transcribing", key: "v1", durationMs: expect.any(Number) });
+    const [clip, text] = t.onTranscribed.mock.calls[0];
+    expect(text).toBe("Hello there");
+    expect(clip).toMatchObject({ key: "v1", durationMs: 1000, audioUrl: "blob:1" });
+    expect(clip.wav).toBeInstanceOf(Blob);
+    expect((t.mock.calls[0].body as FormData).has("language")).toBe(false);
+    expect(t.fake.track.stop).toHaveBeenCalled();
+    expect(t.result.current.state).toBe("idle");
+  });
+
+  it("cancel discards the recording, releases the mic and sends nothing", async () => {
+    const t = setup(() => json({ text: "x" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.result.current.cancel());
+    await act(async () => { await Promise.resolve(); });
+    expect(t.fake.track.stop).toHaveBeenCalled();
+    expect(t.events).toEqual([]);
+    expect(t.mock.calls).toHaveLength(0);
+    expect(t.result.current.state).toBe("idle");
+  });
+
+  it("keeps a failed draft and retries with the already converted WAV", async () => {
+    let attempt = 0;
+    const t = setup(() => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json({ text: "Second try" })));
+    await act(async () => { await t.result.current.start(); });
+    await act(async () => { await t.result.current.stop(); });
+    await waitFor(() => expect(t.events.at(-1)).toEqual({ kind: "failed", key: "v1", error: "The AI service is unavailable. Please try again." }));
+    expect(t.result.current.state).toBe("idle");
+    act(() => t.result.current.retry("v1"));
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledWith(expect.objectContaining({ key: "v1" }), "Second try"));
+    expect(toAssessmentWav).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an empty transcript as no speech and keeps the draft retryable", async () => {
+    const t = setup(() => json({ text: "  " }));
+    await act(async () => { await t.result.current.start(); });
+    await act(async () => { await t.result.current.stop(); });
+    await waitFor(() => expect(t.events.at(-1)).toEqual({ kind: "failed", key: "v1", error: "No speech was recognized." }));
+    expect(t.onTranscribed).not.toHaveBeenCalled();
+    expect(t.result.current.state).toBe("idle");
+  });
+
+  it("keeps a recording cut by going to the background until the user sends it", async () => {
+    const t = setup(() => json({ text: "Kept words" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.fake.setHidden());
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "kept", key: "v1" }));
+    expect(t.mock.calls).toHaveLength(0);
+    expect(t.result.current.state).toBe("idle");
+    act(() => t.result.current.retry("v1"));
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledWith(expect.anything(), "Kept words"));
+  });
+
+  it("keeps a recording cut by mic loss as a draft", async () => {
+    const t = setup(() => json({ text: "Mic words" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.fake.track.fireEnded());
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "kept", key: "v1" }));
+    expect(t.mock.calls).toHaveLength(0);
+  });
+
+  it("discard drops a kept draft so it can no longer be sent", async () => {
+    const t = setup(() => json({ text: "x" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.fake.setHidden());
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "kept" }));
+    act(() => t.result.current.discard("v1"));
+    act(() => t.result.current.retry("v1"));
+    await flush();
+    expect(t.mock.calls).toHaveLength(0);
+    expect(t.result.current.state).toBe("idle");
+  });
+
+  it("sends automatically at the 60-second limit", async () => {
+    expect(VOICE_MAX_MS).toBe(60_000);
+    const t = setup(() => json({ text: "Long talk" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.fake.fireTimer());
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledWith(expect.anything(), "Long talk"));
+  });
+
+  it("aborts the transcription on unmount and reports nothing afterwards", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const t = setup(async () => { await gate; return json({ text: "late" }); });
+    await act(async () => { await t.result.current.start(); });
+    await act(async () => { await t.result.current.stop(); });
+    await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+    t.unmount();
+    expect(t.mock.calls[0].signal?.aborted).toBe(true);
+    release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(t.onTranscribed).not.toHaveBeenCalled();
+  });
+
+  it("releases the mic when unmounted while recording, and revokes clip URLs on reset", async () => {
+    const t = setup(() => json({ text: "Hi there friend" }));
+    await act(async () => { await t.result.current.start(); });
+    await act(async () => { await t.result.current.stop(); });
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    act(() => t.result.current.reset());
+    expect(t.urls.revoke).toHaveBeenCalledWith("blob:1");
+    await act(async () => { await t.result.current.start(); });
+    t.unmount();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(t.fake.track.stop).toHaveBeenCalledTimes(2);
+  });
+
+  describe("state machine hazards", () => {
+    it("ignores a second start while recording or starting", async () => {
+      const t = setup(() => json({ text: "x" }));
+      await act(async () => {
+        const [a, b] = await Promise.all([t.result.current.start(), t.result.current.start()]);
+        expect([a, b].filter(Boolean)).toHaveLength(1);
+      });
+      await act(async () => { expect(await t.result.current.start()).toBe(false); });
+      expect(t.fake.constraints).toHaveLength(1);
+    });
+
+    it("never starts a new recording while the previous stop() has not settled", async () => {
+      const t = setup(() => json({ text: "x" }));
+      t.fake.behavior.silentStop = true; // stop() only settles via the fallback timer
+      await act(async () => { await t.result.current.start(); });
+      let stopped!: Promise<void>;
+      act(() => { stopped = t.result.current.stop(); });
+      expect(t.result.current.state).toBe("processing");
+      await act(async () => { expect(await t.result.current.start()).toBe(false); });
+      expect(t.fake.constraints).toHaveLength(1);
+      await act(async () => { t.fake.fireTimer(); await stopped; });
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+      expect(t.fake.constraints).toHaveLength(1);
+      await act(async () => { expect(await t.result.current.start()).toBe(true); });
+      expect(t.fake.constraints).toHaveLength(2);
+    });
+
+    it("ignores start and a second stop while transcribing; start works once idle", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "Hello" }); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.result.current.state).toBe("processing"));
+      await act(async () => { expect(await t.result.current.start()).toBe(false); });
+      await act(async () => { await t.result.current.stop(); });
+      expect(t.fake.constraints).toHaveLength(1);
+      await act(async () => { gate.resolve(); });
+      await waitFor(() => expect(t.result.current.state).toBe("idle"));
+      await act(async () => { expect(await t.result.current.start()).toBe(true); });
+    });
+
+    it("cancel while stopping discards the clip and releases the mic", async () => {
+      const t = setup(() => json({ text: "x" }));
+      t.fake.behavior.silentStop = true;
+      await act(async () => { await t.result.current.start(); });
+      let stopped!: Promise<void>;
+      act(() => { stopped = t.result.current.stop(); });
+      act(() => t.result.current.cancel());
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      await act(async () => { t.fake.fireTimer(); await stopped; });
+      await flush();
+      expect(t.events).toEqual([]);
+      expect(t.mock.calls).toHaveLength(0);
+      expect(t.result.current.state).toBe("idle");
+    });
+
+    it("cancel while starting releases the mic once it arrives and sends nothing", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: unknown } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      act(() => { started = t.result.current.start(); });
+      expect(t.result.current.state).toBe("starting");
+      act(() => t.result.current.cancel());
+      await act(async () => { mic.resolve(); await started; });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+      expect(t.events).toEqual([]);
+    });
+
+    it("cancel while transcribing aborts the request, discards the draft and reports nothing as transcribed", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "late" }); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+      act(() => t.result.current.cancel());
+      expect(t.mock.calls[0].signal?.aborted).toBe(true);
+      expect(t.result.current.state).toBe("idle");
+      expect(t.events.at(-1)).toEqual({ kind: "discarded", key: "v1" });
+      await act(async () => { gate.resolve(); });
+      await flush();
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+      act(() => t.result.current.retry("v1"));
+      await flush();
+      expect(t.mock.calls).toHaveLength(1);
+    });
+
+    it("cancel while converting never reaches the network", async () => {
+      const conv = deferred<{ wav: Blob; durationMs: number }>();
+      vi.mocked(toAssessmentWav).mockImplementationOnce(() => conv.promise);
+      const t = setup(() => json({ text: "x" }));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      expect(t.result.current.state).toBe("processing");
+      act(() => t.result.current.cancel());
+      await act(async () => { conv.resolve({ wav: new Blob(["RIFF"]), durationMs: 5 }); });
+      await flush();
+      expect(t.mock.calls).toHaveLength(0);
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+    });
+
+    it("a failed conversion keeps the recording and retry converts again", async () => {
+      vi.mocked(toAssessmentWav).mockRejectedValueOnce(new Error("decode"));
+      const t = setup(() => json({ text: "Recovered" }));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "failed", key: "v1" }));
+      act(() => t.result.current.retry("v1"));
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledWith(expect.anything(), "Recovered"));
+      expect(toAssessmentWav).toHaveBeenCalledTimes(2);
+    });
+
+    it("a retry while a transcription is in flight is ignored", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "once" }); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+      act(() => t.result.current.retry("v1"));
+      await act(async () => { gate.resolve(); });
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledTimes(1));
+      expect(t.mock.calls).toHaveLength(1);
+    });
+
+    it("a transcribed draft cannot be re-sent (no re-upload once handed over)", async () => {
+      const t = setup(() => json({ text: "Done" }));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledTimes(1));
+      act(() => t.result.current.retry("v1"));
+      await flush();
+      expect(t.mock.calls).toHaveLength(1);
+      expect(t.onTranscribed).toHaveBeenCalledTimes(1);
+    });
+
+    it("exposes the flags the page needs", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "Hello" }); });
+      expect(t.result.current.blocksTyping).toBe(false);
+      expect(t.result.current.canStop).toBe(false);
+      await act(async () => { await t.result.current.start(); });
+      expect(t.result.current.blocksTyping).toBe(true);
+      expect(t.result.current.canStop).toBe(true);
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.result.current.state).toBe("processing"));
+      expect(t.result.current.blocksTyping).toBe(true);
+      expect(t.result.current.canStop).toBe(false);
+      await act(async () => { gate.resolve(); });
+      await waitFor(() => expect(t.result.current.blocksTyping).toBe(false));
+    });
+
+    it("reset aborts an in-flight transcription and forgets drafts", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "late" }); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+      act(() => t.result.current.reset());
+      expect(t.mock.calls[0].signal?.aborted).toBe(true);
+      expect(t.result.current.state).toBe("idle");
+      await act(async () => { gate.resolve(); });
+      await flush();
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("unmount in every state", () => {
+    it("while starting: the mic is released when it arrives", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: { stop: ReturnType<typeof vi.fn> } } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      act(() => { started = t.result.current.start(); });
+      t.unmount();
+      await act(async () => { mic.resolve(); await started; });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+    });
+
+    it("while stopping: the mic is released even if stop never completes", async () => {
+      const t = setup(() => json({ text: "x" }));
+      t.fake.behavior.silentStop = true;
+      await act(async () => { await t.result.current.start(); });
+      act(() => { void t.result.current.stop(); });
+      t.unmount();
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      t.fake.fireTimer();
+      await flush();
+      expect(t.events).toEqual([]);
+      expect(t.mock.calls).toHaveLength(0);
+    });
+
+    it("while converting: no request is made and nothing is reported", async () => {
+      const conv = deferred<{ wav: Blob; durationMs: number }>();
+      vi.mocked(toAssessmentWav).mockImplementationOnce(() => conv.promise);
+      const t = setup(() => json({ text: "x" }));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      t.unmount();
+      conv.resolve({ wav: new Blob(["RIFF"]), durationMs: 5 });
+      await new Promise((r) => setTimeout(r, 10));
+      expect(t.mock.calls).toHaveLength(0);
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+    });
+
+    it("with a failed draft: a late failure after unmount is not reported and URLs are revoked", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ error: "x" }, 502); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+      const before = t.events.length;
+      t.unmount();
+      gate.resolve();
+      await new Promise((r) => setTimeout(r, 10));
+      expect(t.events).toHaveLength(before);
+    });
+
+    it("after a transcription: clip URLs are revoked", async () => {
+      const t = setup(() => json({ text: "Hello" }));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+      t.unmount();
+      expect(t.urls.revoke).toHaveBeenCalledWith("blob:1");
+    });
+  });
+
+  describe("StrictMode", () => {
+    it("survives the double mount and transcribes exactly once", async () => {
+      const t = setup(() => json({ text: "Strict hello" }), { strict: true });
+      await act(async () => { await t.result.current.start(); });
+      expect(t.result.current.state).toBe("recording");
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledTimes(1));
+      expect(t.mock.calls).toHaveLength(1);
+      expect(t.mock.calls[0].signal?.aborted).toBe(false);
+      expect(t.result.current.state).toBe("idle");
+    });
+
+    it("still releases the mic on unmount", async () => {
+      const t = setup(() => json({ text: "x" }), { strict: true });
+      await act(async () => { await t.result.current.start(); });
+      t.unmount();
+      await flush();
+      expect(t.fake.track.stop).toHaveBeenCalled();
+    });
+  });
+});
