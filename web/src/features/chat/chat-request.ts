@@ -1,6 +1,7 @@
 import type { ChatMessageInput } from "~/api/ai";
 import type { ServerAiConfig } from "~/api/server-config";
 import { levelInstruction, normalizeLevel, type Level } from "./levels";
+import { scenarioSystemPrompt } from "./scenarios";
 import { DEFAULT_CONVERSATION_NAME, type ChatMessage, type Conversation, type ConversationConfig } from "./chat-api";
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -23,9 +24,10 @@ export function withConfigDefaults(config: Partial<ConversationConfig> | undefin
   return { ...defaultConversationConfig(ai), ...defined };
 }
 
-/** R3:基础提示词(本任务为 systemPrompt;Task 3.1 起非自由场景用场景提示词)+ 难度要求。 */
+/** R3:基础提示词(非自由场景用场景提示词,否则 systemPrompt)+ 难度要求。 */
 export function effectiveSystemPrompt(config: ConversationConfig): string {
-  return [config.systemPrompt ?? "", levelInstruction(normalizeLevel(config.level))].filter((part) => part.trim()).join("\n\n");
+  const base = scenarioSystemPrompt(config.scenario) ?? config.systemPrompt ?? "";
+  return [base, levelInstruction(normalizeLevel(config.level))].filter((part) => part.trim()).join("\n\n");
 }
 
 export function buildChatMessages(

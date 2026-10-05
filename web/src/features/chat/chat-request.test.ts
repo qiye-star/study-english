@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildChatMessages, chatOptions, defaultConversationConfig, effectiveSystemPrompt, displayName, titleFrom, withConfigDefaults, DEFAULT_SYSTEM_PROMPT } from "./chat-request";
 import { LEVEL_INSTRUCTIONS } from "./levels";
+import { PRESET_SCENARIOS, SCENARIO_RULES } from "./scenarios";
 
 const AI = { llmModels: ["gpt-4o"], defaultLlmModel: "gpt-4o", ttsModels: ["openai/tts-1"], voices: {}, defaultTts: { model: "openai/tts-1", voice: "alloy" } };
 
@@ -53,5 +54,16 @@ describe("chat request helpers", () => {
     expect(buildChatMessages(cfg, [], "hi", 20, "NOTE")[0]).toEqual({ role: "system", content: "SYS\n\nNOTE" });
     expect(buildChatMessages({ ...cfg, systemPrompt: " " }, [], "hi", 20, "NOTE")[0]).toEqual({ role: "system", content: "NOTE" });
     expect(buildChatMessages(cfg, [], "hi", 20, null)[0]).toEqual({ role: "system", content: "SYS" });
+  });
+  it("uses the scenario prompt instead of the system prompt for scenario conversations (R3)", () => {
+    const cfg = { ...defaultConversationConfig(AI), systemPrompt: "SYS" };
+    expect(effectiveSystemPrompt({ ...cfg, scenario: { id: "cafe" }, level: "A2" }))
+      .toBe(`${PRESET_SCENARIOS.cafe.role}
+
+${SCENARIO_RULES}
+
+${LEVEL_INSTRUCTIONS.A2}`);
+    expect(effectiveSystemPrompt({ ...cfg, scenario: { id: "free" } })).toBe("SYS");
+    expect(effectiveSystemPrompt({ ...cfg, scenario: { id: "custom", custom: "" } })).toBe("SYS");
   });
 });
