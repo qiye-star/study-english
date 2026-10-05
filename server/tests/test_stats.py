@@ -100,3 +100,67 @@ def test_top_lists_are_limited_and_ordered():
 
 def test_truncated_flag_passes_through():
     assert run(truncated=True)["truncated"] is True
+
+
+def test_aware_non_utc_input_is_converted():
+    plus8 = timezone(timedelta(hours=8))
+    # 2026-10-05 00:30 +08:00 == 2026-10-04 16:30 UTC
+    v = datetime(2026, 10, 5, 0, 30, tzinfo=plus8)
+    assert local_date(v, 0) == date(2026, 10, 4)
+    assert local_date(v, 480) == date(2026, 10, 5)
+
+
+def test_single_day_window():
+    out = run(days=1, messages=[MessageRow(NOW, None)])
+    assert [d["date"] for d in out["daily"]] == ["2026-10-05"]
+    assert out["user_messages"] == 1 and out["active_days"] == 1
+
+
+def test_negative_offset_crosses_local_midnight():
+    # UTC 04:59 on 10-05 is 23:59 on 10-04 at -300; 05:00 is 00:00 on 10-05
+    m = [MessageRow(datetime(2026, 10, 5, 4, 59, tzinfo=UTC), None), MessageRow(datetime(2026, 10, 5, 5, 0, tzinfo=UTC), None)]
+    out = run(now=datetime(2026, 10, 5, 6, 0, tzinfo=UTC), offset_minutes=-300, messages=m)
+    assert out["today"] == "2026-10-05"
+    assert out["daily"][-1]["user_messages"] == 1 and out["daily"][-2]["user_messages"] == 1
+
+
+def test_leap_day_listing():
+    out = run(now=datetime(2028, 3, 2, 12, 0, tzinfo=UTC), days=4)
+    assert [d["date"] for d in out["daily"]] == ["2028-02-28", "2028-02-29", "2028-03-01", "2028-03-02"]
+    out = run(now=datetime(2026, 3, 1, 12, 0, tzinfo=UTC), days=3)
+    assert [d["date"] for d in out["daily"]] == ["2026-02-27", "2026-02-28", "2026-03-01"]
+
+
+def test_streak_cap_and_pre_window_activity():
+    d = lambda n: TODAY - timedelta(days=n)  # noqa: E731
+    assert streak({d(n) for n in range(0, 120)}, TODAY) == 90
+    assert streak({d(1), d(2), d(3)}, TODAY) == 3
+    # activity before the 7-day window still counts toward the streak
+    msgs = [MessageRow(datetime(2026, 10, 5, 1, 0, tzinfo=UTC) - timedelta(days=n), None) for n in range(1, 11)]
+    out = run(messages=msgs)
+    assert out["streak_days"] == 10 and out["active_days"] == 6 and out["user_messages"] == 6
+
+
+def test_malformed_grammar_is_skipped():
+    bad = [
+        MessageRow(NOW, "oops"), MessageRow(NOW, {"errors": "x"}), MessageRow(NOW, {"errors": None}),
+        MessageRow(NOW, {"errors": ["s", 3, None, {"category": 5}, {"category": ""}, {"category": None}, {}]}),
+        MessageRow(NOW, {"errors": [{"category": "tense"}]}),
+    ]
+    out = run(messages=bad)
+    assert out["user_messages"] == 5
+    assert out["grammar_top"] == [{"category": "tense", "count": 1}]
+
+
+def test_duration_none_and_negative():
+    a = [AssessmentRow(NOW, None, None), AssessmentRow(NOW, -500, {}), AssessmentRow(NOW, 2000, {"pronunciation_score": 50})]
+    out = run(assessments=a)
+    assert out["speaking_seconds"] == 2.0 and out["assessments"] == 3 and out["avg_pronunciation"] == 50.0
+
+
+def test_poor_words_aggregate_case_insensitive_with_tie_break():
+    results = [result(word("Zed", 10), word("apple", 10)), result(word("ZED", 10), word("Banana", 10)), result(word("banana", 5)),
+               result(word("apple", 5), word("apple", 5))]
+    out = run(poor_results=results, messages=[MessageRow(NOW, grammar("b", "a", "b", "a"))])
+    assert out["poor_words"] == [{"word": "apple", "count": 2}, {"word": "banana", "count": 2}, {"word": "zed", "count": 2}]
+    assert out["grammar_top"] == [{"category": "a", "count": 2}, {"category": "b", "count": 2}]

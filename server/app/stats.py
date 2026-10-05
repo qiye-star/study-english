@@ -1,4 +1,11 @@
-"""学习进度统计(设计文档 §3.4,计划裁定 R15/R16)。纯函数:输入有界的已查询行,输出 GET /api/stats 的响应体。"""
+"""学习进度统计(设计文档 §3.4,计划裁定 R15/R16)。纯函数:输入有界的已查询行,输出 GET /api/stats 的响应体。
+
+Notes:
+- Speaking time is returned in SECONDS (speaking_seconds), not minutes.
+- Insertion is intentionally excluded from poor words (matches the web client's isPoorWord).
+- Callers (Task 1.5) must validate days (7|30|90) and offset (-720..840), and map
+  assessments.scores.pronunciation_score -> AssessmentRow.scores and assessments.result -> poor_results.
+"""
 import math
 import re
 from collections import Counter
@@ -31,7 +38,7 @@ class AssessmentRow:
 
 
 def as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc) if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def local_date(value: datetime, offset_minutes: int) -> date:
