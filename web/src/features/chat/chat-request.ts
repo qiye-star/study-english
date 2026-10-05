@@ -30,9 +30,7 @@ export function buildChatMessages(
   coach: string | null = null,
 ): ChatMessageInput[] {
   const recent = history.filter((m) => m.role !== "system").slice(-limit);
-  const system = coach ? (config.systemPrompt.trim() ? `${config.systemPrompt}
-
-${coach}` : coach) : config.systemPrompt;
+  const system = coach ? (config.systemPrompt.trim() ? [config.systemPrompt, coach].join("\n\n") : coach) : config.systemPrompt;
   return [
     ...(system.trim() ? [{ role: "system" as const, content: system }] : []),
     ...recent.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),

@@ -1648,4 +1648,97 @@ describe("ConversationPage", () => {
       expect(await run(false)).toBe("SYS");
     });
   });
+
+  describe("coach mode on retry (results that arrived since the failed attempt)", () => {
+    const WRONG = { has_errors: true, corrected: "She doesn't like coffee here.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "x" }] };
+    const RIGHT = { has_errors: false, corrected: "ok", errors: [] as never[] };
+    const TYPED = "She don't like coffee here";
+    const PREVIOUS = { messages: [
+      { id: "m1", conversation_id: "c1", role: "user", content: "I sink so", assessment_id: "a0",
+        assessment: { id: "a0", scores: { pronunciation_score: 61, accuracy_score: 60, fluency_score: 70, completeness_score: 90 },
+          words: [{ word: "sink", accuracy_score: 30, error_type: "Mispronunciation" }] }, grammar: null as null },
+      { id: "m2", conversation_id: "c1", role: "assistant", content: "Why?", assessment_id: null, assessment: null, grammar: null as null },
+    ] };
+    const NEVER: Handler = () => new Promise<Response>(() => undefined);
+    beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+
+    /** 第一次回复在 gate 放行后失败;返回两次聊天请求的系统提示词 */
+    const failThenRetry = async (opts: {
+      coach: boolean; grammar: Handler; history?: unknown; arrived?: "grammar-badge" | "voice-badge"; voice?: boolean;
+    }) => {
+      const gateFirst = gate();
+      let attempt = 0;
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config: { ...CONFIG, coach_mode: opts.coach } }),
+        ...(opts.history ? { "GET /api/conversations/c1/messages": () => json(opts.history) } : {}),
+        "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+        "POST /api/speech/assessments": () => json(ASSESSED),
+        "POST /api/ai/grammar": opts.grammar,
+        "POST /api/ai/chat/completions": async () => {
+          if (++attempt > 1) return sse([delta("OK"), DONE_EVENT]);
+          await gateFirst.promise;
+          return sse(['data: {"error": "Upstream unavailable"}\n\n']);
+        },
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m3" }, { id: "m4" }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      }), opts.voice ? createFakeRecorderEnv().env : undefined);
+      await screen.findByText(opts.history ? "Why?" : "reply");
+      if (opts.voice) await recordAndSend();
+      else {
+        await userEvent.type(screen.getByTestId("chat-input"), TYPED);
+        await userEvent.click(screen.getByTestId("chat-send"));
+      }
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
+      if (opts.arrived === "grammar-badge") await screen.findByTestId("badge-grammar");
+      if (opts.arrived === "voice-badge") await waitFor(() => expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done"));
+      await act(async () => { gateFirst.release(); });
+      await userEvent.click(await screen.findByTestId("message-retry"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(2));
+      return callsTo(mock, "POST", "/api/ai/chat/completions").map((c) => bodyOf(c).messages[0].content as string);
+    };
+
+    it("(a) uses the retried message's own grammar result that arrived after the failed attempt", async () => {
+      const [first, second] = await failThenRetry({ coach: true, grammar: () => json(WRONG), arrived: "grammar-badge" });
+      expect(first).toBe("SYS");
+      expect(second.startsWith("SYS\n\n")).toBe(true);
+      expect(second).toContain(`"${TYPED}"`);
+      expect(second).toContain('"don\'t" → "doesn\'t"');
+      expect(second).not.toContain("sink");
+    });
+
+    it("(a2) prefers the retried message's results over the previous message's", async () => {
+      const [, second] = await failThenRetry({ coach: true, grammar: () => json(WRONG), arrived: "grammar-badge", history: PREVIOUS });
+      expect(second).toContain('"don\'t" → "doesn\'t"');
+      expect(second).toContain(`"${TYPED}"`);
+      expect(second).not.toContain("sink");
+    });
+
+    it("(d) a retried voice turn includes its assessment words that arrived after the failed attempt", async () => {
+      const [first, second] = await failThenRetry({ coach: true, grammar: () => json(RIGHT), arrived: "voice-badge", voice: true });
+      expect(first).toBe("SYS");
+      expect(second).toContain('"I like apples"');
+      expect(second).toContain("like");
+      expect(second).toContain("82/100");
+    });
+
+    it("(b) adds nothing while no result has arrived, on the first attempt and on retry", async () => {
+      expect(await failThenRetry({ coach: true, grammar: NEVER })).toEqual(["SYS", "SYS"]);
+    });
+
+    it("(b2) adds nothing when the previous message has no results either", async () => {
+      const plain = { messages: PREVIOUS.messages.map((m) => ({ ...m, assessment: null, assessment_id: null })) };
+      expect(await failThenRetry({ coach: true, grammar: NEVER, history: plain })).toEqual(["SYS", "SYS"]);
+    });
+
+    it("(c) ignores the retried message's pending results and uses the previous message's arrived ones", async () => {
+      const [, second] = await failThenRetry({ coach: true, grammar: NEVER, history: PREVIOUS });
+      expect(second).toContain("sink");
+      expect(second).toContain('"I sink so"');
+      expect(second).not.toContain("coffee");
+    });
+
+    it("(e) adds nothing when coach mode is off even though results arrived", async () => {
+      expect(await failThenRetry({ coach: false, grammar: () => json(WRONG), arrived: "grammar-badge", history: PREVIOUS })).toEqual(["SYS", "SYS"]);
+    });
+  });
 });
