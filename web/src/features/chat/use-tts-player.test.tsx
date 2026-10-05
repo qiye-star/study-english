@@ -196,6 +196,41 @@ describe("useTtsPlayer", () => {
       expect(create).toHaveBeenCalledTimes(1);
     });
 
+    it("prime() interrupts current playback: idle at once, the old onended cannot fire into new state", async () => {
+      const audio = fakeAudio();
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio }));
+      await act(() => result.current.play("m1", "Hello", "openai/tts-1", "alloy"));
+      expect(result.current.states.m1).toBe("playing");
+      const oldEnded = audio.onended as () => void;
+      act(() => result.current.prime());
+      expect(result.current.states.m1).toBe("idle");
+      expect(audio.pause).toHaveBeenCalled();
+      expect(audio.onended).toBeNull();
+      await act(() => result.current.play("m2", "Other", "openai/tts-1", "alloy"));
+      act(() => oldEnded());
+      expect(result.current.states.m2).toBe("playing");
+    });
+
+    it("an element error from call A does not reach call B's onError; the global one fires without a handler", async () => {
+      const audio = fakeAudio() as HTMLAudioElement & { onerror: null | (() => void) };
+      const global = vi.fn();
+      const a = vi.fn();
+      const b = vi.fn();
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio, onError: global }));
+      await act(() => result.current.play("a", "Hello", "openai/tts-1", "alloy", { onError: a }));
+      const staleErr = audio.onerror as () => void;
+      await act(() => result.current.play("b", "World", "openai/tts-1", "alloy", { onError: b }));
+      act(() => staleErr());
+      expect(a).not.toHaveBeenCalled();
+      expect(b).not.toHaveBeenCalled();
+      act(() => (audio.onerror as () => void)());
+      expect(b).toHaveBeenCalledTimes(1);
+      expect(global).not.toHaveBeenCalled();
+      await act(() => result.current.play("c", "Again", "openai/tts-1", "alloy"));
+      act(() => (audio.onerror as () => void)());
+      expect(global).toHaveBeenCalledTimes(1);
+    });
+
     it("a per-call onError replaces the global one; quietIfEmpty skips the nothing-to-read callback", async () => {
       const mock = createFetchMock({ "POST /api/ai/audio/speech": () => json({ error: "Upstream unavailable" }, 502) });
       const global = vi.fn();

@@ -86,8 +86,6 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     return audioRef.current;
   }, []);
 
-  /** iOS:必须在点击的同步阶段、任何 await 之前调用 */
-  const prime = useCallback(() => primeAudioElement(element()), [element]);
   const setState = (key: string, state: TtsState) => {
     if (mountedRef.current) setStates((prev) => ({ ...prev, [key]: state }));
   };
@@ -105,6 +103,12 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     currentRef.current = null;
     releaseAudio(stop);
   }, []);
+
+  /** iOS:必须在点击的同步阶段、任何 await 之前调用 */
+  const prime = useCallback(() => {
+    stop(); // 用户的点击打断正在进行的朗读,状态才确定(并让旧的 onended 不再触发)
+    primeAudioElement(element());
+  }, [stop, element]);
 
   const play = useCallback(async (messageKey: string, text: string, model: string, voice: string, opts: TtsPlayOptions = {}): Promise<void> => {
     if (currentRef.current === messageKey) return stop();

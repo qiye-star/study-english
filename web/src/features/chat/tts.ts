@@ -58,8 +58,8 @@ function truncateSafely(text: string, max: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
-// 句末:. ! ? 。 ! ? …,后面可跟引号/括号,再接空白(R7)
-const SENTENCE_END = /[.!?。!?…]["'”’)\]]*\s/g;
+// 句末(R7):ASCII . ! ? … 后可跟引号/括号,且必须接空白;全角 。！？ 后可跟引号/括号,不需要空白
+const SENTENCE_END = /[.!?…]["'”’)\]]*(\s)|[\u3002\uFF01\uFF1F]["'”’)\]\uFF09\u300D\u300F]*/g;
 
 /** 超长时在 max 之内最后一个句末截断;句末早于 max/2 时退回按码元的安全截断。 */
 export function truncateAtSentence(text: string, max: number): string {
@@ -67,7 +67,7 @@ export function truncateAtSentence(text: string, max: number): string {
   const head = text.slice(0, max + 1); // 句末的空白恰好在第 max 位时也算
   let cut = -1;
   for (const m of head.matchAll(SENTENCE_END)) {
-    const end = (m.index ?? 0) + m[0].length - 1; // 空白的位置 = 句子长度
+    const end = (m.index ?? 0) + m[0].length - (m[1] ? 1 : 0); // ASCII:空白的位置;CJK:标点之后
     if (end <= max) cut = end;
   }
   return cut >= max / 2 ? text.slice(0, cut).trimEnd() : truncateSafely(text, max);

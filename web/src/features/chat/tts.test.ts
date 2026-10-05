@@ -35,6 +35,20 @@ describe("tts helpers", () => {
     expect(truncateAtSentence("Done! Next? Yes.", 4096)).toBe("Done! Next? Yes.");
     expect(truncateAtSentence(`He said "Stop." ${"y".repeat(10)}`, 16)).toBe(`He said "Stop."`);
   });
+  it("cuts CJK text at a full-width terminator without needing whitespace", () => {
+    const sentence = "这是一个句子\u3002";
+    const out = speakableText(sentence.repeat(1000));
+    expect(out.length).toBeLessThanOrEqual(4096);
+    expect(out.length).toBeGreaterThan(2048);
+    expect(out.endsWith("\u3002")).toBe(true);
+    expect(truncateAtSentence("他说\u201c走\uff01\u201d" + "好".repeat(20), 8)).toBe("他说\u201c走\uff01\u201d");
+    expect(truncateAtSentence("你好\uff1f" + "x".repeat(30), 10)).toHaveLength(10); // 句末太靠前
+  });
+  it("falls back to a safe cut with no punctuation and never splits a surrogate pair", () => {
+    const out = truncateAtSentence("a".repeat(4095) + "\u{1F600}".repeat(10), 4096);
+    expect(out).toBe("a".repeat(4095));
+    expect(truncateAtSentence("\u{1F600}".repeat(3000), 4096)).toHaveLength(4096);
+  });
   it("keys by model, voice and text", () => {
     expect(ttsKey("m", "v", "t")).not.toBe(ttsKey("m", "v2", "t"));
   });
