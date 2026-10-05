@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TtsCache, speakableText, ttsKey } from "./tts";
+import { TtsCache, speakableText, stripMarkdown, ttsKey } from "./tts";
 
 describe("tts helpers", () => {
   it("evicts least recently used urls and revokes them", () => {
@@ -27,5 +27,8 @@ describe("tts helpers", () => {
   });
   it("keys by model, voice and text", () => {
     expect(ttsKey("m", "v", "t")).not.toBe(ttsKey("m", "v2", "t"));
+  });
+  it("strips markdown but keeps line breaks", () => {
+    expect(stripMarkdown("# Title\n- **One** item\n- Two `code`\n[link](http://x) ![img](y)")).toBe("Title\nOne item\nTwo code\nlink  ");
   });
 });

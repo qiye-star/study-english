@@ -20,4 +20,11 @@ describe("i18n", () => {
     expect(deepMerge(a, { web: { nested: { y: 2 } } })).toEqual({ web: { a: 1, nested: { x: 1, y: 2 } } });
     expect(a).toEqual({ web: { a: 1, nested: { x: 1 } } });
   });
+  it("has exactly the same web keys in en and zh-CN", () => {
+    const flat = (dict: unknown, prefix = ""): string[] =>
+      dict && typeof dict === "object" && !Array.isArray(dict)
+        ? Object.entries(dict as Record<string, unknown>).flatMap(([k, v]) => flat(v, prefix ? `${prefix}.${k}` : k))
+        : [prefix];
+    expect(flat(webMessages("zh-CN")).sort()).toEqual(flat(webMessages("en")).sort());
+  });
 });

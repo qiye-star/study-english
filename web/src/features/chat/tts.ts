@@ -58,16 +58,19 @@ function truncateSafely(text: string, max: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
-export function speakableText(markdown: string): string {
-  return truncateSafely(markdown
+/** 去掉 Markdown 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。 */
+export function stripMarkdown(markdown: string): string {
+  return markdown
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
-    .replace(/[*_~>#|]/g, "")
-    .replace(/\s+/g, " ")
-    .trim(), MAX_TTS_INPUT);
+    .replace(/[*_~>#|]/g, "");
+}
+
+export function speakableText(markdown: string): string {
+  return truncateSafely(stripMarkdown(markdown).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();
