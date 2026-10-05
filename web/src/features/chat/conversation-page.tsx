@@ -23,7 +23,7 @@ import {
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { coachCandidates, coachNote } from "./coach";
 import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
-import { dropFailedTail, lastAssistantText } from "./chat-turns";
+import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
@@ -292,7 +292,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       settlePending(entry.userKey);
     }
     const tail = saved[1]?.id ?? userId;
-    knownTailRef.current = typeof tail === "string" ? tail : undefined;
+    // 旧会话晚到的保存不得覆盖新会话的已知尾部
+    if (entry.gen === genRef.current) knownTailRef.current = typeof tail === "string" ? tail : undefined;
     patchByKey(entry.userKey, { id: userId });
     patchByKey(entry.botKey, { id: saved[1]?.id });
     renameAfterSave(entry);
@@ -484,7 +485,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setInput("");
     // 规则:失败的一轮(用户消息 + 错误气泡,或未发送的语音草稿)从未保存。发送新消息时直接丢弃它,
     // 因此它既不进入后续历史,刷新后界面也与服务端一致;重试只对最后一个错误气泡开放。
-    const { kept, dropped } = dropFailedTail(messages);
+    const { kept, dropped } = dropFailedTails(messages);
     abandonDropped(dropped);
     void send(text, kept);
   };
@@ -520,7 +521,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       return;
     }
     // 新草稿:与文字发送同一规则,先丢弃末尾未发送的失败轮
-    const { dropped } = dropFailedTail(messagesRef.current);
+    const { dropped } = dropFailedTails(messagesRef.current);
     abandonDropped(dropped);
     const droppedKeys = new Set(dropped.map((m) => m.key));
     forceScrollRef.current = true;
@@ -544,7 +545,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   }
 
   function startVoiceSend(clip: VoiceClip, text: string) {
-    const base = messagesRef.current.filter((m) => m.key !== clip.key);
+    // 被 held 的草稿可能排在上一轮失败的一对之后:丢弃它们(失败的轮从未保存),与文字发送同一规则
+    const { kept: base, dropped } = dropFailedTails(messagesRef.current.filter((m) => m.key !== clip.key));
+    abandonDropped(dropped);
     // 页面保留 (clip, text):回复失败时重试只重发转写文本,不重录、不重传
     void send(text, base, {
       userKey: clip.key,
@@ -620,8 +623,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
           return (
             <MessageBubble key={m.key} message={m}
-              footer={m.assessment || m.grammar ? (
-                <div className="mt-1 flex flex-wrap justify-end gap-1">
+              footer={m.assessment || (m.grammar && m.grammar.status !== "skipped") ? (
+                <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
                   <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} />
                   <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />
                 </div>

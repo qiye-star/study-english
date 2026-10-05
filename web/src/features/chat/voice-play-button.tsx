@@ -43,7 +43,8 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
       element.onended = null;
       element.onerror = null;
     }
-    if (mounted.current) setState("idle");
+    // 别处抢占音频触发的 halt 不应清掉本按钮已显示的错误提示
+    if (mounted.current) setState((s) => (s === "error" ? s : "idle"));
   }, []);
 
   // 换音频或卸载:停止并回收 blob URL

@@ -4,7 +4,7 @@
       "title": "Chat", "new": "New", "empty": "No conversations yet. Start one!", "untitled": "Untitled conversation",
       "deleteConfirm": "Delete this conversation and its messages?", "placeholder": "Message in English…",
       "send": "Send", "settings": "Conversation settings", "notSaved": "The reply was shown but could not be saved.",
-      "noSpeech": "No speech was recognized.", "mic": "Record a voice message", "transcribing": "Transcribing…",
+      "handoffFailed": "Could not send this voice message. Tap send to try again.", "noSpeech": "No speech was recognized.", "mic": "Record a voice message", "transcribing": "Transcribing…",
       "translate": "Translate", "hideTranslation": "Hide translation", "translating": "Translating…", "bilingual": "Bilingual mode: translate new replies",
       "practice": "Practice sentences",
       "practicePanel": { "title": "Practice a sentence", "description": "Read a sentence aloud on the practice page, or save it for later.", "go": "Practice this sentence", "save": "Save to practice list", "empty": "No sentences to practice.", "tooLong": "Too long to practice as one sentence." },

@@ -1136,6 +1136,58 @@ describe("ConversationPage", () => {
         expect(bodyOf(msgPosts(mock)[1]).messages[0].content).toBe("Typed");
       });
 
+      it("a failed reload during the ambiguity check never posts blindly, keeps the entry ambiguous and Retry can try again", async () => {
+        let attempt = 0;
+        let reloads = 0;
+        const { mock } = setup(routes({
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": () => (++attempt === 1 ? lose() : SAVE_OK()),
+          "GET /api/conversations/c1/messages": () => (++reloads === 2 ? json({ error: "Network error" }, 500) : json({ messages: [M0] })),
+          "PATCH /api/conversations/c1": RENAME,
+        }));
+        await screen.findByText("reply");
+        await sendTyped("Typed");
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); }); // reload fails (2nd GET)
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(2));
+        expect(msgPosts(mock)).toHaveLength(1); // no blind POST
+        await act(async () => { lastToastAction(spy).onClick(); }); // reload works now, nothing stored
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
+        expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3);
+        expect(bodyOf(msgPosts(mock)[1]).messages[0].content).toBe("Typed");
+      });
+
+      it("a late save of the previous conversation does not overwrite the new conversation's known tail", async () => {
+        const slowSave = gate();
+        let c2Attempt = 0;
+        let c2Committed = false;
+        const N0 = { id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" };
+        const { mock } = setup(routes({
+          "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+          "GET /api/conversations/c2/messages": () => json({ messages: [N0, ...(c2Committed ? [
+            { id: "x1", conversation_id: "c2", role: "user", content: "Next" },
+            { id: "x2", conversation_id: "c2", role: "assistant", content: "Reply" }] : [])] }),
+          "POST /api/ai/chat/completions": () => sse([delta("Reply"), DONE_EVENT]),
+          "POST /api/conversations/c1/messages": async () => { await slowSave.promise; return json({ messages: [{ id: "s1" }, { id: "s2" }] }); },
+          "POST /api/conversations/c2/messages": () => { if (++c2Attempt === 1) { c2Committed = true; return lose(); } return json({ messages: [{ id: "y1" }, { id: "y2" }] }); },
+          "PATCH /api/conversations/c1": RENAME,
+          "PATCH /api/conversations/c2": () => json({ id: "c2", name: "x", config: CONFIG }),
+        }));
+        await screen.findByText("reply");
+        await sendTyped("Typed"); // c1's save is held open
+        await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+        await act(async () => { goTo("/chat/c2"); });
+        await screen.findByText("Second chat hello");
+        await act(async () => { slowSave.release(); }); // the stale save resolves inside the new conversation
+        await new Promise((r) => setTimeout(r, 30));
+        await sendTyped("Next");
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await act(async () => { lastToastAction(spy).onClick(); });
+        await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c2/messages")).toHaveLength(2));
+        await new Promise((r) => setTimeout(r, 30));
+        expect(callsTo(mock, "POST", "/api/conversations/c2/messages")).toHaveLength(1); // adopted, never posted twice
+      });
+
       it("a definite rejection is not treated as ambiguous: no reload before the retry", async () => {
         let attempt = 0;
         const { mock } = setup(routes({
@@ -1324,6 +1376,74 @@ describe("ConversationPage", () => {
         expect(bodyOf(chats[2]).messages.at(-1)).toEqual({ role: "user", content: "I like apples" });
         expect(callsTo(mock, "POST", "/api/ai/audio/transcriptions")).toHaveLength(1);
         expect(screen.getAllByTestId("message-user").at(-1)).toHaveAttribute("data-voice", "sent");
+      });
+
+      it("sending a held transcript after the retry failed again drops the failed pair (no two consecutive user messages)", async () => {
+        const second = gate();
+        let attempt = 0;
+        const { mock } = setup(voiceRoutes({
+          "POST /api/ai/chat/completions": async () => {
+            if (++attempt === 1) return sse(['data: {"error": "Upstream unavailable"}\n\n']);
+            if (attempt === 2) { await second.promise; return sse(['data: {"error": "Upstream unavailable"}\n\n']); }
+            return sse([delta("Voice reply"), DONE_EVENT]);
+          },
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await screen.findByTestId("message-retry");
+        act(() => {
+          fireEvent.click(screen.getByTestId("chat-mic"));
+          fireEvent.click(screen.getByTestId("message-retry"));
+        });
+        await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+        await userEvent.click(screen.getByTestId("chat-mic"));
+        await screen.findByTestId("voice-send-kept"); // held while the retry streams
+        await act(async () => { second.release(); });
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "error"));
+        await userEvent.click(await screen.findByTestId("voice-send-kept"));
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Voice reply"));
+        const chats = callsTo(mock, "POST", "/api/ai/chat/completions");
+        const sentMessages = bodyOf(chats[2]).messages as Array<{ role: string; content: string }>;
+        expect(sentMessages.map((m) => m.role)).toEqual(["system", "assistant", "user"]);
+        expect(sentMessages.at(-1)!.content).toBe("I like apples");
+        expect(screen.getAllByTestId("message-user")).toHaveLength(1); // the failed "Typed" pair is gone from the screen
+        expect(screen.queryByText("Typed")).toBeNull();
+        await waitFor(() => expect(msgPosts(mock)).toHaveLength(1));
+        expect(bodyOf(msgPosts(mock)[0]).messages[0].content).toBe("I like apples");
+      });
+
+      it("a held transcript is dropped together with the failed pair when the user types a new message", async () => {
+        const second = gate();
+        let attempt = 0;
+        const { mock } = setup(voiceRoutes({
+          "POST /api/ai/chat/completions": async () => {
+            if (++attempt === 1) return sse(['data: {"error": "Upstream unavailable"}\n\n']);
+            if (attempt === 2) { await second.promise; return sse(['data: {"error": "Upstream unavailable"}\n\n']); }
+            return sse([delta("Fresh"), DONE_EVENT]);
+          },
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await screen.findByTestId("message-retry");
+        act(() => {
+          fireEvent.click(screen.getByTestId("chat-mic"));
+          fireEvent.click(screen.getByTestId("message-retry"));
+        });
+        await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+        await userEvent.click(screen.getByTestId("chat-mic"));
+        await screen.findByTestId("voice-send-kept");
+        await act(async () => { second.release(); });
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "error"));
+        await userEvent.type(screen.getByTestId("chat-input"), "Brand new");
+        await userEvent.click(screen.getByTestId("chat-send"));
+        await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fresh"));
+        const sentMessages = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[2]).messages as Array<{ role: string; content: string }>;
+        expect(sentMessages.map((m) => m.role)).toEqual(["system", "assistant", "user"]);
+        expect(sentMessages.at(-1)!.content).toBe("Brand new");
+        expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+        expect(screen.queryByTestId("voice-send-kept")).toBeNull();
       });
 
       it("a held transcript can be discarded", async () => {
@@ -1584,6 +1704,70 @@ describe("ConversationPage", () => {
       const saved = JSON.parse(callsTo(mock, "POST", "/api/conversations/c1/messages")[0].body as string).messages[0];
       const patched = callsTo(mock, "PATCH", "/api/messages/m1").map((c) => JSON.parse(c.body as string));
       expect([saved.grammar, ...patched.map((p) => p.grammar)].filter(Boolean)).toEqual([RIGHT]);
+    });
+
+    it("the error badge's retry button re-requests the check", async () => {
+      let attempt = 0;
+      const { mock } = setup(chatRoutes(() => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json(WRONG))));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "error"));
+      expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1);
+      await userEvent.click(screen.getByTestId("badge-grammar"));
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "done"));
+      expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(2);
+      expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix");
+    });
+
+    it("a late grammar result does not pull a scrolled-up user to the bottom", async () => {
+      const late = gate();
+      setup(chatRoutes(async () => { await late.promise; return json(WRONG); }));
+      await screen.findByText("reply");
+      const list = screen.getByTestId("message-list");
+      const scrollTo = vi.fn();
+      list.scrollTo = scrollTo as unknown as typeof list.scrollTo;
+      const layout = (scrollTop: number) => {
+        Object.defineProperty(list, "scrollHeight", { configurable: true, value: 1000 });
+        Object.defineProperty(list, "clientHeight", { configurable: true, value: 400 });
+        Object.defineProperty(list, "scrollTop", { configurable: true, writable: true, value: scrollTop });
+        act(() => { list.dispatchEvent(new Event("scroll")); });
+      };
+      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
+      layout(100); // the user scrolled up
+      scrollTo.mockClear();
+      await act(async () => { late.release(); });
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "done"));
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("gives a voice message a grammar badge too", async () => {
+      const { mock } = setup(routes({
+        "POST /api/ai/audio/transcriptions": () => json({ text: "She don't like coffee." }),
+        "POST /api/speech/assessments": () => json(ASSESSED),
+        "POST /api/ai/grammar": () => json(WRONG),
+        "POST /api/ai/chat/completions": () => sse([delta("I see."), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+        "PATCH /api/messages/m1": () => json({ id: "m1" }),
+      }), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await recordAndSend();
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+      expect(screen.getByTestId("badge-pronunciation")).toBeInTheDocument();
+      expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1);
+    });
+
+    it("renders no (empty) footer under a user message that has neither result", async () => {
+      setup(chatRoutes(() => json(RIGHT)));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi there");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
+      expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+      expect(screen.queryByTestId("message-footer")).toBeNull();
     });
 
     it("does not check short messages or when the switch is off", async () => {

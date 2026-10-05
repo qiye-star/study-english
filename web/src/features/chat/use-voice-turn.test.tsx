@@ -295,6 +295,67 @@ describe("useVoiceTurn", () => {
       expect(t.mock.calls).toHaveLength(1);
     });
 
+    it("an onTranscribed error is not a transcription failure: logs, keeps the draft and can be sent again", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const t = setup(() => json({ text: "Hello" }));
+      t.onTranscribed.mockImplementationOnce(() => { throw new Error("page boom"); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "kept", key: "v1" }));
+      expect(t.events.some((e) => e.kind === "failed")).toBe(false);
+      expect(spy).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+      act(() => t.result.current.retry("v1"));
+      await waitFor(() => expect(t.onTranscribed).toHaveBeenCalledTimes(2));
+      expect(t.onTranscribed).toHaveBeenLastCalledWith(expect.objectContaining({ key: "v1" }), "Hello");
+      spy.mockRestore();
+    });
+
+    it("cancel then an immediate start() works while the old stop() has not settled, and the old clip is dropped", async () => {
+      const t = setup(() => json({ text: "x" }));
+      t.fake.behavior.silentStop = true;
+      await act(async () => { await t.result.current.start(); });
+      let stopped!: Promise<void>;
+      act(() => { stopped = t.result.current.stop(); });
+      act(() => t.result.current.cancel());
+      await act(async () => { expect(await t.result.current.start()).toBe(true); });
+      expect(t.fake.constraints).toHaveLength(2);
+      expect(t.result.current.state).toBe("recording");
+      await act(async () => { t.fake.fireTimer(); await stopped; });
+      await flush();
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+      expect(t.mock.calls).toHaveLength(0);
+    });
+
+    it("retry() while recording is ignored", async () => {
+      let attempt = 0;
+      const t = setup(() => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json({ text: "ok" })));
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "failed", key: "v1" }));
+      await act(async () => { await t.result.current.start(); });
+      expect(t.result.current.state).toBe("recording");
+      act(() => t.result.current.retry("v1"));
+      await flush();
+      expect(t.mock.calls).toHaveLength(1);
+      expect(t.result.current.state).toBe("recording");
+    });
+
+    it("discard(key) aborts the in-flight transcription and never hands it over", async () => {
+      const gate = deferred<void>();
+      const t = setup(async () => { await gate.promise; return json({ text: "late" }); });
+      await act(async () => { await t.result.current.start(); });
+      await act(async () => { await t.result.current.stop(); });
+      await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+      act(() => t.result.current.discard("v1"));
+      expect(t.mock.calls[0].signal?.aborted).toBe(true);
+      expect(t.result.current.state).toBe("idle");
+      await act(async () => { gate.resolve(); });
+      await flush();
+      expect(t.onTranscribed).not.toHaveBeenCalled();
+      expect(t.events.some((e) => e.kind === "failed")).toBe(false);
+    });
+
     it("a transcribed draft cannot be re-sent (no re-upload once handed over)", async () => {
       const t = setup(() => json({ text: "Done" }));
       await act(async () => { await t.result.current.start(); });

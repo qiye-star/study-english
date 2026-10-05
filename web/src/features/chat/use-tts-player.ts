@@ -93,6 +93,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       currentRef.current = null;
       controllerRef.current = null;
       element.onerror = null;
+      releaseAudio(stop);
       setState(messageKey, "error");
       onErrorRef.current?.(err);
     };
@@ -106,6 +107,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
         if (currentRef.current === messageKey) {
           currentRef.current = null;
           controllerRef.current = null;
+          releaseAudio(stop);
           setState(messageKey, "idle");
         }
       };
@@ -128,6 +130,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       controllerRef.current?.abort();
       controllerRef.current = null;
       currentRef.current = null;
+      releaseAudio(stop); // 不留下指向已卸载播放器的过期闭包
       const element = audioRef.current;
       if (element) {
         element.pause();
@@ -135,6 +138,6 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
         element.onerror = null;
       }
     };
-  }, []);
+  }, [stop]);
   return { states, play, stop };
 }

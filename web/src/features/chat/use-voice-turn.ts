@@ -112,7 +112,16 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
       drafts.current.delete(key);
       const audioUrl = (opts.current.urls ?? browserUrls).create(draft.wav);
       urls.current.push(audioUrl);
-      opts.current.onTranscribed({ key, wav: draft.wav, durationMs: draft.durationMs, audioUrl }, clean);
+      try {
+        opts.current.onTranscribed({ key, wav: draft.wav, durationMs: draft.durationMs, audioUrl }, clean);
+      } catch (handoffError) {
+        // 页面处理转写结果时出错不是"转写失败":记录后把草稿留在 kept 状态,用户可再点发送或丢弃
+        console.error("voice turn handoff failed", handoffError);
+        drafts.current.set(key, draft);
+        if (mounted.current) {
+          opts.current.onDraft({ kind: "kept", key, durationMs: draft.durationMs, note: tRef.current("web.chat.handoffFailed") });
+        }
+      }
     } catch (err) {
       if (mounted.current && !controller.signal.aborted) {
         opts.current.onDraft({ kind: "failed", key, error: describeAudioError(tRef.current, err, CHAT_SERVER_ERRORS) });

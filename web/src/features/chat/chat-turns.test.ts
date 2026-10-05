@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dropFailedTail, lastAssistantText } from "./chat-turns";
+import { dropFailedTail, dropFailedTails, lastAssistantText } from "./chat-turns";
 import type { UiMessage } from "./ui-message";
 
 const m = (key: string, role: "user" | "assistant", status: UiMessage["status"] = "done", extra: Partial<UiMessage> = {}): UiMessage =>
@@ -20,6 +20,14 @@ describe("chat turns", () => {
     const list = [m("u1", "user"), m("a1", "assistant")];
     expect(dropFailedTail(list)).toEqual({ kept: list, dropped: [] });
     expect(dropFailedTail([])).toEqual({ kept: [], dropped: [] });
+  });
+
+  it("dropFailedTails drops a held draft together with the failed pair before it", () => {
+    const held = m("v1", "user", "error", { voice: { phase: "kept", durationMs: 1000 } });
+    const list = [m("u1", "user"), m("a1", "assistant"), m("u2", "user"), m("a2", "assistant", "error"), held];
+    expect(dropFailedTails(list)).toEqual({ kept: list.slice(0, 2), dropped: list.slice(2) });
+    expect(dropFailedTails(list.slice(0, 2))).toEqual({ kept: list.slice(0, 2), dropped: [] });
+    expect(dropFailedTails([])).toEqual({ kept: [], dropped: [] });
   });
 
   it("finds the last finished assistant text", () => {

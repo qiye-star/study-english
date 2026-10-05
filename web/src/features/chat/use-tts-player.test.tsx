@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { claimAudio } from "./audio-focus";
 import { TtsCache } from "./tts";
 import { TtsPlaybackError, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 
@@ -128,5 +129,36 @@ describe("useTtsPlayer", () => {
     act(() => audio.onerror?.());
     expect(result.current.states.m1).toBe("error");
     expect(onError.mock.calls[0][0]).toBeInstanceOf(TtsPlaybackError);
+  });
+  describe("releases the audio focus so no stale stop() closure is left behind", () => {
+    const speech = () => createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    it("after natural playback end", async () => {
+      const audio = fakeAudio() as HTMLAudioElement & { onerror: null | (() => void) };
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio }));
+      await act(() => result.current.play("m1", "Hello", "m", "alloy"));
+      act(() => (audio.onended as () => void)());
+      const pauses = vi.mocked(audio.pause).mock.calls.length;
+      act(() => claimAudio(vi.fn()));
+      expect(vi.mocked(audio.pause).mock.calls.length).toBe(pauses);
+    });
+    it("after a playback failure", async () => {
+      const audio = fakeAudio() as HTMLAudioElement & { onerror: null | (() => void) };
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio, onError: vi.fn() }));
+      await act(() => result.current.play("m1", "Hello", "m", "alloy"));
+      act(() => audio.onerror?.());
+      expect(result.current.states.m1).toBe("error");
+      const pauses = vi.mocked(audio.pause).mock.calls.length;
+      act(() => claimAudio(vi.fn()));
+      expect(vi.mocked(audio.pause).mock.calls.length).toBe(pauses);
+    });
+    it("on unmount", async () => {
+      const audio = fakeAudio();
+      const { result, unmount } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio }));
+      await act(() => result.current.play("m1", "Hello", "m", "alloy"));
+      unmount();
+      const pauses = vi.mocked(audio.pause).mock.calls.length;
+      act(() => claimAudio(vi.fn()));
+      expect(vi.mocked(audio.pause).mock.calls.length).toBe(pauses);
+    });
   });
 });
