@@ -44,3 +44,18 @@ export function titleFrom(text: string, max = 30): string {
 export function displayName(conversation: Pick<Conversation, "name">, untitled: string): string {
   return conversation.name === DEFAULT_CONVERSATION_NAME ? untitled : conversation.name;
 }
+
+export interface ChatOptions {
+  bilingual: boolean;
+  grammarCheck: boolean;
+  coachMode: boolean;
+}
+
+/** 会话设置项的默认值(R14):旧会话没有这些键时按默认处理,新建会话也不必写入。 */
+export function chatOptions(config: Partial<ConversationConfig> | undefined): ChatOptions {
+  return {
+    bilingual: config?.bilingual === true,
+    grammarCheck: config?.grammarCheck !== false,
+    coachMode: config?.coachMode === true,
+  };
+}

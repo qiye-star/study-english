@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChatMessages, defaultConversationConfig, displayName, titleFrom, withConfigDefaults, DEFAULT_SYSTEM_PROMPT } from "./chat-request";
+import { buildChatMessages, chatOptions, defaultConversationConfig, displayName, titleFrom, withConfigDefaults, DEFAULT_SYSTEM_PROMPT } from "./chat-request";
 
 const AI = { llmModels: ["gpt-4o"], defaultLlmModel: "gpt-4o", ttsModels: ["openai/tts-1"], voices: {}, defaultTts: { model: "openai/tts-1", voice: "alloy" } };
 
@@ -18,6 +18,11 @@ describe("chat request helpers", () => {
     expect(out[1].content).toBe("m5");
     expect(out.at(-1)).toEqual({ role: "user", content: "new" });
     expect(buildChatMessages({ ...defaultConversationConfig(AI), systemPrompt: "  " }, [], "x")).toEqual([{ role: "user", content: "x" }]);
+  });
+
+  it("derives chat options with safe defaults", () => {
+    expect(chatOptions(undefined)).toEqual({ bilingual: false, grammarCheck: true, coachMode: false });
+    expect(chatOptions({ bilingual: true, grammarCheck: false, coachMode: true })).toEqual({ bilingual: true, grammarCheck: false, coachMode: true });
   });
 
   it("makes short titles", () => {

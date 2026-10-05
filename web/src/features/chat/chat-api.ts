@@ -7,6 +7,12 @@ export interface ConversationConfig {
   temperature: number;
   ttsModel: string;
   ttsVoice: string;
+  /** 新回复流式结束后自动翻译(R14,默认 false) */
+  bilingual?: boolean;
+  /** 自动语法检查(默认 true) */
+  grammarCheck?: boolean;
+  /** 教练模式(默认 false) */
+  coachMode?: boolean;
 }
 
 export interface Conversation {

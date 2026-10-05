@@ -7,20 +7,13 @@ import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
-import { cachedLookup, cachedTranslate, classifySelection, type LookupMode, type LookupResult } from "./lookup";
+import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, type LookupMode, type LookupResult } from "./lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
 
 type LookupState =
   | { status: "loading" }
   | { status: "done"; lookup?: LookupResult; translation?: string }
   | { status: "error"; error: string };
-
-const LOOKUP_ERRORS = {
-  "Invalid dictionary response": "web.lookup.invalid",
-  "Empty AI response": "web.lookup.invalid",
-  "Upstream unavailable": "web.lookup.upstream",
-  "LLM upstream is not configured": "web.lookup.notConfigured",
-};
 
 const SWIPE_CLOSE_PX = 60;
 
@@ -56,7 +49,7 @@ export function LookupLayer() {
       if (!ctl.signal.aborted) setState(next);
     } catch (err) {
       if (ctl.signal.aborted) return;
-      setState({ status: "error", error: translateServerError(t, err, LOOKUP_ERRORS) });
+      setState({ status: "error", error: translateServerError(t, err, LOOKUP_SERVER_ERRORS) });
     }
   }, [abort, api, native, t]);
 

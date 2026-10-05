@@ -5,8 +5,9 @@
       "deleteConfirm": "Delete this conversation and its messages?", "placeholder": "Message in English…",
       "send": "Send", "settings": "Conversation settings", "notSaved": "The reply was shown but could not be saved.",
       "noSpeech": "No speech was recognized.", "mic": "Speak instead of typing", "transcribing": "Transcribing…",
+      "translate": "Translate", "hideTranslation": "Hide translation", "translating": "Translating…", "bilingual": "Bilingual mode: translate new replies",
       "speak": "Read aloud", "stopSpeaking": "Stop", "speakFailed": "Could not play the reply.", "nothingToRead": "There is nothing to read aloud in this reply.",
-      "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default" },
+      "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default", "bilingual": "Bilingual (translate new replies automatically)" },
       "configFallback": "Could not load the server defaults; using built-in ones.",
       "errors": {
         "notConfigured": "The AI service is not configured on the server.", "upstream": "The AI service is unavailable. Please try again.",

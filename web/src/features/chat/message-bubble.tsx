@@ -12,7 +12,7 @@ export interface UiMessage {
   status: "done" | "streaming" | "error";
 }
 
-export function MessageBubble({ message, onRetry, actions }: { message: UiMessage; onRetry?: () => void; actions?: ReactNode }) {
+export function MessageBubble({ message, onRetry, actions, translation }: { message: UiMessage; onRetry?: () => void; actions?: ReactNode; translation?: ReactNode }) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   return (
@@ -30,6 +30,7 @@ export function MessageBubble({ message, onRetry, actions }: { message: UiMessag
             <MarkdownText content={message.content || "…"} />
           )}
         </div>
+        {!isUser && message.status === "done" && translation}
         {!isUser && message.status === "done" && actions}
         {message.status === "error" && onRetry && (
           <Button variant="link" data-testid="message-retry" className="h-11 px-0" onClick={onRetry}>{t("web.common.retry")}</Button>

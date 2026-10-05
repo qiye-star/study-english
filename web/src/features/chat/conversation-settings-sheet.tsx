@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
+import { Switch } from "@renderer/components/ui/switch";
 import { SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { Textarea } from "@renderer/components/ui/textarea";
@@ -73,6 +74,11 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
               {voices.length ? voices.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)
                 : <option value={draft.ttsVoice}>{draft.ttsVoice}</option>}
             </select>
+          </label>
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>{t("web.chat.settingsForm.bilingual")}</span>
+            <Switch data-testid="settings-bilingual" checked={draft.bilingual === true}
+              onCheckedChange={(checked) => setDraft({ ...draft, bilingual: checked })} />
           </label>
           <Button data-testid="settings-save" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
             {t("web.chat.settingsForm.save")}

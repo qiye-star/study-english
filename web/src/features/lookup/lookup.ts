@@ -184,3 +184,10 @@ export function cachedTranslate(
     signal,
   );
 }
+
+export const LOOKUP_SERVER_ERRORS: Record<string, string> = {
+  "Invalid dictionary response": "web.lookup.invalid",
+  "Empty AI response": "web.lookup.invalid",
+  "Upstream unavailable": "web.lookup.upstream",
+  "LLM upstream is not configured": "web.lookup.notConfigured",
+};

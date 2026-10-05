@@ -1,9 +1,12 @@
+import "fake-indexeddb/auto";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
+import i18n from "~/i18n";
+import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
@@ -371,6 +374,70 @@ describe("ConversationPage", () => {
       await act(async () => { goTo("/chat/c2"); });
       await screen.findByText("Second chat hello");
       expect(scrollTo).toHaveBeenCalledWith({ top: 1000 });
+    });
+  });
+
+  describe("translation", () => {
+    beforeEach(() => {
+      indexedDB.deleteDatabase("enjoy-web");
+      resetKvCacheForTests();
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+    });
+    afterEach(async () => {
+      localStorage.clear();
+      await i18n.changeLanguage("en");
+    });
+    const translateRoute = (calls: string[]) => (call: { body: BodyInit | null | undefined }) => {
+      const body = JSON.parse(call.body as string);
+      if (body.stream) return sse([delta("New reply"), DONE_EVENT]);
+      calls.push(body.messages.at(-1).content);
+      return json({ choices: [{ message: { content: "译文" } }] });
+    };
+
+    it("translates a reply on demand and toggles it without refetching", async () => {
+      const calls: string[] = [];
+      setup(routes({ "POST /api/ai/chat/completions": translateRoute(calls) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("message-translate"));
+      await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveTextContent("译文"));
+      await userEvent.click(screen.getByTestId("message-translate"));
+      expect(screen.queryByTestId("message-translation")).toBeNull();
+      await userEvent.click(screen.getByTestId("message-translate"));
+      expect(screen.getByTestId("message-translation")).toHaveTextContent("译文");
+      expect(calls).toHaveLength(1);
+    });
+
+    it("hides translation when the app language is English", async () => {
+      localStorage.clear();
+      setup(routes());
+      await screen.findByText("reply");
+      expect(screen.queryByTestId("message-translate")).toBeNull();
+      expect(screen.queryByTestId("conversation-bilingual")).toBeNull();
+    });
+
+    it("bilingual mode translates each new reply once when it finishes", async () => {
+      const calls: string[] = [];
+      setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config: { ...CONFIG, bilingual: true } }),
+        "POST /api/ai/chat/completions": translateRoute(calls),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      }));
+      await screen.findByText("reply");
+      expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByTestId("message-translation")).toBeNull(); // 不补译旧消息
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-translation")).toHaveLength(1));
+      expect(calls).toEqual(["New reply"].map((s) => expect.stringContaining(s)));
+    });
+
+    it("the header switch saves the bilingual option", async () => {
+      const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, bilingual: true } }) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ bilingual: true, system_prompt: "SYS" });
+      await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
     });
   });
 });

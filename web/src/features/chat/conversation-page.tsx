@@ -1,9 +1,10 @@
-import { LoaderIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon } from "lucide-react";
+import { LanguagesIcon, LoaderIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
+import { cn } from "@renderer/lib/utils";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { streamChatCompletion } from "~/api/ai";
 import { ApiError } from "~/api/client";
@@ -12,13 +13,16 @@ import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
+import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, listMessages, updateConversation,
   type Conversation, type ConversationConfig,
 } from "./chat-api";
-import { buildChatMessages, displayName, titleFrom, withConfigDefaults } from "./chat-request";
+import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { MessageBubble, type UiMessage } from "./message-bubble";
+import { MessageTranslation } from "./message-translation";
+import { useMessageTranslations } from "./use-message-translations";
 import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 import { VoiceInputButton } from "./voice-input-button";
 
@@ -36,6 +40,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { language } = useSettings();
+  const native = nativeLanguageCode(language);
+  const canTranslate = native !== "en-US"; // R16:英文界面没有可译的目标语言
+  const translations = useMessageTranslations(api, native);
+  const resetTranslations = translations.reset;
+  const showTranslation = translations.show;
   const tts = useTtsPlayer(api, {
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
     onNothingToRead: () => toast.error(tRef.current("web.chat.nothingToRead")),
@@ -63,6 +73,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setSending(false);
     setMessages([]);
     setLoadError(null);
+    resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
     loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined);
@@ -82,7 +93,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       abortRef.current = null;
       busyRef.current = false;
     };
-  }, [api, id]);
+  }, [api, id, resetTranslations]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -102,6 +113,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   }, [messages]);
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
+  const options = chatOptions(config);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const canTranslateRef = useRef(canTranslate);
+  canTranslateRef.current = canTranslate;
 
   const send = useCallback(async (text: string, base: UiMessage[]) => {
     const content = text.trim();
@@ -132,6 +148,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         (full) => patch(botKey, { content: full }), controller.signal);
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
       patch(botKey, { content: reply, status: "done" });
+      if (optionsRef.current.bilingual && canTranslateRef.current && live()) showTranslation(botKey, reply);
     } catch (err) {
       // 离开页面/中止时 live() 为 false,patch 不生效,也不弹错误;
       // 流式失败:部分回复被错误气泡取代,且不保存
@@ -161,7 +178,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         // 改名失败不影响已保存的消息
       }
     }
-  }, [api, config, conversation, t]);
+  }, [api, config, conversation, t, showTranslation]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -196,23 +213,44 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")} back="/chat"
         actions={
-          <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-settings"
-            aria-label={t("web.chat.settings")} onClick={() => setSettingsOpen(true)}>
-            <Settings2Icon className="h-5 w-5" />
-          </Button>
+          <div className="flex">
+            {canTranslate && (
+              <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-bilingual"
+                aria-pressed={options.bilingual} aria-label={t("web.chat.bilingual")} disabled={!conversation}
+                onClick={() => void saveSettings({ ...config, bilingual: !options.bilingual }).catch((): void => undefined)}>
+                <LanguagesIcon className={cn("h-5 w-5", options.bilingual ? "text-primary" : "text-muted-foreground")} />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-settings"
+              aria-label={t("web.chat.settings")} onClick={() => setSettingsOpen(true)}>
+              <Settings2Icon className="h-5 w-5" />
+            </Button>
+          </div>
         } />
       {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => (
           <MessageBubble key={m.key} message={m}
             actions={
-              <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
-                className="mt-1 h-11 px-2" aria-label={tts.states[m.key] === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.speak")}
-                onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
-                {tts.states[m.key] === "loading" ? <LoaderIcon className="h-4 w-4 animate-spin" />
-                  : tts.states[m.key] === "playing" ? <SquareIcon className="h-4 w-4" /> : <Volume2Icon className="h-4 w-4" />}
-              </Button>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
+                  className="h-11 px-2" aria-label={tts.states[m.key] === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.speak")}
+                  onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
+                  {tts.states[m.key] === "loading" ? <LoaderIcon className="h-4 w-4 animate-spin" />
+                    : tts.states[m.key] === "playing" ? <SquareIcon className="h-4 w-4" /> : <Volume2Icon className="h-4 w-4" />}
+                </Button>
+                {canTranslate && (
+                  <Button variant="ghost" size="sm" data-testid="message-translate" aria-pressed={!!translations.open[m.key]}
+                    className="h-11 px-2" aria-label={translations.open[m.key] ? t("web.chat.hideTranslation") : t("web.chat.translate")}
+                    onClick={() => translations.toggle(m.key, m.content)}>
+                    <LanguagesIcon className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             }
+            translation={translations.open[m.key]
+              ? <MessageTranslation state={translations.states[m.key]} onRetry={() => translations.retry(m.key, m.content)} />
+              : null}
             onRetry={m.status === "error" && !sending && m.key === messages[messages.length - 1]?.key ? retry : undefined} />
         ))}
       </div>
