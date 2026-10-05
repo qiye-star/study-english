@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     max_messages_per_conversation: int = 1000
     web_dist_dir: str = ""
 
+    # ---- 对话增强(设计文档 2026-10-05)----
+    grammar_model: str = ""
+    upstream_grammar_base_url: str = ""
+    upstream_grammar_key: str = ""
+    grammar_prompt: str = ""
+    grammar_prompt_file: str = ""
+    max_practice_items: int = 500
+
     app_version: str = "0.7.9"
 
     @property
@@ -71,3 +79,14 @@ class Settings(BaseSettings):
         if url.get_backend_name() == "sqlite" and url.database and url.database != ":memory:":
             return Path(url.database).resolve().parent
         return Path("/data")
+
+    @property
+    def resolved_grammar_model(self) -> str:
+        return self.grammar_model.strip() or self.default_llm_model
+
+    @property
+    def grammar_upstream(self) -> tuple[str, str]:
+        """(base_url, key)。设置了 UPSTREAM_GRAMMAR_BASE_URL 就连同它自己的 key 一起用,绝不借用 LLM 的 key。"""
+        if self.upstream_grammar_base_url.strip():
+            return self.upstream_grammar_base_url.strip(), self.upstream_grammar_key
+        return self.upstream_llm_base_url, self.upstream_llm_key
