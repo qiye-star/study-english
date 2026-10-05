@@ -359,6 +359,7 @@ describe("ConversationPage", () => {
     const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ error: "boom" }, 500) }));
     await screen.findByText("reply");
     await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(screen.getByTestId("settings-coach-mode")); // 有改动才会 PATCH
     await userEvent.click(screen.getByTestId("settings-save"));
     await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
     await waitFor(() => expect(screen.getByTestId("settings-save")).not.toBeDisabled());
@@ -2663,6 +2664,135 @@ describe("ConversationPage", () => {
       act(() => goTo("/chat/c2"));
       await waitFor(() => expect(screen.queryByTestId("recap-sheet")).toBeNull());
       expect(signal!.aborted).toBe(true);
+      expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
+    });
+  });
+
+  describe("config writes (one serialized chain, merged onto the latest config)", () => {
+    beforeEach(async () => {
+      await deleteDb();
+      resetKvCacheForTests();
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+    });
+    afterEach(async () => {
+      localStorage.clear();
+      await i18n.changeLanguage("en");
+    });
+    const RECAP = { summary_zh: "复盘", new_expressions: [{ text: "head home", zh: "回家" }], suggestions_zh: ["注意过去时。"] };
+    const LOADED = { messages: [
+      { id: "m0", conversation_id: "c1", role: "assistant", content: "Welcome!" },
+      { id: "m1", conversation_id: "c1", role: "user", content: "Nice to meet you" },
+      { id: "m2", conversation_id: "c1", role: "assistant", content: "You too!" },
+    ] };
+    /** 服务端语义:带 config 的 PATCH 整体替换;第一次 config PATCH 可以被 gate 卡住或失败 */
+    const server = (first: { wait?: Promise<void>; fail?: boolean } = {}, extra: Record<string, Handler> = {}) => {
+      let config: Record<string, unknown> = CONFIG;
+      let n = 0;
+      const r = routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config }),
+        "PATCH /api/conversations/c1": async (call) => {
+          const body = bodyOf(call);
+          if (body.config && n++ === 0) {
+            if (first.wait) await first.wait;
+            if (first.fail) return json({ error: "boom" }, 500);
+          }
+          if (body.config) config = body.config;
+          return json({ id: "c1", name: body.name ?? "Chat", config });
+        },
+        ...extra,
+      });
+      return { r, stored: () => config };
+    };
+    const configPatches = (mock: ReturnType<typeof createFetchMock>) =>
+      mock.calls.filter((c) => c.method === "PATCH" && c.url.pathname === "/api/conversations/c1" && "config" in bodyOf(c));
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
+
+    it("auto-read off then bilingual on within the first round trip: the second write keeps autoSpeak off", async () => {
+      const first = gate();
+      const s = server({ wait: first.promise });
+      const { mock } = setup(s.r);
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await settle();
+      expect(configPatches(mock)).toHaveLength(1); // 第二次写入排队,等第一次返回
+      await act(async () => { first.release(); });
+      await waitFor(() => expect(configPatches(mock)).toHaveLength(2));
+      expect(bodyOf(configPatches(mock)[0]).config).toEqual({ ...CONFIG, auto_speak: false });
+      expect(bodyOf(configPatches(mock)[1]).config).toEqual({ ...CONFIG, auto_speak: false, bilingual: true });
+      await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
+      await settle();
+      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      expect(s.stored()).toEqual({ ...CONFIG, auto_speak: false, bilingual: true });
+    });
+
+    it("a recap saved while a toggle is in flight keeps the toggle, and the toggle does not erase the recap", async () => {
+      const first = gate();
+      const s = server({ wait: first.promise }, {
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: JSON.stringify(RECAP) } }] }),
+      });
+      const { mock } = setup(s.r);
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-generate"));
+      await waitFor(() => expect(screen.getByTestId("recap-summary")).toHaveTextContent("复盘"));
+      await settle();
+      expect(configPatches(mock)).toHaveLength(1);
+      await act(async () => { first.release(); });
+      await waitFor(() => expect(configPatches(mock)).toHaveLength(2));
+      await settle();
+      const final = s.stored();
+      expect(final.auto_speak).toBe(false);
+      expect(final.recap).toMatchObject({ summary_zh: "复盘" });
+      // 复盘保存之后再切换双语:复盘仍在(复盘面板是模态的,直接派发点击)
+      fireEvent.click(screen.getByTestId("conversation-bilingual"));
+      await waitFor(() => expect(configPatches(mock)).toHaveLength(3));
+      await settle();
+      expect(s.stored()).toMatchObject({ auto_speak: false, bilingual: true, recap: { summary_zh: "复盘" } });
+    });
+
+    it("a failed write reverts its optimistic switch and does not block or leak into the next write", async () => {
+      const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+      const first = gate();
+      const s = server({ wait: first.promise, fail: true });
+      const { mock } = setup(s.r);
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await act(async () => { first.release(); });
+      await waitFor(() => expect(configPatches(mock)).toHaveLength(2));
+      expect(bodyOf(configPatches(mock)[1]).config).toEqual({ ...CONFIG, bilingual: true });
+      await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
+      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true");
+      expect(toastSpy).toHaveBeenCalledTimes(1);
+      toastSpy.mockRestore();
+    });
+
+    it("the settings button stays disabled until the conversation is loaded", async () => {
+      const loaded = gate();
+      setup(routes({ "GET /api/conversations/c1": async () => { await loaded.promise; return json({ id: "c1", name: "Chat", config: CONFIG }); } }));
+      expect(await screen.findByTestId("conversation-settings")).toBeDisabled();
+      await act(async () => { loaded.release(); });
+      await waitFor(() => expect(screen.getByTestId("conversation-settings")).toBeEnabled());
+    });
+
+    it("never offers settings (and never PATCHes) when loading the conversation failed", async () => {
+      const { mock } = setup(routes({ "GET /api/conversations/c1": () => json({ error: "boom" }, 500) }));
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByTestId("conversation-settings")).toBeDisabled();
+      expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
+    });
+
+    it("saving the settings sheet with nothing changed sends no PATCH and closes the sheet", async () => {
+      const { mock } = setup(server().r);
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await screen.findByTestId("settings-save"));
+      await waitFor(() => expect(screen.queryByTestId("settings-save")).toBeNull());
+      await settle();
       expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
     });
   });

@@ -339,7 +339,10 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     updateConversation(api, entry.conversationId, { name: titleFrom(entry.content) })
       .then((renamed) => {
         // 切换会话后,上一个会话的改名结果不能覆盖当前会话
-        if (mountedRef.current && genRef.current === gen && renamed.id === idRef.current) setConversation(renamed);
+        // 只采用新名字:config 以本地最新(config 写入链的响应)为准,晚到的改名响应不得带回旧 config
+        if (mountedRef.current && genRef.current === gen && renamed.id === idRef.current) {
+          setConversation((c) => (c && c.id === renamed.id ? { ...renamed, config: c.config } : renamed));
+        }
       })
       .catch((): void => undefined) // 改名失败不影响已保存的消息
       .finally(() => { renamingRef.current = false; });
@@ -668,14 +671,41 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setMessages((prev) => prev.filter((m) => m.key !== key));
   };
 
+  // 所有 config 写入(设置面板、双语、自动朗读、复盘)走同一条链:服务端 PATCH 整体替换 config,
+  // 每次写入在真正执行时才以最新已知配置(上一次 PATCH 的响应)为底,只叠加自己的键,互不覆盖
+  const configChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const saveSettings = useCallback((changes: Partial<ConversationConfig>): Promise<void> => {
+    const target = conversationRef.current;
+    if (!target) { // 会话未加载:绝不 PATCH(否则会用空底整体替换已存配置)
+      toast.error(tRef.current("web.chat.notSaved"));
+      return Promise.reject(new Error("Conversation not loaded"));
+    }
+    if (Object.keys(changes).length === 0) return Promise.resolve(); // 没有改动:不发空 PATCH
+    const gen = genRef.current;
+    const current = () => gen === genRef.current && mountedRef.current;
+    const run = configChainRef.current.then(async () => {
+      const latest = conversationRef.current;
+      if (!current() || latest?.id !== target.id) throw new Error("Conversation changed");
+      const updated = await updateConversation(api, target.id, { config: { ...latest.config, ...changes } as ConversationConfig });
+      if (!current()) return;
+      conversationRef.current = updated; // 排在后面的写入立刻以它为底,不等重新渲染
+      setConversation(updated);
+    }).catch((err: unknown) => {
+      if (current()) toast.error(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS));
+      throw err;
+    });
+    configChainRef.current = run.catch((): void => undefined); // 失败不阻塞后面的写入
+    return run;
+  }, [api]);
+
   const [bilingualSaving, setBilingualSaving] = useState(false);
   const bilingualBusyRef = useRef(false);
   const toggleBilingual = () => {
     if (bilingualBusyRef.current || !conversation) return;
     bilingualBusyRef.current = true;
     setBilingualSaving(true);
-    // 只写入服务端已存的配置 + 开关,避免把 ai 未加载时的空默认值固化下来
-    void saveSettings({ ...conversation.config, bilingual: !options.bilingual })
+    // 只写这个键;底由 saveSettings 在执行时取已存配置,避免把 ai 未加载时的空默认值固化下来
+    void saveSettings({ bilingual: !options.bilingual })
       .catch((): void => undefined)
       .finally(() => { bilingualBusyRef.current = false; if (mountedRef.current) setBilingualSaving(false); });
   };
@@ -691,25 +721,15 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     autoSpeakOverrideRef.current = next;
     setAutoSpeakOptimistic(next);
     if (!next) stopTts(); // 关掉时正在读的也停下
-    // 与双语开关同一规则:只写入已存配置 + 这个键
-    void saveSettings({ ...conversation.config, autoSpeak: next })
+    // 与双语开关同一规则:只写这个键
+    void saveSettings({ autoSpeak: next })
       .catch((): void => undefined)
       .finally(() => {
         autoSpeakBusyRef.current = false;
-        autoSpeakOverrideRef.current = null; // 成功:已存配置已是新值;失败:回退
+        // 成功:conversationRef 已是 PATCH 响应(新值);失败:回退到已存值
+        autoSpeakOverrideRef.current = null;
         if (mountedRef.current) { setAutoSpeakSaving(false); setAutoSpeakOptimistic(null); }
       });
-  };
-
-  // 服务端 PATCH 整体替换 config:始终以已存配置为底,只叠加用户改动的键,绝不写入带默认值的整份草稿
-  const saveSettings = async (changes: Partial<ConversationConfig>) => {
-    try {
-      const stored = conversation?.config ?? {};
-      setConversation(await updateConversation(api, id, { config: { ...stored, ...changes } as ConversationConfig }));
-    } catch (err) {
-      toast.error(translateServerError(t, err, CHAT_SERVER_ERRORS));
-      throw err;
-    }
   };
 
   const recording = voice.state === "recording" || voice.state === "starting";

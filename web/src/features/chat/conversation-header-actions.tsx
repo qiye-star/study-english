@@ -44,7 +44,7 @@ export function ConversationHeaderActions({
         <ClipboardListIcon className="h-5 w-5" />
       </Button>
       <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-settings"
-        aria-label={t("web.chat.settings")} onClick={onOpenSettings}>
+        aria-label={t("web.chat.settings")} disabled={!loaded} onClick={onOpenSettings}>
         <Settings2Icon className="h-5 w-5" />
       </Button>
     </div>
