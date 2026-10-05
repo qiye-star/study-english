@@ -24,7 +24,7 @@
       "services": "Server speech services", "stt": "Speech-to-text: server Whisper",
       "tts": "Text-to-speech models: {{models}}", "ttsDefault": "Default voice: {{voice}}",
       "playbackRate": "Read-aloud speed", "playbackRateHint": "Applies to read-aloud, auto-read, voice messages and the practice sample.",
-      "logout": "Log out", "install": "Add to Home Screen"
+      "logout": "Log out", "install": "Add to Home Screen", "progress": "Learning progress"
     },
     "install": {
       "title": "Add to Home Screen", "step1": "Tap the Share button in Safari's toolbar.",

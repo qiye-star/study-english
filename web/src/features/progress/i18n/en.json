@@ -1,0 +1,13 @@
+{
+  "web": {
+    "progress": {
+      "title": "Progress", "period": "Period", "days": "{{value}} days", "asOf": "Today: {{date}}", "activeDays": "Active days", "streak": "Day streak",
+      "speakingMinutes": "Speaking (min)", "messages": "Messages sent", "avgScore": "Avg. pronunciation", "chart": "Daily average pronunciation",
+      "chartDesc": "Pronunciation score from 0 to 100 per day; {{scored}} of {{total}} days have a score. Dashed lines mark 60 and 80.",
+      "chartList": "Daily scores", "chartDay": "{{date}}: {{score}}", "noScores": "No scored recordings in this period yet.",
+      "grammar": "Most common grammar issues", "words": "Words to work on", "practice": "Practice", "save": "Save to practice list",
+      "empty": "No practice in this period yet.", "truncated": "Only your most recent activity was counted.",
+      "disclaimer": "For reference only: scores come from free-speech assessment and may be inaccurate."
+    }
+  }
+}

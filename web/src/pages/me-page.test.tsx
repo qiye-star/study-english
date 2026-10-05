@@ -56,4 +56,8 @@ describe("MePage", () => {
     expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
     expect(select).toHaveValue("1.25");
   });
+  it("links to the progress page", () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    expect(screen.getByTestId("me-progress")).toHaveAttribute("href", "/progress");
+  });
 });

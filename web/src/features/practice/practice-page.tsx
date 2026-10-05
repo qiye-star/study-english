@@ -1,4 +1,4 @@
-import { HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon, Volume2Icon } from "lucide-react";
+import { BarChart3Icon, HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -140,6 +140,9 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
         title={t("web.practice.title")}
         actions={
           <div className="flex">
+            <Button asChild variant="ghost" size="icon" className="h-11 w-11" data-testid="practice-progress">
+              <Link to="/progress" aria-label={t("web.me.progress")}><BarChart3Icon className="h-5 w-5" /></Link>
+            </Button>
             <Button asChild variant="ghost" className="h-11" data-testid="practice-list">
               <Link to="/practice/list"><ListChecksIcon className="mr-1 h-4 w-4" />{t("web.practice.list.entry")}</Link>
             </Button>

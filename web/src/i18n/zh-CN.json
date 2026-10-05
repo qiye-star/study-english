@@ -24,7 +24,7 @@
       "services": "服务器语音服务", "stt": "语音转文字:服务器 Whisper",
       "tts": "语音合成模型:{{models}}", "ttsDefault": "默认音色:{{voice}}",
       "playbackRate": "朗读语速", "playbackRateHint": "作用于朗读、自动朗读、语音消息回放和跟读页的先听范读。",
-      "logout": "退出登录", "install": "添加到主屏幕"
+      "logout": "退出登录", "install": "添加到主屏幕", "progress": "学习进度"
     },
     "install": {
       "title": "添加到主屏幕", "step1": "点 Safari 工具栏中的「分享」按钮。",

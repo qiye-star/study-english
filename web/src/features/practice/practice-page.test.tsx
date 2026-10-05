@@ -31,6 +31,13 @@ const assessCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.fil
 describe("PracticePage", () => {
   beforeEach(() => localStorage.clear());
 
+  it("links to the progress page from the header", () => {
+    setup({});
+    const link = screen.getByTestId("practice-progress");
+    expect(link).toHaveAttribute("href", "/progress");
+    expect(link).toHaveAccessibleName("Learning progress");
+  });
+
   it("formats the timer", () => {
     expect(formatClock(0)).toBe("00:00");
     expect(formatClock(65_400)).toBe("01:05");

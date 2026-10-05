@@ -66,6 +66,9 @@ export function MePage() {
           </select>
           <p className="text-xs text-muted-foreground">{t("web.me.playbackRateHint")}</p>
         </section>
+        <Button asChild variant="outline" className="h-11 w-full justify-start">
+          <Link to="/progress" data-testid="me-progress">{t("web.me.progress")}</Link>
+        </Button>
         <GrammarPromptEditor />
         <section data-testid="me-services" className="space-y-1 text-sm">
           <h2 className="text-sm text-muted-foreground">{t("web.me.services")}</h2>
