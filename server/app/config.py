@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     grammar_prompt: str = ""
     grammar_prompt_file: str = ""
     max_practice_items: int = 500
+    max_vocab_items: int = 2000
 
     app_version: str = "0.7.9"
 

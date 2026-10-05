@@ -19,3 +19,8 @@ def test_grammar_model_and_separate_upstream():
 def test_separate_upstream_never_borrows_the_llm_key():
     s = make_settings(upstream_grammar_base_url="https://grammar.test/v1")
     assert s.grammar_upstream == ("https://grammar.test/v1", "")
+
+
+def test_vocabulary_limit_setting():
+    assert make_settings().max_vocab_items == 2000
+    assert make_settings(max_vocab_items=5).max_vocab_items == 5

@@ -128,3 +128,47 @@ def test_0004_adds_columns_keeps_data_and_round_trips(tmp_path, monkeypatch):
         con.close()
     command.upgrade(cfg, "head")
     assert "practice_items" in _tables(db)
+
+
+VOCAB_COLUMNS = {
+    "id", "user_id", "word", "meaning", "example", "source", "box", "due_at",
+    "reps", "lapses", "last_reviewed_at", "created_at",
+}
+VOCAB_INDEXES = {"ix_vocabulary_items_user_id", "ix_vocabulary_items_user_id_due_at", "ix_vocabulary_items_user_id_word"}
+
+
+def test_0005_vocabulary_table_keeps_data_and_round_trips(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0004")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'h', '2026-10-05 00:00:00')")
+        con.execute("insert into practice_items (id, user_id, text, source, created_at) "
+                    "values ('p', 12345678, 'Hi.', 'manual', '2026-10-05 00:00:00')")
+        con.commit()
+    finally:
+        con.close()
+
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    try:
+        assert _columns(con, "vocabulary_items") == VOCAB_COLUMNS
+        # (seq, name, unique, origin, partial)
+        indexes = {row[1]: row[2] for row in con.execute("pragma index_list(vocabulary_items)")}
+        assert VOCAB_INDEXES <= set(indexes)
+        assert not any(indexes[name] for name in VOCAB_INDEXES)  # 去重在应用层,不建唯一索引
+        fks = con.execute("pragma foreign_key_list(vocabulary_items)").fetchall()
+        assert any(r[2] == "users" and r[3] == "user_id" and r[6] == "CASCADE" for r in fks)
+        assert con.execute("select text from practice_items where id = 'p'").fetchone() == ("Hi.",)
+    finally:
+        con.close()
+
+    command.downgrade(cfg, "0004")
+    assert "vocabulary_items" not in _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert con.execute("select text from practice_items where id = 'p'").fetchone() == ("Hi.",)
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    assert "vocabulary_items" in _tables(db)
