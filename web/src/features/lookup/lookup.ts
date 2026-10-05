@@ -1,7 +1,9 @@
 import { LANGUAGES } from "@/constants";
 import { completeChat } from "~/api/ai";
 import { ApiError, type ApiClient } from "~/api/client";
+import { inflightDedupe, withSignal } from "~/lib/abortable";
 import { kvGet, kvSet } from "~/lib/kv-cache";
+import { extractJsonObject } from "~/lib/model-json";
 import { DICTIONARY_PROMPT, TRANSLATION_PROMPT, TRANSLATION_SYSTEM_PROMPT, renderTemplate } from "./prompts";
 
 export type LookupMode = "lookup" | "translate";
@@ -37,24 +39,9 @@ function invalid(): never {
   throw new ApiError(502, "Invalid dictionary response");
 }
 
-function parseObject(text: string): Record<string, unknown> | undefined {
-  try {
-    const data: unknown = JSON.parse(text);
-    return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** Parse the model's JSON defensively: code fences, surrounding prose, missing or non-string fields. */
 export function parseLookupJson(raw: string): LookupResult {
-  const cleaned = String(raw ?? "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  let data = parseObject(cleaned);
-  if (!data) {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) data = parseObject(cleaned.slice(start, end + 1));
-  }
+  const data = extractJsonObject(raw);
   if (!data) invalid();
   const field = (key: string) => (typeof data![key] === "string" ? (data![key] as string).trim() : "");
   return {
@@ -109,42 +96,7 @@ export const lookupCacheKey = (word: string, context: string, native: string) =>
 export const translateCacheKey = (text: string, native: string) =>
   `translate:v1:${JSON.stringify([native, normalizeSelection(text)])}`;
 
-const inflight = new Map<string, Promise<unknown>>();
-
-function abortError(): Error {
-  const err = new Error("Aborted");
-  err.name = "AbortError";
-  return err;
-}
-
-/** Each caller can abort its own wait; the shared underlying request keeps running for the others. */
-function withSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(abortError());
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(abortError());
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(
-      (v) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(v);
-      },
-      (e) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(e);
-      },
-    );
-  });
-}
-
-function dedupe<T>(key: string, load: () => Promise<T>): Promise<T> {
-  let p = inflight.get(key) as Promise<T> | undefined;
-  if (!p) {
-    p = load().finally(() => inflight.delete(key));
-    inflight.set(key, p);
-  }
-  return p;
-}
+const dedupe = inflightDedupe<unknown>();
 
 export function cachedLookup(
   api: ApiClient,
@@ -161,7 +113,7 @@ export function cachedLookup(
       const result = await lookupWord(api, { word, context, nativeLanguage: params.nativeLanguage });
       if (result.definition || result.translation) await kvSet(key, result); // don't pin "unknown" answers
       return result;
-    }),
+    }) as Promise<LookupResult>,
     signal,
   );
 }
@@ -180,7 +132,7 @@ export function cachedTranslate(
       const result = await translateText(api, { text, nativeLanguage: params.nativeLanguage });
       if (result) await kvSet(key, result);
       return result;
-    }),
+    }) as Promise<string>,
     signal,
   );
 }

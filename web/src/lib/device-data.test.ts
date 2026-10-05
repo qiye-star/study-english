@@ -1,5 +1,8 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
+import { ApiClient } from "~/api/client";
+import { createFetchMock, json } from "~/test/fetch-mock";
+import { cachedHints, type HintsInput } from "~/features/chat/hints";
 import { GRAMMAR_REV_KEY, grammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
 import { PRACTICE_DRAFT_KEY, clearDeviceData } from "./device-data";
@@ -36,6 +39,19 @@ describe("clearDeviceData", () => {
     expect(grammarRev()).toBe(1);
     clearDeviceData();
     expect(grammarRev()).toBe(2);
+  });
+
+  it("forgets in-memory hints of unsaved replies at logout", async () => {
+    const replies = { replies: [1, 2, 3].map((i) => ({ text: `Reply ${i}.`, zh: `回复 ${i}` })) };
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: JSON.stringify(replies) } }] }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const input: HintsInput = { conversationId: "c1", anchor: { key: "a-1" }, level: "auto", scenarioId: null, messages: [] };
+    await cachedHints(api, input);
+    await cachedHints(api, input);
+    expect(mock.calls).toHaveLength(1);
+    clearDeviceData();
+    await cachedHints(api, input);
+    expect(mock.calls).toHaveLength(2);
   });
 
   it("clears cached grammar results with the rest of the kv cache", async () => {

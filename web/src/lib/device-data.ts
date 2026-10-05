@@ -1,5 +1,6 @@
 import { bumpGrammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
+import { clearHintsMemory } from "~/features/chat/hints";
 import { kvClear } from "./kv-cache";
 import { resetPlaybackRate } from "./playback-rate";
 import { removeKey } from "./storage";
@@ -27,6 +28,11 @@ export function clearDeviceData(): void {
   }
   try {
     sharedTtsCache.clear();
+  } catch {
+    /* ignore */
+  }
+  try {
+    clearHintsMemory();
   } catch {
     /* ignore */
   }
