@@ -7,6 +7,7 @@ import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";
+import { LEVELS, normalizeLevel, type Level } from "./levels";
 
 const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base";
 
@@ -112,6 +113,22 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             <Switch id={`${uid}-coach-mode`} aria-describedby={`${uid}-coach-mode-hint`} data-testid="settings-coach-mode" checked={draft.coachMode === true}
               onCheckedChange={(checked) => setDraft({ ...draft, coachMode: checked })} />
           </div>
+          <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>
+              <label htmlFor={`${uid}-auto-speak`}>{t("web.chat.settingsForm.autoSpeak")}</label>
+              <span id={`${uid}-auto-speak-hint`} className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.autoSpeakHint")}</span>
+            </span>
+            <Switch id={`${uid}-auto-speak`} aria-describedby={`${uid}-auto-speak-hint`} data-testid="settings-auto-speak" checked={draft.autoSpeak !== false}
+              onCheckedChange={(checked) => setDraft({ ...draft, autoSpeak: checked })} />
+          </div>
+          <label className="block space-y-1 text-sm">
+            <span>{t("web.chat.settingsForm.level")}</span>
+            <select data-testid="settings-level" className={selectClass} value={normalizeLevel(draft.level)}
+              onChange={(e) => setDraft({ ...draft, level: e.target.value as Level })}>
+              {LEVELS.map((l) => <option key={l} value={l}>{t(`web.chat.levels.${l}`)}</option>)}
+            </select>
+            <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.levelHint")}</span>
+          </label>
           <Button data-testid="settings-save" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
             {t("web.chat.settingsForm.save")}
           </Button>

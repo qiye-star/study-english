@@ -37,4 +37,21 @@ describe("ConversationSettingsSheet", () => {
     await userEvent.click(screen.getByTestId("settings-save"));
     expect(onSave).toHaveBeenCalledWith({});
   });
+  it("shows auto-read on and level auto for a conversation without those keys, and saves only what changed", async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={onSave} config={{ ...base }} />);
+    expect(screen.getByTestId("settings-auto-speak")).toHaveAttribute("data-state", "checked");
+    expect(screen.getByRole("switch", { name: /Read replies aloud automatically/ })).toBe(screen.getByTestId("settings-auto-speak"));
+    expect(screen.getByTestId("settings-level")).toHaveValue("auto");
+    await userEvent.click(screen.getByTestId("settings-auto-speak"));
+    await userEvent.selectOptions(screen.getByTestId("settings-level"), "B1");
+    await userEvent.click(screen.getByTestId("settings-save"));
+    expect(onSave).toHaveBeenCalledWith({ autoSpeak: false, level: "B1" });
+  });
+
+  it("shows a stored auto-read off and level", () => {
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={vi.fn()} config={{ ...base, autoSpeak: false, level: "C1" }} />);
+    expect(screen.getByTestId("settings-auto-speak")).toHaveAttribute("data-state", "unchecked");
+    expect(screen.getByTestId("settings-level")).toHaveValue("C1");
+  });
 });

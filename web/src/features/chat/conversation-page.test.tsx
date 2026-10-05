@@ -94,6 +94,21 @@ beforeAll(() => {
 describe("ConversationPage", () => {
   beforeEach(() => resetServerAiConfigCache());
 
+  it("sends the stored level instruction with the next request", async () => {
+    const { mock } = setup(routes({
+      "GET /api/conversations/c1": () => json({ id: "c1", name: "Trip", config: { ...CONFIG, level: "A2" } }),
+      "POST /api/ai/chat/completions": () => sse([delta("OK"), DONE_EVENT]),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+    }));
+    await screen.findByText("reply");
+    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.click(screen.getByTestId("chat-send"));
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
+    const system = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[0]).messages[0];
+    expect(system.role).toBe("system");
+    expect(system.content).toMatch(/^SYS\n\nLanguage level: the learner is at CEFR A2\./);
+  });
+
   it("renders the badge and highlights of a loaded voice message with no extra request until details open", async () => {
     const { mock } = setup(routes({
       "GET /api/conversations/c1/messages": () => json({ messages: [{
@@ -186,6 +201,17 @@ describe("ConversationPage", () => {
   describe("settings sheet saves only what changed", () => {
     const patchBody = (mock: { calls: Array<{ method: string; body?: unknown }> }) =>
       JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config;
+
+    it("writes auto_speak and level as snake_case keys on top of the stored config", async () => {
+      const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, level: "B1", auto_speak: false } }) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(screen.getByTestId("settings-auto-speak"));
+      await userEvent.selectOptions(screen.getByTestId("settings-level"), "B1");
+      await userEvent.click(screen.getByTestId("settings-save"));
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      expect(patchBody(mock)).toEqual({ ...CONFIG, auto_speak: false, level: "B1" });
+    });
 
     it("before the AI config loads: stored keys + the changed key, no model/tts keys or empty strings", async () => {
       const never = () => new Promise<Response>(() => {});
