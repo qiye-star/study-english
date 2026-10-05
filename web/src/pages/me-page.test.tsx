@@ -11,6 +11,7 @@ const ROUTES = {
   "GET /api/config/gpt_providers": () => json({ enjoyai: { models: ["gpt-4o"] } }),
   "GET /api/config/default_gpt_preset": () => json({ configuration: { model: "gpt-4o" } }),
   "GET /api/config/tts_providers_v2": () => json({ enjoyai: { models: ["openai/tts-1", "azure/speech"], voices: {} } }),
+  "GET /api/me/grammar-prompt": () => json({ prompt: null, default_prompt: "RULES", max_length: 2000 }),
   "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }),
 };
 
@@ -41,5 +42,9 @@ describe("MePage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1"));
     expect(screen.queryByTestId("me-ai-error")).toBeNull();
+  });
+  it("shows the grammar prompt editor", async () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue("RULES");
   });
 });

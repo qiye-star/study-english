@@ -13,6 +13,12 @@
         "tooLong": "The message is too long to check (2000 characters max).", "upstream": "The grammar service is unavailable. Please try again.",
         "rateLimit": "Too many requests. Please try again later."
       }
+    },
+    "grammarPrompt": {
+      "title": "Grammar check rules", "hint": "What the grammar checker looks for and how it explains. The answer format is fixed by the server.",
+      "usingDefault": "Using the default rules", "custom": "Using your rules", "save": "Save", "saved": "Grammar rules updated.",
+      "reset": "Restore default", "resetConfirm": "Restore the default rules?", "resetDescription": "Your custom rules will be deleted on all your devices.",
+      "errors": { "tooLong": "The rules are too long (2000 characters max)." }
     }
   }
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
+import { GrammarPromptEditor } from "~/features/grammar/grammar-prompt-editor";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -54,6 +55,7 @@ export function MePage() {
           </select>
           <p className="text-xs text-muted-foreground">{t("web.me.languageHint")}</p>
         </section>
+        <GrammarPromptEditor />
         <section data-testid="me-services" className="space-y-1 text-sm">
           <h2 className="text-sm text-muted-foreground">{t("web.me.services")}</h2>
           <p>{t("web.me.stt")}</p>
