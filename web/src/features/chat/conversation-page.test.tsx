@@ -165,6 +165,17 @@ describe("ConversationPage", () => {
     expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ tts_voice: "echo", system_prompt: "SYS" });
   });
 
+  it("persists the grammar check and coach mode switches as snake_case config keys", async () => {
+    const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, grammar_check: false, coach_mode: true } }) }));
+    await screen.findByText("reply");
+    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(screen.getByTestId("settings-grammar-check"));
+    await userEvent.click(screen.getByTestId("settings-coach-mode"));
+    await userEvent.click(screen.getByTestId("settings-save"));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ grammar_check: false, coach_mode: true, system_prompt: "SYS" });
+  });
+
   it("discards a partially streamed reply on failure: error bubble replaces it, nothing is saved", async () => {
     const { mock } = setup(routes({
       "POST /api/ai/chat/completions": () => sse([delta("Half an ans"), 'data: {"error": "Upstream unavailable"}\n\n']),

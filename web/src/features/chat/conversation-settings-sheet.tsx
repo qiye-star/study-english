@@ -80,6 +80,22 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             <Switch data-testid="settings-bilingual" checked={draft.bilingual === true}
               onCheckedChange={(checked) => setDraft({ ...draft, bilingual: checked })} />
           </label>
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>
+              {t("web.chat.settingsForm.grammarCheck")}
+              <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.grammarCheckHint")}</span>
+            </span>
+            <Switch data-testid="settings-grammar-check" checked={draft.grammarCheck !== false}
+              onCheckedChange={(checked) => setDraft({ ...draft, grammarCheck: checked })} />
+          </label>
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>
+              {t("web.chat.settingsForm.coachMode")}
+              <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.coachModeHint")}</span>
+            </span>
+            <Switch data-testid="settings-coach-mode" checked={draft.coachMode === true}
+              onCheckedChange={(checked) => setDraft({ ...draft, coachMode: checked })} />
+          </label>
           <Button data-testid="settings-save" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
             {t("web.chat.settingsForm.save")}
           </Button>

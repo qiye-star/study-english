@@ -9,7 +9,7 @@
       "practice": "Practice sentences",
       "practicePanel": { "title": "Practice a sentence", "description": "Read a sentence aloud on the practice page, or save it for later.", "go": "Practice this sentence", "save": "Save to practice list", "empty": "No sentences to practice.", "tooLong": "Too long to practice as one sentence." },
       "speak": "Read aloud", "stopSpeaking": "Stop", "speakFailed": "Could not play the reply.", "nothingToRead": "There is nothing to read aloud in this reply.",
-      "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default", "bilingual": "Bilingual (translate new replies automatically)" },
+      "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default", "bilingual": "Bilingual (translate new replies automatically)", "grammarCheck": "Grammar check", "grammarCheckHint": "Point out grammar mistakes in your English messages.", "coachMode": "Coach mode", "coachModeHint": "The AI naturally repeats the correct form of words you mispronounced or got wrong." },
       "voice": {
         "play": "Play recording", "pause": "Pause", "cancel": "Discard recording", "stopAndSend": "Stop and send",
         "assessing": "Assessing…", "assessFailed": "Assessment failed", "score": "Pronunciation {{score}}",
