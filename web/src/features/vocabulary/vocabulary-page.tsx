@@ -39,9 +39,15 @@ export function VocabularyPage() {
   const [review, setReview] = useState<ReviewState | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<VocabularyItem | null>(null);
+  const [noneDue, setNoneDue] = useState(false);
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const loadingRef = useRef(false);
+  const refreshQueuedRef = useRef(false); // 加载更多进行中时请求的第 1 页刷新,结束后补发
+  const dueGenRef = useRef(0); // 每次用服务端的 due_count 覆盖时 +1;回滚只在没有更新的服务端值时修正
+  const focusDueRef = useRef(false);
+  const dueCountRef = useRef<HTMLParagraphElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const busyRef = useRef(false); // 开始复习 / 评分共用的同步锁
   const deletingRef = useRef(new Set<string>());
   const tts = useTtsPlayer(api, { onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)) });
@@ -56,7 +62,10 @@ export function VocabularyPage() {
   const fail = (err: unknown) => setError(translateServerError(tRef.current, err, VOCABULARY_SERVER_ERRORS));
 
   const load = useCallback(async (page: number, signal: AbortSignal) => {
-    if (loadingRef.current) return;
+    if (loadingRef.current) {
+      if (page === 1) refreshQueuedRef.current = true;
+      return;
+    }
     loadingRef.current = true;
     setError(null);
     try {
@@ -68,6 +77,7 @@ export function VocabularyPage() {
         return [...base, ...res.vocabularyItems.filter((i) => !seen.has(i.id))];
       });
       setNext(res.next);
+      dueGenRef.current += 1;
       setDueCount(res.dueCount);
     } catch (err) {
       if (!signal.aborted) setError(translateServerError(tRef.current, err, VOCABULARY_SERVER_ERRORS));
@@ -75,6 +85,10 @@ export function VocabularyPage() {
       if (!signal.aborted) {
         loadingRef.current = false;
         setLoaded(true);
+        if (refreshQueuedRef.current) {
+          refreshQueuedRef.current = false;
+          void load(1, signal);
+        }
       }
     }
   }, [api]);
@@ -87,6 +101,7 @@ export function VocabularyPage() {
     return () => {
       controller.abort();
       loadingRef.current = false;
+      refreshQueuedRef.current = false;
       busyRef.current = false;
     };
   }, [load]);
@@ -112,11 +127,20 @@ export function VocabularyPage() {
     const signal = liveSignal();
     if (!signal || !lock()) return;
     setError(null);
+    setNoneDue(false);
     try {
       const res = await listVocabulary(api, { perPage: REVIEW_BATCH, due: true }, signal);
       if (signal.aborted) return;
-      setDueCount(res.dueCount);
-      setReview(res.vocabularyItems.length ? { queue: res.vocabularyItems, index: 0, flipped: false, done: false } : null);
+      dueGenRef.current += 1;
+      if (res.vocabularyItems.length) {
+        setDueCount(res.dueCount);
+        setReview({ queue: res.vocabularyItems, index: 0, flipped: false, done: false });
+      } else {
+        // 别的设备已复习完:显示"没有要复习的"并把焦点留在待复习数上(按钮随之禁用)
+        setDueCount(0);
+        setNoneDue(true);
+        focusDueRef.current = true;
+      }
     } catch (err) {
       if (!signal.aborted) fail(err);
     } finally {
@@ -143,6 +167,7 @@ export function VocabularyPage() {
         return;
       }
     }
+    if (signal.aborted) return; // 卸载后不再更新状态或刷新
     stopTts();
     const handled = current.queue.slice(0, current.index + 1);
     let queue = current.queue;
@@ -173,6 +198,7 @@ export function VocabularyPage() {
     deletingRef.current.add(item.id);
     const position = items.findIndex((i) => i.id === item.id);
     const wasDue = isDue(item);
+    const gen = dueGenRef.current;
     setError(null);
     setItems((prev) => prev.filter((i) => i.id !== item.id));
     if (wasDue) setDueCount((n) => Math.max(0, n - 1));
@@ -185,12 +211,24 @@ export function VocabularyPage() {
         const at = position < 0 ? prev.length : Math.min(position, prev.length);
         return [...prev.slice(0, at), item, ...prev.slice(at)];
       });
-      if (wasDue) setDueCount((n) => n + 1);
+      if (wasDue && gen === dueGenRef.current) setDueCount((n) => n + 1); // 期间刷新过就以服务端值为准
       fail(err);
     } finally {
       deletingRef.current.delete(item.id);
     }
   };
+
+  // 完成面板出现时聚焦"返回列表";返回列表 / 没有要复习的时聚焦待复习数
+  const reviewDone = !!review?.done;
+  useEffect(() => {
+    if (reviewDone) closeRef.current?.focus();
+  }, [reviewDone]);
+  useEffect(() => {
+    if (!review && focusDueRef.current) {
+      focusDueRef.current = false;
+      dueCountRef.current?.focus();
+    }
+  });
 
   const card = review && !review.done ? review.queue[review.index] : null;
   const speakKey = card ? `vocab-${card.id}` : "";
@@ -210,18 +248,19 @@ export function VocabularyPage() {
         {review?.done && (
           <div data-testid="vocab-review-done" className="space-y-2 rounded-xl border p-4 text-center">
             <p>{t("web.vocabulary.done")}</p>
-            <Button variant="outline" data-testid="vocab-review-close" className="h-11" onClick={() => setReview(null)}>{t("web.vocabulary.close")}</Button>
+            <Button ref={closeRef} variant="outline" data-testid="vocab-review-close" className="h-11"
+              onClick={() => { focusDueRef.current = true; setReview(null); }}>{t("web.vocabulary.close")}</Button>
           </div>
         )}
         {!review && (
           <>
             <div className="flex items-center gap-2">
-              <p data-testid="vocab-due-count" className="flex-1 text-sm">{t("web.vocabulary.due", { value: dueCount })}</p>
+              <p ref={dueCountRef} tabIndex={-1} data-testid="vocab-due-count" className="flex-1 text-sm outline-none">{t("web.vocabulary.due", { value: dueCount })}</p>
               <Button data-testid="vocab-start-review" className="h-11" disabled={busy || dueCount === 0} onClick={() => void startReview()}>
                 {t("web.vocabulary.start")}
               </Button>
             </div>
-            {loaded && items.length > 0 && dueCount === 0 && <p data-testid="vocab-none-due" className="text-sm text-muted-foreground">{t("web.vocabulary.noneDue")}</p>}
+            {dueCount === 0 && (noneDue || (loaded && items.length > 0)) && <p role="status" data-testid="vocab-none-due" className="text-sm text-muted-foreground">{t("web.vocabulary.noneDue")}</p>}
             {!loaded && <p className="text-center text-muted-foreground">{t("web.common.loading")}</p>}
             {loaded && !items.length && !error && <p data-testid="vocab-empty" className="p-6 text-center text-muted-foreground">{t("web.vocabulary.empty")}</p>}
             {items.length > 0 && (

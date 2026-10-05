@@ -122,8 +122,9 @@ describe("VocabularyPage", () => {
   });
 
   it("loads the list once under StrictMode", async () => {
-    setup({ "GET /api/vocabulary": () => json({ vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 1 }) }, true);
+    const mock = setup({ "GET /api/vocabulary": () => json({ vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 1 }) }, true);
     expect(await screen.findAllByTestId("vocab-item")).toHaveLength(1);
+    expect(listCalls(mock).filter((c) => !c.signal?.aborted)).toHaveLength(1);
   });
 
   it("refetches the due list after a 409 so the session continues with what is still due", async () => {
@@ -215,5 +216,103 @@ describe("VocabularyPage", () => {
     await waitFor(() => expect(listCalls(mock)).toHaveLength(1));
     mock.view.unmount();
     expect(listCalls(mock)[0].signal?.aborted).toBe(true);
+  });
+
+  it("moves focus through the session and announces progress", async () => {
+    setup({
+      "GET /api/vocabulary": () => json({ vocabulary_items: [item("v1", "apple"), item("v2", "pear")], page: 1, next: null, due_count: 2 }),
+      "POST /api/vocabulary/v1/review": () => json(item("v1", "apple")),
+      "POST /api/vocabulary/v2/review": () => json(item("v2", "pear")),
+    });
+    await userEvent.click(await screen.findByTestId("vocab-start-review"));
+    await waitFor(() => expect(screen.getByTestId("vocab-card-flip")).toHaveFocus());
+    expect(screen.getByTestId("vocab-review-progress")).toHaveAttribute("aria-live", "polite");
+    await userEvent.click(screen.getByTestId("vocab-card-flip"));
+    expect(screen.getByTestId("vocab-card-meaning")).toHaveFocus();
+    await userEvent.click(screen.getByTestId("vocab-grade-good"));
+    await waitFor(() => expect(screen.getByTestId("vocab-card-word")).toHaveTextContent("pear"));
+    expect(screen.getByTestId("vocab-card-flip")).toHaveFocus();
+    await userEvent.click(screen.getByTestId("vocab-card-flip"));
+    await userEvent.click(screen.getByTestId("vocab-grade-good"));
+    await waitFor(() => expect(screen.getByTestId("vocab-review-close")).toHaveFocus());
+    await userEvent.click(screen.getByTestId("vocab-review-close"));
+    expect(screen.getByTestId("vocab-due-count")).toHaveFocus();
+  });
+
+  it("does not update or refresh after unmount when a grade succeeds late", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const mock = setup({
+      "GET /api/vocabulary": () => json({ vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 1 }),
+      "POST /api/vocabulary/v1/review": async () => { await gate; return json(item("v1", "apple")); },
+    });
+    await userEvent.click(await screen.findByTestId("vocab-start-review"));
+    await userEvent.click(await screen.findByTestId("vocab-card-flip"));
+    await userEvent.click(screen.getByTestId("vocab-grade-good"));
+    await waitFor(() => expect(reviewCalls(mock)).toHaveLength(1));
+    const before = listCalls(mock).length;
+    mock.view.unmount();
+    release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(listCalls(mock)).toHaveLength(before);
+  });
+
+  it("does not over-count the due number when a delete rolls back after a refresh", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let reviewed = false;
+    setup({
+      "GET /api/vocabulary": (call) => json(call.url.searchParams.get("due")
+        ? { vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 2 }
+        : { vocabulary_items: [item("v1", "apple"), item("v2", "pear")], page: 1, next: null, due_count: reviewed ? 1 : 2 }),
+      "POST /api/vocabulary/v1/review": () => { reviewed = true; return json(item("v1", "apple")); },
+      "DELETE /api/vocabulary/v2": async () => { await gate; return json({ error: "boom" }, 500); },
+    });
+    await userEvent.click((await screen.findAllByTestId("vocab-item-delete"))[1]);
+    await userEvent.click(await screen.findByTestId("vocab-item-delete-confirm"));
+    await waitFor(() => expect(screen.getByTestId("vocab-due-count")).toHaveTextContent("1"));
+    await userEvent.click(screen.getByTestId("vocab-start-review"));
+    await userEvent.click(await screen.findByTestId("vocab-card-flip"));
+    await userEvent.click(screen.getByTestId("vocab-grade-good"));
+    await userEvent.click(await screen.findByTestId("vocab-review-close"));
+    await waitFor(() => expect(screen.getAllByTestId("vocab-item")).toHaveLength(2)); // 刷新带回了 pear
+    release();
+    expect(await screen.findByTestId("vocab-error")).toBeInTheDocument();
+    expect(screen.getAllByTestId("vocab-item")).toHaveLength(2);
+    expect(screen.getByTestId("vocab-due-count")).toHaveTextContent("1");
+  });
+
+  it("queues the post-review refresh while a load-more is in flight", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const mock = setup({
+      "GET /api/vocabulary": async (call) => {
+        if (call.url.searchParams.get("due")) return json({ vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 1 });
+        if (call.url.searchParams.get("page") === "2") { await gate; return json({ vocabulary_items: [item("v2", "pear")], page: 2, next: null, due_count: 1 }); }
+        return json({ vocabulary_items: [item("v1", "apple")], page: 1, next: 2, due_count: 1 });
+      },
+      "POST /api/vocabulary/v1/review": () => json(item("v1", "apple")),
+    });
+    await userEvent.click(await screen.findByTestId("vocab-list-more"));
+    await userEvent.click(screen.getByTestId("vocab-start-review"));
+    await userEvent.click(await screen.findByTestId("vocab-card-flip"));
+    await userEvent.click(screen.getByTestId("vocab-grade-good"));
+    await screen.findByTestId("vocab-review-done");
+    release();
+    const pages = () => listCalls(mock).filter((c) => !c.url.searchParams.get("due")).map((c) => c.url.searchParams.get("page"));
+    await waitFor(() => expect(pages()).toEqual(["1", "2", "1"]));
+  });
+
+  it("shows the nothing-due state when the due list comes back empty", async () => {
+    setup({
+      "GET /api/vocabulary": (call) => json(call.url.searchParams.get("due")
+        ? { vocabulary_items: [], page: 1, next: null, due_count: 0 }
+        : { vocabulary_items: [item("v1", "apple")], page: 1, next: null, due_count: 1 }),
+    });
+    await userEvent.click(await screen.findByTestId("vocab-start-review"));
+    expect(await screen.findByTestId("vocab-none-due")).toHaveTextContent("Nothing to review right now.");
+    expect(screen.getByTestId("vocab-due-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("vocab-start-review")).toBeDisabled();
+    expect(screen.getByTestId("vocab-due-count")).toHaveFocus();
   });
 });
