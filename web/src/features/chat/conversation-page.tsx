@@ -1,4 +1,4 @@
-import { LanguagesIcon, LoaderIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon } from "lucide-react";
+import { LanguagesIcon, ListChecksIcon, LoaderIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
@@ -20,6 +20,7 @@ import {
 } from "./chat-api";
 import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
+import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble, type UiMessage } from "./message-bubble";
 import { MessageTranslation } from "./message-translation";
 import { useMessageTranslations } from "./use-message-translations";
@@ -40,6 +41,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [practiceText, setPracticeText] = useState<string | null>(null);
   const { language } = useSettings();
   const native = nativeLanguageCode(language);
   const canTranslate = native !== "en-US"; // R16:英文界面没有可译的目标语言
@@ -73,6 +75,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setSending(false);
     setMessages([]);
     setLoadError(null);
+    setPracticeText(null);
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
@@ -259,6 +262,10 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
                     <LanguagesIcon className="h-4 w-4" />
                   </Button>
                 )}
+                <Button variant="ghost" size="sm" data-testid="message-practice" className="h-11 min-w-11 px-2"
+                  aria-label={t("web.chat.practice")} onClick={() => setPracticeText(m.content)}>
+                  <ListChecksIcon className="h-4 w-4" />
+                </Button>
               </div>
             }
             translation={translations.open[m.key]
@@ -277,6 +284,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           <SendIcon className="h-5 w-5" />
         </Button>
       </form>
+      <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>
   );

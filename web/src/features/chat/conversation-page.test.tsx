@@ -489,4 +489,12 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
     });
   });
+
+  it("opens the practice panel for a reply", async () => {
+    setup(routes());
+    await screen.findByText("reply");
+    await userEvent.click(screen.getByTestId("message-practice"));
+    expect(await screen.findAllByTestId("practice-sentence")).toHaveLength(1);
+    expect(screen.getByTestId("practice-sentence")).toHaveTextContent("Earlier reply");
+  });
 });

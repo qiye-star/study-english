@@ -6,6 +6,8 @@
       "send": "Send", "settings": "Conversation settings", "notSaved": "The reply was shown but could not be saved.",
       "noSpeech": "No speech was recognized.", "mic": "Speak instead of typing", "transcribing": "Transcribing…",
       "translate": "Translate", "hideTranslation": "Hide translation", "translating": "Translating…", "bilingual": "Bilingual mode: translate new replies",
+      "practice": "Practice sentences",
+      "practicePanel": { "title": "Practice a sentence", "description": "Read a sentence aloud on the practice page, or save it for later.", "go": "Practice this sentence", "save": "Save to practice list", "empty": "No sentences to practice.", "tooLong": "Too long to practice as one sentence." },
       "speak": "Read aloud", "stopSpeaking": "Stop", "speakFailed": "Could not play the reply.", "nothingToRead": "There is nothing to read aloud in this reply.",
       "settingsForm": { "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default", "bilingual": "Bilingual (translate new replies automatically)" },
       "configFallback": "Could not load the server defaults; using built-in ones.",
