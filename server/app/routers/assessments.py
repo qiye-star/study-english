@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import FileResponse
@@ -41,14 +41,16 @@ async def owned_assessment(session: AsyncSession, user: User, assessment_id: str
 async def list_assessments(
     page: int = Query(1, ge=1, le=10_000),
     per_page: int = Query(20, ge=1, le=50),
+    source: Literal["practice", "chat", "all"] = Query("practice"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    stmt = select(Assessment).where(Assessment.user_id == user.id)
+    if source != "all":
+        stmt = stmt.where(Assessment.source == source)
     rows = (
         await session.execute(
-            select(Assessment)
-            .where(Assessment.user_id == user.id)
-            .order_by(Assessment.created_at.desc(), Assessment.id.desc())
+            stmt.order_by(Assessment.created_at.desc(), Assessment.id.desc())
             .offset((page - 1) * per_page)
             .limit(per_page + 1)
         )

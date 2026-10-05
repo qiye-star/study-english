@@ -30,6 +30,7 @@ TIMEOUT_CAP_SECONDS = 330
 ASSESSMENT_RATE = 16000
 SCORE_KEYS = ("pronunciation_score", "accuracy_score", "fluency_score", "completeness_score")
 TRUTHY = {"true", "1", "yes"}
+SOURCES = ("practice", "chat")
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
 
@@ -170,6 +171,7 @@ async def create_assessment(
         reference = form.get("reference")
         language = form.get("language")
         save = form.get("save")
+        source = form.get("source")
         if not isinstance(upload, UploadFile):
             raise HTTPException(400, "Audio file is required")
         if not isinstance(language, str):
@@ -186,7 +188,12 @@ async def create_assessment(
         await form.close()
 
     want_save = isinstance(save, str) and save.strip().lower() in TRUTHY
+    source_value = "practice"
     if want_save:
+        if isinstance(source, str) and source.strip():
+            source_value = source.strip().lower()
+        if source_value not in SOURCES:
+            raise HTTPException(400, "Invalid source")
         quota = settings.recording_quota_mb * 1024 * 1024
         if await recordings.used_bytes(session, user.id) + len(wav_bytes) > quota:
             raise HTTPException(413, "Recording storage quota exceeded")
@@ -231,6 +238,7 @@ async def create_assessment(
             scores={key: result.get(key) for key in SCORE_KEYS},
             result=result,
             audio_path=relpath,
+            source=source_value,
         )
     )
     try:
