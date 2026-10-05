@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TtsCache, speakableText, stripMarkdown, ttsKey } from "./tts";
+import { TtsCache, speakableText, stripMarkdown, truncateAtSentence, ttsKey } from "./tts";
 
 describe("tts helpers", () => {
   it("evicts least recently used urls and revokes them", () => {
@@ -24,6 +24,16 @@ describe("tts helpers", () => {
     expect(out).toBe("a".repeat(4095));
     expect(out.length).toBeLessThanOrEqual(4096);
     expect(speakableText("a".repeat(4094) + "😀")).toBe("a".repeat(4094) + "😀");
+  });
+  it("truncates long text at the last sentence end within the limit (R7)", () => {
+    const text = "This is a sentence. ".repeat(300).trim(); // 5999 字符
+    const out = speakableText(text);
+    expect(out.length).toBeLessThanOrEqual(4096);
+    expect(out.length).toBeGreaterThan(2048);
+    expect(out.endsWith("sentence.")).toBe(true);
+    expect(truncateAtSentence("Short. " + "x".repeat(5000), 4096)).toHaveLength(4096); // 句末太靠前:按码元截断
+    expect(truncateAtSentence("Done! Next? Yes.", 4096)).toBe("Done! Next? Yes.");
+    expect(truncateAtSentence(`He said "Stop." ${"y".repeat(10)}`, 16)).toBe(`He said "Stop."`);
   });
   it("keys by model, voice and text", () => {
     expect(ttsKey("m", "v", "t")).not.toBe(ttsKey("m", "v2", "t"));

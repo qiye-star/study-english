@@ -3,6 +3,7 @@ import type { TFunction } from "i18next";
 import type { ApiClient } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { encodeWavPcm16 } from "~/audio/wav";
+import { applyPlaybackRate, trackMediaElement } from "~/lib/playback-rate";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { synthesizeSpeech } from "./speech-api";
@@ -26,6 +27,16 @@ export function primeAudioElement(element: HTMLAudioElement): void {
   }
 }
 
+let sharedAudio: HTMLAudioElement | null = null;
+/**
+ * 对话页朗读(含自动朗读)与场景面板共用的 <audio>(R5):在场景面板的点击里解锁,
+ * 跳到会话页后用同一个元素播放开场白;页面切换不换元素,iOS 的解锁才不会丢。
+ */
+export function sharedAutoplayAudio(): HTMLAudioElement {
+  sharedAudio ??= new Audio();
+  return sharedAudio;
+}
+
 /** 本地播放失败(被浏览器拦截、解码错误),区别于服务端合成失败。 */
 export class TtsPlaybackError extends Error {
   constructor(readonly cause?: unknown) {
@@ -46,7 +57,14 @@ export interface TtsPlayerOptions {
   onNothingToRead?: () => void;
 }
 
-export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAudio = () => new Audio(), onError, onNothingToRead }: TtsPlayerOptions = {}) {
+export interface TtsPlayOptions {
+  /** 只对这一次播放生效,替代 options.onError(自动朗读据此做"最多提示一次"与"被拦截"判断) */
+  onError?: (err: unknown) => void;
+  /** 没有可朗读的内容时静默,不调用 onNothingToRead(自动朗读用) */
+  quietIfEmpty?: boolean;
+}
+
+export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAudio, onError, onNothingToRead }: TtsPlayerOptions = {}) {
   const [states, setStates] = useState<Record<string, TtsState>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentRef = useRef<string | null>(null);
@@ -56,6 +74,20 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
   onErrorRef.current = onError;
   const onNothingRef = useRef(onNothingToRead);
   onNothingRef.current = onNothingToRead;
+  const createRef = useRef(createAudio);
+  createRef.current = createAudio;
+  const untrackRef = useRef<(() => void) | null>(null);
+  /** 惰性创建播放器元素,并登记到全局语速(R8) */
+  const element = useCallback((): HTMLAudioElement => {
+    if (!audioRef.current) {
+      audioRef.current = createRef.current?.() ?? new Audio();
+      untrackRef.current = trackMediaElement(audioRef.current);
+    }
+    return audioRef.current;
+  }, []);
+
+  /** iOS:必须在点击的同步阶段、任何 await 之前调用 */
+  const prime = useCallback(() => primeAudioElement(element()), [element]);
   const setState = (key: string, state: TtsState) => {
     if (mountedRef.current) setStates((prev) => ({ ...prev, [key]: state }));
   };
@@ -74,11 +106,11 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     releaseAudio(stop);
   }, []);
 
-  const play = useCallback(async (messageKey: string, text: string, model: string, voice: string): Promise<void> => {
+  const play = useCallback(async (messageKey: string, text: string, model: string, voice: string, opts: TtsPlayOptions = {}): Promise<void> => {
     if (currentRef.current === messageKey) return stop();
     const input = speakableText(text);
     if (!input) {
-      onNothingRef.current?.();
+      if (!opts.quietIfEmpty) onNothingRef.current?.();
       return;
     }
     stop();
@@ -87,23 +119,24 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     controllerRef.current = controller;
     currentRef.current = messageKey;
     setState(messageKey, "loading");
-    const element = (audioRef.current ??= createAudio());
-    primeAudioElement(element);
+    const audio = element();
+    primeAudioElement(audio);
     const fail = (err: unknown) => {
       currentRef.current = null;
       controllerRef.current = null;
-      element.onerror = null;
+      audio.onerror = null;
       releaseAudio(stop);
       setState(messageKey, "error");
-      onErrorRef.current?.(err);
+      (opts.onError ?? onErrorRef.current)?.(err);
     };
     const stale = () => controller.signal.aborted || currentRef.current !== messageKey;
     try {
       const key = ttsKey(model, voice, input);
       const url = cache.get(key) ?? cache.set(key, await synthesizeSpeech(api, { input, model, voice }, controller.signal));
       if (stale()) return;
-      element.src = url;
-      element.onended = () => {
+      audio.src = url;
+      applyPlaybackRate(audio); // 换 src 后再设一次(R8)
+      audio.onended = () => {
         if (currentRef.current === messageKey) {
           currentRef.current = null;
           controllerRef.current = null;
@@ -111,17 +144,17 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
           setState(messageKey, "idle");
         }
       };
-      element.onerror = () => {
+      audio.onerror = () => {
         if (currentRef.current !== messageKey) return;
         fail(new TtsPlaybackError());
       };
       setState(messageKey, "playing");
-      await element.play().catch((err: unknown) => { throw new TtsPlaybackError(err); });
+      await audio.play().catch((err: unknown) => { throw new TtsPlaybackError(err); });
     } catch (err) {
       if (stale()) return; // 被新的播放/停止/卸载中止,不算错误
       fail(err);
     }
-  }, [api, cache, stop]);
+  }, [api, cache, stop, element]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -137,7 +170,10 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
         element.onended = null;
         element.onerror = null;
       }
+      untrackRef.current?.();
+      untrackRef.current = null;
+      audioRef.current = null; // StrictMode 重新挂载时重新创建并登记
     };
   }, [stop]);
-  return { states, play, stop };
+  return { states, play, stop, prime };
 }

@@ -58,6 +58,21 @@ function truncateSafely(text: string, max: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
+// 句末:. ! ? 。 ! ? …,后面可跟引号/括号,再接空白(R7)
+const SENTENCE_END = /[.!?。!?…]["'”’)\]]*\s/g;
+
+/** 超长时在 max 之内最后一个句末截断;句末早于 max/2 时退回按码元的安全截断。 */
+export function truncateAtSentence(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const head = text.slice(0, max + 1); // 句末的空白恰好在第 max 位时也算
+  let cut = -1;
+  for (const m of head.matchAll(SENTENCE_END)) {
+    const end = (m.index ?? 0) + m[0].length - 1; // 空白的位置 = 句子长度
+    if (end <= max) cut = end;
+  }
+  return cut >= max / 2 ? text.slice(0, cut).trimEnd() : truncateSafely(text, max);
+}
+
 const HTML_TAG_OR_CODE =
   /(```[\s\S]*?```|`[^`\n]*`)|<\/?(?:b|i|u|em|strong|a|p|br|div|span|ul|ol|li|code|pre|h[1-6]|blockquote|table|tr|td|th|img|sup|sub)(?=[\s/>])(?:\s[^<>\n]{0,200})?\/?>/gi;
 
@@ -85,7 +100,7 @@ export function stripMarkdown(markdown: string): string {
 }
 
 export function speakableText(markdown: string): string {
-  return truncateSafely(stripMarkdown(markdown).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
+  return truncateAtSentence(stripMarkdown(markdown).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();

@@ -1,11 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { claimAudio } from "./audio-focus";
 import { TtsCache } from "./tts";
-import { TtsPlaybackError, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
+import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
+import { TtsPlaybackError, sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 
 function fakeAudio() {
   return { src: "", play: vi.fn(() => Promise.resolve()), pause: vi.fn(), onended: null as null | (() => void) } as unknown as HTMLAudioElement;
@@ -159,6 +160,60 @@ describe("useTtsPlayer", () => {
       const pauses = vi.mocked(audio.pause).mock.calls.length;
       act(() => claimAudio(vi.fn()));
       expect(vi.mocked(audio.pause).mock.calls.length).toBe(pauses);
+    });
+  });
+  describe("speed, priming and per-call options", () => {
+    const speech = () => createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    beforeEach(() => { localStorage.clear(); resetPlaybackRateForTests(); });
+
+    it("plays at the global speed with pitch preserved, and follows a change mid-playback", async () => {
+      setPlaybackRate(1.25);
+      const audio = fakeAudio() as HTMLAudioElement & { preservesPitch?: boolean };
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio }));
+      await act(() => result.current.play("m1", "Hello", "openai/tts-1", "alloy"));
+      expect([audio.playbackRate, audio.defaultPlaybackRate, audio.preservesPitch]).toEqual([1.25, 1.25, true]);
+      act(() => setPlaybackRate(0.75));
+      expect(audio.playbackRate).toBe(0.75);
+    });
+
+    it("stops following the speed after unmount", async () => {
+      const audio = fakeAudio();
+      const { result, unmount } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: () => audio }));
+      await act(() => result.current.play("m1", "Hello", "openai/tts-1", "alloy"));
+      unmount();
+      setPlaybackRate(1.25);
+      expect(audio.playbackRate).toBe(1);
+    });
+
+    it("prime() unlocks the element synchronously and reuses it for the next play", async () => {
+      const audio = fakeAudio();
+      const create = vi.fn(() => audio);
+      const { result } = renderHook(() => useTtsPlayer(apiFor(speech()), { cache: mkCache(), createAudio: create }));
+      act(() => result.current.prime());
+      expect(audio.play).toHaveBeenCalledTimes(1);
+      expect(audio.src).toBe("blob:silent");
+      await act(() => result.current.play("m1", "Hello", "openai/tts-1", "alloy"));
+      expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it("a per-call onError replaces the global one; quietIfEmpty skips the nothing-to-read callback", async () => {
+      const mock = createFetchMock({ "POST /api/ai/audio/speech": () => json({ error: "Upstream unavailable" }, 502) });
+      const global = vi.fn();
+      const nothing = vi.fn();
+      const local = vi.fn();
+      const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: fakeAudio, onError: global, onNothingToRead: nothing }));
+      await act(() => result.current.play("m1", "Hi", "openai/tts-1", "alloy", { onError: local }));
+      expect(local).toHaveBeenCalledTimes(1);
+      expect(global).not.toHaveBeenCalled();
+      await act(() => result.current.play("m2", "```js\nx()\n```", "openai/tts-1", "alloy", { quietIfEmpty: true }));
+      expect(nothing).not.toHaveBeenCalled();
+      await act(() => result.current.play("m3", "```js\nx()\n```", "openai/tts-1", "alloy"));
+      expect(nothing).toHaveBeenCalledTimes(1);
+    });
+
+    it("sharedAutoplayAudio is one element for the whole app", () => {
+      expect(sharedAutoplayAudio()).toBe(sharedAutoplayAudio());
+      expect(sharedAutoplayAudio()).toBeInstanceOf(HTMLAudioElement);
     });
   });
 });
