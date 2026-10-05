@@ -203,6 +203,58 @@ describe("TurnResults (assessment)", () => {
     expect(unhandled).not.toHaveBeenCalled();
   });
 
+  it("forget never deletes: open with a result, saving, and a late result", async () => {
+    const a = setup({ "POST /api/speech/assessments": () => json(ASSESSED) });
+    a.results.start("u1", { text: "I like it", wav: WAV });
+    await vi.waitFor(() => expect(a.changes).toHaveLength(2));
+    a.results.forget("u1");
+    a.results.abandonOpen();
+    a.results.abandon("u1");
+
+    const b = setup({ "POST /api/speech/assessments": () => json(ASSESSED) });
+    b.results.start("u1", { text: "I like it", wav: WAV });
+    await vi.waitFor(() => expect(b.changes).toHaveLength(2));
+    b.results.fieldsForSave("u1");
+    b.results.saveFailed("u1");
+    b.results.forget("u1");
+
+    const late = gated(() => json(ASSESSED));
+    const c = setup({ "POST /api/speech/assessments": late.handler });
+    c.results.start("u1", { text: "I like it", wav: WAV });
+    c.results.forget("u1");
+    late.release();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(c.changes).toEqual([["u1", { assessment: { status: "pending" } }]]); // 之后到达的结果被忽略
+
+    await new Promise((r) => setTimeout(r, 20));
+    for (const s of [a, b, c]) expect(s.mock.calls.filter((x) => x.method === "DELETE" || x.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("a throwing onChange cannot skip the late PATCH", async () => {
+    const assess = gated(() => json(ASSESSED));
+    const mock = createFetchMock({ "POST /api/speech/assessments": assess.handler, "PATCH /api/messages/m1": () => json({ id: "m1" }) });
+    const results = new TurnResults(new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), (_k, c) => {
+      if (c.assessment?.status === "done") throw new Error("ui boom");
+    });
+    results.start("u1", { text: "I like it", wav: WAV });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    assess.release();
+    await vi.waitFor(() => expect(mock.calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+  });
+
+  it("ignores a second saved() with a different message id", async () => {
+    const assess = gated(() => json(ASSESSED));
+    const { results, calls } = setup({ "POST /api/speech/assessments": assess.handler, "PATCH /api/messages/m2": () => json({ id: "m2" }) });
+    results.start("u1", { text: "I like it", wav: WAV });
+    results.fieldsForSave("u1");
+    await results.saved("u1", "m1");
+    await results.saved("u1", "m2");
+    assess.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+    expect(calls("PATCH", "/api/messages/m2")).toHaveLength(0);
+  });
+
   it("does not delete the assessment of a saved turn when abandon is called afterwards", async () => {
     const { results, changes, calls } = setup({ "POST /api/speech/assessments": () => json(ASSESSED) });
     results.start("u1", { text: "I like it", wav: WAV });
