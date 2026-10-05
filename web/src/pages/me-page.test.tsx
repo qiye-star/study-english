@@ -17,7 +17,7 @@ const ROUTES = {
 };
 
 describe("MePage", () => {
-  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); });
+  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
   it("shows the account, server services and logs out", async () => {
     const mock = createFetchMock(ROUTES);
     const logout = vi.fn();
@@ -49,7 +49,6 @@ describe("MePage", () => {
     expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue("RULES");
   });
   it("sets the read-aloud speed", async () => {
-    resetPlaybackRateForTests();
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     const select = screen.getByTestId("me-playback-rate");
     expect(select).toHaveValue("1");

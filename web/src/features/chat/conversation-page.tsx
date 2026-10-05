@@ -154,8 +154,10 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const configRef = useRef<ConversationConfig | null>(null);
   const voiceStateRef = useRef<VoiceTurnState>("idle");
   // 契约:prime/stop/play 来自同一个、本页唯一驱动 sharedAutoplayAudio() 的播放器 tts
+  // 开关保存期间的本地乐观值:关闭立刻生效,不等 PATCH 返回;保存结束(成功或失败)后清除
+  const autoSpeakOverrideRef = useRef<boolean | null>(null);
   const autoSpeak = useAutoSpeak({
-    isEnabled: () => chatOptions(conversationRef.current?.config).autoSpeak,
+    isEnabled: () => autoSpeakOverrideRef.current ?? chatOptions(conversationRef.current?.config).autoSpeak,
     voiceIdle: () => voiceStateRef.current === "idle",
     hasVoice: () => !!configRef.current?.ttsModel,
     prime: tts.prime,
@@ -616,17 +618,24 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   };
 
   const [autoSpeakSaving, setAutoSpeakSaving] = useState(false);
+  const [autoSpeakOptimistic, setAutoSpeakOptimistic] = useState<boolean | null>(null);
   const autoSpeakBusyRef = useRef(false);
   const toggleAutoSpeak = () => {
     if (autoSpeakBusyRef.current || !conversation) return;
     autoSpeakBusyRef.current = true;
     setAutoSpeakSaving(true);
-    const next = !options.autoSpeak;
+    const next = !(autoSpeakOverrideRef.current ?? options.autoSpeak);
+    autoSpeakOverrideRef.current = next;
+    setAutoSpeakOptimistic(next);
     if (!next) stopTts(); // 关掉时正在读的也停下
     // 与双语开关同一规则:只写入已存配置 + 这个键
     void saveSettings({ ...conversation.config, autoSpeak: next })
       .catch((): void => undefined)
-      .finally(() => { autoSpeakBusyRef.current = false; if (mountedRef.current) setAutoSpeakSaving(false); });
+      .finally(() => {
+        autoSpeakBusyRef.current = false;
+        autoSpeakOverrideRef.current = null; // 成功:已存配置已是新值;失败:回退
+        if (mountedRef.current) { setAutoSpeakSaving(false); setAutoSpeakOptimistic(null); }
+      });
   };
 
   // 服务端 PATCH 整体替换 config:始终以已存配置为底,只叠加用户改动的键,绝不写入带默认值的整份草稿
@@ -647,7 +656,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")} back="/chat"
         actions={
-          <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={options.autoSpeak}
+          <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)} />
         } />

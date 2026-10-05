@@ -2194,6 +2194,58 @@ describe("ConversationPage", () => {
       expect(bodyOf(configPatches(mock)[0]).config).toEqual({ ...CONFIG, auto_speak: false });
     });
 
+    it("turning auto-read off takes effect at once: a reply finishing before the save returns is not read", async () => {
+      const reply = gate();
+      const save = gate();
+      const { mock } = setup(replyRoutes("Too late.", {
+        "POST /api/ai/chat/completions": async () => { await reply.promise; return sse([delta("Too late."), DONE_EVENT]); },
+        "PATCH /api/conversations/c1": async (call) => {
+          const body = bodyOf(call);
+          if (!body.config) return json({ id: "c1", name: body.name ?? "Hi", config: CONFIG });
+          await save.promise;
+          return json({ id: "c1", name: "Hi", config: body.config });
+        },
+      }));
+      await screen.findByText("reply");
+      await say("Hi");
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await act(async () => { reply.release(); });
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Too late."));
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(0);
+      await act(async () => { save.release(); });
+      await waitFor(() => expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false"));
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(0);
+    });
+
+    it("a failed save of the switch reverts it, and replies are read again", async () => {
+      const { mock } = setup(replyRoutes("Back on.", {
+        "PATCH /api/conversations/c1": (call) => (bodyOf(call).config ? json({ error: "boom" }, 500) : json({ id: "c1", name: "Hi", config: CONFIG })),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await waitFor(() => expect(configPatches(mock)).toHaveLength(1));
+      await waitFor(() => expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true"));
+      await say("Hi");
+      await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
+    });
+
+    it("a reply to a voice message is read once", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(replyRoutes("Voice reply.", {
+        "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+        "POST /api/speech/assessments": () => json(ASSESSED),
+      }), fake.env);
+      await screen.findByText("reply");
+      await recordAndSend();
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Voice reply."));
+      await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(1);
+      expect(bodyOf(speechCalls(mock)[0]).input).toBe("Voice reply.");
+    });
+
     it("the speed button cycles and applies to the shared player at once", async () => {
       setup(routes());
       await screen.findByText("reply");
