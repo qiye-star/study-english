@@ -174,6 +174,7 @@ export async function startRecording(options: { maxDurationMs?: number; env?: Re
       finish("user");
       return result;
     },
-    cancel: () => finish("user"),
+    // 已在停止中(等 stop 事件)时 cancel 要立刻释放麦克风,不等事件/兜底定时器
+    cancel: () => (stopping ? onStop() : finish("user")),
   };
 }

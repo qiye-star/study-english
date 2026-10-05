@@ -37,8 +37,11 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
     return () => {
       mounted.current = false;
       const current = session.current;
+      const pendingStop = stopping.current;
       session.current = null; // 先清空,结果处理器的守卫才会跳过(不再 setState / onAutoStop)
+      stopping.current = null;
       current?.cancel();
+      pendingStop?.cancel(); // 停止中卸载:即使 stop 永不完成也要释放麦克风
     };
   }, []);
 
@@ -66,7 +69,8 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
           autoStop.current?.(result);
         },
         (err) => {
-          if (session.current === current) session.current = null;
+          if (session.current !== current) return; // 已被 stop/cancel 接管
+          session.current = null;
           setState("idle");
           setError(asRecorderError(err));
         },
@@ -95,8 +99,11 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
       if (stopping.current === current && mounted.current) setError(asRecorderError(err));
       return null;
     } finally {
-      if (stopping.current === current) stopping.current = null;
-      if (mounted.current) setState("idle");
+      // 只有仍拥有该会话时才改状态;被 cancel 后新的 start() 可能已进入 recording
+      if (stopping.current === current) {
+        stopping.current = null;
+        if (mounted.current) setState("idle");
+      }
     }
   }, []);
 

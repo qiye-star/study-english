@@ -120,4 +120,35 @@ describe("useRecorder", () => {
     expect(result.current.error).toBeNull();
     expect(onAutoStop).not.toHaveBeenCalled();
   });
+
+  it("a stale stop() settling after cancel + new start does not force idle", async () => {
+    const fake = createFakeRecorderEnv();
+    const { result } = renderHook(() => useRecorder({ env: fake.env, maxDurationMs: 0 }));
+    await act(async () => { await result.current.start(); });
+    fake.behavior.silentStop = true; // old stop stays pending until the fallback timer fires
+    let stopped: Promise<unknown>;
+    act(() => { stopped = result.current.stop(); });
+    act(() => result.current.cancel());
+    fake.behavior.silentStop = false;
+    await act(async () => { expect(await result.current.start()).toBe(true); });
+    expect(result.current.state).toBe("recording");
+    await act(async () => { fake.fireTimer(); expect(await stopped!).toBeNull(); });
+    expect(result.current.state).toBe("recording");
+    expect(fake.recorders[1].state).toBe("recording");
+    let recording: Awaited<ReturnType<typeof result.current.stop>> = null;
+    await act(async () => { recording = await result.current.stop(); });
+    expect(recording!.stoppedBy).toBe("user");
+    expect(result.current.state).toBe("idle");
+  });
+
+  it("unmounting while stopping releases the microphone even if stop never completes", async () => {
+    const fake = createFakeRecorderEnv();
+    const { result, unmount } = renderHook(() => useRecorder({ env: fake.env }));
+    await act(async () => { await result.current.start(); });
+    fake.behavior.silentStop = true;
+    act(() => { void result.current.stop(); });
+    expect(fake.track.stop).not.toHaveBeenCalled();
+    unmount();
+    expect(fake.track.stop).toHaveBeenCalled();
+  });
 });

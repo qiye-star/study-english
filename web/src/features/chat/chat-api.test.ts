@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import en from "./i18n/en.json";
+import zh from "./i18n/zh-CN.json";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { CHAT_SERVER_ERRORS, createConversation, createMessages, patchMessage, deleteConversation, deleteMessage, listConversations, listMessages, updateConversation } from "./chat-api";
@@ -61,15 +63,15 @@ describe("chat api", () => {
     expect(JSON.parse(mock.calls[1].body as string)).toEqual({ assessment_id: "a1" });
   });
 
-  it("has translated keys for every new server error", async () => {
-    const en = (await import("./i18n/en.json")).default as unknown as Record<string, unknown>;
-    const zh = (await import("./i18n/zh-CN.json")).default as unknown as Record<string, unknown>;
+  it("has translated keys for every server error", () => {
     const lookup = (tree: Record<string, unknown>, key: string) => key.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], tree);
-    for (const msg of ["Message not found", "Assessment not found", "Assessment already linked to another message", "Invalid grammar result", "Only user messages can carry assessment or grammar"]) {
-      const key = CHAT_SERVER_ERRORS[msg];
-      expect(key, msg).toBeTruthy();
-      expect(typeof lookup(en, key), key).toBe("string");
-      expect(typeof lookup(zh, key), key).toBe("string");
+    for (const [msg, key] of Object.entries(CHAT_SERVER_ERRORS)) {
+      for (const tree of [en, zh] as Array<Record<string, unknown>>) {
+        const text = lookup(tree, key);
+        expect(typeof text, `${msg} -> ${key}`).toBe("string");
+        expect(text, `${msg} -> ${key}`).not.toBe(msg);
+        expect(text, key).not.toBe(key);
+      }
     }
   });
 });
