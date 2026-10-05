@@ -1616,4 +1616,36 @@ describe("ConversationPage", () => {
       expect(await screen.findByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix");
     });
   });
+
+  describe("coach mode", () => {
+    const history = { messages: [
+      { id: "m1", conversation_id: "c1", role: "user", content: "I sink so", assessment_id: "a1",
+        assessment: { id: "a1", scores: { pronunciation_score: 61, accuracy_score: 60, fluency_score: 70, completeness_score: 90 },
+          words: [{ word: "sink", accuracy_score: 30, error_type: "Mispronunciation" }] }, grammar: null as null },
+      { id: "m2", conversation_id: "c1", role: "assistant", content: "Why?", assessment_id: null, assessment: null, grammar: null },
+    ] };
+    const run = async (coachMode: boolean) => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config: { ...CONFIG, coach_mode: coachMode, grammar_check: false } }),
+        "GET /api/conversations/c1/messages": () => json(history),
+        "POST /api/ai/chat/completions": () => sse([delta("OK"), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m3" }, { id: "m4" }] }),
+      }));
+      await screen.findByText("Why?");
+      await userEvent.type(screen.getByTestId("chat-input"), "Because it is late");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
+      return JSON.parse(callsTo(mock, "POST", "/api/ai/chat/completions")[0].body as string).messages[0].content as string;
+    };
+
+    it("tells the AI about the previous message's mispronounced words", async () => {
+      const system = await run(true);
+      expect(system.startsWith("SYS\n\n")).toBe(true);
+      expect(system).toContain("sink");
+    });
+
+    it("adds nothing when coach mode is off", async () => {
+      expect(await run(false)).toBe("SYS");
+    });
+  });
 });

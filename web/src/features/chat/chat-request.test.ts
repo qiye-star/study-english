@@ -31,4 +31,10 @@ describe("chat request helpers", () => {
     expect(displayName({ name: "New conversation" } as never, "Untitled")).toBe("Untitled");
     expect(displayName({ name: "Trip" } as never, "Untitled")).toBe("Trip");
   });
+  it("appends a coaching note to the system prompt", () => {
+    const cfg = { ...defaultConversationConfig(AI), systemPrompt: "SYS" };
+    expect(buildChatMessages(cfg, [], "hi", 20, "NOTE")[0]).toEqual({ role: "system", content: "SYS\n\nNOTE" });
+    expect(buildChatMessages({ ...cfg, systemPrompt: " " }, [], "hi", 20, "NOTE")[0]).toEqual({ role: "system", content: "NOTE" });
+    expect(buildChatMessages(cfg, [], "hi", 20, null)[0]).toEqual({ role: "system", content: "SYS" });
+  });
 });

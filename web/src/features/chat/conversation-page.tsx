@@ -21,7 +21,8 @@ import {
   type ChatMessage, type Conversation, type ConversationConfig, type MessageResultFields,
 } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
-import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
+import { coachCandidates, coachNote } from "./coach";
+import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTail, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
@@ -447,10 +448,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       if (abortRef.current === controller) busyRef.current = false;
       if (live()) setSending(false);
     };
+    const current = messagesRef.current.find((m) => m.key === userKey);
+    const coach = optionsRef.current.coachMode ? coachNote(coachCandidates(base, current)) : null;
     let reply = "";
     try {
       reply = await streamChatCompletion(api,
-        { messages: buildChatMessages(config, history, content), model: config.model, temperature: config.temperature },
+        { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, coach), model: config.model, temperature: config.temperature },
         (full) => patch(botKey, { content: full }), controller.signal);
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
       patch(botKey, { content: reply, status: "done" });

@@ -27,10 +27,14 @@ export function buildChatMessages(
   history: Array<Pick<ChatMessage, "role" | "content">>,
   userText: string,
   limit = HISTORY_LIMIT,
+  coach: string | null = null,
 ): ChatMessageInput[] {
   const recent = history.filter((m) => m.role !== "system").slice(-limit);
+  const system = coach ? (config.systemPrompt.trim() ? `${config.systemPrompt}
+
+${coach}` : coach) : config.systemPrompt;
   return [
-    ...(config.systemPrompt.trim() ? [{ role: "system" as const, content: config.systemPrompt }] : []),
+    ...(system.trim() ? [{ role: "system" as const, content: system }] : []),
     ...recent.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userText },
   ];
