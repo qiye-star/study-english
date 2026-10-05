@@ -32,23 +32,38 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
   const progressRef = useRef<CreationProgress>({});
   const choiceRef = useRef<ScenarioChoice | null>(null);
   const mounted = useRef(true);
+  const apiRef = useRef(api);
+  apiRef.current = api;
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      // 卸载时(返回/切路由)尽力删掉开场白没保存的空会话;创建中的由 run 收尾
+      const progress = progressRef.current;
+      if (!busyRef.current && progress.openingPending) {
+        progressRef.current = {};
+        void discardUnfinished(apiRef.current, progress);
+      }
+    };
   }, []);
-  useEffect(() => { if (open) setError(null); }, [open]);
 
-  const run = async () => {
+  const run = async (discarding?: Promise<void>) => {
     const choice = choiceRef.current;
     if (!choice) return;
     setBusy(true);
     setError(null);
+    const progress = progressRef.current;
     try {
-      const created = await runScenarioCreation(api, choice, progressRef.current);
+      await discarding; // 先删掉上一次没完成的空会话,避免占用会话上限
+      const created = await runScenarioCreation(api, choice, progress);
       progressRef.current = {};
       if (mounted.current) onCreated(created.conversation.id, created.openingId);
     } catch (err) {
-      if (!mounted.current) return;
+      if (!mounted.current) {
+        progressRef.current = {};
+        void discardUnfinished(api, progress);
+        return;
+      }
       const opening = err instanceof OpeningNotSavedError;
       if (!opening) progressRef.current = {};
       setError({ text: opening ? t("web.chat.scenarios.openingFailed") : translateServerError(t, err, CHAT_SERVER_ERRORS), opening });
@@ -62,9 +77,14 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
     if (busyRef.current) return;
     busyRef.current = true;
     primeAudioElement(sharedAutoplayAudio()); // R5:点击的同步阶段、任何 await 之前;会话页用同一元素读开场白
+    const previous = progressRef.current;
     progressRef.current = {};
     choiceRef.current = choice;
-    void run();
+    // 开场白失败后改选别的场景:先丢弃上一个空会话(R10)
+    const discarding = previous.openingPending
+      ? discardUnfinished(api, previous).then(() => { if (mounted.current) onDiscarded?.(); })
+      : undefined;
+    void run(discarding);
   };
 
   const retry = () => {
@@ -79,7 +99,8 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
     if (busyRef.current) return; // 创建中不关闭,避免留下半成品
     const progress = progressRef.current;
     progressRef.current = {};
-    if (progress.openingPending) void discardUnfinished(api, progress).then(() => onDiscarded?.());
+    setError(null); // 关闭时就清掉,重新打开的第一帧不会闪出旧错误
+    if (progress.openingPending) void discardUnfinished(api, progress).then(() => { if (mounted.current) onDiscarded?.(); });
     onOpenChange(false);
   };
 

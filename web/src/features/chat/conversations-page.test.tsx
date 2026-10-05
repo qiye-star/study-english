@@ -220,6 +220,76 @@ describe("ConversationsPage", () => {
     expect(screen.getByTestId("scenario-sheet")).toBeInTheDocument();
   });
 
+  it("picking another scenario after a failed opening deletes the empty conversation before creating the new one", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": (call) => json(conv(JSON.parse(call.body as string).config.scenario.id === "hotel" ? "c9" : "c10", "x")),
+      "POST /api/conversations/c9/messages": () => json({ error: "Message limit reached" }, 429),
+      "POST /api/conversations/c10/messages": () => json({ messages: [{ id: "m10" }] }),
+      "DELETE /api/conversations/c9": () => json({ id: "c9" }),
+    });
+    page(mock);
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-hotel"));
+    await screen.findByTestId("scenario-error");
+    await userEvent.click(screen.getByTestId("scenario-cafe"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c10"));
+    const seq = mock.calls.map((c) => `${c.method} ${c.url.pathname}`);
+    expect(seq.indexOf("DELETE /api/conversations/c9")).toBeGreaterThan(-1);
+    expect(seq.indexOf("DELETE /api/conversations/c9")).toBeLessThan(seq.lastIndexOf("POST /api/conversations"));
+    expect(seq.filter((s) => s === "POST /api/conversations")).toHaveLength(2);
+    await waitFor(() => expect(mock.calls.filter((c) => c.method === "GET" && c.url.pathname === "/api/conversations")).toHaveLength(2));
+  });
+
+  it("unmounting with an unsaved opening deletes the empty conversation", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": () => json(conv("c9", "Hotel check-in")),
+      "POST /api/conversations/c9/messages": () => json({ error: "Message limit reached" }, 429),
+      "DELETE /api/conversations/c9": () => json({ id: "c9" }),
+    });
+    const view = page(mock);
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-hotel"));
+    await screen.findByTestId("scenario-error");
+    view.unmount();
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "DELETE" && c.url.pathname === "/api/conversations/c9")).toBe(true));
+  });
+
+  it("unmounting mid-creation, then the opening failing, still deletes the empty conversation", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": () => json(conv("c9", "Hotel check-in")),
+      "POST /api/conversations/c9/messages": async () => { await gate; return json({ error: "Message limit reached" }, 429); },
+      "DELETE /api/conversations/c9": () => json({ id: "c9" }),
+    });
+    const view = page(mock);
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-hotel"));
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname.endsWith("/messages"))).toBe(true));
+    view.unmount();
+    release();
+    await waitFor(() => expect(mock.calls.filter((c) => c.method === "DELETE")).toHaveLength(1));
+  });
+
+  it("reopening the panel after a failure does not show the old error", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": () => json({ error: "Conversation limit reached" }, 429),
+    });
+    page(mock);
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-cafe"));
+    await screen.findByTestId("scenario-error");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("scenario-sheet")).toBeNull());
+    await userEvent.click(screen.getByTestId("conversation-new"));
+    expect(await screen.findByTestId("scenario-sheet")).toBeInTheDocument();
+    expect(screen.queryByTestId("scenario-error")).toBeNull();
+  });
+
   it("the scenario panel's controls have accessible names", async () => {
     page(createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) }));
     await userEvent.click(await screen.findByTestId("conversation-new"));
