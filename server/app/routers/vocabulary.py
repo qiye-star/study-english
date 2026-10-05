@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api")
 ItemId = Annotated[str, Path(max_length=64)]
 NOT_FOUND = "Vocabulary item not found"
 NOT_DUE = "Vocabulary item is not due"
+ALREADY_REVIEWED = "Vocabulary item was already reviewed"
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -174,12 +175,12 @@ async def review_vocabulary_item(
     now = utcnow()
     if _as_utc(row.due_at) > now:
         raise HTTPException(409, NOT_DUE)
-    item_pk = row.id
-    applied = await apply_review(session, user.id, item_pk, seen_box=row.box, seen_reps=row.reps, grade=payload.grade, now=now)
+    item_pk, user_pk = row.id, user.id  # 读出来:rollback 会让 ORM 对象过期,之后不能再懒加载
+    applied = await apply_review(session, user_pk, item_pk, seen_box=row.box, seen_reps=row.reps, grade=payload.grade, now=now)
     if not applied:
         await session.rollback()
-        still = await session.scalar(select(VocabularyItem.id).where(VocabularyItem.id == item_pk, VocabularyItem.user_id == user.id))
-        raise HTTPException(404, NOT_FOUND) if still is None else HTTPException(409, NOT_DUE)
+        still = await session.scalar(select(VocabularyItem.id).where(VocabularyItem.id == item_pk, VocabularyItem.user_id == user_pk))
+        raise HTTPException(404, NOT_FOUND) if still is None else HTTPException(409, ALREADY_REVIEWED)
     await session.commit()
     fresh = await session.scalar(
         select(VocabularyItem).where(VocabularyItem.id == item_pk).execution_options(populate_existing=True)

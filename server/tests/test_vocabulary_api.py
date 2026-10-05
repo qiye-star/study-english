@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import update
 
 from app.models import VocabularyItem, utcnow
+import app.routers.vocabulary as vocab_router
 from app.routers.vocabulary import apply_review
 
 URL = "/api/vocabulary"
@@ -12,6 +13,7 @@ TICK = 0.02  # Windows 时钟精度约 15 ms
 KEYS = {"id", "word", "meaning", "example", "source", "box", "due_at", "reps", "lapses", "last_reviewed_at", "created_at"}
 NOT_FOUND = {"error": "Vocabulary item not found"}
 NOT_DUE = {"error": "Vocabulary item is not due"}
+REVIEWED = {"error": "Vocabulary item was already reviewed"}
 
 
 async def register(client, username):
@@ -201,3 +203,59 @@ async def test_review_before_due_is_409_and_changes_nothing(app, client, auth_he
     assert r.status_code == 409 and r.json() == NOT_DUE
     stored = (await client.get(URL, headers=auth_headers)).json()["vocabulary_items"][0]
     assert (stored["reps"], stored["box"], stored["last_reviewed_at"]) == (0, 0, None)
+
+
+async def test_route_stale_guard_returns_already_reviewed_and_rolls_back(app, client, auth_headers, monkeypatch):
+    item = (await add(client, auth_headers, "apple")).json()
+
+    async def lose(session, user_id, item_id, **kw):
+        await session.execute(update(VocabularyItem).where(VocabularyItem.id == item_id).values(reps=99))
+        return False
+
+    monkeypatch.setattr(vocab_router, "apply_review", lose)
+    r = await review(client, auth_headers, item["id"], "good")
+    assert r.status_code == 409 and r.json() == REVIEWED
+    stored = (await client.get(URL, headers=auth_headers)).json()["vocabulary_items"][0]
+    assert (stored["reps"], stored["box"], stored["last_reviewed_at"]) == (0, 0, None)
+
+
+async def test_route_row_deleted_between_read_and_update_is_404(client, auth_headers, monkeypatch):
+    from sqlalchemy import delete
+
+    item = (await add(client, auth_headers, "apple")).json()
+
+    async def vanish(session, user_id, item_id, **kw):
+        await session.execute(delete(VocabularyItem).where(VocabularyItem.id == item_id))
+        await session.commit()
+        return False
+
+    monkeypatch.setattr(vocab_router, "apply_review", vanish)
+    r = await review(client, auth_headers, item["id"], "good")
+    assert r.status_code == 404 and r.json() == NOT_FOUND
+
+
+async def test_due_count_ignores_pagination_and_the_due_filter(app, client, auth_headers):
+    ids = [(await add(client, auth_headers, w)).json()["id"] for w in ("a1", "a2", "a3", "a4")]
+    await set_due(app, ids[3], utcnow() + timedelta(days=5))
+    p2 = (await client.get(URL, headers=auth_headers, params={"due": "true", "per_page": 2, "page": 2})).json()
+    assert len(p2["vocabulary_items"]) == 1 and p2["next"] is None and p2["due_count"] == 3
+    allp = (await client.get(URL, headers=auth_headers, params={"per_page": 1, "page": 4})).json()
+    assert allp["due_count"] == 3
+
+
+async def test_due_boundary_is_inclusive(app, client, auth_headers, monkeypatch):
+    now = utcnow()
+    monkeypatch.setattr(vocab_router, "utcnow", lambda: now)
+    exact = (await add(client, auth_headers, "exact")).json()
+    early = (await add(client, auth_headers, "early")).json()
+    late = (await add(client, auth_headers, "late")).json()
+    micro = timedelta(microseconds=1)
+    await set_due(app, exact["id"], now)
+    await set_due(app, early["id"], now - micro)
+    await set_due(app, late["id"], now + micro)
+    due = (await client.get(URL, headers=auth_headers, params={"due": "true"})).json()
+    assert [i["word"] for i in due["vocabulary_items"]] == ["early", "exact"] and due["due_count"] == 2
+    assert (await review(client, auth_headers, late["id"], "good")).status_code == 409
+    assert (await review(client, auth_headers, late["id"], "good")).json() == NOT_DUE
+    assert (await review(client, auth_headers, exact["id"], "good")).status_code == 200
+    assert (await review(client, auth_headers, early["id"], "good")).status_code == 200
