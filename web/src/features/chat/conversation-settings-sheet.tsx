@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { Switch } from "@renderer/components/ui/switch";
@@ -10,12 +10,26 @@ import type { ConversationConfig } from "./chat-api";
 
 const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base";
 
+const OPTIONAL_STRINGS = new Set(["model", "ttsModel", "ttsVoice"]);
+
+/** 草稿相对打开时种子的差异;模型/语音被改成空串时记为 undefined(清除),绝不发送空串 */
+function diffConfig(seed: ConversationConfig, draft: ConversationConfig): Partial<ConversationConfig> {
+  const changes: Record<string, unknown> = {};
+  for (const key of Object.keys(draft) as Array<keyof ConversationConfig>) {
+    if (draft[key] === seed[key]) continue;
+    const value = draft[key];
+    changes[key] = OPTIONAL_STRINGS.has(key) && value === "" ? undefined : value;
+  }
+  return changes as Partial<ConversationConfig>;
+}
+
 export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSave }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   config: ConversationConfig;
   ai: ServerAiConfig | null;
-  onSave(next: ConversationConfig): Promise<void>;
+  /** 只含用户在面板里改动过的键;值为 undefined 表示清除该键(回到服务端默认) */
+  onSave(changes: Partial<ConversationConfig>): Promise<void>;
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(config);
@@ -23,13 +37,15 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   // 仅在打开时(false -> true)重置草稿;父组件重渲染产生的新 config 对象不能冲掉用户正在输入的内容
   const configRef = useRef(config);
   configRef.current = config;
-  useEffect(() => { if (open) setDraft(configRef.current); }, [open]);
+  const seedRef = useRef(config);
+  useEffect(() => { if (open) { seedRef.current = configRef.current; setDraft(configRef.current); } }, [open]);
+  const uid = useId();
   const voices = ai ? voicesFor(ai, draft.ttsModel) : [];
 
   const save = async () => {
     setSaving(true);
     try {
-      await onSave(draft);
+      await onSave(diffConfig(seedRef.current, draft));
       onOpenChange(false);
     } catch {
       // 保存失败:保持面板打开,错误提示由 onSave 负责
@@ -80,22 +96,22 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             <Switch data-testid="settings-bilingual" checked={draft.bilingual === true}
               onCheckedChange={(checked) => setDraft({ ...draft, bilingual: checked })} />
           </label>
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+          <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>
-              {t("web.chat.settingsForm.grammarCheck")}
-              <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.grammarCheckHint")}</span>
+              <label htmlFor={`${uid}-grammar-check`}>{t("web.chat.settingsForm.grammarCheck")}</label>
+              <span id={`${uid}-grammar-check-hint`} className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.grammarCheckHint")}</span>
             </span>
-            <Switch data-testid="settings-grammar-check" checked={draft.grammarCheck !== false}
+            <Switch id={`${uid}-grammar-check`} aria-describedby={`${uid}-grammar-check-hint`} data-testid="settings-grammar-check" checked={draft.grammarCheck !== false}
               onCheckedChange={(checked) => setDraft({ ...draft, grammarCheck: checked })} />
-          </label>
-          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+          </div>
+          <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>
-              {t("web.chat.settingsForm.coachMode")}
-              <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.coachModeHint")}</span>
+              <label htmlFor={`${uid}-coach-mode`}>{t("web.chat.settingsForm.coachMode")}</label>
+              <span id={`${uid}-coach-mode-hint`} className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.coachModeHint")}</span>
             </span>
-            <Switch data-testid="settings-coach-mode" checked={draft.coachMode === true}
+            <Switch id={`${uid}-coach-mode`} aria-describedby={`${uid}-coach-mode-hint`} data-testid="settings-coach-mode" checked={draft.coachMode === true}
               onCheckedChange={(checked) => setDraft({ ...draft, coachMode: checked })} />
-          </label>
+          </div>
           <Button data-testid="settings-save" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
             {t("web.chat.settingsForm.save")}
           </Button>

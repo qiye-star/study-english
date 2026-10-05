@@ -176,6 +176,51 @@ describe("ConversationPage", () => {
     expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ grammar_check: false, coach_mode: true, system_prompt: "SYS" });
   });
 
+  describe("settings sheet saves only what changed", () => {
+    const patchBody = (mock: { calls: Array<{ method: string; body?: unknown }> }) =>
+      JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config;
+
+    it("before the AI config loads: stored keys + the changed key, no model/tts keys or empty strings", async () => {
+      const never = () => new Promise<Response>(() => {});
+      const { mock } = setup(routes({
+        "GET /api/config/gpt_providers": never, "GET /api/config/default_gpt_preset": never,
+        "GET /api/config/tts_providers_v2": never, "GET /api/config/default_tts_preset": never,
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS", temperature: 0.7 } }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS", coach_mode: true } }),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(screen.getByTestId("settings-coach-mode"));
+      await userEvent.click(screen.getByTestId("settings-save"));
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      const config = patchBody(mock);
+      expect(config).toEqual({ system_prompt: "SYS", temperature: 0.7, coach_mode: true });
+      for (const k of ["model", "tts_model", "tts_voice", "grammar_check"]) expect(k in config).toBe(false);
+    });
+
+    it("sends a changed model", async () => {
+      const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await waitFor(() => expect(screen.getByTestId("settings-model").querySelectorAll("option").length).toBeGreaterThan(2));
+      await userEvent.selectOptions(screen.getByTestId("settings-model"), "gpt-4o-mini");
+      await userEvent.click(screen.getByTestId("settings-save"));
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      expect(patchBody(mock)).toEqual({ ...CONFIG, model: "gpt-4o-mini" });
+    });
+
+    it("does not write untouched grammar check / coach mode defaults", async () => {
+      const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await waitFor(() => expect(screen.getByTestId("settings-tts-voice").querySelectorAll("option")).toHaveLength(2));
+      await userEvent.selectOptions(screen.getByTestId("settings-tts-voice"), "echo");
+      await userEvent.click(screen.getByTestId("settings-save"));
+      await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
+      expect(Object.keys(patchBody(mock)).sort()).toEqual(["model", "system_prompt", "temperature", "tts_model", "tts_voice"]);
+    });
+  });
+
   it("discards a partially streamed reply on failure: error bubble replaces it, nothing is saved", async () => {
     const { mock } = setup(routes({
       "POST /api/ai/chat/completions": () => sse([delta("Half an ans"), 'data: {"error": "Upstream unavailable"}\n\n']),

@@ -28,6 +28,13 @@ describe("ConversationSettingsSheet", () => {
     await userEvent.click(screen.getByTestId("settings-grammar-check"));
     await userEvent.click(screen.getByTestId("settings-coach-mode"));
     await userEvent.click(screen.getByTestId("settings-save"));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ grammarCheck: false, coachMode: true }));
+    expect(onSave).toHaveBeenCalledWith({ grammarCheck: false, coachMode: true });
+  });
+
+  it("emits only changed keys and never an empty model/voice", async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={onSave} config={{ ...base, model: "", ttsModel: "", ttsVoice: "" }} />);
+    await userEvent.click(screen.getByTestId("settings-save"));
+    expect(onSave).toHaveBeenCalledWith({});
   });
 });

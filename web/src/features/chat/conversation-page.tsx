@@ -573,9 +573,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       .finally(() => { bilingualBusyRef.current = false; if (mountedRef.current) setBilingualSaving(false); });
   };
 
-  const saveSettings = async (next: ConversationConfig) => {
+  // 服务端 PATCH 整体替换 config:始终以已存配置为底,只叠加用户改动的键,绝不写入带默认值的整份草稿
+  const saveSettings = async (changes: Partial<ConversationConfig>) => {
     try {
-      setConversation(await updateConversation(api, id, { config: next }));
+      const stored = conversation?.config ?? {};
+      setConversation(await updateConversation(api, id, { config: { ...stored, ...changes } as ConversationConfig }));
     } catch (err) {
       toast.error(translateServerError(t, err, CHAT_SERVER_ERRORS));
       throw err;
