@@ -58,15 +58,24 @@ function truncateSafely(text: string, max: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
-/** 去掉 Markdown 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。 */
+/**
+ * 去掉 Markdown / 类 HTML 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。
+ * 只剥真正的标记:强调符须成对且位于词边界,`>`/`#` 只在行首作引用/标题标记,不误伤 snake_case、C#、a > b、5 * 3。
+ * 所有量词都有上界或不跨行,保证对 100KB 级输入是线性的。
+ */
 export function stripMarkdown(markdown: string): string {
   return markdown
+    .replace(/<\/?[A-Za-z][^<>]*>/g, "")
     .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
-    .replace(/[*_~>#|]/g, "");
+    .replace(/`([^`\n]*)`/g, "$1")
+    .replace(/!\[[^\]\n]{0,500}\]\([^)\n]{0,1000}\)/g, " ")
+    .replace(/\[([^\]\n]{0,500})\]\([^)\n]{0,1000}\)/g, "$1")
+    .replace(/^[ \t]{0,3}(?:(?:#{1,6}|[-*+]|\d+\.)[ \t]+|>[ \t]?)+/gm, "")
+    .replace(/~~([^~\n]+?)~~/g, "$1")
+    .replace(/\*\*([^*\n]+?)\*\*/g, "$1")
+    .replace(/(?<![A-Za-z0-9_])__([^_\n]+?)__(?![A-Za-z0-9_])/g, "$1")
+    .replace(/(?<![\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, "$1")
+    .replace(/(?<![A-Za-z0-9_])_(?=\S)([^_\n]*?\S)_(?![A-Za-z0-9_])/g, "$1");
 }
 
 export function speakableText(markdown: string): string {

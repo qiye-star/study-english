@@ -8,7 +8,10 @@ const CLOSERS = "\"'”’)]";
 const OPENERS = /[A-Z0-9"“'‘([]/;
 
 function isAbbreviation(line: string, dot: number): boolean {
-  const token = line.slice(0, dot).match(/([A-Za-z.]+)$/)?.[1] ?? "";
+  let from = dot; // 自 dot 向前线性回溯取字母/点,避免每个句点都从头重扫
+  while (from > 0 && dot - from <= 10 && /[A-Za-z.]/.test(line[from - 1])) from--;
+  if (dot - from > 10) return false; // 比任何已知缩写都长
+  const token = line.slice(from, dot);
   if (!token) return false;
   const lower = token.toLowerCase();
   return ABBREVIATIONS.has(lower) || /^[a-z]$/.test(lower); // 单个字母:姓名缩写 J. K.

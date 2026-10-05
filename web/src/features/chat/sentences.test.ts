@@ -22,4 +22,15 @@ describe("splitSentences", () => {
   ])("%s", (input, expected) => {
     expect(splitSentences(input)).toEqual(expected);
   });
+
+  it.each<[string, string]>([
+    ["Hi. x25000", "Hi. ".repeat(25000)],
+    ["Hello world. x7700", "Hello world. ".repeat(7700)],
+    ["a.a. x", "a.a.a.a.a.a.a.a.a.a.a.a. ".repeat(4000)],
+  ])("is linear on large input: %s", (_n, input) => {
+    const t = performance.now();
+    const out = splitSentences(input);
+    expect(performance.now() - t).toBeLessThan(1500);
+    expect(out.length).toBeGreaterThan(0);
+  });
 });

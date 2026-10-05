@@ -31,4 +31,47 @@ describe("tts helpers", () => {
   it("strips markdown but keeps line breaks", () => {
     expect(stripMarkdown("# Title\n- **One** item\n- Two `code`\n[link](http://x) ![img](y)")).toBe("Title\nOne item\nTwo code\nlink  ");
   });
+  it.each<[string, string]>([
+    ["use snake_case here", "use snake_case here"],
+    ["I know C# and C++", "I know C# and C++"],
+    ["a > b", "a > b"],
+    ["5 * 3", "5 * 3"],
+    ["It costs ~5 dollars", "It costs ~5 dollars"],
+    ["10 * 2 * 3", "10 * 2 * 3"],
+    ["5*3*2", "5*3*2"],
+    ["don't stop, it's fine", "don't stop, it's fine"],
+    ["a < b and c > d", "a < b and c > d"],
+    ["<b>hi</b>", "hi"],
+    ["x <br/> y", "x  y"],
+    ["a **bold** b", "a bold b"],
+    ["a __bold__ b", "a bold b"],
+    ["a *it* b", "a it b"],
+    ["a _it_ b", "a it b"],
+    ["a ~~gone~~ b", "a gone b"],
+    ["## Head", "Head"],
+    ["> quoted\n> > deeper", "quoted\ndeeper"],
+    ["* one\n+ two\n1. three", "one\ntwo\nthree"],
+    ["`a\nb`", "`a\nb`"],
+  ])("stripMarkdown keeps prose / strips markup: %j", (input, expected) => {
+    expect(stripMarkdown(input)).toBe(expected);
+  });
+
+  it("handles normal and long link/image text with bounded patterns", () => {
+    const long = "w".repeat(400);
+    expect(stripMarkdown(`[${long}](http://x/${"p".repeat(500)})`)).toBe(long);
+    expect(stripMarkdown("see [docs](http://a.b/c) ![alt text](img.png) end")).toBe("see docs   end");
+  });
+
+  it.each<[string, string]>([
+    ["![ x50000", "![".repeat(50000)],
+    ["[ x100000", "[".repeat(100000)],
+    ["[a]( x25000", "[a](".repeat(25000)],
+    ["* x50000", "*a ".repeat(30000)],
+    ["_ x50000", "_a ".repeat(30000)],
+    ["< x50000", "<a ".repeat(30000)],
+  ])("stripMarkdown stays fast on adversarial input: %s", (_n, input) => {
+    const t = performance.now();
+    stripMarkdown(input);
+    expect(performance.now() - t).toBeLessThan(1500);
+  });
 });
