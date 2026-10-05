@@ -60,4 +60,8 @@ describe("MePage", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(screen.getByTestId("me-progress")).toHaveAttribute("href", "/progress");
   });
+  it("links to the vocabulary book", () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    expect(screen.getByTestId("me-vocabulary")).toHaveAttribute("href", "/vocabulary");
+  });
 });
