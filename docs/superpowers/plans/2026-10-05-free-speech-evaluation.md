@@ -2,8 +2,10 @@
 
 **状态:未运行(NOT RUN — blocked)。** 脚本、用例与离线单测已完成并通过;真实评测因上游不可用无法执行:
 
-- 转写(方舟 chat 模式):方舟 STT 账号欠费,返回 403 `AccountOverdueError`。
+- 转写(方舟 chat 模式):方舟 STT 账号欠费(上游返回 403 `AccountOverdueError`)。
 - TTS(`volcengine/seed-tts-2.0`):火山 TTS 当前返回 403 `resource not granted`。
+
+注意:这是上游直接给出的原因。本服务端把上游的 403(含欠费、未授权)统一映射为 **502 `Upstream authentication failed`**(`server/app/upstream.py` 的 `check_upstream_auth`、`server/app/routers/ai_audio.py`),未配置的上游为 503;所以脚本的 BLOCKED 行里看到的是 502/503 和服务端写的短消息,**不会**出现 403 或 `AccountOverdueError`。具体的上游原因在服务端日志里(uvicorn 输出 / `docker compose logs`)。
 
 本文档中**没有任何实测数字**;所有"结果"和"结论"小节都明确标为未运行。账号恢复后按下文步骤补跑,把脚本输出贴进对应小节。
 
@@ -11,23 +13,34 @@
 - 脚本 `server/scripts/eval_free_speech.py` + 用例 `server/scripts/eval_free_speech_cases.json`(A 组 10 句故意的语法错误、B 组 10 句正确句含停顿词与自我修正、C 组 6 句"读错"变体),两个英文音色(`en_male_tim_uranus_bigtts`、`en_female_dacey_uranus_bigtts`),外加真人录音 `enjoy/samples/jfk.wav`。
 - 每条:转写(不带语言提示,与语音消息一致)→ 以转写为参考评测 → 语法检查;C 组再以本意句为参考评测一次(相当于跟读页)。
 - 纯函数(`norm`、`contains_phrase`、`poor_words`、`grammar_hits`、`summarize`、`recommendations`)与上游错误处理由 `server/tests/test_eval_free_speech.py` 离线覆盖,不访问网络。
-- 上游返回 403/502/503 时脚本打印 `BLOCKED: <endpoint> <status> <error>`(只含状态码与简短错误码,不回显响应体、不打印密钥),退出码 3,不写 `--json` 文件。ffmpeg 缺失退出码 2。
+- 上游/服务端返回 403/502/503 时脚本打印 `BLOCKED: <endpoint> <status> <message>`,例如 `BLOCKED: /api/ai/audio/transcriptions 502 Upstream authentication failed`。`<message>` 取自服务端错误体 `{"error": "..."}`(兼容 `detail` 为短字符串),限 120 字符、只允许可打印 ASCII 与基本标点,否则显示 `unknown`;不回显任意响应体、不打印密钥。退出码 3,不写 `--json` 文件。ffmpeg 缺失或拒绝非本机地址退出码 2;其他错误(如 400 `Unsupported TTS model`、ffmpeg 失败、注册响应异常)打印 `FAILED: ...`,退出码 1。
+- 安全:脚本会在目标服务端注册一个 `eval_*` 用户;默认只允许本机地址(`127.0.0.1`/`localhost`/`::1`),连远程需显式 `--allow-remote`。默认端口用 8765,避免误连平时开发用的 8000。评估用户不会被删除,随临时库一起丢弃。
 - 合成的 WAV 缓存在 `.superpowers/eval/tts-cache/`(git 忽略),中断后重跑不会重复花 TTS 调用。
 
 ## 复现步骤(账号恢复后)
-前提:本机有 `ffmpeg`(`ffmpeg -version`);密钥只在 `server/.env`。
+前提(密钥只放 `server/.env`,变量名见 `server/app/config.py` 与 `server/.env.example`;缺哪一项的症状如下):
+
+| 需要的设置 | 缺失时的症状 |
+|---|---|
+| `TTS_MODELS` 含 `volcengine/seed-tts-2.0`(默认只有 `openai/tts-1,azure/speech`) | TTS 返回 400 `Unsupported TTS model`,脚本以 `FAILED` 退出(不是 BLOCKED) |
+| `VOLCENGINE_TTS_KEY`(可选 `VOLCENGINE_TTS_URL`) | TTS 返回 503 `Volcengine TTS is not configured` |
+| `UPSTREAM_WHISPER_MODE=chat`、`UPSTREAM_WHISPER_BASE_URL`、`UPSTREAM_WHISPER_KEY`、`UPSTREAM_WHISPER_MODEL`(默认模式是 `openai`) | 转写 503 `Whisper upstream is not configured`;模式不对则按 OpenAI 转写接口调用方舟,会失败 |
+| `XFYUN_APP_ID`、`XFYUN_API_KEY`、`XFYUN_API_SECRET` | 评测 503 `Pronunciation assessment is not configured`(`/api/speech/assessments`);凭据无效则 503 `Speech evaluation is not authorized` 或 502 |
+| 语法/LLM 上游:`UPSTREAM_LLM_BASE_URL`、`UPSTREAM_LLM_KEY`(或单独的 `UPSTREAM_GRAMMAR_BASE_URL`、`UPSTREAM_GRAMMAR_KEY`),可选 `GRAMMAR_MODEL`(缺省用默认 LLM 模型) | 语法 503 `Grammar upstream is not configured` |
+| `ffmpeg` 在 PATH 上(`ffmpeg -version`) | 脚本直接提示并退出码 2 |
+| 注册开放(下面的 `REGISTRATION_MODE=open`) | 注册失败,脚本 `FAILED` |
 
 1. 启动评估用服务端(临时库、开放注册、放宽 AI 限流),Git Bash:
    ```bash
    cd /e/workspace/everyone-can-use-english/server
    export DATABASE_URL=sqlite+aiosqlite:///./data/eval.db REGISTRATION_MODE=open AI_RATE_LIMIT_PER_MINUTE=600 DATA_DIR=./data/eval-data
-   uv run alembic upgrade head && uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+   uv run alembic upgrade head && uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8765
    ```
-   探活:`curl -s --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8000/up`。
+   探活:`curl -s --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/up`。
 2. 运行评估(另一个终端):
    ```bash
    cd /e/workspace/everyone-can-use-english/server
-   uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8000 \
+   uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8765 \
      --json ../.superpowers/eval/free-speech-run1.json > ../.superpowers/eval/free-speech-run1.md
    ```
    若出现 `BLOCKED: ...`,说明上游仍不可用,先解决账号/授权问题。个别条目报错就重跑一次(TTS 已缓存)。

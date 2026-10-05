@@ -5,12 +5,13 @@
 转写(不带语言提示)→ 以转写为参考的发音评测 → 语法检查;C 组再以本意句为参考评测一次(相当于跟读页)。
 
 Usage(服务需已运行;密钥只在 server/.env;需要本机 ffmpeg):
-  uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8000 --json ../.superpowers/eval/free-speech.json
+  uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8765 --json ../.superpowers/eval/free-speech.json
 标准输出是 Markdown(汇总 + 明细),原样贴进记录文档。只打印状态码,不打印上游响应体。
 """
 import argparse
 import hashlib
 import json
+import os
 import re
 import secrets
 import shutil
@@ -18,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 import httpx
@@ -26,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 CASES_FILE = HERE / "eval_free_speech_cases.json"
 JFK_WAV = HERE.parent.parent / "enjoy" / "samples" / "jfk.wav"
 CACHE_DIR = HERE.parent.parent / ".superpowers" / "eval" / "tts-cache"  # cached WAVs, resumable (git-ignored)
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 BLOCKED_STATUSES = {403, 502, 503}
 JFK_TEXT = "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
 TTS_MODEL = "volcengine/seed-tts-2.0"
@@ -73,6 +76,7 @@ def _rate(rows: list[dict], key: str) -> float:
 
 
 def summarize(rows: list[dict]) -> dict:
+    rows = [r for r in rows if not r.get("error")]  # incomplete rows (e.g. empty transcript) don't count
     a = [r for r in rows if r["group"] == "A"]
     b = [r for r in rows if r["group"] == "B"]
     c = [r for r in rows if r["group"] == "C"]
@@ -106,19 +110,30 @@ class BlockedError(RuntimeError):
     """Upstream unavailable (403/502/503): the evaluation cannot run; no results are written."""
 
 
+_SAFE_MESSAGE = re.compile(r"[A-Za-z0-9 .,:;_'()/-]{1,120}")
+
+
 def _safe_error_code(r: httpx.Response) -> str:
-    """Only a short alphanumeric error code (e.g. AccountOverdueError) or 'unknown'; never echo the body."""
+    """Short server-authored message for the BLOCKED line.
+
+    The server shapes errors as {"error": "<message>"} (app/errors.py); `detail` is accepted as a fallback.
+    Only a short string made of printable ASCII and basic punctuation is shown (capped at 120 chars);
+    dicts, lists, long or odd strings are never echoed. Falls back to a short code/type, then 'unknown'.
+    """
     try:
         body = r.json()
     except Exception:  # noqa: BLE001
         return "unknown"
-    detail = body.get("detail", body) if isinstance(body, dict) else None
-    for source in (detail, body):
-        if isinstance(source, dict):
-            for key in ("error", "code", "type"):
-                v = source.get(key)
-                if isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,60}", v):
-                    return v
+    if not isinstance(body, dict):
+        return "unknown"
+    for key in ("error", "detail"):
+        v = body.get(key)
+        if isinstance(v, str) and _SAFE_MESSAGE.fullmatch(v.strip()):
+            return v.strip()
+    for key in ("code", "type"):
+        v = body.get(key)
+        if isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,60}", v):
+            return v
     return "unknown"
 
 
@@ -144,7 +159,10 @@ class Server:
 
     def register(self) -> None:
         r = self._checked(self.http.post("/api/users", json={"username": "eval_" + secrets.token_hex(4), "password": secrets.token_hex(8)}))
-        self.headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        try:
+            self.headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        except (KeyError, ValueError, TypeError) as exc:
+            raise RuntimeError("unexpected response from /api/users (no access_token)") from exc
 
     def tts(self, text: str, voice: str) -> bytes:
         return self._post("/api/ai/audio/speech", json={"input": text, "model": TTS_MODEL, "voice": voice}).content
@@ -169,7 +187,9 @@ def cached_wav(server: Server, text: str, voice: str) -> bytes:
         return path.read_bytes()
     wav = to_wav(server.tts(text, voice), ".mp3")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(wav)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_bytes(wav)
+    os.replace(tmp, path)  # atomic: an interrupted run never leaves a half-written WAV
     return wav
 
 
@@ -244,10 +264,14 @@ def recommendations(summary: dict) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8765")
     parser.add_argument("--voices", default=DEFAULT_VOICES)
     parser.add_argument("--json", help="write raw rows and summary to this path")
+    parser.add_argument("--allow-remote", action="store_true", help="allow a non-loopback --base-url (the script registers a user there)")
     args = parser.parse_args()
+    if not args.allow_remote and urlparse(args.base_url).hostname not in LOOPBACK_HOSTS:
+        print("refusing a non-loopback --base-url (the script registers a user); pass --allow-remote to override", file=sys.stderr)
+        return 2
     if shutil.which("ffmpeg") is None:
         print("ffmpeg not found on PATH; install it first", file=sys.stderr)
         return 2
@@ -257,7 +281,7 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         print("Evaluation incomplete; no results written.", file=sys.stderr)
         return 3
-    except (httpx.HTTPError, RuntimeError) as exc:
+    except (httpx.HTTPError, RuntimeError, subprocess.CalledProcessError, OSError) as exc:
         print(f"FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
