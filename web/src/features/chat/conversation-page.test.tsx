@@ -13,6 +13,9 @@ import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationPage } from "./conversation-page";
+import { sharedTtsCache } from "./tts";
+import { sharedAutoplayAudio } from "./use-tts-player";
+import { PLAYBACK_RATE_KEY, resetPlaybackRate } from "~/lib/playback-rate";
 
 vi.mock("~/audio/convert", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/audio/convert")>()),
@@ -37,6 +40,7 @@ function routes(extra: Record<string, Handler> = {}): Record<string, Handler> {
     "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }),
     "GET /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }),
     "GET /api/conversations/c1/messages": () => json({ messages: [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" }] }),
+    "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])),
     ...extra,
   };
 }
@@ -1988,6 +1992,243 @@ describe("ConversationPage", () => {
 
     it("(e) adds nothing when coach mode is off even though results arrived", async () => {
       expect(await failThenRetry({ coach: false, grammar: () => json(WRONG), arrived: "grammar-badge", history: PREVIOUS })).toEqual(["SYS", "SYS"]);
+    });
+  });
+
+  describe("auto-read (R4–R6)", () => {
+    let toastSpy: MockInstance;
+    beforeEach(() => {
+      sharedTtsCache.clear();
+      toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    });
+    afterEach(() => {
+      toastSpy.mockRestore();
+      vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(() => Promise.resolve());
+      resetPlaybackRate();
+    });
+    const saved = () => json({ messages: [{ id: "m1" }, { id: "m2" }] });
+    /** 服务端语义:GET 返回已存配置;PATCH 带 config 时整体替换,只改名时保留已存配置 */
+    const replyRoutes = (text: string, extra: Record<string, Handler> = {}, stored: Record<string, unknown> = CONFIG) => {
+      let config = stored;
+      return routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config }),
+        "POST /api/ai/chat/completions": () => sse([delta(text), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": saved,
+        "PATCH /api/conversations/c1": (call) => {
+          const body = bodyOf(call);
+          if (body.config) config = body.config;
+          return json({ id: "c1", name: body.name ?? "Hi", config });
+        },
+        ...extra,
+      });
+    };
+    const configPatches = (mock: ReturnType<typeof createFetchMock>) =>
+      mock.calls.filter((c) => c.method === "PATCH" && c.url.pathname === "/api/conversations/c1" && "config" in bodyOf(c));
+    const speechCalls = (mock: ReturnType<typeof createFetchMock>) => callsTo(mock, "POST", "/api/ai/audio/speech");
+    async function say(text: string) {
+      await userEvent.type(screen.getByTestId("chat-input"), text);
+      await userEvent.click(screen.getByTestId("chat-send"));
+    }
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
+
+    it("reads a new reply when it finishes, after unlocking the shared player inside the tap", async () => {
+      const play = vi.mocked(HTMLMediaElement.prototype.play);
+      let playsBeforeReply = -1;
+      const { mock } = setup(replyRoutes("Auto one.", {
+        "POST /api/ai/chat/completions": () => { playsBeforeReply = play.mock.calls.length; return sse([delta("Auto one."), DONE_EVENT]); },
+      }));
+      await screen.findByText("reply");
+      play.mockClear();
+      await say("Hi");
+      await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
+      expect(playsBeforeReply).toBeGreaterThanOrEqual(1); // primeAudioElement 在点击里、回复请求之前
+      expect(bodyOf(speechCalls(mock)[0])).toEqual({ input: "Auto one.", model: "openai/tts-1", voice: "alloy" });
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
+      expect(screen.getAllByTestId("message-tts")[0]).toHaveAttribute("data-state", "idle");
+      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true"); // 旧会话没有该键:默认开
+    });
+
+    it("never reads loaded history", async () => {
+      const { mock } = setup(routes());
+      await screen.findByText("reply");
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(0);
+    });
+
+    it("does not read when the stored switch is off, an error reply, or a hidden page", async () => {
+      const off = setup(replyRoutes("Off.", {}, { ...CONFIG, auto_speak: false }));
+      await screen.findByText("reply");
+      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      await say("Hi");
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Off."));
+      await settle();
+      expect(speechCalls(off.mock)).toHaveLength(0);
+      off.view.unmount();
+
+      const failed = setup(routes({ "POST /api/ai/chat/completions": () => json({ error: "Upstream unavailable" }, 502) }));
+      await screen.findByText("reply");
+      await say("Hi");
+      await screen.findByTestId("message-retry");
+      await settle();
+      expect(speechCalls(failed.mock)).toHaveLength(0);
+      failed.view.unmount();
+
+      const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+      const background = setup(replyRoutes("Hidden."));
+      await screen.findByText("reply");
+      await say("Hi");
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hidden."));
+      await settle();
+      expect(speechCalls(background.mock)).toHaveLength(0);
+      hidden.mockRestore();
+    });
+
+    it("stays silent for a reply with nothing to read", async () => {
+      const { mock } = setup(replyRoutes("```js\nx()\n```"));
+      await screen.findByText("reply");
+      await say("Code please");
+      await waitFor(() => expect(posted(mock)).toHaveLength(1));
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(0);
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("a new send stops the previous reading; only the newest reply is read", async () => {
+      let n = 0;
+      const signals: AbortSignal[] = [];
+      const { mock } = setup(routes({
+        "POST /api/ai/chat/completions": () => sse([delta(`Reply ${++n}.`), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: `u${n}` }, { id: `a${n}` }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
+        "POST /api/ai/audio/speech": (call) => {
+          signals.push(call.signal!);
+          return signals.length === 1
+            ? new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))
+            : new Response(new Uint8Array([1]));
+        },
+      }));
+      await screen.findByText("reply");
+      await say("One");
+      await waitFor(() => expect(signals).toHaveLength(1));
+      await say("Two");
+      await waitFor(() => expect(signals).toHaveLength(2));
+      expect(signals[0].aborted).toBe(true);
+      expect(bodyOf(speechCalls(mock)[1]).input).toBe("Reply 2.");
+      expect(toastSpy).not.toHaveBeenCalled(); // 被打断不算失败
+    });
+
+    it("starting a recording stops the auto-read", async () => {
+      const fake = createFakeRecorderEnv();
+      setup(replyRoutes("Mic stops me."), fake.env);
+      await screen.findByText("reply");
+      await say("Hi");
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
+      await userEvent.click(screen.getByTestId("chat-mic"));
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "idle"));
+      await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+    });
+
+    it("switching conversations aborts a pending auto-read and reads nothing in the new one", async () => {
+      let signal: AbortSignal | undefined;
+      const { mock } = setup(replyRoutes("Leaving.", {
+        "POST /api/ai/audio/speech": (call) => { signal = call.signal!; return new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))); },
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+      }));
+      await screen.findByText("reply");
+      await say("Hi");
+      await waitFor(() => expect(signal).toBeDefined());
+      act(() => goTo("/chat/c2"));
+      await screen.findByText("Second chat hello");
+      expect(signal!.aborted).toBe(true);
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(1);
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("a blocked autoplay shows a one-time tap-to-read hint; the tap plays it", async () => {
+      let block = true;
+      vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(() =>
+        block ? Promise.reject(new DOMException("blocked", "NotAllowedError")) : Promise.resolve());
+      let n = 0;
+      const { mock } = setup(replyRoutes("x", { "POST /api/ai/chat/completions": () => sse([delta(`Blocked ${++n}.`), DONE_EVENT]) }));
+      await screen.findByText("reply");
+      await say("Hi");
+      expect(await screen.findByTestId("autospeak-blocked")).toBeInTheDocument();
+      expect(toastSpy).not.toHaveBeenCalled();
+      block = false;
+      await userEvent.click(screen.getByTestId("autospeak-tap"));
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
+      expect(screen.queryByTestId("autospeak-blocked")).toBeNull();
+      block = true;
+      await say("Again");
+      await waitFor(() => expect(speechCalls(mock).length).toBeGreaterThanOrEqual(2));
+      await settle();
+      expect(screen.queryByTestId("autospeak-blocked")).toBeNull(); // 只提示一次
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("reports a synthesis failure at most once", async () => {
+      let n = 0;
+      setup(replyRoutes("x", {
+        "POST /api/ai/chat/completions": () => sse([delta(`Fail ${++n}.`), DONE_EVENT]),
+        "POST /api/ai/audio/speech": () => json({ error: "Upstream unavailable" }, 502),
+      }));
+      await screen.findByText("reply");
+      await say("One");
+      await waitFor(() => expect(toastSpy).toHaveBeenCalledWith("The AI service is unavailable. Please try again."));
+      await say("Two");
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "error"));
+      expect(toastSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("the header switch saves stored config + auto_speak and stops the current reading", async () => {
+      const { mock } = setup(replyRoutes("Stop me."));
+      await screen.findByText("reply");
+      await say("Hi");
+      await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await waitFor(() => expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false"));
+      expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "idle");
+      expect(configPatches(mock)).toHaveLength(1);
+      expect(bodyOf(configPatches(mock)[0]).config).toEqual({ ...CONFIG, auto_speak: false });
+    });
+
+    it("the speed button cycles and applies to the shared player at once", async () => {
+      setup(routes());
+      await screen.findByText("reply");
+      expect(screen.getByTestId("conversation-speed")).toHaveTextContent("1×");
+      await userEvent.click(screen.getByTestId("conversation-speed"));
+      expect(screen.getByTestId("conversation-speed")).toHaveTextContent("1.25×");
+      expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
+      await userEvent.click(screen.getByTestId("message-tts"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+      expect(sharedAutoplayAudio().playbackRate).toBe(1.25);
+      await userEvent.click(screen.getByTestId("conversation-speed"));
+      expect(sharedAutoplayAudio().playbackRate).toBe(0.75);
+    });
+
+    it("retrying a failed reply (a tap) reads the retried reply", async () => {
+      let fail = true;
+      const { mock } = setup(replyRoutes("x", {
+        "POST /api/ai/chat/completions": () => (fail ? json({ error: "Upstream unavailable" }, 502) : sse([delta("Retried."), DONE_EVENT])),
+      }));
+      await screen.findByText("reply");
+      await say("Hi");
+      await screen.findByTestId("message-retry");
+      fail = false;
+      await userEvent.click(screen.getByTestId("message-retry"));
+      await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
+      expect(bodyOf(speechCalls(mock)[0]).input).toBe("Retried.");
+    });
+
+    it("reads exactly once under StrictMode", async () => {
+      const { mock } = setup(replyRoutes("Strict."), undefined, { strict: true });
+      await screen.findByText("reply");
+      await say("Hi");
+      await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
+      await settle();
+      expect(speechCalls(mock)).toHaveLength(1);
     });
   });
 });

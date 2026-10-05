@@ -1,10 +1,9 @@
-import { LanguagesIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, Settings2Icon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { LanguagesIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
-import { cn } from "@renderer/lib/utils";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { streamChatCompletion } from "~/api/ai";
 import { ApiError } from "~/api/client";
@@ -25,6 +24,7 @@ import { coachCandidates, coachNote } from "./coach";
 import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
+import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble } from "./message-bubble";
@@ -33,9 +33,10 @@ import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
 import { TurnResults } from "./turn-results";
+import { useAutoSpeak } from "./use-auto-speak";
 import { useMessageTranslations } from "./use-message-translations";
-import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
-import { VOICE_MAX_MS, useVoiceTurn, type VoiceClip, type VoiceDraftEvent } from "./use-voice-turn";
+import { sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
+import { VOICE_MAX_MS, useVoiceTurn, type VoiceClip, type VoiceDraftEvent, type VoiceTurnState } from "./use-voice-turn";
 
 let keySeq = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keySeq}`;
@@ -123,6 +124,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const resetTranslations = translations.reset;
   const showTranslation = translations.show;
   const tts = useTtsPlayer(api, {
+    createAudio: sharedAutoplayAudio,
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
     onNothingToRead: () => toast.error(tRef.current("web.chat.nothingToRead")),
   });
@@ -148,6 +150,21 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const heldRef = useRef(new Map<string, { clip: VoiceClip; text: string }>());
   const idRef = useRef(id);
   idRef.current = id;
+  // 自动朗读在异步回调里读取最新配置与录音状态(R4)
+  const configRef = useRef<ConversationConfig | null>(null);
+  const voiceStateRef = useRef<VoiceTurnState>("idle");
+  // 契约:prime/stop/play 来自同一个、本页唯一驱动 sharedAutoplayAudio() 的播放器 tts
+  const autoSpeak = useAutoSpeak({
+    isEnabled: () => chatOptions(conversationRef.current?.config).autoSpeak,
+    voiceIdle: () => voiceStateRef.current === "idle",
+    hasVoice: () => !!configRef.current?.ttsModel,
+    prime: tts.prime,
+    stop: tts.stop,
+    speak: (key, text, onError) => tts.play(key, text, configRef.current?.ttsModel ?? "", configRef.current?.ttsVoice ?? "", { onError, quietIfEmpty: true }),
+    onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
+  });
+  const resetAutoSpeak = autoSpeak.reset;
+  const { begin: autoSpeakBegin, complete: autoSpeakComplete } = autoSpeak;
   const messagesRef = useRef<UiMessage[]>([]);
   messagesRef.current = messages;
   const nearBottomRef = useRef(true);
@@ -168,11 +185,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     onDraft: (event) => onVoiceDraft(event),
     onTranscribed: (clip, text) => onVoiceTranscribed(clip, text),
   });
+  voiceStateRef.current = voice.state;
   const resetVoice = voice.reset;
   const discardVoice = voice.discard;
 
   useEffect(() => {
     let alive = true;
+    resetAutoSpeak();
     const results = new TurnResults(api, patchByKey);
     resultsRef.current = results;
     genRef.current += 1;
@@ -202,6 +221,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       .catch((err) => alive && setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)));
     return () => {
       alive = false;
+      stopTts(); // 先停播放器,再让未读完的回复过期(切换会话/卸载)
+      resetAutoSpeak();
       // 离开页面或切换会话:中止进行中的流,之后不再 setState
       abortRef.current?.abort();
       abortRef.current = null;
@@ -214,7 +235,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
       resetVoice(); // 取消录音、中止转写、回收 blob URL
     };
-  }, [api, id, resetTranslations, patchByKey, resetVoice]);
+  }, [api, id, resetTranslations, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -246,6 +267,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   }, [voice.error, t]);
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
+  configRef.current = config;
   const options = chatOptions(config);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -428,6 +450,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     const baseKeys = new Set(base.map((m) => m.key));
     const controller = new AbortController();
     abortRef.current = controller;
+    autoSpeakBegin(botKey); // 之前的回复从此过期
     const live = () => mountedRef.current && !controller.signal.aborted;
     const patch = (key: string, change: Partial<UiMessage>) => {
       if (live()) setMessages((prev) => prev.map((m) => (m.key === key ? { ...m, ...change } : m)));
@@ -460,11 +483,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         (full) => patch(botKey, { content: full }), controller.signal);
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
       patch(botKey, { content: reply, status: "done" });
+      if (live()) autoSpeakComplete(botKey, reply, "done");
       if (optionsRef.current.bilingual && canTranslateRef.current && live()) showTranslation(botKey, reply);
     } catch (err) {
       // 离开页面/中止时 live() 为 false,patch 不生效,也不弹错误;
       // 流式失败:部分回复被错误气泡取代,且不保存;这一轮保持 open,等待重试或被丢弃
       patch(botKey, { status: "error", content: translateServerError(tRef.current, err, CHAT_SERVER_ERRORS) });
+      if (live()) autoSpeakComplete(botKey, "", "error"); // 最终结果:这个 key 不再读
       finish();
       return;
     }
@@ -476,7 +501,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     pendingSavesRef.current.push(entry);
     const outcome = await flushSaves();
     if (!entry.saved && !entry.dropped && outcome === "failed" && live()) toastNotSaved();
-  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved]);
+  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete]);
 
   const voiceBusy = voice.state !== "idle";
 
@@ -484,6 +509,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     event.preventDefault();
     const text = input;
     if (busyRef.current || voiceBusy || !conversation || !text.trim()) return;
+    autoSpeak.prime(); // R5:点击的同步阶段解锁
     setInput("");
     // 规则:失败的一轮(用户消息 + 错误气泡,或未发送的语音草稿)从未保存。发送新消息时直接丢弃它,
     // 因此它既不进入后续历史,刷新后界面也与服务端一致;重试只对最后一个错误气泡开放。
@@ -497,6 +523,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     const last = messages[messages.length - 1];
     const user = messages[messages.length - 2];
     if (last?.status !== "error" || last.role !== "assistant" || user?.role !== "user") return;
+    autoSpeak.prime(); // R5:重试是一次点击
     // R2:同一历史、同一用户气泡重发转写文本;不重录、不重传、不重新评测
     void send(user.content, messages.slice(0, -2), { userKey: user.key });
   };
@@ -565,6 +592,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       return;
     }
     if (busyRef.current || voice.state !== "idle") return;
+    autoSpeak.prime();
     heldRef.current.delete(key);
     startVoiceSend(held.clip, held.text);
   };
@@ -587,6 +615,20 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       .finally(() => { bilingualBusyRef.current = false; if (mountedRef.current) setBilingualSaving(false); });
   };
 
+  const [autoSpeakSaving, setAutoSpeakSaving] = useState(false);
+  const autoSpeakBusyRef = useRef(false);
+  const toggleAutoSpeak = () => {
+    if (autoSpeakBusyRef.current || !conversation) return;
+    autoSpeakBusyRef.current = true;
+    setAutoSpeakSaving(true);
+    const next = !options.autoSpeak;
+    if (!next) stopTts(); // 关掉时正在读的也停下
+    // 与双语开关同一规则:只写入已存配置 + 这个键
+    void saveSettings({ ...conversation.config, autoSpeak: next })
+      .catch((): void => undefined)
+      .finally(() => { autoSpeakBusyRef.current = false; if (mountedRef.current) setAutoSpeakSaving(false); });
+  };
+
   // 服务端 PATCH 整体替换 config:始终以已存配置为底,只叠加用户改动的键,绝不写入带默认值的整份草稿
   const saveSettings = async (changes: Partial<ConversationConfig>) => {
     try {
@@ -605,19 +647,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")} back="/chat"
         actions={
-          <div className="flex">
-            {canTranslate && (
-              <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-bilingual"
-                aria-pressed={options.bilingual} aria-label={t("web.chat.bilingual")} disabled={!conversation || bilingualSaving}
-                onClick={toggleBilingual}>
-                <LanguagesIcon className={cn("h-5 w-5", options.bilingual ? "text-primary" : "text-muted-foreground")} />
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-settings"
-              aria-label={t("web.chat.settings")} onClick={() => setSettingsOpen(true)}>
-              <Settings2Icon className="h-5 w-5" />
-            </Button>
-          </div>
+          <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={options.autoSpeak}
+            loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
+            onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)} />
         } />
       {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
@@ -660,6 +692,18 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           );
         })}
       </div>
+      {autoSpeak.blocked && (
+        <div data-testid="autospeak-blocked" role="status" className="flex items-center gap-2 border-t bg-muted px-3 py-1 text-sm">
+          <span className="flex-1">{t("web.chat.autoSpeak.blocked")}</span>
+          <Button size="sm" data-testid="autospeak-tap" className="h-11" onClick={autoSpeak.tapToRead}>
+            <Volume2Icon className="mr-1 h-4 w-4" />{t("web.chat.autoSpeak.tapToRead")}
+          </Button>
+          <Button variant="ghost" size="icon" data-testid="autospeak-dismiss" className="h-11 w-11" aria-label={t("web.chat.autoSpeak.dismiss")}
+            onClick={autoSpeak.dismissBlocked}>
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
         <Button type="button" data-testid="chat-mic" data-state={voice.state} size="icon"
           variant={voice.state === "recording" ? "destructive" : "ghost"} className="h-11 w-11 shrink-0"
@@ -667,8 +711,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           aria-label={voice.state === "recording" ? t("web.chat.voice.stopAndSend")
             : voice.state === "processing" ? t("web.chat.transcribing") : t("web.chat.mic")}
           onClick={() => {
-            if (voice.state === "recording") void voice.stop();
-            else {
+            if (voice.state === "recording") {
+              void voice.stop();
+              autoSpeak.prime(); // R5:结束录音这一下解锁,转写 + 回复完成后接着播
+            } else {
+              stopTts(); // 开始录音:正在进行的朗读(含自动朗读)停下
               claimAudio(micFocus);
               void voice.start();
             }
