@@ -3,14 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
 import { MarkdownText } from "~/components/markdown";
+import type { UiMessage } from "./ui-message";
 
-export interface UiMessage {
-  key: string;
-  id?: string;
-  role: "user" | "assistant";
-  content: string;
-  status: "done" | "streaming" | "error";
-}
+export type { UiMessage } from "./ui-message";
 
 export function MessageBubble({ message, onRetry, actions, translation }: { message: UiMessage; onRetry?: () => void; actions?: ReactNode; translation?: ReactNode }) {
   const { t } = useTranslation();
