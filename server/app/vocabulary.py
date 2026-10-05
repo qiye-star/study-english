@@ -1,7 +1,7 @@
 """词汇本:词条规范化与盒子法(Leitner)排期(设计文档 §3.5,计划裁定 R17/R18)。纯函数,便于测试。"""
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 Grade = Literal["forgot", "hard", "good"]
@@ -12,9 +12,17 @@ MAX_MEANING = 1000
 MAX_EXAMPLE = 500
 
 
+_FOLD = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "‐": "-", "‑": "-"})
+
+
 def normalize_word(value: str) -> str:
-    """NFC、压缩空白、去首尾、转小写:同一用户的 "Look up" 与 " look  up " 是同一个词条。"""
-    return " ".join(unicodedata.normalize("NFC", value).split()).lower()
+    """NFC、折叠排版撇号/连字符、去 Cf 不可见字符、压缩空白、去首尾、转小写(不用 NFKC)。
+
+    同一用户的 "Look up" 与 " look  up "、"don't" 与 "don’t" 是同一个词条。
+    """
+    text = unicodedata.normalize("NFC", value).translate(_FOLD)
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf")
+    return " ".join(text.split()).lower()
 
 
 def validate_word(value: str) -> str:
@@ -43,6 +51,7 @@ def next_review(box: int, grade: str, now: datetime) -> ReviewOutcome:
     """
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
+    now = now.astimezone(timezone.utc)
     box = min(max(box, 0), MAX_BOX)
     if grade == "forgot":
         return ReviewOutcome(0, now + timedelta(days=INTERVAL_DAYS[0]), True)

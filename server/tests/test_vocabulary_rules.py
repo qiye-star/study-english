@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.vocabulary import INTERVAL_DAYS, MAX_BOX, next_review, normalize_word
+from app.vocabulary import INTERVAL_DAYS, MAX_BOX, MAX_WORD, next_review, normalize_word, validate_word
 
 NOW = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
 
@@ -51,9 +51,6 @@ def test_normalize_word_unifies_unicode_forms():
     assert normalize_word("Cafe\u0301") == normalize_word("Caf\u00e9") == "caf\u00e9"
 
 
-from app.vocabulary import MAX_WORD, validate_word  # noqa: E402
-
-
 def test_validate_word_accepts_and_normalizes():
     assert validate_word("  Look   UP ") == "look up"
     assert validate_word("x" * MAX_WORD) == "x" * MAX_WORD
@@ -65,6 +62,29 @@ def test_validate_word_rejects_bad_input(bad):
         validate_word(bad)
 
 
-def test_naive_now_is_rejected():
+@pytest.mark.parametrize("grade", ["forgot", "hard", "good"])
+def test_naive_now_is_rejected(grade):
     with pytest.raises(ValueError):
-        next_review(0, "good", datetime(2026, 10, 5, 12, 0))
+        next_review(0, grade, datetime(2026, 10, 5, 12, 0))
+
+
+def test_typographic_variants_are_equal():
+    assert normalize_word("Don't") == normalize_word("don’t") == normalize_word("DON‘T") == normalize_word("donʼt") == "don't"
+    assert normalize_word("well‑known") == normalize_word("well‐known") == normalize_word("well-known") == "well-known"
+    assert normalize_word(" 你好  ") == "你好"
+
+
+def test_format_characters_are_stripped():
+    assert normalize_word("a​b") == normalize_word("a‍﻿b") == "ab"
+    assert normalize_word("​‍﻿") == ""
+    with pytest.raises(ValueError):
+        validate_word("​‍")
+    assert validate_word("Don’t") == "don't"
+
+
+def test_non_utc_now_gives_utc_outcomes():
+    tz8 = timezone(timedelta(hours=8))
+    now = datetime(2026, 10, 5, 20, 0, tzinfo=tz8)  # == NOW
+    r = next_review(1, "good", now)
+    assert r.due_at.utcoffset() == timedelta(0)
+    assert r.due_at == NOW + timedelta(days=4)
