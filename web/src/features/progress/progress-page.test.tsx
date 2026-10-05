@@ -67,6 +67,14 @@ describe("ProgressPage", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
   });
 
+  it("adds a word to the vocabulary book and links to it", async () => {
+    const mock = createFetchMock({ "GET /api/stats": () => json(stats(7)), "POST /api/vocabulary": () => json({ id: "v1" }) });
+    page(mock);
+    await userEvent.click(await screen.findByTestId("progress-word-vocab"));
+    await waitFor(() => expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/vocabulary")!.body as string)).toEqual({ word: "think", source: "progress" }));
+    expect(screen.getByTestId("progress-vocabulary")).toHaveAttribute("href", "/vocabulary");
+  });
+
   it("ignores a late response for a period the user already left", async () => {
     let release7: () => void = () => {};
     const mock = createFetchMock({
@@ -122,11 +130,11 @@ describe("ProgressPage", () => {
     expect(screen.getByTestId("progress-avg")).toHaveTextContent("—");
   });
 
-  it("does not offer a vocabulary button yet", async () => {
+  it("offers a working, labelled vocabulary button for each word (no dead buttons)", async () => {
     const mock = createFetchMock({ "GET /api/stats": () => json(stats(7)) });
     page(mock);
     await screen.findByTestId("progress-word");
-    expect(screen.queryByTestId("progress-word-vocab")).toBeNull();
+    expect(screen.getByTestId("progress-word-vocab")).toHaveAccessibleName("Add to vocabulary: think");
     for (const b of screen.getAllByRole("button")) expect(b).toBeEnabled();
   });
 });

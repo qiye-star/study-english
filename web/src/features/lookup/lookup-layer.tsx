@@ -9,6 +9,8 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { MAX_PRACTICE_TEXT } from "~/features/practice/practice-items-api";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
+import { vocabularyFromLookup } from "~/features/vocabulary/save-vocabulary-item";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
@@ -149,6 +151,12 @@ export function LookupLayer() {
               <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
+          {state.status === "done" && state.lookup && target && (
+            <div className="mt-2 flex">
+              <AddVocabularyButton key={`${target.text}
+${target.context}`} testId="lookup-vocab" input={vocabularyFromLookup(state.lookup, target)} withLabel />
+            </div>
+          )}
           {isPassage && (
             <div className="mt-2">
               <div className="flex gap-2">

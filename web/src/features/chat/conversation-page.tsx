@@ -14,6 +14,7 @@ import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { formatClock } from "~/features/practice/practice-page";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
 import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
@@ -842,7 +843,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         scenarioId={normalizeScenario(conversation?.config.scenario)?.id ?? null}
         onSave={(recap) => saveSettings({ recap })}
         onSpeak={(key, text) => void tts.play(key, text, config.ttsModel, config.ttsVoice)}
-        speakStates={tts.states} />
+        speakStates={tts.states}
+        extraActions={{
+          expression: (text, zh) => <AddVocabularyButton testId="recap-expression-vocab" label={`${t("web.vocabulary.add")}: ${text}`} input={{ word: text, meaning: zh, source: "recap" }} />,
+          poorWord: (word) => <AddVocabularyButton testId="recap-poor-word-vocab" label={`${t("web.vocabulary.add")}: ${word}`} input={{ word, source: "recap" }} />,
+        }} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>
   );

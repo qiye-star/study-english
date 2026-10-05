@@ -1,7 +1,7 @@
 {
   "web": {
     "vocabulary": {
-      "title": "词汇本", "add": "加入词汇本", "saved": "已加入词汇本。", "due": "今日待复习:{{value}}",
+      "title": "词汇本", "add": "加入词汇本", "saved": "已加入词汇本。", "alreadySaved": "词汇本里已有这个词。", "inVocabulary": "已在词汇本中", "due": "今日待复习:{{value}}",
       "start": "开始复习", "noneDue": "现在没有要复习的词。", "empty": "还没有单词。可以从查词或复盘里加入。",
       "flip": "看释义", "noMeaning": "没有保存释义。", "speak": "朗读", "progress": "{{position}} / {{total}}",
       "grades": { "forgot": "忘了", "hard": "模糊", "good": "记得" },

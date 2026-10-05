@@ -59,6 +59,18 @@ describe("save to vocabulary", () => {
     expect(toast.success).toHaveBeenCalledWith("Added to your vocabulary.");
   });
 
+  it("tells apart a new item and one that was already in the vocabulary book", async () => {
+    vi.mocked(toast.success).mockClear();
+    const api = (body: unknown) => new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock({ "POST /api/vocabulary": () => json(body) }).fetch });
+    const now = new Date().toISOString();
+    expect(await saveVocabularyItem(api({ id: "n", reps: 0, last_reviewed_at: null, created_at: now }), i18n.t, { word: "a", source: "recap" })).toBe(true);
+    expect(toast.success).toHaveBeenLastCalledWith("Added to your vocabulary.");
+    expect(await saveVocabularyItem(api({ id: "o", reps: 3, created_at: now }), i18n.t, { word: "a", source: "recap" })).toBe(true);
+    expect(toast.success).toHaveBeenLastCalledWith("Already in your vocabulary.");
+    expect(await saveVocabularyItem(api({ id: "o", reps: 0, created_at: "2026-01-01T00:00:00+00:00" }), i18n.t, { word: "a", source: "recap" })).toBe(true);
+    expect(toast.success).toHaveBeenLastCalledWith("Already in your vocabulary.");
+  });
+
   it("translates a 404 on delete", async () => {
     const mock = createFetchMock({ "DELETE /api/vocabulary/x": () => json({ error: "Vocabulary item not found" }, 404) });
     const err = await deleteVocabularyItem(new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), "x").catch((e) => e);

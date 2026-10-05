@@ -199,4 +199,30 @@ describe("LookupLayer", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(vi.mocked(toast.error).mock.calls[0][0]).not.toContain("Upstream unavailable");
   });
+
+  it("adds a looked-up word to the vocabulary book with its meaning and sentence", async () => {
+    const mock = createFetchMock({
+      "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","pos":"noun","definition":"a nation","translation":"国家"}' } }] }),
+      "POST /api/vocabulary": () => json({ id: "v1" }),
+    });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    await userEvent.click(screen.getByTestId("lookup-vocab"));
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/vocabulary")).toBe(true));
+    expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/vocabulary")!.body as string)).toEqual({
+      word: "country", meaning: "noun · 国家 · a nation", example: "ask not what your country can do for you", source: "lookup",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Added to your vocabulary.");
+  });
+
+  it("offers no vocabulary button for a sentence translation", async () => {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: "不要问" } }] }) });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("ask not what your country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    expect(screen.queryByTestId("lookup-vocab")).toBeNull();
+  });
 });

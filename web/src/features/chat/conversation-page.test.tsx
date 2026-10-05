@@ -2550,6 +2550,25 @@ describe("ConversationPage", () => {
       expect(aiCalls(mock)).toHaveLength(0);
     });
 
+    it("adds a new expression and a poorly pronounced word to the vocabulary book", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1/messages": () => json(LOADED),
+        "POST /api/ai/chat/completions": completion,
+        "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "x", config: bodyOf(call).config }),
+        "POST /api/vocabulary": () => json({ id: "v1" }),
+      }));
+      await screen.findByText("You too!");
+      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-poor-word-vocab"));
+      await userEvent.click(screen.getByTestId("recap-generate"));
+      await userEvent.click(await screen.findByTestId("recap-expression-vocab"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/vocabulary")).toHaveLength(2));
+      expect(callsTo(mock, "POST", "/api/vocabulary").map(bodyOf)).toEqual([
+        { word: "meet", source: "recap" },
+        { word: "head home", meaning: "回家", source: "recap" },
+      ]);
+    });
+
     it("a malformed answer shows a retryable error", async () => {
       let bad = true;
       setup(routes({

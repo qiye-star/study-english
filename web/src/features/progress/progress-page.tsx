@@ -1,11 +1,12 @@
 import { MicIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
 import { PageHeader } from "~/layout/page-header";
 import { ScoreChart } from "./score-chart";
 import { STATS_PERIODS, getStats, type Stats, type StatsPeriod } from "./stats-api";
@@ -128,6 +129,7 @@ export function ProgressPage() {
                             aria-label={`${t("web.progress.practice")}: ${w.word}`} onClick={() => goPractice(navigate, w.word)}><MicIcon className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="sm" data-testid="progress-word-save" className="h-11 min-w-11 px-2"
                             aria-label={`${t("web.progress.save")}: ${w.word}`} onClick={() => void savePracticeItem(api, t, w.word, "chat")}><StarIcon className="h-4 w-4" /></Button>
+                          <AddVocabularyButton testId="progress-word-vocab" label={`${t("web.vocabulary.add")}: ${w.word}`} input={{ word: w.word, source: "progress" }} />
                         </li>
                       ))}
                     </ul>
@@ -136,6 +138,9 @@ export function ProgressPage() {
               </>
             )}
             {shown.truncated && <p data-testid="progress-truncated" className="text-xs text-muted-foreground">{t("web.progress.truncated")}</p>}
+            <Button asChild variant="outline" className="h-11 w-full">
+              <Link to="/vocabulary" data-testid="progress-vocabulary">{t("web.vocabulary.title")}</Link>
+            </Button>
             <p data-testid="progress-disclaimer" className="text-xs text-muted-foreground">{t("web.progress.disclaimer")}</p>
           </>
         )}

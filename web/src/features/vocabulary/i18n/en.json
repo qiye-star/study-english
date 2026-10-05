@@ -1,7 +1,7 @@
 {
   "web": {
     "vocabulary": {
-      "title": "Vocabulary", "add": "Add to vocabulary", "saved": "Added to your vocabulary.", "due": "Due today: {{value}}",
+      "title": "Vocabulary", "add": "Add to vocabulary", "saved": "Added to your vocabulary.", "alreadySaved": "Already in your vocabulary.", "inVocabulary": "In your vocabulary", "due": "Due today: {{value}}",
       "start": "Review now", "noneDue": "Nothing to review right now.", "empty": "No words yet. Add some from the dictionary or a recap.",
       "flip": "Show meaning", "noMeaning": "No meaning saved.", "speak": "Read aloud", "progress": "{{position}} / {{total}}",
       "grades": { "forgot": "Forgot", "hard": "Hard", "good": "Good" },
