@@ -13,8 +13,11 @@ export interface TranscriptPiece {
   poor: boolean;
 }
 
-const TOKEN = /[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)*/g;
-const norm = (s: string) => s.toLowerCase().replace(/['’]/g, "");
+// 连字符/撇号只作为词内连接符(锚定的单层分组,无嵌套量词);归一化时去掉,
+// 所以转写 "well-known" 能匹配评测返回的单个词 "well-known"。若评测把它拆成两个词,
+// 则该词对不上、不标记(优雅降级),后面的词仍可在 lookahead 内对齐。
+const TOKEN = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu;
+const norm = (s: string) => s.toLowerCase().replace(/['’-]/g, "");
 
 /** 把评测的逐词结果按顺序对齐到转写文本上(向前最多看 3 个词),标出读得差的词;对不上的词不标。 */
 export function markTranscript(text: string, words: AssessmentWordBrief[] | undefined, lookahead = 3): TranscriptPiece[] {

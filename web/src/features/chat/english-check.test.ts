@@ -36,6 +36,16 @@ describe("checkability (R5)", () => {
     expect(checkability("a b c 好")).toEqual({ ok: false, reason: "non-english" });
   });
 
+  it("treats accented Latin letters as Latin", () => {
+    expect(checkability("éééé à")).not.toEqual({ ok: false, reason: "non-english" });
+    expect(checkability("Ñandú señor")).toEqual({ ok: false, reason: "too-short" });
+    expect(checkability("Hi naïve")).toEqual({ ok: false, reason: "too-short" });
+    expect(checkability("Crème brûlée is good")).toEqual({ ok: true });
+    expect(checkability("Crème brûlée is")).toEqual({ ok: true });
+    expect(checkability("我想喝 café")).toEqual({ ok: false, reason: "non-english" });
+    expect(checkability("café au lait 好")).toEqual({ ok: true });
+  });
+
   it("is fast on very large input", () => {
     const big = "word ".repeat(25000);
     const t = Date.now();

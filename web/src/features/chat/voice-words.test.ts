@@ -37,6 +37,28 @@ describe("voice words", () => {
     ]);
   });
 
+  it("matches the server error_type strings case-sensitively", () => {
+    expect(isPoorWord(w("a", 99, "Mispronunciation"))).toBe(true);
+    expect(isPoorWord(w("a", 99, "Omission"))).toBe(true);
+    expect(isPoorWord(w("a", 99, "Insertion"))).toBe(false);
+    expect(isPoorWord(w("a", 99, "None"))).toBe(false);
+  });
+
+  it("does not match a word beyond the lookahead window", () => {
+    const words = [w("x1", 99), w("x2", 99), w("x3", 99), w("target", 10)];
+    expect(markTranscript("target", words)).toEqual([{ text: "target", poor: false }]);
+    expect(markTranscript("target", words, 4)).toEqual([{ text: "target", poor: true }]);
+  });
+
+  it("matches hyphenated words as one token and degrades gracefully when split", () => {
+    expect(markTranscript("A well-known fact", [w("a", 99), w("well-known", 20), w("fact", 99)])).toEqual([
+      { text: "A ", poor: false }, { text: "well-known", poor: true }, { text: " fact", poor: false },
+    ]);
+    expect(markTranscript("A well-known fact", [w("a", 99), w("well", 20), w("known", 20), w("fact", 10)])).toEqual([
+      { text: "A well-known ", poor: false }, { text: "fact", poor: true },
+    ]);
+  });
+
   it("lists distinct poor words", () => {
     expect(poorWords([w("think", 40), w("Think", 30), w("ok", 99), w("three", 10)])).toEqual(["think", "three"]);
     expect(poorWords(undefined)).toEqual([]);

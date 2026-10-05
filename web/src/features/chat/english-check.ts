@@ -5,9 +5,10 @@ export const MIN_LATIN_RATIO = 0.8;
 export const MIN_GRAMMAR_WORDS = 3;
 
 const LETTER = /\p{L}/gu;
-const LATIN = /[A-Za-z]/g;
-const ENGLISH_WORD = /[A-Za-z]+(?:['’][A-Za-z]+)*/g;
+const LATIN = /\p{Script=Latin}/gu;
+const ENGLISH_WORD = /\p{Script=Latin}+(?:['’]\p{Script=Latin}+)*/gu;
 
+/** 注意:超过 2000 字符不评测的限制由调用方(Task 3.3)负责,此处不检查长度。 */
 export function checkability(text: string): Checkability {
   const letters = text.match(LETTER)?.length ?? 0;
   if (!letters) return { ok: false, reason: "empty" };
