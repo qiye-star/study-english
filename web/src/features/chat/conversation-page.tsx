@@ -1,7 +1,7 @@
 import { LanguagesIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
@@ -28,6 +28,7 @@ import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble } from "./message-bubble";
+import { normalizeScenario, scenarioLabel } from "./scenarios";
 import { fromServerMessage, hasResultFooter, type UiMessage, type VoiceView } from "./ui-message";
 import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
@@ -102,6 +103,16 @@ function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: st
 
 export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const { id = "" } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // 加载 effect 经 ref 调用 navigate:navigate 的引用可能随位置变化,不能放进加载 effect 的依赖(否则会重新加载会话)
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  // R10:从场景面板过来时,路由 state 带着开场白消息 id
+  const speakOpeningRef = useRef<string | null>(null);
+  const routeOpening = (location.state as { speakOpening?: unknown } | null)?.speakOpening;
+  speakOpeningRef.current = typeof routeOpening === "string" && routeOpening ? routeOpening : null;
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
   const { api } = useAuth();
   const { t } = useTranslation();
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -204,6 +215,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setLoadError(null);
     setPracticeText(null);
     setDetailKey(null);
+    setOpeningKey(null);
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
@@ -216,6 +228,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         setMessages(list.messages
           .filter((m) => m.role !== "system")
           .map(fromServerMessage));
+        const wanted = speakOpeningRef.current;
+        if (wanted) {
+          const visible = list.messages.filter((m) => m.role !== "system");
+          if (visible.length === 1 && visible[0].id === wanted && visible[0].role === "assistant") setOpeningKey(wanted);
+          navigateRef.current(`/chat/${encodeURIComponent(id)}`, { replace: true, state: null }); // 刷新不再读
+        }
       })
       .catch((err) => alive && setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)));
     return () => {
@@ -267,6 +285,15 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
   configRef.current = config;
+  const speakOpening = autoSpeak.speakOpening;
+  // 等会话与服务端音色默认值都就绪(R2:新会话不存音色)再读开场白;经过 R4 的全部判断
+  useEffect(() => {
+    if (!openingKey || !conversation || !config.ttsModel) return;
+    const opening = messagesRef.current.find((m) => m.key === openingKey);
+    setOpeningKey(null);
+    if (opening) speakOpening(opening.key, opening.content);
+  }, [openingKey, conversation, config.ttsModel, speakOpening]);
+  const scenario = normalizeScenario(conversation?.config.scenario);
   const options = chatOptions(config);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -657,6 +684,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)} />
         } />
+      {(scenario || options.level !== "auto") && (
+        <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate">{scenario ? scenarioLabel(t, scenario) : t("web.chat.scenarios.free.title")}</span>
+          {options.level !== "auto" && <span data-testid="conversation-level" className="rounded bg-muted px-1.5 py-0.5">{options.level}</span>}
+        </div>
+      )}
       {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => {

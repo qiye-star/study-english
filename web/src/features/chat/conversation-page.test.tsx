@@ -51,12 +51,12 @@ function NavProbe(): null {
   return null;
 }
 
-function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"], opts: { strict?: boolean } = {}) {
+function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"], opts: { strict?: boolean; route?: string | { pathname: string; state?: unknown } } = {}) {
   const mock = createFetchMock(r);
   const page = <><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></>;
   const view = renderWithProviders(opts.strict ? <StrictMode>{page}</StrictMode> : page, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
-    route: "/chat/c1",
+    route: opts.route ?? "/chat/c1",
     path: "/chat/:id",
   });
   return { mock, view };
@@ -2281,6 +2281,88 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(speechCalls(mock)).toHaveLength(1));
       await settle();
       expect(speechCalls(mock)).toHaveLength(1);
+    });
+  });
+
+  describe("scenarios (R9–R10)", () => {
+    beforeEach(() => sharedTtsCache.clear());
+    const CAFE = { ...CONFIG, scenario: { id: "cafe" }, level: "B1" };
+    const OPENING = { "GET /api/conversations/c1/messages": () => json({ messages: [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Hi there, welcome in!" }] }) };
+    const speech = (mock: ReturnType<typeof createFetchMock>) => callsTo(mock, "POST", "/api/ai/audio/speech");
+
+    it("shows the scenario and level, and replies in character", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Ordering coffee", config: CAFE }),
+        "POST /api/ai/chat/completions": () => sse([delta("Sure!"), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      }));
+      expect(await screen.findByTestId("conversation-scenario")).toHaveTextContent("Ordering coffee");
+      expect(screen.getByTestId("conversation-level")).toHaveTextContent("B1");
+      await userEvent.type(screen.getByTestId("chat-input"), "A latte, please.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
+      const system = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[0]).messages[0].content as string;
+      expect(system).toMatch(/^You are a friendly barista/);
+      expect(system).toMatch(/CEFR B1/);
+      expect(system).not.toMatch(/^SYS/);
+    });
+
+    it("reads the opening line once when arriving from the scenario panel, and clears the state", async () => {
+      const { mock } = setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "Ordering coffee", config: CAFE }), ...OPENING }),
+        undefined, { route: { pathname: "/chat/c1", state: { speakOpening: "m0" } } });
+      await waitFor(() => expect(speech(mock)).toHaveLength(1));
+      expect(bodyOf(speech(mock)[0]).input).toBe("Hi there, welcome in!");
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveAttribute("data-state", "null"));
+      await act(() => new Promise((r) => setTimeout(r, 30)));
+      expect(speech(mock)).toHaveLength(1);
+    });
+
+    it("reads it once under StrictMode too", async () => {
+      const { mock } = setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "Ordering coffee", config: CAFE }), ...OPENING }),
+        undefined, { strict: true, route: { pathname: "/chat/c1", state: { speakOpening: "m0" } } });
+      await waitFor(() => expect(speech(mock)).toHaveLength(1));
+      await act(() => new Promise((r) => setTimeout(r, 30)));
+      expect(speech(mock)).toHaveLength(1);
+    });
+
+    it("does not read the opening when auto-read is off, the id does not match, or there is no state", async () => {
+      const off = setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CAFE, auto_speak: false } }), ...OPENING }),
+        undefined, { route: { pathname: "/chat/c1", state: { speakOpening: "m0" } } });
+      await screen.findByText("Hi there, welcome in!");
+      await act(() => new Promise((r) => setTimeout(r, 30)));
+      expect(speech(off.mock)).toHaveLength(0);
+      off.view.unmount();
+      const other = setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: CAFE }), ...OPENING }),
+        undefined, { route: { pathname: "/chat/c1", state: { speakOpening: "zzz" } } });
+      await screen.findByText("Hi there, welcome in!");
+      await act(() => new Promise((r) => setTimeout(r, 30)));
+      expect(speech(other.mock)).toHaveLength(0);
+    });
+
+    it("waits for the server voice defaults before reading the opening", async () => {
+      let releaseTts!: () => void;
+      const gate = new Promise<void>((r) => (releaseTts = r));
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { scenario: { id: "cafe" }, level: "auto" } }), // R2:新会话不存模型/音色
+        "GET /api/config/default_tts_preset": async () => { await gate; return json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }); },
+        ...OPENING,
+      }), undefined, { route: { pathname: "/chat/c1", state: { speakOpening: "m0" } } });
+      await screen.findByText("Hi there, welcome in!");
+      expect(speech(mock)).toHaveLength(0);
+      releaseTts();
+      await waitFor(() => expect(speech(mock)).toHaveLength(1));
+      expect(bodyOf(speech(mock)[0])).toMatchObject({ model: "openai/tts-1", voice: "alloy" });
+    });
+
+    it("labels a custom scenario by its first words and ignores a garbage stored scenario", async () => {
+      const custom = setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "x",
+        config: { ...CONFIG, scenario: { id: "custom", custom: "Returning a broken phone to a shop" } } }) }));
+      expect(await screen.findByTestId("conversation-scenario")).toHaveTextContent("Custom: Returning a broken phone");
+      expect(screen.queryByTestId("conversation-level")).not.toBeInTheDocument();
+      custom.view.unmount();
+      setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CONFIG, scenario: { id: 42, custom: ["x"] } } }) }));
+      await screen.findByText("reply");
+      expect(screen.queryByTestId("conversation-scenario")).not.toBeInTheDocument();
     });
   });
 });
