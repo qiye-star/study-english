@@ -1,4 +1,5 @@
 import datetime
+import os
 import pathlib
 import uuid
 
@@ -367,6 +368,7 @@ async def test_patch_racing_an_assessment_delete_leaves_no_dangling_link(app, cl
         assert (await s.execute(select(Message.assessment_id))).scalars().all() == [None]
 
 
+@pytest.mark.skipif("sqlite" not in os.environ.get("TEST_DATABASE_URL", "sqlite"), reason="FKs enforced: dangling impossible")
 async def test_message_out_never_returns_a_dangling_assessment_id(app, client, auth_headers):
     cid = await conversation(client, auth_headers)
     m = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi"})).json()["messages"][0]
@@ -390,3 +392,48 @@ async def test_forged_links_to_another_users_assessment(app, client, auth_header
     assert r.status_code == 404
     assert (await client.delete(f"/api/messages/{m['id']}", headers=auth_headers)).status_code == 200
     assert await assessment_exists(app, bobs) and bobs_file.exists()
+
+
+# --- review fix round 2: FK violations (Postgres) and dialect-aware dangling tests ---
+import os  # noqa: E402
+
+from sqlalchemy.exc import IntegrityError  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+
+FKS_ENFORCED = not os.environ.get("TEST_DATABASE_URL", "sqlite").startswith("sqlite")
+
+
+def fail_commit_once(monkeypatch):
+    real = AsyncSession.commit
+    state = {"raised": False}
+
+    async def commit(self):
+        if not state["raised"]:
+            state["raised"] = True
+            raise IntegrityError("INSERT", {}, Exception("FOREIGN KEY constraint failed"))
+        return await real(self)
+
+    monkeypatch.setattr(AsyncSession, "commit", commit)
+
+
+async def test_post_fk_violation_on_write_is_404_with_no_partial_insert(app, client, auth_headers, monkeypatch):
+    aid, _ = await seed_assessment(app, await uid(client, auth_headers))
+    cid = await conversation(client, auth_headers)
+    fail_commit_once(monkeypatch)
+    r = await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi", "assessment_id": aid},
+                            {"role": "assistant", "content": "yo"})
+    assert r.status_code == 404 and r.json() == {"error": "Assessment not found"}
+    monkeypatch.undo()
+    assert (await client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)).json()["messages"] == []
+
+
+async def test_patch_fk_violation_on_write_is_404_and_changes_nothing(app, client, auth_headers, monkeypatch):
+    aid, _ = await seed_assessment(app, await uid(client, auth_headers))
+    cid = await conversation(client, auth_headers)
+    user = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "She don't like it."})).json()["messages"][0]
+    fail_commit_once(monkeypatch)
+    r = await client.patch(f"/api/messages/{user['id']}", headers=auth_headers, json={"assessment_id": aid, "grammar": GRAMMAR})
+    assert r.status_code == 404 and r.json() == {"error": "Assessment not found"}
+    monkeypatch.undo()
+    listed = (await client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)).json()["messages"]
+    assert listed[0]["assessment_id"] is None and listed[0]["grammar"] is None

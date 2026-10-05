@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -374,7 +375,12 @@ async def create_messages(
     ]
     session.add_all(rows)
     conversation.updated_at = rows[-1].created_at
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # an assessment was deleted between the ownership check and the insert (FK violation)
+        await session.rollback()
+        raise HTTPException(404, "Assessment not found")
     return {"messages": [message_out(r, linked.get(r.assessment_id)) for r in rows]}
 
 
@@ -404,16 +410,28 @@ async def update_message(
     if payload.grammar is not None:
         values["grammar"] = checked_grammar(payload.grammar, row.content)
     message_pk = row.id
-    result = await session.execute(
-        update(Message).where(*guard).values(**values).execution_options(synchronize_session=False)
-    )
-    if result.rowcount == 0:
+    try:
+        result = await session.execute(
+            update(Message).where(*guard).values(**values).execution_options(synchronize_session=False)
+        )
+    except IntegrityError:
+        result = None
+    if result is not None and result.rowcount == 0:
         await session.rollback()
         gone = await session.scalar(select(Message.id).where(Message.id == message_pk))
         if gone is None:
             raise HTTPException(404, "Message not found")
         raise HTTPException(409, "Message already has an assessment")
-    await session.commit()
+    try:
+        if result is None:
+            raise IntegrityError(None, None, Exception())
+        await session.commit()
+    except IntegrityError:
+        # FK violation: the assessment was deleted between the check and the write
+        await session.rollback()
+        if await session.scalar(select(Message.id).where(Message.id == message_pk)) is None:
+            raise HTTPException(404, "Message not found")
+        raise HTTPException(404, "Assessment not found")
     fresh = await session.scalar(
         select(Message)
         .join(Conversation, Conversation.id == Message.conversation_id)
