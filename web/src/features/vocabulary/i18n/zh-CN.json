@@ -1,0 +1,16 @@
+{
+  "web": {
+    "vocabulary": {
+      "title": "词汇本", "add": "加入词汇本", "saved": "已加入词汇本。", "due": "今日待复习:{{value}}",
+      "start": "开始复习", "noneDue": "现在没有要复习的词。", "empty": "还没有单词。可以从查词或复盘里加入。",
+      "flip": "看释义", "noMeaning": "没有保存释义。", "speak": "朗读", "progress": "{{position}} / {{total}}",
+      "grades": { "forgot": "忘了", "hard": "模糊", "good": "记得" },
+      "done": "本轮复习完成。", "close": "返回列表", "all": "全部单词", "box": "第 {{value}} 盒", "nextDue": "下次复习:{{value}}",
+      "deleteConfirm": "删除这个单词?",
+      "errors": {
+        "limit": "词汇本已满,请先删除一些单词。", "notFound": "这个单词已不存在。",
+        "notDue": "这个单词还没到复习时间。", "alreadyReviewed": "这个单词已经复习过了。"
+      }
+    }
+  }
+}

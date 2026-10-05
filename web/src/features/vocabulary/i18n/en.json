@@ -1,0 +1,16 @@
+{
+  "web": {
+    "vocabulary": {
+      "title": "Vocabulary", "add": "Add to vocabulary", "saved": "Added to your vocabulary.", "due": "Due today: {{value}}",
+      "start": "Review now", "noneDue": "Nothing to review right now.", "empty": "No words yet. Add some from the dictionary or a recap.",
+      "flip": "Show meaning", "noMeaning": "No meaning saved.", "speak": "Read aloud", "progress": "{{position}} / {{total}}",
+      "grades": { "forgot": "Forgot", "hard": "Hard", "good": "Good" },
+      "done": "Review finished.", "close": "Back to the list", "all": "All words", "box": "Box {{value}}", "nextDue": "Next review: {{value}}",
+      "deleteConfirm": "Delete this word?",
+      "errors": {
+        "limit": "Your vocabulary is full. Delete some words first.", "notFound": "This word no longer exists.",
+        "notDue": "This word is not due yet.", "alreadyReviewed": "This word was already reviewed."
+      }
+    }
+  }
+}
