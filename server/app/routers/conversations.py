@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
@@ -58,14 +58,14 @@ class ConversationPatch(BaseModel):
 class MessageIn(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str = Field(min_length=1, max_length=20000)
-    assessment_id: str | None = Field(default=None, max_length=64)
+    assessment_id: str | None = Field(default=None, min_length=1, max_length=64)
     grammar: dict | None = None
 
 
 class MessagePatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    assessment_id: str | None = Field(default=None, max_length=64)
+    assessment_id: str | None = Field(default=None, min_length=1, max_length=64)
     grammar: dict | None = None
 
 
@@ -117,7 +117,8 @@ def message_out(row: Message, assessment: Assessment | None = None) -> dict:
         "role": row.role,
         "content": row.content,
         "created_at": iso_utc(row.created_at),
-        "assessment_id": row.assessment_id,
+        # never expose a link whose assessment is gone (dangling) or not visible to the caller
+        "assessment_id": row.assessment_id if assessment is not None else None,
         "grammar": row.grammar,
         "assessment": assessment_summary(assessment),
     }
@@ -160,15 +161,37 @@ async def owned_message(session: AsyncSession, user: User, message_id: str) -> M
     return row
 
 
-async def chat_assessments(session: AsyncSession, user: User, ids: list[str]) -> list[Assessment]:
+async def chat_assessments(
+    session: AsyncSession, user: User, ids: list[str], *, other_refs=None
+) -> list[Assessment]:
+    """The user's source=chat assessments among ids. `other_refs` is a Message filter selecting the messages that
+    survive the deletion; assessments still referenced by one of them are kept."""
     out: list[Assessment] = []
     for chunk in _chunks(sorted({i for i in ids if i})):
-        out.extend((
+        rows = (
             await session.execute(
                 select(Assessment).where(Assessment.id.in_(chunk), Assessment.user_id == user.id, Assessment.source == "chat")
             )
-        ).scalars().all())
+        ).scalars().all()
+        if rows and other_refs is not None:
+            used = set((
+                await session.execute(
+                    select(Message.assessment_id).where(Message.assessment_id.in_([r.id for r in rows]), other_refs)
+                )
+            ).scalars().all())
+            rows = [r for r in rows if r.id not in used]
+        out.extend(rows)
     return out
+
+
+async def ensure_unlinked(session: AsyncSession, assessment_ids: set[str], except_message_id: str | None = None) -> None:
+    if not assessment_ids:
+        return
+    stmt = select(Message.id).where(Message.assessment_id.in_(sorted(assessment_ids)))
+    if except_message_id is not None:
+        stmt = stmt.where(Message.id != except_message_id)
+    if (await session.execute(stmt.limit(1))).first() is not None:
+        raise HTTPException(409, "Assessment already linked to another message")
 
 
 async def drop_assessments(session: AsyncSession, rows: list[Assessment]) -> list[str]:
@@ -285,7 +308,7 @@ async def delete_conversation(
             select(Message.assessment_id).where(Message.conversation_id == row.id, Message.assessment_id.is_not(None))
         )
     ).scalars().all()
-    chat = await chat_assessments(session, user, list(linked))
+    chat = await chat_assessments(session, user, list(linked), other_refs=Message.conversation_id != row.id)
     # SQLite 默认不开外键级联,显式删除消息
     await session.execute(delete(Message).where(Message.conversation_id == row.id))
     paths = await drop_assessments(session, chat)
@@ -330,7 +353,11 @@ async def create_messages(
     for m in payload.messages:
         if (m.assessment_id or m.grammar is not None) and m.role != "user":
             raise HTTPException(422, RESULT_ROLE_ERROR)
-    linked = await owned_assessments(session, user, {m.assessment_id for m in payload.messages if m.assessment_id})
+    ids = [m.assessment_id for m in payload.messages if m.assessment_id]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(409, "Assessment already linked to another message")
+    linked = await owned_assessments(session, user, set(ids))
+    await ensure_unlinked(session, set(ids))
     grammars = [checked_grammar(m.grammar, m.content) if m.grammar is not None else None for m in payload.messages]
     last = await session.scalar(
         select(func.max(Message.created_at)).where(Message.conversation_id == conversation.id)
@@ -363,20 +390,52 @@ async def update_message(
         raise HTTPException(400, "Nothing to update")
     if row.role != "user":
         raise HTTPException(422, RESULT_ROLE_ERROR)
-    assessment: Assessment | None = None
+    values: dict = {}
+    guard = [Message.id == row.id, Message.conversation_id == row.conversation_id]
     if payload.assessment_id is not None:
-        if row.assessment_id and row.assessment_id != payload.assessment_id:
+        new_id = payload.assessment_id
+        if row.assessment_id and row.assessment_id != new_id:
             raise HTTPException(409, "Message already has an assessment")
-        assessment = (await owned_assessments(session, user, {payload.assessment_id}))[payload.assessment_id]
-        row.assessment_id = assessment.id
-    elif row.assessment_id:
-        assessment = await session.scalar(
-            select(Assessment).where(Assessment.id == row.assessment_id, Assessment.user_id == user.id)
-        )
+        await owned_assessments(session, user, {new_id})
+        await ensure_unlinked(session, {new_id}, except_message_id=row.id)
+        values["assessment_id"] = new_id
+        # atomic: only link when still unlinked (or already linked to this very assessment)
+        guard.append(or_(Message.assessment_id.is_(None), Message.assessment_id == new_id))
     if payload.grammar is not None:
-        row.grammar = checked_grammar(payload.grammar, row.content)
+        values["grammar"] = checked_grammar(payload.grammar, row.content)
+    message_pk = row.id
+    result = await session.execute(
+        update(Message).where(*guard).values(**values).execution_options(synchronize_session=False)
+    )
+    if result.rowcount == 0:
+        await session.rollback()
+        gone = await session.scalar(select(Message.id).where(Message.id == message_pk))
+        if gone is None:
+            raise HTTPException(404, "Message not found")
+        raise HTTPException(409, "Message already has an assessment")
     await session.commit()
-    return message_out(row, assessment)
+    fresh = await session.scalar(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.id == message_pk, Conversation.user_id == user.id)
+        .execution_options(populate_existing=True)
+    )
+    if fresh is None:
+        raise HTTPException(404, "Message not found")
+    assessment = None
+    if fresh.assessment_id:
+        assessment = await session.scalar(
+            select(Assessment).where(Assessment.id == fresh.assessment_id, Assessment.user_id == user.id)
+        )
+        if assessment is None and payload.assessment_id is not None:
+            # the assessment vanished concurrently: drop the dangling link instead of returning it
+            await session.execute(
+                update(Message).where(Message.id == message_pk, Message.assessment_id == fresh.assessment_id)
+                .values(assessment_id=None).execution_options(synchronize_session=False)
+            )
+            await session.commit()
+            raise HTTPException(404, "Assessment not found")
+    return message_out(fresh, assessment)
 
 
 @router.delete("/messages/{message_id}")
@@ -387,7 +446,9 @@ async def delete_message(
     settings: Settings = Depends(get_settings),
 ):
     row = await owned_message(session, user, message_id)
-    chat = await chat_assessments(session, user, [row.assessment_id] if row.assessment_id else [])
+    chat = await chat_assessments(
+        session, user, [row.assessment_id] if row.assessment_id else [], other_refs=Message.id != row.id
+    )
     await session.delete(row)
     paths = await drop_assessments(session, chat)
     await session.commit()

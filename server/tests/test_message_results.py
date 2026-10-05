@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 import uuid
 
@@ -217,7 +218,7 @@ async def test_deleting_a_conversation_with_many_linked_messages_stays_under_sql
     me = await uid(client, auth_headers)
     cid = await conversation(client, auth_headers)
     n = 1200
-    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
     async with app.state.sessionmaker() as s:
         for i in range(n):
             aid = str(uuid.uuid4())
@@ -266,3 +267,126 @@ async def test_chat_assessment_detail_and_source_filtering(app, client, auth_hea
     everything = (await client.get("/api/assessments?source=all", headers=auth_headers)).json()["assessments"]
     assert {a["id"] for a in everything} == set(chat_ids) | {practice}
     assert bobs not in {a["id"] for a in everything} | got
+
+
+# --- review fix round 1 ---
+from app.routers import conversations as conv_router  # noqa: E402
+
+
+async def force_link(app, message_id, assessment_id):
+    async with app.state.sessionmaker() as s:
+        (await s.get(Message, message_id)).assessment_id = assessment_id
+        await s.commit()
+
+
+async def test_empty_assessment_id_is_rejected(client, auth_headers):
+    cid = await conversation(client, auth_headers)
+    r = await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi", "assessment_id": ""})
+    assert r.status_code == 422
+    user = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi"})).json()["messages"][0]
+    assert (await client.patch(f"/api/messages/{user['id']}", headers=auth_headers, json={"assessment_id": ""})).status_code == 422
+
+
+async def test_assessment_can_be_linked_to_one_message_only(app, client, auth_headers):
+    aid, _ = await seed_assessment(app, await uid(client, auth_headers))
+    cid = await conversation(client, auth_headers)
+    first = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "one", "assessment_id": aid})).json()["messages"][0]
+    r = await post_messages(client, auth_headers, cid, {"role": "user", "content": "two", "assessment_id": aid})
+    assert r.status_code == 409
+    r = await post_messages(client, auth_headers, cid, {"role": "user", "content": "a", "assessment_id": aid},
+                            {"role": "user", "content": "b", "assessment_id": aid})
+    assert r.status_code == 409
+    other = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "three"})).json()["messages"][0]
+    r = await client.patch(f"/api/messages/{other['id']}", headers=auth_headers, json={"assessment_id": aid})
+    assert r.status_code == 409
+    r = await client.patch(f"/api/messages/{first['id']}", headers=auth_headers, json={"assessment_id": aid})
+    assert r.status_code == 200  # same message, same assessment: idempotent
+
+
+async def test_cascade_keeps_assessment_still_referenced_by_a_surviving_message(app, client, auth_headers):
+    aid, path = await seed_assessment(app, await uid(client, auth_headers), "chat")
+    c1, c2 = await conversation(client, auth_headers), await conversation(client, auth_headers)
+    a = (await post_messages(client, auth_headers, c1, {"role": "user", "content": "one", "assessment_id": aid})).json()["messages"][0]
+    b = (await post_messages(client, auth_headers, c2, {"role": "user", "content": "two"})).json()["messages"][0]
+    await force_link(app, b["id"], aid)
+    assert (await client.delete(f"/api/messages/{a['id']}", headers=auth_headers)).status_code == 200
+    assert await assessment_exists(app, aid) and path.exists()
+    listed = (await client.get(f"/api/conversations/{c2}/messages", headers=auth_headers)).json()["messages"]
+    assert listed[0]["assessment_id"] == aid
+    assert (await client.delete(f"/api/conversations/{c2}", headers=auth_headers)).status_code == 200
+    assert not await assessment_exists(app, aid) and not path.exists()
+
+
+async def test_conversation_delete_keeps_assessment_referenced_from_another_conversation(app, client, auth_headers):
+    aid, path = await seed_assessment(app, await uid(client, auth_headers), "chat")
+    c1, c2 = await conversation(client, auth_headers), await conversation(client, auth_headers)
+    await post_messages(client, auth_headers, c1, {"role": "user", "content": "one", "assessment_id": aid})
+    b = (await post_messages(client, auth_headers, c2, {"role": "user", "content": "two"})).json()["messages"][0]
+    await force_link(app, b["id"], aid)
+    assert (await client.delete(f"/api/conversations/{c1}", headers=auth_headers)).status_code == 200
+    assert await assessment_exists(app, aid) and path.exists()
+
+
+async def test_patch_racing_a_message_delete_is_404(app, client, auth_headers, monkeypatch):
+    cid = await conversation(client, auth_headers)
+    user = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "She don't like it."})).json()["messages"][0]
+    real = conv_router.owned_message
+
+    async def racing(session, u, mid):
+        row = await real(session, u, mid)
+        async with app.state.sessionmaker() as other:
+            await other.execute(Message.__table__.delete().where(Message.id == mid))
+            await other.commit()
+        return row
+
+    monkeypatch.setattr(conv_router, "owned_message", racing)
+    r = await client.patch(f"/api/messages/{user['id']}", headers=auth_headers, json={"grammar": GRAMMAR})
+    assert r.status_code == 404 and r.json() == {"error": "Message not found"}
+
+
+async def test_patch_racing_an_assessment_delete_leaves_no_dangling_link(app, client, auth_headers, monkeypatch):
+    aid, _ = await seed_assessment(app, await uid(client, auth_headers), "practice")
+    cid = await conversation(client, auth_headers)
+    user = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi"})).json()["messages"][0]
+    real = conv_router.owned_assessments
+
+    async def racing(session, u, ids):
+        found = await real(session, u, ids)
+        async with app.state.sessionmaker() as other:
+            await other.execute(Assessment.__table__.delete().where(Assessment.id == aid))
+            await other.commit()
+        return found
+
+    monkeypatch.setattr(conv_router, "owned_assessments", racing)
+    r = await client.patch(f"/api/messages/{user['id']}", headers=auth_headers, json={"assessment_id": aid})
+    assert r.status_code == 404 and r.json() == {"error": "Assessment not found"}
+    monkeypatch.undo()
+    listed = (await client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)).json()["messages"]
+    assert listed[0]["assessment_id"] is None and listed[0]["assessment"] is None
+    async with app.state.sessionmaker() as s:
+        assert (await s.execute(select(Message.assessment_id))).scalars().all() == [None]
+
+
+async def test_message_out_never_returns_a_dangling_assessment_id(app, client, auth_headers):
+    cid = await conversation(client, auth_headers)
+    m = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "hi"})).json()["messages"][0]
+    await force_link(app, m["id"], "ghost")
+    listed = (await client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)).json()["messages"]
+    assert listed[0]["assessment_id"] is None and listed[0]["assessment"] is None
+
+
+async def test_forged_links_to_another_users_assessment(app, client, auth_headers):
+    bob = await register(client, "bob")
+    bobs, bobs_file = await seed_assessment(app, await uid(client, bob), "chat")
+    cid = await conversation(client, auth_headers)
+    m = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "x"})).json()["messages"][0]
+    await force_link(app, m["id"], bobs)
+    listed = (await client.get(f"/api/conversations/{cid}/messages", headers=auth_headers)).json()["messages"]
+    assert listed[0]["assessment_id"] is None and listed[0]["assessment"] is None
+    r = await client.patch(f"/api/messages/{m['id']}", headers=auth_headers, json={"grammar": GRAMMAR})
+    assert r.status_code == 200 and r.json()["assessment_id"] is None and r.json()["assessment"] is None
+    other = (await post_messages(client, auth_headers, cid, {"role": "user", "content": "y"})).json()["messages"][0]
+    r = await client.patch(f"/api/messages/{other['id']}", headers=auth_headers, json={"assessment_id": bobs})
+    assert r.status_code == 404
+    assert (await client.delete(f"/api/messages/{m['id']}", headers=auth_headers)).status_code == 200
+    assert await assessment_exists(app, bobs) and bobs_file.exists()
