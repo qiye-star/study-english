@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GRAMMAR_REV_KEY, grammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
 import { PRACTICE_DRAFT_KEY, clearDeviceData } from "./device-data";
+import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "./playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "./kv-cache";
 
 describe("clearDeviceData", () => {
@@ -12,10 +13,13 @@ describe("clearDeviceData", () => {
     await kvSet("lookup", { a: 1 });
     localStorage.setItem(GRAMMAR_REV_KEY, "3");
     sharedTtsCache.set("k", new Blob(["a"]));
+    setPlaybackRate(1.25);
     clearDeviceData();
     await vi.waitFor(async () => expect(await kvGet("lookup")).toBeUndefined());
     await kvIdleForTests();
     expect(localStorage.getItem(PRACTICE_DRAFT_KEY)).toBeNull();
+    expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBeNull();
+    expect(getPlaybackRate()).toBe(1);
     expect(localStorage.getItem(GRAMMAR_REV_KEY)).toBe("4"); // bumped (3 -> 4), never reset to 0
     expect(sharedTtsCache.get("k")).toBeUndefined();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:x");
