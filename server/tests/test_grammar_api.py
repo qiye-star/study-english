@@ -109,6 +109,43 @@ async def test_upstream_unreachable_is_502(client, auth_headers, respx_mock):
     assert r.status_code == 502 and r.json() == {"error": "Upstream unavailable"}
 
 
+async def test_upstream_read_timeout_is_502(client, auth_headers, respx_mock):
+    respx_mock.post(LLM).mock(side_effect=httpx.ReadTimeout("slow"))
+    r = await client.post(URL, headers=auth_headers, json={"text": TEXT})
+    assert r.status_code == 502 and r.json() == {"error": "Upstream unavailable"}
+
+
+async def test_request_uses_a_short_timeout(client, auth_headers, respx_mock):
+    route = respx_mock.post(LLM).mock(return_value=completion(json.dumps(GOOD)))
+    assert (await client.post(URL, headers=auth_headers, json={"text": TEXT})).status_code == 200
+    timeout = route.calls.last.request.extensions["timeout"]
+    assert timeout["read"] == 30.0 and timeout["connect"] == 10.0
+
+
+@pytest.mark.parametrize("settings_overrides", [{"llm_max_tokens": 8192}], indirect=True)
+async def test_max_tokens_is_capped_at_1024(client, auth_headers, respx_mock):
+    route = respx_mock.post(LLM).mock(return_value=completion(json.dumps(GOOD)))
+    assert (await client.post(URL, headers=auth_headers, json={"text": TEXT})).status_code == 200
+    assert sent(route)["max_tokens"] == 1024
+
+
+@pytest.mark.parametrize("settings_overrides", [{"llm_max_tokens": 300}], indirect=True)
+async def test_small_llm_max_tokens_is_kept(client, auth_headers, respx_mock):
+    route = respx_mock.post(LLM).mock(return_value=completion(json.dumps(GOOD)))
+    assert (await client.post(URL, headers=auth_headers, json={"text": TEXT})).status_code == 200
+    assert sent(route)["max_tokens"] == 300
+
+
+@pytest.mark.parametrize("settings_overrides", [{
+    "upstream_grammar_base_url": "https://grammar.test/v1", "upstream_grammar_key": "", "grammar_model": "grammar-mini",
+}], indirect=True)
+async def test_grammar_base_url_without_key_never_borrows_the_llm_key(client, auth_headers, respx_mock):
+    grammar = respx_mock.post("https://grammar.test/v1/chat/completions").mock(return_value=completion(json.dumps(GOOD)))
+    assert (await client.post(URL, headers=auth_headers, json={"text": TEXT})).status_code == 200
+    auth = grammar.calls.last.request.headers["authorization"]
+    assert "llm-secret" not in auth and auth == "Bearer "
+
+
 @pytest.mark.parametrize("settings_overrides", [{
     "upstream_grammar_base_url": "https://grammar.test/v1", "upstream_grammar_key": "g-secret", "grammar_model": "grammar-mini",
 }], indirect=True)

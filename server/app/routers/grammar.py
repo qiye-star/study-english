@@ -10,6 +10,10 @@ from app.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 
+# 语法检查是短输出,不沿用共享客户端的 120 s 读超时与大 max_tokens
+GRAMMAR_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+MAX_GRAMMAR_TOKENS = 1024
+
 
 class GrammarIn(BaseModel):
     # 只读取这两个字段;请求里的其他字段(model、messages、prompt…)一律忽略,提示词只来自服务端
@@ -37,12 +41,13 @@ async def check_grammar(
     if len(text) > MAX_TEXT_CHARS:
         raise HTTPException(413, "Text is too long")
     context = (payload.context or "").strip()[-MAX_CONTEXT_CHARS:]
-    body = build_request(settings.resolved_grammar_model, effective_rules(request, user), text, context, settings.llm_max_tokens)
+    body = build_request(settings.resolved_grammar_model, effective_rules(request, user), text, context, min(settings.llm_max_tokens, MAX_GRAMMAR_TOKENS))
     http: httpx.AsyncClient = request.app.state.http
     try:
         upstream = await http.post(
             base_url.rstrip("/") + "/chat/completions",
             json=body,
+            timeout=GRAMMAR_TIMEOUT,
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         )
     except httpx.HTTPError:
