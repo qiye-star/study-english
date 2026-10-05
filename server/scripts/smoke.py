@@ -88,6 +88,12 @@ def main() -> int:
         }))
         json.loads(r.json()["choices"][0]["message"]["content"])
 
+    def grammar():
+        r = require_ok(http.post("/api/ai/grammar", headers=state["headers"], json={"text": "She don't like apples."}))
+        body = r.json()
+        assert body["has_errors"] is True and body["errors"], body
+        return "errors=" + "; ".join(f"{e['original']} -> {e['corrected']}" for e in body["errors"])
+
     def looks_like_audio(data: bytes) -> bool:
         return data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0)
 
@@ -159,6 +165,7 @@ def main() -> int:
         ("chat", chat),
         ("chat stream", chat_stream),
         ("chat json mode", chat_json_mode),
+        ("grammar", grammar),
         ("tts config", tts_discover),
         ("whisper (tts -> stt round trip)", whisper),
         ("speech token", speech_token),

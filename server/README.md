@@ -10,6 +10,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/sessions, /api/users, /api/me   认证
                                 ├ /api/config/{key}             配置快照
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
+                                ├ /api/ai/grammar               语法检查(登录 + 用户限流;请求 {text, context?};提示词与模型由服务端决定)
                                 ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)
@@ -119,9 +120,12 @@ UPSTREAM_WHISPER_MODEL=doubao-seed-2-0-lite-260428
 - 方舟 API Key 与「豆包语音」控制台的 UUID 格式 Key 不是同一种,不能混用。
 - 默认 `UPSTREAM_WHISPER_MODE=openai`,行为不变。
 
+**语法检查模型**:默认用 `DEFAULT_LLM_MODEL` 和 LLM 上游(需支持 JSON 模式)。可用 `GRAMMAR_MODEL` 换模型,或用 `UPSTREAM_GRAMMAR_BASE_URL` / `UPSTREAM_GRAMMAR_KEY` 换到另一家 OpenAI 兼容服务。提示词由两部分组成:可替换的"检查规则"(内置默认 → `GRAMMAR_PROMPT` → `GRAMMAR_PROMPT_FILE`,文件优先;每个用户还可以在网页「我的」页改自己的规则并一键恢复默认)+ 服务端固定追加的输出格式要求(JSON 结构、类别、`original` 必须出自原文、最多 8 项)。模型输出会被严格校验,不合格返回 502,错误体不含上游内容。`GRAMMAR_PROMPT_FILE` 读不到或为空时服务拒绝启动。这些设置都不会通过 `/api/config` 暴露。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。
+- 语法检查 `POST /api/ai/grammar` 同样按用户限流;`text` ≤ 2000 字符(超出 413),`context` 只取最后 500 字符。一轮语音消息 = 转写 + 评测 + 回复 + 语法共 4 次上游调用,文字消息 = 回复 + 语法 2 次(网页端对少于 3 个英文单词或非英文的消息不查语法,并缓存同一文本的结果)。
 - 聊天请求的 `n` 最多 4;`max_tokens` / `max_completion_tokens` 超过 `LLM_MAX_TOKENS`(默认 4096)会被压到该值,请求未带则保持缺省。
 - 非 multipart 请求体超过 1 MiB 返回 413;转写与发音评测上传(multipart)上限 25 MiB。讯飞免费额度可能远低于用户限流上限。
 

@@ -10,7 +10,9 @@ from app.errors import install_error_handlers
 from app.grammar import load_grammar_rules
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
-from app.routers import ai_audio, ai_chat, assessments, config_api, conversations, health, sessions, speech, stubs, web
+from app.routers import (
+    ai_audio, ai_chat, assessments, config_api, conversations, grammar, health, sessions, speech, stubs, web,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -46,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # web(静态托管 + SPA 回退)兜底所有非 API 的 GET,必须最后。
     for module in (
         health, sessions, config_api, speech, conversations, assessments,
-        ai_chat, ai_audio, stubs, web,
+        ai_chat, grammar, ai_audio, stubs, web,
     ):
         app.include_router(module.router)
     return app
