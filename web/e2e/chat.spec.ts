@@ -25,6 +25,17 @@ async function assertRealSttAvailable(request: APIRequestContext): Promise<void>
   expect(r.status(), await r.text()).toBe(200);
 }
 
+/** 在约 1.5 秒的稳定窗口内,连续轮询计数都等于期望值(防止缓存命中断言在迟到请求前就通过)。 */
+async function expectStableCount(read: () => number, expected: number): Promise<void> {
+  const deadline = Date.now() + 1_500;
+  await expect
+    .poll(async () => {
+      await new Promise((r) => setTimeout(r, 250));
+      return read() !== expected ? read() : Date.now() >= deadline ? expected : -1;
+    }, { timeout: 5_000, intervals: [0] })
+    .toBe(expected);
+}
+
 async function newConversation(page: Page): Promise<string> {
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
@@ -129,6 +140,7 @@ test("composer stays visible on a phone-sized screen", async ({ page, request })
 test("voice message: transcript, streamed reply, pronunciation and grammar badges, replay, practice and cascade delete", async ({ page, request, browserName }) => {
   test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
   test.skip(!REAL_STT, STT_SKIP_REASON);
+  test.setTimeout(420_000); // 预检(最长 150s)+ 转写/评测/语法(各最长 150s)+ 回放与级联删除
   await assertRealSttAvailable(request);
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
@@ -198,9 +210,10 @@ test("grammar: a correct and a wrong typed message; the corrected sentence goes 
   await expect(clean).toHaveAttribute("data-status", "done", { timeout: 60_000 });
   await expect(clean).toHaveAttribute("data-errors", "0");
   await sendText(page, "Yesterday I go to the park and buy two apple.");
+  await expect(page.getByTestId("badge-grammar")).toHaveCount(2, { timeout: 60_000 });
   const wrong = page.getByTestId("badge-grammar").last();
   await expect(wrong).toHaveAttribute("data-status", "done", { timeout: 60_000 });
-  expect(Number(await wrong.getAttribute("data-errors"))).toBeGreaterThan(0);
+  await expect(wrong).toHaveAttribute("data-errors", /^[1-9]\d*$/);
   await wrong.click();
   const corrected = (await page.getByTestId("grammar-corrected").innerText()).trim();
   expect(corrected).not.toBe("Yesterday I go to the park and buy two apple.");
@@ -225,12 +238,12 @@ test("translation on demand is cached when toggled; bilingual mode translates ne
   const translation = page.getByTestId("message-translation").last();
   await expect(translation).toHaveAttribute("data-status", "done", { timeout: 60_000 });
   await expect(translation).toContainText(/[一-鿿]/);
-  expect(completions).toBe(afterReply + 1);
+  await expectStableCount(() => completions, afterReply + 1);
   await page.getByTestId("message-translate").last().click();
   await expect(page.getByTestId("message-translation")).toHaveCount(0);
   await page.getByTestId("message-translate").last().click();
   await expect(page.getByTestId("message-translation").last()).toHaveAttribute("data-status", "done");
-  expect(completions).toBe(afterReply + 1); // 收起再展开不再请求
+  await expectStableCount(() => completions, afterReply + 1); // 收起再展开不再请求(稳定窗口内计数不变)
 
   await page.getByTestId("conversation-bilingual").click();
   await expect(page.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
