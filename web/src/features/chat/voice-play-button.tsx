@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PRACTICE_SERVER_ERRORS, getAssessmentAudio } from "~/features/practice/assessment-api";
+import { applyPlaybackRate, trackMediaElement } from "~/lib/playback-rate";
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { primeAudioElement } from "./use-tts-player";
 
@@ -29,6 +30,14 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
   const fetchedRef = useRef<string | null>(null);
   const mounted = useRef(true);
   const genRef = useRef(0); // 每次停止/换源递增,让过期的异步结果失效
+  const untrackRef = useRef<(() => void) | null>(null);
+  const getElement = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      untrackRef.current = trackMediaElement(audioRef.current); // R8:语音气泡回放同样跟随语速
+    }
+    return audioRef.current;
+  };
 
   useEffect(() => {
     mounted.current = true;
@@ -59,6 +68,12 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
     }
   }, [assessmentId, audioUrl, halt]);
 
+  useEffect(() => () => {
+    untrackRef.current?.();
+    untrackRef.current = null;
+    audioRef.current = null;
+  }, []);
+
   const fail = (message: string) => {
     if (!mounted.current) return;
     setErrorText(message);
@@ -67,6 +82,7 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
 
   const playFrom = (element: HTMLAudioElement, src: string, gen: number) => {
     element.src = src;
+    applyPlaybackRate(element);
     element.onended = () => {
       if (gen !== genRef.current) return;
       releaseAudio(halt);
@@ -78,7 +94,7 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
   };
 
   const toggle = () => {
-    const element = (audioRef.current ??= new Audio());
+    const element = getElement();
     if (state === "playing") {
       halt();
       releaseAudio(halt);

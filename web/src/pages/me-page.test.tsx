@@ -5,6 +5,7 @@ import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { PLAYBACK_RATE_KEY, resetPlaybackRateForTests } from "~/lib/playback-rate";
 import { MePage } from "./me-page";
 
 const ROUTES = {
@@ -46,5 +47,14 @@ describe("MePage", () => {
   it("shows the grammar prompt editor", async () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue("RULES");
+  });
+  it("sets the read-aloud speed", async () => {
+    resetPlaybackRateForTests();
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const select = screen.getByTestId("me-playback-rate");
+    expect(select).toHaveValue("1");
+    await userEvent.selectOptions(select, "1.25");
+    expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
+    expect(select).toHaveValue("1.25");
   });
 });

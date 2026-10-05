@@ -23,6 +23,7 @@
       "languageHint": "同时作为翻译的目标语言。",
       "services": "服务器语音服务", "stt": "语音转文字:服务器 Whisper",
       "tts": "语音合成模型:{{models}}", "ttsDefault": "默认音色:{{voice}}",
+      "playbackRate": "朗读语速", "playbackRateHint": "作用于朗读、自动朗读、语音消息回放和跟读页的先听范读。",
       "logout": "退出登录", "install": "添加到主屏幕"
     },
     "install": {

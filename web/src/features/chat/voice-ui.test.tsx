@@ -6,6 +6,7 @@ import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import good from "~/test/fixtures/assessment-good.json";
+import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
 import { claimAudio } from "./audio-focus";
 import { MessageBubble } from "./message-bubble";
 import { ApiError } from "~/api/client";
@@ -154,6 +155,25 @@ describe("voice UI", () => {
     await userEvent.click(screen.getByTestId("detail-practice"));
     expect(onClose).toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+  });
+  it("plays a voice bubble at the global speed and applies a change immediately", async () => {
+    localStorage.clear();
+    resetPlaybackRateForTests();
+    setPlaybackRate(0.75);
+    let element: HTMLMediaElement | null = null;
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(function (this: HTMLMediaElement) {
+      element = this;
+      return Promise.resolve();
+    });
+    const { api } = apiFor({});
+    renderWithProviders(<VoicePlayButton audioUrl="blob:local" />, { api });
+    await userEvent.click(screen.getByTestId("voice-play"));
+    await waitFor(() => expect(screen.getByTestId("voice-play")).toHaveAttribute("data-state", "playing"));
+    expect(element!.playbackRate).toBe(0.75);
+    expect((element as unknown as { preservesPitch?: boolean }).preservesPitch).toBe(true);
+    act(() => setPlaybackRate(1.25));
+    expect(element!.playbackRate).toBe(1.25);
+    setPlaybackRate(1);
   });
 });
 

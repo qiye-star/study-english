@@ -7,6 +7,7 @@ import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
+import { PLAYBACK_RATES, formatPlaybackRate, setPlaybackRate, usePlaybackRate, type PlaybackRate } from "~/lib/playback-rate";
 import { PageHeader } from "~/layout/page-header";
 import { shouldShowIosInstallHint } from "~/pwa/ios";
 import { useSettings } from "~/settings/settings-context";
@@ -15,6 +16,7 @@ export function MePage() {
   const { t } = useTranslation();
   const { user, api, logout } = useAuth();
   const { language, setLanguage } = useSettings();
+  const rate = usePlaybackRate();
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -54,6 +56,15 @@ export function MePage() {
             ))}
           </select>
           <p className="text-xs text-muted-foreground">{t("web.me.languageHint")}</p>
+        </section>
+        <section className="space-y-2">
+          <label htmlFor="playback-rate" className="text-sm text-muted-foreground">{t("web.me.playbackRate")}</label>
+          <select id="playback-rate" data-testid="me-playback-rate" value={String(rate)}
+            onChange={(e) => setPlaybackRate(Number(e.target.value) as PlaybackRate)}
+            className="h-11 w-full rounded-md border bg-background px-3 text-base">
+            {PLAYBACK_RATES.map((r) => <option key={r} value={String(r)}>{formatPlaybackRate(r)}</option>)}
+          </select>
+          <p className="text-xs text-muted-foreground">{t("web.me.playbackRateHint")}</p>
         </section>
         <GrammarPromptEditor />
         <section data-testid="me-services" className="space-y-1 text-sm">
