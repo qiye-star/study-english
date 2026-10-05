@@ -4,7 +4,8 @@
       "lookup": "查词", "translate": "翻译", "lookupInstead": "查词典", "translateInstead": "改为翻译",
       "lemma": "原形", "invalid": "无法解析词典结果,请重试。",
       "upstream": "AI 服务暂不可用,请重试。", "notConfigured": "服务器未配置 AI 服务。",
-      "drawerDescription": "所选文字的 AI 词典或翻译"
+      "drawerDescription": "所选文字的 AI 词典或翻译",
+      "practice": "跟读", "save": "收藏", "tooLong": "所选内容过长,无法跟读或收藏(最多 2000 字符)。"
     }
   }
 }

@@ -1,12 +1,15 @@
 import "fake-indexeddb/auto";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { LookupLayer } from "./lookup-layer";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
 
 function Page() {
   return (
@@ -140,5 +143,60 @@ describe("LookupLayer", () => {
     await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull());
     await new Promise((r) => setTimeout(r, 400));
     expect(screen.queryByTestId("lookup-trigger")).toBeNull();
+  });
+
+  it("offers practice and save for a selected sentence only", async () => {
+    const mock = createFetchMock({
+      "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: "不要问国家能为你做什么" } }] }),
+      "POST /api/practice-items": () => json({ id: "p1", text: "x", source: "lookup", created_at: "t" }),
+    });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("ask not what your country can do");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    await userEvent.click(screen.getByTestId("lookup-save"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/practice-items")!.body as string))
+      .toEqual({ text: "ask not what your country can do", source: "lookup" });
+    await userEvent.click(screen.getByTestId("lookup-practice"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull());
+  });
+
+  it("does not offer practice for a single word", async () => {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","definition":"a nation"}' } }] }) });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    expect(screen.queryByTestId("lookup-practice")).toBeNull();
+    expect(screen.queryByTestId("lookup-save")).toBeNull();
+  });
+
+  it("guards double saves and shows a translated error when saving fails", async () => {
+    let release: () => void = () => {};
+    let fail = false;
+    const mock = createFetchMock({
+      "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: "译文" } }] }),
+      "POST /api/practice-items": () => new Promise((resolve) => {
+        release = () => resolve(fail ? json({ error: "Upstream unavailable" }, 500) : json({ id: "p1", text: "x", source: "lookup", created_at: "t" }));
+      }),
+    });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    await selectText("ask not what your country can do");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    await userEvent.click(screen.getByTestId("lookup-save"));
+    expect(screen.getByTestId("lookup-save")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("lookup-save"));
+    await act(async () => { release(); await new Promise((r) => setTimeout(r, 20)); });
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/practice-items")).toHaveLength(1);
+    await waitFor(() => expect(screen.getByTestId("lookup-save")).not.toBeDisabled());
+    fail = true;
+    vi.mocked(toast.error).mockClear();
+    await userEvent.click(screen.getByTestId("lookup-save"));
+    await act(async () => { release(); await new Promise((r) => setTimeout(r, 20)); });
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls[0][0]).not.toContain("Upstream unavailable");
   });
 });

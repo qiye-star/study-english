@@ -1,13 +1,16 @@
-import { LanguagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
+import { LanguagesIcon, LoaderIcon, MicIcon, SearchIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { MAX_PRACTICE_TEXT } from "~/features/practice/practice-items-api";
+import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
-import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, type LookupMode, type LookupResult } from "./lookup";
+import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
 
 type LookupState =
@@ -29,6 +32,23 @@ export function LookupLayer() {
   const native = nativeLanguageCode(language);
   const controller = useRef<AbortController | null>(null);
   const touchStart = useRef<number | null>(null);
+  const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const passageText = target ? normalizeSelection(target.text) : "";
+  const isPassage = !!target && classifySelection(target.text) === "translate";
+  const tooLong = passageText.length > MAX_PRACTICE_TEXT;
+
+  const save = async () => {
+    if (saving || !passageText || tooLong) return;
+    setSaving(true);
+    try {
+      await savePracticeItem(api, t, passageText, "lookup");
+    } finally {
+      if (mounted.current) setSaving(false);
+    }
+  };
 
   const abort = useCallback(() => {
     controller.current?.abort();
@@ -129,6 +149,21 @@ export function LookupLayer() {
               <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
+          {isPassage && (
+            <div className="mt-2">
+              <div className="flex gap-2">
+                <Button variant="outline" data-testid="lookup-practice" className="h-11 min-w-11 flex-1" disabled={tooLong}
+                  onClick={() => { onOpenChange(false); goPractice(navigate, passageText); }}>
+                  <MicIcon className="mr-2 h-4 w-4" />{t("web.lookup.practice")}
+                </Button>
+                <Button variant="outline" data-testid="lookup-save" className="h-11 min-w-11 flex-1" disabled={tooLong || saving}
+                  onClick={() => void save()}>
+                  <StarIcon className="mr-2 h-4 w-4" />{t("web.lookup.save")}
+                </Button>
+              </div>
+              {tooLong && <p data-testid="lookup-too-long" className="mt-1 text-sm text-muted-foreground">{t("web.lookup.tooLong")}</p>}
+            </div>
+          )}
         </BottomSheetContent>
       </BottomSheet>
     </>
