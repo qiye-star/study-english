@@ -15537,7 +15537,7 @@ __metadata:
     mustache: "npm:^4.2.0"
     next-themes: "npm:^0.4.4"
     octokit: "npm:^4.1.2"
-    openai: "npm:^4.87.3"
+    openai: "npm:^7.27.0"
     pitchfinder: "npm:^2.3.2"
     postcss: "npm:^8.5.3"
     progress: "npm:^2.0.3"
@@ -22747,7 +22747,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:^4.86.1, openai@npm:^4.87.3":
+"openai@npm:^4.86.1":
   version: 4.87.3
   resolution: "openai@npm:4.87.3"
   dependencies:
@@ -22769,6 +22769,33 @@ __metadata:
   bin:
     openai: bin/cli
   checksum: 10c0/e647456030f44b0c90cf35367676a7a2d8ed8a3cfa4bdd8785553519e1092699915e9a6a0c714b1f3ee59f6c116203422dc1d8f60ec2d7ba416dac0e343d0f62
+  languageName: node
+  linkType: hard
+
+"openai@npm:^7.27.0":
+  version: 7.27.0
+  resolution: "openai@npm:7.27.0"
+  peerDependencies:
+    "@aws-sdk/credential-provider-node": ">=3.972.0 <4"
+    "@smithy/hash-node": ">=4.3.0 <5"
+    "@smithy/signature-v4": ">=5.4.0 <6"
+    undici: ">=5 <9"
+    ws: ^8.21.0
+    zod: ^3.25 || ^4.0
+  peerDependenciesMeta:
+    "@aws-sdk/credential-provider-node":
+      optional: true
+    "@smithy/hash-node":
+      optional: true
+    "@smithy/signature-v4":
+      optional: true
+    undici:
+      optional: true
+    ws:
+      optional: true
+    zod:
+      optional: true
+  checksum: 10c0/a3a4cb76cebc8407659de41b0ae949af50cbcdf4ec24b83d20032773d6e8ffb78030a465d93845392625d7ecfbda55850e2d50b83ebec153a61fb3b195edb95b
   languageName: node
   linkType: hard
 
