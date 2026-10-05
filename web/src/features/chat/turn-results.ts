@@ -1,0 +1,144 @@
+import type { ApiClient } from "~/api/client";
+import { assessPronunciation, briefWords, deleteAssessment } from "~/features/practice/assessment-api";
+import { patchMessage, type MessageResultFields } from "./chat-api";
+import { isAssessable } from "./english-check";
+import type { UiMessage } from "./ui-message";
+
+export const MAX_ASSESSMENT_REFERENCE = 2000;
+
+export type TurnChange = Partial<Pick<UiMessage, "assessment" | "assessmentId" | "grammar">>;
+
+export interface TurnInput {
+  text: string;
+  /** 语音消息的 16 kHz WAV;文字消息不带 */
+  wav?: Blob;
+}
+
+type Phase = "open" | "saving" | "saved" | "abandoned";
+
+interface Turn {
+  phase: Phase;
+  messageId?: string;
+  assessmentId?: string;
+  assessmentSent: boolean;
+}
+
+/**
+ * 一轮用户消息的附加结果的账本(不依赖 React;计划裁定 R2–R4):
+ * - start():转写/文字一到就并行发起,不阻塞回复;同一 key 只发起一次,重试回复不重复花钱。
+ * - fieldsForSave():保存消息对时取走已到达的结果,随用户消息一起保存。
+ * - saved():保存成功后,把保存时还没到、或保存途中才到的结果 PATCH 补写。
+ * - abandon():这一轮不会被保存。对话评测不中止(中止不能保证服务端没保存),跑完后删除。
+ * onChange 只用于更新界面,页面负责在卸载后忽略它。
+ */
+export class TurnResults {
+  private readonly turns = new Map<string, Turn>();
+
+  constructor(
+    private readonly api: ApiClient,
+    private readonly onChange: (userKey: string, change: TurnChange) => void,
+  ) {}
+
+  start(userKey: string, input: TurnInput): void {
+    if (this.turns.has(userKey)) return;
+    const turn: Turn = { phase: "open", assessmentSent: false };
+    this.turns.set(userKey, turn);
+    if (input.wav) this.startAssessment(userKey, turn, input.text, input.wav);
+  }
+
+  private startAssessment(userKey: string, turn: Turn, text: string, wav: Blob): void {
+    if (!isAssessable(text)) {
+      this.onChange(userKey, { assessment: { status: "skipped", reason: "non-english" } });
+      return;
+    }
+    if (text.length > MAX_ASSESSMENT_REFERENCE) {
+      this.onChange(userKey, { assessment: { status: "skipped", reason: "too-long" } });
+      return;
+    }
+    this.onChange(userKey, { assessment: { status: "pending" } });
+    assessPronunciation(this.api, { wav, reference: text, language: "en-US", save: true, source: "chat" }).then(
+      (res) => {
+        turn.assessmentId = res.assessmentId;
+        if (turn.phase === "abandoned") {
+          void this.discardAssessment(turn);
+          return;
+        }
+        this.onChange(userKey, {
+          assessmentId: res.assessmentId ?? null,
+          assessment: {
+            status: "done",
+            scores: {
+              pronunciationScore: res.pronunciationScore,
+              accuracyScore: res.accuracyScore,
+              fluencyScore: res.fluencyScore,
+              completenessScore: res.completenessScore,
+            },
+            words: briefWords(res.detailResult?.words),
+          },
+        });
+        if (turn.phase === "saved") void this.flush(turn);
+      },
+      () => {
+        if (turn.phase !== "abandoned") this.onChange(userKey, { assessment: { status: "error" } });
+      },
+    );
+  }
+
+  fieldsForSave(userKey: string): MessageResultFields {
+    const turn = this.turns.get(userKey);
+    if (!turn || turn.phase !== "open") return {};
+    turn.phase = "saving";
+    const fields: MessageResultFields = {};
+    if (turn.assessmentId) {
+      fields.assessmentId = turn.assessmentId;
+      turn.assessmentSent = true;
+    }
+    return fields;
+  }
+
+  saved(userKey: string, messageId: string | undefined): Promise<void> {
+    const turn = this.turns.get(userKey);
+    if (!turn || turn.phase === "abandoned") return Promise.resolve();
+    turn.phase = "saved";
+    turn.messageId = messageId;
+    return this.flush(turn);
+  }
+
+  abandon(userKey: string): void {
+    const turn = this.turns.get(userKey);
+    if (!turn || turn.phase === "saved" || turn.phase === "abandoned") return;
+    turn.phase = "abandoned";
+    void this.discardAssessment(turn);
+  }
+
+  /** 卸载/切换会话:还没开始保存的轮次(流式中、失败待重试)都不会再被保存。 */
+  abandonOpen(): void {
+    for (const [key, turn] of this.turns) if (turn.phase === "open") this.abandon(key);
+  }
+
+  private async flush(turn: Turn): Promise<void> {
+    if (!turn.messageId) return;
+    const fields: MessageResultFields = {};
+    if (turn.assessmentId && !turn.assessmentSent) {
+      fields.assessmentId = turn.assessmentId;
+      turn.assessmentSent = true;
+    }
+    if (!Object.keys(fields).length) return;
+    try {
+      await patchMessage(this.api, turn.messageId, fields);
+    } catch {
+      // 结果是附加信息:补写失败不影响对话
+    }
+  }
+
+  private async discardAssessment(turn: Turn): Promise<void> {
+    const id = turn.assessmentId;
+    if (!id) return; // 还在路上:到达时 phase 已是 abandoned,会再进来
+    turn.assessmentId = undefined;
+    try {
+      await deleteAssessment(this.api, id);
+    } catch {
+      // 删除失败静默忽略
+    }
+  }
+}
