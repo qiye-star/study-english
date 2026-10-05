@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.config import Settings
 from app.db import make_engine
 from app.errors import install_error_handlers
+from app.grammar import load_grammar_rules
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
 from app.routers import ai_audio, ai_chat, assessments, config_api, conversations, health, sessions, speech, stubs, web
@@ -19,6 +20,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.default_llm_model not in settings.llm_model_list:
         raise RuntimeError("DEFAULT_LLM_MODEL must be one of LLM_MODELS")
 
+    grammar_rules = load_grammar_rules(settings)
+
     engine = make_engine(settings.database_url)
     http = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
 
@@ -30,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="enjoy-server", lifespan=lifespan)
     app.state.settings = settings
+    app.state.grammar_rules = grammar_rules
     app.state.engine = engine
     app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     app.state.http = http
