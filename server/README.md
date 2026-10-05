@@ -11,6 +11,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/config/{key}             配置快照
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
                                 ├ /api/ai/grammar               语法检查(登录 + 用户限流;请求 {text, context?};提示词与模型由服务端决定)
+                                ├ /api/me/grammar-prompt        GET/PUT/DELETE 当前用户的语法检查规则(≤ 2000 字符;空串或 DELETE 恢复默认;返回 prompt、default_prompt、max_length)
                                 ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)

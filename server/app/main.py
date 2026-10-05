@@ -11,7 +11,7 @@ from app.grammar import load_grammar_rules
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
 from app.routers import (
-    ai_audio, ai_chat, assessments, config_api, conversations, grammar, health, sessions, speech, stubs, web,
+    ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, sessions, speech, stubs, web,
 )
 
 
@@ -47,7 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 顺序重要:stubs 含 /api/** 的兜底写入路由,真实 API 必须在它之前;
     # web(静态托管 + SPA 回退)兜底所有非 API 的 GET,必须最后。
     for module in (
-        health, sessions, config_api, speech, conversations, assessments,
+        health, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         ai_chat, grammar, ai_audio, stubs, web,
     ):
         app.include_router(module.router)
