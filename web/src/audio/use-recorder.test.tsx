@@ -71,4 +71,53 @@ describe("useRecorder", () => {
     await waitFor(() => expect(onAutoStop).toHaveBeenCalledWith(expect.objectContaining({ stoppedBy: "background" })));
     expect(result.current.state).toBe("idle");
   });
+
+  it("cancel discards the recording, releases the microphone and reports nothing", async () => {
+    const fake = createFakeRecorderEnv();
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useRecorder({ env: fake.env, onAutoStop }));
+    await act(async () => { await result.current.start(); });
+    act(() => result.current.cancel());
+    await act(async () => { await Promise.resolve(); });
+    expect(fake.track.stop).toHaveBeenCalled();
+    expect(result.current.state).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(onAutoStop).not.toHaveBeenCalled();
+    act(() => result.current.cancel()); // 空闲时调用无副作用
+  });
+
+  it("cancel during starting releases the stream once it arrives and start resolves false", async () => {
+    let release!: () => void;
+    const base = createFakeRecorderEnv();
+    const fake = createFakeRecorderEnv({
+      getUserMedia: (c) => new Promise((resolve) => { release = () => void base.env.getUserMedia!(c).then(resolve); }),
+    });
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useRecorder({ env: fake.env, onAutoStop }));
+    let started: Promise<boolean>;
+    act(() => { started = result.current.start(); });
+    act(() => result.current.cancel());
+    expect(result.current.state).toBe("idle");
+    release();
+    await act(async () => { expect(await started!).toBe(false); });
+    expect(base.track.stop).toHaveBeenCalled();
+    expect(result.current.state).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(onAutoStop).not.toHaveBeenCalled();
+  });
+
+  it("cancel while stopping discards the result and stop resolves null", async () => {
+    const fake = createFakeRecorderEnv();
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useRecorder({ env: fake.env, onAutoStop }));
+    await act(async () => { await result.current.start(); });
+    let stopped: Promise<unknown>;
+    act(() => { stopped = result.current.stop(); });
+    act(() => result.current.cancel());
+    await act(async () => { expect(await stopped!).toBeNull(); });
+    expect(fake.track.stop).toHaveBeenCalled();
+    expect(result.current.state).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(onAutoStop).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,7 @@
 import type { ApiClient } from "~/api/client";
 import type { Paged } from "~/api/types";
+import type { GrammarResult } from "~/features/grammar/grammar-types";
+import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice/assessment-api";
 
 export interface ConversationConfig {
   systemPrompt: string;
@@ -23,13 +25,30 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface MessageAssessment {
+  id: string;
+  scores: AssessmentScores;
+  words: AssessmentWordBrief[];
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
   role: "user" | "assistant" | "system";
   content: string;
   createdAt: string;
+  assessmentId?: string | null;
+  grammar?: GrammarResult | null;
+  /** 服务端只读摘要(R9) */
+  assessment?: MessageAssessment | null;
 }
+
+export interface MessageResultFields {
+  assessmentId?: string;
+  grammar?: GrammarResult;
+}
+
+export type NewMessage = Pick<ChatMessage, "role" | "content"> & MessageResultFields;
 
 export const DEFAULT_CONVERSATION_NAME = "New conversation";
 
@@ -43,6 +62,15 @@ export const CHAT_SERVER_ERRORS: Record<string, string> = {
   "Conversation not found": "web.chat.errors.notFound",
   "Whisper upstream is not configured": "web.chat.errors.sttNotConfigured",
   "Unsupported audio format (wav or mp3)": "web.chat.errors.sttFormat",
+  "Message not found": "web.chat.errors.resultNotSaved",
+  "Assessment not found": "web.chat.errors.resultNotSaved",
+  "Assessment already linked to another message": "web.chat.errors.resultNotSaved",
+  "Nothing to update": "web.chat.errors.resultNotSaved",
+  "Invalid grammar result": "web.chat.errors.resultNotSaved",
+  "Message already has an assessment": "web.chat.errors.resultNotSaved",
+  "Only user messages can carry assessment or grammar": "web.chat.errors.resultNotSaved",
+  "Recording storage quota exceeded": "web.chat.errors.quota",
+  "Pronunciation assessment is not configured": "web.chat.errors.assessmentNotConfigured",
 };
 
 const conversationPath = (id: string) => `/api/conversations/${encodeURIComponent(id)}`;
@@ -74,11 +102,15 @@ export function listMessages(api: ApiClient, conversationId: string): Promise<{ 
 export function createMessages(
   api: ApiClient,
   conversationId: string,
-  messages: Array<Pick<ChatMessage, "role" | "content">>,
+  messages: NewMessage[],
 ): Promise<{ messages: ChatMessage[] }> {
   return api.request("POST", `${conversationPath(conversationId)}/messages`, { json: { messages } });
 }
 
 export function deleteMessage(api: ApiClient, id: string): Promise<{ id: string }> {
   return api.request("DELETE", `/api/messages/${encodeURIComponent(id)}`);
+}
+
+export function patchMessage(api: ApiClient, id: string, fields: MessageResultFields): Promise<ChatMessage> {
+  return api.request("PATCH", `/api/messages/${encodeURIComponent(id)}`, { json: fields });
 }

@@ -15,7 +15,9 @@
         "notConfigured": "The AI service is not configured on the server.", "upstream": "The AI service is unavailable. Please try again.",
         "empty": "The AI returned an empty reply.", "messageLimit": "This conversation is full. Start a new one.",
         "conversationLimit": "You have too many conversations. Delete some first.", "notFound": "This conversation does not exist.",
-        "sttNotConfigured": "Speech-to-text is not configured on the server.", "sttFormat": "The recording format was not accepted."
+        "sttNotConfigured": "Speech-to-text is not configured on the server.", "sttFormat": "The recording format was not accepted.",
+        "resultNotSaved": "The score could not be saved with the message.", "quota": "Your recording storage is full. Delete some old recordings.",
+        "assessmentNotConfigured": "Pronunciation assessment is not configured on the server."
       }
     }
   }

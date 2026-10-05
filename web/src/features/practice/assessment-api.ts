@@ -48,13 +48,16 @@ const path = (id: string) => `/api/assessments/${encodeURIComponent(id)}`;
 
 export function assessPronunciation(
   api: ApiClient,
-  params: { wav: Blob; reference: string; language: string; save: boolean; signal?: AbortSignal },
+  params: { wav: Blob; reference: string; language: string; save: boolean; source?: "practice" | "chat"; signal?: AbortSignal },
 ): Promise<AssessResponse> {
   const form = new FormData();
   form.append("file", new File([params.wav], "recording.wav", { type: "audio/wav" }));
   form.append("reference", params.reference);
   form.append("language", params.language);
-  if (params.save) form.append("save", "true");
+  if (params.save) {
+    form.append("save", "true");
+    if (params.source) form.append("source", params.source);
+  }
   return api.request("POST", "/api/speech/assessments", { form, timeoutMs: ASSESSMENT_TIMEOUT_MS, signal: params.signal });
 }
 
@@ -72,4 +75,18 @@ export function getAssessmentAudio(api: ApiClient, id: string): Promise<Blob> {
 
 export function deleteAssessment(api: ApiClient, id: string): Promise<{ id: string }> {
   return api.request("DELETE", path(id));
+}
+
+export interface AssessmentWordBrief {
+  word: string;
+  accuracyScore: number | null;
+  errorType: string | null;
+}
+
+/** 逐词结果的精简形式(与服务端 message_out.assessment.words 同形),用于徽标与转写高亮。 */
+export function briefWords(words: PronunciationAssessmentWordResultType[] | undefined): AssessmentWordBrief[] {
+  return (words ?? []).map((w) => {
+    const pa = (w as { pronunciationAssessment?: { accuracyScore?: number; errorType?: string } }).pronunciationAssessment;
+    return { word: String((w as { word?: string }).word ?? ""), accuracyScore: pa?.accuracyScore ?? null, errorType: pa?.errorType ?? null };
+  });
 }

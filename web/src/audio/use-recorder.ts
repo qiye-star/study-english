@@ -19,6 +19,8 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
   const session = useRef<RecordingSession | null>(null);
   const mounted = useRef(true);
   const starting = useRef(false);
+  const cancelRequested = useRef(false); // cancel() 在 starting 期间被调用
+  const stopping = useRef<RecordingSession | null>(null);
   const startedAt = useRef(0);
   const autoStop = useRef(onAutoStop);
   autoStop.current = onAutoStop;
@@ -43,13 +45,14 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
   const start = useCallback(async () => {
     if (session.current || starting.current) return false;
     starting.current = true;
+    cancelRequested.current = false;
     setError(null);
     setElapsedMs(0);
     setState("starting");
     try {
       const current = await startRecording({ maxDurationMs, env });
-      if (!mounted.current) {
-        current.cancel(); // 启动期间已卸载:立刻释放麦克风
+      if (!mounted.current || cancelRequested.current) {
+        current.cancel(); // 启动期间已卸载/已取消:立刻释放麦克风
         return false;
       }
       session.current = current;
@@ -70,7 +73,7 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
       );
       return true;
     } catch (err) {
-      if (mounted.current) {
+      if (mounted.current && !cancelRequested.current) {
         setState("idle");
         setError(asRecorderError(err));
       }
@@ -84,16 +87,31 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
     const current = session.current;
     if (!current) return null;
     session.current = null;
+    stopping.current = current;
     try {
-      return await current.stop();
+      const result = await current.stop();
+      return stopping.current === current ? result : null; // 停止期间被 cancel:丢弃结果
     } catch (err) {
-      setError(asRecorderError(err));
+      if (stopping.current === current && mounted.current) setError(asRecorderError(err));
       return null;
     } finally {
-      setState("idle");
+      if (stopping.current === current) stopping.current = null;
+      if (mounted.current) setState("idle");
     }
   }, []);
 
+  /** 丢弃正在进行的录音(starting / recording / stopping 均可,幂等):释放麦克风,不产出结果、不触发 onAutoStop、不报错。 */
+  const cancel = useCallback(() => {
+    const current = session.current ?? stopping.current;
+    session.current = null; // 先清空,结果处理器的守卫才会跳过
+    stopping.current = null;
+    if (starting.current) cancelRequested.current = true; // 麦克风还在申请中:到手后立刻释放
+    if (!current && !starting.current) return;
+    current?.cancel();
+    setState("idle");
+    setElapsedMs(0);
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
-  return { state, elapsedMs, error, start, stop, clearError };
+  return { state, elapsedMs, error, start, stop, cancel, clearError };
 }

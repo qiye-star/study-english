@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { createConversation, createMessages, deleteConversation, deleteMessage, listConversations, listMessages, updateConversation } from "./chat-api";
+import { CHAT_SERVER_ERRORS, createConversation, createMessages, patchMessage, deleteConversation, deleteMessage, listConversations, listMessages, updateConversation } from "./chat-api";
 
 const CONFIG = { systemPrompt: "Be brief", model: "gpt-4o", temperature: 0.7, ttsModel: "openai/tts-1", ttsVoice: "alloy" };
 const SNAKE = { system_prompt: "Be brief", model: "gpt-4o", temperature: 0.7, tts_model: "openai/tts-1", tts_voice: "alloy" };
@@ -37,5 +37,39 @@ describe("chat api", () => {
     expect(saved.messages[0].conversationId).toBe("c1");
     expect(await listMessages(api, "c1")).toEqual({ messages: [] });
     expect(await deleteMessage(api, "m1")).toEqual({ id: "m1" });
+  });
+
+  it("saves result fields with messages and patches late results", async () => {
+    const grammar = { hasErrors: true, corrected: "She doesn't.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement" as const, explanation: "三单" }] };
+    const mock = createFetchMock({
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1", role: "user", content: "She don't.", assessment_id: "a1",
+        grammar: { has_errors: true, corrected: "She doesn't.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "三单" }] },
+        assessment: { id: "a1", scores: { pronunciation_score: 80 }, words: [{ word: "she", accuracy_score: 90, error_type: "None" }] } }] }),
+      "PATCH /api/messages/m1": () => json({ id: "m1", role: "user", content: "She don't.", assessment_id: "a1", grammar: null, assessment: null }),
+    });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const saved = await createMessages(api, "c1", [{ role: "user", content: "She don't.", assessmentId: "a1", grammar }, { role: "assistant", content: "Why?" }]);
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ messages: [
+      { role: "user", content: "She don't.", assessment_id: "a1",
+        grammar: { has_errors: true, corrected: "She doesn't.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "三单" }] } },
+      { role: "assistant", content: "Why?" },
+    ] });
+    expect(saved.messages[0].grammar).toEqual(grammar);
+    expect(saved.messages[0].assessment?.words).toEqual([{ word: "she", accuracyScore: 90, errorType: "None" }]);
+    await patchMessage(api, "m1", { assessmentId: "a1" });
+    expect(mock.calls[1].method).toBe("PATCH");
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ assessment_id: "a1" });
+  });
+
+  it("has translated keys for every new server error", async () => {
+    const en = (await import("./i18n/en.json")).default as unknown as Record<string, unknown>;
+    const zh = (await import("./i18n/zh-CN.json")).default as unknown as Record<string, unknown>;
+    const lookup = (tree: Record<string, unknown>, key: string) => key.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], tree);
+    for (const msg of ["Message not found", "Assessment not found", "Assessment already linked to another message", "Invalid grammar result", "Only user messages can carry assessment or grammar"]) {
+      const key = CHAT_SERVER_ERRORS[msg];
+      expect(key, msg).toBeTruthy();
+      expect(typeof lookup(en, key), key).toBe("string");
+      expect(typeof lookup(zh, key), key).toBe("string");
+    }
   });
 });

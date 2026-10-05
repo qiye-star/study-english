@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { assessPronunciation, deleteAssessment, getAssessment, getAssessmentAudio, listAssessments } from "./assessment-api";
+import { assessPronunciation, briefWords, deleteAssessment, getAssessment, getAssessmentAudio, listAssessments } from "./assessment-api";
 
 const api = (routes: Parameters<typeof createFetchMock>[0]) => {
   const mock = createFetchMock(routes);
@@ -38,5 +38,17 @@ describe("assessment api", () => {
     expect((await getAssessment(client, "a1")).result.detailResult.words).toEqual([]);
     expect((await getAssessmentAudio(client, "a1")).size).toBe(2);
     expect(await deleteAssessment(client, "a1")).toEqual({ id: "a1" });
+  });
+
+  it("sends the source only when saving and condenses words", async () => {
+    const mock = createFetchMock({ "POST /api/speech/assessments": () => json({ pronunciation_score: 80, assessment_id: "a1" }) });
+    const client = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await assessPronunciation(client, { wav: new Blob(["RIFF"]), reference: "Hi there", language: "en-US", save: true, source: "chat" });
+    expect((mock.calls[0].body as FormData).get("source")).toBe("chat");
+    await assessPronunciation(client, { wav: new Blob(["RIFF"]), reference: "Hi there", language: "en-US", save: false, source: "chat" });
+    expect((mock.calls[1].body as FormData).has("source")).toBe(false);
+    expect(briefWords([{ word: "hi", pronunciationAssessment: { accuracyScore: 55, errorType: "Mispronunciation" } }] as never))
+      .toEqual([{ word: "hi", accuracyScore: 55, errorType: "Mispronunciation" }]);
+    expect(briefWords(undefined)).toEqual([]);
   });
 });
