@@ -28,6 +28,7 @@ test("grammar prompt: prefilled default, save a custom version, check with it, r
 
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
+  await page.getByTestId("scenario-free").click();
   const grammar = page.waitForResponse((r) => r.url().endsWith("/api/ai/grammar"), { timeout: 120_000 });
   await page.getByTestId("chat-input").fill("I have a apple and she have two.");
   await page.getByTestId("chat-send").click();

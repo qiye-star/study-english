@@ -39,6 +39,7 @@ async function expectStableCount(read: () => number, expected: number): Promise<
 async function newConversation(page: Page): Promise<string> {
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
+  await page.getByTestId("scenario-free").click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
   return page.url().split("/").pop()!;
 }
@@ -58,12 +59,49 @@ async function authedStatus(page: Page, path: string): Promise<number> {
   }, path);
 }
 
+async function newScenario(page: Page, id: string): Promise<string> {
+  await page.getByTestId("nav-chat").click();
+  await page.getByTestId("conversation-new").click();
+  await page.getByTestId(`scenario-${id}`).click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  return page.url().split("/").pop()!;
+}
+
+/** 记录所有朗读按钮 data-state 的变化(元素可能稍后才出现,所以观察整个 body)。 */
+async function recordTtsStates(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __tts: string[] };
+    w.__tts = [];
+    new MutationObserver((records) => {
+      for (const r of records) {
+        const el = r.target as HTMLElement;
+        if (el.dataset?.testid === "message-tts") w.__tts.push(el.getAttribute("data-state") ?? "");
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+  });
+}
+
+/** R25:Chromium 带自动播放参数,应进入 playing;WebKit 可能被拦截而出现"点此朗读"。返回实际出现的那一种。 */
+async function autoReadOutcome(page: Page): Promise<string> {
+  let outcome = "";
+  await expect.poll(async () => {
+    const states = await page.evaluate(() => (window as unknown as { __tts: string[] }).__tts);
+    outcome = states.includes("playing") ? "playing" : (await page.getByTestId("autospeak-blocked").count()) ? "blocked" : "";
+    return outcome;
+  }, { timeout: 60_000 }).not.toBe("");
+  return outcome;
+}
+
 test("chat: stream, persist, read aloud and delete", async ({ page, request, browserName }) => {
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
+  await page.getByTestId("scenario-free").click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  // R27:关掉自动朗读,本用例验证的是手动朗读的状态机(自动朗读见下方新用例)
+  await page.getByTestId("conversation-autospeak").click();
+  await expect(page.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
   const conversationId = page.url().split("/").pop()!;
 
   // 持久化写入(POST .../messages)在流结束后发生;先挂好监听,刷新前等它完成,避免竞态
@@ -129,6 +167,7 @@ test("composer stays visible on a phone-sized screen", async ({ page, request })
   await signIn(page, request);
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
+  await page.getByTestId("scenario-free").click();
   await page.getByTestId("chat-input").focus();
   const input = await page.getByTestId("chat-input").boundingBox();
   const viewport = page.viewportSize()!;
@@ -157,7 +196,9 @@ test("voice message: transcript, streamed reply, pronunciation and grammar badge
   const user = page.getByTestId("message-user").last();
   await expect(user).toHaveAttribute("data-voice", "sent", { timeout: 60_000 });
   await expect(user).toContainText(/fellow|americans|country|ask/i);
+  const autoRead = page.waitForResponse((r) => r.url().endsWith("/api/ai/audio/speech"), { timeout: 90_000 });
   await expect(page.getByTestId("message-assistant").last()).toHaveAttribute("data-status", "done", { timeout: 90_000 });
+  expect((await autoRead).status()).toBe(200); // 语音消息的回复同样自动朗读(结束录音那一下解锁)
 
   const assessment = await assessed;
   expect(assessment.status()).toBe(200);
@@ -270,4 +311,89 @@ test("save a reply sentence, find it in the practice list and practice it", asyn
   await page.getByTestId("practice-item").click();
   await expect(page).toHaveURL(/\/practice$/);
   await expect(page.getByTestId("reference-input")).toHaveValue(sentence);
+});
+
+test("scenario: the opening line is saved and read aloud, replies are read aloud, the switch turns it off", async ({ page, request, browserName }) => {
+  await signIn(page, request);
+  await page.getByTestId("nav-chat").click();
+  await recordTtsStates(page);
+  let speech = 0;
+  page.on("response", (r) => { if (r.url().endsWith("/api/ai/audio/speech") && r.status() === 200) speech++; });
+  const openingSpeech = page.waitForResponse((r) => r.url().endsWith("/api/ai/audio/speech"), { timeout: 60_000 });
+  const id = await newScenario(page, "cafe");
+  await expect(page.getByTestId("message-assistant").first()).toContainText("What can I get started for you today?");
+  await expect(page.getByTestId("conversation-scenario")).toContainText("Ordering coffee");
+  expect((await openingSpeech).status()).toBe(200);
+  const outcome = await autoReadOutcome(page);
+  console.log(`scenario opening auto-read (${browserName}): ${outcome}`);
+  if (browserName === "chromium") expect(outcome).toBe("playing");
+
+  // 服务端:第一条是助手开场白;配置只有场景与难度,没有固化模型/音色(R2)
+  const stored = await page.evaluate(async (cid) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    const headers = { Authorization: `Bearer ${token}` };
+    const messages = (await (await fetch(`/api/conversations/${cid}/messages`, { headers })).json()).messages;
+    const config = (await (await fetch(`/api/conversations/${cid}`, { headers })).json()).config;
+    return { first: messages[0], config };
+  }, id);
+  expect(stored.first.role).toBe("assistant");
+  expect(stored.config).toEqual({ scenario: { id: "cafe" }, level: "auto" });
+
+  const beforeReply = speech;
+  await sendText(page, "A small latte, please.");
+  await expect.poll(() => speech, { timeout: 60_000 }).toBeGreaterThan(beforeReply);
+  console.log(`scenario reply: ${(await page.getByTestId("message-assistant").last().innerText()).trim()}`);
+
+  await page.getByTestId("conversation-autospeak").click();
+  await expect(page.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+  const afterOff = speech;
+  await sendText(page, "And a croissant, too.");
+  await expectStableCount(() => speech, afterOff);
+});
+
+test("hints: three suggested replies, one fills the composer", async ({ page, request }) => {
+  await signIn(page, request);
+  await newConversation(page);
+  await sendText(page, "I want to practice ordering food in a restaurant.");
+  const hints = page.waitForResponse((r) => r.url().endsWith("/api/ai/chat/completions") && (r.request().postData() ?? "").includes("response_format"), { timeout: 90_000 });
+  await page.getByTestId("chat-hints").click();
+  expect((await hints).status()).toBe(200);
+  const result = page.getByTestId("hints-result");
+  await expect(result).not.toHaveAttribute("data-status", "loading", { timeout: 60_000 });
+  if ((await result.getAttribute("data-status")) === "error") {
+    console.log("hints: first answer was malformed, retrying once");
+    await page.getByTestId("hints-retry").click();
+  }
+  await expect(result).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await expect(page.getByTestId("hint-item")).toHaveCount(3);
+  const first = (await page.getByTestId("hint-item").first().locator("p").first().innerText()).trim();
+  console.log(`hints: ${first}`);
+  await page.getByTestId("hint-fill").first().click();
+  await expect(page.getByTestId("chat-input")).toHaveValue(first);
+});
+
+test("recap: facts from the conversation and a stored Chinese summary", async ({ page, request }) => {
+  await signIn(page, request);
+  const id = await newConversation(page);
+  await sendText(page, "Yesterday I go to the park with my friend.");
+  await expect(page.getByTestId("badge-grammar").last()).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await sendText(page, "We plays football for two hours.");
+  await expect(page.getByTestId("badge-grammar").last()).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await page.getByTestId("conversation-recap").click();
+  await expect(page.getByTestId("recap-user-messages")).toHaveText("2");
+  const saved = page.waitForResponse((r) => r.url().endsWith(`/api/conversations/${id}`) && r.request().method() === "PATCH"
+    && (r.request().postData() ?? "").includes("\"recap\""), { timeout: 120_000 });
+  await page.getByTestId("recap-generate").click();
+  await expect(page.getByTestId("recap-summary")).toHaveAttribute("data-status", "done", { timeout: 90_000 });
+  await expect(page.getByTestId("recap-summary")).toContainText(/[一-鿿]/);
+  expect((await saved).status()).toBe(200);
+  console.log(`recap: grammar categories=${await page.getByTestId("recap-grammar-category").count()} expressions=${await page.getByTestId("recap-expression").count()}`);
+
+  await page.reload();
+  let completions = 0;
+  page.on("request", (r) => { if (r.url().endsWith("/api/ai/chat/completions")) completions++; });
+  await page.getByTestId("conversation-recap").click();
+  await expect(page.getByTestId("recap-summary")).toHaveAttribute("data-status", "done");
+  await expect(page.getByTestId("recap-stale")).toHaveCount(0);
+  expect(completions).toBe(0);
 });
