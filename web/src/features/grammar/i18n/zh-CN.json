@@ -1,0 +1,18 @@
+{
+  "web": {
+    "grammar": {
+      "checking": "检查语法…", "ok": "语法 ✓", "issues": "{{count}} 处语法问题", "failed": "语法检查失败(点按重试)",
+      "title": "语法", "noIssues": "没有发现语法问题。", "corrected": "改正后的句子",
+      "practice": "跟读改正句", "save": "收藏改正句",
+      "categories": {
+        "tense": "时态", "agreement": "主谓一致", "article": "冠词", "preposition": "介词", "word_choice": "用词",
+        "word_order": "语序", "plural": "单复数", "spelling": "拼写", "other": "其他"
+      },
+      "errors": {
+        "notConfigured": "服务器未配置语法检查。", "empty": "没有可检查的文字。",
+        "tooLong": "消息太长,无法检查(最多 2000 字符)。", "upstream": "语法服务暂不可用,请重试。",
+        "rateLimit": "请求过于频繁,请稍后再试。"
+      }
+    }
+  }
+}

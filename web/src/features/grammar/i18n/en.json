@@ -1,0 +1,18 @@
+{
+  "web": {
+    "grammar": {
+      "checking": "Checking grammar…", "ok": "Grammar ✓", "issues": "Grammar: {{count}} to fix", "failed": "Grammar check failed (tap to retry)",
+      "title": "Grammar", "noIssues": "No grammar problems found.", "corrected": "Corrected sentence",
+      "practice": "Practice the corrected sentence", "save": "Save the corrected sentence",
+      "categories": {
+        "tense": "Tense", "agreement": "Agreement", "article": "Article", "preposition": "Preposition", "word_choice": "Word choice",
+        "word_order": "Word order", "plural": "Plural", "spelling": "Spelling", "other": "Other"
+      },
+      "errors": {
+        "notConfigured": "Grammar checking is not configured on the server.", "empty": "There is no text to check.",
+        "tooLong": "The message is too long to check (2000 characters max).", "upstream": "The grammar service is unavailable. Please try again.",
+        "rateLimit": "Too many requests. Please try again later."
+      }
+    }
+  }
+}
