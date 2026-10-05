@@ -6,13 +6,13 @@ URL = "/api/conversations"
 
 
 def worst_recap() -> dict:
-    """网页端 recap.ts 允许的最大复盘(计划 R13):全是 3 字节的汉字。"""
+    """网页端 recap.ts 允许的最大复盘(计划 R13):全是 3 字节的汉字(上限按 UTF-16 计,英文字段里也可能是汉字)。"""
     return {
         "generated_at": "2026-10-05T12:00:00.000Z",
         "message_count": 1000,
         "level": "B1",
         "summary_zh": "汉" * 400,
-        "new_expressions": [{"text": "a" * 80, "zh": "汉" * 60} for _ in range(8)],
+        "new_expressions": [{"text": "汉" * 80, "zh": "汉" * 60} for _ in range(8)],
         "suggestions_zh": ["汉" * 120 for _ in range(5)],
     }
 
@@ -31,8 +31,8 @@ def size(value: dict) -> int:
     return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
 
-def test_worst_case_recap_is_at_most_6_kb():
-    assert size(worst_recap()) <= 6 * 1024
+def test_worst_case_recap_is_at_most_7_kb():
+    assert size(worst_recap()) <= 7 * 1024
 
 
 async def test_full_config_is_accepted_on_create_and_patch(client, auth_headers):

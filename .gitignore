@@ -141,6 +141,8 @@ public/jupyter-notebooks/*.mp3
 server/.venv/
 server/data/
 server/.env
+# backups of server/.env (may hold real keys), e.g. server/.env.bak-before-ark-key
+server/.env.bak*
 enjoy/.env
 .superpowers/
 
