@@ -1,5 +1,6 @@
 import type { ChatMessageInput } from "~/api/ai";
 import type { ServerAiConfig } from "~/api/server-config";
+import { levelInstruction, normalizeLevel, type Level } from "./levels";
 import { DEFAULT_CONVERSATION_NAME, type ChatMessage, type Conversation, type ConversationConfig } from "./chat-api";
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -22,6 +23,11 @@ export function withConfigDefaults(config: Partial<ConversationConfig> | undefin
   return { ...defaultConversationConfig(ai), ...defined };
 }
 
+/** R3:基础提示词(本任务为 systemPrompt;Task 3.1 起非自由场景用场景提示词)+ 难度要求。 */
+export function effectiveSystemPrompt(config: ConversationConfig): string {
+  return [config.systemPrompt ?? "", levelInstruction(normalizeLevel(config.level))].filter((part) => part.trim()).join("\n\n");
+}
+
 export function buildChatMessages(
   config: ConversationConfig,
   history: Array<Pick<ChatMessage, "role" | "content">>,
@@ -30,7 +36,8 @@ export function buildChatMessages(
   coach: string | null = null,
 ): ChatMessageInput[] {
   const recent = history.filter((m) => m.role !== "system").slice(-limit);
-  const system = coach ? (config.systemPrompt.trim() ? [config.systemPrompt, coach].join("\n\n") : coach) : config.systemPrompt;
+  const base = effectiveSystemPrompt(config);
+  const system = coach ? (base.trim() ? [base, coach].join("\n\n") : coach) : base;
   return [
     ...(system.trim() ? [{ role: "system" as const, content: system }] : []),
     ...recent.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -51,13 +58,17 @@ export interface ChatOptions {
   bilingual: boolean;
   grammarCheck: boolean;
   coachMode: boolean;
+  autoSpeak: boolean;
+  level: Level;
 }
 
-/** 会话设置项的默认值(R14):旧会话没有这些键时按默认处理,新建会话也不必写入。 */
+/** 会话设置项的默认值(R14、R1):旧会话没有这些键时按默认处理,新建会话也不必写入。 */
 export function chatOptions(config: Partial<ConversationConfig> | undefined): ChatOptions {
   return {
     bilingual: config?.bilingual === true,
     grammarCheck: config?.grammarCheck !== false,
     coachMode: config?.coachMode === true,
+    autoSpeak: config?.autoSpeak !== false,
+    level: normalizeLevel(config?.level),
   };
 }

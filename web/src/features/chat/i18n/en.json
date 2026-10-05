@@ -20,13 +20,15 @@
         "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list"
       },
       "configFallback": "Could not load the server defaults; using built-in ones.",
+      "levels": { "auto": "Auto (no limit)", "A2": "A2 · Elementary", "B1": "B1 · Intermediate", "B2": "B2 · Upper intermediate", "C1": "C1 · Advanced" },
       "errors": {
         "notConfigured": "The AI service is not configured on the server.", "upstream": "The AI service is unavailable. Please try again.",
         "empty": "The AI returned an empty reply.", "messageLimit": "This conversation is full. Start a new one.",
         "conversationLimit": "You have too many conversations. Delete some first.", "notFound": "This conversation does not exist.",
         "sttNotConfigured": "Speech-to-text is not configured on the server.", "sttFormat": "The recording format was not accepted.",
         "resultNotSaved": "The score could not be saved with the message.", "quota": "Your recording storage is full. Delete some old recordings.",
-        "assessmentNotConfigured": "Pronunciation assessment is not configured on the server."
+        "assessmentNotConfigured": "Pronunciation assessment is not configured on the server.",
+        "configTooLarge": "These settings are too large to save."
       }
     }
   }

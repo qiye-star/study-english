@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildChatMessages, chatOptions, defaultConversationConfig, displayName, titleFrom, withConfigDefaults, DEFAULT_SYSTEM_PROMPT } from "./chat-request";
+import { buildChatMessages, chatOptions, defaultConversationConfig, effectiveSystemPrompt, displayName, titleFrom, withConfigDefaults, DEFAULT_SYSTEM_PROMPT } from "./chat-request";
+import { LEVEL_INSTRUCTIONS } from "./levels";
 
 const AI = { llmModels: ["gpt-4o"], defaultLlmModel: "gpt-4o", ttsModels: ["openai/tts-1"], voices: {}, defaultTts: { model: "openai/tts-1", voice: "alloy" } };
 
@@ -21,8 +22,24 @@ describe("chat request helpers", () => {
   });
 
   it("derives chat options with safe defaults", () => {
-    expect(chatOptions(undefined)).toEqual({ bilingual: false, grammarCheck: true, coachMode: false });
-    expect(chatOptions({ bilingual: true, grammarCheck: false, coachMode: true })).toEqual({ bilingual: true, grammarCheck: false, coachMode: true });
+    expect(chatOptions(undefined)).toEqual({ bilingual: false, grammarCheck: true, coachMode: false, autoSpeak: true, level: "auto" });
+    expect(chatOptions({ bilingual: true, grammarCheck: false, coachMode: true, autoSpeak: false, level: "B2" }))
+      .toEqual({ bilingual: true, grammarCheck: false, coachMode: true, autoSpeak: false, level: "B2" });
+  });
+
+  it("treats a missing or malformed auto-read / level key as the default (old conversations)", () => {
+    expect(chatOptions({ systemPrompt: "x" } as never).autoSpeak).toBe(true);
+    expect(chatOptions({ autoSpeak: "no" } as never).autoSpeak).toBe(true);
+    expect(chatOptions({ level: "Z9" } as never).level).toBe("auto");
+  });
+
+  it("appends the level instruction to the system prompt, before the coaching note", () => {
+    const cfg = { ...defaultConversationConfig(AI), systemPrompt: "SYS", level: "B1" as const };
+    expect(effectiveSystemPrompt(cfg)).toBe(`SYS\n\n${LEVEL_INSTRUCTIONS.B1}`);
+    expect(effectiveSystemPrompt({ ...cfg, level: "auto" })).toBe("SYS");
+    expect(effectiveSystemPrompt({ ...cfg, systemPrompt: "  " })).toBe(LEVEL_INSTRUCTIONS.B1);
+    expect(buildChatMessages(cfg, [], "hi", 20, "NOTE")[0]).toEqual({ role: "system", content: `SYS\n\n${LEVEL_INSTRUCTIONS.B1}\n\nNOTE` });
+    expect(buildChatMessages({ ...cfg, level: undefined }, [], "hi")[0]).toEqual({ role: "system", content: "SYS" });
   });
 
   it("makes short titles", () => {
