@@ -1,7 +1,6 @@
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -9,11 +8,11 @@ import {
 import { Button } from "@renderer/components/ui/button";
 import { formatDateTime } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
-import { loadServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
-import { CHAT_SERVER_ERRORS, createConversation, deleteConversation, listConversations, type Conversation } from "./chat-api";
-import { defaultConversationConfig, displayName } from "./chat-request";
+import { CHAT_SERVER_ERRORS, deleteConversation, listConversations, type Conversation } from "./chat-api";
+import { displayName } from "./chat-request";
+import { ScenarioSheet } from "./scenario-sheet";
 
 export function ConversationsPage() {
   const { api } = useAuth();
@@ -24,7 +23,7 @@ export function ConversationsPage() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // 用 ref 读取最新的 t:切换语言不应让 load 变化,否则会重置已加载的分页。
   const tRef = useRef(t);
@@ -56,23 +55,6 @@ export function ConversationsPage() {
 
   useEffect(() => { void load(1); }, [load]);
 
-  const create = async () => {
-    setCreating(true);
-    setError(null);
-    try {
-      const ai = await loadServerAiConfig(api).catch((): null => {
-        toast.error(t("web.chat.configFallback"));
-        return null;
-      });
-      const created = await createConversation(api, { config: defaultConversationConfig(ai) });
-      navigate(`/chat/${created.id}`);
-    } catch (err) {
-      setError(translateServerError(t, err, CHAT_SERVER_ERRORS));
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const remove = async (conversation: Conversation) => {
     setError(null);
     try {
@@ -86,7 +68,7 @@ export function ConversationsPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.chat.title")} actions={
-        <Button data-testid="conversation-new" className="mr-1 h-11" disabled={creating} onClick={() => void create()}>
+        <Button data-testid="conversation-new" className="mr-1 h-11" onClick={() => setPickerOpen(true)}>
           <PlusIcon className="mr-1 h-4 w-4" />{t("web.chat.new")}
         </Button>
       } />
@@ -117,6 +99,12 @@ export function ConversationsPage() {
         ))}
       </ul>
       {next && <Button variant="ghost" className="m-4 h-11" disabled={loadingMore} onClick={() => void load(next)}>{t("web.common.loadMore")}</Button>}
+      <ScenarioSheet open={pickerOpen} onOpenChange={setPickerOpen}
+        onCreated={(id, openingId) => {
+          setPickerOpen(false);
+          navigate(`/chat/${id}`, openingId ? { state: { speakOpening: openingId } } : undefined);
+        }}
+        onDiscarded={() => void load(1)} />
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{t("web.chat.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>

@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
@@ -8,8 +8,14 @@ import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationsPage } from "./conversations-page";
+import { PRESET_SCENARIOS } from "./scenarios";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
+
+beforeAll(() => {
+  Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+  Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
+});
 
 const CONFIG_ROUTES = {
   "GET /api/config/gpt_providers": () => json({ enjoyai: { models: ["gpt-4o"] } }),
@@ -22,18 +28,58 @@ const conv = (id: string, name: string) => ({ id, name, config: {}, created_at: 
 describe("ConversationsPage", () => {
   beforeEach(() => { resetServerAiConfigCache(); vi.mocked(toast.error).mockClear(); });
 
-  it("creates a conversation with server defaults and opens it", async () => {
+  it("New opens the scenario panel; a preset creates the conversation, saves its opening line and opens it", async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    let playsBeforeCreate = -1;
     const mock = createFetchMock({
-      ...CONFIG_ROUTES,
       "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
-      "POST /api/conversations": () => json(conv("c9", "New conversation")),
+      "POST /api/conversations": () => { playsBeforeCreate = play.mock.calls.length; return json(conv("c9", "Ordering coffee")); },
+      "POST /api/conversations/c9/messages": () => json({ messages: [{ id: "m1", role: "assistant", content: PRESET_SCENARIOS.cafe.opening }] }),
     });
     renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
     expect(await screen.findByTestId("conversations-empty")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("conversation-new"));
+    expect(await screen.findByTestId("scenario-sheet")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByTestId("scenario-level"), "B1");
+    play.mockClear();
+    await userEvent.click(screen.getByTestId("scenario-cafe"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c9"));
-    const body = JSON.parse(mock.calls.find((c) => c.method === "POST")!.body as string);
-    expect(body.config).toMatchObject({ model: "gpt-4o", tts_model: "openai/tts-1", tts_voice: "alloy", temperature: 0.7 });
+    expect(screen.getByTestId("location")).toHaveAttribute("data-state", JSON.stringify({ speakOpening: "m1" }));
+    expect(playsBeforeCreate).toBeGreaterThanOrEqual(1); // R5:点击的同步阶段解锁共享播放器
+    const posts = mock.calls.filter((c) => c.method === "POST");
+    expect(JSON.parse(posts[0].body as string)).toEqual({ name: "Ordering coffee", config: { scenario: { id: "cafe" }, level: "B1" } });
+    expect(mock.calls.some((c) => c.url.pathname.startsWith("/api/config/"))).toBe(false); // R2:创建时不再加载/写入默认值
+  });
+
+  it("a free conversation and a custom scenario", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": (call) => json(conv(JSON.parse(call.body as string).config.scenario.id === "free" ? "c1" : "c2", "x")),
+      "POST /api/conversations/c2/messages": () => json({ messages: [{ id: "m2" }] }),
+    });
+    const view = renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+    await screen.findByTestId("conversations-empty");
+    await userEvent.click(screen.getByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-free"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1"));
+    expect(screen.getByTestId("location")).toHaveAttribute("data-state", "null");
+    expect(JSON.parse(mock.calls.find((c) => c.method === "POST")!.body as string))
+      .toEqual({ name: "New conversation", config: { scenario: { id: "free" }, level: "auto" } });
+    expect(mock.calls.filter((c) => c.url.pathname.endsWith("/messages"))).toHaveLength(0);
+    view.unmount();
+
+    renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    expect(screen.getByTestId("scenario-custom-start")).toBeDisabled();
+    await userEvent.type(screen.getByTestId("scenario-custom-input"), "   ");
+    expect(screen.getByTestId("scenario-custom-start")).toBeDisabled();
+    expect(screen.getByTestId("scenario-custom-input")).toHaveAttribute("maxlength", "500");
+    await userEvent.clear(screen.getByTestId("scenario-custom-input"));
+    await userEvent.type(screen.getByTestId("scenario-custom-input"), "  Returning a broken phone  ");
+    await userEvent.click(screen.getByTestId("scenario-custom-start"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c2"));
+    const custom = JSON.parse(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/conversations").at(-1)!.body as string);
+    expect(custom).toEqual({ name: "Returning a broken phone", config: { scenario: { id: "custom", custom: "Returning a broken phone" }, level: "auto" } });
   });
 
   it("lists and deletes conversations", async () => {
@@ -127,26 +173,76 @@ describe("ConversationsPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("translates the conversation limit (429) when creating", async () => {
+  it("an opening line that failed to save can be retried without creating a second conversation", async () => {
+    let fail = true;
     const mock = createFetchMock({
-      ...CONFIG_ROUTES,
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": () => json(conv("c9", "Hotel check-in")),
+      "POST /api/conversations/c9/messages": () => (fail ? json({ error: "Message limit reached" }, 429) : json({ messages: [{ id: "m3" }] })),
+    });
+    renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-hotel"));
+    expect(await screen.findByTestId("scenario-error")).toHaveTextContent("The conversation was created, but its opening line could not be saved.");
+    fail = false;
+    await userEvent.click(screen.getByTestId("scenario-retry"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c9"));
+    expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/conversations")).toHaveLength(1);
+  });
+
+  it("closing the panel after a failed opening deletes the empty conversation and refreshes the list", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
+      "POST /api/conversations": () => json(conv("c9", "Hotel check-in")),
+      "POST /api/conversations/c9/messages": () => json({ error: "Message limit reached" }, 429),
+      "DELETE /api/conversations/c9": () => json({ id: "c9" }),
+    });
+    renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.click(await screen.findByTestId("scenario-hotel"));
+    await screen.findByTestId("scenario-error");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "DELETE")).toBe(true));
+    await waitFor(() => expect(mock.calls.filter((c) => c.method === "GET" && c.url.pathname === "/api/conversations")).toHaveLength(2));
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat");
+  });
+
+  it("a failed create shows the translated reason and keeps the panel open", async () => {
+    const mock = createFetchMock({
       "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
       "POST /api/conversations": () => json({ error: "Conversation limit reached" }, 429),
     });
-    page(mock);
+    renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
     await userEvent.click(await screen.findByTestId("conversation-new"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("You have too many conversations. Delete some first.");
+    await userEvent.click(await screen.findByTestId("scenario-cafe"));
+    expect(await screen.findByTestId("scenario-error")).toHaveTextContent("You have too many conversations. Delete some first.");
+    expect(screen.queryByTestId("scenario-retry")).toBeNull();
+    expect(screen.getByTestId("scenario-sheet")).toBeInTheDocument();
   });
 
-  it("tells the user once when server defaults could not be loaded, and still creates", async () => {
+  it("the scenario panel's controls have accessible names", async () => {
+    page(createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) }));
+    await userEvent.click(await screen.findByTestId("conversation-new"));
+    expect(await screen.findByRole("dialog", { name: "Choose a scenario" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "English level" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Custom scenario" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ordering coffee/ })).toBeInTheDocument();
+  });
+
+  it("a double tap on a scenario creates only one conversation", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
     const mock = createFetchMock({
       "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
-      "POST /api/conversations": () => json(conv("c9", "New conversation")),
+      "POST /api/conversations": async () => { await gate; return json(conv("c9", "Ordering coffee")); },
+      "POST /api/conversations/c9/messages": () => json({ messages: [{ id: "m1" }] }),
     });
     page(mock);
     await userEvent.click(await screen.findByTestId("conversation-new"));
+    await userEvent.dblClick(await screen.findByTestId("scenario-cafe"));
+    release();
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c9"));
-    expect(toast.error).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledWith("Could not load the server defaults; using built-in ones.");
+    expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/conversations")).toHaveLength(1);
+    expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname.endsWith("/messages"))).toHaveLength(1);
   });
 });

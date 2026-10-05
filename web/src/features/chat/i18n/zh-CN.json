@@ -34,7 +34,6 @@
         "practiceThis": "跟读这句", "recording": "录音中", "heldBusy": "上一条回复还在进行,这段录音尚未发送。",
         "playFailed": "无法播放这段录音", "weakWords": "需要加强的词:", "save": "收藏"
       },
-      "configFallback": "无法加载服务器默认设置,已使用内置默认值。",
       "levels": { "auto": "自动(不限制)", "A2": "A2 · 初级", "B1": "B1 · 中级", "B2": "B2 · 中高级", "C1": "C1 · 高级" },
       "errors": {
         "notConfigured": "服务器未配置 AI 服务。", "upstream": "AI 服务暂不可用,请重试。",

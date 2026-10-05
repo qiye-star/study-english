@@ -1,4 +1,5 @@
 import type { ApiClient } from "~/api/client";
+import { ApiError } from "~/api/client";
 import type { Paged } from "~/api/types";
 import type { GrammarResult } from "~/features/grammar/grammar-types";
 import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice/assessment-api";
@@ -110,7 +111,7 @@ export function listConversations(api: ApiClient, page = 1, perPage = 20): Promi
   return api.request("GET", "/api/conversations", { query: { page, per_page: perPage } });
 }
 
-export function createConversation(api: ApiClient, input: { name?: string; config: ConversationConfig }): Promise<Conversation> {
+export function createConversation(api: ApiClient, input: { name?: string; config: Partial<ConversationConfig> }): Promise<Conversation> {
   return api.request("POST", "/api/conversations", { json: input });
 }
 
@@ -145,3 +146,7 @@ export function deleteMessage(api: ApiClient, id: string): Promise<{ id: string 
 export function patchMessage(api: ApiClient, id: string, fields: MessageResultFields): Promise<ChatMessage> {
   return api.request("PATCH", `/api/messages/${encodeURIComponent(id)}`, { json: fields });
 }
+
+/** 服务端可能已经保存、只是响应没到:网络错误/超时(status 0)、5xx、408 */
+export const isAmbiguousSaveError = (err: unknown) =>
+  !(err instanceof ApiError) || err.status === 0 || err.status >= 500 || err.status === 408;

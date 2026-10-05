@@ -7,13 +7,14 @@ import { AuthContext, type AuthContextValue } from "~/auth/auth-context";
 import { SettingsProvider } from "~/settings/settings-context";
 
 function LocationProbe() {
-  return <div data-testid="location">{useLocation().pathname}</div>;
+  const location = useLocation();
+  return <div data-testid="location" data-state={JSON.stringify(location.state ?? null)}>{location.pathname}</div>;
 }
 
 export interface RenderOptions {
   api?: ApiClient;
   user?: AuthContextValue["user"];
-  route?: string;
+  route?: string | { pathname: string; state?: unknown };
   path?: string;
   logout?: () => void;
 }

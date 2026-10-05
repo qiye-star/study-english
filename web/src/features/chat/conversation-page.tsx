@@ -16,7 +16,7 @@ import { formatClock } from "~/features/practice/practice-page";
 import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
-  CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, listMessages, updateConversation,
+  CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, isAmbiguousSaveError, listMessages, updateConversation,
   type ChatMessage, type Conversation, type ConversationConfig, type MessageResultFields,
 } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
@@ -79,9 +79,6 @@ const isPermanentSaveError = (err: unknown) =>
   && ((err.status === 429 && isKnownServerError(err))
     || (err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429));
 
-/** 服务端可能已经保存、只是响应没到:网络错误/超时(status 0)、5xx、408 */
-const isAmbiguousSaveError = (err: unknown) =>
-  !(err instanceof ApiError) || err.status === 0 || err.status >= 500 || err.status === 408;
 
 const sameText = (a: string, b: string) => a.trim() === b.trim();
 
