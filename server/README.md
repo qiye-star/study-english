@@ -209,6 +209,8 @@ uv run python scripts/smoke.py --wav sample.wav --reference "Hello, nice to meet
 
 上游未配置的检查会返回 503,并被报告为 SKIP;没有配置上游凭据时,注册检查通过,AI 相关检查为 SKIP。TTS 检查会读取 `/api/config/tts_providers_v2` 中实际配置的模型,对每个模型各跑一次(`tts <model>`);未配置任何 TTS 模型时为一行 SKIP。
 
+- 自由说话评测/语法检查实测:`uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8765`(默认端口 8765;需要 ffmpeg 与真实上游;用临时库运行,方法见 docs/superpowers/plans/2026-10-05-free-speech-evaluation.md;目前尚未运行)。
+
 ## 构建说明
 
 `server/uv.lock` 中的包地址指向清华 PyPI 镜像(`pypi.tuna.tsinghua.edu.cn`),在中国大陆没问题,其他地区可能很慢或无法访问。如需改用官方源重新锁定:
