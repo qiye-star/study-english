@@ -4,7 +4,7 @@
       "title": "Read aloud", "history": "History", "referenceLabel": "Reference text",
       "referencePlaceholder": "Type or paste the English text you will read.",
       "referenceHint": "Enter the text first, then tap the microphone.",
-      "listen": "Listen first", "stopListening": "Stop",
+      "listen": "Listen first", "stopListening": "Stop", "listenUnavailable": "Listening is unavailable right now (could not load the voice settings).",
       "assessing": "Assessing…", "assessKept": "Assess this", "discard": "Record again",
       "errors": {
         "referenceRequired": "Please enter the reference text first.", "referenceTooLong": "The reference text is too long (2000 characters max).",

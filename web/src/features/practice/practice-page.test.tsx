@@ -6,7 +6,10 @@ import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { toast } from "sonner";
 import { PracticePage, formatClock } from "./practice-page";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
 
 vi.mock("~/audio/convert", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/audio/convert")>()),
@@ -231,5 +234,66 @@ describe("PracticePage listen first", () => {
     vi.mocked(HTMLMediaElement.prototype.pause).mockClear();
     unmount();
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+  });
+
+  async function typeAndWait(text = "Hello") {
+    await userEvent.type(screen.getByTestId("reference-input"), text);
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toBeEnabled());
+  }
+
+  it("is disabled while the microphone is starting, so the reading is never captured", async () => {
+    let grant!: () => void;
+    const gate = new Promise<void>((r) => (grant = r));
+    const base = createFakeRecorderEnv();
+    const env = { ...base.env, getUserMedia: async (c: MediaStreamConstraints) => { await gate; return base.env.getUserMedia(c); } };
+    const mock = createFetchMock({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    renderWithProviders(<PracticePage recorderEnv={env} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice" });
+    await typeAndWait();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    expect(screen.getByTestId("practice-listen")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    expect(mock.calls.some((c) => c.url.pathname === "/api/ai/audio/speech")).toBe(false);
+    await act(async () => grant());
+  });
+
+  it("is disabled while recording and while uploading", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    setup({ ...CONFIG_ROUTES, "POST /api/speech/assessments": async () => { await gate; return json({ assessment_id: "a1" }); } });
+    await typeAndWait();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    expect(screen.getByTestId("practice-listen")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    await waitFor(() => expect(screen.getByTestId("practice-status")).toHaveAttribute("data-state", "processing"));
+    expect(screen.getByTestId("practice-listen")).toBeDisabled();
+    await act(async () => release());
+  });
+
+  it("shows a translated toast when the speech request fails, and clears the error look on edit", async () => {
+    setup({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => json({ error: "boom" }, 500) });
+    vi.mocked(toast.error).mockClear();
+    await typeAndWait("Uncached sentence"); // 共享缓存按文本命中,换一句避免命中前面的成功音频
+    await userEvent.click(screen.getByTestId("practice-listen"));
+    await waitFor(() => expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "error"));
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0][0]).not.toMatch(/^web\./);
+    await userEvent.type(screen.getByTestId("reference-input"), "!");
+    expect(screen.getByTestId("practice-listen")).toHaveAttribute("data-state", "idle");
+  });
+
+  it("explains when the voice settings cannot load, and still records and assesses", async () => {
+    setup({
+      "GET /api/config/gpt_providers": () => json({ error: "x" }, 500),
+      "GET /api/config/default_gpt_preset": () => json({ error: "x" }, 500),
+      "GET /api/config/tts_providers_v2": () => json({ error: "x" }, 500),
+      "GET /api/config/default_tts_preset": () => json({ error: "x" }, 500),
+      "POST /api/speech/assessments": () => json({ assessment_id: "a9" }),
+    });
+    await userEvent.type(screen.getByTestId("reference-input"), "Hello");
+    expect(await screen.findByTestId("practice-listen-unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("practice-listen")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    await userEvent.click(screen.getByTestId("record-toggle"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a9"));
   });
 });

@@ -4,7 +4,7 @@
       "title": "跟读评测", "history": "历史", "referenceLabel": "参考文本",
       "referencePlaceholder": "输入或粘贴要朗读的英文。",
       "referenceHint": "先输入参考文本,再点麦克风。",
-      "listen": "先听范读", "stopListening": "停止",
+      "listen": "先听范读", "stopListening": "停止", "listenUnavailable": "暂时无法使用范读(未能加载语音设置)。",
       "assessing": "正在评测…", "assessKept": "评测这段", "discard": "重录",
       "errors": {
         "referenceRequired": "请先输入参考文本。", "referenceTooLong": "参考文本过长(最多 2000 字符)。",
