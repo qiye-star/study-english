@@ -1,6 +1,8 @@
 import io
+import logging
 import uuid
 import wave
+from datetime import timedelta
 from typing import Literal
 
 import httpx
@@ -9,18 +11,20 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 from starlette.requests import Request as StarletteRequest
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import current_user, get_session, get_settings, limited_user
-from app.models import Assessment, SpeechToken, User
+from app.models import Assessment, Message, SpeechToken, User, utcnow
+from app.routers.conversations import drop_assessments, remove_files
 from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, get_xfyun
 from app.xfyun_result import to_assessment
 
 router = APIRouter(prefix="/api/speech")
+logger = logging.getLogger(__name__)
 
 MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
 MAX_ASSESSMENT_SECONDS = 300
@@ -136,6 +140,36 @@ async def _read_limited_body(request: Request) -> bytes:
     return b"".join(chunks)
 
 
+async def cleanup_orphan_chat_recordings(session: AsyncSession, settings: Settings, user: User) -> None:
+    """Delete the caller's source=chat assessments that no message references and that are older than the grace
+    window (a tab died / a late link failed). Rows first, files after the commit. Never raises."""
+    try:
+        cutoff = utcnow() - timedelta(hours=settings.chat_orphan_grace_hours)
+        rows = (
+            await session.execute(
+                select(Assessment).where(
+                    Assessment.user_id == user.id,
+                    Assessment.source == "chat",
+                    Assessment.created_at < cutoff,
+                    ~exists().where(Message.assessment_id == Assessment.id),
+                )
+            )
+        ).scalars().all()
+        if not rows:
+            return
+        paths = await drop_assessments(session, list(rows))
+        await session.commit()
+    except Exception:
+        logger.warning("Orphan chat recording cleanup failed")
+        try:
+            await session.rollback()
+            await session.refresh(user)  # rollback expires the loaded user
+        except Exception:
+            pass
+        return
+    remove_files(settings, paths)
+
+
 @router.post("/assessments")
 async def create_assessment(
     request: Request,
@@ -194,6 +228,8 @@ async def create_assessment(
             source_value = source.strip().lower()
         if source_value not in SOURCES:
             raise HTTPException(400, "Invalid source")
+        if source_value == "chat":
+            await cleanup_orphan_chat_recordings(session, settings, user)
         quota = settings.recording_quota_mb * 1024 * 1024
         if await recordings.used_bytes(session, user.id) + len(wav_bytes) > quota:
             raise HTTPException(413, "Recording storage quota exceeded")

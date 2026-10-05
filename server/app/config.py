@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     # ---- 网页版(设计文档 2026-10-04)----
     data_dir: str = ""
     recording_quota_mb: int = 500
+    # 未关联任何消息的对话录音(source=chat)超过该小时数后,在该用户下次保存对话录音时被清理
+    chat_orphan_grace_hours: int = 6
     max_conversations: int = 200
     max_messages_per_conversation: int = 1000
     web_dist_dir: str = ""
