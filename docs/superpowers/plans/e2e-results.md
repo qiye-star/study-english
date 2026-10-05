@@ -54,6 +54,30 @@ DevTools(`Ctrl+Shift+I`)Network 面板过滤 `/api`。结果请把「未执行�
 配套检查:`server` pytest 390 通过;`yarn workspace web test` 42 文件 / 257 测试通过;typecheck 与 build 通过。
 
 
+## 对话增强 Playwright 端到端(计划 2026-10-05,Task 5.1)
+
+日期:2026-10-05;commit:21d26dc6(规格文件为其上的未提交改动,随本任务提交);E2E 栈与运行方式同上一节(chromium 原生、webkit 在 Linux 容器)。
+注意:引擎加设备模拟,**未在真机上测试**;原"听写填入输入框"用例已按计划 R23 改写为语音消息用例。
+
+**环境阻塞(两项上游问题,均不是应用缺陷,用例没有被放宽或打桩):**
+1. 语音转写:Volcengine ARK 账户欠费(403 AccountOverdueError),真实转写不可用。语音消息用例由 `E2E_REAL_STT=1` 开关控制,未设置时以原因 `real STT unavailable (set E2E_REAL_STT=1 once the Ark account is funded)` 跳过;设置开关时先预检转写接口,502/503 直接失败(已验证:返回 HTTP 502 并报错)。下表记为 **SKIPPED-BLOCKED**,不是通过。
+2. 语音合成:Volcengine TTS 在同一次运行中途开始返回 403 `code=45000030 resource_id=volc.seedtts.default requested resource not granted`(同一次运行里第一个朗读请求曾返回 200,随后全部 502,直接对 API 重试也一致)。依赖朗读的两个用例因此失败,记为 **FAILED-BLOCKED**(上游授权问题;账户/资源授权恢复后需重跑)。
+
+| 用例 | chromium-mobile | webkit-mobile | 备注 |
+|---|---|---|---|
+| chat.spec.ts:语音消息(转写气泡、流式回复、发音/语法徽标、持久化、刷新后回放、跟读这句、删除对话级联) | SKIPPED-BLOCKED | 跳过(无 MediaRecorder) | 未运行,无发音分、assessment id 与录音文件复核结果;需 `E2E_REAL_STT=1` 且 ARK 账户充值后重跑 |
+| chat.spec.ts:语法(正确句 0 处、错误句 ≥1 处、改正句跟读) | ✅ | ✅ | 改正句:`Yesterday I went to the park and bought two apples.`(两个浏览器一致) |
+| chat.spec.ts:翻译与缓存、双语模式 | ✅ | ✅ | |
+| chat.spec.ts:回复句子收藏 → 清单 → 跟读 | ✅ | ✅ | |
+| practice.spec.ts:先听范读 | FAILED-BLOCKED | FAILED-BLOCKED | `/api/ai/audio/speech` 502(上游 TTS 403 未授权,见上) |
+| lookup.spec.ts:抽屉跟读/收藏 | ✅ | ✅ | |
+| grammar-prompt.spec.ts:预填默认、保存、使用、恢复默认 | ✅ | ✅ | GET 经用户令牌断言,恢复后 prompt 为 null |
+| 既有用例(登录、跟读、对话、查词) | ✅ 登录 5/5、查词、跟读评测(总分 84.2、词数 22)、切后台、输入栏;对话流式/朗读用例在完整运行中通过(当时 TTS 尚可用),此后单独重跑两次均 FAILED-BLOCKED(TTS 403) | ✅ 登录 5/5、查词、输入栏;录音类按原因跳过;对话流式/朗读用例 FAILED-BLOCKED(TTS 403 已生效) | 除上游 TTS 授权外无回归 |
+
+合计(共 17 项):chromium 完整运行 15 通过 / 1 跳过(SKIPPED-BLOCKED)/ 1 失败(先听范读,TTS 上游 403);webkit 12 通过 / 3 跳过 / 2 失败(先听范读、对话朗读,均为 TTS 上游 403)。无应用缺陷,未改动 web/src。
+配套检查:`yarn workspace web test` 59 文件 / 616 测试通过;typecheck 与 build 通过。
+
+
 ## 手机网页版真机验收(Task 6.2)
 
 状态:**未验证。这是整个项目唯一仍未完成的验收项。** 真机验收需要一台 iPhone(Safari)、一台安卓(Chrome)和一个指向服务的 HTTPS 地址;自动化 Agent 所在环境既没有真机也没有 HTTPS 地址,因此下表所有格子均为「未验证」,没有任何一项被标为通过。上一节的 Playwright 结果只是引擎加设备模拟,不能替代真机。

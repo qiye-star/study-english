@@ -1,10 +1,51 @@
-import { expect, test } from "@playwright/test";
-import { signIn } from "./support/auth";
-import { useFakeMicrophone } from "./support/fake-mic";
+import { readFileSync } from "node:fs";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { registerViaApi, signIn } from "./support/auth";
+import { SPEECH_WAV, useFakeMicrophone } from "./support/fake-mic";
 
 // 阶段 0 结论(docs/superpowers/plans/2026-10-04-mobile-web-spike-results.md 第 B 节):
 // Playwright 的 WebKit 构建没有 MediaRecorder,语音输入只能在 Chromium 上运行。
 const WEBKIT_NO_RECORDER = "Playwright WebKit has no MediaRecorder (see 2026-10-04-mobile-web-spike-results.md, section B)";
+
+// 真实转写依赖 Volcengine ARK 账户;账户欠费期间不可用。只有显式设置 E2E_REAL_STT=1 才运行语音消息用例。
+const STT_SKIP_REASON = "real STT unavailable (set E2E_REAL_STT=1 once the Ark account is funded)";
+const REAL_STT = process.env.E2E_REAL_STT === "1";
+
+/** 预检:带令牌 POST 假 WAV 到转写接口;E2E_REAL_STT=1 时上游不可用(502/503)直接失败,而不是跳过。 */
+async function assertRealSttAvailable(request: APIRequestContext): Promise<void> {
+  const { token } = await registerViaApi(request);
+  const r = await request.post("/api/ai/audio/transcriptions", {
+    headers: { Authorization: `Bearer ${token}` },
+    multipart: { file: { name: "jfk.wav", mimeType: "audio/wav", buffer: readFileSync(SPEECH_WAV) }, model: "whisper-1" },
+    timeout: 150_000,
+  });
+  if (r.status() === 502 || r.status() === 503) {
+    throw new Error(`E2E_REAL_STT=1 but the transcription upstream is unavailable (HTTP ${r.status()}): fund the Ark account or unset E2E_REAL_STT`);
+  }
+  expect(r.status(), await r.text()).toBe(200);
+}
+
+async function newConversation(page: Page): Promise<string> {
+  await page.getByTestId("nav-chat").click();
+  await page.getByTestId("conversation-new").click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  return page.url().split("/").pop()!;
+}
+
+async function sendText(page: Page, text: string): Promise<void> {
+  const count = await page.getByTestId("message-assistant").count();
+  await page.getByTestId("chat-input").fill(text);
+  await page.getByTestId("chat-send").click();
+  await expect(page.getByTestId("message-assistant")).toHaveCount(count + 1);
+  await expect(page.getByTestId("message-assistant").last()).toHaveAttribute("data-status", "done", { timeout: 90_000 });
+}
+
+async function authedStatus(page: Page, path: string): Promise<number> {
+  return page.evaluate(async (p) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    return (await fetch(p, { headers: { Authorization: `Bearer ${token}` } })).status;
+  }, path);
+}
 
 test("chat: stream, persist, read aloud and delete", async ({ page, request, browserName }) => {
   await useFakeMicrophone(page, browserName);
@@ -73,34 +114,6 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   expect(gone).toBe(404);
 });
 
-test("chat: dictation fills the input with the real transcription and does not send", async ({ page, request, browserName }) => {
-  test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
-  const completionRequests: string[] = [];
-  page.on("request", (r) => {
-    if (r.url().includes("/chat/completions")) completionRequests.push(r.url());
-  });
-  await useFakeMicrophone(page, browserName);
-  await signIn(page, request);
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
-
-  await page.getByTestId("chat-mic").click();
-  await expect(page.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
-  // 素材开头即 "And so, my fellow Americans, ask not ...";录制期间没有可观察的进度信号,按时钟轮询至少 6 s
-  const startedAt = Date.now();
-  await expect.poll(() => Date.now() - startedAt, { timeout: 15_000, intervals: [250] }).toBeGreaterThan(6_000);
-  const transcription = page.waitForResponse((r) => r.url().endsWith("/api/ai/audio/transcriptions"), { timeout: 120_000 });
-  await page.getByTestId("chat-mic").click();
-  expect((await transcription).status()).toBe(200);
-  await expect(page.getByTestId("chat-input")).toHaveValue(/fellow|americans|country|ask/i, { timeout: 60_000 });
-  await expect(page.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
-  // 听写只填入输入框,不自动发送
-  await expect(page.getByTestId("message-user")).toHaveCount(0);
-  await expect(page.getByTestId("message-assistant")).toHaveCount(0);
-  expect(completionRequests).toEqual([]);
-});
-
 test("composer stays visible on a phone-sized screen", async ({ page, request }) => {
   await signIn(page, request);
   await page.getByTestId("nav-chat").click();
@@ -111,4 +124,137 @@ test("composer stays visible on a phone-sized screen", async ({ page, request })
   expect(input!.y + input!.height).toBeLessThanOrEqual(viewport.height);
   const fontSize = await page.getByTestId("chat-input").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(fontSize).toBeGreaterThanOrEqual(16);
+});
+
+test("voice message: transcript, streamed reply, pronunciation and grammar badges, replay, practice and cascade delete", async ({ page, request, browserName }) => {
+  test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
+  test.skip(!REAL_STT, STT_SKIP_REASON);
+  await assertRealSttAvailable(request);
+  await useFakeMicrophone(page, browserName);
+  await signIn(page, request);
+  const conversationId = await newConversation(page);
+  const transcription = page.waitForResponse((r) => r.url().endsWith("/api/ai/audio/transcriptions"), { timeout: 120_000 });
+  const assessed = page.waitForResponse((r) => r.url().endsWith("/api/speech/assessments") && r.request().method() === "POST", { timeout: 150_000 });
+  const grammar = page.waitForResponse((r) => r.url().endsWith("/api/ai/grammar"), { timeout: 150_000 });
+
+  await page.getByTestId("chat-mic").click();
+  // 素材开头即 "And so, my fellow Americans, ask not ...";以计时器为准录满 7 秒以上
+  await expect(page.getByTestId("voice-timer")).toHaveText(/^00:(0[7-9]|[1-5]\d) \//, { timeout: 30_000 });
+  await page.getByTestId("chat-mic").click();
+  expect((await transcription).status()).toBe(200);
+  const user = page.getByTestId("message-user").last();
+  await expect(user).toHaveAttribute("data-voice", "sent", { timeout: 60_000 });
+  await expect(user).toContainText(/fellow|americans|country|ask/i);
+  await expect(page.getByTestId("message-assistant").last()).toHaveAttribute("data-status", "done", { timeout: 90_000 });
+
+  const assessment = await assessed;
+  expect(assessment.status()).toBe(200);
+  const assessmentId = (await assessment.json()).assessment_id as string;
+  expect(assessmentId).toBeTruthy();
+  expect((await grammar).status()).toBe(200);
+  await expect(page.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await expect(page.getByTestId("badge-grammar")).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  console.log(`voice: score=${await page.getByTestId("badge-pronunciation").getAttribute("data-score")} grammarErrors=${await page.getByTestId("badge-grammar").getAttribute("data-errors")}`);
+
+  // 结果已随消息保存或经 PATCH 补写到服务端
+  await expect.poll(() => page.evaluate(async (id) => {
+    const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
+    const r = await fetch(`/api/conversations/${id}/messages`, { headers: { Authorization: `Bearer ${token}` } });
+    const saved = (await r.json()).messages.find((m: { role: string }) => m.role === "user");
+    return [saved?.assessment_id ?? null, !!saved?.grammar];
+  }, conversationId), { timeout: 60_000 }).toEqual([assessmentId, true]);
+  await page.reload();
+  await expect(page.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done");
+  await expect(page.getByTestId("message-user").last()).toHaveAttribute("data-voice", "sent");
+
+  // 刷新后回放:应用带令牌请求录音 → blob URL
+  const audio = page.waitForResponse((r) => r.url().endsWith(`/api/assessments/${assessmentId}/audio`), { timeout: 60_000 });
+  await page.getByTestId("voice-play").click();
+  expect((await audio).status()).toBe(200);
+  await expect(page.getByTestId("voice-play")).not.toHaveAttribute("data-state", "error");
+
+  // 详情 → 跟读这句:带参考文本跳转
+  await page.getByTestId("badge-pronunciation").click();
+  await expect(page.getByTestId("turn-detail-assessment").getByTestId("assessment-scores")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("detail-practice").click();
+  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page.getByTestId("reference-input")).toHaveValue(/fellow|americans|country|ask/i);
+
+  // 删除对话:对话评测与录音一并删除(文件是否删除在门槛 5 里用 docker exec 复核)
+  await page.getByTestId("nav-chat").click();
+  await page.getByTestId("conversation-delete").first().click();
+  await page.getByTestId("conversation-delete-confirm").click();
+  await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  expect(await authedStatus(page, `/api/assessments/${assessmentId}`)).toBe(404);
+  expect(await authedStatus(page, `/api/assessments/${assessmentId}/audio`)).toBe(404);
+  console.log(`voice: deleted assessment ${assessmentId}`);
+});
+
+test("grammar: a correct and a wrong typed message; the corrected sentence goes to practice", async ({ page, request }) => {
+  await signIn(page, request);
+  await newConversation(page);
+  await sendText(page, "I went to the park yesterday and bought two apples.");
+  const clean = page.getByTestId("badge-grammar").last();
+  await expect(clean).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await expect(clean).toHaveAttribute("data-errors", "0");
+  await sendText(page, "Yesterday I go to the park and buy two apple.");
+  const wrong = page.getByTestId("badge-grammar").last();
+  await expect(wrong).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  expect(Number(await wrong.getAttribute("data-errors"))).toBeGreaterThan(0);
+  await wrong.click();
+  const corrected = (await page.getByTestId("grammar-corrected").innerText()).trim();
+  expect(corrected).not.toBe("Yesterday I go to the park and buy two apple.");
+  console.log(`grammar: corrected=${corrected}`);
+  await page.getByTestId("grammar-practice").click();
+  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page.getByTestId("reference-input")).toHaveValue(corrected);
+});
+
+test("translation on demand is cached when toggled; bilingual mode translates new replies", async ({ page, request }) => {
+  await signIn(page, request);
+  await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-language").selectOption("zh-CN"); // R24
+  await newConversation(page);
+  let completions = 0;
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/ai/chat/completions")) completions++;
+  });
+  await sendText(page, "Tell me one short fact about the moon.");
+  const afterReply = completions;
+  await page.getByTestId("message-translate").last().click();
+  const translation = page.getByTestId("message-translation").last();
+  await expect(translation).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await expect(translation).toContainText(/[一-鿿]/);
+  expect(completions).toBe(afterReply + 1);
+  await page.getByTestId("message-translate").last().click();
+  await expect(page.getByTestId("message-translation")).toHaveCount(0);
+  await page.getByTestId("message-translate").last().click();
+  await expect(page.getByTestId("message-translation").last()).toHaveAttribute("data-status", "done");
+  expect(completions).toBe(afterReply + 1); // 收起再展开不再请求
+
+  await page.getByTestId("conversation-bilingual").click();
+  await expect(page.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
+  await sendText(page, "And one about the sun?");
+  await expect(page.getByTestId("message-translation")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.getByTestId("message-translation").last()).toContainText(/[一-鿿]/, { timeout: 60_000 });
+});
+
+test("save a reply sentence, find it in the practice list and practice it", async ({ page, request }) => {
+  await signIn(page, request);
+  await newConversation(page);
+  await sendText(page, "Say hello to me in one short sentence.");
+  await page.getByTestId("message-practice").last().click();
+  const first = page.getByTestId("practice-sentence").first();
+  const sentence = (await first.innerText()).trim();
+  const saved = page.waitForResponse((r) => r.url().endsWith("/api/practice-items") && r.request().method() === "POST");
+  await first.getByTestId("practice-sentence-save").click();
+  expect((await saved).status()).toBe(200);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("nav-practice").click();
+  await page.getByTestId("practice-list").click();
+  await expect(page.getByTestId("practice-item")).toHaveCount(1);
+  await expect(page.getByTestId("practice-item")).toContainText(sentence);
+  await page.getByTestId("practice-item").click();
+  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page.getByTestId("reference-input")).toHaveValue(sentence);
 });

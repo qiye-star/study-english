@@ -100,3 +100,25 @@ test("look up a word and translate a sentence, served from cache the second time
   expect((await result.innerText()).trim()).toBe(sentenceResult);
   expect(aiCalls).toBe(2);
 });
+
+test("practice and save a selected sentence from the lookup drawer", async ({ page, request }) => {
+  const { token } = await signIn(page, request);
+  const saved = await request.post("/api/speech/assessments", {
+    headers: { Authorization: `Bearer ${token}` },
+    multipart: { file: { name: "jfk.wav", mimeType: "audio/wav", buffer: readFileSync(SPEECH_WAV) }, reference: SPEECH_REFERENCE, language: "en-US", save: "true" },
+    timeout: 150_000,
+  });
+  expect(saved.status(), await saved.text()).toBe(200);
+  await page.goto(`/practice/assessments/${(await saved.json()).assessment_id}`);
+  await expect(page.getByTestId("assessment-reference")).toBeVisible();
+  await openDrawerFor(page, null);
+  await expect(page.getByTestId("lookup-result")).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  const added = page.waitForResponse((r) => r.url().endsWith("/api/practice-items") && r.request().method() === "POST");
+  await page.getByTestId("lookup-save").click();
+  expect((await added).status()).toBe(200);
+  await page.getByTestId("lookup-practice").click();
+  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page.getByTestId("reference-input")).toHaveValue(SPEECH_REFERENCE);
+  await page.getByTestId("practice-list").click();
+  await expect(page.getByTestId("practice-item")).toContainText("ask not what your country can do for you");
+});

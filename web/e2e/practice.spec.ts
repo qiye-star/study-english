@@ -84,3 +84,25 @@ test("going to the background keeps what was recorded", async ({ page, request, 
   await page.getByTestId("practice-discard").click();
   await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "idle");
 });
+
+test("listen to the reference before reading", async ({ page, request }) => {
+  await signIn(page, request);
+  await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
+  const button = page.getByTestId("practice-listen");
+  await expect(button).toBeEnabled({ timeout: 30_000 });
+  await button.evaluate((el) => {
+    const w = window as unknown as { __listen: string[] };
+    w.__listen = [el.getAttribute("data-state") ?? ""];
+    new MutationObserver(() => {
+      const s = el.getAttribute("data-state") ?? "";
+      if (w.__listen[w.__listen.length - 1] !== s) w.__listen.push(s);
+    }).observe(el, { attributes: true, attributeFilter: ["data-state"] });
+  });
+  const speech = page.waitForResponse((r) => r.url().endsWith("/api/ai/audio/speech"), { timeout: 60_000 });
+  await button.click();
+  const res = await speech;
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toMatch(/^audio\//);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __listen: string[] }).__listen), { timeout: 30_000 }).toContain("playing");
+  expect(await page.evaluate(() => (window as unknown as { __listen: string[] }).__listen)).not.toContain("error");
+});
