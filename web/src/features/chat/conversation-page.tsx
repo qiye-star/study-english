@@ -22,7 +22,10 @@ import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefau
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble, type UiMessage } from "./message-bubble";
+import { fromServerMessage } from "./ui-message";
 import { MessageTranslation } from "./message-translation";
+import { PronunciationBadge } from "./result-badges";
+import { TurnDetailSheet } from "./turn-detail-sheet";
 import { useMessageTranslations } from "./use-message-translations";
 import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 import { VoiceInputButton } from "./voice-input-button";
@@ -42,6 +45,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [practiceText, setPracticeText] = useState<string | null>(null);
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const { language } = useSettings();
   const native = nativeLanguageCode(language);
   const canTranslate = native !== "en-US"; // R16:英文界面没有可译的目标语言
@@ -76,6 +80,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setMessages([]);
     setLoadError(null);
     setPracticeText(null);
+    setDetailKey(null);
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
@@ -86,7 +91,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         setConversation(c);
         setMessages(list.messages
           .filter((m) => m.role !== "system")
-          .map((m) => ({ key: m.id, id: m.id, role: m.role as "user" | "assistant", content: m.content, status: "done" })));
+          .map(fromServerMessage));
       })
       .catch((err) => alive && setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)));
     return () => {
@@ -247,6 +252,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => (
           <MessageBubble key={m.key} message={m}
+            footer={m.assessment ? <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} /> : null}
             actions={
               <div className="mt-1 flex flex-wrap gap-1">
                 <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
@@ -284,6 +290,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           <SendIcon className="h-5 w-5" />
         </Button>
       </form>
+      <TurnDetailSheet message={messages.find((m) => m.key === detailKey) ?? null} onClose={() => setDetailKey(null)} />
       <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>

@@ -67,6 +67,22 @@ beforeAll(() => {
 describe("ConversationPage", () => {
   beforeEach(() => resetServerAiConfigCache());
 
+  it("renders the badge and highlights of a loaded voice message with no extra request until details open", async () => {
+    const { mock } = setup(routes({
+      "GET /api/conversations/c1/messages": () => json({ messages: [{
+        id: "m1", conversation_id: "c1", role: "user", content: "Nice to meet you", assessment_id: "a1",
+        assessment: { scores: { pronunciationScore: 72.6, accuracyScore: 70, fluencyScore: 80, completenessScore: 90 }, words: [{ word: "meet", accuracyScore: 40, errorType: "Mispronunciation" }] },
+      }] }),
+      "GET /api/assessments/a1": () => new Promise<Response>(() => undefined),
+    }));
+    expect(await screen.findByTestId("badge-pronunciation")).toHaveTextContent("Pronunciation 73");
+    expect(screen.getByTestId("voice-word-poor")).toHaveTextContent("meet");
+    expect(mock.calls.filter((c) => c.url.pathname.startsWith("/api/assessments"))).toHaveLength(0);
+    await userEvent.click(screen.getByTestId("badge-pronunciation"));
+    expect(await screen.findByTestId("turn-detail")).toBeInTheDocument();
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/assessments/a1")).toHaveLength(1);
+  });
+
   it("caps the composer at the server message limit", async () => {
     setup(routes({}));
     expect(await screen.findByTestId("chat-input")).toHaveAttribute("maxlength", "20000");

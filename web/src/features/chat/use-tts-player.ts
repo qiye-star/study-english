@@ -4,6 +4,7 @@ import type { ApiClient } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { encodeWavPcm16 } from "~/audio/wav";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
+import { claimAudio, releaseAudio } from "./audio-focus";
 import { synthesizeSpeech } from "./speech-api";
 import { TtsCache, sharedTtsCache, speakableText, ttsKey } from "./tts";
 
@@ -13,6 +14,16 @@ let silentUrl: string | null = null;
 function silentWavUrl(): string {
   silentUrl ??= URL.createObjectURL(new Blob([encodeWavPcm16(new Float32Array(160), 16000)], { type: "audio/wav" }));
   return silentUrl;
+}
+
+/** iOS:在点击的同步阶段播放一段静音,解锁这个 <audio>;之后异步拿到数据再播放才不会被拦截。 */
+export function primeAudioElement(element: HTMLAudioElement): void {
+  try {
+    element.src = silentWavUrl();
+    void element.play()?.catch((): void => undefined);
+  } catch {
+    /* jsdom 等环境没有 createObjectURL */
+  }
 }
 
 /** 本地播放失败(被浏览器拦截、解码错误),区别于服务端合成失败。 */
@@ -60,6 +71,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     }
     if (currentRef.current) setState(currentRef.current, "idle");
     currentRef.current = null;
+    releaseAudio(stop);
   }, []);
 
   const play = useCallback(async (messageKey: string, text: string, model: string, voice: string): Promise<void> => {
@@ -70,18 +82,13 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       return;
     }
     stop();
+    claimAudio(stop); // 全应用同一时刻只播一段:让录音回放停下
     const controller = new AbortController();
     controllerRef.current = controller;
     currentRef.current = messageKey;
     setState(messageKey, "loading");
     const element = (audioRef.current ??= createAudio());
-    // iOS:在点击的同步阶段先播放一段静音,解锁这个 <audio>,之后异步拿到数据再播放才不会被拦截。
-    try {
-      element.src = silentWavUrl();
-      void element.play()?.catch((): void => undefined);
-    } catch {
-      /* jsdom 等环境没有 createObjectURL */
-    }
+    primeAudioElement(element);
     const fail = (err: unknown) => {
       currentRef.current = null;
       controllerRef.current = null;
