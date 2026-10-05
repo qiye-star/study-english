@@ -1,7 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { StrictMode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -52,6 +53,18 @@ describe("PracticeListPage", () => {
     await userEvent.click(await screen.findByTestId("practice-item-delete"));
     await userEvent.click(await screen.findByTestId("practice-item-delete-confirm"));
     expect(await screen.findByRole("alert")).toHaveTextContent("This sentence is no longer in your list.");
+    // 服务端说它已经不在了,所以列表里也去掉它
+    await waitFor(() => expect(screen.queryByTestId("practice-item")).toBeNull());
+  });
+
+  it("keeps the item and shows a generic error when delete fails otherwise", async () => {
+    setup({
+      "GET /api/practice-items": () => json({ practice_items: [item("p1", "One.")], page: 1, next: null }),
+      "DELETE /api/practice-items/p1": () => json({ error: "boom" }, 500),
+    });
+    await userEvent.click(await screen.findByTestId("practice-item-delete"));
+    await userEvent.click(await screen.findByTestId("practice-item-delete-confirm"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong.");
     expect(screen.getByTestId("practice-item")).toBeInTheDocument();
   });
 
@@ -83,8 +96,37 @@ describe("PracticeListPage", () => {
     await waitFor(() => expect(screen.getAllByTestId("practice-item")).toHaveLength(2));
   });
 
-  it("does not update state or throw after unmount", async () => {
-    const { view } = setup({ "GET /api/practice-items": () => json({ practice_items: [], page: 1, next: null }) });
+  it("renders the list without an error under StrictMode", async () => {
+    // 与真实 fetch 一致:收到 abort 信号时请求以 AbortError 失败
+    const mock = createFetchMock({
+      "GET /api/practice-items": (call) => new Promise<Response>((resolve, reject) => {
+        const body = json({ practice_items: [item("p1", "One.")], page: 1, next: null });
+        const abort = () => reject(new DOMException("aborted", "AbortError"));
+        if (call.signal?.aborted) return abort();
+        call.signal?.addEventListener("abort", abort);
+        setTimeout(() => resolve(body), 5);
+      }),
+    });
+    renderWithProviders(<StrictMode><PracticeListPage /></StrictMode>, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice/list",
+    });
+    expect(await screen.findAllByTestId("practice-item")).toHaveLength(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("practice-list-retry")).toBeNull();
+    expect(mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it("aborts and stays silent when unmounted mid-request", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let release: (r: Response) => void = () => {};
+    const { mock, view } = setup({
+      "GET /api/practice-items": () => new Promise<Response>((resolve) => { release = resolve; }),
+    });
+    await waitFor(() => expect(mock.calls).toHaveLength(1));
     view.unmount();
+    expect(mock.calls[0].signal?.aborted).toBe(true);
+    await act(async () => { release(json({ practice_items: [item("p1", "One.")], page: 1, next: null })); });
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

@@ -6,6 +6,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@renderer/components/ui/alert-dialog";
 import { Button } from "@renderer/components/ui/button";
+import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
@@ -28,25 +29,15 @@ export function PracticeListPage() {
   const loadingRef = useRef(false);
   const deletingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    return () => {
-      mounted.current = false;
-      controller.abort();
-    };
-  }, []);
 
-  const load = useCallback(async (page: number) => {
+  const load = useCallback(async (page: number, signal: AbortSignal) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setError(null);
     try {
-      const res = await listPracticeItems(api, page, 50, abortRef.current?.signal);
-      if (!mounted.current) return;
+      const res = await listPracticeItems(api, page, 50, signal);
+      if (signal.aborted) return;
       setItems((prev) => {
         const base = page === 1 ? [] : prev;
         const seen = new Set(base.map((i) => i.id));
@@ -54,31 +45,51 @@ export function PracticeListPage() {
       });
       setNext(res.next);
     } catch (err) {
-      if (mounted.current) setError(translateServerError(tRef.current, err, PRACTICE_ITEM_SERVER_ERRORS));
+      // 被中止(卸载 / StrictMode 重跑副作用)不是错误
+      if (!signal.aborted) setError(translateServerError(tRef.current, err, PRACTICE_ITEM_SERVER_ERRORS));
     } finally {
-      loadingRef.current = false;
-      if (mounted.current) {
+      if (!signal.aborted) {
+        loadingRef.current = false;
         setLoading(false);
         setLoaded(true);
       }
     }
   }, [api]);
 
-  useEffect(() => { void load(1); }, [load]);
+  // 触发首次加载的副作用自己持有 AbortController:清理时中止并释放加载锁,StrictMode 重跑才能重新发起
+  useEffect(() => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    void load(1, controller.signal);
+    return () => {
+      controller.abort();
+      loadingRef.current = false;
+      deletingRef.current = false;
+    };
+  }, [load]);
+
+  const loadPage = (page: number) => {
+    const signal = abortRef.current?.signal;
+    if (signal && !signal.aborted) void load(page, signal);
+  };
 
   const remove = async (item: PracticeItem) => {
-    if (deletingRef.current) return;
+    const signal = abortRef.current?.signal;
+    if (!signal || signal.aborted || deletingRef.current) return;
     deletingRef.current = true;
     setDeleting(true);
     setError(null);
     try {
-      await deletePracticeItem(api, item.id, abortRef.current?.signal);
-      if (mounted.current) setItems((prev) => prev.filter((i) => i.id !== item.id));
+      await deletePracticeItem(api, item.id, signal);
+      if (!signal.aborted) setItems((prev) => prev.filter((i) => i.id !== item.id));
     } catch (err) {
-      if (mounted.current) setError(translateServerError(tRef.current, err, PRACTICE_ITEM_SERVER_ERRORS));
+      if (signal.aborted) return;
+      setError(translateServerError(tRef.current, err, PRACTICE_ITEM_SERVER_ERRORS));
+      // 服务端说它已不存在:列表里也移除
+      if (err instanceof ApiError && err.status === 404) setItems((prev) => prev.filter((i) => i.id !== item.id));
     } finally {
-      deletingRef.current = false;
-      if (mounted.current) {
+      if (!signal.aborted) {
+        deletingRef.current = false;
         setDeleting(false);
         setPendingDelete(null);
       }
@@ -92,7 +103,7 @@ export function PracticeListPage() {
         <div role="alert" className="flex items-center gap-2 p-4 text-sm text-destructive">
           <span className="flex-1">{error}</span>
           {!items.length && (
-            <Button variant="outline" data-testid="practice-list-retry" className="h-11" disabled={loading} onClick={() => void load(1)}>{t("web.common.retry")}</Button>
+            <Button variant="outline" data-testid="practice-list-retry" className="h-11" disabled={loading} onClick={() => loadPage(1)}>{t("web.common.retry")}</Button>
           )}
         </div>
       )}
@@ -116,7 +127,7 @@ export function PracticeListPage() {
         ))}
       </ul>
       {next && loaded && (
-        <Button variant="ghost" data-testid="practice-list-more" className="m-4 h-11" disabled={loading} onClick={() => void load(next)}>
+        <Button variant="ghost" data-testid="practice-list-more" className="m-4 h-11" disabled={loading} onClick={() => loadPage(next)}>
           {t("web.common.loadMore")}
         </Button>
       )}

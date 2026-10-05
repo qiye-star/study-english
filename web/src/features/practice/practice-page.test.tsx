@@ -157,3 +157,11 @@ describe("PracticePage", () => {
     expect(mock.calls[0].signal?.aborted).toBe(true);
   });
 });
+
+describe("PracticePage header", () => {
+  it("links to the practice list", () => {
+    setup({});
+    const link = screen.getByTestId("practice-list");
+    expect(link).toHaveAttribute("href", "/practice/list");
+  });
+});
