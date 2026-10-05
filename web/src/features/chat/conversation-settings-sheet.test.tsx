@@ -54,4 +54,31 @@ describe("ConversationSettingsSheet", () => {
     expect(screen.getByTestId("settings-auto-speak")).toHaveAttribute("data-state", "unchecked");
     expect(screen.getByTestId("settings-level")).toHaveValue("C1");
   });
+
+  it("changes the scenario; the role prompt is hidden for scenario conversations", async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={onSave} config={{ ...base, scenario: { id: "cafe" } }} />);
+    expect(screen.getByTestId("settings-scenario")).toHaveValue("cafe");
+    expect(screen.queryByTestId("settings-system-prompt")).toBeNull();
+    expect(screen.getByTestId("settings-scenario-note")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByTestId("settings-scenario"), "free");
+    expect(screen.getByTestId("settings-system-prompt")).toHaveValue("SYS");
+    await userEvent.click(screen.getByTestId("settings-save"));
+    expect(onSave).toHaveBeenCalledWith({ scenario: { id: "free" } });
+  });
+
+  it("an unchanged scenario object is not resent; a custom one is sanitized and required", async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={onSave} config={{ ...base, scenario: { id: "hotel" } }} />);
+    await userEvent.selectOptions(screen.getByTestId("settings-scenario"), "cafe");
+    await userEvent.selectOptions(screen.getByTestId("settings-scenario"), "hotel");
+    await userEvent.click(screen.getByTestId("settings-save"));
+    expect(onSave).toHaveBeenLastCalledWith({});
+    await userEvent.selectOptions(screen.getByTestId("settings-scenario"), "custom");
+    expect(screen.getByTestId("settings-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-scenario-custom")).toHaveAttribute("maxlength", "500");
+    await userEvent.type(screen.getByTestId("settings-scenario-custom"), "  At the	bank  ");
+    await userEvent.click(screen.getByTestId("settings-save"));
+    expect(onSave).toHaveBeenLastCalledWith({ scenario: { id: "custom", custom: "At the bank" } });
+  });
 });

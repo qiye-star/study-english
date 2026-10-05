@@ -8,17 +8,22 @@ import { Textarea } from "@renderer/components/ui/textarea";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";
 import { LEVELS, normalizeLevel, type Level } from "./levels";
+import { MAX_CUSTOM_SCENARIO, PRESET_SCENARIO_IDS, sanitizeCustomScenario } from "./scenarios";
 
 const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base";
 
 const OPTIONAL_STRINGS = new Set(["model", "ttsModel", "ttsVoice"]);
 
-/** 草稿相对打开时种子的差异;模型/语音被改成空串时记为 undefined(清除),绝不发送空串 */
+const sameValue = (a: unknown, b: unknown) =>
+  a === b || (!!a && !!b && typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
+
+/** 草稿相对打开时种子的差异;模型/语音被改成空串时记为 undefined(清除),绝不发送空串;场景按内容比较,自定义文本先清洗 */
 function diffConfig(seed: ConversationConfig, draft: ConversationConfig): Partial<ConversationConfig> {
   const changes: Record<string, unknown> = {};
   for (const key of Object.keys(draft) as Array<keyof ConversationConfig>) {
-    if (draft[key] === seed[key]) continue;
-    const value = draft[key];
+    let value: unknown = draft[key];
+    if (key === "scenario" && draft.scenario?.id === "custom") value = { id: "custom", custom: sanitizeCustomScenario(draft.scenario.custom ?? "") };
+    if (sameValue(value, seed[key])) continue;
     changes[key] = OPTIONAL_STRINGS.has(key) && value === "" ? undefined : value;
   }
   return changes as Partial<ConversationConfig>;
@@ -42,6 +47,9 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   useEffect(() => { if (open) { seedRef.current = configRef.current; setDraft(configRef.current); } }, [open]);
   const uid = useId();
   const voices = ai ? voicesFor(ai, draft.ttsModel) : [];
+  const scenarioId = draft.scenario?.id && (draft.scenario.id === "custom" || (PRESET_SCENARIO_IDS as readonly string[]).includes(draft.scenario.id))
+    ? draft.scenario.id : "free";
+  const customInvalid = scenarioId === "custom" && !sanitizeCustomScenario(draft.scenario?.custom ?? "");
 
   const save = async () => {
     setSaving(true);
@@ -61,10 +69,33 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
         <SheetHeader><SheetTitle className="text-left">{t("web.chat.settings")}</SheetTitle></SheetHeader>
         <div className="mt-4 space-y-4">
           <label className="block space-y-1 text-sm">
-            <span>{t("web.chat.settingsForm.systemPrompt")}</span>
-            <Textarea data-testid="settings-system-prompt" rows={4} className="text-base" value={draft.systemPrompt}
-              onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })} />
+            <span>{t("web.chat.settingsForm.scenario")}</span>
+            <select data-testid="settings-scenario" className={selectClass} value={scenarioId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setDraft({ ...draft, scenario: id === "custom" ? { id, custom: draft.scenario?.custom ?? "" } : { id } });
+              }}>
+              {(["free", ...PRESET_SCENARIO_IDS, "custom"] as const).map((id) => (
+                <option key={id} value={id}>{t(`web.chat.scenarios.${id}.title`)}</option>
+              ))}
+            </select>
+            <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.scenarioHint")}</span>
           </label>
+          {scenarioId === "custom" && (
+            <Textarea data-testid="settings-scenario-custom" rows={3} maxLength={MAX_CUSTOM_SCENARIO} className="text-base"
+              aria-label={t("web.chat.scenarios.custom.title")}
+              placeholder={t("web.chat.scenarios.custom.placeholder")} value={draft.scenario?.custom ?? ""}
+              onChange={(e) => setDraft({ ...draft, scenario: { id: "custom", custom: e.target.value } })} />
+          )}
+          {scenarioId === "free" ? (
+            <label className="block space-y-1 text-sm">
+              <span>{t("web.chat.settingsForm.systemPrompt")}</span>
+              <Textarea data-testid="settings-system-prompt" rows={4} className="text-base" value={draft.systemPrompt}
+                onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })} />
+            </label>
+          ) : (
+            <p data-testid="settings-scenario-note" className="text-xs text-muted-foreground">{t("web.chat.settingsForm.scenarioNote")}</p>
+          )}
           <label className="block space-y-1 text-sm">
             <span>{t("web.chat.settingsForm.model")}</span>
             <select data-testid="settings-model" className={selectClass} value={draft.model}
@@ -129,7 +160,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             </select>
             <span className="block text-xs text-muted-foreground">{t("web.chat.settingsForm.levelHint")}</span>
           </label>
-          <Button data-testid="settings-save" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
+          <Button data-testid="settings-save" className="h-11 w-full" disabled={saving || customInvalid} onClick={() => void save()}>
             {t("web.chat.settingsForm.save")}
           </Button>
         </div>

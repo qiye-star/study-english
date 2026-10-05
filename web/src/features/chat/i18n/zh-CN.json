@@ -24,7 +24,7 @@
       },
       "speak": "朗读", "stopSpeaking": "停止", "speakFailed": "无法播放回复。", "nothingToRead": "这条回复里没有可朗读的内容。",
       "autoSpeak": { "toggle": "自动朗读回复", "blocked": "浏览器拦截了自动播放。", "tapToRead": "点此朗读", "dismiss": "关闭" }, "speed": { "label": "朗读语速 {{rate}}" },
-      "settingsForm": { "systemPrompt": "角色 / 指令", "model": "模型", "ttsModel": "语音模型", "voice": "音色", "save": "保存", "serverDefault": "服务器默认", "bilingual": "双语(新回复自动翻译)", "grammarCheck": "语法检查", "grammarCheckHint": "指出你英文消息里的语法错误。", "coachMode": "教练模式", "coachModeHint": "AI 会在回复里自然地说出你读错或用错的词的正确形式。", "autoSpeak": "自动朗读回复", "autoSpeakHint": "每条新回复会合成一次语音(消耗语音合成额度)。", "level": "英语难度", "levelHint": "AI 会把用词和句长控制在这个水平。" },
+      "settingsForm": { "scenario": "场景", "scenarioHint": "之后的回复按新场景进行。", "scenarioNote": "场景会话使用场景的角色设定,不使用自定义指令。", "systemPrompt": "角色 / 指令", "model": "模型", "ttsModel": "语音模型", "voice": "音色", "save": "保存", "serverDefault": "服务器默认", "bilingual": "双语(新回复自动翻译)", "grammarCheck": "语法检查", "grammarCheckHint": "指出你英文消息里的语法错误。", "coachMode": "教练模式", "coachModeHint": "AI 会在回复里自然地说出你读错或用错的词的正确形式。", "autoSpeak": "自动朗读回复", "autoSpeakHint": "每条新回复会合成一次语音(消耗语音合成额度)。", "level": "英语难度", "levelHint": "AI 会把用词和句长控制在这个水平。" },
       "voice": {
         "play": "播放录音", "pause": "暂停", "cancel": "丢弃录音", "stopAndSend": "停止并发送",
         "assessing": "评测中…", "assessFailed": "评测失败", "score": "发音 {{score}}",
