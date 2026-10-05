@@ -1,6 +1,6 @@
 import { completeChat, type ChatMessageInput } from "~/api/ai";
 import { ApiError, type ApiClient } from "~/api/client";
-import { inflightDedupe, withSignal } from "~/lib/abortable";
+import { abortableDedupe } from "~/lib/abortable";
 import { kvGet, kvSet } from "~/lib/kv-cache";
 import { extractJsonObject } from "~/lib/model-json";
 import { levelHint, type Level } from "./levels";
@@ -75,7 +75,7 @@ export const hintsCacheKey = (conversationId: string, anchorId: string, level: L
   `hints:v1:${JSON.stringify([conversationId, anchorId, level])}`;
 
 const memory = new Map<string, Hint[]>();
-const dedupe = inflightDedupe<Hint[]>();
+const dedupe = abortableDedupe<Hint[]>();
 
 /** 退出登录时清(R24);IndexedDB 里的提示随 kvClear 一起清。 */
 export function clearHintsMemory(): void {
@@ -86,8 +86,10 @@ export function cachedHints(api: ApiClient, input: HintsInput, signal?: AbortSig
   const persistent = input.anchor === null || !!input.anchor.id;
   const anchorId = input.anchor === null ? "start" : input.anchor.id ?? `local:${input.anchor.key}`;
   const key = hintsCacheKey(input.conversationId, anchorId, input.level);
-  return withSignal(
-    dedupe(key, async () => {
+  // 所有等待者都中止(换会话、卸载、新的请求)时,底层请求也中止
+  return dedupe(
+    key,
+    async (shared) => {
       const hit = persistent ? await kvGet<unknown>(key) : memory.get(key);
       if (hit) {
         try {
@@ -96,12 +98,12 @@ export function cachedHints(api: ApiClient, input: HintsInput, signal?: AbortSig
           /* 损坏的缓存条目:重新请求 */
         }
       }
-      const raw = await completeChat(api, { messages: buildHintsRequest(input), temperature: 0.7, jsonMode: true });
+      const raw = await completeChat(api, { messages: buildHintsRequest(input), temperature: 0.7, jsonMode: true }, shared);
       const hints = parseHints(raw); // 失败直接抛出,不缓存
       if (persistent) await kvSet(key, hints);
       else memory.set(key, hints);
       return hints;
-    }),
+    },
     signal,
   );
 }

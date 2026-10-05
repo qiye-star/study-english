@@ -1,4 +1,4 @@
-import { LanguagesIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -13,6 +13,7 @@ import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { formatClock } from "~/features/practice/practice-page";
+import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
 import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
@@ -24,6 +25,7 @@ import { coachCandidates, coachNote } from "./coach";
 import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
+import { HintsSheet, hintKey } from "./hints-sheet";
 import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
@@ -35,6 +37,7 @@ import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
 import { TurnResults } from "./turn-results";
 import { useAutoSpeak } from "./use-auto-speak";
+import { useHints } from "./use-hints";
 import { useMessageTranslations } from "./use-message-translations";
 import { sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceClip, type VoiceDraftEvent, type VoiceTurnState } from "./use-voice-turn";
@@ -131,6 +134,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const translations = useMessageTranslations(api, native);
   const resetTranslations = translations.reset;
   const showTranslation = translations.show;
+  const hints = useHints(api);
+  const resetHints = hints.reset;
+  const [hintsOpen, setHintsOpen] = useState(false);
   const tts = useTtsPlayer(api, {
     createAudio: sharedAutoplayAudio,
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
@@ -216,6 +222,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     setPracticeText(null);
     setDetailKey(null);
     setOpeningKey(null);
+    setHintsOpen(false);
+    resetHints(); // 切换会话:中止进行中的提示请求
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
@@ -252,7 +260,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
       resetVoice(); // 取消录音、中止转写、回收 blob URL
     };
-  }, [api, id, resetTranslations, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
+  }, [api, id, resetTranslations, resetHints, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -531,6 +539,32 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
 
   const voiceBusy = voice.state !== "idle";
 
+  // 开始发送或录音后,提示所依据的那条回复就不再是最后一条:关闭面板并丢弃进行中的请求
+  useEffect(() => {
+    if (sending || voiceBusy) {
+      setHintsOpen(false);
+      resetHints();
+    }
+  }, [sending, voiceBusy, resetHints]);
+
+  /** R12:基于最近已完成的消息(失败的尾部不算) */
+  const openHints = () => {
+    if (!conversation || busyRef.current || voice.state !== "idle") return;
+    const done = dropFailedTails(messagesRef.current).kept.filter((m) => m.status === "done");
+    const anchor = [...done].reverse().find((m) => m.role === "assistant");
+    // 上一组提示还在朗读:停下,免得新一组同位置的条目显示成"播放中"
+    if (Object.entries(tts.states).some(([key, state]) => key.startsWith("hint-") && state !== "idle" && state !== "error")) stopTts();
+    hints.request({
+      conversationId: conversation.id,
+      anchor: anchor ? { id: anchor.id, key: anchor.key } : null,
+      level: options.level,
+      // 只传有界的场景 id(自定义场景是 "custom"),不把自定义文字放进提示请求
+      scenarioId: normalizeScenario(conversation.config.scenario)?.id ?? null,
+      messages: done.map(({ role, content }) => ({ role, content })),
+    });
+    setHintsOpen(true);
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const text = input;
@@ -778,6 +812,10 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
             <XIcon className="h-5 w-5" />
           </Button>
         )}
+        <Button type="button" data-testid="chat-hints" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
+          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy} onClick={openHints}>
+          <LightbulbIcon className="h-5 w-5" />
+        </Button>
         <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
           aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy}>
           <SendIcon className="h-5 w-5" />
@@ -787,6 +825,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         {detailMessage?.grammar?.result && <GrammarDetails result={detailMessage.grammar.result} onClose={() => setDetailKey(null)} />}
       </TurnDetailSheet>
       <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
+      <HintsSheet open={hintsOpen} onOpenChange={setHintsOpen} state={hints.state} onRetry={hints.retry}
+        onFill={(text) => { setInput(text); setHintsOpen(false); }}
+        onSpeak={(i, text) => void tts.play(hintKey(i), text, config.ttsModel, config.ttsVoice)}
+        speakStates={tts.states}
+        onPractice={(text) => { setHintsOpen(false); goPractice(navigate, text); }}
+        onSave={(text) => void savePracticeItem(api, t, text, "chat")} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>
   );

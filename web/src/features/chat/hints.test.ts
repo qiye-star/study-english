@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { kvGet, resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
@@ -89,5 +89,26 @@ describe("hints", () => {
     const [a, b] = await Promise.all([cachedHints(api, INPUT), cachedHints(api, INPUT)]);
     expect(a).toEqual(b);
     expect(mock.calls).toHaveLength(2);
+  });
+  it("aborts the request when its only caller stops waiting, and asks again next time", async () => {
+    let seen: AbortSignal | undefined;
+    let calls = 0;
+    const mock = createFetchMock({
+      "POST /api/ai/chat/completions": (call) => {
+        calls += 1;
+        if (calls > 1) return completion(REPLIES);
+        seen = call.signal!;
+        return new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+      },
+    });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const controller = new AbortController();
+    const first = cachedHints(api, INPUT, controller.signal);
+    await vi.waitFor(() => expect(seen).toBeDefined());
+    controller.abort();
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    expect(seen!.aborted).toBe(true);
+    expect(await cachedHints(api, INPUT, new AbortController().signal)).toHaveLength(3);
+    expect(calls).toBe(2);
   });
 });

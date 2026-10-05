@@ -13,6 +13,7 @@ import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationPage } from "./conversation-page";
+import { clearHintsMemory } from "./hints";
 import { sharedTtsCache } from "./tts";
 import { sharedAutoplayAudio } from "./use-tts-player";
 import { PLAYBACK_RATE_KEY, resetPlaybackRate } from "~/lib/playback-rate";
@@ -2363,6 +2364,127 @@ describe("ConversationPage", () => {
       setup(routes({ "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CONFIG, scenario: { id: 42, custom: ["x"] } } }) }));
       await screen.findByText("reply");
       expect(screen.queryByTestId("conversation-scenario")).not.toBeInTheDocument();
+    });
+  });
+
+  describe('"not sure what to say" hints (R12)', () => {
+    const REPLIES = { replies: [{ text: "I'd like a latte.", zh: "我想要一杯拿铁。" }, { text: "What do you recommend?", zh: "你推荐什么?" }, { text: "Just water, thanks.", zh: "白水就好。" }] };
+    const completion = (content: unknown) => json({ choices: [{ message: { content: JSON.stringify(content) } }] });
+    /** 同一个接口:流式 = 对话回复,非流式 = 提示 */
+    const ai = (hints: () => Response | Promise<Response>): Handler => (call) =>
+      (bodyOf(call).stream ? sse([delta("OK"), DONE_EVENT]) : hints());
+    const hintCalls = (mock: ReturnType<typeof createFetchMock>) =>
+      callsTo(mock, "POST", "/api/ai/chat/completions").filter((c) => !bodyOf(c).stream);
+    beforeEach(async () => {
+      resetKvCacheForTests();
+      await deleteDb();
+      clearHintsMemory();
+    });
+
+    it("offers three replies for the last reply; filling one closes the panel; the second open is cached", async () => {
+      const { mock } = setup(routes({ "POST /api/ai/chat/completions": ai(() => completion(REPLIES)) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(screen.getByTestId("hints-result")).toHaveAttribute("data-status", "done"));
+      expect(screen.getAllByTestId("hint-item")).toHaveLength(3);
+      expect(screen.getAllByTestId("hint-item")[0]).toHaveTextContent("我想要一杯拿铁。");
+      const request = bodyOf(hintCalls(mock)[0]);
+      expect(request.response_format).toEqual({ type: "json_object" });
+      expect(JSON.parse(request.messages[1].content).conversation).toEqual([{ speaker: "partner", text: "Earlier **reply**" }]);
+      await userEvent.click(screen.getAllByTestId("hint-fill")[1]);
+      expect(screen.getByTestId("chat-input")).toHaveValue("What do you recommend?");
+      await waitFor(() => expect(screen.queryByTestId("hints-sheet")).toBeNull());
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(screen.getAllByTestId("hint-item")).toHaveLength(3));
+      expect(hintCalls(mock)).toHaveLength(1);
+    });
+
+    it("shows a retryable error for malformed output and does not cache it", async () => {
+      let bad = true;
+      const { mock } = setup(routes({ "POST /api/ai/chat/completions": ai(() => completion(bad ? { replies: REPLIES.replies.slice(0, 2) } : REPLIES)) }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(screen.getByTestId("hints-result")).toHaveAttribute("data-status", "error"));
+      expect(screen.getByTestId("hints-result")).toHaveTextContent("The suggestions could not be read. Try again.");
+      bad = false;
+      await userEvent.click(screen.getByTestId("hints-retry"));
+      await waitFor(() => expect(screen.getAllByTestId("hint-item")).toHaveLength(3));
+      expect(hintCalls(mock)).toHaveLength(2);
+    });
+
+    it("is disabled while recording and while a reply streams", async () => {
+      const fake = createFakeRecorderEnv();
+      let finish!: () => void;
+      const streaming: Handler = (call) => (bodyOf(call).stream
+        ? new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(delta("…"))); finish = () => { c.enqueue(new TextEncoder().encode(DONE_EVENT)); c.close(); }; } }), { headers: { "Content-Type": "text/event-stream" } })
+        : completion(REPLIES));
+      setup(routes({ "POST /api/ai/chat/completions": streaming, "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }) }), fake.env);
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-mic"));
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+      expect(screen.getByTestId("chat-hints")).toBeDisabled();
+      await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+      await waitFor(() => expect(screen.getByTestId("chat-hints")).toBeEnabled());
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getByTestId("chat-hints")).toBeDisabled());
+      act(() => finish());
+      await waitFor(() => expect(screen.getByTestId("chat-hints")).toBeEnabled());
+    });
+
+    it("uses the conversation level in the prompt and the cache key", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CONFIG, level: "A2" } }),
+        "POST /api/ai/chat/completions": ai(() => completion(REPLIES)),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(hintCalls(mock)).toHaveLength(1));
+      expect(bodyOf(hintCalls(mock)[0]).messages[0].content).toMatch(/CEFR A2 level: write the three replies/);
+    });
+
+    it("sends only the bounded id of a custom scenario, never its text", async () => {
+      const { mock } = setup(routes({
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "x", config: { ...CONFIG, scenario: { id: "custom", custom: "Secret plan at the bank" } } }),
+        "POST /api/ai/chat/completions": ai(() => completion(REPLIES)),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(hintCalls(mock)).toHaveLength(1));
+      const body = bodyOf(hintCalls(mock)[0]);
+      expect(JSON.parse(body.messages[1].content).scenario).toBe("custom");
+      expect(JSON.stringify(body)).not.toContain("Secret plan");
+    });
+
+    it("switching conversations aborts the request and closes the panel", async () => {
+      let signal: AbortSignal | undefined;
+      setup(routes({
+        "POST /api/ai/chat/completions": (call) => { signal = call.signal!; return new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))); },
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [] }),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(signal).toBeDefined());
+      act(() => goTo("/chat/c2"));
+      await waitFor(() => expect(screen.queryByTestId("hints-sheet")).toBeNull());
+      expect(signal!.aborted).toBe(true);
+    });
+
+    it("reads a hint aloud, saves it, and opens it for practice", async () => {
+      const { mock } = setup(routes({
+        "POST /api/ai/chat/completions": ai(() => completion(REPLIES)),
+        "POST /api/practice-items": () => json({ id: "p1", text: "I'd like a latte.", source: "chat", created_at: "2026-10-05T00:00:00+00:00" }),
+      }));
+      await screen.findByText("reply");
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await waitFor(() => expect(screen.getAllByTestId("hint-item")).toHaveLength(3));
+      await userEvent.click(screen.getAllByTestId("hint-speak")[0]);
+      await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/ai/audio/speech")[0]).input).toBe("I'd like a latte."));
+      await userEvent.click(screen.getAllByTestId("hint-save")[0]);
+      await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "I'd like a latte.", source: "chat" }));
+      await userEvent.click(screen.getAllByTestId("hint-practice")[2]);
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
     });
   });
 });
