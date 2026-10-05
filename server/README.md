@@ -20,6 +20,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/assessments[/{id}[/audio]]       网页版评测记录与录音回放
                                 ├ /api/practice-items[/{id}]            练习清单(GET/POST/DELETE;相同文本去重)
                                 ├ /api/vocabulary[/{id}[/review]]       词汇本(GET ?due=true、POST 去重、DELETE、复习按盒子法推进)
+                                ├ /api/stats?days=7|30|90&tz_offset_minutes=   学习进度(只读,按用户限流)
                                 ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
                                 └ 其他 GET                       网页版(web/dist,SPA 回退到 index.html)
                               DB: users / access_tokens / speech_tokens / conversations / messages / assessments
@@ -162,6 +163,7 @@ your.domain {
 - **前端目录**:`WEB_DIST_DIR` 指定网页构建产物目录;留空使用 `<仓库根>/web/dist`(Docker 镜像内为 `/web/dist`)。
 - **更新**:前端资源带哈希(`/assets/*` 长期缓存),`index.html` 与 `sw.js` 不做强缓存;重新部署后用户刷新即得到新版本(service worker 只缓存 `/assets/*`,不做离线学习)。
 - **接口**:`/api/conversations`、`/api/messages/{id}`、`/api/assessments`(见「接口一览」);`POST /api/speech/assessments` 加 `save=true` 时保存录音并在响应里返回 `assessment_id`,不带时与桌面端行为完全一致。对话消息可关联评测与语法结果(`PATCH /api/messages/{id}` 补写);删除消息/对话会同时删除对话录音(`source=chat` 的评测)及其文件;`GET /api/assessments` 默认只列跟读页的记录(`?source=chat|all` 可筛选)。词汇本复习:`POST /api/vocabulary/{id}/review` `{"grade": "forgot"|"hard"|"good"}`,间隔 1/2/4/7/15/30 天。两种 409:`Vocabulary item is not due`(未到期)与 `Vocabulary item was already reviewed`(连点/并发/丢响应后重试,该次复习已被应用过);网页端遇到任一 409 都应重新拉取待复习列表后继续,不当作硬错误。
+- **学习进度** `GET /api/stats`:`days` 取 7/30/90;`tz_offset_minutes`(-720..840,默认 0)是客户端相对 UTC 的分钟数,按本地日期分桶(窗口内跨夏令时会有一小时误差)。只扫描最近 90 天内最多 5000 条用户消息与 2000 条评测(读差的词只看窗口内最近 200 条评测),超出时响应 `truncated: true`;连续天数最多 90。与 AI 接口共用每用户每分钟限额 `AI_RATE_LIMIT_PER_MINUTE`。数字来自自由说话评测,仅供参考。
 - 开发与测试见 `web/README.md`。
 
 ## 让客户端指向它
