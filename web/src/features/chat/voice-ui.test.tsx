@@ -8,7 +8,7 @@ import { renderWithProviders } from "~/test/render";
 import good from "~/test/fixtures/assessment-good.json";
 import { claimAudio } from "./audio-focus";
 import { MessageBubble } from "./message-bubble";
-import { PronunciationBadge } from "./result-badges";
+import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
 import type { UiMessage } from "./ui-message";
 import { VoicePlayButton, formatDuration } from "./voice-play-button";
@@ -162,5 +162,21 @@ describe("voice UI extras", () => {
     expect(screen.getByTestId("detail-weak-words")).toHaveTextContent("meet");
     await userEvent.click(screen.getByTestId("detail-save"));
     await waitFor(() => expect(mock.calls.some((c) => c.method === "POST" && c.url.pathname === "/api/practice-items")).toBe(true));
+  });
+
+  it.each([
+    [{ status: "pending" }, "Checking grammar…", undefined],
+    [{ status: "done", result: { hasErrors: false, corrected: "x", errors: [] } }, "Grammar ✓", "0"],
+    [{ status: "done", result: { hasErrors: true, corrected: "x", errors: [{ original: "a", corrected: "b", category: "tense", explanation: "" }] } }, "Grammar: 1 to fix", "1"],
+    [{ status: "error" }, "Grammar check failed (tap to retry)", undefined],
+  ] as const)("grammar badge %o", (view, label, errors) => {
+    renderWithProviders(<GrammarBadge view={view as never} onOpen={vi.fn()} onRetry={vi.fn()} />);
+    expect(screen.getByTestId("badge-grammar")).toHaveTextContent(label);
+    if (errors) expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-errors", errors);
+  });
+
+  it("hides the grammar badge for skipped checks", () => {
+    renderWithProviders(<GrammarBadge view={{ status: "skipped" }} onOpen={vi.fn()} onRetry={vi.fn()} />);
+    expect(screen.queryByTestId("badge-grammar")).toBeNull();
   });
 });

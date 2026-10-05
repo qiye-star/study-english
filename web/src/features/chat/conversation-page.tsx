@@ -22,13 +22,14 @@ import {
 } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
-import { dropFailedTail } from "./chat-turns";
+import { dropFailedTail, lastAssistantText } from "./chat-turns";
+import { GrammarDetails } from "./grammar-details";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { MessageBubble } from "./message-bubble";
 import { fromServerMessage, type UiMessage, type VoiceView } from "./ui-message";
 import { MessageTranslation } from "./message-translation";
-import { PronunciationBadge } from "./result-badges";
+import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
 import { TurnResults } from "./turn-results";
 import { useMessageTranslations } from "./use-message-translations";
@@ -113,6 +114,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [practiceText, setPracticeText] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
+  const detailMessage = messages.find((m) => m.key === detailKey) ?? null;
   const { language } = useSettings();
   const native = nativeLanguageCode(language);
   const canTranslate = native !== "en-US"; // R16:英文界面没有可译的目标语言
@@ -435,7 +437,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         { key: botKey, role: "assistant", content: "", status: "streaming" }];
     });
     setSending(true);
-    results.start(userKey, { text: content, wav: turn.wav }); // R1:与回复并行;同一 key 只发起一次(重试不重复评测)
+    results.start(userKey, {
+      text: content,
+      wav: turn.wav,
+      grammar: { enabled: optionsRef.current.grammarCheck, context: lastAssistantText(base) },
+    }); // R1:与回复并行;同一 key 只发起一次(重试不重复评测)
     const finish = () => {
       // 不清空 abortRef:保存/改名阶段切换会话时,清理函数仍能让 live() 变 false
       if (abortRef.current === controller) busyRef.current = false;
@@ -611,7 +617,12 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
           return (
             <MessageBubble key={m.key} message={m}
-              footer={m.assessment ? <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} /> : null}
+              footer={m.assessment || m.grammar ? (
+                <div className="mt-1 flex flex-wrap justify-end gap-1">
+                  <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} />
+                  <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />
+                </div>
+              ) : null}
               actions={
                 <div className="mt-1 flex flex-wrap gap-1">
                   <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
@@ -678,7 +689,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           <SendIcon className="h-5 w-5" />
         </Button>
       </form>
-      <TurnDetailSheet message={messages.find((m) => m.key === detailKey) ?? null} onClose={() => setDetailKey(null)} />
+      <TurnDetailSheet message={detailMessage} onClose={() => setDetailKey(null)}>
+        {detailMessage?.grammar?.result && <GrammarDetails result={detailMessage.grammar.result} onClose={() => setDetailKey(null)} />}
+      </TurnDetailSheet>
       <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
     </div>

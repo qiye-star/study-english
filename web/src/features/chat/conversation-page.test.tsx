@@ -1541,4 +1541,79 @@ describe("ConversationPage", () => {
       expect(screen.getByTestId("voice-word-poor")).toHaveTextContent("like");
     });
   });
+
+  describe("grammar", () => {
+    const WRONG = { has_errors: true, corrected: "She doesn't like coffee.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "主语是第三人称单数" }] };
+    const RIGHT = { has_errors: false, corrected: "She doesn't like coffee.", errors: [] as never[] };
+    const chatRoutes = (grammar: Handler, extra: Record<string, Handler> = {}) => routes({
+      "POST /api/ai/grammar": grammar,
+      "POST /api/ai/chat/completions": () => sse([delta("I see."), DONE_EVENT]),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      "PATCH /api/messages/m1": () => json({ id: "m1" }),
+      ...extra,
+    });
+    beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+
+    it("flags errors in a typed message, shows details and offers the corrected sentence", async () => {
+      const { mock } = setup(chatRoutes(() => json(WRONG), { "POST /api/practice-items": () => json({ id: "p1", text: "x", source: "grammar", created_at: "t" }) }));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+      expect(JSON.parse(callsTo(mock, "POST", "/api/ai/grammar")[0].body as string)).toEqual({ text: "She don't like coffee.", context: "Earlier **reply**" });
+      await userEvent.click(screen.getByTestId("badge-grammar"));
+      expect(await screen.findByTestId("grammar-issue")).toHaveTextContent("don't");
+      expect(screen.getByTestId("grammar-issue")).toHaveTextContent("doesn't");
+      expect(screen.getByTestId("grammar-issue")).toHaveTextContent("Agreement");
+      expect(screen.getByTestId("grammar-corrected")).toHaveTextContent("She doesn't like coffee.");
+      await userEvent.click(screen.getByTestId("grammar-save"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/practice-items")).toHaveLength(1));
+      expect(JSON.parse(callsTo(mock, "POST", "/api/practice-items")[0].body as string)).toEqual({ text: "She doesn't like coffee.", source: "grammar" });
+      await userEvent.click(screen.getByTestId("grammar-practice"));
+      expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    });
+
+    it("shows a clean badge for a correct message and persists the result", async () => {
+      const { mock } = setup(chatRoutes(() => json(RIGHT)));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "She doesn't like coffee.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-errors", "0"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+      const saved = JSON.parse(callsTo(mock, "POST", "/api/conversations/c1/messages")[0].body as string).messages[0];
+      const patched = callsTo(mock, "PATCH", "/api/messages/m1").map((c) => JSON.parse(c.body as string));
+      expect([saved.grammar, ...patched.map((p) => p.grammar)].filter(Boolean)).toEqual([RIGHT]);
+    });
+
+    it("does not check short messages or when the switch is off", async () => {
+      const { mock } = setup(chatRoutes(() => json(RIGHT), {
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config: { ...CONFIG, grammar_check: false } }),
+      }));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "She doesn't like coffee at all.");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
+      expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(0);
+      expect(screen.queryByTestId("badge-grammar")).toBeNull();
+    });
+
+    it("skips messages with fewer than three English words", async () => {
+      const { mock } = setup(chatRoutes(() => json(RIGHT)));
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "Hi there");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
+      expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(0);
+    });
+
+    it("shows saved grammar results after reload", async () => {
+      setup(routes({
+        "GET /api/conversations/c1/messages": () => json({ messages: [
+          { id: "m1", conversation_id: "c1", role: "user", content: "She don't like coffee.", assessment_id: null, assessment: null, grammar: WRONG },
+        ] }),
+      }));
+      expect(await screen.findByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix");
+    });
+  });
 });

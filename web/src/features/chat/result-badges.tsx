@@ -1,7 +1,9 @@
 import { LoaderIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
-import type { AssessmentView } from "./ui-message";
+import { translateServerError } from "~/api/error-messages";
+import { GRAMMAR_SERVER_ERRORS } from "~/features/grammar/grammar-api";
+import type { AssessmentView, GrammarView } from "./ui-message";
 
 export function scoreTone(score: number): string {
   return score >= 80 ? "bg-emerald-600 text-white" : score >= 60 ? "bg-amber-500 text-white" : "bg-red-600 text-white";
@@ -20,6 +22,27 @@ export function PronunciationBadge({ view, onOpen }: { view?: AssessmentView; on
       disabled={view.status !== "done"} onClick={onOpen} className="inline-flex min-h-11 items-center px-1">
       <span className={cn("inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs",
         score === null ? "bg-muted text-muted-foreground" : scoreTone(score))}>
+        {view.status === "pending" && <LoaderIcon className="h-3 w-3 animate-spin" />}
+        {label}
+      </span>
+    </button>
+  );
+}
+
+export function GrammarBadge({ view, onOpen, onRetry }: { view?: GrammarView; onOpen(): void; onRetry(): void }) {
+  const { t } = useTranslation();
+  if (!view || view.status === "skipped") return null;
+  const count = view.result?.errors.length ?? 0;
+  const label = view.status === "pending" ? t("web.grammar.checking")
+    : view.status === "error" ? t("web.grammar.failed")
+    : count ? t("web.grammar.issues", { count }) : t("web.grammar.ok");
+  const tone = view.status !== "done" ? "bg-muted text-muted-foreground" : count ? "bg-amber-500 text-white" : "bg-emerald-600 text-white";
+  return (
+    <button type="button" data-testid="badge-grammar" data-status={view.status} data-errors={view.status === "done" ? count : undefined}
+      title={view.status === "error" ? translateServerError(t, view.error, GRAMMAR_SERVER_ERRORS) : undefined}
+      disabled={view.status === "pending"} onClick={view.status === "error" ? onRetry : onOpen}
+      className="inline-flex min-h-11 items-center px-1">
+      <span className={cn("inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs", tone)}>
         {view.status === "pending" && <LoaderIcon className="h-3 w-3 animate-spin" />}
         {label}
       </span>
