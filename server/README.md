@@ -159,7 +159,7 @@ your.domain {
 - **上限**:`RECORDING_QUOTA_MB`(每用户录音总量,默认 500)、`MAX_CONVERSATIONS`(默认 200)、`MAX_MESSAGES_PER_CONVERSATION`(默认 1000);单条录音 ≤ 5 分钟。超限分别返回 413(录音配额)/ 429(对话、消息数)。用户可在网页里删除旧录音。
 - **前端目录**:`WEB_DIST_DIR` 指定网页构建产物目录;留空使用 `<仓库根>/web/dist`(Docker 镜像内为 `/web/dist`)。
 - **更新**:前端资源带哈希(`/assets/*` 长期缓存),`index.html` 与 `sw.js` 不做强缓存;重新部署后用户刷新即得到新版本(service worker 只缓存 `/assets/*`,不做离线学习)。
-- **接口**:`/api/conversations`、`/api/messages/{id}`、`/api/assessments`(见「接口一览」);`POST /api/speech/assessments` 加 `save=true` 时保存录音并在响应里返回 `assessment_id`,不带时与桌面端行为完全一致。
+- **接口**:`/api/conversations`、`/api/messages/{id}`、`/api/assessments`(见「接口一览」);`POST /api/speech/assessments` 加 `save=true` 时保存录音并在响应里返回 `assessment_id`,不带时与桌面端行为完全一致。对话消息可关联评测与语法结果(`PATCH /api/messages/{id}` 补写);删除消息/对话会同时删除对话录音(`source=chat` 的评测)及其文件;`GET /api/assessments` 默认只列跟读页的记录(`?source=chat|all` 可筛选)。
 - 开发与测试见 `web/README.md`。
 
 ## 让客户端指向它

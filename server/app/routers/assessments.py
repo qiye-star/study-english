@@ -2,13 +2,13 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
 from app.config import Settings
 from app.deps import current_user, get_session, get_settings
-from app.models import Assessment, User, iso_utc
+from app.models import Assessment, Message, User, iso_utc
 
 router = APIRouter(prefix="/api")
 
@@ -98,6 +98,7 @@ async def delete_assessment(
 ):
     row = await owned_assessment(session, user, assessment_id)
     relpath = row.audio_path
+    await session.execute(update(Message).where(Message.assessment_id == row.id).values(assessment_id=None))
     await session.delete(row)
     await session.commit()
     recordings.delete_recording(settings.resolved_data_dir, relpath)
