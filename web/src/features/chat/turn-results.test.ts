@@ -92,6 +92,7 @@ describe("TurnResults (assessment)", () => {
     expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
     await results.saved("u1", "m1");
     expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1);
+    expect(JSON.parse(calls("PATCH", "/api/messages/m1")[0].body as string)).toEqual({ assessment_id: "a1" });
   });
 
   it("deletes the chat assessment of an abandoned turn, even when it arrives later", async () => {
@@ -123,13 +124,83 @@ describe("TurnResults (assessment)", () => {
     await vi.waitFor(() => expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(1));
   });
 
-  it("a failed save abandons the turn and deletes its assessment", async () => {
+  it("a failed save keeps the assessment; the retry save carries it", async () => {
+    const { results, changes, calls } = setup({ "POST /api/speech/assessments": () => json(ASSESSED) });
+    results.start("u1", { text: "I like it", wav: WAV });
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(results.fieldsForSave("u1")).toEqual({ assessmentId: "a1" });
+    results.saveFailed("u1");
+    expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(0);
+    expect(results.fieldsForSave("u1")).toEqual({ assessmentId: "a1" });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+    expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(0);
+  });
+
+  it("a result arriving after saveFailed is delivered and attached by the retry", async () => {
+    const assess = gated(() => json(ASSESSED));
+    const { results, changes, calls } = setup({ "POST /api/speech/assessments": assess.handler });
+    results.start("u1", { text: "I like it", wav: WAV });
+    results.fieldsForSave("u1");
+    results.saveFailed("u1");
+    assess.release();
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    expect(changes[1][1].assessment?.status).toBe("done");
+    expect(results.fieldsForSave("u1")).toEqual({ assessmentId: "a1" });
+    await results.saved("u1", "m1");
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+    expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(0);
+  });
+
+  it("a result arriving after saveFailed is patched when the retry saved without it", async () => {
+    const assess = gated(() => json(ASSESSED));
+    const { results, calls } = setup({ "POST /api/speech/assessments": assess.handler });
+    results.start("u1", { text: "I like it", wav: WAV });
+    results.fieldsForSave("u1");
+    results.saveFailed("u1");
+    expect(results.fieldsForSave("u1")).toEqual({});
+    await results.saved("u1", "m1");
+    assess.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+  });
+
+  it("explicit abandon after a failed save deletes exactly once", async () => {
     const { results, changes, calls } = setup({ "POST /api/speech/assessments": () => json(ASSESSED) });
     results.start("u1", { text: "I like it", wav: WAV });
     await vi.waitFor(() => expect(changes).toHaveLength(2));
     results.fieldsForSave("u1");
+    results.saveFailed("u1");
     results.abandon("u1");
+    results.abandon("u1");
+    results.abandonOpen();
     await vi.waitFor(() => expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls("DELETE", "/api/assessments/a1")).toHaveLength(1);
+  });
+
+  it("a failed assessment request leaves nothing to delete", async () => {
+    const { results, changes, mock } = setup({ "POST /api/speech/assessments": () => json({ error: "Upstream unavailable" }, 502) });
+    results.start("u1", { text: "I like it", wav: WAV });
+    await vi.waitFor(() => expect(changes).toHaveLength(2));
+    results.abandon("u1");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mock.calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+  });
+
+  it("an exception in onChange does not become an unhandled rejection and cleanup still works", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const mock = createFetchMock({ "POST /api/speech/assessments": () => json(ASSESSED), "DELETE /api/assessments/a1": () => json({ id: "a1" }) });
+    const results = new TurnResults(new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), (_k, c) => {
+      if (c.assessment?.status === "done") throw new Error("ui boom");
+    });
+    results.start("u1", { text: "I like it", wav: WAV });
+    await vi.waitFor(() => expect(mock.calls.some((c) => c.method === "POST")).toBe(true));
+    await new Promise((r) => setTimeout(r, 30));
+    results.abandon("u1");
+    await vi.waitFor(() => expect(mock.calls.filter((c) => c.method === "DELETE")).toHaveLength(1));
+    process.off("unhandledRejection", unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
   });
 
   it("does not delete the assessment of a saved turn when abandon is called afterwards", async () => {
@@ -143,6 +214,8 @@ describe("TurnResults (assessment)", () => {
   });
 
   it("reports assessment failures and ignores PATCH failures", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
     const { results, changes } = setup({ "POST /api/speech/assessments": () => json({ error: "Upstream unavailable" }, 502) });
     results.start("u1", { text: "I like it", wav: WAV });
     await vi.waitFor(() => expect(changes.at(-1)).toEqual(["u1", { assessment: { status: "error" } }]));
@@ -150,5 +223,8 @@ describe("TurnResults (assessment)", () => {
     late.results.start("u2", { text: "I like it", wav: WAV });
     await late.results.saved("u2", "m1");
     await vi.waitFor(() => expect(late.calls("PATCH", "/api/messages/m1")).toHaveLength(1)); // 不抛出
+    await new Promise((r) => setTimeout(r, 20));
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off("unhandledRejection", unhandled);
   });
 });

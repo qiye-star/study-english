@@ -29,7 +29,16 @@ interface Turn {
  * - fieldsForSave():保存消息对时取走已到达的结果,随用户消息一起保存。
  * - saved():保存成功后,把保存时还没到、或保存途中才到的结果 PATCH 补写。
  * - abandon():这一轮不会被保存。对话评测不中止(中止不能保证服务端没保存),跑完后删除。
+ * - saveFailed():保存失败,轮次回到 open(结果保留、不删除),用同一 key 重试保存即可,结果随重试附上。
  * onChange 只用于更新界面,页面负责在卸载后忽略它。
+ *
+ * 调用方约定:
+ * 1. 每个 start 过的 key 最终必须以 saved() 或 abandon() 结束(abandonOpen 兜底)。
+ * 2. 保存失败时调用 saveFailed(key),重试时用同一个 key 再 fieldsForSave/saved;不要换 key,也不要 abandon。
+ * 3. abandonOpen() 放在 effect 清理里(卸载/切换会话)。
+ * 4. 实例在 effect/ref 中创建,StrictMode 重新挂载时才不会复用已 abandon 的实例。
+ * 5. 卸载后忽略 onChange(本类不感知 React)。
+ * 已保存的轮次条目保留在 Map 里(很小),用来保证同一 key 只发起一次评测;随实例一起回收。
  */
 export class TurnResults {
   private readonly turns = new Map<string, Turn>();
@@ -56,7 +65,8 @@ export class TurnResults {
       return;
     }
     this.onChange(userKey, { assessment: { status: "pending" } });
-    assessPronunciation(this.api, { wav, reference: text, language: "en-US", save: true, source: "chat" }).then(
+    assessPronunciation(this.api, { wav, reference: text, language: "en-US", save: true, source: "chat" })
+      .then(
       (res) => {
         turn.assessmentId = res.assessmentId;
         if (turn.phase === "abandoned") {
@@ -81,7 +91,10 @@ export class TurnResults {
       () => {
         if (turn.phase !== "abandoned") this.onChange(userKey, { assessment: { status: "error" } });
       },
-    );
+    )
+      .catch(() => {
+        // onChange/解析抛错不应变成未处理的 rejection;assessmentId 已记录,清理仍有效
+      });
   }
 
   fieldsForSave(userKey: string): MessageResultFields {
@@ -96,7 +109,15 @@ export class TurnResults {
     return fields;
   }
 
-  saved(userKey: string, messageId: string | undefined): Promise<void> {
+  /** 保存失败(将用同一 key 重试):回到 open,结果保留且不删除。 */
+  saveFailed(userKey: string): void {
+    const turn = this.turns.get(userKey);
+    if (!turn || turn.phase !== "saving") return;
+    turn.phase = "open";
+    turn.assessmentSent = false;
+  }
+
+  saved(userKey: string, messageId: string): Promise<void> {
     const turn = this.turns.get(userKey);
     if (!turn || turn.phase === "abandoned") return Promise.resolve();
     turn.phase = "saved";
