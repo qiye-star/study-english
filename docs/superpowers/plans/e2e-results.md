@@ -5,11 +5,12 @@
 
 以下验收项**尚未验证**,不得视为通过。其余自动化结果见下方各节。
 
-1. **语音消息 E2E 用例从未运行**(`web/e2e/chat.spec.ts` 的 "voice message" 用例)。原因:方舟 STT 账户欠费。账户充值后运行:先按 `web/README.md` 起 E2E 栈,然后 `E2E_REAL_STT=1 yarn web:e2e --project=chromium-mobile`(webkit 无 MediaRecorder,按 `WEBKIT_NO_RECORDER` 跳过)。需要检查:转写气泡与录音时长、流式回复、发音与语法徽标、`PATCH` 补写、刷新后回放、"跟读这句";并用 `docker exec`(进入 `enjoy-e2e-server-1`)确认删除对话后该条录音文件(assessment 音频)已从磁盘消失,assessment 行也已级联删除。
+1. **语音消息 E2E 用例从未运行**(`web/e2e/chat.spec.ts` 的 "voice message" 用例)。原因:方舟 STT 账户欠费。2026-10-05 Task 6.1 带 `E2E_REAL_STT=1` 重跑:转写预检仍返回 502 "Upstream authentication failed",用例未能运行,本项仍然 OPEN。账户充值后运行:先按 `web/README.md` 起 E2E 栈,然后 `E2E_REAL_STT=1 yarn web:e2e --project=chromium-mobile`(webkit 无 MediaRecorder,按 `WEBKIT_NO_RECORDER` 跳过)。需要检查:转写气泡与录音时长、流式回复、发音与语法徽标、`PATCH` 补写、刷新后回放、"跟读这句";并用 `docker exec`(进入 `enjoy-e2e-server-1`)确认删除对话后该条录音文件(assessment 音频)已从磁盘消失,assessment 行也已级联删除。
 2. **依赖 TTS 的用例失败**:练习页"先听范读"(chromium 与 webkit)、对话朗读(webkit),原因是火山 TTS 返回 403 `resource not granted`(不是应用缺陷)。TTS 授权恢复后重跑 `practice.spec.ts` 与 `chat.spec.ts`(两个项目)。2026-10-05 Task 6.1 重跑:仍是同一个 403,且新增的场景自动朗读用例同样受阻;语音消息用例的转写预检返回 "Upstream authentication failed"(见下方 Task 6.1 一节)。
 3. **自由说话评测未运行**:见 [2026-10-05-free-speech-evaluation.md](2026-10-05-free-speech-evaluation.md)(状态:NOT RUN)。命令:`cd server && uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8765 --json ../.superpowers/eval/free-speech.json`,需要 ffmpeg 与真实上游(方舟转写、火山 TTS、讯飞评测、LLM),用临时库;会产生真实上游调用费用(约 52 次 TTS 合成(26 句 × 2 音色,有缓存时重跑为 0),另有 53 次转写、65 次评测、至多 53 次语法),运行前请确认额度。Task 5.3(据评测结论的降级)**未执行,待评测结果**。
 4. **真机验收**:iPhone(Safari)与安卓(Chrome)按下方清单第 1–16 项逐项验证,全部为"未验证"(需要设备与 HTTPS 地址)。
 5. **语音消息的语法检查未经验证(风险)**:`GRAMMAR_FOR_VOICE`(`web/src/features/chat/turn-results.ts`)为 `true`。转写引擎可能悄悄纠正语法,导致语音消息显示误导性的"没有语法问题";该风险尚未用真实转写验证(依赖第 3 项)。如评测证实,将该常量改为 `false` 即可关闭(一行改动,并同步 `turn-results.test.ts` 中对其取值的断言)。
+6. **自动朗读在 iOS 上的手势解锁未经真机验证**:Playwright 的 Chromium 带自动播放参数,WebKit 结果见「对话页增强 Playwright 端到端」一节(该节记录:TTS 被上游 403 拒绝,WebKit 下自动朗读是 playing 还是被拦截的结果**未记录**);iPhone 上首次发送后是否自动出声、被拦截时"点此朗读"是否出现且可用,按真机清单第 17–22 项验证。
 
 状态:**尚未执行。** 本清单需要在能运行 Electron 应用、并配好真实上游(LLM / TTS / Whisper / Azure Speech)的机器上手动完成。
 自动化 Agent 所在环境没有原生模块的构建工具链(`sqlite3` 等构建失败),也没有真实密钥,因此无法执行。
@@ -138,7 +139,7 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 
 ## 手机网页版真机验收(Task 6.2)
 
-状态:**未验证。这是整个项目唯一仍未完成的验收项。** 真机验收需要一台 iPhone(Safari)、一台安卓(Chrome)和一个指向服务的 HTTPS 地址;自动化 Agent 所在环境既没有真机也没有 HTTPS 地址,因此下表所有格子均为「未验证」,没有任何一项被标为通过。上一节的 Playwright 结果只是引擎加设备模拟,不能替代真机。
+状态:**未验证。这是需要人工设备的验收项(其余未决项见文首 OPEN ACCEPTANCE ITEMS)。** 真机验收需要一台 iPhone(Safari)、一台安卓(Chrome)和一个指向服务的 HTTPS 地址;自动化 Agent 所在环境既没有真机也没有 HTTPS 地址,因此下表所有格子均为「未验证」,没有任何一项被标为通过。上一节的 Playwright 结果只是引擎加设备模拟,不能替代真机。
 
 ### 需要人工完成的步骤
 
@@ -177,6 +178,12 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 14 | 发一条带语法错误的英文 | 出现"N 处语法问题";点开能看到改正,"跟读改正句"跳到跟读页并预填 |
 | 15 | 跟读页点"先听范读" | 有声音(iOS 重点:首次点击即可播放) |
 | 16 | 「我的」页修改语法检查提示词并保存,再点"恢复默认"并确认 | 状态在"使用你的规则"与"使用默认规则"之间正确切换,输入框回到默认文本 |
+| 17 | 新建会话,选"咖啡店点单" | 开场白出现后自动朗读,不需要再点(iOS 重点:点场景那一下解锁) |
+| 18 | 在场景会话里发一条消息 | 回复完成后自动朗读;若被浏览器拦截,出现一次"点此朗读",点后有声音 |
+| 19 | 说一条语音消息(点麦克风、说完点停止) | 录音和转写期间没有任何播放;回复完成后自动朗读 |
+| 20 | 朗读播放中点顶栏语速(1× → 1.25× → 0.75×) | 立即变速且音高不变;语音气泡回放与跟读页"先听范读"同样按该语速 |
+| 21 | 点顶栏喇叭关闭自动朗读,再发一条 | 新回复不再朗读;刷新后开关仍为关 |
+| 22 | 词汇本复习卡片点"朗读" | 有声音(iOS 重点:首次点击即可播放) |
 
 | # | iPhone(型号、iOS 版本:未填) | 安卓(型号、Chrome 版本:未填) | 备注 |
 |---|---|---|---|
@@ -196,3 +203,9 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 14 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 15 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 16 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 17 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 18 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 19 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 20 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 21 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 22 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |

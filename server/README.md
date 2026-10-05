@@ -23,7 +23,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/stats?days=7|30|90&tz_offset_minutes=   学习进度(只读,按用户限流)
                                 ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
                                 └ 其他 GET                       网页版(web/dist,SPA 回退到 index.html)
-                              DB: users / access_tokens / speech_tokens / conversations / messages / assessments
+                              DB: users / access_tokens / speech_tokens / conversations / messages / assessments / vocabulary_items
 ```
 
 默认 STT:客户端拿到 token 后直连 Azure,音频不经过后端。发音评测:客户端上传音频到 `/api/speech/assessments`,由后端调用讯飞 ISE。
@@ -132,6 +132,7 @@ UPSTREAM_WHISPER_MODEL=doubao-seed-2-0-lite-260428
 - 语法检查 `POST /api/ai/grammar` 同样按用户限流;`text` ≤ 2000 字符(超出 413),`context` 只取最后 500 字符。一轮语音消息 = 转写 + 评测 + 回复 + 语法共 4 次上游调用,文字消息 = 回复 + 语法 2 次(网页端对少于 3 个英文单词或非英文的消息不查语法,并缓存同一文本的结果)。
 - 聊天请求的 `n` 最多 4;`max_tokens` / `max_completion_tokens` 超过 `LLM_MAX_TOKENS`(默认 4096)会被压到该值,请求未带则保持缺省。
 - 非 multipart 请求体超过 1 MiB 返回 413;转写与发音评测上传(multipart)上限 25 MiB。讯飞免费额度可能远低于用户限流上限。
+- 手机网页版对话的**自动朗读默认开启**:每条新回复(以及场景开场白)各调用一次 TTS;"不会说?"提示与复盘总结各调用一次 LLM(只在用户点击时)。按用户限流 `AI_RATE_LIMIT_PER_MINUTE` 同样覆盖 `/api/stats`。
 
 ## 必须使用 HTTPS
 
@@ -231,4 +232,5 @@ Docker 构建会在 Node 阶段运行 `yarn workspaces focus web` 与 `yarn work
 - 仅支持单 worker(限流与 Azure token 缓存都在进程内)。
 - 手机端使用官方网页版账号,与自建后端的账号不互通。
 - 桌面客户端在创建 segment 后仍会把片段音频上传到 `storage.enjoy.bot`(`enjoy/src/main/db/models/segment.ts`、`main/storage.ts`)。这是上游既有行为,不在本后端覆盖范围内。
+- 练习清单(`practice_items`)与词汇本(`vocabulary_items`)的去重在应用层完成,没有唯一索引:两个并发的相同 POST 可能各插一行(见 `server/app/routers/practice_items.py` 的 "Known race" 注释)。词汇本沿用同一取舍。
 - 配置快照来自官方公开接口,需要时用 `fetch_config.py` 手动刷新。
