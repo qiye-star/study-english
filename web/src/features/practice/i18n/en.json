@@ -16,7 +16,13 @@
         "title": "Result", "again": "Practice again", "deleteConfirm": "Delete this recording?",
         "deleteDescription": "The recording and its score will be removed.", "audioUnavailable": "The recording is unavailable."
       },
-      "historyTitle": "History", "empty": "No practice yet."
+      "historyTitle": "History", "empty": "No practice yet.",
+      "list": {
+        "entry": "List", "title": "Practice list", "empty": "No saved sentences yet. Save sentences from chat or lookups.",
+        "saved": "Saved to your practice list.", "deleteConfirm": "Remove this sentence from your list?",
+        "sources": { "chat": "Chat", "lookup": "Dictionary", "grammar": "Grammar correction", "manual": "Added by you" },
+        "errors": { "limit": "Your practice list is full. Delete some sentences first.", "notFound": "This sentence is no longer in your list." }
+      }
     }
   }
 }

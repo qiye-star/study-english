@@ -6,6 +6,7 @@ import { ConversationPage } from "~/features/chat/conversation-page";
 import { ConversationsPage } from "~/features/chat/conversations-page";
 import { AssessmentPage } from "~/features/practice/assessment-page";
 import { HistoryPage } from "~/features/practice/history-page";
+import { PracticeListPage } from "~/features/practice/practice-list-page";
 import { PracticePage } from "~/features/practice/practice-page";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
@@ -23,6 +24,7 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/practice" element={<PracticePage />} />
           <Route path="/practice/history" element={<HistoryPage />} />
+          <Route path="/practice/list" element={<PracticeListPage />} />
           <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
           <Route path="/chat" element={<ConversationsPage />} />
           <Route path="/chat/:id" element={<ConversationPage />} />

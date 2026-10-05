@@ -16,7 +16,13 @@
         "title": "评测结果", "again": "再练一次", "deleteConfirm": "删除这条录音?",
         "deleteDescription": "录音与评分将被删除。", "audioUnavailable": "录音不可用。"
       },
-      "historyTitle": "练习历史", "empty": "还没有练习记录。"
+      "historyTitle": "练习历史", "empty": "还没有练习记录。",
+      "list": {
+        "entry": "清单", "title": "练习清单", "empty": "还没有收藏的句子。可以在对话或查词里收藏。",
+        "saved": "已加入练习清单。", "deleteConfirm": "从清单中移除这句?",
+        "sources": { "chat": "对话", "lookup": "查词", "grammar": "语法改正", "manual": "手动添加" },
+        "errors": { "limit": "练习清单已满,请先删除一些。", "notFound": "这句已不在清单里。" }
+      }
     }
   }
 }

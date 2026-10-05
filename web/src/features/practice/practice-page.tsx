@@ -1,4 +1,4 @@
-import { HistoryIcon, LoaderIcon, MicIcon, SquareIcon } from "lucide-react";
+import { HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -106,9 +106,14 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
       <PageHeader
         title={t("web.practice.title")}
         actions={
-          <Button asChild variant="ghost" className="h-11" data-testid="practice-history">
-            <Link to="/practice/history"><HistoryIcon className="mr-1 h-4 w-4" />{t("web.practice.history")}</Link>
-          </Button>
+          <div className="flex">
+            <Button asChild variant="ghost" className="h-11" data-testid="practice-list">
+              <Link to="/practice/list"><ListChecksIcon className="mr-1 h-4 w-4" />{t("web.practice.list.entry")}</Link>
+            </Button>
+            <Button asChild variant="ghost" className="h-11" data-testid="practice-history">
+              <Link to="/practice/history"><HistoryIcon className="mr-1 h-4 w-4" />{t("web.practice.history")}</Link>
+            </Button>
+          </div>
         }
       />
       <div className="flex flex-1 flex-col gap-3 p-4">
