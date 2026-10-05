@@ -14,6 +14,9 @@ const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base"
 
 const OPTIONAL_STRINGS = new Set(["model", "ttsModel", "ttsVoice"]);
 
+/** 存储的自定义文本可能是垃圾值(非字符串),一律当作空串 */
+const customText = (scenario?: { custom?: unknown }) => (typeof scenario?.custom === "string" ? scenario.custom : "");
+
 const sameValue = (a: unknown, b: unknown) =>
   a === b || (!!a && !!b && typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
 
@@ -22,7 +25,7 @@ function diffConfig(seed: ConversationConfig, draft: ConversationConfig): Partia
   const changes: Record<string, unknown> = {};
   for (const key of Object.keys(draft) as Array<keyof ConversationConfig>) {
     let value: unknown = draft[key];
-    if (key === "scenario" && draft.scenario?.id === "custom") value = { id: "custom", custom: sanitizeCustomScenario(draft.scenario.custom ?? "") };
+    if (key === "scenario" && draft.scenario?.id === "custom") value = { id: "custom", custom: sanitizeCustomScenario(customText(draft.scenario)) };
     if (sameValue(value, seed[key])) continue;
     changes[key] = OPTIONAL_STRINGS.has(key) && value === "" ? undefined : value;
   }
@@ -49,7 +52,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   const voices = ai ? voicesFor(ai, draft.ttsModel) : [];
   const scenarioId = draft.scenario?.id && (draft.scenario.id === "custom" || (PRESET_SCENARIO_IDS as readonly string[]).includes(draft.scenario.id))
     ? draft.scenario.id : "free";
-  const customInvalid = scenarioId === "custom" && !sanitizeCustomScenario(draft.scenario?.custom ?? "");
+  const customInvalid = scenarioId === "custom" && !sanitizeCustomScenario(customText(draft.scenario));
 
   const save = async () => {
     setSaving(true);
@@ -73,7 +76,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             <select data-testid="settings-scenario" className={selectClass} value={scenarioId}
               onChange={(e) => {
                 const id = e.target.value;
-                setDraft({ ...draft, scenario: id === "custom" ? { id, custom: draft.scenario?.custom ?? "" } : { id } });
+                setDraft({ ...draft, scenario: id === "custom" ? { id, custom: customText(draft.scenario) } : { id } });
               }}>
               {(["free", ...PRESET_SCENARIO_IDS, "custom"] as const).map((id) => (
                 <option key={id} value={id}>{t(`web.chat.scenarios.${id}.title`)}</option>
@@ -84,7 +87,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
           {scenarioId === "custom" && (
             <Textarea data-testid="settings-scenario-custom" rows={3} maxLength={MAX_CUSTOM_SCENARIO} className="text-base"
               aria-label={t("web.chat.scenarios.custom.title")}
-              placeholder={t("web.chat.scenarios.custom.placeholder")} value={draft.scenario?.custom ?? ""}
+              placeholder={t("web.chat.scenarios.custom.placeholder")} value={customText(draft.scenario)}
               onChange={(e) => setDraft({ ...draft, scenario: { id: "custom", custom: e.target.value } })} />
           )}
           {scenarioId === "free" ? (

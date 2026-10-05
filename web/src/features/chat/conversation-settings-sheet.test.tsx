@@ -81,4 +81,12 @@ describe("ConversationSettingsSheet", () => {
     await userEvent.click(screen.getByTestId("settings-save"));
     expect(onSave).toHaveBeenLastCalledWith({ scenario: { id: "custom", custom: "At the bank" } });
   });
+
+  it("renders without crashing when the stored custom scenario text is not a string", async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={onSave} config={{ ...base, scenario: { id: "custom", custom: 5 as unknown as string } }} />);
+    expect(screen.getByTestId("settings-scenario")).toHaveValue("custom");
+    expect(screen.getByTestId("settings-scenario-custom")).toHaveValue("");
+    expect(screen.getByTestId("settings-save")).toBeDisabled();
+  });
 });
