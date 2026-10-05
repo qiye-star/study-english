@@ -1,0 +1,34 @@
+{
+  "grammar_errors": [
+    {"id": "A1", "spoken": "Yesterday I go to the park with my friends.", "marker": "i go"},
+    {"id": "A2", "spoken": "She don't like coffee very much.", "marker": "she don't"},
+    {"id": "A3", "spoken": "I have went to Beijing three times.", "marker": "have went"},
+    {"id": "A4", "spoken": "He is more taller than his brother.", "marker": "more taller"},
+    {"id": "A5", "spoken": "I am agree with your idea.", "marker": "am agree"},
+    {"id": "A6", "spoken": "There is many people in the room.", "marker": "is many"},
+    {"id": "A7", "spoken": "I didn't went to school yesterday.", "marker": "didn't went"},
+    {"id": "A8", "spoken": "My father work in a hospital.", "marker": "father work"},
+    {"id": "A9", "spoken": "I look forward to see you soon.", "marker": "to see"},
+    {"id": "A10", "spoken": "She married with a doctor last year.", "marker": "married with"}
+  ],
+  "correct": [
+    {"id": "B1", "spoken": "I went to the park with my friends yesterday."},
+    {"id": "B2", "spoken": "She doesn't like coffee very much."},
+    {"id": "B3", "spoken": "I have been to Beijing three times."},
+    {"id": "B4", "spoken": "Um, I think, uh, it's a really good idea."},
+    {"id": "B5", "spoken": "I was going to call you, I mean, I wanted to call you last night."},
+    {"id": "B6", "spoken": "Could you tell me where the station is?"},
+    {"id": "B7", "spoken": "We've lived here since twenty nineteen."},
+    {"id": "B8", "spoken": "If I had known, I would have come earlier."},
+    {"id": "B9", "spoken": "Honestly, I'm not sure what to do next."},
+    {"id": "B10", "spoken": "My sister and I are planning a trip to Japan."}
+  ],
+  "mispronounced": [
+    {"id": "C1", "spoken": "I sink we should leave now.", "intended": "I think we should leave now.", "target": "think", "substitute": "sink"},
+    {"id": "C2", "spoken": "There are tree apples on the table.", "intended": "There are three apples on the table.", "target": "three", "substitute": "tree"},
+    {"id": "C3", "spoken": "It is berry cold today.", "intended": "It is very cold today.", "target": "very", "substitute": "berry"},
+    {"id": "C4", "spoken": "Please turn on the right.", "intended": "Please turn on the light.", "target": "light", "substitute": "right"},
+    {"id": "C5", "spoken": "He is wearing a black best.", "intended": "He is wearing a black vest.", "target": "vest", "substitute": "best"},
+    {"id": "C6", "spoken": "We took a sheep to the island.", "intended": "We took a ship to the island.", "target": "ship", "substitute": "sheep"}
+  ]
+}
