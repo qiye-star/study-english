@@ -207,6 +207,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       abortRef.current = null;
       busyRef.current = false;
       genRef.current += 1;
+      // 上次失败"可能已保存"的排队保存:服务端也许已把评测链接到消息,abandonOpen 的 DELETE 会误删,先 forget(不删除)
+      for (const entry of pendingSavesRef.current) if (entry.ambiguous && !entry.saved) entry.results.forget(entry.userKey);
       pendingSavesRef.current = [];
       heldRef.current.clear();
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
@@ -622,7 +624,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         {messages.map((m) => {
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
           return (
-            <MessageBubble key={m.key} message={m}
+            <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy}
               footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
                   <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} />
@@ -631,7 +633,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
               ) : null}
               actions={
                 <div className="mt-1 flex flex-wrap gap-1">
-                  <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"}
+                  <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"} disabled={voiceBusy}
                     className="h-11 px-2" aria-label={tts.states[m.key] === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.speak")}
                     onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
                     {tts.states[m.key] === "loading" ? <LoaderIcon className="h-4 w-4 animate-spin" />

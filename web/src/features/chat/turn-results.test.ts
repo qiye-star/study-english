@@ -279,7 +279,7 @@ describe("TurnResults (assessment)", () => {
     process.on("unhandledRejection", unhandled);
     const { results, changes } = setup({ "POST /api/speech/assessments": () => json({ error: "Upstream unavailable" }, 502) });
     results.start("u1", { text: "I like it", wav: WAV });
-    await vi.waitFor(() => expect(changes.at(-1)).toEqual(["u1", { assessment: { status: "error" } }]));
+    await vi.waitFor(() => expect(changes.at(-1)?.[1].assessment).toMatchObject({ status: "error", error: { status: 502, message: "Upstream unavailable" } }));
     const late = setup({ "POST /api/speech/assessments": () => json(ASSESSED), "PATCH /api/messages/m1": () => json({ error: "boom" }, 500) });
     late.results.start("u2", { text: "I like it", wav: WAV });
     await late.results.saved("u2", "m1");

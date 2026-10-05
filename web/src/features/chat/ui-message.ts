@@ -9,6 +9,8 @@ export interface AssessmentView {
   reason?: "non-english" | "too-long";
   scores?: AssessmentScores;
   words?: AssessmentWordBrief[];
+  /** status 为 error 时的原始错误;界面用 translateServerError(t, error, CHAT_SERVER_ERRORS) 翻译 */
+  error?: unknown;
 }
 
 export interface GrammarView {

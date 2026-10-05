@@ -8,6 +8,7 @@ import { renderWithProviders } from "~/test/render";
 import good from "~/test/fixtures/assessment-good.json";
 import { claimAudio } from "./audio-focus";
 import { MessageBubble } from "./message-bubble";
+import { ApiError } from "~/api/client";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
 import type { UiMessage } from "./ui-message";
@@ -82,6 +83,36 @@ describe("voice UI", () => {
     renderWithProviders(<PronunciationBadge view={view as never} onOpen={vi.fn()} />);
     expect(screen.getByTestId("badge-pronunciation")).toHaveTextContent(label);
     expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", view.status);
+  });
+
+  it.each([
+    [new ApiError(413, "Recording storage quota exceeded"), "Your recording storage is full. Delete some old recordings."],
+    [new ApiError(503, "Pronunciation assessment is not configured"), "Pronunciation assessment is not configured on the server."],
+  ])("explains a failed assessment through the badge title (%o)", (error, reason) => {
+    renderWithProviders(<PronunciationBadge view={{ status: "error", error }} onOpen={vi.fn()} />);
+    const badge = screen.getByTestId("badge-pronunciation");
+    expect(badge).toHaveAttribute("title", reason);
+    expect(badge).toHaveAttribute("aria-label", `Assessment failed: ${reason}`);
+  });
+
+  it("falls back to the generic reason for unknown assessment errors and shows no title when there is none", () => {
+    const { unmount } = renderWithProviders(<PronunciationBadge view={{ status: "error", error: new ApiError(500, "weird") }} onOpen={vi.fn()} />);
+    expect(screen.getByTestId("badge-pronunciation").getAttribute("title")).toMatch(/\S/);
+    expect(screen.getByTestId("badge-pronunciation").getAttribute("title")).not.toContain("weird");
+    unmount();
+    renderWithProviders(<PronunciationBadge view={{ status: "done", scores: SCORES }} onOpen={vi.fn()} />);
+    expect(screen.getByTestId("badge-pronunciation")).not.toHaveAttribute("title");
+  });
+
+  it("disables the voice-bubble play button while playback is not allowed", async () => {
+    const message: UiMessage = { key: "u1", role: "user", status: "done", content: "Hello", assessmentId: "a1", voice: { phase: "sent", durationMs: 3000, audioUrl: "blob:local" } };
+    const first = renderWithProviders(<MessageBubble message={message} playbackDisabled />);
+    expect(screen.getByTestId("voice-play")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("voice-play"));
+    expect(screen.getByTestId("voice-play")).toHaveAttribute("data-state", "idle");
+    first.unmount();
+    renderWithProviders(<MessageBubble message={message} />);
+    expect(screen.getByTestId("voice-play")).toBeEnabled();
   });
 
   it("renders a sent voice message with highlighted poor words and its footer", () => {

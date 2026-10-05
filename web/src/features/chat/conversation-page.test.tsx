@@ -1126,6 +1126,21 @@ describe("ConversationPage", () => {
         expect(deletes(mock)).toHaveLength(0);
       });
 
+      it("leaving with a queued voice save whose last failure was ambiguous never deletes its assessment", async () => {
+        const { mock, view } = setup(voiceRoutes({
+          "POST /api/speech/assessments": () => json(ASSESSED),
+          "POST /api/conversations/c1/messages": () => lose(),
+          "DELETE /api/assessments/a1": () => json({ id: "a1" }),
+        }), createFakeRecorderEnv().env);
+        await screen.findByText("reply");
+        await recordAndSend();
+        await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
+        await waitFor(() => expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done"));
+        view.unmount();
+        await new Promise((r) => setTimeout(r, 50));
+        expect(deletes(mock)).toHaveLength(0);
+      });
+
       it("an ambiguous failure where nothing was stored reloads first and then posts", async () => {
         let attempt = 0;
         const { mock } = setup(routes({
@@ -1490,6 +1505,20 @@ describe("ConversationPage", () => {
       // 焦点已释放:再次朗读正常
       await userEvent.click(screen.getByTestId("message-tts"));
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+    });
+
+    it("read-aloud cannot start while a recording is active and works again afterwards", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(routes({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) }), fake.env);
+      await screen.findByTestId("message-tts");
+      await userEvent.click(screen.getByTestId("chat-mic"));
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+      expect(screen.getByTestId("message-tts")).toBeDisabled();
+      await userEvent.click(screen.getByTestId("message-tts"));
+      expect(callsTo(mock, "POST", "/api/ai/audio/speech")).toHaveLength(0);
+      expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle");
+      await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toBeEnabled());
     });
 
     describe("leaving the page", () => {

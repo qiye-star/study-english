@@ -10,13 +10,15 @@ import { VoiceTranscript } from "./voice-transcript";
 
 export type { UiMessage } from "./ui-message";
 
-export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft }: {
+export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled }: {
   message: UiMessage;
   onRetry?: () => void;
   actions?: ReactNode;
   translation?: ReactNode;
   footer?: ReactNode;
   voiceDraft?: { onRetry(): void; onDiscard(): void };
+  /** 录音进行中:不允许开始播放(否则会和麦克风抢音频) */
+  playbackDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
@@ -33,7 +35,7 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
       )}>
         {voice && (
           <div className="-ml-2 flex items-center gap-1">
-            {draft ? <MicIcon className="mx-3 h-5 w-5" /> : <VoicePlayButton audioUrl={message.voice?.audioUrl} assessmentId={message.assessmentId} />}
+            {draft ? <MicIcon className="mx-3 h-5 w-5" /> : <VoicePlayButton audioUrl={message.voice?.audioUrl} assessmentId={message.assessmentId} disabled={playbackDisabled} />}
             <span className="text-xs opacity-80">{formatDuration(message.voice?.durationMs ?? 0)}</span>
           </div>
         )}

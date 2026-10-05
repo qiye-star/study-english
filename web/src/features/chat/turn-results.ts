@@ -151,8 +151,8 @@ export class TurnResults {
           },
         });
       },
-      () => {
-        if (turn.phase !== "abandoned") this.onChange(userKey, { assessment: { status: "error" } });
+      (error) => {
+        if (turn.phase !== "abandoned") this.onChange(userKey, { assessment: { status: "error", error } });
       },
     )
       .catch(() => {
