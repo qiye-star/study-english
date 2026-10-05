@@ -16,12 +16,12 @@ export function MessageTranslation({ state, onRetry }: { state?: TranslationStat
     return (
       <div data-testid="message-translation" data-status="error" className="mt-2 border-t pt-2 text-sm text-destructive">
         <span>{state.error}</span>
-        <Button variant="link" className="h-11 px-2" onClick={onRetry}>{t("web.common.retry")}</Button>
+        <Button variant="link" className="h-11 min-w-11 px-2" onClick={onRetry}>{t("web.common.retry")}</Button>
       </div>
     );
   }
   return (
-    <p data-testid="message-translation" data-status="done" data-lookup-context className="mt-2 select-text whitespace-pre-wrap border-t pt-2 text-sm">
+    <p data-testid="message-translation" data-status="done" className="mt-2 select-text whitespace-pre-wrap border-t pt-2 text-sm">
       {state.text}
     </p>
   );

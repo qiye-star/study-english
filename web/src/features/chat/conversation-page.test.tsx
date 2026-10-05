@@ -399,7 +399,8 @@ describe("ConversationPage", () => {
       setup(routes({ "POST /api/ai/chat/completions": translateRoute(calls) }));
       await screen.findByText("reply");
       await userEvent.click(screen.getByTestId("message-translate"));
-      await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveTextContent("译文"));
+      await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveAttribute("data-status", "done"));
+      expect(screen.getByTestId("message-translation")).toHaveTextContent("译文");
       await userEvent.click(screen.getByTestId("message-translate"));
       expect(screen.queryByTestId("message-translation")).toBeNull();
       await userEvent.click(screen.getByTestId("message-translate"));
@@ -429,6 +430,54 @@ describe("ConversationPage", () => {
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-translation")).toHaveLength(1));
       expect(calls).toEqual(["New reply"].map((s) => expect.stringContaining(s)));
+    });
+
+    it("does not write defaults-filled keys when toggling before the server config loads, and ignores a double click", async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      const never = () => new Promise<Response>(() => {});
+      const { mock } = setup(routes({
+        "GET /api/config/gpt_providers": never, "GET /api/config/default_gpt_preset": never,
+        "GET /api/config/tts_providers_v2": never, "GET /api/config/default_tts_preset": never,
+        "GET /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS" } }),
+        "PATCH /api/conversations/c1": async () => { await gate; return json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS", bilingual: true } }); },
+      }));
+      await screen.findByText("reply");
+      const toggle = screen.getByTestId("conversation-bilingual");
+      await userEvent.click(toggle);
+      await userEvent.click(toggle);
+      expect(toggle).toBeDisabled();
+      release();
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+      const patches = mock.calls.filter((c) => c.method === "PATCH");
+      expect(patches).toHaveLength(1);
+      const config = JSON.parse(patches[0].body as string).config;
+      expect(config).toEqual({ system_prompt: "SYS", bilingual: true });
+    });
+
+    describe("scrolling with translations", () => {
+      const layout = (el: HTMLElement, scrollTop: number) => {
+        Object.defineProperty(el, "scrollHeight", { configurable: true, value: 1000 });
+        Object.defineProperty(el, "clientHeight", { configurable: true, value: 400 });
+        Object.defineProperty(el, "scrollTop", { configurable: true, writable: true, value: scrollTop });
+      };
+      it.each([
+        ["a scrolled-up user is not moved when a translation arrives", 100, false],
+        ["a user at the bottom is followed when a translation arrives", 590, true],
+      ])("%s", async (_name, scrollTop, follows) => {
+        setup(routes({ "POST /api/ai/chat/completions": translateRoute([]) }));
+        await screen.findByText("reply");
+        const list = screen.getByTestId("message-list");
+        const scrollTo = vi.fn();
+        list.scrollTo = scrollTo as unknown as typeof list.scrollTo;
+        layout(list, scrollTop);
+        act(() => { list.dispatchEvent(new Event("scroll")); });
+        scrollTo.mockClear();
+        await userEvent.click(screen.getByTestId("message-translate"));
+        await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveAttribute("data-status", "done"));
+        if (follows) expect(scrollTo).toHaveBeenCalledWith({ top: 1000 });
+        else expect(scrollTo).not.toHaveBeenCalled();
+      });
     });
 
     it("the header switch saves the bilingual option", async () => {

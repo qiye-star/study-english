@@ -110,7 +110,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     forceScrollRef.current = false;
     nearBottomRef.current = true;
     el.scrollTo?.({ top: el.scrollHeight });
-  }, [messages]);
+  // 译文展开/到达也会改变列表高度;仍受 nearBottomRef 约束(向上翻阅的用户不会被拉回)
+  }, [messages, translations.open, translations.states]);
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
   const options = chatOptions(config);
@@ -200,6 +201,18 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     void send(user.content, messages.slice(0, -2));
   };
 
+  const [bilingualSaving, setBilingualSaving] = useState(false);
+  const bilingualBusyRef = useRef(false);
+  const toggleBilingual = () => {
+    if (bilingualBusyRef.current || !conversation) return;
+    bilingualBusyRef.current = true;
+    setBilingualSaving(true);
+    // 只写入服务端已存的配置 + 开关,避免把 ai 未加载时的空默认值固化下来
+    void saveSettings({ ...conversation.config, bilingual: !options.bilingual })
+      .catch((): void => undefined)
+      .finally(() => { bilingualBusyRef.current = false; if (mountedRef.current) setBilingualSaving(false); });
+  };
+
   const saveSettings = async (next: ConversationConfig) => {
     try {
       setConversation(await updateConversation(api, id, { config: next }));
@@ -216,8 +229,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           <div className="flex">
             {canTranslate && (
               <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-bilingual"
-                aria-pressed={options.bilingual} aria-label={t("web.chat.bilingual")} disabled={!conversation}
-                onClick={() => void saveSettings({ ...config, bilingual: !options.bilingual }).catch((): void => undefined)}>
+                aria-pressed={options.bilingual} aria-label={t("web.chat.bilingual")} disabled={!conversation || bilingualSaving}
+                onClick={toggleBilingual}>
                 <LanguagesIcon className={cn("h-5 w-5", options.bilingual ? "text-primary" : "text-muted-foreground")} />
               </Button>
             )}
@@ -241,7 +254,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
                 </Button>
                 {canTranslate && (
                   <Button variant="ghost" size="sm" data-testid="message-translate" aria-pressed={!!translations.open[m.key]}
-                    className="h-11 px-2" aria-label={translations.open[m.key] ? t("web.chat.hideTranslation") : t("web.chat.translate")}
+                    className="h-11 min-w-11 px-2" aria-label={t("web.chat.translate")}
                     onClick={() => translations.toggle(m.key, m.content)}>
                     <LanguagesIcon className="h-4 w-4" />
                   </Button>
