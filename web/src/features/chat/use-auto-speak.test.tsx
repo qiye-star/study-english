@@ -104,14 +104,17 @@ describe("useAutoSpeak", () => {
     state.enabled = false;
     expect(result.current.complete("a1", "x.", "done")).toBe("disabled");
     state.enabled = true;
+    act(() => result.current.begin("a2"));
     state.idle = false;
-    expect(result.current.complete("a1", "x.", "done")).toBe("busy");
+    expect(result.current.complete("a2", "x.", "done")).toBe("busy");
     state.idle = true;
+    act(() => result.current.begin("a3"));
     state.voice = false;
-    expect(result.current.complete("a1", "x.", "done")).toBe("no-voice");
+    expect(result.current.complete("a3", "x.", "done")).toBe("no-voice");
     state.voice = true;
+    act(() => result.current.begin("a4"));
     vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-    expect(result.current.complete("a1", "x.", "done")).toBe("hidden");
+    expect(result.current.complete("a4", "x.", "done")).toBe("hidden");
     expect(options.speak).not.toHaveBeenCalled();
   });
 
@@ -127,14 +130,85 @@ describe("useAutoSpeak", () => {
     expect(options.speak).toHaveBeenCalledWith("a2", "y.", expect.any(Function));
   });
 
-  it("a skipped reply is not marked as read", () => {
-    const { result, options, state } = setup();
-    act(() => result.current.begin("a1"));
-    state.idle = false; // 录音中
-    expect(result.current.complete("a1", "x.", "done")).toBe("busy");
-    state.idle = true;
-    expect(result.current.complete("a1", "x.", "done")).toBe("speak");
-    expect(options.speak).toHaveBeenCalledTimes(1);
+  describe("a skipped reply is never read later, even after the condition clears (§3.0: skip, not defer)", () => {
+    it("hidden → visible", () => {
+      const { result, options } = setup();
+      act(() => result.current.begin("a1"));
+      const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+      expect(result.current.complete("a1", "x.", "done")).toBe("hidden");
+      hidden.mockReturnValue(false);
+      expect(result.current.complete("a1", "x.", "done")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
+
+    it("busy (recording) → idle", () => {
+      const { result, options, state } = setup();
+      act(() => result.current.begin("a1"));
+      state.idle = false;
+      expect(result.current.complete("a1", "x.", "done")).toBe("busy");
+      state.idle = true;
+      expect(result.current.complete("a1", "x.", "done")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
+
+    it("switch off → on", () => {
+      const { result, options, state } = setup();
+      act(() => result.current.begin("a1"));
+      state.enabled = false;
+      expect(result.current.complete("a1", "x.", "done")).toBe("disabled");
+      state.enabled = true;
+      expect(result.current.complete("a1", "x.", "done")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
+
+    it("no voice model → voice model", () => {
+      const { result, options, state } = setup();
+      act(() => result.current.begin("a1"));
+      state.voice = false;
+      expect(result.current.complete("a1", "x.", "done")).toBe("no-voice");
+      state.voice = true;
+      expect(result.current.complete("a1", "x.", "done")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
+
+    it("an errored reply is not read when the same key later reports done", () => {
+      const { result, options } = setup();
+      act(() => result.current.begin("a1"));
+      expect(result.current.complete("a1", "x.", "error")).toBe("not-done");
+      expect(result.current.complete("a1", "x.", "done")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
+
+    it("a streaming update does not consume the reply; the final done still reads", () => {
+      const { result, options } = setup();
+      act(() => result.current.begin("a1"));
+      expect(result.current.complete("a1", "x", "streaming")).toBe("not-done");
+      expect(result.current.complete("a1", "x.", "done")).toBe("speak");
+      expect(options.speak).toHaveBeenCalledTimes(1);
+    });
+
+    it("a genuinely new reply (and a retry with a new key) still reads", () => {
+      const { result, options, state } = setup();
+      act(() => result.current.begin("a1"));
+      state.idle = false;
+      expect(result.current.complete("a1", "x.", "done")).toBe("busy");
+      state.idle = true;
+      act(() => result.current.begin("a2"));
+      expect(result.current.complete("a2", "y.", "done")).toBe("speak");
+      act(() => result.current.begin("a2-retry"));
+      expect(result.current.complete("a2-retry", "y.", "done")).toBe("speak");
+      expect(options.speak).toHaveBeenCalledTimes(2);
+      expect(options.speak).toHaveBeenLastCalledWith("a2-retry", "y.", expect.any(Function));
+    });
+
+    it("a skipped opening line is not read later either", () => {
+      const { result, options, state } = setup();
+      state.enabled = false;
+      expect(result.current.speakOpening("m0", "Welcome!")).toBe("disabled");
+      state.enabled = true;
+      expect(result.current.speakOpening("m0", "Welcome!")).not.toBe("speak");
+      expect(options.speak).not.toHaveBeenCalled();
+    });
   });
 
   it("skips a reply with nothing speakable without calling speak", () => {
@@ -205,6 +279,16 @@ describe("useAutoSpeak", () => {
     expect(options.speak).toHaveBeenCalledTimes(1);
   });
 
+  it("a dismiss followed by a tap in the same tick does not play", () => {
+    const { result, options, failures } = setup();
+    act(() => result.current.begin("a1"));
+    result.current.complete("a1", "First.", "done");
+    act(() => failures[0](blockedError()));
+    act(() => { result.current.dismissBlocked(); result.current.tapToRead(); });
+    expect(options.speak).toHaveBeenCalledTimes(1);
+    expect(result.current.blocked).toBeNull();
+  });
+
   it("a failure of the tap-to-read playback is reported once like any other", () => {
     const { result, options, failures } = setup();
     act(() => result.current.begin("a1"));
@@ -237,6 +321,23 @@ describe("useAutoSpeak", () => {
     result.current.complete("a1", "Text.", "done");
     await act(async () => {});
     expect(options.onError).toHaveBeenCalledWith(expect.objectContaining({ message: "boom" }));
+  });
+
+  it("a synchronous throw from speak() takes the same error path and does not escape complete()", () => {
+    const { result, options } = setup({ speak: vi.fn(() => { throw new Error("sync boom"); }) });
+    act(() => result.current.begin("a1"));
+    let decision: string | undefined;
+    expect(() => { decision = result.current.complete("a1", "Text.", "done"); }).not.toThrow();
+    expect(decision).toBe("speak");
+    expect(options.onError).toHaveBeenCalledTimes(1);
+    expect(options.onError).toHaveBeenCalledWith(expect.objectContaining({ message: "sync boom" }));
+  });
+
+  it("a synchronous NotAllowedError from speak() shows the tap-to-read hint", () => {
+    const { result } = setup({ speak: vi.fn(() => { throw blockedError(); }) });
+    act(() => result.current.begin("a1"));
+    act(() => { result.current.complete("a1", "Text.", "done"); });
+    expect(result.current.blocked).toEqual({ key: "a1", text: "Text." });
   });
 
   it("reset makes pending replies stale and ignores late errors from before", () => {
@@ -281,10 +382,10 @@ describe("useAutoSpeak", () => {
     expect(result.current.speakOpening("m0", "Welcome!")).toBe("disabled");
     state.enabled = true;
     state.idle = false;
-    expect(result.current.speakOpening("m0", "Welcome!")).toBe("busy");
+    expect(result.current.speakOpening("m1", "Welcome!")).toBe("busy");
     state.idle = true;
     vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-    expect(result.current.speakOpening("m0", "Welcome!")).toBe("hidden");
+    expect(result.current.speakOpening("m2", "Welcome!")).toBe("hidden");
     expect(options.speak).not.toHaveBeenCalled();
   });
 

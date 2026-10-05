@@ -57,7 +57,8 @@ export interface UseAutoSpeakOptions {
  * 导致朗读静默中断、状态停在 playing。场景面板(解锁方)必须在会话页播放器挂载前卸载。
  *
  * 调用方职责:send() 的点击里先 prime() 再 begin(botKey);回复结束后 complete();
- * 切换会话时 player.stop() + reset();开始录音时 player.stop()(reset/unmount 不替调用方停止播放)。
+ * 切换会话时 player.stop() + reset();开始录音时 player.stop()(reset/unmount 不替调用方停止播放);
+ * 关闭开关时 player.stop()(关闭后 prime() 不再打断播放)。"每个会话一次"的提示/报错以 reset() 为界。
  * 选项在每次调用时读取(isEnabled 等是函数),回调引用全部稳定。
  */
 export function useAutoSpeak(options: UseAutoSpeakOptions) {
@@ -100,19 +101,27 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
 
   const startSpeaking = useCallback((key: string, text: string) => {
     const onError = failureHandler(key, text);
-    // useTtsPlayer.play 自己吞掉错误;这里兜底,避免未处理的 rejection
-    opts.current.speak(key, text, onError).catch(onError);
+    // useTtsPlayer.play 自己吞掉错误;这里兜底:同步抛出与 rejection 走同一条失败路径
+    try {
+      opts.current.speak(key, text, onError).catch(onError);
+    } catch (err) {
+      onError(err);
+    }
   }, [failureHandler]);
 
-  const run = useCallback((key: string, text: string, status: UiMessage["status"], stale: boolean) => {
+  /**
+   * final:这次判断是否是该回复的最终结果(done/error;streaming 不是)。
+   * 最终结果无论读不读都"消耗"这个 key(§3.0:跳过就是跳过,不会在条件恢复后补读)。
+   */
+  const run = useCallback((key: string, text: string, status: UiMessage["status"], stale: boolean, final: boolean) => {
     const o = opts.current;
+    const isStale = stale || !mountedRef.current;
     const decision = autoSpeakDecision({
-      enabled: o.isEnabled(), status, stale: stale || !mountedRef.current, alreadyRead: readRef.current.has(key), voiceIdle: o.voiceIdle(),
+      enabled: o.isEnabled(), status, stale: isStale, alreadyRead: readRef.current.has(key), voiceIdle: o.voiceIdle(),
       hidden: typeof document !== "undefined" && document.hidden, hasVoice: o.hasVoice(), text,
     });
-    if (decision !== "speak") return decision;
-    readRef.current.add(key); // 先记为已读:StrictMode/重复调用不会读两次
-    startSpeaking(key, text);
+    if (final && !isStale) readRef.current.add(key); // 先记为已处理:StrictMode/重复调用不会读两次
+    if (decision === "speak") startSpeaking(key, text);
     return decision;
   }, [startSpeaking]);
 
@@ -127,10 +136,10 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
   const begin = useCallback((botKey: string) => { latestRef.current = botKey; }, []);
 
   const complete = useCallback((botKey: string, text: string, status: UiMessage["status"]) =>
-    run(botKey, text, status, latestRef.current !== botKey), [run]);
+    run(botKey, text, status, latestRef.current !== botKey, status !== "streaming"), [run]);
 
-  /** R10:场景开场白;用户已经发过消息就不再读 */
-  const speakOpening = useCallback((key: string, text: string) => run(key, text, "done", latestRef.current !== null), [run]);
+  /** R10:场景开场白;用户已经发过消息就不再读。跳过后同一 key 不再读。 */
+  const speakOpening = useCallback((key: string, text: string) => run(key, text, "done", latestRef.current !== null, true), [run]);
 
   /** 切换会话:之前的一切过期,提示与报错标记重置(不停止播放,由调用方 player.stop()) */
   const reset = useCallback(() => {
@@ -152,6 +161,7 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
   }, [startSpeaking]);
 
   const dismissBlocked = useCallback(() => {
+    blockedRef.current = null; // 与 tapToRead 一致:同一时刻紧跟的点击不会再播放
     if (mountedRef.current) setBlocked(null);
   }, []);
 
