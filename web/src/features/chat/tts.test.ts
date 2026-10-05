@@ -52,6 +52,14 @@ describe("tts helpers", () => {
     ["> quoted\n> > deeper", "quoted\ndeeper"],
     ["* one\n+ two\n1. three", "one\ntwo\nthree"],
     ["`a\nb`", "`a\nb`"],
+    ["if x<y then go.\n> quote here", "if x<y then go.\nquote here"],
+    ["x<y is true.\nIt means a -> b ok", "x<y is true.\nIt means a -> b ok"],
+    ["x<y is true.\n```\na > b\n```\nok", "x<y is true.\n \nok"],
+    ["Use <name> here", "Use <name> here"],
+    ["List<String> items", "List<String> items"],
+    ["`<b>`", "<b>"],
+    ['<a href="http://x">link</a> and <BR/>', "link and "],
+    ["| a | b |\n|---|:--|\n| 1 | 2 |\nx | y", "  a   b  \n\n  1   2  \nx | y"],
   ])("stripMarkdown keeps prose / strips markup: %j", (input, expected) => {
     expect(stripMarkdown(input)).toBe(expected);
   });

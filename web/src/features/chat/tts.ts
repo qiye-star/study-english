@@ -58,6 +58,9 @@ function truncateSafely(text: string, max: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
+const HTML_TAG_OR_CODE =
+  /(```[\s\S]*?```|`[^`\n]*`)|<\/?(?:b|i|u|em|strong|a|p|br|div|span|ul|ol|li|code|pre|h[1-6]|blockquote|table|tr|td|th|img|sup|sub)(?=[\s/>])(?:\s[^<>\n]{0,200})?\/?>/gi;
+
 /**
  * 去掉 Markdown / 类 HTML 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。
  * 只剥真正的标记:强调符须成对且位于词边界,`>`/`#` 只在行首作引用/标题标记,不误伤 snake_case、C#、a > b、5 * 3。
@@ -65,13 +68,16 @@ function truncateSafely(text: string, max: number): string {
  */
 export function stripMarkdown(markdown: string): string {
   return markdown
-    .replace(/<\/?[A-Za-z][^<>]*>/g, "")
+    // 只剥常见 HTML 标签(白名单、单行、有长度上界),且跳过代码段,避免吞掉 x<y、List<String>、<name> 之类的正文
+    .replace(HTML_TAG_OR_CODE, (m, code?: string) => code ?? "")
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`\n]*)`/g, "$1")
     .replace(/!\[[^\]\n]{0,500}\]\([^)\n]{0,1000}\)/g, " ")
     .replace(/\[([^\]\n]{0,500})\]\([^)\n]{0,1000}\)/g, "$1")
     .replace(/^[ \t]{0,3}(?:(?:#{1,6}|[-*+]|\d+\.)[ \t]+|>[ \t]?)+/gm, "")
     .replace(/~~([^~\n]+?)~~/g, "$1")
+    .replace(/^[ \t]*\|[ \t:|-]*$/gm, "")
+    .replace(/^[ \t]*\|.*$/gm, (row) => row.replace(/\|/g, " "))
     .replace(/\*\*([^*\n]+?)\*\*/g, "$1")
     .replace(/(?<![A-Za-z0-9_])__([^_\n]+?)__(?![A-Za-z0-9_])/g, "$1")
     .replace(/(?<![\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, "$1")
