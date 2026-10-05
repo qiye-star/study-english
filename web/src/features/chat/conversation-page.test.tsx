@@ -1726,7 +1726,7 @@ describe("ConversationPage", () => {
     });
 
     it("(b2) adds nothing when the previous message has no results either", async () => {
-      const plain = { messages: PREVIOUS.messages.map((m) => ({ ...m, assessment: null, assessment_id: null })) };
+      const plain = { messages: PREVIOUS.messages.map((m) => ({ ...m, assessment: null as null, assessment_id: null as null })) };
       expect(await failThenRetry({ coach: true, grammar: NEVER, history: plain })).toEqual(["SYS", "SYS"]);
     });
 
