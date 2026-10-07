@@ -132,6 +132,7 @@ describe("RealtimeCallScreen", () => {
 
     it("in speaker mode (auto input) a hold-to-cut-in button is offered, because voice cannot interrupt the bot", () => {
       const h = render({ speaker: true });
+      fireEvent.click(screen.getByTestId("call-more")); // 设计稿 v3:按住插话收在控制台「更多」里
       const hold = screen.getByTestId("call-ptt");
       expect(hold).toHaveTextContent(/Hold to cut in|按住插话/);
       fireEvent.pointerDown(hold);
@@ -294,7 +295,7 @@ describe("RealtimeCallScreen", () => {
     it("Tab and Shift+Tab wrap inside the dialog", () => {
       render();
       const first = screen.getByTestId("call-mode-auto");
-      const last = screen.getByTestId("call-speaker");
+      const last = screen.getByTestId("call-hangup"); // 设计稿 v3:挂断是控制台最后一个键
       last.focus();
       fireEvent.keyDown(last, { key: "Tab" });
       expect(first).toHaveFocus();
@@ -314,6 +315,7 @@ describe("RealtimeCallScreen", () => {
   describe("hold-to-talk mode for screen readers", () => {
     it("offers a tap-to-talk toggle (screen readers cannot hold a button)", () => {
       const h = render({ inputMode: "ptt" });
+      fireEvent.click(screen.getByTestId("call-more")); // 设计稿 v3:点按说话收在控制台「更多」里
       const tap = screen.getByTestId("call-ptt-tap");
       expect(tap).toHaveAttribute("aria-pressed", "false");
       expect(tap).toHaveAccessibleName();
@@ -331,6 +333,7 @@ describe("RealtimeCallScreen", () => {
 
     it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", () => {
       const h = render({ inputMode: "ptt" });
+      fireEvent.click(screen.getByTestId("call-more"));
       const tap = screen.getByTestId("call-ptt-tap");
       const hold = screen.getByTestId("call-ptt");
       fireEvent.click(tap);
@@ -357,7 +360,112 @@ describe("RealtimeCallScreen", () => {
 
     it("has no tap toggle in auto mode", () => {
       render({ speaker: true });
+      fireEvent.click(screen.getByTestId("call-more"));
       expect(screen.queryByTestId("call-ptt-tap")).toBeNull();
+    });
+  });
+
+  describe("redesign v3 dock and hero", () => {
+    it("lays out the floating dock as 免提 / 静音 / 翻译 / 更多 / 挂断 under the mode switch", () => {
+      const mock = createFetchMock({});
+      const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+      renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} translation={{ api, nativeLanguage: "zh-CN" }}
+        onHangup={vi.fn()} onMute={vi.fn()} onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />);
+      const dock = screen.getByTestId("call-dock");
+      expect(dock.className).toMatch(/\bglass\b/);
+      expect(dock).toContainElement(screen.getByTestId("call-input-mode"));
+      const ids = Array.from(dock.querySelectorAll("[data-testid]")).map((el) => el.getAttribute("data-testid"))
+        .filter((id) => !id?.startsWith("call-mode") && id !== "call-input-mode");
+      expect(ids).toEqual(["call-speaker", "call-mute", "call-auto-translate", "call-more", "call-hangup"]);
+      for (const id of ids) {
+        expect(screen.getByTestId(id!).className).toMatch(/min-h-11/);
+        expect(screen.getByTestId(id!).className).toMatch(/min-w-11/);
+      }
+    });
+
+    it("更多 discloses a panel; Escape closes the panel first and only then hangs up", () => {
+      const h = render({ speaker: true });
+      const more = screen.getByTestId("call-more");
+      expect(more).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByTestId("call-more-panel")).toBeNull();
+      fireEvent.click(more);
+      expect(more).toHaveAttribute("aria-expanded", "true");
+      expect(more).toHaveAttribute("aria-controls", screen.getByTestId("call-more-panel").id);
+      fireEvent.keyDown(screen.getByTestId("call-ptt"), { key: "Escape" });
+      expect(screen.queryByTestId("call-more-panel")).toBeNull();
+      expect(more).toHaveFocus();
+      expect(h.onHangup).not.toHaveBeenCalled();
+      fireEvent.keyDown(more, { key: "Escape" });
+      expect(h.onHangup).toHaveBeenCalledTimes(1);
+    });
+
+    it("in auto mode without speaker, 更多 explains how to cut in and offers no hold button", () => {
+      render();
+      fireEvent.click(screen.getByTestId("call-more"));
+      expect(screen.getByTestId("call-more-panel")).toHaveTextContent(/Speaker|免提/);
+      expect(screen.queryByTestId("call-ptt")).toBeNull();
+    });
+
+    it("hold-to-talk mode: the mic key becomes the hold key and 静音 is hidden; an earlier mute is undone from 更多", () => {
+      const { view } = render({ inputMode: "ptt" });
+      expect(screen.queryByTestId("call-mute")).toBeNull();
+      expect(screen.getByTestId("call-dock")).toContainElement(screen.getByTestId("call-ptt"));
+      expect(screen.getByTestId("call-ptt")).toHaveTextContent(/Hold to speak|按住说话/);
+      view.unmount();
+      const h = render({ inputMode: "ptt", muted: true });
+      expect(screen.getByTestId("call-ptt")).toBeDisabled();
+      fireEvent.click(screen.getByTestId("call-more"));
+      const unmute = screen.getByTestId("call-mute");
+      expect(unmute).toHaveAttribute("aria-pressed", "true");
+      expect(unmute.className).toMatch(/min-h-11/);
+      fireEvent.click(unmute);
+      expect(h.onMute).toHaveBeenCalledWith(false);
+    });
+
+    it("closing 更多 while tapping ends the utterance and re-enables the hold key", () => {
+      const h = render({ inputMode: "ptt" });
+      fireEvent.click(screen.getByTestId("call-more"));
+      fireEvent.click(screen.getByTestId("call-ptt-tap"));
+      expect(screen.getByTestId("call-ptt")).toBeDisabled();
+      fireEvent.click(screen.getByTestId("call-more"));
+      expect(h.onPttUp).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("call-ptt")).toBeEnabled();
+    });
+
+    it("the pressed hold key shows its ring and data-held state", () => {
+      render({ inputMode: "ptt" });
+      const ptt = screen.getByTestId("call-ptt");
+      expect(ptt).toHaveAttribute("data-held", "false");
+      fireEvent.pointerDown(ptt);
+      expect(ptt).toHaveAttribute("data-held", "true");
+      expect(ptt.querySelector(".motion-safe\\:animate-ptt-ring")).not.toBeNull();
+      fireEvent.pointerUp(ptt);
+      expect(ptt.querySelector(".motion-safe\\:animate-ptt-ring")).toBeNull();
+    });
+
+    it("shows the partner avatar and name, and labels captions by speaker", () => {
+      const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+      renderWithProviders(<RealtimeCallScreen partnerName="Emma" level={() => 0} {...handlers} model={{
+        ...INITIAL_CALL, phase: "speaking",
+        captions: [
+          { key: "u-1", role: "user", text: "Hi", messageId: "m1" },
+          { key: "a-1", role: "assistant", text: "Welcome in", turnId: 1 },
+        ],
+      }} />);
+      expect(screen.getByRole("img", { name: "Emma" })).toHaveTextContent("E");
+      expect(screen.getByRole("heading", { name: "Emma" })).toBeInTheDocument();
+      const cards = screen.getByTestId("call-captions").querySelectorAll("[data-caption-role]");
+      expect(cards[0]).toHaveTextContent(/You|你/);
+      expect(cards[1]).toHaveTextContent("Emma");
+      expect(cards[1]).toHaveAttribute("data-live", "true"); // 还在说:末尾有光标
+    });
+
+    it("falls back to a generic partner name and keeps the end card focused on closing", () => {
+      render({ phase: "ended" });
+      expect(screen.getByRole("img", { name: /AI/ })).toBeInTheDocument();
+      expect(screen.queryByTestId("call-dock")).toBeNull();
+      expect(screen.getByTestId("call-end")).toContainElement(screen.getByTestId("call-close"));
+      expect(screen.queryByTestId("call-level")).toBeNull();
     });
   });
 

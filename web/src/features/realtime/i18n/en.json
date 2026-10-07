@@ -36,6 +36,11 @@
       "captions": "Live captions",
       "translate": "Translate",
       "autoTranslate": "Auto-translate",
+      "partner": "AI partner",
+      "you": "You",
+      "muteShort": "Mute",
+      "more": "More",
+      "moreHint": "Turn on Speaker to hold here and cut in",
       "errors": {
         "unauthorized": "The call link expired. Please try again.",
         "disabled": "Voice calls are not enabled on this server",
