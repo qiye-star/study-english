@@ -1,7 +1,7 @@
 import { LoaderIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 import { translateServerError } from "~/api/error-messages";
 import { scoreBadgeTone } from "~/components/score-tone";
 import { TONE_CLASS, type Tone } from "~/components/tone";

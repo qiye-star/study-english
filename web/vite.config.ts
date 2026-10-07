@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
         { find: /^@renderer\/components$/, replacement: shim("enjoy-components.ts") },
         { find: /^@renderer\/components\/ui$/, replacement: shim("enjoy-ui.ts") },
         { find: /^@\/renderer\/components\/ui$/, replacement: shim("enjoy-ui.ts") },
+        { find: /^@renderer\/lib\/utils$/, replacement: shim("enjoy-utils.ts") },
         { find: /^@bugsnag\/electron$/, replacement: shim("empty-module.ts") },
         { find: /^electron-log\/renderer$/, replacement: shim("empty-module.ts") },
         { find: /^@renderer\//, replacement: `${posix(enjoySrc)}/renderer/` },

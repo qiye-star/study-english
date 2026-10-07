@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { avatarInitial } from "~/components/avatar";
 import type { CallPhase } from "./call-machine";
-import { cx } from "./call-cx";
+import { cn } from "~/lib/cn";
 
 const raf = (cb: () => void): number =>
   typeof requestAnimationFrame === "function" ? requestAnimationFrame(cb) : window.setTimeout(cb, 50);
@@ -42,7 +42,7 @@ export function CallHeader({ phase }: { phase: CallPhase }) {
     <div className="relative z-[2] flex-none">
       <div className="flex h-[52px] items-center justify-between px-2">
         <span className="inline-flex h-8 items-center gap-2 rounded-badge border-[0.5px] border-hair bg-surface px-3 text-sub font-semibold tracking-[.01em] text-ink">
-          <span aria-hidden="true" className={cx("h-2 w-2 flex-none rounded-full", LIVE.has(phase) ? "bg-green" : "bg-ink-3")} />
+          <span aria-hidden="true" className={cn("h-2 w-2 flex-none rounded-full", LIVE.has(phase) ? "bg-green" : "bg-ink-3")} />
           <span data-testid="call-status" data-phase={phase} role="status">{t(`web.realtime.status.${phaseKey}`)}</span>
         </span>
       </div>
@@ -72,8 +72,8 @@ export function CallHero({ name, phase, subtitle, level, children }: {
       <div className="relative mx-auto h-24 w-24 [@media(max-height:700px)]:h-16 [@media(max-height:700px)]:w-16">
         {!ended && (
           <>
-            <span aria-hidden="true" className={cx(ring, "-inset-2.5 opacity-35", breathing)} />
-            <span aria-hidden="true" className={cx(ring, "-inset-5 opacity-15 [animation-delay:.4s]", breathing)} />
+            <span aria-hidden="true" className={cn(ring, "-inset-2.5 opacity-35", breathing)} />
+            <span aria-hidden="true" className={cn(ring, "-inset-5 opacity-15 [animation-delay:.4s]", breathing)} />
           </>
         )}
         <span role="img" aria-label={name}

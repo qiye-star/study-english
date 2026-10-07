@@ -1,7 +1,7 @@
 import { LoaderIcon, MicIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 import { Avatar } from "~/components/avatar";
 import { MarkdownText } from "~/components/markdown";
 import { isVoiceMessage, type UiMessage } from "./ui-message";

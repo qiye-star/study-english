@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ApiClient } from "~/api/client";
 import { useMessageTranslations, type TranslationState } from "~/features/chat/use-message-translations";
-import { cx } from "./call-cx";
+import { cn } from "~/lib/cn";
 
 const AUTO_KEY = "enjoy-web:call-auto-translate";
 
@@ -24,21 +24,21 @@ export function CallTranslationLine({ state, onRetry }: { state?: TranslationSta
   const base = "mt-1 text-sub leading-dialogue text-ink-2";
   if (!state || state.status === "loading") {
     return (
-      <p data-testid="message-translation" data-status="loading" className={cx(base, "flex items-center gap-1.5")}>
+      <p data-testid="message-translation" data-status="loading" className={cn(base, "flex items-center gap-1.5")}>
         <LoaderIcon className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />{t("web.chat.translating")}
       </p>
     );
   }
   if (state.status === "error") {
     return (
-      <div data-testid="message-translation" data-status="error" className={cx(base, "flex flex-wrap items-center gap-x-3")}>
+      <div data-testid="message-translation" data-status="error" className={cn(base, "flex flex-wrap items-center gap-x-3")}>
         <span>{state.error}</span>
         <button type="button" className="tap-link text-sub font-medium text-blue" onClick={onRetry}>{t("web.common.retry")}</button>
       </div>
     );
   }
   return (
-    <p data-testid="message-translation" data-status="done" className={cx(base, "select-text whitespace-pre-wrap")}>
+    <p data-testid="message-translation" data-status="done" className={cn(base, "select-text whitespace-pre-wrap")}>
       {state.text}
     </p>
   );
@@ -78,7 +78,7 @@ export function CallCaptionTranslation({ api, nativeLanguage, captionKey, text, 
   // 视觉 32px、命中 44px;负外边距让它不撑高标题行
   const button = (
     <button type="button" data-testid="call-caption-translate" aria-pressed={open} aria-label={t("web.realtime.translate")}
-      className={cx(
+      className={cn(
         "-my-3 -mr-2 inline-flex h-11 w-11 flex-none items-center justify-center rounded-badge transition-colors duration-fast ease-standard",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         open ? "text-blue" : "text-ink-2",

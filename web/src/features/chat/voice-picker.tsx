@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { VoiceOption } from "~/api/server-config";
 import { AuthContext } from "~/auth/auth-context";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 import type { TtsCache } from "./tts";
 import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 

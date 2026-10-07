@@ -2,7 +2,7 @@ import { MicIcon } from "lucide-react";
 import { forwardRef, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { InputMode } from "./call-machine";
-import { cx } from "./call-cx";
+import { cn } from "~/lib/cn";
 
 /**
  * 控制台按键:52px 圆键 + 11px 标签,整列是一个按钮(命中区 ≥ 44)。
@@ -17,16 +17,16 @@ const KEY_CIRCLE = "relative flex h-key w-key items-center justify-center rounde
 export function dockKeyClasses(tone: DockKeyTone, pressed = false): { button: string; circle: string } {
   switch (tone) {
     case "on":
-      return { button: cx(KEY_BUTTON, "font-semibold text-blue"), circle: cx(KEY_CIRCLE, "border-transparent bg-blue text-on-blue") };
+      return { button: cn(KEY_BUTTON, "font-semibold text-blue"), circle: cn(KEY_CIRCLE, "border-transparent bg-blue text-on-blue") };
     case "end":
-      return { button: cx(KEY_BUTTON, "text-red"), circle: cx(KEY_CIRCLE, "border-transparent bg-red-solid text-white") };
+      return { button: cn(KEY_BUTTON, "text-red"), circle: cn(KEY_CIRCLE, "border-transparent bg-red-solid text-white") };
     case "ptt":
       return {
-        button: cx(KEY_BUTTON, "font-semibold text-blue"),
-        circle: cx(KEY_CIRCLE, "border-transparent", pressed ? "bg-blue text-on-blue" : "bg-blue-tint text-blue"),
+        button: cn(KEY_BUTTON, "font-semibold text-blue"),
+        circle: cn(KEY_CIRCLE, "border-transparent", pressed ? "bg-blue text-on-blue" : "bg-blue-tint text-blue"),
       };
     default:
-      return { button: cx(KEY_BUTTON, "text-ink-2"), circle: cx(KEY_CIRCLE, "border-hair bg-key text-ink") };
+      return { button: cn(KEY_BUTTON, "text-ink-2"), circle: cn(KEY_CIRCLE, "border-hair bg-key text-ink") };
   }
 }
 
@@ -47,7 +47,7 @@ export type DockKeyProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "childr
 export const DockKey = forwardRef<HTMLButtonElement, DockKeyProps>(function DockKey({ tone, icon, label, className, type = "button", ...rest }, ref) {
   const c = dockKeyClasses(tone);
   return (
-    <button ref={ref} type={type} className={cx(c.button, className)} {...rest}>
+    <button ref={ref} type={type} className={cn(c.button, className)} {...rest}>
       <span className={c.circle} aria-hidden="true">{icon}</span>
       <span aria-hidden={rest["aria-label"] ? true : undefined}>{label}</span>
     </button>
@@ -71,7 +71,7 @@ export function CallModeSwitch({ value, onChange }: { value: InputMode; onChange
           <button key={mode} type="button" data-testid={`call-mode-${mode}`} aria-pressed={on}
             className="group -my-1.5 flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-none"
             onClick={() => { if (!on) onChange(mode); }}>
-            <span className={cx(
+            <span className={cn(
               "inline-flex h-8 min-w-[72px] items-center justify-center rounded-lg border-[0.5px] px-3 text-sub transition-colors duration-fast ease-standard",
               "group-focus-visible:ring-2 group-focus-visible:ring-ring",
               on ? "border-hair-2 bg-seg-on font-semibold text-ink shadow-seg" : "border-transparent bg-transparent font-medium text-ink-2",
@@ -139,7 +139,7 @@ export function CallPttButton({ disabled, label, variant, onDown, onUp, onHeldCh
   const key = dockKeyClasses("ptt", held);
   return (
     <button type="button" data-testid="call-ptt" data-held={String(held)} disabled={disabled}
-      className={variant === "key" ? key.button : cx(BAR, barTone(held))}
+      className={variant === "key" ? key.button : cn(BAR, barTone(held))}
       style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
@@ -205,7 +205,7 @@ export function CallTapToTalkButton({ disabled, onDown, onUp, onToggle }: { disa
   useEffect(() => () => setRef.current(false, false), []);
   return (
     <button type="button" data-testid="call-ptt-tap" aria-pressed={on} disabled={disabled}
-      className={cx(BAR, barTone(on))} onClick={() => set(!onRef.current)}>
+      className={cn(BAR, barTone(on))} onClick={() => set(!onRef.current)}>
       <MicIcon aria-hidden="true" />
       {on ? t("web.realtime.tapToStop") : t("web.realtime.tapToTalk")}
     </button>
@@ -215,7 +215,7 @@ export function CallTapToTalkButton({ disabled, onDown, onUp, onToggle }: { disa
 /** 更多面板里的普通整行按钮(例如按住说话模式下的"取消静音") */
 export const DockBarButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }>(
   function DockBarButton({ active = false, className, type = "button", ...rest }, ref) {
-    return <button ref={ref} type={type} className={cx(BAR, barTone(active), className)} {...rest} />;
+    return <button ref={ref} type={type} className={cn(BAR, barTone(active), className)} {...rest} />;
   },
 );
 
@@ -224,7 +224,7 @@ export function MicIndicator({ live }: { live: boolean }) {
   const { t } = useTranslation();
   return (
     <span data-testid="call-mic-indicator" data-live={String(live)} className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={cx("h-2 w-2 flex-none rounded-full", live ? "bg-blue motion-safe:animate-pulse" : "bg-ink-3")} />
+      <span aria-hidden="true" className={cn("h-2 w-2 flex-none rounded-full", live ? "bg-blue motion-safe:animate-pulse" : "bg-ink-3")} />
       {live ? t("web.realtime.micInUse") : t("web.realtime.micOffHold")}
     </span>
   );

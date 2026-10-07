@@ -7,7 +7,7 @@ import type { ApiClient } from "~/api/client";
 import type { CallModel, InputMode } from "./call-machine";
 import { readAutoTranslate, writeAutoTranslate } from "./call-caption-translation";
 import { CallCaptions } from "./call-captions";
-import { cx } from "./call-cx";
+import { cn } from "~/lib/cn";
 import { CallModeSwitch, CallPttButton, CallTapToTalkButton, DockBarButton, DockKey, MicIndicator } from "./call-dock";
 import { CallHeader, CallHero, LevelBar } from "./call-hero";
 import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
@@ -194,7 +194,7 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
         }} />
       {ended ? (
-        <div data-testid="call-end" className={cx(DOCK, "flex flex-col items-center gap-3 p-4")}>
+        <div data-testid="call-end" className={cn(DOCK, "flex flex-col items-center gap-3 p-4")}>
           {model.error && <p data-testid="call-error" role="alert" className="text-center text-body text-ink">{text(model.error)}</p>}
           <button ref={closeRef} type="button" data-testid="call-close"
             className="inline-flex min-h-11 min-w-11 w-full items-center justify-center gap-1.5 rounded-button bg-blue px-4 text-body font-semibold text-on-blue transition-opacity duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:opacity-80"
@@ -221,7 +221,7 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
               {!ptt && !model.speaker && <p className="px-2 py-1.5 text-center text-sub text-ink-2">{t("web.realtime.moreHint")}</p>}
             </div>
           )}
-          <div data-testid="call-dock" className={cx(DOCK, "px-2.5 pb-[9px] pt-2")}>
+          <div data-testid="call-dock" className={cn(DOCK, "px-2.5 pb-[9px] pt-2")}>
             <div className="flex h-8 items-center justify-center">
               <CallModeSwitch value={model.inputMode} onChange={onInputMode} />
             </div>

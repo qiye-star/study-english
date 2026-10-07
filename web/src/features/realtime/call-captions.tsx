@@ -6,7 +6,7 @@ import { scoreBadgeTone } from "~/components/score-tone";
 import type { ApiClient } from "~/api/client";
 import type { Caption } from "./call-machine";
 import { CallCaptionTranslation } from "./call-caption-translation";
-import { cx } from "./call-cx";
+import { cn } from "~/lib/cn";
 
 /** 实时字幕末尾的闪烁光标(仅允许动效时闪) */
 const CARET = "after:ml-0.5 after:inline-block after:h-[1em] after:w-0.5 after:bg-blue after:align-[-2px] after:content-[''] motion-safe:after:animate-caret";
@@ -22,7 +22,7 @@ function CaptionCard({ you, who, live, children, header }: {
   return (
     <div data-caption-role={you ? "user" : "assistant"} data-live={live ? "true" : undefined}
       className="flex-none rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
-      <div className={cx("mb-1 flex min-h-[13px] items-center gap-1.5 text-label font-semibold uppercase tracking-[.06em]", you ? "text-blue" : "text-ink-2")}>
+      <div className={cn("mb-1 flex min-h-[13px] items-center gap-1.5 text-label font-semibold uppercase tracking-[.06em]", you ? "text-blue" : "text-ink-2")}>
         {you ? <MicIcon className="h-[13px] w-[13px] flex-none" aria-hidden="true" /> : <Volume2Icon className="h-[13px] w-[13px] flex-none" aria-hidden="true" />}
         <span className="min-w-0 truncate">{who}</span>
         {header && <span className="ml-auto flex items-center gap-1 normal-case tracking-normal">{header}</span>}
@@ -63,7 +63,7 @@ export const CallCaptions = forwardRef<HTMLDivElement, CallCaptionsProps>(functi
           const user = c.role === "user";
           const streaming = live && !user && c === last && c.messageId === undefined && !c.interrupted && !partial;
           const body = (
-            <p className={cx(EN, streaming && CARET)}>
+            <p className={cn(EN, streaming && CARET)}>
               {c.text}
               {c.interrupted && <span className="ml-1 text-meta text-ink-2">{t("web.realtime.interrupted")}</span>}
             </p>
@@ -71,7 +71,7 @@ export const CallCaptions = forwardRef<HTMLDivElement, CallCaptionsProps>(functi
           if (user) {
             const score = typeof c.score === "number" ? (
               <span data-testid="call-score" data-score={c.score}
-                className={cx("num inline-flex h-[22px] items-center whitespace-nowrap rounded-badge px-2 text-label font-semibold", TONE_CLASS[scoreBadgeTone(c.score)])}>
+                className={cn("num inline-flex h-[22px] items-center whitespace-nowrap rounded-badge px-2 text-label font-semibold", TONE_CLASS[scoreBadgeTone(c.score)])}>
                 {t("web.chat.voice.score", { score: c.score })}
               </span>
             ) : undefined;
@@ -93,7 +93,7 @@ export const CallCaptions = forwardRef<HTMLDivElement, CallCaptionsProps>(functi
         })}
         {partial && (
           <CaptionCard you who={you} live>
-            <p data-testid="call-partial" className={cx(EN, CARET)}>{partial}</p>
+            <p data-testid="call-partial" className={cn(EN, CARET)}>{partial}</p>
           </CaptionCard>
         )}
       </div>

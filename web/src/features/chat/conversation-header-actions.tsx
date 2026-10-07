@@ -2,7 +2,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { ChevronRightIcon, ClipboardListIcon, GaugeIcon, LanguagesIcon, PhoneIcon, Settings2Icon, SlidersHorizontalIcon, Volume2Icon } from "lucide-react";
 import { useRef, useState, type ComponentType, type ReactNode, type Ref, type SVGProps } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 import { IconButton } from "~/components/icon-button";
 import { formatPlaybackRate, nextPlaybackRate, setPlaybackRate, usePlaybackRate } from "~/lib/playback-rate";
 

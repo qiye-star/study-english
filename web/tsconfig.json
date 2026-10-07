@@ -17,6 +17,7 @@
       "@renderer/components": ["./src/shims/enjoy-components.ts"],
       "@renderer/components/ui": ["./src/shims/enjoy-ui.ts"],
       "@/renderer/components/ui": ["./src/shims/enjoy-ui.ts"],
+      "@renderer/lib/utils": ["./src/shims/enjoy-utils.ts"],
       "@renderer/*": ["../enjoy/src/renderer/*"],
       "@/*": ["../enjoy/src/*"],
       "~/*": ["./src/*"],

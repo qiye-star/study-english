@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Textarea } from "@renderer/components/ui/textarea";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
 import { IconButton } from "~/components/icon-button";
 import { streamChatCompletion } from "~/api/ai";

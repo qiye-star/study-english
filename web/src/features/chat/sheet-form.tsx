@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Switch } from "@renderer/components/ui/switch";
-import { cn } from "./cn";
+import { cn } from "~/lib/cn";
 
 /*
  * 抽屉里的表单件(对话设置、场景选择、复盘):分组 = 13px 次要色标题 + 圆角 14 的发丝线列表,
