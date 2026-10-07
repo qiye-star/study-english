@@ -67,10 +67,36 @@ export function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
   });
 }
 
+/** 已是 16 kHz 单声道 16 位 PCM 的 WAV(PCM 采集的产物,标准 44 字节头):直接取样本,不解码(R9)。其他格式返回 null。 */
+export function parseAssessmentWav(data: ArrayBuffer): Float32Array | null {
+  if (data.byteLength < 44) return null;
+  const v = new DataView(data);
+  const tag = (o: number) => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+  if (tag(0) !== "RIFF" || tag(8) !== "WAVE" || tag(12) !== "fmt ") return null;
+  if (v.getUint32(16, true) !== 16) return null; // fmt 块不是 16 字节时 data 不在 36 处
+  if (v.getUint16(20, true) !== 1 || v.getUint16(22, true) !== 1 || v.getUint32(24, true) !== ASSESSMENT_SAMPLE_RATE || v.getUint16(34, true) !== 16) return null;
+  if (tag(36) !== "data") return null;
+  const bytes = Math.min(v.getUint32(40, true), data.byteLength - 44);
+  const out = new Float32Array(Math.floor(bytes / 2));
+  for (let i = 0; i < out.length; i++) out[i] = v.getInt16(44 + i * 2, true) / 0x8000;
+  return out;
+}
+
 /** MediaRecorder 产物(webm/opus、mp4/aac 等)→ 16 kHz 单声道 16 位 WAV。 */
 export async function toAssessmentWav(blob: Blob, deps: ConvertDeps = browserConvertDeps): Promise<{ wav: Blob; durationMs: number }> {
   if (blob.size === 0) throw new AudioConvertError("empty");
   const data = await blobToArrayBuffer(blob);
+  const direct = parseAssessmentWav(data);
+  if (direct) {
+    // PCM 采集的结果已是目标格式:跳过解码与重采样
+    if (!direct.length) throw new AudioConvertError("empty");
+    const max = (MAX_RECORDING_MS / 1000) * ASSESSMENT_SAMPLE_RATE;
+    const kept = direct.length > max ? direct.subarray(0, max) : direct;
+    return {
+      wav: kept === direct ? blob : new Blob([encodeWavPcm16(kept, ASSESSMENT_SAMPLE_RATE)], { type: "audio/wav" }),
+      durationMs: Math.round((kept.length / ASSESSMENT_SAMPLE_RATE) * 1000),
+    };
+  }
   let decoded: AudioBuffer;
   try {
     decoded = await deps.decode(data);

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { decideCapture, type CaptureDecision } from "./capture";
 import { MAX_RECORDING_MS } from "./convert";
+import { startPcmRecording } from "./pcm-recording";
 import { RecorderError, startRecording, type RecorderEnv, type RecordingResult, type RecordingSession } from "./recorder";
 
 export type RecorderState = "idle" | "starting" | "recording";
@@ -8,11 +10,35 @@ export interface UseRecorderOptions {
   maxDurationMs?: number;
   onAutoStop?: (result: RecordingResult) => void;
   env?: RecorderEnv;
+  /** 自定义录音启动器(测试或其他采集方式);优先于 env。 */
+  starter?: RecordingStarter;
+}
+
+export type RecordingStarter = (opts: { maxDurationMs?: number }) => Promise<RecordingSession>;
+
+interface StarterDeps {
+  decide(): CaptureDecision;
+  pcm: typeof startPcmRecording;
+  legacy: typeof startRecording;
+}
+
+const browserStarterDeps: StarterDeps = { decide: () => decideCapture(), pcm: startPcmRecording, legacy: startRecording };
+
+/**
+ * 默认启动器(R9/R31):注入了 MediaRecorder 环境(测试)一律走旧路径;否则在按下的同步阶段 decideCapture():
+ * 页面级 AudioContext 已 running → PCM 采集(借用该上下文);未解锁/不支持 → 旧 MediaRecorder 路径(不得录出静音)。
+ */
+export function defaultRecordingStarter(env?: RecorderEnv, deps: StarterDeps = browserStarterDeps): RecordingStarter {
+  if (env) return (o) => deps.legacy({ ...o, env });
+  return (o) => {
+    const decision = deps.decide();
+    return decision.mode === "pcm" ? deps.pcm({ ...o, context: decision.context }) : deps.legacy(o);
+  };
 }
 
 const asRecorderError = (err: unknown) => (err instanceof RecorderError ? err : new RecorderError("failed", String(err)));
 
-export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env }: UseRecorderOptions = {}) {
+export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env, starter }: UseRecorderOptions = {}) {
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<RecorderError | null>(null);
@@ -24,6 +50,8 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
   const startedAt = useRef(0);
   const autoStop = useRef(onAutoStop);
   autoStop.current = onAutoStop;
+  const starterRef = useRef(starter);
+  starterRef.current = starter;
 
   useEffect(() => {
     if (state !== "recording") return;
@@ -53,7 +81,7 @@ export function useRecorder({ maxDurationMs = MAX_RECORDING_MS, onAutoStop, env 
     setElapsedMs(0);
     setState("starting");
     try {
-      const current = await startRecording({ maxDurationMs, env });
+      const current = await (starterRef.current ?? defaultRecordingStarter(env))({ maxDurationMs });
       if (!mounted.current || cancelRequested.current) {
         current.cancel(); // 启动期间已卸载/已取消:立刻释放麦克风
         return false;

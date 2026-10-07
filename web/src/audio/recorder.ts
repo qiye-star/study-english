@@ -14,6 +14,8 @@ export interface RecordingResult {
   mimeType: string;
   durationMs: number;
   stoppedBy: StopReason;
+  /** PCM 采集:能量门限判定没有前景语音(R10)。MediaRecorder 路径不设置。 */
+  noSpeech?: boolean;
 }
 
 export interface RecordingSession {

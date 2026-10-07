@@ -146,3 +146,16 @@ describe("VAD assets (plan 2026-10-07 R18)", () => {
     expect(event.respondWith).not.toHaveBeenCalled();
   });
 });
+
+describe("PCM capture worklet (plan 2026-10-07 R9)", () => {
+  it("caches the emitted worklet module like other hashed assets", async () => {
+    const { listeners, fetchMock } = load();
+    const first = fetchEvent("https://app.test/assets/pcm-capture.worklet-AbC123.js");
+    listeners.fetch(first);
+    expect(await (await first.respondWith.mock.calls[0][0]).text()).toBe("asset");
+    const second = fetchEvent("https://app.test/assets/pcm-capture.worklet-AbC123.js");
+    listeners.fetch(second);
+    await second.respondWith.mock.calls[0][0];
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
