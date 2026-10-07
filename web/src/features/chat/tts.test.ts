@@ -27,11 +27,44 @@ describe("tts helpers", () => {
     }
     expect(splitForSpeech("**One. Two.**").map(speakableText)).toEqual(["One.", "Two."]);
     expect(splitForSpeech("Say **this. And that** now.").map(speakableText)).toEqual(["Say this.", "And that now."]);
+    expect(splitForSpeech("*One, two. Three.*").map(speakableText)).toEqual(["One, two.", "Three."]);
+    expect(splitForSpeech("Say __this. And that__ now.").map(speakableText)).toEqual(["Say this.", "And that now."]);
+    expect(splitForSpeech("Say **this is it. And that one** now.").map(speakableText)).toEqual(["Say this is it.", "And that one now."]);
   });
   it("keeps asterisks and underscores that are not emphasis markers", () => {
     expect(speakableText("5 * 3 = 15")).toBe("5 * 3 = 15");
     expect(speakableText("use snake_case and a*b")).toBe("use snake_case and a*b");
     expect(speakableText("**Bold** and *it* and _it_")).toBe("Bold and it and it");
+  });
+  // review F3-I2:跨句强调的残留标记去掉了,但代码段里和正文里字面的 * / _ 必须原样读出。
+  it.each<[string, string]>([
+    ["In Python, `**kwargs` collects keyword arguments.", "In Python, **kwargs collects keyword arguments."],
+    ["Call `foo(*args, **kwargs)` here.", "Call foo(*args, **kwargs) here."],
+    ["Call foo(*args, **kwargs) here.", "Call foo(*args, **kwargs) here."],
+    ["Call f(*rest) or g(**opts) now.", "Call f(*rest) or g(**opts) now."],
+    ["Use `__init__` and `_x_`.", "Use __init__ and _x_."],
+    ["Delete all *.txt files.", "Delete all *.txt files."],
+    ["Match files with **/*.ts globs.", "Match files with **/*.ts globs."],
+    ["Press Ctrl+* to zoom.", "Press Ctrl+* to zoom."],
+    ["The regex a* matches zero or more a's.", "The regex a* matches zero or more a's."],
+    ["Private members start with _name", "Private members start with _name"],
+    ["Node gives you __dirname", "Node gives you __dirname"],
+    ["The variable my_var_ is reserved.", "The variable my_var_ is reserved."],
+    ["See https://example.com/some_page_ for more.", "See https://example.com/some_page_ for more."],
+    ["2*3*4 is 24", "2*3*4 is 24"],
+    ["use snake_case and user_id", "use snake_case and user_id"],
+    ["* one\n* two", "one two"],
+    ["**Note:** read it. **Really.**", "Note: read it. Really."],
+    ["_Hmm_, maybe. Or _not_.", "Hmm, maybe. Or not."],
+  ])("speakableText keeps literal markers and code spans verbatim (review F3-I2): %j", (input, expected) => {
+    expect(speakableText(input)).toBe(expected);
+    for (const sentence of splitForSpeech(input)) {
+      const spoken = speakableText(sentence);
+      expect(expected.replace(/\s+/g, " "), sentence).toContain(spoken);
+    }
+  });
+  it("a code span inside a split cross-sentence emphasis keeps its markers (review F3-I2)", () => {
+    expect(splitForSpeech("**Run `*.py`. Then `**kw`.**").map(speakableText)).toEqual(["Run *.py.", "Then **kw."]);
   });
   it("never splits a surrogate pair when truncating", () => {
     const text = "a".repeat(4095) + "😀" + "tail";

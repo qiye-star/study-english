@@ -73,20 +73,25 @@ export function truncateAtSentence(text: string, max: number): string {
   return cut >= max / 2 ? text.slice(0, cut).trimEnd() : truncateSafely(text, max);
 }
 
-const HTML_TAG_OR_CODE =
-  /(```[\s\S]*?```|`[^`\n]*`)|<\/?(?:b|i|u|em|strong|a|p|br|div|span|ul|ol|li|code|pre|h[1-6]|blockquote|table|tr|td|th|img|sup|sub)(?=[\s/>])(?:\s[^<>\n]{0,200})?\/?>/gi;
+const HTML_TAG =
+  /<\/?(?:b|i|u|em|strong|a|p|br|div|span|ul|ol|li|code|pre|h[1-6]|blockquote|table|tr|td|th|img|sup|sub)(?=[\s/>])(?:\s[^<>\n]{0,200})?\/?>/gi;
+const CODE = /```[\s\S]*?```|`[^`\n]*`/g;
+// 代码段先换成占位符(私用区字符,不是空白也不是 \w),标记处理完再换回:代码里的 * _ < | 一律原样(review F3-I2)
+const SLOT = /\uE000(\d+)\uE001/g;
 
-/**
- * 去掉 Markdown / 类 HTML 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。
- * 只剥真正的标记:强调符须成对且位于词边界,`>`/`#` 只在行首作引用/标题标记,不误伤 snake_case、C#、a > b、5 * 3。
- * 所有量词都有上界或不跨行,保证对 100KB 级输入是线性的。
- */
-export function stripMarkdown(markdown: string): string {
-  return markdown
-    // 只剥常见 HTML 标签(白名单、单行、有长度上界),且跳过代码段,避免吞掉 x<y、List<String>、<name> 之类的正文
-    .replace(HTML_TAG_OR_CODE, (m, code?: string) => code ?? "")
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`\n]*)`/g, "$1")
+function withCodeMasked(markdown: string, transform: (masked: string) => string): string {
+  const code: string[] = [];
+  const masked = markdown.replace(/[\uE000\uE001]/g, "").replace(CODE, (m) => `\uE000${code.push(m) - 1}\uE001`);
+  return transform(masked).replace(SLOT, (_, i: string) => {
+    const m = code[Number(i)];
+    return m.startsWith("```") ? " " : m.slice(1, -1);
+  });
+}
+
+function stripMasked(text: string): string {
+  return text
+    // 只剥常见 HTML 标签(白名单、单行、有长度上界),代码段已被遮住,不会吞掉 x<y、List<String>、<name> 之类的正文
+    .replace(HTML_TAG, "")
     .replace(/!\[[^\]\n]{0,500}\]\([^)\n]{0,1000}\)/g, " ")
     .replace(/\[([^\]\n]{0,500})\]\([^)\n]{0,1000}\)/g, "$1")
     .replace(/^[ \t]{0,3}(?:(?:#{1,6}|[-*+]|\d+\.)[ \t]+|>[ \t]?)+/gm, "")
@@ -100,18 +105,49 @@ export function stripMarkdown(markdown: string): string {
 }
 
 /**
+ * 去掉 Markdown / 类 HTML 标记,保留换行(句子拆分按行切段;朗读再把空白压成一个空格)。
+ * 只剥真正的标记:强调符须成对且位于词边界,`>`/`#` 只在行首作引用/标题标记,不误伤 snake_case、C#、a > b、5 * 3;
+ * 行内代码只去掉反引号,内容原样;代码块整体去掉。
+ * 所有量词都有上界或不跨行,保证对 100KB 级输入是线性的。
+ */
+export function stripMarkdown(markdown: string): string {
+  return withCodeMasked(markdown, stripMasked);
+}
+
+const GLOB_OR_PATH = /^(?:\.[A-Za-z]|\/)/; // *.txt、**/*.ts、_/x
+const ARGUMENT = /^[A-Za-z_]\w*\)/; // foo(*args, **kwargs):参数以 ) 结尾,或以 ( 开头、以 , 结尾
+const FIRST_ARGUMENT = /^[A-Za-z_]\w*[,)]/;
+const SENTENCE_END_TOKEN = /^\S*[.!?…]["'”’)\]]*$/;
+
+/**
  * 逐句朗读时,跨句的强调会被切成两半("**One." / "Two.**"),stripMarkdown 只剥成对的标记。
- * 这里去掉贴在词边上、另一侧是空白/行首行尾/括号引号的 1–3 个 `*`/`_`;两侧都是空白(5 * 3)
- * 或两侧都是字符(a*b、snake_case)的保留。
+ * 这里去掉贴在词边上、另一侧是空白/行首行尾/括号引号的 1–3 个 `*`/`_`,但保留字面用法(review F3-I2):
+ * - 后面是 `.字母` 或 `/`(*.txt,以及 glob 的双星号加斜杠);前缀是函数参数(foo(*args, **kwargs));
+ * - 句中的前缀 `_`/`__` 后面那个词不在句末(_name、__dirname);
+ * - 后缀前面不是字母数字或收尾标点(Ctrl+*);单个后缀贴在字母数字后、后面是空白(a* matches、my_var_ is、URL 的 some_page_)。
+ * 两侧都是空白(5 * 3)或两侧都是字符(a*b、snake_case)的本来就不匹配。代码段由调用方遮住,不受影响。
  */
 function dropStrayEmphasis(text: string): string {
   return text
-    .replace(/(^|[\s(["'“‘])[*_]{1,3}(?=[^\s*_])/g, "$1")
-    .replace(/([^\s*_])[*_]{1,3}(?=$|[\s)\]"'”’.,!?;:])/g, "$1");
+    .replace(/(^|[\s(["'“‘])([*_]{1,3})(?=[^\s*_])/g, (m, before: string, run: string, offset: number, all: string) => {
+      const rest = all.slice(offset + m.length);
+      if (GLOB_OR_PATH.test(rest)) return m;
+      if (run[0] === "*" && (before === "(" ? FIRST_ARGUMENT : ARGUMENT).test(rest)) return m;
+      if (run[0] === "_" && offset + before.length > 0 && !SENTENCE_END_TOKEN.test(rest.split(/\s/, 1)[0])) return m;
+      return before;
+    })
+    .replace(/([^\s*_])([*_]{1,3})(?=$|[\s)\]"'”’.,!?;:])/g, (m, before: string, run: string, offset: number, all: string) => {
+      const rest = all.slice(offset + m.length);
+      if (GLOB_OR_PATH.test(rest)) return m;
+      if (!/[A-Za-z0-9.,!?;:…)\]"'”’\uE001]/.test(before)) return m;
+      if (run.length === 1 && /[A-Za-z0-9]/.test(before) && /^\s/.test(rest)) return m;
+      return before;
+    });
 }
 
 export function speakableText(markdown: string): string {
-  return truncateAtSentence(dropStrayEmphasis(stripMarkdown(markdown)).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
+  const text = withCodeMasked(markdown, (masked) => dropStrayEmphasis(stripMasked(masked)));
+  return truncateAtSentence(text.replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();
