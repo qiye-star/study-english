@@ -1,3 +1,4 @@
+import { markLatency } from "~/lib/latency";
 import { ApiClient, ApiError } from "./client";
 
 export interface ChatMessageInput {
@@ -82,6 +83,14 @@ export async function streamChatCompletion(
   options: StreamOptions = {},
 ): Promise<string> {
   const idleMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  let first = true;
+  const deltaWithMark = (full: string, piece: string) => {
+    if (first) {
+      first = false;
+      markLatency("reply_first_delta");
+    }
+    onDelta(full, piece);
+  };
   const controller = new AbortController();
   let idleFired = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -121,7 +130,7 @@ export async function streamChatCompletion(
       const event = parseSseData(data);
       if (event.kind === "delta") {
         state.full += event.text;
-        onDelta(state.full, event.text);
+        deltaWithMark(state.full, event.text);
       } else if (event.kind === "done") {
         state.done = true;
       } else if (event.kind === "error") {

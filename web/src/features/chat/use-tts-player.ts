@@ -3,6 +3,7 @@ import type { TFunction } from "i18next";
 import type { ApiClient } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { encodeWavPcm16 } from "~/audio/wav";
+import { markLatency } from "~/lib/latency";
 import { applyPlaybackRate, trackMediaElement } from "~/lib/playback-rate";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
@@ -123,6 +124,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     controllerRef.current = controller;
     currentRef.current = messageKey;
     setState(messageKey, "loading");
+    markLatency("tts_request");
     const audio = element();
     primeAudioElement(audio);
     const fail = (err: unknown) => {
@@ -154,6 +156,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       };
       setState(messageKey, "playing");
       await audio.play().catch((err: unknown) => { throw new TtsPlaybackError(err); });
+      markLatency("first_audio");
     } catch (err) {
       if (stale()) return; // 被新的播放/停止/卸载中止,不算错误
       fail(err);

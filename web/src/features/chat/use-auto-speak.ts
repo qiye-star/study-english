@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { markLatency } from "~/lib/latency";
 import { speakableText } from "./tts";
 import type { UiMessage } from "./ui-message";
 import { TtsPlaybackError } from "./use-tts-player";
@@ -135,8 +136,10 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
 
   const begin = useCallback((botKey: string) => { latestRef.current = botKey; }, []);
 
-  const complete = useCallback((botKey: string, text: string, status: UiMessage["status"]) =>
-    run(botKey, text, status, latestRef.current !== botKey, status !== "streaming"), [run]);
+  const complete = useCallback((botKey: string, text: string, status: UiMessage["status"]) => {
+    if (status === "done") markLatency("reply_done");
+    return run(botKey, text, status, latestRef.current !== botKey, status !== "streaming");
+  }, [run]);
 
   /** R10:场景开场白;用户已经发过消息就不再读。跳过后同一 key 不再读。 */
   const speakOpening = useCallback((key: string, text: string) => run(key, text, "done", latestRef.current !== null, true), [run]);

@@ -5,6 +5,7 @@ import { toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder } from "~/audio/use-recorder";
+import { markLatency, startLatencyTrace } from "~/lib/latency";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { transcribe } from "./speech-api";
 
@@ -102,12 +103,14 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         if (!draft.wav) {
           const converted = await toAssessmentWav(draft.recording.blob);
           draft.wav = converted.wav; // 重试时不再转换
+          markLatency("audio_ready");
           draft.durationMs = converted.durationMs;
         }
         if (controller.signal.aborted) return;
         const { text } = await transcribe(opts.current.api, draft.wav, null, controller.signal);
         if (!mounted.current || controller.signal.aborted) return;
         const clean = (text ?? "").trim();
+        markLatency("transcript");
         if (!clean) {
           opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
           return;
@@ -153,6 +156,10 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         opts.current.onDraft({ kind: "kept", key, durationMs: recording.durationMs, note });
         return; // R18:等用户点"发送这段"(retry)或"丢弃"
       }
+      if (recording.stoppedBy === "max_duration") {
+        startLatencyTrace("voice");
+        markLatency("release");
+      }
       void transcribeDraft(key); // 用户点停止,或到 60 秒自动停止:直接发送
     },
     [transcribeDraft],
@@ -173,6 +180,8 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     if (!mounted.current || stopping.current || recorderState.current !== "recording") return;
     const gen = generation.current;
     stopping.current = true;
+    startLatencyTrace("voice");
+    markLatency("release");
     setStoppingState(true);
     try {
       const result = await stopRecorder();
