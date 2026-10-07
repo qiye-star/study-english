@@ -57,7 +57,7 @@
   - **按句朗读时 `first_audio` 通常早于 `reply_done`,所以 `firstAudioAfterReplyMs` 可能缺失或为负,比较前后请用 `firstAudioAfterReleaseMs`**。`status: "aborted"` 的记录(出错、取消、被新一轮取代、120 s 超时)不要拿来算中位数。
 - **实时通话**(服务端 `REALTIME_ENABLED=true` 且浏览器有 `AudioContext` 时,会话页顶栏出现"通话"按钮;代码在 `src/features/realtime/`):
   - 点击的同步阶段先解锁页面 `AudioContext`(`prepareCallAudio`),然后依次:请求一次性票据 → 申请麦克风 → 加载 VAD → 连接 WebSocket `/api/realtime?ticket=…`。**麦克风申请不在点击的同步阶段**,iOS 上是否允许未验证。
-  - 浏览器端 Silero VAD(`@ricky0123/vad-web` 0.0.31 + `onnxruntime-web`)断句,检测到说话才上传 16 kHz PCM;机器人说话期间 VAD 门限提高(概率 ≥ 0.8、能量 ≥ −30 dBFS、最短 400 ms)以防回声误打断,播放结束后恢复;外放回声保护强度未验证。
+  - 浏览器端 Silero VAD(`@ricky0123/vad-web` 0.0.31 + `onnxruntime-web`)断句,检测到说话才上传 16 kHz PCM;机器人说话期间 VAD 门限提高(概率 ≥ 0.8、能量 ≥ −30 dBFS、最短 400 ms)以防回声误打断,播放结束后恢复;外放回声保护强度未验证。判定在 `src/audio/speech-gate.ts`:等待开始时用漏桶计数(说话帧 +1 帧,其余帧 −1 帧、不低于 0,累计达到最短时长才开始),说话中概率低或能量低的帧都算静音;起点之前的 500 ms(`PRE_ROLL_MS`)一并上传,避免首词被裁。已知代价:正常模式下背景有人说话时可能误起(合成仿真里约 21/200 次每分钟),安静说话者(低于 −38 dBFS)会被裁;这些只有合成仿真,**真实设备上未验证**。
   - 服务端识别 + LLM + 逐句 TTS,下行 24 kHz PCM 经 WebAudio 排队播放;打断(barge-in)时立即停播并发 `interrupt`,丢弃旧轮次的迟到音频。
   - VAD 加载失败时自动切到"按住说话"模式并提示(还有"点一下开始/再点结束"的备用开关)。每一条结束路径(挂断、服务端关闭、麦克风丢失、页面切后台、卸载)都释放麦克风与自己创建的 `AudioContext`,页面级共享上下文不被关闭;这些由 `realtime-call.test.ts` 等单测断言(假设备)。
   - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。有未发送的本地状态(待 Retry 的保存、失败的回复、语音草稿)时不能开始通话(提示先发送、重试或丢弃);挂断时麦克风、VAD、播放器立即释放,但 WebSocket 留到服务端存完被打断的回复、自己关闭为止(最多 3 s);随后重新拉取消息列表,约 2 s 后再按消息 id 补取一次(服务端在关闭之后才链接的发音评测),这期间输入与麦克风禁用(从关闭起最多 6 s)。复盘/进度/词汇本可直接用,晚到的语法结果按消息 id 补到气泡上。
@@ -83,6 +83,7 @@
 
       MSYS_NO_PATHCONV=1 docker run --rm --network container:enjoy-e2e-server-1         -e E2E_BASE_URL=http://localhost:8000 -e E2E_INVITE_CODE         -v "$(pwd -W):/repo" -w /repo/web mcr.microsoft.com/playwright:v1.51.0-noble         node node_modules/@playwright/test/cli.js test --project=webkit-mobile
 
+- 若用户本地未提交的 `docker-compose.yml` 声明了外部网络 `1panel-network` 而起不来,E2E 栈只用 `-f docker-compose.e2e.yml`(必要时先 `docker network create 1panel-network`),见计划 R34。
 - 这些是 Playwright 的引擎加设备模拟,不能替代真机验收(见 `docs/superpowers/plans/e2e-results.md`)。
 
 ## 部署

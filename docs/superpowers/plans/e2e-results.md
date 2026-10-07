@@ -5,21 +5,37 @@
 
 以下验收项**尚未验证**,不得视为通过。其余自动化结果见下方各节。
 
-1. **语音消息 E2E 用例从未运行**(`web/e2e/chat.spec.ts` 的 "voice message" 用例)。原因:方舟 STT 账户欠费。2026-10-05 Task 6.1 带 `E2E_REAL_STT=1` 重跑:转写预检仍返回 502 "Upstream authentication failed",用例未能运行,本项仍然 OPEN。账户充值后运行:先按 `web/README.md` 起 E2E 栈,然后 `E2E_REAL_STT=1 yarn web:e2e --project=chromium-mobile`(webkit 无 MediaRecorder,按 `WEBKIT_NO_RECORDER` 跳过)。需要检查:转写气泡与录音时长、流式回复、发音与语法徽标、`PATCH` 补写、刷新后回放、"跟读这句";并用 `docker exec`(进入 `enjoy-e2e-server-1`)确认删除对话后该条录音文件(assessment 音频)已从磁盘消失,assessment 行也已级联删除。
-2. **依赖 TTS 的用例失败**:练习页"先听范读"(chromium 与 webkit)、对话朗读(webkit),原因是火山 TTS 返回 403 `resource not granted`(不是应用缺陷)。TTS 授权恢复后重跑 `practice.spec.ts` 与 `chat.spec.ts`(两个项目)。2026-10-05 Task 6.1 重跑:仍是同一个 403,且新增的场景自动朗读用例同样受阻;语音消息用例的转写预检返回 "Upstream authentication failed"(见下方 Task 6.1 一节)。
+1. **语音消息 E2E 用例从未运行**(`web/e2e/chat.spec.ts` 的 "voice message" 用例)。原因:方舟 STT 账户欠费。2026-10-05 Task 6.1 带 `E2E_REAL_STT=1` 重跑:转写预检仍返回 502 "Upstream authentication failed",用例未能运行,本项仍然 OPEN。账户充值后运行:先按 `web/README.md` 起 E2E 栈,然后 `E2E_REAL_STT=1 yarn web:e2e --project=chromium-mobile`(webkit 无 MediaRecorder,按 `WEBKIT_NO_RECORDER` 跳过)。需要检查:转写气泡与录音时长、流式回复、发音与语法徽标、`PATCH` 补写、刷新后回放、"跟读这句";并用 `docker exec`(进入 `enjoy-e2e-server-1`)确认删除对话后该条录音文件(assessment 音频)已从磁盘消失,assessment 行也已级联删除。(**更新 2026-10-07**:真实识别与 TTS 上游当天已验证可用(延迟测量、通话冒烟都走通),所以"账户欠费"这一阻塞原因已不成立;但**这些 E2E 用例本身仍没有重跑**,本项继续 OPEN。)
+2. **依赖 TTS 的用例失败**:练习页"先听范读"(chromium 与 webkit)、对话朗读(webkit),原因是火山 TTS 返回 403 `resource not granted`(不是应用缺陷)。TTS 授权恢复后重跑 `practice.spec.ts` 与 `chat.spec.ts`(两个项目)。2026-10-05 Task 6.1 重跑:仍是同一个 403,且新增的场景自动朗读用例同样受阻;语音消息用例的转写预检返回 "Upstream authentication failed"(见下方 Task 6.1 一节)。(**更新 2026-10-07**:火山 TTS 当天经本应用端点合成成功(延迟测量、通话冒烟),403 已不复现;**用例本身没有重跑**,本项继续 OPEN,直到 `practice.spec.ts` 与 `chat.spec.ts` 两个项目重跑通过。)
 3. **自由说话评测未运行**:见 [2026-10-05-free-speech-evaluation.md](2026-10-05-free-speech-evaluation.md)(状态:NOT RUN)。命令:`cd server && uv run python scripts/eval_free_speech.py --base-url http://127.0.0.1:8765 --json ../.superpowers/eval/free-speech.json`,需要 ffmpeg 与真实上游(方舟转写、火山 TTS、讯飞评测、LLM),用临时库;会产生真实上游调用费用(约 52 次 TTS 合成(26 句 × 2 音色,有缓存时重跑为 0),另有 53 次转写、65 次评测、至多 53 次语法),运行前请确认额度。Task 5.3(据评测结论的降级)**未执行,待评测结果**。
 4. **真机验收**:iPhone(Safari)与安卓(Chrome)按下方清单第 1–16 项逐项验证,全部为"未验证"(需要设备与 HTTPS 地址)。
 5. **语音消息的语法检查未经验证(风险)**:`GRAMMAR_FOR_VOICE`(`web/src/features/chat/turn-results.ts`)为 `true`。转写引擎可能悄悄纠正语法,导致语音消息显示误导性的"没有语法问题";该风险尚未用真实转写验证(依赖第 3 项)。如评测证实,将该常量改为 `false` 即可关闭(一行改动,并同步 `turn-results.test.ts` 中对其取值的断言)。
 6. **自动朗读在 iOS 上的手势解锁未经真机验证**:Playwright 的 Chromium 带自动播放参数,WebKit 结果见「对话页增强 Playwright 端到端」一节(该节记录:TTS 被上游 403 拒绝,WebKit 下自动朗读是 playing 还是被拦截的结果**未记录**);iPhone 上首次发送后是否自动出声、被拦截时"点此朗读"是否出现且可用,按真机清单第 17–22 项验证。
 
-7. **语音提速与实时通话的真实上游验收**(计划 2026-10-07):延迟基线/对比、流式识别、实时通话端到端依赖火山 TTS 与方舟识别恢复;状态见 [2026-10-07-voice-spike-results.md](2026-10-07-voice-spike-results.md) 与 [2026-10-07-voice-latency.md](2026-10-07-voice-latency.md)。截至本节写入(2026-10-07,代码基线 `43557d07`)实际发生过的事:
-   - 上游当日已恢复,spike(Task 0.3–0.5)用真实上游跑过:识别参数与 `<none>`、按真实节奏推流的 `bigmodel_async`、TTS 分块与 PCM 格式,以及**服务端层**基线(识别 s5/s15、TTS 整段/首句);数字与环境只以延迟文档、spike 结论为准,此处不重复。
-   - **没有完成**:浏览器层基线(需要 Docker Desktop,当时未运行);"之后"对比(Task 5.1,浏览器层同样需要 Docker),**是否达到"转写 ≤ 基线 50%、回复完成 → 出声 ≤ 基线 40%"以延迟文档为准,本文不下结论**;spike 结论 §7.2 已预告:两句短回复在服务端层首块/整段约 47–56%,达不到 40%,不得因此修改目标。
-   - **没有完成**:实时通话对真实上游的端到端冒烟(Task 5.2)。服务端的通话路径只用假上游、Starlette TestClient 和进程内的真实 uvicorn(仅验证票据日志脱敏)测过;`REALTIME_ASR_MODE=stream` 的适配器只对着本地假 `bigmodel_async` 服务测过,真实上游只验证了推流协议(spike)。若 Task 5.2 之后有结果,以它的记录为准并回写此处。
-   - 仍未验证的上游相关项:LLM 流在没有 `[DONE]`/`finish_reason` 时按"截断"处理(真实 DeepSeek 流是否总带其一未核对);通话评测(讯飞)与录音落盘在通话里的真实表现;`bigmodel_async` 的最长连接时长、空闲超时、超过 2 路并发(通话 5 路 + 上传识别 3 路)、非连续音频;TTS 24 kHz 的听感核对(未排除 22050)。
+7. **语音提速与实时通话的真实上游验收**(计划 2026-10-07;状态按 2026-10-07 的最终代码更新;数字与环境只以 [2026-10-07-voice-latency.md](2026-10-07-voice-latency.md) 与 [2026-10-07-voice-spike-results.md](2026-10-07-voice-spike-results.md) 为准,此处只列要点):
+   - **已用真实上游验证(只到服务端层)**:
+     - 上传识别的流式化:同日(2026-10-07 16:32–16:35)同机同网,识别中位数 `chat` 模式 s5 5490 → 1673 ms(30%)、s15 7236 → 2504 ms(35%);`volc_stream` 模式 s5 972 ms(18%)、s15 2135 ms(30%)。转写文本合理性核对过(两种模式 s5 都是 7 个词、s15 都是 28 个词,关键词都在),所以不是因为返回空串而变快。基线离散度大(同日两次基线 s5 为 4366 与 5490 ms),各次 N = 7、热身 1 次。
+     - TTS 分块透传(`stream=true`,经本应用端点):首块中位数 357 ms,为基线整段合成 738 ms 的 48%;第一句的首块 301 ms(41%)。整段与首句的非流式合成基本没变(96%、93%,预期之内)。
+     - 实时通话的**服务端冒烟**(真实识别、LLM、TTS、讯飞评测):spike 结论 §8,`stream` 与 `buffered` 两种识别模式、5 个场景(一整轮、打断、挂断/断开后重连、第二路并发 4029、无效票据 4001)均通过,服务端日志 0 个 ERROR/WARNING,票据已脱敏。**该次运行早于后来的几轮修复**(`thinking` 三态 R37、挂断收尾 R38 等)。lane X 正在最终代码上重跑,结果会作为 §8 的"重新验证"小节追加;**在那一节出现之前,本项对最终代码不得算作已重新验证**,这里也不引用尚未写入的数字。
+     - 真实 DeepSeek 上 `thinking: disabled` 的实际效果(每格 1 次样本,仅供参考):见计划 R37 与 `server/README.md`。
+   - **没有验证**:
+     - 两条验收目标本身(转写 ≤ 基线 50%、回复完成 → 出声 ≤ 基线 40%)都是**浏览器层**指标,浏览器层在基线与"之后"都**没有测**(需要 Docker),所以**两条目标均未验证**,不得据服务端层宣布达标。服务端层最好的"首次出声"代理(首句首块)是 41%,**略高于 40%,按服务端层代理算未达标**;网页自动朗读走"按句、非流式"合成,单看合成时间是基线整段的 70%,能否到 40% 取决于它与 LLM 余下文本生成的重叠(延迟文档里有标明为**估算**的公式,不是实测)。单句回复预计没有提速。
+     - 浏览器层延迟(`web/e2e/latency.spec.ts`):从未运行。
+     - 通话在浏览器里的端到端(真麦克风、VAD、WebAudio 播放、复盘):从未运行(`web/e2e/` 里没有通话用例,只有假设备的单测)。
+     - 冒烟里自己记下的缺口:`buffered` 模式有明显的尾部延迟(5 次上传识别 963–8104 ms,其中一次 8.1 s 拖慢了整轮);服务端下发音频比实时快,所以服务端侧可被打断的窗口很短(打断短回复主要发生在客户端播放器);断开检测只在本机回环上验证(经反向代理或移动网络时,在服务端察觉之前重连会得到 4029,未验证);票据 60 s 过期、60 s 静音与 10 分钟上限、全局 5 路并发、`rate_limited` 与 `message_limit` 在真实上游下均未测(有单测);"ask not" 丢词只在 TTS 合成的清晰语音上没有复现,不能据此关闭第 9 项。
+     - 挂断收尾(R38)对真实上游(火山/讯飞)的耗时:未验证;只有假上游的单测与 TestClient。
+     - `bigmodel_async` 的最长连接时长、空闲超时、超过 2 路并发、非连续音频;TTS 24 kHz 的听感核对(未排除 22050)。
 8. **语音提速、按住说话与实时通话的真机验收**:iPhone(Safari)与安卓(Chrome)按下方清单第 23–32 项逐项验证,全部为"未验证"(需要设备与 HTTPS 地址)。其中依赖真机才能回答的关键问题:iOS 上 AudioWorklet/页面级 `AudioContext` 点击解锁后是否保持 `running`、`getUserMedia` 不在点击同步阶段时通话能否开麦、外放回声、系统手势是否触发 `pointercancel`。
-9. **流式通话识别的准确度**:spike 里 `bigmodel_async` 9/9 次丢了 "ask not" 的 "ask"(chat 模式同一段正确);通话转写是发音评测的参考文本,错词会影响评分。默认 `REALTIME_ASR_MODE=buffered`;打开 `stream` 前需用真实麦克风核对(含中文/中英混说、噪声)。
-10. **Docker 与 Playwright 相关门槛未运行**(本环境没有 Docker):镜像构建(含 `--ws-max-size 65536` 与新依赖/VAD 资源复制)、Postgres 套件、`hold-to-talk.spec.ts`(4 个用例,只 chromium-mobile,CDP 触摸合成)与 `latency.spec.ts` 的真实运行,以及改过的 `chat.spec.ts` 语音消息用例(仍需 `E2E_REAL_STT=1`)。这些规格文件写好并通过 `playwright test --list` 和类型检查,**从未运行过**,第一次运行可能要调整触摸合成、选择器与滑动坐标。
+9. **流式通话识别的准确度**:spike 里 `bigmodel_async` 9/9 次丢了 "ask not" 的 "ask"(chat 模式同一段正确);通话转写是发音评测的参考文本,错词会影响评分。默认 `REALTIME_ASR_MODE=buffered`;打开 `stream` 前需用真实麦克风核对(含中文/中英混说、噪声)。通话冒烟(spike §8,2026-10-07)用 TTS 合成的清晰语音,`stream` 与 `buffered` 都逐词正确,"ask not" 丢词**未复现**,但这不是 JFK 片段或真人语音,不能据此关闭本项。
+10. **Docker 与 Playwright 相关门槛未运行**(本环境没有 Docker;下面每条都**从未执行过**,不得视为通过):
+    - 镜像构建(含 `server/Dockerfile` 的 `--ws-max-size 65536`、新依赖与 VAD 资源复制)。
+    - Postgres 套件(门槛 1 的 Postgres 部分)。命令(`server/README.md`):`docker compose exec postgres psql -U enjoy -d enjoy -c 'CREATE DATABASE enjoy_test;'`,然后 `cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:5432/enjoy_test uv run pytest -q`(计划约束另写了 `docker run postgres:16-alpine` 映射到 `127.0.0.1:55432`,连接串用 `127.0.0.1` 而不是 `localhost`)。
+    - E2E 栈(计划 R34:**不要**带用户未提交的 `docker-compose.yml`,它声明了外部网络 `1panel-network`;必要时先 `docker network create 1panel-network`):`export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")`,`docker compose -p enjoy-e2e -f docker-compose.e2e.yml up -d --build --wait`;结束后 `docker compose -p enjoy-e2e -f docker-compose.e2e.yml down -v`。
+    - 按住说话(4 个用例,CDP 触摸合成,只 chromium-mobile,预期 4 passed;webkit-mobile 预期 4 skipped):`cd web && yarn playwright test e2e/hold-to-talk.spec.ts --project=chromium-mobile`。
+    - 浏览器层延迟(真实上游,有费用):`E2E_LATENCY=1 E2E_FAKE_AUDIO=<repo>/.superpowers/latency/s5.wav E2E_HOLD_MS=5000 yarn playwright test e2e/latency.spec.ts --project=chromium-mobile`(s15 换 `s15.wav` 与 `E2E_HOLD_MS=15000`);基线要在 `voice-latency-baseline` 标签的代码上用同样命令测,同一天同一网络。预计用量见延迟文档。
+    - 改过的语音消息用例(需要真实识别):`E2E_REAL_STT=1 yarn playwright test e2e/chat.spec.ts -g "voice message" --project=chromium-mobile`。
+    - 全量 E2E 回归:`yarn web:e2e --project=chromium-mobile`(此前的 11 通过是 2026-10-04/05 的结果,与现在的代码不是同一版本)。
+    这些规格文件写好并通过 `E2E_INVITE_CODE=dummy npx playwright test --list`(78 个用例、10 个文件)和类型检查,**从未运行过**,第一次运行可能要调整触摸合成、选择器(`hold-hint`)、滑动坐标(取消 = 左 20% 宽,转文字 = 右 80%,dy −160)与按住时长。
 11. **生产反向代理(1Panel/OpenResty)转发 WebSocket**:需要你在面板里开启 WebSocket 支持并把读超时调到 ≥ `REALTIME_MAX_MINUTES`(默认 10 分钟,至少 660 s);未验证,见 `server/README.md`「实时通话的部署注意」与真机清单第 32 项。同时注意票据在 URL 里,代理访问日志会记录它(应用日志已脱敏)。
 
 状态:**尚未执行。** 本清单需要在能运行 Electron 应用、并配好真实上游(LLM / TTS / Whisper / Azure Speech)的机器上手动完成。
@@ -149,33 +165,33 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 
 ## 语音提速、按住说话与实时通话:各功能验证状态(计划 2026-10-07)
 
-日期:2026-10-07;代码基线 `43557d07`(`feat/self-hosted-backend`,各条线已合并)。控制器在主工作区的最近一次记录:`server` pytest 1855 通过,`web` vitest 1600 通过,typecheck 与 build 通过。这些数字是单元/集成测试,不等于下表里"真实上游"或"真机"的结论。
+日期:2026-10-07;最终回归(主工作区,合并 lane S 挂断修复之后,`feat/self-hosted-backend`):`server` pytest(SQLite)**1920** 通过;`web` `tsc --noEmit` 无错误,`vitest` **1698** 通过(连跑 3 次,101 个文件),`yarn build` 通过(`dist/vad/0.0.31-ort1.30.0/` 恰好 4 个文件,worklet 作为资源产出)。这些数字是单元/集成测试(假设备、假上游),**不等于**下表里"真实上游"或"真机"的结论;Postgres 套件没有跑(没有 Docker)。
 
 状态说明:
 - **unit-tested (fakes)**:只用假设备、假 `AudioContext`/`WebSocket`/VAD、jsdom 或假上游测过。
 - **server-integration tested with fakes**:服务端用 Starlette TestClient 或本地假上游服务测过,没有连真实上游。
-- **real-upstream verified**:用真实上游跑过(仅限 spike/基线,见延迟文档与 spike 结论)。
+- **real-upstream verified**:用真实上游跑过(仅限 spike、服务端层延迟测量与服务端层通话冒烟,见延迟文档与 spike 结论;**没有任何浏览器层的真实上游运行**)。
 - **UNVERIFIED**:没有验证(缺设备、Docker、HTTPS 地址或尚未运行)。
 
 | 功能 | 状态 | 证据与没有验证的部分 |
 |---|---|---|
-| 延迟打点 `window.__enjoyLatency` | unit-tested (fakes) | `latency.test.ts` 与各使用点的测试;浏览器层真实数字 UNVERIFIED(需要 Docker + 真实上游,见延迟文档) |
-| 识别提速:`STT_MAX_TOKENS`、`STT_DISABLE_THINKING`、`<none>` 无前景语音 | real-upstream verified;server-integration tested with fakes | spike:`doubao-seed-2-0-lite-260428` 接受 `thinking: disabled`,静音/白噪声输出 `<none>`(样本很少,次数见 spike §1);服务端测试用假上游。**UNVERIFIED**:开着推理时的 `<none>`、真实嘈杂环境/真人背景对话、其他模型 |
-| `POST /api/ai/audio/speech` 的 `stream=true`(火山分块透传) | server-integration tested with fakes;real-upstream verified(分块节奏,直连火山) | 分块大小/间隔由 spike 直连火山测得;经本应用端点的首块延迟("之后"数字)以延迟文档为准(Task 5.1,未在此记录);客户端提前断开的清理只在生成器层面测过,没经真实 ASGI 断开;中文与其他音色的分块、中途断流的错误帧形态 UNVERIFIED |
+| 延迟打点 `window.__enjoyLatency` | unit-tested (fakes) | `latency.test.ts` 与各使用点的测试;**浏览器层数字没有测**(基线与"之后"都没有,需要 Docker + 真实上游,命令见 OPEN 第 10 项) |
+| 识别提速:`STT_MAX_TOKENS`、`STT_DISABLE_THINKING`(三态,默认 `auto`)、`<none>` 无前景语音 | real-upstream verified(服务端层);server-integration tested with fakes | spike:`doubao-seed-2-0-lite-260428` 接受 `thinking: disabled`,静音/白噪声输出 `<none>`(样本很少,次数见 spike §1)。上传识别的流式化(`volc_stream`)与 `chat` 模式的提速在同日服务端层测得:`chat` s5/s15 为基线的 30%/35%,`volc_stream` 为 18%/30%(OPEN 第 7 项,数字在延迟文档)。`auto` 的主机判断只有单元测试(R37)。**UNVERIFIED**:浏览器层的"转写 ≤ 50%"、开着推理时的 `<none>`、真实嘈杂环境、其他模型 |
+| `POST /api/ai/audio/speech` 的 `stream=true`(火山分块透传) | real-upstream verified(服务端层);server-integration tested with fakes | 经本应用端点实测:首块 357 ms(基线整段 738 ms 的 48%),第一句首块 301 ms(41%),延迟文档有逐次原始值;分块节奏另由 spike 直连火山测得。客户端提前断开的清理只在生成器层面测过,没经真实 ASGI 断开;中文与其他音色的分块、中途断流的错误帧形态 UNVERIFIED。网页自动朗读不使用 `stream=true`(R8),所以这个提速只体现在实时通话 |
 | 切句器(服务端 `sentence_split.py` / 网页 `sentence-stream.ts`) | unit-tested (fakes) | 共享 `sentence_cases.json` 一致性用例(整段、逐字符、随机分块)、随机文本属性;码点长度语义已对齐。无设备相关部分 |
 | 按句朗读(`TtsQueue`、`progress`、页面接线) | unit-tested (fakes) | hook 与页面测试含各中断路径(出错、切会话、卸载、关自动朗读、录音);iOS 句间间隙、点击解锁后的实际出声 UNVERIFIED(真机清单 23) |
-| PCM 采集、FIR 降采样、静音裁剪、近讲能量门限 | unit-tested (fakes) | 假 `AudioContext`、真实 worklet 源码跑在假作用域里;构建产物里 worklet 在 `/assets/` 且无 `data:` 内联。**UNVERIFIED**:iOS/Safari 的 AudioWorklet 与页面上下文解锁、Firefox 采样率不一致重试、真实麦克风音质、16 kHz 对发音评分的影响(清单 30)、嘈杂环境(清单 27) |
+| PCM 采集、Kaiser 窗 FIR 降采样(R35)、静音裁剪、近讲能量门限 | unit-tested (fakes) | 假 `AudioContext`、真实 worklet 源码跑在假作用域里;FIR 由评审在 node 里按 6 种输入采样率核对过(分块逐位一致、DC 增益 1、阻带衰减、输出长度)。构建产物里 worklet 在 `/assets/` 且无 `data:` 内联。**UNVERIFIED**:iOS/Safari 的 AudioWorklet 与页面上下文解锁、Firefox 采样率不一致重试、低端机上降采样的主线程成本(估计 2–3%,未实测)、真实麦克风音质、16 kHz 对发音评分的影响(清单 30)、嘈杂环境(清单 27) |
 | 语音消息"没有前景语音不上传"、"可能混入了他人声音"提示 | unit-tested (fakes) | 合成信号与阈值测试;真实语音(尤其一两个词的短答)是否被误判为无语音 UNVERIFIED |
 | 按住说话(reducer、按钮、页面接线、键盘后备、上滑取消/转文字) | unit-tested (fakes) | jsdom(带补丁的 `PointerEvent`)测试,既有页面测试已改为 `holdMic`/`pressKey`。Playwright `hold-to-talk.spec.ts` 4 个用例写好但**从未运行**(无 Docker);真实触摸、iOS 首次麦克风权限、系统手势取消 UNVERIFIED(清单 23、24) |
-| 通话识别 `buffered`(整句上传识别) | server-integration tested with fakes | 经 `make_transcriber`(含 `volc_stream` 优先、chat/Whisper 回退、共享并发闸门与熔断);真实上游下的通话端到端 UNVERIFIED |
-| 通话识别 `stream`(`bigmodel_async`) | real-upstream verified(推流协议,spike);server-integration tested with fakes(适配器) | 适配器只对着本地假 `bigmodel_async` 测过;**UNVERIFIED**:准确度(spike 丢词,见 OPEN 第 9 项)、最长连接/空闲超时、并发 > 2、非连续音频、空的最后一包 |
-| 通话服务端(协议、状态机、`WS /api/realtime`、票据、并发登记、限额) | server-integration tested with fakes | 假识别/LLM/TTS + TestClient,含打断、背压、泄漏检查、各关闭码;票据日志脱敏用进程内真实 uvicorn 验证。**UNVERIFIED**:对真实上游的端到端(Task 5.2)、真实浏览器/反向代理下的 WebSocket、多 worker(不支持) |
-| 通话 LLM(`openai_llm_stream`)、TTS(`volc_tts_stream`)、评测(`XfyunAssessor`) | server-integration tested with fakes | respx/假连接;TTS 格式取自 spike(real-upstream verified:PCM16LE、无头、24 kHz 推断,听感核对 UNVERIFIED);LLM 无 `[DONE]` 的截断判定、讯飞评测在通话里的真实表现 UNVERIFIED |
-| 网页 VAD(Silero,自托管资源) | unit-tested (fakes) | 对照库的真实类型核对过 API,`yarn build` 会复制 4 个文件到 `dist/vad/<版本>/`;**UNVERIFIED**:浏览器里 ORT 1.30.0 + Silero v5 的真实推理、共享 `AudioContext`、iOS、蜂窝网络加载 16.6 MB 的时间(清单 31) |
-| 网页通话(状态机、`RealtimeCall`、对话框、页面入口、回放队列) | unit-tested (fakes) | 假 `WebSocket`/`AudioContext`/VAD/麦克风:各结束路径释放麦克风与上下文(有断言)、StrictMode 单连接、票据刷新、背景挂断、页面接线与复盘重载。**UNVERIFIED**:真机首次通话与首次出声延迟(清单 25)、外放回声与打断(清单 26)、电话/Siri 打断后恢复(清单 28)、切后台挂断(清单 29) |
-| Docker 镜像构建、Postgres 套件、E2E 栈 | UNVERIFIED | 本环境没有 Docker;`server/Dockerfile` 的 `--ws-max-size 65536` 只改了命令行,没有构建过 |
+| 通话识别 `buffered`(整句上传识别) | real-upstream verified(服务端层冒烟);server-integration tested with fakes | spike §8:5 个场景通过,`transcript_final` 1203 ms、首块音频 3312 ms(自 `utterance_end`,N = 1);**尾部延迟大**(5 次上传识别里一次 8.1 s)。该次运行早于后续修复,最终代码上的重跑见 OPEN 第 7 项 |
+| 通话识别 `stream`(`bigmodel_async`) | real-upstream verified(服务端层冒烟、推流协议);server-integration tested with fakes(适配器) | spike §8:5 个场景通过,`transcript_final` 516 ms、首块音频 2297 ms(N = 1,TTS 合成的清晰语音)。**UNVERIFIED**:真人语音/中文/噪声下的准确度(spike 丢词,见 OPEN 第 9 项)、最长连接/空闲超时、并发 > 2、非连续音频、空的最后一包 |
+| 通话服务端(协议、状态机、`WS /api/realtime`、票据、并发登记、限额、挂断收尾 R38) | real-upstream verified(服务端层冒烟,早期代码);server-integration tested with fakes | 假识别/LLM/TTS + TestClient,含打断、背压、泄漏检查、各关闭码、挂断收尾(用户挂断 ≤ 2.5 s 内识别并保存已结束的话语、下发评测事件后才关闭;服务端发起的关闭立即进行)、票据日志脱敏(进程内真实 uvicorn)。冒烟(spike §8)覆盖一整轮、打断、挂断重连、并发 4029、无效票据;**最终代码上的重跑待 lane X 追加**。**UNVERIFIED**:真实上游下的挂断耗时、真实浏览器/反向代理下的 WebSocket、票据 60 s 过期、静音/最长时长/全局并发在真实上游下的表现、多 worker(不支持) |
+| 通话 LLM(`openai_llm_stream`)、TTS(`volc_tts_stream`)、评测(`XfyunAssessor`) | real-upstream verified(冒烟里走通);server-integration tested with fakes | 冒烟中三者都走了真实上游,LLM 流都以 `finish_reason`/`[DONE]` 结束,无 `llm_failed`;`thinking` 三态(R37)在 DeepSeek 上各测一次(deepseek-v4-flash-vision-exp、deepseek-v4-pro,每格 1 次样本)。TTS 格式取自 spike(PCM16LE、无头、24 kHz 推断,**听感核对 UNVERIFIED**)。**UNVERIFIED**:LLM 流缺 `[DONE]` 时的截断判定在真实上游下的表现、`auto` 不匹配的自建网关、冒烟中每句 TTS 未单独记日志 |
+| 网页 VAD(Silero,自托管资源,`SpeechGate` 漏桶 + 能量感知结束,R36/R40) | unit-tested (fakes) | 对照库的真实类型核对过 API;`yarn build` 把 4 个文件复制到 `dist/vad/0.0.31-ort1.30.0/`;门限逻辑用 200 个种子的合成仿真(回声 0 次误起;正常说话起始 200/200;插话 200/200),**仿真不是真人语音**。**UNVERIFIED**:浏览器里 ORT 1.30.0 + Silero v5 的真实推理、共享 `AudioContext`、真实设备上的起止行为(安静说话者低于 −38 dBFS 会被裁、背景有人说话时的误起,清单 26、27)、iOS、蜂窝网络加载 16.6 MB 的时间(清单 31) |
+| 网页通话(状态机、`RealtimeCall`、对话框、页面入口、回放队列、预滚 500 ms、挂断后等待服务端关闭并重载、有未发送状态时拒绝通话,R36/R38/R39) | unit-tested (fakes) | 假 `WebSocket`/`AudioContext`/VAD/麦克风:各结束路径释放麦克风与上下文(有断言)、StrictMode 单连接、票据刷新、背景挂断、页面接线、挂断后 ≤ 3 s 等关闭帧、重载 + 一次补取、通话被未发送状态阻止。**UNVERIFIED**:真机首次通话与首次出声延迟(清单 25)、外放回声与打断(清单 26)、电话/Siri 打断后恢复(清单 28)、切后台挂断(清单 29)、挂断后约 2–6 s 的输入禁用时长体验 |
+| Docker 镜像构建、Postgres 套件、E2E 栈、`hold-to-talk.spec.ts`、`latency.spec.ts`、改过的 `chat.spec.ts` | UNVERIFIED | 本环境没有 Docker;`server/Dockerfile` 的 `--ws-max-size 65536` 只改了命令行,没有构建过;规格文件只通过了 `--list` 与类型检查。待运行的命令见 OPEN 第 10 项 |
 | 反向代理(1Panel/OpenResty)转发 WebSocket | UNVERIFIED | 见 OPEN 第 11 项与清单 32 |
-| 浏览器层延迟基线与"之后"对比 | UNVERIFIED | 需要 Docker Desktop 与真实上游;服务端层基线已在延迟文档,"之后"以该文件为准 |
+| 浏览器层延迟基线与"之后"对比 | UNVERIFIED | 需要 Docker 与真实上游;**服务端层**基线与"之后"已测(OPEN 第 7 项,数字在延迟文档)。验收目标(转写 ≤ 50%、首句出声 ≤ 40%)均为浏览器层指标,**两条都未验证**;服务端层首句首块 41%,略高于 40% |
 
 
 ## 手机网页版真机验收(Task 6.2)
