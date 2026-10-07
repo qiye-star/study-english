@@ -94,3 +94,31 @@ Runs after Tasks 1–5 are merged. Design brief (ruling by controller, provision
 - [ ] Deferred review wave over the merged diff (code quality + security + a11y); fix findings in one pass.
 - [ ] Full web tests, server tests, type-check, build; rebuild container only when the user asks.
 - [ ] Update `e2e-results.md` with new checklist items: iOS call, speaker volume, PTT/VAD exclusivity, translation, voice preview, redesign (marked unverified where not run on device).
+
+---
+
+## Addendum (2026-10-08): directory standards, decoupling, CLAUDE.md per directory
+
+Runs AFTER lanes A–C are merged (restructuring while they are in flight would conflict). Server work (Task 8) and web work (Task 9) are disjoint and run in parallel with the redesign (Task 6) only if Task 9 does not move files Task 6 edits; otherwise Task 9 runs after Task 6.
+
+**Rulings:** upstream directories (`1000-hours`, `1000h-portal`, `book`, `entry`, `enjoy`, `new-edition-drafts`) are not ours to reorganize: get a short CLAUDE.md saying "upstream/desktop, do not restructure, web/ reads it only via shims". Front/back separation already holds at the top level (`web/` vs `server/`); the work is internal layering and enforced boundaries. Every move is behavior-preserving, done with `git mv`, one commit per package, tests green after each.
+
+### Task 8: Server layering (`server/app/`)
+Target layout (flat 35 modules today):
+- `app/core/` config, db, deps, errors, logging_setup, security, bodylimit, ratelimit, timing
+- `app/providers/` volcengine, azure, xfyun, xfyun_result, upstream (external vendors only; no FastAPI imports)
+- `app/speech/` asr, asr_realtime, asr_stream, stt, realtime_asr, sentence_split
+- `app/realtime/` realtime_protocol, realtime_session, realtime_providers, realtime_tickets
+- `app/services/` assessment_store, recordings, uploads, grammar, stats, vocabulary
+- `app/routers/` (unchanged), `app/models.py`, `app/main.py` stay at top.
+- [ ] Dependency rule, enforced by a test (`server/tests/test_architecture.py`, AST import scan): core imports nothing from other app packages; providers import only core; speech/services import core+providers; realtime imports core+providers+speech+services; routers import anything below; nothing imports routers.
+- [ ] Update all imports, alembic env, Dockerfile CMD (`app.main:create_app` unchanged), test imports and monkeypatch targets; full pytest green; container smoke (`/healthz`).
+- [ ] CLAUDE.md in: `server/`, `server/app/`, each new subpackage, `server/app/routers/`, `server/alembic/`, `server/tests/`, `server/scripts/`, `server/app/static_config/`.
+
+### Task 9: Web boundaries and documentation (`web/`)
+- [ ] Rules (enforced by a vitest architecture test scanning imports): `audio/` and `api/` and `lib/` import no React feature code; `features/*` do not import another feature's internals (only its `index.ts`) — add the missing `index.ts` public surfaces; `pages/` compose features only; web imports from `enjoy/` only through `src/shims/`.
+- [ ] Move stray cross-feature helpers to `lib/` or `api/` where the scan finds violations; no behavior change.
+- [ ] CLAUDE.md in: `web/`, `web/src/`, and each of `api, audio, auth, components, features (+ each feature dir), i18n, layout, lib, pages, pwa, settings, shims, styles, test`, `web/e2e`, `web/scripts`, `web/public`.
+- [ ] Each CLAUDE.md (≤40 lines): purpose, what lives here, allowed dependencies, key entry points, test command, pitfalls (e.g. never edit `enjoy/`, ticket redaction, iOS audio constraints).
+- [ ] Root: `CLAUDE.md` (map of directories, run/test/deploy commands, security rules: never commit `.env`/keys), `docs/CLAUDE.md` (plans/specs conventions), `docker-compose` notes.
+- **Acceptance:** architecture tests pass and fail when a forbidden import is introduced (verify once by temporarily adding one); all tests, type-check and build green; every non-vendor directory listed has a CLAUDE.md.
