@@ -189,8 +189,7 @@ export class RealtimeCall {
     } catch {
       if (this.torn) return;
       this.vadUnavailable = true;
-      this.dispatch({ type: "ptt", on: true });
-      this.dispatch({ type: "notice", key: "web.realtime.vadUnavailable" });
+      this.dispatch({ type: "vad-unavailable" });
       return;
     }
     if (this.torn) {

@@ -102,6 +102,12 @@ describe("callReducer", () => {
     expect(m).toMatchObject({ muted: true, pushToTalk: true, notice: "k" });
   });
 
+  it("a missing VAD locks push-to-talk on and says why", () => {
+    const m = run([{ type: "vad-unavailable" }]);
+    expect(m).toMatchObject({ pushToTalk: true, vadUnavailable: true, notice: "web.realtime.vadUnavailable" });
+    expect(INITIAL_CALL.vadUnavailable).toBe(false);
+  });
+
   it("keeps at most 50 captions", () => {
     const actions = Array.from({ length: 60 }, (_, i) => ev({ type: "transcript_final", text: `t${i}`, messageId: `m${i}` }));
     const m = run(actions);

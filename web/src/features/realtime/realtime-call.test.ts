@@ -327,6 +327,7 @@ describe("RealtimeCall", () => {
     s.ws().open();
     expect(s.changes.at(-1)!.pushToTalk).toBe(true);
     expect(s.changes.at(-1)!.notice).toBe("web.realtime.vadUnavailable");
+    expect(s.changes.at(-1)!.vadUnavailable).toBe(true);
     s.call.pttDown();
     s.speech(1);
     s.call.pttUp();
