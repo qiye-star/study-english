@@ -8,6 +8,7 @@ from app.config import Settings
 from app.db import make_engine
 from app.errors import install_error_handlers
 from app.grammar import load_grammar_rules
+from app.logging_setup import configure_logging
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
 from app.routers import (
@@ -17,6 +18,7 @@ from app.routers import (
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
+    configure_logging(settings.log_level)
     if settings.registration_mode == "invite" and not settings.invite_code:
         raise RuntimeError("REGISTRATION_MODE=invite requires INVITE_CODE")
     if settings.default_llm_model not in settings.llm_model_list:

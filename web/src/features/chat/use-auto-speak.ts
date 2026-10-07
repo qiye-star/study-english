@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { markLatency } from "~/lib/latency";
+import { abortLatencyTrace, markLatency } from "~/lib/latency";
 import { speakableText } from "./tts";
 import type { UiMessage } from "./ui-message";
 import { TtsPlaybackError } from "./use-tts-player";
@@ -88,6 +88,7 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
     const gen = genRef.current;
     return (err: unknown) => {
       if (gen !== genRef.current || !mountedRef.current) return;
+      abortLatencyTrace(); // 朗读失败/被拦截:这一轮不会有 first_audio
       if (isAutoplayBlocked(err)) {
         if (hintShownRef.current) return;
         hintShownRef.current = true;
@@ -138,7 +139,10 @@ export function useAutoSpeak(options: UseAutoSpeakOptions) {
 
   const complete = useCallback((botKey: string, text: string, status: UiMessage["status"]) => {
     if (status === "done") markLatency("reply_done");
-    return run(botKey, text, status, latestRef.current !== botKey, status !== "streaming");
+    const decision = run(botKey, text, status, latestRef.current !== botKey, status !== "streaming");
+    // 回复出错或不会朗读(开关关闭/过期/隐藏等):这一轮到此为止,避免之后的手动朗读被记到它头上
+    if (status !== "streaming" && decision !== "speak") abortLatencyTrace();
+    return decision;
   }, [run]);
 
   /** R10:场景开场白;用户已经发过消息就不再读。跳过后同一 key 不再读。 */

@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { toAssessmentWav } from "~/audio/convert";
+import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest } from "~/lib/latency";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceDraftEvent } from "./use-voice-turn";
@@ -485,5 +486,71 @@ describe("useVoiceTurn", () => {
       await flush();
       expect(t.fake.track.stop).toHaveBeenCalled();
     });
+  });
+});
+
+describe("latency traces per turn", () => {
+  beforeEach(() => resetLatencyForTest());
+
+  async function recordAndStop(t: ReturnType<typeof setup>) {
+    await act(async () => { await t.result.current.start(); });
+    await act(async () => { await t.result.current.stop(); });
+  }
+
+  it("a successful transcription leaves the trace open with release, audio_ready and transcript", async () => {
+    const t = setup(() => json({ text: "Hello" }));
+    await recordAndStop(t);
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    expect(latencyLog()).toHaveLength(0); // 还在等回复
+    finishLatencyTrace("aborted");
+    expect(Object.keys(latencyLog()[0].marks).sort()).toEqual(["audio_ready", "release", "transcript"]);
+  });
+
+  it("no speech aborts the trace", async () => {
+    const t = setup(() => json({ text: " " }));
+    await recordAndStop(t);
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "failed" }));
+    expect(latencyLog().map((r) => r.status)).toEqual(["aborted"]);
+  });
+
+  it("a transcription error aborts the trace, and the retry opens a fresh one", async () => {
+    let attempt = 0;
+    const t = setup(() => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json({ text: "Second" })));
+    await recordAndStop(t);
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "failed" }));
+    expect(latencyLog().map((r) => r.status)).toEqual(["aborted"]);
+    act(() => t.result.current.retry("v1"));
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    abortLatencyTrace();
+    const [first, second] = latencyLog();
+    expect(second.id).not.toBe(first.id);
+    expect(second.marks.release).toBeDefined();
+    expect(second.marks.transcript).toBeDefined();
+  });
+
+  it("a kept draft (background) has no trace until it is sent", async () => {
+    const t = setup(() => json({ text: "Kept" }));
+    await act(async () => { await t.result.current.start(); });
+    act(() => t.fake.setHidden());
+    await waitFor(() => expect(t.events.at(-1)).toMatchObject({ kind: "kept" }));
+    expect(latencyLog()).toHaveLength(0);
+    act(() => t.result.current.retry("v1"));
+    await waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    finishLatencyTrace("aborted");
+    expect(latencyLog()).toHaveLength(1);
+    expect(latencyLog()[0].marks.transcript).toBeDefined();
+  });
+
+  it("an aborted transcription (cancel) aborts the trace", async () => {
+    const gate = deferred<Response>();
+    const t = setup(() => gate.promise as never);
+    await recordAndStop(t);
+    await waitFor(() => expect(t.mock.calls).toHaveLength(1));
+    act(() => t.result.current.cancel());
+    expect(latencyLog().map((r) => r.status)).toEqual(["aborted"]);
+    gate.resolve(json({ text: "late" }));
+    await flush();
+    expect(latencyLog()).toHaveLength(1);
+    expect(latencyLog()[0].marks.transcript).toBeUndefined();
   });
 });

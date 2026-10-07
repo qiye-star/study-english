@@ -5,7 +5,7 @@ import { toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder } from "~/audio/use-recorder";
-import { markLatency, startLatencyTrace } from "~/lib/latency";
+import { abortLatencyTrace, markLatency, startLatencyTrace } from "~/lib/latency";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { transcribe } from "./speech-api";
 
@@ -50,6 +50,8 @@ interface Draft {
   recording: RecordingResult;
   wav?: Blob;
   durationMs: number;
+  /** 本次转写所属的延迟记录(停止/60 秒自动停止时开始;只用于第一次转写,重试会另开一条) */
+  latencyTurn?: number;
   /** 已转写成功、等待(或重新)交给页面的结果 */
   handoff?: { text: string; audioUrl: string };
 }
@@ -94,6 +96,15 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     const draft = drafts.current.get(key);
     if (!draft || inflight.current || !mounted.current) return;
     const controller = new AbortController();
+    let turn: number | undefined;
+    if (!draft.handoff) {
+      turn = draft.latencyTurn;
+      draft.latencyTurn = undefined;
+      if (turn === undefined) {
+        turn = startLatencyTrace("voice"); // 重试:新的一轮,从点击"发送这段"算起
+        markLatency("release", turn);
+      }
+    }
     const mine = { controller, key };
     inflight.current = mine;
     setProcessing(true);
@@ -103,15 +114,22 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         if (!draft.wav) {
           const converted = await toAssessmentWav(draft.recording.blob);
           draft.wav = converted.wav; // 重试时不再转换
-          markLatency("audio_ready");
+          markLatency("audio_ready", turn);
           draft.durationMs = converted.durationMs;
         }
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          abortLatencyTrace(turn);
+          return;
+        }
         const { text } = await transcribe(opts.current.api, draft.wav, null, controller.signal);
-        if (!mounted.current || controller.signal.aborted) return;
+        if (!mounted.current || controller.signal.aborted) {
+          abortLatencyTrace(turn);
+          return;
+        }
         const clean = (text ?? "").trim();
-        markLatency("transcript");
+        markLatency("transcript", turn);
         if (!clean) {
+          abortLatencyTrace(turn);
           opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
           return;
         }
@@ -126,12 +144,14 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
       } catch (handoffError) {
         // 页面处理转写结果时出错不是"转写失败":记录后把草稿留在 kept 状态,用户可再点发送或丢弃
         console.error("voice turn handoff failed", handoffError);
+        abortLatencyTrace(turn);
         drafts.current.set(key, draft);
         if (mounted.current) {
           opts.current.onDraft({ kind: "kept", key, durationMs: draft.durationMs, note: tRef.current("web.chat.handoffFailed") });
         }
       }
     } catch (err) {
+      abortLatencyTrace(turn);
       if (mounted.current && !controller.signal.aborted) {
         opts.current.onDraft({ kind: "failed", key, error: describeAudioError(tRef.current, err, CHAT_SERVER_ERRORS) });
       }
@@ -145,11 +165,16 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
   }, []);
 
   const accept = useCallback(
-    (recording: RecordingResult) => {
-      if (!mounted.current) return;
+    (recording: RecordingResult, turn?: number) => {
+      if (!mounted.current) {
+        abortLatencyTrace(turn);
+        return;
+      }
       const key = opts.current.newKey();
-      drafts.current.set(key, { recording, durationMs: recording.durationMs });
+      const draft: Draft = { recording, durationMs: recording.durationMs };
+      drafts.current.set(key, draft);
       if (recording.stoppedBy === "background" || recording.stoppedBy === "track_ended") {
+        abortLatencyTrace(turn); // 没有发送:这一轮不计时,等用户点"发送这段"时另开一条
         const note = tRef.current(recording.stoppedBy === "background" ? "web.recorder.background" : "web.recorder.trackEnded", {
           seconds: Math.round(recording.durationMs / 1000),
         });
@@ -157,9 +182,10 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         return; // R18:等用户点"发送这段"(retry)或"丢弃"
       }
       if (recording.stoppedBy === "max_duration") {
-        startLatencyTrace("voice");
-        markLatency("release");
+        turn = startLatencyTrace("voice");
+        markLatency("release", turn);
       }
+      draft.latencyTurn = turn;
       void transcribeDraft(key); // 用户点停止,或到 60 秒自动停止:直接发送
     },
     [transcribeDraft],
@@ -180,12 +206,16 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     if (!mounted.current || stopping.current || recorderState.current !== "recording") return;
     const gen = generation.current;
     stopping.current = true;
-    startLatencyTrace("voice");
-    markLatency("release");
+    const turn = startLatencyTrace("voice");
+    markLatency("release", turn);
     setStoppingState(true);
     try {
       const result = await stopRecorder();
-      if (result && gen === generation.current) accept(result);
+      if (result && gen === generation.current) accept(result, turn);
+      else abortLatencyTrace(turn);
+    } catch (err) {
+      abortLatencyTrace(turn);
+      throw err;
     } finally {
       if (gen === generation.current) {
         stopping.current = false;
@@ -196,6 +226,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
 
   /** 发送前取消:录音(starting/recording/stopping)与进行中的转写一并丢弃,释放麦克风,不留草稿。 */
   const cancel = useCallback(() => {
+    abortLatencyTrace();
     generation.current += 1;
     stopping.current = false;
     cancelRecorder();
@@ -224,6 +255,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
   const discard = useCallback((key: string) => {
     const current = inflight.current;
     if (current?.key === key) {
+      abortLatencyTrace();
       inflight.current = null;
       current.controller.abort();
       if (mounted.current) setProcessing(false);
@@ -233,6 +265,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
 
   /** 切换会话:取消录音、中止转写、清掉草稿与 blob URL。 */
   const reset = useCallback(() => {
+    abortLatencyTrace();
     generation.current += 1;
     stopping.current = false;
     cancelRecorder();
@@ -250,6 +283,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      abortLatencyTrace();
       generation.current += 1;
       stopping.current = false;
       inflight.current?.controller.abort();

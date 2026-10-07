@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite+aiosqlite:///./data/app.db"
+    log_level: str = "INFO"
 
     registration_mode: Literal["open", "invite", "closed"] = "open"
     invite_code: str = ""
