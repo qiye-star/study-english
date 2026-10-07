@@ -33,13 +33,34 @@ export class FakeAudioContext {
   state: AudioContextState = "suspended";
   currentTime = 0;
   destination = new FakeNode();
-  resume = vi.fn(async () => { this.state = "running"; });
+  resume = vi.fn(async () => { this.setState("running"); });
   close = vi.fn(async () => { this.state = "closed"; });
   worklet = { addModule: vi.fn(async (_url: string) => undefined) };
   audioWorklet: { addModule: (url: string) => Promise<void> } | undefined = this.worklet;
   source = new FakeNode();
   processor = new FakeScriptProcessor();
   gain = Object.assign(new FakeNode(), { gain: { value: 1 } });
+  param = (value: number) => ({ value });
+  compressor = Object.assign(new FakeNode(), {
+    threshold: this.param(-24), knee: this.param(30), ratio: this.param(12), attack: this.param(0.003), release: this.param(0.25),
+  });
+  /** 默认没有压缩器(旧测试的音频图不变);测试按需打开:`ctx.createDynamicsCompressor = ctx.makeCompressor` */
+  createDynamicsCompressor: undefined | (() => FakeNode) = undefined;
+  makeCompressor = vi.fn(() => this.compressor);
+  streamDestination = Object.assign(new FakeNode(), { stream: { id: "dest-stream" } });
+  createMediaStreamDestination: undefined | (() => FakeNode & { stream: unknown }) = undefined;
+  makeStreamDestination = vi.fn(() => this.streamDestination);
+  private stateListeners = new Set<() => void>();
+  addEventListener = vi.fn((type: string, cb: () => void) => { if (type === "statechange") this.stateListeners.add(cb); });
+  removeEventListener = vi.fn((type: string, cb: () => void) => { if (type === "statechange") this.stateListeners.delete(cb); });
+  /** 改变状态并触发 statechange(iOS 打断、手势解锁) */
+  setState(state: AudioContextState | "interrupted") {
+    this.state = state as AudioContextState;
+    [...this.stateListeners].forEach((cb) => cb());
+  }
+  get stateListenerCount() {
+    return this.stateListeners.size;
+  }
   started: Array<{ when: number; duration: number; buffer: { samples: Float32Array } }> = [];
   constructor(public sampleRate = 48000) {}
   createMediaStreamSource = vi.fn(() => this.source);
