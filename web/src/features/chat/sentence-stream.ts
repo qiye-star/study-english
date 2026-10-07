@@ -52,13 +52,39 @@ function scan(s: string, final: boolean): [number | null, number] {
   return [null, n];
 }
 
+/** 长度一律按 Unicode 码点计(与服务端一致):emoji 算 1,绝不从代理对中间切开。 */
+function cpLength(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d = s.charCodeAt(i + 1);
+      if (d >= 0xdc00 && d <= 0xdfff) i++;
+    }
+    n++;
+  }
+  return n;
+}
+
+/** 前 n 个码点占用的 UTF-16 单元数(不足 n 个则为 s.length)。 */
+function unitsOf(s: string, n: number): number {
+  let i = 0;
+  for (let k = 0; k < n && i < s.length; k++) {
+    const c = s.charCodeAt(i);
+    const d = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+    i += c >= 0xd800 && c <= 0xdbff && d >= 0xdc00 && d <= 0xdfff ? 2 : 1;
+  }
+  return i;
+}
+
 function forcedCut(s: string, limit: number): number {
-  const head = s.slice(0, limit);
+  const cap = unitsOf(s, limit);
+  const head = s.slice(0, cap);
   for (const separators of [",;:", " "]) {
     const k = Math.max(...Array.from(separators, (c) => head.lastIndexOf(c)));
     if (k > 0) return k + 1;
   }
-  return limit;
+  return cap;
 }
 
 function clean(piece: string): string[] {
@@ -77,8 +103,8 @@ export function createSentenceStream(max = MAX_SENTENCE_CHARS): SentenceStream {
   let buf = "";
   const nextCut = (final: boolean): number | null => {
     const [cut, at] = scan(buf, final);
-    if (cut !== null && cut !== NEED_MORE && cut <= max) return cut;
-    if (buf.length > max && (cut !== NEED_MORE || at >= max)) return forcedCut(buf, max);
+    if (cut !== null && cut !== NEED_MORE && cpLength(buf.slice(0, cut)) <= max) return cut;
+    if (cpLength(buf) > max && (cut !== NEED_MORE || cpLength(buf.slice(0, at)) >= max)) return forcedCut(buf, max);
     if (cut === NEED_MORE) return null;
     return cut;
   };
@@ -94,6 +120,9 @@ export function createSentenceStream(max = MAX_SENTENCE_CHARS): SentenceStream {
   };
   return {
     push(full) {
+      // 块可能停在代理对中间:孤立的高位代理留到下一块再处理,保证与分块方式无关。
+      const last = full.charCodeAt(full.length - 1);
+      if (last >= 0xd800 && last <= 0xdbff) full = full.slice(0, -1);
       if (!full.startsWith(seen)) {
         seen = "";
         buf = "";

@@ -88,3 +88,18 @@ describe("createSentenceStream", () => {
     expect(normalized(whole.join(" "))).toBe(normalized(text));
   });
 });
+
+describe("code point lengths (server alignment)", () => {
+  const E = "\u{1F600}";
+  it("holds a lone high surrogate until its pair arrives, then counts it as one char", () => {
+    const text = "x".repeat(199) + E + "x".repeat(10);
+    const s = createSentenceStream();
+    const out = [...s.push(text.slice(0, 200)), ...s.push(text.slice(0, 201)), ...s.push(text), ...s.flush()];
+    expect(out).toEqual(["x".repeat(199) + E, "x".repeat(10)]);
+    for (const p of out) expect(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(p)).toBe(false);
+  });
+  it("never emits a lone surrogate even if the stream ends mid-pair", () => {
+    const s = createSentenceStream();
+    expect([...s.push("Hi there" + E.slice(0, 1)), ...s.flush()]).toEqual(["Hi there"]);
+  });
+});

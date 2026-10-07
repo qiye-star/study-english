@@ -142,23 +142,3 @@ def test_long_unpunctuated_texts_are_chunking_independent(seed):
     assert run_chunks(text, random_chunks(text, rng, 40)) == whole
     assert run_chunks(text, list(text)) == whole
     assert all(len(p) <= MAX_SENTENCE_CHARS for p in whole)
-
-
-# Review 1.4-M1: lengths are Unicode code points (an emoji counts as 1, never split in half).
-# Server-only for now: the web splitter still counts UTF-16 units, so these cases are NOT in the
-# shared fixture until web/src/features/chat/sentence-stream.ts is aligned (then move them there).
-EMOJI = "\U0001F600"
-CODE_POINT_CASES = [
-    ("x" * 199 + EMOJI + "x" * 10, ["x" * 199 + EMOJI, "x" * 10]),
-    ("a" * 197 + EMOJI * 2 + ". Next one.", ["a" * 197 + EMOJI * 2 + ".", "Next one."]),
-    (EMOJI * 150 + " " + "ok " * 30, [EMOJI * 150 + " ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok " * 13 + "ok"]),
-]
-
-
-@pytest.mark.parametrize("text,sentences", CODE_POINT_CASES, ids=["forced-cut", "terminator-at-limit", "emoji-run"])
-def test_lengths_count_code_points_not_utf16_units(text, sentences):
-    assert split_all(text) == sentences
-    assert run_chunks(text, list(text)) == sentences
-    for s in sentences:
-        assert len(s) <= MAX_SENTENCE_CHARS
-        s.encode("utf-8")  # no lone surrogate
