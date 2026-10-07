@@ -44,7 +44,7 @@ import { fromServerMessage, hasResultFooter, type UiMessage, type VoiceView } fr
 import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
-import { TurnResults } from "./turn-results";
+import { TurnResults, type TurnChange } from "./turn-results";
 import { useAutoSpeak } from "./use-auto-speak";
 import { useHints } from "./use-hints";
 import { useMessageTranslations } from "./use-message-translations";
@@ -252,12 +252,14 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const [call, setCall] = useState<{ context: AudioContext; voice: string } | null>(null);
   callActiveRef.current = !!call;
   const [reloadKey, setReloadKey] = useState(0);
-  /** 本次通话里每句话的语法检查(补写完成才 resolve);关闭通话后等它们结束再重新加载 */
-  const callGrammarRef = useRef<Promise<void>[]>([]);
   /** 本次通话里服务端保存了几句用户话语(0 句不必重新加载) */
   const callTurnsRef = useRef(0);
-  /** 语法补写结束时又开了一通电话:重新加载推迟到那通结束 */
-  const reloadAfterCallRef = useRef(false);
+  /**
+   * 通话里各句的语法检查(R14)。key 就是服务端消息 id:关闭通话后重新加载的气泡 key 也是这个 id(fromServerMessage),
+   * 所以晚到的结果直接补到重新加载的气泡上,不必等语法再加载。views 记下每句的最新结果,
+   * 结果落在"清空列表 → 加载完成"之间时由加载补上。独立于每次加载新建的 resultsRef:重新加载不影响它。
+   */
+  const callResultsRef = useRef<{ conversationId: string; results: TurnResults; views: Map<string, TurnChange> } | null>(null);
   const callAudioSupported = useMemo(() => !!(realtimeEnv?.capture ?? browserCaptureEnv()).createAudioContext, [realtimeEnv]);
   useEffect(() => {
     let alive = true;
@@ -282,9 +284,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     heldRef.current.clear();
     // 切换会话 / 通话后重新加载:没有通话在进行(切换时卸载对话框 = 挂断),上一通的统计作废
     setCall(null);
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    reloadAfterCallRef.current = false;
     setConversation(null);
     setSending(false);
     setMessages([]);
@@ -305,9 +305,16 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         if (!alive) return;
         knownTailRef.current = list.messages.at(-1)?.id ?? null;
         setConversation(c);
+        // 通话里各句晚到的语法结果(加载途中到达的那些也在这里补上)
+        const book = callResultsRef.current;
+        const views = book?.conversationId === id ? book.views : null;
         setMessages(list.messages
           .filter((m) => m.role !== "system")
-          .map(fromServerMessage));
+          .map(fromServerMessage)
+          .map((m) => {
+            const view = views?.get(m.key);
+            return view ? { ...m, ...view } : m;
+          }));
         const wanted = speakOpeningRef.current;
         if (wanted) {
           const visible = list.messages.filter((m) => m.role !== "system");
@@ -855,38 +862,45 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       toast.error(t("web.realtime.errors.unsupported"));
       return;
     }
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
     setCall({ context: audio.context, voice: voiceName });
   };
 
-  /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(复用 TurnResults,失败静默)。 */
+  /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(key = 消息 id,失败静默)。 */
   const onCallUserMessage = (messageId: string, text: string, context?: string) => {
     callTurnsRef.current += 1;
-    const results = resultsRef.current;
-    if (!results) return;
-    callGrammarRef.current.push(results.checkSaved(nextKey("call"), messageId, {
+    const conversationId = conversationRef.current?.id;
+    if (!conversationId) return;
+    let book = callResultsRef.current;
+    if (!book || book.conversationId !== conversationId) {
+      const views = new Map<string, TurnChange>();
+      book = {
+        conversationId,
+        views,
+        results: new TurnResults(api, (key, change) => {
+          views.set(key, { ...views.get(key), ...change });
+          patchByKey(key, change);
+        }),
+      };
+      callResultsRef.current = book;
+    }
+    void book.results.checkSaved(messageId, messageId, {
       text,
       // 第一句之前通话里还没有回复:用页面上(通话前)最后一条回复
       grammar: { enabled: optionsRef.current.grammarCheck, context: context ?? lastAssistantText(messagesRef.current) },
-    }));
+    });
   };
 
-  /** 关闭通话界面(挂断或看完结束原因)。等语法补写结束再重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13)。 */
+  /**
+   * 关闭通话界面(挂断或看完结束原因)。有保存的话语就立即重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13);
+   * 不等语法检查:晚到的结果按消息 id 补到重新加载的气泡上。开始通话时已确保没有未发送的本地状态(I-3),
+   * 通话期间页面是 inert 的,所以这次重新加载不会丢掉、也不会 abandonOpen 任何未保存的轮次。
+   */
   const closeCall = () => {
     setCall(null);
-    const pending = callGrammarRef.current;
     const turns = callTurnsRef.current;
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    if (!turns && !reloadAfterCallRef.current) return;
-    reloadAfterCallRef.current = false;
-    const gen = genRef.current;
-    void Promise.allSettled(pending).then(() => {
-      if (!mountedRef.current || genRef.current !== gen) return; // 已切换会话/卸载
-      if (callActiveRef.current) reloadAfterCallRef.current = true; // 又开了一通:那通结束再加载
-      else setReloadKey((k) => k + 1);
-    });
+    if (turns) setReloadKey((k) => k + 1);
   };
 
   const recording = voice.state === "recording" || voice.state === "starting";
@@ -919,7 +933,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
               footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
                   <PronunciationBadge view={m.assessment} transcript={m.content} onOpen={() => setDetailKey(m.key)} />
-                  <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />
+                  <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => {
+                    resultsRef.current?.retryGrammar(m.key);
+                    callResultsRef.current?.results.retryGrammar(m.key); // 通话里的一句(key = 消息 id)
+                  }} />
                 </div>
               ) : null}
               actions={

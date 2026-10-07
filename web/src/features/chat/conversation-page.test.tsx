@@ -3412,25 +3412,31 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(ws.texts()[0]).toMatchObject({ voice: "en_female_vivi" });
   });
 
-  it("checks the grammar of each call turn, patches it onto the saved message, shows the end reason and reloads after closing", async () => {
-    const c = callEnv();
-    const grammar = gate();
-    let loads = 0;
-    const { mock } = setupCall(callRoutes({
-      "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1
-        ? [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" }]
-        : [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" },
-          { id: "cm1", conversation_id: "c1", role: "user", content: "She don't like coffee.", grammar: WRONG },
-          { id: "cm2", conversation_id: "c1", role: "assistant", content: "Oh, what does she like?" }] }),
-      "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
-      "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
-    }), c.env);
-    const ws = await connect(c);
+  /** 通话后第二次加载起返回通话里保存的两条消息(cm1 不带语法:语法结果晚到,由页面补到重新加载的气泡上) */
+  const AFTER_CALL = [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" },
+    { id: "cm1", conversation_id: "c1", role: "user", content: "She don't like coffee." },
+    { id: "cm2", conversation_id: "c1", role: "assistant", content: "Oh, what does she like?" }];
+  const BEFORE_CALL = [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" }];
+  /** 通话里说一句并收到回复(服务端已保存 cm1/cm2) */
+  async function oneCallTurn(ws: CallSocket) {
     await act(async () => {
       ws.server({ type: "transcript_final", text: "She don't like coffee.", message_id: "cm1" });
       ws.server({ type: "reply_delta", turn_id: 1, text: "Oh, what does she like?" });
       ws.server({ type: "reply_done", turn_id: 1, message_id: "cm2", interrupted: false });
     });
+  }
+
+  it("checks the grammar of each call turn, shows the end reason, reloads as soon as the call closes and patches the late result onto the reloaded message", async () => {
+    const c = callEnv();
+    const grammar = gate();
+    let loads = 0;
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : AFTER_CALL }),
+      "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
+      "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+    }), c.env);
+    const ws = await connect(c);
+    await oneCallTurn(ws);
     await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
     // 第一句之前通话里还没有回复:用页面上最后一条回复作上下文
     expect(bodyOf(callsTo(mock, "POST", "/api/ai/grammar")[0])).toEqual({ text: "She don't like coffee.", context: "Earlier **reply**" });
@@ -3439,17 +3445,64 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(c.stream.track.stop).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByTestId("call-close"));
     expect(screen.queryByTestId("call-screen")).toBeNull();
-    // 语法结果还没补写:先不重新加载(否则复盘/进度看不到它)
-    await act(async () => {});
-    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
-    await act(async () => { grammar.release(); });
-    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
-    expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/cm1")[0]).grammar).toMatchObject({ has_errors: true });
+    // 不等语法:关闭即重新加载(之后用户做的事不会被晚到的重新加载抹掉)
     await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
     expect(await screen.findByText("Oh, what does she like?")).toBeInTheDocument();
     expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("She don't like coffee.");
+    expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "pending");
+    await act(async () => { grammar.release(); });
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+    expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/cm1")[0]).grammar).toMatchObject({ has_errors: true });
+    // 晚到的结果按服务端消息 id 补到重新加载的气泡上
     await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
     expect(c.ctx.close).not.toHaveBeenCalled();
+  });
+
+  it("a grammar result that lands while the post-call reload is still loading is applied to the loaded message", async () => {
+    const c = callEnv();
+    const grammar = gate();
+    const reload = gate();
+    let loads = 0;
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c1/messages": async () => {
+        if (++loads === 1) return json({ messages: BEFORE_CALL });
+        await reload.promise;
+        return json({ messages: AFTER_CALL });
+      },
+      "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
+      "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+    }), c.env);
+    const ws = await connect(c);
+    await oneCallTurn(ws);
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+    await userEvent.click(screen.getByTestId("call-hangup"));
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+    await act(async () => { grammar.release(); });
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+    await act(async () => { reload.release(); });
+    expect(await screen.findByText("Oh, what does she like?")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+  });
+
+  it("a call turn whose grammar check failed can be retried from the reloaded message", async () => {
+    const c = callEnv();
+    let attempts = 0;
+    let loads = 0;
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : AFTER_CALL }),
+      "POST /api/ai/grammar": () => (++attempts === 1 ? json({ error: "Upstream unavailable" }, 502) : json(WRONG)),
+      "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+    }), c.env);
+    const ws = await connect(c);
+    await oneCallTurn(ws);
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+    await userEvent.click(screen.getByTestId("call-hangup"));
+    await screen.findByText("Oh, what does she like?");
+    await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "error"));
+    await userEvent.click(screen.getByTestId("badge-grammar"));
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+    await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
   });
 
   it("skips grammar checks when the conversation turns them off, but still reloads after the call", async () => {
@@ -3575,6 +3628,97 @@ describe("realtime call (plan 2026-10-07)", () => {
       await userEvent.click(screen.getByTestId("message-retry"));
       await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
       await connect(c);
+    });
+
+    it("a message typed and sent right after closing a call keeps its reply and its save when the call's grammar check finishes", async () => {
+      const c = callEnv();
+      const grammar = gate();
+      const reply = gate();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : AFTER_CALL }),
+        "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
+        "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+        "POST /api/ai/chat/completions": () => {
+          const enc = new TextEncoder();
+          return new Response(new ReadableStream({
+            async start(ctl) { ctl.enqueue(enc.encode(delta("You are "))); await reply.promise; ctl.enqueue(enc.encode(delta("welcome") + DONE_EVENT)); ctl.close(); },
+          }), { headers: { "Content-Type": "text/event-stream" } });
+        },
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m5" }, { id: "m6" }] }),
+      }), c.env);
+      const ws = await connect(c);
+      await oneCallTurn(ws);
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await screen.findByText("Oh, what does she like?");
+      await waitFor(() => expect(screen.getByTestId("chat-input")).toBeEnabled());
+      await userEvent.type(screen.getByTestId("chat-input"), "Thanks");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("You are"));
+      // 通话那句的语法结果在回复流式途中到达:不得触发重新加载(那会中止回复、丢掉保存)
+      await act(async () => { grammar.release(); });
+      await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+      await act(async () => { reply.release(); });
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+      expect(bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[0]).messages.map((m: { content: string }) => m.content))
+        .toEqual(["Thanks", "You are welcome"]);
+      expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("Thanks");
+      expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("You are welcome");
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
+    });
+
+    it("a hold recording started after closing a call is not cancelled when the call's grammar check finishes", async () => {
+      const c = callEnv();
+      const fake = createFakeRecorderEnv();
+      const grammar = gate();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : AFTER_CALL }),
+        "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
+        "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+      }), c.env, { recorderEnv: fake.env });
+      const ws = await connect(c);
+      await oneCallTurn(ws);
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await screen.findByText("Oh, what does she like?");
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+      await startRecording();
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+      await act(async () => { grammar.release(); });
+      await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+      await act(async () => {});
+      expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
+      expect(fake.track.stop).not.toHaveBeenCalled();
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
+    });
+
+    it("never deletes a recording around a call: a voice turn still being scored when the call starts is linked to its message after the reload", async () => {
+      const c = callEnv();
+      const assessment = gate();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : AFTER_CALL }),
+        "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+        "POST /api/speech/assessments": async () => { await assessment.promise; return json(ASSESSED); },
+        "POST /api/ai/chat/completions": () => sse([delta("Me too!"), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+        "PATCH /api/messages/m1": () => json({ id: "m1" }),
+        "DELETE /api/assessments/a1": () => json({ id: "a1" }),
+      }), c.env, { recorderEnv: createFakeRecorderEnv().env });
+      await screen.findByText("reply");
+      await recordAndSend();
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+      const ws = await connect(c);
+      await oneCallTurn(ws);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+      await act(async () => { assessment.release(); });
+      await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/m1")).toHaveLength(1));
+      expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/m1")[0])).toEqual({ assessment_id: "a1" });
+      expect(deletes(mock)).toHaveLength(0);
     });
   });
 
