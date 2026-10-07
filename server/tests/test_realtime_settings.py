@@ -56,3 +56,13 @@ def test_realtime_available_needs_every_upstream():
 def test_limits_are_bounded(field, value):
     with pytest.raises(ValidationError):
         make_settings(**{field: value})
+
+
+def test_realtime_available_matches_the_recognizer_corners():
+    # whisper URL in chat mode without a model is not a usable transcription path (review 4.1-m2 case 1)
+    assert make_settings(**VOLC, realtime_enabled=True, upstream_whisper_mode="chat").realtime_available is False
+    assert make_settings(**VOLC, realtime_enabled=True, upstream_whisper_mode="chat",
+                         upstream_whisper_model="m").realtime_available is True
+    # stream recognition alone is enough, whatever the upload path (case 2)
+    assert make_settings(**VOLC, realtime_enabled=True, realtime_asr_mode="stream",
+                         upstream_whisper_base_url="").realtime_available is True

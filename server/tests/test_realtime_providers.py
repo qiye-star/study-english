@@ -378,6 +378,28 @@ async def test_config_endpoint_and_recognizers_agree(fake_stream, realtime_mode,
         assert isinstance(recognizer, BufferedRecognizer) and not fake_stream.calls
 
 
+@pytest.mark.parametrize("realtime_mode,upstream_mode,asr_key,whisper,whisper_mode,whisper_model", list(itertools.product(
+    ["buffered", "stream"], ["chat", "volc_stream"], ["", "asr-k"], ["", "https://whisper.test/v1"],
+    ["openai", "chat"], ["", "whisper-1"],
+)))
+async def test_realtime_available_iff_a_recognizer_can_be_built(
+        fake_stream, realtime_mode, upstream_mode, asr_key, whisper, whisper_mode, whisper_model):
+    # Review 4.1-m2: `realtime_available` (config + ticket endpoints) must agree with `make_recognizers`
+    # when every other upstream is configured — no "enabled but every call fails" or "disabled but works".
+    settings = make_settings(
+        realtime_enabled=True, volcengine_tts_key="tts-k", tts_models="openai/tts-1,volcengine/seed-tts-2.0",
+        realtime_asr_mode=realtime_mode, upstream_asr_mode=upstream_mode, volcengine_asr_key=asr_key,
+        upstream_whisper_base_url=whisper, upstream_whisper_mode=whisper_mode, upstream_whisper_model=whisper_model,
+    )
+    try:
+        make_recognizers(None, settings, "1")
+        buildable = True
+    except AsrError as e:
+        assert e.kind == "config"
+        buildable = False
+    assert settings.realtime_available == buildable
+
+
 async def test_real_stream_factory_open_failure_raises_for_the_session_to_degrade(monkeypatch):
     # The real `volc_stream_factory` (R21): a failed open raises AsrError, which the session turns into
     # `degraded` + the buffered fallback (R3, covered in test_realtime_session).
