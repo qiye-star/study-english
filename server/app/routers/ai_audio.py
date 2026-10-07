@@ -5,7 +5,7 @@ import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 
@@ -14,9 +14,10 @@ from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import get_settings, limited_user
 from app.models import User
+from app.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
 from app.timing import Stopwatch, log_timing
 from app.upstream import check_upstream_auth
-from app.volcengine import VolcengineError, synthesize as volcengine_synthesize
+from app.volcengine import VolcengineError, synthesize as volcengine_synthesize, synthesize_stream
 from app.uploads import parse_buffered_form, read_limited_body
 
 router = APIRouter(prefix="/api/ai")
@@ -30,10 +31,6 @@ MAX_AUDIO_BYTES = 25 * 1024 * 1024
 # the upstream's 25 MB limit whether that means MB or MiB.
 MAX_CHAT_AUDIO_BYTES = 18_000_000
 MULTIPART_OVERHEAD = 64 * 1024
-CHAT_PROMPT = (
-    "Transcribe the audio verbatim in its original language. "
-    "Output only the transcript text, without any extra words, quotes or timestamps."
-)
 
 
 class SpeechIn(BaseModel):
@@ -41,6 +38,7 @@ class SpeechIn(BaseModel):
     model: str
     voice: str = "alloy"
     response_format: str | None = None
+    stream: bool = False
 
 
 @router.post("/audio/speech")
@@ -74,8 +72,51 @@ async def speech(
             raise HTTPException(400, "Invalid voice")
         if not settings.volcengine_tts_key:
             raise HTTPException(503, "Volcengine TTS is not configured")
-        watch = Stopwatch()
         chars = len(payload.input)
+        if payload.stream:
+            watch = Stopwatch()
+            chunks = synthesize_stream(
+                request.app.state.http,
+                settings.volcengine_tts_url,
+                settings.volcengine_tts_key,
+                model.removeprefix("volcengine/"),
+                payload.input,
+                payload.voice,
+                str(user.id),
+            )
+            try:
+                first = await anext(chunks)
+            except VolcengineError as e:
+                await chunks.aclose()
+                log_timing("tts_volcengine", ms=watch.ms(), chars=chars, stream=True, status=0)
+                raise HTTPException(
+                    502, "Upstream authentication failed" if e.kind == "auth" else "Upstream unavailable"
+                )
+            except BaseException:
+                await chunks.aclose()
+                raise
+            log_timing("tts_volcengine_first_chunk", ms=watch.ms(), chars=chars)
+
+            async def body():
+                status = 200
+                try:
+                    yield first
+                    async for chunk in chunks:
+                        yield chunk
+                except VolcengineError:
+                    status = 0
+                    logger.warning("Volcengine TTS stream truncated")
+                finally:
+                    # Also runs when the client disconnects (generator closed/cancelled),
+                    # which closes the upstream httpx response.
+                    await chunks.aclose()
+                    log_timing("tts_volcengine", ms=watch.ms(), chars=chars, stream=True, status=status)
+
+            return StreamingResponse(
+                body(), media_type="audio/mpeg",
+                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+            )
+        watch = Stopwatch()
         try:
             audio = await volcengine_synthesize(
                 request.app.state.http,
@@ -275,16 +316,6 @@ def _audio_format(data: bytes) -> str:
     raise HTTPException(400, "Unsupported audio format (wav or mp3)")
 
 
-def _extract_text(response: httpx.Response) -> str:
-    try:
-        text = response.json()["choices"][0]["message"]["content"]
-    except (ValueError, KeyError, IndexError, TypeError):
-        raise HTTPException(502, "Upstream unavailable")
-    if not isinstance(text, str) or not text.strip():
-        raise HTTPException(502, "Upstream unavailable")
-    return text.strip()
-
-
 async def _chat_transcription(request: Request, settings: Settings) -> Response:
     if not settings.upstream_whisper_base_url or not settings.upstream_whisper_model:
         raise HTTPException(503, "Whisper upstream is not configured")
@@ -303,47 +334,7 @@ async def _chat_from_audio(
     if len(audio) > MAX_CHAT_AUDIO_BYTES:
         raise HTTPException(413, "Audio file is too large")
     fmt = _audio_format(audio)
-    watch = Stopwatch()
-
-    prompt = CHAT_PROMPT
-    if isinstance(language, str):
-        primary = language.strip().replace("_", "-").split("-")[0].lower()
-        if primary.isalpha() and len(primary) <= 8:
-            prompt += f" The audio language is {primary}."
-
-    http: httpx.AsyncClient = request.app.state.http
-    try:
-        upstream = await http.post(
-            settings.upstream_whisper_base_url.rstrip("/") + "/chat/completions",
-            json={
-                "model": settings.upstream_whisper_model,
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_audio",
-                                "input_audio": {
-                                    "data": base64.b64encode(audio).decode("ascii"),
-                                    "format": fmt,
-                                },
-                            },
-                            {"type": "text", "text": prompt},
-                        ],
-                    }
-                ],
-            },
-            headers={"Authorization": f"Bearer {settings.upstream_whisper_key}"},
-            timeout=httpx.Timeout(300.0, connect=10.0),
-        )
-    except httpx.HTTPError:
-        log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=0)
-        raise HTTPException(502, "Upstream unavailable")
-    log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=upstream.status_code)
-    check_upstream_auth(upstream.status_code)
-    if not upstream.is_success:
-        raise HTTPException(502, "Upstream unavailable")
-    text = _extract_text(upstream)
-    logger.info("asr chat ok ms=%d bytes=%d", watch.ms(), len(audio))
+    text = await transcribe_chat(
+        request.app.state.http, settings, audio, fmt, language if isinstance(language, str) else None
+    )
     return JSONResponse({"text": text, "segments": []})
