@@ -1,5 +1,5 @@
 import { LoaderIcon, MicIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
@@ -28,6 +28,19 @@ export function HoldToTalkButton({ voiceState, disabled, onStart, onFinish, onDi
   }, [voiceState, model.micReady, model.state, dispatch]);
 
   const now = () => performance.now();
+  // 只认按下时捕获的那根手指:第二根手指落在按钮上不能移动或结束这次按住
+  const pointer = useRef<number | null>(null);
+  const mine = (e: { pointerId: number }) => pointer.current === null || e.pointerId === pointer.current;
+  useEffect(() => {
+    if (model.state === "idle" || model.state === "keyboard") pointer.current = null;
+  }, [model.state]);
+
+  // 读屏播报:live region 始终挂载,内容随状态/上滑区域变化
+  const announcement =
+    model.state === "armed-cancel" ? t("web.chat.hold.releaseToCancel")
+      : model.state === "armed-text" ? t("web.chat.hold.releaseToText")
+        : model.state === "recording" ? t("web.chat.hold.slideHint")
+          : "";
   return (
     <>
       <Button type="button" data-testid="chat-mic" data-hold-to-talk="" data-state={voiceState} data-hold={model.state}
@@ -39,17 +52,24 @@ export function HoldToTalkButton({ voiceState, disabled, onStart, onFinish, onDi
         onPointerDown={(e) => {
           if (disabled || e.button > 0) return;
           e.preventDefault();
+          if (model.state !== "idle") return; // 已经在按住(或键盘录音):别的手指不算
+          pointer.current = e.pointerId;
           try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 部分环境不支持 */ }
           dispatch({ type: "down", x: e.clientX ?? 0, y: e.clientY ?? 0, t: now(), width: window.innerWidth });
         }}
-        onPointerMove={(e) => dispatch({ type: "move", x: e.clientX ?? 0, y: e.clientY ?? 0 })}
-        onPointerUp={() => {
-          if (model.state === "idle" || model.state === "keyboard") return;
+        onPointerMove={(e) => { if (mine(e)) dispatch({ type: "move", x: e.clientX ?? 0, y: e.clientY ?? 0 }); }}
+        onPointerUp={(e) => {
+          if (model.state === "idle" || model.state === "keyboard" || !mine(e)) return;
           onRelease();
           dispatch({ type: "up", t: now() });
         }}
-        onPointerCancel={() => dispatch({ type: "cancel" })}
-        onLostPointerCapture={() => { if (model.state !== "idle" && model.state !== "keyboard") dispatch({ type: "cancel" }); }}
+        onPointerCancel={(e) => { if (mine(e)) dispatch({ type: "cancel" }); }}
+        onLostPointerCapture={(e) => { if (model.state !== "idle" && model.state !== "keyboard" && mine(e)) dispatch({ type: "cancel" }); }}
+        onBlur={() => {
+          // 键盘录音时焦点移到别处(Tab 走开):丢弃,不让麦克风开着等 60 秒。
+          // 整个窗口失焦(权限弹窗、切换应用)不算:那时 document.hasFocus() 为 false
+          if (model.state === "keyboard" && document.hasFocus()) dispatch({ type: "cancel" });
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") { dispatch({ type: "escape" }); return; }
           if ((e.key === " " || e.key === "Enter") && !e.repeat) {
@@ -61,8 +81,9 @@ export function HoldToTalkButton({ voiceState, disabled, onStart, onFinish, onDi
         }}>
         {voiceState === "processing" ? <LoaderIcon className="h-5 w-5 animate-spin" /> : <MicIcon className="h-5 w-5" />}
       </Button>
+      <span data-testid="hold-status" role="status" className="sr-only">{announcement}</span>
       {holding && (
-        <div data-testid="hold-overlay" role="status" className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex flex-col items-center gap-2 px-4">
+        <div data-testid="hold-overlay" aria-hidden="true" className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex flex-col items-center gap-2 px-4">
           <span className="rounded-full bg-black/70 px-3 py-1 text-sm text-white">{t("web.chat.hold.slideHint")}</span>
           <div className="flex w-full gap-2">
             <div data-testid="hold-zone-cancel" data-active={String(model.state === "armed-cancel")}
