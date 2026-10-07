@@ -153,9 +153,27 @@ async def test_volcengine_voice_counts(client):
     assert len(voices) == 158
     langs = {}
     for v in voices:
-        assert set(v) == {"label", "value", "language"}
+        assert set(v) == {"label", "value", "language", "accent"}
         langs[v["language"]] = langs.get(v["language"], 0) + 1
     assert langs == {"zh-CN": 90, "en-US": 64, "en-GB": 4}
+
+
+async def test_volcengine_voice_accent(client):
+    voices = await _volc_voices(client)
+    accents = {}
+    for v in voices:
+        accents.setdefault(v["accent"], []).append(v["language"])
+    assert {k: len(x) for k, x in accents.items()} == {"other": 90, "us": 64, "gb": 4}
+    assert set(accents["us"]) == {"en-US"} and set(accents["gb"]) == {"en-GB"}
+
+
+def test_derive_accent():
+    d = config_api.derive_accent
+    assert d("en-US", "x") == "us"
+    assert d("en-GB", "x") == "gb"
+    assert d("en-AU", "x") == "other"
+    assert d("en-US", "en_female_authoritative-british_uranus_bigtts") == "gb"
+    assert d("zh-CN", "zh_female_vv_uranus_bigtts") == "other"
 
 
 async def test_volcengine_voice_values(client):

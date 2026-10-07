@@ -28,6 +28,16 @@ class VoiceListError(RuntimeError):
     pass
 
 
+def derive_accent(language: str, value: str) -> str:
+    """"us" / "gb" from the language tag (or a "british" voice id); everything else is "other"."""
+    lang = language.lower()
+    if lang == "en-gb" or "british" in value.lower():
+        return "gb"
+    if lang == "en-us":
+        return "us"
+    return "other"
+
+
 def load_volcengine_voices(path: Path = VOLCENGINE_VOICES_FILE) -> list[dict]:
     """Read and validate rows of [name, voice_type, language, "M"|"F"] into client voice dicts."""
     try:
@@ -50,7 +60,7 @@ def load_volcengine_voices(path: Path = VOLCENGINE_VOICES_FILE) -> list[dict]:
             raise VoiceListError(f"Invalid {path.name}: duplicate voice {value}")
         seen.add(value)
         label = f"{name} ({'Male' if gender == 'M' else 'Female'})"
-        voices.append({"label": label, "value": value, "language": language})
+        voices.append({"label": label, "value": value, "language": language, "accent": derive_accent(language, value)})
     return voices
 
 
