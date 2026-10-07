@@ -92,7 +92,7 @@ describe("loadSileroSource (plan R18/R32)", () => {
     expect(VAD_ACCEPTS_EXTERNAL_CONTEXT).toBe(true);
     expect(o.audioContext).toBe(context);
     expect(o.model).toBe("v5");
-    expect(__VAD_ASSET_BASE__).toMatch(/^\/vad\/\d+\.\d+\.\d+\/$/);
+    expect(__VAD_ASSET_BASE__).toMatch(/^\/vad\/\d+\.\d+\.\d+-ort\d+\.\d+\.\d+\/$/); // 两个包的版本都在路径里(review W2 I3)
     expect(o.baseAssetPath).toBe(__VAD_ASSET_BASE__);
     expect(o.onnxWASMBasePath).toBe(__VAD_ASSET_BASE__);
     expect(o.startOnLoad).toBe(false);

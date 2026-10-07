@@ -139,6 +139,15 @@ describe("VAD assets (plan 2026-10-07 R18)", () => {
     await second.respondWith.mock.calls[0][0];
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it("caches the vad-web + onnxruntime-web versioned directory, and a new version is a new cache entry (review W2 I3)", async () => {
+    const { listeners, fetchMock } = load();
+    for (const url of ["https://app.test/vad/0.0.31-ort1.30.0/ort-wasm-simd-threaded.wasm", "https://app.test/vad/0.0.31-ort1.31.0/ort-wasm-simd-threaded.wasm"]) {
+      const event = fetchEvent(url);
+      listeners.fetch(event);
+      await event.respondWith.mock.calls[0][0];
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("still ignores other same-origin paths", () => {
     const { listeners } = load();
     const event = fetchEvent("https://app.test/vadx/a.js");
