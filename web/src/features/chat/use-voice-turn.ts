@@ -237,13 +237,15 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
   }, [startRecorder]);
 
   const stop = useCallback(async (deliver: VoiceDeliver = "send") => {
-    if (!mounted.current || stopping.current || recorderState.current !== "recording") return;
+    if (!mounted.current || stopping.current) return;
     if (deliver === "discard") {
-      // 丢弃:释放麦克风,不留草稿、不上传、不计时
+      // 丢弃:释放麦克风,不留草稿、不上传、不计时。starting(权限弹窗还开着)也要处理:
+      // useRecorder.cancel() 会在麦克风到手后立刻释放;不看 recorderState(同一事件里它可能还没更新),cancel 本身幂等
       generation.current += 1;
       cancelRecorder();
       return;
     }
+    if (recorderState.current !== "recording") return;
     const gen = generation.current;
     stopping.current = true;
     const turn = startLatencyTrace("voice");

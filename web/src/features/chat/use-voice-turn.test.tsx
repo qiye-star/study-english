@@ -241,6 +241,42 @@ describe("useVoiceTurn", () => {
       expect(t.events).toEqual([]);
     });
 
+    it("stop('discard') while starting (permission prompt open) releases the mic once it arrives", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: unknown } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      act(() => { started = t.result.current.start(); });
+      expect(t.result.current.state).toBe("starting");
+      await act(async () => { await t.result.current.stop("discard"); });
+      await act(async () => { mic.resolve(); await started; });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+      expect(t.events).toEqual([]);
+      expect(t.mock.calls).toHaveLength(0);
+    });
+
+    it("stop('discard') right after start(), before React re-rendered, still releases the mic", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: unknown } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      await act(async () => {
+        started = t.result.current.start();
+        await t.result.current.stop("discard"); // 同一个事件里:recorderState 还没更新
+        mic.resolve();
+        await started;
+      });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+    });
+
     it("cancel while transcribing aborts the request, discards the draft and reports nothing as transcribed", async () => {
       const gate = deferred<void>();
       const t = setup(async () => { await gate.promise; return json({ text: "late" }); });
