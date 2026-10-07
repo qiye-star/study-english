@@ -16,8 +16,8 @@ def test_defaults_are_conservative():
     assert (s.realtime_max_minutes, s.realtime_idle_timeout_seconds) == (10, 60)
     assert (s.realtime_max_sessions, s.realtime_ticket_ttl_seconds) == (5, 60)
     assert s.stt_max_tokens == 512
-    assert s.stt_disable_thinking is True
-    assert s.realtime_llm_disable_thinking is True
+    assert s.stt_disable_thinking == "auto"
+    assert s.realtime_llm_disable_thinking == "auto"
     assert s.realtime_tts_sample_rate == 24000
     assert s.realtime_tts_model == "volcengine/seed-tts-2.0"
     assert s.realtime_asr_mode == "buffered"

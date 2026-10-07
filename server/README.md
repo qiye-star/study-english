@@ -158,7 +158,7 @@ VOLCENGINE_ASR_KEY=
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `STT_MAX_TOKENS` | `512` | `chat` 模式识别(`UPSTREAM_WHISPER_MODE=chat`,含 `volc_stream` 失败后的回退)的输出长度上限,只作异常输出封顶 |
-| `STT_DISABLE_THINKING` | `true` | 向方舟识别请求加 `thinking: {"type": "disabled"}`。2026-10-07 spike 中 `doubao-seed-2-0-lite-260428` 接受该参数;若你换了模型而上游返回 4xx,设为 `false` |
+| `STT_DISABLE_THINKING` | `auto` | 是否向识别请求加 `thinking: {"type": "disabled"}`:`auto` 只在 `UPSTREAM_WHISPER_BASE_URL` 的主机是 `volces.com`(含子域,方舟)时发送;`true` 总是发送;`false` 从不发送(大小写不敏感,旧的 `1/0/yes/no` 也认,无法识别按 `auto`)。2026-10-07 spike 中 `doubao-seed-2-0-lite-260428` 接受该参数;换了模型而上游返回 4xx 时设为 `false` |
 | `UPSTREAM_ASR_MODE` | `chat` | 上传识别:`chat`(默认)或 `volc_stream`(火山流式识别,见上文);**语音消息(上传)始终走 `/api/ai/audio/transcriptions`**,通话识别另由 `REALTIME_ASR_MODE` 决定 |
 | `ASR_STREAM_URL` | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream` | 上传识别用的火山流式识别地址(`volc_stream` 模式) |
 | `ASR_STREAM_RESOURCE_ID` | `volc.bigasr.sauc.duration` | 同上,资源 ID(通话识别也用它) |
@@ -174,7 +174,7 @@ VOLCENGINE_ASR_KEY=
 | `REALTIME_TICKET_TTL_SECONDS` | `60`(10–300) | 一次性票据有效期 |
 | `REALTIME_TTS_MODEL` | `volcengine/seed-tts-2.0` | 通话的逐句合成模型;必须是火山模型,且在 `TTS_MODELS` 里 |
 | `REALTIME_TTS_SAMPLE_RATE` | `24000` | 通话下行 PCM 采样率(请求火山 `pcm` 输出)。24000 由 spike 时长推算,**听感核对未做**,未排除 22050 |
-| `REALTIME_LLM_DISABLE_THINKING` | `true` | 通话的 LLM 请求加 `thinking: {"type": "disabled"}`。2026-10-07 真实上游各测一次:`deepseek-v4-flash-vision-exp` 与 `deepseek-v4-pro` 都返回 200;不加时两者都先输出 89–116 个推理 token(首个文字 1.4–1.9 s),加上后推理 token 为 0、首个文字 0.5–1.0 s。推理 token 也计入通话的 `max_tokens`(≤ 600)。换了模型而上游返回 4xx 时设为 `false`;这时请选不默认推理的模型 |
+| `REALTIME_LLM_DISABLE_THINKING` | `auto` | 通话的 LLM 请求是否加 `thinking: {"type": "disabled"}`:`auto` 只在 `UPSTREAM_LLM_BASE_URL` 的主机是 `deepseek.com` 或 `volces.com`(含子域,不含相似域名)时发送;`true` 总是发送;`false` 从不发送(大小写不敏感,旧的 `1/0/yes/no` 也认,无法识别按 `auto`)。OpenAI、Azure 等会对未知参数返回 HTTP 400,所以 `auto` 不向它们发送。2026-10-07 真实上游各测一次:`deepseek-v4-flash-vision-exp` 与 `deepseek-v4-pro` 都返回 200;不加时两者都先输出 89–116 个推理 token(首个文字 1.4–1.9 s),加上后推理 token 为 0、首个文字 0.5–1.0 s。推理 token 也计入通话的 `max_tokens`(≤ 600)。经由自建网关转发 DeepSeek/方舟时主机不匹配,需显式设为 `true` |
 | `LOG_LEVEL` | `INFO` | `app.*` 日志级别。下面的耗时日志是 INFO 级,设为 `WARNING` 会看不到。该项不在 `.env.example` 里,需要时自己加 |
 
 `GET /api/realtime/config` 的 `enabled` 为真需要同时满足:`REALTIME_ENABLED=true`、已配置 `VOLCENGINE_TTS_KEY`、`REALTIME_TTS_MODEL` 在 `TTS_MODELS` 中、已配置 LLM 上游、至少一条识别路径可用(流式密钥,或 chat/Whisper 回退)。
@@ -267,7 +267,7 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - 手机网页版对话的**自动朗读默认开启**:每条新回复(以及场景开场白)各调用一次 TTS(见下条:按句朗读后变为每句一次);"不会说?"提示与复盘总结各调用一次 LLM(只在用户点击时)。按用户限流 `AI_RATE_LIMIT_PER_MINUTE` 同样覆盖 `/api/stats`。
 - 按句朗读:网页端回复流到第一句结束就开始合成,最多预取 2 句,**自动朗读的 TTS 调用数从"每条回复一次"变为"每句一次"**(以句子文本为缓存键,相同句子不重复请求);手动点"朗读"仍按整条文本合成,多一次调用。
 - 实时通话:每一轮 = 识别 ×1 + LLM ×1(流式,`max_tokens` ≤ 600)+ 每句 TTS ×1 + 讯飞评测 ×1(异步,录音计入配额);每用户并发 1 路、全局 `REALTIME_MAX_SESSIONS` 路、单次最长 `REALTIME_MAX_MINUTES` 分钟、静音 `REALTIME_IDLE_TIMEOUT_SECONDS` 秒自动挂断;每一轮计入 `AI_RATE_LIMIT_PER_MINUTE`。`REALTIME_ASR_MODE=stream` 按连接时长计费,**单价未知**,所以默认关闭并设上限;通话录音一律保存,配额消耗比语音消息更快。
-- 语音消息识别:`STT_DISABLE_THINKING=true` 与 `STT_MAX_TOKENS` 减少方舟输出;`UPSTREAM_ASR_MODE=volc_stream` 改走火山流式识别(另有计费,单价未知)。客户端判定没有前景语音的录音不会上传,不产生识别调用。
+- 语音消息识别:`STT_DISABLE_THINKING`(方舟上游 `auto` 即生效)与 `STT_MAX_TOKENS` 减少方舟输出;`UPSTREAM_ASR_MODE=volc_stream` 改走火山流式识别(另有计费,单价未知)。客户端判定没有前景语音的录音不会上传,不产生识别调用。
 
 ## 必须使用 HTTPS
 

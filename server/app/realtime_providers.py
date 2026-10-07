@@ -3,7 +3,7 @@ recognizer selection and message storage. They implement the types of `app.realt
 
 - LLM: OpenAI-compatible streaming chat completions (DeepSeek etc.) through the existing
   `UPSTREAM_LLM_*` settings; the model must be in `LLM_MODELS` (else the default),
-  `max_tokens = min(LLM_MAX_TOKENS, 600)`, `thinking: disabled` unless `REALTIME_LLM_DISABLE_THINKING=false`. Any non-200, network error, error event or truncated
+  `max_tokens = min(LLM_MAX_TOKENS, 600)`, `thinking: disabled` per `REALTIME_LLM_DISABLE_THINKING` (auto: only deepseek.com / volces.com upstreams). Any non-200, network error, error event or truncated
   stream → `LlmError`; a reply with no content at all → `LlmError("empty")`. Reading stops at the first
   `finish_reason`; `length` (cut at the cap) ends normally with a numbers-only warning.
 - TTS: Volcengine `synthesize_stream` as raw PCM16LE at `REALTIME_TTS_SAMPLE_RATE`; chunks are
@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from app.asr import AsrError, RecognizerFactory, realtime_factory
 from app.asr_realtime import volc_stream_factory
 from app.asr_stream import AsrGate
-from app.config import Settings
+from app.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.models import Conversation, Message, utcnow
 from app.realtime_asr import RealtimeAsr, effective_realtime_asr
 from app.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream
@@ -59,7 +59,8 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
         url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {settings.upstream_llm_key}", "Content-Type": "application/json"}
         body = {"model": chosen, "messages": messages, "temperature": temperature, "stream": True, "max_tokens": max_tokens}
-        if settings.realtime_llm_disable_thinking:
+        if send_thinking_param(settings.realtime_llm_disable_thinking, settings.upstream_llm_base_url,
+                               LLM_THINKING_HOST_SUFFIXES):
             body["thinking"] = {"type": "disabled"}  # reasoning would delay the first word and eat max_tokens
         try:
             response = await http.send(

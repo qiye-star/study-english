@@ -13,6 +13,7 @@ WHISPER = "https://whisper.test/v1/audio/transcriptions"
 CHAT = {
     "upstream_whisper_mode": "chat",
     "upstream_whisper_base_url": "https://ark.test/api/v3",
+    "stt_disable_thinking": "true",
     "upstream_whisper_key": "ark-secret",
     "upstream_whisper_model": "doubao-seed-2-0-lite-260428",
 }
@@ -43,7 +44,7 @@ async def test_body_has_speed_parameters(client, auth_headers, respx_mock):
     assert body["thinking"] == {"type": "disabled"}
 
 
-@pytest.mark.parametrize("settings_overrides", [{**CHAT, "stt_disable_thinking": False, "stt_max_tokens": 64}], indirect=True)
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, "stt_disable_thinking": "false", "stt_max_tokens": 64}], indirect=True)
 async def test_speed_parameters_follow_settings(client, auth_headers, respx_mock):
     route = respx_mock.post(ARK).mock(return_value=ok("hi"))
     await post(client, auth_headers)

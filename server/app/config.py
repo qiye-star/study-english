@@ -1,13 +1,49 @@
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
 
 def _split(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+THINKING_TRUE = {"true", "1", "yes", "on"}
+THINKING_FALSE = {"false", "0", "no", "off"}
+LLM_THINKING_HOST_SUFFIXES = ("deepseek.com", "volces.com")
+STT_THINKING_HOST_SUFFIXES = ("volces.com",)
+
+
+def parse_thinking_mode(value) -> str:
+    """auto / true / false;大小写不敏感,兼容旧的布尔写法,无法识别的值按 auto(不报错)。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    text = str(value).strip().lower() if value is not None else ""
+    if text in THINKING_TRUE:
+        return "true"
+    if text in THINKING_FALSE:
+        return "false"
+    return "auto"
+
+
+def host_matches(base_url: str, suffixes: tuple[str, ...]) -> bool:
+    """主机恰好等于某后缀,或是它的子域(点边界);伪造的相似域名不匹配。"""
+    try:
+        host = (urlsplit((base_url or "").strip()).hostname or "").rstrip(".").lower()
+    except ValueError:
+        return False
+    return any(host == s or host.endswith("." + s) for s in suffixes)
+
+
+def send_thinking_param(mode: str, base_url: str, suffixes: tuple[str, ...]) -> bool:
+    if mode == "true":
+        return True
+    if mode == "false":
+        return False
+    return host_matches(base_url, suffixes)
 
 
 class Settings(BaseSettings):
@@ -78,7 +114,8 @@ class Settings(BaseSettings):
 
     # ---- 语音提速与实时通话(设计文档 2026-10-07)----
     stt_max_tokens: int = 512
-    stt_disable_thinking: bool = True
+    # auto(默认)= 仅当识别上游主机是方舟(volces.com)时发送 `thinking`;true = 总是发送;false = 从不发送
+    stt_disable_thinking: Literal["auto", "true", "false"] = "auto"
     # UPSTREAM_ASR_MODE / ASR_STREAM_URL / ASR_STREAM_RESOURCE_ID / VOLCENGINE_ASR_KEY 已存在(spike 提交)
     asr_realtime_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
     realtime_asr_mode: Literal["buffered", "stream"] = "buffered"
@@ -91,7 +128,14 @@ class Settings(BaseSettings):
     realtime_tts_sample_rate: int = 24000
     # 实时通话的 LLM 请求加 `thinking: {"type": "disabled"}`(复核 4.4-I1):DeepSeek v4 默认会先推理,
     # 推理 token 既拖慢第一句话又占用 600 的 max_tokens。2026-10-07 真实上游两款模型都接受该参数
-    realtime_llm_disable_thinking: bool = True
+    # 取值 auto(默认)/ true / false:auto 只对已知接受该参数的上游(deepseek.com、volces.com 及其子域)发送;
+    # OpenAI、Azure 等严格的上游会对未知参数返回 400(复核 F5-I1)
+    realtime_llm_disable_thinking: Literal["auto", "true", "false"] = "auto"
+
+    @field_validator("stt_disable_thinking", "realtime_llm_disable_thinking", mode="before")
+    @classmethod
+    def _thinking_mode(cls, value):
+        return parse_thinking_mode(value)
 
     app_version: str = "0.7.9"
 

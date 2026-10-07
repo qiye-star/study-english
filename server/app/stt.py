@@ -6,7 +6,7 @@ import wave
 import httpx
 from fastapi import HTTPException
 
-from app.config import Settings
+from app.config import STT_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.timing import Stopwatch, log_timing
 from app.upstream import check_upstream_auth
 
@@ -37,7 +37,7 @@ def chat_body(settings: Settings, audio: bytes, fmt: str, language: str | None) 
             {"type": "text", "text": CHAT_PROMPT + _language_hint(language)},
         ]}],
     }
-    if settings.stt_disable_thinking:
+    if send_thinking_param(settings.stt_disable_thinking, settings.upstream_whisper_base_url, STT_THINKING_HOST_SUFFIXES):
         body["thinking"] = {"type": "disabled"}
     return body
 
