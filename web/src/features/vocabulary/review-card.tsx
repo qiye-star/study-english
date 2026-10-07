@@ -2,6 +2,7 @@ import { LoaderIcon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
+import { SurfaceCard } from "~/components/surface-card";
 import type { TtsState } from "~/features/chat/use-tts-player";
 import type { VocabularyGrade, VocabularyItem } from "./vocabulary-api";
 
@@ -27,29 +28,29 @@ export function ReviewCard({ item, position, total, flipped, grading, speakState
     (flipped ? meaningRef.current : flipRef.current)?.focus();
   }, [item.id, flipped]);
   return (
-    <div data-testid="vocab-card" className="space-y-3 rounded-xl border p-4">
-      <p data-testid="vocab-review-progress" aria-live="polite" className="text-xs text-muted-foreground">{t("web.vocabulary.progress", { position, total })}</p>
+    <SurfaceCard data-testid="vocab-card" className="space-y-3 p-3.5">
+      <p data-testid="vocab-review-progress" aria-live="polite" className="eyebrow num">{t("web.vocabulary.progress", { position, total })}</p>
       <div className="flex items-center gap-2">
-        <p data-testid="vocab-card-word" data-lookup-context className="min-w-0 flex-1 select-text break-words text-2xl font-semibold">{item.word}</p>
-        <Button variant="ghost" size="icon" data-testid="vocab-card-speak" data-state={speakState} className="h-11 w-11 shrink-0"
-          aria-label={t("web.vocabulary.speak")} disabled={!canSpeak} onClick={onSpeak}>
-          {speakState === "loading" ? <LoaderIcon className="h-5 w-5 animate-spin" /> : speakState === "playing" ? <SquareIcon className="h-5 w-5" /> : <Volume2Icon className="h-5 w-5" />}
-        </Button>
+        <p data-testid="vocab-card-word" data-lookup-context className="min-w-0 flex-1 select-text break-words text-headline font-semibold text-ink">{item.word}</p>
+        <button type="button" data-testid="vocab-card-speak" data-state={speakState} aria-label={t("web.vocabulary.speak")} disabled={!canSpeak} onClick={onSpeak}
+          className="flex h-tap w-tap flex-none items-center justify-center rounded-full bg-teal-tint text-teal transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:h-5 [&_svg]:w-5">
+          {speakState === "loading" ? <LoaderIcon className="animate-spin" /> : speakState === "playing" ? <SquareIcon /> : <Volume2Icon />}
+        </button>
       </div>
       {flipped ? (
-        <div className="space-y-2">
-          <p ref={meaningRef} tabIndex={-1} data-testid="vocab-card-meaning" className="text-base outline-none">{item.meaning || t("web.vocabulary.noMeaning")}</p>
-          {item.example && <p data-testid="vocab-card-example" data-lookup-context className="select-text text-sm text-muted-foreground">{item.example}</p>}
+        <div className="space-y-3">
+          <p ref={meaningRef} tabIndex={-1} data-testid="vocab-card-meaning" className="text-body text-ink outline-none">{item.meaning || t("web.vocabulary.noMeaning")}</p>
+          {item.example && <p data-testid="vocab-card-example" data-lookup-context className="select-text text-sub leading-dialogue text-ink-2">{item.example}</p>}
           <div className="grid grid-cols-3 gap-2">
             {GRADES.map((g) => (
-              <Button key={g} data-testid={`vocab-grade-${g}`} variant={g === "good" ? "default" : "outline"} className="h-11"
+              <Button key={g} data-testid={`vocab-grade-${g}`} variant={g === "good" ? "default" : "outline"} className="h-12 rounded-button font-semibold"
                 disabled={grading} onClick={() => onGrade(g)}>{t(`web.vocabulary.grades.${g}`)}</Button>
             ))}
           </div>
         </div>
       ) : (
-        <Button ref={flipRef} data-testid="vocab-card-flip" className="h-11 w-full" onClick={onFlip}>{t("web.vocabulary.flip")}</Button>
+        <Button ref={flipRef} data-testid="vocab-card-flip" className="h-12 w-full rounded-button font-semibold" onClick={onFlip}>{t("web.vocabulary.flip")}</Button>
       )}
-    </div>
+    </SurfaceCard>
   );
 }

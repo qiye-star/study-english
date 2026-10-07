@@ -1,4 +1,4 @@
-import { Trash2Icon } from "lucide-react";
+import { BookOpenIcon, CheckIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,6 +11,12 @@ import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
+import { IconButton } from "~/components/icon-button";
+import { IconChip } from "~/components/icon-chip";
+import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { SectionGroup } from "~/components/section-group";
+import { SurfaceCard } from "~/components/surface-card";
+import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat/use-tts-player";
 import { PageHeader } from "~/layout/page-header";
 import { ReviewCard } from "./review-card";
@@ -236,8 +242,8 @@ export function VocabularyPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.vocabulary.title")} back="/me" />
-      <div className="space-y-4 p-4">
-        {error && <p role="alert" data-testid="vocab-error" className="text-sm text-destructive">{error}</p>}
+      <div className="space-y-3 px-gutter pb-6 pt-1">
+        {error && <p role="alert" data-testid="vocab-error" className="text-sub text-destructive">{error}</p>}
         {card && review && (
           <ReviewCard item={card} position={review.index + 1} total={review.queue.length} flipped={review.flipped} grading={busy}
             speakState={tts.states[speakKey] ?? "idle"} canSpeak={!!ai?.defaultTts.model}
@@ -246,47 +252,52 @@ export function VocabularyPage() {
             onSpeak={() => ai && void tts.play(speakKey, card.word, ai.defaultTts.model, ai.defaultTts.voice)} />
         )}
         {review?.done && (
-          <div data-testid="vocab-review-done" className="space-y-2 rounded-xl border p-4 text-center">
-            <p>{t("web.vocabulary.done")}</p>
-            <Button ref={closeRef} variant="outline" data-testid="vocab-review-close" className="h-11"
+          <SurfaceCard data-testid="vocab-review-done" className="space-y-3 p-5 text-center">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-teal-tint text-teal" aria-hidden>
+              <CheckIcon className="h-6 w-6" />
+            </span>
+            <p className="text-body font-medium text-ink">{t("web.vocabulary.done")}</p>
+            <Button ref={closeRef} variant="outline" data-testid="vocab-review-close" className="h-tap"
               onClick={() => { focusDueRef.current = true; setReview(null); }}>{t("web.vocabulary.close")}</Button>
-          </div>
+          </SurfaceCard>
         )}
         {!review && (
           <>
-            <div className="flex items-center gap-2">
-              <p ref={dueCountRef} tabIndex={-1} data-testid="vocab-due-count" className="flex-1 text-sm outline-none">{t("web.vocabulary.due", { value: dueCount })}</p>
-              <Button data-testid="vocab-start-review" className="h-11" disabled={busy || dueCount === 0} onClick={() => void startReview()}>
+            <SurfaceCard className="flex items-center gap-3 p-3.5">
+              <IconChip tone="teal" icon={BookOpenIcon} />
+              <p ref={dueCountRef} tabIndex={-1} data-testid="vocab-due-count"
+                className="min-w-0 flex-1 text-body font-medium text-ink outline-none focus-visible:underline">{t("web.vocabulary.due", { value: dueCount })}</p>
+              <Button data-testid="vocab-start-review" className="h-tap rounded-button px-4 font-semibold" disabled={busy || dueCount === 0} onClick={() => void startReview()}>
                 {t("web.vocabulary.start")}
               </Button>
-            </div>
-            {dueCount === 0 && (noneDue || (loaded && items.length > 0)) && <p role="status" data-testid="vocab-none-due" className="text-sm text-muted-foreground">{t("web.vocabulary.noneDue")}</p>}
-            {!loaded && <p className="text-center text-muted-foreground">{t("web.common.loading")}</p>}
-            {loaded && !items.length && !error && <p data-testid="vocab-empty" className="p-6 text-center text-muted-foreground">{t("web.vocabulary.empty")}</p>}
+            </SurfaceCard>
+            {dueCount === 0 && (noneDue || (loaded && items.length > 0)) && <p role="status" data-testid="vocab-none-due" className="mx-0.5 text-meta text-ink-2">{t("web.vocabulary.noneDue")}</p>}
+            {!loaded && <p className={PAGE_NOTE}>{t("web.common.loading")}</p>}
+            {loaded && !items.length && !error && <p data-testid="vocab-empty" className={PAGE_NOTE}>{t("web.vocabulary.empty")}</p>}
             {items.length > 0 && (
-              <section>
-                <h2 className="mb-1 text-sm font-medium">{t("web.vocabulary.all")}</h2>
-                <ul className="divide-y rounded-md border">
+              <SectionGroup title={t("web.vocabulary.all")} bare>
+                <ul className={LIST_CARD}>
                   {items.map((i) => (
-                    <li key={i.id} data-testid="vocab-item" className="flex items-center gap-2 pl-3">
-                      <div className="min-w-0 flex-1 py-2">
-                        <p className="truncate font-medium">{i.word}</p>
-                        <p className="truncate text-xs text-muted-foreground">{i.meaning || t("web.vocabulary.noMeaning")}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {t("web.vocabulary.box", { value: i.box })} · {t("web.vocabulary.nextDue", { value: formatDateTime(i.dueAt) })}
+                    <li key={i.id} data-testid="vocab-item" className="flex min-h-row items-center gap-2 pl-3.5 pr-1">
+                      <div className="min-w-0 flex-1 py-2.5">
+                        <p className="truncate text-body font-medium tracking-[-0.005em] text-ink">{i.word}</p>
+                        <p className="mt-0.5 truncate text-sub text-ink-2">{i.meaning || t("web.vocabulary.noMeaning")}</p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-ink-2">
+                          <ToneBadge tone={isDue(i) ? "teal" : "gray"}>{t("web.vocabulary.box", { value: i.box })}</ToneBadge>
+                          <span>{t("web.vocabulary.nextDue", { value: formatDateTime(i.dueAt) })}</span>
                         </p>
                       </div>
-                      <Button variant="ghost" size="icon" data-testid="vocab-item-delete" className="h-11 w-11 shrink-0"
-                        aria-label={t("web.common.delete")} onClick={() => setPendingDelete(i)}>
-                        <Trash2Icon className="h-5 w-5" />
-                      </Button>
+                      <IconButton label={t("web.common.delete")} data-testid="vocab-item-delete" className="text-ink-2"
+                        onClick={() => setPendingDelete(i)}>
+                        <Trash2Icon />
+                      </IconButton>
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SectionGroup>
             )}
             {next && loaded && (
-              <Button variant="ghost" data-testid="vocab-list-more" className="h-11 w-full"
+              <Button variant="ghost" data-testid="vocab-list-more" className="h-tap w-full text-blue"
                 onClick={() => { const s = liveSignal(); if (s) void load(next, s); }}>{t("web.common.loadMore")}</Button>
             )}
           </>
