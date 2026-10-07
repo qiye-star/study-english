@@ -266,6 +266,12 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const settleTimerRef = useRef<number | undefined>(undefined);
   /** 还在等服务端关闭的通话套接字:切换会话/卸载时 drop */
   const endingRef = useRef<CallEnding | null>(null);
+  /**
+   * 通话结束后把焦点还给通话按钮(review F2 m12):打开通话的同一次提交里按钮就被禁用了,对话框记下的原焦点多半是 body,
+   * 收尾期间按钮也一直禁用。所以等按钮重新可用时再还;用户在这期间把焦点放到了别处(例如输入框)就不动它。
+   */
+  const callButtonRef = useRef<HTMLButtonElement>(null);
+  const refocusCallRef = useRef(false);
   /** 下一次加载是通话后的重新加载:加载完再补取一次 */
   const followUpRef = useRef(false);
   const stopSettling = useCallback(() => {
@@ -963,6 +969,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
    */
   const closeCall = (ending: CallEnding | null) => {
     setCall(null);
+    refocusCallRef.current = true;
     if (!ending) {
       const turns = callTurnsRef.current;
       callTurnsRef.current = 0;
@@ -990,6 +997,14 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     });
   };
 
+  useEffect(() => {
+    const button = callButtonRef.current;
+    if (!refocusCallRef.current || call || settling || !button || button.disabled) return;
+    refocusCallRef.current = false;
+    const active = document.activeElement;
+    if (!active || active === document.body) button.focus();
+  });
+
   const recording = voice.state === "recording" || voice.state === "starting";
   const lastKey = messages[messages.length - 1]?.key;
 
@@ -1003,7 +1018,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             onOpenRecap={() => setRecapOpen(true)}
             canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call || settling}
             callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
-            onCall={startCall} />
+            onCall={startCall} callButtonRef={callButtonRef} />
         } />
       {(scenario || options.level !== "auto") && (
         <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">

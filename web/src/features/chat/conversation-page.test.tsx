@@ -3959,6 +3959,39 @@ describe("realtime call (plan 2026-10-07)", () => {
       expect(screen.getByTestId("chat-mic")).toBeEnabled();
     });
 
+    it("returns focus to the call button once it is enabled again after the call (review F2 m12)", async () => {
+      const c = callEnv();
+      setupCall(callRoutes(), c.env);
+      const ws = await connect(c);
+      expect(screen.getByTestId("call-hangup")).toHaveFocus();
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.serverClose(1000); });
+      await advance(POST_CALL_FOLLOW_UP_MS + 100);
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).toBeEnabled());
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).toHaveFocus());
+    });
+
+    it("a refused call returns focus to the call button too", async () => {
+      const c = callEnv();
+      setupCall(callRoutes({ "POST /api/realtime/ticket": () => json({ error: "Realtime is not enabled" }, 503) }), c.env);
+      await userEvent.click(await screen.findByTestId("conversation-call"));
+      await userEvent.click(await screen.findByTestId("call-close"));
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).toHaveFocus());
+    });
+
+    it("focus the user moved elsewhere while the call settles is left alone", async () => {
+      const c = callEnv();
+      setupCall(callRoutes(), c.env);
+      const ws = await connect(c);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.serverClose(1000); });
+      act(() => screen.getByTestId("chat-input").focus()); // 收尾期间可以先打字
+      await advance(POST_CALL_FOLLOW_UP_MS + 100);
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).toBeEnabled());
+      await advance(50);
+      expect(screen.getByTestId("chat-input")).toHaveFocus();
+    });
+
     it("unmounting the page while waiting for the close drops the socket", async () => {
       const c = callEnv();
       const { view } = setupCall(callRoutes(), c.env);
