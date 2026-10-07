@@ -7,7 +7,9 @@
       "chartList": "Daily scores", "chartDay": "{{date}}: {{score}}", "noScores": "No scored recordings in this period yet.",
       "grammar": "Most common grammar issues", "words": "Words to work on", "practice": "Practice", "save": "Save to practice list",
       "empty": "No practice in this period yet.", "truncated": "Only your most recent activity was counted.",
-      "disclaimer": "For reference only: scores come from free-speech assessment and may be inaccurate."
+      "disclaimer": "For reference only: scores come from free-speech assessment and may be inaccurate.",
+      "tiles": { "streak": "Streak", "speaking": "Speaking", "avg": "Avg score", "daysUnit": "d", "minutesUnit": "min" },
+      "activity": "Activity"
     }
   }
 }

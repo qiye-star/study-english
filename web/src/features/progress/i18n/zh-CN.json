@@ -7,7 +7,9 @@
       "chartList": "每日分数", "chartDay": "{{date}}:{{score}} 分", "noScores": "这段时间还没有带分数的录音。",
       "grammar": "常见语法问题", "words": "要多练的词", "practice": "跟读", "save": "收藏到练习清单",
       "empty": "这段时间还没有练习记录。", "truncated": "只统计了最近的一部分记录。",
-      "disclaimer": "仅供参考:分数来自自由说话评测,可能不准确。"
+      "disclaimer": "仅供参考:分数来自自由说话评测,可能不准确。",
+      "tiles": { "streak": "连续", "speaking": "口语", "avg": "平均发音", "daysUnit": "天", "minutesUnit": "分钟" },
+      "activity": "活跃"
     }
   }
 }

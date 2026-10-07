@@ -39,11 +39,11 @@ export function ScoreChart({ daily, label, description }: { daily: StatsDay[]; l
   const descId = `${id}-desc`;
   return (
     <svg data-testid="progress-chart" data-points={points} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}
-      aria-describedby={description ? descId : undefined} className="h-32 w-full text-primary" preserveAspectRatio="none">
+      aria-describedby={description ? descId : undefined} className="h-32 w-full text-blue" preserveAspectRatio="none">
       <title id={titleId}>{label}</title>
       {description && <desc id={descId}>{description}</desc>}
       {[60, 80].map((s) => (
-        <line key={s} x1={PAD} x2={W - PAD} y1={guide(s)} y2={guide(s)} className="stroke-muted-foreground/30" strokeDasharray="4 4"
+        <line key={s} x1={PAD} x2={W - PAD} y1={guide(s)} y2={guide(s)} className="stroke-ink-3/40" strokeDasharray="4 4"
           vectorEffect="non-scaling-stroke" />
       ))}
       {segments.map((seg, i) => (
