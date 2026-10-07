@@ -123,4 +123,67 @@ describe("loadSileroSource (plan R18/R32)", () => {
     micVad.instance.start.mockRejectedValueOnce(new Error("addModule failed"));
     await expect(loadSileroSource({ stream: fakeStream(), onFrame: vi.fn() })).rejects.toThrow("addModule failed");
   });
+
+  it("releases the loaded model and the library-owned AudioContext when initialisation fails (review W2 M1)", async () => {
+    const release = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    const node = { disconnect: vi.fn() };
+    const failing = {
+      ...micVad.instance,
+      start: vi.fn(async () => {
+        throw new Error("addModule failed");
+      }),
+      model: { release },
+      ownsAudioContext: true,
+      _audioContext: { close },
+      _vadNode: null as AudioNode | null,
+      _mediaStreamAudioSourceNode: node,
+    };
+    const { MicVAD } = await import("@ricky0123/vad-web");
+    vi.mocked(MicVAD.new).mockResolvedValueOnce(failing as never);
+    await expect(loadSileroSource({ stream: fakeStream(), onFrame: vi.fn() })).rejects.toThrow("addModule failed");
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(node.disconnect).toHaveBeenCalled();
+  });
+
+  it("never closes the call's own AudioContext when initialisation fails (R32)", async () => {
+    const release = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    const vadNode = { disconnect: vi.fn() };
+    const failing = {
+      ...micVad.instance,
+      pause: vi.fn(async () => {
+        throw new Error("pause failed");
+      }),
+      model: { release },
+      ownsAudioContext: false,
+      _audioContext: { close },
+      _vadNode: vadNode,
+    };
+    const { MicVAD } = await import("@ricky0123/vad-web");
+    vi.mocked(MicVAD.new).mockResolvedValueOnce(failing as never);
+    const context = { close } as unknown as AudioContext;
+    await expect(loadSileroSource({ stream: fakeStream(), onFrame: vi.fn(), context })).rejects.toThrow("pause failed");
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(vadNode.disconnect).toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("still rejects with the original error when the cleanup itself fails", async () => {
+    const failing = {
+      ...micVad.instance,
+      start: vi.fn(async () => {
+        throw new Error("model fetch failed");
+      }),
+      model: {
+        release: vi.fn(async () => {
+          throw new Error("release failed");
+        }),
+      },
+    };
+    const { MicVAD } = await import("@ricky0123/vad-web");
+    vi.mocked(MicVAD.new).mockResolvedValueOnce(failing as never);
+    await expect(loadSileroSource({ stream: fakeStream(), onFrame: vi.fn() })).rejects.toThrow("model fetch failed");
+  });
 });

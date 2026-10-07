@@ -61,8 +61,13 @@ export const loadSileroSource: ProbabilityLoader = async ({ stream, onFrame, con
     onVADMisfire: ignore,
     onSpeechRealStart: ignore,
   });
-  await vad.start();
-  await vad.pause();
+  try {
+    await vad.start();
+    await vad.pause();
+  } catch (err) {
+    await releaseFailedLoad(vad);
+    throw err;
+  }
   return {
     start: () => void vad.start().catch(ignore),
     pause: () => void vad.pause().catch(ignore),
@@ -77,6 +82,35 @@ export const loadSileroSource: ProbabilityLoader = async ({ stream, onFrame, con
     },
   };
 };
+
+/** 库在 start() 半途失败时 destroy() 会先抛错(节点为 null)而不释放模型:按库的内部字段逐项尽力释放。 */
+async function releaseFailedLoad(vad: unknown): Promise<void> {
+  const v = vad as {
+    model?: { release(): Promise<void> };
+    ownsAudioContext?: boolean;
+    _audioContext?: { close(): Promise<void> } | null;
+    _vadNode?: AudioNode | null;
+    _mediaStreamAudioSourceNode?: AudioNode | null;
+  };
+  for (const node of [v._mediaStreamAudioSourceNode, v._vadNode]) {
+    try {
+      node?.disconnect();
+    } catch {
+      // 已断开
+    }
+  }
+  try {
+    await v.model?.release();
+  } catch {
+    // 尽力而为:保留原始错误
+  }
+  // 只关库自建的 AudioContext;通话传入的由通话负责(R32)
+  try {
+    if (v.ownsAudioContext) await v._audioContext?.close();
+  } catch {
+    // 同上
+  }
+}
 
 export async function createVad(
   stream: MediaStream,
