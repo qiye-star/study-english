@@ -961,6 +961,9 @@ describe("ConversationPage", () => {
     });
 
     describe("kept drafts (background / mic loss)", () => {
+      // 下面两例用假录音环境自己的 document 触发"保留草稿";真机上页面切后台时 document 本身变为 hidden,
+      // 按住说话(含键盘后备)的监听先注册,先丢弃这次录音(R11)。这条路径见
+      // "hold to talk" 里的 "hiding the real page while recording …" 用例。
       it("sends a kept recording on request", async () => {
         const fake = createFakeRecorderEnv();
         const { mock } = setup(voiceRoutes(), fake.env);
@@ -3129,6 +3132,27 @@ describe("ConversationPage", () => {
     // 断言留足余量(≥ 900 ms),真实时间的漂移不会影响结果。
     const fakeHintTimers = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     afterEach(() => { vi.useRealTimers(); });
+
+    it("hiding the real page while recording (keyboard fallback included) discards the take instead of keeping a draft", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(holdRoutes(), fake.env);
+      await screen.findByText("reply");
+      await startRecording();
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      try {
+        await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+      } finally {
+        Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      }
+      expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Recording cancelled");
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      expect(fake.track.stop).toHaveBeenCalled();
+      expect(screen.queryByTestId("voice-send-kept")).toBeNull();
+      expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
+      await act(async () => {});
+      expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(false);
+    });
 
     it("the hint goes away after 2 seconds", async () => {
       fakeHintTimers();
