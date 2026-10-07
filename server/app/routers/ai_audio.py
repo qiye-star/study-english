@@ -14,6 +14,7 @@ from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import get_settings, limited_user
 from app.models import User
+from app.timing import Stopwatch, log_timing
 from app.upstream import check_upstream_auth
 from app.volcengine import VolcengineError, synthesize as volcengine_synthesize
 from app.uploads import parse_buffered_form, read_limited_body
@@ -73,6 +74,7 @@ async def speech(
             raise HTTPException(400, "Invalid voice")
         if not settings.volcengine_tts_key:
             raise HTTPException(503, "Volcengine TTS is not configured")
+        watch = Stopwatch()
         try:
             audio = await volcengine_synthesize(
                 request.app.state.http,
@@ -87,6 +89,7 @@ async def speech(
             if e.kind == "auth":
                 raise HTTPException(502, "Upstream authentication failed")
             raise HTTPException(502, "Upstream unavailable")
+        log_timing("tts_volcengine", ms=watch.ms(), chars=len(payload.input), stream=False)
         return Response(content=audio, media_type="audio/mpeg")
 
     if model == "azure/speech":
@@ -228,6 +231,8 @@ async def _stream_transcription(
                 text = await transcribe_pcm(settings, pcm, uid)
             except AsrStreamError as e:
                 kind = e.kind
+                log_timing("stt_volc_stream", ms=round((time.perf_counter() - started) * 1000),
+                           audio_bytes=len(pcm), status="failed")
                 logger.warning(
                     "asr volc_stream failed kind=%s detail=%s ms=%.0f audio_s=%.2f fallback=%s"
                     " connect_id=%s logid=%s",
@@ -241,6 +246,8 @@ async def _stream_transcription(
                         raise HTTPException(502, "Upstream authentication failed")
                     raise HTTPException(502, "Upstream unavailable")
             else:
+                log_timing("stt_volc_stream", ms=round((time.perf_counter() - started) * 1000),
+                           audio_bytes=len(pcm), status="ok")
                 logger.info(
                     "asr volc_stream ok ms=%.0f audio_s=%.2f",
                     (time.perf_counter() - started) * 1000, audio_s,
@@ -295,6 +302,7 @@ async def _chat_from_audio(
         raise HTTPException(413, "Audio file is too large")
     fmt = _audio_format(audio)
     started = time.perf_counter()
+    watch = Stopwatch()
 
     prompt = CHAT_PROMPT
     if isinstance(language, str):
@@ -329,7 +337,9 @@ async def _chat_from_audio(
             timeout=httpx.Timeout(300.0, connect=10.0),
         )
     except httpx.HTTPError:
+        log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=0)
         raise HTTPException(502, "Upstream unavailable")
+    log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=upstream.status_code)
     check_upstream_auth(upstream.status_code)
     if not upstream.is_success:
         raise HTTPException(502, "Upstream unavailable")
