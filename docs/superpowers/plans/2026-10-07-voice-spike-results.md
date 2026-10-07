@@ -32,3 +32,56 @@
   - 未测:开启推理(baseline)时的 `<none>` 行为;真实环境噪声(非白噪声)与真人背景对话。
 
 - 决定:`STT_DISABLE_THINKING` 默认 = **true**(no_thinking 变体 3/3 返回 200 且明显更快);`STT_MAX_TOKENS` 默认 512 保留(被接受、无副作用)。Task 1.2 按 R5 原样实现,`.env.example` 不需要写 `false`。
+
+## 2. 实时节奏流式识别(Task 0.4,按 R21/R22 缩减)
+
+结论:**通过(2026-10-07)——`realtime_asr_mode=stream` 可行**。上游调用:识别 9 个连接(合计约 77 s 音频)、TTS 0 次(R20 预算余:识别 5、TTS 39)。
+
+- 鉴权与帧协议沿用 `2026-10-07-volc-streaming-asr-spike.md`(已验证,本次未改):`X-Api-Key`(`Settings.asr_stream_key`)+ `X-Api-Resource-Id: volc.bigasr.sauc.duration` + `X-Api-Connect-Id`;帧编解码直接用 `app.asr_stream` 的 `encode_full_request` / `encode_audio` / `decode_frame`(音频帧无序号),**9/9 连接握手成功,无一错误帧**。
+- 方法:`server/scripts/spikes/asr_realtime_spike.py`。16 kHz PCM 按 100 ms(3200 字节)一块、按**绝对时间表**实时推送(第 i 块在 t0 + i×0.1 s 发出),语音后接 2 s 数字静音,最后一块带"最后一包"标志。时间一律相对 t0 = 第一块音频发出的时刻。样本 `s5.wav`(JFK 前 5 s,能量法估计语音结束 ≈ 4420 ms;服务端给出的语音起点 102–382 ms),另有一次 `s15.wav`。连接耗时 161–206 ms。
+
+### 2.1 实测(已验证)
+
+| run | 端点 | 请求参数(在 `model_name/enable_itn/enable_punc` 之外) | 首个 partial (ms) | partial 更新(次 / 间隔中位数 ms) | 服务端断句 `definite`(出现时刻 ms) | 最后一包 → 最终 (ms) | 最终文本 |
+|---|---|---|---|---|---|---|---|
+| a_default | `bigmodel_async` | `show_utterances` | 1064 | 7 / 404 | 只在最后一包后(6991) | 81 | And so my fellow Americans. Not. |
+| a_ew800_single | `bigmodel_async` | + `result_type: single`, `end_window_size: 800` | 1119 | 7 / 387 | 3132、5221 | 92 | **空串**(single 的最后一帧不带全文) |
+| a_ew800_two(两段语音,间隔 1.5 s) | `bigmodel_async` | + `end_window_size: 800` | 1057 | 13 / 611 | 3117、5197、9700、11704 | 79 | 两段全文累计 |
+| a_nonstream | `bigmodel_async` | + `end_window_size: 800`, `enable_nonstream: true` | 1122 | 9 / 322 | 3267、5382 | 73 | And so, my fellow Americans.  Not. |
+| a_nonstream(s15) | `bigmodel_async` | 同上 | 1089 | 27 / 346 | 3343、5338、14468 | 80 | …What your country can do for you, ask what… |
+| b_default | `bigmodel` | `show_utterances` | 1101 | 7 / 352 | 只在最后一包后(7007) | 92 | And so my fellow Americans. Not. |
+| a_silence(3 s 纯静音) | `bigmodel_async` | + `end_window_size: 800` | —(无任何文本) | 0 | 无 | 68 | 空串,正常结束,无错误 |
+| conc_1 / conc_2(同时两路,2 s 语音 + 1 s 静音) | `bigmodel_async` | + `end_window_size: 800` | 1063 / 1094 | 5 / 336–340 | 2795 / 2811 | 76 / 85 | 两路都正常 |
+
+- **首个 partial**:第一块音频后 1.06–1.12 s(语音起点之后约 0.7–1.0 s),各配置无差别。完整请求发出后约 60 ms 先回一条空结果(async 无序号;`bigmodel` 为 seq 1)。
+- **partial 节奏**:`bigmodel_async` 只在文本变化时下发(70 块音频 → 11 条响应),更新间隔中位数 320–610 ms,单词级增长;`bigmodel` 每收到一块就回一条(70 块 → 71 条),文本与时延和 async 相同——**async 更省带宽和解码**。
+- **最后一包 → 最终结果(带"最后"标志的响应)**:**68–92 ms**(9/9),与配置无关。最终帧序号为正数且 flags 带 last 位(与已落地的解码器一致)。
+- **服务端断句**:
+  - 不传 `end_window_size`:**不断句**,唯一的 utterance 直到最后一包之后才 `definite`。
+  - `end_window_size: 800`:**会断句**,`definite` 出现在语音结束后约 800 ms + 50–100 ms(例:能量法语音结束 4420 → `definite` 5197–5221);JFK 句中约 0.8 s 的停顿("Americans … ask not")也被切开——也就是说服务端 VAD 会把**一个用户回合切成多段**。
+  - 加 `enable_nonstream: true`(二遍识别):`definite` 再晚约 150–370 ms(3117 → 3267–3343;5197 → 5338–5382),但 definite 的文本被重写得更好:补逗号("And so, my fellow Americans."),纠错("Watch your country" → "What your country")。最后一包 → 最终的时延不受影响(73–80 ms)。
+- **`result_type`**:默认(full)时每帧 `result.text` 是**整个连接的累计全文**,`utterances` 列出全部分段;`single` 时只给当前分段,且**最后一帧 `text` 为空**——用 single 必须自己拼接 definite 分段,没有好处。
+- **纯静音**:没有任何文本帧,最后一包后 68 ms 正常结束(空文本,无错误码)。
+- **并发 / 错误码**:同一 key 在 `duration` 资源上**同时 2 路**均成功;9 个连接**未出现任何错误帧**,`45000292` 未复现(已知只出现在 `volc.bigasr.sauc.concurrent` 资源上,见上一份 spike)。
+- **识别质量**:所有 9 次(两个端点、有无二遍)都把 "ask not" 识别成 "Not."——丢了 "ask";Task 0.3 的方舟 chat 模式同一片段输出 "ask not"。流式一遍结果有明显错词("Watch your country"),二遍可纠正部分。
+- 拼接细节:开启二遍后全文的分段之间出现双空格(分段文本带前导空格),取用前需归一空白。
+
+### 2.2 未验证(只凭文档/记忆,未实测)
+
+- `force_to_speech_time`、`vad_segment_duration`、`end_window_size` 的取值下限/上限及其他取值(只测了 800)。
+- 发送**空的**最后一包(0 字节 PCM + last 标志)是否被接受——本次的最后一包都是 100 ms 静音块。
+- 单个连接的最长时长 / 空闲超时(最长只测了 17 s 连接、2 s 连续静音)。
+- `duration` 资源的并发上限(只测了 2 路;R15 全局 5 路通话 + 上传识别 `ASR_STREAM_MAX_CONCURRENCY=3` 同时在用时可能更多)。
+- 丢 "ask" 是流式模型的普遍问题还是这一片段的特例(JFK 录音里 "ask" 很轻);中文/中英混说、真实麦克风噪声。
+- 客户端按 VAD 只上传说话部分(R15)时,服务端对"不连续"的音频的表现(本次音频是连续的)。
+
+### 2.3 结论与 Task 1.6(`server/app/asr_realtime.py`)参数
+
+- **`realtime_asr_mode=stream` 可行:是**。首个 partial ≈ 1.1 s,partial 每 0.3–0.6 s 更新,客户端 `utterance_end` → 发最后一包 → 最终结果 **≤ 100 ms**,比 buffered(上传识别 nostream 4 s 片段中位数约 1.0 s、chat 约 2.2 s)明显快。
+- 推荐参数(全部已在本 spike 实测通过):
+  - URL `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`(= R21 的 `asr_realtime_url` 默认值);资源 `volc.bigasr.sauc.duration`(复用 `asr_stream_resource_id`);鉴权头同 `asr_stream`(`X-Api-Key` = `asr_stream_key`、`X-Api-Resource-Id`、`X-Api-Connect-Id`)。
+  - 完整请求:`{"user": {"uid": …}, "audio": {"format": "pcm", "codec": "raw", "rate": 16000, "bits": 16, "channel": 1}, "request": {"model_name": "bigmodel", "enable_itn": true, "enable_punc": true, "show_utterances": true, "enable_nonstream": true, "end_window_size": 800}}`;**不传 `result_type`**(默认 full)。
+  - 音频:客户端上行 PCM 收到即转发(`encode_audio(chunk, False)`,每块 ≤ 32000 字节;本次实测 100 ms 块);回合结束(客户端 `utterance_end`,R12)时发一块 100 ms 静音并带 last 标志(`encode_audio(bytes(3200), True)`;空包未验证,不要用)。
+  - 结果:每条非最后响应的 `result.text`(空白归一后)→ `transcript_partial`(文本没变就不发);带 last 标志的响应的 `result.text` → `transcript_final`;为空(纯静音)→ 空转写(R13:不保存、不回复)。**回合边界以客户端 `utterance_end` 为准**,服务端 `definite` 只用于展示(800 ms 窗口会把一句话中间的停顿切开)。
+  - 一个回合一个上游连接(连接 160–210 ms,可在 VAD 判定开始说话时就建立);错误帧 `45000292` 或含 "quota" → `AsrError`(配额),HTTP 401/403 → 鉴权错误,沿用 `asr_stream` 的分类,由 R21 映射为 `AsrError`。
+- 风险(写给 Task 1.6 / 真机清单):流式识别的准确度低于 chat/nostream(本片段丢词),而 R14 用转写作评测参考文本;若真机上错词明显,可在 `transcript_final` 之后用该回合的 PCM 走一次上传识别(nostream,约 1 s)校正——这是后续优化,不在 Task 1.6 范围内。
