@@ -4,7 +4,8 @@ recognizer selection and message storage. They implement the types of `app.realt
 - LLM: OpenAI-compatible streaming chat completions (DeepSeek etc.) through the existing
   `UPSTREAM_LLM_*` settings; the model must be in `LLM_MODELS` (else the default),
   `max_tokens = min(LLM_MAX_TOKENS, 600)`, `thinking: disabled` unless `REALTIME_LLM_DISABLE_THINKING=false`. Any non-200, network error, error event or truncated
-  stream → `LlmError`.
+  stream → `LlmError`; a reply with no content at all → `LlmError("empty")`. Reading stops at the first
+  `finish_reason`; `length` (cut at the cap) ends normally with a numbers-only warning.
 - TTS: Volcengine `synthesize_stream` as raw PCM16LE at `REALTIME_TTS_SAMPLE_RATE`; chunks are
   re-cut on whole samples (even byte counts); `VolcengineError` → `TtsError` (R6).
 - Recognizers: chosen by `effective_realtime_asr(settings)` (R25) — the same helper that
@@ -49,6 +50,7 @@ logger = logging.getLogger(__name__)
 REALTIME_MAX_TOKENS = 600
 MAX_CONTENT = 20000  # same cap as `MessageIn.content`
 LLM_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+KNOWN_FINISH = ("stop", "length", "content_filter", "tool_calls", "done")  # logged as is; anything else as "other"
 
 
 # ---- LLM ----
@@ -77,14 +79,16 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
             if response.status_code != 200:
                 logger.warning("Realtime LLM HTTP %s", response.status_code)
                 raise LlmError()
-            finished = False
+            finished = None  # finish_reason (or "done"), once seen
+            spoke = False
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line.startswith("data:"):
                     continue  # blank separators, SSE comments (keep-alive), event:/id: fields
                 data = line[5:].strip()
                 if data == "[DONE]":
-                    return
+                    finished = "done"
+                    break
                 try:
                     event = json.loads(data)
                 except ValueError:
@@ -96,15 +100,24 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
                     raise LlmError()
                 choices = event.get("choices")
                 choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
-                if choice.get("finish_reason"):
-                    finished = True
                 delta = choice.get("delta")
                 content = delta.get("content") if isinstance(delta, dict) else None  # reasoning_content is skipped
                 if isinstance(content, str) and content:
+                    spoke = True
                     yield content
-            if not finished:
+                if choice.get("finish_reason"):
+                    # Stop here: a provider that sends finish_reason but delays [DONE]/close must not delay reply_done.
+                    finished = str(choice["finish_reason"])
+                    break
+            if finished is None:
                 logger.warning("Realtime LLM stream ended early")
                 raise LlmError()
+            if not spoke:
+                logger.warning("Realtime LLM reply had no content finish=%s", finished if finished in KNOWN_FINISH else "other")
+                raise LlmError("empty")
+            if finished == "length":
+                # Cut at the token cap: what was said is kept and saved as a normal reply (no suffix).
+                logger.warning("Realtime LLM reply cut at max_tokens=%d", max_tokens)
         except httpx.HTTPError as e:
             logger.warning("Realtime LLM stream failed: %s", type(e).__name__)
             raise LlmError() from None

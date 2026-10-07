@@ -117,6 +117,47 @@ async def test_llm_stream_finish_reason_without_done_is_a_normal_end(respx_mock)
         assert await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([])) == ["Hi."]
 
 
+def finish(reason: str, text: str | None = None) -> str:
+    return json.dumps({"choices": [{"delta": {"content": text} if text else {}, "finish_reason": reason}]})
+
+
+@pytest.mark.parametrize("raw", [
+    sse(json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), finish("stop"), "[DONE]"),
+    sse(json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), finish("length"), "[DONE]"),
+    sse(delta(""), "[DONE]"),
+])
+async def test_llm_stream_without_any_content_is_an_empty_error(respx_mock, raw):
+    # Review 4.4-I1: a reply with no spoken text must reach the caller as `llm_failed`, not a silent reply_done.
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=raw))
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(LlmError) as e:
+            await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([]))
+    assert e.value.args == ("empty",)
+
+
+async def test_llm_stream_stops_reading_at_finish_reason_without_done(respx_mock):
+    # Review 4.4-m2: a provider that sends finish_reason and then holds the connection open must not
+    # delay reply_done until the read timeout.
+    gate = asyncio.Event()  # never set: the second piece ([DONE]) never arrives
+    body = Pieces([sse(delta("Hi"), finish("stop", " there.")), sse("[DONE]")], gate)
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, stream=body))
+    async with httpx.AsyncClient() as http:
+        async with asyncio.timeout(2):
+            assert await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([])) == ["Hi", " there."]
+    assert body.closed
+
+
+async def test_llm_stream_cut_at_max_tokens_ends_normally_with_a_numbers_only_warning(respx_mock, caplog):
+    # Review 4.4-m3: `length` keeps what was said (saved as a normal reply) and logs the cap, never the text.
+    caplog.set_level(logging.DEBUG)
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=sse(delta("SECRET-A"), finish("length"), "[DONE]")))
+    async with httpx.AsyncClient() as http:
+        assert await collect(openai_llm_stream(http, make_settings(llm_max_tokens=300), "gpt-4o", 0.7)([])) == ["SECRET-A"]
+    warnings = [r.getMessage() for r in caplog.records if r.name.startswith("app") and r.levelno == logging.WARNING]
+    assert any("max_tokens=300" in w for w in warnings)
+    assert "SECRET" not in " ".join(warnings)
+
+
 @pytest.mark.parametrize("response", [
     httpx.Response(500), httpx.Response(401), httpx.Response(429), httpx.ConnectError("x"), httpx.ReadTimeout("x"),
 ])

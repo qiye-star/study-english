@@ -523,6 +523,8 @@ class RealtimeSession:
                         await self._send({"type": "reply_delta", "turn_id": turn_id, "text": delta})
                         for sentence in splitter.feed(delta):
                             await sentences.put(sentence)
+                if not "".join(full).strip():
+                    raise LlmError("empty")  # 正常结束却一个字没有:报 llm_failed,而不是静默的 reply_done(复核 4.4-I1)
                 for sentence in splitter.flush():
                     await sentences.put(sentence)
             except LlmError:

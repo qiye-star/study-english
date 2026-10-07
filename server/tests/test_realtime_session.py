@@ -319,6 +319,20 @@ async def test_llm_failure_reports_and_saves_nothing_for_the_reply():
     assert h.events[-1:] == [{"type": "state", "state": "listening"}]
 
 
+@pytest.mark.parametrize("deltas", [(), (" ", "  ")])
+async def test_a_reply_without_text_is_an_llm_failure(deltas):
+    # Review 4.4-I1: a normal end with nothing to say must not be a silent reply_done.
+    h = Harness(llm=llm_of(*deltas))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types())
+    h.send({"type": "hangup"})
+    await task
+    assert {"type": "error", "code": "llm_failed"} in h.events
+    assert {"type": "reply_done", "turn_id": 1, "message_id": None, "interrupted": True} in h.events
+    assert [m["role"] for m in h.store.messages] == ["user"]
+
+
 async def test_tts_failure_keeps_the_text_reply():
     h = Harness(tts=tts_of(error_on="Sure"))
     task = asyncio.create_task(h.run())
