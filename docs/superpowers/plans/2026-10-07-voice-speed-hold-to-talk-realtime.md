@@ -72,6 +72,26 @@
 | R18 | **新依赖例外**:允许新增 `@ricky0123/vad-web` 与 `onnxruntime-web` 两个依赖(精确版本号在 Task 2.3 Step 1 由 `yarn npm info` 确定后**锁死**,不用 `^`);模型与 wasm 由 `web/scripts/copy-vad-assets.mjs` 在 `dev`/`build` 前复制到 `web/public/vad/`(git 忽略),运行时从同源 `/vad/` 加载,**不访问任何 CDN**;`web/public/sw.js` 把 `/vad/` 纳入与 `/assets/` 相同的缓存规则。 |
 | R19 | **真机与端到端**:Playwright Chromium 带 `--autoplay-policy=no-user-gesture-required` 与假麦克风,只能证明逻辑;iOS Safari 的 AudioWorklet、`AudioContext` 解锁、回声消除强度、系统手势取消、嘈杂环境效果一律"未验证",写进真机清单第 23–32 项。 |
 
+## 执行前裁定(预检,2026-10-07;与上文冲突时以本节为准,完整依据见 `.superpowers/sdd/2026-10-07-voice-speed-hold-to-talk-realtime/preflight.md`)
+
+| # | 裁定 |
+|---|---|
+| R20 | **上游已恢复**(2026-10-07 直接探测与冒烟均通过):R1 的"阻塞:上游"门控解除;用户指示执行整个计划,视为对 spike/测量所需有限次上游调用(识别 ≤ 30 次、TTS ≤ 40 次)的同意。仍须先跑 Task 0.3 的连通性预检,失败才记"阻塞:上游"。 |
+| R21 | **已落地的流式识别(33b60f77、cd522065)不得被覆盖**:`server/app/asr_stream.py`、`server/tests/test_asr_stream.py`、`server/tests/test_ai_audio_volc_stream.py` 及其 `Settings` 字段(`upstream_asr_mode`、`asr_stream_url`(=`bigmodel_nostream`,上传识别用)、`asr_stream_resource_id`、`asr_stream_timeout_seconds`、`volcengine_asr_key`、`asr_stream_key`、`ASR_STREAM_MAX_CONCURRENCY`)原样保留。Task 1.1 只**新增**实时通话需要的配置(`asr_realtime_url` 默认 `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`、`realtime_asr_mode` ∈ {`buffered`(默认), `stream`} 以及 REALTIME_* 项),不重复声明已有字段。Task 1.6 改为:**不碰上述文件**,新建 `server/app/asr_realtime.py`(`VolcStreamRecognizer` / `volc_stream_factory`,复用 `asr_stream` 里已落地的帧编解码,把 `AsrStreamError` 映射为 `AsrError`)与 `server/tests/test_asr_realtime.py`;条件任务,仅当 Task 0.4 的"实时节奏流式"验证通过才做。 |
+| R22 | **Task 0.4 缩减**:鉴权与帧协议已由 `2026-10-07-volc-streaming-asr-spike.md` 验证,0.4 只做可选的"按实时节奏(100–200 ms/块)向 `bigmodel_async` 推流、观察 partial 与断句"一次运行,复用已落地的帧代码、密钥取 `asr_stream_key`;结论写进 `2026-10-07-voice-spike-results.md`。Task 0.6 的决定改为:上传识别用 `volc_stream`(已建成);通话识别用 `stream`(0.4 通过)或 `buffered`。 |
+| R23 | **基线口径**:基线(Task 0.5/5.1)必须强制 `UPSTREAM_ASR_MODE=chat`(用户的 `.env` 已开 `volc_stream`)。Task 0.2 在 `docker-compose.e2e.yml` 的环境里加 `UPSTREAM_ASR_MODE: ${E2E_UPSTREAM_ASR_MODE:-chat}`(在基线标签之前提交);"之后"测两遍:`chat` 与 `volc_stream`,表里分别记。本机直接起 uvicorn 测量时同样用进程级环境变量强制。 |
+| R24 | **识别代码位置**:`ai_audio.py` 里 chat 识别已重构为 `_chat_from_audio`(`_stream_transcription` 失败时也回落到它);Task 0.1(打点)与 Task 1.2(提示词、`<none>`、`max_tokens`/`thinking`)改在 `_chat_from_audio`(与 `server/app/stt.py` 抽出的核心)上做,使兜底路径同样受益;`logger` 已存在,Task 1.3 不再新增。 |
+| R25 | **Task 1.5**:`make_transcriber`(上传识别兜底)在 `upstream_asr_mode == "volc_stream"` 时先走已落地的 `transcribe_pcm`(共用其并发闸门/熔断),失败再回落旧的 chat/Whisper 路径;通话的识别选择由 `realtime_asr_mode`(`buffered`/`stream`)决定;Task 4.1 `/api/realtime/config` 返回的 `asr` 必须与 Task 4.4 `make_recognizers` 实际选择一致(有测试断言)。 |
+| R26 | **样本生成提前**:`latency_samples.py` 与样本生成放进 Task 0.2(Task 0.3/0.4 要用 s5)。 |
+| R27 | **基线工作树**:Task 0.5 若需要旧代码基线,不在 worktree 里装依赖:用 `E2E_BASE_URL` 指向以基线标签代码起的服务,Playwright 仍从主 `web/` 运行;`server/.env` 通过复制到 worktree 使用且不打印、用后删除。本机若 Docker Desktop 未运行,服务端测量一律用本机 `uv run uvicorn app.main:create_app --factory`(临时 SQLite),浏览器层 Playwright 用例需要 Docker 时再请用户启动 Docker Desktop。 |
+| R28 | **页面测试辅助的真实形态**:对话页测试的 `setup(handlers, recorderEnv?, {strict, route})` 是同步的、返回 `{mock, view}`,`route` 指页面 URL 而非假处理器;需要麦克风的用例传 `createFakeRecorderEnv().env`。Task 2.8/3.4/4.11 的测试按此改写。 |
+| R29 | **R17 的补充许可**:允许修改既有测试里约 25 处"点一下开始/再点一下停止"的录音点击点(含 `recordAndSend` 辅助与 `act` 里的 `fireEvent.click(chat-mic)`),统一改用 `holdMic`/`pressKey`,在门槛记录里列出;`web/e2e/chat.spec.ts` 的语音用例不固定时长(等计时器到 7 s),改用键盘后备(`Space` 两次)保留该断言;Task 3.5 的路由模拟必须覆盖真实路径 `/api/speech/assessments`(不得放过真实的讯飞调用),并有断言证明没有请求落到真实上游。 |
+| R30 | **跨线顺序**:Task 3.3 依赖 Task 2.4(`useRecorder` 契约);并行线的顺序加一条 `0.1 → 2.4 → 3.3`,并删去"阶段 3 与阶段 2 无关"的说法。Task 3.3 与 2.4 测试里伪录音会话的 `result` 用 `new Promise<never>(() => {})`(永不完成),避免 `useRecorder` 自动发送。 |
+| R31 | **iOS 手势与 AudioContext**:触摸的 `pointerdown` 在 iOS 上**不算**可解锁音频的用户激活。采集用**页面级唯一的 `AudioContext`**,在第一次点击(任何 `click`/`touchend`)时 `unlockAudioContext()`;按住说话开始时若该上下文不是 `running`,退到 MediaRecorder 路径(不得录出静音)。Playwright 无法暴露此问题,写进真机清单。 |
+| R32 | **VAD 库与共享麦克风**:`createVad` 传 no-op 的 `pauseStream`/`resumeStream`(默认实现会停掉共享流的轨道)与通话的 `AudioContext`(给 `createVad` 增加可选 `context` 参数);库不接受外部 `AudioContext` 时,iOS 上通话直接以"按住说话"模式开始并提示。 |
+| R33 | **设计偏离的裁定(记录,待用户知悉)**:① 通话切后台 = **挂断**(R16),而非设计文档写的"暂停并提示"——iOS 不允许后台保活,暂停会留下悬空的麦克风;② 按句流水线朗读复用页面既有 `<audio>` 播放器(`playQueue`),不复用通话的 WebAudio 播放器——iOS 解锁契约与"单音频焦点"已在该路径上验证过,代价是两句之间可能有数十毫秒间隙。 |
+| R34 | **小项**:Task 4.9 的 i18n 键用真实的 `web.recorder.permission_denied`;用户未提交的 `docker-compose.yml` 声明了外部网络 `1panel-network`,若 E2E 栈因此起不来,**在 E2E 栈命令里不使用该文件**(`docker-compose.e2e.yml` 独立运行,必要时 `docker network create 1panel-network`);Git Bash 里 `docker run … ls /web/dist/vad` 前加 `MSYS_NO_PATHCONV=1`;计划头部"外部状态"段以 R20 为准。 |
+
 ## 延迟测量方法(设计文档 §7.1)
 
 - **样本集**(Task 0.2 的 `server/scripts/latency_samples.py` 生成到 `.superpowers/latency/`,不提交):`s5.wav` = `enjoy/samples/jfk.wav` 前 5.0 s;`s15.wav` = `jfk.wav` 全长 + 从头补足到 15.0 s;都转为 16 kHz 单声道 16 位。回复文本固定为两句的 `REPLY_TEXT = "That sounds like a great plan. What time would you like to meet tomorrow?"`。
