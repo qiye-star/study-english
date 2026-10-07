@@ -3660,6 +3660,27 @@ describe("realtime call (plan 2026-10-07)", () => {
       expect(deletes(mock)).toHaveLength(0);
     });
 
+    it("clicking the call button while a save awaits Retry retries that save (the toast may be gone), then the call can start", async () => {
+      const c = callEnv();
+      let saves = 0;
+      const { mock } = setupCall(callRoutes({
+        "POST /api/ai/chat/completions": () => sse([delta("Fine"), DONE_EVENT]),
+        "POST /api/conversations/c1/messages": () => (++saves === 1 ? json({ error: "Slow down" }, 429) : json({ messages: [{ id: "m1" }, { id: "m2" }] })),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      }), c.env);
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "Hello there");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await waitFor(() => expect(spy).toHaveBeenCalledWith(NOT_SAVED, expect.anything()));
+      await userEvent.click(screen.getByTestId("conversation-call"));
+      expect(spy).toHaveBeenCalledWith(BLOCKED);
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(2));
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).not.toHaveAttribute("title"));
+      expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(0);
+      await connect(c);
+    });
+
     it("refuses to start a call while a failed reply awaits Retry, and allows it once the retry is saved", async () => {
       const c = callEnv();
       let attempt = 0;

@@ -850,6 +850,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     if (!conversation || !realtimeConfig?.enabled || call) return;
     if (hasUnsentState()) {
       toast.error(t("web.chat.callBlocked.unsent"));
+      // 等待 Retry 的保存:提示条可能已被关掉,这一下就当作 Retry(成功后按钮恢复,再点即可通话)
+      if (pendingSavesRef.current.length > 0 && !busyRef.current) {
+        void flushSaves().then((o) => { if (o === "failed" && mountedRef.current) toastNotSaved(); });
+      }
       return;
     }
     const voiceName = callVoice(config, ai);
