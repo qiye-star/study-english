@@ -3515,4 +3515,17 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(c.vad.destroy).toHaveBeenCalledTimes(1);
     expect(document.querySelector("[data-testid='call-screen']")).toBeNull();
   });
+  it("refuses early with 'invalid voice' when the server AI config failed to load and the conversation reads aloud with another provider", async () => {
+    const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const c = callEnv();
+    const { mock } = setupCall(callRoutes({
+      "GET /api/config/tts_providers_v2": () => json({ error: "boom" }, 500),
+    }), c.env);
+    await userEvent.click(await screen.findByTestId("conversation-call"));
+    expect(spy).toHaveBeenCalledWith("This conversation's voice can't be used for calls. Choose another voice in the conversation settings.");
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    await act(async () => {});
+    expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(0);
+    spy.mockRestore();
+  });
 });

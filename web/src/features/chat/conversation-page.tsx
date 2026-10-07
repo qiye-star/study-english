@@ -103,10 +103,12 @@ const HOLD_HINTS: Record<DiscardReason, string> = {
 /**
  * 实时通话的音色。通话只用服务端的火山 TTS(REALTIME_TTS_MODEL = volcengine/…,服务端 volc_tts_stream):
  * 会话用别家模型朗读时(例如 openai 的 alloy),那个音色在火山上不存在,每句都会合成失败——改用服务端的火山音色
- * (默认预设是火山时用它的音色,否则取火山的第一个英文音色);都没有时原样传,由 encodeStart/服务端报错。
+ * (默认预设是火山时用它的音色,否则取火山的第一个英文音色);服务端 AI 配置没加载到时无从得知火山音色,
+ * 返回 null,页面直接以 invalidVoice 拒绝(不把 alloy 之类送去必然失败的通话)。
  */
-function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): string {
-  if (config.ttsModel.startsWith("volcengine/") || !ai) return config.ttsVoice;
+function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): string | null {
+  if (config.ttsModel.startsWith("volcengine/")) return config.ttsVoice;
+  if (!ai) return null;
   if (ai.defaultTts.model.startsWith("volcengine/") && ai.defaultTts.voice) return ai.defaultTts.voice;
   const volc = ai.ttsModels.find((m) => m.startsWith("volcengine/"));
   return (volc && voicesFor(ai, volc)[0]?.value) || config.ttsVoice;
@@ -146,6 +148,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const { t } = useTranslation();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
+  /** 服务端 AI 配置已有结果(成功或失败):通话入口等它,点击时才知道该用哪个音色 */
+  const [aiSettled, setAiSettled] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -240,7 +244,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   // 实时通话(Task 4.11):服务端开启且浏览器有 AudioContext 才显示入口;结束后重新加载会话(reloadKey)
   const [realtimeConfig, setRealtimeConfig] = useState<RealtimeConfig | null>(null);
-  const [call, setCall] = useState<{ context: AudioContext } | null>(null);
+  const [call, setCall] = useState<{ context: AudioContext; voice: string } | null>(null);
   callActiveRef.current = !!call;
   const [reloadKey, setReloadKey] = useState(0);
   /** 本次通话里每句话的语法检查(补写完成才 resolve);关闭通话后等它们结束再重新加载 */
@@ -288,7 +292,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
-    loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined);
+    loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined)
+      .finally(() => { if (alive) setAiSettled(true); });
     Promise.all([getConversation(api, id), listMessages(api, id)])
       .then(([c, list]) => {
         if (!alive) return;
@@ -817,6 +822,11 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
    */
   const startCall = () => {
     if (!conversation || !realtimeConfig?.enabled || busyRef.current || voice.state !== "idle" || call) return;
+    const voiceName = callVoice(config, ai);
+    if (!voiceName) {
+      toast.error(t("web.realtime.errors.invalidVoice"));
+      return;
+    }
     stopTts(); // 通话期间不得有其他播放(通话自己也会 claimAudio)
     const audio = prepareCallAudio(realtimeEnv?.capture);
     if (!audio) {
@@ -825,7 +835,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     }
     callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    setCall({ context: audio.context });
+    setCall({ context: audio.context, voice: voiceName });
   };
 
   /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(复用 TurnResults,失败静默)。 */
@@ -868,7 +878,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
             onOpenRecap={() => setRecapOpen(true)}
-            canCall={!!realtimeConfig?.enabled && callAudioSupported} callDisabled={!conversation || sending || voiceBusy || !!call}
+            canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call}
             onCall={startCall} />
         } />
       {(scenario || options.level !== "auto") && (
@@ -1001,7 +1011,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       {call && conversation && realtimeConfig && (
         <RealtimeCallDialog api={api} conversationId={conversation.id} context={call.context} ownsContext={false}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
-          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: callVoice(config, ai), saveRecordings: true }}
+          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />
       )}
     </div>
