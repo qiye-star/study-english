@@ -11,6 +11,8 @@ import { encodeControl, encodeStart, parseServerEvent, splitAudioFrame, type Sta
 import { createRealtimeTicket, realtimeUrl } from "./realtime-api";
 
 export const PRE_ROLL_MS = 300;
+/** 票据剩余寿命不足这么多秒时,开 WebSocket 前重新申请一张(首次下载 VAD 资源、犹豫的权限弹窗都可能超过 60 s)。 */
+export const TICKET_MARGIN_S = 10;
 const PRE_ROLL_SAMPLES = (TARGET_RATE * PRE_ROLL_MS) / 1000;
 
 export interface RealtimeEnv {
@@ -18,6 +20,8 @@ export interface RealtimeEnv {
   capture: CaptureEnv;
   createVad: typeof createVad;
   location: { protocol: string; host: string };
+  /** 毫秒时钟(默认 Date.now;测试注入)。 */
+  now?: () => number;
 }
 
 export const browserRealtimeEnv = (): RealtimeEnv => ({
@@ -92,12 +96,29 @@ export class RealtimeCall {
     if (this.isOpen()) this.ws!.send(floatToPcm16(frame).buffer as ArrayBuffer);
   }
 
+  private now(): number {
+    return (this.env.now ?? Date.now)();
+  }
+
+  /** 申请一张票据并记下到手时间与寿命。 */
+  private async requestTicket(): Promise<{ ticket: string; freshUntil: number }> {
+    const { ticket, expiresIn } = await createRealtimeTicket(this.o.api, this.o.conversationId, this.abort.signal);
+    const life = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 60;
+    return { ticket, freshUntil: this.now() + Math.max(0, life - TICKET_MARGIN_S) * 1000 };
+  }
+
+  /**
+   * 顺序:票据 → 麦克风 → VAD → (票据快过期则再申请一张)→ WebSocket。
+   * 票据仍然第一个申请:服务端未启用/会话不存在时根本不打开麦克风;iOS 的手势要求只针对 AudioContext 解锁,
+   * 那一步已在点击的同步阶段完成(`prepareCallAudio`),这里多一次 await 不影响它。
+   * 权限弹窗与首次下载约 16 MB 的 VAD 资源可能超过票据的 60 s 寿命,所以开连接前按 expiresIn 检查一次。
+   */
   async start(): Promise<void> {
     if (this.torn || this.started) return;
     this.started = true;
     this.dispatch({ type: "connect" });
     try {
-      const { ticket } = await createRealtimeTicket(this.o.api, this.o.conversationId, this.abort.signal);
+      let { ticket, freshUntil } = await this.requestTicket();
       if (this.torn) return;
 
       this.player = createPcmPlayer(this.o.context, { sampleRate: this.o.sampleRateOut });
@@ -112,6 +133,11 @@ export class RealtimeCall {
 
       await this.loadVad(capture.stream);
       if (this.torn) return;
+
+      if (this.now() >= freshUntil) {
+        ({ ticket, freshUntil } = await this.requestTicket());
+        if (this.torn) return;
+      }
 
       const ws = new this.env.WebSocket(realtimeUrl(ticket, this.env.location));
       ws.binaryType = "arraybuffer";

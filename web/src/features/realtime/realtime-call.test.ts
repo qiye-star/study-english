@@ -45,6 +45,7 @@ function setup(over: {
   vadFails?: boolean;
   vadLoading?: Promise<void>;
   ownsContext?: boolean;
+  now?: () => number;
 } = {}) {
   FakeWebSocket.instances = [];
   const ctx = new FakeAudioContext(16000);
@@ -68,6 +69,7 @@ function setup(over: {
       return vad;
     }),
     location: { protocol: "https:", host: "app.test" },
+    ...(over.now ? { now: over.now } : {}),
   };
   const mock = createFetchMock({ "POST /api/realtime/ticket": over.ticket ?? (() => json({ ticket: "tk", expires_in: 60 })) });
   const changes: CallModel[] = [];
@@ -109,6 +111,59 @@ describe("RealtimeCall", () => {
     expect(s.ws().binaryType).toBe("arraybuffer");
     s.ws().open();
     expect(s.ws().texts()[0]).toMatchObject({ type: "start", system_prompt: "Be kind.", voice: "voice_1", save_recordings: true });
+  });
+
+  describe("ticket freshness (the ticket is single-use and expires after expires_in seconds)", () => {
+    it("re-requests the ticket when the microphone prompt and VAD download took too long", async () => {
+      let t = 1_000;
+      let loaded!: () => void;
+      let n = 0;
+      const s = setup({
+        now: () => t,
+        vadLoading: new Promise<void>((r) => { loaded = r; }),
+        ticket: () => json({ ticket: `tk${++n}`, expires_in: 60 }),
+      });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 51_000; // 离过期不足 10 s
+      loaded();
+      await starting;
+      expect(s.mock.calls.filter((c) => c.url.pathname === "/api/realtime/ticket")).toHaveLength(2);
+      expect(s.ws().url).toBe("wss://app.test/api/realtime?ticket=tk2");
+    });
+
+    it("uses the first ticket while it is still fresh", async () => {
+      let t = 1_000;
+      let loaded!: () => void;
+      const s = setup({ now: () => t, vadLoading: new Promise<void>((r) => { loaded = r; }) });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 49_000;
+      loaded();
+      await starting;
+      expect(s.mock.calls.filter((c) => c.url.pathname === "/api/realtime/ticket")).toHaveLength(1);
+      expect(s.ws().url).toBe("wss://app.test/api/realtime?ticket=tk");
+    });
+
+    it("a refused refresh ends the call and releases the microphone", async () => {
+      let t = 1_000;
+      let n = 0;
+      let loaded!: () => void;
+      const s = setup({
+        now: () => t,
+        vadLoading: new Promise<void>((r) => { loaded = r; }),
+        ticket: () => (++n === 1 ? json({ ticket: "tk", expires_in: 60 }) : json({ error: "Realtime is not enabled" }, 503)),
+      });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 120_000;
+      loaded();
+      await starting;
+      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(s.vad.destroy).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.disabled");
+    });
   });
 
   it("gives the VAD the call's audio context and starts it", async () => {
