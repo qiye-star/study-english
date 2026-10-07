@@ -8,6 +8,15 @@
   3. 挂断:回复中途 hangup(以及直接断开连接)→ 立即用新 ticket 重连能拿到 ready(不是 4029)。
   4. 同一用户第二路并发 → 4029,第一路不受影响。
   5. 无效 / 缺失 / 重复使用的 ticket → 4001。
+  6. 用户挂断时还有待完成的识别 / 评测:
+     6a. `utterance_end` 之后立即 hangup → 关闭帧 ≤ 3 s;用户消息已保存(transcript_final 在关闭帧前到达),
+         挂断后没有任何回复(reply_delta / 音频 / reply_done),也没有保存助手消息;(讯飞已配置时)
+         `assessment` 在关闭帧之前到达。
+     6b. 收到 transcript_final 后立即 hangup(只剩评测待完成)→ 关闭帧 ≤ 3 s,`assessment` 在关闭帧之前到达。
+  (7. 静音超时立即挂断:要等 60 s,不在本脚本内。)
+  8. LLM 首字:各场景里每个 transcript_final → 下一个 reply_delta 的间隔汇总到 8_llm_first_delta_ms;
+     --print-thinking 在进程内用 Settings()(读 cwd 下的 .env)打印实时通话是否会发送
+     `thinking: disabled`(只打印布尔值,不打印地址或密钥)。
 
 测试语音由服务自己的 TTS 接口(/api/ai/audio/speech,mp3)生成,用本机 ffmpeg 转成 16 kHz PCM16LE
 (与 scripts/eval_free_speech.py 的转换参数相同);--pcm-cache 可复用上次生成的 PCM,不再调用 TTS。
@@ -184,8 +193,11 @@ class Call:
         await self.ws.send(json.dumps(data))
 
     async def start(self, voice: str, model: str, prompt: str) -> None:
-        await self.send_json({"type": "start", "system_prompt": prompt, "model": model, "temperature": 0.7,
-                              "voice": voice, "language": "en", "save_recordings": True})
+        try:
+            await self.send_json({"type": "start", "system_prompt": prompt, "model": model, "temperature": 0.7,
+                                  "voice": voice, "language": "en", "save_recordings": True})
+        except ConnectionClosed:
+            pass  # already closed (e.g. 4029 sent right after accept): the next wait() reports the close code
 
     async def speak(self, pcm: bytes) -> tuple[float, float]:
         """Stream `pcm` + tail silence in 100 ms frames on an absolute real-time schedule, then
@@ -202,6 +214,26 @@ class Call:
             await asyncio.sleep(delay)
         await self.send_json({"type": "utterance_end"})
         return t0, time.monotonic()
+
+    def llm_gaps(self) -> list[int]:
+        """ms from each saved transcript_final to the next reply_delta (LLM first token + server overhead)."""
+        gaps = []
+        for i, (t, kind, data) in enumerate(self.events):
+            if kind == "transcript_final" and data.get("message_id"):
+                j = self.find("reply_delta", after=i + 1)
+                if j is not None:
+                    gaps.append(ms(self.events[j][0], t))
+        return gaps
+
+    def reply_sentences(self) -> int:
+        """Rough count of reply sentences the server sent to TTS (for the upstream budget)."""
+        text = "".join(d["text"] for _, k, d in self.events if k == "reply_delta")
+        ended = len(re.findall(r"[.!?]+(?:\s|$)", text))
+        return ended + (1 if text.strip() and not re.search(r"[.!?]\s*$", text) else 0)
+
+    def tally(self, ctx: dict) -> None:
+        ctx.setdefault("llm_gaps", []).extend(self.llm_gaps())
+        ctx["tts_sentences"] = ctx.get("tts_sentences", 0) + self.reply_sentences()
 
     async def hangup(self, timeout: float = 20.0) -> int | None:
         with_hangup = self.close_code is None
@@ -282,6 +314,7 @@ async def scenario_turn(api: Api, ctx: dict) -> dict:
         except Failure as e:
             out["assessment_status"] = f"missing ({e})"
     out["close"] = await call.hangup()
+    call.tally(ctx)
     msgs = await api.messages(conv)
     out["saved"] = [(m["role"], len(m["content"])) for m in msgs]
     check([m["role"] for m in msgs] == ["user", "assistant"], f"saved roles {[m['role'] for m in msgs]}")
@@ -337,6 +370,7 @@ async def scenario_barge_in(api: Api, ctx: dict) -> dict:
         errors=[d.get("code") for _, k, d in call.events if k == "error"],
     )
     out["close"] = await call.hangup()
+    call.tally(ctx)
     msgs = await api.messages(conv)
     out["saved"] = [(m["role"], len(m["content"]), m["content"].endswith(" …")) for m in msgs]
     check(ack["interrupted"], "old reply_done not marked interrupted")
@@ -365,6 +399,7 @@ async def scenario_hangup(api: Api, ctx: dict) -> dict:
     t = time.monotonic()
     out["hangup_close"] = await call.hangup()
     out["hangup_close_ms"] = ms(time.monotonic(), t)
+    call.tally(ctx)
     out["hangup_reply_done_seen"] = call.find("reply_done") is not None
     again = await Call.open(api, await api.ticket(conv))
     await again.start(ctx["voice"], ctx["model"], SHORT_PROMPT)
@@ -381,6 +416,7 @@ async def scenario_hangup(api: Api, ctx: dict) -> dict:
     # 3b: the client vanishes mid-reply (TCP drop, no close frame), then reconnect
     call, conv = await _reply_started(api, ctx)
     call.ws.transport.abort()
+    call.tally(ctx)
     t = time.monotonic()
     attempts = 0
     while True:
@@ -391,7 +427,8 @@ async def scenario_hangup(api: Api, ctx: dict) -> dict:
             await probe.wait("ready", timeout=20)
             break
         except Failure:
-            if probe.close_code != 4029 or time.monotonic() - t > 10:
+            # the server keeps the user's slot until session.drain() (pending assessments, ≤ 10 s) is done
+            if probe.close_code != 4029 or time.monotonic() - t > 15:
                 raise
             await asyncio.sleep(0.2)
     out["reconnect_after_drop_ms"] = ms(time.monotonic(), t)
@@ -422,6 +459,108 @@ async def scenario_tickets(api: Api, ctx: dict) -> dict:
         "missing": await expect_close(api, None, 4001),
         "reused": await expect_close(api, ctx["used_ticket"], 4001) if "used_ticket" in ctx else "skipped",
     }
+
+
+HANGUP_CLOSE_MAX_MS = 3000  # the web client waits at most 3 s for the close frame after a hang-up
+REPLY_EVENTS = ("reply_delta", "audio", "reply_done")
+
+
+async def _assessment_linked(api: Api, conv: str, message_id: str, timeout: float = 15.0) -> bool:
+    """After the call: is the assessment saved and linked to the user message (even if it missed the close frame)?"""
+    end = time.monotonic() + timeout
+    while True:
+        msgs = await api.messages(conv)
+        if any(m["id"] == message_id and m.get("assessment_id") for m in msgs):
+            return True
+        if time.monotonic() > end:
+            return False
+        await asyncio.sleep(0.5)
+
+
+async def _hangup_pending(api: Api, ctx: dict, after_final: bool) -> dict:
+    conv = await api.conversation()
+    call = await open_ready(api, conv, ctx, SHORT_PROMPT)
+    _, t_end = await call.speak(ctx["pcm"])
+    if after_final:
+        await call.wait("transcript_final", timeout=60)
+    t_h = time.monotonic()
+    await call.send_json({"type": "hangup"})
+    i_closed = await call.wait("closed", timeout=20)
+    t_close = call.t(i_closed)
+    i_final = call.find("transcript_final")
+    i_a = call.find("assessment")
+    final = call.events[i_final][2] if i_final is not None else {}
+    reply_after = [k for t, k, _ in call.events if k in REPLY_EVENTS and t >= t_h]
+    out = {
+        "hangup_ms_after_utterance_end": ms(t_h, t_end),
+        "close": call.close_code,
+        "close_ms_after_hangup": ms(t_close, t_h),
+        "transcript_final_ms_after_hangup": ms(call.t(i_final), t_h),
+        "word_match": round(word_match(SENTENCE, final["text"]), 2) if final else None,
+        "assessment_before_close": i_a is not None and i_a < i_closed,
+        "assessment_status": call.events[i_a][2].get("status") if i_a is not None else None,
+        "assessment_ms_after_hangup": ms(call.t(i_a), t_h),
+        "reply_events_after_hangup": reply_after,
+        "reply_events_total": sum(1 for _, k, _ in call.events if k in REPLY_EVENTS),
+        "errors": [d.get("code") for _, k, d in call.events if k == "error"],
+    }
+    call.tally(ctx)
+    # informational: how long after the close frame the same user can start a new call (4029 until then)
+    attempts = 0
+    while True:
+        attempts += 1
+        probe = await Call.open(api, await api.ticket(conv))
+        await probe.start(ctx["voice"], ctx["model"], SHORT_PROMPT)
+        try:
+            await probe.wait("ready", timeout=20)
+            break
+        except Failure:
+            if probe.close_code != 4029 or time.monotonic() - t_close > 15:
+                raise
+            await asyncio.sleep(0.2)
+    out["reconnect_ready_ms_after_close"] = ms(time.monotonic(), t_close)
+    out["reconnect_attempts"] = attempts
+    await probe.hangup()
+    msgs = await api.messages(conv)
+    out["saved"] = [(m["role"], len(m["content"]), m["content"].endswith(" …")) for m in msgs]
+    if final.get("message_id") and ctx["expect_assessment"]:
+        out["assessment_linked_after_call"] = await _assessment_linked(api, conv, final["message_id"])
+    # checks last, so every measurement above is reported even when one fails
+    failed = []
+    for cond, message in (
+        (out["close"] == 1000, f"close {out['close']}"),
+        (out["close_ms_after_hangup"] <= HANGUP_CLOSE_MAX_MS, f"close frame {out['close_ms_after_hangup']} ms after hangup"),
+        (bool(final.get("message_id")), "no transcript_final with a saved message before the close frame"),
+        (bool(msgs) and msgs[0]["role"] == "user" and msgs[0]["id"] == final.get("message_id")
+         and msgs[0]["content"] == final.get("text"), "the ended utterance was not saved as the user message"),
+        (after_final or not reply_after, f"reply events after the hangup: {reply_after}"),
+        (after_final or [m["role"] for m in msgs] == ["user"], f"saved roles {[m['role'] for m in msgs]}"),
+        (not ctx["expect_assessment"] or out["assessment_before_close"], "assessment did not arrive before the close frame"),
+        (not ctx["expect_assessment"] or out["assessment_status"] == "done", f"assessment {out['assessment_status']}"),
+    ):
+        if not cond:
+            failed.append(message)
+    check(not failed, "; ".join(failed) + f" — {json.dumps(out, ensure_ascii=False)}")
+    return out
+
+
+async def scenario_hangup_pending(api: Api, ctx: dict) -> dict:
+    return await _hangup_pending(api, ctx, after_final=False)
+
+
+async def scenario_hangup_after_final(api: Api, ctx: dict) -> dict:
+    return await _hangup_pending(api, ctx, after_final=True)
+
+
+def print_thinking() -> None:
+    """In-process: does a realtime LLM request carry `thinking: disabled`? Prints booleans only."""
+    from app.config import LLM_THINKING_HOST_SUFFIXES, Settings, host_matches, send_thinking_param
+    settings = Settings()
+    sends = send_thinking_param(settings.realtime_llm_disable_thinking, settings.upstream_llm_base_url,
+                                LLM_THINKING_HOST_SUFFIXES)
+    print(f"thinking: mode={settings.realtime_llm_disable_thinking} "
+          f"upstream_is_deepseek={host_matches(settings.upstream_llm_base_url, ('deepseek.com',))} "
+          f"sends_thinking_disabled={sends}")
 
 
 def scan_log(path: Path, offset: int) -> dict:
@@ -459,16 +598,25 @@ async def main_async(args) -> int:
     results: dict = {"config": config}
     failures = []
     for name, fn in (("1_turn", scenario_turn), ("2_barge_in", scenario_barge_in), ("3_hangup", scenario_hangup),
-                     ("4_busy", scenario_busy), ("5_tickets", scenario_tickets)):
+                     ("4_busy", scenario_busy), ("5_tickets", scenario_tickets),
+                     ("6a_hangup_after_utterance_end", scenario_hangup_pending),
+                     ("6b_hangup_after_final", scenario_hangup_after_final)):
         if args.only and name not in args.only.split(","):
             continue
         try:
+            # a fresh user per scenario: a slot still held by the previous scenario's call (the server
+            # releases it only after draining assessments) must not turn this scenario into a 4029
+            await api.register()
             results[name] = await fn(api, ctx)
             print(f"PASS {name} {json.dumps(results[name], ensure_ascii=False)}")
         except Exception as e:  # noqa: BLE001
             failures.append(name)
             results[name] = {"failure": f"{type(e).__name__}: {e}"}
             print(f"FAIL {name} {type(e).__name__}: {e}")
+    results["8_llm_first_delta_ms"] = ctx.get("llm_gaps", [])
+    results["tts_sentences_estimate"] = ctx.get("tts_sentences", 0)
+    print("8 llm: first reply_delta after transcript_final (ms)", results["8_llm_first_delta_ms"])
+    print("in-call TTS sentences (estimate)", results["tts_sentences_estimate"])
     if args.server_log:
         await asyncio.sleep(1.0)  # let the last call's timing line reach the log
         results["server_log"] = scan_log(Path(args.server_log), log_offset)
@@ -484,7 +632,7 @@ async def main_async(args) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--base-url")
     parser.add_argument("--tts-model", default="volcengine/seed-tts-2.0")
     parser.add_argument("--voice", default="en_female_dacey_uranus_bigtts")
     parser.add_argument("--pcm-cache", help="16 kHz PCM16LE file of the test sentence (written on first run)")
@@ -492,7 +640,16 @@ def main() -> int:
     parser.add_argument("--server-log", help="the server's log file: scan the lines written during this run")
     parser.add_argument("--json-out")
     parser.add_argument("--only", help="comma-separated scenario names")
-    return asyncio.run(main_async(parser.parse_args()))
+    parser.add_argument("--print-thinking", action="store_true",
+                        help="only print (booleans) whether realtime LLM requests send thinking disabled; "
+                             "reads Settings() from the .env in the cwd (needs the server dir on PYTHONPATH)")
+    args = parser.parse_args()
+    if args.print_thinking:
+        print_thinking()
+        return 0
+    if not args.base_url:
+        parser.error("--base-url is required")
+    return asyncio.run(main_async(args))
 
 
 if __name__ == "__main__":
