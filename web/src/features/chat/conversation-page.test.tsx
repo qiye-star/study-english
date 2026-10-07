@@ -10,6 +10,7 @@ import i18n from "~/i18n";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
+import { holdMic, pressKey } from "~/test/hold";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -80,10 +81,14 @@ function gate() {
   const promise = new Promise<void>((r) => (release = r));
   return { promise, release };
 }
+/** R29:按住麦克风 1 秒再松手(按住说话),替代"点一下开始、再点一下停止" */
 async function recordAndSend() {
-  await userEvent.click(await screen.findByTestId("chat-mic"));
-  expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
-  await userEvent.click(screen.getByTestId("chat-mic"));
+  await holdMic(await screen.findByTestId("chat-mic"), { ms: 1000 });
+}
+/** R29:键盘后备(Space 一次)开始录音并等麦克风就绪,替代"点一下 chat-mic 开始" */
+async function startRecording() {
+  const mic = await screen.findByTestId("chat-mic");
+  await act(async () => { pressKey(mic); });
 }
 const callsTo = (mock: ReturnType<typeof createFetchMock>, method: string, path: string) =>
   mock.calls.filter((c) => c.method === method && c.url.pathname === path);
@@ -732,7 +737,7 @@ describe("ConversationPage", () => {
       const { mock } = setup(routes(), fake.env);
       await screen.findByText("reply");
       const before = mock.calls.length;
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       expect(screen.getByTestId("voice-timer")).toHaveTextContent("00:00 / 01:00");
       expect(screen.queryByTestId("chat-input")).toBeNull(); // 录音时输入框让位给计时条
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
@@ -936,7 +941,7 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeDisabled());
       await act(async () => { reply.release(); });
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       expect(screen.getByTestId("chat-send")).toBeDisabled();
     });
 
@@ -956,7 +961,7 @@ describe("ConversationPage", () => {
         const fake = createFakeRecorderEnv();
         const { mock } = setup(voiceRoutes(), fake.env);
         await screen.findByText("reply");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         await act(async () => { fake.setHidden(); });
         expect(await screen.findByTestId("voice-send-kept")).toBeInTheDocument();
         expect(screen.getByTestId("message-user")).toHaveAttribute("data-voice", "kept");
@@ -972,7 +977,7 @@ describe("ConversationPage", () => {
         const fake = createFakeRecorderEnv();
         const { mock } = setup(voiceRoutes(), fake.env);
         await screen.findByText("reply");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         await act(async () => { fake.setHidden(); });
         await userEvent.click(await screen.findByTestId("voice-discard"));
         expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
@@ -1398,7 +1403,7 @@ describe("ConversationPage", () => {
         await userEvent.type(screen.getByTestId("chat-input"), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
         expect(screen.queryByTestId("message-retry")).toBeNull();
         await userEvent.click(screen.getByTestId("chat-mic-cancel"));
@@ -1414,11 +1419,11 @@ describe("ConversationPage", () => {
         await screen.findByTestId("message-retry");
         // 同一帧里点了录音和重试:两个点击都发生在重新渲染之前
         act(() => {
-          fireEvent.click(screen.getByTestId("chat-mic"));
+          pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
         });
         await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
-        await userEvent.click(screen.getByTestId("chat-mic")); // 停止并发送
+        pressKey(screen.getByTestId("chat-mic")); // 停止并发送
         const held = await screen.findByTestId("voice-send-kept");
         expect(screen.getAllByTestId("message-user").at(-1)).toHaveAttribute("data-voice", "kept");
         expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("A reply was still in progress, so this recording was not sent yet.");
@@ -1451,11 +1456,11 @@ describe("ConversationPage", () => {
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
         act(() => {
-          fireEvent.click(screen.getByTestId("chat-mic"));
+          pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
         });
         await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        pressKey(screen.getByTestId("chat-mic"));
         await screen.findByTestId("voice-send-kept"); // held while the retry streams
         await act(async () => { second.release(); });
         await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "error"));
@@ -1486,11 +1491,11 @@ describe("ConversationPage", () => {
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
         act(() => {
-          fireEvent.click(screen.getByTestId("chat-mic"));
+          pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
         });
         await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        pressKey(screen.getByTestId("chat-mic"));
         await screen.findByTestId("voice-send-kept");
         await act(async () => { second.release(); });
         await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "error"));
@@ -1512,11 +1517,11 @@ describe("ConversationPage", () => {
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
         act(() => {
-          fireEvent.click(screen.getByTestId("chat-mic"));
+          pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
         });
         await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        pressKey(screen.getByTestId("chat-mic"));
         await userEvent.click(await screen.findByTestId("voice-discard"));
         expect(screen.getAllByTestId("message-user")).toHaveLength(1);
         await act(async () => { second.release(); });
@@ -1530,7 +1535,7 @@ describe("ConversationPage", () => {
       setup(routes({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) }), fake.env);
       await userEvent.click(await screen.findByTestId("message-tts"));
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle"));
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
@@ -1544,7 +1549,7 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       const { mock } = setup(routes({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) }), fake.env);
       await screen.findByTestId("message-tts");
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
       expect(screen.getByTestId("message-tts")).toBeDisabled();
       await userEvent.click(screen.getByTestId("message-tts"));
@@ -1559,7 +1564,7 @@ describe("ConversationPage", () => {
         const fake = createFakeRecorderEnv();
         const { view } = setup(routes(), fake.env);
         await screen.findByText("reply");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         view.unmount();
         await Promise.resolve();
         await Promise.resolve();
@@ -1650,7 +1655,7 @@ describe("ConversationPage", () => {
         const fake = createFakeRecorderEnv();
         const { mock } = setup(routes(C2), fake.env);
         await screen.findByText("reply");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         await act(async () => { goTo("/chat/c2"); });
         await screen.findByText("Second chat hello");
         expect(fake.track.stop).toHaveBeenCalled();
@@ -1711,7 +1716,7 @@ describe("ConversationPage", () => {
         const fake = createFakeRecorderEnv();
         const { view } = setup(routes(), fake.env, { strict: true });
         await screen.findByText("reply");
-        await userEvent.click(screen.getByTestId("chat-mic"));
+        await startRecording();
         view.unmount();
         await Promise.resolve();
         await Promise.resolve();
@@ -2126,7 +2131,7 @@ describe("ConversationPage", () => {
       await screen.findByText("reply");
       await say("Hi");
       await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "idle"));
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
     });
@@ -2422,7 +2427,7 @@ describe("ConversationPage", () => {
         : completion(REPLIES));
       setup(routes({ "POST /api/ai/chat/completions": streaming, "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }) }), fake.env);
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
       expect(screen.getByTestId("chat-hints")).toBeDisabled();
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
@@ -2991,7 +2996,7 @@ describe("ConversationPage", () => {
       await say("A latte please");
       await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
       await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "playing"));
-      await userEvent.click(screen.getByTestId("chat-mic"));
+      await startRecording();
       await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "idle"));
       expect(speechSignals(mock.calls).slice(1).every((s) => s.aborted)).toBe(true);
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
@@ -3022,6 +3027,211 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
       await settle();
       expect(speechInputs(mock.calls)).toEqual(SENTENCES);
+    });
+  });
+
+  describe("hold to talk (plan 2026-10-07 R11)", () => {
+    const innerWidth = window.innerWidth;
+    afterEach(() => { window.innerWidth = innerWidth; });
+    const holdRoutes = (extra: Record<string, Handler> = {}) => routes({
+      "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+      "POST /api/speech/assessments": () => json(ASSESSED),
+      "POST /api/ai/chat/completions": () => sse([delta("Me too!"), DONE_EVENT]),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      ...extra,
+    });
+    const hit = (mock: ReturnType<typeof createFetchMock>, path: string) => mock.calls.some((c) => c.url.pathname === path);
+    const input = () => screen.getByTestId("chat-input") as HTMLTextAreaElement;
+
+    it("hold and release sends a voice message", async () => {
+      const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { ms: 1500 });
+      await waitFor(() => expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(true));
+      await waitFor(() => expect(hit(mock, "/api/ai/chat/completions")).toBe(true));
+      expect(await screen.findByTestId("message-user")).toHaveTextContent("I like apples");
+    });
+
+    it("the mic button is labelled 'Hold to talk' and keeps the recording test ids while held", async () => {
+      setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const mic = screen.getByTestId("chat-mic");
+      expect(mic).toHaveAccessibleName(/hold to talk/i);
+      expect(mic).toHaveAttribute("data-hold-to-talk");
+      fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
+      expect(mic).toHaveAttribute("data-state", "recording");
+      expect(screen.getByTestId("voice-recording")).toBeInTheDocument();
+      expect(screen.getByTestId("voice-timer")).toHaveTextContent("00:00 / 01:00");
+      expect(screen.getByTestId("chat-mic-cancel")).toBeInTheDocument();
+      fireEvent.pointerCancel(mic, { pointerId: 1 });
+      await waitFor(() => expect(mic).toHaveAttribute("data-state", "idle"));
+    });
+
+    it("slide up and release on 'to text' fills the composer without sending, and focuses it", async () => {
+      window.innerWidth = 400;
+      const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 350 });
+      await waitFor(() => expect(input().value).toBe("I like apples"));
+      await waitFor(() => expect(input()).toHaveFocus());
+      expect(hit(mock, "/api/ai/chat/completions")).toBe(false);
+      expect(hit(mock, "/api/speech/assessments")).toBe(false);
+      expect(mock.calls.some((c) => c.method === "POST" && c.url.pathname.endsWith("/messages"))).toBe(false);
+      expect(screen.queryAllByTestId("message-user")).toHaveLength(0); // 没有草稿气泡留下
+      expect(screen.getByTestId("chat-send")).toBeEnabled();
+    });
+
+    it("'to text' appends to what is already typed, separated by one space", async () => {
+      window.innerWidth = 400;
+      setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await userEvent.type(input(), "Well,  ");
+      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 350 });
+      await waitFor(() => expect(input().value).toBe("Well, I like apples"));
+    });
+
+    it("slide up and release on 'cancel' discards without uploading and releases the microphone", async () => {
+      window.innerWidth = 400;
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(holdRoutes(), fake.env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 40 });
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      expect(fake.track.stop).toHaveBeenCalled();
+      expect(screen.getByTestId("hold-hint")).toHaveTextContent("Recording cancelled");
+      await act(async () => {});
+      expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(false);
+      expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
+    });
+
+    it("a short tap shows the hint, records nothing and releases the microphone", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(holdRoutes(), fake.env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      const hint = await screen.findByTestId("hold-hint");
+      expect(hint).toHaveTextContent(/hold to talk|按住说话/i);
+      expect(hint).toHaveAttribute("role", "status");
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      expect(fake.track.stop).toHaveBeenCalled();
+      await act(async () => {});
+      expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(false);
+      expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
+    });
+
+    it("the hint goes away after 2 seconds", async () => {
+      setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
+      await waitFor(() => expect(screen.queryByTestId("hold-hint")).toBeNull(), { timeout: 3000 });
+    });
+
+    it("releasing while the permission prompt is open says the mic is ready and releases the late microphone", async () => {
+      let grant!: () => void;
+      const fake = createFakeRecorderEnv();
+      const stream = await fake.env.getUserMedia({ audio: true });
+      const env = { ...fake.env, getUserMedia: () => new Promise<MediaStream>((r) => { grant = () => r(stream); }) };
+      const { mock } = setup(holdRoutes(), env);
+      await screen.findByText("reply");
+      const mic = screen.getByTestId("chat-mic");
+      let t = 10_000;
+      const now = vi.spyOn(performance, "now").mockImplementation(() => t);
+      try {
+        fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+        expect(mic).toHaveAttribute("data-state", "starting");
+        t += 800;
+        fireEvent.pointerUp(mic, { pointerId: 1, clientX: 200, clientY: 700 });
+      } finally {
+        now.mockRestore();
+      }
+      expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Microphone is ready – hold to talk");
+      await act(async () => { grant(); });
+      await waitFor(() => expect(fake.track.stop).toHaveBeenCalled());
+      expect(mic).toHaveAttribute("data-state", "idle");
+      expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(false);
+    });
+
+    it("keyboard fallback: Space starts and Space again sends", async () => {
+      const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const mic = screen.getByTestId("chat-mic");
+      pressKey(mic, " ");
+      await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
+      expect(mic).toHaveAccessibleName(/press Space to send/i);
+      pressKey(mic, " ");
+      await waitFor(() => expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(true));
+      await waitFor(() => expect(hit(mock, "/api/ai/chat/completions")).toBe(true));
+    });
+
+    it("keyboard fallback: Enter starts and Escape cancels without uploading", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(holdRoutes(), fake.env);
+      await screen.findByText("reply");
+      const mic = screen.getByTestId("chat-mic");
+      pressKey(mic, "Enter");
+      await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
+      pressKey(mic, "Escape");
+      await waitFor(() => expect(mic).toHaveAttribute("data-state", "idle"));
+      expect(fake.track.stop).toHaveBeenCalled();
+      expect(screen.getByTestId("hold-hint")).toHaveTextContent("Recording cancelled");
+      await act(async () => {});
+      expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(false);
+    });
+
+    it("the mic stays disabled while a reply streams: a press starts nothing", async () => {
+      const reply = gate();
+      const fake = createFakeRecorderEnv();
+      setup(holdRoutes({ "POST /api/ai/chat/completions": async () => { await reply.promise; return sse([delta("Done"), DONE_EVENT]); } }), fake.env);
+      await screen.findByText("reply");
+      await userEvent.type(input(), "Hi");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      const mic = screen.getByTestId("chat-mic");
+      await waitFor(() => expect(mic).toBeDisabled());
+      fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      pressKey(mic, " ");
+      expect(mic).toHaveAttribute("data-state", "idle");
+      expect(mic).toHaveAttribute("data-hold", "idle");
+      expect(fake.recorders).toHaveLength(0);
+      await act(async () => { reply.release(); });
+      await waitFor(() => expect(mic).toBeEnabled());
+    });
+
+    it("a hold started while read-aloud plays stops it, and the release unlocks playback for the reply", async () => {
+      const fake = createFakeRecorderEnv();
+      const play = vi.mocked(HTMLMediaElement.prototype.play);
+      setup(holdRoutes(), fake.env);
+      await userEvent.click(await screen.findByTestId("message-tts"));
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+      const mic = screen.getByTestId("chat-mic");
+      fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle"));
+      await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
+      fireEvent.pointerCancel(mic, { pointerId: 1 });
+      await waitFor(() => expect(mic).toHaveAttribute("data-state", "idle"));
+      play.mockClear();
+      await holdMic(mic, { ms: 1000 });
+      expect(play).toHaveBeenCalled(); // 松手的同步阶段 autoSpeak.prime() 解锁了共享播放元素
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Me too!"));
+    });
+
+    it("switching conversations mid-hold releases the microphone and resets the button", async () => {
+      const fake = createFakeRecorderEnv();
+      setup(holdRoutes({
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+      }), fake.env);
+      await screen.findByText("reply");
+      const mic = screen.getByTestId("chat-mic");
+      fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
+      await act(async () => { goTo("/chat/c2"); });
+      await screen.findByText("Second chat hello");
+      expect(fake.track.stop).toHaveBeenCalled();
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-hold", "idle"));
+      expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
     });
   });
 });
