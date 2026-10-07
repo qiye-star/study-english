@@ -1,65 +1,121 @@
-/* 主题变量:与 enjoy/src/index.css 的 :root / .dark 保持一致(src/styles/theme.test.ts 校验)。
-   不直接 @import enjoy 的 index.css:它带 vidstack/intl-tel-input 样式与 user-select:none。 */
+/*
+ * Web 设计令牌(redesign v3,见 docs/superpowers/design/redesign-v3/design-notes.md)。
+ * 已与 enjoy/src/index.css 分叉(plan 2026-10-08 裁定),由 theme.test.ts 校验。
+ * - 通道令牌写成 "r g b",tailwind 里用 rgb(var(--x) / <alpha-value>),如 bg-blue/10、text-ink-2。
+ * - 色调 / 发丝线 / 玻璃是完整颜色值(暗色下带 alpha),如 bg-blue-tint、shadow-hair-b。
+ * - shadcn 名称(--background、--primary …)是语义令牌的别名,旧组件无需改动。
+ * 每种色相只表达一种含义:blue 操作/激活/用户;teal 词汇;amber 连续天数/提示/目标词、分数 70–84;
+ * green 分数 ≥85、在线点;red 挂断/退出;ink-3 只用于箭头等图形,不用于文字。
+ */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  --bg: 255 255 255;
+  --surface: 255 255 255;
+  --surface-2: 245 246 248;
+  --ink: 17 19 24;
+  --ink-2: 91 97 112;
+  --ink-3: 138 144 160;
+  --blue: 36 86 219;
+  --teal: 14 112 103;
+  --amber: 154 75 0;
+  --green: 21 122 59;
+  --red: 209 36 47;
+  --red-solid: 224 49 60;
+  --on-blue: 255 255 255;
 
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --hair: rgba(17, 19, 24, 0.12);
+  --hair-2: rgba(17, 19, 24, 0.07);
+  --key: #ffffff;
+  --seg-track: #f5f6f8;
+  --seg-on: #ffffff;
+  --blue-tint: #eaf0ff;
+  --blue-wash: rgba(36, 86, 219, 0.1);
+  --teal-tint: #e3f5f2;
+  --amber-tint: #fff0de;
+  --green-tint: #e4f6ea;
+  --red-tint: #ffe8e9;
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-solid: rgba(255, 255, 255, 0.94);
+  --glass-bar: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 1px 0 rgba(17, 19, 24, 0.04);
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--blue);
+  --primary-foreground: var(--on-blue);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--red);
+  --destructive-foreground: 255 255 255;
+  /* 发丝线压到页面底色上的不透明等效色,供 border-border / border-input 使用 */
+  --border: 226 227 227;
+  --input: 226 227 227;
+  --ring: var(--blue);
+  --active-word: 234 240 255;
 
-  --primary: 240 5.9% 10%;
-  --primary-foreground: 0 0% 98%;
-
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 240 10% 3.9%;
-  --active-word: 201 94% 86%;
-
-  --radius: 0.5rem;
+  /* 按钮 12;lg/md/sm = 12/10/8 */
+  --radius: 12px;
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dark {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
+  --bg: 15 16 19;
+  --surface: 23 25 30;
+  --surface-2: 30 33 39;
+  --ink: 243 244 246;
+  --ink-2: 166 171 184;
+  --ink-3: 110 116 130;
+  --blue: 143 176 255;
+  --teal: 95 209 196;
+  --amber: 242 176 86;
+  --green: 111 211 154;
+  --red: 255 123 123;
+  --red-solid: 224 49 60;
+  --on-blue: 15 16 19;
 
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
+  --hair: rgba(255, 255, 255, 0.14);
+  --hair-2: rgba(255, 255, 255, 0.08);
+  --key: rgba(255, 255, 255, 0.08);
+  --seg-track: rgba(255, 255, 255, 0.06);
+  --seg-on: #2a2e36;
+  --blue-tint: rgba(143, 176, 255, 0.14);
+  --blue-wash: rgba(90, 130, 255, 0.16);
+  --teal-tint: rgba(95, 209, 196, 0.14);
+  --amber-tint: rgba(242, 176, 86, 0.14);
+  --green-tint: rgba(111, 211, 154, 0.14);
+  --red-tint: rgba(255, 123, 123, 0.14);
+  --glass: rgba(23, 25, 30, 0.66);
+  --glass-solid: rgba(23, 25, 30, 0.94);
+  --glass-bar: rgba(23, 25, 30, 0.74);
+  --glass-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
 
-  --popover: 240 10% 3.9%;
-  --popover-foreground: 0 0% 98%;
-
-  --primary: 0 0% 98%;
-  --primary-foreground: 240 5.9% 10%;
-
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 240 4.9% 83.9%;
-  --active-word: 201 93% 30%;
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--blue);
+  --primary-foreground: var(--on-blue);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--red);
+  --destructive-foreground: 15 16 19;
+  --border: 49 50 53;
+  --input: 49 50 53;
+  --ring: var(--blue);
+  --active-word: 33 38 52;
 }

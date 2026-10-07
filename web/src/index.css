@@ -14,7 +14,7 @@
     height: 100%;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-body text-foreground antialiased;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
   }
