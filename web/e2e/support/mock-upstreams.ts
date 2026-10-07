@@ -1,9 +1,7 @@
 import type { Page } from "@playwright/test";
+import { isOwnBackendPath } from "./upstream-guard";
 
 export const TRANSCRIPT = "I would like a coffee please.";
-
-/** 页面自己的后端接口(只读写数据库,不碰上游)。其余 /api/** 路径一律视为可能触达上游。 */
-const OWN_BACKEND = /^\/api\/(users|me|conversations|messages|config|stats|vocabulary|practice-items|upload|sessions|assessments)(\/|$)/;
 
 export interface UpstreamMocks {
   seen: { transcriptions: number; chat: number; grammar: number; assessments: number; tts: number };
@@ -35,7 +33,7 @@ export async function mockUpstreams(page: Page): Promise<UpstreamMocks> {
   });
   await page.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
-    if (OWN_BACKEND.test(pathname)) return route.fallback();
+    if (isOwnBackendPath(pathname)) return route.fallback(); // 自家后端(分类与维护规则见 upstream-guard.ts)
     m.unmocked.push(`${route.request().method()} ${pathname}`);
     await route.abort("failed"); // 不放行:绝不真的打到上游
   });
