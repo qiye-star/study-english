@@ -5,10 +5,10 @@ import { ABBREVIATIONS } from "./sentences";
 import { MAX_SENTENCE_CHARS, createSentenceStream, splitForSpeech } from "./sentence-stream";
 
 type Case = { text: string; sentences: string[] };
-// vitest runs from web/ (jsdom: import.meta.url is not a file URL), so resolve relative to the cwd.
-const FIXTURE = resolve(process.cwd(), "../server/tests/fixtures/sentence_cases.json");
+// Resolve from this file (vite-node provides __dirname even under jsdom), not from the cwd: the shared
+// R7 cases must be found wherever vitest is started, and a missing fixture fails the suite below.
+const FIXTURE = resolve(__dirname, "../../../../server/tests/fixtures/sentence_cases.json");
 const HAVE_FIXTURE = existsSync(FIXTURE);
-if (!HAVE_FIXTURE) console.warn(`sentence_cases.json missing at ${FIXTURE}; shared conformance tests are skipped`);
 const CASES: Case[] = HAVE_FIXTURE ? JSON.parse(readFileSync(FIXTURE, "utf8")) : [];
 
 const WORDS = ["hello", "world", "Mr.", "Dr.", "v3.14", "e.g.", "coffee", "please", "\"quoted\"", "really", "you", "tomorrow"];
@@ -27,7 +27,14 @@ function streamed(text: string, sizes: () => number): string[] {
   return out;
 }
 
-describe.skipIf(!HAVE_FIXTURE)("shared conformance cases (plan R7)", () => {
+describe("shared fixture (review W2: a missing fixture must fail, not skip)", () => {
+  it("is found regardless of the working directory", () => {
+    expect(HAVE_FIXTURE, `sentence_cases.json missing at ${FIXTURE}`).toBe(true);
+    expect(CASES.length).toBeGreaterThan(0);
+  });
+});
+
+describe("shared conformance cases (plan R7)", () => {
   it("fixture is non-empty", () => expect(CASES.length).toBeGreaterThan(0));
 
   it.each(CASES.map((c) => [c.text, c.sentences] as const))("whole text %j", (text, sentences) => {

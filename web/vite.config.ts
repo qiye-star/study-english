@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { loadEnv, type Plugin } from "vite";
 import { defineConfig } from "vitest/config";
+import { installedVadVersions, vadAssetBase } from "./scripts/vad-assets.mjs";
 
 const webRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(webRoot, "..");
@@ -45,7 +46,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, webRoot, "WEB_");
   return {
     plugins: [guardEnjoyDeps(), react()],
-    define: { __VAD_ASSET_BASE__: JSON.stringify(`/vad/${pkg.dependencies?.["@ricky0123/vad-web"] ?? "0"}/`) },
+    // 与 scripts/copy-vad-assets.mjs 同一来源:两个包的已安装版本(review W2 I3)
+    define: { __VAD_ASSET_BASE__: JSON.stringify(vadAssetBase(installedVadVersions(webRoot))) },
     resolve: {
       alias: [
         { find: /^@renderer\/components$/, replacement: shim("enjoy-components.ts") },
