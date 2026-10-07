@@ -57,8 +57,8 @@ function setup(over: {
   const node = new FakeWorkletNode();
   const stream = fakeStream();
   let vadCallbacks!: VadCallbacks;
-  const vad: VadHandle & { destroy: ReturnType<typeof vi.fn>; setSensitivity: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn> } = {
-    start: vi.fn(), pause: vi.fn(), setSensitivity: vi.fn(), destroy: vi.fn(async () => undefined),
+  const vad: VadHandle & { destroy: ReturnType<typeof vi.fn>; setSensitivity: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn>; reset: ReturnType<typeof vi.fn> } = {
+    start: vi.fn(), pause: vi.fn(), reset: vi.fn(), setSensitivity: vi.fn(), destroy: vi.fn(async () => undefined),
   };
   const gum = vi.fn(over.gum ?? (async () => stream));
   const env: RealtimeEnv = {

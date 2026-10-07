@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createVad, loadSileroSource, VAD_ACCEPTS_EXTERNAL_CONTEXT, type ProbabilityLoader } from "./vad";
+import { createVad, loadSileroSource, ORT_INIT_TIMEOUT_MS, VAD_ACCEPTS_EXTERNAL_CONTEXT, type ProbabilityLoader } from "./vad";
 import { fakeStream } from "~/test/fake-audio";
 
 const micVad = vi.hoisted(() => ({
@@ -74,6 +74,21 @@ describe("createVad", () => {
     expect(onSpeechEnd).not.toHaveBeenCalled();
   });
 
+  it("reset() drops a half-started detection without touching the audio graph", async () => {
+    const f = fakeLoader();
+    const onSpeechStart = vi.fn();
+    const onSpeechEnd = vi.fn();
+    const vad = await createVad(fakeStream(), { onSpeechStart, onSpeechEnd }, f.loader);
+    vad.start();
+    for (let i = 0; i < 8; i++) f.frame(0.9);
+    vad.reset();
+    for (let i = 0; i < 25; i++) f.frame(0.05);
+    expect(onSpeechEnd).not.toHaveBeenCalled(); // 门已复位:不会为被丢弃的那句报 speech-end
+    for (let i = 0; i < 8; i++) f.frame(0.9);
+    expect(onSpeechStart).toHaveBeenCalledTimes(2);
+    expect(f.source.pause).not.toHaveBeenCalled();
+  });
+
   it("destroy releases the source once and ignores later frames", async () => {
     const f = fakeLoader();
     const onSpeechStart = vi.fn();
@@ -119,6 +134,16 @@ describe("loadSileroSource (plan R18/R32)", () => {
     const frame = new Float32Array(512);
     o.onFrameProcessed({ isSpeech: 0.7, notSpeech: 0.3 }, frame);
     expect(onFrame).toHaveBeenCalledWith(0.7, frame);
+  });
+
+  it("configures onnxruntime for pages without cross-origin isolation (iOS Safari): one thread, no proxy worker, bounded init", async () => {
+    await loadSileroSource({ stream: fakeStream(), onFrame: vi.fn() });
+    const ort = { env: { logLevel: "warning", wasm: {} as Record<string, unknown> } };
+    micVad.options!.ortConfig(ort);
+    expect(ort.env.wasm.numThreads).toBe(1);
+    expect(ort.env.wasm.proxy).toBe(false);
+    expect(ort.env.wasm.initTimeout).toBe(ORT_INIT_TIMEOUT_MS);
+    expect(ort.env.logLevel).toBe("error");
   });
 
   it("initialises the audio graph during load (so errors surface there) and starts paused", async () => {
