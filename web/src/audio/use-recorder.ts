@@ -32,9 +32,16 @@ export function defaultRecordingStarter(env?: RecorderEnv, deps: StarterDeps = b
   if (env) return (o) => deps.legacy({ ...o, env });
   return (o) => {
     const decision = deps.decide();
-    return decision.mode === "pcm" ? deps.pcm({ ...o, context: decision.context }) : deps.legacy(o);
+    if (decision.mode !== "pcm") return deps.legacy(o);
+    // R9:AudioContext 路径失败 → MediaRecorder 路径。用户/系统层面的拒绝换路径也没用,原样上报(review W1 I-4)。
+    return deps.pcm({ ...o, context: decision.context }).catch((err: unknown) => {
+      if (err instanceof RecorderError && FINAL_START_ERRORS.has(err.code)) throw err;
+      return deps.legacy(o);
+    });
   };
 }
+
+const FINAL_START_ERRORS = new Set<RecorderError["code"]>(["permission_denied", "mic_busy", "insecure_context"]);
 
 const asRecorderError = (err: unknown) => (err instanceof RecorderError ? err : new RecorderError("failed", String(err)));
 

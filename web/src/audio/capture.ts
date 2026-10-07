@@ -6,10 +6,17 @@ export interface CaptureEnv {
   isSecureContext: boolean;
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   supportedConstraints(): Record<string, boolean | undefined>;
-  createAudioContext?: () => AudioContext;
+  createAudioContext?: (options?: AudioContextOptions) => AudioContext;
   createWorkletNode?: (ctx: AudioContext) => AudioWorkletNode;
   workletUrl: string;
+  /** 看门狗用的定时器(addModule 超时、worklet 无帧);缺省时不设看门狗。 */
+  timers?: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(handle: unknown): void };
 }
+
+/** addModule 超过这么久仍未完成(移动网络卡住)→ 改用 ScriptProcessor,麦克风不至于一直挂着(review W1 M-4)。 */
+export const ADD_MODULE_TIMEOUT_MS = 3000;
+/** 上下文 running 但 worklet 这么久一帧都没送来(引擎不拉取零输出节点)→ 改用 ScriptProcessor(review W1 M-5)。 */
+export const NO_FRAMES_TIMEOUT_MS = 500;
 
 export interface PcmCapture {
   readonly stream: MediaStream;
@@ -32,9 +39,13 @@ export function browserCaptureEnv(): CaptureEnv {
     isSecureContext: typeof window !== "undefined" && window.isSecureContext,
     getUserMedia: devices?.getUserMedia ? (c) => devices.getUserMedia(c) : undefined,
     supportedConstraints: () => (devices?.getSupportedConstraints?.() ?? {}) as Record<string, boolean | undefined>,
-    createAudioContext: Ctx ? () => new Ctx() : undefined,
+    createAudioContext: Ctx ? (options) => new Ctx(options) : undefined,
     createWorkletNode: typeof AudioWorkletNode === "undefined" ? undefined : (ctx) => new AudioWorkletNode(ctx, "pcm-capture", { numberOfOutputs: 0 }),
     workletUrl,
+    timers: typeof window === "undefined" ? undefined : {
+      setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+      clearTimeout: (handle) => window.clearTimeout(handle as number),
+    },
   };
 }
 
@@ -64,12 +75,24 @@ export function unlockAudioContext(ctx: AudioContext): void {
   }
 }
 
+const toCaptureError = (err: unknown) => (err instanceof RecorderError ? err : new RecorderError("failed", String(err)));
+
+/** 麦克风轨道的实际采样率(Firefox 要求 MediaStreamSource 与上下文同采样率);拿不到时 undefined。 */
+function streamSampleRate(stream: MediaStream): number | undefined {
+  try {
+    const rate = stream.getAudioTracks?.()[0]?.getSettings?.().sampleRate;
+    return typeof rate === "number" && rate > 0 ? rate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioContext; collect?: boolean } = {}): Promise<PcmCapture> {
   const env = opts.env ?? browserCaptureEnv();
   if (!env.isSecureContext) throw new RecorderError("insecure_context");
   if (!env.getUserMedia || (!opts.context && !env.createAudioContext)) throw new RecorderError("unsupported");
-  const owned = !opts.context;
-  const ctx = opts.context ?? env.createAudioContext!(); // 在 await 之前同步创建(iOS 手势)
+  let owned = !opts.context;
+  let ctx = opts.context ?? env.createAudioContext!(); // 在 await 之前同步创建(iOS 手势)
   void ctx.resume?.()?.catch?.((): void => undefined);
   let stream: MediaStream;
   try {
@@ -79,83 +102,193 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
     throw mapGetUserMediaError(err);
   }
   const tracks = stream.getTracks();
-  const source = ctx.createMediaStreamSource(stream);
-  const downsampler = new Downsampler(ctx.sampleRate, TARGET_RATE);
-  const frameListeners = new Set<(f: Float32Array, level: number) => void>();
-  const endListeners = new Set<() => void>();
-  const parts: Float32Array[] = [];
-  let released = false;
+  // 麦克风已到手:此后任何失败都必须停掉轨道、关闭自己创建的上下文(review W1 I-1)
+  try {
+    return await buildCapture();
+  } catch (err) {
+    tracks.forEach((t) => {
+      try { t.stop(); } catch { /* 已停止 */ }
+    });
+    if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+    throw toCaptureError(err);
+  }
 
-  const handle = (samples: Float32Array) => {
-    if (released) return;
-    const frame = downsampler.process(samples);
-    if (!frame.length) return;
-    if (opts.collect) parts.push(frame);
-    const level = dbfs(frameRms(frame));
-    frameListeners.forEach((cb) => cb(frame, level));
-  };
-
-  let via: PcmCapture["via"] = "script-processor";
-  let node: AudioNode | null = null;
-  let sink: AudioNode | null = null;
-  if (ctx.audioWorklet && env.createWorkletNode) {
+  function createSource(): MediaStreamAudioSourceNode {
     try {
-      await ctx.audioWorklet.addModule(env.workletUrl);
-      const worklet = env.createWorkletNode(ctx);
-      worklet.port.onmessage = (event: MessageEvent) => handle(event.data as Float32Array);
-      source.connect(worklet);
-      node = worklet;
-      via = "worklet";
-    } catch {
-      node = null;
+      return ctx.createMediaStreamSource(stream);
+    } catch (err) {
+      // Firefox:上下文与麦克风采样率不同(如中途切到 16 kHz 蓝牙耳机)会抛 NotSupportedError。
+      // 只重试一次:在麦克风的采样率上新建一个专用上下文(由本次采集拥有并关闭)。
+      const rate = streamSampleRate(stream);
+      if (!rate || rate === ctx.sampleRate || !env.createAudioContext) throw err;
+      if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+      ctx = env.createAudioContext({ sampleRate: rate });
+      owned = true;
+      void ctx.resume?.()?.catch?.((): void => undefined);
+      return ctx.createMediaStreamSource(stream);
     }
   }
-  if (!node) {
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    processor.onaudioprocess = (event) => handle(event.inputBuffer.getChannelData(0).slice());
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    source.connect(processor);
-    processor.connect(mute);
-    mute.connect(ctx.destination); // ScriptProcessor 需要连到输出才会工作
-    node = processor;
-    sink = mute;
-  }
-  const onEnded = () => endListeners.forEach((cb) => cb());
-  tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
 
-  return {
-    stream,
-    context: ctx,
-    via,
-    onFrame(cb) {
-      frameListeners.add(cb);
-      return () => frameListeners.delete(cb);
-    },
-    onTrackEnded(cb) {
-      endListeners.add(cb);
-      return () => endListeners.delete(cb);
-    },
-    collected: () => concatFloat(parts),
-    release() {
-      if (released) return;
-      released = true;
-      frameListeners.clear();
-      endListeners.clear();
-      try {
-        source.disconnect();
-        node?.disconnect();
-        sink?.disconnect();
-      } catch {
-        /* 已断开 */
-      }
-      tracks.forEach((t) => {
-        t.removeEventListener?.("ended", onEnded);
-        t.stop();
+  async function buildCapture(): Promise<PcmCapture> {
+    const source = createSource();
+    const downsampler = new Downsampler(ctx.sampleRate, TARGET_RATE);
+    const frameListeners = new Set<(f: Float32Array, level: number) => void>();
+    const endListeners = new Set<() => void>();
+    let parts: Float32Array[] = [];
+    let released = false;
+    let taken = false; // 结果已取走(降采样器已 flush)
+
+    const handle = (samples: Float32Array) => {
+      if (released || taken) return;
+      const frame = downsampler.process(samples);
+      if (!frame.length) return;
+      if (opts.collect) parts.push(frame);
+      const level = dbfs(frameRms(frame));
+      frameListeners.forEach((cb) => cb(frame, level));
+    };
+
+    /** 断开并解除一个采集节点的所有引用:页面级上下文从不关闭,残留的处理器/回调会连同录音一起常驻(review W1 I-2)。 */
+    const detachers: Array<() => void> = [() => source.disconnect()];
+    const runDetach = (detach: () => void) => {
+      try { detach(); } catch { /* 已断开 */ }
+    };
+    const pendingTimers = new Set<unknown>();
+    const clearTimers = () => {
+      pendingTimers.forEach((h) => env.timers?.clearTimeout(h));
+      pendingTimers.clear();
+    };
+    const detachAll = () => {
+      clearTimers();
+      detachers.splice(0).forEach(runDetach);
+    };
+    /** 有 env.timers 时才排定;返回句柄(无定时器时 undefined)。 */
+    const later = (fn: () => void, ms: number) => {
+      if (!env.timers) return undefined;
+      const handle = env.timers.setTimeout(() => {
+        pendingTimers.delete(handle);
+        fn();
+      }, ms);
+      pendingTimers.add(handle);
+      return handle;
+    };
+    const cancelLater = (handle: unknown) => {
+      if (handle === undefined || !pendingTimers.delete(handle)) return;
+      env.timers?.clearTimeout(handle);
+    };
+
+    let via: PcmCapture["via"] = "script-processor";
+    try {
+      if (!(ctx.audioWorklet && env.createWorkletNode && (await attachWorklet()))) attachScriptProcessor();
+    } catch (err) {
+      detachAll();
+      throw err;
+    }
+
+    /** addModule 成功 → true;失败或超时 → false(超时后即使模块迟到也不再使用 worklet)。 */
+    function loadModule(): Promise<boolean> {
+      return new Promise<boolean>((resolve) => {
+        const timer = later(() => resolve(false), ADD_MODULE_TIMEOUT_MS);
+        ctx.audioWorklet.addModule(env.workletUrl).then(
+          () => { cancelLater(timer); resolve(true); },
+          () => { cancelLater(timer); resolve(false); },
+        );
       });
-      if (owned) void ctx.close?.()?.catch?.((): void => undefined);
-    },
-  };
+    }
+
+    async function attachWorklet(): Promise<boolean> {
+      if (!(await loadModule())) return false;
+      let worklet: AudioWorkletNode;
+      let heard = false;
+      try {
+        worklet = env.createWorkletNode!(ctx);
+        worklet.port.onmessage = (event: MessageEvent) => {
+          heard = true;
+          handle(event.data as Float32Array);
+        };
+        source.connect(worklet);
+      } catch {
+        return false;
+      }
+      const detachWorklet = () => {
+        runDetach(() => {
+          worklet.port.onmessage = null;
+          worklet.port.postMessage("stop"); // 让 process() 返回 false,处理器停止并可回收
+        });
+        runDetach(() => source.disconnect(worklet));
+        runDetach(() => worklet.disconnect());
+      };
+      detachers.push(detachWorklet);
+      via = "worklet";
+      // 无帧看门狗:上下文 running 却迟迟收不到帧 → 拆掉 worklet,改用 ScriptProcessor;上下文没 running 时继续等
+      const check = (): void => {
+        if (heard || released || taken) return;
+        if (ctx.state !== "running") return void later(check, NO_FRAMES_TIMEOUT_MS);
+        detachers.splice(detachers.indexOf(detachWorklet), 1);
+        detachWorklet();
+        try {
+          attachScriptProcessor();
+        } catch {
+          /* 两条路都不通:不会再有帧,结果按无语音处理 */
+        }
+      };
+      later(check, NO_FRAMES_TIMEOUT_MS);
+      return true;
+    }
+
+    function attachScriptProcessor() {
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      detachers.push(() => { processor.onaudioprocess = null; }, () => processor.disconnect());
+      processor.onaudioprocess = (event) => handle(event.inputBuffer.getChannelData(0).slice());
+      const mute = ctx.createGain();
+      detachers.push(() => mute.disconnect());
+      mute.gain.value = 0;
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(ctx.destination); // ScriptProcessor 需要连到输出才会工作
+      via = "script-processor";
+    }
+
+    const onEnded = () => endListeners.forEach((cb) => cb());
+    tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
+
+    return {
+      stream,
+      context: ctx,
+      get via() {
+        return via;
+      },
+      onFrame(cb) {
+        frameListeners.add(cb);
+        return () => frameListeners.delete(cb);
+      },
+      onTrackEnded(cb) {
+        endListeners.add(cb);
+        return () => endListeners.delete(cb);
+      },
+      /** 取走已收集的 16 kHz 样本(含降采样器 flush 出的尾部);录音到此结束,之后不再持有、也不再收集。 */
+      collected() {
+        if (!taken && opts.collect && !released) parts.push(downsampler.flush());
+        taken = true;
+        const result = concatFloat(parts);
+        parts = [];
+        return result;
+      },
+      release() {
+        if (released) return;
+        released = true;
+        clearTimers();
+        frameListeners.clear();
+        endListeners.clear();
+        parts = [];
+        detachAll();
+        tracks.forEach((t) => {
+          t.removeEventListener?.("ended", onEnded);
+          t.stop();
+        });
+        if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+      },
+    };
+  }
 }
 
 /* ---- R31:页面级唯一 AudioContext、首次点击解锁、按住说话时的采集路径决策 ---- */
@@ -180,20 +313,20 @@ export function pageAudioContextRunning(): boolean {
 }
 
 /**
- * 在第一次 click / touchend 的同步阶段解锁页面级 AudioContext(iOS 的 pointerdown 不算用户激活)。
- * 上下文进入 running 之后自动移除监听;返回手动卸载函数。
+ * 在 click / touchend 的同步阶段解锁页面级 AudioContext(iOS 的 pointerdown 不算用户激活)。
+ * 监听一直保留:上下文 running 时什么都不做;iOS 在来电、Siri、切后台后会把它变成 interrupted / suspended
+ * (或关闭后重建出一个 suspended 的新上下文),下一次点击即重新解锁,decideCapture 随之恢复 PCM(review W1 I-3)。
+ * 返回手动卸载函数。
  */
 export function installAudioUnlock(target: EventTarget = document, env?: CaptureEnv): () => void {
   const events = ["click", "touchend"] as const;
-  const off = () => events.forEach((name) => target.removeEventListener(name, onGesture, true));
   function onGesture() {
     const ctx = getPageAudioContext(env);
-    if (!ctx) return;
+    if (!ctx || ctx.state === "running") return;
     unlockAudioContext(ctx);
-    if (ctx.state === "running") off();
   }
   events.forEach((name) => target.addEventListener(name, onGesture, true));
-  return off;
+  return () => events.forEach((name) => target.removeEventListener(name, onGesture, true));
 }
 
 export type CaptureDecision =
