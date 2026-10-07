@@ -73,6 +73,10 @@ describe("synthetic noise conditions (design §7.2)", () => {
     expect(hasForegroundSpeech(concat(silence(0.5), voice(MIN_SPEECH_MS / 1000 + 0.06, -20, 11), silence(0.5)), opts)).toBe(true);
   });
 
+  it("a 240 ms burst (12 frames, just under the minimum) is rejected (review W1 M-9)", () => {
+    expect(hasForegroundSpeech(concat(silence(0.5), voice(0.24, -20, 12), silence(0.5)), opts)).toBe(false);
+  });
+
   it("is deterministic: the same seed yields the same signal and decision", () => {
     const a = mix(voice(1, -25, 3), noise(1, -55, 4));
     const b = mix(voice(1, -25, 3), noise(1, -55, 4));
