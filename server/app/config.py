@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -75,6 +76,20 @@ class Settings(BaseSettings):
     max_practice_items: int = 500
     max_vocab_items: int = 2000
 
+    # ---- 语音提速与实时通话(设计文档 2026-10-07)----
+    stt_max_tokens: int = 512
+    stt_disable_thinking: bool = True
+    # UPSTREAM_ASR_MODE / ASR_STREAM_URL / ASR_STREAM_RESOURCE_ID / VOLCENGINE_ASR_KEY 已存在(spike 提交)
+    asr_realtime_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+    realtime_asr_mode: Literal["buffered", "stream"] = "buffered"
+    realtime_enabled: bool = False
+    realtime_max_minutes: int = Field(10, ge=1, le=60)
+    realtime_idle_timeout_seconds: int = Field(60, ge=10, le=600)
+    realtime_max_sessions: int = Field(5, ge=1, le=100)
+    realtime_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
+    realtime_tts_model: str = "volcengine/seed-tts-2.0"
+    realtime_tts_sample_rate: int = 24000
+
     app_version: str = "0.7.9"
 
     @property
@@ -108,3 +123,17 @@ class Settings(BaseSettings):
         if self.upstream_grammar_base_url.strip():
             return self.upstream_grammar_base_url.strip(), self.upstream_grammar_key
         return self.upstream_llm_base_url, self.upstream_llm_key
+
+    @property
+    def asr_stream_enabled(self) -> bool:
+        return self.upstream_asr_mode == "volc_stream"
+
+    @property
+    def realtime_available(self) -> bool:
+        return (
+            self.realtime_enabled
+            and bool(self.volcengine_tts_key)
+            and self.realtime_tts_model in self.tts_model_list
+            and bool(self.upstream_llm_base_url)
+            and (self.asr_stream_enabled or bool(self.upstream_whisper_base_url))
+        )
