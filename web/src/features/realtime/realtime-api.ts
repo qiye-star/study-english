@@ -17,8 +17,8 @@ export function fetchRealtimeConfig(api: ApiClient, signal?: AbortSignal): Promi
   return api.request("GET", "/api/realtime/config", { signal });
 }
 
-export function createRealtimeTicket(api: ApiClient, conversationId: string): Promise<{ ticket: string; expiresIn: number }> {
-  return api.request("POST", "/api/realtime/ticket", { json: { conversationId } });
+export function createRealtimeTicket(api: ApiClient, conversationId: string, signal?: AbortSignal): Promise<{ ticket: string; expiresIn: number }> {
+  return api.request("POST", "/api/realtime/ticket", { json: { conversationId }, signal });
 }
 
 /** 一次性票据放在查询串里(60 s、只能用一次);登录令牌从不进 URL(设计文档 §3.5)。 */

@@ -1,5 +1,5 @@
 /** 把一段英文切成句子,供"跟读"面板使用。规则见计划裁定 R17:宁可少断,也不错断。 */
-const ABBREVIATIONS = new Set([
+export const ABBREVIATIONS = new Set([
   "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "e.g", "i.e", "a.m", "p.m", "u.s", "u.k",
   "fig", "approx", "dept", "inc", "ltd", "co", "mt", "jan", "feb", "aug", "sept", "oct", "nov", "dec",
 ]);
