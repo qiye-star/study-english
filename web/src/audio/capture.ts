@@ -244,20 +244,20 @@ export function pageAudioContextRunning(): boolean {
 }
 
 /**
- * 在第一次 click / touchend 的同步阶段解锁页面级 AudioContext(iOS 的 pointerdown 不算用户激活)。
- * 上下文进入 running 之后自动移除监听;返回手动卸载函数。
+ * 在 click / touchend 的同步阶段解锁页面级 AudioContext(iOS 的 pointerdown 不算用户激活)。
+ * 监听一直保留:上下文 running 时什么都不做;iOS 在来电、Siri、切后台后会把它变成 interrupted / suspended
+ * (或关闭后重建出一个 suspended 的新上下文),下一次点击即重新解锁,decideCapture 随之恢复 PCM(review W1 I-3)。
+ * 返回手动卸载函数。
  */
 export function installAudioUnlock(target: EventTarget = document, env?: CaptureEnv): () => void {
   const events = ["click", "touchend"] as const;
-  const off = () => events.forEach((name) => target.removeEventListener(name, onGesture, true));
   function onGesture() {
     const ctx = getPageAudioContext(env);
-    if (!ctx) return;
+    if (!ctx || ctx.state === "running") return;
     unlockAudioContext(ctx);
-    if (ctx.state === "running") off();
   }
   events.forEach((name) => target.addEventListener(name, onGesture, true));
-  return off;
+  return () => events.forEach((name) => target.removeEventListener(name, onGesture, true));
 }
 
 export type CaptureDecision =

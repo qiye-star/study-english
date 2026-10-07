@@ -208,7 +208,7 @@ describe("unlockAudioContext", () => {
 describe("page-level AudioContext (R31)", () => {
   beforeEach(() => resetPageAudioContextForTests());
 
-  it("reuses one context and unlocks it on the first click, then stops listening", () => {
+  it("reuses one context, unlocks it on the first click and does nothing while it is running", () => {
     const ctx = new FakeAudioContext();
     const { e } = env({}, ctx);
     const create = vi.fn(e.createAudioContext!);
@@ -221,6 +221,36 @@ describe("page-level AudioContext (R31)", () => {
     expect(ctx.resume).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(1);
     expect(getPageAudioContext(e)).toBe(asContext(ctx));
+  });
+
+  it("unlocks again on the next tap after iOS interrupts or suspends the context (review W1 I-3)", () => {
+    const ctx = new FakeAudioContext();
+    const { e } = env({}, ctx);
+    const target = new EventTarget();
+    installAudioUnlock(target, e);
+    target.dispatchEvent(new Event("click"));
+    expect(decideCapture(e).mode).toBe("pcm");
+    for (const state of ["interrupted", "suspended"] as AudioContextState[]) {
+      ctx.state = state; // 来电 / Siri / 切到后台
+      expect(decideCapture(e)).toMatchObject({ mode: "media-recorder", reason: "audio-locked" });
+      target.dispatchEvent(new Event("touchend"));
+      expect(decideCapture(e).mode).toBe("pcm");
+    }
+    expect(ctx.resume).toHaveBeenCalledTimes(3);
+  });
+
+  it("rebuilds a closed page context and unlocks the new one on the next tap", () => {
+    const first = new FakeAudioContext();
+    const second = new FakeAudioContext();
+    const contexts = [first, second];
+    const { e } = env({ createAudioContext: () => asContext(contexts.shift()!) });
+    const target = new EventTarget();
+    installAudioUnlock(target, e);
+    target.dispatchEvent(new Event("click"));
+    first.state = "closed";
+    target.dispatchEvent(new Event("click"));
+    expect(second.resume).toHaveBeenCalledTimes(1);
+    expect(decideCapture(e)).toEqual({ mode: "pcm", context: asContext(second) });
   });
 
   it("keeps listening while the context stays locked", () => {
