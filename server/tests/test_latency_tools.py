@@ -4,7 +4,17 @@ import wave
 import pytest
 
 from scripts.latency_samples import make_sample
-from scripts.measure_latency import markdown_row, ratio, summarize
+from scripts.measure_latency import (
+    DEFAULT_METRICS,
+    FIRST_SENTENCE,
+    REPLY_TEXT,
+    TTS_CASES,
+    markdown_row,
+    parse_metrics,
+    ratio,
+    record,
+    summarize,
+)
 
 
 def wav_bytes(seconds: float, rate: int = 16000) -> bytes:
@@ -48,3 +58,27 @@ def test_ratio_and_markdown_row():
     )
     assert markdown_row("回复完成 → 开始出声(浏览器)", "s5", 1500, 900, "≤ 40%").endswith("| 60% | ≤ 40% | 未达标 |")
     assert markdown_row("x", "s5", None, None, "参考") == "| x | s5 | 未测 | 未测 | — | 参考 | — |"
+
+
+def test_parse_metrics_defaults_and_selection():
+    assert parse_metrics(None) == DEFAULT_METRICS
+    assert parse_metrics("stt,tts_first_sentence_first_chunk") == ["stt", "tts_first_sentence_first_chunk"]
+    with pytest.raises(ValueError):
+        parse_metrics("stt,bogus")
+    with pytest.raises(ValueError):
+        parse_metrics("")
+
+
+def test_tts_cases_cover_first_sentence_streaming():
+    cases = {name: (text, stream) for name, text, stream in TTS_CASES}
+    assert cases["tts_full_ms"] == (REPLY_TEXT, False)
+    assert cases["tts_first_chunk_ms"] == (REPLY_TEXT, True)
+    assert cases["tts_first_sentence_ms"] == (FIRST_SENTENCE, False)
+    assert cases["tts_first_sentence_first_chunk_ms"] == (FIRST_SENTENCE, True)
+
+
+def test_record_keeps_raw_runs_and_warmup():
+    rec = record([500, 300, 100, 200], totals=[900, 700, 600, 650])
+    assert rec == {"n": 3, "median": 200, "min": 100, "max": 300, "warmup": 500, "runs": [300, 100, 200],
+                   "totals": [700, 600, 650], "total_median": 650}
+    assert "totals" not in record([5, 1, 2])
