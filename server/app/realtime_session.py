@@ -339,6 +339,9 @@ class RealtimeSession:
             logger.warning("realtime asr fallback failed error=%s", type(e).__name__)
             await _abort(recognizer)
             return None
+        except BaseException:  # 取消(挂断)时已打开的兜底识别器也要中止,否则泄漏它的上游连接
+            await _abort(recognizer)
+            raise
 
     async def _on_audio(self, data: bytes) -> None:
         check_uplink(data)

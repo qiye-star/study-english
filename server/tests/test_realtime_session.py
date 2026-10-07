@@ -1080,3 +1080,20 @@ async def test_flood_never_exceeds_the_rate_limit_in_upstream_calls():
     assert len(h.of("error")) >= 1000 - 5 - h.session.stats.dropped_utterances
     assert {e["code"] for e in h.of("error")} == {"rate_limited"}
     assert _others(before) == set()
+
+
+async def test_hangup_while_replaying_into_the_fallback_aborts_it():
+    class StuckRecognizer(FakeRecognizer):
+        async def send_audio(self, pcm):
+            await asyncio.Event().wait()  # 补发音频卡住:只能被取消
+
+    stuck = StuckRecognizer()
+    fallback = Factory(stuck)
+    h = Harness(factory=Factory(FakeRecognizer(error=AsrError("upstream"))), fallback=fallback)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: fallback.opened == 1)
+    await asyncio.sleep(0.01)
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert stuck.aborted  # 取消发生在补发音频时:已打开的兜底识别器也要中止
