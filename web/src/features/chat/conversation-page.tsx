@@ -1176,7 +1176,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
       {/* 通话界面渲染到 body 下并把整页设为 inert:通话期间页面不可操作(按住说话、朗读、查词都不可用) */}
       {call && conversation && realtimeConfig && (
-        <RealtimeCallDialog api={api} conversationId={conversation.id} context={call.context} ownsContext={false}
+        <RealtimeCallDialog api={api} conversationId={conversation.id} nativeLanguage={canTranslate ? native : undefined} context={call.context} ownsContext={false}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
           start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />

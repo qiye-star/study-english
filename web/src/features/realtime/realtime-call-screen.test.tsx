@@ -418,3 +418,46 @@ describe("RealtimeCallDialog", () => {
     expect(errors).not.toHaveBeenCalled();
   });
 });
+
+describe("RealtimeCallScreen caption translation", () => {
+  const reply = (content: string) => json({ choices: [{ message: { content } }] });
+  const captions: CallModel["captions"] = [
+    { key: "u-1", role: "user" as const, text: "Hello", messageId: "m0" },
+    { key: "a-t1", role: "assistant" as const, text: "Hi there", turnId: 1, messageId: "m1" },
+    { key: "a-t2", role: "assistant" as const, text: "Still talking", turnId: 2 },
+    { key: "a-t3", role: "assistant" as const, text: "Cut off", turnId: 3, messageId: "m3", interrupted: true },
+  ];
+  function mountTranslating() {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => reply("你好呀") });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onPushToTalk: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+    renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening", captions }} level={() => 0}
+      translation={{ api, nativeLanguage: "zh-CN" }} {...handlers} />);
+    return mock;
+  }
+
+  it("offers translate only on finished assistant captions (not user, streaming or interrupted)", () => {
+    window.localStorage.clear();
+    mountTranslating();
+    expect(screen.getAllByTestId("call-caption-translate")).toHaveLength(1);
+  });
+
+  it("has no translation controls without a translation target", () => {
+    render({ captions });
+    expect(screen.queryByTestId("call-caption-translate")).toBeNull();
+    expect(screen.queryByTestId("call-auto-translate")).toBeNull();
+  });
+
+  it("translates manually, and the auto toggle persists and translates finished captions once", async () => {
+    window.localStorage.clear();
+    const mock = mountTranslating();
+    fireEvent.click(screen.getByTestId("call-caption-translate"));
+    await screen.findByText("你好呀");
+    fireEvent.click(screen.getByTestId("call-caption-translate")); // hide again
+    expect(screen.queryByTestId("message-translation")).toBeNull();
+    fireEvent.click(screen.getByTestId("call-auto-translate"));
+    expect(window.localStorage.getItem("enjoy-web:call-auto-translate")).toBe("1");
+    await screen.findByText("你好呀");
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/ai/chat/completions")).toHaveLength(1); // 缓存/去重:不重复请求
+  });
+});

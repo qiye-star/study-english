@@ -26,6 +26,8 @@
       "interrupted": "(interrupted)",
       "close": "Close",
       "captions": "Live captions",
+      "translate": "Translate",
+      "autoTranslate": "Auto-translate",
       "errors": {
         "unauthorized": "The call link expired. Please try again.",
         "disabled": "Voice calls are not enabled on this server",
