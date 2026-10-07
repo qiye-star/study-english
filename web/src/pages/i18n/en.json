@@ -1,0 +1,16 @@
+{
+  "web": {
+    "me": {
+      "groups": { "learning": "Learning", "voice": "Voice", "general": "General", "server": "Account & server" },
+      "stats": {
+        "streak": "Streak", "speaking": "Speaking", "avg": "Avg score",
+        "days": "d", "minutes": "min"
+      },
+      "progressSummary": "Last 7 days · {{active}} active days · {{messages}} messages",
+      "week": "Activity in the last 7 days", "weekDay": "{{day}}: {{state}}", "active": "practiced", "inactive": "no practice",
+      "today": "today"
+    },
+    "login": { "tagline": "Speak English every day.", "modeLogin": "Log in", "modeRegister": "Register" },
+    "install": { "lede": "Open Enjoy like an app, full screen and one tap away." }
+  }
+}

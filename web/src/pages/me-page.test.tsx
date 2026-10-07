@@ -60,6 +60,32 @@ describe("MePage", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(screen.getByTestId("me-progress")).toHaveAttribute("href", "/progress");
   });
+  it("shows the 7-day overview from the stats API and hides it when stats fail", async () => {
+    const daily = ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"].map((date, i) => ({
+      date, active: i !== 2, userMessages: 3, assessments: 1, speakingSeconds: 600, avgPronunciation: 88,
+    }));
+    const stats = {
+      days: 7, tzOffsetMinutes: 480, today: "2026-10-08", daily, activeDays: 6, streakDays: 5, userMessages: 18,
+      assessments: 6, speakingSeconds: 3600, avgPronunciation: 88.44, grammarTop: [], poorWords: [], truncated: false,
+    };
+    const mock = createFetchMock({ ...ROUTES, "GET /api/stats": () => json(stats) });
+    const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const tiles = await screen.findByTestId("me-stats");
+    expect(tiles).toHaveTextContent("5");
+    expect(tiles).toHaveTextContent("60");
+    expect(tiles).toHaveTextContent("88.4");
+    expect(screen.getByTestId("me-progress")).toHaveTextContent("6 active days · 18 messages");
+    const week = screen.getByTestId("me-week").querySelectorAll("li");
+    expect(week).toHaveLength(7);
+    expect(week[2]).toHaveAttribute("data-active", "false");
+    expect(week[6]).toHaveTextContent("today: practiced");
+    expect(mock.calls.find((c) => c.url.pathname === "/api/stats")?.url.searchParams.get("days")).toBe("7");
+    unmount();
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    expect(screen.queryByTestId("me-stats")).toBeNull();
+    expect(screen.getByTestId("me-logout")).toBeInTheDocument();
+  });
   it("links to the vocabulary book", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(screen.getByTestId("me-vocabulary")).toHaveAttribute("href", "/vocabulary");

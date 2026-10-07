@@ -1,0 +1,16 @@
+{
+  "web": {
+    "me": {
+      "groups": { "learning": "学习", "voice": "语音", "general": "通用", "server": "账户与服务器" },
+      "stats": {
+        "streak": "连续", "speaking": "口语时长", "avg": "平均发音",
+        "days": "天", "minutes": "分钟"
+      },
+      "progressSummary": "近 7 天 · 活跃 {{active}} 天 · 消息 {{messages}} 条",
+      "week": "近 7 天的练习情况", "weekDay": "{{day}}:{{state}}", "active": "已练习", "inactive": "未练习",
+      "today": "今天"
+    },
+    "login": { "tagline": "每天开口说英语。", "modeLogin": "登录", "modeRegister": "注册" },
+    "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
+  }
+}
