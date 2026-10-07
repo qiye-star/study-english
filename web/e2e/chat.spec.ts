@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { registerViaApi, signIn } from "./support/auth";
+import { headerOption } from "./support/header";
 import { SPEECH_WAV, useFakeMicrophone } from "./support/fake-mic";
 import { composerMode, recordByKeyboard } from "./support/mic";
 
@@ -101,8 +102,8 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   await page.getByTestId("scenario-free").click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
   // R27:关掉自动朗读,本用例验证的是手动朗读的状态机(自动朗读见下方新用例)
-  await page.getByTestId("conversation-autospeak").click();
-  await expect(page.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+  await (await headerOption(page, "conversation-autospeak")).click();
+  await expect(await headerOption(page, "conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
   const conversationId = page.url().split("/").pop()!;
 
   // 持久化写入(POST .../messages)在流结束后发生;先挂好监听,刷新前等它完成,避免竞态
@@ -290,8 +291,8 @@ test("translation on demand is cached when toggled; bilingual mode translates ne
   await expect(page.getByTestId("message-translation").last()).toHaveAttribute("data-status", "done");
   await expectStableCount(() => completions, afterReply + 1); // 收起再展开不再请求(稳定窗口内计数不变)
 
-  await page.getByTestId("conversation-bilingual").click();
-  await expect(page.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
+  await (await headerOption(page, "conversation-bilingual")).click();
+  await expect(await headerOption(page, "conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
   await sendText(page, "And one about the sun?");
   await expect(page.getByTestId("message-translation")).toHaveCount(2, { timeout: 60_000 });
   await expect(page.getByTestId("message-translation").last()).toContainText(/[一-鿿]/, { timeout: 60_000 });
@@ -348,8 +349,8 @@ test("scenario: the opening line is saved and read aloud, replies are read aloud
   await expect.poll(() => speech, { timeout: 60_000 }).toBeGreaterThan(beforeReply);
   console.log(`scenario reply: ${(await page.getByTestId("message-assistant").last().innerText()).trim()}`);
 
-  await page.getByTestId("conversation-autospeak").click();
-  await expect(page.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+  await (await headerOption(page, "conversation-autospeak")).click();
+  await expect(await headerOption(page, "conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
   const afterOff = speech;
   await sendText(page, "And a croissant, too.");
   await expectStableCount(() => speech, afterOff);
@@ -383,7 +384,7 @@ test("recap: facts from the conversation and a stored Chinese summary", async ({
   await expect(page.getByTestId("badge-grammar").last()).toHaveAttribute("data-status", "done", { timeout: 60_000 });
   await sendText(page, "We plays football for two hours.");
   await expect(page.getByTestId("badge-grammar").last()).toHaveAttribute("data-status", "done", { timeout: 60_000 });
-  await page.getByTestId("conversation-recap").click();
+  await (await headerOption(page, "conversation-recap")).click();
   await expect(page.getByTestId("recap-user-messages")).toHaveText("2");
   const saved = page.waitForResponse((r) => r.url().endsWith(`/api/conversations/${id}`) && r.request().method() === "PATCH"
     && (r.request().postData() ?? "").includes("\"recap\""), { timeout: 120_000 });
@@ -396,7 +397,7 @@ test("recap: facts from the conversation and a stored Chinese summary", async ({
   await page.reload();
   let completions = 0;
   page.on("request", (r) => { if (r.url().endsWith("/api/ai/chat/completions")) completions++; });
-  await page.getByTestId("conversation-recap").click();
+  await (await headerOption(page, "conversation-recap")).click();
   await expect(page.getByTestId("recap-summary")).toHaveAttribute("data-status", "done");
   await expect(page.getByTestId("recap-stale")).toHaveCount(0);
   expect(completions).toBe(0);

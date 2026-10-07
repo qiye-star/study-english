@@ -1,10 +1,12 @@
-import { KeyboardIcon, LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, KeyboardIcon, LanguagesIcon, LightbulbIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
+import { cn } from "@renderer/lib/utils";
+import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
+import { IconButton } from "~/components/icon-button";
 import { streamChatCompletion } from "~/api/ai";
 import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
@@ -19,7 +21,6 @@ import { fetchRealtimeConfig, type RealtimeConfig } from "~/features/realtime/re
 import type { CallEnding, RealtimeEnv } from "~/features/realtime/realtime-call";
 import { RealtimeCallDialog, prepareCallAudio } from "~/features/realtime/realtime-call-screen";
 import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
-import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, isAmbiguousSaveError, listMessages, updateConversation,
@@ -37,7 +38,7 @@ import { HoldToTalkButton } from "./hold-to-talk-button";
 import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
-import { MessageBubble } from "./message-bubble";
+import { BubbleAction, BubbleActions, MessageBubble } from "./message-bubble";
 import { normalizeScenario, scenarioLabel } from "./scenarios";
 import { readStoredRecap } from "./recap";
 import { RecapSheet } from "./recap-sheet";
@@ -233,6 +234,21 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const nearBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // 消息列表是本页自己的滚动区(不是 AppShell 的 <main>):顶栏按它的 scrollTop 变玻璃
+  const listScrolled = useScrolled(listRef);
+  // 输入条浮在列表上(玻璃,内容从下面穿过):列表底部留出它的实际高度(提示行折叠、文本框变高都会变)
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const measure = () => setComposerHeight(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const syncPendingSaves = useCallback(() => {
     if (mountedRef.current) setPendingSaveCount(pendingSavesRef.current.length);
@@ -419,8 +435,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     forceScrollRef.current = false;
     nearBottomRef.current = true;
     el.scrollTo?.({ top: el.scrollHeight });
-  // 译文展开/到达也会改变列表高度;仍受 nearBottomRef 约束(向上翻阅的用户不会被拉回)
-  }, [messages, translations.open, translations.states]);
+  // 译文展开/到达、输入条变高也会改变可见高度;仍受 nearBottomRef 约束(向上翻阅的用户不会被拉回)
+  }, [messages, translations.open, translations.states, composerHeight]);
 
   // 录音开始时占用全应用的音频焦点(先让回放/朗读停下,免得录进喇叭声);空闲时释放
   const micFocus = useRef<() => void>(() => undefined).current;
@@ -1020,10 +1036,29 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   const recording = voice.state === "recording" || voice.state === "starting";
   const lastKey = messages[messages.length - 1]?.key;
+  /** 提示不可用(未加载、发送/录音中、通话或收尾中)时提示行折叠,输入条让出 32px */
+  const hintsUnavailable = !conversation || sending || voiceBusy || !!call || settling;
+  const hintCount = hints.state.status === "done" ? hints.state.hints.length : 0;
+  /** 对话伙伴 = 朗读音色(设计稿副标题"场景 · 口音 · 音色",头像取它的首字母) */
+  const partnerVoice = ai ? voicesFor(ai, config.ttsModel).find((v) => v.value === config.ttsVoice)?.label.split(" (")[0] : undefined;
+  const scenarioInfo = scenario || options.level !== "auto" ? (
+    <span data-testid="conversation-scenario">
+      {scenario ? scenarioLabel(t, scenario) : t("web.chat.scenarios.free.title")}
+      {options.level !== "auto" && <> · <span data-testid="conversation-level">{options.level}</span></>}
+    </span>
+  ) : null;
+  const subtitle = scenarioInfo || partnerVoice ? <>{scenarioInfo}{scenarioInfo && partnerVoice ? " · " : null}{partnerVoice}</> : undefined;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")} back="/chat"
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <GlassTopBar className="absolute inset-x-0 top-0" scrolled={listScrolled}
+        title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")}
+        subtitle={subtitle}
+        leading={(
+          <IconButton label={t("web.common.back")} onClick={() => navigate("/chat")}>
+            <ChevronLeftIcon />
+          </IconButton>
+        )}
         actions={
           <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
@@ -1033,20 +1068,20 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
             onCall={startCall} callButtonRef={callButtonRef} />
         } />
-      {(scenario || options.level !== "auto") && (
-        <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate">{scenario ? scenarioLabel(t, scenario) : t("web.chat.scenarios.free.title")}</span>
-          {options.level !== "auto" && <span data-testid="conversation-level" className="rounded bg-muted px-1.5 py-0.5">{options.level}</span>}
-        </div>
-      )}
-      {loadError && <p role="alert" className="p-4 text-sm text-destructive">{loadError}</p>}
-      <div ref={listRef} data-testid="message-list" onScroll={onListScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      {/* 底部锚定:内容少时贴着输入条(最新一条在输入条上方 14px),多时正常滚动;顶栏、输入条都浮在列表上 */}
+      <div ref={listRef} data-testid="message-list" onScroll={onListScroll}
+        className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain px-gutter"
+        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 }}>
+        <div aria-hidden className="mt-auto" />
+        {loadError && <p role="alert" className="text-sub text-red">{loadError}</p>}
         {messages.map((m) => {
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
+          const speakState = tts.states[m.key] ?? "idle";
+          const translated = !!translations.open[m.key];
           return (
-            <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy}
+            <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy} partnerName={partnerVoice}
               footer={hasResultFooter(m) ? (
-                <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
+                <div data-testid="message-footer" className="mt-2 flex flex-wrap items-center gap-1.5">
                   <PronunciationBadge view={m.assessment} transcript={m.content} onOpen={() => setDetailKey(m.key)} />
                   <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => {
                     resultsRef.current?.retryGrammar(m.key);
@@ -1055,25 +1090,23 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
                 </div>
               ) : null}
               actions={
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <Button variant="ghost" size="sm" data-testid="message-tts" data-state={tts.states[m.key] ?? "idle"} disabled={voiceBusy}
-                    className="h-11 px-2" aria-label={tts.states[m.key] === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.speak")}
+                <BubbleActions>
+                  <BubbleAction data-testid="message-tts" data-state={speakState} disabled={voiceBusy} on={speakState === "playing"}
                     onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
-                    {tts.states[m.key] === "loading" ? <LoaderIcon className="h-4 w-4 animate-spin" />
-                      : tts.states[m.key] === "playing" ? <SquareIcon className="h-4 w-4" /> : <Volume2Icon className="h-4 w-4" />}
-                  </Button>
+                    {speakState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
+                      : speakState === "playing" ? <SquareIcon aria-hidden /> : <Volume2Icon aria-hidden />}
+                    {speakState === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.bubble.listen")}
+                  </BubbleAction>
                   {canTranslate && (
-                    <Button variant="ghost" size="sm" data-testid="message-translate" aria-pressed={!!translations.open[m.key]}
-                      className="h-11 min-w-11 px-2" aria-label={t("web.chat.translate")}
+                    <BubbleAction data-testid="message-translate" aria-pressed={translated} on={translated}
                       onClick={() => translations.toggle(m.key, m.content)}>
-                      <LanguagesIcon className="h-4 w-4" />
-                    </Button>
+                      <LanguagesIcon aria-hidden />{translated ? t("web.chat.bubble.translated") : t("web.chat.translate")}
+                    </BubbleAction>
                   )}
-                  <Button variant="ghost" size="sm" data-testid="message-practice" className="h-11 min-w-11 px-2"
-                    aria-label={t("web.chat.practice")} onClick={() => setPracticeText(m.content)}>
-                    <ListChecksIcon className="h-4 w-4" />
-                  </Button>
-                </div>
+                  <BubbleAction data-testid="message-practice" onClick={() => setPracticeText(m.content)}>
+                    <MicIcon aria-hidden />{t("web.chat.bubble.practice")}
+                  </BubbleAction>
+                </BubbleActions>
               }
               translation={translations.open[m.key]
                 ? <MessageTranslation state={translations.states[m.key]} onRetry={() => translations.retry(m.key, m.content)} />
@@ -1083,75 +1116,91 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           );
         })}
       </div>
-      {holdHint && (
-        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint.text}</div>
-      )}
-      {autoSpeak.blocked && (
-        <div data-testid="autospeak-blocked" role="status" className="flex items-center gap-2 border-t bg-muted px-3 py-1 text-sm">
-          <span className="flex-1">{t("web.chat.autoSpeak.blocked")}</span>
-          <Button size="sm" data-testid="autospeak-tap" className="h-11" onClick={autoSpeak.tapToRead}>
-            <Volume2Icon className="mr-1 h-4 w-4" />{t("web.chat.autoSpeak.tapToRead")}
-          </Button>
-          <Button variant="ghost" size="icon" data-testid="autospeak-dismiss" className="h-11 w-11" aria-label={t("web.chat.autoSpeak.dismiss")}
-            onClick={autoSpeak.dismissBlocked}>
-            <XIcon className="h-4 w-4" />
-          </Button>
+      {/* 输入条(仿微信):提示行(琥珀,在玻璃里)+ 键盘/语音切换 + 按住说话长条或文本框 + 发送/丢弃 */}
+      <div ref={composerRef} data-testid="chat-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2">
+        {holdHint && (
+          <div data-testid="hold-hint" role="status" className="mx-1 mt-2 rounded-[10px] bg-surface-2 px-3 py-2 text-center text-sub font-medium text-ink">{holdHint.text}</div>
+        )}
+        {autoSpeak.blocked && (
+          <div data-testid="autospeak-blocked" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink">
+            <span className="min-w-0 flex-1">{t("web.chat.autoSpeak.blocked")}</span>
+            <button type="button" data-testid="autospeak-tap"
+              className="inline-flex min-h-tap flex-none items-center gap-1 rounded-button px-2 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={autoSpeak.tapToRead}>
+              <Volume2Icon aria-hidden className="h-[17px] w-[17px]" />{t("web.chat.autoSpeak.tapToRead")}
+            </button>
+            <IconButton data-testid="autospeak-dismiss" label={t("web.chat.autoSpeak.dismiss")} className="text-ink-2" onClick={autoSpeak.dismissBlocked}>
+              <XIcon />
+            </IconButton>
+          </div>
+        )}
+        <div aria-hidden={hintsUnavailable || undefined}
+          className={cn("flex items-center px-2 transition-[height,opacity,margin] duration-fast ease-standard motion-reduce:transition-none",
+            hintsUnavailable ? "mt-0 h-0 overflow-hidden opacity-0" : "mt-1.5 h-8 opacity-100")}>
+          <button type="button" data-testid="chat-hints" disabled={hintsUnavailable} onClick={openHints}
+            title={t("web.chat.hints.button")}
+            className="hit-expand flex h-8 w-full items-center gap-1.5 rounded-inline text-sub font-semibold text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <LightbulbIcon aria-hidden className="h-[17px] w-[17px] flex-none" />
+            <span>{t("web.chat.hints.row")}</span>
+            {hintCount > 0 && <span className="font-medium text-ink-2">· {t("web.chat.hints.available", { count: hintCount })}</span>}
+            <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-blue">
+              {t("web.chat.hints.view")}<ChevronRightIcon aria-hidden className="h-4 w-4" />
+            </span>
+          </button>
         </div>
-      )}
-      <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
-        <Button type="button" data-testid="chat-mode-toggle" data-mode={composerMode} variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-          aria-pressed={composerMode === "voice"}
-          aria-label={composerMode === "voice" ? t("web.chat.composer.toKeyboard") : t("web.chat.composer.toVoice")}
-          disabled={voiceBusy || sending || !conversation || !!call || settling}
-          onClick={() => switchComposer(composerMode === "voice" ? "text" : "voice")}>
-          {composerMode === "voice" ? <KeyboardIcon className="h-5 w-5" /> : <MicIcon className="h-5 w-5" />}
-        </Button>
-        {composerMode === "voice" ? (
-          <HoldToTalkButton voiceState={voice.state}
-            disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call || settling))}
-            recordingStatus={recording ? (
-              <div data-testid="voice-recording" className="flex items-center gap-2 text-sm">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 ring-1 ring-white" aria-hidden="true" />
-                <span className="sr-only">{t("web.chat.voice.recording")}</span>
-                <span data-testid="voice-timer" className="font-mono tabular-nums">{formatClock(voice.elapsedMs)} / {formatClock(VOICE_MAX_MS)}</span>
-              </div>
-            ) : null}
-            onStart={() => {
-              // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
-              // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
-              stopTts();
-              claimAudio(micFocus);
-              return voice.start();
-            }}
-            onRelease={() => autoSpeak.prime()} // R5:松手这一下解锁,转写 + 回复完成后接着播
-            onFinish={(deliver) => { void voice.stop(deliver); }}
-            onDiscard={(reason) => {
-              // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
-              void voice.stop("discard");
-              const text = tRef.current(HOLD_HINTS[reason]);
-              if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
-            }} />
-        ) : (
-          <Textarea ref={inputRef} data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
-            disabled={voice.blocksTyping} className="max-h-40 min-h-11 min-w-0 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
-        )}
-        {voiceBusy && (
-          <Button type="button" data-testid="chat-mic-cancel" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-            aria-label={t("web.chat.voice.cancel")} onClick={voice.cancel}>
-            <XIcon className="h-5 w-5" />
-          </Button>
-        )}
-        <Button type="button" data-testid="chat-hints" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy || !!call || settling} onClick={openHints}>
-          <LightbulbIcon className="h-5 w-5" />
-        </Button>
-        {composerMode === "text" && (
-          <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
-            aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call || settling}>
-            <SendIcon className="h-5 w-5" />
-          </Button>
-        )}
-      </form>
+        <form onSubmit={submit} className="mt-1.5 flex items-end gap-1.5">
+          <IconButton data-testid="chat-mode-toggle" data-mode={composerMode}
+            aria-pressed={composerMode === "voice"}
+            label={composerMode === "voice" ? t("web.chat.composer.toKeyboard") : t("web.chat.composer.toVoice")}
+            disabled={voiceBusy || sending || !conversation || !!call || settling}
+            onClick={() => switchComposer(composerMode === "voice" ? "text" : "voice")}>
+            {composerMode === "voice" ? <KeyboardIcon /> : <MicIcon />}
+          </IconButton>
+          {composerMode === "voice" ? (
+            <HoldToTalkButton voiceState={voice.state}
+              disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call || settling))}
+              recordingStatus={recording ? (
+                <div data-testid="voice-recording" className="flex items-center gap-2 text-sub">
+                  <span className="h-2 w-2 rounded-full bg-red-solid ring-1 ring-white motion-safe:animate-pulse" aria-hidden="true" />
+                  <span className="sr-only">{t("web.chat.voice.recording")}</span>
+                  <span data-testid="voice-timer" className="num font-medium">{formatClock(voice.elapsedMs)} / {formatClock(VOICE_MAX_MS)}</span>
+                </div>
+              ) : null}
+              onStart={() => {
+                // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
+                // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
+                stopTts();
+                claimAudio(micFocus);
+                return voice.start();
+              }}
+              onRelease={() => autoSpeak.prime()} // R5:松手这一下解锁,转写 + 回复完成后接着播
+              onFinish={(deliver) => { void voice.stop(deliver); }}
+              onDiscard={(reason) => {
+                // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
+                void voice.stop("discard");
+                const text = tRef.current(HOLD_HINTS[reason]);
+                if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
+              }} />
+          ) : (
+            // 16px 字号:iOS 上小于 16px 的输入框获得焦点会自动放大页面
+            <Textarea ref={inputRef} data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
+              disabled={voice.blocksTyping}
+              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-button border-[0.5px] border-hair bg-surface px-3.5 py-[10px] text-base leading-body text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-0"
+              onChange={(e) => setInput(e.target.value)} />
+          )}
+          {voiceBusy && (
+            <IconButton data-testid="chat-mic-cancel" label={t("web.chat.voice.cancel")} onClick={voice.cancel}>
+              <XIcon />
+            </IconButton>
+          )}
+          {composerMode === "text" && (
+            <IconButton type="submit" data-testid="chat-send" tone="blue"
+              label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call || settling}>
+              <SendIcon />
+            </IconButton>
+          )}
+        </form>
+      </div>
       <TurnDetailSheet message={detailMessage} onClose={() => setDetailKey(null)}>
         {detailMessage?.grammar?.result && <GrammarDetails result={detailMessage.grammar.result} onClose={() => setDetailKey(null)} />}
       </TurnDetailSheet>
