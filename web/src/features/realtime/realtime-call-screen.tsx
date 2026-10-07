@@ -7,7 +7,7 @@ import { cn } from "@renderer/lib/utils";
 import { browserCaptureEnv, getPageAudioContext, unlockAudioContext, type CaptureEnv } from "~/audio/capture";
 import { scoreTone } from "~/features/chat/result-badges";
 import type { CallModel } from "./call-machine";
-import type { RealtimeCallOptions } from "./realtime-call";
+import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
 import { useRealtimeCall } from "./use-realtime-call";
 
 export interface RealtimeCallScreenProps {
@@ -322,25 +322,28 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
   );
 }
 
-export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & { onClose(): void };
+export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & {
+  /** 关闭对话框。`ending`:挂断后仍在等服务端关闭的套接字(页面等它关闭再重新加载,并负责在切换/卸载时 drop);还没开始通话时为 null。 */
+  onClose(ending: CallEnding | null): void;
+};
 
 /**
- * 容器:挂载即开始通话(`useRealtimeCall`)。用户挂断(按钮或 Escape)→ 直接 `onClose()`;
+ * 容器:挂载即开始通话(`useRealtimeCall`)。用户挂断(按钮或 Escape)→ 直接 `onClose(ending)`;
  * 其他原因结束(服务端关闭、超时、切后台 R16、麦克风错误……)→ 留在界面上显示原因与关闭按钮。
  * 传入页面共享上下文时用 `prepareCallAudio()` 的结果,`ownsContext` 为 false。
  */
 export function RealtimeCallDialog({ onClose, ...options }: RealtimeCallDialogProps) {
-  const { model, call } = useRealtimeCall(options);
+  const { model, call, handOff } = useRealtimeCall(options);
   const callRef = useRef(call);
   callRef.current = call;
   const level = useCallback(() => callRef.current?.level() ?? 0, []);
   return (
     <RealtimeCallScreen model={model} level={level}
-      onHangup={() => { call?.hangup(); onClose(); }}
+      onHangup={() => { call?.hangup(); onClose(handOff()); }}
       onMute={(m) => call?.setMuted(m)}
       onPushToTalk={(on) => call?.setPushToTalk(on)}
       onPttDown={() => call?.pttDown()}
       onPttUp={() => call?.pttUp()}
-      onClose={onClose} />
+      onClose={() => onClose(handOff())} />
   );
 }

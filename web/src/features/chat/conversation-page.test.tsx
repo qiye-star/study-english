@@ -14,14 +14,14 @@ import { holdMic, pressKey } from "~/test/hold";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
-import { ConversationPage } from "./conversation-page";
+import { ConversationPage, POST_CALL_FOLLOW_UP_MS, POST_CALL_SETTLE_MAX_MS } from "./conversation-page";
 import { clearHintsMemory } from "./hints";
 import { sharedTtsCache } from "./tts";
 import { sharedAutoplayAudio } from "./use-tts-player";
 import { PLAYBACK_RATE_KEY, resetPlaybackRate } from "~/lib/playback-rate";
 import { resetPageAudioContextForTests } from "~/audio/capture";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
-import type { RealtimeEnv } from "~/features/realtime/realtime-call";
+import { HANGUP_CLOSE_WAIT_MS, type RealtimeEnv } from "~/features/realtime/realtime-call";
 
 vi.mock("~/audio/convert", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/audio/convert")>()),
@@ -3368,11 +3368,25 @@ describe("realtime call (plan 2026-10-07)", () => {
     await deleteDb();
     resetKvCacheForTests();
     localStorage.clear();
+    // 假时钟随真实时间推进(麦克风、userEvent、waitFor 照常);挂断后等关闭的 3 s、补取的 2 s 由 advance 跳过
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
   afterEach(() => {
+    vi.useRealTimers();
     resetPageAudioContextForTests();
     vi.unstubAllGlobals();
   });
+  const advance = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
+  /** 挂断,服务端随后关闭(它存完被打断的回复才关) */
+  async function hangUp(ws: CallSocket) {
+    await userEvent.click(screen.getByTestId("call-hangup"));
+    await act(async () => { ws.serverClose(1000); });
+  }
+  /** 通话后的收尾结束(补取完成、输入恢复) */
+  async function settle() {
+    await advance(POST_CALL_FOLLOW_UP_MS + 100);
+    await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+  }
 
   it("shows the call button only when the server enables it", async () => {
     const { mock } = setup(routes());
@@ -3505,7 +3519,10 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/cm1")[0]).grammar).toMatchObject({ has_errors: true });
     // 晚到的结果按服务端消息 id 补到重新加载的气泡上
     await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
-    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
+    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2); // 语法结果不触发重新加载
+    await settle();
+    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3); // 只有一次按 id 的补取
+    expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix");
     expect(c.ctx.close).not.toHaveBeenCalled();
   });
 
@@ -3526,7 +3543,7 @@ describe("realtime call (plan 2026-10-07)", () => {
     const ws = await connect(c);
     await oneCallTurn(ws);
     await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
-    await userEvent.click(screen.getByTestId("call-hangup"));
+    await hangUp(ws);
     await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
     await act(async () => { grammar.release(); });
     await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
@@ -3547,7 +3564,7 @@ describe("realtime call (plan 2026-10-07)", () => {
     const ws = await connect(c);
     await oneCallTurn(ws);
     await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
-    await userEvent.click(screen.getByTestId("call-hangup"));
+    await hangUp(ws);
     await screen.findByText("Oh, what does she like?");
     await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "error"));
     await userEvent.click(screen.getByTestId("badge-grammar"));
@@ -3562,7 +3579,7 @@ describe("realtime call (plan 2026-10-07)", () => {
     }), c.env);
     const ws = await connect(c);
     await act(async () => { ws.server({ type: "transcript_final", text: "She don't like coffee.", message_id: "cm1" }); });
-    await userEvent.click(screen.getByTestId("call-hangup"));
+    await hangUp(ws);
     expect(screen.queryByTestId("call-screen")).toBeNull();
     expect(ws.texts().at(-1)).toEqual({ type: "hangup" });
     await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
@@ -3580,9 +3597,9 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(screen.getByTestId("chat-mic")).toBeDisabled();
     expect(screen.getByTestId("chat-send")).toBeDisabled();
     expect(screen.getByTestId("conversation-call")).toBeDisabled();
-    await userEvent.click(screen.getByTestId("call-hangup"));
+    await hangUp(c.ws());
     expect(screen.getByTestId("chat-mic").closest("[inert]")).toBeNull();
-    expect(screen.getByTestId("chat-mic")).toBeEnabled();
+    await settle();
   });
 
   it("switching conversations mid-call hangs up and releases the microphone; the new conversation has no call", async () => {
@@ -3721,9 +3738,9 @@ describe("realtime call (plan 2026-10-07)", () => {
       const ws = await connect(c);
       await oneCallTurn(ws);
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
-      await userEvent.click(screen.getByTestId("call-hangup"));
+      await hangUp(ws);
       await screen.findByText("Oh, what does she like?");
-      await waitFor(() => expect(screen.getByTestId("chat-input")).toBeEnabled());
+      await settle();
       await userEvent.type(screen.getByTestId("chat-input"), "Thanks");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("You are"));
@@ -3736,7 +3753,7 @@ describe("realtime call (plan 2026-10-07)", () => {
         .toEqual(["Thanks", "You are welcome"]);
       expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("Thanks");
       expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("You are welcome");
-      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3); // 重新加载 + 一次补取,之后不再加载
     });
 
     it("a hold recording started after closing a call is not cancelled when the call's grammar check finishes", async () => {
@@ -3752,9 +3769,9 @@ describe("realtime call (plan 2026-10-07)", () => {
       const ws = await connect(c);
       await oneCallTurn(ws);
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
-      await userEvent.click(screen.getByTestId("call-hangup"));
+      await hangUp(ws);
       await screen.findByText("Oh, what does she like?");
-      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+      await settle();
       await startRecording();
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
       await act(async () => { grammar.release(); });
@@ -3762,7 +3779,7 @@ describe("realtime call (plan 2026-10-07)", () => {
       await act(async () => {});
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording");
       expect(fake.track.stop).not.toHaveBeenCalled();
-      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3);
     });
 
     it("never deletes a recording around a call: a voice turn still being scored when the call starts is linked to its message after the reload", async () => {
@@ -3784,12 +3801,194 @@ describe("realtime call (plan 2026-10-07)", () => {
       await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
       const ws = await connect(c);
       await oneCallTurn(ws);
-      await userEvent.click(screen.getByTestId("call-hangup"));
+      await hangUp(ws);
       await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
       await act(async () => { assessment.release(); });
       await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/m1")).toHaveLength(1));
       expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/m1")[0])).toEqual({ assessment_id: "a1" });
       expect(deletes(mock)).toHaveLength(0);
+    });
+  });
+
+  describe("the post-call reload waits for the server's writes (review F4 I-1)", () => {
+    const SAID = { id: "cm1", conversation_id: "c1", role: "user", content: "She don't like coffee." };
+    /** 挂断时正在说的回复:服务端在收到 hangup 之后才把说出的部分存为 "… …" */
+    const CUT = { id: "cm2", conversation_id: "c1", role: "assistant", content: "Oh, what does she … …" };
+    const SCORED = { ...SAID, assessment_id: "ca1",
+      assessment: { id: "ca1", scores: { pronunciation_score: 71, accuracy_score: 70, fluency_score: 72, completeness_score: 90 }, words: [] as unknown[] } };
+    const composerLocked = () => {
+      expect(screen.getByTestId("chat-mic")).toBeDisabled();
+      expect(screen.getByTestId("chat-hints")).toBeDisabled();
+      expect(screen.getByTestId("conversation-call")).toBeDisabled();
+    };
+
+    it("keeps the socket open after the hang-up until the server closes it, releasing the microphone at once; the reply saved meanwhile appears after the reload", async () => {
+      const c = callEnv();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : [...BEFORE_CALL, SAID, CUT] }),
+        "POST /api/ai/grammar": () => json(WRONG),
+        "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+      }), c.env);
+      const ws = await connect(c);
+      await act(async () => {
+        ws.server({ type: "transcript_final", text: SAID.content, message_id: "cm1" });
+        ws.server({ type: "reply_delta", turn_id: 1, text: "Oh, what does she like?" });
+      });
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      expect(ws.texts().at(-1)).toEqual({ type: "hangup" });
+      expect(c.stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(c.vad.destroy).toHaveBeenCalledTimes(1);
+      expect(ws.close).not.toHaveBeenCalled();
+      await act(async () => {});
+      // 服务端还没存完(还没关闭):不重新加载,输入与麦克风保持禁用
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+      composerLocked();
+      await act(async () => { ws.serverClose(1000); });
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+      expect(await screen.findByText("Oh, what does she … …")).toBeInTheDocument();
+      expect(ws.close).not.toHaveBeenCalled();
+    });
+
+    it("fetches once more ~2 s after the reload: an assessment linked after the close shows its badge; the composer unlocks only then", async () => {
+      const c = callEnv();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => {
+          loads += 1;
+          return json({ messages: loads === 1 ? BEFORE_CALL : loads === 2 ? [...BEFORE_CALL, SAID, CUT] : [...BEFORE_CALL, SCORED, CUT] });
+        },
+        "POST /api/ai/grammar": () => json(WRONG),
+        "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+      }), c.env);
+      const ws = await connect(c);
+      await act(async () => { ws.server({ type: "transcript_final", text: SAID.content, message_id: "cm1" }); });
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.serverClose(1000); });
+      await screen.findByText("Oh, what does she … …");
+      expect(screen.queryByTestId("badge-pronunciation")).toBeNull();
+      composerLocked();
+      await advance(POST_CALL_FOLLOW_UP_MS + 100);
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3));
+      expect(await screen.findByTestId("badge-pronunciation")).toHaveTextContent("Pronunciation 71");
+      // 合并按 id:同一条消息只有一个气泡,语法结果(按消息 id 补上的)仍在
+      expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+      expect(screen.getByTestId("conversation-call")).toBeEnabled();
+      await advance(10_000);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3); // 只补取一次
+    });
+
+    it("an utterance the server saves while closing gets its grammar check and appears (also when it is the call's only turn)", async () => {
+      const c = callEnv();
+      let loads = 0;
+      const LATE = { id: "cm3", conversation_id: "c1", role: "user", content: "He go to school every day." };
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1 ? BEFORE_CALL : [...BEFORE_CALL, LATE] }),
+        "POST /api/ai/grammar": () => json(WRONG),
+        "PATCH /api/messages/cm3": () => json({ id: "cm3" }),
+      }), c.env);
+      const ws = await connect(c);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.server({ type: "transcript_final", text: LATE.content, message_id: "cm3" }); });
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+      await act(async () => { ws.serverClose(1000); });
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+      expect(await screen.findByText(LATE.content)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+    });
+
+    it("a call that connected reloads even if no turn reached the page (the server may have saved one while closing)", async () => {
+      const c = callEnv();
+      const { mock } = setupCall(callRoutes(), c.env);
+      const ws = await connect(c);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.serverClose(1000); });
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+    });
+
+    it("proceeds without the server's close after the bound and closes the socket itself", async () => {
+      const c = callEnv();
+      const { mock } = setupCall(callRoutes(), c.env);
+      const ws = await connect(c);
+      await act(async () => { ws.server({ type: "transcript_final", text: SAID.content, message_id: "cm1" }); });
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await advance(HANGUP_CLOSE_WAIT_MS - 200);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+      expect(ws.close).not.toHaveBeenCalled();
+      await advance(300);
+      expect(ws.close).toHaveBeenCalledWith(1000);
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+    });
+
+    it("the composer unlocks after at most the bound even when the follow-up fetch hangs", async () => {
+      const c = callEnv();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => (++loads <= 2 ? json({ messages: BEFORE_CALL }) : new Promise<Response>(() => undefined)),
+      }), c.env);
+      const ws = await connect(c);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { ws.serverClose(1000); });
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+      await advance(POST_CALL_FOLLOW_UP_MS + 100);
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(3));
+      composerLocked();
+      await advance(POST_CALL_SETTLE_MAX_MS);
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+      expect(POST_CALL_SETTLE_MAX_MS).toBeLessThanOrEqual(6000);
+    });
+
+    it("switching conversations while waiting for the close drops the socket and never reloads the old conversation", async () => {
+      const c = callEnv();
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+      }), c.env);
+      const ws = await connect(c);
+      await act(async () => { ws.server({ type: "transcript_final", text: SAID.content, message_id: "cm1" }); });
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      await act(async () => { goTo("/chat/c2"); });
+      await screen.findByText("Second chat hello");
+      expect(ws.close).toHaveBeenCalledTimes(1);
+      await advance(POST_CALL_SETTLE_MAX_MS + 1000);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+      expect(callsTo(mock, "GET", "/api/conversations/c2/messages")).toHaveLength(1);
+      expect(screen.getByTestId("chat-mic")).toBeEnabled();
+    });
+
+    it("unmounting the page while waiting for the close drops the socket", async () => {
+      const c = callEnv();
+      const { view } = setupCall(callRoutes(), c.env);
+      const ws = await connect(c);
+      await userEvent.click(screen.getByTestId("call-hangup"));
+      expect(ws.close).not.toHaveBeenCalled();
+      view.unmount();
+      expect(ws.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("a call closed by the server reloads with the same follow-up when the end screen is closed", async () => {
+      const c = callEnv();
+      let loads = 0;
+      const { mock } = setupCall(callRoutes({
+        "GET /api/conversations/c1/messages": () => {
+          loads += 1;
+          return json({ messages: loads === 1 ? BEFORE_CALL : loads === 2 ? [...BEFORE_CALL, SAID] : [...BEFORE_CALL, SCORED] });
+        },
+        "POST /api/ai/grammar": () => json(WRONG),
+        "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+      }), c.env);
+      const ws = await connect(c);
+      await act(async () => { ws.server({ type: "transcript_final", text: SAID.content, message_id: "cm1" }); });
+      await act(async () => { ws.serverClose(4008); });
+      await userEvent.click(await screen.findByTestId("call-close"));
+      await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+      composerLocked();
+      await advance(POST_CALL_FOLLOW_UP_MS + 100);
+      expect(await screen.findByTestId("badge-pronunciation")).toHaveTextContent("Pronunciation 71");
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
     });
   });
 

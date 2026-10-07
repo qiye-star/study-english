@@ -4,7 +4,7 @@ import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
-import { RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeCallOptions, type RealtimeEnv } from "./realtime-call";
+import { HANGUP_CLOSE_WAIT_MS, RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeCallOptions, type RealtimeEnv } from "./realtime-call";
 
 // ownsContext 必须由调用方明确选择(漏传会关掉页面共享的上下文);可选时这一行在 tsc 下报错
 const ownsContextIsRequired: {} extends Pick<RealtimeCallOptions, "ownsContext"> ? false : true = true;
@@ -388,7 +388,7 @@ describe("RealtimeCall", () => {
       s.ws().open();
       s.call.hangup();
       expect(s.ws().texts().at(-1)).toEqual({ type: "hangup" });
-      expect(s.ws().close).toHaveBeenCalledWith(1000);
+      expect(s.ws().close).not.toHaveBeenCalled(); // 等服务端保存完再由它关闭(review F4 I-1)
       s.ws().serverClose(1000); // 关闭事件随后到达:不得重复释放
       s.call.hangup();
       expectReleasedOnce(s);
@@ -532,6 +532,107 @@ describe("RealtimeCall", () => {
       expect(s.vad.destroy).toHaveBeenCalledTimes(1);
       expect(s.ctx.gain.disconnect).toHaveBeenCalled();
     });
+  });
+});
+
+describe("after a hang-up the socket stays open until the server closes it (review F4 I-1)", () => {
+  const settled = async (p: Promise<void>) => {
+    let done = false;
+    void p.then(() => { done = true; });
+    await Promise.resolve();
+    await Promise.resolve();
+    return done;
+  };
+
+  it("releases the microphone, VAD and player at once, keeps the socket for the server's close and still reports late user messages", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    const ending = s.call.ending();
+    s.call.hangup();
+    expect(s.ws().texts().at(-1)).toEqual({ type: "hangup" });
+    expectReleasedOnce(s);
+    expect(s.ws().close).not.toHaveBeenCalled();
+    expect(ending.opened).toBe(true);
+    expect(await settled(ending.closed)).toBe(false);
+    // 服务端在关闭前还保存了一句(它的语法检查要做)
+    s.ws().server({ type: "transcript_final", text: "late words", message_id: "m9" });
+    expect(s.onUserMessage).toHaveBeenLastCalledWith("m9", "late words");
+    const phases = s.changes.length;
+    s.ws().server({ type: "reply_delta", turn_id: 3, text: "ignored" });
+    expect(s.changes).toHaveLength(phases); // 结束后的界面不再变化
+    s.ws().serverClose(1000);
+    expect(await settled(ending.closed)).toBe(true);
+    expect(s.ws().close).not.toHaveBeenCalled();
+    expect(s.changes.at(-1)!.error).toBeNull();
+  });
+
+  it("closes the socket itself when the server has not closed it within the bound", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const s = setup();
+      await s.call.start();
+      s.ws().open();
+      s.call.hangup();
+      const ending = s.call.ending();
+      await vi.advanceTimersByTimeAsync(HANGUP_CLOSE_WAIT_MS - 10);
+      expect(s.ws().close).not.toHaveBeenCalled();
+      expect(await settled(ending.closed)).toBe(false);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(s.ws().close).toHaveBeenCalledWith(1000);
+      expect(await settled(ending.closed)).toBe(true);
+      expect(HANGUP_CLOSE_WAIT_MS).toBeLessThanOrEqual(3000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drop() stops waiting: the socket is closed now and late events are ignored", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    s.call.hangup();
+    const ending = s.call.ending();
+    ending.drop();
+    expect(s.ws().close).toHaveBeenCalledWith(1000);
+    expect(await settled(ending.closed)).toBe(true);
+    s.ws().server({ type: "transcript_final", text: "late", message_id: "m9" });
+    expect(s.onUserMessage).not.toHaveBeenCalled();
+    ending.drop();
+    expect(s.ws().close).toHaveBeenCalledTimes(1);
+  });
+
+  it("a call ended by the page (background) also waits for the server's close", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    s.call.end("web.realtime.endedInBackground");
+    expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+    expect(s.ws().close).not.toHaveBeenCalled();
+    s.ws().serverClose(1000);
+    expect(await settled(s.call.ending().closed)).toBe(true);
+    expect(s.changes.at(-1)!.error).toBe("web.realtime.endedInBackground");
+  });
+
+  it("is settled at once when the socket never opened, the server closed it, or there was none", async () => {
+    const connecting = setup();
+    await connecting.call.start();
+    connecting.call.hangup();
+    expect(connecting.ws().close).toHaveBeenCalledWith(1000);
+    expect(connecting.call.ending().opened).toBe(false);
+    expect(await settled(connecting.call.ending().closed)).toBe(true);
+
+    const server = setup();
+    await server.call.start();
+    server.ws().open();
+    server.ws().serverClose(4008);
+    expect(server.call.ending().opened).toBe(true);
+    expect(await settled(server.call.ending().closed)).toBe(true);
+
+    const refused = setup({ ticket: () => json({ error: "Realtime is not enabled" }, 503) });
+    await refused.call.start();
+    expect(refused.call.ending().opened).toBe(false);
+    expect(await settled(refused.call.ending().closed)).toBe(true);
   });
 });
 

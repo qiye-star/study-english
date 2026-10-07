@@ -15,6 +15,21 @@ export const PRE_ROLL_MS = 300;
 export const TICKET_MARGIN_S = 10;
 /** 采集开始后上下文仍不在 running 时,再 resume() 一次最多等这么久。 */
 export const RESUME_TIMEOUT_MS = 1500;
+/**
+ * 发出 hangup 之后等服务端关闭套接字最多这么久(review F4 I-1)。服务端先收尾(被打断的回复存为 "… …"、
+ * 只差保存的一轮最多等 5 s),再发关闭帧;页面等到关闭再重新加载,才看得到这些消息。超时就自己关。
+ */
+export const HANGUP_CLOSE_WAIT_MS = 3000;
+
+/** 通话结束后的套接字:页面据此决定何时重新加载(`closed`)、是否需要重新加载(`opened`),以及放弃等待(`drop`)。 */
+export interface CallEnding {
+  /** 套接字已关闭(服务端关闭、等待到上限、`drop()`,或根本没有打开)时兑现;从不拒绝。 */
+  closed: Promise<void>;
+  /** WebSocket 曾经打开过(服务端可能保存了消息)。 */
+  opened: boolean;
+  /** 不再等服务端:立即关闭套接字(切换会话、卸载)。 */
+  drop(): void;
+}
 
 /** 上下文是否真的在跑(iOS 可能在打开麦克风时把它切到 suspended / interrupted)。 */
 async function ensureRunning(context: AudioContext): Promise<boolean> {
@@ -88,6 +103,13 @@ export class RealtimeCall {
   private sensitivity: VadSensitivity = "normal";
   private lastTurn = 0;
   private droppedThrough = 0;
+  private opened = false;
+  /** 已发出 hangup:拆除时套接字留给服务端关闭(有上限) */
+  private hungUp = false;
+  private lingering: WebSocket | null = null;
+  private lingerTimer: ReturnType<typeof setTimeout> | undefined;
+  private markClosed!: () => void;
+  private readonly closed = new Promise<void>((resolve) => { this.markClosed = resolve; });
   /** 音频焦点:通话期间有别的播放者声明焦点时,先停下通话的播放。 */
   private readonly focus = () => {
     this.player?.stop();
@@ -170,7 +192,10 @@ export class RealtimeCall {
       const ws = new this.env.WebSocket(realtimeUrl(ticket, this.env.location));
       ws.binaryType = "arraybuffer";
       this.ws = ws;
-      ws.onopen = () => ws.send(startMessage);
+      ws.onopen = () => {
+        this.opened = true;
+        ws.send(startMessage);
+      };
       ws.onmessage = (event: MessageEvent | { data: string | ArrayBuffer }) => {
         if (typeof event.data === "string") this.onEvent(event.data);
         else this.onAudio(event.data as ArrayBuffer); // binaryType = "arraybuffer"
@@ -216,6 +241,15 @@ export class RealtimeCall {
       if (context) this.o.onUserMessage?.(event.messageId, event.text, context);
       else this.o.onUserMessage?.(event.messageId, event.text);
     }
+  }
+
+  /** 挂断后、服务端关闭前到达的事件:界面已结束,只把服务端保存的用户话语交给页面(语法检查)。 */
+  private onLateEvent(text: string): void {
+    const event = parseServerEvent(text);
+    if (event?.type !== "transcript_final" || !event.text || !event.messageId) return;
+    const context = [...this.model.captions].reverse().find((c) => c.role === "assistant")?.text;
+    if (context) this.o.onUserMessage?.(event.messageId, event.text, context);
+    else this.o.onUserMessage?.(event.messageId, event.text);
   }
 
   private onAudio(data: ArrayBuffer): void {
@@ -313,15 +347,42 @@ export class RealtimeCall {
 
   hangup(): void {
     if (this.torn) return;
-    this.sendText(encodeControl("hangup"));
+    this.sendHangup();
     this.finish({ type: "closed", code: 1000 });
   }
 
   /** 页面主动结束(切后台、麦克风中断等):带原因结束并挂断。 */
   end(errorKey: string): void {
     if (this.torn) return;
-    this.sendText(encodeControl("hangup"));
+    this.sendHangup();
     this.finish({ type: "fail", errorKey });
+  }
+
+  private sendHangup(): void {
+    if (!this.isOpen()) return;
+    this.ws!.send(encodeControl("hangup"));
+    this.hungUp = true;
+  }
+
+  /** 结束后的套接字(随时可取;通话还没结束时 `closed` 要等到它结束并关闭)。 */
+  ending(): CallEnding {
+    const opened = () => this.opened;
+    return { closed: this.closed, get opened() { return opened(); }, drop: () => this.dropSocket() };
+  }
+
+  private dropSocket(): void {
+    const ws = this.lingering;
+    this.lingering = null;
+    clearTimeout(this.lingerTimer);
+    if (ws) {
+      ws.onmessage = ws.onerror = ws.onclose = null;
+      try {
+        ws.close(1000);
+      } catch {
+        /* 已关闭 */
+      }
+    }
+    this.markClosed();
   }
 
   private finish(action: CallAction): void {
@@ -339,15 +400,28 @@ export class RealtimeCall {
     this.abort.abort();
     const ws = this.ws;
     this.ws = null;
-    if (ws) {
-      ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
-      if (ws.readyState === 0 || ws.readyState === 1) {
+    if (ws) ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+    if (ws && this.hungUp && ws.readyState === 1) {
+      // 麦克风、VAD、播放器照常立即释放;只有套接字留到服务端存完、关闭为止(有上限,可 drop)
+      this.lingering = ws;
+      ws.onmessage = (event: MessageEvent | { data: string | ArrayBuffer }) => {
+        if (typeof event.data === "string") this.onLateEvent(event.data);
+      };
+      ws.onerror = () => undefined;
+      ws.onclose = () => {
+        this.lingering = null;
+        this.dropSocket();
+      };
+      this.lingerTimer = setTimeout(() => this.dropSocket(), HANGUP_CLOSE_WAIT_MS);
+    } else {
+      if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
         try {
           ws.close(1000);
         } catch {
           /* 已关闭 */
         }
       }
+      this.markClosed();
     }
     this.capture?.release();
     this.capture = null;

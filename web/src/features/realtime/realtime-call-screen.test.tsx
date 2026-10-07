@@ -309,6 +309,8 @@ describe("RealtimeCallDialog", () => {
     expect(screen.getByTestId("call-status")).toHaveAttribute("data-phase", "connecting");
     fireEvent.click(screen.getByTestId("call-hangup"));
     expect(s.onClose).toHaveBeenCalledTimes(1);
+    // 交给页面的是这通电话的套接字结局(页面等它关闭再重新加载)
+    expect(s.onClose).toHaveBeenCalledWith(expect.objectContaining({ opened: false, closed: expect.any(Promise), drop: expect.any(Function) }));
     expect(s.mock.calls[0].signal?.aborted).toBe(true);
     expect(s.ctx.close).not.toHaveBeenCalled();
   });
@@ -331,6 +333,7 @@ describe("RealtimeCallDialog", () => {
     expect(s.onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("call-close"));
     expect(s.onClose).toHaveBeenCalledTimes(1);
+    expect(s.onClose).toHaveBeenCalledWith(expect.objectContaining({ opened: false, closed: expect.any(Promise) }));
   });
 
   it("going to the background hangs up and explains it on return (R16)", async () => {
