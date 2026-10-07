@@ -1,0 +1,45 @@
+{
+  "web": {
+    "realtime": {
+      "start": "Start a voice call",
+      "title": "Voice call",
+      "status": {
+        "connecting": "Connecting…",
+        "listening": "Listening",
+        "thinking": "Thinking",
+        "speaking": "Speaking",
+        "ended": "Call ended"
+      },
+      "hangup": "Hang up",
+      "mute": "Mute microphone",
+      "unmute": "Unmute microphone",
+      "pushToTalk": "Push-to-talk mode (for noisy places)",
+      "holdToSpeak": "Hold to speak",
+      "micInUse": "Microphone in use",
+      "degraded": "The network or service is slow",
+      "vadUnavailable": "Voice detection is unavailable; switched to push-to-talk",
+      "noSpeech": "Didn't catch that",
+      "endedInBackground": "The call ended because the app went to the background",
+      "interrupted": "(interrupted)",
+      "close": "Close",
+      "errors": {
+        "unauthorized": "The call link expired. Please try again.",
+        "disabled": "Voice calls are not enabled on this server",
+        "not_found": "This conversation no longer exists",
+        "idle_timeout": "Hung up after a long silence",
+        "max_duration": "The call reached its time limit",
+        "message_limit": "This conversation is full",
+        "busy": "Another call is already in progress",
+        "protocol": "The call was interrupted by an error",
+        "upstream": "Speech recognition is unavailable",
+        "generic": "The call was disconnected",
+        "asr_failed": "Didn't catch that – please say it again",
+        "llm_failed": "The reply failed – please try again",
+        "tts_failed": "The voice reply failed; showing text only",
+        "rate_limited": "Too many requests – wait a moment",
+        "micLost": "The microphone stopped",
+        "unsupported": "This browser cannot make voice calls"
+      }
+    }
+  }
+}
