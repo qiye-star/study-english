@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { ChevronRightIcon } from "lucide-react";
 import { Button } from "@renderer/components/ui/button";
-import { PronunciationAssessmentScoreIcon } from "@renderer/components/pronunciation-assessments/pronunciation-assessment-score-icon";
-import { formatDateTime } from "@renderer/lib/utils";
+import { cn, formatDateTime } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { scoreToneClass } from "~/components/score-tone";
 import { PageHeader } from "~/layout/page-header";
 import { listAssessments, type AssessmentSummary } from "./assessment-api";
 
@@ -49,34 +51,45 @@ export function HistoryPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.practice.historyTitle")} back="/practice" />
-      {error && (
-        <div role="alert" className="flex items-center gap-2 p-4 text-sm text-destructive">
-          <span className="flex-1">{error}</span>
-          {!items.length && <Button variant="outline" className="h-11" onClick={() => void load(1)}>{t("web.common.retry")}</Button>}
-        </div>
-      )}
-      {loaded && !items.length && !error && (
-        <p data-testid="history-empty" className="p-8 text-center text-muted-foreground">{t("web.practice.empty")}</p>
-      )}
-      <ul>
-        {items.map((a) => (
-          <li key={a.id}>
-            <Link to={`/practice/assessments/${a.id}`} data-testid="assessment-item"
-              className="flex min-h-14 items-center gap-3 border-b px-4 py-3">
-              <PronunciationAssessmentScoreIcon score={a.scores?.pronunciationScore ?? 0} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate">{a.referenceText}</p>
-                <p className="text-xs text-muted-foreground">{formatDateTime(a.createdAt)}</p>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {next && loaded && (
-        <Button variant="ghost" data-testid="history-load-more" className="m-4 h-11" disabled={loading} onClick={() => void load(next)}>
-          {t("web.common.loadMore")}
-        </Button>
-      )}
+      <div className="px-gutter pb-6 pt-2">
+        {error && (
+          <div role="alert" className="mb-3 flex items-center gap-2 text-sub text-destructive">
+            <span className="flex-1">{error}</span>
+            {!items.length && <Button variant="outline" className="h-tap" onClick={() => void load(1)}>{t("web.common.retry")}</Button>}
+          </div>
+        )}
+        {loaded && !items.length && !error && (
+          <p data-testid="history-empty" className={PAGE_NOTE}>{t("web.practice.empty")}</p>
+        )}
+        {items.length > 0 && (
+          <ul className={LIST_CARD}>
+            {items.map((a) => {
+              const score = a.scores?.pronunciationScore;
+              const scored = typeof score === "number" && Number.isFinite(score);
+              return (
+                <li key={a.id}>
+                  <Link to={`/practice/assessments/${a.id}`} data-testid="assessment-item"
+                    className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                    <span className={cn("num w-10 flex-none text-center text-headline font-semibold tracking-tightest", scored ? scoreToneClass(score) : "text-ink-2")}>
+                      {scored ? Math.round(score) : "—"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body font-medium tracking-[-0.005em] text-ink">{a.referenceText}</span>
+                      <span className="mt-0.5 block text-meta text-ink-2">{formatDateTime(a.createdAt)}</span>
+                    </span>
+                    <ChevronRightIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {next && loaded && (
+          <Button variant="ghost" data-testid="history-load-more" className="mt-3 h-tap w-full text-blue" disabled={loading} onClick={() => void load(next)}>
+            {t("web.common.loadMore")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -12,6 +12,8 @@ import { PronunciationAssessmentFulltextResult } from "@renderer/components/pron
 import { WavesurferPlayer } from "@renderer/components/misc/wavesurfer-player";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { IconButton } from "~/components/icon-button";
+import { SurfaceCard } from "~/components/surface-card";
 import { PageHeader } from "~/layout/page-header";
 import { PRACTICE_SERVER_ERRORS, deleteAssessment, getAssessment, getAssessmentAudio, type AssessmentDetail } from "./assessment-api";
 import { MobileScoreResult } from "./mobile-score-result";
@@ -68,35 +70,42 @@ export function AssessmentPage() {
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.practice.result.title")} back="/practice/history"
         actions={detail && (
-          <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="assessment-delete"
-            aria-label={t("web.common.delete")} onClick={() => setConfirming(true)}>
-            <Trash2Icon className="h-5 w-5" />
-          </Button>
+          <IconButton label={t("web.common.delete")} data-testid="assessment-delete" onClick={() => setConfirming(true)}>
+            <Trash2Icon />
+          </IconButton>
         )} />
-      {error && <p role="alert" className="p-4 text-sm text-destructive">{error}</p>}
-      {!detail && !error && <Skeleton className="m-4 h-40" />}
+      {error && <p role="alert" className="px-gutter py-3 text-sub text-destructive">{error}</p>}
+      {!detail && !error && <Skeleton className="mx-gutter mt-2 h-40 rounded-card" />}
       {detail && (
-        <div className="space-y-4 p-4">
-          <p data-testid="assessment-reference" data-lookup-context className="select-text text-base leading-relaxed">
-            {detail.referenceText}
-          </p>
-          <MobileScoreResult scores={detail.scores} />
-          <div data-testid="assessment-audio">
-            {audioUrl ? (
-              <WavesurferPlayer id={`assessment-${id}`} src={audioUrl} height={64} setCurrentTime={setCurrentTime} />
-            ) : audioError ? (
-              <p className="text-sm text-muted-foreground">{t("web.practice.result.audioUnavailable")}</p>
-            ) : (
-              <Skeleton className="h-16" />
-            )}
-          </div>
-          <div data-testid="assessment-words">
-            <PronunciationAssessmentFulltextResult words={detail.result?.detailResult?.words ?? []}
-              currentTime={currentTime} src={audioUrl ?? undefined} />
-          </div>
-          <Button data-testid="assessment-again" className="h-11 w-full"
+        <div className="space-y-2 px-gutter pb-6 pt-2">
+          <SurfaceCard className="p-3.5">
+            <p className="eyebrow">{t("web.practice.referenceLabel")}</p>
+            <p data-testid="assessment-reference" data-lookup-context
+              className="mt-1.5 select-text text-title font-medium leading-dialogue tracking-[-0.01em] text-ink">
+              {detail.referenceText}
+            </p>
+          </SurfaceCard>
+          <SurfaceCard className="p-3.5">
+            <MobileScoreResult scores={detail.scores} />
+          </SurfaceCard>
+          <SurfaceCard className="space-y-3 p-3.5">
+            <div data-testid="assessment-audio">
+              {audioUrl ? (
+                <WavesurferPlayer id={`assessment-${id}`} src={audioUrl} height={64} setCurrentTime={setCurrentTime} />
+              ) : audioError ? (
+                <p className="text-sub text-ink-2">{t("web.practice.result.audioUnavailable")}</p>
+              ) : (
+                <Skeleton className="h-16" />
+              )}
+            </div>
+            <div data-testid="assessment-words">
+              <PronunciationAssessmentFulltextResult words={detail.result?.detailResult?.words ?? []}
+                currentTime={currentTime} src={audioUrl ?? undefined} />
+            </div>
+          </SurfaceCard>
+          <Button data-testid="assessment-again" className="!mt-4 h-12 w-full rounded-button text-body font-semibold"
             onClick={() => navigate("/practice", { state: { reference: detail.referenceText } })}>
-            <RotateCcwIcon className="mr-2 h-4 w-4" />{t("web.practice.result.again")}
+            <RotateCcwIcon className="mr-2 h-5 w-5" />{t("web.practice.result.again")}
           </Button>
         </div>
       )}
