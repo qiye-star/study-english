@@ -324,9 +324,12 @@ class XfyunAssessor:
                     logger.warning("Realtime assessment recording could not be written")
                     return {"status": "done", "result": result, "assessment_id": None}
                 message = await session.get(Message, message_id)
-                if message is not None and message.assessment_id is None:
-                    message.assessment_id = assessment_id
-                    await session.commit()
+                if message is None or message.assessment_id is not None:
+                    # Not linked (message deleted, or it already has a recording): the row is an orphan
+                    # that `cleanup_orphan_chat_recordings` reclaims, so don't tell the client it was saved.
+                    return {"status": "done", "result": result, "assessment_id": None}
+                message.assessment_id = assessment_id
+                await session.commit()
             return {"status": "done", "result": result, "assessment_id": assessment_id}
         except Exception as e:
             logger.warning("Realtime assessment save failed kind=%s", type(e).__name__)
