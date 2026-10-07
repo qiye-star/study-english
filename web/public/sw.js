@@ -1,4 +1,4 @@
-/* 最小 service worker:只缓存带哈希的静态资源(/assets/*)。
+/* 最小 service worker:只缓存带哈希的静态资源(/assets/*)与带版本目录的 VAD 资源(/vad/<版本>/*)。
    API、音频与 index.html 一律走网络;不做离线学习(设计文档 5.4)。 */
 const CACHE = "enjoy-web-assets-v1";
 const MAX_ENTRIES = 80;
@@ -18,7 +18,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || !url.pathname.startsWith("/assets/")) return;
+  if (url.origin !== self.location.origin || !(url.pathname.startsWith("/assets/") || url.pathname.startsWith("/vad/"))) return;
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const hit = await cache.match(request);

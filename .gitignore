@@ -148,4 +148,5 @@ enjoy/.env
 
 # mobile web
 web/dist/
+web/public/vad/
 web/.env
