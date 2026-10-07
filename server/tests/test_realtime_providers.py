@@ -6,6 +6,7 @@ import logging
 import httpx
 import pytest
 
+from app import asr
 from app import realtime_providers as providers
 from app.asr import AsrError, BufferedRecognizer
 from app.asr_stream import AsrGate, AsrStreamError
@@ -474,10 +475,12 @@ def stream_only(**overrides):
 
 
 async def test_stream_only_buffered_silence_is_no_speech(monkeypatch):
+    # Review 4.4-m1: the stream-only buffered path is plain `asr.make_transcriber` (no realtime-only copy);
+    # with no chat/Whisper fallback an empty stream result is "" (no speech), not `asr_failed`.
     async def empty(settings, pcm, uid="server"):
         raise AsrStreamError("empty")
 
-    monkeypatch.setattr(providers, "transcribe_pcm", empty)
+    monkeypatch.setattr(asr, "transcribe_pcm", empty)
     gate = AsrGate(1)
     primary, fallback, mode = make_recognizers(None, stream_only(), "1", gate=gate)
     assert (fallback, mode) == (None, "buffered")
@@ -492,7 +495,7 @@ async def test_stream_only_buffered_failures_are_asr_errors(monkeypatch, kind, e
     async def broken(settings, pcm, uid="server"):
         raise AsrStreamError(kind)
 
-    monkeypatch.setattr(providers, "transcribe_pcm", broken)
+    monkeypatch.setattr(asr, "transcribe_pcm", broken)
     primary, _, _ = make_recognizers(None, stream_only(), "1")
     recognizer = await primary(noop)
     await recognizer.send_audio(b"\x01\x00" * 1600)
@@ -508,7 +511,7 @@ async def test_stream_only_buffered_passes_pcm_and_uid(monkeypatch):
         seen.update(pcm=pcm, uid=uid)
         return "hello"
 
-    monkeypatch.setattr(providers, "transcribe_pcm", ok)
+    monkeypatch.setattr(asr, "transcribe_pcm", ok)
     primary, _, _ = make_recognizers(None, stream_only(), "9")
     recognizer = await primary(noop)
     await recognizer.send_audio(b"\x01\x00" * 10)
@@ -520,7 +523,7 @@ async def test_stream_only_buffered_busy_gate_is_an_asr_error(monkeypatch):
     async def ok(settings, pcm, uid="server"):
         return "hello"
 
-    monkeypatch.setattr(providers, "transcribe_pcm", ok)
+    monkeypatch.setattr(asr, "transcribe_pcm", ok)
     gate = AsrGate(1)
     assert await gate.try_enter() is None  # someone else holds the only slot
     primary, _, _ = make_recognizers(None, stream_only(), "1", gate=gate)

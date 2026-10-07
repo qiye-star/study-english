@@ -28,17 +28,9 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.asr import (
-    AsrError,
-    RecognizerFactory,
-    Transcribe,
-    _fallback_configured,
-    _map_stream,
-    buffered_factory,
-    realtime_factory,
-)
+from app.asr import AsrError, RecognizerFactory, realtime_factory
 from app.asr_realtime import volc_stream_factory
-from app.asr_stream import AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.asr_stream import AsrGate
 from app.config import Settings
 from app.models import Conversation, Message, utcnow
 from app.realtime_asr import RealtimeAsr, effective_realtime_asr
@@ -157,40 +149,10 @@ def volc_tts_stream(http: httpx.AsyncClient, settings: Settings, voice: str, uid
 
 # ---- recognizers ----
 
-def _stream_only_transcriber(settings: Settings, gate: AsrGate, uid: str) -> Transcribe:
-    """Buffered transcription when the upload path is `volc_stream` with no chat/Whisper fallback.
-    Same gate and error mapping as `asr.make_transcriber`, except that an empty result (silence)
-    is "" (no speech) instead of an upstream error — a silent utterance must not become `asr_failed`."""
-
-    async def transcribe(wav: bytes) -> str:
-        pcm = wav_to_pcm(wav)
-        if pcm is None:
-            raise AsrError("upstream")
-        skip = await gate.try_enter()
-        if skip is not None:
-            logger.warning("realtime buffered asr skipped reason=%s", skip)
-            raise AsrError("upstream")
-        kind = None
-        try:
-            return await transcribe_pcm(settings, pcm, uid)
-        except AsrStreamError as e:
-            if e.kind == "empty":
-                return ""
-            kind = e.kind
-            logger.warning("realtime buffered asr failed kind=%s connect_id=%s logid=%s", e.kind, e.connect_id, e.logid)
-            raise _map_stream(e.kind) from None
-        finally:
-            gate.leave(kind)
-
-    return transcribe
-
-
 def _buffered(http: httpx.AsyncClient, settings: Settings, gate: AsrGate | None, uid: str) -> RecognizerFactory:
-    """The buffered recognizer; `AsrError("config")` when no transcription path is configured."""
-    if settings.asr_stream_enabled and settings.asr_stream_key and not _fallback_configured(settings):
-        if gate is None:
-            gate = AsrGate(settings.asr_stream_max_concurrency)
-        return buffered_factory(_stream_only_transcriber(settings, gate, uid))
+    """The buffered recognizer — the upload transcriber (`asr.make_transcriber`, which already treats an
+    empty stream result as "no speech" when there is no chat/Whisper fallback); `AsrError("config")` when
+    no transcription path is configured."""
     buffered = settings.model_copy(update={"realtime_asr_mode": "buffered"})
     return realtime_factory(http, buffered, "en", gate=gate, uid=uid)
 
