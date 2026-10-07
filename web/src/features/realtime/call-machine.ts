@@ -16,6 +16,8 @@ export interface CallModel {
   partial: string;
   muted: boolean;
   pushToTalk: boolean;
+  /** VAD 没能加载:只能按住说话,开关被锁定 */
+  vadUnavailable: boolean;
   degraded: boolean;
   notice: string | null;
   error: string | null;
@@ -28,11 +30,12 @@ export type CallAction =
   | { type: "mute"; muted: boolean }
   | { type: "ptt"; on: boolean }
   | { type: "notice"; key: string | null }
-  | { type: "local-interrupt" };
+  | { type: "local-interrupt" }
+  | { type: "vad-unavailable" };
 
 export const MAX_CAPTIONS = 50;
 export const INITIAL_CALL: CallModel = {
-  phase: "idle", captions: [], partial: "", muted: false, pushToTalk: false, degraded: false, notice: null, error: null,
+  phase: "idle", captions: [], partial: "", muted: false, pushToTalk: false, vadUnavailable: false, degraded: false, notice: null, error: null,
 };
 
 const cap = (captions: Caption[]) => captions.slice(-MAX_CAPTIONS);
@@ -102,9 +105,13 @@ export function callReducer(m: CallModel, a: CallAction): CallModel {
       return { ...m, pushToTalk: a.on };
     case "notice":
       return { ...m, notice: a.key };
+    case "vad-unavailable":
+      return { ...m, pushToTalk: true, vadUnavailable: true, notice: "web.realtime.vadUnavailable" };
     case "local-interrupt": {
+      // 只标记还在流式输出(尚未收到 reply_done,messageId 仍为 undefined)的那条回复;
+      // 思考阶段打断时新一轮还没有字幕,已说完的上一轮不能被标成"已打断"
       let last = -1;
-      m.captions.forEach((c, i) => { if (c.role === "assistant") last = i; });
+      m.captions.forEach((c, i) => { if (c.role === "assistant" && c.messageId === undefined) last = i; });
       const captions = last < 0 ? m.captions : m.captions.map((c, i) => (i === last ? { ...c, interrupted: true } : c));
       return { ...m, captions, phase: "listening" };
     }

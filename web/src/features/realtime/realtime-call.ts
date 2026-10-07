@@ -11,6 +11,25 @@ import { encodeControl, encodeStart, parseServerEvent, splitAudioFrame, type Sta
 import { createRealtimeTicket, realtimeUrl } from "./realtime-api";
 
 export const PRE_ROLL_MS = 300;
+/** 票据剩余寿命不足这么多秒时,开 WebSocket 前重新申请一张(首次下载 VAD 资源、犹豫的权限弹窗都可能超过 60 s)。 */
+export const TICKET_MARGIN_S = 10;
+/** 采集开始后上下文仍不在 running 时,再 resume() 一次最多等这么久。 */
+export const RESUME_TIMEOUT_MS = 1500;
+
+/** 上下文是否真的在跑(iOS 可能在打开麦克风时把它切到 suspended / interrupted)。 */
+async function ensureRunning(context: AudioContext): Promise<boolean> {
+  if (context.state === "running") return true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve(context.resume?.()).catch((): void => undefined),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, RESUME_TIMEOUT_MS); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  return (context.state as string) === "running";
+}
 const PRE_ROLL_SAMPLES = (TARGET_RATE * PRE_ROLL_MS) / 1000;
 
 export interface RealtimeEnv {
@@ -18,6 +37,8 @@ export interface RealtimeEnv {
   capture: CaptureEnv;
   createVad: typeof createVad;
   location: { protocol: string; host: string };
+  /** 毫秒时钟(默认 Date.now;测试注入)。 */
+  now?: () => number;
 }
 
 export const browserRealtimeEnv = (): RealtimeEnv => ({
@@ -30,10 +51,11 @@ export interface RealtimeCallOptions {
   /** 通话使用的 AudioContext:应已在点击的同步阶段解锁(`unlockAudioContext`)。 */
   context: AudioContext;
   /**
-   * 是否由本对象负责关闭 `context`(默认 true:页面在点击里为这次通话新建并交出所有权)。
-   * 传入页面级共享上下文(`getPageAudioContext`,R31)时必须为 false:通话结束只断开自己的节点,从不关闭它。
+   * 是否由本对象负责关闭 `context`。必填,没有默认值:调用方必须明确选择。
+   * true:页面在点击里为这次通话新建了上下文并交出所有权;
+   * false:传入的是页面级共享上下文(`getPageAudioContext`,R31,`prepareCallAudio()` 的结果),通话结束只断开自己的节点,从不关闭它。
    */
-  ownsContext?: boolean;
+  ownsContext: boolean;
   start: StartPayload;
   sampleRateOut: number;
   env?: RealtimeEnv;
@@ -92,12 +114,31 @@ export class RealtimeCall {
     if (this.isOpen()) this.ws!.send(floatToPcm16(frame).buffer as ArrayBuffer);
   }
 
+  private now(): number {
+    return (this.env.now ?? Date.now)();
+  }
+
+  /** 申请一张票据并记下到手时间与寿命。 */
+  private async requestTicket(): Promise<{ ticket: string; freshUntil: number }> {
+    const { ticket, expiresIn } = await createRealtimeTicket(this.o.api, this.o.conversationId, this.abort.signal);
+    const life = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 60;
+    return { ticket, freshUntil: this.now() + Math.max(0, life - TICKET_MARGIN_S) * 1000 };
+  }
+
+  /**
+   * 顺序:票据 → 麦克风 → VAD → (票据快过期则再申请一张)→ WebSocket。
+   * 票据仍然第一个申请:服务端未启用/会话不存在时根本不打开麦克风;iOS 的手势要求只针对 AudioContext 解锁,
+   * 那一步已在点击的同步阶段完成(`prepareCallAudio`),这里多一次 await 不影响它。
+   * 权限弹窗与首次下载约 16 MB 的 VAD 资源可能超过票据的 60 s 寿命,所以开连接前按 expiresIn 检查一次。
+   */
   async start(): Promise<void> {
     if (this.torn || this.started) return;
     this.started = true;
     this.dispatch({ type: "connect" });
     try {
-      const { ticket } = await createRealtimeTicket(this.o.api, this.o.conversationId, this.abort.signal);
+      // 先编码开始消息:服务端注定拒绝的配置(音色不合法)在申请票据、打开麦克风之前就结束
+      const startMessage = encodeStart(this.o.start);
+      let { ticket, freshUntil } = await this.requestTicket();
       if (this.torn) return;
 
       this.player = createPcmPlayer(this.o.context, { sampleRate: this.o.sampleRateOut });
@@ -110,13 +151,25 @@ export class RealtimeCall {
       capture.onFrame((frame) => this.onFrame(frame));
       capture.onTrackEnded(() => this.end("web.realtime.errors.micLost"));
 
+      // R31:上下文没有在跑时,采集与 VAD 收不到任何帧、播放也停在冻结的时钟上 —— 宁可明确结束,也不给一个"在听"的死通话
+      if (!(await ensureRunning(this.o.context))) {
+        if (!this.torn) this.finish({ type: "fail", errorKey: "web.realtime.errors.audioSuspended" });
+        return;
+      }
+      if (this.torn) return;
+
       await this.loadVad(capture.stream);
       if (this.torn) return;
+
+      if (this.now() >= freshUntil) {
+        ({ ticket, freshUntil } = await this.requestTicket());
+        if (this.torn) return;
+      }
 
       const ws = new this.env.WebSocket(realtimeUrl(ticket, this.env.location));
       ws.binaryType = "arraybuffer";
       this.ws = ws;
-      ws.onopen = () => ws.send(encodeStart(this.o.start));
+      ws.onopen = () => ws.send(startMessage);
       ws.onmessage = (event: MessageEvent | { data: string | ArrayBuffer }) => {
         if (typeof event.data === "string") this.onEvent(event.data);
         else this.onAudio(event.data as ArrayBuffer); // binaryType = "arraybuffer"
@@ -139,8 +192,7 @@ export class RealtimeCall {
     } catch {
       if (this.torn) return;
       this.vadUnavailable = true;
-      this.dispatch({ type: "ptt", on: true });
-      this.dispatch({ type: "notice", key: "web.realtime.vadUnavailable" });
+      this.dispatch({ type: "vad-unavailable" });
       return;
     }
     if (this.torn) {
@@ -300,6 +352,6 @@ export class RealtimeCall {
       releaseAudio(this.focus);
     }
     this.player = null;
-    if (this.o.ownsContext !== false) void this.o.context.close?.()?.catch?.((): void => undefined);
+    if (this.o.ownsContext) void this.o.context.close?.()?.catch?.((): void => undefined);
   }
 }

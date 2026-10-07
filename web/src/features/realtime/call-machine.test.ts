@@ -47,6 +47,30 @@ describe("callReducer", () => {
     expect(server.captions[0]).toMatchObject({ interrupted: true, messageId: "m3" });
   });
 
+  it("a barge-in while thinking never marks the previous, finished reply as interrupted", () => {
+    const m = run([
+      ev({ type: "reply_delta", turnId: 1, text: "Sure." }),
+      ev({ type: "reply_done", turnId: 1, messageId: "m2", interrupted: false }),
+      ev({ type: "transcript_final", text: "and also", messageId: "m3" }),
+      ev({ type: "state", state: "thinking" }),
+      { type: "local-interrupt" },
+      // 服务端随后可能补发上一轮的 reply_done(interrupted 仍是 false)
+      ev({ type: "reply_done", turnId: 1, messageId: "m2", interrupted: false }),
+    ]);
+    expect(m.captions.find((c) => c.turnId === 1)!.interrupted).toBe(false);
+    expect(m.phase).toBe("listening");
+  });
+
+  it("a local interrupt marks only the reply that is still streaming", () => {
+    const m = run([
+      ev({ type: "reply_delta", turnId: 1, text: "One." }),
+      ev({ type: "reply_done", turnId: 1, messageId: null, interrupted: false }),
+      ev({ type: "reply_delta", turnId: 2, text: "Two" }),
+      { type: "local-interrupt" },
+    ]);
+    expect(m.captions.map((c) => !!c.interrupted)).toEqual([false, true]);
+  });
+
   it("empty transcripts and errors become notices; degraded is sticky", () => {
     let m = run([ev({ type: "transcript_final", text: "", messageId: null })]);
     expect(m.notice).toBe("web.realtime.noSpeech");
@@ -76,6 +100,12 @@ describe("callReducer", () => {
   it("toggles mute and push-to-talk", () => {
     const m = run([{ type: "mute", muted: true }, { type: "ptt", on: true }, { type: "notice", key: "k" }]);
     expect(m).toMatchObject({ muted: true, pushToTalk: true, notice: "k" });
+  });
+
+  it("a missing VAD locks push-to-talk on and says why", () => {
+    const m = run([{ type: "vad-unavailable" }]);
+    expect(m).toMatchObject({ pushToTalk: true, vadUnavailable: true, notice: "web.realtime.vadUnavailable" });
+    expect(INITIAL_CALL.vadUnavailable).toBe(false);
   });
 
   it("keeps at most 50 captions", () => {

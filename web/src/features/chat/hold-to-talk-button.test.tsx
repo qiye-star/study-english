@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "~/test/render";
 import { holdMic, pressKey } from "~/test/hold";
 import { HoldToTalkButton } from "./hold-to-talk-button";
@@ -25,6 +25,66 @@ function setup(start?: () => Promise<boolean>) {
 }
 
 describe("HoldToTalkButton", () => {
+  let innerWidth = window.innerWidth;
+  beforeEach(() => { innerWidth = window.innerWidth; });
+  afterEach(() => {
+    window.innerWidth = innerWidth; // 不把改过的宽度泄漏给别的测试
+    vi.restoreAllMocks();
+  });
+
+  it("ignores a second pointer: only the captured pointer moves or ends the hold", async () => {
+    const { calls, mic } = setup();
+    window.innerWidth = 400;
+    fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700 });
+    await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
+    fireEvent.pointerDown(mic, { pointerId: 2, clientX: 300, clientY: 700 });
+    fireEvent.pointerMove(mic, { pointerId: 2, clientX: 50, clientY: 500 });
+    expect(mic).toHaveAttribute("data-hold", "recording");
+    fireEvent.pointerUp(mic, { pointerId: 2, clientX: 50, clientY: 500 });
+    fireEvent.pointerCancel(mic, { pointerId: 2 });
+    fireEvent(mic, new PointerEvent("lostpointercapture", { bubbles: true, pointerId: 2 }));
+    expect(mic).toHaveAttribute("data-hold", "recording");
+    expect(calls).toEqual(["start"]);
+    fireEvent.pointerUp(mic, { pointerId: 1, clientX: 200, clientY: 700 });
+    expect(calls.at(-1)).toMatch(/^finish:send|discard:short$/);
+  });
+
+  it("keyboard recording: moving focus away discards it", async () => {
+    const { calls, mic } = setup();
+    mic.focus();
+    pressKey(mic, " ");
+    await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
+    fireEvent.blur(mic);
+    expect(calls.at(-1)).toBe("discard:cancel");
+    expect(mic).toHaveAttribute("data-hold", "idle");
+  });
+
+  it("keyboard recording: the whole window losing focus (permission prompt, app switch) does not discard", async () => {
+    const { calls, mic } = setup();
+    pressKey(mic, " ");
+    await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    fireEvent.blur(mic);
+    expect(calls).toEqual(["start"]);
+    expect(mic).toHaveAttribute("data-hold", "keyboard");
+  });
+
+  it("has a status live region before anything changes and announces the zones", async () => {
+    const { mic } = setup();
+    window.innerWidth = 400;
+    const status = screen.getByTestId("hold-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toBeEmptyDOMElement();
+    fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700 });
+    await waitFor(() => expect(status).toHaveTextContent(/slide|上滑/i));
+    fireEvent.pointerMove(mic, { pointerId: 1, clientX: 50, clientY: 560 });
+    expect(status).toHaveTextContent(/release to cancel|松开取消/i);
+    fireEvent.pointerMove(mic, { pointerId: 1, clientX: 350, clientY: 560 });
+    expect(status).toHaveTextContent(/release to convert|松开转文字/i);
+    fireEvent.pointerCancel(mic, { pointerId: 1 });
+    await waitFor(() => expect(status).toBeEmptyDOMElement());
+    expect(screen.getByTestId("hold-status")).toBe(status); // 一直是同一个节点
+  });
   it("is a 44 px button that suppresses touch scrolling and the context menu", () => {
     const { mic } = setup();
     expect(mic).toHaveAttribute("data-hold-to-talk");

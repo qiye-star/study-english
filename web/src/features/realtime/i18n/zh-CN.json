@@ -15,6 +15,9 @@
       "unmute": "取消静音",
       "pushToTalk": "按住说话模式(适合嘈杂环境)",
       "holdToSpeak": "按住说话",
+      "tapToTalk": "点按开始说话",
+      "tapToStop": "点按结束说话",
+      "pttLocked": "语音检测不可用,只能使用按住说话",
       "micInUse": "麦克风使用中",
       "degraded": "网络/服务较慢",
       "vadUnavailable": "语音检测不可用,已切换为按住说话",
@@ -39,7 +42,9 @@
         "tts_failed": "语音合成失败,只显示文字",
         "rate_limited": "请求过于频繁,请稍候",
         "micLost": "麦克风已中断",
-        "unsupported": "当前浏览器不支持实时通话"
+        "unsupported": "当前浏览器不支持实时通话",
+        "audioSuspended": "音频没能启动。请关闭后重新发起通话。",
+        "invalidVoice": "这个会话的音色不能用于通话,请在会话设置里换一个音色。"
       }
     }
   }

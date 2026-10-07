@@ -13,7 +13,7 @@ function render(ticket: Handler, strict = true) {
   const env = { WebSocket: vi.fn(), capture: {} as RealtimeEnv["capture"], createVad: vi.fn(), location: { protocol: "http:", host: "x" } } as unknown as RealtimeEnv;
   const wrapper = ({ children }: { children: ReactNode }) => (strict ? <StrictMode>{children}</StrictMode> : <>{children}</>);
   const view = renderHook(() => useRealtimeCall({
-    api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), conversationId: "c1", context: asContext(ctx),
+    api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), conversationId: "c1", context: asContext(ctx), ownsContext: true,
     start: { systemPrompt: "", model: "", temperature: 0.7, voice: "v_1x", saveRecordings: true }, sampleRateOut: 24000, env,
   }), { wrapper });
   return { mock, ctx, view, tickets: () => mock.calls.filter((c) => c.url.pathname === "/api/realtime/ticket").length };
@@ -58,6 +58,17 @@ describe("useRealtimeCall", () => {
     s.view.unmount();
     expect(s.ctx.close).toHaveBeenCalledTimes(1);
     expect(s.mock.calls[0].signal?.aborted).toBe(true);
+  });
+
+  it("a page hidden before the deferred start never starts the call and explains why", async () => {
+    vi.useFakeTimers();
+    const s = render(() => json({ ticket: "tk", expires_in: 60 }), false);
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); // 事件已在计时器之前发生
+    await act(async () => { vi.runAllTimers(); });
+    expect(s.tickets()).toBe(0);
+    expect(s.view.result.current.model.phase).toBe("ended");
+    expect(s.view.result.current.model.error).toBe("web.realtime.endedInBackground");
+    expect(s.ctx.close).toHaveBeenCalledTimes(1);
   });
 
   it("going to the background ends the call with a notice", async () => {

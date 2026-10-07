@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { toAssessmentWav } from "~/audio/convert";
-import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest } from "~/lib/latency";
+import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest, startLatencyTrace } from "~/lib/latency";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceDraftEvent } from "./use-voice-turn";
@@ -239,6 +239,42 @@ describe("useVoiceTurn", () => {
       expect(t.fake.track.stop).toHaveBeenCalled();
       expect(t.result.current.state).toBe("idle");
       expect(t.events).toEqual([]);
+    });
+
+    it("stop('discard') while starting (permission prompt open) releases the mic once it arrives", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: unknown } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      act(() => { started = t.result.current.start(); });
+      expect(t.result.current.state).toBe("starting");
+      await act(async () => { await t.result.current.stop("discard"); });
+      await act(async () => { mic.resolve(); await started; });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
+      expect(t.events).toEqual([]);
+      expect(t.mock.calls).toHaveLength(0);
+    });
+
+    it("stop('discard') right after start(), before React re-rendered, still releases the mic", async () => {
+      const mic = deferred<void>();
+      const holder: { track?: unknown } = {};
+      const t = setup(() => json({ text: "x" }), {
+        envOverrides: { getUserMedia: async () => { await mic.promise; return { getTracks: () => [holder.track] } as unknown as MediaStream; } },
+      });
+      holder.track = t.fake.track;
+      let started!: Promise<boolean>;
+      await act(async () => {
+        started = t.result.current.start();
+        await t.result.current.stop("discard"); // 同一个事件里:recorderState 还没更新
+        mic.resolve();
+        await started;
+      });
+      expect(t.fake.track.stop).toHaveBeenCalled();
+      expect(t.result.current.state).toBe("idle");
     });
 
     it("cancel while transcribing aborts the request, discards the draft and reports nothing as transcribed", async () => {
@@ -622,12 +658,48 @@ describe("stop('fill') (plan 2026-10-07 R11)", () => {
     expect(latencyLog().at(-1)?.status).toBe("complete");
   });
 
+  it("a typed message sent while the fill transcription is in flight keeps its own latency trace", async () => {
+    resetLatencyForTest();
+    let release!: (r: Response) => void;
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => new Promise<Response>((r) => { release = r; }) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.mock.calls).toHaveLength(1));
+    const textTurn = startLatencyTrace("text"); // 用户在转写进行时打字发送
+    await act(async () => { release(await json({ text: "late fill" })); });
+    await vi.waitFor(() => expect(t.onTranscribedText).toHaveBeenCalledWith("late fill"));
+    expect(latencyLog().filter((r) => r.kind === "text")).toHaveLength(0); // 文字这一轮仍在进行
+    finishLatencyTrace("aborted", textTurn);
+    expect(latencyLog().find((r) => r.kind === "text")?.id).toBe(textTurn);
+  });
+
   it("keeps the default stop() as send", async () => {
     const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ text: "hello" }) });
     await act(async () => { await t.hook.current.start(); });
     await act(async () => { await t.hook.current.stop(); });
     await vi.waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
     expect(t.onTranscribedText).not.toHaveBeenCalled();
+  });
+
+  it("a failed fill says it was converting to text, for errors and for no speech", async () => {
+    let calls = 0;
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => (++calls === 1 ? json({ detail: "x" }, 500) : json({ text: " " })) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenCalledWith(expect.objectContaining({ kind: "failed" })));
+    expect(t.onDraft.mock.lastCall![0].error).toMatch(/convert.*text|转文字/i);
+    await act(async () => { t.hook.current.retry("k1"); });
+    await vi.waitFor(() => expect(calls).toBe(2));
+    await vi.waitFor(() => expect(t.onDraft.mock.lastCall![0]).toMatchObject({ kind: "failed" }));
+    expect(t.onDraft.mock.lastCall![0].error).toMatch(/convert.*text|转文字/i);
+  });
+
+  it("a failed send keeps the plain error text", async () => {
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ detail: "x" }, 500) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop(); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenCalledWith(expect.objectContaining({ kind: "failed" })));
+    expect(t.onDraft.mock.lastCall![0].error).not.toMatch(/convert.*text|转文字/i);
   });
 
   it("retry after a failed transcription still fills", async () => {

@@ -166,6 +166,92 @@ describe("RealtimeCallScreen", () => {
     expect(screen.getByTestId("call-close")).toHaveFocus();
   });
 
+  describe("modal focus containment", () => {
+    function withOpener() {
+      const outside = document.createElement("div");
+      const opener = document.createElement("button");
+      opener.textContent = "open call";
+      outside.appendChild(opener);
+      document.body.appendChild(outside);
+      opener.focus();
+      return { outside, opener, cleanup: () => outside.remove() };
+    }
+
+    it("makes the page behind the dialog inert and restores it on close", () => {
+      const o = withOpener();
+      const h = render();
+      const dialog = screen.getByTestId("call-screen");
+      expect(o.outside).toHaveAttribute("inert");
+      expect(o.outside).toHaveAttribute("aria-hidden", "true");
+      for (let el: HTMLElement | null = dialog; el; el = el.parentElement) expect(el).not.toHaveAttribute("inert");
+      h.view.unmount();
+      expect(o.outside).not.toHaveAttribute("inert");
+      expect(o.outside).not.toHaveAttribute("aria-hidden");
+      o.cleanup();
+    });
+
+    it("returns focus to the control that opened the call", () => {
+      const o = withOpener();
+      const h = render();
+      expect(screen.getByTestId("call-hangup")).toHaveFocus();
+      h.view.unmount();
+      expect(o.opener).toHaveFocus();
+      o.cleanup();
+    });
+
+    it("Tab and Shift+Tab wrap inside the dialog", () => {
+      render();
+      const mute = screen.getByTestId("call-mute");
+      const toggle = screen.getByTestId("call-ptt-toggle");
+      toggle.focus();
+      fireEvent.keyDown(toggle, { key: "Tab" });
+      expect(mute).toHaveFocus();
+      fireEvent.keyDown(mute, { key: "Tab", shiftKey: true });
+      expect(toggle).toHaveFocus();
+    });
+
+    it("focus that lands outside the dialog is pulled back in", () => {
+      const o = withOpener();
+      render();
+      act(() => o.opener.focus());
+      expect(screen.getByTestId("call-screen").contains(document.activeElement)).toBe(true);
+      o.cleanup();
+    });
+  });
+
+  describe("without voice detection (VAD failed to load)", () => {
+    it("locks push-to-talk on with a visible reason", () => {
+      render({ pushToTalk: true, vadUnavailable: true });
+      const toggle = screen.getByTestId("call-ptt-toggle");
+      expect(toggle).toBeDisabled();
+      expect(screen.getByTestId("call-ptt-locked")).toBeVisible();
+      expect(toggle).toHaveAttribute("aria-describedby", screen.getByTestId("call-ptt-locked").id);
+    });
+
+    it("offers a tap-to-talk toggle (screen readers cannot hold a button)", () => {
+      const h = render({ pushToTalk: true, vadUnavailable: true });
+      const tap = screen.getByTestId("call-ptt-tap");
+      expect(tap).toHaveAttribute("aria-pressed", "false");
+      expect(tap).toHaveAccessibleName();
+      expect(tap.className).toMatch(/min-h-11/);
+      fireEvent.click(tap);
+      expect(h.onPttDown).toHaveBeenCalledTimes(1);
+      expect(tap).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(tap);
+      expect(h.onPttUp).toHaveBeenCalledTimes(1);
+      expect(tap).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(tap);
+      h.view.unmount(); // 说着话关掉:这句结束
+      expect(h.onPttUp).toHaveBeenCalledTimes(2);
+    });
+
+    it("has no tap toggle while voice detection works", () => {
+      render({ pushToTalk: true });
+      expect(screen.queryByTestId("call-ptt-tap")).toBeNull();
+      expect(screen.getByTestId("call-ptt-toggle")).toBeEnabled();
+    });
+  });
+
   it("drives the level meter from level() without re-rendering and stops on unmount", () => {
     vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", undefined);

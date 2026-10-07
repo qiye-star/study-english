@@ -1,5 +1,6 @@
 import { HandIcon, MicIcon, MicOffIcon, PhoneOffIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
@@ -123,6 +124,73 @@ function CallPttButton({ disabled, onDown, onUp }: { disabled: boolean; onDown()
   );
 }
 
+/** 点按切换的说话键:没有 VAD 时给读屏用户(双击无法"按住")和不便长按的人用。 */
+function CallTapToTalkButton({ disabled, onDown, onUp }: { disabled: boolean; onDown(): void; onUp(): void }) {
+  const { t } = useTranslation();
+  const [on, setOn] = useState(false);
+  const onRef = useRef(false);
+  const cb = useRef({ onDown, onUp });
+  cb.current = { onDown, onUp };
+  const set = (next: boolean, render = true) => {
+    if (onRef.current === next) return;
+    onRef.current = next;
+    if (render) setOn(next);
+    if (next) cb.current.onDown();
+    else cb.current.onUp();
+  };
+  const setRef = useRef(set);
+  setRef.current = set;
+  useEffect(() => {
+    if (disabled) setRef.current(false);
+  }, [disabled]);
+  useEffect(() => () => setRef.current(false, false), []);
+  return (
+    <Button type="button" data-testid="call-ptt-tap" variant={on ? "destructive" : "outline"} aria-pressed={on} disabled={disabled}
+      className="min-h-11 min-w-11 w-full text-base" onClick={() => set(!onRef.current)}>
+      <MicIcon className="mr-1 h-5 w-5" aria-hidden="true" />
+      {on ? t("web.realtime.tapToStop") : t("web.realtime.tapToTalk")}
+    </Button>
+  );
+}
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const focusables = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
+
+/**
+ * 模态隔离:对话框打开期间,把它之外的页面(从对话框到 body 每一层的兄弟节点)设为 `inert` + `aria-hidden`,
+ * 焦点若跑到外面就拉回来;关闭时先撤销,再把焦点还给打开通话的那个控件。
+ */
+function useModalIsolation(dialog: RefObject<HTMLElement>) {
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const root = dialog.current;
+    const touched: Array<{ el: Element; ariaHidden: string | null }> = [];
+    for (let node: Element | null = root; node && node !== document.body; node = node.parentElement) {
+      for (const sibling of Array.from(node.parentElement?.children ?? [])) {
+        if (sibling === node || sibling.hasAttribute("inert") || sibling.tagName === "SCRIPT") continue;
+        touched.push({ el: sibling, ariaHidden: sibling.getAttribute("aria-hidden") });
+        sibling.setAttribute("inert", "");
+        sibling.setAttribute("aria-hidden", "true");
+      }
+    }
+    // 不支持 inert 的浏览器:焦点落到外面时拉回对话框
+    const onFocusIn = (e: FocusEvent) => {
+      if (!root || root.contains(e.target as Node)) return;
+      (focusables(root)[0] ?? root).focus();
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      for (const { el, ariaHidden } of touched) {
+        el.removeAttribute("inert");
+        if (ariaHidden === null) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", ariaHidden);
+      }
+      opener?.focus?.();
+    };
+  }, [dialog]);
+}
+
 export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTalk, onPttDown, onPttUp, onClose }: RealtimeCallScreenProps) {
   const { t, i18n } = useTranslation();
   const ended = model.phase === "ended";
@@ -136,11 +204,9 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
     if (el && stick.current) el.scrollTo?.({ top: el.scrollHeight });
   }, [model.captions, model.partial]);
 
-  // 焦点:打开时记住原焦点,关闭时归还;通话中落在挂断键,结束后落在关闭键
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    return () => { previous?.focus?.(); };
-  }, []);
+  // 焦点:打开时记住原焦点,关闭时归还;背后的页面 inert;通话中落在挂断键,结束后落在关闭键
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalIsolation(dialogRef);
   const hangupRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -148,6 +214,19 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
   }, [ended]);
 
   const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Tab" && dialogRef.current) {
+      // 焦点陷阱:Tab / Shift+Tab 在对话框内循环
+      const items = focusables(dialogRef.current);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey ? active === first || !dialogRef.current.contains(active) : active === last) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+      return;
+    }
     if (e.key !== "Escape" || e.defaultPrevented) return;
     e.preventDefault();
     if (ended) onClose();
@@ -155,8 +234,10 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
   };
 
   const phaseKey = model.phase === "idle" ? "connecting" : model.phase;
-  return (
-    <div data-testid="call-screen" role="dialog" aria-modal="true" aria-label={t("web.realtime.title")} onKeyDown={onKeyDown}
+  const lockedId = useId();
+  // 渲染到 body 下:背后整页都是对话框的兄弟节点,才能整体设为 inert
+  return createPortal(
+    <div ref={dialogRef} data-testid="call-screen" role="dialog" aria-modal="true" aria-label={t("web.realtime.title")} onKeyDown={onKeyDown}
       className="fixed inset-0 z-50 flex flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between gap-2 border-b p-3">
         <span data-testid="call-status" data-phase={model.phase} role="status" className="text-base font-medium">
@@ -213,6 +294,7 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
       ) : (
         <footer className="flex flex-col items-center gap-3 border-t p-4">
           {model.pushToTalk && <CallPttButton disabled={model.muted} onDown={onPttDown} onUp={onPttUp} />}
+          {model.pushToTalk && model.vadUnavailable && <CallTapToTalkButton disabled={model.muted} onDown={onPttDown} onUp={onPttUp} />}
           <div className="flex items-center gap-4">
             <Button type="button" data-testid="call-mute" variant="outline" size="icon" className="min-h-11 min-w-11"
               aria-pressed={model.muted} aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
@@ -225,13 +307,18 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
             </Button>
             <Button type="button" data-testid="call-ptt-toggle" variant={model.pushToTalk ? "secondary" : "outline"} size="icon"
               className="min-h-11 min-w-11" aria-pressed={model.pushToTalk} aria-label={t("web.realtime.pushToTalk")}
+              disabled={model.vadUnavailable} aria-describedby={model.vadUnavailable ? lockedId : undefined}
               onClick={() => onPushToTalk(!model.pushToTalk)}>
               <HandIcon className="h-5 w-5" aria-hidden="true" />
             </Button>
           </div>
+          {model.vadUnavailable && (
+            <p id={lockedId} data-testid="call-ptt-locked" className="text-center text-sm text-muted-foreground">{t("web.realtime.pttLocked")}</p>
+          )}
         </footer>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

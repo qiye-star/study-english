@@ -4,7 +4,11 @@ import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
-import { RealtimeCall, type RealtimeEnv } from "./realtime-call";
+import { RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeCallOptions, type RealtimeEnv } from "./realtime-call";
+
+// ownsContext 必须由调用方明确选择(漏传会关掉页面共享的上下文);可选时这一行在 tsc 下报错
+const ownsContextIsRequired: {} extends Pick<RealtimeCallOptions, "ownsContext"> ? false : true = true;
+void ownsContextIsRequired;
 import type { CallModel } from "./call-machine";
 
 vi.mock("~/features/chat/audio-focus", async (importOriginal) => {
@@ -45,6 +49,8 @@ function setup(over: {
   vadFails?: boolean;
   vadLoading?: Promise<void>;
   ownsContext?: boolean;
+  now?: () => number;
+  voice?: string;
 } = {}) {
   FakeWebSocket.instances = [];
   const ctx = new FakeAudioContext(16000);
@@ -68,14 +74,15 @@ function setup(over: {
       return vad;
     }),
     location: { protocol: "https:", host: "app.test" },
+    ...(over.now ? { now: over.now } : {}),
   };
   const mock = createFetchMock({ "POST /api/realtime/ticket": over.ticket ?? (() => json({ ticket: "tk", expires_in: 60 })) });
   const changes: CallModel[] = [];
   const onUserMessage = vi.fn();
   const call = new RealtimeCall({
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), conversationId: "c1", context: asContext(ctx),
-    ...(over.ownsContext === undefined ? {} : { ownsContext: over.ownsContext }),
-    start: { systemPrompt: "Be kind.", model: "m", temperature: 0.7, voice: "voice_1", saveRecordings: true },
+    ownsContext: over.ownsContext ?? true,
+    start: { systemPrompt: "Be kind.", model: "m", temperature: 0.7, voice: over.voice ?? "voice_1", saveRecordings: true },
     sampleRateOut: 24000, env, onChange: (m) => changes.push(m), onUserMessage,
   });
   const ws = () => FakeWebSocket.instances[0];
@@ -109,6 +116,59 @@ describe("RealtimeCall", () => {
     expect(s.ws().binaryType).toBe("arraybuffer");
     s.ws().open();
     expect(s.ws().texts()[0]).toMatchObject({ type: "start", system_prompt: "Be kind.", voice: "voice_1", save_recordings: true });
+  });
+
+  describe("ticket freshness (the ticket is single-use and expires after expires_in seconds)", () => {
+    it("re-requests the ticket when the microphone prompt and VAD download took too long", async () => {
+      let t = 1_000;
+      let loaded!: () => void;
+      let n = 0;
+      const s = setup({
+        now: () => t,
+        vadLoading: new Promise<void>((r) => { loaded = r; }),
+        ticket: () => json({ ticket: `tk${++n}`, expires_in: 60 }),
+      });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 51_000; // 离过期不足 10 s
+      loaded();
+      await starting;
+      expect(s.mock.calls.filter((c) => c.url.pathname === "/api/realtime/ticket")).toHaveLength(2);
+      expect(s.ws().url).toBe("wss://app.test/api/realtime?ticket=tk2");
+    });
+
+    it("uses the first ticket while it is still fresh", async () => {
+      let t = 1_000;
+      let loaded!: () => void;
+      const s = setup({ now: () => t, vadLoading: new Promise<void>((r) => { loaded = r; }) });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 49_000;
+      loaded();
+      await starting;
+      expect(s.mock.calls.filter((c) => c.url.pathname === "/api/realtime/ticket")).toHaveLength(1);
+      expect(s.ws().url).toBe("wss://app.test/api/realtime?ticket=tk");
+    });
+
+    it("a refused refresh ends the call and releases the microphone", async () => {
+      let t = 1_000;
+      let n = 0;
+      let loaded!: () => void;
+      const s = setup({
+        now: () => t,
+        vadLoading: new Promise<void>((r) => { loaded = r; }),
+        ticket: () => (++n === 1 ? json({ ticket: "tk", expires_in: 60 }) : json({ error: "Realtime is not enabled" }, 503)),
+      });
+      const starting = s.call.start();
+      await vi.waitFor(() => expect(s.env.createVad).toHaveBeenCalled());
+      t += 120_000;
+      loaded();
+      await starting;
+      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(s.vad.destroy).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.disabled");
+    });
   });
 
   it("gives the VAD the call's audio context and starts it", async () => {
@@ -185,6 +245,19 @@ describe("RealtimeCall", () => {
     expect(s.ctx.started).toHaveLength(2);
   });
 
+  it("interrupt during thinking: the server is told, the previous finished reply keeps its caption unmarked", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    s.ws().server({ type: "reply_delta", turn_id: 1, text: "Sure." });
+    s.ws().server({ type: "reply_done", turn_id: 1, message_id: "m2", interrupted: false });
+    s.ws().server({ type: "transcript_final", text: "and also", message_id: "m3" });
+    s.ws().server({ type: "state", state: "thinking" });
+    s.vadCb().onSpeechStart();
+    expect(s.ws().texts()).toContainEqual({ type: "interrupt" });
+    expect(s.changes.at(-1)!.captions.find((c) => c.turnId === 1)!.interrupted).toBe(false);
+  });
+
   it("does not interrupt when the bot is silent", async () => {
     const s = setup();
     await s.call.start();
@@ -259,6 +332,7 @@ describe("RealtimeCall", () => {
     s.ws().open();
     expect(s.changes.at(-1)!.pushToTalk).toBe(true);
     expect(s.changes.at(-1)!.notice).toBe("web.realtime.vadUnavailable");
+    expect(s.changes.at(-1)!.vadUnavailable).toBe(true);
     s.call.pttDown();
     s.speech(1);
     s.call.pttUp();
@@ -266,6 +340,45 @@ describe("RealtimeCall", () => {
     expect(s.ws().texts().at(-1)).toEqual({ type: "utterance_end" });
     s.call.setPushToTalk(false); // 没有 VAD 时不能离开按住说话模式
     expect(s.changes.at(-1)!.pushToTalk).toBe(true);
+  });
+
+  describe("the audio context must be running (R31)", () => {
+    it("a context that stays suspended ends the call with an explanation and releases the microphone", async () => {
+      const s = setup();
+      s.ctx.resume.mockImplementation(async () => undefined); // iOS 没有解锁成功:一直是 suspended
+      await s.call.start();
+      expect(s.ctx.resume.mock.calls.length).toBeGreaterThanOrEqual(2); // 采集之后又试了一次
+      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(s.env.createVad).not.toHaveBeenCalled();
+      expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.phase).toBe("ended");
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.audioSuspended");
+    });
+
+    it("a resume() that never settles times out", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const s = setup();
+        s.ctx.resume.mockImplementation(() => new Promise<void>(() => undefined));
+        const starting = s.call.start();
+        await vi.advanceTimersByTimeAsync(RESUME_TIMEOUT_MS + 50);
+        await starting;
+        expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.audioSuspended");
+        expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+        expect(FakeWebSocket.instances).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a context that resumes on the second try carries on", async () => {
+      const s = setup();
+      let n = 0;
+      s.ctx.resume.mockImplementation(async () => { if (++n >= 2) s.ctx.state = "running"; });
+      await s.call.start();
+      expect(s.ws().url).toContain("ticket=tk");
+      expect(s.changes.at(-1)!.error).toBeNull();
+    });
   });
 
   describe("every exit path releases the microphone, VAD and audio context exactly once", () => {
@@ -319,6 +432,15 @@ describe("RealtimeCall", () => {
       expect(s.ctx.close).toHaveBeenCalledTimes(1);
       expect(s.stream.track.stop).not.toHaveBeenCalled();
       expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.disabled");
+    });
+
+    it("a voice the server would refuse fails before the ticket and the microphone", async () => {
+      const s = setup({ voice: "not valid" });
+      await s.call.start();
+      expect(s.mock.calls).toHaveLength(0);
+      expect(s.gum).not.toHaveBeenCalled();
+      expect(s.ctx.close).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.invalidVoice");
     });
 
     it("network failure on the ticket request", async () => {
