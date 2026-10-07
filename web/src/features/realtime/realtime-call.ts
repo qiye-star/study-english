@@ -13,6 +13,23 @@ import { createRealtimeTicket, realtimeUrl } from "./realtime-api";
 export const PRE_ROLL_MS = 300;
 /** 票据剩余寿命不足这么多秒时,开 WebSocket 前重新申请一张(首次下载 VAD 资源、犹豫的权限弹窗都可能超过 60 s)。 */
 export const TICKET_MARGIN_S = 10;
+/** 采集开始后上下文仍不在 running 时,再 resume() 一次最多等这么久。 */
+export const RESUME_TIMEOUT_MS = 1500;
+
+/** 上下文是否真的在跑(iOS 可能在打开麦克风时把它切到 suspended / interrupted)。 */
+async function ensureRunning(context: AudioContext): Promise<boolean> {
+  if (context.state === "running") return true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve(context.resume?.()).catch((): void => undefined),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, RESUME_TIMEOUT_MS); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  return (context.state as string) === "running";
+}
 const PRE_ROLL_SAMPLES = (TARGET_RATE * PRE_ROLL_MS) / 1000;
 
 export interface RealtimeEnv {
@@ -130,6 +147,13 @@ export class RealtimeCall {
       this.capture = capture;
       capture.onFrame((frame) => this.onFrame(frame));
       capture.onTrackEnded(() => this.end("web.realtime.errors.micLost"));
+
+      // R31:上下文没有在跑时,采集与 VAD 收不到任何帧、播放也停在冻结的时钟上 —— 宁可明确结束,也不给一个"在听"的死通话
+      if (!(await ensureRunning(this.o.context))) {
+        if (!this.torn) this.finish({ type: "fail", errorKey: "web.realtime.errors.audioSuspended" });
+        return;
+      }
+      if (this.torn) return;
 
       await this.loadVad(capture.stream);
       if (this.torn) return;

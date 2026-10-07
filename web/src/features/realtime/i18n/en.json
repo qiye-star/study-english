@@ -39,7 +39,8 @@
         "tts_failed": "The voice reply failed; showing text only",
         "rate_limited": "Too many requests – wait a moment",
         "micLost": "The microphone stopped",
-        "unsupported": "This browser cannot make voice calls"
+        "unsupported": "This browser cannot make voice calls",
+        "audioSuspended": "Audio could not start on this device. Close and start the call again."
       }
     }
   }

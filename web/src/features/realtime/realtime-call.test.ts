@@ -4,7 +4,7 @@ import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
-import { RealtimeCall, type RealtimeEnv } from "./realtime-call";
+import { RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeEnv } from "./realtime-call";
 import type { CallModel } from "./call-machine";
 
 vi.mock("~/features/chat/audio-focus", async (importOriginal) => {
@@ -334,6 +334,45 @@ describe("RealtimeCall", () => {
     expect(s.ws().texts().at(-1)).toEqual({ type: "utterance_end" });
     s.call.setPushToTalk(false); // 没有 VAD 时不能离开按住说话模式
     expect(s.changes.at(-1)!.pushToTalk).toBe(true);
+  });
+
+  describe("the audio context must be running (R31)", () => {
+    it("a context that stays suspended ends the call with an explanation and releases the microphone", async () => {
+      const s = setup();
+      s.ctx.resume.mockImplementation(async () => undefined); // iOS 没有解锁成功:一直是 suspended
+      await s.call.start();
+      expect(s.ctx.resume.mock.calls.length).toBeGreaterThanOrEqual(2); // 采集之后又试了一次
+      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(s.env.createVad).not.toHaveBeenCalled();
+      expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.phase).toBe("ended");
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.audioSuspended");
+    });
+
+    it("a resume() that never settles times out", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const s = setup();
+        s.ctx.resume.mockImplementation(() => new Promise<void>(() => undefined));
+        const starting = s.call.start();
+        await vi.advanceTimersByTimeAsync(RESUME_TIMEOUT_MS + 50);
+        await starting;
+        expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.audioSuspended");
+        expect(s.stream.track.stop).toHaveBeenCalledTimes(1);
+        expect(FakeWebSocket.instances).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a context that resumes on the second try carries on", async () => {
+      const s = setup();
+      let n = 0;
+      s.ctx.resume.mockImplementation(async () => { if (++n >= 2) s.ctx.state = "running"; });
+      await s.call.start();
+      expect(s.ws().url).toContain("ticket=tk");
+      expect(s.changes.at(-1)!.error).toBeNull();
+    });
   });
 
   describe("every exit path releases the microphone, VAD and audio context exactly once", () => {
