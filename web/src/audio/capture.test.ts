@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RecorderError } from "./recorder";
 import {
   captureConstraints, decideCapture, getPageAudioContext, installAudioUnlock, resetPageAudioContextForTests,
-  startPcmCapture, unlockAudioContext, type CaptureEnv,
+  ADD_MODULE_TIMEOUT_MS, NO_FRAMES_TIMEOUT_MS, startPcmCapture, unlockAudioContext, type CaptureEnv,
 } from "./capture";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 
@@ -122,6 +122,92 @@ describe("startPcmCapture", () => {
       expect(shared.processor.disconnect).toHaveBeenCalled();
       expect(shared.gain.disconnect).toHaveBeenCalled();
       expect(capture.collected().length).toBe(0);
+    });
+  });
+
+  describe("worklet watchdogs (review W1 M-4/M-5)", () => {
+    function manualTimers() {
+      const due: Array<{ fn: () => void; ms: number; handle: number; cleared: boolean }> = [];
+      let next = 0;
+      return {
+        due,
+        timers: {
+          setTimeout: (fn: () => void, ms: number) => { const t = { fn, ms, handle: ++next, cleared: false }; due.push(t); return t.handle; },
+          clearTimeout: (h: unknown) => due.forEach((t) => { if (t.handle === h) t.cleared = true; }),
+        },
+        /** 触发所有给定时长、尚未清除的定时器 */
+        fire(ms: number) {
+          due.filter((t) => t.ms === ms && !t.cleared).forEach((t) => { t.cleared = true; t.fn(); });
+        },
+      };
+    }
+
+    it("falls back to a ScriptProcessor when addModule stalls for 3 s", async () => {
+      const ctx = new FakeAudioContext();
+      ctx.state = "running";
+      ctx.worklet.addModule.mockImplementation(() => new Promise<undefined>(() => {}));
+      const t = manualTimers();
+      const { e } = env({ timers: t.timers }, ctx);
+      const pending = startPcmCapture({ env: e, context: asContext(ctx), collect: true });
+      await Promise.resolve();
+      expect(t.due.map((d) => d.ms)).toContain(ADD_MODULE_TIMEOUT_MS);
+      expect(ADD_MODULE_TIMEOUT_MS).toBe(3000);
+      t.fire(ADD_MODULE_TIMEOUT_MS);
+      const capture = await pending;
+      expect(capture.via).toBe("script-processor");
+      expect(e.createWorkletNode).not.toHaveBeenCalled();
+      capture.release();
+    });
+
+    it("clears the addModule timer once the module loads", async () => {
+      const ctx = new FakeAudioContext();
+      const t = manualTimers();
+      const capture = await startPcmCapture({ env: env({ timers: t.timers }, ctx).e, context: asContext(ctx) });
+      expect(t.due.find((d) => d.ms === ADD_MODULE_TIMEOUT_MS)?.cleared).toBe(true);
+      capture.release();
+    });
+
+    it("switches to a ScriptProcessor when the running worklet delivers no frames", async () => {
+      const ctx = new FakeAudioContext();
+      ctx.state = "running";
+      const t = manualTimers();
+      const { e, node } = env({ timers: t.timers }, ctx);
+      const capture = await startPcmCapture({ env: e, context: asContext(ctx), collect: true });
+      expect(capture.via).toBe("worklet");
+      t.fire(NO_FRAMES_TIMEOUT_MS);
+      expect(capture.via).toBe("script-processor");
+      expect(node.port.onmessage).toBeNull();
+      expect(node.port.postMessage).toHaveBeenCalledWith("stop");
+      expect(node.disconnect).toHaveBeenCalled();
+      ctx.processor.emit(new Float32Array(4800).fill(0.1));
+      expect(capture.collected().length).toBe(1600);
+      capture.release();
+      expect(ctx.processor.onaudioprocess).toBeNull();
+    });
+
+    it("keeps the worklet once frames arrive, and waits while the context is not running", async () => {
+      const ctx = new FakeAudioContext();
+      ctx.state = "suspended";
+      ctx.resume.mockImplementation(async () => undefined); // 一直解不开锁
+      const t = manualTimers();
+      const { e, node } = env({ timers: t.timers }, ctx);
+      const capture = await startPcmCapture({ env: e, context: asContext(ctx) });
+      t.fire(NO_FRAMES_TIMEOUT_MS); // 上下文还没 running:不算 worklet 的错,重新等待
+      expect(capture.via).toBe("worklet");
+      ctx.state = "running";
+      node.emit(new Float32Array(2048));
+      t.fire(NO_FRAMES_TIMEOUT_MS);
+      expect(capture.via).toBe("worklet");
+      expect(ctx.createScriptProcessor).not.toHaveBeenCalled();
+      capture.release();
+    });
+
+    it("cancels pending watchdogs on release", async () => {
+      const ctx = new FakeAudioContext();
+      const t = manualTimers();
+      const capture = await startPcmCapture({ env: env({ timers: t.timers }, ctx).e, context: asContext(ctx) });
+      capture.release();
+      expect(t.due.every((d) => d.cleared)).toBe(true);
     });
   });
 

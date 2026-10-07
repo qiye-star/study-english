@@ -9,7 +9,14 @@ export interface CaptureEnv {
   createAudioContext?: (options?: AudioContextOptions) => AudioContext;
   createWorkletNode?: (ctx: AudioContext) => AudioWorkletNode;
   workletUrl: string;
+  /** 看门狗用的定时器(addModule 超时、worklet 无帧);缺省时不设看门狗。 */
+  timers?: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(handle: unknown): void };
 }
+
+/** addModule 超过这么久仍未完成(移动网络卡住)→ 改用 ScriptProcessor,麦克风不至于一直挂着(review W1 M-4)。 */
+export const ADD_MODULE_TIMEOUT_MS = 3000;
+/** 上下文 running 但 worklet 这么久一帧都没送来(引擎不拉取零输出节点)→ 改用 ScriptProcessor(review W1 M-5)。 */
+export const NO_FRAMES_TIMEOUT_MS = 500;
 
 export interface PcmCapture {
   readonly stream: MediaStream;
@@ -35,6 +42,10 @@ export function browserCaptureEnv(): CaptureEnv {
     createAudioContext: Ctx ? (options) => new Ctx(options) : undefined,
     createWorkletNode: typeof AudioWorkletNode === "undefined" ? undefined : (ctx) => new AudioWorkletNode(ctx, "pcm-capture", { numberOfOutputs: 0 }),
     workletUrl,
+    timers: typeof window === "undefined" ? undefined : {
+      setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+      clearTimeout: (handle) => window.clearTimeout(handle as number),
+    },
   };
 }
 
@@ -138,10 +149,31 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
 
     /** 断开并解除一个采集节点的所有引用:页面级上下文从不关闭,残留的处理器/回调会连同录音一起常驻(review W1 I-2)。 */
     const detachers: Array<() => void> = [() => source.disconnect()];
+    const runDetach = (detach: () => void) => {
+      try { detach(); } catch { /* 已断开 */ }
+    };
+    const pendingTimers = new Set<unknown>();
+    const clearTimers = () => {
+      pendingTimers.forEach((h) => env.timers?.clearTimeout(h));
+      pendingTimers.clear();
+    };
     const detachAll = () => {
-      for (const detach of detachers.splice(0)) {
-        try { detach(); } catch { /* 已断开 */ }
-      }
+      clearTimers();
+      detachers.splice(0).forEach(runDetach);
+    };
+    /** 有 env.timers 时才排定;返回句柄(无定时器时 undefined)。 */
+    const later = (fn: () => void, ms: number) => {
+      if (!env.timers) return undefined;
+      const handle = env.timers.setTimeout(() => {
+        pendingTimers.delete(handle);
+        fn();
+      }, ms);
+      pendingTimers.add(handle);
+      return handle;
+    };
+    const cancelLater = (handle: unknown) => {
+      if (handle === undefined || !pendingTimers.delete(handle)) return;
+      env.timers?.clearTimeout(handle);
     };
 
     let via: PcmCapture["via"] = "script-processor";
@@ -152,21 +184,54 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
       throw err;
     }
 
+    /** addModule 成功 → true;失败或超时 → false(超时后即使模块迟到也不再使用 worklet)。 */
+    function loadModule(): Promise<boolean> {
+      return new Promise<boolean>((resolve) => {
+        const timer = later(() => resolve(false), ADD_MODULE_TIMEOUT_MS);
+        ctx.audioWorklet.addModule(env.workletUrl).then(
+          () => { cancelLater(timer); resolve(true); },
+          () => { cancelLater(timer); resolve(false); },
+        );
+      });
+    }
+
     async function attachWorklet(): Promise<boolean> {
+      if (!(await loadModule())) return false;
       let worklet: AudioWorkletNode;
+      let heard = false;
       try {
-        await ctx.audioWorklet.addModule(env.workletUrl);
         worklet = env.createWorkletNode!(ctx);
-        worklet.port.onmessage = (event: MessageEvent) => handle(event.data as Float32Array);
+        worklet.port.onmessage = (event: MessageEvent) => {
+          heard = true;
+          handle(event.data as Float32Array);
+        };
         source.connect(worklet);
       } catch {
         return false;
       }
-      detachers.push(() => {
-        worklet.port.onmessage = null;
-        worklet.port.postMessage("stop"); // 让 process() 返回 false,处理器停止并可回收
-      }, () => worklet.disconnect());
+      const detachWorklet = () => {
+        runDetach(() => {
+          worklet.port.onmessage = null;
+          worklet.port.postMessage("stop"); // 让 process() 返回 false,处理器停止并可回收
+        });
+        runDetach(() => source.disconnect(worklet));
+        runDetach(() => worklet.disconnect());
+      };
+      detachers.push(detachWorklet);
       via = "worklet";
+      // 无帧看门狗:上下文 running 却迟迟收不到帧 → 拆掉 worklet,改用 ScriptProcessor;上下文没 running 时继续等
+      const check = (): void => {
+        if (heard || released || taken) return;
+        if (ctx.state !== "running") return void later(check, NO_FRAMES_TIMEOUT_MS);
+        detachers.splice(detachers.indexOf(detachWorklet), 1);
+        detachWorklet();
+        try {
+          attachScriptProcessor();
+        } catch {
+          /* 两条路都不通:不会再有帧,结果按无语音处理 */
+        }
+      };
+      later(check, NO_FRAMES_TIMEOUT_MS);
       return true;
     }
 
@@ -211,6 +276,7 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
       release() {
         if (released) return;
         released = true;
+        clearTimers();
         frameListeners.clear();
         endListeners.clear();
         parts = [];
