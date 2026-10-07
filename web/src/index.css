@@ -27,6 +27,94 @@
   }
 }
 
+/*
+ * 磨砂玻璃(design-notes.md「Glass recipe」)。先给不支持 backdrop-filter 的浏览器实心回退,
+ * 支持时才模糊;prefers-reduced-transparency 一律实心;html.lite(低内存,见 layout/glass-quality.ts)用轻模糊。
+ * 用法:
+ *   .glass          常驻玻璃:底部导航、输入条、通话控制台、临时弹层(saturate 1.8 / .72)
+ *   .glass-edge-t   与 .glass 同用,顶部发丝线(底部导航、输入条)
+ *   .glass-edge-b   与 .glass 同用,底部发丝线
+ *   .glass-bar      顶栏:滚动后才加(saturate 1.3 / .80,避免主按钮在其下晕开),自带底部发丝线
+ * 规则:每屏最多 3 层模糊;模糊元素的祖先不得有 opacity<1 / filter / overflow:hidden+transform;
+ * 不对模糊元素本身做动画,只动其子元素。
+ *   .hit-expand     视觉 32px 的控件把命中区扩到 44px(::before 上下各 6px)
+ *   .tap-link       行内文字链接:44px 命中区且不改变布局
+ *   .eyebrow        12px 大写眉标
+ *   .num            数字:等宽数字 + 紧字距
+ */
+@layer utilities {
+  .glass {
+    background: var(--glass-solid);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-edge-t {
+    box-shadow: inset 0 0.5px 0 var(--hair), var(--glass-shadow);
+  }
+  .glass-edge-b {
+    box-shadow: inset 0 -0.5px 0 var(--hair), var(--glass-shadow);
+  }
+  .glass-bar {
+    background: var(--glass-solid);
+    box-shadow: inset 0 -0.5px 0 var(--hair), var(--glass-shadow);
+  }
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .glass {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(20px) saturate(1.8);
+      backdrop-filter: blur(20px) saturate(1.8);
+    }
+    .glass-bar {
+      background: var(--glass-bar);
+      -webkit-backdrop-filter: blur(20px) saturate(1.3);
+      backdrop-filter: blur(20px) saturate(1.3);
+    }
+    html.lite .glass,
+    html.lite .glass-bar {
+      background: var(--glass-lite);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass,
+    .glass-bar,
+    html.lite .glass,
+    html.lite .glass-bar {
+      background: rgb(var(--surface));
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  .hit-expand {
+    position: relative;
+  }
+  .hit-expand::before {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  .tap-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 44px;
+    padding: 0 8px;
+    margin: -13px -8px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-2));
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+}
+
 /* iOS 聚焦时会放大字号 < 16px 的输入框;触屏设备一律 16px。 */
 @media (pointer: coarse) {
   input,

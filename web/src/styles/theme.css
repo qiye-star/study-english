@@ -36,6 +36,7 @@
   --glass: rgba(255, 255, 255, 0.72);
   --glass-solid: rgba(255, 255, 255, 0.94);
   --glass-bar: rgba(255, 255, 255, 0.8);
+  --glass-lite: rgba(255, 255, 255, 0.86);
   --glass-shadow: 0 1px 0 rgba(17, 19, 24, 0.04);
 
   --background: var(--bg);
@@ -96,6 +97,7 @@
   --glass: rgba(23, 25, 30, 0.66);
   --glass-solid: rgba(23, 25, 30, 0.94);
   --glass-bar: rgba(23, 25, 30, 0.74);
+  --glass-lite: rgba(23, 25, 30, 0.86);
   --glass-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
 
   --background: var(--bg);

@@ -34,7 +34,7 @@ const CHANNEL_TOKENS = [
 const COLOR_TOKENS = [
   "--hair", "--hair-2", "--key", "--seg-track", "--seg-on",
   "--blue-tint", "--blue-wash", "--teal-tint", "--amber-tint", "--green-tint", "--red-tint",
-  "--glass", "--glass-solid", "--glass-bar", "--glass-shadow",
+  "--glass", "--glass-solid", "--glass-bar", "--glass-lite", "--glass-shadow",
 ];
 /** 与主题无关、只在 :root 定义的令牌。 */
 const SCALAR_TOKENS = ["--radius", "--dur-fast", "--dur-base", "--ease-standard"];
