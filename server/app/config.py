@@ -130,10 +130,12 @@ class Settings(BaseSettings):
 
     @property
     def realtime_available(self) -> bool:
+        from app.realtime_asr import realtime_asr_configured  # app.realtime_asr imports this module
+
         return (
             self.realtime_enabled
             and bool(self.volcengine_tts_key)
             and self.realtime_tts_model in self.tts_model_list
             and bool(self.upstream_llm_base_url)
-            and (self.asr_stream_enabled or bool(self.upstream_whisper_base_url))
+            and realtime_asr_configured(self)
         )

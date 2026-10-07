@@ -267,6 +267,7 @@ class DbMessageStore:
 
 # ---- pronunciation assessment (plan Task 4.6, R14) ----
 import asyncio  # noqa: E402
+import weakref  # noqa: E402
 
 from app.assessment_store import QuotaExceeded, check_quota, save_assessment  # noqa: E402
 from app.models import Assessment, User  # noqa: E402
@@ -289,8 +290,10 @@ class XfyunAssessor:
     """`Assessor` over Xfyun ISE. The reference is the transcript. Failures never raise (except
     cancellation): `{"status": "failed"}`. Logs carry kinds only, never transcript text."""
 
-    def __init__(self, xfyun, sessionmaker, settings: Settings, user_id: int, save: bool):
+    def __init__(self, xfyun, sessionmaker, settings: Settings, user_id: int, save: bool,
+                 lock: asyncio.Lock | None = None):
         self._xfyun = xfyun
+        self._lock = lock or asyncio.Lock()
         self._sm = sessionmaker
         self._settings = settings
         self._user_id = user_id
@@ -324,7 +327,11 @@ class XfyunAssessor:
     async def _persist(self, message_id: str, pcm: bytes, reference: str, duration: float, result: dict) -> dict:
         wav = pcm_to_wav(pcm)
         try:
-            async with self._sm() as session:
+            # Quota check + save are atomic per user (the lock is shared by every assessor of this user,
+            # see `make_assessor`), so concurrent utterances can't each pass the check and overshoot.
+            # The upload route (`POST /api/assessments`) does not take this lock: a call and an upload at
+            # the same moment can still overshoot by one recording.
+            async with self._lock, self._sm() as session:
                 user = await session.get(User, self._user_id)
                 if user is not None:
                     await cleanup_orphan_chat_recordings(session, self._settings, user)
@@ -354,4 +361,10 @@ def make_assessor(app, settings: Settings, user_id: int, save: bool) -> XfyunAss
         settings.xfyun_app_id, settings.xfyun_api_key, settings.xfyun_api_secret, settings.xfyun_ws_url)
     if not xfyun.configured:
         return None
-    return XfyunAssessor(xfyun, app.state.sessionmaker, settings, user_id, save)
+    locks = getattr(app.state, "assessment_save_locks", None)
+    if locks is None:
+        locks = app.state.assessment_save_locks = weakref.WeakValueDictionary()  # an entry lives while an assessor holds it
+    lock = locks.get(user_id)
+    if lock is None:
+        lock = locks[user_id] = asyncio.Lock()
+    return XfyunAssessor(xfyun, app.state.sessionmaker, settings, user_id, save, lock=lock)

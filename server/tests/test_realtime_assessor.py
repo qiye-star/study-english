@@ -127,3 +127,20 @@ async def test_cancel_during_save_keeps_file_and_row_consistent(app, client, aut
 
 def test_make_assessor_needs_xfyun(app):
     assert make_assessor(app, make_settings(), 1, False) is None
+
+
+async def test_concurrent_saves_for_one_user_never_exceed_the_quota(app, client, auth_headers, tmp_path):
+    app.state.settings.data_dir = str(tmp_path)
+    app.state.settings.recording_quota_mb = 1
+    app.state.xfyun = FakeXfyun()
+    uid, mid = await setup_message(app, client, auth_headers)
+    pcm = b"\x00\x00" * 16000 * 10  # 10 s ≈ 320 KB: three fit in 1 MB, a fourth does not
+    # two assessors (e.g. a call ending and the next one starting) share the per-user lock
+    first = make_assessor(app, app.state.settings, uid, True)
+    second = make_assessor(app, app.state.settings, uid, True)
+    outs = await asyncio.gather(*[(first if i % 2 else second).assess(mid, pcm, REFERENCE) for i in range(6)])
+    async with app.state.sessionmaker() as session:
+        rows = (await session.scalars(select(Assessment))).all()
+    assert sum(r.audio_bytes for r in rows) <= 1024 * 1024
+    assert len(rows) == 3 and sorted(o["status"] for o in outs) == ["done"] * 3 + ["quota"] * 3
+    assert len(list(tmp_path.rglob("*.wav"))) == 3

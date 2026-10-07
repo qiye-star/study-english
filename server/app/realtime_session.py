@@ -7,6 +7,8 @@
   经有界句子队列相连;下行发送串行化(同一把锁),慢的消费者只会让上游读取停下,不会堆内存。
 - 任一时刻至多一轮在回复:新的一轮只能在打开识别器时产生,而打开识别器前会打断当前一轮
   (回复中 → 取消并等待结束;识别中 → 标记不回复)。被打断的回复的音频不会再下发。
+- 一句话在第一帧音频时做准入:同时识别中的话语达到 MAX_PENDING_TURNS → 丢弃;`allow_turn()` 超限 →
+  `error rate_limited`。两者都在打开识别器之前,所以被拒的话语不会调用任何上游;代价是没听到话的一句也消耗额度。
 """
 import asyncio
 import contextlib
@@ -28,6 +30,9 @@ INBOX_MAX = 32  # 客户端消息(每条 ≤ 32 KB)
 SENTENCE_QUEUE_MAX = 4  # LLM 领先 TTS 的句数上限
 SEND_TIMEOUT = 15.0  # 一次下行发送超过这么久 → 视为连接已死
 FINISH_GRACE = 5.0  # 挂断时等待"只差保存"的一轮这么久
+# 每路通话同时在识别(或排队等保存)的话语上限。再多的话语直接丢弃(协议没有 busy 错误码,只计数),
+# 不打开识别器、不调用任何上游:否则一个客户端狂发 [音频, utterance_end] 就能放大成无数次付费识别。
+MAX_PENDING_TURNS = 3
 INTERRUPTED_SUFFIX = " …"
 
 
@@ -84,12 +89,16 @@ class Upstreams:
 class CallStats:
     turns: int = 0
     interrupts: int = 0
+    dropped_utterances: int = 0  # 因 MAX_PENDING_TURNS 被丢弃的话语
 
 
 @dataclass
 class _Turn:
     after: asyncio.Event | None
-    saved: asyncio.Event = field(default_factory=asyncio.Event)
+    # 这一轮彻底结束(用户消息与回复都已保存、reply_done 已下发)才放行下一轮的保存:
+    # 打断落在 finishing 时,下一句的用户消息不会抢在上一轮的助手消息之前入库(复核 4.3-m1)。
+    # 下一轮存在时上一轮不会再开始回复(打开新识别器前已打断它),所以这里最多只等一次保存。
+    done: asyncio.Event = field(default_factory=asyncio.Event)
     task: asyncio.Task | None = None
     # recognising → replying(可被打断取消)→ finishing(回复已完整下发,只剩保存/收尾,不可打断)
     phase: str = "recognising"
@@ -161,6 +170,7 @@ class RealtimeSession:
         self._recognizer_is_fallback = False  # 当前这句的识别器来自兜底(失败了不必再用兜底重试)
         self._degraded = False
         self._utterance = bytearray()
+        self._discarding = False  # 这一句已被丢弃(超限/限流):吞掉余下音频直到 utterance_end
         self._turn: _Turn | None = None
         self._turn_tasks: dict[asyncio.Task, _Turn] = {}
         self._turn_id = 0
@@ -210,6 +220,9 @@ class RealtimeSession:
 
     def _busy(self) -> bool:
         return any(not t.done() for t in self._turn_tasks)
+
+    def _pending_turns(self) -> int:
+        return sum(1 for t, turn in self._turn_tasks.items() if not t.done() and turn.phase == "recognising")
 
     # ---- 主循环 ----
     async def _pump(self, receive: Callable[[], Awaitable[str | bytes | None]]) -> None:
@@ -330,15 +343,30 @@ class RealtimeSession:
             logger.warning("realtime asr fallback failed error=%s", type(e).__name__)
             await _abort(recognizer)
             return None
+        except BaseException:  # 取消(挂断)时已打开的兜底识别器也要中止,否则泄漏它的上游连接
+            await _abort(recognizer)
+            raise
 
     async def _on_audio(self, data: bytes) -> None:
         check_uplink(data)
         self._last_activity = self._now()
         if self._fatal is not None:
             return
+        if self._discarding:
+            return
         if self._recognizer is None:
+            # 新的一句:先做所有准入检查,再碰任何上游(复核 4.3-I1)
+            if self._pending_turns() >= MAX_PENDING_TURNS:
+                self.stats.dropped_utterances += 1
+                self._discarding = True
+                logger.info("realtime utterance dropped reason=pending")
+                return
             if self._busy():
                 await self._interrupt()  # 用户开口:打断(R12)
+            if not self._allow_turn():  # R15:每一句消耗一次额度;超限 → 报错,本句不识别不回复,不断开
+                self._discarding = True
+                await self._send({"type": "error", "code": "rate_limited"})
+                return
             self._recognizer = await self._open_recognizer()
             if self._recognizer is None:
                 return
@@ -358,10 +386,11 @@ class RealtimeSession:
     async def _on_utterance_end(self) -> None:
         recognizer, pcm, is_fallback = self._recognizer, bytes(self._utterance), self._recognizer_is_fallback
         self._recognizer, self._utterance, self._recognizer_is_fallback = None, bytearray(), False
+        self._discarding = False
         if recognizer is None:
             return
         previous = self._turn
-        turn = _Turn(after=previous.saved if previous else None)
+        turn = _Turn(after=previous.done if previous else None)
         self._turn = turn
         await self._set_state("thinking")
         turn.task = asyncio.create_task(self._run_turn(turn, recognizer, pcm, is_fallback))
@@ -427,25 +456,17 @@ class RealtimeSession:
             if self._fatal is not None:
                 return  # 通话正在关闭(例如消息已满):不再保存,也不重复报错
             message_id = None
-            if text:
-                if not self._allow_turn():
-                    await self._send({"type": "error", "code": "rate_limited"})
-                    return
-                try:
-                    message_id = await self._save_user(text)
-                    if message_id is not None:
-                        self._unanswered = True  # 与放行下一轮之间没有 await:下一轮一定看得到
-                finally:
-                    turn.saved.set()  # 立刻放行下一轮的保存
+            if text:  # 额度已在这一句开始时扣过(_on_audio)
+                message_id = await self._save_user(text)
                 if message_id is None:
                     return
+                self._unanswered = True  # 在放行下一轮(finally 里的 done)之前设置:下一轮一定看得到
                 self.stats.turns += 1
                 await self._send({"type": "transcript_final", "text": text, "message_id": message_id})
                 if self._up.assessor is not None and pcm:
                     self._spawn_assessment(message_id, pcm, text)
             elif text == "":
                 await self._send({"type": "transcript_final", "text": "", "message_id": None})
-            turn.saved.set()
             if turn.skip_reply:
                 # 被新的话语打断:这句先不回复,由下一轮一起回复(下一轮若只是误触发,也要回复这一句)
                 return
@@ -464,7 +485,7 @@ class RealtimeSession:
             self._unanswered = False  # 在读历史时被打断的话,这句仍算未回复
             await self._reply(turn, messages)
         finally:
-            turn.saved.set()
+            turn.done.set()
             turn.phase = "finishing"
             if self._turn is turn:
                 self._last_activity = self._now()  # 静音从这一轮结束时重新计时
