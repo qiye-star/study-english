@@ -168,6 +168,7 @@ class RealtimeSession:
         self._unanswered = False
         self._assessments: set[asyncio.Task] = set()
         self._last_activity = 0.0
+        self._reader: asyncio.Task | None = None
 
     # ---- 发送 ----
     async def _deliver(self, send: Callable, payload) -> None:
@@ -238,7 +239,7 @@ class RealtimeSession:
         return None, timeout
 
     async def run(self, receive: Callable[[], Awaitable[str | bytes | None]]) -> int:
-        reader = asyncio.create_task(self._pump(receive))
+        reader = self._reader = asyncio.create_task(self._pump(receive))
         deadline = self._now() + self._limits.max_seconds
         self._last_activity = self._now()
         try:
@@ -581,6 +582,16 @@ class RealtimeSession:
                 await _settle(task)
         recognizer, self._recognizer = self._recognizer, None
         await _abort(recognizer)
+
+    def cancel_pending(self) -> None:
+        """Synchronous last-resort cleanup for a caller that is itself being cancelled (anyio cancel
+        scopes re-deliver cancellation at every await, so `run`'s awaited shutdown may not finish):
+        cancels the reader, every turn and every assessment. No-op after a normal `run` + `drain`."""
+        self._closed = True
+        tasks = [self._reader, *self._turn_tasks, *self._assessments]
+        for task in tasks:
+            if task is not None and not task.done():
+                task.cancel()
 
     async def drain(self, timeout: float = 10.0) -> None:
         self._closed = True

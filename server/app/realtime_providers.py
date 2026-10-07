@@ -263,3 +263,10 @@ class DbMessageStore:
                 .limit(limit)
             )).all()
         return [{"role": role, "content": content} for role, content in reversed(rows)]
+
+
+# ---- assessment ----
+
+def make_assessor(app, settings: Settings, user_id: int, save: bool):
+    """Placeholder until Task 4.6: calls run without pronunciation assessment."""
+    return None
