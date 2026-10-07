@@ -127,7 +127,11 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
       }
       turn = draft.latencyTurn;
       draft.latencyTurn = undefined;
-      if (turn === undefined) {
+      if (turn === undefined && draft.deliver === "fill") {
+        // 转文字的重试不计时(没有回复/朗读可测),也不开新记录:新记录会把用户此时打字发送的那一轮记成 aborted。
+        // 0 不对应任何记录(id 从 1 开始),之后的标记与收尾都被忽略
+        turn = 0;
+      } else if (turn === undefined) {
         turn = startLatencyTrace("voice"); // 重试:新的一轮,从点击"发送这段"算起
         markLatency("release", turn);
       }

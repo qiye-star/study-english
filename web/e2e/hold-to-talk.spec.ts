@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
-import { mockUpstreams, TRANSCRIPT, type UpstreamMocks } from "./support/mock-upstreams";
+import { mockUpstreams, quiet, TRANSCRIPT, type UpstreamMocks } from "./support/mock-upstreams";
 import { touchHold } from "./support/touch";
 
 // 全部上游(转写/对话/语法/朗读/评测)走路由模拟;守卫保证没有请求漏到真实上游。
@@ -36,7 +36,10 @@ test.describe("hold to talk (touch)", () => {
   test("slide up to cancel uploads nothing", async ({ page }) => {
     const width = page.viewportSize()!.width;
     await touchHold(page, page.getByTestId("chat-mic"), { ms: 1200, dy: -160, x: width * 0.2 });
+    // 先等确定的界面状态(丢弃路径已走完),再等请求安静 1 s,才断言没有上传:会上传的回归不能与断言赛跑
+    await expect(page.getByTestId("hold-hint")).toBeVisible();
     await expect(page.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
+    await quiet(mocks);
     expect(mocks.seen.transcriptions).toBe(0);
     expect(mocks.seen.assessments).toBe(0);
   });
@@ -45,12 +48,15 @@ test.describe("hold to talk (touch)", () => {
     const width = page.viewportSize()!.width;
     await touchHold(page, page.getByTestId("chat-mic"), { ms: 1200, dy: -160, x: width * 0.8 });
     await expect(page.getByTestId("chat-input")).toHaveValue(TRANSCRIPT);
+    await quiet(mocks);
     expect(mocks.seen.chat).toBe(0);
   });
 
   test("a short tap shows the hint", async ({ page }) => {
     await touchHold(page, page.getByTestId("chat-mic"), { ms: 100 });
     await expect(page.getByTestId("hold-hint")).toBeVisible();
+    await expect(page.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
+    await quiet(mocks);
     expect(mocks.seen.transcriptions).toBe(0);
   });
 });

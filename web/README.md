@@ -44,7 +44,7 @@
   - 距按下 < 300 ms 的松手视为误触,丢弃并提示"按住说话";麦克风还没就绪(权限弹窗期间)就松手,丢弃并提示"麦克风已准备好,请按住说话",迟到的麦克风会被释放。
   - 手指上移 80 px 进入"落点"模式(回到 40 px 内退出,有滞回):视口左半 = 取消,右半 = 转文字(转写后**填入输入框,不发送**,已有文字时追加)。`pointercancel` / `lostpointercapture` / 页面隐藏(含系统手势打断)一律丢弃,不发送。
   - **键盘后备**:按钮获得焦点后 `Space` / `Enter` 第一次开始、第二次发送,`Escape` 取消;录音期间有可见的"麦克风在用"指示与 `role="status"` 播报。
-  - 录音中不允许其他播放(`claimAudio`);按下时先停止朗读。录音期间页面切后台 = 丢弃本次(不再保留草稿)。
+  - 录音中不允许其他播放(`claimAudio`);按下时先停止朗读。录音期间页面切后台 = 丢弃本次并提示"已取消录音",不再保留草稿——按住与键盘后备开始的录音都一样(R11)。
 - **PCM 采集**(`src/audio/capture.ts`、`pcm.ts`、`pcm-recording.ts`、`pcm-capture.worklet.js`):
   - 优先 AudioWorklet 直采,降采样到 16 kHz 单声道 16 位 WAV(带 Kaiser 窗 FIR 低通,截止 7.2 kHz,不用盒式平均,以免混叠影响发音评分);AudioWorklet 加载失败或超时(3 s)、或上下文运行但 500 ms 没有帧,退到 `ScriptProcessorNode`;没有 `AudioContext`、或页面级 `AudioContext` 还没被点击解锁(iOS)、或 PCM 启动失败(权限拒绝/麦克风被占用/非安全上下文除外),退到旧的 MediaRecorder 路径(`recorder.ts`)。
   - 页面只有一个 `AudioContext`,在第一次 `click`/`touchend` 时解锁(`installAudioUnlock`,`main.tsx` 里装一次),被系统打断后下一次点击会重新解锁。
@@ -60,7 +60,7 @@
   - 浏览器端 Silero VAD(`@ricky0123/vad-web` 0.0.31 + `onnxruntime-web`)断句,检测到说话才上传 16 kHz PCM;机器人说话期间 VAD 门限提高(概率 ≥ 0.8、能量 ≥ −30 dBFS、最短 400 ms)以防回声误打断,播放结束后恢复;外放回声保护强度未验证。
   - 服务端识别 + LLM + 逐句 TTS,下行 24 kHz PCM 经 WebAudio 排队播放;打断(barge-in)时立即停播并发 `interrupt`,丢弃旧轮次的迟到音频。
   - VAD 加载失败时自动切到"按住说话"模式并提示(还有"点一下开始/再点结束"的备用开关)。每一条结束路径(挂断、服务端关闭、麦克风丢失、页面切后台、卸载)都释放麦克风与自己创建的 `AudioContext`,页面级共享上下文不被关闭;这些由 `realtime-call.test.ts` 等单测断言(假设备)。
-  - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。通话结束后重新拉取消息列表,复盘/进度/词汇本可直接用。
+  - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。有未发送的本地状态(待 Retry 的保存、失败的回复、语音草稿)时不能开始通话(提示先发送、重试或丢弃);通话结束后立即重新拉取消息列表,复盘/进度/词汇本可直接用,晚到的语法结果按消息 id 补到重新加载的气泡上。
   - 开发服务器的 `/api` 代理已开启 `ws: true`;生产环境需要反向代理转发 WebSocket,见 `server/README.md`。
 - **VAD 资源自托管**(不访问任何 CDN):`scripts/copy-vad-assets.mjs` 在 `yarn dev` / `yarn build` 之前把 4 个文件从 `node_modules`(`@ricky0123/vad-web/dist` 的 `silero_vad_v5.onnx`、`vad.worklet.bundle.min.js`,`onnxruntime-web/dist` 的 `ort-wasm-simd-threaded.wasm`、`.mjs`)复制到 `public/vad/<vad-web 版本>-ort<onnxruntime-web 版本>/`(取两个包的*已安装*版本,目前 `0.0.31-ort1.30.0`;任一包升级都会换 URL,缓存优先的 `sw.js` 不会给出旧文件;复制前会删掉 `public/vad/` 下的其他版本目录,`dist` 里不带旧版本;该目录被 git 忽略)。运行时从同源同一路径加载(`vite.config.ts` 的 `__VAD_ASSET_BASE__` 与脚本共用 `scripts/vad-assets.mjs`),`sw.js` 按 `/assets/` 同样的规则缓存。首次使用约 16.6 MB(wasm 14.2 MB + 模型 2.3 MB),蜂窝网络下的加载时间**未验证**。脚本发现文件数不是 4 会报错;升级这两个依赖后要重新核对文件名。
 - **测延迟**:

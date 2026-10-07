@@ -1,14 +1,22 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { isOwnBackendPath } from "./upstream-guard";
 
 export const TRANSCRIPT = "I would like a coffee please.";
-
-/** 页面自己的后端接口(只读写数据库,不碰上游)。其余 /api/** 路径一律视为可能触达上游。 */
-const OWN_BACKEND = /^\/api\/(users|me|conversations|messages|config|stats|vocabulary|practice-items|upload|sessions|assessments)(\/|$)/;
 
 export interface UpstreamMocks {
   seen: { transcriptions: number; chat: number; grammar: number; assessments: number; tts: number };
   /** 没有被模拟、却到了(可能的)真实上游路由的请求;必须为空。 */
   unmocked: string[];
+  /** 最近一次 /api 请求发出的时刻(ms);quiet() 用它等"安静"再断言没有上传 */
+  lastApiRequestAt: number;
+}
+
+/**
+ * 等到 /api 请求已安静 quietMs(默认 1 s)。断言"没有上传/没有请求"之前先等它:
+ * 否则一个会上传的回归会与断言赛跑、仍然通过。
+ */
+export async function quiet(m: UpstreamMocks, quietMs = 1000): Promise<void> {
+  await expect.poll(() => Date.now() - m.lastApiRequestAt, { timeout: quietMs + 10_000, intervals: [100] }).toBeGreaterThanOrEqual(quietMs);
 }
 
 function silentWav(): Buffer {
@@ -28,14 +36,17 @@ function silentWav(): Buffer {
  * 再注册各具体模拟。调用方在用例结束时断言 `unmocked` 为空;WebSocket(实时通话)同样记录。
  */
 export async function mockUpstreams(page: Page): Promise<UpstreamMocks> {
-  const m: UpstreamMocks = { seen: { transcriptions: 0, chat: 0, grammar: 0, assessments: 0, tts: 0 }, unmocked: [] };
+  const m: UpstreamMocks = { seen: { transcriptions: 0, chat: 0, grammar: 0, assessments: 0, tts: 0 }, unmocked: [], lastApiRequestAt: Date.now() };
 
+  page.on("request", (req) => {
+    if (new URL(req.url()).pathname.startsWith("/api/")) m.lastApiRequestAt = Date.now();
+  });
   page.on("websocket", (ws) => {
     if (new URL(ws.url()).pathname.startsWith("/api/")) m.unmocked.push(`WS ${ws.url()}`);
   });
   await page.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
-    if (OWN_BACKEND.test(pathname)) return route.fallback();
+    if (isOwnBackendPath(pathname)) return route.fallback(); // 自家后端(分类与维护规则见 upstream-guard.ts)
     m.unmocked.push(`${route.request().method()} ${pathname}`);
     await route.abort("failed"); // 不放行:绝不真的打到上游
   });

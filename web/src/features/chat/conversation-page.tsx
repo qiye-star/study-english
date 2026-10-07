@@ -44,7 +44,7 @@ import { fromServerMessage, hasResultFooter, type UiMessage, type VoiceView } fr
 import { MessageTranslation } from "./message-translation";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";
 import { TurnDetailSheet } from "./turn-detail-sheet";
-import { TurnResults } from "./turn-results";
+import { TurnResults, type TurnChange } from "./turn-results";
 import { useAutoSpeak } from "./use-auto-speak";
 import { useHints } from "./use-hints";
 import { useMessageTranslations } from "./use-message-translations";
@@ -103,10 +103,12 @@ const HOLD_HINTS: Record<DiscardReason, string> = {
 /**
  * 实时通话的音色。通话只用服务端的火山 TTS(REALTIME_TTS_MODEL = volcengine/…,服务端 volc_tts_stream):
  * 会话用别家模型朗读时(例如 openai 的 alloy),那个音色在火山上不存在,每句都会合成失败——改用服务端的火山音色
- * (默认预设是火山时用它的音色,否则取火山的第一个英文音色);都没有时原样传,由 encodeStart/服务端报错。
+ * (默认预设是火山时用它的音色,否则取火山的第一个英文音色);服务端 AI 配置没加载到时无从得知火山音色,
+ * 返回 null,页面直接以 invalidVoice 拒绝(不把 alloy 之类送去必然失败的通话)。
  */
-function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): string {
-  if (config.ttsModel.startsWith("volcengine/") || !ai) return config.ttsVoice;
+function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): string | null {
+  if (config.ttsModel.startsWith("volcengine/")) return config.ttsVoice;
+  if (!ai) return null;
   if (ai.defaultTts.model.startsWith("volcengine/") && ai.defaultTts.voice) return ai.defaultTts.voice;
   const volc = ai.ttsModels.find((m) => m.startsWith("volcengine/"));
   return (volc && voicesFor(ai, volc)[0]?.value) || config.ttsVoice;
@@ -146,6 +148,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const { t } = useTranslation();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
+  /** 服务端 AI 配置已有结果(成功或失败):通话入口等它,点击时才知道该用哪个音色 */
+  const [aiSettled, setAiSettled] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -181,6 +185,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   // 保存串行化:上一轮的保存未完成时,下一轮排队,保证服务端消息顺序
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const pendingSavesRef = useRef<PendingSave[]>([]);
+  /** 排队待保存的消息对的个数(界面用:有未保存的一对时不能开始通话) */
+  const [pendingSaveCount, setPendingSaveCount] = useState(0);
   const genRef = useRef(0);
   const conversationRef = useRef<Conversation | null>(null);
   conversationRef.current = conversation;
@@ -219,6 +225,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const forceScrollRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const syncPendingSaves = useCallback(() => {
+    if (mountedRef.current) setPendingSaveCount(pendingSavesRef.current.length);
+  }, []);
   // 卸载后不再 setState(TurnResults 与保存队列的界面回调都走这里)
   const patchByKey = useCallback((key: string, change: Partial<UiMessage>) => {
     if (mountedRef.current) setMessages((prev) => prev.map((m) => (m.key === key ? { ...m, ...change } : m)));
@@ -240,15 +249,17 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   // 实时通话(Task 4.11):服务端开启且浏览器有 AudioContext 才显示入口;结束后重新加载会话(reloadKey)
   const [realtimeConfig, setRealtimeConfig] = useState<RealtimeConfig | null>(null);
-  const [call, setCall] = useState<{ context: AudioContext } | null>(null);
+  const [call, setCall] = useState<{ context: AudioContext; voice: string } | null>(null);
   callActiveRef.current = !!call;
   const [reloadKey, setReloadKey] = useState(0);
-  /** 本次通话里每句话的语法检查(补写完成才 resolve);关闭通话后等它们结束再重新加载 */
-  const callGrammarRef = useRef<Promise<void>[]>([]);
   /** 本次通话里服务端保存了几句用户话语(0 句不必重新加载) */
   const callTurnsRef = useRef(0);
-  /** 语法补写结束时又开了一通电话:重新加载推迟到那通结束 */
-  const reloadAfterCallRef = useRef(false);
+  /**
+   * 通话里各句的语法检查(R14)。key 就是服务端消息 id:关闭通话后重新加载的气泡 key 也是这个 id(fromServerMessage),
+   * 所以晚到的结果直接补到重新加载的气泡上,不必等语法再加载。views 记下每句的最新结果,
+   * 结果落在"清空列表 → 加载完成"之间时由加载补上。独立于每次加载新建的 resultsRef:重新加载不影响它。
+   */
+  const callResultsRef = useRef<{ conversationId: string; results: TurnResults; views: Map<string, TurnChange> } | null>(null);
   const callAudioSupported = useMemo(() => !!(realtimeEnv?.capture ?? browserCaptureEnv()).createAudioContext, [realtimeEnv]);
   useEffect(() => {
     let alive = true;
@@ -267,14 +278,13 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     resultsRef.current = results;
     genRef.current += 1;
     pendingSavesRef.current = [];
+    setPendingSaveCount(0);
     knownTailRef.current = undefined;
     renamingRef.current = false;
     heldRef.current.clear();
     // 切换会话 / 通话后重新加载:没有通话在进行(切换时卸载对话框 = 挂断),上一通的统计作废
     setCall(null);
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    reloadAfterCallRef.current = false;
     setConversation(null);
     setSending(false);
     setMessages([]);
@@ -288,15 +298,23 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
     forceScrollRef.current = false;
-    loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined);
+    loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined)
+      .finally(() => { if (alive) setAiSettled(true); });
     Promise.all([getConversation(api, id), listMessages(api, id)])
       .then(([c, list]) => {
         if (!alive) return;
         knownTailRef.current = list.messages.at(-1)?.id ?? null;
         setConversation(c);
+        // 通话里各句晚到的语法结果(加载途中到达的那些也在这里补上)
+        const book = callResultsRef.current;
+        const views = book?.conversationId === id ? book.views : null;
         setMessages(list.messages
           .filter((m) => m.role !== "system")
-          .map(fromServerMessage));
+          .map(fromServerMessage)
+          .map((m) => {
+            const view = views?.get(m.key);
+            return view ? { ...m, ...view } : m;
+          }));
         const wanted = speakOpeningRef.current;
         if (wanted) {
           const visible = list.messages.filter((m) => m.role !== "system");
@@ -522,10 +540,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   }, [saveOne, toastDropped]);
 
   const flushSaves = useCallback(() => {
-    const run = saveChainRef.current.then(() => drainSaves());
+    const run = saveChainRef.current.then(() => drainSaves()).finally(syncPendingSaves);
     saveChainRef.current = run.catch((): void => undefined);
     return run;
-  }, [drainSaves]);
+  }, [drainSaves, syncPendingSaves]);
 
   /** 临时失败的提示:Retry 再失败时会再次提示,不会静默。 */
   const toastNotSaved: () => void = useCallback(() => {
@@ -597,9 +615,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       gen: genRef.current, results, conversationId: conversation.id, userKey, botKey, content, reply, saved: false,
     };
     pendingSavesRef.current.push(entry);
+    syncPendingSaves();
     const outcome = await flushSaves();
     if (!entry.saved && !entry.dropped && outcome === "failed" && live()) toastNotSaved();
-  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete, autoSpeakProgress]);
+  }, [api, config, conversation, flushSaves, syncPendingSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete, autoSpeakProgress]);
 
   const voiceBusy = voice.state !== "idle";
 
@@ -803,8 +822,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     inputRef.current?.focus();
   });
 
-  // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失
-  const [holdHint, setHoldHint] = useState<string | null>(null);
+  // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失。
+  // n 每次加一:同样的文字再出现一次(连点两下太短)也重新计时
+  const [holdHint, setHoldHint] = useState<{ text: string; n: number } | null>(null);
   useEffect(() => {
     if (!holdHint) return;
     const timer = window.setTimeout(() => setHoldHint(null), 2000);
@@ -812,49 +832,80 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   }, [holdHint]);
 
   /**
+   * 未发送的本地状态:等待 Retry 的未保存的一对、失败/保留的尾部(回复失败、语音草稿、held 转写)、进行中的发送/流式/录音。
+   * 通话结束后的重新加载会清掉本地状态(并 abandonOpen 删除未保存轮次的评测),所以有这些时不能开始通话(I-3)。
+   * 同步读 ref:与点击同一帧里刚发生的变化也算。
+   */
+  const hasUnsentState = () => busyRef.current || voiceStateRef.current !== "idle" || pendingSavesRef.current.length > 0
+    || heldRef.current.size > 0 || messagesRef.current.some((m) => m.status !== "done");
+  /** 同一条件的渲染值(按钮的提示) */
+  const unsentShown = pendingSaveCount > 0 || messages.some((m) => m.status !== "done");
+
+  /**
    * 打开通话。整个函数是同步的(iOS:AudioContext 必须在点击的同步阶段、任何 await 之前解锁,R31):
-   * 停止朗读 → 取页面级共享 AudioContext 并解锁(`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
+   * 拒绝条件(未发送的状态、无法确定通话音色)→ 停止朗读 → 取页面级共享 AudioContext 并解锁
+   * (`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
    */
   const startCall = () => {
-    if (!conversation || !realtimeConfig?.enabled || busyRef.current || voice.state !== "idle" || call) return;
+    if (!conversation || !realtimeConfig?.enabled || call) return;
+    if (hasUnsentState()) {
+      toast.error(t("web.chat.callBlocked.unsent"));
+      // 等待 Retry 的保存:提示条可能已被关掉,这一下就当作 Retry(成功后按钮恢复,再点即可通话)
+      if (pendingSavesRef.current.length > 0 && !busyRef.current) {
+        void flushSaves().then((o) => { if (o === "failed" && mountedRef.current) toastNotSaved(); });
+      }
+      return;
+    }
+    const voiceName = callVoice(config, ai);
+    if (!voiceName) {
+      toast.error(t("web.realtime.errors.invalidVoice"));
+      return;
+    }
     stopTts(); // 通话期间不得有其他播放(通话自己也会 claimAudio)
     const audio = prepareCallAudio(realtimeEnv?.capture);
     if (!audio) {
       toast.error(t("web.realtime.errors.unsupported"));
       return;
     }
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    setCall({ context: audio.context });
+    setCall({ context: audio.context, voice: voiceName });
   };
 
-  /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(复用 TurnResults,失败静默)。 */
+  /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(key = 消息 id,失败静默)。 */
   const onCallUserMessage = (messageId: string, text: string, context?: string) => {
     callTurnsRef.current += 1;
-    const results = resultsRef.current;
-    if (!results) return;
-    callGrammarRef.current.push(results.checkSaved(nextKey("call"), messageId, {
+    const conversationId = conversationRef.current?.id;
+    if (!conversationId) return;
+    let book = callResultsRef.current;
+    if (!book || book.conversationId !== conversationId) {
+      const views = new Map<string, TurnChange>();
+      book = {
+        conversationId,
+        views,
+        results: new TurnResults(api, (key, change) => {
+          views.set(key, { ...views.get(key), ...change });
+          patchByKey(key, change);
+        }),
+      };
+      callResultsRef.current = book;
+    }
+    void book.results.checkSaved(messageId, messageId, {
       text,
       // 第一句之前通话里还没有回复:用页面上(通话前)最后一条回复
       grammar: { enabled: optionsRef.current.grammarCheck, context: context ?? lastAssistantText(messagesRef.current) },
-    }));
+    });
   };
 
-  /** 关闭通话界面(挂断或看完结束原因)。等语法补写结束再重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13)。 */
+  /**
+   * 关闭通话界面(挂断或看完结束原因)。有保存的话语就立即重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13);
+   * 不等语法检查:晚到的结果按消息 id 补到重新加载的气泡上。开始通话时已确保没有未发送的本地状态(I-3),
+   * 通话期间页面是 inert 的,所以这次重新加载不会丢掉、也不会 abandonOpen 任何未保存的轮次。
+   */
   const closeCall = () => {
     setCall(null);
-    const pending = callGrammarRef.current;
     const turns = callTurnsRef.current;
-    callGrammarRef.current = [];
     callTurnsRef.current = 0;
-    if (!turns && !reloadAfterCallRef.current) return;
-    reloadAfterCallRef.current = false;
-    const gen = genRef.current;
-    void Promise.allSettled(pending).then(() => {
-      if (!mountedRef.current || genRef.current !== gen) return; // 已切换会话/卸载
-      if (callActiveRef.current) reloadAfterCallRef.current = true; // 又开了一通:那通结束再加载
-      else setReloadKey((k) => k + 1);
-    });
+    if (turns) setReloadKey((k) => k + 1);
   };
 
   const recording = voice.state === "recording" || voice.state === "starting";
@@ -868,7 +919,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
             onOpenRecap={() => setRecapOpen(true)}
-            canCall={!!realtimeConfig?.enabled && callAudioSupported} callDisabled={!conversation || sending || voiceBusy || !!call}
+            canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call}
+            callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
             onCall={startCall} />
         } />
       {(scenario || options.level !== "auto") && (
@@ -886,7 +938,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
               footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
                   <PronunciationBadge view={m.assessment} transcript={m.content} onOpen={() => setDetailKey(m.key)} />
-                  <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />
+                  <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => {
+                    resultsRef.current?.retryGrammar(m.key);
+                    callResultsRef.current?.results.retryGrammar(m.key); // 通话里的一句(key = 消息 id)
+                  }} />
                 </div>
               ) : null}
               actions={
@@ -919,7 +974,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         })}
       </div>
       {holdHint && (
-        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint}</div>
+        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint.text}</div>
       )}
       {autoSpeak.blocked && (
         <div data-testid="autospeak-blocked" role="status" className="flex items-center gap-2 border-t bg-muted px-3 py-1 text-sm">
@@ -948,7 +1003,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           onDiscard={(reason) => {
             // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
             void voice.stop("discard");
-            if (mountedRef.current) setHoldHint(tRef.current(HOLD_HINTS[reason]));
+            const text = tRef.current(HOLD_HINTS[reason]);
+            if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
           }} />
         {recording ? (
           <div data-testid="voice-recording" className="flex h-11 flex-1 items-center gap-2 rounded-md border px-3 text-base">
@@ -1001,7 +1057,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       {call && conversation && realtimeConfig && (
         <RealtimeCallDialog api={api} conversationId={conversation.id} context={call.context} ownsContext={false}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
-          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: callVoice(config, ai), saveRecordings: true }}
+          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />
       )}
     </div>

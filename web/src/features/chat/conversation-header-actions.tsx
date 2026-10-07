@@ -7,7 +7,7 @@ import { formatPlaybackRate, nextPlaybackRate, setPlaybackRate, usePlaybackRate 
 /** R21:对话页顶栏按钮(双语、自动朗读、语速、设置;Task 4.2 加复盘;Task 4.11 加实时通话,服务端开启且浏览器支持时才显示)。 */
 export function ConversationHeaderActions({
   canTranslate, bilingual, autoSpeak, loaded, bilingualSaving, autoSpeakSaving, onToggleBilingual, onToggleAutoSpeak, onOpenSettings, onOpenRecap,
-  canCall, callDisabled, onCall,
+  canCall, callDisabled, callBlockedReason, onCall,
 }: {
   canTranslate: boolean;
   bilingual: boolean;
@@ -21,6 +21,8 @@ export function ConversationHeaderActions({
   onOpenRecap(): void;
   canCall: boolean;
   callDisabled: boolean;
+  /** 不能开始通话的原因(有未发送的本地状态):按钮的 title 与读屏说明 */
+  callBlockedReason?: string;
   onCall(): void;
 }) {
   const { t } = useTranslation();
@@ -44,9 +46,13 @@ export function ConversationHeaderActions({
         {formatPlaybackRate(rate)}
       </Button>
       {canCall && (
-        <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-call"
-          aria-label={t("web.realtime.start")} disabled={callDisabled} onClick={onCall}>
+        // callBlockedReason:有未发送的消息时仍可点(点了提示原因),按钮变灰并带说明
+        <Button variant="ghost" size="icon" className={cn("h-11 w-11", callBlockedReason && "opacity-50")} data-testid="conversation-call"
+          aria-label={t("web.realtime.start")} disabled={callDisabled} onClick={onCall}
+          title={callBlockedReason} aria-describedby={callBlockedReason ? "conversation-call-blocked" : undefined}
+          data-blocked={callBlockedReason ? "true" : undefined}>
           <PhoneIcon className="h-5 w-5" />
+          {callBlockedReason && <span id="conversation-call-blocked" className="sr-only">{callBlockedReason}</span>}
         </Button>
       )}
       <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-recap"
