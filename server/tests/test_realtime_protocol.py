@@ -6,7 +6,7 @@ import pytest
 from app import realtime_protocol as rp
 from app.realtime_protocol import (
     CLOSE_REASONS, MAX_CLIENT_TEXT, MAX_SYSTEM_PROMPT, MAX_UPLINK_FRAME, HangupMsg, InterruptMsg, ProtocolError,
-    StartMsg, UtteranceEndMsg, audio_frame, check_uplink, parse_client_message,
+    StartMsg, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink, parse_client_message,
 )
 
 START = {"type": "start", "voice": "en_female_dacey_uranus_bigtts"}
@@ -31,6 +31,7 @@ def test_parse_each_message():
     start = parse_client_message(json.dumps({**START, "system_prompt": "Be kind.", "save_recordings": True}))
     assert isinstance(start, StartMsg) and start.temperature == 0.7 and start.save_recordings is True
     assert isinstance(parse_client_message('{"type":"utterance_end"}'), UtteranceEndMsg)
+    assert isinstance(parse_client_message('{"type":"utterance_cancel"}'), UtteranceCancelMsg)
     assert isinstance(parse_client_message('{"type":"interrupt"}'), InterruptMsg)
     assert isinstance(parse_client_message('{"type":"hangup"}'), HangupMsg)
 

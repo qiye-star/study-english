@@ -20,7 +20,8 @@ from typing import Protocol
 from app.asr import MAX_UTTERANCE_BYTES, AsrError, RecognizerFactory, UtteranceRecognizer
 from app.realtime_protocol import (
     CLOSE_IDLE, CLOSE_MAX_DURATION, CLOSE_MESSAGE_LIMIT, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_UPSTREAM,
-    HangupMsg, InterruptMsg, ProtocolError, UtteranceEndMsg, audio_frame, check_uplink, parse_client_message,
+    HangupMsg, InterruptMsg, ProtocolError, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink,
+    parse_client_message,
 )
 from app.sentence_split import SentenceSplitter
 
@@ -291,6 +292,8 @@ class RealtimeSession:
                     await self._interrupt()
                 elif isinstance(msg, UtteranceEndMsg):
                     await self._on_utterance_end()
+                elif isinstance(msg, UtteranceCancelMsg):
+                    await self._on_utterance_cancel()
                 else:
                     raise ProtocolError("start was already received")
         except ProtocolError:
@@ -407,6 +410,13 @@ class RealtimeSession:
         turn.task = asyncio.create_task(self._run_turn(turn, recognizer, pcm, is_fallback))
         self._turn_tasks[turn.task] = turn
         turn.task.add_done_callback(lambda t: self._turn_tasks.pop(t, None))
+
+    async def _on_utterance_cancel(self) -> None:
+        """撤回进行中的一句:中止识别器、丢掉已收到的音频;不开新的一轮(已消耗的额度不退)。"""
+        recognizer = self._recognizer
+        self._recognizer, self._utterance, self._recognizer_is_fallback = None, bytearray(), False
+        self._discarding = False
+        await _abort(recognizer)
 
     async def _interrupt(self) -> None:
         turn = self._turn

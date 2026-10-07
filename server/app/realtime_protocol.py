@@ -50,6 +50,11 @@ class UtteranceEndMsg(_Msg):
     type: Literal["utterance_end"]
 
 
+class UtteranceCancelMsg(_Msg):
+    """撤回进行中的一句(网页端切到按住说话、按得太短):丢弃已收到的音频,不识别、不回复。"""
+    type: Literal["utterance_cancel"]
+
+
 class InterruptMsg(_Msg):
     type: Literal["interrupt"]
 
@@ -58,11 +63,13 @@ class HangupMsg(_Msg):
     type: Literal["hangup"]
 
 
-ClientMessage = Annotated[Union[StartMsg, UtteranceEndMsg, InterruptMsg, HangupMsg], Field(discriminator="type")]
+ClientMessage = Annotated[
+    Union[StartMsg, UtteranceEndMsg, UtteranceCancelMsg, InterruptMsg, HangupMsg], Field(discriminator="type")
+]
 _ADAPTER: TypeAdapter = TypeAdapter(ClientMessage)
 
 
-def parse_client_message(text: str) -> StartMsg | UtteranceEndMsg | InterruptMsg | HangupMsg:
+def parse_client_message(text: str) -> StartMsg | UtteranceEndMsg | UtteranceCancelMsg | InterruptMsg | HangupMsg:
     if not isinstance(text, str):
         raise ProtocolError("expected a text message")
     if len(text) > MAX_CLIENT_TEXT:

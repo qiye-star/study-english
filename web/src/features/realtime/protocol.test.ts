@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLOSE, CLOSE_REASONS, START_LIMITS, StartPayloadError, closeErrorKey, encodeControl, encodeStart, parseServerEvent, splitAudioFrame } from "./protocol";
+import { CLOSE, CLOSE_REASONS, CONTROL_TYPES, START_LIMITS, StartPayloadError, closeErrorKey, encodeControl, encodeStart, parseServerEvent, splitAudioFrame } from "./protocol";
 
 const SERVER_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../server/app/realtime_protocol.py");
 
@@ -40,6 +40,15 @@ describe("contract with server/app/realtime_protocol.py", () => {
     expect(START_LIMITS.clientText).toBe(num("MAX_CLIENT_TEXT"));
     expect(py()).toContain(`model: str = Field("", max_length=${START_LIMITS.model})`);
     expect(py()).toContain(`voice: str = Field(pattern=r"${START_LIMITS.voice.source}")`);
+  });
+
+  it("every control message the client sends is a message type the server accepts", () => {
+    const serverTypes = [...py().matchAll(/^ {4}type: Literal\["([a-z_]+)"\]/gm)].map((m) => m[1]);
+    for (const type of CONTROL_TYPES) {
+      expect(serverTypes).toContain(type);
+      expect(JSON.parse(encodeControl(type))).toEqual({ type });
+    }
+    expect(CONTROL_TYPES).toContain("utterance_cancel");
   });
 
   it("maps close codes to translatable keys", () => {

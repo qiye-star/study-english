@@ -542,6 +542,25 @@ async def test_utterance_end_without_audio_and_duplicate_controls_are_ignored():
     assert len(h.of("transcript_final")) == 1
 
 
+async def test_utterance_cancel_drops_the_half_utterance_without_a_turn():
+    """网页端切到"按住说话"(或按得太短)时撤回进行中的一句:不识别、不保存、不回复,也不并入下一句。"""
+    first, second = FakeRecognizer("half a sen"), FakeRecognizer("the real one")
+    h = Harness(factory=Factory(first, second))
+    task = asyncio.create_task(h.run())
+    h.send(PCM)
+    h.send({"type": "utterance_cancel"})
+    h.send({"type": "utterance_cancel"})  # 没有进行中的一句:忽略
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types())
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert first.aborted and not first.finished
+    assert second.audio == PCM  # 撤回的音频没有并进下一句
+    assert [e["text"] for e in h.of("transcript_final")] == ["the real one"]
+    assert h.store.messages[0] == {"role": "user", "content": "the real one"}
+    assert h.session.stats.turns == 1
+
+
 async def test_messages_after_hangup_are_ignored():
     h = Harness()
     task = asyncio.create_task(h.run())
