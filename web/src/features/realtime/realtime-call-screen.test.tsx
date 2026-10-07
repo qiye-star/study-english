@@ -245,6 +245,32 @@ describe("RealtimeCallScreen", () => {
       expect(h.onPttUp).toHaveBeenCalledTimes(2);
     });
 
+    it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", () => {
+      const h = render({ pushToTalk: true, vadUnavailable: true });
+      const tap = screen.getByTestId("call-ptt-tap");
+      const hold = screen.getByTestId("call-ptt");
+      fireEvent.click(tap);
+      expect(tap).toHaveAttribute("aria-pressed", "true");
+      expect(hold).toBeDisabled();
+      fireEvent.pointerDown(hold);
+      fireEvent.pointerUp(hold);
+      expect(h.onPttDown).toHaveBeenCalledTimes(1);
+      expect(h.onPttUp).not.toHaveBeenCalled(); // 还在说:点按键仍是"点按结束说话"
+      expect(tap).toHaveTextContent(/Tap to stop|点按结束/);
+      fireEvent.click(tap);
+      expect(h.onPttUp).toHaveBeenCalledTimes(1);
+      expect(hold).toBeEnabled();
+      // 反过来:按住期间点按键不可用
+      fireEvent.pointerDown(hold);
+      expect(tap).toBeDisabled();
+      fireEvent.click(tap);
+      expect(tap).toHaveAttribute("aria-pressed", "false");
+      fireEvent.pointerUp(hold);
+      expect(h.onPttDown).toHaveBeenCalledTimes(2);
+      expect(h.onPttUp).toHaveBeenCalledTimes(2);
+      expect(tap).toBeEnabled();
+    });
+
     it("has no tap toggle while voice detection works", () => {
       render({ pushToTalk: true });
       expect(screen.queryByTestId("call-ptt-tap")).toBeNull();

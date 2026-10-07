@@ -64,23 +64,27 @@ const isHoldKey = (key: string) => key === " " || key === "Enter";
  * 通话里的"按住说话":按下即开始上行(音频是实时流出去的,所以没有聊天按钮那种上滑取消/转文字),松开即结束这句。
  * 指针按住/松开;键盘 `Space`/`Enter` 按下/抬起;失焦、指针被取消、卸载都会结束这句。
  */
-function CallPttButton({ disabled, onDown, onUp }: { disabled: boolean; onDown(): void; onUp(): void }) {
+function CallPttButton({ disabled, onDown, onUp, onHeldChange }: { disabled: boolean; onDown(): void; onUp(): void; onHeldChange?(held: boolean): void }) {
   const { t } = useTranslation();
   const [held, setHeld] = useState(false);
   const heldRef = useRef(false);
-  const cb = useRef({ onDown, onUp });
-  cb.current = { onDown, onUp };
+  const cb = useRef({ onDown, onUp, onHeldChange });
+  cb.current = { onDown, onUp, onHeldChange };
 
   const down = () => {
     if (heldRef.current || disabled) return;
     heldRef.current = true;
     setHeld(true);
+    cb.current.onHeldChange?.(true);
     cb.current.onDown();
   };
   const up = (render = true) => {
     if (!heldRef.current) return;
     heldRef.current = false;
-    if (render) setHeld(false);
+    if (render) {
+      setHeld(false);
+      cb.current.onHeldChange?.(false);
+    }
     cb.current.onUp();
   };
   const upRef = useRef(up);
@@ -125,16 +129,19 @@ function CallPttButton({ disabled, onDown, onUp }: { disabled: boolean; onDown()
 }
 
 /** 点按切换的说话键:没有 VAD 时给读屏用户(双击无法"按住")和不便长按的人用。 */
-function CallTapToTalkButton({ disabled, onDown, onUp }: { disabled: boolean; onDown(): void; onUp(): void }) {
+function CallTapToTalkButton({ disabled, onDown, onUp, onToggle }: { disabled: boolean; onDown(): void; onUp(): void; onToggle?(on: boolean): void }) {
   const { t } = useTranslation();
   const [on, setOn] = useState(false);
   const onRef = useRef(false);
-  const cb = useRef({ onDown, onUp });
-  cb.current = { onDown, onUp };
+  const cb = useRef({ onDown, onUp, onToggle });
+  cb.current = { onDown, onUp, onToggle };
   const set = (next: boolean, render = true) => {
     if (onRef.current === next) return;
     onRef.current = next;
-    if (render) setOn(next);
+    if (render) {
+      setOn(next);
+      cb.current.onToggle?.(next);
+    }
     if (next) cb.current.onDown();
     else cb.current.onUp();
   };
@@ -233,6 +240,10 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
     else onHangup();
   };
 
+  // 没有 VAD 时按住键与点按键同时在:两者互斥(一边在说时另一边禁用),否则按住键松开会结束点按开始的那句,
+  // 点按键却还显示"点按结束说话"(review F2 m3)
+  const [tapOn, setTapOn] = useState(false);
+  const [holdOn, setHoldOn] = useState(false);
   const phaseKey = model.phase === "idle" ? "connecting" : model.phase;
   const lockedId = useId();
   // 渲染到 body 下:背后整页都是对话框的兄弟节点,才能整体设为 inert
@@ -293,8 +304,10 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
         </footer>
       ) : (
         <footer className="flex flex-col items-center gap-3 border-t p-4">
-          {model.pushToTalk && <CallPttButton disabled={model.muted} onDown={onPttDown} onUp={onPttUp} />}
-          {model.pushToTalk && model.vadUnavailable && <CallTapToTalkButton disabled={model.muted} onDown={onPttDown} onUp={onPttUp} />}
+          {model.pushToTalk && <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn} />}
+          {model.pushToTalk && model.vadUnavailable && (
+            <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />
+          )}
           <div className="flex items-center gap-4">
             <Button type="button" data-testid="call-mute" variant="outline" size="icon" className="min-h-11 min-w-11"
               aria-pressed={model.muted} aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
