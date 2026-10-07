@@ -8,5 +8,6 @@ services:
       REGISTRATION_MODE: invite
       INVITE_CODE: ${E2E_INVITE_CODE:?set E2E_INVITE_CODE}
       RATE_LIMIT_PER_MINUTE: "1000"
+      UPSTREAM_ASR_MODE: ${E2E_UPSTREAM_ASR_MODE:-chat}
     ports: !override
       - "127.0.0.1:8100:8000"
