@@ -8,6 +8,7 @@ import { Textarea } from "@renderer/components/ui/textarea";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";
 import { LEVELS, normalizeLevel, type Level } from "./levels";
+import { VoicePicker } from "./voice-picker";
 import { MAX_CUSTOM_SCENARIO, PRESET_SCENARIO_IDS, sanitizeCustomScenario } from "./scenarios";
 
 /**
@@ -130,14 +131,8 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
               {(ai?.ttsModels ?? [draft.ttsModel]).map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </label>
-          <label className="block space-y-1 text-sm">
-            <span>{t("web.chat.settingsForm.voice")}</span>
-            <select data-testid="settings-tts-voice" className={selectClass} value={draft.ttsVoice}
-              onChange={(e) => setDraft({ ...draft, ttsVoice: e.target.value })}>
-              {voices.length ? voices.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)
-                : <option value={draft.ttsVoice}>{draft.ttsVoice}</option>}
-            </select>
-          </label>
+          <VoicePicker voices={voices} model={draft.ttsModel} value={draft.ttsVoice ?? ""}
+            onChange={(ttsVoice) => setDraft({ ...draft, ttsVoice })} />
           <p data-testid="settings-near-field-tip" className="text-sm text-muted-foreground">{t("web.chat.voice.nearFieldTip")}</p>
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>{t("web.chat.settingsForm.bilingual")}</span>

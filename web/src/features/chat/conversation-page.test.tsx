@@ -214,8 +214,9 @@ describe("ConversationPage", () => {
     const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, tts_voice: "echo" } }) }));
     await screen.findByText("reply");
     await userEvent.click(screen.getByTestId("conversation-settings"));
-    await waitFor(() => expect(screen.getByTestId("settings-tts-voice").querySelectorAll("option")).toHaveLength(2));
-    await userEvent.selectOptions(screen.getByTestId("settings-tts-voice"), "echo");
+    await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(2));
+    await userEvent.click(screen.getByTestId("voice-option-echo"));
+    expect(screen.getByTestId("settings-tts-voice")).toHaveAttribute("data-value", "echo");
     await userEvent.click(screen.getByTestId("settings-save"));
     await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ tts_voice: "echo", system_prompt: "SYS" });
@@ -280,8 +281,9 @@ describe("ConversationPage", () => {
       const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }) }));
       await screen.findByText("reply");
       await userEvent.click(screen.getByTestId("conversation-settings"));
-      await waitFor(() => expect(screen.getByTestId("settings-tts-voice").querySelectorAll("option")).toHaveLength(2));
-      await userEvent.selectOptions(screen.getByTestId("settings-tts-voice"), "echo");
+      await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(2));
+      await userEvent.click(screen.getByTestId("voice-option-echo"));
+      expect(screen.getByTestId("settings-tts-voice")).toHaveAttribute("data-value", "echo");
       await userEvent.click(screen.getByTestId("settings-save"));
       await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
       expect(Object.keys(patchBody(mock)).sort()).toEqual(["model", "system_prompt", "temperature", "tts_model", "tts_voice"]);
