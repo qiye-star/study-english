@@ -3,12 +3,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
-import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { Skeleton } from "@renderer/components/ui/skeleton";
 import { PronunciationAssessmentFulltextResult } from "@renderer/components/pronunciation-assessments/pronunciation-assessment-fulltext-result";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
+import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail } from "~/features/practice/assessment-api";
 import { MobileScoreResult } from "~/features/practice/mobile-score-result";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
@@ -71,26 +70,23 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
 
   return (
     <BottomSheet open={message !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <BottomSheetContent data-testid="turn-detail" className="max-h-[85dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <SheetHeader>
-          <SheetTitle className="text-left">{t("web.chat.voice.details")}</SheetTitle>
-          <SheetDescription className="sr-only">{t("web.chat.voice.detailsDescription")}</SheetDescription>
-        </SheetHeader>
+      <BottomSheetContent data-testid="turn-detail" className="max-h-[85dvh] overflow-y-auto">
+        <BottomSheetHeader title={t("web.chat.voice.details")} description={t("web.chat.voice.detailsDescription")} srOnlyDescription />
         {message && (
-          <div className="mt-3 space-y-4">
-            <p data-lookup-context className="select-text break-words text-base">{message.content}</p>
+          <div className="space-y-4 pb-1">
+            <p data-lookup-context className="select-text break-words rounded-card bg-blue-tint px-3.5 py-3 text-title font-medium leading-dialogue text-ink">{message.content}</p>
             {assessmentId && (
               <section data-testid="turn-detail-assessment" className={loadingDetail ? "min-h-72 space-y-3" : "space-y-3"}>
                 {scores ? <MobileScoreResult scores={scores} /> : error ? null : <Skeleton className="h-32" />}
                 {weak.length > 0 && (
-                  <p data-testid="detail-weak-words" className="text-sm">
-                    <span className="text-muted-foreground">{t("web.chat.voice.weakWords")}</span> {weak.join(", ")}
+                  <p data-testid="detail-weak-words" className="text-sub text-ink">
+                    <span className="text-ink-2">{t("web.chat.voice.weakWords")}</span> <span className="font-medium text-amber">{weak.join(", ")}</span>
                   </p>
                 )}
                 {detail ? (
                   <PronunciationAssessmentFulltextResult words={detailWords ?? []} currentTime={0} src={message.voice?.audioUrl} />
                 ) : error ? (
-                  <p role="alert" className="text-sm text-destructive">{error}</p>
+                  <p role="alert" className="text-sub text-red">{error}</p>
                 ) : scores ? (
                   <Skeleton className="h-16" />
                 ) : null}
@@ -98,10 +94,10 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
             )}
             {children}
             <div className="flex gap-2">
-              <Button data-testid="detail-practice" className="h-11 flex-1" onClick={() => { onClose(); goPractice(navigate, message.content); }}>
+              <Button data-testid="detail-practice" className="h-12 flex-1 rounded-button text-body font-semibold" onClick={() => { onClose(); goPractice(navigate, message.content); }}>
                 {t("web.chat.voice.practiceThis")}
               </Button>
-              <Button variant="outline" data-testid="detail-save" className="h-11 min-w-11" disabled={saving}
+              <Button variant="outline" data-testid="detail-save" className="h-12 w-12 rounded-button border-[0.5px] border-hair bg-surface p-0 text-ink" disabled={saving}
                 aria-label={t("web.chat.voice.save")} onClick={() => void save()}>
                 {saving ? <LoaderIcon className="h-5 w-5 animate-spin" /> : <StarIcon className="h-5 w-5" />}
               </Button>
