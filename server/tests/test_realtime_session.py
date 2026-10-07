@@ -15,8 +15,8 @@ PCM = b"\x01\x00" * 1600  # 100 ms
 
 
 class FakeRecognizer:
-    def __init__(self, text="hello there", error=None, gate=None, send_error=None):
-        self.text, self.error, self.gate, self.send_error = text, error, gate, send_error
+    def __init__(self, text="hello there", error=None, gate=None, send_error=None, delay=0.0):
+        self.text, self.error, self.gate, self.send_error, self.delay = text, error, gate, send_error, delay
         self.audio = bytearray()
         self.aborted = False
         self.finished = False
@@ -27,6 +27,8 @@ class FakeRecognizer:
         self.audio += pcm
 
     async def finish(self):
+        if self.delay:
+            await asyncio.sleep(self.delay)  # 慢的上游(识别收尾)
         if self.gate:
             await self.gate.wait()
         if self.error:
@@ -553,7 +555,8 @@ async def test_messages_after_hangup_are_ignored():
     assert h.events == before
 
 
-async def test_late_assessment_after_close_is_dropped():
+async def test_late_assessment_after_close_is_dropped(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.05)  # 评测比挂断宽限还慢
     gate = asyncio.Event()
 
     class Assessor:
@@ -572,7 +575,8 @@ async def test_late_assessment_after_close_is_dropped():
     assert "assessment" not in h.types()
 
 
-async def test_drain_cancels_assessments_that_overrun():
+async def test_drain_cancels_assessments_that_overrun(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.05)
     class Assessor:
         async def assess(self, message_id, pcm, text):
             await asyncio.Event().wait()
@@ -1161,3 +1165,111 @@ async def test_barge_in_while_the_previous_reply_is_being_saved_keeps_db_order()
     done1 = h.log.index(("json", h.of("reply_done")[0]))
     final2 = h.log.index(("json", h.of("transcript_final")[1]))
     assert done1 < final2
+
+
+# ---------------------------------------------------------------- 用户挂断的有界收尾(评测与刚说完的一句)
+
+
+class SlowAssessor:
+    """讯飞评测的替身:`delay` 秒后返回;`delay=None` 永不返回(只能被取消)。"""
+
+    def __init__(self, delay=None):
+        self.delay = delay
+        self.calls = []
+        self.cancelled = False
+
+    async def assess(self, message_id, pcm, text):
+        self.calls.append(message_id)
+        try:
+            if self.delay is None:
+                await asyncio.Event().wait()
+            await asyncio.sleep(self.delay)
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        return {"status": "done", "result": {"pronunciation_score": 88}, "assessment_id": "a1"}
+
+
+def _now():
+    return asyncio.get_running_loop().time()
+
+
+def test_hangup_caps_fit_the_clients_three_second_wait():
+    # 网页端挂断后最多等 3 s 的关闭帧;识别宽限与评测等待共用一个截止时间,只剩保存与关闭帧的零头
+    assert realtime_session.HANGUP_GRACE <= 2.5
+
+
+async def test_hangup_delivers_a_pending_assessment_before_run_returns():
+    before = set(asyncio.all_tasks())
+    a = SlowAssessor(delay=0.15)
+    h = Harness(assessor=a)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types())
+    assert "assessment" not in h.types()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    # run 返回之后路由才发关闭帧:评测结果已在关闭之前下发
+    assert h.of("assessment") == [{"type": "assessment", "message_id": "m1", "status": "done",
+                                   "result": {"pronunciation_score": 88}, "assessment_id": "a1"}]
+    await h.session.drain()
+    assert _others(before) == set()
+
+
+async def test_hangup_waits_for_assessments_at_most_the_grace(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.3)
+    a = SlowAssessor(delay=None)  # 讯飞一直不回
+    h = Harness(assessor=a)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types())
+    started = _now()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    elapsed = _now() - started
+    assert 0.25 <= elapsed < 0.8
+    assert "assessment" not in h.types()
+    assert not a.cancelled  # 超时后不在这里取消:交给 drain 的宽限
+    await h.session.drain(timeout=0.05)
+    await asyncio.sleep(0)
+    assert a.cancelled and not h.session._assessments
+    assert "assessment" not in h.types()  # 关闭之后的事件不再下发
+
+
+@pytest.mark.parametrize("how", ["idle", "max_duration", "disconnect", "protocol_error", "send_failure"])
+async def test_server_initiated_close_does_not_wait_for_assessments(how):
+    clock = FakeClock()
+    a = SlowAssessor(delay=None)
+    fail = {"on": False}
+    h = Harness(assessor=a, clock=clock, limits=RealtimeLimits(max_seconds=100, idle_seconds=10))
+
+    async def send_json(e):
+        if fail["on"]:
+            raise RuntimeError("socket gone")
+        await h._json(e)
+
+    h.session._send_json = send_json
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types() and h.events[-1].get("state") == "listening")
+    assert a.calls == ["m1"]
+    started = _now()
+    if how == "idle":
+        clock.now += 11
+        h.send({"type": "interrupt"})
+    elif how == "max_duration":
+        clock.now += 101
+        h.send(PCM)
+    elif how == "disconnect":
+        h.inbox.put_nowait(None)  # 客户端消失(没有 hangup)
+    elif how == "protocol_error":
+        h.send("not json")
+    else:
+        fail["on"] = True
+        await h.session._send({"type": "state", "state": "thinking"})
+    code = await asyncio.wait_for(task, 2)
+    assert code == {"idle": 4008, "max_duration": 4009, "disconnect": 1000, "protocol_error": 4400,
+                    "send_failure": 1000}[how]
+    assert _now() - started < 0.2  # 默认 HANGUP_GRACE(2.5 s)完全没有等
+    assert not a.cancelled
+    await h.session.drain(timeout=0.05)

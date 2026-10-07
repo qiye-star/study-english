@@ -13,11 +13,12 @@ from app.db import Base
 from app.main import create_app
 from app.realtime_asr import effective_realtime_asr
 from app.realtime_protocol import StartMsg
+from app import realtime_session
 from app.realtime_session import RealtimeSession, Upstreams
 from app.realtime_tickets import TicketStore
 from app.routers import realtime as realtime_router
 from tests.conftest import make_settings
-from tests.test_realtime_session import Factory, FakeRecognizer, llm_of, tts_of
+from tests.test_realtime_session import Factory, FakeRecognizer, SlowAssessor, llm_of, tts_of
 
 ENABLED = {
     "realtime_enabled": True,
@@ -37,10 +38,10 @@ class FakeClock:
         return self.now
 
 
-def fake_upstreams(llm=None):
+def fake_upstreams(llm=None, recognizer=None, assessor=None):
     def build(app, settings, user_id, start):
-        return Upstreams(Factory(FakeRecognizer("hello there")), None, "buffered",
-                         llm or llm_of("Sure. ", "Bye."), tts_of(), None)
+        return Upstreams(Factory(recognizer() if recognizer else FakeRecognizer("hello there")), None, "buffered",
+                         llm or llm_of("Sure. ", "Bye."), tts_of(), assessor)
     return build
 
 
@@ -532,3 +533,73 @@ def test_cancellation_mid_reply_frees_the_slot_and_leaks_no_tasks(ws_app, monkey
     assert active == 0
     assert leaked == []
     assert closed == [True]
+
+
+# ---------------------------------------------------------------- user hang-up: bounded wait before the close frame
+
+
+def test_hangup_delivers_a_slow_assessment_before_the_close(ws_app, monkeypatch):
+    app, client = ws_app
+    assessor = SlowAssessor(delay=0.3)
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    _, ticket = ticket_for(client, login(client))
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps(START))
+        receive_until(ws, "ready")
+        ws.send_bytes(PCM)
+        ws.send_text(json.dumps({"type": "utterance_end"}))
+        events = receive_until(ws, "reply_done")
+        assert "assessment" not in [e["type"] for e in events]
+        ws.send_text(json.dumps({"type": "hangup"}))
+        events, code = until_close(ws)
+    assert code == 1000
+    assessment = next(e for e in events if e["type"] == "assessment")
+    assert assessment["status"] == "done" and assessment["message_id"]
+    wait_for(lambda: app.state.realtime_registry.active_count == 0)
+    wait_for(lambda: session_tasks(client) == [])
+
+
+def test_hangup_close_waits_at_most_the_grace_for_a_stuck_assessment(ws_app, monkeypatch):
+    app, client = ws_app
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.5)
+    assessor = SlowAssessor(delay=None)  # Xfyun never answers
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    _, ticket = ticket_for(client, login(client))
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps(START))
+        receive_until(ws, "ready")
+        ws.send_bytes(PCM)
+        ws.send_text(json.dumps({"type": "utterance_end"}))
+        receive_until(ws, "reply_done")
+        wait_for(lambda: assessor.calls)
+        started = time.monotonic()
+        ws.send_text(json.dumps({"type": "hangup"}))
+        events, code = until_close(ws)
+        elapsed = time.monotonic() - started
+    assert code == 1000
+    assert 0.4 <= elapsed < 1.5
+    assert "assessment" not in [e["type"] for e in events]
+    wait_for(lambda: app.state.realtime_registry.active_count == 0, timeout=15)  # drain gives it 10 s more
+
+
+def test_idle_close_does_not_wait_for_a_pending_assessment(ws_app, monkeypatch):
+    app, client = ws_app
+    clock = FakeClock()
+    monkeypatch.setattr(realtime_router, "session_clock", clock)
+    assessor = SlowAssessor(delay=None)
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    _, ticket = ticket_for(client, login(client))
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps(START))
+        receive_until(ws, "ready")
+        ws.send_bytes(PCM)
+        ws.send_text(json.dumps({"type": "utterance_end"}))
+        receive_until(ws, "reply_done")
+        wait_for(lambda: assessor.calls)
+        clock.now += app.state.settings.realtime_idle_timeout_seconds + 1
+        started = time.monotonic()
+        ws.send_text(json.dumps({"type": "interrupt"}))  # wake the loop so it re-checks the clock
+        events, code = until_close(ws)
+        elapsed = time.monotonic() - started
+    assert code == 4008
+    assert elapsed < 1.0  # HANGUP_GRACE (2.5 s) is not applied to a server-initiated close

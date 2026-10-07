@@ -30,6 +30,10 @@ INBOX_MAX = 32  # 客户端消息(每条 ≤ 32 KB)
 SENTENCE_QUEUE_MAX = 4  # LLM 领先 TTS 的句数上限
 SEND_TIMEOUT = 15.0  # 一次下行发送超过这么久 → 视为连接已死
 FINISH_GRACE = 5.0  # 挂断时等待"只差保存"的一轮这么久
+# 用户主动挂断(`hangup`)时,在关闭帧之前等待还没出结果的评测、并把它们的 `assessment` 下发出去,
+# 最多这么久(从收到 hangup 起算)。网页端挂断后最多等 3 s 的关闭帧,所以留出保存与关闭帧本身的余量。
+# 服务端发起的关闭(静音/时长超限、错误、客户端消失)不等。
+HANGUP_GRACE = 2.5
 # 每路通话同时在识别(或排队等保存)的话语上限。再多的话语直接丢弃(协议没有 busy 错误码,只计数),
 # 不打开识别器、不调用任何上游:否则一个客户端狂发 [音频, utterance_end] 就能放大成无数次付费识别。
 MAX_PENDING_TURNS = 3
@@ -180,6 +184,7 @@ class RealtimeSession:
         self._assessments: set[asyncio.Task] = set()
         self._last_activity = 0.0
         self._reader: asyncio.Task | None = None
+        self._hanging_up = False  # 收到了客户端的 hangup(用户主动挂断)
 
     # ---- 发送 ----
     async def _deliver(self, send: Callable, payload) -> None:
@@ -280,6 +285,7 @@ class RealtimeSession:
                     continue
                 msg = parse_client_message(item)
                 if isinstance(msg, HangupMsg):
+                    self._hanging_up = True
                     return CLOSE_NORMAL
                 if isinstance(msg, InterruptMsg):
                     await self._interrupt()
@@ -292,7 +298,11 @@ class RealtimeSession:
         finally:
             reader.cancel()
             await _settle(reader)
+            # 用户挂断:收尾共用一个截止时间;服务端发起的关闭不等(deadline=None)
+            deadline = asyncio.get_running_loop().time() + HANGUP_GRACE if self._hanging_up else None
             await self._shutdown()
+            if deadline is not None:
+                await self._await_assessments(deadline)
             self._closed = True  # 之后到达的事件(迟到的评测等)一律丢弃
 
     # ---- 上行音频与断句 ----
@@ -596,6 +606,14 @@ class RealtimeSession:
         task = asyncio.create_task(job())
         self._assessments.add(task)
         task.add_done_callback(self._assessments.discard)
+
+    async def _await_assessments(self, deadline: float) -> None:
+        """用户挂断:在关闭帧之前等还没出结果的评测(到 deadline 为止),让它们的 `assessment` 送达。
+        超时的不在这里取消:`drain` 之后照常给它们宽限(结果仍会入库并关联消息,只是不再下发)。"""
+        pending = {t for t in self._assessments if not t.done()}
+        timeout = deadline - asyncio.get_running_loop().time()
+        if pending and timeout > 0 and not self._closed:
+            await asyncio.wait(pending, timeout=timeout)
 
     async def _shutdown(self) -> None:
         for task, turn in list(self._turn_tasks.items()):
