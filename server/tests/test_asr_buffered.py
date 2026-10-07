@@ -1,3 +1,4 @@
+import asyncio
 import io
 import types
 import wave
@@ -175,7 +176,7 @@ async def test_volc_stream_fallback_keeps_no_speech_contract(respx_mock, stream)
 @pytest.mark.parametrize(
     "kind,expected",
     [("auth", "auth"), ("not_configured", "config"), ("quota", "upstream"),
-     ("timeout", "upstream"), ("protocol", "upstream"), ("upstream", "upstream"), ("empty", "upstream")],
+     ("timeout", "upstream"), ("protocol", "upstream"), ("upstream", "upstream")],
 )
 async def test_volc_stream_failure_without_fallback_maps_like_the_endpoint(respx_mock, stream, kind, expected):
     stream.outcomes = [AsrStreamError(kind)]
@@ -183,6 +184,57 @@ async def test_volc_stream_failure_without_fallback_maps_like_the_endpoint(respx
         with pytest.raises(AsrError) as e:
             await make_transcriber(http, make_settings(**NO_FALLBACK))(pcm_to_wav(PCM))
     assert e.value.kind == expected
+
+
+async def test_volc_stream_empty_without_fallback_is_no_speech(respx_mock, stream):
+    """Review 1.5-I1: a well-formed stream result with no text is "no speech", not an error.
+    (The upload endpoint keeps its own R4 mapping: tests/test_ai_audio_volc_stream.py.)"""
+    route = chat_reply(respx_mock)
+    stream.outcomes = [AsrStreamError("empty")]
+    async with httpx.AsyncClient() as http:
+        assert await make_transcriber(http, make_settings(**NO_FALLBACK))(pcm_to_wav(PCM)) == ""
+    assert not route.called
+
+
+async def test_silent_clip_through_the_buffered_realtime_recognizer_is_empty(stream):
+    stream.outcomes = [AsrStreamError("empty")]
+    gate = AsrGate(1)
+    async with httpx.AsyncClient() as http:
+        factory = realtime_factory(http, make_settings(**NO_FALLBACK, realtime_asr_mode="buffered"), gate=gate)
+        r = await factory(lambda _t: None)
+        assert isinstance(r, BufferedRecognizer)
+        await r.send_audio(bytes(3200))
+        assert await r.finish() == ""
+    assert await gate.try_enter() is None  # slot released
+
+
+async def test_silent_clip_through_buffered_recognizer_directly_is_empty(stream):
+    stream.outcomes = [AsrStreamError("empty")]
+    async with httpx.AsyncClient() as http:
+        r = BufferedRecognizer(make_transcriber(http, make_settings(**NO_FALLBACK)))
+        await r.send_audio(bytes(3200))
+        assert await r.finish() == ""
+
+
+async def test_cancelled_stream_is_neutral_for_the_breaker(monkeypatch):
+    """Review 1.5-M1: a cancellation releases the slot without resetting the failure count."""
+    started = asyncio.Event()
+
+    async def hang(settings, pcm, uid="server"):
+        started.set()
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr("app.asr.transcribe_pcm", hang)
+    gate = AsrGate(1)
+    gate._failures = 2
+    async with httpx.AsyncClient() as http:
+        task = asyncio.create_task(make_transcriber(http, make_settings(**STREAM), gate=gate)(pcm_to_wav(PCM)))
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert gate._failures == 2
+    assert await gate.try_enter() is None
 
 
 async def test_unstreamable_wav_goes_straight_to_fallback(respx_mock, stream):

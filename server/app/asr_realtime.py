@@ -141,8 +141,9 @@ class VolcStreamRecognizer:
 
     def _reschedule(self, seconds: float) -> None:
         self._deadline = asyncio.get_running_loop().time() + seconds
-        if self._timeout is not None and not self._timeout.expired():
-            self._timeout.reschedule(self._deadline)
+        timeout = self._timeout
+        if timeout is not None and not timeout.expired():
+            timeout.reschedule(self._deadline)
 
     def _release(self, kind: str | None) -> None:
         if not self._released:
@@ -177,7 +178,8 @@ class VolcStreamRecognizer:
                     text = _text(frame)
                     if frame.last:
                         self._final = text
-                        return
+                        self._release(None)  # upstream is done: success for the breaker
+                        break
                     if text and text != self._partial:
                         self._partial = text
                         self._partials += 1
@@ -185,7 +187,8 @@ class VolcStreamRecognizer:
                             await self._on_partial(text)
                         except Exception as e:  # noqa: BLE001 - partials are display only
                             logger.warning("asr realtime partial callback failed: %s", type(e).__name__)
-            raise AsrStreamError("protocol", "closed before the final result")
+            if self._final is None:
+                raise AsrStreamError("protocol", "closed before the final result")
         except AsrStreamError as e:
             self._fail(e)
         except TimeoutError:
@@ -194,20 +197,26 @@ class VolcStreamRecognizer:
             self._fail(AsrStreamError("protocol", "closed before the final result"))
         except Exception as e:  # noqa: BLE001 - RecursionError, MemoryError, library bugs...
             self._fail(AsrStreamError("protocol", f"unexpected {type(e).__name__}"))
-        # Final received, failed or idle: the connection has no further use; drop it now.
+        finally:
+            self._timeout = None  # the watchdog is gone; `_reschedule` must not touch it
+        # Final received (slot already released as a success), failed or idle (released by
+        # `_fail`): the connection has no further use; drop it now.
         await self._ws.close()
 
     async def _close(self) -> None:
         if self._closed:
             return
         self._closed = True
-        if not self._reader.done():
-            self._reader.cancel()
-            await asyncio.gather(self._reader, return_exceptions=True)
+        # A cancellation at any await below must still close the socket and free the slot.
         try:
-            await self._ws.close()
+            if not self._reader.done():
+                self._reader.cancel()
+                await asyncio.gather(self._reader, return_exceptions=True)
         finally:
-            self._release("aborted")  # neutral for the breaker
+            try:
+                await self._ws.close()
+            finally:
+                self._release("aborted")  # neutral for the breaker
 
     async def _send(self, frame: bytes) -> None:
         async with asyncio.timeout(SEND_TIMEOUT):
@@ -330,14 +339,18 @@ def volc_stream_factory(
         except Exception as e:  # noqa: BLE001
             failure = AsrStreamError("protocol", f"unexpected {type(e).__name__}")
         except BaseException:  # cancelled while starting: release everything, then propagate
-            if ws is not None:
-                await ws.close()
-            gate.leave("aborted")
+            try:
+                if ws is not None:
+                    await ws.close()
+            finally:  # even if cancelled again during the close
+                gate.leave("aborted")
             raise
         if failure is not None:
-            if ws is not None:
-                await ws.close()
-            gate.leave(failure.kind)
+            try:
+                if ws is not None:
+                    await ws.close()
+            finally:  # a cancellation during the close must not leak the shared slot
+                gate.leave(failure.kind)
             logger.warning(
                 "asr realtime start failed kind=%s detail=%s ms=%d connect_id=%s logid=%s",
                 failure.kind, failure.detail, round((time.perf_counter() - started) * 1000), connect_id, logid,
