@@ -57,7 +57,7 @@ export function ProgressPage() {
           {STATS_PERIODS.map((p) => (
             <button key={p} type="button" data-testid={`progress-days-${p}`} aria-pressed={p === days} onClick={() => setDays(p)}
               className={cn(
-                "hit-expand relative h-8 flex-1 rounded-[8px] text-sub transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "hit-expand relative h-8 flex-1 rounded-[8px] text-[13px] transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 p === days ? "border-[0.5px] border-hair-2 bg-seg-on font-semibold text-ink shadow-seg" : "font-medium text-ink-2",
               )}>
               {t("web.progress.days", { value: p })}

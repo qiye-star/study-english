@@ -9,7 +9,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { validateCredentials } from "~/auth/validation";
 
-const LABEL = "text-sub font-medium text-ink-2";
+const LABEL = "text-[13px] font-medium text-ink-2"; // 经 cn 合并:用任意值字号,避免与颜色类冲突
 /** 48px 输入框:surface-2 底、无边框,聚焦时蓝色描边;16px 字号避免 iOS 聚焦缩放 */
 const FIELD = "h-12 rounded-button border-0 bg-surface-2 px-3.5 text-base text-ink shadow-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-0";
 
@@ -82,7 +82,7 @@ export function LoginPage() {
           {error && (
             <p role="alert" data-testid="login-error" className="text-sub text-destructive">{error}</p>
           )}
-          <Button type="submit" data-testid="login-submit" className="!mt-6 h-12 w-full rounded-button text-body font-semibold" disabled={busy}>
+          <Button type="submit" data-testid="login-submit" className="!mt-6 h-12 w-full rounded-button text-[15px] font-semibold" disabled={busy}>
             {mode === "login" ? t("web.login.submit") : t("web.login.registerSubmit")}
           </Button>
         </form>

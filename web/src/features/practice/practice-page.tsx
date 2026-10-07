@@ -24,7 +24,7 @@ import { PRACTICE_SERVER_ERRORS, assessPronunciation } from "./assessment-api";
 
 const isString = (v: unknown): v is string => typeof v === "string";
 
-/** 跟读卡里的两个 48px 按钮(先听范读 / 开始录音) */
+/** 跟读卡里的两个 48px 按钮(先听范读 / 开始录音)。用模板字符串拼颜色:cn 会把 text-body 当颜色类与 text-ink 合并掉 */
 const BUTTON = cn(
   "inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-button px-4 text-body font-semibold tracking-[-0.005em]",
   "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -176,7 +176,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
           <SurfaceCard className="p-3.5">
             <label htmlFor="reference" className="eyebrow">{t("web.practice.referenceLabel")}</label>
             <Textarea id="reference" data-testid="reference-input" rows={4} maxLength={2000}
-              className="mt-1.5 min-h-[96px] resize-none rounded-button border-0 bg-surface-2 px-3 py-2.5 text-title font-medium leading-dialogue tracking-[-0.01em] text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0"
+              className="mt-1.5 min-h-[96px] resize-none rounded-button border-0 bg-surface-2 px-3 py-2.5 text-[17px] font-medium leading-dialogue tracking-[-0.01em] text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0"
               placeholder={t("web.practice.referencePlaceholder")} value={reference} disabled={recording || busy}
               onChange={(e) => setReference(e.target.value)} />
             {!reference.trim() && <p className="mt-2 text-meta text-ink-2">{t("web.practice.referenceHint")}</p>}
@@ -190,7 +190,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
               </div>
               <div className="mt-3.5 flex gap-2">
                 <button type="button" data-testid="practice-listen" data-state={listenState}
-                  className={cn(BUTTON, "border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2")}
+                  className={`${BUTTON} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2`}
                   disabled={!reference.trim() || !ai?.defaultTts.model || recorder.state !== "idle" || busy}
                   onClick={() => void tts.play("reference", reference, ai!.defaultTts.model, ai!.defaultTts.voice)}>
                   {listenState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
@@ -199,7 +199,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
                 </button>
                 <button type="button" data-testid="record-toggle" onClick={toggle} disabled={!canRecord}
                   aria-label={recording ? t("web.recorder.stop") : t("web.recorder.start")}
-                  className={cn(BUTTON, "bg-blue text-on-blue active:bg-blue/90")}>
+                  className={`${BUTTON} bg-blue text-on-blue active:bg-blue/90`}>
                   {busy ? <LoaderIcon aria-hidden className="animate-spin" /> : recording ? <SquareIcon aria-hidden className="fill-current" /> : <MicIcon aria-hidden />}
                   <span aria-hidden>{busy ? t("web.practice.assessing") : recording ? t("web.recorder.stop") : t("web.recorder.start")}</span>
                 </button>

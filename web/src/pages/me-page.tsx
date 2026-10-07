@@ -140,7 +140,8 @@ export function MePage() {
       <PageHeader title={t("web.me.title")} />
       <div className="px-gutter pb-6">
         <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
-          <Avatar name={user?.name ?? ""} size="md" tone="blue" />
+          {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
+          <Avatar name={user?.name ?? ""} size="md" tone="blue" className="text-blue [font-size:22px]" />
           <div className="min-w-0 flex-1">
             <p className="text-meta text-ink-2">{t("web.me.username")}</p>
             <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>

@@ -70,7 +70,7 @@ export function HistoryPage() {
                 <li key={a.id}>
                   <Link to={`/practice/assessments/${a.id}`} data-testid="assessment-item"
                     className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                    <span className={cn("num w-10 flex-none text-center text-headline font-semibold tracking-tightest", scored ? scoreToneClass(score) : "text-ink-2")}>
+                    <span className={`num w-10 flex-none text-center text-headline font-semibold tracking-tightest ${scored ? scoreToneClass(score) : "text-ink-2"}`}>
                       {scored ? Math.round(score) : "—"}
                     </span>
                     <span className="min-w-0 flex-1">

@@ -103,7 +103,7 @@ export function AssessmentPage() {
                 currentTime={currentTime} src={audioUrl ?? undefined} />
             </div>
           </SurfaceCard>
-          <Button data-testid="assessment-again" className="!mt-4 h-12 w-full rounded-button text-body font-semibold"
+          <Button data-testid="assessment-again" className="!mt-4 h-12 w-full rounded-button text-[15px] font-semibold"
             onClick={() => navigate("/practice", { state: { reference: detail.referenceText } })}>
             <RotateCcwIcon className="mr-2 h-5 w-5" />{t("web.practice.result.again")}
           </Button>
