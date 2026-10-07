@@ -10,7 +10,7 @@
       "week": "近 7 天的练习情况", "weekDay": "{{day}}:{{state}}", "active": "已练习", "inactive": "未练习",
       "today": "今天"
     },
-    "login": { "tagline": "每天开口说英语。", "modeLogin": "登录", "modeRegister": "注册" },
+    "login": { "tagline": "每天开口说英语。" },
     "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
   }
 }

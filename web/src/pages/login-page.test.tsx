@@ -77,7 +77,7 @@ describe("LoginPage", () => {
 
   it("inputs are at least 44px tall and use 16px text", () => {
     setup({});
-    expect(screen.getByTestId("login-username").className).toMatch(/\bh-11\b/);
+    expect(screen.getByTestId("login-username").className).toMatch(/\bh-(11|12)\b/);
     expect(screen.getByTestId("login-username").className).toMatch(/\btext-base\b/);
   });
 });

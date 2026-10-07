@@ -10,7 +10,7 @@
       "week": "Activity in the last 7 days", "weekDay": "{{day}}: {{state}}", "active": "practiced", "inactive": "no practice",
       "today": "today"
     },
-    "login": { "tagline": "Speak English every day.", "modeLogin": "Log in", "modeRegister": "Register" },
+    "login": { "tagline": "Speak English every day." },
     "install": { "lede": "Open Enjoy like an app, full screen and one tap away." }
   }
 }
