@@ -19,7 +19,9 @@ export type GateEvent = { type: "speech-start" } | { type: "speech-end"; duratio
 /**
  * 一帧算"说话"当且仅当 概率 ≥ 阈值 且 能量 ≥ minDbfs(R10 双条件,开始与结束都要满足)。
  * 概率有滞回:等待开始时阈值是 startProb,说话中降到 endProb;能量门限不变。
- * - 等待中:必须连续 ≥ minSpeechMs 的"说话"帧才开始;任何一帧不满足就从头计(弱回声里偶尔的响帧凑不够)。
+ * - 等待中:漏桶计数(review F3-I1)。"说话"帧 +1 帧,不满足的帧 −1 帧(不低于 0),累计 ≥ minSpeechMs 才开始。
+ *   连读里每 2–3 个音节就有一帧闭塞/清辅音低于门限,清零规则会让插话起不来、首词被裁掉;
+ *   而一帧坏帧仍要付两帧的代价,弱回声/远处人声里偶尔的响帧(≤ 25%)凑不够。
  * - 说话中:不满足的帧(概率低或能量低,例如远处的人声)都算静音,累计 ≥ redemptionMs 结束。
  * speech-end 的 durationMs = 从开始到最后一个"说话"帧(含中间的短停顿,不含结尾静音)。
  */
@@ -52,7 +54,7 @@ export class SpeechGate {
     const speaking = this.state === "speaking";
     const isSpeech = prob >= (speaking ? p.endProb : p.startProb) && level >= p.minDbfs;
     if (!speaking) {
-      this.candidateMs = isSpeech ? this.candidateMs + this.frameMs : 0;
+      this.candidateMs = isSpeech ? this.candidateMs + this.frameMs : Math.max(0, this.candidateMs - this.frameMs);
       if (this.candidateMs < p.minSpeechMs) return [];
       this.state = "speaking";
       this.speechMs = this.candidateMs;
