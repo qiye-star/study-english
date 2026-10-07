@@ -35,6 +35,39 @@
 - **进度页** `/progress`(`GET /api/stats`,带本机时区偏移)与**词汇本** `/vocabulary`(`/api/vocabulary`,盒子法 1/2/4/7/15/30 天);查词抽屉、复盘、进度页都能"加入词汇本"。
 - 场景提示词的人工抽查:`docs/superpowers/plans/2026-10-05-scenario-prompt-check.md`。
 
+## 语音提速、按住说话与实时通话(计划 2026-10-07)
+
+> **验证状态**:下面描述的是代码行为。单元测试用的是假设备、假 AudioContext、假上游;真机(iOS Safari、安卓 Chrome)、Docker 里的 Playwright 运行、嘈杂环境效果**都未验证**,清单见 `docs/superpowers/plans/e2e-results.md`(真机第 23–32 项)。延迟数字只引用 `docs/superpowers/plans/2026-10-07-voice-latency.md`。
+
+- **按住说话**(`src/features/chat/hold-to-talk-button.tsx`、`use-hold-to-talk.ts`,手势逻辑是纯 reducer `hold-to-talk.ts`):
+  - 按下即开始申请麦克风(iOS 要求在手势里调用 `getUserMedia`),松手发送;60 s 上限(`VOICE_MAX_MS`)自动发送。
+  - 距按下 < 300 ms 的松手视为误触,丢弃并提示"按住说话";麦克风还没就绪(权限弹窗期间)就松手,丢弃并提示"麦克风已准备好,请按住说话",迟到的麦克风会被释放。
+  - 手指上移 80 px 进入"落点"模式(回到 40 px 内退出,有滞回):视口左半 = 取消,右半 = 转文字(转写后**填入输入框,不发送**,已有文字时追加)。`pointercancel` / `lostpointercapture` / 页面隐藏(含系统手势打断)一律丢弃,不发送。
+  - **键盘后备**:按钮获得焦点后 `Space` / `Enter` 第一次开始、第二次发送,`Escape` 取消;录音期间有可见的"麦克风在用"指示与 `role="status"` 播报。
+  - 录音中不允许其他播放(`claimAudio`);按下时先停止朗读。录音期间页面切后台 = 丢弃本次(不再保留草稿)。
+- **PCM 采集**(`src/audio/capture.ts`、`pcm.ts`、`pcm-recording.ts`、`pcm-capture.worklet.js`):
+  - 优先 AudioWorklet 直采,降采样到 16 kHz 单声道 16 位 WAV(带 Kaiser 窗 FIR 低通,截止 7.2 kHz,不用盒式平均,以免混叠影响发音评分);AudioWorklet 加载失败或超时(3 s)、或上下文运行但 500 ms 没有帧,退到 `ScriptProcessorNode`;没有 `AudioContext`、或页面级 `AudioContext` 还没被点击解锁(iOS)、或 PCM 启动失败(权限拒绝/麦克风被占用/非安全上下文除外),退到旧的 MediaRecorder 路径(`recorder.ts`)。
+  - 页面只有一个 `AudioContext`,在第一次 `click`/`touchend` 时解锁(`installAudioUnlock`,`main.tsx` 里装一次),被系统打断后下一次点击会重新解锁。
+  - 停止即出结果,同步取走样本、释放麦克风;裁掉首尾静音(保留 200 ms 边距);近讲能量门限(−38 dBFS、连续 ≥ 250 ms)判定没有前景语音时**不上传**,直接提示"没听清"。这只能**降低**旁人声音的影响,不能排除;嘈杂环境效果未验证,16 kHz 采集对发音评分的影响也未验证。
+  - worklet 文件在构建产物 `/assets/` 下(`vite.config.ts` 的 `assetsInlineLimit` 排除 `*.worklet.js`,否则会被内联成 `data:` URL),由既有 service worker 缓存。
+- **按句朗读**(`use-tts-player.ts` 的 `TtsQueue`/`playQueue`、`use-auto-speak.ts` 的 `progress`):回复流到第一句结束就开始合成并播放,后面的句子排队,最多预取 2 句;每句一次 TTS 调用(**自动朗读的调用数从每条回复一次变为每句一次**),缓存键是句子文本。回复短到流式期间没有完整句子则回退到整条朗读。切句规则与服务端共用 `server/tests/fixtures/sentence_cases.json`(网页端 `sentence-stream.ts` 读取同一个文件做一致性测试,长度按 Unicode 码点计)。句间复用页面既有的 `<audio>`,两句之间可能有数十毫秒间隙(真机听感未验证)。
+- **延迟打点**(`src/lib/latency.ts`):只记时间,不记文本。每一轮语音/文字对话产生一条记录,最近 50 条保存在 `window.__enjoyLatency`(数组,每项含 `kind`、`status`、`marks`、`spans`)。读法:
+  - 控制台输入 `localStorage.setItem("enjoy-web.debug.latency", "1")` 后刷新,每轮结束会打印一行 `[latency] {...}`;不开也可以直接在控制台看 `window.__enjoyLatency`。
+  - 标记:`release`(松手/点停止)→ `audio_ready` → `transcript` → `reply_first_delta` → `reply_done` → `tts_request` → `first_audio`。`spans`:`transcriptMs`(松手 → 转写出现)、`replyMs`、`firstAudioAfterReplyMs`(回复完成 → 开始出声)、`firstAudioAfterReleaseMs`(松手 → 开始出声)。
+  - **按句朗读时 `first_audio` 通常早于 `reply_done`,所以 `firstAudioAfterReplyMs` 可能缺失或为负,比较前后请用 `firstAudioAfterReleaseMs`**。`status: "aborted"` 的记录(出错、取消、被新一轮取代、120 s 超时)不要拿来算中位数。
+- **实时通话**(服务端 `REALTIME_ENABLED=true` 且浏览器有 `AudioContext` 时,会话页顶栏出现"通话"按钮;代码在 `src/features/realtime/`):
+  - 点击的同步阶段先解锁页面 `AudioContext`(`prepareCallAudio`),然后依次:请求一次性票据 → 申请麦克风 → 加载 VAD → 连接 WebSocket `/api/realtime?ticket=…`。**麦克风申请不在点击的同步阶段**,iOS 上是否允许未验证。
+  - 浏览器端 Silero VAD(`@ricky0123/vad-web` 0.0.31 + `onnxruntime-web`)断句,检测到说话才上传 16 kHz PCM;机器人说话期间 VAD 门限提高(概率 ≥ 0.8、能量 ≥ −30 dBFS、最短 400 ms)以防回声误打断,播放结束后恢复;外放回声保护强度未验证。
+  - 服务端识别 + LLM + 逐句 TTS,下行 24 kHz PCM 经 WebAudio 排队播放;打断(barge-in)时立即停播并发 `interrupt`,丢弃旧轮次的迟到音频。
+  - VAD 加载失败时自动切到"按住说话"模式并提示(还有"点一下开始/再点结束"的备用开关)。每一条结束路径(挂断、服务端关闭、麦克风丢失、页面切后台、卸载)都释放麦克风与自己创建的 `AudioContext`,页面级共享上下文不被关闭;这些由 `realtime-call.test.ts` 等单测断言(假设备)。
+  - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。通话结束后重新拉取消息列表,复盘/进度/词汇本可直接用。
+  - 开发服务器的 `/api` 代理已开启 `ws: true`;生产环境需要反向代理转发 WebSocket,见 `server/README.md`。
+- **VAD 资源自托管**(不访问任何 CDN):`scripts/copy-vad-assets.mjs` 在 `yarn dev` / `yarn build` 之前把 4 个文件从 `node_modules`(`@ricky0123/vad-web/dist` 的 `silero_vad_v5.onnx`、`vad.worklet.bundle.min.js`,`onnxruntime-web/dist` 的 `ort-wasm-simd-threaded.wasm`、`.mjs`)复制到 `public/vad/<vad-web 版本>/`(目前 `0.0.31`,依赖是精确锁版本;该目录被 git 忽略,构建产物 `dist/vad/` 里有)。运行时从同源 `/vad/<版本>/` 加载,`sw.js` 按 `/assets/` 同样的规则缓存。首次使用约 16.6 MB(wasm 14.2 MB + 模型 2.3 MB),蜂窝网络下的加载时间**未验证**。脚本发现文件数不是 4 会报错;升级这两个依赖后要重新核对文件名。
+- **测延迟**:
+  - 服务端层:本机起 uvicorn(被测进程带 `UPSTREAM_ASR_MODE=chat` 作基线口径,临时 SQLite),`cd server && uv run python scripts/measure_latency.py --base-url http://127.0.0.1:8765 --label after --samples ../.superpowers/latency --runs 7 --out ../.superpowers/latency/after.json`。样本先用 `server/scripts/latency_samples.py` 生成到 `.superpowers/latency/`(不提交)。
+  - 浏览器层:先按下面「E2E」起 E2E 栈,然后(chromium-mobile,假麦克风文件):`E2E_LATENCY=1 E2E_FAKE_AUDIO=<repo>/.superpowers/latency/s5.wav E2E_HOLD_MS=5000 yarn playwright test e2e/latency.spec.ts --project=chromium-mobile`(s15 换成 `s15.wav` 与 `E2E_HOLD_MS=15000`;`E2E_LATENCY_RUNS` 默认 5);输出里的 `LATENCY_RESULTS {...}` 一行就是各轮 `spans`(第一轮热身已剔除)。要真实上游(识别、LLM、TTS),会产生费用。
+  - 方法(N、中位数、同日同机)、基线与结果表都在 `docs/superpowers/plans/2026-10-07-voice-latency.md`;`latency.spec.ts` 与 `hold-to-talk.spec.ts`(Playwright 触摸)**写好后没有在 Docker 栈上运行过**(本环境没有 Docker),第一次运行可能要调整触摸合成与选择器。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

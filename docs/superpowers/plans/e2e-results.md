@@ -12,6 +12,16 @@
 5. **语音消息的语法检查未经验证(风险)**:`GRAMMAR_FOR_VOICE`(`web/src/features/chat/turn-results.ts`)为 `true`。转写引擎可能悄悄纠正语法,导致语音消息显示误导性的"没有语法问题";该风险尚未用真实转写验证(依赖第 3 项)。如评测证实,将该常量改为 `false` 即可关闭(一行改动,并同步 `turn-results.test.ts` 中对其取值的断言)。
 6. **自动朗读在 iOS 上的手势解锁未经真机验证**:Playwright 的 Chromium 带自动播放参数,WebKit 结果见「对话页增强 Playwright 端到端」一节(该节记录:TTS 被上游 403 拒绝,WebKit 下自动朗读是 playing 还是被拦截的结果**未记录**);iPhone 上首次发送后是否自动出声、被拦截时"点此朗读"是否出现且可用,按真机清单第 17–22 项验证。
 
+7. **语音提速与实时通话的真实上游验收**(计划 2026-10-07):延迟基线/对比、流式识别、实时通话端到端依赖火山 TTS 与方舟识别恢复;状态见 [2026-10-07-voice-spike-results.md](2026-10-07-voice-spike-results.md) 与 [2026-10-07-voice-latency.md](2026-10-07-voice-latency.md)。截至本节写入(2026-10-07,代码基线 `43557d07`)实际发生过的事:
+   - 上游当日已恢复,spike(Task 0.3–0.5)用真实上游跑过:识别参数与 `<none>`、按真实节奏推流的 `bigmodel_async`、TTS 分块与 PCM 格式,以及**服务端层**基线(识别 s5/s15、TTS 整段/首句);数字与环境只以延迟文档、spike 结论为准,此处不重复。
+   - **没有完成**:浏览器层基线(需要 Docker Desktop,当时未运行);"之后"对比(Task 5.1,浏览器层同样需要 Docker),**是否达到"转写 ≤ 基线 50%、回复完成 → 出声 ≤ 基线 40%"以延迟文档为准,本文不下结论**;spike 结论 §7.2 已预告:两句短回复在服务端层首块/整段约 47–56%,达不到 40%,不得因此修改目标。
+   - **没有完成**:实时通话对真实上游的端到端冒烟(Task 5.2)。服务端的通话路径只用假上游、Starlette TestClient 和进程内的真实 uvicorn(仅验证票据日志脱敏)测过;`REALTIME_ASR_MODE=stream` 的适配器只对着本地假 `bigmodel_async` 服务测过,真实上游只验证了推流协议(spike)。若 Task 5.2 之后有结果,以它的记录为准并回写此处。
+   - 仍未验证的上游相关项:LLM 流在没有 `[DONE]`/`finish_reason` 时按"截断"处理(真实 DeepSeek 流是否总带其一未核对);通话评测(讯飞)与录音落盘在通话里的真实表现;`bigmodel_async` 的最长连接时长、空闲超时、超过 2 路并发(通话 5 路 + 上传识别 3 路)、非连续音频;TTS 24 kHz 的听感核对(未排除 22050)。
+8. **语音提速、按住说话与实时通话的真机验收**:iPhone(Safari)与安卓(Chrome)按下方清单第 23–32 项逐项验证,全部为"未验证"(需要设备与 HTTPS 地址)。其中依赖真机才能回答的关键问题:iOS 上 AudioWorklet/页面级 `AudioContext` 点击解锁后是否保持 `running`、`getUserMedia` 不在点击同步阶段时通话能否开麦、外放回声、系统手势是否触发 `pointercancel`。
+9. **流式通话识别的准确度**:spike 里 `bigmodel_async` 9/9 次丢了 "ask not" 的 "ask"(chat 模式同一段正确);通话转写是发音评测的参考文本,错词会影响评分。默认 `REALTIME_ASR_MODE=buffered`;打开 `stream` 前需用真实麦克风核对(含中文/中英混说、噪声)。
+10. **Docker 与 Playwright 相关门槛未运行**(本环境没有 Docker):镜像构建(含 `--ws-max-size 65536` 与新依赖/VAD 资源复制)、Postgres 套件、`hold-to-talk.spec.ts`(4 个用例,只 chromium-mobile,CDP 触摸合成)与 `latency.spec.ts` 的真实运行,以及改过的 `chat.spec.ts` 语音消息用例(仍需 `E2E_REAL_STT=1`)。这些规格文件写好并通过 `playwright test --list` 和类型检查,**从未运行过**,第一次运行可能要调整触摸合成、选择器与滑动坐标。
+11. **生产反向代理(1Panel/OpenResty)转发 WebSocket**:需要你在面板里开启 WebSocket 支持并把读超时调到 ≥ `REALTIME_MAX_MINUTES`(默认 10 分钟,至少 660 s);未验证,见 `server/README.md`「实时通话的部署注意」与真机清单第 32 项。同时注意票据在 URL 里,代理访问日志会记录它(应用日志已脱敏)。
+
 状态:**尚未执行。** 本清单需要在能运行 Electron 应用、并配好真实上游(LLM / TTS / Whisper / Azure Speech)的机器上手动完成。
 自动化 Agent 所在环境没有原生模块的构建工具链(`sqlite3` 等构建失败),也没有真实密钥,因此无法执行。
 
@@ -137,6 +147,37 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 - WebKit 上的录音(Playwright WebKit 无 MediaRecorder)。
 
 
+## 语音提速、按住说话与实时通话:各功能验证状态(计划 2026-10-07)
+
+日期:2026-10-07;代码基线 `43557d07`(`feat/self-hosted-backend`,各条线已合并)。控制器在主工作区的最近一次记录:`server` pytest 1855 通过,`web` vitest 1600 通过,typecheck 与 build 通过。这些数字是单元/集成测试,不等于下表里"真实上游"或"真机"的结论。
+
+状态说明:
+- **unit-tested (fakes)**:只用假设备、假 `AudioContext`/`WebSocket`/VAD、jsdom 或假上游测过。
+- **server-integration tested with fakes**:服务端用 Starlette TestClient 或本地假上游服务测过,没有连真实上游。
+- **real-upstream verified**:用真实上游跑过(仅限 spike/基线,见延迟文档与 spike 结论)。
+- **UNVERIFIED**:没有验证(缺设备、Docker、HTTPS 地址或尚未运行)。
+
+| 功能 | 状态 | 证据与没有验证的部分 |
+|---|---|---|
+| 延迟打点 `window.__enjoyLatency` | unit-tested (fakes) | `latency.test.ts` 与各使用点的测试;浏览器层真实数字 UNVERIFIED(需要 Docker + 真实上游,见延迟文档) |
+| 识别提速:`STT_MAX_TOKENS`、`STT_DISABLE_THINKING`、`<none>` 无前景语音 | real-upstream verified;server-integration tested with fakes | spike:`doubao-seed-2-0-lite-260428` 接受 `thinking: disabled`,静音/白噪声输出 `<none>`(样本很少,次数见 spike §1);服务端测试用假上游。**UNVERIFIED**:开着推理时的 `<none>`、真实嘈杂环境/真人背景对话、其他模型 |
+| `POST /api/ai/audio/speech` 的 `stream=true`(火山分块透传) | server-integration tested with fakes;real-upstream verified(分块节奏,直连火山) | 分块大小/间隔由 spike 直连火山测得;经本应用端点的首块延迟("之后"数字)以延迟文档为准(Task 5.1,未在此记录);客户端提前断开的清理只在生成器层面测过,没经真实 ASGI 断开;中文与其他音色的分块、中途断流的错误帧形态 UNVERIFIED |
+| 切句器(服务端 `sentence_split.py` / 网页 `sentence-stream.ts`) | unit-tested (fakes) | 共享 `sentence_cases.json` 一致性用例(整段、逐字符、随机分块)、随机文本属性;码点长度语义已对齐。无设备相关部分 |
+| 按句朗读(`TtsQueue`、`progress`、页面接线) | unit-tested (fakes) | hook 与页面测试含各中断路径(出错、切会话、卸载、关自动朗读、录音);iOS 句间间隙、点击解锁后的实际出声 UNVERIFIED(真机清单 23) |
+| PCM 采集、FIR 降采样、静音裁剪、近讲能量门限 | unit-tested (fakes) | 假 `AudioContext`、真实 worklet 源码跑在假作用域里;构建产物里 worklet 在 `/assets/` 且无 `data:` 内联。**UNVERIFIED**:iOS/Safari 的 AudioWorklet 与页面上下文解锁、Firefox 采样率不一致重试、真实麦克风音质、16 kHz 对发音评分的影响(清单 30)、嘈杂环境(清单 27) |
+| 语音消息"没有前景语音不上传"、"可能混入了他人声音"提示 | unit-tested (fakes) | 合成信号与阈值测试;真实语音(尤其一两个词的短答)是否被误判为无语音 UNVERIFIED |
+| 按住说话(reducer、按钮、页面接线、键盘后备、上滑取消/转文字) | unit-tested (fakes) | jsdom(带补丁的 `PointerEvent`)测试,既有页面测试已改为 `holdMic`/`pressKey`。Playwright `hold-to-talk.spec.ts` 4 个用例写好但**从未运行**(无 Docker);真实触摸、iOS 首次麦克风权限、系统手势取消 UNVERIFIED(清单 23、24) |
+| 通话识别 `buffered`(整句上传识别) | server-integration tested with fakes | 经 `make_transcriber`(含 `volc_stream` 优先、chat/Whisper 回退、共享并发闸门与熔断);真实上游下的通话端到端 UNVERIFIED |
+| 通话识别 `stream`(`bigmodel_async`) | real-upstream verified(推流协议,spike);server-integration tested with fakes(适配器) | 适配器只对着本地假 `bigmodel_async` 测过;**UNVERIFIED**:准确度(spike 丢词,见 OPEN 第 9 项)、最长连接/空闲超时、并发 > 2、非连续音频、空的最后一包 |
+| 通话服务端(协议、状态机、`WS /api/realtime`、票据、并发登记、限额) | server-integration tested with fakes | 假识别/LLM/TTS + TestClient,含打断、背压、泄漏检查、各关闭码;票据日志脱敏用进程内真实 uvicorn 验证。**UNVERIFIED**:对真实上游的端到端(Task 5.2)、真实浏览器/反向代理下的 WebSocket、多 worker(不支持) |
+| 通话 LLM(`openai_llm_stream`)、TTS(`volc_tts_stream`)、评测(`XfyunAssessor`) | server-integration tested with fakes | respx/假连接;TTS 格式取自 spike(real-upstream verified:PCM16LE、无头、24 kHz 推断,听感核对 UNVERIFIED);LLM 无 `[DONE]` 的截断判定、讯飞评测在通话里的真实表现 UNVERIFIED |
+| 网页 VAD(Silero,自托管资源) | unit-tested (fakes) | 对照库的真实类型核对过 API,`yarn build` 会复制 4 个文件到 `dist/vad/<版本>/`;**UNVERIFIED**:浏览器里 ORT 1.30.0 + Silero v5 的真实推理、共享 `AudioContext`、iOS、蜂窝网络加载 16.6 MB 的时间(清单 31) |
+| 网页通话(状态机、`RealtimeCall`、对话框、页面入口、回放队列) | unit-tested (fakes) | 假 `WebSocket`/`AudioContext`/VAD/麦克风:各结束路径释放麦克风与上下文(有断言)、StrictMode 单连接、票据刷新、背景挂断、页面接线与复盘重载。**UNVERIFIED**:真机首次通话与首次出声延迟(清单 25)、外放回声与打断(清单 26)、电话/Siri 打断后恢复(清单 28)、切后台挂断(清单 29) |
+| Docker 镜像构建、Postgres 套件、E2E 栈 | UNVERIFIED | 本环境没有 Docker;`server/Dockerfile` 的 `--ws-max-size 65536` 只改了命令行,没有构建过 |
+| 反向代理(1Panel/OpenResty)转发 WebSocket | UNVERIFIED | 见 OPEN 第 11 项与清单 32 |
+| 浏览器层延迟基线与"之后"对比 | UNVERIFIED | 需要 Docker Desktop 与真实上游;服务端层基线已在延迟文档,"之后"以该文件为准 |
+
+
 ## 手机网页版真机验收(Task 6.2)
 
 状态:**未验证。这是需要人工设备的验收项(其余未决项见文首 OPEN ACCEPTANCE ITEMS)。** 真机验收需要一台 iPhone(Safari)、一台安卓(Chrome)和一个指向服务的 HTTPS 地址;自动化 Agent 所在环境既没有真机也没有 HTTPS 地址,因此下表所有格子均为「未验证」,没有任何一项被标为通过。上一节的 Playwright 结果只是引擎加设备模拟,不能替代真机。
@@ -184,6 +225,18 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 20 | 朗读播放中点顶栏语速(1× → 1.25× → 0.75×) | 立即变速且音高不变;语音气泡回放与跟读页"先听范读"同样按该语速 |
 | 21 | 点顶栏喇叭关闭自动朗读,再发一条 | 新回复不再朗读;刷新后开关仍为关 |
 | 22 | 词汇本复习卡片点"朗读" | 有声音(iOS 重点:首次点击即可播放) |
+| 23 | iPhone/安卓:对话页**按住**麦克风说一句,松手;再**轻点**一下麦克风(不按住);首次使用时在系统权限弹窗期间松手 | 按下即出现录音状态(iOS 重点:首次权限弹窗,且麦克风申请发生在手势里);松手即发送,转写出现明显快于以前(用秒表粗测并记录:____ s);轻点只出现"按住说话"提示;权限弹窗期间松手不发送、不残留录音;发送后回复第一句一结束就开始朗读(无需再点) |
+| 24 | 按住后上滑到左边"取消"松手;再试上滑到右边"转文字"松手;再试按住期间下拉通知中心/上滑回桌面/来电(系统手势) | 取消:不发送、无上传、麦克风指示熄灭;转文字:文字出现在输入框并聚焦,未发送;系统手势或来电:本次录音被丢弃、不发送、麦克风指示消失(浏览器是否触发 `pointercancel` 以实际为准) |
+| 25 | 顶栏点"通话"(服务端需 `REALTIME_ENABLED=true`),说一句话 | 接通并出现"聆听"状态;首次出声延迟(秒表):____ s;字幕滚动正常;首次通话时 VAD 资源加载与 `AudioContext` 是否可用(iOS 重点:麦克风申请不在点击同步阶段) |
+| 26 | 机器人说话时开口打断;再**外放**(不戴耳机)通话 1 分钟,不说话 | 打断:机器人立即停下并开始听你说,字幕标"已打断";外放:机器人不会被自己的声音打断(回声保护),记录误打断次数 |
+| 27 | 旁边有人说话的嘈杂环境下做按住说话与通话 | 记录误触发次数与识别混入他人声音的情况、"可能混入了他人声音"提示是否出现(只记录,不承诺;近讲模式只能降低,不能排除) |
+| 28 | 通话前后被电话/Siri/闹钟打断:来电或唤起 Siri 后回到页面,再按住说话、再开一次通话 | `AudioContext` 重新解锁成功:仍能录音、通话有声音;失败时有可读提示而不是静音卡死(通话中途的 `AudioContext` 被系统挂起目前只在开始时检查) |
+| 29 | 通话中切到后台或锁屏,再回来 | 通话已结束并提示"因切到后台已结束";麦克风指示消失;重新通话正常 |
+| 30 | 同一句话分别用按住说话(16 kHz PCM)与以往的录音方式/桌面端评测,比较发音评分并听录音回放 | 评分无系统性偏低;回放无明显失真/混叠;记录两种路径的分数差(降采样滤波对发音评分的影响未验证) |
+| 31 | 蜂窝网络(非 Wi-Fi)下首次点"通话"(清缓存),再点一次 | 首次加载 VAD 资源(约 16.6 MB)到可说话的时间:____ s;第二次(已缓存):____ s;加载失败或过慢时自动切到按住说话并提示 |
+| 32 | 通过生产反向代理(1Panel/OpenResty,HTTPS)通话至少 1 分钟,必要时放到最长时长 | 接通后不以 1006 断开,通话中没有被代理超时切断;`REALTIME_MAX_MINUTES` 到点以"超过最长时长"结束;若断开,检查代理是否转发 `Upgrade`/`Connection` 头与读超时(≥ 660 s) |
+
+第 23–32 项由计划 2026-10-07(语音提速、按住说话与实时通话)追加。第 32 项还需要一个真实的反向代理与 HTTPS 地址;第 23、25、31 项要用秒表记录数字,请把数字填进下方备注。
 
 | # | iPhone(型号、iOS 版本:未填) | 安卓(型号、Chrome 版本:未填) | 备注 |
 |---|---|---|---|
@@ -209,3 +262,13 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 20 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 21 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 22 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 23 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 24 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 25 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 26 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 27 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 28 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 29 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 30 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 31 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+| 32 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |

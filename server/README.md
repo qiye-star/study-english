@@ -12,10 +12,11 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
                                 ├ /api/ai/grammar               语法检查(登录 + 用户限流;请求 {text, context?};提示词与模型由服务端决定)
                                 ├ /api/me/grammar-prompt        GET/PUT/DELETE 当前用户的语法检查规则(≤ 2000 字符;空串或 DELETE 恢复默认;返回 prompt、default_prompt、max_length)
-                                ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS
+                                ├ /api/ai/audio/speech          ──▶ openai/* → 上游 TTS;azure/speech → Azure TTS;volcengine/* → 豆包语音 TTS(火山模型可加 `stream=true` 分块透传)
                                 ├ /api/ai/audio/transcriptions  ──▶ 上游 Whisper(multipart 透传)
                                 ├ /api/speech/tokens            ──▶ Azure issueToken(服务端缓存 8 分钟)
                                 ├ /api/speech/assessments       ──▶ 讯飞 ISE 发音评测(multipart 上传 WAV;`save=true` 时保存录音与记录)
+                                ├ /api/realtime/config, /api/realtime/ticket, WS /api/realtime   实时语音通话(默认关,见「语音提速与实时通话」)
                                 ├ /api/conversations[/{id}[/messages]], /api/messages/{id}   网页版对话(持久化)
                                 ├ /api/assessments[/{id}[/audio]]       网页版评测记录与录音回放
                                 ├ /api/practice-items[/{id}]            练习清单(GET/POST/DELETE;相同文本去重)
@@ -142,9 +143,119 @@ VOLCENGINE_ASR_KEY=
 - 流式识别失败(鉴权、额度、超时、协议错误、空结果、意外异常)时记录失败类别、`connect_id` 与上游 `logid`,并**自动回退**到 `UPSTREAM_WHISPER_MODE` 的路径。同一进程连续 3 次鉴权或额度失败后,60 秒内不再尝试流式,直接回退;并发已满的请求也直接回退。
 - 未配置回退时:不适合流式的请求(mp3、非 16 kHz 等)返回 503 `Whisper upstream is not configured`;流式失败返回 502(鉴权失败为 `Upstream authentication failed`,其余为 `Upstream unavailable`),缺少密钥返回 503。
 - 成功时返回 `{"text": "...", "segments": []}`(与 `chat` 模式相同,无时间戳);`language` 参数被忽略(模型自动识别中英文)。
-- 日志只记录耗时、音频秒数和失败类别(`asr volc_stream ok ms=... audio_s=...`),不记录文本与密钥。
+- 日志只记录耗时、音频秒数和失败类别(成功时一行 `timing event=stt_volc_stream ...`,见「语音提速与实时通话」的耗时日志;失败时 `asr volc_stream failed ...`),不记录文本与密钥。
 
 **语法检查模型**:默认用 `DEFAULT_LLM_MODEL` 和 LLM 上游(需支持 JSON 模式)。可用 `GRAMMAR_MODEL` 换模型,或用 `UPSTREAM_GRAMMAR_BASE_URL` / `UPSTREAM_GRAMMAR_KEY` 换到另一家 OpenAI 兼容服务。提示词由两部分组成:可替换的"检查规则"(内置默认 → `GRAMMAR_PROMPT` → `GRAMMAR_PROMPT_FILE`,文件优先;每个用户还可以在网页「我的」页改自己的规则并一键恢复默认)+ 服务端固定追加的输出格式要求(JSON 结构、类别、`original` 必须出自原文、最多 8 项)。模型输出会被严格校验,不合格返回 502,错误体不含上游内容。`GRAMMAR_PROMPT_FILE` 读不到或为空时服务拒绝启动。这些设置都不会通过 `/api/config` 暴露。
+
+## 语音提速与实时通话(计划 2026-10-07)
+
+> **验证状态**:本节描述行为与配置。哪些环节只用假上游/假设备测过、哪些用真实上游测过、哪些完全未验证,逐项记录在 `docs/superpowers/plans/e2e-results.md` 的「语音提速、按住说话与实时通话」一节;凡文中标"未验证"的,不要当作已通过。延迟数字只引用 `docs/superpowers/plans/2026-10-07-voice-latency.md`,本文不写性能数字。
+
+### 新增配置项
+
+默认值与 `server/.env.example` 一致(密钥相关项见前文,此处不重复)。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `STT_MAX_TOKENS` | `512` | `chat` 模式识别(`UPSTREAM_WHISPER_MODE=chat`,含 `volc_stream` 失败后的回退)的输出长度上限,只作异常输出封顶 |
+| `STT_DISABLE_THINKING` | `true` | 向方舟识别请求加 `thinking: {"type": "disabled"}`。2026-10-07 spike 中 `doubao-seed-2-0-lite-260428` 接受该参数;若你换了模型而上游返回 4xx,设为 `false` |
+| `UPSTREAM_ASR_MODE` | `chat` | 上传识别:`chat`(默认)或 `volc_stream`(火山流式识别,见上文);**语音消息(上传)始终走 `/api/ai/audio/transcriptions`**,通话识别另由 `REALTIME_ASR_MODE` 决定 |
+| `ASR_STREAM_URL` | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream` | 上传识别用的火山流式识别地址(`volc_stream` 模式) |
+| `ASR_STREAM_RESOURCE_ID` | `volc.bigasr.sauc.duration` | 同上,资源 ID(通话识别也用它) |
+| `ASR_STREAM_TIMEOUT_SECONDS` | `30` | 实际超时 = min(该值 + 音频秒数, 120) |
+| `ASR_STREAM_MAX_CONCURRENCY` | `3` | 每进程并发上限;**上传识别与实时通话共用同一个并发闸门与熔断**(连续 3 次鉴权/额度失败后 60 s 内不再尝试流式) |
+| `VOLCENGINE_ASR_KEY` | 空 | 留空则复用 `VOLCENGINE_TTS_KEY`(两种识别共用) |
+| `ASR_REALTIME_URL` | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async` | 通话流式识别地址(`REALTIME_ASR_MODE=stream`) |
+| `REALTIME_ASR_MODE` | `buffered` | 通话识别:`buffered`(客户端 VAD 断句,整句上传识别)或 `stream`(`bigmodel_async` 边说边识别,有 partial)。`stream` 但没有流式识别密钥时**实际生效的是 `buffered`**;`GET /api/realtime/config` 的 `asr_mode` 就是实际生效值 |
+| `REALTIME_ENABLED` | `false` | 实时通话总开关。**默认关;开启前确认火山 TTS、LLM、识别都可用** |
+| `REALTIME_MAX_MINUTES` | `10`(1–60) | 单次通话最长分钟数,到点以 `4009` 挂断 |
+| `REALTIME_IDLE_TIMEOUT_SECONDS` | `60`(10–600) | 连续这么久没有收到上行音频、且没有进行中的一轮,以 `4008` 挂断 |
+| `REALTIME_MAX_SESSIONS` | `5`(1–100) | 全局并发通话数;每用户并发固定为 1 |
+| `REALTIME_TICKET_TTL_SECONDS` | `60`(10–300) | 一次性票据有效期 |
+| `REALTIME_TTS_MODEL` | `volcengine/seed-tts-2.0` | 通话的逐句合成模型;必须是火山模型,且在 `TTS_MODELS` 里 |
+| `REALTIME_TTS_SAMPLE_RATE` | `24000` | 通话下行 PCM 采样率(请求火山 `pcm` 输出)。24000 由 spike 时长推算,**听感核对未做**,未排除 22050 |
+| `LOG_LEVEL` | `INFO` | `app.*` 日志级别。下面的耗时日志是 INFO 级,设为 `WARNING` 会看不到。该项不在 `.env.example` 里,需要时自己加 |
+
+`GET /api/realtime/config` 的 `enabled` 为真需要同时满足:`REALTIME_ENABLED=true`、已配置 `VOLCENGINE_TTS_KEY`、`REALTIME_TTS_MODEL` 在 `TTS_MODELS` 中、已配置 LLM 上游、至少一条识别路径可用(流式密钥,或 chat/Whisper 回退)。
+
+`REALTIME_ASR_MODE=stream` 的取舍:2026-10-07 的 spike(按真实节奏推流)连接 9/9 成功、最后一包到最终结果 68–92 ms,但 9/9 次都把 "ask not" 识别成 "Not."(丢了 "ask"),chat 模式同一段是对的。通话转写会作为发音评测的参考文本,错词会影响评分。所以默认保持 `buffered`,是否打开 `stream` 请先在真机上自己核对准确度(**未验证**:真机、中文/中英混说、噪声)。流式识别连不上时,该次通话自动退到 `buffered` 并给客户端发 `degraded`。
+
+识别提示词(chat 模式)要求"只转写最近、最清晰的说话人、忽略背景人声",没有清晰前景语音时只输出 `<none>`,服务端据此返回 `200 {"text": "", "segments": []}`;上游返回空串仍是 `502 Upstream unavailable`。这只能**降低**旁人声音的影响,不能排除;2026-10-07 spike 只用合成的双人声音验证过,真实嘈杂环境**未验证**。
+
+### 新接口
+
+**`POST /api/ai/audio/speech` 的 `stream=true`**:请求体新增可选 `stream`(默认 `false`,行为与以前逐字节相同)。模型是火山时,服务端先取到第一块音频再返回 `StreamingResponse`(`audio/mpeg`、`Cache-Control: no-store`、`X-Accel-Buffering: no`),因此第一块之前的错误仍是正常的 JSON 错误(502/503/400);第一块之后上游出错则截断响应并记日志(客户端会得到一段较短的音频)。模型不是火山时忽略 `stream`,整段返回。网页端的朗读**不依赖**它(`<audio>` 需要完整 blob),它的用途是通话的服务端内部与首块延迟测量。
+
+**`GET /api/realtime/config`**(需登录):`{enabled, max_minutes, idle_timeout_seconds, asr_mode, sample_rate_in: 16000, sample_rate_out}`。
+
+**`POST /api/realtime/ticket`**(需登录,按用户限流):请求 `{conversation_id}`,返回 `{ticket, expires_in}`。未开启返回 `503 Realtime is not enabled`;会话不属于该用户返回 404。票据一次性、进程内保存,每用户最多同时保留 5 张(再签发会挤掉最旧的)。
+
+**`WS /api/realtime?ticket=<ticket>`**(票据是认证方式,不带 Bearer 头)。协议(JSON 一律 snake_case,与 `web/src/features/realtime/protocol.ts` 逐字对应,服务端定义见 `app/realtime_protocol.py`):
+
+- 连接后 10 s 内必须发 `start`:`{type:"start", system_prompt(≤ 8000 字符), model, temperature(0–2), voice, language:"en", save_recordings}`;未知字段、类型不符、超长一律按协议错误处理。
+- 上行二进制 = 16 kHz 单声道 PCM16LE,单帧 ≤ 32000 字节且为偶数字节;上行 JSON:`utterance_end`、`interrupt`、`hangup`。
+- 下行 JSON:`ready {asr: "stream"|"buffered"}`、`state {state: "listening"|"thinking"|"speaking"}`、`transcript_partial`、`transcript_final {text, message_id}`、`reply_delta {turn_id, text}`、`reply_done {turn_id, message_id, interrupted}`、`assessment {message_id, status: "done"|"failed"|"quota", ...}`、`degraded {reason: "asr"}`、`error {code: "asr_failed"|"llm_failed"|"tts_failed"|"rate_limited"|"message_limit"}`。
+- 下行二进制 = 4 字节大端 `turn_id` + `sample_rate_out` 的 PCM16LE;客户端丢弃 `turn_id` 不是当前轮的块。
+- 服务端在 `transcript_final` 后立即保存用户消息(空转写不保存、不回复),回复结束保存助手消息;被打断时保存"已完整下发音频的句子"拼接 + `" …"`。LLM 上下文 = `start` 里的系统提示词 + 库里最近 20 条消息。发音评测在后台异步进行(讯飞,参考文本 = 转写),录音按既有规则保存并计入配额,超额下发 `assessment {status:"quota"}`,不阻断对话。
+
+关闭码:
+
+| 码 | 含义 |
+|---|---|
+| `1000` | 正常挂断(客户端 `hangup`,或发送失败/客户端消失后的清理) |
+| `4001` | 票据无效、过期或已用过 |
+| `4003` | 功能未开启(此时不消耗票据) |
+| `4004` | 会话不存在或不属于该用户 |
+| `4008` | 静音超时(`REALTIME_IDLE_TIMEOUT_SECONDS`) |
+| `4009` | 超过最长时长(`REALTIME_MAX_MINUTES`) |
+| `4013` | 会话消息已满(先下发 `error {code:"message_limit"}`) |
+| `4029` | 该用户已有通话进行中,或全局并发已满 |
+| `4400` | 协议错误(含 10 s 内没有合法 `start`、超长/奇数字节的音频帧) |
+| `4502` | 上游不可用(开始时没有任何可用的识别路径) |
+| `1011` | 服务端意外错误(不在原始协议表里;客户端显示通用错误文案) |
+
+每一轮用户话语在第一帧音频到达时消耗一次 `AI_RATE_LIMIT_PER_MINUTE` 额度(所以噪声触发的空话语也会消耗);超限时下发 `error {code:"rate_limited"}`,本轮不识别、不回复,**不断开**。同时识别中的话语最多 3 个,超出的话语被静默丢弃(协议没有"忙"错误码,客户端收不到提示)。
+
+### 耗时日志格式
+
+只记事件名与数字,**绝不记录用户文本、转写、回复、提示词或密钥**。一行 `timing event=<event> k=v ...`,键按字母序,值为整数、`true`/`false` 或 `[A-Za-z0-9_.-]{1,40}` 字符串(其他一律 `?`)。事件(`app/timing.py`):
+
+| event | 字段 | 说明 |
+|---|---|---|
+| `stt_chat` | `audio_bytes ms status` | chat 模式识别;`status` = 上游 HTTP 状态,`0` = 没有响应 |
+| `stt_volc_stream` | `audio_bytes ms status` | 火山流式识别(上传路径与缓冲式通话识别);`200` 成功,`0` 失败 |
+| `tts_volcengine` | `chars ms status stream` | 一次合成;`stream=true` 时 `ms` 是整个流结束的时间 |
+| `tts_volcengine_first_chunk` | `chars ms` | `stream=true` 时第一块音频到达 |
+| `realtime_call` | `close interrupts seconds turns` | 每次通话结束一行;`close` 是关闭码 |
+
+格式示例(数字是占位,不是测量结果):
+
+```
+timing event=stt_chat audio_bytes=160044 ms=1234 status=200
+timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
+```
+
+延迟的测量方法与结果见 `docs/superpowers/plans/2026-10-07-voice-latency.md`。
+
+### 实时通话的部署注意
+
+- **反向代理必须转发 WebSocket**:`/api/realtime` 需要 `Upgrade` / `Connection` 头,读超时不得小于 `REALTIME_MAX_MINUTES`(留余量:默认 10 分钟时 `proxy_read_timeout` 至少 `660s`)。Nginx 示例:
+
+  ```
+  location /api/realtime {
+      proxy_pass http://127.0.0.1:8000;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_read_timeout 660s;
+      proxy_send_timeout 660s;
+  }
+  ```
+
+  1Panel / OpenResty:在站点的反向代理里开启 WebSocket 支持并调长读超时。**未验证**:本项目没有在生产代理(1Panel / OpenResty)后面跑过 WebSocket,Caddy 的默认行为也未实测,需要你部署后自己确认(通话一接通就以 1006 断开,多半是代理没转发 Upgrade)。
+- **票据在 URL 里**:浏览器 WebSocket 不能带自定义头,票据放在查询串 `?ticket=` 中。票据 60 s、一次性,风险有限。服务端已在 uvicorn 的 `uvicorn`、`uvicorn.error`、`uvicorn.access` 日志上做了脱敏(`ticket=[redacted]`,用真实 uvicorn 验证过);**反向代理的访问日志、浏览器地址历史/开发者工具里仍可能看到它**,需要时在代理里对该路径关闭或脱敏查询串。若在意,后续可改为首条 WS 消息或子协议携带票据(需同时改服务端与网页端协议)。
+- **`--ws-max-size`**:uvicorn 默认接收的 WebSocket 消息上限是 16 MiB,应用层的 32000 字节上限(`4400`)是在整帧收下之后才校验。`server/Dockerfile` 已加 `--ws-max-size 65536`;本机直接运行时自己加上:`uv run uvicorn app.main:create_app --factory --ws-max-size 65536`。
+- **单 worker**:票据、通话并发登记、限流、识别并发闸门与熔断、评测落盘锁都在进程内,**不支持多 worker**(`--workers 1`)。多 worker 下票据可能签在 A、兑换在 B 而失败,并发上限也会各算各的。
 
 ## 成本保护
 
@@ -152,7 +263,10 @@ VOLCENGINE_ASR_KEY=
 - 语法检查 `POST /api/ai/grammar` 同样按用户限流;`text` ≤ 2000 字符(超出 413),`context` 只取最后 500 字符。一轮语音消息 = 转写 + 评测 + 回复 + 语法共 4 次上游调用,文字消息 = 回复 + 语法 2 次(网页端对少于 3 个英文单词或非英文的消息不查语法,并缓存同一文本的结果)。
 - 聊天请求的 `n` 最多 4;`max_tokens` / `max_completion_tokens` 超过 `LLM_MAX_TOKENS`(默认 4096)会被压到该值,请求未带则保持缺省。
 - 非 multipart 请求体超过 1 MiB 返回 413;转写与发音评测上传(multipart)上限 25 MiB。讯飞免费额度可能远低于用户限流上限。
-- 手机网页版对话的**自动朗读默认开启**:每条新回复(以及场景开场白)各调用一次 TTS;"不会说?"提示与复盘总结各调用一次 LLM(只在用户点击时)。按用户限流 `AI_RATE_LIMIT_PER_MINUTE` 同样覆盖 `/api/stats`。
+- 手机网页版对话的**自动朗读默认开启**:每条新回复(以及场景开场白)各调用一次 TTS(见下条:按句朗读后变为每句一次);"不会说?"提示与复盘总结各调用一次 LLM(只在用户点击时)。按用户限流 `AI_RATE_LIMIT_PER_MINUTE` 同样覆盖 `/api/stats`。
+- 按句朗读:网页端回复流到第一句结束就开始合成,最多预取 2 句,**自动朗读的 TTS 调用数从"每条回复一次"变为"每句一次"**(以句子文本为缓存键,相同句子不重复请求);手动点"朗读"仍按整条文本合成,多一次调用。
+- 实时通话:每一轮 = 识别 ×1 + LLM ×1(流式,`max_tokens` ≤ 600)+ 每句 TTS ×1 + 讯飞评测 ×1(异步,录音计入配额);每用户并发 1 路、全局 `REALTIME_MAX_SESSIONS` 路、单次最长 `REALTIME_MAX_MINUTES` 分钟、静音 `REALTIME_IDLE_TIMEOUT_SECONDS` 秒自动挂断;每一轮计入 `AI_RATE_LIMIT_PER_MINUTE`。`REALTIME_ASR_MODE=stream` 按连接时长计费,**单价未知**,所以默认关闭并设上限;通话录音一律保存,配额消耗比语音消息更快。
+- 语音消息识别:`STT_DISABLE_THINKING=true` 与 `STT_MAX_TOKENS` 减少方舟输出;`UPSTREAM_ASR_MODE=volc_stream` 改走火山流式识别(另有计费,单价未知)。客户端判定没有前景语音的录音不会上传,不产生识别调用。
 
 ## 必须使用 HTTPS
 
@@ -249,7 +363,9 @@ Docker 构建会在 Node 阶段运行 `yarn workspaces focus web` 与 `yarn work
 
 ## 已知限制
 
-- 仅支持单 worker(限流与 Azure token 缓存都在进程内)。
+- 仅支持单 worker(限流与 Azure token 缓存都在进程内;实时通话的票据、并发登记、识别闸门也在进程内,多 worker 不受支持)。
+- 实时通话:旁人声音只能降低、不能消除(近讲门限、VAD 双条件、识别提示词三层都只是缓解);流式通话识别(`REALTIME_ASR_MODE=stream`)默认关,spike 发现它会丢词(见上文),spike 结论见 `docs/superpowers/plans/2026-10-07-voice-spike-results.md`;生产反向代理的 WebSocket 转发未验证;票据在 URL 里(见「实时通话的部署注意」);服务端意外错误以 `1011` 关闭,不在原始关闭码表里。
+- 实时通话没有在真实 iOS/Android 设备、真实反向代理、真实 Docker 镜像上验证过,真机清单第 23–32 项见 `docs/superpowers/plans/e2e-results.md`。
 - 手机端使用官方网页版账号,与自建后端的账号不互通。
 - 桌面客户端在创建 segment 后仍会把片段音频上传到 `storage.enjoy.bot`(`enjoy/src/main/db/models/segment.ts`、`main/storage.ts`)。这是上游既有行为,不在本后端覆盖范围内。
 - 练习清单(`practice_items`)与词汇本(`vocabulary_items`)的去重在应用层完成,没有唯一索引:两个并发的相同 POST 可能各插一行(见 `server/app/routers/practice_items.py` 的 "Known race" 注释)。词汇本沿用同一取舍。
