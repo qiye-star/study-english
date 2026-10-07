@@ -521,3 +521,56 @@ describe("TurnResults (grammar)", () => {
     expect(calls("POST", "/api/ai/grammar")).toHaveLength(1);
   });
 });
+
+describe("TurnResults.checkSaved (a message the server already saved, e.g. a realtime call turn)", () => {
+  beforeEach(() => {
+    indexedDB.deleteDatabase("enjoy-web");
+    resetKvCacheForTests();
+    localStorage.clear();
+    vi.mocked(grammarApi.cachedGrammar).mockClear();
+  });
+
+  it("checks grammar with the context and resolves only after the PATCH onto that message", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const patch = gated(() => json({ id: "m1" }));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler, "PATCH /api/messages/m1": patch.handler });
+    let done = false;
+    const settled = results.checkSaved("c1", "m1", { text: TEXT, grammar: on("Does she like tea?") }).then(() => { done = true; });
+    await vi.waitFor(() => expect(calls("POST", "/api/ai/grammar")).toHaveLength(1));
+    expect(JSON.parse(calls("POST", "/api/ai/grammar")[0].body as string)).toEqual({ text: TEXT, context: "Does she like tea?" });
+    grammar.release();
+    await vi.waitFor(() => expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(done).toBe(false); // PATCH 还在途
+    patch.release();
+    await settled;
+    expect(JSON.parse(calls("PATCH", "/api/messages/m1")[0].body as string)).toEqual({ grammar: GRAMMAR });
+  });
+
+  it("resolves at once and requests nothing when grammar is off, the text is not English, or the key is known", async () => {
+    const { results, mock } = setup({ "POST /api/ai/grammar": () => json(GRAMMAR) });
+    await results.checkSaved("c1", "m1", { text: TEXT, grammar: { enabled: false, context: "" } });
+    await results.checkSaved("c2", "m1", { text: "我想喝咖啡", grammar: on() });
+    await results.checkSaved("c2", "m1", { text: TEXT, grammar: on() });
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  it("a failed check or PATCH still resolves (silently) and patches nothing on failure", async () => {
+    const { results, calls } = setup({ "POST /api/ai/grammar": () => json({ error: "boom" }, 500) });
+    await results.checkSaved("c1", "m1", { text: TEXT, grammar: on() });
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(0);
+    const second = setup({ "POST /api/ai/grammar": () => json(GRAMMAR), "PATCH /api/messages/m1": () => json({ error: "boom" }, 500) });
+    await expect(second.results.checkSaved("c1", "m1", { text: TEXT, grammar: on() })).resolves.toBeUndefined();
+    expect(second.calls("PATCH", "/api/messages/m1")).toHaveLength(1);
+  });
+
+  it("is never abandoned by abandonOpen (the message is already saved)", async () => {
+    const grammar = gated(() => json(GRAMMAR));
+    const { results, calls } = setup({ "POST /api/ai/grammar": grammar.handler });
+    const settled = results.checkSaved("c1", "m1", { text: TEXT, grammar: on() });
+    results.abandonOpen();
+    grammar.release();
+    await settled;
+    expect(calls("PATCH", "/api/messages/m1")).toHaveLength(1);
+  });
+});

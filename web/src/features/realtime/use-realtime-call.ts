@@ -20,7 +20,7 @@ export function useRealtimeCall(options: Omit<RealtimeCallOptions, "onChange">):
       instance = new RealtimeCall({
         ...opts.current,
         onChange: (m) => { if (live) setModel(m); }, // 卸载后不 setState
-        onUserMessage: (id, text) => opts.current.onUserMessage?.(id, text),
+        onUserMessage: (...args) => opts.current.onUserMessage?.(...args),
       });
       setCall(instance);
       // 计时器触发前页面已经切到后台(那次 visibilitychange 时还没有实例):不开麦克风,直接按 R16 结束并说明

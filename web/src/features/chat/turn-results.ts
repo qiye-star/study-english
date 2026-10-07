@@ -21,6 +21,10 @@ export interface TurnInput {
   grammar?: { enabled: boolean; context: string };
 }
 
+/** 会话开着语法检查、文字不超长、看起来是英文 */
+const wantsGrammar = (input: TurnInput) =>
+  !!input.grammar?.enabled && (!input.wav || GRAMMAR_FOR_VOICE) && input.text.length <= MAX_GRAMMAR_TEXT && checkability(input.text).ok;
+
 type Phase = "open" | "saving" | "saved" | "abandoned";
 
 interface Turn {
@@ -76,34 +80,47 @@ export class TurnResults {
     const turn: Turn = { phase: "open", assessmentSent: false, grammarSent: false };
     this.turns.set(userKey, turn);
     if (input.wav) this.startAssessment(userKey, turn, input.text, input.wav);
-    const wantGrammar =
-      input.grammar?.enabled && (!input.wav || GRAMMAR_FOR_VOICE) && input.text.length <= MAX_GRAMMAR_TEXT && checkability(input.text).ok;
-    if (wantGrammar) {
+    if (wantsGrammar(input)) {
       turn.grammarInput = { text: input.text, context: input.grammar!.context };
-      this.runGrammar(userKey, turn);
+      void this.runGrammar(userKey, turn);
     }
+  }
+
+  /**
+   * 服务端已经保存的用户消息(实时通话的一句话,R14):只做语法检查(同 start 的条件),结果 PATCH 到 messageId。
+   * 返回的 promise 在补写完成(或检查失败、无需检查)时 resolve,从不 reject;abandonOpen 不影响它(消息已保存)。
+   */
+  checkSaved(userKey: string, messageId: string, input: Omit<TurnInput, "wav">): Promise<void> {
+    if (this.turns.has(userKey)) return Promise.resolve();
+    const turn: Turn = { phase: "saved", messageId, assessmentSent: false, grammarSent: false };
+    this.turns.set(userKey, turn);
+    if (!wantsGrammar(input)) return Promise.resolve();
+    turn.grammarInput = { text: input.text, context: input.grammar!.context };
+    return this.runGrammar(userKey, turn);
   }
 
   /** 语法检查失败后由界面的"重试"按钮调用。 */
   retryGrammar(userKey: string): void {
     const turn = this.turns.get(userKey);
     if (!turn || !turn.grammarInput || turn.grammar || turn.phase === "abandoned") return;
-    this.runGrammar(userKey, turn);
+    void this.runGrammar(userKey, turn);
   }
 
-  private runGrammar(userKey: string, turn: Turn): void {
+  /** 结果到达且这一轮已保存时,promise 等到补写完成;从不 reject。 */
+  private runGrammar(userKey: string, turn: Turn): Promise<void> {
     const input = turn.grammarInput!;
     turn.grammarController?.abort();
     const controller = new AbortController();
     turn.grammarController = controller;
     this.onChange(userKey, { grammar: { status: "pending" } });
-    cachedGrammar(this.api, input, controller.signal)
+    let flushed: Promise<void> | undefined;
+    return cachedGrammar(this.api, input, controller.signal)
       .then(
         (result) => {
           if (controller.signal.aborted || turn.phase === "abandoned") return;
           turn.grammar = result;
           // 先补写再通知界面:onChange 抛错不能跳过 PATCH
-          if (turn.phase === "saved") void this.flush(turn);
+          if (turn.phase === "saved") flushed = this.flush(turn);
           this.onChange(userKey, { grammar: { status: "done", result } });
         },
         (error: unknown) => {
@@ -113,7 +130,8 @@ export class TurnResults {
       )
       .catch(() => {
         // onChange 抛错不应变成未处理的 rejection
-      });
+      })
+      .then(() => flushed); // flush 自己吞掉 PATCH 失败,不会 reject
   }
 
   private startAssessment(userKey: string, turn: Turn, text: string, wav: Blob): void {
