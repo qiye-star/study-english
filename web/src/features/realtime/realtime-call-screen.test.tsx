@@ -10,9 +10,10 @@ import { renderWithProviders } from "~/test/render";
 import { INITIAL_CALL, type CallModel } from "./call-machine";
 import type { RealtimeEnv } from "./realtime-call";
 import { RealtimeCallDialog, RealtimeCallScreen, prepareCallAudio } from "./realtime-call-screen";
+import { BACKGROUND_GRACE_MS } from "./use-realtime-call";
 
 function render(model: Partial<CallModel> = {}, level: () => number = () => 0.3) {
-  const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onPushToTalk: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+  const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
   const view = renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening", ...model }} level={level} {...handlers} />);
   return { ...handlers, view };
 }
@@ -41,7 +42,7 @@ describe("RealtimeCallScreen", () => {
     expect(screen.getByTestId("call-mic-indicator")).toHaveTextContent(/Microphone in use|麦克风使用中/);
     expect(screen.getByTestId("call-level")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("call-captions")).toHaveAttribute("data-lookup-context");
-    for (const id of ["call-hangup", "call-mute", "call-ptt-toggle"]) {
+    for (const id of ["call-hangup", "call-mute", "call-speaker", "call-mode-auto", "call-mode-ptt"]) {
       expect(screen.getByTestId(id)).toHaveAccessibleName();
       expect(screen.getByTestId(id).className).toMatch(/min-h-11/);
       expect(screen.getByTestId(id).className).toMatch(/min-w-11/);
@@ -72,15 +73,76 @@ describe("RealtimeCallScreen", () => {
     expect(screen.getByTestId("call-mute")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("call-mute"));
     expect(h.onMute).toHaveBeenCalledWith(false);
-    expect(screen.getByTestId("call-ptt-toggle")).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(screen.getByTestId("call-ptt-toggle"));
-    expect(h.onPushToTalk).toHaveBeenCalledWith(true);
+    expect(screen.getByTestId("call-mode-auto")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("call-mode-ptt")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByTestId("call-mode-ptt"));
+    expect(h.onInputMode).toHaveBeenCalledWith("ptt");
     fireEvent.click(screen.getByTestId("call-hangup"));
     expect(h.onHangup).toHaveBeenCalled();
   });
 
+  describe("input mode switch and microphone indicator (calls v2 Task 4)", () => {
+    it("is one segmented switch: 自动 / 按住说话", () => {
+      const h = render({ inputMode: "ptt" });
+      const group = screen.getByTestId("call-input-mode");
+      expect(group).toHaveAttribute("role", "group");
+      expect(group).toHaveAccessibleName();
+      expect(screen.getByTestId("call-mode-auto")).toHaveTextContent(/Auto|自动/);
+      expect(screen.getByTestId("call-mode-ptt")).toHaveTextContent(/Hold to talk|按住说话/);
+      expect(screen.getByTestId("call-mode-ptt")).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByTestId("call-mode-auto"));
+      expect(h.onInputMode).toHaveBeenCalledWith("auto");
+      fireEvent.click(screen.getByTestId("call-mode-ptt")); // 已选中:不重复
+      expect(h.onInputMode).toHaveBeenCalledTimes(1);
+    });
+
+    it("in hold-to-talk mode the indicator says the microphone is off, and in use while holding", () => {
+      const { view } = render({ inputMode: "ptt" });
+      expect(screen.getByTestId("call-mic-indicator")).toHaveTextContent(/Microphone off|麦克风已关闭/);
+      expect(screen.getByTestId("call-mic-indicator")).toHaveAttribute("data-live", "false");
+      view.unmount();
+      render({ inputMode: "ptt", holding: true });
+      expect(screen.getByTestId("call-mic-indicator")).toHaveTextContent(/Microphone in use|麦克风使用中/);
+      expect(screen.getByTestId("call-mic-indicator")).toHaveAttribute("data-live", "true");
+    });
+
+    it("the switch stays usable when Silero is unavailable (basic detection), with a visible hint", () => {
+      render({ vadUnavailable: true });
+      expect(screen.getByTestId("call-mode-auto")).toBeEnabled();
+      expect(screen.getByTestId("call-mode-ptt")).toBeEnabled();
+      expect(screen.getByTestId("call-basic-detection")).toHaveTextContent(/Basic|基础/);
+      expect(screen.queryByTestId("call-ptt")).toBeNull(); // 仍是免提
+    });
+  });
+
+  describe("speaker toggle (calls v2 Task 3)", () => {
+    it("shows 免提/听筒 and reports the new choice", () => {
+      const h = render({ speaker: true });
+      const toggle = screen.getByTestId("call-speaker");
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(toggle).toHaveTextContent(/Speaker|免提/);
+      fireEvent.click(toggle);
+      expect(h.onSpeaker).toHaveBeenCalledWith(false);
+      h.view.unmount();
+      const e = render({ speaker: false });
+      expect(screen.getByTestId("call-speaker")).toHaveTextContent(/Earpiece|听筒/);
+      fireEvent.click(screen.getByTestId("call-speaker"));
+      expect(e.onSpeaker).toHaveBeenCalledWith(true);
+    });
+
+    it("in speaker mode (auto input) a hold-to-cut-in button is offered, because voice cannot interrupt the bot", () => {
+      const h = render({ speaker: true });
+      const hold = screen.getByTestId("call-ptt");
+      expect(hold).toHaveTextContent(/Hold to cut in|按住插话/);
+      fireEvent.pointerDown(hold);
+      fireEvent.pointerUp(hold);
+      expect(h.onPttDown).toHaveBeenCalledTimes(1);
+      expect(h.onPttUp).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("push-to-talk mode shows a hold button usable by pointer and keyboard", () => {
-    const h = render({ pushToTalk: true });
+    const h = render({ inputMode: "ptt" });
     const ptt = screen.getByTestId("call-ptt");
     expect(ptt.className).toMatch(/min-h-11/);
     fireEvent.pointerDown(ptt);
@@ -92,7 +154,7 @@ describe("RealtimeCallScreen", () => {
   });
 
   it("the hold button ignores key repeat and duplicate releases, and releases on blur and unmount", () => {
-    const h = render({ pushToTalk: true });
+    const h = render({ inputMode: "ptt" });
     const ptt = screen.getByTestId("call-ptt");
     fireEvent.keyDown(ptt, { key: "Enter" });
     fireEvent.keyDown(ptt, { key: "Enter", repeat: true });
@@ -111,7 +173,7 @@ describe("RealtimeCallScreen", () => {
   });
 
   it("the hold button is disabled while muted and absent outside push-to-talk mode", () => {
-    render({ pushToTalk: true, muted: true });
+    render({ inputMode: "ptt", muted: true });
     expect(screen.getByTestId("call-ptt")).toBeDisabled();
   });
 
@@ -161,7 +223,7 @@ describe("RealtimeCallScreen", () => {
     expect(screen.getByTestId("call-hangup")).toHaveFocus();
     h.view.rerender(
       <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "ended", error: "web.realtime.errors.generic" }} level={() => 0}
-        onHangup={h.onHangup} onMute={h.onMute} onPushToTalk={h.onPushToTalk} onPttDown={h.onPttDown} onPttUp={h.onPttUp} onClose={h.onClose} />,
+        onHangup={h.onHangup} onMute={h.onMute} onInputMode={h.onInputMode} onSpeaker={h.onSpeaker} onPttDown={h.onPttDown} onPttUp={h.onPttUp} onClose={h.onClose} />,
     );
     expect(screen.getByTestId("call-close")).toHaveFocus();
   });
@@ -198,7 +260,7 @@ describe("RealtimeCallScreen", () => {
       const screenEl = (open: boolean) => (
         <StrictMode>
           {open && <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} onHangup={vi.fn()} onMute={vi.fn()}
-            onPushToTalk={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />}
+            onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />}
         </StrictMode>
       );
       const view = renderWithProviders(screenEl(true));
@@ -231,13 +293,13 @@ describe("RealtimeCallScreen", () => {
 
     it("Tab and Shift+Tab wrap inside the dialog", () => {
       render();
-      const mute = screen.getByTestId("call-mute");
-      const toggle = screen.getByTestId("call-ptt-toggle");
-      toggle.focus();
-      fireEvent.keyDown(toggle, { key: "Tab" });
-      expect(mute).toHaveFocus();
-      fireEvent.keyDown(mute, { key: "Tab", shiftKey: true });
-      expect(toggle).toHaveFocus();
+      const first = screen.getByTestId("call-mode-auto");
+      const last = screen.getByTestId("call-speaker");
+      last.focus();
+      fireEvent.keyDown(last, { key: "Tab" });
+      expect(first).toHaveFocus();
+      fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+      expect(last).toHaveFocus();
     });
 
     it("focus that lands outside the dialog is pulled back in", () => {
@@ -249,17 +311,9 @@ describe("RealtimeCallScreen", () => {
     });
   });
 
-  describe("without voice detection (VAD failed to load)", () => {
-    it("locks push-to-talk on with a visible reason", () => {
-      render({ pushToTalk: true, vadUnavailable: true });
-      const toggle = screen.getByTestId("call-ptt-toggle");
-      expect(toggle).toBeDisabled();
-      expect(screen.getByTestId("call-ptt-locked")).toBeVisible();
-      expect(toggle).toHaveAttribute("aria-describedby", screen.getByTestId("call-ptt-locked").id);
-    });
-
+  describe("hold-to-talk mode for screen readers", () => {
     it("offers a tap-to-talk toggle (screen readers cannot hold a button)", () => {
-      const h = render({ pushToTalk: true, vadUnavailable: true });
+      const h = render({ inputMode: "ptt" });
       const tap = screen.getByTestId("call-ptt-tap");
       expect(tap).toHaveAttribute("aria-pressed", "false");
       expect(tap).toHaveAccessibleName();
@@ -276,7 +330,7 @@ describe("RealtimeCallScreen", () => {
     });
 
     it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", () => {
-      const h = render({ pushToTalk: true, vadUnavailable: true });
+      const h = render({ inputMode: "ptt" });
       const tap = screen.getByTestId("call-ptt-tap");
       const hold = screen.getByTestId("call-ptt");
       fireEvent.click(tap);
@@ -301,10 +355,9 @@ describe("RealtimeCallScreen", () => {
       expect(tap).toBeEnabled();
     });
 
-    it("has no tap toggle while voice detection works", () => {
-      render({ pushToTalk: true });
+    it("has no tap toggle in auto mode", () => {
+      render({ speaker: true });
       expect(screen.queryByTestId("call-ptt-tap")).toBeNull();
-      expect(screen.getByTestId("call-ptt-toggle")).toBeEnabled();
     });
   });
 
@@ -395,7 +448,7 @@ describe("RealtimeCallDialog", () => {
   it("going to the background hangs up and explains it on return (R16)", async () => {
     vi.useFakeTimers();
     const s = mount(() => new Promise<Response>(() => undefined), { strict: false, ownsContext: true });
-    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_GRACE_MS + 10); }); // 开始后的宽限期(iOS 权限弹窗)已过
     act(() => setVisibility("hidden"));
     expect(s.ctx.close).toHaveBeenCalledTimes(1);
     act(() => setVisibility("visible"));
@@ -430,7 +483,7 @@ describe("RealtimeCallScreen caption translation", () => {
   function mountTranslating() {
     const mock = createFetchMock({ "POST /api/ai/chat/completions": () => reply("你好呀") });
     const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
-    const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onPushToTalk: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+    const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
     renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening", captions }} level={() => 0}
       translation={{ api, nativeLanguage: "zh-CN" }} {...handlers} />);
     return mock;

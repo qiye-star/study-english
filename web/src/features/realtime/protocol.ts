@@ -101,4 +101,7 @@ export function encodeStart(p: StartPayload): string {
   return encode(lo);
 }
 
-export const encodeControl = (type: "utterance_end" | "interrupt" | "hangup") => JSON.stringify({ type });
+/** 控制消息。`utterance_cancel`:撤回进行中的一句(切到按住说话、按得太短),服务端丢弃已收到的音频、不回复。 */
+export const CONTROL_TYPES = ["utterance_end", "utterance_cancel", "interrupt", "hangup"] as const;
+export type ControlType = (typeof CONTROL_TYPES)[number];
+export const encodeControl = (type: ControlType) => JSON.stringify({ type });

@@ -16,6 +16,10 @@ mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 router = APIRouter()
 
+# VAD 运行时(onnxruntime-web)用 import() 加载 .mjs:非 JS 类型时浏览器拒绝执行模块脚本,VAD 加载失败。
+# 精简镜像没有 /etc/mime.types,不能依赖系统表,按扩展名显式给出。
+EXPLICIT_TYPES = {".mjs": "text/javascript", ".wasm": "application/wasm"}
+
 # server/app/routers/web.py → 仓库根/web/dist;镜像内 /app/app/routers/web.py → /web/dist
 DEFAULT_DIST = Path(__file__).resolve().parents[3] / "web" / "dist"
 IMMUTABLE = "public, max-age=31536000, immutable"
@@ -42,7 +46,7 @@ async def web_app(path: str, settings: Settings = Depends(get_settings)):
             is_file = False
         if is_file:
             cache = IMMUTABLE if path.startswith("assets/") else NO_CACHE
-            return FileResponse(candidate, headers={"Cache-Control": cache})
+            return FileResponse(candidate, headers={"Cache-Control": cache}, media_type=EXPLICIT_TYPES.get(candidate.suffix))
         if path.startswith("assets/"):
             raise HTTPException(404, "Not Found")
     return FileResponse(index, headers={"Cache-Control": NO_CACHE})

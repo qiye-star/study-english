@@ -30,6 +30,10 @@ export interface VadCallbacks {
 export interface VadHandle {
   start(): void;
   pause(): void;
+  /** 丢掉进行中的判定(门回到"等待"),不动音频图:半双工结束、按住说话松开后调用。 */
+  reset(): void;
+  /** 已处理的帧数(看门狗用:模型加载成功却收不到音频时为 0)。 */
+  framesProcessed(): number;
   setSensitivity(s: VadSensitivity): void;
   destroy(): Promise<void>;
 }
@@ -37,8 +41,26 @@ export interface VadHandle {
 const ignore = (): void => undefined;
 
 /**
+ * onnxruntime-web 初始化(下载并编译 wasm)的上限。超时即 reject,调用方退到基础检测;
+ * 不设上限时 iOS 上卡住的 import()/编译会让通话永远停在"正在连接"。
+ */
+export const ORT_INIT_TIMEOUT_MS = 20_000;
+
+/**
+ * 页面没有跨源隔离(COOP/COEP),iOS Safari 也没有 SharedArrayBuffer:显式单线程、不用代理 worker,
+ * 不让 ORT 去尝试多线程(只会告警后退回)。SIMD 保持默认检测:1.30 只发布 simd 版 wasm,
+ * 不支持 SIMD 的浏览器(iOS < 16.4)在这里 reject,通话退到基础检测。
+ */
+export function configureOrt(ort: { env: { logLevel?: string; wasm: Record<string, unknown> } }): void {
+  ort.env.logLevel = "error";
+  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.proxy = false;
+  ort.env.wasm.initTimeout = ORT_INIT_TIMEOUT_MS;
+}
+
+/**
  * 懒加载 @ricky0123/vad-web(只在开始通话时下载模型与 wasm;资源同源自托管,R18)。
- * 加载时就建好音频图并立即暂停:worklet/模型加载失败在这里 reject,调用方据此退到"按住说话"。
+ * 加载时就建好音频图并立即暂停:worklet/模型加载失败在这里 reject,调用方据此退到基础检测(energy-vad.ts)。
  */
 export const loadSileroSource: ProbabilityLoader = async ({ stream, onFrame, context }) => {
   const { MicVAD } = await import("@ricky0123/vad-web");
@@ -46,6 +68,7 @@ export const loadSileroSource: ProbabilityLoader = async ({ stream, onFrame, con
     model: "v5",
     baseAssetPath: __VAD_ASSET_BASE__,
     onnxWASMBasePath: __VAD_ASSET_BASE__,
+    ortConfig: configureOrt as never,
     audioContext: context,
     getStream: async () => stream,
     // 默认实现会 stop() 共享麦克风流的轨道并重新 getUserMedia(R32):改为什么都不做
@@ -120,11 +143,13 @@ export async function createVad(
 ): Promise<VadHandle> {
   const gate = new SpeechGate(VAD_FRAME_MS, VAD_PRESETS.normal);
   let destroyed = false;
+  let frames = 0;
   const source = await loader({
     stream,
     context,
     onFrame(prob, frame) {
       if (destroyed) return;
+      frames++;
       for (const event of gate.push(prob, dbfs(frameRms(frame)))) {
         if (event.type === "speech-start") callbacks.onSpeechStart();
         else callbacks.onSpeechEnd(event.durationMs);
@@ -139,6 +164,8 @@ export async function createVad(
       // 暂停时门可能还停在"说话"中:不复位的话,恢复后的第一句只会被当成延续,不会再报 speech-start
       gate.reset();
     },
+    reset: () => gate.reset(),
+    framesProcessed: () => frames,
     setSensitivity: (s) => gate.setPreset(VAD_PRESETS[s]),
     destroy() {
       destroyed = true;

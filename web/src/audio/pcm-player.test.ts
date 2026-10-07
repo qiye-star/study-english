@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPcmPlayer } from "./pcm-player";
-import { FakeAudioContext, asContext } from "~/test/fake-audio";
+import { DEFAULT_PLAYER_VOLUME, createPcmPlayer } from "./pcm-player";
+import { FakeAudioContext, FakeNode, asContext } from "~/test/fake-audio";
 
 const chunk = (n = 2400, v = 8000) => new Int16Array(n).fill(v); // 2400 个采样 @ 24 kHz = 100 ms
 
@@ -113,6 +113,54 @@ describe("createPcmPlayer", () => {
     player.play(1, chunk());
     ctx.createBufferSource.mock.results[0].value.onended();
     expect(drained).not.toHaveBeenCalled();
+  });
+
+  describe("volume and output (calls v2 Task 3)", () => {
+    it("plays louder than unity by default, through a limiter so the boost does not clip", () => {
+      const ctx = new FakeAudioContext();
+      ctx.createDynamicsCompressor = ctx.makeCompressor;
+      createPcmPlayer(asContext(ctx));
+      expect(ctx.gain.gain.value).toBe(DEFAULT_PLAYER_VOLUME);
+      expect(DEFAULT_PLAYER_VOLUME).toBeCloseTo(1.8);
+      expect(ctx.gain.connect).toHaveBeenCalledWith(ctx.compressor);
+      expect(ctx.compressor.connect).toHaveBeenCalledWith(ctx.destination);
+      expect(ctx.gain.connect).not.toHaveBeenCalledWith(ctx.destination);
+      expect(ctx.compressor.threshold.value).toBeLessThan(0);
+      expect(ctx.compressor.ratio.value).toBeGreaterThanOrEqual(12);
+    });
+
+    it("setVolume changes the gain (clamped), and close releases the limiter too", () => {
+      const ctx = new FakeAudioContext();
+      ctx.createDynamicsCompressor = ctx.makeCompressor;
+      const player = createPcmPlayer(asContext(ctx), { volume: 1 });
+      expect(ctx.gain.gain.value).toBe(1);
+      player.setVolume(2.2);
+      expect(ctx.gain.gain.value).toBe(2.2);
+      player.setVolume(99);
+      expect(ctx.gain.gain.value).toBeLessThanOrEqual(4);
+      player.setVolume(Number.NaN);
+      expect(ctx.gain.gain.value).toBeLessThanOrEqual(4);
+      player.close();
+      expect(ctx.compressor.disconnect).toHaveBeenCalled();
+      expect(ctx.gain.disconnect).toHaveBeenCalled();
+    });
+
+    it("without a compressor the gain goes straight to the output", () => {
+      const ctx = new FakeAudioContext();
+      createPcmPlayer(asContext(ctx));
+      expect(ctx.gain.connect).toHaveBeenCalledWith(ctx.destination);
+    });
+
+    it("plays into the given output node and can be re-routed (media-element output falling back to the destination)", () => {
+      const ctx = new FakeAudioContext();
+      ctx.createDynamicsCompressor = ctx.makeCompressor;
+      const output = new FakeNode();
+      const player = createPcmPlayer(asContext(ctx), { output: output as unknown as AudioNode });
+      expect(ctx.compressor.connect).toHaveBeenCalledWith(output);
+      player.route(asContext(ctx).destination);
+      expect(ctx.compressor.disconnect).toHaveBeenCalled();
+      expect(ctx.compressor.connect).toHaveBeenLastCalledWith(ctx.destination);
+    });
   });
 
   it("does not schedule in the past when the queue underruns", () => {
