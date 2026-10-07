@@ -25,6 +25,12 @@ export const TICKET_MARGIN_S = 10;
 export const RESUME_TIMEOUT_MS = 4000;
 /** Silero 加载(含 ORT 初始化,其上限 ORT_INIT_TIMEOUT_MS = 20 s)的总上限;超时退到基础检测。 */
 export const VAD_LOAD_TIMEOUT_MS = 25_000;
+/**
+ * 看门狗:自动模式下麦克风已送来这么多毫秒的音频,Silero 却一帧都没处理 → 判定它收不到声音
+ * (WebKit 上同一条轨道的第二个 MediaStreamAudioSourceNode 可能静音),换成基础检测。只检查一次。
+ */
+export const VAD_SILENT_FRAMES_MS = 3000;
+const VAD_SILENT_SAMPLES = (TARGET_RATE * VAD_SILENT_FRAMES_MS) / 1000;
 /** 按住不足这么久就松开 = 误触:什么都不发送(calls v2 Task 4)。 */
 export const MIN_HOLD_MS = 300;
 /** 免提时机器人的声音停下后,再屏蔽这么久的麦克风(房间里的余响)。 */
@@ -168,6 +174,8 @@ export class RealtimeCall {
   private sensitivity: VadSensitivity = "normal";
   private suppressed = false;
   private botQuietAt = 0;
+  /** 看门狗:Silero 运行期间送出的采集样本数;-1 = 已检查过 */
+  private watchedSamples = 0;
   private lastTurn = 0;
   private droppedThrough = 0;
   private opened = false;
@@ -466,6 +474,20 @@ export class RealtimeCall {
     else if (this.speaking) this.sendFrame(frame);
     else this.pushPreRoll(frame);
     this.energy?.push(frame);
+    this.watchSilero(frame.length);
+  }
+
+  /** 采集有声音、Silero 却从没处理过一帧:换成基础检测(只检查一次)。 */
+  private watchSilero(samples: number): void {
+    if (!this.vad || this.watchedSamples < 0 || this.model.inputMode !== "auto" || this.holding) return;
+    this.watchedSamples += samples;
+    if (this.watchedSamples < VAD_SILENT_SAMPLES) return;
+    this.watchedSamples = -1;
+    if (this.vad.framesProcessed() > 0) return;
+    const silent = this.vad;
+    this.vad = null;
+    void silent.destroy().catch((): void => undefined);
+    this.useEnergyDetector();
   }
 
   private pushPreRoll(frame: Float32Array): void {

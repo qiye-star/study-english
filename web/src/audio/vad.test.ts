@@ -44,6 +44,7 @@ describe("createVad", () => {
     expect(onSpeechStart).toHaveBeenCalledTimes(1);
     for (let i = 0; i < 19; i++) f.frame(0.05);
     expect(onSpeechEnd).toHaveBeenCalledWith(256);
+    expect(vad.framesProcessed()).toBe(27); // 看门狗据此判断模型是否收到了音频
   });
 
   it("raises thresholds while the bot speaks", async () => {

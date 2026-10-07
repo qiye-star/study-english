@@ -32,6 +32,8 @@ export interface VadHandle {
   pause(): void;
   /** 丢掉进行中的判定(门回到"等待"),不动音频图:半双工结束、按住说话松开后调用。 */
   reset(): void;
+  /** 已处理的帧数(看门狗用:模型加载成功却收不到音频时为 0)。 */
+  framesProcessed(): number;
   setSensitivity(s: VadSensitivity): void;
   destroy(): Promise<void>;
 }
@@ -141,11 +143,13 @@ export async function createVad(
 ): Promise<VadHandle> {
   const gate = new SpeechGate(VAD_FRAME_MS, VAD_PRESETS.normal);
   let destroyed = false;
+  let frames = 0;
   const source = await loader({
     stream,
     context,
     onFrame(prob, frame) {
       if (destroyed) return;
+      frames++;
       for (const event of gate.push(prob, dbfs(frameRms(frame)))) {
         if (event.type === "speech-start") callbacks.onSpeechStart();
         else callbacks.onSpeechEnd(event.durationMs);
@@ -161,6 +165,7 @@ export async function createVad(
       gate.reset();
     },
     reset: () => gate.reset(),
+    framesProcessed: () => frames,
     setSensitivity: (s) => gate.setPreset(VAD_PRESETS[s]),
     destroy() {
       destroyed = true;

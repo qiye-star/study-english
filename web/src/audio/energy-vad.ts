@@ -29,6 +29,7 @@ export function createEnergyVad(callbacks: VadCallbacks): FrameVad {
   let running = false;
   let destroyed = false;
   let rest = new Float32Array(0);
+  let slices = 0;
 
   const clear = () => {
     gate.reset();
@@ -46,6 +47,7 @@ export function createEnergyVad(callbacks: VadCallbacks): FrameVad {
       }
       let i = 0;
       for (; i + SLICE <= data.length; i += SLICE) {
+        slices++;
         for (const event of gate.push(1, dbfs(frameRms(data.subarray(i, i + SLICE))))) {
           if (!running || destroyed) return;
           if (event.type === "speech-start") callbacks.onSpeechStart();
@@ -62,6 +64,7 @@ export function createEnergyVad(callbacks: VadCallbacks): FrameVad {
       clear();
     },
     reset: clear,
+    framesProcessed: () => slices,
     setSensitivity: (s) => gate.setPreset(ENERGY_PRESETS[s]),
     async destroy() {
       destroyed = true;

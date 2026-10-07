@@ -5,7 +5,7 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
 import {
-  ECHO_TAIL_MS, HANGUP_CLOSE_WAIT_MS, MIN_HOLD_MS, RESUME_TIMEOUT_MS, RealtimeCall, VAD_LOAD_TIMEOUT_MS, type RealtimeCallOptions, type RealtimeEnv,
+  ECHO_TAIL_MS, HANGUP_CLOSE_WAIT_MS, MIN_HOLD_MS, RESUME_TIMEOUT_MS, RealtimeCall, VAD_LOAD_TIMEOUT_MS, VAD_SILENT_FRAMES_MS, type RealtimeCallOptions, type RealtimeEnv,
 } from "./realtime-call";
 import { EARPIECE_VOLUME, SPEAKER_KEY, SPEAKER_VOLUME } from "~/audio/audio-route";
 
@@ -67,8 +67,8 @@ function setup(over: {
   const enterAudioSession = vi.fn(() => restoreSession);
   const stream = fakeStream();
   let vadCallbacks!: VadCallbacks;
-  const vad: VadHandle & { destroy: ReturnType<typeof vi.fn>; setSensitivity: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn>; reset: ReturnType<typeof vi.fn> } = {
-    start: vi.fn(), pause: vi.fn(), reset: vi.fn(), setSensitivity: vi.fn(), destroy: vi.fn(async () => undefined),
+  const vad: VadHandle & { destroy: ReturnType<typeof vi.fn>; setSensitivity: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn>; reset: ReturnType<typeof vi.fn>; framesProcessed: ReturnType<typeof vi.fn> } = {
+    start: vi.fn(), pause: vi.fn(), reset: vi.fn(), framesProcessed: vi.fn(() => 1), setSensitivity: vi.fn(), destroy: vi.fn(async () => undefined),
   };
   const gum = vi.fn(over.gum ?? (async () => stream));
   const env: RealtimeEnv = {
@@ -453,6 +453,30 @@ describe("RealtimeCall", () => {
       expect(s.last().inputMode).toBe("auto");
       loud(s, 4);
       expect(s.ws().binaries().length).toBeGreaterThan(0);
+    });
+
+    it("a Silero model that loaded but never receives audio (silent second source on WebKit) is replaced by basic detection", async () => {
+      const s = setup();
+      s.vad.framesProcessed.mockReturnValue(0);
+      await s.call.start();
+      s.ws().open();
+      s.speech(VAD_SILENT_FRAMES_MS / 100 - 1);
+      expect(s.last().vadUnavailable).toBe(false);
+      s.speech(1);
+      expect(s.last()).toMatchObject({ vadUnavailable: true, inputMode: "auto" });
+      expect(s.vad.destroy).toHaveBeenCalledTimes(1);
+      s.silence(3);
+      s.speech(4); // 基础检测接手
+      expect(s.ws().binaries().length).toBeGreaterThan(0);
+    });
+
+    it("a working Silero is kept (the watchdog checks once)", async () => {
+      const s = setup();
+      await s.call.start();
+      s.ws().open();
+      s.speech(VAD_SILENT_FRAMES_MS / 100 + 5);
+      expect(s.last().vadUnavailable).toBe(false);
+      expect(s.vad.destroy).not.toHaveBeenCalled();
     });
 
     it("a Silero load that hangs falls back after the bound", async () => {
