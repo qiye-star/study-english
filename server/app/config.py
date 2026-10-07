@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     volcengine_tts_key: str = ""
     volcengine_tts_url: str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
 
+    # 语音识别:chat = 沿用 UPSTREAM_WHISPER_MODE 的现有路径;volc_stream = 火山大模型流式识别,
+    # 失败时回退到现有路径(已配置时)。密钥默认复用 VOLCENGINE_TTS_KEY。
+    upstream_asr_mode: Literal["chat", "volc_stream"] = "chat"
+    asr_stream_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
+    asr_stream_resource_id: str = "volc.bigasr.sauc.duration"
+    asr_stream_timeout_seconds: float = 30.0
+    volcengine_asr_key: str = ""
+
     azure_speech_key: str = ""
     azure_speech_region: str = ""
 
@@ -69,6 +77,10 @@ class Settings(BaseSettings):
     @property
     def llm_model_list(self) -> list[str]:
         return _split(self.llm_models)
+
+    @property
+    def asr_stream_key(self) -> str:
+        return self.volcengine_asr_key or self.volcengine_tts_key
 
     @property
     def tts_model_list(self) -> list[str]:

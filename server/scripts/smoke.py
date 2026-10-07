@@ -2,7 +2,8 @@
 
 Usage: uv run python scripts/smoke.py --base-url http://localhost:8000
 会注册一个随机用户。未配置的能力(503)显示为 SKIP。
-可选:--wav PATH --reference TEXT [--language en-US] 额外检查发音评测(讯飞)。
+可选:--wav PATH --reference TEXT [--language en-US] 额外检查发音评测(讯飞),
+并用该 16 kHz WAV 检查语音识别(UPSTREAM_ASR_MODE=volc_stream 时走火山流式识别)。
 """
 import argparse
 import json
@@ -142,6 +143,17 @@ def main() -> int:
         assert "hello" in text, text
         return text.strip()
 
+    def whisper_wav():
+        with open(args.wav, "rb") as f:
+            wav = f.read()
+        r = require_ok(http.post("/api/ai/audio/transcriptions", headers=state["headers"],
+            files={"file": ("audio.wav", wav, "audio/wav")}, data={"model": "whisper-1"}))
+        body = r.json()
+        assert set(body) >= {"text"}, body
+        first = args.reference.split()[0].strip(".,!?").lower()
+        assert first in body["text"].lower(), body["text"]
+        return body["text"].strip()[:80]
+
     def speech_token():
         r = require_ok(http.post("/api/speech/tokens", headers=state["headers"], json={"purpose": "transcribe"}))
         body = r.json()
@@ -171,6 +183,7 @@ def main() -> int:
         ("speech token", speech_token),
     ]
     if args.wav:
+        checks.append(("whisper (wav)", whisper_wav))
         checks.append(("pronunciation assessment (xfyun)", assessment))
 
     i = 0
