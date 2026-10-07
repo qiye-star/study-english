@@ -3,8 +3,9 @@ recognizer selection and message storage. They implement the types of `app.realt
 
 - LLM: OpenAI-compatible streaming chat completions (DeepSeek etc.) through the existing
   `UPSTREAM_LLM_*` settings; the model must be in `LLM_MODELS` (else the default),
-  `max_tokens = min(LLM_MAX_TOKENS, 600)`. Any non-200, network error, error event or truncated
-  stream → `LlmError`.
+  `max_tokens = min(LLM_MAX_TOKENS, 600)`, `thinking: disabled` unless `REALTIME_LLM_DISABLE_THINKING=false`. Any non-200, network error, error event or truncated
+  stream → `LlmError`; a reply with no content at all → `LlmError("empty")`. Reading stops at the first
+  `finish_reason`; `length` (cut at the cap) ends normally with a numbers-only warning.
 - TTS: Volcengine `synthesize_stream` as raw PCM16LE at `REALTIME_TTS_SAMPLE_RATE`; chunks are
   re-cut on whole samples (even byte counts); `VolcengineError` → `TtsError` (R6).
 - Recognizers: chosen by `effective_realtime_asr(settings)` (R25) — the same helper that
@@ -27,17 +28,9 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.asr import (
-    AsrError,
-    RecognizerFactory,
-    Transcribe,
-    _fallback_configured,
-    _map_stream,
-    buffered_factory,
-    realtime_factory,
-)
+from app.asr import AsrError, RecognizerFactory, realtime_factory
 from app.asr_realtime import volc_stream_factory
-from app.asr_stream import AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.asr_stream import AsrGate
 from app.config import Settings
 from app.models import Conversation, Message, utcnow
 from app.realtime_asr import RealtimeAsr, effective_realtime_asr
@@ -49,6 +42,7 @@ logger = logging.getLogger(__name__)
 REALTIME_MAX_TOKENS = 600
 MAX_CONTENT = 20000  # same cap as `MessageIn.content`
 LLM_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+KNOWN_FINISH = ("stop", "length", "content_filter", "tool_calls", "done")  # logged as is; anything else as "other"
 
 
 # ---- LLM ----
@@ -65,6 +59,8 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
         url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {settings.upstream_llm_key}", "Content-Type": "application/json"}
         body = {"model": chosen, "messages": messages, "temperature": temperature, "stream": True, "max_tokens": max_tokens}
+        if settings.realtime_llm_disable_thinking:
+            body["thinking"] = {"type": "disabled"}  # reasoning would delay the first word and eat max_tokens
         try:
             response = await http.send(
                 http.build_request("POST", url, json=body, headers=headers, timeout=LLM_TIMEOUT), stream=True)
@@ -75,14 +71,16 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
             if response.status_code != 200:
                 logger.warning("Realtime LLM HTTP %s", response.status_code)
                 raise LlmError()
-            finished = False
+            finished = None  # finish_reason (or "done"), once seen
+            spoke = False
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line.startswith("data:"):
                     continue  # blank separators, SSE comments (keep-alive), event:/id: fields
                 data = line[5:].strip()
                 if data == "[DONE]":
-                    return
+                    finished = "done"
+                    break
                 try:
                     event = json.loads(data)
                 except ValueError:
@@ -94,15 +92,24 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
                     raise LlmError()
                 choices = event.get("choices")
                 choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
-                if choice.get("finish_reason"):
-                    finished = True
                 delta = choice.get("delta")
                 content = delta.get("content") if isinstance(delta, dict) else None  # reasoning_content is skipped
                 if isinstance(content, str) and content:
+                    spoke = True
                     yield content
-            if not finished:
+                if choice.get("finish_reason"):
+                    # Stop here: a provider that sends finish_reason but delays [DONE]/close must not delay reply_done.
+                    finished = str(choice["finish_reason"])
+                    break
+            if finished is None:
                 logger.warning("Realtime LLM stream ended early")
                 raise LlmError()
+            if not spoke:
+                logger.warning("Realtime LLM reply had no content finish=%s", finished if finished in KNOWN_FINISH else "other")
+                raise LlmError("empty")
+            if finished == "length":
+                # Cut at the token cap: what was said is kept and saved as a normal reply (no suffix).
+                logger.warning("Realtime LLM reply cut at max_tokens=%d", max_tokens)
         except httpx.HTTPError as e:
             logger.warning("Realtime LLM stream failed: %s", type(e).__name__)
             raise LlmError() from None
@@ -142,40 +149,10 @@ def volc_tts_stream(http: httpx.AsyncClient, settings: Settings, voice: str, uid
 
 # ---- recognizers ----
 
-def _stream_only_transcriber(settings: Settings, gate: AsrGate, uid: str) -> Transcribe:
-    """Buffered transcription when the upload path is `volc_stream` with no chat/Whisper fallback.
-    Same gate and error mapping as `asr.make_transcriber`, except that an empty result (silence)
-    is "" (no speech) instead of an upstream error — a silent utterance must not become `asr_failed`."""
-
-    async def transcribe(wav: bytes) -> str:
-        pcm = wav_to_pcm(wav)
-        if pcm is None:
-            raise AsrError("upstream")
-        skip = await gate.try_enter()
-        if skip is not None:
-            logger.warning("realtime buffered asr skipped reason=%s", skip)
-            raise AsrError("upstream")
-        kind = None
-        try:
-            return await transcribe_pcm(settings, pcm, uid)
-        except AsrStreamError as e:
-            if e.kind == "empty":
-                return ""
-            kind = e.kind
-            logger.warning("realtime buffered asr failed kind=%s connect_id=%s logid=%s", e.kind, e.connect_id, e.logid)
-            raise _map_stream(e.kind) from None
-        finally:
-            gate.leave(kind)
-
-    return transcribe
-
-
 def _buffered(http: httpx.AsyncClient, settings: Settings, gate: AsrGate | None, uid: str) -> RecognizerFactory:
-    """The buffered recognizer; `AsrError("config")` when no transcription path is configured."""
-    if settings.asr_stream_enabled and settings.asr_stream_key and not _fallback_configured(settings):
-        if gate is None:
-            gate = AsrGate(settings.asr_stream_max_concurrency)
-        return buffered_factory(_stream_only_transcriber(settings, gate, uid))
+    """The buffered recognizer — the upload transcriber (`asr.make_transcriber`, which already treats an
+    empty stream result as "no speech" when there is no chat/Whisper fallback); `AsrError("config")` when
+    no transcription path is configured."""
     buffered = settings.model_copy(update={"realtime_asr_mode": "buffered"})
     return realtime_factory(http, buffered, "en", gate=gate, uid=uid)
 
@@ -347,9 +324,12 @@ class XfyunAssessor:
                     logger.warning("Realtime assessment recording could not be written")
                     return {"status": "done", "result": result, "assessment_id": None}
                 message = await session.get(Message, message_id)
-                if message is not None and message.assessment_id is None:
-                    message.assessment_id = assessment_id
-                    await session.commit()
+                if message is None or message.assessment_id is not None:
+                    # Not linked (message deleted, or it already has a recording): the row is an orphan
+                    # that `cleanup_orphan_chat_recordings` reclaims, so don't tell the client it was saved.
+                    return {"status": "done", "result": result, "assessment_id": None}
+                message.assessment_id = assessment_id
+                await session.commit()
             return {"status": "done", "result": result, "assessment_id": assessment_id}
         except Exception as e:
             logger.warning("Realtime assessment save failed kind=%s", type(e).__name__)

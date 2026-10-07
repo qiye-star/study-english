@@ -6,6 +6,7 @@ import logging
 import httpx
 import pytest
 
+from app import asr
 from app import realtime_providers as providers
 from app.asr import AsrError, BufferedRecognizer
 from app.asr_stream import AsrGate, AsrStreamError
@@ -84,6 +85,17 @@ async def test_llm_stream_keeps_allowed_model_and_lower_token_cap(respx_mock):
     assert body["model"] == "gpt-4o-mini" and body["max_tokens"] == 300
 
 
+async def test_llm_stream_disables_thinking_by_default(respx_mock):
+    # Review 4.4-I1: DeepSeek v4 models think by default (real upstream, 2026-10-07: 89-116 reasoning tokens
+    # before the first spoken word); `thinking: disabled` was accepted (HTTP 200) and removed them.
+    route = respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=sse(delta("ok"), "[DONE]")))
+    async with httpx.AsyncClient() as http:
+        await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([]))
+        assert json.loads(route.calls.last.request.content)["thinking"] == {"type": "disabled"}
+        await collect(openai_llm_stream(http, make_settings(realtime_llm_disable_thinking=False), "gpt-4o", 0.7)([]))
+        assert "thinking" not in json.loads(route.calls.last.request.content)
+
+
 async def test_llm_stream_handles_events_split_across_network_chunks(respx_mock):
     raw = sse(delta("Hel"), json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), delta("lo é"), "[DONE]")
     pieces = [raw[i:i + 7] for i in range(0, len(raw), 7)]
@@ -104,6 +116,47 @@ async def test_llm_stream_finish_reason_without_done_is_a_normal_end(respx_mock)
     respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=raw))
     async with httpx.AsyncClient() as http:
         assert await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([])) == ["Hi."]
+
+
+def finish(reason: str, text: str | None = None) -> str:
+    return json.dumps({"choices": [{"delta": {"content": text} if text else {}, "finish_reason": reason}]})
+
+
+@pytest.mark.parametrize("raw", [
+    sse(json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), finish("stop"), "[DONE]"),
+    sse(json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), finish("length"), "[DONE]"),
+    sse(delta(""), "[DONE]"),
+])
+async def test_llm_stream_without_any_content_is_an_empty_error(respx_mock, raw):
+    # Review 4.4-I1: a reply with no spoken text must reach the caller as `llm_failed`, not a silent reply_done.
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=raw))
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(LlmError) as e:
+            await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([]))
+    assert e.value.args == ("empty",)
+
+
+async def test_llm_stream_stops_reading_at_finish_reason_without_done(respx_mock):
+    # Review 4.4-m2: a provider that sends finish_reason and then holds the connection open must not
+    # delay reply_done until the read timeout.
+    gate = asyncio.Event()  # never set: the second piece ([DONE]) never arrives
+    body = Pieces([sse(delta("Hi"), finish("stop", " there.")), sse("[DONE]")], gate)
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, stream=body))
+    async with httpx.AsyncClient() as http:
+        async with asyncio.timeout(2):
+            assert await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([])) == ["Hi", " there."]
+    assert body.closed
+
+
+async def test_llm_stream_cut_at_max_tokens_ends_normally_with_a_numbers_only_warning(respx_mock, caplog):
+    # Review 4.4-m3: `length` keeps what was said (saved as a normal reply) and logs the cap, never the text.
+    caplog.set_level(logging.DEBUG)
+    respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=sse(delta("SECRET-A"), finish("length"), "[DONE]")))
+    async with httpx.AsyncClient() as http:
+        assert await collect(openai_llm_stream(http, make_settings(llm_max_tokens=300), "gpt-4o", 0.7)([])) == ["SECRET-A"]
+    warnings = [r.getMessage() for r in caplog.records if r.name.startswith("app") and r.levelno == logging.WARNING]
+    assert any("max_tokens=300" in w for w in warnings)
+    assert "SECRET" not in " ".join(warnings)
 
 
 @pytest.mark.parametrize("response", [
@@ -422,10 +475,12 @@ def stream_only(**overrides):
 
 
 async def test_stream_only_buffered_silence_is_no_speech(monkeypatch):
+    # Review 4.4-m1: the stream-only buffered path is plain `asr.make_transcriber` (no realtime-only copy);
+    # with no chat/Whisper fallback an empty stream result is "" (no speech), not `asr_failed`.
     async def empty(settings, pcm, uid="server"):
         raise AsrStreamError("empty")
 
-    monkeypatch.setattr(providers, "transcribe_pcm", empty)
+    monkeypatch.setattr(asr, "transcribe_pcm", empty)
     gate = AsrGate(1)
     primary, fallback, mode = make_recognizers(None, stream_only(), "1", gate=gate)
     assert (fallback, mode) == (None, "buffered")
@@ -440,7 +495,7 @@ async def test_stream_only_buffered_failures_are_asr_errors(monkeypatch, kind, e
     async def broken(settings, pcm, uid="server"):
         raise AsrStreamError(kind)
 
-    monkeypatch.setattr(providers, "transcribe_pcm", broken)
+    monkeypatch.setattr(asr, "transcribe_pcm", broken)
     primary, _, _ = make_recognizers(None, stream_only(), "1")
     recognizer = await primary(noop)
     await recognizer.send_audio(b"\x01\x00" * 1600)
@@ -456,7 +511,7 @@ async def test_stream_only_buffered_passes_pcm_and_uid(monkeypatch):
         seen.update(pcm=pcm, uid=uid)
         return "hello"
 
-    monkeypatch.setattr(providers, "transcribe_pcm", ok)
+    monkeypatch.setattr(asr, "transcribe_pcm", ok)
     primary, _, _ = make_recognizers(None, stream_only(), "9")
     recognizer = await primary(noop)
     await recognizer.send_audio(b"\x01\x00" * 10)
@@ -468,7 +523,7 @@ async def test_stream_only_buffered_busy_gate_is_an_asr_error(monkeypatch):
     async def ok(settings, pcm, uid="server"):
         return "hello"
 
-    monkeypatch.setattr(providers, "transcribe_pcm", ok)
+    monkeypatch.setattr(asr, "transcribe_pcm", ok)
     gate = AsrGate(1)
     assert await gate.try_enter() is None  # someone else holds the only slot
     primary, _, _ = make_recognizers(None, stream_only(), "1", gate=gate)

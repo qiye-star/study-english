@@ -174,6 +174,7 @@ VOLCENGINE_ASR_KEY=
 | `REALTIME_TICKET_TTL_SECONDS` | `60`(10–300) | 一次性票据有效期 |
 | `REALTIME_TTS_MODEL` | `volcengine/seed-tts-2.0` | 通话的逐句合成模型;必须是火山模型,且在 `TTS_MODELS` 里 |
 | `REALTIME_TTS_SAMPLE_RATE` | `24000` | 通话下行 PCM 采样率(请求火山 `pcm` 输出)。24000 由 spike 时长推算,**听感核对未做**,未排除 22050 |
+| `REALTIME_LLM_DISABLE_THINKING` | `true` | 通话的 LLM 请求加 `thinking: {"type": "disabled"}`。2026-10-07 真实上游各测一次:`deepseek-v4-flash-vision-exp` 与 `deepseek-v4-pro` 都返回 200;不加时两者都先输出 89–116 个推理 token(首个文字 1.4–1.9 s),加上后推理 token 为 0、首个文字 0.5–1.0 s。推理 token 也计入通话的 `max_tokens`(≤ 600)。换了模型而上游返回 4xx 时设为 `false`;这时请选不默认推理的模型 |
 | `LOG_LEVEL` | `INFO` | `app.*` 日志级别。下面的耗时日志是 INFO 级,设为 `WARNING` 会看不到。该项不在 `.env.example` 里,需要时自己加 |
 
 `GET /api/realtime/config` 的 `enabled` 为真需要同时满足:`REALTIME_ENABLED=true`、已配置 `VOLCENGINE_TTS_KEY`、`REALTIME_TTS_MODEL` 在 `TTS_MODELS` 中、已配置 LLM 上游、至少一条识别路径可用(流式密钥,或 chat/Whisper 回退)。

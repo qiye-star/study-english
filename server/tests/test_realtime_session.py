@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import struct
 
@@ -319,6 +320,20 @@ async def test_llm_failure_reports_and_saves_nothing_for_the_reply():
     assert h.events[-1:] == [{"type": "state", "state": "listening"}]
 
 
+@pytest.mark.parametrize("deltas", [(), (" ", "  ")])
+async def test_a_reply_without_text_is_an_llm_failure(deltas):
+    # Review 4.4-I1: a normal end with nothing to say must not be a silent reply_done.
+    h = Harness(llm=llm_of(*deltas))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "reply_done" in h.types())
+    h.send({"type": "hangup"})
+    await task
+    assert {"type": "error", "code": "llm_failed"} in h.events
+    assert {"type": "reply_done", "turn_id": 1, "message_id": None, "interrupted": True} in h.events
+    assert [m["role"] for m in h.store.messages] == ["user"]
+
+
 async def test_tts_failure_keeps_the_text_reply():
     h = Harness(tts=tts_of(error_on="Sure"))
     task = asyncio.create_task(h.run())
@@ -628,6 +643,24 @@ async def test_disconnect_while_recognising_aborts_the_recognizer():
     h.inbox.put_nowait(None)
     assert await asyncio.wait_for(task, 2) == 1000
     assert rec.aborted and h.store.messages == []
+
+
+async def test_cancel_pending_aborts_the_recognizer_open_in_the_main_loop():
+    # Review 4.5-m2: when the handler is cancelled, `run`'s awaited shutdown may never run; the recognizer
+    # of the utterance still being spoken must not wait for its idle watchdog to release the upstream.
+    rec = FakeRecognizer("hi")
+    h = Harness(factory=Factory(rec))
+    task = asyncio.create_task(h.run())
+    h.send(PCM)  # mid-utterance: no utterance_end yet
+    await h.until(lambda: h.factory.opened == 1 and len(rec.audio) > 0)
+    h.session.cancel_pending()
+    await h.until(lambda: rec.aborted)
+    h.send(PCM)  # audio still queued after cancel_pending opens nothing
+    await asyncio.sleep(0.05)
+    assert h.factory.opened == 1
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 async def test_receive_raising_counts_as_a_disconnect():

@@ -79,10 +79,23 @@ async def test_existing_link_is_not_overwritten(app, client, auth_headers, tmp_p
     uid, mid = await setup_message(app, client, auth_headers)
     assessor = XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True)
     first = await assessor.assess(mid, PCM, REFERENCE)
-    await assessor.assess(mid, PCM, REFERENCE)
+    second = await assessor.assess(mid, PCM, REFERENCE)
     async with app.state.sessionmaker() as session:
         message = await session.get(Message, mid)
     assert message.assessment_id == first["assessment_id"]
+    # Review 4.6b-m1: the second recording was not linked, so the client must not be told it was saved
+    # (the unlinked row is an orphan that `cleanup_orphan_chat_recordings` reclaims).
+    assert second["status"] == "done" and second["assessment_id"] is None and "pronunciation_score" in second["result"]
+
+
+async def test_deleted_message_reports_no_saved_assessment(app, client, auth_headers, tmp_path):
+    app.state.settings.data_dir = str(tmp_path)
+    uid, mid = await setup_message(app, client, auth_headers)
+    async with app.state.sessionmaker() as session:
+        await session.delete(await session.get(Message, mid))
+        await session.commit()
+    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE)
+    assert out["status"] == "done" and out["assessment_id"] is None
 
 
 async def test_cancel_during_xfyun_leaves_nothing(app, client, auth_headers, tmp_path):
