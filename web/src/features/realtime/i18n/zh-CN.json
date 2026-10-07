@@ -26,6 +26,8 @@
       "interrupted": "(已打断)",
       "close": "关闭",
       "captions": "实时字幕",
+      "translate": "翻译",
+      "autoTranslate": "自动翻译",
       "errors": {
         "unauthorized": "通话凭证已失效,请重试",
         "disabled": "服务器未开启实时通话",

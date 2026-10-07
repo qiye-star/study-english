@@ -1,12 +1,14 @@
-import { HandIcon, MicIcon, MicOffIcon, PhoneOffIcon, XIcon } from "lucide-react";
+import { HandIcon, LanguagesIcon, MicIcon, MicOffIcon, PhoneOffIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
 import { browserCaptureEnv, getPageAudioContext, unlockAudioContext, type CaptureEnv } from "~/audio/capture";
+import type { ApiClient } from "~/api/client";
 import { scoreTone } from "~/features/chat/result-badges";
 import type { CallModel } from "./call-machine";
+import { CallCaptionTranslation, readAutoTranslate, writeAutoTranslate } from "./call-caption-translation";
 import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
 import { useRealtimeCall } from "./use-realtime-call";
 
@@ -20,6 +22,8 @@ export interface RealtimeCallScreenProps {
   onPttDown(): void;
   onPttUp(): void;
   onClose(): void;
+  /** 通话字幕翻译(R16 复用):不传则不显示翻译入口(例如英文界面没有可译的目标语言)。 */
+  translation?: { api: ApiClient; nativeLanguage: string };
 }
 
 /**
@@ -198,11 +202,13 @@ function useModalIsolation(dialog: RefObject<HTMLElement>) {
   }, [dialog]);
 }
 
-export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTalk, onPttDown, onPttUp, onClose }: RealtimeCallScreenProps) {
+export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTalk, onPttDown, onPttUp, onClose, translation }: RealtimeCallScreenProps) {
   const { t, i18n } = useTranslation();
   const ended = model.phase === "ended";
   // 服务端可能带来新错误码:没有文案的键退回通用文案,不把键名露给用户
   const text = (key: string) => (i18n.exists(key) ? t(key) : t("web.realtime.errors.generic"));
+
+  const [autoTranslate, setAutoTranslate] = useState(readAutoTranslate);
 
   const captionsRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -254,6 +260,13 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
         <span data-testid="call-status" data-phase={model.phase} role="status" className="text-base font-medium">
           {t(`web.realtime.status.${phaseKey}`)}
         </span>
+        {translation && (
+          <Button type="button" variant={autoTranslate ? "secondary" : "ghost"} size="sm" data-testid="call-auto-translate"
+            aria-pressed={autoTranslate} className="h-11 min-w-11 px-2"
+            onClick={() => { const next = !autoTranslate; setAutoTranslate(next); writeAutoTranslate(next); }}>
+            <LanguagesIcon className="mr-1 h-4 w-4" aria-hidden="true" />{t("web.realtime.autoTranslate")}
+          </Button>
+        )}
         {!ended && (
           <span data-testid="call-mic-indicator" className="flex items-center gap-1 text-sm text-red-600">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
@@ -288,6 +301,10 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
                 className={cn("inline-flex h-6 items-center rounded-full px-2 text-xs", scoreTone(c.score))}>
                 {t("web.chat.voice.score", { score: c.score })}
               </span>
+            )}
+            {translation && c.role === "assistant" && (
+              <CallCaptionTranslation api={translation.api} nativeLanguage={translation.nativeLanguage} captionKey={c.key} text={c.text}
+                finished={c.messageId !== undefined && !c.interrupted} auto={autoTranslate} />
             )}
           </div>
         ))}
@@ -338,6 +355,8 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
 export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & {
   /** 关闭对话框。`ending`:挂断后仍在等服务端关闭的套接字(页面等它关闭再重新加载,并负责在切换/卸载时 drop);还没开始通话时为 null。 */
   onClose(ending: CallEnding | null): void;
+  /** 母语代码;不传(英文界面)则通话里不提供翻译。 */
+  nativeLanguage?: string;
 };
 
 /**
@@ -345,7 +364,7 @@ export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & {
  * 其他原因结束(服务端关闭、超时、切后台 R16、麦克风错误……)→ 留在界面上显示原因与关闭按钮。
  * 传入页面共享上下文时用 `prepareCallAudio()` 的结果,`ownsContext` 为 false。
  */
-export function RealtimeCallDialog({ onClose, ...options }: RealtimeCallDialogProps) {
+export function RealtimeCallDialog({ onClose, nativeLanguage, ...options }: RealtimeCallDialogProps) {
   const { model, call, handOff } = useRealtimeCall(options);
   const callRef = useRef(call);
   callRef.current = call;
@@ -357,6 +376,7 @@ export function RealtimeCallDialog({ onClose, ...options }: RealtimeCallDialogPr
       onPushToTalk={(on) => call?.setPushToTalk(on)}
       onPttDown={() => call?.pttDown()}
       onPttUp={() => call?.pttUp()}
-      onClose={() => onClose(handOff())} />
+      onClose={() => onClose(handOff())}
+      translation={nativeLanguage ? { api: options.api, nativeLanguage } : undefined} />
   );
 }
