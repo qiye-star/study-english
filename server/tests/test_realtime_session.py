@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import struct
 
@@ -642,6 +643,24 @@ async def test_disconnect_while_recognising_aborts_the_recognizer():
     h.inbox.put_nowait(None)
     assert await asyncio.wait_for(task, 2) == 1000
     assert rec.aborted and h.store.messages == []
+
+
+async def test_cancel_pending_aborts_the_recognizer_open_in_the_main_loop():
+    # Review 4.5-m2: when the handler is cancelled, `run`'s awaited shutdown may never run; the recognizer
+    # of the utterance still being spoken must not wait for its idle watchdog to release the upstream.
+    rec = FakeRecognizer("hi")
+    h = Harness(factory=Factory(rec))
+    task = asyncio.create_task(h.run())
+    h.send(PCM)  # mid-utterance: no utterance_end yet
+    await h.until(lambda: h.factory.opened == 1 and len(rec.audio) > 0)
+    h.session.cancel_pending()
+    await h.until(lambda: rec.aborted)
+    h.send(PCM)  # audio still queued after cancel_pending opens nothing
+    await asyncio.sleep(0.05)
+    assert h.factory.opened == 1
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 async def test_receive_raising_counts_as_a_disconnect():

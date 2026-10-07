@@ -119,6 +119,7 @@ class _DeadRecognizer:
 
 
 _WAKE = object()
+_BACKGROUND: set[asyncio.Task] = set()  # cancel_pending 发起的识别器中止任务
 _CLOSED = object()
 
 
@@ -350,7 +351,7 @@ class RealtimeSession:
     async def _on_audio(self, data: bytes) -> None:
         check_uplink(data)
         self._last_activity = self._now()
-        if self._fatal is not None:
+        if self._fatal is not None or self._closed:  # _closed:cancel_pending 之后不再打开新的识别器
             return
         if self._discarding:
             return
@@ -609,12 +610,19 @@ class RealtimeSession:
     def cancel_pending(self) -> None:
         """Synchronous last-resort cleanup for a caller that is itself being cancelled (anyio cancel
         scopes re-deliver cancellation at every await, so `run`'s awaited shutdown may not finish):
-        cancels the reader, every turn and every assessment. No-op after a normal `run` + `drain`."""
+        cancels the reader, every turn and every assessment, and aborts the recognizer of the utterance
+        still being spoken (in a separate task, outside the caller's cancel scope). No-op after a normal
+        `run` + `drain`."""
         self._closed = True
         tasks = [self._reader, *self._turn_tasks, *self._assessments]
         for task in tasks:
             if task is not None and not task.done():
                 task.cancel()
+        recognizer, self._recognizer = self._recognizer, None
+        if recognizer is not None:
+            abort = asyncio.get_running_loop().create_task(_abort(recognizer))
+            _BACKGROUND.add(abort)  # keep a reference until it finishes
+            abort.add_done_callback(_BACKGROUND.discard)
 
     async def drain(self, timeout: float = 10.0) -> None:
         self._closed = True
