@@ -300,7 +300,7 @@ class RealtimeSession:
             await _settle(reader)
             # 用户挂断:收尾共用一个截止时间;服务端发起的关闭不等(deadline=None)
             deadline = asyncio.get_running_loop().time() + HANGUP_GRACE if self._hanging_up else None
-            await self._shutdown()
+            await self._shutdown(deadline)
             if deadline is not None:
                 await self._await_assessments(deadline)
             self._closed = True  # 之后到达的事件(迟到的评测等)一律丢弃
@@ -481,8 +481,8 @@ class RealtimeSession:
             if turn.skip_reply:
                 # 被新的话语打断:这句先不回复,由下一轮一起回复(下一轮若只是误触发,也要回复这一句)
                 return
-            if not self._unanswered or self._fatal is not None or self._closed:
-                return
+            if not self._unanswered or self._fatal is not None or self._closed or self._hanging_up:
+                return  # _hanging_up:挂断宽限里只保存用户消息,不再开始回复
             turn.phase = "replying"  # 与上面的 skip_reply 检查之间没有 await:打断要么标记跳过,要么取消回复
             try:
                 history = await self._store.history(self._limits.history)
@@ -615,15 +615,23 @@ class RealtimeSession:
         if pending and timeout > 0 and not self._closed:
             await asyncio.wait(pending, timeout=timeout)
 
-    async def _shutdown(self) -> None:
+    async def _shutdown(self, deadline: float | None = None) -> None:
+        """收尾所有轮次。`deadline`(只在用户挂断时给出):已说完(收到 utterance_end)、还在识别的话语
+        可以识别并保存到这个时间点(下发 transcript_final,不再回复);其余情况与以前一样立即取消。"""
+        recognizer, self._recognizer = self._recognizer, None
+        await _abort(recognizer)  # 还在说的一句(没有 utterance_end):丢弃
+        loop = asyncio.get_running_loop()
         for task, turn in list(self._turn_tasks.items()):
+            if deadline is not None and turn.phase == "recognising":
+                if not await _settle(task, max(0.0, deadline - loop.time())):
+                    task.cancel()  # 识别/保存超过宽限:中止识别器
+                    await _settle(task)
+                continue
             if turn.phase != "finishing":
                 task.cancel()  # 回复中:保存已说出的部分;识别中:中止识别器
             if not await _settle(task, FINISH_GRACE):
                 task.cancel()
                 await _settle(task)
-        recognizer, self._recognizer = self._recognizer, None
-        await _abort(recognizer)
 
     def cancel_pending(self) -> None:
         """Synchronous last-resort cleanup for a caller that is itself being cancelled (anyio cancel

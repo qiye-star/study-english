@@ -600,7 +600,9 @@ def _others(before):
 
 
 @pytest.mark.parametrize("stage", ["recognising", "llm", "tts"])
-async def test_hangup_mid_turn_cancels_every_task(stage):
+async def test_hangup_mid_turn_cancels_every_task(stage, monkeypatch):
+    # 识别中(已 utterance_end)的一句有挂断宽限;这里识别永远不结束,宽限一过就被取消
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
     before = set(asyncio.all_tasks())
     gate = asyncio.Event()
     closed = []
@@ -1080,12 +1082,15 @@ async def test_flood_of_utterances_bounds_pending_recognitions_and_leaks_nothing
     gate = asyncio.Event()
     factory = GatedFactory(gate)
     h = Harness(factory=factory, limits=RealtimeLimits(max_seconds=30, idle_seconds=30))
+    started = asyncio.get_running_loop().time()
     task = asyncio.create_task(h.run())
     for _ in range(1000):
         h.send(PCM)
         h.send({"type": "utterance_end"})
     h.send({"type": "hangup"})  # 在全部 1000 对之后处理
     assert await asyncio.wait_for(task, 10) == 1000
+    # 3 句卡住的识别共用一个挂断截止时间(而不是每句 2.5 s):最坏情况仍在网页端 3 s 等待之内
+    assert asyncio.get_running_loop().time() - started < realtime_session.HANGUP_GRACE + 0.5
     await h.session.drain()
     assert factory.opened <= realtime_session.MAX_PENDING_TURNS
     assert h.session.stats.dropped_utterances == 1000 - factory.opened
@@ -1119,7 +1124,8 @@ async def test_flood_never_exceeds_the_rate_limit_in_upstream_calls():
     assert _others(before) == set()
 
 
-async def test_hangup_while_replaying_into_the_fallback_aborts_it():
+async def test_hangup_while_replaying_into_the_fallback_aborts_it(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)  # 已说完的一句有挂断宽限;卡住的兜底超时后被取消
     class StuckRecognizer(FakeRecognizer):
         async def send_audio(self, pcm):
             await asyncio.Event().wait()  # 补发音频卡住:只能被取消
@@ -1273,3 +1279,118 @@ async def test_server_initiated_close_does_not_wait_for_assessments(how):
     assert _now() - started < 0.2  # 默认 HANGUP_GRACE(2.5 s)完全没有等
     assert not a.cancelled
     await h.session.drain(timeout=0.05)
+
+
+async def test_hangup_right_after_utterance_end_saves_the_user_message_without_a_reply():
+    before = set(asyncio.all_tasks())
+    seen = []
+    rec = FakeRecognizer("last words", delay=0.2)  # 慢的识别收尾
+    h = Harness(factory=Factory(rec), llm=llm_of("Never.", seen=seen))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    h.send({"type": "hangup"})  # 刚说完就挂断
+    started = _now()
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert _now() - started < 1.0
+    assert h.store.messages == [{"role": "user", "content": "last words"}]
+    assert h.of("transcript_final") == [{"type": "transcript_final", "text": "last words", "message_id": "m1"}]
+    assert seen == [] and "reply_delta" not in h.types() and "reply_done" not in h.types()
+    assert rec.finished and not rec.aborted
+    assert h.session.stats.turns == 1
+    await h.session.drain()
+    assert _others(before) == set()
+
+
+async def test_hangup_after_utterance_end_also_delivers_its_assessment():
+    a = SlowAssessor(delay=0.1)
+    h = Harness(factory=Factory(FakeRecognizer("last words", delay=0.1)), assessor=a)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert [e["type"] for e in h.events if e["type"] in ("transcript_final", "assessment")] == \
+        ["transcript_final", "assessment"]
+    assert h.of("assessment")[0]["message_id"] == "m1"
+
+
+async def test_hangup_recognition_and_assessments_share_one_deadline(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.4)
+    a = SlowAssessor(delay=None)
+    h = Harness(factory=Factory(FakeRecognizer("last words", delay=0.25)), assessor=a)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    started = _now()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    elapsed = _now() - started
+    assert 0.35 <= elapsed < 0.7  # 0.25 识别 + 余下 0.15 等评测,而不是 0.25 + 0.4
+    assert h.store.messages == [{"role": "user", "content": "last words"}]
+    assert "assessment" not in h.types()
+    await h.session.drain(timeout=0.05)
+
+
+async def test_hangup_waits_for_every_ended_utterance_in_order():
+    seen = []
+    h = Harness(factory=Factory(FakeRecognizer("one", delay=0.15), FakeRecognizer("two", delay=0.05)),
+                llm=llm_of("Never.", seen=seen))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await speak_once(h)
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert [m["content"] for m in h.store.messages] == ["one", "two"]
+    assert [e["message_id"] for e in h.of("transcript_final")] == ["m1", "m2"]
+    assert seen == []
+
+
+async def test_hangup_while_still_speaking_drops_that_utterance():
+    rec = FakeRecognizer("half a sentence", delay=0.2)
+    h = Harness(factory=Factory(rec))
+    task = asyncio.create_task(h.run())
+    h.send(PCM)  # 没有 utterance_end
+    await h.until(lambda: h.factory.opened == 1 and len(rec.audio) > 0)
+    started = _now()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert _now() - started < 0.1
+    assert rec.aborted and not rec.finished
+    assert h.store.messages == [] and "transcript_final" not in h.types()
+
+
+async def test_hangup_recognition_beyond_the_grace_is_cancelled(monkeypatch):
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.2)
+    rec = FakeRecognizer("too slow", gate=asyncio.Event())
+    h = Harness(factory=Factory(rec))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: h.events[-1:] == [{"type": "state", "state": "thinking"}])
+    started = _now()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert 0.15 <= _now() - started < 0.6
+    assert rec.aborted and h.store.messages == []
+
+
+async def test_disconnect_right_after_utterance_end_does_not_wait_for_recognition():
+    rec = FakeRecognizer("last words", delay=0.3)
+    h = Harness(factory=Factory(rec))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    h.inbox.put_nowait(None)  # 客户端消失,不是挂断:没有人能收到 transcript_final
+    started = _now()
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert _now() - started < 0.1
+    assert rec.aborted and h.store.messages == []
+
+
+async def test_hangup_mid_reply_still_cancels_the_reply_at_once():
+    log = []
+    h = Harness(llm=llm_of("One. ", "Two."), tts=tts_of(gate_after="Two", log=log))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "Two." in log)
+    started = _now()
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 2) == 1000
+    assert _now() - started < 0.1
+    assert h.store.messages[-1] == {"role": "assistant", "content": "One. …"}

@@ -603,3 +603,34 @@ def test_idle_close_does_not_wait_for_a_pending_assessment(ws_app, monkeypatch):
         elapsed = time.monotonic() - started
     assert code == 4008
     assert elapsed < 1.0  # HANGUP_GRACE (2.5 s) is not applied to a server-initiated close
+
+
+def test_hangup_right_after_utterance_end_saves_the_last_words_without_a_reply(ws_app, monkeypatch):
+    app, client = ws_app
+    seen = []
+    assessor = SlowAssessor(delay=0.2)
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(
+        llm=llm_of("Never.", seen=seen), recognizer=lambda: FakeRecognizer("last words", delay=0.4), assessor=assessor))
+    headers = login(client)
+    cid, ticket = ticket_for(client, headers)
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps(START))
+        receive_until(ws, "ready")
+        ws.send_bytes(PCM)
+        ws.send_text(json.dumps({"type": "utterance_end"}))
+        ws.send_text(json.dumps({"type": "hangup"}))  # hang up while the recognizer is still finishing
+        started = time.monotonic()
+        events, code = until_close(ws)
+        elapsed = time.monotonic() - started
+    assert code == 1000
+    assert elapsed < 3.0  # the web client waits at most 3 s for the close frame
+    kinds = [e["type"] for e in events]
+    assert "reply_delta" not in kinds and "reply_done" not in kinds and seen == []
+    final = next(e for e in events if e["type"] == "transcript_final")
+    assert final["text"] == "last words" and final["message_id"]
+    assert kinds.index("transcript_final") < kinds.index("assessment")  # both before the close frame
+    messages = client.get(f"/api/conversations/{cid}/messages", headers=headers).json()["messages"]
+    assert [(m["role"], m["content"]) for m in messages] == [("user", "last words")]
+    assert messages[0]["id"] == final["message_id"]
+    wait_for(lambda: app.state.realtime_registry.active_count == 0)
+    wait_for(lambda: session_tasks(client) == [])
