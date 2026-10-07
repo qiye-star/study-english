@@ -1097,3 +1097,34 @@ async def test_hangup_while_replaying_into_the_fallback_aborts_it():
     h.send({"type": "hangup"})
     assert await asyncio.wait_for(task, 2) == 1000
     assert stuck.aborted  # 取消发生在补发音频时:已打开的兜底识别器也要中止
+
+
+async def test_barge_in_while_the_previous_reply_is_being_saved_keeps_db_order():
+    gate = asyncio.Event()
+
+    class SlowAssistantStore(FakeStore):
+        saving = False
+
+        async def add_assistant(self, text):
+            if not SlowAssistantStore.saving:
+                SlowAssistantStore.saving = True
+                await gate.wait()  # 第一轮的回复已完整下发,卡在保存(finishing,不可打断)
+            return await super().add_assistant(text)
+
+    llms = iter([llm_of("First reply."), llm_of("Second reply.")])
+    h = Harness(store=SlowAssistantStore(), llm=lambda m: next(llms)(m),
+                factory=Factory(FakeRecognizer("one"), FakeRecognizer("two")))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: SlowAssistantStore.saving)
+    await speak_once(h)  # 打断落在 finishing:新的一句识别很快
+    await h.until(lambda: h.factory.opened == 2)
+    await asyncio.sleep(0.05)
+    gate.set()
+    await h.until(lambda: len(h.of("reply_done")) == 2)
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert [m["content"] for m in h.store.messages] == ["one", "First reply.", "two", "Second reply."]
+    done1 = h.log.index(("json", h.of("reply_done")[0]))
+    final2 = h.log.index(("json", h.of("transcript_final")[1]))
+    assert done1 < final2

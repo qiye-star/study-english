@@ -95,7 +95,10 @@ class CallStats:
 @dataclass
 class _Turn:
     after: asyncio.Event | None
-    saved: asyncio.Event = field(default_factory=asyncio.Event)
+    # 这一轮彻底结束(用户消息与回复都已保存、reply_done 已下发)才放行下一轮的保存:
+    # 打断落在 finishing 时,下一句的用户消息不会抢在上一轮的助手消息之前入库(复核 4.3-m1)。
+    # 下一轮存在时上一轮不会再开始回复(打开新识别器前已打断它),所以这里最多只等一次保存。
+    done: asyncio.Event = field(default_factory=asyncio.Event)
     task: asyncio.Task | None = None
     # recognising → replying(可被打断取消)→ finishing(回复已完整下发,只剩保存/收尾,不可打断)
     phase: str = "recognising"
@@ -386,7 +389,7 @@ class RealtimeSession:
         if recognizer is None:
             return
         previous = self._turn
-        turn = _Turn(after=previous.saved if previous else None)
+        turn = _Turn(after=previous.done if previous else None)
         self._turn = turn
         await self._set_state("thinking")
         turn.task = asyncio.create_task(self._run_turn(turn, recognizer, pcm, is_fallback))
@@ -453,21 +456,16 @@ class RealtimeSession:
                 return  # 通话正在关闭(例如消息已满):不再保存,也不重复报错
             message_id = None
             if text:  # 额度已在这一句开始时扣过(_on_audio)
-                try:
-                    message_id = await self._save_user(text)
-                    if message_id is not None:
-                        self._unanswered = True  # 与放行下一轮之间没有 await:下一轮一定看得到
-                finally:
-                    turn.saved.set()  # 立刻放行下一轮的保存
+                message_id = await self._save_user(text)
                 if message_id is None:
                     return
+                self._unanswered = True  # 在放行下一轮(finally 里的 done)之前设置:下一轮一定看得到
                 self.stats.turns += 1
                 await self._send({"type": "transcript_final", "text": text, "message_id": message_id})
                 if self._up.assessor is not None and pcm:
                     self._spawn_assessment(message_id, pcm, text)
             elif text == "":
                 await self._send({"type": "transcript_final", "text": "", "message_id": None})
-            turn.saved.set()
             if turn.skip_reply:
                 # 被新的话语打断:这句先不回复,由下一轮一起回复(下一轮若只是误触发,也要回复这一句)
                 return
@@ -486,7 +484,7 @@ class RealtimeSession:
             self._unanswered = False  # 在读历史时被打断的话,这句仍算未回复
             await self._reply(turn, messages)
         finally:
-            turn.saved.set()
+            turn.done.set()
             turn.phase = "finishing"
             if self._turn is turn:
                 self._last_activity = self._now()  # 静音从这一轮结束时重新计时
