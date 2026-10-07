@@ -41,7 +41,19 @@ export function AppRoutes() {
 }
 
 export function ThemedToaster() {
-  return <Toaster position="top-center" richColors closeButton theme={useIsDark() ? "dark" : "light"} />;
+  return <Toaster position="top-center" closeButton theme={useIsDark() ? "dark" : "light"}
+      toastOptions={{
+        unstyled: false,
+        classNames: {
+          toast: "!rounded-card !border-0 !bg-surface/90 !text-ink !shadow-hair backdrop-blur-xl backdrop-saturate-150",
+          description: "!text-ink-2",
+          closeButton: "!border-0 !bg-surface-2 !text-ink-2 !shadow-hair",
+          success: "[&_[data-icon]]:!text-green",
+          error: "[&_[data-icon]]:!text-red",
+          warning: "[&_[data-icon]]:!text-amber",
+          info: "[&_[data-icon]]:!text-blue",
+        },
+      }} />;
 }
 
 export function App() {
