@@ -263,3 +263,95 @@ class DbMessageStore:
                 .limit(limit)
             )).all()
         return [{"role": role, "content": content} for role, content in reversed(rows)]
+
+
+# ---- pronunciation assessment (plan Task 4.6, R14) ----
+import asyncio  # noqa: E402
+
+from app.assessment_store import QuotaExceeded, check_quota, save_assessment  # noqa: E402
+from app.models import Assessment, User  # noqa: E402
+from app.routers.speech import (  # noqa: E402
+    MAX_REFERENCE_CHARS,
+    TIMEOUT_BASE_SECONDS,
+    TIMEOUT_CAP_SECONDS,
+    _ise_entry,
+    cleanup_orphan_chat_recordings,
+)
+from app.stt import pcm_to_wav  # noqa: E402
+from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured  # noqa: E402
+from app.xfyun_result import to_assessment  # noqa: E402
+
+ASSESS_MAX_SECONDS = 60
+ASSESS_MAX_BYTES = ASSESS_MAX_SECONDS * 32000  # PCM16 mono 16 kHz
+
+
+class XfyunAssessor:
+    """`Assessor` over Xfyun ISE. The reference is the transcript. Failures never raise (except
+    cancellation): `{"status": "failed"}`. Logs carry kinds only, never transcript text."""
+
+    def __init__(self, xfyun, sessionmaker, settings: Settings, user_id: int, save: bool):
+        self._xfyun = xfyun
+        self._sm = sessionmaker
+        self._settings = settings
+        self._user_id = user_id
+        self._save = save
+
+    async def assess(self, message_id: str, pcm: bytes, text: str) -> dict:
+        pcm = pcm[:ASSESS_MAX_BYTES]
+        pcm = pcm[: len(pcm) - len(pcm) % 2]
+        reference = text.strip()[:MAX_REFERENCE_CHARS]
+        if not pcm or not reference:
+            return {"status": "failed"}
+        duration = len(pcm) / 32000
+        try:
+            xml = await self._xfyun.evaluate(pcm, reference, _ise_entry("en"),
+                                             timeout=min(TIMEOUT_BASE_SECONDS + duration, TIMEOUT_CAP_SECONDS))
+            result = to_assessment(xml, reference)
+        except (XfyunError, XfyunNotConfigured, ValueError) as e:
+            logger.warning("Realtime assessment failed kind=%s", type(e).__name__)
+            return {"status": "failed"}
+        if not self._save:
+            return {"status": "done", "result": result, "assessment_id": None}
+        # The write (file + row + message link) runs as its own task and is shielded: a hangup that
+        # cancels us mid-write lets it finish or roll back by itself, so no file is left without a row.
+        task = asyncio.ensure_future(self._persist(message_id, pcm, reference, duration, result))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())  # retrieve, never log
+            raise
+
+    async def _persist(self, message_id: str, pcm: bytes, reference: str, duration: float, result: dict) -> dict:
+        wav = pcm_to_wav(pcm)
+        try:
+            async with self._sm() as session:
+                user = await session.get(User, self._user_id)
+                if user is not None:
+                    await cleanup_orphan_chat_recordings(session, self._settings, user)
+                try:
+                    await check_quota(session, self._settings, self._user_id, len(wav))
+                except QuotaExceeded:
+                    return {"status": "quota", "result": result, "assessment_id": None}
+                try:
+                    assessment_id = await save_assessment(
+                        session, self._settings, self._user_id, wav_bytes=wav, duration=duration,
+                        reference=reference, language="en", source="chat", result=result)
+                except OSError:
+                    logger.warning("Realtime assessment recording could not be written")
+                    return {"status": "done", "result": result, "assessment_id": None}
+                message = await session.get(Message, message_id)
+                if message is not None and message.assessment_id is None:
+                    message.assessment_id = assessment_id
+                    await session.commit()
+            return {"status": "done", "result": result, "assessment_id": assessment_id}
+        except Exception as e:
+            logger.warning("Realtime assessment save failed kind=%s", type(e).__name__)
+            return {"status": "failed"}
+
+
+def make_assessor(app, settings: Settings, user_id: int, save: bool) -> XfyunAssessor | None:
+    xfyun = getattr(app.state, "xfyun", None) or XfyunIse(
+        settings.xfyun_app_id, settings.xfyun_api_key, settings.xfyun_api_secret, settings.xfyun_ws_url)
+    if not xfyun.configured:
+        return None
+    return XfyunAssessor(xfyun, app.state.sessionmaker, settings, user_id, save)
