@@ -10,7 +10,7 @@ import { realtimeErrorKey } from "./errors";
 import { encodeControl, encodeStart, parseServerEvent, splitAudioFrame, type StartPayload } from "./protocol";
 import { createRealtimeTicket, realtimeUrl } from "./realtime-api";
 
-export const PRE_ROLL_MS = 300;
+export const PRE_ROLL_MS = 500;
 /** 票据剩余寿命不足这么多秒时,开 WebSocket 前重新申请一张(首次下载 VAD 资源、犹豫的权限弹窗都可能超过 60 s)。 */
 export const TICKET_MARGIN_S = 10;
 /** 采集开始后上下文仍不在 running 时,再 resume() 一次最多等这么久。 */

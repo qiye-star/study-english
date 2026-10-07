@@ -183,26 +183,26 @@ describe("RealtimeCall", () => {
     await s.call.start();
     s.ws().open();
     s.ws().server({ type: "ready", asr: "buffered" });
-    s.speech(3); // 说话前的 300 ms(3 帧 × 100 ms)作为预录
+    s.speech(5); // 说话前的 500 ms(5 帧 × 100 ms)作为预录(PRE_ROLL_MS)
     expect(s.ws().binaries()).toHaveLength(0);
     s.vadCb().onSpeechStart();
-    expect(s.ws().binaries()).toHaveLength(3);
-    s.speech(2);
     expect(s.ws().binaries()).toHaveLength(5);
+    s.speech(2);
+    expect(s.ws().binaries()).toHaveLength(7);
     s.vadCb().onSpeechEnd(500);
     expect(s.ws().texts().at(-1)).toEqual({ type: "utterance_end" });
     s.speech(1);
-    expect(s.ws().binaries()).toHaveLength(5); // 不说话时不上传
+    expect(s.ws().binaries()).toHaveLength(7); // 不说话时不上传
   });
 
-  it("keeps only the last 300 ms as pre-roll and uploads 16-bit PCM", async () => {
+  it("keeps only the last 500 ms as pre-roll and uploads 16-bit PCM", async () => {
     const s = setup();
     await s.call.start();
     s.ws().open();
-    s.speech(6);
+    s.speech(8);
     s.vadCb().onSpeechStart();
     const sent = s.ws().binaries() as ArrayBuffer[];
-    expect(sent).toHaveLength(3);
+    expect(sent).toHaveLength(5);
     expect(sent[0].byteLength).toBe(1600 * 2);
     expect(new Int16Array(sent[0])[0]).toBe(Math.round(0.2 * 0x7fff));
   });
@@ -316,7 +316,7 @@ describe("RealtimeCall", () => {
     s.vadCb().onSpeechStart(); // VAD 事件在按住说话模式下被忽略
     s.speech(1);
     expect(s.ws().binaries()).toHaveLength(0);
-    s.call.pttDown(); // 按下时带上之前 300 ms 的预录(此处 2 帧)
+    s.call.pttDown(); // 按下时带上之前最多 500 ms 的预录(此处只有 2 帧)
     expect(s.ws().binaries()).toHaveLength(2);
     s.speech(2);
     s.call.pttUp();
