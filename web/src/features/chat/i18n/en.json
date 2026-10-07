@@ -33,7 +33,8 @@
         "retryTranscribe": "Retry transcription", "sendKept": "Send this recording", "discard": "Discard",
         "details": "Details", "detailsDescription": "Pronunciation score and corrections for this message",
         "practiceThis": "Practice this sentence", "recording": "Recording", "heldBusy": "A reply was still in progress, so this recording was not sent yet.",
-        "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list"
+        "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list",
+        "mixedVoices": "Other voices may have been picked up", "nearFieldTip": "Speak close to the microphone; in noisy places use a headset. Other people's voices cannot be fully excluded."
       },
       "levels": { "auto": "Auto (no limit)", "A2": "A2 · Elementary", "B1": "B1 · Intermediate", "B2": "B2 · Upper intermediate", "C1": "C1 · Advanced" },
       "hints": { "button": "Not sure what to say?", "title": "Things you could say", "description": "Pick a reply, listen to it, practice it or save it.", "fill": "Use this reply", "speak": "Read aloud", "practice": "Practice", "save": "Save to practice list", "errors": { "invalid": "The suggestions could not be read. Try again." } },

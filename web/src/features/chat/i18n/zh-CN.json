@@ -33,7 +33,8 @@
         "retryTranscribe": "重试转写", "sendKept": "发送这段", "discard": "丢弃",
         "details": "详情", "detailsDescription": "这条消息的发音分数与改正",
         "practiceThis": "跟读这句", "recording": "录音中", "heldBusy": "上一条回复还在进行,这段录音尚未发送。",
-        "playFailed": "无法播放这段录音", "weakWords": "需要加强的词:", "save": "收藏"
+        "playFailed": "无法播放这段录音", "weakWords": "需要加强的词:", "save": "收藏",
+        "mixedVoices": "可能混入了他人声音", "nearFieldTip": "近讲模式:靠近麦克风说话,嘈杂环境建议戴耳机;无法完全排除旁人的声音。"
       },
       "levels": { "auto": "自动(不限制)", "A2": "A2 · 初级", "B1": "B1 · 中级", "B2": "B2 · 中高级", "C1": "C1 · 高级" },
       "hints": { "button": "不会说?", "title": "你可以这样说", "description": "选一句填入输入框,也可以朗读、跟读或收藏。", "fill": "用这句", "speak": "朗读", "practice": "跟读", "save": "收藏到练习清单", "errors": { "invalid": "没能读取提示内容,请重试。" } },
