@@ -1,4 +1,4 @@
-import { HandIcon, MicIcon, MicOffIcon, PhoneOffIcon, XIcon } from "lucide-react";
+import { EarIcon, MicIcon, MicOffIcon, PhoneOffIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,7 @@ import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
 import { browserCaptureEnv, getPageAudioContext, unlockAudioContext, type CaptureEnv } from "~/audio/capture";
 import { scoreTone } from "~/features/chat/result-badges";
-import type { CallModel } from "./call-machine";
+import type { CallModel, InputMode } from "./call-machine";
 import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
 import { useRealtimeCall } from "./use-realtime-call";
 
@@ -16,7 +16,10 @@ export interface RealtimeCallScreenProps {
   level(): number;
   onHangup(): void;
   onMute(muted: boolean): void;
-  onPushToTalk(on: boolean): void;
+  /** 说话方式(自动 / 按住说话,互斥) */
+  onInputMode(mode: InputMode): void;
+  /** 免提 / 听筒 */
+  onSpeaker(on: boolean): void;
   onPttDown(): void;
   onPttUp(): void;
   onClose(): void;
@@ -61,11 +64,11 @@ function LevelBar({ level }: { level(): number }) {
 const isHoldKey = (key: string) => key === " " || key === "Enter";
 
 /**
- * 通话里的"按住说话":按下即开始上行(音频是实时流出去的,所以没有聊天按钮那种上滑取消/转文字),松开即结束这句。
+ * 通话里的"按住说话":按下即开始(音频是实时流出去的,所以没有聊天按钮那种上滑取消/转文字),松开即结束这句;
+ * 按得太短(不足 MIN_HOLD_MS)由通话丢弃。免提时它也是"按住插话"(机器人说话时声音打断不了)。
  * 指针按住/松开;键盘 `Space`/`Enter` 按下/抬起;失焦、指针被取消、卸载都会结束这句。
  */
-function CallPttButton({ disabled, onDown, onUp, onHeldChange }: { disabled: boolean; onDown(): void; onUp(): void; onHeldChange?(held: boolean): void }) {
-  const { t } = useTranslation();
+function CallPttButton({ disabled, label, onDown, onUp, onHeldChange }: { disabled: boolean; label: string; onDown(): void; onUp(): void; onHeldChange?(held: boolean): void }) {
   const [held, setHeld] = useState(false);
   const heldRef = useRef(false);
   const cb = useRef({ onDown, onUp, onHeldChange });
@@ -123,12 +126,12 @@ function CallPttButton({ disabled, onDown, onUp, onHeldChange }: { disabled: boo
         up();
       }}>
       <MicIcon className="mr-1 h-5 w-5" aria-hidden="true" />
-      {t("web.realtime.holdToSpeak")}
+      {label}
     </Button>
   );
 }
 
-/** 点按切换的说话键:没有 VAD 时给读屏用户(双击无法"按住")和不便长按的人用。 */
+/** 点按切换的说话键:按住说话模式下给读屏用户(双击无法"按住")和不便长按的人用。 */
 function CallTapToTalkButton({ disabled, onDown, onUp, onToggle }: { disabled: boolean; onDown(): void; onUp(): void; onToggle?(on: boolean): void }) {
   const { t } = useTranslation();
   const [on, setOn] = useState(false);
@@ -198,7 +201,7 @@ function useModalIsolation(dialog: RefObject<HTMLElement>) {
   }, [dialog]);
 }
 
-export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTalk, onPttDown, onPttUp, onClose }: RealtimeCallScreenProps) {
+export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode, onSpeaker, onPttDown, onPttUp, onClose }: RealtimeCallScreenProps) {
   const { t, i18n } = useTranslation();
   const ended = model.phase === "ended";
   // 服务端可能带来新错误码:没有文案的键退回通用文案,不把键名露给用户
@@ -240,12 +243,16 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
     else onHangup();
   };
 
-  // 没有 VAD 时按住键与点按键同时在:两者互斥(一边在说时另一边禁用),否则按住键松开会结束点按开始的那句,
+  // 按住说话模式下按住键与点按键同时在:两者互斥(一边在说时另一边禁用),否则按住键松开会结束点按开始的那句,
   // 点按键却还显示"点按结束说话"(review F2 m3)
   const [tapOn, setTapOn] = useState(false);
   const [holdOn, setHoldOn] = useState(false);
   const phaseKey = model.phase === "idle" ? "connecting" : model.phase;
-  const lockedId = useId();
+  const ptt = model.inputMode === "ptt";
+  const micLive = !ptt || model.holding;
+  // 按住键:按住说话模式下是唯一的说话方式;免提+自动模式下用来插话(机器人说话时半双工,声音打断不了)
+  const showHold = ptt || model.speaker;
+  const modeLabelId = useId();
   // 渲染到 body 下:背后整页都是对话框的兄弟节点,才能整体设为 inert
   return createPortal(
     <div ref={dialogRef} data-testid="call-screen" role="dialog" aria-modal="true" aria-label={t("web.realtime.title")} onKeyDown={onKeyDown}
@@ -255,9 +262,11 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
           {t(`web.realtime.status.${phaseKey}`)}
         </span>
         {!ended && (
-          <span data-testid="call-mic-indicator" className="flex items-center gap-1 text-sm text-red-600">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
-            {t("web.realtime.micInUse")}
+          // 按住说话模式下按住之外不采集:指示如实显示"已关闭"
+          <span data-testid="call-mic-indicator" data-live={String(micLive)}
+            className={cn("flex items-center gap-1 text-sm", micLive ? "text-red-600" : "text-muted-foreground")}>
+            <span className={cn("h-2 w-2 rounded-full", micLive ? "animate-pulse bg-red-600" : "bg-muted-foreground")} aria-hidden="true" />
+            {micLive ? t("web.realtime.micInUse") : t("web.realtime.micOffHold")}
           </span>
         )}
       </header>
@@ -304,10 +313,26 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
         </footer>
       ) : (
         <footer className="flex flex-col items-center gap-3 border-t p-4">
-          {model.pushToTalk && <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn} />}
-          {model.pushToTalk && model.vadUnavailable && (
-            <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />
+          {model.vadUnavailable && !ptt && (
+            <p data-testid="call-basic-detection" className="text-center text-xs text-muted-foreground">{t("web.realtime.basicDetection")}</p>
           )}
+          <div data-testid="call-input-mode" role="group" aria-labelledby={modeLabelId}
+            className="inline-flex rounded-lg border p-0.5">
+            <span id={modeLabelId} className="sr-only">{t("web.realtime.inputMode")}</span>
+            {(["auto", "ptt"] as const).map((mode) => (
+              <Button key={mode} type="button" data-testid={`call-mode-${mode}`} size="sm"
+                variant={model.inputMode === mode ? "secondary" : "ghost"} aria-pressed={model.inputMode === mode}
+                className="min-h-11 min-w-11 px-4"
+                onClick={() => { if (model.inputMode !== mode) onInputMode(mode); }}>
+                {mode === "auto" ? t("web.realtime.modeAuto") : t("web.realtime.modeHold")}
+              </Button>
+            ))}
+          </div>
+          {showHold && (
+            <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
+              label={ptt ? t("web.realtime.holdToSpeak") : t("web.realtime.holdToInterrupt")} />
+          )}
+          {ptt && <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />}
           <div className="flex items-center gap-4">
             <Button type="button" data-testid="call-mute" variant="outline" size="icon" className="min-h-11 min-w-11"
               aria-pressed={model.muted} aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
@@ -318,16 +343,13 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onPushToTal
               className="min-h-11 min-w-11 rounded-full" aria-label={t("web.realtime.hangup")} onClick={onHangup}>
               <PhoneOffIcon className="h-5 w-5" aria-hidden="true" />
             </Button>
-            <Button type="button" data-testid="call-ptt-toggle" variant={model.pushToTalk ? "secondary" : "outline"} size="icon"
-              className="min-h-11 min-w-11" aria-pressed={model.pushToTalk} aria-label={t("web.realtime.pushToTalk")}
-              disabled={model.vadUnavailable} aria-describedby={model.vadUnavailable ? lockedId : undefined}
-              onClick={() => onPushToTalk(!model.pushToTalk)}>
-              <HandIcon className="h-5 w-5" aria-hidden="true" />
+            <Button type="button" data-testid="call-speaker" variant={model.speaker ? "secondary" : "outline"}
+              className="min-h-11 min-w-11 gap-1 px-3" aria-pressed={model.speaker} aria-label={t("web.realtime.speakerToggle")}
+              onClick={() => onSpeaker(!model.speaker)}>
+              {model.speaker ? <Volume2Icon className="h-5 w-5" aria-hidden="true" /> : <EarIcon className="h-5 w-5" aria-hidden="true" />}
+              <span aria-hidden="true">{model.speaker ? t("web.realtime.speaker") : t("web.realtime.earpiece")}</span>
             </Button>
           </div>
-          {model.vadUnavailable && (
-            <p id={lockedId} data-testid="call-ptt-locked" className="text-center text-sm text-muted-foreground">{t("web.realtime.pttLocked")}</p>
-          )}
         </footer>
       )}
     </div>,
@@ -354,7 +376,8 @@ export function RealtimeCallDialog({ onClose, ...options }: RealtimeCallDialogPr
     <RealtimeCallScreen model={model} level={level}
       onHangup={() => { call?.hangup(); onClose(handOff()); }}
       onMute={(m) => call?.setMuted(m)}
-      onPushToTalk={(on) => call?.setPushToTalk(on)}
+      onInputMode={(mode) => call?.setInputMode(mode)}
+      onSpeaker={(on) => call?.setSpeaker(on)}
       onPttDown={() => call?.pttDown()}
       onPttUp={() => call?.pttUp()}
       onClose={() => onClose(handOff())} />

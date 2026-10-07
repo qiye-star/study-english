@@ -97,14 +97,26 @@ describe("callReducer", () => {
     expect(run([{ type: "fail", errorKey: "x" }, { type: "closed", code: 4008 }]).error).toBe("x");
   });
 
-  it("toggles mute and push-to-talk", () => {
-    const m = run([{ type: "mute", muted: true }, { type: "ptt", on: true }, { type: "notice", key: "k" }]);
-    expect(m).toMatchObject({ muted: true, pushToTalk: true, notice: "k" });
+  it("toggles mute and the input mode; a mode change always ends a hold", () => {
+    expect(INITIAL_CALL).toMatchObject({ inputMode: "auto", holding: false });
+    let m = run([{ type: "mute", muted: true }, { type: "input-mode", mode: "ptt" }, { type: "notice", key: "k" }]);
+    expect(m).toMatchObject({ muted: true, inputMode: "ptt", notice: "k" });
+    m = run([{ type: "holding", on: true }], m);
+    expect(m.holding).toBe(true);
+    m = run([{ type: "input-mode", mode: "auto" }], m);
+    expect(m).toMatchObject({ inputMode: "auto", holding: false });
+    expect(Object.keys(m)).not.toContain("pushToTalk");
   });
 
-  it("a missing VAD locks push-to-talk on and says why", () => {
+  it("speaker (hands-free) is part of the model", () => {
+    expect(run([{ type: "speaker", on: true }]).speaker).toBe(true);
+    expect(run([{ type: "speaker", on: true }, { type: "speaker", on: false }]).speaker).toBe(false);
+  });
+
+  it("a missing Silero model switches to basic detection: hands-free stays on and the mode is not locked", () => {
     const m = run([{ type: "vad-unavailable" }]);
-    expect(m).toMatchObject({ pushToTalk: true, vadUnavailable: true, notice: "web.realtime.vadUnavailable" });
+    expect(m).toMatchObject({ inputMode: "auto", vadUnavailable: true, notice: "web.realtime.vadUnavailable" });
+    expect(run([{ type: "input-mode", mode: "ptt" }, { type: "input-mode", mode: "auto" }], m).inputMode).toBe("auto");
     expect(INITIAL_CALL.vadUnavailable).toBe(false);
   });
 

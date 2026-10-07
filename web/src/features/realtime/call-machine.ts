@@ -1,5 +1,7 @@
 import { closeErrorKey, type ServerEvent } from "./protocol";
 
+/** 说话方式:`auto` = 自动检测(Silero 或基础能量检测);`ptt` = 只在按住时上行。两者互斥。 */
+export type InputMode = "auto" | "ptt";
 export type CallPhase = "idle" | "connecting" | "listening" | "thinking" | "speaking" | "ended";
 export interface Caption {
   key: string;
@@ -15,9 +17,13 @@ export interface CallModel {
   captions: Caption[];
   partial: string;
   muted: boolean;
-  pushToTalk: boolean;
-  /** VAD 没能加载:只能按住说话,开关被锁定 */
+  inputMode: InputMode;
+  /** 正按住说话键(任何模式下按住都是手动的一句) */
+  holding: boolean;
+  /** Silero 没能加载:自动模式改用基础(能量)检测;不锁定说话方式 */
   vadUnavailable: boolean;
+  /** 免提(外放):更大的音量、机器人说话时半双工 */
+  speaker: boolean;
   degraded: boolean;
   notice: string | null;
   error: string | null;
@@ -28,14 +34,16 @@ export type CallAction =
   | { type: "closed"; code: number }
   | { type: "fail"; errorKey: string }
   | { type: "mute"; muted: boolean }
-  | { type: "ptt"; on: boolean }
+  | { type: "input-mode"; mode: InputMode }
+  | { type: "holding"; on: boolean }
+  | { type: "speaker"; on: boolean }
   | { type: "notice"; key: string | null }
   | { type: "local-interrupt" }
   | { type: "vad-unavailable" };
 
 export const MAX_CAPTIONS = 50;
 export const INITIAL_CALL: CallModel = {
-  phase: "idle", captions: [], partial: "", muted: false, pushToTalk: false, vadUnavailable: false, degraded: false, notice: null, error: null,
+  phase: "idle", captions: [], partial: "", muted: false, inputMode: "auto", holding: false, vadUnavailable: false, speaker: false, degraded: false, notice: null, error: null,
 };
 
 const cap = (captions: Caption[]) => captions.slice(-MAX_CAPTIONS);
@@ -101,12 +109,16 @@ export function callReducer(m: CallModel, a: CallAction): CallModel {
       return { ...m, phase: "ended", partial: "", error: a.errorKey };
     case "mute":
       return { ...m, muted: a.muted };
-    case "ptt":
-      return { ...m, pushToTalk: a.on };
+    case "input-mode":
+      return { ...m, inputMode: a.mode, holding: false };
+    case "holding":
+      return { ...m, holding: a.on };
+    case "speaker":
+      return { ...m, speaker: a.on };
     case "notice":
       return { ...m, notice: a.key };
     case "vad-unavailable":
-      return { ...m, pushToTalk: true, vadUnavailable: true, notice: "web.realtime.vadUnavailable" };
+      return { ...m, vadUnavailable: true, notice: "web.realtime.vadUnavailable" };
     case "local-interrupt": {
       // 只标记还在流式输出(尚未收到 reply_done,messageId 仍为 undefined)的那条回复;
       // 思考阶段打断时新一轮还没有字幕,已说完的上一轮不能被标成"已打断"
