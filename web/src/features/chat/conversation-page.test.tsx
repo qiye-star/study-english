@@ -3125,12 +3125,38 @@ describe("ConversationPage", () => {
       expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
     });
 
+    // 假时钟(随真实时间推进,麦克风与 waitFor 照常工作);提示条的 2 s 由 advanceTimersByTime 一次跳过,不真等。
+    // 断言留足余量(≥ 900 ms),真实时间的漂移不会影响结果。
+    const fakeHintTimers = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    afterEach(() => { vi.useRealTimers(); });
+
     it("the hint goes away after 2 seconds", async () => {
+      fakeHintTimers();
       setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
       await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
       expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
-      await waitFor(() => expect(screen.queryByTestId("hold-hint")).toBeNull(), { timeout: 3000 });
+      await act(async () => { vi.advanceTimersByTime(1000); });
+      expect(screen.getByTestId("hold-hint")).toBeInTheDocument();
+      await act(async () => { vi.advanceTimersByTime(1100); });
+      expect(screen.queryByTestId("hold-hint")).toBeNull();
+    });
+
+    it("the same hint shown again restarts its 2 seconds", async () => {
+      fakeHintTimers();
+      setup(holdRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
+      await act(async () => { vi.advanceTimersByTime(1500); });
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 }); // 同样的"太短"提示
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
+      await act(async () => { vi.advanceTimersByTime(1000); });
+      // 第一条的计时器(此时已过 2.5 s)不能把第二条提前收走
+      expect(screen.getByTestId("hold-hint")).toHaveTextContent("Hold to talk");
+      await act(async () => { vi.advanceTimersByTime(1100); });
+      expect(screen.queryByTestId("hold-hint")).toBeNull();
     });
 
     it("releasing while the permission prompt is open says the mic is ready and releases the late microphone", async () => {

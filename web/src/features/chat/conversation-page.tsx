@@ -822,8 +822,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     inputRef.current?.focus();
   });
 
-  // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失
-  const [holdHint, setHoldHint] = useState<string | null>(null);
+  // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失。
+  // n 每次加一:同样的文字再出现一次(连点两下太短)也重新计时
+  const [holdHint, setHoldHint] = useState<{ text: string; n: number } | null>(null);
   useEffect(() => {
     if (!holdHint) return;
     const timer = window.setTimeout(() => setHoldHint(null), 2000);
@@ -969,7 +970,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         })}
       </div>
       {holdHint && (
-        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint}</div>
+        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint.text}</div>
       )}
       {autoSpeak.blocked && (
         <div data-testid="autospeak-blocked" role="status" className="flex items-center gap-2 border-t bg-muted px-3 py-1 text-sm">
@@ -998,7 +999,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           onDiscard={(reason) => {
             // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
             void voice.stop("discard");
-            if (mountedRef.current) setHoldHint(tRef.current(HOLD_HINTS[reason]));
+            const text = tRef.current(HOLD_HINTS[reason]);
+            if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
           }} />
         {recording ? (
           <div data-testid="voice-recording" className="flex h-11 flex-1 items-center gap-2 rounded-md border px-3 text-base">
