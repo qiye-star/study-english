@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { ApiClient } from "./client";
-import { loadServerAiConfig, normalizeVoices, resetServerAiConfigCache, voicesFor, type ServerAiConfig } from "./server-config";
+import { deriveAccent, loadServerAiConfig, normalizeVoices, resetServerAiConfigCache, voicesFor, type ServerAiConfig } from "./server-config";
 
 const ROUTES = {
   "GET /api/config/gpt_providers": () => json({ enjoyai: { models: ["gpt-4o-mini", "gpt-4o"] } }),
@@ -34,8 +34,8 @@ describe("server AI config", () => {
       voices: {
         openai: [{ label: "alloy", value: "alloy" }, { label: "echo", value: "echo" }],
         azure: [
-          { label: "Ava (Female)", value: "en-US-AvaNeural", language: "en-US" },
-          { label: "Katja (Female)", value: "de-DE-KatjaNeural", language: "de-DE" },
+          { label: "Ava (Female)", value: "en-US-AvaNeural", language: "en-US", accent: "us" },
+          { label: "Katja (Female)", value: "de-DE-KatjaNeural", language: "de-DE", accent: "other" },
         ],
       },
       defaultTts: { model: "openai/tts-1", voice: "alloy" },
@@ -64,5 +64,38 @@ describe("server AI config", () => {
     expect(voicesFor(config, "openai/tts-1").map((v) => v.value)).toEqual(["alloy"]);
     expect(voicesFor(config, "azure/speech", "fr").map((v) => v.value)).toEqual(["de-DE-K", "en-US-A"]);
     expect(voicesFor(config, "volcengine/seed-tts-2.0")).toEqual([]);
+  });
+
+  it("derives accents from language, british ids, or the server's accent field", () => {
+    const v = normalizeVoices({
+      volc: [
+        { label: "A", value: "a", language: "en-US" },
+        { label: "B", value: "b", language: "en-GB" },
+        { label: "C", value: "en_female_authoritative-british_x", language: "en-US" },
+        { label: "D", value: "d", language: "en-AU" },
+        { label: "E", value: "e", language: "en-US", accent: "gb" },
+      ],
+      openai: ["alloy"],
+    });
+    expect(v.volc.map((x) => x.accent)).toEqual(["us", "gb", "gb", "other", "gb"]);
+    expect(v.openai[0].accent).toBeUndefined();
+    expect(deriveAccent("x", "en-GB")).toBe("gb");
+  });
+
+  it("voicesFor filters by accent without falling back", () => {
+    const config: ServerAiConfig = {
+      llmModels: [], defaultLlmModel: "", ttsModels: [], defaultTts: { model: "", voice: "" },
+      voices: normalizeVoices({
+        volcengine: [
+          { label: "U", value: "u", language: "en-US" }, { label: "G", value: "g", language: "en-GB" },
+          { label: "Z", value: "z", language: "zh-CN" },
+        ],
+        openai: ["alloy"],
+      }),
+    };
+    expect(voicesFor(config, "volcengine/m", { accent: "us" }).map((x) => x.value)).toEqual(["u"]);
+    expect(voicesFor(config, "volcengine/m", { accent: "gb" }).map((x) => x.value)).toEqual(["g"]);
+    expect(voicesFor(config, "volcengine/m", {}).map((x) => x.value)).toEqual(["u", "g"]);
+    expect(voicesFor(config, "openai/tts-1", { accent: "gb" })).toEqual([]);
   });
 });
