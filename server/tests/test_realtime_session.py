@@ -123,7 +123,7 @@ class Harness:
         extra = {"clock": clock} if clock is not None else {}
         self.session = RealtimeSession(
             upstreams=Upstreams(self.factory, fallback, "buffered", llm or llm_of("Sure. ", "What size?"), tts or tts_of(), assessor),
-            store=self.store, system_prompt="Be a barista.", allow_turn=lambda: self.allow,
+            store=self.store, system_prompt="Be a barista.", allow_turn=lambda: self.allow() if callable(self.allow) else self.allow,
             send_json=send_json or self._json, send_bytes=send_bytes or self._bytes, limits=limits, **extra,
         )
 
@@ -1008,3 +1008,75 @@ async def test_message_limit_is_reported_once_even_with_a_queued_turn():
     gate.set()
     assert await asyncio.wait_for(task, 2) == 4013
     assert h.of("error") == [{"type": "error", "code": "message_limit"}]
+
+
+# ---------------------------------------------------------------- 洪泛:识别与上游调用有界(复核 4.3-I1)
+
+
+class GatedFactory(Factory):
+    """每次打开都给一个卡在 finish() 的识别器(模拟很慢的上游识别)。"""
+
+    def __init__(self, gate):
+        super().__init__()
+        self.gate = gate
+
+    async def __call__(self, on_partial):
+        self.opened += 1
+        r = FakeRecognizer("words", gate=self.gate)
+        self.made.append(r)
+        return r
+
+
+async def test_rate_limited_utterance_calls_no_upstream():
+    h = Harness(allow=False)
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "error" in h.types())
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert h.factory.opened == 0  # 超限的一句不打开识别器,不调用任何上游
+    assert h.of("error") == [{"type": "error", "code": "rate_limited"}]
+
+
+async def test_flood_of_utterances_bounds_pending_recognitions_and_leaks_nothing():
+    before = set(asyncio.all_tasks())
+    gate = asyncio.Event()
+    factory = GatedFactory(gate)
+    h = Harness(factory=factory, limits=RealtimeLimits(max_seconds=30, idle_seconds=30))
+    task = asyncio.create_task(h.run())
+    for _ in range(1000):
+        h.send(PCM)
+        h.send({"type": "utterance_end"})
+    h.send({"type": "hangup"})  # 在全部 1000 对之后处理
+    assert await asyncio.wait_for(task, 10) == 1000
+    await h.session.drain()
+    assert factory.opened <= realtime_session.MAX_PENDING_TURNS
+    assert h.session.stats.dropped_utterances == 1000 - factory.opened
+    assert all(r.aborted for r in factory.made)
+    assert "error" not in h.types()  # 协议没有 busy 错误码:静默丢弃
+    assert _others(before) == set()
+
+
+async def test_flood_never_exceeds_the_rate_limit_in_upstream_calls():
+    before = set(asyncio.all_tasks())
+    budget = {"left": 5}
+    llm_calls = []
+
+    def allow():
+        if budget["left"] <= 0:
+            return False
+        budget["left"] -= 1
+        return True
+
+    h = Harness(allow=allow, llm=llm_of("OK.", seen=llm_calls), limits=RealtimeLimits(max_seconds=30, idle_seconds=30))
+    task = asyncio.create_task(h.run())
+    for _ in range(1000):
+        h.send(PCM)
+        h.send({"type": "utterance_end"})
+    h.send({"type": "hangup"})
+    assert await asyncio.wait_for(task, 10) == 1000  # 超限不断开
+    await h.session.drain()
+    assert h.factory.opened <= 5 and len(llm_calls) <= 5
+    assert len(h.of("error")) >= 1000 - 5 - h.session.stats.dropped_utterances
+    assert {e["code"] for e in h.of("error")} == {"rate_limited"}
+    assert _others(before) == set()
