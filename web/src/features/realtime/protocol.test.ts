@@ -75,6 +75,14 @@ describe("encodeStart stays inside the server's limits (never a 4400 for oversiz
     expect(JSON.parse(encodeStart({ ...base, temperature: -1 })).temperature).toBe(0);
   });
 
+  it("replaces unpaired surrogates with U+FFFD (the server rejects them with 4400), keeping real pairs", () => {
+    const text = encodeStart({ ...base, systemPrompt: "a\ud800b\udc00c😀d\ud83d", model: "m\udfff" });
+    expect(text).not.toMatch(/\\ud[89a-f][0-9a-f]{2}/i); // JSON.stringify 把孤立代理写成 \udXXX 转义
+    const msg = JSON.parse(text);
+    expect(msg.system_prompt).toBe("a�b�c😀d�");
+    expect(msg.model).toBe("m�");
+  });
+
   it("rejects a voice the server would refuse", () => {
     expect(() => encodeStart({ ...base, voice: "a b" })).toThrow(StartPayloadError);
     expect(() => encodeStart({ ...base, voice: "ab" })).toThrow(StartPayloadError);
