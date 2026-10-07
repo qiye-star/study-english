@@ -84,6 +84,17 @@ async def test_llm_stream_keeps_allowed_model_and_lower_token_cap(respx_mock):
     assert body["model"] == "gpt-4o-mini" and body["max_tokens"] == 300
 
 
+async def test_llm_stream_disables_thinking_by_default(respx_mock):
+    # Review 4.4-I1: DeepSeek v4 models think by default (real upstream, 2026-10-07: 89-116 reasoning tokens
+    # before the first spoken word); `thinking: disabled` was accepted (HTTP 200) and removed them.
+    route = respx_mock.post(LLM).mock(return_value=httpx.Response(200, content=sse(delta("ok"), "[DONE]")))
+    async with httpx.AsyncClient() as http:
+        await collect(openai_llm_stream(http, make_settings(), "gpt-4o", 0.7)([]))
+        assert json.loads(route.calls.last.request.content)["thinking"] == {"type": "disabled"}
+        await collect(openai_llm_stream(http, make_settings(realtime_llm_disable_thinking=False), "gpt-4o", 0.7)([]))
+        assert "thinking" not in json.loads(route.calls.last.request.content)
+
+
 async def test_llm_stream_handles_events_split_across_network_chunks(respx_mock):
     raw = sse(delta("Hel"), json.dumps({"choices": [{"delta": {"reasoning_content": "hmm"}}]}), delta("lo é"), "[DONE]")
     pieces = [raw[i:i + 7] for i in range(0, len(raw), 7)]

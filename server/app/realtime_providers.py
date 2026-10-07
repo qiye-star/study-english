@@ -3,7 +3,7 @@ recognizer selection and message storage. They implement the types of `app.realt
 
 - LLM: OpenAI-compatible streaming chat completions (DeepSeek etc.) through the existing
   `UPSTREAM_LLM_*` settings; the model must be in `LLM_MODELS` (else the default),
-  `max_tokens = min(LLM_MAX_TOKENS, 600)`. Any non-200, network error, error event or truncated
+  `max_tokens = min(LLM_MAX_TOKENS, 600)`, `thinking: disabled` unless `REALTIME_LLM_DISABLE_THINKING=false`. Any non-200, network error, error event or truncated
   stream → `LlmError`.
 - TTS: Volcengine `synthesize_stream` as raw PCM16LE at `REALTIME_TTS_SAMPLE_RATE`; chunks are
   re-cut on whole samples (even byte counts); `VolcengineError` → `TtsError` (R6).
@@ -65,6 +65,8 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
         url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {settings.upstream_llm_key}", "Content-Type": "application/json"}
         body = {"model": chosen, "messages": messages, "temperature": temperature, "stream": True, "max_tokens": max_tokens}
+        if settings.realtime_llm_disable_thinking:
+            body["thinking"] = {"type": "disabled"}  # reasoning would delay the first word and eat max_tokens
         try:
             response = await http.send(
                 http.build_request("POST", url, json=body, headers=headers, timeout=LLM_TIMEOUT), stream=True)

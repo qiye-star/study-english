@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     realtime_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
     realtime_tts_model: str = "volcengine/seed-tts-2.0"
     realtime_tts_sample_rate: int = 24000
+    # 实时通话的 LLM 请求加 `thinking: {"type": "disabled"}`(复核 4.4-I1):DeepSeek v4 默认会先推理,
+    # 推理 token 既拖慢第一句话又占用 600 的 max_tokens。2026-10-07 真实上游两款模型都接受该参数
+    realtime_llm_disable_thinking: bool = True
 
     app_version: str = "0.7.9"
 
