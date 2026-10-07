@@ -1,4 +1,4 @@
-import { LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -27,6 +27,8 @@ import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, 
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { HintsSheet, hintKey } from "./hints-sheet";
+import type { DiscardReason } from "./hold-to-talk";
+import { HoldToTalkButton } from "./hold-to-talk-button";
 import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
@@ -88,6 +90,11 @@ const isPermanentSaveError = (err: unknown) =>
 
 
 const sameText = (a: string, b: string) => a.trim() === b.trim();
+
+/** 按住说话被丢弃时提示条的文案(R11) */
+const HOLD_HINTS: Record<DiscardReason, string> = {
+  short: "web.chat.hold.tooShort", "not-ready": "web.chat.hold.notReady", slide: "web.chat.hold.cancelled", cancel: "web.chat.hold.cancelled",
+};
 
 /** 在已知已保存的末尾之后,查找与这一轮相同的消息对(用于认领"响应丢失"的保存)。 */
 function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: string | null | undefined): [ChatMessage, ChatMessage] | null {
@@ -207,6 +214,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     newKey: () => nextKey("u"),
     onDraft: (event) => onVoiceDraft(event),
     onTranscribed: (clip, text) => onVoiceTranscribed(clip, text),
+    onTranscribedText: (text) => onVoiceFill(text),
   });
   voiceStateRef.current = voice.state;
   const resetVoice = voice.reset;
@@ -735,6 +743,29 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       });
   };
 
+  // R11 转文字:转写结果放进输入框,不发送。已有文字时用一个空格接在后面;输入框在转写期间是禁用的,
+  // 等它恢复可用再把焦点放进去
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const focusInputRef = useRef(false);
+  function onVoiceFill(text: string) {
+    if (!mountedRef.current) return;
+    setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${text}` : text));
+    focusInputRef.current = true;
+  }
+  useEffect(() => {
+    if (!focusInputRef.current || voice.blocksTyping) return;
+    focusInputRef.current = false;
+    inputRef.current?.focus();
+  });
+
+  // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失
+  const [holdHint, setHoldHint] = useState<string | null>(null);
+  useEffect(() => {
+    if (!holdHint) return;
+    const timer = window.setTimeout(() => setHoldHint(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [holdHint]);
+
   const recording = voice.state === "recording" || voice.state === "starting";
   const lastKey = messages[messages.length - 1]?.key;
 
@@ -794,6 +825,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           );
         })}
       </div>
+      {holdHint && (
+        <div data-testid="hold-hint" role="status" className="border-t bg-muted px-3 py-1 text-sm">{holdHint}</div>
+      )}
       {autoSpeak.blocked && (
         <div data-testid="autospeak-blocked" role="status" className="flex items-center gap-2 border-t bg-muted px-3 py-1 text-sm">
           <span className="flex-1">{t("web.chat.autoSpeak.blocked")}</span>
@@ -807,24 +841,22 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
         </div>
       )}
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
-        <Button type="button" data-testid="chat-mic" data-state={voice.state} size="icon"
-          variant={voice.state === "recording" ? "destructive" : "ghost"} className="h-11 w-11 shrink-0"
-          disabled={voice.state === "starting" || voice.state === "processing" || (voice.state === "idle" && (sending || !conversation))}
-          aria-label={voice.state === "recording" ? t("web.chat.voice.stopAndSend")
-            : voice.state === "processing" ? t("web.chat.transcribing") : t("web.chat.mic")}
-          onClick={() => {
-            if (voice.state === "recording") {
-              void voice.stop();
-              autoSpeak.prime(); // R5:结束录音这一下解锁,转写 + 回复完成后接着播
-            } else {
-              stopTts(); // 开始录音:正在进行的朗读(含自动朗读)停下
-              claimAudio(micFocus);
-              void voice.start();
-            }
-          }}>
-          {voice.state === "processing" ? <LoaderIcon className="h-5 w-5 animate-spin" />
-            : voice.state === "recording" ? <SquareIcon className="h-5 w-5" /> : <MicIcon className="h-5 w-5" />}
-        </Button>
+        <HoldToTalkButton voiceState={voice.state}
+          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation))}
+          onStart={() => {
+            // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
+            // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
+            stopTts();
+            claimAudio(micFocus);
+            return voice.start();
+          }}
+          onRelease={() => autoSpeak.prime()} // R5:松手这一下解锁,转写 + 回复完成后接着播
+          onFinish={(deliver) => { void voice.stop(deliver); }}
+          onDiscard={(reason) => {
+            // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
+            void voice.stop("discard");
+            if (mountedRef.current) setHoldHint(tRef.current(HOLD_HINTS[reason]));
+          }} />
         {recording ? (
           <div data-testid="voice-recording" className="flex h-11 flex-1 items-center gap-2 rounded-md border px-3 text-base">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
@@ -832,7 +864,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
             <span data-testid="voice-timer" className="font-mono tabular-nums">{formatClock(voice.elapsedMs)} / {formatClock(VOICE_MAX_MS)}</span>
           </div>
         ) : (
-          <Textarea data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
+          <Textarea ref={inputRef} data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
             disabled={voice.blocksTyping} className="max-h-40 min-h-11 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
         )}
         {voiceBusy && (
