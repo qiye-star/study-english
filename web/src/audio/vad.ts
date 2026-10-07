@@ -134,7 +134,11 @@ export async function createVad(
   let destroying: Promise<void> | null = null;
   return {
     start: () => source.start(),
-    pause: () => source.pause(),
+    pause() {
+      source.pause();
+      // 暂停时门可能还停在"说话"中:不复位的话,恢复后的第一句只会被当成延续,不会再报 speech-start
+      gate.reset();
+    },
     setSensitivity: (s) => gate.setPreset(VAD_PRESETS[s]),
     destroy() {
       destroyed = true;

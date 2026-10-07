@@ -58,6 +58,22 @@ describe("createVad", () => {
     expect(onSpeechStart).toHaveBeenCalledTimes(1);
   });
 
+  it("pause() resets the gate: the first hands-free utterance after toggling push-to-talk is not missed (review W2 M2)", async () => {
+    const f = fakeLoader();
+    const onSpeechStart = vi.fn();
+    const onSpeechEnd = vi.fn();
+    const vad = await createVad(fakeStream(), { onSpeechStart, onSpeechEnd }, f.loader);
+    vad.start();
+    for (let i = 0; i < 8; i++) f.frame(0.9);
+    for (let i = 0; i < 5; i++) f.frame(0.05); // 160 ms 后切到按住说话(< 600 ms,门还在"说话"中)
+    vad.pause();
+    expect(f.source.pause).toHaveBeenCalled();
+    vad.start(); // 切回免提,用户立刻开口
+    for (let i = 0; i < 8; i++) f.frame(0.9);
+    expect(onSpeechStart).toHaveBeenCalledTimes(2);
+    expect(onSpeechEnd).not.toHaveBeenCalled();
+  });
+
   it("destroy releases the source once and ignores later frames", async () => {
     const f = fakeLoader();
     const onSpeechStart = vi.fn();
