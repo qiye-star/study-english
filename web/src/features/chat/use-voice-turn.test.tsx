@@ -633,8 +633,8 @@ describe("no foreground speech (plan 2026-10-07 R10)", () => {
 
 describe("stop('fill') (plan 2026-10-07 R11)", () => {
   const makeResult = () => ({ blob: new Blob([encodeWavPcm16(new Float32Array(16000).fill(0.2), 16000)], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 1000, stoppedBy: "user" as const, noSpeech: false });
-  const setup = (handlers: Record<string, Handler>) => {
-    const result = makeResult();
+  const setup = (handlers: Record<string, Handler>, over: Partial<ReturnType<typeof makeResult>> = {}) => {
+    const result = { ...makeResult(), ...over };
     const session = { startedAt: 0, result: new Promise<never>(() => {}), stop: vi.fn(async () => result), cancel: vi.fn() };
     const mock = createFetchMock(handlers);
     const onDraft = vi.fn();
@@ -671,6 +671,21 @@ describe("stop('fill') (plan 2026-10-07 R11)", () => {
     expect(latencyLog().filter((r) => r.kind === "text")).toHaveLength(0); // 文字这一轮仍在进行
     finishLatencyTrace("aborted", textTurn);
     expect(latencyLog().find((r) => r.kind === "text")?.id).toBe(textTurn);
+  });
+
+  it("retrying a no-speech to-text draft neither aborts nor closes another turn's latency trace", async () => {
+    resetLatencyForTest();
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ text: "late fill" }) }, { noSpeech: true });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "failed", key: "k1" })));
+    expect(t.mock.calls).toHaveLength(0); // 没有前景语音:第一次不上传
+    const textTurn = startLatencyTrace("text"); // 用户随后打字发送,回复还在路上
+    await act(async () => { t.hook.current.retry("k1"); }); // 坚持转文字
+    await vi.waitFor(() => expect(t.onTranscribedText).toHaveBeenCalledWith("late fill"));
+    expect(latencyLog().filter((r) => r.kind === "text")).toHaveLength(0); // 文字这一轮仍在进行
+    finishLatencyTrace("complete", textTurn);
+    expect(latencyLog().find((r) => r.kind === "text")).toMatchObject({ id: textTurn, status: "complete" });
   });
 
   it("keeps the default stop() as send", async () => {
