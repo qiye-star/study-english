@@ -171,7 +171,8 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   // 自动朗读在异步回调里读取最新配置与录音状态(R4)
   const configRef = useRef<ConversationConfig | null>(null);
   const voiceStateRef = useRef<VoiceTurnState>("idle");
-  // 契约:prime/stop/play 来自同一个、本页唯一驱动 sharedAutoplayAudio() 的播放器 tts
+  // 契约:prime/stop/play/playQueue 来自同一个、本页唯一驱动 sharedAutoplayAudio() 的播放器 tts。
+  // 流被中止而不调用 complete 的路径(切换会话/卸载)由加载 effect 的清理先 stopTts(),开着的句子队列不会悬空
   // 开关保存期间的本地乐观值:关闭立刻生效,不等 PATCH 返回;保存结束(成功或失败)后清除
   const autoSpeakOverrideRef = useRef<boolean | null>(null);
   const autoSpeak = useAutoSpeak({
@@ -182,9 +183,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     stop: tts.stop,
     speak: (key, text, onError) => tts.play(key, text, configRef.current?.ttsModel ?? "", configRef.current?.ttsVoice ?? "", { onError, quietIfEmpty: true }),
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
+    // R8:按句流水线朗读,与 prime/stop/play 同一个 tts 实例
+    speakQueue: (key, onError) => tts.playQueue(key, configRef.current?.ttsModel ?? "", configRef.current?.ttsVoice ?? "", { onError }),
   });
   const resetAutoSpeak = autoSpeak.reset;
-  const { begin: autoSpeakBegin, complete: autoSpeakComplete } = autoSpeak;
+  const { begin: autoSpeakBegin, complete: autoSpeakComplete, progress: autoSpeakProgress } = autoSpeak;
   const messagesRef = useRef<UiMessage[]>([]);
   messagesRef.current = messages;
   const nearBottomRef = useRef(true);
@@ -522,7 +525,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     try {
       reply = await streamChatCompletion(api,
         { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, coach), model: config.model, temperature: config.temperature },
-        (full) => patch(botKey, { content: full }), controller.signal);
+        (full) => { patch(botKey, { content: full }); if (live()) autoSpeakProgress(botKey, full); }, controller.signal);
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
       patch(botKey, { content: reply, status: "done" });
       if (live()) autoSpeakComplete(botKey, reply, "done");
@@ -543,7 +546,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     pendingSavesRef.current.push(entry);
     const outcome = await flushSaves();
     if (!entry.saved && !entry.dropped && outcome === "failed" && live()) toastNotSaved();
-  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete]);
+  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete, autoSpeakProgress]);
 
   const voiceBusy = voice.state !== "idle";
 

@@ -11,6 +11,7 @@ import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
+import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationPage } from "./conversation-page";
 import { clearHintsMemory } from "./hints";
@@ -2794,6 +2795,233 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(screen.queryByTestId("settings-save")).toBeNull());
       await settle();
       expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
+    });
+  });
+
+  describe("pipelined auto-read (plan 2026-10-07 R8)", () => {
+    let toastSpy: MockInstance;
+    beforeEach(() => {
+      sharedTtsCache.clear();
+      toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    });
+    afterEach(() => {
+      toastSpy.mockRestore();
+      vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(() => Promise.resolve());
+    });
+    const REPLY = "Great choice. What size would you like? We have small and large.";
+    const SENTENCES = ["Great choice.", "What size would you like?", "We have small and large."];
+    const speechInputs = (calls: RecordedCall[]) =>
+      calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/ai/audio/speech").map((c) => JSON.parse(String(c.body)).input as string);
+    const speechSignals = (calls: RecordedCall[]) =>
+      calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/ai/audio/speech").map((c) => c.signal!);
+    /** 一直挂起、只在中止时失败的合成请求:用来断言"被停下" */
+    const pendingSpeech: Handler = (call) =>
+      new Promise<Response>((_, reject) => call.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+    /** 由测试逐段推送的流式回复 */
+    function liveReply() {
+      const enc = new TextEncoder();
+      let ctl!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({ start(c) { ctl = c; } });
+      const push = (part: string) => act(async () => {
+        try { ctl.enqueue(enc.encode(part)); } catch { /* 页面已取消读取 */ }
+        await new Promise((r) => setTimeout(r, 10));
+      });
+      return {
+        handler: (() => new Response(body, { headers: { "Content-Type": "text/event-stream" } })) as Handler,
+        push,
+        delta: (text: string) => push(delta(text)),
+        done: () => push(DONE_EVENT),
+        fail: () => push('data: {"error": "Upstream unavailable"}\n\n'),
+      };
+    }
+    const replyRoutes = (extra: Record<string, Handler> = {}) => routes({
+      "POST /api/ai/chat/completions": () => sse([delta("Great choice. "), delta("What size would you like? "), delta("We have small and large."), DONE_EVENT]),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "Hi", config: bodyOf(call).config ?? CONFIG }),
+      ...extra,
+    });
+    async function say(text: string) {
+      await userEvent.type(screen.getByTestId("chat-input"), text);
+      await userEvent.click(screen.getByTestId("chat-send"));
+    }
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
+    const lastTts = () => screen.getAllByTestId("message-tts").at(-1)!;
+    const lastBot = () => screen.getAllByTestId("message-assistant").at(-1)!;
+
+    it("requests speech per sentence and the sentences join to the reply", async () => {
+      const { mock } = setup(replyRoutes());
+      await screen.findByText("reply");
+      await say("A latte please");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
+      expect(speechInputs(mock.calls).join(" ")).toBe(REPLY);
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(SENTENCES); // 完成时不再整条合成一次
+    });
+
+    it("starts reading the first sentence while the reply is still streaming", async () => {
+      const live = liveReply();
+      const { mock } = setup(replyRoutes({ "POST /api/ai/chat/completions": live.handler }));
+      const play = vi.mocked(HTMLMediaElement.prototype.play);
+      await screen.findByText("reply");
+      play.mockClear();
+      await say("A latte please");
+      await live.delta("Great choice. What");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(["Great choice."]));
+      // 第一句已在共享播放器上出声,而回复还在流式进行(气泡还没有操作按钮、发送仍禁用)
+      await waitFor(() => expect(play.mock.contexts.some((el) => (el as HTMLAudioElement).src === "blob:tts")).toBe(true));
+      expect(lastBot()).toHaveTextContent("Great choice. What");
+      expect(screen.getByTestId("chat-send")).toBeDisabled();
+      await live.delta(" size would you like? We have small and large.");
+      await live.done();
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
+      await waitFor(() => expect(lastBot()).toHaveTextContent(REPLY));
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("a stream error mid-reply stops the open sentence queue at once", async () => {
+      const live = liveReply();
+      const { mock } = setup(replyRoutes({ "POST /api/ai/chat/completions": live.handler, "POST /api/ai/audio/speech": pendingSpeech }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await live.delta("Great choice. What size");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(["Great choice."]));
+      await live.fail();
+      await screen.findByTestId("message-retry");
+      expect(speechSignals(mock.calls)[0].aborted).toBe(true);
+      expect(lastTts()).not.toHaveAttribute("data-state", "loading");
+      expect(lastTts()).not.toHaveAttribute("data-state", "playing");
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(["Great choice."]);
+      expect(toastSpy).not.toHaveBeenCalled(); // 被中止的朗读不算失败
+    });
+
+    it("retrying after a mid-reply error reads the retried reply from its first sentence (fresh key)", async () => {
+      let attempt = 0;
+      const { mock } = setup(replyRoutes({
+        "POST /api/ai/chat/completions": () => (++attempt === 1
+          ? sse([delta("Old one. Old"), 'data: {"error": "Upstream unavailable"}\n\n'])
+          : sse([delta("New one. "), delta("New two."), DONE_EVENT])),
+      }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await screen.findByTestId("message-retry");
+      expect(speechInputs(mock.calls)).toEqual(["Old one."]);
+      await userEvent.click(screen.getByTestId("message-retry"));
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(["Old one.", "New one.", "New two."]));
+      await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "playing"));
+    });
+
+    it("switching conversations mid-reply stops the queue and reads nothing more", async () => {
+      const live = liveReply();
+      const { mock } = setup(replyRoutes({
+        "POST /api/ai/chat/completions": live.handler,
+        "POST /api/ai/audio/speech": pendingSpeech,
+        "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+        "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+      }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await live.delta("Great choice. What size");
+      await waitFor(() => expect(speechInputs(mock.calls)).toHaveLength(1));
+      act(() => goTo("/chat/c2"));
+      await screen.findByText("Second chat hello");
+      expect(speechSignals(mock.calls)[0].aborted).toBe(true);
+      await live.delta(" would you like? We have small and large.");
+      await live.done();
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(["Great choice."]);
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("leaving the page mid-reply stops the queue and reads nothing more", async () => {
+      const live = liveReply();
+      const { mock, view } = setup(replyRoutes({ "POST /api/ai/chat/completions": live.handler, "POST /api/ai/audio/speech": pendingSpeech }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await live.delta("Great choice. What size");
+      await waitFor(() => expect(speechInputs(mock.calls)).toHaveLength(1));
+      view.unmount();
+      expect(speechSignals(mock.calls)[0].aborted).toBe(true);
+      await live.delta(" would you like? We have small and large.");
+      await live.done();
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(["Great choice."]);
+    });
+
+    it("turning auto-read off mid-reply stops the queue; later sentences are not requested", async () => {
+      const live = liveReply();
+      const { mock } = setup(replyRoutes({ "POST /api/ai/chat/completions": live.handler, "POST /api/ai/audio/speech": pendingSpeech }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await live.delta("Great choice. What size");
+      await waitFor(() => expect(speechInputs(mock.calls)).toHaveLength(1));
+      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      expect(speechSignals(mock.calls)[0].aborted).toBe(true);
+      await live.delta(" would you like? We have small and large.");
+      await live.done();
+      await waitFor(() => expect(lastBot()).toHaveTextContent(REPLY));
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(["Great choice."]);
+      expect(lastTts()).toHaveAttribute("data-state", "idle");
+    });
+
+    it("a new send while a pipelined reply is still reading stops it; the new reply is read per sentence", async () => {
+      let n = 0;
+      const { mock } = setup(replyRoutes({
+        "POST /api/ai/chat/completions": () => (++n === 1 ? sse([delta(REPLY), DONE_EVENT]) : sse([delta("Small it is. "), delta("Anything else?"), DONE_EVENT])),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: `u${n}` }, { id: `a${n}` }] }),
+        "POST /api/ai/audio/speech": (call) => (n === 1 ? pendingSpeech(call) : new Response(new Uint8Array([1]))),
+      }));
+      await screen.findByText("reply");
+      await say("A latte please");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
+      await waitFor(() => expect(screen.getByTestId("chat-send")).toBeDisabled()); // 输入框已清空
+      await say("Small");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual([...SENTENCES, "Small it is.", "Anything else?"]));
+      expect(speechSignals(mock.calls).slice(0, 3).every((s) => s.aborted)).toBe(true);
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("starting a recording stops a pipelined reading", async () => {
+      const fake = createFakeRecorderEnv();
+      const { mock } = setup(replyRoutes({
+        "POST /api/ai/audio/speech": (call) => (speechInputs(mock.calls).length === 1 ? new Response(new Uint8Array([1])) : pendingSpeech(call)),
+      }), fake.env);
+      await screen.findByText("reply");
+      await say("A latte please");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
+      await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "playing"));
+      await userEvent.click(screen.getByTestId("chat-mic"));
+      await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "idle"));
+      expect(speechSignals(mock.calls).slice(1).every((s) => s.aborted)).toBe(true);
+      await userEvent.click(screen.getByTestId("chat-mic-cancel"));
+    });
+
+    it("a blocked autoplay on the first sentence offers tap-to-read, which reads the whole reply", async () => {
+      let block = true;
+      vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(() =>
+        block ? Promise.reject(new DOMException("blocked", "NotAllowedError")) : Promise.resolve());
+      const { mock } = setup(replyRoutes());
+      await screen.findByText("reply");
+      await say("A latte please");
+      expect(await screen.findByTestId("autospeak-blocked")).toBeInTheDocument();
+      await waitFor(() => expect(lastBot()).toHaveTextContent(REPLY));
+      await settle();
+      const before = speechInputs(mock.calls).length;
+      block = false;
+      await userEvent.click(screen.getByTestId("autospeak-tap"));
+      await waitFor(() => expect(speechInputs(mock.calls).slice(before)).toEqual([REPLY]));
+      await waitFor(() => expect(lastTts()).toHaveAttribute("data-state", "playing"));
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it("reads each sentence exactly once under StrictMode", async () => {
+      const { mock } = setup(replyRoutes(), undefined, { strict: true });
+      await screen.findByText("reply");
+      await say("A latte please");
+      await waitFor(() => expect(speechInputs(mock.calls)).toEqual(SENTENCES));
+      await settle();
+      expect(speechInputs(mock.calls)).toEqual(SENTENCES);
     });
   });
 });
