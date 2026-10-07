@@ -68,3 +68,33 @@ describe("copyVadAssets", () => {
     expect(readdirSync(path.join(out, name))).toHaveLength(4);
   }, 30_000);
 });
+
+describe("onnxruntime-web is resolved from @ricky0123/vad-web (review F3 a1)", () => {
+  let root = "";
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+    root = "";
+  });
+
+  function fakePackage(dir: string, name: string, version: string, distFiles: Record<string, string>) {
+    mkdirSync(path.join(dir, "dist"), { recursive: true });
+    writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name, version, main: "index.js" }));
+    writeFileSync(path.join(dir, "index.js"), "");
+    for (const [file, content] of Object.entries(distFiles)) writeFileSync(path.join(dir, "dist", file), content);
+  }
+
+  it("names and copies the ORT that vad-web itself imports, not a different one next to web/", () => {
+    root = mkdtempSync(path.join(tmpdir(), "vad-layout-"));
+    writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "web", private: true }));
+    const vad = path.join(root, "node_modules", "@ricky0123", "vad-web");
+    fakePackage(vad, "@ricky0123/vad-web", "0.0.31", { "silero_vad_v5.onnx": "m", "vad.worklet.bundle.min.js": "w" });
+    const ortFiles = (tag: string) => ({ "ort-wasm-simd-threaded.wasm": tag, "ort-wasm-simd-threaded.mjs": tag });
+    fakePackage(path.join(root, "node_modules", "onnxruntime-web"), "onnxruntime-web", "1.30.0", ortFiles("outer"));
+    fakePackage(path.join(vad, "node_modules", "onnxruntime-web"), "onnxruntime-web", "1.31.0", ortFiles("nested"));
+
+    expect(installedVadVersions(root)).toEqual({ vad: "0.0.31", ort: "1.31.0" });
+    const dir = copyVadAssets(root, path.join(root, "out"));
+    expect(path.basename(dir)).toBe("0.0.31-ort1.31.0");
+    expect(readFileSync(path.join(dir, "ort-wasm-simd-threaded.wasm"), "utf8")).toBe("nested");
+  });
+});
