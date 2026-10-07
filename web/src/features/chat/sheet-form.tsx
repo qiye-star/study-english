@@ -37,7 +37,7 @@ export function SwitchRow({ id, testId, title, hint, checked, onChange }: {
         {hint ? <span id={`${id}-hint`} className="mt-0.5 block text-meta text-ink-2">{hint}</span> : null}
       </span>
       <Switch id={id} aria-describedby={hint ? `${id}-hint` : undefined} data-testid={testId} checked={checked}
-        className={cn("h-[26px] w-11 data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair",
+        className={cn("hit-expand h-[26px] w-11 data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair",
           "[&>span]:h-[22px] [&>span]:w-[22px] [&>span]:bg-white [&>span]:shadow-[0_1px_2px_rgba(17,19,24,0.2)] [&>span]:data-[state=checked]:translate-x-[18px]")}
         onCheckedChange={onChange} />
     </div>
