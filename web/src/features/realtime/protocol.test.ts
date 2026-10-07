@@ -2,31 +2,82 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLOSE, CLOSE_REASONS, closeErrorKey, encodeControl, encodeStart, parseServerEvent, splitAudioFrame } from "./protocol";
+import { CLOSE, CLOSE_REASONS, START_LIMITS, StartPayloadError, closeErrorKey, encodeControl, encodeStart, parseServerEvent, splitAudioFrame } from "./protocol";
 
 const SERVER_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../server/app/realtime_protocol.py");
 
 describe("contract with server/app/realtime_protocol.py", () => {
-  const present = existsSync(SERVER_FILE);
-  if (!present) console.warn(`[protocol.test] SKIPPED server cross-check: ${SERVER_FILE} is absent in this branch; it runs after the server lane is merged.`);
+  // 两端已合并:服务端文件缺失(改名/移动)必须让契约测试失败,而不是静默跳过
+  it("can read the server protocol file", () => {
+    expect(existsSync(SERVER_FILE)).toBe(true);
+  });
+  const py = () => readFileSync(SERVER_FILE, "utf8");
+  const serverCodes = () => Object.fromEntries([...py().matchAll(/^CLOSE_([A-Z_]+) = (\d+)$/gm)].map((m) => [m[1], Number(m[2])]));
 
-  it.skipIf(!present)("has exactly the server's close codes", () => {
-    const py = readFileSync(SERVER_FILE, "utf8");
-    const server = Object.fromEntries([...py.matchAll(/^CLOSE_([A-Z_]+) = (\d+)$/gm)].map((m) => [m[1], Number(m[2])]));
-    expect(CLOSE).toEqual(server);
+  it("has exactly the server's close codes", () => {
+    expect(CLOSE).toEqual(serverCodes());
   });
 
-  it("has the contract's close reasons", () => {
-    expect(CLOSE_REASONS).toEqual({
-      1000: "normal", 4001: "unauthorized", 4003: "disabled", 4004: "not_found", 4008: "idle_timeout",
-      4009: "max_duration", 4013: "message_limit", 4029: "busy", 4400: "protocol", 4502: "upstream",
-    });
+  it("has exactly the server's close reasons", () => {
+    const codes = serverCodes();
+    const block = py().match(/^CLOSE_REASONS[^{]*\{([\s\S]*?)^\}/m)?.[1] ?? "";
+    const server = Object.fromEntries([...block.matchAll(/CLOSE_([A-Z_]+): "([a-z_]+)"/g)].map((m) => [codes[m[1]], m[2]]));
+    expect(Object.keys(server).length).toBeGreaterThan(0);
+    expect(CLOSE_REASONS).toEqual(server);
+  });
+
+  it("sends exactly the fields of StartMsg (extra=forbid: any other key is a 4400 close)", () => {
+    const body = py().match(/^class StartMsg\(_Msg\):\r?\n([\s\S]*?)(?=^\S)/m)?.[1] ?? "";
+    const fields = [...body.matchAll(/^ {4}([a-z_]+):/gm)].map((m) => m[1]).sort();
+    expect(fields.length).toBeGreaterThan(0);
+    const sent = Object.keys(JSON.parse(encodeStart({ systemPrompt: "", model: "", temperature: 0.7, voice: "v_1x", saveRecordings: false }))).sort();
+    expect(sent).toEqual(fields);
+  });
+
+  it("uses the server's size limits", () => {
+    const num = (name: string) => Number(py().match(new RegExp(`^${name} = ([\\d_]+)\\r?$`, "m"))?.[1].replace(/_/g, ""));
+    expect(START_LIMITS.systemPrompt).toBe(num("MAX_SYSTEM_PROMPT"));
+    expect(START_LIMITS.clientText).toBe(num("MAX_CLIENT_TEXT"));
+    expect(py()).toContain(`model: str = Field("", max_length=${START_LIMITS.model})`);
+    expect(py()).toContain(`voice: str = Field(pattern=r"${START_LIMITS.voice.source}")`);
   });
 
   it("maps close codes to translatable keys", () => {
     expect(closeErrorKey(1000)).toBeNull();
     expect(closeErrorKey(4008)).toBe("web.realtime.errors.idle_timeout");
     expect(closeErrorKey(1006)).toBe("web.realtime.errors.generic");
+  });
+});
+
+describe("encodeStart stays inside the server's limits (never a 4400 for oversize)", () => {
+  const base = { systemPrompt: "", model: "m", temperature: 0.7, voice: "v_1x", saveRecordings: false };
+  const cp = (s: string) => Array.from(s).length;
+
+  it("clamps the system prompt to 8000 characters without splitting a surrogate pair", () => {
+    const msg = JSON.parse(encodeStart({ ...base, systemPrompt: "😀".repeat(9000) }));
+    expect(cp(msg.system_prompt)).toBe(8000);
+    expect(msg.system_prompt).toBe("😀".repeat(8000));
+  });
+
+  it("keeps the whole message within MAX_CLIENT_TEXT even when the prompt escapes badly", () => {
+    const text = encodeStart({ ...base, systemPrompt: "\u0001".repeat(8000) }); // 每个都转义成 6 个字符
+    expect(cp(text)).toBeLessThanOrEqual(START_LIMITS.clientText);
+    expect(cp(text)).toBeGreaterThan(START_LIMITS.clientText - 10);
+    const prompt: string = JSON.parse(text).system_prompt;
+    expect(prompt).toBe("\u0001".repeat(prompt.length));
+  });
+
+  it("drops an over-long model name (server default) and clamps the temperature", () => {
+    const msg = JSON.parse(encodeStart({ ...base, model: "x".repeat(201), temperature: 5 }));
+    expect(msg.model).toBe("");
+    expect(msg.temperature).toBe(2);
+    expect(JSON.parse(encodeStart({ ...base, temperature: Number.NaN })).temperature).toBe(0.7);
+    expect(JSON.parse(encodeStart({ ...base, temperature: -1 })).temperature).toBe(0);
+  });
+
+  it("rejects a voice the server would refuse", () => {
+    expect(() => encodeStart({ ...base, voice: "a b" })).toThrow(StartPayloadError);
+    expect(() => encodeStart({ ...base, voice: "ab" })).toThrow(StartPayloadError);
   });
 });
 

@@ -135,6 +135,8 @@ export class RealtimeCall {
     this.started = true;
     this.dispatch({ type: "connect" });
     try {
+      // 先编码开始消息:服务端注定拒绝的配置(音色不合法)在申请票据、打开麦克风之前就结束
+      const startMessage = encodeStart(this.o.start);
       let { ticket, freshUntil } = await this.requestTicket();
       if (this.torn) return;
 
@@ -166,7 +168,7 @@ export class RealtimeCall {
       const ws = new this.env.WebSocket(realtimeUrl(ticket, this.env.location));
       ws.binaryType = "arraybuffer";
       this.ws = ws;
-      ws.onopen = () => ws.send(encodeStart(this.o.start));
+      ws.onopen = () => ws.send(startMessage);
       ws.onmessage = (event: MessageEvent | { data: string | ArrayBuffer }) => {
         if (typeof event.data === "string") this.onEvent(event.data);
         else this.onAudio(event.data as ArrayBuffer); // binaryType = "arraybuffer"

@@ -46,6 +46,7 @@ function setup(over: {
   vadLoading?: Promise<void>;
   ownsContext?: boolean;
   now?: () => number;
+  voice?: string;
 } = {}) {
   FakeWebSocket.instances = [];
   const ctx = new FakeAudioContext(16000);
@@ -77,7 +78,7 @@ function setup(over: {
   const call = new RealtimeCall({
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), conversationId: "c1", context: asContext(ctx),
     ...(over.ownsContext === undefined ? {} : { ownsContext: over.ownsContext }),
-    start: { systemPrompt: "Be kind.", model: "m", temperature: 0.7, voice: "voice_1", saveRecordings: true },
+    start: { systemPrompt: "Be kind.", model: "m", temperature: 0.7, voice: over.voice ?? "voice_1", saveRecordings: true },
     sampleRateOut: 24000, env, onChange: (m) => changes.push(m), onUserMessage,
   });
   const ws = () => FakeWebSocket.instances[0];
@@ -427,6 +428,15 @@ describe("RealtimeCall", () => {
       expect(s.ctx.close).toHaveBeenCalledTimes(1);
       expect(s.stream.track.stop).not.toHaveBeenCalled();
       expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.disabled");
+    });
+
+    it("a voice the server would refuse fails before the ticket and the microphone", async () => {
+      const s = setup({ voice: "not valid" });
+      await s.call.start();
+      expect(s.mock.calls).toHaveLength(0);
+      expect(s.gum).not.toHaveBeenCalled();
+      expect(s.ctx.close).toHaveBeenCalledTimes(1);
+      expect(s.changes.at(-1)!.error).toBe("web.realtime.errors.invalidVoice");
     });
 
     it("network failure on the ticket request", async () => {

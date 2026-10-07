@@ -43,7 +43,8 @@
         "rate_limited": "请求过于频繁,请稍候",
         "micLost": "麦克风已中断",
         "unsupported": "当前浏览器不支持实时通话",
-        "audioSuspended": "音频没能启动。请关闭后重新发起通话。"
+        "audioSuspended": "音频没能启动。请关闭后重新发起通话。",
+        "invalidVoice": "这个会话的音色不能用于通话,请在会话设置里换一个音色。"
       }
     }
   }
