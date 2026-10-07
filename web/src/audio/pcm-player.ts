@@ -1,3 +1,5 @@
+import { frameRms, pcm16ToFloat } from "./pcm";
+
 export interface PcmPlayer {
   play(turnId: number, pcm: Int16Array): void;
   stop(): void;
@@ -5,20 +7,6 @@ export interface PcmPlayer {
   onDrained(cb: () => void): () => void;
   level(): number;
   close(): void;
-}
-
-// 与 Task 2.1(lane-A web/src/audio/pcm.ts)的同名函数语义一致;此处私有一份,使本任务可独立构建,合并时可改为 import。
-function pcm16ToFloat(i16: Int16Array): Float32Array {
-  const out = new Float32Array(i16.length);
-  for (let i = 0; i < i16.length; i++) out[i] = i16[i] / 0x8000;
-  return out;
-}
-
-function frameRms(f: Float32Array): number {
-  if (!f.length) return 0;
-  let sum = 0;
-  for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-  return Math.sqrt(sum / f.length);
 }
 
 /**
