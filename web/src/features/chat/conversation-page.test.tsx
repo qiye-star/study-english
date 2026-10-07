@@ -3763,6 +3763,16 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(ws.texts()[0]).toMatchObject({ voice: "en_female_vivi" });
   });
 
+  it("shows the call voice's display name as the call partner", async () => {
+    const c = callEnv();
+    setupCall(callRoutes({
+      "GET /api/conversations/c1": () => json({ id: "c1", name: "Trip", config: { ...CONFIG, tts_model: "volcengine/seed-tts-2.0", tts_voice: "en_female_emma" } }),
+      "GET /api/config/tts_providers_v2": () => json({ enjoyai: { models: ["volcengine/seed-tts-2.0"], voices: { volcengine: [{ label: "Emma (US)", value: "en_female_emma", language: "en-US" }] } } }),
+    }), c.env);
+    await connect(c);
+    expect(screen.getByRole("img", { name: "Emma" })).toBeInTheDocument();
+  });
+
   /** 通话后第二次加载起返回通话里保存的两条消息(cm1 不带语法:语法结果晚到,由页面补到重新加载的气泡上) */
   const AFTER_CALL = [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" },
     { id: "cm1", conversation_id: "c1", role: "user", content: "She don't like coffee." },

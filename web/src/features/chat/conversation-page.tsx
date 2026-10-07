@@ -124,6 +124,14 @@ function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): strin
   return (volc && voicesFor(ai, volc)[0]?.value) || config.ttsVoice;
 }
 
+/** 通话音色的显示名(音色列表里的 label,去掉括号说明),作为通话界面的 AI 伙伴名;找不到则 undefined(界面用通用称呼)。 */
+function callPartnerName(config: ConversationConfig, ai: ServerAiConfig | null, voice: string): string | undefined {
+  if (!ai) return undefined;
+  const own = config.ttsModel.split("/")[0];
+  const lists = [ai.voices[own] ?? [], ...Object.entries(ai.voices).filter(([k]) => k !== own).map(([, v]) => v)];
+  return lists.flat().find((v) => v.value === voice)?.label.split(" (")[0].trim() || undefined;
+}
+
 /** 在已知已保存的末尾之后,查找与这一轮相同的消息对(用于认领"响应丢失"的保存)。 */
 function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: string | null | undefined): [ChatMessage, ChatMessage] | null {
   if (knownTail === undefined) return null;
@@ -1225,7 +1233,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
       {/* 通话界面渲染到 body 下并把整页设为 inert:通话期间页面不可操作(按住说话、朗读、查词都不可用) */}
       {call && conversation && realtimeConfig && (
-        <RealtimeCallDialog api={api} conversationId={conversation.id} nativeLanguage={canTranslate ? native : undefined} context={call.context} ownsContext={false}
+        <RealtimeCallDialog api={api} conversationId={conversation.id} nativeLanguage={canTranslate ? native : undefined} context={call.context} ownsContext={false} partnerName={callPartnerName(config, ai, call.voice)}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
           start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />
