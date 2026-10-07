@@ -170,7 +170,7 @@ VOLCENGINE_ASR_KEY=
 | `REALTIME_ENABLED` | `false` | 实时通话总开关。**默认关;开启前确认火山 TTS、LLM、识别都可用** |
 | `REALTIME_MAX_MINUTES` | `10`(1–60) | 单次通话最长分钟数,到点以 `4009` 挂断 |
 | `REALTIME_IDLE_TIMEOUT_SECONDS` | `60`(10–600) | 连续这么久没有收到上行音频、且没有进行中的一轮,以 `4008` 挂断 |
-| `REALTIME_MAX_SESSIONS` | `5`(1–100) | 全局并发通话数;每用户并发固定为 1 |
+| `REALTIME_MAX_SESSIONS` | `5`(1–100) | 全局并发通话数;每用户并发固定为 1。通话名额在发出关闭帧时即释放(挂断后可立即重拨),尚未完成的评测在后台最多再等 10 s 入库,不占名额、不计入此上限 |
 | `REALTIME_TICKET_TTL_SECONDS` | `60`(10–300) | 一次性票据有效期 |
 | `REALTIME_TTS_MODEL` | `volcengine/seed-tts-2.0` | 通话的逐句合成模型;必须是火山模型,且在 `TTS_MODELS` 里 |
 | `REALTIME_TTS_SAMPLE_RATE` | `24000` | 通话下行 PCM 采样率(请求火山 `pcm` 输出)。24000 由 spike 时长推算,**听感核对未做**,未排除 22050 |

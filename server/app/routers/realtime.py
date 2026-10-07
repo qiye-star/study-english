@@ -8,7 +8,9 @@ Order of checks after `accept` (plan R12): disabled 4003 → ticket invalid/expi
 global call slot taken 4029 → no valid `start` within `START_TIMEOUT` 4400 → conversation gone 4004
 → no recognizer configured 4502. Then the `RealtimeSession` runs and its code closes the socket.
 The registry slot is held by `RealtimeRegistry.hold`, so it is released on every exit path
-(return, exception, client disconnect, cancellation).
+(return, exception, client disconnect, cancellation). It is released as soon as the close frame is
+sent: the call's late assessments are then finished by a background drain task (`spawn_drain`,
+bounded by `DRAIN_GRACE`, cancelled at app shutdown), so a user who hangs up can redial at once.
 """
 import asyncio
 import logging
@@ -55,6 +57,9 @@ router = APIRouter(prefix="/api")
 START_TIMEOUT = 10.0  # seconds to wait for the first (`start`) message
 CLOSE_INTERNAL = 1011  # unexpected server error (standard code; the client shows its generic text)
 CLOSE_GOING_AWAY = 1001  # the handler was cancelled (server shutdown); only logged
+DRAIN_GRACE = 10.0  # seconds a closed call's late assessments get to persist (in the background)
+DRAIN_SLACK = 1.0  # extra backstop on top of DRAIN_GRACE for the cancel-and-wait of late assessments
+DRAIN_SHUTDOWN_WAIT = 1.0  # app shutdown waits this long for cancelled drains to unwind
 session_clock: Callable[[], float] | None = None  # tests inject a fake clock for idle/max-duration
 
 
@@ -153,6 +158,42 @@ def _receiver(websocket: WebSocket):
     return receive
 
 
+# ---- background drain of a closed call's late assessments ----
+
+async def _drain(session: RealtimeSession) -> None:
+    """Gives the closed call's pending assessments up to `DRAIN_GRACE` to persist and link; their
+    events are dropped. Holds no DB session itself (each assessment opens its own for its write)."""
+    try:
+        async with asyncio.timeout(DRAIN_GRACE + DRAIN_SLACK):  # backstop if a task ignores cancellation
+            await session.drain(DRAIN_GRACE)
+    except asyncio.CancelledError:  # app shutdown
+        session.cancel_pending()
+        raise
+    except Exception as e:  # never log the message: it may carry user text
+        logger.warning("realtime drain failed error=%s", type(e).__name__)
+        session.cancel_pending()
+
+
+def spawn_drain(app, session: RealtimeSession) -> None:
+    """Runs `_drain` as a task kept in `app.state.realtime_drains` (so it is not garbage-collected and
+    the lifespan can cancel it). These calls hold no registry slot: `REALTIME_MAX_SESSIONS` and the
+    per-user limit count live calls only, not calls whose assessments are still finishing."""
+    drains: set[asyncio.Task] = app.state.realtime_drains
+    task = asyncio.get_running_loop().create_task(_drain(session))
+    drains.add(task)
+    task.add_done_callback(drains.discard)
+
+
+async def cancel_drains(app) -> None:
+    """App shutdown: cancels outstanding drains and waits briefly for them to unwind."""
+    drains = list(app.state.realtime_drains)
+    for task in drains:
+        task.cancel()
+    if drains:
+        await asyncio.wait(drains, timeout=DRAIN_SHUTDOWN_WAIT)
+        await asyncio.sleep(0)  # let the done callbacks empty the set
+
+
 @router.websocket("/realtime")
 async def realtime_ws(websocket: WebSocket, ticket: str = ""):
     await websocket.accept()
@@ -173,6 +214,7 @@ async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGran
     started = time.monotonic()
     code: int | None = None  # the close code sent (for a vanished client / cancellation: only logged)
     session: RealtimeSession | None = None
+    handed_off = False  # `run` returned and the drain task took over the session
 
     async def close(with_code: int) -> None:
         nonlocal code
@@ -214,8 +256,11 @@ async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGran
             clock=session_clock,
         )
         result = await session.run(_receiver(websocket))
+        # From here the background drain owns the session's late assessments (spawned before the
+        # close so that a cancellation during the close cannot orphan them); returning frees the slot.
+        spawn_drain(app, session)
+        handed_off = True
         await close(result)
-        await session.drain()
     except asyncio.CancelledError:
         if code is None:
             code = CLOSE_GOING_AWAY
@@ -225,7 +270,7 @@ async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGran
         if code is None:
             await close(CLOSE_INTERNAL)
     finally:
-        if session is not None:
+        if session is not None and not handed_off:
             session.cancel_pending()  # synchronous: also works while being cancelled
         stats = session.stats if session is not None else CallStats()
         log_timing("realtime_call", seconds=time.monotonic() - started, turns=stats.turns,

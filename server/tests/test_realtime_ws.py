@@ -579,7 +579,9 @@ def test_hangup_close_waits_at_most_the_grace_for_a_stuck_assessment(ws_app, mon
     assert code == 1000
     assert 0.4 <= elapsed < 1.5
     assert "assessment" not in [e["type"] for e in events]
-    wait_for(lambda: app.state.realtime_registry.active_count == 0, timeout=15)  # drain gives it 10 s more
+    # the slot is freed at the close frame; the drain keeps giving the assessment up to 10 s in the background
+    wait_for(lambda: app.state.realtime_registry.active_count == 0, timeout=0.5)
+    assert len(drain_tasks(app, client)) == 1 and not assessor.cancelled  # the fixture's shutdown cancels it
 
 
 def test_idle_close_does_not_wait_for_a_pending_assessment(ws_app, monkeypatch):
@@ -634,3 +636,241 @@ def test_hangup_right_after_utterance_end_saves_the_last_words_without_a_reply(w
     assert messages[0]["id"] == final["message_id"]
     wait_for(lambda: app.state.realtime_registry.active_count == 0)
     wait_for(lambda: session_tasks(client) == [])
+
+
+# ---------------------------------------------------------------- the call slot is freed at the close frame; drain runs in the background
+
+
+def drain_tasks(app, client):
+    """The background drains (late assessments of calls that already closed) still running."""
+    async def collect():
+        return [t for t in app.state.realtime_drains if not t.done()]
+    return client.portal.call(collect)
+
+
+def await_drains(app, client, timeout=5.0):
+    """Deterministic end of a test: wait until every background drain has finished."""
+    async def wait():
+        pending = set(app.state.realtime_drains)
+        if pending:
+            _, late = await asyncio.wait(pending, timeout=timeout)
+            assert not late, "drain still running"
+    client.portal.call(wait)
+
+
+def hang_up_with_pending_assessment(client, ticket):
+    """One turn, then a hang-up that closes before the (slow) assessment is done."""
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps({**START, "save_recordings": True}))
+        receive_until(ws, "ready")
+        ws.send_bytes(PCM)
+        ws.send_text(json.dumps({"type": "utterance_end"}))
+        events = receive_until(ws, "reply_done")
+        ws.send_text(json.dumps({"type": "hangup"}))
+        more, code = until_close(ws)
+    assert code == 1000
+    return events + more
+
+
+def test_slot_is_released_at_the_close_frame_not_after_the_drain(ws_app, monkeypatch):
+    """Driven like uvicorn does (TestClient cancels the handler when the client leaves its `with`, which
+    would hide a handler that keeps the slot while it drains)."""
+    app, client = ws_app
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
+    assessor = SlowAssessor(delay=3.0)
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    headers = login(client)
+    _, first = ticket_for(client, headers)
+    _, second = ticket_for(client, headers)
+
+    def sent_types(socket):
+        return [s["type"] for s in socket.sent if isinstance(s, dict)]
+
+    async def until(predicate):
+        with anyio.fail_after(2):
+            while not predicate():
+                await asyncio.sleep(0.01)
+
+    async def scenario():
+        old = FakeSocket(app)
+        for item in (json.dumps({**START, "save_recordings": True}), PCM, json.dumps({"type": "utterance_end"})):
+            key = "bytes" if isinstance(item, bytes) else "text"
+            old.inbox.put_nowait({"type": "websocket.receive", key: item})
+        old_handler = asyncio.create_task(realtime_router.realtime_ws(old, first))
+        await until(lambda: "reply_done" in sent_types(old))
+        old.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps({"type": "hangup"})})
+        await until(lambda: old.closed)
+        new = FakeSocket(app)
+        new.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps(START)})
+        new_handler = asyncio.create_task(realtime_router.realtime_ws(new, second))
+        await until(lambda: new.closed or "ready" in sent_types(new))
+        outcome = {"new_closed": list(new.closed), "ready": "ready" in sent_types(new),
+                   "old_handler_done": old_handler.done(),
+                   "draining": len([t for t in getattr(app.state, "realtime_drains", ()) if not t.done()])}
+        new.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps({"type": "hangup"})})
+        await asyncio.wait_for(new_handler, 5)
+        await asyncio.wait_for(old_handler, 5)
+        drains = set(getattr(app.state, "realtime_drains", ()))
+        if drains:
+            await asyncio.wait(drains, timeout=5)
+        return outcome, old.closed
+
+    outcome, old_closed = client.portal.call(scenario)
+    assert old_closed == [1000]
+    assert outcome == {"new_closed": [], "ready": True, "old_handler_done": True, "draining": 1}
+    assert not assessor.cancelled and len(assessor.calls) == 1
+    assert app.state.realtime_registry.active_count == 0
+
+
+def test_redial_right_after_a_hangup_gets_ready_while_the_old_assessment_drains(ws_app, monkeypatch):
+    app, client = ws_app
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
+    assessor = SlowAssessor(delay=3.0)  # outlives the hang-up grace: finished by the background drain
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    headers = login(client)
+    _, ticket = ticket_for(client, headers)
+    _, again = ticket_for(client, headers)
+    started = time.monotonic()
+    # TestClient only leaves the `with` once the handler has returned, i.e. once the slot is released
+    events = hang_up_with_pending_assessment(client, ticket)
+    assert "assessment" not in [e["type"] for e in events]
+    with client.websocket_connect(f"/api/realtime?ticket={again}") as ws:
+        ws.send_text(json.dumps(START))
+        assert receive_until(ws, "ready")[-1]["type"] == "ready"  # not 4029
+        assert time.monotonic() - started < 2.0  # one fake turn + 0.1 s grace, not the 3 s assessment
+        assert len(drain_tasks(app, client)) == 1  # the old call's assessment is still running
+        assert app.state.realtime_registry.active_count == 1  # only the new call holds a slot
+        ws.send_text(json.dumps({"type": "hangup"}))
+        until_close(ws)
+    await_drains(app, client)
+    assert not assessor.cancelled and len(assessor.calls) == 1
+    assert app.state.realtime_registry.active_count == 0
+    wait_for(lambda: session_tasks(client) == [])
+
+
+def test_background_drain_still_saves_and_links_the_assessment(ws_factory, monkeypatch, tmp_path):
+    from sqlalchemy import select
+
+    from app.models import Assessment, Message
+    from app.realtime_providers import make_assessor
+    from tests.test_realtime_assessor import FakeXfyun
+
+    app, client = ws_factory(data_dir=str(tmp_path / "data"))
+    app.state.xfyun = FakeXfyun(delay=0.8)
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
+
+    def build(app_, settings, user_id, start):
+        return Upstreams(Factory(FakeRecognizer("hello there")), None, "buffered", llm_of("Sure."), tts_of(),
+                         make_assessor(app_, settings, user_id, start.save_recordings))
+
+    monkeypatch.setattr(realtime_router, "build_upstreams", build)
+    headers = login(client)
+    _, ticket = ticket_for(client, headers)
+    events = hang_up_with_pending_assessment(client, ticket)
+    assert "assessment" not in [e["type"] for e in events]
+    assert app.state.realtime_registry.active_count == 0
+    assert len(drain_tasks(app, client)) == 1
+    await_drains(app, client)
+    message_id = next(e for e in events if e["type"] == "transcript_final")["message_id"]
+
+    async def linked():
+        async with app.state.sessionmaker() as session:
+            message = await session.get(Message, message_id)
+            rows = (await session.scalars(select(Assessment))).all()
+            return message.assessment_id, [r.id for r in rows]
+
+    assessment_id, rows = client.portal.call(linked)
+    assert assessment_id is not None and rows == [assessment_id]
+
+
+def test_global_limit_does_not_count_draining_calls(ws_factory, monkeypatch):
+    # REALTIME_MAX_SESSIONS counts live calls only: a call whose assessments are still finishing is not counted
+    app, client = ws_factory(realtime_max_sessions=1)
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
+    assessor = SlowAssessor(delay=3.0)
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    _, ticket = ticket_for(client, login(client, "alice"))
+    _, other = ticket_for(client, login(client, "bob"))
+    started = time.monotonic()
+    hang_up_with_pending_assessment(client, ticket)  # returns once alice's handler (and slot) is done
+    with client.websocket_connect(f"/api/realtime?ticket={other}") as ws:
+        ws.send_text(json.dumps(START))
+        assert receive_until(ws, "ready")[-1]["type"] == "ready"  # not 4029
+        assert time.monotonic() - started < 2.0  # not after alice's 3 s assessment
+        assert len(drain_tasks(app, client)) == 1
+        assert app.state.realtime_registry.active_count == 1
+        ws.send_text(json.dumps({"type": "hangup"}))
+        until_close(ws)
+    await_drains(app, client)
+    assert app.state.realtime_registry.active_count == 0
+
+
+def test_app_shutdown_cancels_outstanding_drains(tmp_path, monkeypatch, caplog):
+    app = make_ws_app(tmp_path, monkeypatch)
+    client = _start(app)
+    monkeypatch.setattr(realtime_session, "HANGUP_GRACE", 0.1)
+    assessor = SlowAssessor(delay=None)  # never answers: only the shutdown ends the drain
+    monkeypatch.setattr(realtime_router, "build_upstreams", fake_upstreams(assessor=assessor))
+    _, ticket = ticket_for(client, login(client))
+    hang_up_with_pending_assessment(client, ticket)
+    drains = drain_tasks(app, client)
+    assert len(drains) == 1
+    http = app.state.http
+    real_aclose = http.aclose
+    seen_at_http_close = []
+
+    async def aclose():  # the lifespan closes http (then the engine) after it cancelled the drains
+        seen_at_http_close.append((drains[0].done(), assessor.cancelled))
+        await real_aclose()
+
+    http.aclose = aclose
+    caplog.set_level(logging.WARNING)
+    started = time.monotonic()
+    client.__exit__(None, None, None)  # lifespan shutdown
+    assert time.monotonic() - started < 3.0
+    assert seen_at_http_close == [(True, True)]  # done inside the lifespan, not by the loop's teardown
+    assert drains[0].cancelled()
+    assert assessor.cancelled
+    assert not app.state.realtime_drains
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def test_shutdown_helper_cancels_and_waits_briefly():
+    from types import SimpleNamespace
+
+    class StuckSession:
+        cancelled = False
+
+        async def drain(self, timeout):
+            await asyncio.Event().wait()
+
+        def cancel_pending(self):
+            self.cancelled = True
+
+    app = SimpleNamespace(state=SimpleNamespace(realtime_drains=set()))
+    session = StuckSession()
+    realtime_router.spawn_drain(app, session)
+    (task,) = app.state.realtime_drains
+    await asyncio.sleep(0)
+    await realtime_router.cancel_drains(app)
+    assert task.cancelled() and session.cancelled and not app.state.realtime_drains
+
+
+async def test_drain_errors_are_logged_by_type_only(caplog):
+    from types import SimpleNamespace
+
+    class BrokenSession:
+        async def drain(self, timeout):
+            raise RuntimeError("user text: hello there")
+
+        def cancel_pending(self):
+            pass
+
+    app = SimpleNamespace(state=SimpleNamespace(realtime_drains=set()))
+    realtime_router.spawn_drain(app, BrokenSession())
+    (task,) = app.state.realtime_drains
+    await task
+    await asyncio.sleep(0)  # done callbacks run on the next loop iteration
+    assert not app.state.realtime_drains
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "RuntimeError" in text and "hello there" not in text

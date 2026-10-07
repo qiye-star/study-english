@@ -427,7 +427,7 @@ async def scenario_hangup(api: Api, ctx: dict) -> dict:
             await probe.wait("ready", timeout=20)
             break
         except Failure:
-            # the server keeps the user's slot until session.drain() (pending assessments, ≤ 10 s) is done
+            # the slot is freed once the server notices the drop and sends its close (assessments drain in the background)
             if probe.close_code != 4029 or time.monotonic() - t > 15:
                 raise
             await asyncio.sleep(0.2)
@@ -505,7 +505,7 @@ async def _hangup_pending(api: Api, ctx: dict, after_final: bool) -> dict:
         "errors": [d.get("code") for _, k, d in call.events if k == "error"],
     }
     call.tally(ctx)
-    # informational: how long after the close frame the same user can start a new call (4029 until then)
+    # informational: how long after the close frame the same user can start a new call (expected: at once)
     attempts = 0
     while True:
         attempts += 1
@@ -604,8 +604,8 @@ async def main_async(args) -> int:
         if args.only and name not in args.only.split(","):
             continue
         try:
-            # a fresh user per scenario: a slot still held by the previous scenario's call (the server
-            # releases it only after draining assessments) must not turn this scenario into a 4029
+            # a fresh user per scenario: a slot still held by the previous scenario's call (e.g. a drop the
+            # server has not noticed yet) must not turn this scenario into a 4029
             await api.register()
             results[name] = await fn(api, ctx)
             print(f"PASS {name} {json.dumps(results[name], ensure_ascii=False)}")

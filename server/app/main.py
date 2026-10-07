@@ -31,8 +31,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     http = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(app_: FastAPI):
         yield
+        await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await http.aclose()
         await engine.dispose()
 
@@ -46,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
+    app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
     app.add_middleware(BodyLimitMiddleware)
 
     install_error_handlers(app)
