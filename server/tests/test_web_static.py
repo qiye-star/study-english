@@ -69,6 +69,23 @@ async def test_health_and_api_unaffected(client, auth_headers):
     assert (await client.post("/api/whatever", headers=auth_headers, json={})).json() == {}
 
 
+async def test_vad_runtime_files_have_module_and_wasm_types(client, dist, monkeypatch):
+    """onnxruntime-web 用 import() 加载 .mjs:非 JS 类型时 Safari/Chrome 都拒绝执行(VAD 加载失败)。
+    不依赖系统的 mimetypes 表(精简镜像没有 /etc/mime.types,Windows 注册表可能乱配)。"""
+    import starlette.responses
+
+    vad = dist / "vad" / "0.0.31-ort1.30.0"
+    vad.mkdir(parents=True)
+    (vad / "ort-wasm-simd-threaded.mjs").write_text("export default 1", encoding="utf-8")
+    (vad / "ort-wasm-simd-threaded.wasm").write_bytes(b"\0asm\1\0\0\0")
+    monkeypatch.setattr(starlette.responses, "guess_type", lambda *a, **k: (None, None))  # 系统表里没有这两种
+    mjs = await client.get("/vad/0.0.31-ort1.30.0/ort-wasm-simd-threaded.mjs")
+    assert mjs.status_code == 200
+    assert mjs.headers["content-type"].startswith("text/javascript")
+    wasm = await client.get("/vad/0.0.31-ort1.30.0/ort-wasm-simd-threaded.wasm")
+    assert wasm.headers["content-type"] == "application/wasm"
+
+
 async def test_service_worker_and_manifest(client):
     sw = await client.get("/sw.js")
     assert sw.status_code == 200
