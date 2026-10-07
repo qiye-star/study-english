@@ -48,15 +48,16 @@ describe("startPcmCapture", () => {
     const frames: number[] = [];
     capture.onFrame((f) => frames.push(f.length));
     node.emit(new Float32Array(4800).fill(0.1)); // 100 ms @ 48 kHz
-    expect(frames).toEqual([1600]);
-    expect(capture.collected().length).toBe(1600);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toBeGreaterThan(1600 - 20); // 抗混叠 FIR 约 18 个输出采样(~1 ms)的延迟
+    expect(capture.collected().length).toBe(1600); // 取结果时 flush 尾部
     capture.release();
     capture.release();
     expect(stream.track.stop).toHaveBeenCalledTimes(1);
     expect(ctx.close).toHaveBeenCalledTimes(1);
     expect(node.disconnect).toHaveBeenCalled();
     node.emit(new Float32Array(4800)); // 释放后的帧被忽略
-    expect(frames).toEqual([1600]);
+    expect(frames).toHaveLength(1);
   });
 
   it("falls back to a ScriptProcessor when the worklet module fails", async () => {

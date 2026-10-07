@@ -125,9 +125,10 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
     const endListeners = new Set<() => void>();
     let parts: Float32Array[] = [];
     let released = false;
+    let taken = false; // 结果已取走(降采样器已 flush)
 
     const handle = (samples: Float32Array) => {
-      if (released) return;
+      if (released || taken) return;
       const frame = downsampler.process(samples);
       if (!frame.length) return;
       if (opts.collect) parts.push(frame);
@@ -199,11 +200,13 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
         endListeners.add(cb);
         return () => endListeners.delete(cb);
       },
-      /** 取走已收集的 16 kHz 样本;之后不再持有它们(再次调用只返回其后新到的样本)。 */
+      /** 取走已收集的 16 kHz 样本(含降采样器 flush 出的尾部);录音到此结束,之后不再持有、也不再收集。 */
       collected() {
-        const taken = concatFloat(parts);
+        if (!taken && opts.collect && !released) parts.push(downsampler.flush());
+        taken = true;
+        const result = concatFloat(parts);
         parts = [];
-        return taken;
+        return result;
       },
       release() {
         if (released) return;
