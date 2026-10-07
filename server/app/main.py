@@ -11,8 +11,9 @@ from app.grammar import load_grammar_rules
 from app.logging_setup import configure_logging
 from app.bodylimit import BodyLimitMiddleware
 from app.ratelimit import RateLimiter
+from app.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, sessions, speech, stats, stubs, vocabulary, web,
+    ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,
 )
 
 
@@ -43,6 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.http = http
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
+    app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
+    app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.add_middleware(BodyLimitMiddleware)
 
     install_error_handlers(app)
@@ -50,7 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # web(静态托管 + SPA 回退)兜底所有非 API 的 GET,必须最后。
     for module in (
         health, sessions, grammar_prompt, config_api, speech, conversations, assessments,
-        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, stubs, web,
+        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, stubs, web,
     ):
         app.include_router(module.router)
     return app
