@@ -9,7 +9,7 @@
       "practice": "跟读",
       "practicePanel": { "title": "选一句跟读", "description": "去跟读页朗读这句,或收藏到练习清单。", "go": "跟读这句", "save": "收藏到练习清单", "empty": "没有可跟读的句子。", "tooLong": "这句太长,无法单句跟读。" },
       "scenarios": {
-        "pick": "选择场景", "pickDescription": "AI 扮演对方。预设场景会先说一句开场白。",
+        "presets": "场景", "pick": "选择场景", "pickDescription": "AI 扮演对方。预设场景会先说一句开场白。",
         "level": "英语难度", "openingFailed": "会话已创建,但开场白没能保存。",
         "free": { "title": "自由对话", "description": "想聊什么都可以。" },
         "cafe": { "title": "咖啡店点单", "description": "向咖啡师点饮品和小食。" },
@@ -26,7 +26,7 @@
       "hold": { "label": "按住说话(也可按空格开始、再按一次发送)", "keyboardStop": "录音中——按空格发送,按 Esc 取消", "slideHint": "上滑取消 / 转文字", "cancel": "取消", "toText": "转文字", "tooShort": "按住说话", "notReady": "麦克风已准备好,请按住说话", "releaseToCancel": "松开取消", "releaseToText": "松开转文字", "cancelled": "已取消录音", "bar": "按住 说话", "barPressed": "松开 发送", "overlaySlide": "手指上滑,取消发送", "overlayCancel": "松开手指,取消发送", "overlayText": "松开 转文字" },
       "composer": { "toVoice": "切换到语音输入", "toKeyboard": "切换到键盘输入" },
       "autoSpeak": { "toggle": "自动朗读回复", "blocked": "浏览器拦截了自动播放。", "tapToRead": "点此朗读", "dismiss": "关闭" }, "speed": { "label": "朗读语速 {{rate}}" },
-      "settingsForm": { "scenario": "场景", "scenarioHint": "之后的回复按新场景进行。", "scenarioNote": "场景会话使用场景的角色设定,不使用自定义指令。", "systemPrompt": "角色 / 指令", "systemPromptCount": "{{used}} / {{max}} 字", "model": "模型", "ttsModel": "语音模型", "voice": "音色", "save": "保存", "serverDefault": "服务器默认", "bilingual": "双语(新回复自动翻译)", "grammarCheck": "语法检查", "grammarCheckHint": "指出你英文消息里的语法错误。", "coachMode": "教练模式", "coachModeHint": "AI 会在回复里自然地说出你读错或用错的词的正确形式。", "autoSpeak": "自动朗读回复", "autoSpeakHint": "每条新回复会合成一次语音(消耗语音合成额度)。", "level": "英语难度", "levelHint": "AI 会把用词和句长控制在这个水平。" },
+      "settingsForm": { "groupConversation": "对话", "groupVoice": "语音", "groupLearning": "学习", "scenario": "场景", "scenarioHint": "之后的回复按新场景进行。", "scenarioNote": "场景会话使用场景的角色设定,不使用自定义指令。", "systemPrompt": "角色 / 指令", "systemPromptCount": "{{used}} / {{max}} 字", "model": "模型", "ttsModel": "语音模型", "voice": "音色", "save": "保存", "serverDefault": "服务器默认", "bilingual": "双语(新回复自动翻译)", "grammarCheck": "语法检查", "grammarCheckHint": "指出你英文消息里的语法错误。", "coachMode": "教练模式", "coachModeHint": "AI 会在回复里自然地说出你读错或用错的词的正确形式。", "autoSpeak": "自动朗读回复", "autoSpeakHint": "每条新回复会合成一次语音(消耗语音合成额度)。", "level": "英语难度", "levelHint": "AI 会把用词和句长控制在这个水平。" },
       "voicePicker": { "all": "全部", "us": "美式", "gb": "英式", "preview": "试听 {{name}}", "stopPreview": "停止试听 {{name}}", "empty": "没有该口音的音色。", "label": "音色", "accentFilter": "口音" },
       "voice": {
         "play": "播放录音", "pause": "暂停", "cancel": "丢弃录音", "stopAndSend": "停止并发送",
@@ -39,8 +39,11 @@
         "mixedVoices": "可能混入了他人声音", "nearFieldTip": "近讲模式:靠近麦克风说话,嘈杂环境建议戴耳机;无法完全排除旁人的声音。"
       },
       "levels": { "auto": "自动(不限制)", "A2": "A2 · 初级", "B1": "B1 · 中级", "B2": "B2 · 中高级", "C1": "C1 · 高级" },
-      "hints": { "button": "不会说?", "title": "你可以这样说", "description": "选一句填入输入框,也可以朗读、跟读或收藏。", "fill": "用这句", "speak": "朗读", "practice": "跟读", "save": "收藏到练习清单", "errors": { "invalid": "没能读取提示内容,请重试。" } },
+      "hints": { "button": "不会说?", "title": "你可以这样说", "description": "选一句填入输入框,也可以朗读、跟读或收藏。", "fill": "用这句", "speak": "朗读", "practice": "跟读", "save": "收藏到练习清单", "row": "提示", "available": "{{count}} 句可用", "view": "查看", "errors": { "invalid": "没能读取提示内容,请重试。" } },
       "recap": { "title": "复盘", "description": "这次对话练了什么。", "empty": "先发几条消息吧。", "userMessages": "你的消息", "avgScore": "平均发音分", "grammar": "语法问题", "poorWords": "要多练的词", "summary": "总结", "generate": "生成总结", "regenerate": "重新生成", "stale": "这份总结之后又有了新消息,已过期。", "notSaved": "总结没能保存到会话里。", "listen": "朗读", "practice": "跟读", "save": "收藏到练习清单", "costNote": "生成总结会调用一次 AI。", "errors": { "invalid": "没能读取复盘内容,请重试。" } },
+      "sheetClose": "关闭",
+      "options": { "label": "对话选项", "bilingual": "双语", "bilingualHint": "新回复自动翻译", "autoSpeak": "自动朗读", "autoSpeakHint": "新回复自动读出来", "speed": "朗读语速" },
+      "bubble": { "listen": "朗读", "translated": "已翻译", "practice": "跟读" },
       "errors": {
         "notConfigured": "服务器未配置 AI 服务。", "upstream": "AI 服务暂不可用,请重试。",
         "empty": "AI 返回了空回复。", "messageLimit": "这个对话的消息已满,请新建对话。",

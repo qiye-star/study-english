@@ -1,20 +1,18 @@
-import { LoaderIcon } from "lucide-react";
+import { ChevronRightIcon, LoaderIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
-import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
+import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME } from "./chat-api";
 import { titleFrom } from "./chat-request";
 import { LEVELS, type Level } from "./levels";
 import { OpeningNotSavedError, discardUnfinished, runScenarioCreation, type CreationProgress, type ScenarioChoice } from "./scenario-create";
 import { MAX_CUSTOM_SCENARIO, PRESET_SCENARIO_IDS, sanitizeCustomScenario } from "./scenarios";
+import { Group, fieldClass, hintClass, labelClass, selectClass, textareaClass } from "./sheet-form";
 import { primeAudioElement, sharedAutoplayAudio } from "./use-tts-player";
-
-const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base";
 
 export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
   open: boolean;
@@ -108,55 +106,59 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
 
   return (
     <BottomSheet open={open} onOpenChange={changeOpen}>
-      <BottomSheetContent data-testid="scenario-sheet" className="max-h-[85dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <SheetHeader>
-          <SheetTitle className="text-left">{t("web.chat.scenarios.pick")}</SheetTitle>
-          <SheetDescription className="text-left">{t("web.chat.scenarios.pickDescription")}</SheetDescription>
-        </SheetHeader>
-        <div className="mt-3 space-y-3">
-          <label className="block space-y-1 text-sm">
-            <span>{t("web.chat.scenarios.level")}</span>
-            <select data-testid="scenario-level" className={selectClass} value={level} disabled={busy}
-              onChange={(e) => setLevel(e.target.value as Level)}>
-              {LEVELS.map((l) => <option key={l} value={l}>{t(`web.chat.levels.${l}`)}</option>)}
-            </select>
-          </label>
+      <BottomSheetContent data-testid="scenario-sheet" className="max-h-[85dvh] overflow-y-auto">
+        <BottomSheetHeader title={t("web.chat.scenarios.pick")} description={t("web.chat.scenarios.pickDescription")} />
+        <div className="space-y-section pb-1">
+          <div className="rounded-card border-[0.5px] border-hair bg-surface">
+            <label className={fieldClass}>
+              <span className={labelClass}>{t("web.chat.scenarios.level")}</span>
+              <select data-testid="scenario-level" className={selectClass} value={level} disabled={busy}
+                onChange={(e) => setLevel(e.target.value as Level)}>
+                {LEVELS.map((l) => <option key={l} value={l}>{t(`web.chat.levels.${l}`)}</option>)}
+              </select>
+            </label>
+          </div>
           {error && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
+            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
               <p role="alert" data-testid="scenario-error" className="flex-1">{error.text}</p>
               {error.opening && (
-                <Button variant="outline" data-testid="scenario-retry" className="h-11" disabled={busy} onClick={retry}>{t("web.common.retry")}</Button>
+                <button type="button" data-testid="scenario-retry" disabled={busy} onClick={retry}
+                  className="inline-flex min-h-tap items-center rounded-button px-3 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+                  {t("web.common.retry")}
+                </button>
               )}
             </div>
           )}
-          <ul className="divide-y rounded-md border">
+          <Group title={t("web.chat.scenarios.presets")}>
             {(["free", ...PRESET_SCENARIO_IDS] as const).map((id) => (
-              <li key={id}>
-                <button type="button" data-testid={`scenario-${id}`} disabled={busy}
-                  className="flex min-h-14 w-full flex-col items-start justify-center px-3 py-2 text-left disabled:opacity-50"
-                  onClick={() => start({
-                    scenario: { id },
-                    level,
-                    name: id === "free" ? DEFAULT_CONVERSATION_NAME : t(`web.chat.scenarios.${id}.title`),
-                  })}>
-                  <span className="font-medium">{t(`web.chat.scenarios.${id}.title`)}</span>
-                  <span className="text-xs text-muted-foreground">{t(`web.chat.scenarios.${id}.description`)}</span>
-                </button>
-              </li>
+              <button key={id} type="button" data-testid={`scenario-${id}`} disabled={busy}
+                className="flex min-h-row w-full items-center gap-3 py-2.5 pl-3.5 pr-3 text-left transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"
+                onClick={() => start({
+                  scenario: { id },
+                  level,
+                  name: id === "free" ? DEFAULT_CONVERSATION_NAME : t(`web.chat.scenarios.${id}.title`),
+                })}>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-body font-medium text-ink">{t(`web.chat.scenarios.${id}.title`)}</span>
+                  <span className="mt-0.5 block text-meta text-ink-2">{t(`web.chat.scenarios.${id}.description`)}</span>
+                </span>
+                <ChevronRightIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3" />
+              </button>
             ))}
-          </ul>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">{t("web.chat.scenarios.custom.title")}</p>
-            <p className="text-xs text-muted-foreground">{t("web.chat.scenarios.custom.description")}</p>
-            <Textarea data-testid="scenario-custom-input" rows={3} maxLength={MAX_CUSTOM_SCENARIO} className="text-base"
-              aria-label={t("web.chat.scenarios.custom.title")}
-              placeholder={t("web.chat.scenarios.custom.placeholder")} value={custom} disabled={busy}
-              onChange={(e) => setCustom(e.target.value)} />
-            <Button data-testid="scenario-custom-start" className="h-11 w-full" disabled={busy || !customText}
-              onClick={() => start({ scenario: { id: "custom", custom: customText }, level, name: titleFrom(customText, 30) })}>
-              {busy ? <LoaderIcon className="mr-2 h-4 w-4 animate-spin" /> : null}{t("web.chat.scenarios.custom.start")}
-            </Button>
-          </div>
+          </Group>
+          <Group title={t("web.chat.scenarios.custom.title")}>
+            <div className="space-y-2.5 px-3.5 py-3">
+              <p className={hintClass}>{t("web.chat.scenarios.custom.description")}</p>
+              <Textarea data-testid="scenario-custom-input" rows={3} maxLength={MAX_CUSTOM_SCENARIO} className={textareaClass}
+                aria-label={t("web.chat.scenarios.custom.title")}
+                placeholder={t("web.chat.scenarios.custom.placeholder")} value={custom} disabled={busy}
+                onChange={(e) => setCustom(e.target.value)} />
+              <Button data-testid="scenario-custom-start" className="h-12 w-full rounded-button text-body font-semibold" disabled={busy || !customText}
+                onClick={() => start({ scenario: { id: "custom", custom: customText }, level, name: titleFrom(customText, 30) })}>
+                {busy ? <LoaderIcon className="mr-2 h-4 w-4 animate-spin" /> : null}{t("web.chat.scenarios.custom.start")}
+              </Button>
+            </div>
+          </Group>
         </div>
       </BottomSheetContent>
     </BottomSheet>

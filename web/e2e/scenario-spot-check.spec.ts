@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./support/auth";
+import { headerOption } from "./support/header";
 
 // R26:只采集回复供人工评判,不对模型质量做断言。运行:E2E_SPOT_CHECK=1 yarn web:e2e --project=chromium-mobile scenario-spot-check
 const SPOT = process.env.E2E_SPOT_CHECK === "1";
@@ -40,7 +41,7 @@ for (const c of CASES) {
       await page.getByTestId(`scenario-${c.id}`).click();
     }
     await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
-    await page.getByTestId("conversation-autospeak").click(); // 抽查不需要朗读,省 TTS
+    await (await headerOption(page, "conversation-autospeak")).click(); // 抽查不需要朗读,省 TTS
     const opening = (await page.getByTestId("message-assistant").first().innerText()).trim();
     const turns: Array<{ learner: string; partner: string }> = [];
     for (const line of LINES) turns.push({ learner: line, partner: await reply(page, line) });

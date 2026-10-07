@@ -123,11 +123,12 @@ export function VoicePlayButton({ audioUrl, assessmentId, disabled }: { audioUrl
     <>
       <button type="button" data-testid="voice-play" data-state={state} disabled={disabled || !canPlay || state === "loading"}
         aria-label={state === "playing" ? t("web.chat.voice.pause") : t("web.chat.voice.play")}
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         onClick={toggle}>
-        {state === "loading" ? <LoaderIcon className="h-5 w-5 animate-spin" /> : state === "playing" ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+        {state === "loading" ? <LoaderIcon aria-hidden className="h-[18px] w-[18px] animate-spin" />
+          : state === "playing" ? <PauseIcon aria-hidden className="h-[18px] w-[18px] fill-current" /> : <PlayIcon aria-hidden className="h-[18px] w-[18px] fill-current" />}
       </button>
-      {state === "error" && errorText && <span role="alert" className="text-xs">{errorText}</span>}
+      {state === "error" && errorText && <span role="alert" className="text-meta text-red">{errorText}</span>}
     </>
   );
 }

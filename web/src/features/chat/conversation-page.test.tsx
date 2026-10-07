@@ -99,6 +99,14 @@ async function composerMode(mode: "text" | "voice"): Promise<HTMLElement> {
   }
   return screen.getByTestId(mode === "voice" ? "chat-mic" : "chat-input");
 }
+/**
+ * 顶栏的双语、自动朗读、语速、复盘、对话设置收在"选项"弹出面板里(redesign v3:顶栏只放通话与调整两个图标)。
+ * 面板没开就先点开;开关类点了不关面板,复盘/设置点了会关。返回该控件。
+ */
+async function headerOption(testId: string): Promise<HTMLElement> {
+  if (!screen.queryByTestId(testId)) await userEvent.click(await screen.findByTestId("conversation-options"));
+  return screen.getByTestId(testId);
+}
 const voiceMode = () => composerMode("voice");
 const textMode = () => composerMode("text");
 /** R29:按住麦克风 1 秒再松手(按住说话),替代"点一下开始、再点一下停止" */
@@ -213,7 +221,7 @@ describe("ConversationPage", () => {
   it("saves conversation settings", async () => {
     const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, tts_voice: "echo" } }) }));
     await screen.findByText("reply");
-    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(await headerOption("conversation-settings"));
     await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(2));
     await userEvent.click(screen.getByTestId("voice-option-echo"));
     expect(screen.getByTestId("settings-tts-voice")).toHaveAttribute("data-value", "echo");
@@ -225,7 +233,7 @@ describe("ConversationPage", () => {
   it("persists the grammar check and coach mode switches as snake_case config keys", async () => {
     const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, grammar_check: false, coach_mode: true } }) }));
     await screen.findByText("reply");
-    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(await headerOption("conversation-settings"));
     await userEvent.click(screen.getByTestId("settings-grammar-check"));
     await userEvent.click(screen.getByTestId("settings-coach-mode"));
     await userEvent.click(screen.getByTestId("settings-save"));
@@ -240,7 +248,7 @@ describe("ConversationPage", () => {
     it("writes auto_speak and level as snake_case keys on top of the stored config", async () => {
       const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, level: "B1", auto_speak: false } }) }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await headerOption("conversation-settings"));
       await userEvent.click(screen.getByTestId("settings-auto-speak"));
       await userEvent.selectOptions(screen.getByTestId("settings-level"), "B1");
       await userEvent.click(screen.getByTestId("settings-save"));
@@ -257,7 +265,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS", coach_mode: true } }),
       }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await headerOption("conversation-settings"));
       await userEvent.click(screen.getByTestId("settings-coach-mode"));
       await userEvent.click(screen.getByTestId("settings-save"));
       await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
@@ -269,7 +277,7 @@ describe("ConversationPage", () => {
     it("sends a changed model", async () => {
       const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }) }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await headerOption("conversation-settings"));
       await waitFor(() => expect(screen.getByTestId("settings-model").querySelectorAll("option").length).toBeGreaterThan(2));
       await userEvent.selectOptions(screen.getByTestId("settings-model"), "gpt-4o-mini");
       await userEvent.click(screen.getByTestId("settings-save"));
@@ -280,7 +288,7 @@ describe("ConversationPage", () => {
     it("does not write untouched grammar check / coach mode defaults", async () => {
       const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }) }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await headerOption("conversation-settings"));
       await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(2));
       await userEvent.click(screen.getByTestId("voice-option-echo"));
       expect(screen.getByTestId("settings-tts-voice")).toHaveAttribute("data-value", "echo");
@@ -389,7 +397,7 @@ describe("ConversationPage", () => {
   it("keeps the settings sheet open when saving fails", async () => {
     const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ error: "boom" }, 500) }));
     await screen.findByText("reply");
-    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await userEvent.click(await headerOption("conversation-settings"));
     await userEvent.click(screen.getByTestId("settings-coach-mode")); // 有改动才会 PATCH
     await userEvent.click(screen.getByTestId("settings-save"));
     await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
@@ -564,6 +572,8 @@ describe("ConversationPage", () => {
       setup(routes());
       await screen.findByText("reply");
       expect(screen.queryByTestId("message-translate")).toBeNull();
+      await headerOption("conversation-autospeak"); // 选项面板已打开:里面没有双语开关
+      expect(screen.getByTestId("conversation-options-panel")).toBeInTheDocument();
       expect(screen.queryByTestId("conversation-bilingual")).toBeNull();
     });
 
@@ -575,7 +585,7 @@ describe("ConversationPage", () => {
         "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
       }));
       await screen.findByText("reply");
-      expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
+      expect(await headerOption("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
       expect(screen.queryByTestId("message-translation")).toBeNull(); // 不补译旧消息
       await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
@@ -595,7 +605,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": async () => { await gate; return json({ id: "c1", name: "New conversation", config: { system_prompt: "SYS", bilingual: true } }); },
       }));
       await screen.findByText("reply");
-      const toggle = screen.getByTestId("conversation-bilingual");
+      const toggle = await headerOption("conversation-bilingual");
       await userEvent.click(toggle);
       await userEvent.click(toggle);
       expect(toggle).toBeDisabled();
@@ -635,7 +645,7 @@ describe("ConversationPage", () => {
     it("the header switch saves the bilingual option", async () => {
       const { mock } = setup(routes({ "PATCH /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: { ...CONFIG, bilingual: true } }) }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await userEvent.click(await headerOption("conversation-bilingual"));
       await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
       expect(JSON.parse(mock.calls.find((c) => c.method === "PATCH")!.body as string).config).toMatchObject({ bilingual: true, system_prompt: "SYS" });
       await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
@@ -2093,7 +2103,7 @@ describe("ConversationPage", () => {
       expect(bodyOf(speechCalls(mock)[0])).toEqual({ input: "Auto one.", model: "openai/tts-1", voice: "alloy" });
       await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
       expect(screen.getAllByTestId("message-tts")[0]).toHaveAttribute("data-state", "idle");
-      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true"); // 旧会话没有该键:默认开
+      expect(await headerOption("conversation-autospeak")).toHaveAttribute("aria-pressed", "true"); // 旧会话没有该键:默认开
     });
 
     it("never reads loaded history", async () => {
@@ -2106,7 +2116,7 @@ describe("ConversationPage", () => {
     it("does not read when the stored switch is off, an error reply, or a hidden page", async () => {
       const off = setup(replyRoutes("Off.", {}, { ...CONFIG, auto_speak: false }));
       await screen.findByText("reply");
-      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      expect(await headerOption("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
       await say("Hi");
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Off."));
       await settle();
@@ -2235,7 +2245,7 @@ describe("ConversationPage", () => {
       await screen.findByText("reply");
       await say("Hi");
       await waitFor(() => expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "playing"));
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
       await waitFor(() => expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false"));
       expect(screen.getAllByTestId("message-tts").at(-1)).toHaveAttribute("data-state", "idle");
       expect(configPatches(mock)).toHaveLength(1);
@@ -2256,7 +2266,7 @@ describe("ConversationPage", () => {
       }));
       await screen.findByText("reply");
       await say("Hi");
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
       await act(async () => { reply.release(); });
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Too late."));
       await settle();
@@ -2272,7 +2282,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": (call) => (bodyOf(call).config ? json({ error: "boom" }, 500) : json({ id: "c1", name: "Hi", config: CONFIG })),
       }));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
       await waitFor(() => expect(configPatches(mock)).toHaveLength(1));
       await waitFor(() => expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true"));
       await say("Hi");
@@ -2297,14 +2307,14 @@ describe("ConversationPage", () => {
     it("the speed button cycles and applies to the shared player at once", async () => {
       setup(routes());
       await screen.findByText("reply");
-      expect(screen.getByTestId("conversation-speed")).toHaveTextContent("1×");
-      await userEvent.click(screen.getByTestId("conversation-speed"));
-      expect(screen.getByTestId("conversation-speed")).toHaveTextContent("1.25×");
+      expect(await headerOption("conversation-speed")).toHaveTextContent("1×");
+      await userEvent.click(await headerOption("conversation-speed"));
+      expect(await headerOption("conversation-speed")).toHaveTextContent("1.25×");
       expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
       await userEvent.click(screen.getByTestId("message-tts"));
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
       expect(sharedAutoplayAudio().playbackRate).toBe(1.25);
-      await userEvent.click(screen.getByTestId("conversation-speed"));
+      await userEvent.click(await headerOption("conversation-speed"));
       expect(sharedAutoplayAudio().playbackRate).toBe(0.75);
     });
 
@@ -2551,7 +2561,7 @@ describe("ConversationPage", () => {
     it("shows the facts from loaded messages without calling the AI, and never generates on its own", async () => {
       const { mock } = setup(routes({ "GET /api/conversations/c1/messages": () => json(LOADED) }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       expect(await screen.findByTestId("recap-facts")).toBeInTheDocument();
       expect(screen.getByTestId("recap-user-messages")).toHaveTextContent("2");
       expect(screen.getByTestId("recap-avg-score")).toHaveTextContent("73");
@@ -2569,7 +2579,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "New conversation", config: bodyOf(call).config }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-generate"));
       await waitFor(() => expect(screen.getByTestId("recap-summary")).toHaveAttribute("data-status", "done"));
       expect(screen.getByTestId("recap-summary")).toHaveTextContent(RECAP.summary_zh);
@@ -2590,7 +2600,7 @@ describe("ConversationPage", () => {
         "GET /api/conversations/c1/messages": () => json(LOADED),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       expect(await screen.findByTestId("recap-summary")).toHaveTextContent("旧的复盘");
       expect(screen.getByTestId("recap-stale")).toBeInTheDocument();
       expect(screen.getByTestId("recap-regenerate")).toBeEnabled();
@@ -2605,7 +2615,7 @@ describe("ConversationPage", () => {
         "POST /api/vocabulary": () => json({ id: "v1" }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-poor-word-vocab"));
       await userEvent.click(screen.getByTestId("recap-generate"));
       await userEvent.click(await screen.findByTestId("recap-expression-vocab"));
@@ -2624,7 +2634,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "x", config: bodyOf(call).config }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-generate"));
       expect(await screen.findByTestId("recap-error")).toHaveTextContent("The recap could not be read. Try again.");
       bad = false;
@@ -2640,7 +2650,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": () => json({ error: "Config is too large" }, 400),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-generate"));
       expect(await screen.findByTestId("recap-not-saved")).toBeInTheDocument();
       expect(screen.getByTestId("recap-summary")).toHaveTextContent(RECAP.summary_zh);
@@ -2654,7 +2664,7 @@ describe("ConversationPage", () => {
         "POST /api/practice-items": () => json({ id: "p1", text: "Yesterday I went home.", source: "grammar", created_at: "2026-10-05T00:00:00+00:00" }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-grammar-save"));
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "Yesterday I went home.", source: "grammar" }));
       await userEvent.click(screen.getByTestId("recap-poor-word-practice"));
@@ -2664,7 +2674,7 @@ describe("ConversationPage", () => {
     it("with no user messages shows the empty state and cannot generate", async () => {
       const { mock } = setup(routes({}));
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       expect(await screen.findByTestId("recap-empty")).toBeInTheDocument();
       expect(screen.getByTestId("recap-generate")).toBeDisabled();
       expect(aiCalls(mock)).toHaveLength(0);
@@ -2675,7 +2685,7 @@ describe("ConversationPage", () => {
         { id: "m1", conversation_id: "c1", role: "user", content: "Hello there", grammar: { has_errors: true, corrected: "Hello there.", errors: "broken" } },
       ] }) }));
       await screen.findByText("Hello there");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       expect(await screen.findByTestId("recap-user-messages")).toHaveTextContent("1");
       expect(screen.queryByTestId("recap-grammar-item")).toBeNull();
     });
@@ -2687,7 +2697,7 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": (call) => json({ id: "c1", name: "x", config: bodyOf(call).config }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-grammar-speak"));
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/ai/audio/speech")[0]).input).toBe("Yesterday I went home."));
       await userEvent.click(screen.getByTestId("recap-generate"));
@@ -2704,7 +2714,7 @@ describe("ConversationPage", () => {
         "GET /api/conversations/c2/messages": () => json({ messages: [] }),
       }));
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-generate"));
       await waitFor(() => expect(signal).toBeDefined());
       act(() => goTo("/chat/c2"));
@@ -2758,8 +2768,8 @@ describe("ConversationPage", () => {
       const s = server({ wait: first.promise });
       const { mock } = setup(s.r);
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
-      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-bilingual"));
       await settle();
       expect(configPatches(mock)).toHaveLength(1); // 第二次写入排队,等第一次返回
       await act(async () => { first.release(); });
@@ -2768,7 +2778,7 @@ describe("ConversationPage", () => {
       expect(bodyOf(configPatches(mock)[1]).config).toEqual({ ...CONFIG, auto_speak: false, bilingual: true });
       await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
       await settle();
-      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      expect(await headerOption("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
       expect(s.stored()).toEqual({ ...CONFIG, auto_speak: false, bilingual: true });
     });
 
@@ -2780,8 +2790,8 @@ describe("ConversationPage", () => {
       });
       const { mock } = setup(s.r);
       await screen.findByText("You too!");
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
-      await userEvent.click(screen.getByTestId("conversation-recap"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-recap"));
       await userEvent.click(await screen.findByTestId("recap-generate"));
       await waitFor(() => expect(screen.getByTestId("recap-summary")).toHaveTextContent("复盘"));
       await settle();
@@ -2792,8 +2802,10 @@ describe("ConversationPage", () => {
       const final = s.stored();
       expect(final.auto_speak).toBe(false);
       expect(final.recap).toMatchObject({ summary_zh: "复盘" });
-      // 复盘保存之后再切换双语:复盘仍在(复盘面板是模态的,直接派发点击)
-      fireEvent.click(screen.getByTestId("conversation-bilingual"));
+      // 复盘保存之后再切换双语:复盘仍在。双语开关在顶栏选项面板里,先关掉模态的复盘面板再打开选项
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByTestId("recap-sheet")).toBeNull());
+      fireEvent.click(await headerOption("conversation-bilingual"));
       await waitFor(() => expect(configPatches(mock)).toHaveLength(3));
       await settle();
       expect(s.stored()).toMatchObject({ auto_speak: false, bilingual: true, recap: { summary_zh: "复盘" } });
@@ -2805,14 +2817,14 @@ describe("ConversationPage", () => {
       const s = server({ wait: first.promise, fail: true });
       const { mock } = setup(s.r);
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
-      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
-      await userEvent.click(screen.getByTestId("conversation-bilingual"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
+      expect(await headerOption("conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+      await userEvent.click(await headerOption("conversation-bilingual"));
       await act(async () => { first.release(); });
       await waitFor(() => expect(configPatches(mock)).toHaveLength(2));
       expect(bodyOf(configPatches(mock)[1]).config).toEqual({ ...CONFIG, bilingual: true });
       await waitFor(() => expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true"));
-      expect(screen.getByTestId("conversation-autospeak")).toHaveAttribute("aria-pressed", "true");
+      expect(await headerOption("conversation-autospeak")).toHaveAttribute("aria-pressed", "true");
       expect(toastSpy).toHaveBeenCalledTimes(1);
       toastSpy.mockRestore();
     });
@@ -2820,7 +2832,7 @@ describe("ConversationPage", () => {
     it("the settings button stays disabled until the conversation is loaded", async () => {
       const loaded = gate();
       setup(routes({ "GET /api/conversations/c1": async () => { await loaded.promise; return json({ id: "c1", name: "Chat", config: CONFIG }); } }));
-      expect(await screen.findByTestId("conversation-settings")).toBeDisabled();
+      expect(await headerOption("conversation-settings")).toBeDisabled();
       await act(async () => { loaded.release(); });
       await waitFor(() => expect(screen.getByTestId("conversation-settings")).toBeEnabled());
     });
@@ -2828,14 +2840,14 @@ describe("ConversationPage", () => {
     it("never offers settings (and never PATCHes) when loading the conversation failed", async () => {
       const { mock } = setup(routes({ "GET /api/conversations/c1": () => json({ error: "boom" }, 500) }));
       expect(await screen.findByRole("alert")).toBeInTheDocument();
-      expect(screen.getByTestId("conversation-settings")).toBeDisabled();
+      expect(await headerOption("conversation-settings")).toBeDisabled();
       expect(mock.calls.some((c) => c.method === "PATCH")).toBe(false);
     });
 
     it("saving the settings sheet with nothing changed sends no PATCH and closes the sheet", async () => {
       const { mock } = setup(server().r);
       await screen.findByText("reply");
-      await userEvent.click(screen.getByTestId("conversation-settings"));
+      await userEvent.click(await headerOption("conversation-settings"));
       await userEvent.click(await screen.findByTestId("settings-save"));
       await waitFor(() => expect(screen.queryByTestId("settings-save")).toBeNull());
       await settle();
@@ -3000,7 +3012,7 @@ describe("ConversationPage", () => {
       await say("A latte please");
       await live.delta("Great choice. What size");
       await waitFor(() => expect(speechInputs(mock.calls)).toHaveLength(1));
-      await userEvent.click(screen.getByTestId("conversation-autospeak"));
+      await userEvent.click(await headerOption("conversation-autospeak"));
       expect(speechSignals(mock.calls)[0].aborted).toBe(true);
       await live.delta(" would you like? We have small and large.");
       await live.done();

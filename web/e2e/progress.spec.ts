@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
+import { headerOption } from "./support/header";
 
 test("the progress page shows today's activity", async ({ page, request }) => {
   await signIn(page, request);
   await page.getByTestId("nav-chat").click();
   await page.getByTestId("conversation-new").click();
   await page.getByTestId("scenario-free").click();
-  await page.getByTestId("conversation-autospeak").click(); // 本用例不关心朗读
+  await (await headerOption(page, "conversation-autospeak")).click(); // 本用例不关心朗读
   await page.getByTestId("chat-input").fill("Hello! How are you today?");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("message-assistant").last()).toHaveAttribute("data-status", "done", { timeout: 90_000 });

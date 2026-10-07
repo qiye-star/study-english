@@ -1,14 +1,16 @@
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { MessagesSquareIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@renderer/components/ui/alert-dialog";
-import { Button } from "@renderer/components/ui/button";
 import { formatDateTime } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { Avatar } from "~/components/avatar";
+import { IconButton } from "~/components/icon-button";
+import { IconChip } from "~/components/icon-chip";
 import { PageHeader } from "~/layout/page-header";
 import { CHAT_SERVER_ERRORS, deleteConversation, listConversations, type Conversation } from "./chat-api";
 import { displayName } from "./chat-request";
@@ -68,37 +70,59 @@ export function ConversationsPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.chat.title")} actions={
-        <Button data-testid="conversation-new" className="mr-1 h-11" onClick={() => setPickerOpen(true)}>
-          <PlusIcon className="mr-1 h-4 w-4" />{t("web.chat.new")}
-        </Button>
+        <button type="button" data-testid="conversation-new" onClick={() => setPickerOpen(true)}
+          className="hit-expand mr-1 inline-flex h-8 items-center gap-1 rounded-full bg-blue pl-2.5 pr-3 text-sub font-semibold text-on-blue transition-opacity duration-fast hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <PlusIcon aria-hidden className="h-4 w-4" />{t("web.chat.new")}
+        </button>
       } />
-      {!loaded && <p className="p-8 text-center text-muted-foreground">{t("web.common.loading")}</p>}
-      {error && (
-        <div role="alert" className="flex items-center gap-2 p-4 text-sm text-destructive">
-          <span className="flex-1">{error}</span>
-          {!items.length && (
-            <Button variant="outline" className="h-11" onClick={() => void load(1)}>{t("web.common.retry")}</Button>
-          )}
-        </div>
-      )}
-      {loaded && !items.length && !error && (
-        <p data-testid="conversations-empty" className="p-8 text-center text-muted-foreground">{t("web.chat.empty")}</p>
-      )}
-      <ul>
-        {items.map((c) => (
-          <li key={c.id} className="flex items-center border-b">
-            <Link to={`/chat/${c.id}`} data-testid="conversation-item" className="flex min-h-14 min-w-0 flex-1 flex-col justify-center px-4 py-2">
-              <span className="truncate">{displayName(c, t("web.chat.untitled"))}</span>
-              <span className="text-xs text-muted-foreground">{formatDateTime(c.updatedAt)}</span>
-            </Link>
-            <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="conversation-delete"
-              aria-label={t("web.common.delete")} onClick={() => setPendingDelete(c)}>
-              <Trash2Icon className="h-5 w-5" />
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {next && <Button variant="ghost" className="m-4 h-11" disabled={loadingMore} onClick={() => void load(next)}>{t("web.common.loadMore")}</Button>}
+      <div className="px-gutter pb-6 pt-1">
+        {!loaded && <p className="py-10 text-center text-sub text-ink-2">{t("web.common.loading")}</p>}
+        {error && (
+          <div role="alert" className="mb-2 flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
+            <span className="flex-1">{error}</span>
+            {!items.length && (
+              <button type="button" onClick={() => void load(1)}
+                className="inline-flex min-h-tap items-center rounded-button px-3 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {t("web.common.retry")}
+              </button>
+            )}
+          </div>
+        )}
+        {loaded && !items.length && !error && (
+          <div className="flex flex-col items-center gap-3 py-14 text-center">
+            <IconChip tone="blue" icon={MessagesSquareIcon} />
+            <p data-testid="conversations-empty" className="max-w-[24ch] text-sub text-ink-2">{t("web.chat.empty")}</p>
+          </div>
+        )}
+        {items.length > 0 && (
+          <ul className="divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface">
+            {items.map((c) => {
+              const name = displayName(c, t("web.chat.untitled"));
+              return (
+                <li key={c.id} className="flex items-center pr-1">
+                  <Link to={`/chat/${c.id}`} data-testid="conversation-item"
+                    className="flex min-h-row min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                    <span aria-hidden><Avatar name={name} size="sm" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body font-medium tracking-[-0.005em] text-ink">{name}</span>
+                      <span className="num mt-0.5 block text-meta text-ink-2">{formatDateTime(c.updatedAt)}</span>
+                    </span>
+                  </Link>
+                  <IconButton data-testid="conversation-delete" className="text-ink-2" label={t("web.common.delete")} onClick={() => setPendingDelete(c)}>
+                    <Trash2Icon />
+                  </IconButton>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {next && (
+          <button type="button" disabled={loadingMore} onClick={() => void load(next)}
+            className="mx-auto mt-2 flex min-h-tap items-center rounded-button px-4 text-sub font-medium text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+            {t("web.common.loadMore")}
+          </button>
+        )}
+      </div>
       <ScenarioSheet open={pickerOpen} onOpenChange={setPickerOpen}
         onCreated={(id, openingId) => {
           setPickerOpen(false);
@@ -106,11 +130,11 @@ export function ConversationsPage() {
         }}
         onDiscarded={() => void load(1)} />
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>{t("web.chat.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>
+        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+          <AlertDialogHeader><AlertDialogTitle className="text-title font-semibold text-ink">{t("web.chat.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="conversation-delete-confirm" className="h-11"
+            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="conversation-delete-confirm" className="h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90"
               onClick={() => pendingDelete && void remove(pendingDelete)}>{t("web.common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

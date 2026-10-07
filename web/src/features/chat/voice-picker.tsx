@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { VoiceOption } from "~/api/server-config";
 import { AuthContext } from "~/auth/auth-context";
+import { cn } from "./cn";
 import type { TtsCache } from "./tts";
 import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 
@@ -44,16 +45,20 @@ export function VoicePicker({ voices, model, value, onChange, cache, createAudio
   const tabs: AccentTab[] = ["all", "us", "gb"];
 
   return (
-    <div className="space-y-2 text-sm">
-      <div className="flex min-h-11 items-center justify-between gap-2">
-        <span>{t("web.chat.voicePicker.label")}</span>
-        <span data-testid="settings-tts-voice" data-value={value} className="truncate font-medium">{selected?.label ?? value}</span>
+    <div className="space-y-2.5">
+      <div className="flex min-h-tap items-center justify-between gap-2">
+        <span className="text-sub font-semibold text-ink">{t("web.chat.voicePicker.label")}</span>
+        <span data-testid="settings-tts-voice" data-value={value} className="truncate text-sub font-medium text-blue">{selected?.label ?? value}</span>
       </div>
       {hasAccents && (
-        <div role="group" aria-label={t("web.chat.voicePicker.accentFilter")} className="flex gap-1 rounded-lg bg-muted p-1">
+        // 分段样式(轨道 + 选中片),语义沿用一组 aria-pressed 按钮;32 视觉 / 44 命中
+        <div role="group" aria-label={t("web.chat.voicePicker.accentFilter")} className="flex gap-0.5 rounded-badge bg-seg-track p-[3px]">
           {tabs.map((id) => (
             <button key={id} type="button" data-testid={`voice-accent-${id}`} aria-pressed={tab === id}
-              className={`h-9 flex-1 rounded-md text-sm ${tab === id ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`}
+              className={cn(
+                "hit-expand h-8 flex-1 rounded-lg border-[0.5px] text-sub transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                tab === id ? "border-hair-2 bg-seg-on font-semibold text-ink shadow-seg" : "border-transparent font-medium text-ink-2",
+              )}
               onClick={() => setTab(id)}>
               {t(`web.chat.voicePicker.${id}`)}
             </button>
@@ -61,26 +66,30 @@ export function VoicePicker({ voices, model, value, onChange, cache, createAudio
         </div>
       )}
       {shown.length === 0 ? (
-        <p className="py-3 text-center text-xs text-muted-foreground">{t("web.chat.voicePicker.empty")}</p>
+        <p className="py-3 text-center text-meta text-ink-2">{t("web.chat.voicePicker.empty")}</p>
       ) : (
-        <div role="radiogroup" aria-label={t("web.chat.voicePicker.label")} className="max-h-56 overflow-y-auto rounded-md border">
+        <div role="radiogroup" aria-label={t("web.chat.voicePicker.label")}
+          className="max-h-72 divide-y-[0.5px] divide-hair-2 overflow-y-auto rounded-card border-[0.5px] border-hair bg-surface">
           {shown.map((v) => {
             const key = `preview:${v.value}`;
             const state = player.states[key] ?? "idle";
             const active = state === "playing" || state === "loading";
+            const checked = v.value === value;
             return (
-              <div key={v.value} className="flex items-center border-b last:border-b-0">
-                <button type="button" role="radio" aria-checked={v.value === value} data-testid={`voice-option-${v.value}`}
-                  className="flex min-h-11 flex-1 items-center gap-2 px-3 text-left" onClick={() => onChange(v.value)}>
-                  <span className="flex size-4 shrink-0 items-center justify-center">{v.value === value && <CheckIcon className="size-4" aria-hidden />}</span>
-                  <span className="truncate">{v.label}</span>
+              <div key={v.value} className="flex items-center pr-1.5">
+                <button type="button" role="radio" aria-checked={checked} data-testid={`voice-option-${v.value}`}
+                  className="flex min-h-row min-w-0 flex-1 items-center gap-2.5 pl-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  onClick={() => onChange(v.value)}>
+                  <span className="flex size-[18px] shrink-0 items-center justify-center text-blue">{checked && <CheckIcon className="size-[18px]" aria-hidden />}</span>
+                  <span className={cn("truncate text-body", checked ? "font-semibold text-ink" : "text-ink")}>{v.label}</span>
                 </button>
                 <button type="button" data-testid={`voice-preview-${v.value}`} data-state={state} disabled={!api}
                   aria-label={t(active ? "web.chat.voicePicker.stopPreview" : "web.chat.voicePicker.preview", { name: name(v) })}
-                  className="flex size-11 shrink-0 items-center justify-center text-muted-foreground disabled:opacity-40"
+                  className={cn("flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
+                    active ? "bg-blue-tint text-blue" : "text-ink-2 hover:bg-surface-2")}
                   onClick={() => void player.play(key, PREVIEW_SENTENCE, model, v.value)}>
-                  {state === "loading" ? <LoaderIcon className="size-4 animate-spin" aria-hidden />
-                    : state === "playing" ? <SquareIcon className="size-4" aria-hidden /> : <PlayIcon className="size-4" aria-hidden />}
+                  {state === "loading" ? <LoaderIcon className="size-[18px] animate-spin" aria-hidden />
+                    : state === "playing" ? <SquareIcon className="size-4 fill-current" aria-hidden /> : <PlayIcon className="size-[18px] fill-current" aria-hidden />}
                 </button>
               </div>
             );
