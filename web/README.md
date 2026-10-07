@@ -60,7 +60,7 @@
   - 浏览器端 Silero VAD(`@ricky0123/vad-web` 0.0.31 + `onnxruntime-web`)断句,检测到说话才上传 16 kHz PCM;机器人说话期间 VAD 门限提高(概率 ≥ 0.8、能量 ≥ −30 dBFS、最短 400 ms)以防回声误打断,播放结束后恢复;外放回声保护强度未验证。
   - 服务端识别 + LLM + 逐句 TTS,下行 24 kHz PCM 经 WebAudio 排队播放;打断(barge-in)时立即停播并发 `interrupt`,丢弃旧轮次的迟到音频。
   - VAD 加载失败时自动切到"按住说话"模式并提示(还有"点一下开始/再点结束"的备用开关)。每一条结束路径(挂断、服务端关闭、麦克风丢失、页面切后台、卸载)都释放麦克风与自己创建的 `AudioContext`,页面级共享上下文不被关闭;这些由 `realtime-call.test.ts` 等单测断言(假设备)。
-  - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。有未发送的本地状态(待 Retry 的保存、失败的回复、语音草稿)时不能开始通话(提示先发送、重试或丢弃);通话结束后立即重新拉取消息列表,复盘/进度/词汇本可直接用,晚到的语法结果按消息 id 补到重新加载的气泡上。
+  - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。有未发送的本地状态(待 Retry 的保存、失败的回复、语音草稿)时不能开始通话(提示先发送、重试或丢弃);挂断时麦克风、VAD、播放器立即释放,但 WebSocket 留到服务端存完被打断的回复、自己关闭为止(最多 3 s);随后重新拉取消息列表,约 2 s 后再按消息 id 补取一次(服务端在关闭之后才链接的发音评测),这期间输入与麦克风禁用(从关闭起最多 6 s)。复盘/进度/词汇本可直接用,晚到的语法结果按消息 id 补到气泡上。
   - 开发服务器的 `/api` 代理已开启 `ws: true`;生产环境需要反向代理转发 WebSocket,见 `server/README.md`。
 - **VAD 资源自托管**(不访问任何 CDN):`scripts/copy-vad-assets.mjs` 在 `yarn dev` / `yarn build` 之前把 4 个文件从 `node_modules`(`@ricky0123/vad-web/dist` 的 `silero_vad_v5.onnx`、`vad.worklet.bundle.min.js`,`onnxruntime-web/dist` 的 `ort-wasm-simd-threaded.wasm`、`.mjs`)复制到 `public/vad/<vad-web 版本>-ort<onnxruntime-web 版本>/`(取两个包的*已安装*版本,目前 `0.0.31-ort1.30.0`;任一包升级都会换 URL,缓存优先的 `sw.js` 不会给出旧文件;复制前会删掉 `public/vad/` 下的其他版本目录,`dist` 里不带旧版本;该目录被 git 忽略)。运行时从同源同一路径加载(`vite.config.ts` 的 `__VAD_ASSET_BASE__` 与脚本共用 `scripts/vad-assets.mjs`),`sw.js` 按 `/assets/` 同样的规则缓存。首次使用约 16.6 MB(wasm 14.2 MB + 模型 2.3 MB),蜂窝网络下的加载时间**未验证**。脚本发现文件数不是 4 会报错;升级这两个依赖后要重新核对文件名。
 - **测延迟**:

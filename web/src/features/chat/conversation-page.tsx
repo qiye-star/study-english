@@ -16,7 +16,7 @@ import { useAuth } from "~/auth/auth-context";
 import { formatClock } from "~/features/practice/practice-page";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
 import { fetchRealtimeConfig, type RealtimeConfig } from "~/features/realtime/realtime-api";
-import type { RealtimeEnv } from "~/features/realtime/realtime-call";
+import type { CallEnding, RealtimeEnv } from "~/features/realtime/realtime-call";
 import { RealtimeCallDialog, prepareCallAudio } from "~/features/realtime/realtime-call-screen";
 import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
 import { PageHeader } from "~/layout/page-header";
@@ -50,6 +50,14 @@ import { useHints } from "./use-hints";
 import { useMessageTranslations } from "./use-message-translations";
 import { sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceClip, type VoiceDraftEvent, type VoiceTurnState } from "./use-voice-turn";
+
+/**
+ * 通话结束后(review F4 I-1):等服务端关闭套接字(它先存完被打断的回复,`HANGUP_CLOSE_WAIT_MS` 封顶)→ 重新加载 →
+ * 再过这么久按 id 补取一次(服务端在关闭之后才链接的发音评测)。
+ */
+export const POST_CALL_FOLLOW_UP_MS = 2000;
+/** 从关闭通话起,输入与麦克风最多禁用这么久;到点还没补取完就放弃补取。 */
+export const POST_CALL_SETTLE_MAX_MS = 6000;
 
 let keySeq = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keySeq}`;
@@ -252,6 +260,32 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const [call, setCall] = useState<{ context: AudioContext; voice: string } | null>(null);
   callActiveRef.current = !!call;
   const [reloadKey, setReloadKey] = useState(0);
+  /** 通话刚结束、还在等服务端写完并补取(输入、麦克风、提示、通话都禁用;有上限) */
+  const [settling, setSettling] = useState(false);
+  const settlingRef = useRef(false);
+  const settleTimerRef = useRef<number | undefined>(undefined);
+  /** 还在等服务端关闭的通话套接字:切换会话/卸载时 drop */
+  const endingRef = useRef<CallEnding | null>(null);
+  /**
+   * 通话结束后把焦点还给通话按钮(review F2 m12):打开通话的同一次提交里按钮就被禁用了,对话框记下的原焦点多半是 body,
+   * 收尾期间按钮也一直禁用。所以等按钮重新可用时再还;用户在这期间把焦点放到了别处(例如输入框)就不动它。
+   */
+  const callButtonRef = useRef<HTMLButtonElement>(null);
+  const refocusCallRef = useRef(false);
+  /** 下一次加载是通话后的重新加载:加载完再补取一次 */
+  const followUpRef = useRef(false);
+  const stopSettling = useCallback(() => {
+    window.clearTimeout(settleTimerRef.current);
+    settlingRef.current = false;
+    followUpRef.current = false;
+    if (mountedRef.current) setSettling(false);
+  }, []);
+  // 切换会话或离开页面:不再等上一通的套接字,也不再补取
+  useEffect(() => () => {
+    endingRef.current?.drop();
+    endingRef.current = null;
+    stopSettling();
+  }, [id, stopSettling]);
   /** 本次通话里服务端保存了几句用户话语(0 句不必重新加载) */
   const callTurnsRef = useRef(0);
   /**
@@ -273,6 +307,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   useEffect(() => {
     let alive = true;
+    let followUpTimer: number | undefined;
+    const followUp = followUpRef.current;
+    followUpRef.current = false;
     resetAutoSpeak();
     const results = new TurnResults(api, patchByKey);
     resultsRef.current = results;
@@ -300,21 +337,41 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     forceScrollRef.current = false;
     loadServerAiConfig(api).then((c) => { if (alive) setAi(c); }).catch((): void => undefined)
       .finally(() => { if (alive) setAiSettled(true); });
+    /** 服务端消息 → 气泡,叠上通话里各句晚到的语法结果(加载途中到达的那些也在这里补上) */
+    const toUi = (list: ChatMessage[]) => {
+      const book = callResultsRef.current;
+      const views = book?.conversationId === id ? book.views : null;
+      return list.filter((m) => m.role !== "system").map(fromServerMessage).map((m) => {
+        const view = views?.get(m.key);
+        return view ? { ...m, ...view } : m;
+      });
+    };
+    /**
+     * 通话后的补取:按服务端顺序重建,已有的气泡按 id 合并(新到的评测、语法补上),新 id 加进来;
+     * 没有服务端 id 的本地气泡原样留在末尾(收尾期间输入是禁用的,正常不会有)。
+     */
+    const followUpFetch = () => {
+      listMessages(api, id)
+        .then((list) => {
+          if (!alive || !settlingRef.current) return; // 到了上限已放弃:结果不再采用
+          knownTailRef.current = list.messages.at(-1)?.id ?? null;
+          const fresh = toUi(list.messages);
+          setMessages((prev) => {
+            const byKey = new Map(prev.map((m) => [m.key, m]));
+            const keys = new Set(fresh.map((m) => m.key));
+            return [...fresh.map((m) => ({ ...byKey.get(m.key), ...m })), ...prev.filter((m) => !m.id && !keys.has(m.key))];
+          });
+        })
+        .catch((): void => undefined) // 补取失败:保留重新加载的结果
+        .finally(() => { if (alive) stopSettling(); });
+    };
     Promise.all([getConversation(api, id), listMessages(api, id)])
       .then(([c, list]) => {
         if (!alive) return;
         knownTailRef.current = list.messages.at(-1)?.id ?? null;
         setConversation(c);
-        // 通话里各句晚到的语法结果(加载途中到达的那些也在这里补上)
-        const book = callResultsRef.current;
-        const views = book?.conversationId === id ? book.views : null;
-        setMessages(list.messages
-          .filter((m) => m.role !== "system")
-          .map(fromServerMessage)
-          .map((m) => {
-            const view = views?.get(m.key);
-            return view ? { ...m, ...view } : m;
-          }));
+        setMessages(toUi(list.messages));
+        if (followUp && settlingRef.current) followUpTimer = window.setTimeout(followUpFetch, POST_CALL_FOLLOW_UP_MS);
         const wanted = speakOpeningRef.current;
         if (wanted) {
           const visible = list.messages.filter((m) => m.role !== "system");
@@ -322,9 +379,14 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           navigateRef.current(`/chat/${encodeURIComponent(id)}`, { replace: true, state: null }); // 刷新不再读
         }
       })
-      .catch((err) => alive && setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS)));
+      .catch((err) => {
+        if (!alive) return;
+        setLoadError(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS));
+        if (followUp) stopSettling();
+      });
     return () => {
       alive = false;
+      window.clearTimeout(followUpTimer);
       stopTts(); // 先停播放器,再让未读完的回复过期(切换会话/卸载)
       resetAutoSpeak();
       // 离开页面或切换会话:中止进行中的流,之后不再 setState
@@ -339,7 +401,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
       resetVoice(); // 取消录音、中止转写、回收 blob URL
     };
-  }, [api, id, reloadKey, resetTranslations, resetHints, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
+  }, [api, id, reloadKey, resetTranslations, resetHints, patchByKey, resetVoice, resetAutoSpeak, stopTts, stopSettling]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -632,7 +694,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   /** R12:基于最近已完成的消息(失败的尾部不算) */
   const openHints = () => {
-    if (!conversation || busyRef.current || voice.state !== "idle") return;
+    if (!conversation || busyRef.current || voice.state !== "idle" || settlingRef.current) return;
     const done = dropFailedTails(messagesRef.current).kept.filter((m) => m.status === "done");
     const anchor = [...done].reverse().find((m) => m.role === "assistant");
     // 上一组提示还在朗读:停下,免得新一组同位置的条目显示成"播放中"
@@ -651,7 +713,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const text = input;
-    if (busyRef.current || voiceBusy || !conversation || !text.trim()) return;
+    if (busyRef.current || voiceBusy || !conversation || settlingRef.current || !text.trim()) return;
     autoSpeak.prime(); // R5:点击的同步阶段解锁
     setInput("");
     // 规则:失败的一轮(用户消息 + 错误气泡,或未发送的语音草稿)从未保存。发送新消息时直接丢弃它,
@@ -847,7 +909,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
    * (`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
    */
   const startCall = () => {
-    if (!conversation || !realtimeConfig?.enabled || call) return;
+    if (!conversation || !realtimeConfig?.enabled || call || settlingRef.current) return;
     if (hasUnsentState()) {
       toast.error(t("web.chat.callBlocked.unsent"));
       // 等待 Retry 的保存:提示条可能已被关掉,这一下就当作 Retry(成功后按钮恢复,再点即可通话)
@@ -897,16 +959,51 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   };
 
   /**
-   * 关闭通话界面(挂断或看完结束原因)。有保存的话语就立即重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13);
+   * 关闭通话界面(挂断或看完结束原因)。重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13),但要等服务端写完
+   * (review F4 I-1):挂断后服务端才存被打断的回复、关闭之后才链接评测。所以先等套接字关闭(`ending.closed`,
+   * 服务端存完回复才关;最多 HANGUP_CLOSE_WAIT_MS),再重新加载,加载完 POST_CALL_FOLLOW_UP_MS 后按 id 补取一次;
+   * 这期间输入与麦克风禁用(从关闭起最多 POST_CALL_SETTLE_MAX_MS)。麦克风、VAD、播放器在挂断时已立即释放。
    * 不等语法检查:晚到的结果按消息 id 补到重新加载的气泡上。开始通话时已确保没有未发送的本地状态(I-3),
-   * 通话期间页面是 inert 的,所以这次重新加载不会丢掉、也不会 abandonOpen 任何未保存的轮次。
+   * 通话期间页面是 inert 的、收尾期间输入禁用,所以这次重新加载不会丢掉、也不会 abandonOpen 任何未保存的轮次。
+   * 没有连上(票据被拒等)且没有保存过话语:不重新加载。
    */
-  const closeCall = () => {
+  const closeCall = (ending: CallEnding | null) => {
     setCall(null);
-    const turns = callTurnsRef.current;
-    callTurnsRef.current = 0;
-    if (turns) setReloadKey((k) => k + 1);
+    refocusCallRef.current = true;
+    if (!ending) {
+      const turns = callTurnsRef.current;
+      callTurnsRef.current = 0;
+      if (turns) setReloadKey((k) => k + 1);
+      return;
+    }
+    window.clearTimeout(settleTimerRef.current);
+    settlingRef.current = true;
+    setSettling(true);
+    settleTimerRef.current = window.setTimeout(stopSettling, POST_CALL_SETTLE_MAX_MS);
+    endingRef.current = ending;
+    const gen = genRef.current;
+    void ending.closed.then(() => {
+      if (endingRef.current === ending) endingRef.current = null;
+      // 等待期间切换了会话或离开了页面(drop 也会兑现 closed):什么都不做
+      if (!mountedRef.current || gen !== genRef.current || !settlingRef.current) return;
+      const turns = callTurnsRef.current; // 包括挂断后、关闭前服务端才保存的话语
+      callTurnsRef.current = 0;
+      if (!turns && !ending.opened) {
+        stopSettling();
+        return;
+      }
+      followUpRef.current = true;
+      setReloadKey((k) => k + 1);
+    });
   };
+
+  useEffect(() => {
+    const button = callButtonRef.current;
+    if (!refocusCallRef.current || call || settling || !button || button.disabled) return;
+    refocusCallRef.current = false;
+    const active = document.activeElement;
+    if (!active || active === document.body) button.focus();
+  });
 
   const recording = voice.state === "recording" || voice.state === "starting";
   const lastKey = messages[messages.length - 1]?.key;
@@ -919,9 +1016,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
             onOpenRecap={() => setRecapOpen(true)}
-            canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call}
+            canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call || settling}
             callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
-            onCall={startCall} />
+            onCall={startCall} callButtonRef={callButtonRef} />
         } />
       {(scenario || options.level !== "auto") && (
         <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">
@@ -990,7 +1087,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       )}
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
         <HoldToTalkButton voiceState={voice.state}
-          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call))}
+          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call || settling))}
           onStart={() => {
             // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
             // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
@@ -1023,11 +1120,11 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           </Button>
         )}
         <Button type="button" data-testid="chat-hints" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy || !!call} onClick={openHints}>
+          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy || !!call || settling} onClick={openHints}>
           <LightbulbIcon className="h-5 w-5" />
         </Button>
         <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call}>
+          aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call || settling}>
           <SendIcon className="h-5 w-5" />
         </Button>
       </form>

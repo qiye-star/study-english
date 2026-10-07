@@ -71,17 +71,19 @@ export class StartPayloadError extends Error {
 }
 
 const codePoints = (s: string) => Array.from(s);
+/** 孤立的代理项(别处按 UTF-16 截断留下的半个表情)换成 U+FFFD:JSON.stringify 会把它写成 `\udXXX`,服务端解析即拒绝(4400)。 */
+const wellFormed = (s: string) => s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
 
 /**
  * 编码开始消息,并把它收进服务端的限制里(超限的服务端会以 4400 关闭,用户只看到笼统的报错):
- * 提示词按码点截到 8000(不拆代理对),整条消息再按 MAX_CLIENT_TEXT 收紧;模型名过长时用服务端默认;
+ * 孤立的代理项换成 U+FFFD; * 提示词按码点截到 8000(不拆代理对),整条消息再按 MAX_CLIENT_TEXT 收紧;模型名过长时用服务端默认;
  * 温度夹到 [0, 2](非数字用 0.7);音色不合法则抛 StartPayloadError(没有可退回的值)。
  */
 export function encodeStart(p: StartPayload): string {
   if (!START_LIMITS.voice.test(p.voice)) throw new StartPayloadError("voice");
-  const model = codePoints(p.model).length <= START_LIMITS.model ? p.model : "";
+  const model = codePoints(p.model).length <= START_LIMITS.model ? wellFormed(p.model) : "";
   const temperature = Number.isFinite(p.temperature) ? Math.min(2, Math.max(0, p.temperature)) : 0.7;
-  const prompt = codePoints(p.systemPrompt ?? "").slice(0, START_LIMITS.systemPrompt);
+  const prompt = codePoints(wellFormed(p.systemPrompt ?? "")).slice(0, START_LIMITS.systemPrompt);
   const encode = (n: number) => JSON.stringify({
     type: "start", system_prompt: prompt.slice(0, n).join(""), model, temperature, voice: p.voice,
     language: "en", save_recordings: p.saveRecordings,

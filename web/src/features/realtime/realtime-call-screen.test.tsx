@@ -190,6 +190,36 @@ describe("RealtimeCallScreen", () => {
       o.cleanup();
     });
 
+    it("StrictMode: the app root loses inert and aria-hidden when the dialog closes and when everything unmounts (review F2 m6)", () => {
+      const root = document.createElement("div");
+      root.id = "root";
+      root.setAttribute("aria-hidden", "false"); // 原有的值要原样恢复
+      document.body.appendChild(root);
+      const screenEl = (open: boolean) => (
+        <StrictMode>
+          {open && <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} onHangup={vi.fn()} onMute={vi.fn()}
+            onPushToTalk={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />}
+        </StrictMode>
+      );
+      const view = renderWithProviders(screenEl(true));
+      const host = view.container;
+      expect(root).toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "true");
+      expect(host).toHaveAttribute("inert");
+      view.rerender(screenEl(false)); // 关闭对话框,页面还在
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      for (const el of [root, host]) expect(el).not.toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "false");
+      expect(host).not.toHaveAttribute("aria-hidden");
+      view.rerender(screenEl(true)); // 再开一次,然后整体卸载
+      expect(root).toHaveAttribute("inert");
+      view.unmount();
+      expect(root).not.toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "false");
+      expect(document.querySelectorAll("[inert]")).toHaveLength(0);
+      root.remove();
+    });
+
     it("returns focus to the control that opened the call", () => {
       const o = withOpener();
       const h = render();
@@ -243,6 +273,32 @@ describe("RealtimeCallScreen", () => {
       fireEvent.click(tap);
       h.view.unmount(); // 说着话关掉:这句结束
       expect(h.onPttUp).toHaveBeenCalledTimes(2);
+    });
+
+    it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", () => {
+      const h = render({ pushToTalk: true, vadUnavailable: true });
+      const tap = screen.getByTestId("call-ptt-tap");
+      const hold = screen.getByTestId("call-ptt");
+      fireEvent.click(tap);
+      expect(tap).toHaveAttribute("aria-pressed", "true");
+      expect(hold).toBeDisabled();
+      fireEvent.pointerDown(hold);
+      fireEvent.pointerUp(hold);
+      expect(h.onPttDown).toHaveBeenCalledTimes(1);
+      expect(h.onPttUp).not.toHaveBeenCalled(); // 还在说:点按键仍是"点按结束说话"
+      expect(tap).toHaveTextContent(/Tap to stop|点按结束/);
+      fireEvent.click(tap);
+      expect(h.onPttUp).toHaveBeenCalledTimes(1);
+      expect(hold).toBeEnabled();
+      // 反过来:按住期间点按键不可用
+      fireEvent.pointerDown(hold);
+      expect(tap).toBeDisabled();
+      fireEvent.click(tap);
+      expect(tap).toHaveAttribute("aria-pressed", "false");
+      fireEvent.pointerUp(hold);
+      expect(h.onPttDown).toHaveBeenCalledTimes(2);
+      expect(h.onPttUp).toHaveBeenCalledTimes(2);
+      expect(tap).toBeEnabled();
     });
 
     it("has no tap toggle while voice detection works", () => {
@@ -309,6 +365,8 @@ describe("RealtimeCallDialog", () => {
     expect(screen.getByTestId("call-status")).toHaveAttribute("data-phase", "connecting");
     fireEvent.click(screen.getByTestId("call-hangup"));
     expect(s.onClose).toHaveBeenCalledTimes(1);
+    // 交给页面的是这通电话的套接字结局(页面等它关闭再重新加载)
+    expect(s.onClose).toHaveBeenCalledWith(expect.objectContaining({ opened: false, closed: expect.any(Promise), drop: expect.any(Function) }));
     expect(s.mock.calls[0].signal?.aborted).toBe(true);
     expect(s.ctx.close).not.toHaveBeenCalled();
   });
@@ -331,6 +389,7 @@ describe("RealtimeCallDialog", () => {
     expect(s.onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("call-close"));
     expect(s.onClose).toHaveBeenCalledTimes(1);
+    expect(s.onClose).toHaveBeenCalledWith(expect.objectContaining({ opened: false, closed: expect.any(Promise) }));
   });
 
   it("going to the background hangs up and explains it on return (R16)", async () => {
