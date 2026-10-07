@@ -103,8 +103,10 @@ export function callReducer(m: CallModel, a: CallAction): CallModel {
     case "notice":
       return { ...m, notice: a.key };
     case "local-interrupt": {
+      // 只标记还在流式输出(尚未收到 reply_done,messageId 仍为 undefined)的那条回复;
+      // 思考阶段打断时新一轮还没有字幕,已说完的上一轮不能被标成"已打断"
       let last = -1;
-      m.captions.forEach((c, i) => { if (c.role === "assistant") last = i; });
+      m.captions.forEach((c, i) => { if (c.role === "assistant" && c.messageId === undefined) last = i; });
       const captions = last < 0 ? m.captions : m.captions.map((c, i) => (i === last ? { ...c, interrupted: true } : c));
       return { ...m, captions, phase: "listening" };
     }

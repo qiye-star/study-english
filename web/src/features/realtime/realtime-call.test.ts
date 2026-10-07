@@ -240,6 +240,19 @@ describe("RealtimeCall", () => {
     expect(s.ctx.started).toHaveLength(2);
   });
 
+  it("interrupt during thinking: the server is told, the previous finished reply keeps its caption unmarked", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    s.ws().server({ type: "reply_delta", turn_id: 1, text: "Sure." });
+    s.ws().server({ type: "reply_done", turn_id: 1, message_id: "m2", interrupted: false });
+    s.ws().server({ type: "transcript_final", text: "and also", message_id: "m3" });
+    s.ws().server({ type: "state", state: "thinking" });
+    s.vadCb().onSpeechStart();
+    expect(s.ws().texts()).toContainEqual({ type: "interrupt" });
+    expect(s.changes.at(-1)!.captions.find((c) => c.turnId === 1)!.interrupted).toBe(false);
+  });
+
   it("does not interrupt when the bot is silent", async () => {
     const s = setup();
     await s.call.start();
