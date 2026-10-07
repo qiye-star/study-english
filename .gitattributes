@@ -1,0 +1,3 @@
+# Shared conformance fixtures must be byte-identical across server/ and web/ (LF).
+server/tests/fixtures/*.json text eol=lf
+web/src/features/chat/fixtures/*.json text eol=lf

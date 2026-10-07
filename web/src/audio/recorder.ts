@@ -52,7 +52,7 @@ export function browserRecorderEnv(): RecorderEnv {
   };
 }
 
-function mapGetUserMediaError(err: unknown): RecorderError {
+export function mapGetUserMediaError(err: unknown): RecorderError {
   const name = (err as { name?: string })?.name;
   if (name === "NotAllowedError" || name === "SecurityError") return new RecorderError("permission_denied");
   if (name === "NotReadableError") return new RecorderError("mic_busy");

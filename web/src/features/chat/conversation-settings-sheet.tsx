@@ -126,6 +126,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
                 : <option value={draft.ttsVoice}>{draft.ttsVoice}</option>}
             </select>
           </label>
+          <p data-testid="settings-near-field-tip" className="text-sm text-muted-foreground">{t("web.chat.voice.nearFieldTip")}</p>
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>{t("web.chat.settingsForm.bilingual")}</span>
             <Switch data-testid="settings-bilingual" checked={draft.bilingual === true}
