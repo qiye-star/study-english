@@ -23,7 +23,7 @@ export default defineConfig({
           args: [
             "--use-fake-ui-for-media-stream",
             "--use-fake-device-for-media-stream",
-            `--use-file-for-fake-audio-capture=${SPEECH_WAV}`,
+            `--use-file-for-fake-audio-capture=${process.env.E2E_FAKE_AUDIO ?? SPEECH_WAV}`,
             "--autoplay-policy=no-user-gesture-required",
           ],
         },
