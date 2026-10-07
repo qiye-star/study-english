@@ -5,7 +5,7 @@ import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 
@@ -17,7 +17,7 @@ from app.models import User
 from app.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
 from app.timing import Stopwatch, log_timing
 from app.upstream import check_upstream_auth
-from app.volcengine import VolcengineError, synthesize as volcengine_synthesize
+from app.volcengine import VolcengineError, synthesize as volcengine_synthesize, synthesize_stream
 from app.uploads import parse_buffered_form, read_limited_body
 
 router = APIRouter(prefix="/api/ai")
@@ -38,6 +38,7 @@ class SpeechIn(BaseModel):
     model: str
     voice: str = "alloy"
     response_format: str | None = None
+    stream: bool = False
 
 
 @router.post("/audio/speech")
@@ -71,8 +72,51 @@ async def speech(
             raise HTTPException(400, "Invalid voice")
         if not settings.volcengine_tts_key:
             raise HTTPException(503, "Volcengine TTS is not configured")
-        watch = Stopwatch()
         chars = len(payload.input)
+        if payload.stream:
+            watch = Stopwatch()
+            chunks = synthesize_stream(
+                request.app.state.http,
+                settings.volcengine_tts_url,
+                settings.volcengine_tts_key,
+                model.removeprefix("volcengine/"),
+                payload.input,
+                payload.voice,
+                str(user.id),
+            )
+            try:
+                first = await anext(chunks)
+            except VolcengineError as e:
+                await chunks.aclose()
+                log_timing("tts_volcengine", ms=watch.ms(), chars=chars, stream=True, status=0)
+                raise HTTPException(
+                    502, "Upstream authentication failed" if e.kind == "auth" else "Upstream unavailable"
+                )
+            except BaseException:
+                await chunks.aclose()
+                raise
+            log_timing("tts_volcengine_first_chunk", ms=watch.ms(), chars=chars)
+
+            async def body():
+                status = 200
+                try:
+                    yield first
+                    async for chunk in chunks:
+                        yield chunk
+                except VolcengineError:
+                    status = 0
+                    logger.warning("Volcengine TTS stream truncated")
+                finally:
+                    # Also runs when the client disconnects (generator closed/cancelled),
+                    # which closes the upstream httpx response.
+                    await chunks.aclose()
+                    log_timing("tts_volcengine", ms=watch.ms(), chars=chars, stream=True, status=status)
+
+            return StreamingResponse(
+                body(), media_type="audio/mpeg",
+                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+            )
+        watch = Stopwatch()
         try:
             audio = await volcengine_synthesize(
                 request.app.state.http,

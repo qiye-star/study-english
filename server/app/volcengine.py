@@ -3,6 +3,7 @@ import binascii
 import json
 import logging
 import re
+from collections.abc import AsyncIterator
 from typing import Literal
 
 import httpx
@@ -40,41 +41,74 @@ class VolcengineError(Exception):
         self.detail = detail
 
 
-def parse_stream(raw: bytes) -> bytes:
-    """Join the base64 audio chunks of a concatenated-JSON response into one MP3."""
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        raise VolcengineError("upstream")
-    decoder = json.JSONDecoder()
-    pos, end = 0, len(text)
-    chunks: list[bytes] = []
-    while True:
-        while pos < end and text[pos].isspace():
-            pos += 1
-        if pos >= end:
-            break
+class StreamParser:
+    """增量解析火山 TTS 的拼接 JSON 流(每个对象一块 base64 音频)。"""
+
+    def __init__(self, max_buffer: int = 4 * 1024 * 1024):
+        self._decoder = json.JSONDecoder()
+        self._text = ""
+        self._pending = b""
+        self._max = max_buffer
+        self.audio_bytes = 0
+
+    def _decode(self, data: bytes) -> str:
+        raw = self._pending + data
         try:
-            item, pos = decoder.raw_decode(text, pos)
-        except ValueError:
-            raise VolcengineError("upstream")
+            self._pending = b""
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            if e.reason != "unexpected end of data":
+                raise VolcengineError("upstream")
+            self._pending = raw[e.start:]  # 多字节字符被块边界切开:留到下一块
+            return raw[: e.start].decode("utf-8")
+
+    def _audio(self, item) -> bytes | None:
         if not isinstance(item, dict):
             raise VolcengineError("upstream")
         code = item.get("code")
         if code not in (None, 0, SUCCESS_END_CODE):
-            raise VolcengineError(
-                "upstream", f"code={_clean(code)} message={_clean(item.get('message', ''))}"
-            )
+            raise VolcengineError("upstream", f"code={_clean(code)} message={_clean(item.get('message', ''))}")
         data = item.get("data")
         if isinstance(data, str) and data:
             try:
-                chunks.append(base64.b64decode(data, validate=True))
+                chunk = base64.b64decode(data, validate=True)
             except (binascii.Error, ValueError):
                 raise VolcengineError("upstream")
-    audio = b"".join(chunks)
-    if not audio:
-        raise VolcengineError("upstream")
-    return audio
+            self.audio_bytes += len(chunk)
+            return chunk
+        return None
+
+    def feed(self, data: bytes) -> list[bytes]:
+        self._text += self._decode(data)
+        out: list[bytes] = []
+        while True:
+            stripped = self._text.lstrip()
+            if not stripped:
+                self._text = ""
+                return out
+            try:
+                item, end = self._decoder.raw_decode(stripped)
+            except ValueError:
+                self._text = stripped
+                if len(self._text) > self._max:
+                    raise VolcengineError("upstream")
+                return out
+            self._text = stripped[end:]
+            chunk = self._audio(item)
+            if chunk:
+                out.append(chunk)
+
+    def finish(self) -> None:
+        if self._pending or self._text.strip() or not self.audio_bytes:
+            raise VolcengineError("upstream")
+
+
+def parse_stream(raw: bytes) -> bytes:
+    """Join the base64 audio chunks of a concatenated-JSON response into one MP3."""
+    parser = StreamParser()
+    chunks = parser.feed(raw)
+    parser.finish()
+    return b"".join(chunks)
 
 
 async def synthesize(
@@ -115,3 +149,43 @@ async def synthesize(
     except VolcengineError as e:
         logger.warning("Volcengine TTS bad response: %s", e.detail or "no audio data")
         raise
+
+
+async def synthesize_stream(
+    http: httpx.AsyncClient,
+    url: str,
+    api_key: str,
+    resource_id: str,
+    text: str,
+    speaker: str,
+    uid: str,
+    audio_format: Literal["mp3", "pcm"] = "mp3",
+    sample_rate: int = 24000,
+) -> AsyncIterator[bytes]:
+    request = http.build_request(
+        "POST", url,
+        json={"user": {"uid": uid}, "req_params": {
+            "text": text, "speaker": speaker, "audio_params": {"format": audio_format, "sample_rate": sample_rate}}},
+        headers={"X-Api-Key": api_key, "X-Api-Resource-Id": resource_id},
+        timeout=TIMEOUT,
+    )
+    try:
+        response = await http.send(request, stream=True)
+    except httpx.HTTPError as e:
+        logger.warning("Volcengine TTS request failed: %s", type(e).__name__)
+        raise VolcengineError("upstream")
+    try:
+        if response.status_code != 200:
+            code, message = _error_info(await response.aread())
+            logger.warning("Volcengine TTS HTTP %s code=%s message=%s", response.status_code, code, message)
+            raise VolcengineError("auth" if response.status_code in AUTH_STATUSES else "upstream")
+        parser = StreamParser()
+        async for data in response.aiter_bytes():
+            for chunk in parser.feed(data):
+                yield chunk
+        parser.finish()
+    except httpx.HTTPError as e:
+        logger.warning("Volcengine TTS stream failed: %s", type(e).__name__)
+        raise VolcengineError("upstream")
+    finally:
+        await response.aclose()
