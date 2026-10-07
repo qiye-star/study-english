@@ -90,3 +90,25 @@ describe("ConversationSettingsSheet", () => {
     expect(screen.getByTestId("settings-save")).toBeDisabled();
   });
 });
+
+describe("system prompt limit (realtime start payload, Task 4.11)", () => {
+  it("caps the role prompt so the effective prompt with any level still fits the call's start message", async () => {
+    const { MAX_SYSTEM_PROMPT } = await import("./conversation-settings-sheet");
+    const { effectiveSystemPrompt } = await import("./chat-request");
+    const { LEVELS } = await import("./levels");
+    const { START_LIMITS } = await import("~/features/realtime/protocol");
+    for (const level of LEVELS) {
+      const prompt = effectiveSystemPrompt({ ...base, systemPrompt: "x".repeat(MAX_SYSTEM_PROMPT), level });
+      expect(Array.from(prompt).length).toBeLessThanOrEqual(START_LIMITS.systemPrompt);
+    }
+  });
+
+  it("enforces the limit on the field and tells the user how much is used", async () => {
+    const { MAX_SYSTEM_PROMPT } = await import("./conversation-settings-sheet");
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={vi.fn()} config={{ ...base }} />);
+    expect(screen.getByTestId("settings-system-prompt")).toHaveAttribute("maxlength", String(MAX_SYSTEM_PROMPT));
+    expect(screen.getByTestId("settings-system-prompt-count")).toHaveTextContent(`3 / ${MAX_SYSTEM_PROMPT}`);
+    await userEvent.type(screen.getByTestId("settings-system-prompt"), "!");
+    expect(screen.getByTestId("settings-system-prompt-count")).toHaveTextContent(`4 / ${MAX_SYSTEM_PROMPT}`);
+  });
+});

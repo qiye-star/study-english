@@ -1,5 +1,5 @@
 import { LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,12 +8,16 @@ import { Textarea } from "@renderer/components/ui/textarea";
 import { streamChatCompletion } from "~/api/ai";
 import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
+import { loadServerAiConfig, voicesFor, type ServerAiConfig } from "~/api/server-config";
+import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { formatClock } from "~/features/practice/practice-page";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { fetchRealtimeConfig, type RealtimeConfig } from "~/features/realtime/realtime-api";
+import type { RealtimeEnv } from "~/features/realtime/realtime-call";
+import { RealtimeCallDialog, prepareCallAudio } from "~/features/realtime/realtime-call-screen";
 import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
 import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
@@ -23,7 +27,7 @@ import {
 } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { coachCandidates, coachNote } from "./coach";
-import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, titleFrom, withConfigDefaults } from "./chat-request";
+import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { HintsSheet, hintKey } from "./hints-sheet";
@@ -96,6 +100,18 @@ const HOLD_HINTS: Record<DiscardReason, string> = {
   short: "web.chat.hold.tooShort", "not-ready": "web.chat.hold.notReady", slide: "web.chat.hold.cancelled", cancel: "web.chat.hold.cancelled",
 };
 
+/**
+ * 实时通话的音色。通话只用服务端的火山 TTS(REALTIME_TTS_MODEL = volcengine/…,服务端 volc_tts_stream):
+ * 会话用别家模型朗读时(例如 openai 的 alloy),那个音色在火山上不存在,每句都会合成失败——改用服务端的火山音色
+ * (默认预设是火山时用它的音色,否则取火山的第一个英文音色);都没有时原样传,由 encodeStart/服务端报错。
+ */
+function callVoice(config: ConversationConfig, ai: ServerAiConfig | null): string {
+  if (config.ttsModel.startsWith("volcengine/") || !ai) return config.ttsVoice;
+  if (ai.defaultTts.model.startsWith("volcengine/") && ai.defaultTts.voice) return ai.defaultTts.voice;
+  const volc = ai.ttsModels.find((m) => m.startsWith("volcengine/"));
+  return (volc && voicesFor(ai, volc)[0]?.value) || config.ttsVoice;
+}
+
 /** 在已知已保存的末尾之后,查找与这一轮相同的消息对(用于认领"响应丢失"的保存)。 */
 function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: string | null | undefined): [ChatMessage, ChatMessage] | null {
   if (knownTail === undefined) return null;
@@ -114,7 +130,7 @@ function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: st
   return null;
 }
 
-export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
+export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: RecorderEnv; realtimeEnv?: RealtimeEnv }) {
   const { id = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -182,8 +198,10 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   // 流被中止而不调用 complete 的路径(切换会话/卸载)由加载 effect 的清理先 stopTts(),开着的句子队列不会悬空
   // 开关保存期间的本地乐观值:关闭立刻生效,不等 PATCH 返回;保存结束(成功或失败)后清除
   const autoSpeakOverrideRef = useRef<boolean | null>(null);
+  // 实时通话进行中:页面不自动朗读(通话占着音频焦点,背后的页面是 inert 的)
+  const callActiveRef = useRef(false);
   const autoSpeak = useAutoSpeak({
-    isEnabled: () => autoSpeakOverrideRef.current ?? chatOptions(conversationRef.current?.config).autoSpeak,
+    isEnabled: () => !callActiveRef.current && (autoSpeakOverrideRef.current ?? chatOptions(conversationRef.current?.config).autoSpeak),
     voiceIdle: () => voiceStateRef.current === "idle",
     hasVoice: () => !!configRef.current?.ttsModel,
     prime: tts.prime,
@@ -220,6 +238,28 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
   const resetVoice = voice.reset;
   const discardVoice = voice.discard;
 
+  // 实时通话(Task 4.11):服务端开启且浏览器有 AudioContext 才显示入口;结束后重新加载会话(reloadKey)
+  const [realtimeConfig, setRealtimeConfig] = useState<RealtimeConfig | null>(null);
+  const [call, setCall] = useState<{ context: AudioContext } | null>(null);
+  callActiveRef.current = !!call;
+  const [reloadKey, setReloadKey] = useState(0);
+  /** 本次通话里每句话的语法检查(补写完成才 resolve);关闭通话后等它们结束再重新加载 */
+  const callGrammarRef = useRef<Promise<void>[]>([]);
+  /** 本次通话里服务端保存了几句用户话语(0 句不必重新加载) */
+  const callTurnsRef = useRef(0);
+  /** 语法补写结束时又开了一通电话:重新加载推迟到那通结束 */
+  const reloadAfterCallRef = useRef(false);
+  const callAudioSupported = useMemo(() => !!(realtimeEnv?.capture ?? browserCaptureEnv()).createAudioContext, [realtimeEnv]);
+  useEffect(() => {
+    let alive = true;
+    const controller = new AbortController();
+    fetchRealtimeConfig(api, controller.signal).then(
+      (c) => { if (alive) setRealtimeConfig(c); },
+      () => { if (alive) setRealtimeConfig(null); }, // 旧服务端没有这个接口:不显示入口
+    );
+    return () => { alive = false; controller.abort(); };
+  }, [api]);
+
   useEffect(() => {
     let alive = true;
     resetAutoSpeak();
@@ -230,6 +270,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     knownTailRef.current = undefined;
     renamingRef.current = false;
     heldRef.current.clear();
+    // 切换会话 / 通话后重新加载:没有通话在进行(切换时卸载对话框 = 挂断),上一通的统计作废
+    setCall(null);
+    callGrammarRef.current = [];
+    callTurnsRef.current = 0;
+    reloadAfterCallRef.current = false;
     setConversation(null);
     setSending(false);
     setMessages([]);
@@ -276,7 +321,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       results.abandonOpen(); // R4:未保存的轮次不会再保存,清理其对话评测
       resetVoice(); // 取消录音、中止转写、回收 blob URL
     };
-  }, [api, id, resetTranslations, resetHints, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
+  }, [api, id, reloadKey, resetTranslations, resetHints, patchByKey, resetVoice, resetAutoSpeak, stopTts]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -766,6 +811,52 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
     return () => window.clearTimeout(timer);
   }, [holdHint]);
 
+  /**
+   * 打开通话。整个函数是同步的(iOS:AudioContext 必须在点击的同步阶段、任何 await 之前解锁,R31):
+   * 停止朗读 → 取页面级共享 AudioContext 并解锁(`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
+   */
+  const startCall = () => {
+    if (!conversation || !realtimeConfig?.enabled || busyRef.current || voice.state !== "idle" || call) return;
+    stopTts(); // 通话期间不得有其他播放(通话自己也会 claimAudio)
+    const audio = prepareCallAudio(realtimeEnv?.capture);
+    if (!audio) {
+      toast.error(t("web.realtime.errors.unsupported"));
+      return;
+    }
+    callGrammarRef.current = [];
+    callTurnsRef.current = 0;
+    setCall({ context: audio.context });
+  };
+
+  /** R14:服务端保存了一句通话里的用户话语 → 按会话设置做语法检查并补写到这条消息(复用 TurnResults,失败静默)。 */
+  const onCallUserMessage = (messageId: string, text: string, context?: string) => {
+    callTurnsRef.current += 1;
+    const results = resultsRef.current;
+    if (!results) return;
+    callGrammarRef.current.push(results.checkSaved(nextKey("call"), messageId, {
+      text,
+      // 第一句之前通话里还没有回复:用页面上(通话前)最后一条回复
+      grammar: { enabled: optionsRef.current.grammarCheck, context: context ?? lastAssistantText(messagesRef.current) },
+    }));
+  };
+
+  /** 关闭通话界面(挂断或看完结束原因)。等语法补写结束再重新加载会话,复盘/进度/词汇本才看得到通话里的消息(R13)。 */
+  const closeCall = () => {
+    setCall(null);
+    const pending = callGrammarRef.current;
+    const turns = callTurnsRef.current;
+    callGrammarRef.current = [];
+    callTurnsRef.current = 0;
+    if (!turns && !reloadAfterCallRef.current) return;
+    reloadAfterCallRef.current = false;
+    const gen = genRef.current;
+    void Promise.allSettled(pending).then(() => {
+      if (!mountedRef.current || genRef.current !== gen) return; // 已切换会话/卸载
+      if (callActiveRef.current) reloadAfterCallRef.current = true; // 又开了一通:那通结束再加载
+      else setReloadKey((k) => k + 1);
+    });
+  };
+
   const recording = voice.state === "recording" || voice.state === "starting";
   const lastKey = messages[messages.length - 1]?.key;
 
@@ -776,7 +867,9 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
             loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
-            onOpenRecap={() => setRecapOpen(true)} />
+            onOpenRecap={() => setRecapOpen(true)}
+            canCall={!!realtimeConfig?.enabled && callAudioSupported} callDisabled={!conversation || sending || voiceBusy || !!call}
+            onCall={startCall} />
         } />
       {(scenario || options.level !== "auto") && (
         <div data-testid="conversation-scenario" className="flex items-center gap-2 border-b px-4 py-1 text-xs text-muted-foreground">
@@ -842,7 +935,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
       )}
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
         <HoldToTalkButton voiceState={voice.state}
-          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation))}
+          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call))}
           onStart={() => {
             // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
             // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
@@ -874,11 +967,11 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           </Button>
         )}
         <Button type="button" data-testid="chat-hints" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy} onClick={openHints}>
+          aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy || !!call} onClick={openHints}>
           <LightbulbIcon className="h-5 w-5" />
         </Button>
         <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy}>
+          aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call}>
           <SendIcon className="h-5 w-5" />
         </Button>
       </form>
@@ -904,6 +997,13 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
           poorWord: (word) => <AddVocabularyButton testId="recap-poor-word-vocab" label={`${t("web.vocabulary.add")}: ${word}`} input={{ word, source: "recap" }} />,
         }} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
+      {/* 通话界面渲染到 body 下并把整页设为 inert:通话期间页面不可操作(按住说话、朗读、查词都不可用) */}
+      {call && conversation && realtimeConfig && (
+        <RealtimeCallDialog api={api} conversationId={conversation.id} context={call.context} ownsContext={false}
+          sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
+          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: callVoice(config, ai), saveRecordings: true }}
+          onUserMessage={onCallUserMessage} onClose={closeCall} />
+      )}
     </div>
   );
 }

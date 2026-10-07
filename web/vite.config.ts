@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       fs: { allow: [repoRoot] },
-      proxy: { "/api": { target: env.WEB_DEV_API_TARGET || "http://127.0.0.1:8000" } },
+      proxy: { "/api": { target: env.WEB_DEV_API_TARGET || "http://127.0.0.1:8000", ws: true } }, // ws:实时通话 /api/realtime
     },
     build: { outDir: "dist", emptyOutDir: true, target: ["es2020", "safari15"], chunkSizeWarningLimit: 1500, assetsInlineLimit },
     test: {

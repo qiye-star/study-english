@@ -19,6 +19,9 @@ import { clearHintsMemory } from "./hints";
 import { sharedTtsCache } from "./tts";
 import { sharedAutoplayAudio } from "./use-tts-player";
 import { PLAYBACK_RATE_KEY, resetPlaybackRate } from "~/lib/playback-rate";
+import { resetPageAudioContextForTests } from "~/audio/capture";
+import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
+import type { RealtimeEnv } from "~/features/realtime/realtime-call";
 
 vi.mock("~/audio/convert", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/audio/convert")>()),
@@ -44,6 +47,7 @@ function routes(extra: Record<string, Handler> = {}): Record<string, Handler> {
     "GET /api/conversations/c1": () => json({ id: "c1", name: "New conversation", config: CONFIG }),
     "GET /api/conversations/c1/messages": () => json({ messages: [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" }] }),
     "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])),
+    "GET /api/realtime/config": () => json({ enabled: false, max_minutes: 10, idle_timeout_seconds: 60, asr_mode: "buffered", sample_rate_in: 16000, sample_rate_out: 24000 }),
     ...extra,
   };
 }
@@ -3233,5 +3237,282 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-hold", "idle"));
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
     });
+  });
+});
+
+describe("realtime call (plan 2026-10-07)", () => {
+  const ENABLED = { enabled: true, max_minutes: 10, idle_timeout_seconds: 60, asr_mode: "buffered", sample_rate_in: 16000, sample_rate_out: 24000 };
+  const WRONG = { has_errors: true, corrected: "She doesn't like coffee.", errors: [{ original: "don't", corrected: "doesn't", category: "agreement", explanation: "x" }] };
+
+  class CallSocket {
+    static instances: CallSocket[] = [];
+    readyState = 0;
+    binaryType = "blob";
+    sent: Array<string | ArrayBuffer> = [];
+    onopen: null | (() => void) = null;
+    onmessage: null | ((e: { data: string | ArrayBuffer }) => void) = null;
+    onclose: null | ((e: { code: number }) => void) = null;
+    onerror: null | (() => void) = null;
+    close = vi.fn((code?: number) => { this.readyState = 3; void code; });
+    constructor(public url: string) { CallSocket.instances.push(this); }
+    send(data: string | ArrayBuffer) { this.sent.push(data); }
+    open() { this.readyState = 1; this.onopen?.(); }
+    server(event: object) { this.onmessage?.({ data: JSON.stringify(event) }); }
+    serverClose(code: number) { this.readyState = 3; this.onclose?.({ code }); }
+    texts() { return this.sent.filter((s): s is string => typeof s === "string").map((s) => JSON.parse(s)); }
+  }
+
+  /** 注入的通话环境:假 WebSocket、假麦克风/上下文/worklet、假 VAD(真实的 RealtimeCall 与对话框照常运行)。 */
+  function callEnv(over: { audio?: "none" | "throws" } = {}) {
+    CallSocket.instances = [];
+    const ctx = new FakeAudioContext(16000);
+    const node = new FakeWorkletNode();
+    const stream = fakeStream();
+    const vad = { start: vi.fn(), pause: vi.fn(), setSensitivity: vi.fn(), destroy: vi.fn(async () => undefined) };
+    const createAudioContext = vi.fn(() => {
+      if (over.audio === "throws") throw new Error("no audio");
+      return asContext(ctx);
+    });
+    const env: RealtimeEnv = {
+      WebSocket: CallSocket as unknown as RealtimeEnv["WebSocket"],
+      capture: {
+        isSecureContext: true, getUserMedia: vi.fn(async () => stream), supportedConstraints: () => ({}),
+        createAudioContext: over.audio === "none" ? undefined : createAudioContext,
+        createWorkletNode: () => node as unknown as AudioWorkletNode, workletUrl: "/w.js",
+      },
+      createVad: vi.fn(async () => vad) as unknown as RealtimeEnv["createVad"],
+      location: { protocol: "https:", host: "app.test" },
+    };
+    return { env, ctx, stream, vad, createAudioContext, ws: () => CallSocket.instances[0] };
+  }
+
+  function callRoutes(extra: Record<string, Handler> = {}) {
+    return routes({
+      "GET /api/realtime/config": () => json(ENABLED),
+      "POST /api/realtime/ticket": () => json({ ticket: "tk", expires_in: 60 }),
+      ...extra,
+    });
+  }
+
+  function setupCall(r: Record<string, Handler>, env?: RealtimeEnv, opts: { strict?: boolean } = {}) {
+    const mock = createFetchMock(r);
+    const page = <><ConversationPage realtimeEnv={env} /><NavProbe /></>;
+    const view = renderWithProviders(opts.strict ? <StrictMode>{page}</StrictMode> : page, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1", path: "/chat/:id",
+    });
+    return { mock, view };
+  }
+
+  /** 打开通话并让服务端就绪:返回已打开的 socket */
+  async function connect(c: ReturnType<typeof callEnv>) {
+    await userEvent.click(await screen.findByTestId("conversation-call"));
+    await waitFor(() => expect(c.ws()).toBeDefined());
+    await act(async () => { c.ws().open(); c.ws().server({ type: "ready", asr: "buffered" }); });
+    await waitFor(() => expect(screen.getByTestId("call-status")).toHaveAttribute("data-phase", "listening"));
+    return c.ws();
+  }
+
+  beforeEach(async () => {
+    resetServerAiConfigCache();
+    resetPageAudioContextForTests();
+    await deleteDb();
+    resetKvCacheForTests();
+    localStorage.clear();
+  });
+  afterEach(() => {
+    resetPageAudioContextForTests();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the call button only when the server enables it", async () => {
+    const { mock } = setup(routes());
+    await screen.findByText("reply");
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/realtime/config")).toHaveLength(1));
+    await act(async () => {});
+    expect(screen.queryByTestId("conversation-call")).toBeNull();
+  });
+
+  it("hides the call button when the browser has no AudioContext, even if the server enables it", async () => {
+    const c = callEnv({ audio: "none" });
+    const { mock } = setupCall(callRoutes(), c.env);
+    await screen.findByText("reply");
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/realtime/config")).toHaveLength(1));
+    await act(async () => {});
+    expect(screen.queryByTestId("conversation-call")).toBeNull();
+  });
+
+  it("opens the call screen from the header and unlocks audio in the click", async () => {
+    const created: FakeCtx[] = [];
+    class FakeCtx {
+      state = "suspended";
+      sampleRate = 48000;
+      destination = {};
+      resume = vi.fn(async () => undefined);
+      close = vi.fn(async () => undefined);
+      createBuffer = vi.fn(() => ({}));
+      createBufferSource = vi.fn(() => ({ connect: vi.fn(), start: vi.fn() }));
+      constructor() { created.push(this); }
+    }
+    vi.stubGlobal("AudioContext", FakeCtx);
+    const { mock } = setup(routes({
+      "GET /api/realtime/config": () => json(ENABLED),
+      "POST /api/realtime/ticket": () => json({ error: "Realtime is not enabled" }, 503),
+    }));
+    const button = await screen.findByTestId("conversation-call");
+    expect(button).toHaveAccessibleName("Start a voice call");
+    await userEvent.click(button);
+    // 点击的同步阶段:页面级共享上下文已创建并解锁(resume + 一帧静音缓冲)
+    expect(created).toHaveLength(1);
+    expect(created[0].resume).toHaveBeenCalled();
+    expect(created[0].createBufferSource).toHaveBeenCalled();
+    expect(await screen.findByTestId("call-screen")).toBeInTheDocument();
+    expect(await screen.findByTestId("call-error")).toHaveTextContent("Voice calls are not enabled on this server"); // 票据被拒 → 结束页
+    expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(1);
+    expect(bodyOf(callsTo(mock, "POST", "/api/realtime/ticket")[0])).toEqual({ conversation_id: "c1" });
+    await userEvent.click(screen.getByTestId("call-close"));
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    // 共享上下文不属于通话(ownsContext: false):不关闭,之后的按住说话还要用它
+    expect(created[0].close).not.toHaveBeenCalled();
+    // 没有一句话被保存:不重新加载
+    await act(async () => {});
+    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+  });
+
+  it("an AudioContext that cannot be created shows 'unsupported' and opens nothing", async () => {
+    const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const c = callEnv({ audio: "throws" });
+    const { mock } = setupCall(callRoutes(), c.env);
+    await userEvent.click(await screen.findByTestId("conversation-call"));
+    expect(spy).toHaveBeenCalledWith("This browser cannot make voice calls");
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(0);
+  });
+
+  it("starts with the effective system prompt, the conversation's model, temperature and voice, and saves recordings", async () => {
+    const c = callEnv();
+    setupCall(callRoutes({
+      "GET /api/conversations/c1": () => json({ id: "c1", name: "Trip", config: { ...CONFIG, level: "A2", temperature: 0.4, tts_model: "volcengine/seed-tts-2.0", tts_voice: "zh_female_1" } }),
+    }), c.env);
+    const ws = await connect(c);
+    expect(ws.url).toBe("wss://app.test/api/realtime?ticket=tk");
+    const start = ws.texts()[0];
+    expect(start).toMatchObject({ type: "start", model: "gpt-4o", temperature: 0.4, voice: "zh_female_1", save_recordings: true });
+    expect(start.system_prompt).toMatch(/^SYS\n\nLanguage level: the learner is at CEFR A2\./);
+  });
+
+  it("a conversation that reads aloud with another provider calls with the server's Volcengine voice", async () => {
+    const c = callEnv();
+    const { mock } = setupCall(callRoutes({
+      "GET /api/config/tts_providers_v2": () => json({ enjoyai: { models: ["openai/tts-1", "volcengine/seed-tts-2.0"], voices: { openai: ["alloy"], volcengine: [{ label: "Xiao", value: "zh_female_x", language: "zh-CN" }, { label: "Vivi", value: "en_female_vivi", language: "en-US" }] } } }),
+    }), c.env);
+    await screen.findByText("reply");
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/config/tts_providers_v2")).toHaveLength(1));
+    await act(async () => {});
+    const ws = await connect(c);
+    expect(ws.texts()[0]).toMatchObject({ voice: "en_female_vivi" });
+  });
+
+  it("checks the grammar of each call turn, patches it onto the saved message, shows the end reason and reloads after closing", async () => {
+    const c = callEnv();
+    const grammar = gate();
+    let loads = 0;
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c1/messages": () => json({ messages: ++loads === 1
+        ? [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" }]
+        : [{ id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier **reply**" },
+          { id: "cm1", conversation_id: "c1", role: "user", content: "She don't like coffee.", grammar: WRONG },
+          { id: "cm2", conversation_id: "c1", role: "assistant", content: "Oh, what does she like?" }] }),
+      "POST /api/ai/grammar": async () => { await grammar.promise; return json(WRONG); },
+      "PATCH /api/messages/cm1": () => json({ id: "cm1" }),
+    }), c.env);
+    const ws = await connect(c);
+    await act(async () => {
+      ws.server({ type: "transcript_final", text: "She don't like coffee.", message_id: "cm1" });
+      ws.server({ type: "reply_delta", turn_id: 1, text: "Oh, what does she like?" });
+      ws.server({ type: "reply_done", turn_id: 1, message_id: "cm2", interrupted: false });
+    });
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1));
+    // 第一句之前通话里还没有回复:用页面上最后一条回复作上下文
+    expect(bodyOf(callsTo(mock, "POST", "/api/ai/grammar")[0])).toEqual({ text: "She don't like coffee.", context: "Earlier **reply**" });
+    await act(async () => { ws.serverClose(4008); });
+    expect(await screen.findByTestId("call-error")).toHaveTextContent("Hung up after a long silence");
+    expect(c.stream.track.stop).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByTestId("call-close"));
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    // 语法结果还没补写:先不重新加载(否则复盘/进度看不到它)
+    await act(async () => {});
+    expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+    await act(async () => { grammar.release(); });
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/messages/cm1")).toHaveLength(1));
+    expect(bodyOf(callsTo(mock, "PATCH", "/api/messages/cm1")[0]).grammar).toMatchObject({ has_errors: true });
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+    expect(await screen.findByText("Oh, what does she like?")).toBeInTheDocument();
+    expect(screen.getAllByTestId("message-user").at(-1)).toHaveTextContent("She don't like coffee.");
+    await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
+    expect(c.ctx.close).not.toHaveBeenCalled();
+  });
+
+  it("skips grammar checks when the conversation turns them off, but still reloads after the call", async () => {
+    const c = callEnv();
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c1": () => json({ id: "c1", name: "Trip", config: { ...CONFIG, grammar_check: false } }),
+    }), c.env);
+    const ws = await connect(c);
+    await act(async () => { ws.server({ type: "transcript_final", text: "She don't like coffee.", message_id: "cm1" }); });
+    await userEvent.click(screen.getByTestId("call-hangup"));
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    expect(ws.texts().at(-1)).toEqual({ type: "hangup" });
+    await waitFor(() => expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(2));
+    expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(0);
+  });
+
+  it("while a call runs: read-aloud is stopped, the page behind is inert and the microphone and sending are disabled", async () => {
+    const c = callEnv();
+    setupCall(callRoutes(), c.env);
+    await userEvent.click(await screen.findByTestId("message-tts"));
+    await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
+    await connect(c);
+    expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle");
+    expect(screen.getByTestId("chat-mic").closest("[inert]")).not.toBeNull();
+    expect(screen.getByTestId("chat-mic")).toBeDisabled();
+    expect(screen.getByTestId("chat-send")).toBeDisabled();
+    expect(screen.getByTestId("conversation-call")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("call-hangup"));
+    expect(screen.getByTestId("chat-mic").closest("[inert]")).toBeNull();
+    expect(screen.getByTestId("chat-mic")).toBeEnabled();
+  });
+
+  it("switching conversations mid-call hangs up and releases the microphone; the new conversation has no call", async () => {
+    const c = callEnv();
+    const { mock } = setupCall(callRoutes({
+      "GET /api/conversations/c2": () => json({ id: "c2", name: "Other chat", config: CONFIG }),
+      "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
+    }), c.env);
+    const ws = await connect(c);
+    await act(async () => { goTo("/chat/c2"); });
+    await screen.findByText("Second chat hello");
+    expect(screen.queryByTestId("call-screen")).toBeNull();
+    expect(ws.texts().at(-1)).toEqual({ type: "hangup" });
+    expect(ws.close).toHaveBeenCalledTimes(1);
+    expect(c.stream.track.stop).toHaveBeenCalledTimes(1);
+    expect(c.vad.destroy).toHaveBeenCalledTimes(1);
+    expect(c.ctx.close).not.toHaveBeenCalled();
+    await act(async () => {});
+    expect(CallSocket.instances).toHaveLength(1);
+    expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(1);
+    expect(screen.getByTestId("chat-mic")).toBeEnabled();
+  });
+
+  it("unmounting the page mid-call hangs up and releases the microphone (StrictMode)", async () => {
+    const c = callEnv();
+    const { view, mock } = setupCall(callRoutes(), c.env, { strict: true });
+    const ws = await connect(c);
+    expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(1);
+    view.unmount();
+    expect(ws.texts().at(-1)).toEqual({ type: "hangup" });
+    expect(ws.close).toHaveBeenCalledTimes(1);
+    expect(c.stream.track.stop).toHaveBeenCalledTimes(1);
+    expect(c.vad.destroy).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-testid='call-screen']")).toBeNull();
   });
 });

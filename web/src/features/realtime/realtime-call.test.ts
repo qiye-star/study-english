@@ -534,3 +534,20 @@ describe("RealtimeCall", () => {
     });
   });
 });
+
+describe("RealtimeCall user messages (Task 4.11: grammar context)", () => {
+  it("passes the previous assistant reply of the call as context, and none for the first turn", async () => {
+    const s = setup();
+    await s.call.start();
+    s.ws().open();
+    s.ws().server({ type: "transcript_final", text: "hello", message_id: "m1" });
+    expect(s.onUserMessage).toHaveBeenLastCalledWith("m1", "hello");
+    s.ws().server({ type: "reply_delta", turn_id: 1, text: "Hi! How " });
+    s.ws().server({ type: "reply_delta", turn_id: 1, text: "are you?" });
+    s.ws().server({ type: "reply_done", turn_id: 1, message_id: "m2", interrupted: false });
+    s.ws().server({ type: "transcript_final", text: "I am fine", message_id: "m3" });
+    expect(s.onUserMessage).toHaveBeenLastCalledWith("m3", "I am fine", "Hi! How are you?");
+    s.ws().server({ type: "transcript_final", text: "unsaved", message_id: null });
+    expect(s.onUserMessage).toHaveBeenCalledTimes(2);
+  });
+});

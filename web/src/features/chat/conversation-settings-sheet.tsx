@@ -10,7 +10,14 @@ import type { ConversationConfig } from "./chat-api";
 import { LEVELS, normalizeLevel, type Level } from "./levels";
 import { MAX_CUSTOM_SCENARIO, PRESET_SCENARIO_IDS, sanitizeCustomScenario } from "./scenarios";
 
-const selectClass = "h-11 w-full rounded-md border bg-background px-3 text-base";
+/**
+ * 自由对话的角色提示词上限。实时通话的开始消息里提示词 ≤ 8000 字符(服务端 StartMsg,`START_LIMITS.systemPrompt`),
+ * effectiveSystemPrompt 会再接上 "\n\n" + 难度要求(最长约 260 字符):留足余量,保证用户写下的内容通话时不被截断。
+ * 场景对话不用它(场景提示词自身有界)。conversation-settings-sheet.test.tsx 断言这一不变式。
+ */
+export const MAX_SYSTEM_PROMPT = 7500;
+
+const selectClass ="h-11 w-full rounded-md border bg-background px-3 text-base";
 
 const OPTIONAL_STRINGS = new Set(["model", "ttsModel", "ttsVoice"]);
 
@@ -49,6 +56,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
   const seedRef = useRef(config);
   useEffect(() => { if (open) { seedRef.current = configRef.current; setDraft(configRef.current); } }, [open]);
   const uid = useId();
+  const promptCountId = `${uid}-prompt-count`;
   const voices = ai ? voicesFor(ai, draft.ttsModel) : [];
   const scenarioId = draft.scenario?.id && (draft.scenario.id === "custom" || (PRESET_SCENARIO_IDS as readonly string[]).includes(draft.scenario.id))
     ? draft.scenario.id : "free";
@@ -94,7 +102,11 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             <label className="block space-y-1 text-sm">
               <span>{t("web.chat.settingsForm.systemPrompt")}</span>
               <Textarea data-testid="settings-system-prompt" rows={4} className="text-base" value={draft.systemPrompt}
+                maxLength={MAX_SYSTEM_PROMPT} aria-describedby={promptCountId}
                 onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })} />
+              <span id={promptCountId} data-testid="settings-system-prompt-count" className="block text-xs text-muted-foreground">
+                {t("web.chat.settingsForm.systemPromptCount", { used: (draft.systemPrompt ?? "").length, max: MAX_SYSTEM_PROMPT })}
+              </span>
             </label>
           ) : (
             <p data-testid="settings-scenario-note" className="text-xs text-muted-foreground">{t("web.chat.settingsForm.scenarioNote")}</p>

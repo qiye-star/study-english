@@ -60,7 +60,8 @@ export interface RealtimeCallOptions {
   sampleRateOut: number;
   env?: RealtimeEnv;
   onChange(model: CallModel): void;
-  onUserMessage?(messageId: string, text: string): void;
+  /** 服务端保存了一句用户话语;context 是这次通话里它之前的最后一条回复(第一句没有)。 */
+  onUserMessage?(messageId: string, text: string, context?: string): void;
 }
 
 /**
@@ -209,7 +210,12 @@ export class RealtimeCall {
     if (event.type === "reply_delta") this.lastTurn = Math.max(this.lastTurn, event.turnId);
     this.dispatch({ type: "event", event });
     if (event.type === "state") this.updateSensitivity();
-    if (event.type === "transcript_final" && event.text && event.messageId) this.o.onUserMessage?.(event.messageId, event.text);
+    if (event.type === "transcript_final" && event.text && event.messageId) {
+      // 语法检查的上下文:这次通话里这句话之前的最后一条回复(还没有时不传,由页面决定)
+      const context = this.model.captions.slice(0, -1).reverse().find((c) => c.role === "assistant")?.text;
+      if (context) this.o.onUserMessage?.(event.messageId, event.text, context);
+      else this.o.onUserMessage?.(event.messageId, event.text);
+    }
   }
 
   private onAudio(data: ArrayBuffer): void {
