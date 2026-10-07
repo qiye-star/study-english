@@ -190,6 +190,36 @@ describe("RealtimeCallScreen", () => {
       o.cleanup();
     });
 
+    it("StrictMode: the app root loses inert and aria-hidden when the dialog closes and when everything unmounts (review F2 m6)", () => {
+      const root = document.createElement("div");
+      root.id = "root";
+      root.setAttribute("aria-hidden", "false"); // 原有的值要原样恢复
+      document.body.appendChild(root);
+      const screenEl = (open: boolean) => (
+        <StrictMode>
+          {open && <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} onHangup={vi.fn()} onMute={vi.fn()}
+            onPushToTalk={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />}
+        </StrictMode>
+      );
+      const view = renderWithProviders(screenEl(true));
+      const host = view.container;
+      expect(root).toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "true");
+      expect(host).toHaveAttribute("inert");
+      view.rerender(screenEl(false)); // 关闭对话框,页面还在
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      for (const el of [root, host]) expect(el).not.toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "false");
+      expect(host).not.toHaveAttribute("aria-hidden");
+      view.rerender(screenEl(true)); // 再开一次,然后整体卸载
+      expect(root).toHaveAttribute("inert");
+      view.unmount();
+      expect(root).not.toHaveAttribute("inert");
+      expect(root).toHaveAttribute("aria-hidden", "false");
+      expect(document.querySelectorAll("[inert]")).toHaveLength(0);
+      root.remove();
+    });
+
     it("returns focus to the control that opened the call", () => {
       const o = withOpener();
       const h = render();
