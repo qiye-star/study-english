@@ -7,6 +7,7 @@ import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest 
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceDraftEvent } from "./use-voice-turn";
+import { encodeWavPcm16 } from "~/audio/wav";
 
 vi.mock("~/audio/convert", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/audio/convert")>()),
@@ -552,5 +553,44 @@ describe("latency traces per turn", () => {
     await flush();
     expect(latencyLog()).toHaveLength(1);
     expect(latencyLog()[0].marks.transcript).toBeUndefined();
+  });
+});
+
+describe("no foreground speech (plan 2026-10-07 R10)", () => {
+  it("does not upload a recording without foreground speech; retry uploads it", async () => {
+    resetLatencyForTest();
+    // 合法的 16 kHz WAV:重试时走 Task 2.4 的快速路径,不需要解码(jsdom 没有 OfflineAudioContext)
+    const result = { blob: new Blob([encodeWavPcm16(new Float32Array(1600), 16000)], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 100, stoppedBy: "user" as const, noSpeech: true };
+    // R30:result 永不完成,确保走 stop() 而不是自动停止
+    const session = { startedAt: 0, result: new Promise<never>(() => {}), stop: vi.fn(async () => result), cancel: vi.fn() };
+    const mock = createFetchMock({ "POST /api/ai/audio/transcriptions": () => json({ text: "hello" }) });
+    const onDraft = vi.fn();
+    const onTranscribed = vi.fn();
+    const { result: hook } = renderHook(() => useVoiceTurn({
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), newKey: () => "k1", onDraft, onTranscribed,
+      starter: async () => session, urls: { create: () => "blob:1", revoke: () => undefined },
+    }));
+    await act(async () => { await hook.current.start(); });
+    await act(async () => { await hook.current.stop(); });
+    expect(onDraft).toHaveBeenLastCalledWith({ kind: "failed", key: "k1", error: expect.any(String) });
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/ai/audio/transcriptions")).toHaveLength(0);
+    expect(latencyLog().map((r) => r.status)).toEqual(["aborted"]); // 没有上传:这一轮不计时
+    await act(async () => { hook.current.retry("k1"); });
+    await vi.waitFor(() => expect(onTranscribed).toHaveBeenCalledWith(expect.objectContaining({ key: "k1" }), "hello"));
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/ai/audio/transcriptions")).toHaveLength(1);
+  });
+
+  it("uploads a recording with foreground speech as before", async () => {
+    const result = { blob: new Blob([encodeWavPcm16(new Float32Array(1600), 16000)], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 100, stoppedBy: "user" as const, noSpeech: false };
+    const session = { startedAt: 0, result: new Promise<never>(() => {}), stop: vi.fn(async () => result), cancel: vi.fn() };
+    const mock = createFetchMock({ "POST /api/ai/audio/transcriptions": () => json({ text: "hello" }) });
+    const onTranscribed = vi.fn();
+    const { result: hook } = renderHook(() => useVoiceTurn({
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), newKey: () => "k1", onDraft: vi.fn(), onTranscribed,
+      starter: async () => session, urls: { create: () => "blob:1", revoke: () => undefined },
+    }));
+    await act(async () => { await hook.current.start(); });
+    await act(async () => { await hook.current.stop(); });
+    await vi.waitFor(() => expect(onTranscribed).toHaveBeenCalledWith(expect.objectContaining({ key: "k1" }), "hello"));
   });
 });

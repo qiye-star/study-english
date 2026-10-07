@@ -33,6 +33,14 @@ function guardEnjoyDeps(): Plugin {
   };
 }
 
+/**
+ * AudioWorklet 模块(`*.worklet.js?url`)不得内联成 data: URL:要作为 /assets/ 下的真实文件发布,
+ * 由既有 service worker 缓存(R9)。其余资源返回 undefined,沿用 Vite 默认的 4 KiB 规则。
+ */
+export function assetsInlineLimit(file: string): boolean | undefined {
+  return /\.worklet\.js$/.test(file) ? false : undefined;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, webRoot, "WEB_");
   return {
@@ -55,7 +63,7 @@ export default defineConfig(({ mode }) => {
       fs: { allow: [repoRoot] },
       proxy: { "/api": { target: env.WEB_DEV_API_TARGET || "http://127.0.0.1:8000" } },
     },
-    build: { outDir: "dist", emptyOutDir: true, target: ["es2020", "safari15"], chunkSizeWarningLimit: 1500 },
+    build: { outDir: "dist", emptyOutDir: true, target: ["es2020", "safari15"], chunkSizeWarningLimit: 1500, assetsInlineLimit },
     test: {
       environment: "jsdom",
       setupFiles: ["./src/test/setup.ts"],

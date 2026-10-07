@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AudioConvertError, blobToArrayBuffer, toAssessmentWav, type ConvertDeps } from "./convert";
 import { readWavInfo } from "./wav";
+import { vi } from "vitest";
+import { parseAssessmentWav } from "./convert";
+import { encodeWavPcm16 } from "./wav";
 
 const fakeBuffer = (duration: number) => ({ duration, length: Math.round(duration * 48000), sampleRate: 48000, numberOfChannels: 2 }) as AudioBuffer;
 
@@ -37,5 +40,34 @@ describe("toAssessmentWav", () => {
     expect(durationMs).toBe(300_000);
     expect(readWavInfo(await blobToArrayBuffer(wav)).dataBytes).toBe(300 * 16000 * 2);
     await expect(toAssessmentWav(blob, deps(320))).rejects.toMatchObject({ code: "too_long" });
+  });
+});
+
+describe("16 kHz WAV fast path (plan 2026-10-07 Task 2.4)", () => {
+  it("returns samples for 16 kHz mono 16-bit WAV and null otherwise", async () => {
+    const wav = encodeWavPcm16(new Float32Array(1600).fill(0.5), 16000);
+    const samples = parseAssessmentWav(await blobToArrayBuffer(new Blob([wav])));
+    expect(samples?.length).toBe(1600);
+    expect(samples?.[0]).toBeCloseTo(0.5, 3);
+    expect(parseAssessmentWav(await blobToArrayBuffer(new Blob([encodeWavPcm16(new Float32Array(10), 44100)])))).toBeNull();
+    expect(parseAssessmentWav(new ArrayBuffer(4))).toBeNull();
+  });
+
+  it("toAssessmentWav skips decoding for such WAVs", async () => {
+    const decode = vi.fn();
+    const wav = new Blob([encodeWavPcm16(new Float32Array(16000), 16000)], { type: "audio/wav" });
+    const out = await toAssessmentWav(wav, { decode, render: vi.fn() });
+    expect(decode).not.toHaveBeenCalled();
+    expect(out.durationMs).toBe(1000);
+    expect(out.wav).toBe(wav);
+  });
+
+  it("caps a long 16 kHz WAV at the maximum and rejects an empty one", async () => {
+    const long = new Blob([encodeWavPcm16(new Float32Array(301 * 16000), 16000)], { type: "audio/wav" });
+    const out = await toAssessmentWav(long, { decode: vi.fn(), render: vi.fn() });
+    expect(out.durationMs).toBe(300_000);
+    expect(readWavInfo(await blobToArrayBuffer(out.wav)).dataBytes).toBe(300 * 16000 * 2);
+    const empty = new Blob([encodeWavPcm16(new Float32Array(0), 16000)], { type: "audio/wav" });
+    await expect(toAssessmentWav(empty, { decode: vi.fn(), render: vi.fn() })).rejects.toMatchObject({ code: "empty" });
   });
 });

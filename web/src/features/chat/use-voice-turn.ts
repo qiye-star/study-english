@@ -4,7 +4,7 @@ import type { ApiClient } from "~/api/client";
 import { toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
-import { useRecorder } from "~/audio/use-recorder";
+import { useRecorder, type RecordingStarter } from "~/audio/use-recorder";
 import { abortLatencyTrace, markLatency, startLatencyTrace } from "~/lib/latency";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { transcribe } from "./speech-api";
@@ -28,6 +28,8 @@ export type VoiceDraftEvent =
 export interface UseVoiceTurnOptions {
   api: ApiClient;
   env?: RecorderEnv;
+  /** 自定义录音启动器(透传给 useRecorder;测试注入 PCM 录音会话) */
+  starter?: RecordingStarter;
   newKey(): string;
   /** 草稿气泡的出现与变化(转写中 / 保留待发送 / 转写失败 / 已取消) */
   onDraft(event: VoiceDraftEvent): void;
@@ -54,6 +56,8 @@ interface Draft {
   latencyTurn?: number;
   /** 已转写成功、等待(或重新)交给页面的结果 */
   handoff?: { text: string; audioUrl: string };
+  /** 已按"没有前景语音"拦截过一次(R10);之后的重试视为用户坚持发送 */
+  noSpeechChecked?: boolean;
 }
 
 const browserUrls = { create: (b: Blob) => URL.createObjectURL(b), revoke: (u: string) => URL.revokeObjectURL(u) };
@@ -98,6 +102,13 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     const controller = new AbortController();
     let turn: number | undefined;
     if (!draft.handoff) {
+      if (draft.recording.noSpeech && !draft.noSpeechChecked) {
+        draft.noSpeechChecked = true; // 只拦第一次:用户点"重试"即视为坚持发送
+        abortLatencyTrace(draft.latencyTurn); // 没有上传:这一轮不计时
+        draft.latencyTurn = undefined;
+        opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
+        return;
+      }
       turn = draft.latencyTurn;
       draft.latencyTurn = undefined;
       if (turn === undefined) {
@@ -191,7 +202,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     [transcribeDraft],
   );
 
-  const recorder = useRecorder({ env: options.env, maxDurationMs: VOICE_MAX_MS, onAutoStop: accept });
+  const recorder = useRecorder({ env: options.env, starter: options.starter, maxDurationMs: VOICE_MAX_MS, onAutoStop: accept });
   const { stop: stopRecorder, cancel: cancelRecorder, start: startRecorder } = recorder;
   const recorderState = useRef(recorder.state);
   recorderState.current = recorder.state;
