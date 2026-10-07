@@ -233,3 +233,50 @@ Task 5.2 按调度改为服务端层冒烟(浏览器/Playwright 部分需要 Doc
 4. 中文/中英混说、噪声、真人语音的识别准确度(第 7.3 节第 1 项)仍未决。
 
 上游调用(R20 追加预算内):识别 10 次(每遍 5 句:场景 1 一句、场景 2 两句、场景 3 两句);LLM 10 次;TTS:测试句 1 次(经服务 TTS 接口)+ 通话内逐句合成约 25–30 次(通话内的逐句 TTS 不单独记日志,按回复句数估算);讯飞评测 10 次(每句用户话语一次)。
+
+### 重新验证(最终代码)
+
+日期 2026-10-07,lane-X 合入 main 之后的最终代码(含 thinking 三态默认 auto、用户挂断时"评测先于关闭帧"的收尾顺序、挂断时把已说完的话识别完并保存、待识别句数上限)。方法同上(本机 uvicorn,端口 8024,临时 SQLite,用后停服务、删临时数据);测试句重新经服务 TTS 合成(4.85 s)。脚本新增:
+
+- **场景 6a**:`utterance_end` 后立即 `hangup`(识别与评测都还没出结果);**6b**:收到 `transcript_final` 后立即 `hangup`(只剩评测)。断言:关闭帧 ≤ 3 s、用户消息已保存且与 `transcript_final` 一致、6a 挂断后没有任何 `reply_delta`/音频/`reply_done` 且没有助手消息、(讯飞已配置)`assessment` 在关闭帧之前到达;另外记录关闭后同一用户再开一路多久能拿到 `ready`(仅记录)。
+- **场景 8**:每个已保存的 `transcript_final` 到下一个 `reply_delta` 的间隔(≈ LLM 首字);`--print-thinking` 在进程内用 `Settings()` 只打印布尔值。
+- 场景 7(静音超时立即挂断)需要等 60 s,未做。
+- 脚本修正:`start` 发送时连接已被关闭(如 4029)不再抛出,由随后的 `wait` 报关闭码,使 3b 的重试循环真正生效;每个场景注册一个新用户,避免上一个场景还占着登记位把下一个场景变成 4029(原因见下面的问题 1)。
+
+**thinking**:进程内 `Settings()`(真实 `.env`):`mode=auto upstream_is_deepseek=True sends_thinking_disabled=True`。实时通话的 LLM 请求带 `thinking: {"type": "disabled"}`。上一次冒烟时(726a6a78)代码还没有发这个参数。
+
+#### 新旧对比(ms,自 `utterance_end` 起,场景 1,各 N = 1)
+
+| 指标 | stream 旧 | stream 新 | buffered 旧 | buffered 新 |
+|---|---|---|---|---|
+| `transcript_final` | 516 | 813 | 1203 | 1078 |
+| `transcript_final` → 首个 `reply_delta`(LLM 首字) | 1328 | **1078** | 1672 | **500** |
+| 首个 `reply_delta` | 1844 | 1891 | 2875 | **1578** |
+| 首块下行音频 | 2297 | 2391 | 3312 | **2062** |
+| `reply_done` | 3828 | 3813 | 4218 | 2984 |
+| `assessment` | 2266 | 9579(讯飞单次慢) | 2968 | 2843 |
+
+- LLM 首字(全部场景的样本,`transcript_final` → 下一个 `reply_delta`):stream 1078、750、578、891、688、860、657(中位数 750);buffered 500、781、781。旧代码只有两次样本:1328、1672。**LLM 首字明显变快**:约 1.3–1.7 s 降到约 0.5–1.1 s。
+- stream 场景 1 端到端的首个 `reply_delta` 没有变好(1891 对 1844)。这一轮的 `transcript_final` 慢了 300 ms(813 对 516),把 LLM 省下的约 250 ms 抵掉了。N = 1,属于识别侧的波动,不是 thinking 的问题。
+- 转写:两种模式按词比对都是 100%。stream 流式识别每句 5.4–5.75 s(自打开连接,含 5.15 s 实时上传),9/9 次都是 10 个 partial;buffered 上传识别 7 次 984–1204 ms,这次没有出现上次 4.1 s / 8.1 s 那样的尾部延迟。
+- 回复里 `<think`/reasoning 标记 0 次,`error` 事件 0 个,`degraded` 0 次。服务端日志 0 条 ERROR/Traceback/WARNING,ticket 全部 `[redacted]`。
+
+#### 场景结果
+
+| 场景 | stream | buffered |
+|---|---|---|
+| 1 一整轮 | 通过 | 通过 |
+| 2 打断 | 通过(新一轮第一帧后 16 ms 收到旧一轮 `reply_done{interrupted}`,之后旧 turn_id 音频 0 帧,保存 user / assistant+" …" / user / assistant) | **未重跑**(TTS 预算:场景 2 一遍约 10 句以上合成) |
+| 3a 回复中 `hangup` → 立即重连 | 通过(关闭 687 ms,第 1 次即 `ready`) | 通过(687 ms,第 1 次即 `ready`) |
+| 3b 回复中断开 TCP → 重连 | 通过,但**断开后 1125 ms、第 6 次才 `ready`**(前 5 次 4029) | 通过,但 468 ms、第 3 次才 `ready` |
+| 4 第二路并发 | 4029,第一路正常 | 同左 |
+| 5 无效 / 缺失 / 已用 ticket | 4001 ×3 | 同左 |
+| 6a `utterance_end` 后立即挂断 | **通过**:关闭帧 2453 ms;`transcript_final` 469 ms;`assessment`(done)在关闭帧前到达(2453 ms,离 2.5 s 宽限只差约 50 ms);挂断后回复事件 0 个;只保存了用户消息;关闭后第 1 次重连即 `ready` | **失败(3/3)**:关闭帧 2531 / 2516 / 2500 ms;`transcript_final` 1156 / 1016 / 1046 ms;**`assessment` 没有在关闭帧前到达**(通话后评测仍入库并关联到用户消息);挂断后回复事件 0 个;只保存了用户消息;关闭后 906 / 906 / 718 ms(4–5 次)才能重连 |
+| 6b `transcript_final` 后立即挂断 | 通过:关闭帧 1812 ms,`assessment` 在关闭帧前到达;没有开始回复 | 通过:关闭帧 2125 ms,`assessment` 在关闭帧前到达 |
+
+#### 发现的问题(产品代码,未修改)
+
+1. **通话结束后登记位要等评测收尾才释放**。`server/app/routers/realtime.py` 的 `realtime_ws` 在 `with app.state.realtime_registry.hold(grant.user_id)` 里调用 `_call`;`_call` 先 `await close(result)` 发关闭帧,再 `await session.drain()`(等还没出结果的评测,最多 10 s)。在这段时间里,同一用户的新连接都得到 4029。实测:TCP 断开后 1125 ms(stream)/ 468 ms(buffered)才能重连;buffered 6a 挂断后 0.7–0.9 s;本次第一遍 stream 中讯飞单次评测用了约 9 s,最坏要等到 `drain` 的 10 s 上限。上一次冒烟"第 1 次重连即 `ready`"是因为当时评测已经完成。这段代码在 726a6a78 时就一样,不是这次合入引入的。用户可见的后果:挂断或断网后马上重新开始通话,会得到"已有通话进行中"。可选修法(需要决定):把 `drain` 移到释放登记位之后。代价是收尾中的评测不再计入全局并发上限。
+2. **buffered 模式下用户在说完后立即挂断,评测总赶不上关闭帧**。`HANGUP_GRACE = 2.5 s`(`server/app/realtime_session.py`)从收到 `hangup` 起算,识别和评测共用这一个时间。buffered 识别约 1.0–1.2 s,讯飞评测约 1.8–2.1 s(6b 实测),两者相加超过 2.5 s,所以评测只入库、不下发。stream 识别约 0.5 s,能赶上,但余量只有约 50 ms(N = 1),讯飞稍慢就会错过。这是宽限期(受网页端最多等 3 s 关闭帧约束)的设计边界,不是崩溃或丢数据:结果仍会入库并关联到消息,只是挂断后的复盘里要重新拉取才能看到。
+
+上游调用(本次,R20 追加预算内):识别 16 次(stream 9、buffered 7);LLM 10 次;讯飞评测 16 次;TTS:测试句 1 次 + 通话内逐句合成约 25–30 次。通话内的逐句 TTS 不单独记日志:按收到的回复文本算,句数上限是 52,但挂断和打断的那几轮只合成了前 1–2 句,所以实际约 25–30 次。这只是估算。场景 2 的 buffered 遍因此没有重跑。
