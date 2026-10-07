@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, webRoot, "WEB_");
   return {
     plugins: [guardEnjoyDeps(), react()],
+    define: { __VAD_ASSET_BASE__: JSON.stringify(`/vad/${pkg.dependencies?.["@ricky0123/vad-web"] ?? "0"}/`) },
     resolve: {
       alias: [
         { find: /^@renderer\/components$/, replacement: shim("enjoy-components.ts") },

@@ -127,3 +127,22 @@ describe("service worker", () => {
     expect(self.clients.claim).toHaveBeenCalled();
   });
 });
+
+describe("VAD assets (plan 2026-10-07 R18)", () => {
+  it("caches versioned VAD assets like hashed assets", async () => {
+    const { listeners, fetchMock } = load();
+    const first = fetchEvent("https://app.test/vad/0.0.31/silero_vad_v5.onnx");
+    listeners.fetch(first);
+    expect(await (await first.respondWith.mock.calls[0][0]).text()).toBe("asset");
+    const second = fetchEvent("https://app.test/vad/0.0.31/silero_vad_v5.onnx");
+    listeners.fetch(second);
+    await second.respondWith.mock.calls[0][0];
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("still ignores other same-origin paths", () => {
+    const { listeners } = load();
+    const event = fetchEvent("https://app.test/vadx/a.js");
+    listeners.fetch(event);
+    expect(event.respondWith).not.toHaveBeenCalled();
+  });
+});
