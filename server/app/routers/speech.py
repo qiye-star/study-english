@@ -1,6 +1,5 @@
 import io
 import logging
-import uuid
 import wave
 from datetime import timedelta
 from typing import Literal
@@ -14,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment  # noqa: F401
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import current_user, get_session, get_settings, limited_user
@@ -32,7 +31,6 @@ MAX_REFERENCE_CHARS = 2000
 TIMEOUT_BASE_SECONDS = 30
 TIMEOUT_CAP_SECONDS = 330
 ASSESSMENT_RATE = 16000
-SCORE_KEYS = ("pronunciation_score", "accuracy_score", "fluency_score", "completeness_score")
 TRUTHY = {"true", "1", "yes"}
 SOURCES = ("practice", "chat")
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
@@ -230,8 +228,9 @@ async def create_assessment(
             raise HTTPException(400, "Invalid source")
         if source_value == "chat":
             await cleanup_orphan_chat_recordings(session, settings, user)
-        quota = settings.recording_quota_mb * 1024 * 1024
-        if await recordings.used_bytes(session, user.id) + len(wav_bytes) > quota:
+        try:
+            await check_quota(session, settings, user.id, len(wav_bytes))
+        except QuotaExceeded:
             raise HTTPException(413, "Recording storage quota exceeded")
 
     duration = len(pcm) / (2 * ASSESSMENT_RATE)
@@ -256,30 +255,11 @@ async def create_assessment(
     if not want_save:
         return result
 
-    assessment_id = str(uuid.uuid4())
-    relpath = recordings.recording_relpath(user.id, assessment_id)
-    data_dir = settings.resolved_data_dir
     try:
-        recordings.write_recording(data_dir, relpath, wav_bytes)
+        assessment_id = await save_assessment(
+            session, settings, user.id, wav_bytes=wav_bytes, duration=duration, reference=reference,
+            language=language, source=source_value, result=result,
+        )
     except OSError:
         raise HTTPException(500, "Could not save the recording")
-    session.add(
-        Assessment(
-            id=assessment_id,
-            user_id=user.id,
-            reference_text=reference,
-            language=language.strip()[:16],
-            duration_ms=round(duration * 1000),
-            audio_bytes=len(wav_bytes),
-            scores={key: result.get(key) for key in SCORE_KEYS},
-            result=result,
-            audio_path=relpath,
-            source=source_value,
-        )
-    )
-    try:
-        await session.commit()
-    except Exception:
-        recordings.delete_recording(data_dir, relpath)
-        raise
     return {**result, "assessment_id": assessment_id}
