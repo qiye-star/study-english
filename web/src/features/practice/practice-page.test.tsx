@@ -31,7 +31,7 @@ const assessCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.fil
 describe("PracticePage", () => {
   beforeEach(() => localStorage.clear());
 
-  it("links to the progress page from the header", () => {
+  it("links to the progress page", () => {
     setup({});
     const link = screen.getByTestId("practice-progress");
     expect(link).toHaveAttribute("href", "/progress");

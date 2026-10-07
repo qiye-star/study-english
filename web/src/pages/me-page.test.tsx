@@ -66,7 +66,7 @@ describe("MePage", () => {
     }));
     const stats = {
       days: 7, tzOffsetMinutes: 480, today: "2026-10-08", daily, activeDays: 6, streakDays: 5, userMessages: 18,
-      assessments: 6, speakingSeconds: 3600, avgPronunciation: 88.44, grammarTop: [], poorWords: [], truncated: false,
+      assessments: 6, speakingSeconds: 3600, avgPronunciation: 88.44, grammarTop: [] as unknown[], poorWords: [] as unknown[], truncated: false,
     };
     const mock = createFetchMock({ ...ROUTES, "GET /api/stats": () => json(stats) });
     const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
