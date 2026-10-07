@@ -3,7 +3,8 @@
 `make_transcriber` 与上传识别接口 `/api/ai/audio/transcriptions` 走同一条路:
 `UPSTREAM_ASR_MODE=volc_stream` 时先用已落地的 `asr_stream.transcribe_pcm`(共用进程内的
 并发闸门/熔断 `app.state.asr_gate`),任何 `AsrStreamError` 都回落到 chat/Whisper 路径;
-没配置回落时按接口的错误口径映射为 `AsrError`。空串 = 没听清(R4:`<none>` → "")。
+没配置回落时按接口的错误口径映射为 `AsrError`(流式结果为空除外:返回 "")。
+空串 = 没听清(R4:`<none>` → "")。
 导入方向只能是 asr → asr_stream(R21),asr_stream 不得反向导入本模块。
 日志只记类别、编号与耗时,不记转写或密钥。
 """
@@ -101,7 +102,9 @@ def _map_stream(kind: str) -> AsrError:
 
 
 async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, fallback: bool) -> str | None:
-    """流式识别的文本;None 表示应走回落(没有回落时直接抛 AsrError)。"""
+    """流式识别的文本;None 表示应走回落(没有回落时直接抛 AsrError)。
+    没有回落时,流式结果为空(`empty`)= 没听清,返回 "",不是错误(复核 1.5-I1;
+    上传识别接口 ai_audio 仍按 R4 口径处理,不受影响)。取消对熔断计数是中性的。"""
     audio_s = len(pcm) / (SAMPLE_RATE * 2)
     skip = await gate.try_enter()
     if skip is not None:
@@ -110,9 +113,10 @@ async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, f
             raise AsrError("upstream")
         return None
     started = time.perf_counter()
-    kind = None
+    kind = "aborted"  # cancelled (or anything unexpected) → neutral for the breaker
     try:
         text = await transcribe_pcm(settings, pcm, uid)
+        kind = None
     except AsrStreamError as e:
         kind = e.kind
         ms = round((time.perf_counter() - started) * 1000)
@@ -122,6 +126,8 @@ async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, f
             e.kind, e.detail, ms, audio_s, fallback, e.connect_id, e.logid,
         )
         if not fallback:
+            if e.kind == "empty":
+                return ""
             raise _map_stream(e.kind) from None
         return None
     finally:

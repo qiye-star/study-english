@@ -515,6 +515,149 @@ async def test_successful_finish_leaks_nothing(fake):
     assert not other_tasks(before)
 
 
+# ---- slow / cancelled close: the shared gate slot is released exactly once (review 1.6-I1) ----
+
+
+class ScriptedWs:
+    """In-memory connection for `volc_stream_factory(connect=...)`: queued frames, a close()
+    that takes `close_delay` seconds, and (optionally) a recv() slow to react to cancellation."""
+
+    def __init__(self, frames=(), *, close_delay: float = 0.0, slow_cancel: float = 0.0):
+        self.response = types.SimpleNamespace(headers=Headers())
+        self.queue: asyncio.Queue = asyncio.Queue()
+        for f in frames:
+            self.queue.put_nowait(f)
+        self.close_delay = close_delay
+        self.slow_cancel = slow_cancel
+        self.sent: list[bytes] = []
+        self.close_calls = 0
+        self.close_started = asyncio.Event()
+        self.cancelling = asyncio.Event()
+
+    async def send(self, data) -> None:
+        self.sent.append(data)
+
+    async def recv(self):
+        try:
+            return await self.queue.get()
+        except asyncio.CancelledError:
+            if self.slow_cancel:
+                self.cancelling.set()
+                await asyncio.sleep(self.slow_cancel)
+            raise
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return await self.recv()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        self.close_started.set()
+        await asyncio.sleep(self.close_delay)
+
+
+class CountingGate(AsrGate):
+    def __init__(self, n: int = 1):
+        super().__init__(n)
+        self.left: list = []
+
+    def leave(self, kind) -> None:
+        self.left.append(kind)
+        super().leave(kind)
+
+
+def scripted_factory(ws: ScriptedWs, gate: AsrGate, **kw):
+    async def connect(*_a, **_k):
+        return ws
+
+    return volc_stream_factory(rt_settings("ws://127.0.0.1:9/unused"), "1", connect, gate=gate, **kw)
+
+
+async def wait_for(event: asyncio.Event) -> None:
+    await asyncio.wait_for(event.wait(), 2)
+
+
+@pytest.mark.parametrize(
+    "frames,kind",
+    [([error(45000001, "invalid")], "upstream"), ([error(45000292, "quota exceeded")], "quota"), ([], "timeout")],
+    ids=["error-frame", "quota-frame", "first-response-timeout"],
+)
+async def test_cancel_during_the_failed_start_close_still_releases_the_slot(frames, kind):
+    ws = ScriptedWs(frames, close_delay=10)
+    gate = CountingGate(1)
+    task = asyncio.create_task(scripted_factory(ws, gate, open_timeout=0.1)(Partials()))
+    await wait_for(ws.close_started)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert gate.left == [kind]  # exactly once, with the failure that happened
+    assert await gate.try_enter() is None
+
+
+async def test_second_cancel_during_the_cancelled_start_close_still_releases_the_slot():
+    ws = ScriptedWs([], close_delay=10)  # the ack never comes
+    gate = CountingGate(1)
+    task = asyncio.create_task(scripted_factory(ws, gate)(Partials()))
+    for _ in range(100):
+        if ws.sent:
+            break
+        await asyncio.sleep(0.01)
+    task.cancel()  # cancelled while waiting for the first response
+    await wait_for(ws.close_started)
+    task.cancel()  # and again while closing
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert gate.left == ["aborted"]
+    assert await gate.try_enter() is None
+
+
+async def test_cancel_while_close_waits_for_the_reader_still_releases_and_closes():
+    ws = ScriptedWs([response(result(""))], slow_cancel=10)
+    gate = CountingGate(1)
+    rec = await scripted_factory(ws, gate)(Partials())
+    await asyncio.sleep(0)  # the reader now waits for a frame
+    task = asyncio.create_task(rec.abort())
+    await wait_for(ws.cancelling)  # the reader is slow to stop
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert gate.left == ["aborted"]
+    assert ws.close_calls >= 1
+    await rec.abort()  # still idempotent
+    assert gate.left == ["aborted"]
+    assert await gate.try_enter() is None
+
+
+async def test_cancellation_is_neutral_for_the_breaker():
+    ws = ScriptedWs([response(result(""))])
+    gate = CountingGate(3)
+    gate._failures = 2
+    rec = await scripted_factory(ws, gate)(Partials())
+    task = asyncio.create_task(rec.finish())
+    await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert gate.left == ["aborted"]
+    assert gate._failures == 2
+
+
+async def test_an_unprompted_final_closes_the_connection_and_frees_the_slot(fake):
+    fake.on_audio = {0: [response(result("all done"), seq=2, last=True)]}
+    gate = AsrGate(1)
+    rec = await open_recognizer(fake, gate=gate)
+    await rec.send_audio(CHUNK)
+    await fake.wait_all_closed()  # the reader dropped the connection itself
+    assert await gate.try_enter() is None
+    gate.leave(None)
+    assert await rec.finish() == "all done"
+    await rec.abort()
+    assert await gate.try_enter() is None  # released once, not twice
+    assert await gate.try_enter() == "busy"
+
+
 # ---- concurrency gate shared with the upload path ----
 
 
