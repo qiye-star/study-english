@@ -12,6 +12,15 @@ import { TtsCache, sharedTtsCache, speakableText, ttsKey } from "./tts";
 
 export type TtsState = "idle" | "loading" | "playing" | "error";
 
+/** 按句朗读的队列(R8):push 一句就排一句,end() 表示不会再有新句子。 */
+export interface TtsQueue {
+  push(sentence: string): void;
+  end(): void;
+}
+
+/** 正在播放的句子之外,最多提前合成的句数(R8) */
+export const QUEUE_PREFETCH = 2;
+
 let silentUrl: string | null = null;
 function silentWavUrl(): string {
   silentUrl ??= URL.createObjectURL(new Blob([encodeWavPcm16(new Float32Array(160), 16000)], { type: "audio/wav" }));
@@ -163,6 +172,103 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     }
   }, [api, cache, stop, element]);
 
+  /**
+   * R8:按句串行播放。调用方已在点击里解锁共享元素(R5),这里不 prime。
+   * stop()/prime()/新的 play()/playQueue()/卸载/其他播放方 claimAudio 都会让这个队列失效(不报错)。
+   */
+  const playQueue = useCallback((messageKey: string, model: string, voice: string, opts: TtsPlayOptions = {}): TtsQueue => {
+    stop();
+    claimAudio(stop); // 全应用同一时刻只播一段
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    currentRef.current = messageKey;
+    setState(messageKey, "loading");
+    const audio = element();
+    const waiting: string[] = [];
+    const fetched: Array<Promise<string>> = [];
+    let next = 0; // 下一句要播放的 fetched 下标
+    let ended = false;
+    let busy = false; // 正在等待/播放 fetched[next - 1]
+    let first = true;
+    const stale = () => controller.signal.aborted || currentRef.current !== messageKey;
+    /** 正在播放时最多 QUEUE_PREFETCH 句在途;两句之间(未播放)再多一句,即将播放的那句 */
+    const prefetch = () => {
+      while (!stale() && waiting.length && fetched.length - next < QUEUE_PREFETCH + (busy ? 0 : 1)) {
+        const input = waiting.shift()!;
+        const key = ttsKey(model, voice, input);
+        const hit = cache.get(key);
+        if (!fetched.length) markLatency("tts_request");
+        const url: Promise<string> = hit !== undefined ? Promise.resolve(hit) : synthesizeSpeech(api, { input, model, voice }, controller.signal).then((blob) => cache.set(key, blob));
+        url.catch((): void => undefined); // 失败在轮到它时处理
+        fetched.push(url);
+      }
+    };
+    const finish = () => {
+      currentRef.current = null;
+      controllerRef.current = null;
+      audio.onerror = null;
+      audio.onended = null;
+      releaseAudio(stop);
+    };
+    const fail = (err: unknown) => {
+      controller.abort(); // 停掉剩余句子的合成
+      finish();
+      setState(messageKey, "error");
+      (opts.onError ?? onErrorRef.current)?.(err);
+    };
+    const pump = async (): Promise<void> => {
+      if (busy || stale()) return;
+      prefetch();
+      if (next >= fetched.length) {
+        if (ended) {
+          finish();
+          setState(messageKey, "idle");
+        }
+        return;
+      }
+      busy = true;
+      try {
+        const url = await fetched[next++];
+        prefetch();
+        if (stale()) return;
+        audio.src = url;
+        applyPlaybackRate(audio); // 换 src 后每句都要再设一次(R8 语速)
+        await new Promise<void>((resolve, reject) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => reject(new TtsPlaybackError());
+          setState(messageKey, "playing");
+          audio.play().then(() => {
+            if (first && !stale()) {
+              first = false;
+              markLatency("first_audio");
+            }
+          }, (err: unknown) => reject(new TtsPlaybackError(err)));
+        });
+        busy = false;
+        void pump();
+      } catch (err) {
+        busy = false;
+        if (stale()) return; // 被停止/新的播放/卸载中止,不算错误
+        fail(err);
+      }
+    };
+    return {
+      push(sentence) {
+        if (ended || stale()) return;
+        const input = speakableText(sentence);
+        if (!input) return;
+        waiting.push(input);
+        prefetch();
+        void pump();
+      },
+      end() {
+        if (ended) return;
+        ended = true;
+        void pump();
+      },
+    };
+  }, [api, cache, stop, element]);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -182,5 +288,5 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       audioRef.current = null; // StrictMode 重新挂载时重新创建并登记
     };
   }, [stop]);
-  return { states, play, stop, prime };
+  return { states, play, playQueue, stop, prime };
 }

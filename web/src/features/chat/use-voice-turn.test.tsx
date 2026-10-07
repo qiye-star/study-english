@@ -594,3 +594,61 @@ describe("no foreground speech (plan 2026-10-07 R10)", () => {
     await vi.waitFor(() => expect(onTranscribed).toHaveBeenCalledWith(expect.objectContaining({ key: "k1" }), "hello"));
   });
 });
+
+describe("stop('fill') (plan 2026-10-07 R11)", () => {
+  const makeResult = () => ({ blob: new Blob([encodeWavPcm16(new Float32Array(16000).fill(0.2), 16000)], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 1000, stoppedBy: "user" as const, noSpeech: false });
+  const setup = (handlers: Record<string, Handler>) => {
+    const result = makeResult();
+    const session = { startedAt: 0, result: new Promise<never>(() => {}), stop: vi.fn(async () => result), cancel: vi.fn() };
+    const mock = createFetchMock(handlers);
+    const onDraft = vi.fn();
+    const onTranscribed = vi.fn();
+    const onTranscribedText = vi.fn();
+    const { result: hook } = renderHook(() => useVoiceTurn({
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), newKey: () => "k1", onDraft, onTranscribed, onTranscribedText,
+      starter: async () => session, urls: { create: () => "blob:1", revoke: () => undefined },
+    }));
+    return { hook, session, mock, onDraft, onTranscribed, onTranscribedText };
+  };
+
+  it("fills the composer instead of sending", async () => {
+    resetLatencyForTest();
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ text: " I need a taxi. " }) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.onTranscribedText).toHaveBeenCalledWith("I need a taxi."));
+    expect(t.onTranscribed).not.toHaveBeenCalled();
+    expect(t.onDraft).toHaveBeenLastCalledWith({ kind: "discarded", key: "k1" });
+    expect(latencyLog().at(-1)?.status).toBe("complete");
+  });
+
+  it("keeps the default stop() as send", async () => {
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ text: "hello" }) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop(); });
+    await vi.waitFor(() => expect(t.onTranscribed).toHaveBeenCalled());
+    expect(t.onTranscribedText).not.toHaveBeenCalled();
+  });
+
+  it("retry after a failed transcription still fills", async () => {
+    let calls = 0;
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => (++calls === 1 ? json({ detail: "x" }, 500) : json({ text: "again" })) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenCalledWith(expect.objectContaining({ kind: "failed", key: "k1" })));
+    await act(async () => { t.hook.current.retry("k1"); });
+    await vi.waitFor(() => expect(t.onTranscribedText).toHaveBeenCalledWith("again"));
+    expect(t.onTranscribed).not.toHaveBeenCalled();
+  });
+
+  it("stop('discard') releases the mic and uploads nothing", async () => {
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ text: "no" }) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("discard"); });
+    expect(t.session.cancel).toHaveBeenCalled();
+    expect(t.mock.calls.length).toBe(0);
+    expect(t.onTranscribed).not.toHaveBeenCalled();
+    expect(t.onTranscribedText).not.toHaveBeenCalled();
+    expect(t.hook.current.state).toBe("idle");
+  });
+});

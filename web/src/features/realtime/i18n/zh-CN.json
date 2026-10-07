@@ -22,6 +22,7 @@
       "endedInBackground": "通话因切到后台已结束",
       "interrupted": "(已打断)",
       "close": "关闭",
+      "captions": "实时字幕",
       "errors": {
         "unauthorized": "通话凭证已失效,请重试",
         "disabled": "服务器未开启实时通话",
