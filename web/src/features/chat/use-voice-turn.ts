@@ -5,7 +5,7 @@ import { toAssessmentWav } from "~/audio/convert";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
 import { useRecorder, type RecordingStarter } from "~/audio/use-recorder";
-import { abortLatencyTrace, markLatency, startLatencyTrace } from "~/lib/latency";
+import { abortLatencyTrace, finishLatencyTrace, markLatency, startLatencyTrace } from "~/lib/latency";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
 import { transcribe } from "./speech-api";
 
@@ -38,6 +38,10 @@ export interface UseVoiceTurnOptions {
    * 页面应自己保存 (clip, text):若随后聊天回复失败,重试回复只重发 text,不重新录音、不重新上传。
    */
   onTranscribed(clip: VoiceClip, text: string): void;
+  /**
+   * stop("fill") 的转写结果:只把文字交给页面(放进输入框),不建消息、不发送、不评测(R11)。
+   */
+  onTranscribedText?: (text: string) => void;
   urls?: { create(blob: Blob): string; revoke(url: string): void };
 }
 
@@ -58,7 +62,15 @@ interface Draft {
   handoff?: { text: string; audioUrl: string };
   /** 已按"没有前景语音"拦截过一次(R10);之后的重试视为用户坚持发送 */
   noSpeechChecked?: boolean;
+  /** send = 转写后发送(默认);fill = 只把文字填回输入框。重试沿用同一交付方式。 */
+  deliver: VoiceDeliver;
 }
+
+/** stop() 的去向:send 发送;fill 转成文字填入输入框;discard 丢弃录音(释放麦克风,不上传)。 */
+export type VoiceDeliver = "send" | "fill" | "discard";
+
+/** 60 秒自动停止与切后台/麦克风中断的草稿一律按 send(R11 的 60 秒落点由手势层先处理)。 */
+const stoppedAuto = (recording: RecordingResult) => recording.stoppedBy !== "user";
 
 const browserUrls = { create: (b: Blob) => URL.createObjectURL(b), revoke: (u: string) => URL.revokeObjectURL(u) };
 
@@ -144,6 +156,17 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
           opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
           return;
         }
+        if (draft.deliver === "fill") {
+          drafts.current.delete(key);
+          opts.current.onDraft({ kind: "discarded", key });
+          finishLatencyTrace("complete"); // 转文字不发送:这一轮到此为止,不会有回复/朗读标记
+          try {
+            opts.current.onTranscribedText?.(clean);
+          } catch (fillError) {
+            console.error("voice turn fill failed", fillError);
+          }
+          return;
+        }
         const audioUrl = (opts.current.urls ?? browserUrls).create(draft.wav);
         urls.current.push(audioUrl);
         draft.handoff = { text: clean, audioUrl }; // 交接失败后重试只重新交接,不重新转写/上传、不再建 blob URL
@@ -176,13 +199,13 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
   }, []);
 
   const accept = useCallback(
-    (recording: RecordingResult, turn?: number) => {
+    (recording: RecordingResult, turn?: number, deliver: Exclude<VoiceDeliver, "discard"> = "send") => {
       if (!mounted.current) {
         abortLatencyTrace(turn);
         return;
       }
       const key = opts.current.newKey();
-      const draft: Draft = { recording, durationMs: recording.durationMs };
+      const draft: Draft = { recording, durationMs: recording.durationMs, deliver: stoppedAuto(recording) ? "send" : deliver };
       drafts.current.set(key, draft);
       if (recording.stoppedBy === "background" || recording.stoppedBy === "track_ended") {
         abortLatencyTrace(turn); // 没有发送:这一轮不计时,等用户点"发送这段"时另开一条
@@ -213,8 +236,14 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     return startRecorder();
   }, [startRecorder]);
 
-  const stop = useCallback(async () => {
+  const stop = useCallback(async (deliver: VoiceDeliver = "send") => {
     if (!mounted.current || stopping.current || recorderState.current !== "recording") return;
+    if (deliver === "discard") {
+      // 丢弃:释放麦克风,不留草稿、不上传、不计时
+      generation.current += 1;
+      cancelRecorder();
+      return;
+    }
     const gen = generation.current;
     stopping.current = true;
     const turn = startLatencyTrace("voice");
@@ -222,7 +251,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     setStoppingState(true);
     try {
       const result = await stopRecorder();
-      if (result && gen === generation.current) accept(result, turn);
+      if (result && gen === generation.current) accept(result, turn, deliver);
       else abortLatencyTrace(turn);
     } catch (err) {
       abortLatencyTrace(turn);
@@ -233,7 +262,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         if (mounted.current) setStoppingState(false);
       }
     }
-  }, [stopRecorder, accept]);
+  }, [stopRecorder, cancelRecorder, accept]);
 
   /** 发送前取消:录音(starting/recording/stopping)与进行中的转写一并丢弃,释放麦克风,不留草稿。 */
   const cancel = useCallback(() => {
