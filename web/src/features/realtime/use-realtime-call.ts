@@ -23,7 +23,9 @@ export function useRealtimeCall(options: Omit<RealtimeCallOptions, "onChange">):
         onUserMessage: (id, text) => opts.current.onUserMessage?.(id, text),
       });
       setCall(instance);
-      void instance.start();
+      // 计时器触发前页面已经切到后台(那次 visibilitychange 时还没有实例):不开麦克风,直接按 R16 结束并说明
+      if (document.visibilityState === "hidden") instance.end("web.realtime.endedInBackground");
+      else void instance.start();
     }, 0);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") instance?.end("web.realtime.endedInBackground");

@@ -4,7 +4,11 @@ import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
-import { RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeEnv } from "./realtime-call";
+import { RESUME_TIMEOUT_MS, RealtimeCall, type RealtimeCallOptions, type RealtimeEnv } from "./realtime-call";
+
+// ownsContext 必须由调用方明确选择(漏传会关掉页面共享的上下文);可选时这一行在 tsc 下报错
+const ownsContextIsRequired: {} extends Pick<RealtimeCallOptions, "ownsContext"> ? false : true = true;
+void ownsContextIsRequired;
 import type { CallModel } from "./call-machine";
 
 vi.mock("~/features/chat/audio-focus", async (importOriginal) => {
@@ -77,7 +81,7 @@ function setup(over: {
   const onUserMessage = vi.fn();
   const call = new RealtimeCall({
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), conversationId: "c1", context: asContext(ctx),
-    ...(over.ownsContext === undefined ? {} : { ownsContext: over.ownsContext }),
+    ownsContext: over.ownsContext ?? true,
     start: { systemPrompt: "Be kind.", model: "m", temperature: 0.7, voice: over.voice ?? "voice_1", saveRecordings: true },
     sampleRateOut: 24000, env, onChange: (m) => changes.push(m), onUserMessage,
   });

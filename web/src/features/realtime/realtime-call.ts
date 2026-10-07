@@ -51,10 +51,11 @@ export interface RealtimeCallOptions {
   /** 通话使用的 AudioContext:应已在点击的同步阶段解锁(`unlockAudioContext`)。 */
   context: AudioContext;
   /**
-   * 是否由本对象负责关闭 `context`(默认 true:页面在点击里为这次通话新建并交出所有权)。
-   * 传入页面级共享上下文(`getPageAudioContext`,R31)时必须为 false:通话结束只断开自己的节点,从不关闭它。
+   * 是否由本对象负责关闭 `context`。必填,没有默认值:调用方必须明确选择。
+   * true:页面在点击里为这次通话新建了上下文并交出所有权;
+   * false:传入的是页面级共享上下文(`getPageAudioContext`,R31,`prepareCallAudio()` 的结果),通话结束只断开自己的节点,从不关闭它。
    */
-  ownsContext?: boolean;
+  ownsContext: boolean;
   start: StartPayload;
   sampleRateOut: number;
   env?: RealtimeEnv;
@@ -351,6 +352,6 @@ export class RealtimeCall {
       releaseAudio(this.focus);
     }
     this.player = null;
-    if (this.o.ownsContext !== false) void this.o.context.close?.()?.catch?.((): void => undefined);
+    if (this.o.ownsContext) void this.o.context.close?.()?.catch?.((): void => undefined);
   }
 }
