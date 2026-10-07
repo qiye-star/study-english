@@ -47,7 +47,8 @@
         "resultNotSaved": "The score could not be saved with the message.", "quota": "Your recording storage is full. Delete some old recordings.",
         "assessmentNotConfigured": "Pronunciation assessment is not configured on the server.",
         "configTooLarge": "These settings are too large to save."
-      }
+      },
+      "callBlocked": { "unsent": "Send, retry or discard the unsent message first, then start the call." }
     }
   }
 }

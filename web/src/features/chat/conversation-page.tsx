@@ -185,6 +185,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   // 保存串行化:上一轮的保存未完成时,下一轮排队,保证服务端消息顺序
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const pendingSavesRef = useRef<PendingSave[]>([]);
+  /** 排队待保存的消息对的个数(界面用:有未保存的一对时不能开始通话) */
+  const [pendingSaveCount, setPendingSaveCount] = useState(0);
   const genRef = useRef(0);
   const conversationRef = useRef<Conversation | null>(null);
   conversationRef.current = conversation;
@@ -223,6 +225,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const forceScrollRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const syncPendingSaves = useCallback(() => {
+    if (mountedRef.current) setPendingSaveCount(pendingSavesRef.current.length);
+  }, []);
   // 卸载后不再 setState(TurnResults 与保存队列的界面回调都走这里)
   const patchByKey = useCallback((key: string, change: Partial<UiMessage>) => {
     if (mountedRef.current) setMessages((prev) => prev.map((m) => (m.key === key ? { ...m, ...change } : m)));
@@ -271,6 +276,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     resultsRef.current = results;
     genRef.current += 1;
     pendingSavesRef.current = [];
+    setPendingSaveCount(0);
     knownTailRef.current = undefined;
     renamingRef.current = false;
     heldRef.current.clear();
@@ -527,10 +533,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   }, [saveOne, toastDropped]);
 
   const flushSaves = useCallback(() => {
-    const run = saveChainRef.current.then(() => drainSaves());
+    const run = saveChainRef.current.then(() => drainSaves()).finally(syncPendingSaves);
     saveChainRef.current = run.catch((): void => undefined);
     return run;
-  }, [drainSaves]);
+  }, [drainSaves, syncPendingSaves]);
 
   /** 临时失败的提示:Retry 再失败时会再次提示,不会静默。 */
   const toastNotSaved: () => void = useCallback(() => {
@@ -602,9 +608,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       gen: genRef.current, results, conversationId: conversation.id, userKey, botKey, content, reply, saved: false,
     };
     pendingSavesRef.current.push(entry);
+    syncPendingSaves();
     const outcome = await flushSaves();
     if (!entry.saved && !entry.dropped && outcome === "failed" && live()) toastNotSaved();
-  }, [api, config, conversation, flushSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete, autoSpeakProgress]);
+  }, [api, config, conversation, flushSaves, syncPendingSaves, showTranslation, toastNotSaved, autoSpeakBegin, autoSpeakComplete, autoSpeakProgress]);
 
   const voiceBusy = voice.state !== "idle";
 
@@ -817,11 +824,26 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   }, [holdHint]);
 
   /**
+   * 未发送的本地状态:等待 Retry 的未保存的一对、失败/保留的尾部(回复失败、语音草稿、held 转写)、进行中的发送/流式/录音。
+   * 通话结束后的重新加载会清掉本地状态(并 abandonOpen 删除未保存轮次的评测),所以有这些时不能开始通话(I-3)。
+   * 同步读 ref:与点击同一帧里刚发生的变化也算。
+   */
+  const hasUnsentState = () => busyRef.current || voiceStateRef.current !== "idle" || pendingSavesRef.current.length > 0
+    || heldRef.current.size > 0 || messagesRef.current.some((m) => m.status !== "done");
+  /** 同一条件的渲染值(按钮的提示) */
+  const unsentShown = pendingSaveCount > 0 || messages.some((m) => m.status !== "done");
+
+  /**
    * 打开通话。整个函数是同步的(iOS:AudioContext 必须在点击的同步阶段、任何 await 之前解锁,R31):
-   * 停止朗读 → 取页面级共享 AudioContext 并解锁(`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
+   * 拒绝条件(未发送的状态、无法确定通话音色)→ 停止朗读 → 取页面级共享 AudioContext 并解锁
+   * (`prepareCallAudio`,所有权不交给通话)→ 挂上对话框。
    */
   const startCall = () => {
-    if (!conversation || !realtimeConfig?.enabled || busyRef.current || voice.state !== "idle" || call) return;
+    if (!conversation || !realtimeConfig?.enabled || call) return;
+    if (hasUnsentState()) {
+      toast.error(t("web.chat.callBlocked.unsent"));
+      return;
+    }
     const voiceName = callVoice(config, ai);
     if (!voiceName) {
       toast.error(t("web.realtime.errors.invalidVoice"));
@@ -879,6 +901,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
             onOpenRecap={() => setRecapOpen(true)}
             canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call}
+            callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
             onCall={startCall} />
         } />
       {(scenario || options.level !== "auto") && (

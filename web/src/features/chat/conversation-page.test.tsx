@@ -3294,9 +3294,9 @@ describe("realtime call (plan 2026-10-07)", () => {
     });
   }
 
-  function setupCall(r: Record<string, Handler>, env?: RealtimeEnv, opts: { strict?: boolean } = {}) {
+  function setupCall(r: Record<string, Handler>, env?: RealtimeEnv, opts: { strict?: boolean; recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"] } = {}) {
     const mock = createFetchMock(r);
-    const page = <><ConversationPage realtimeEnv={env} /><NavProbe /></>;
+    const page = <><ConversationPage realtimeEnv={env} recorderEnv={opts.recorderEnv} /><NavProbe /></>;
     const view = renderWithProviders(opts.strict ? <StrictMode>{page}</StrictMode> : page, {
       api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1", path: "/chat/:id",
     });
@@ -3515,6 +3515,69 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(c.vad.destroy).toHaveBeenCalledTimes(1);
     expect(document.querySelector("[data-testid='call-screen']")).toBeNull();
   });
+  describe("unsent local state and the post-call reload (review W5 I-2/I-3)", () => {
+    let spy: MockInstance;
+    beforeEach(() => { spy = vi.spyOn(toast, "error").mockImplementation(() => ""); });
+    afterEach(() => spy.mockRestore());
+    const NOT_SAVED = "The reply was shown but could not be saved.";
+    const BLOCKED = "Send, retry or discard the unsent message first, then start the call.";
+    const deletes = (mock: ReturnType<typeof createFetchMock>) => mock.calls.filter((c) => c.method === "DELETE");
+
+    it("refuses to start a call while a voice pair whose save failed awaits Retry; nothing is deleted and Retry still saves it with its recording", async () => {
+      const c = callEnv();
+      let saves = 0;
+      const { mock } = setupCall(callRoutes({
+        "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+        "POST /api/speech/assessments": () => json(ASSESSED),
+        "POST /api/ai/chat/completions": () => sse([delta("Me too!"), DONE_EVENT]),
+        // 非"可能已保存"的临时失败:旧的重新加载会 abandonOpen 并删除它的评测
+        "POST /api/conversations/c1/messages": () => (++saves === 1 ? json({ error: "Slow down" }, 429) : json({ messages: [{ id: "m1" }, { id: "m2" }] })),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+        "DELETE /api/assessments/a1": () => json({ id: "a1" }),
+      }), c.env, { recorderEnv: createFakeRecorderEnv().env });
+      await screen.findByText("reply");
+      await recordAndSend();
+      await waitFor(() => expect(spy).toHaveBeenCalledWith(NOT_SAVED, expect.anything()));
+      const retrySave = (spy.mock.calls.find((call) => call[0] === NOT_SAVED)![1] as { action: { onClick(): void } }).action;
+      const button = screen.getByTestId("conversation-call");
+      expect(button).toHaveAttribute("title", BLOCKED);
+      await userEvent.click(button);
+      expect(spy).toHaveBeenCalledWith(BLOCKED);
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      await act(async () => {});
+      expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(0);
+      expect(callsTo(mock, "GET", "/api/conversations/c1/messages")).toHaveLength(1);
+      expect(deletes(mock)).toHaveLength(0);
+      // 用户点 Retry:同一对带着评测保存,然后可以通话
+      await act(async () => { retrySave.onClick(); });
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(2));
+      expect(bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[1]).messages[0]).toMatchObject({ content: "I like apples", assessment_id: "a1" });
+      await waitFor(() => expect(screen.getByTestId("conversation-call")).not.toHaveAttribute("title"));
+      await connect(c);
+      expect(deletes(mock)).toHaveLength(0);
+    });
+
+    it("refuses to start a call while a failed reply awaits Retry, and allows it once the retry is saved", async () => {
+      const c = callEnv();
+      let attempt = 0;
+      const { mock } = setupCall(callRoutes({
+        "POST /api/ai/chat/completions": () => (++attempt === 1 ? sse(['data: {"error": "Upstream unavailable"}\n\n']) : sse([delta("Fine"), DONE_EVENT])),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+        "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      }), c.env);
+      await screen.findByText("reply");
+      await userEvent.type(screen.getByTestId("chat-input"), "Hello there");
+      await userEvent.click(screen.getByTestId("chat-send"));
+      await screen.findByTestId("message-retry");
+      await userEvent.click(screen.getByTestId("conversation-call"));
+      expect(spy).toHaveBeenCalledWith(BLOCKED);
+      expect(screen.queryByTestId("call-screen")).toBeNull();
+      await userEvent.click(screen.getByTestId("message-retry"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+      await connect(c);
+    });
+  });
+
   it("refuses early with 'invalid voice' when the server AI config failed to load and the conversation reads aloud with another provider", async () => {
     const spy = vi.spyOn(toast, "error").mockImplementation(() => "");
     const c = callEnv();
