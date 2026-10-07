@@ -23,7 +23,7 @@ function PulseBars() {
   return (
     <div className="flex h-8 items-center gap-1" aria-hidden="true">
       {[0.5, 0.9, 1, 0.7, 0.45].map((h, i) => (
-        <span key={i} className="w-1.5 animate-pulse rounded-full bg-current"
+        <span key={i} className="w-1.5 rounded-full bg-current motion-safe:animate-pulse"
           style={{ height: `${h * 100}%`, animationDelay: `${i * 150}ms`, animationDuration: "900ms" }} />
       ))}
     </div>
@@ -77,10 +77,11 @@ export function HoldToTalkButton({ voiceState, disabled, onStart, onFinish, onDi
     <>
       <button type="button" data-testid="chat-mic" data-hold-to-talk="" data-state={voiceState} data-hold={model.state}
         className={cn(
-          "inline-flex h-11 min-w-0 flex-1 select-none items-center justify-center gap-2 rounded-md border px-3 text-base font-medium",
-          "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-          pressed ? (cancelArmed ? "border-red-600 bg-red-600 text-white" : "border-primary/40 bg-muted text-foreground")
-            : "border-input bg-background text-foreground hover:bg-accent",
+          // 设计稿 .holdbar:44 高、圆角 12、surface + 0.5px 发丝线、15px 600 字重
+          "inline-flex h-11 min-w-0 flex-1 select-none items-center justify-center gap-2 rounded-button border-[0.5px] px-3 text-body font-semibold tracking-[0.02em]",
+          "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+          pressed ? (cancelArmed ? "border-transparent bg-red-solid text-white" : "border-blue/40 bg-blue-tint text-blue")
+            : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] hover:bg-surface-2",
         )}
         style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
         disabled={disabled && model.state === "idle"}
@@ -122,31 +123,32 @@ export function HoldToTalkButton({ voiceState, disabled, onStart, onFinish, onDi
       </button>
       <span data-testid="hold-status" role="status" className="sr-only">{announcement}</span>
       {(holding || keyboard) && (
-        <div data-testid="hold-overlay" className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/20 px-4 pb-24">
-          <div className={cn("flex w-44 flex-col items-center gap-2 rounded-2xl px-4 py-4 text-white shadow-lg ring-1 ring-white/15",
-            cancelArmed ? "bg-red-600/95" : "bg-neutral-900/85")}>
+        <div data-testid="hold-overlay" className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-[rgba(17,19,24,0.28)] px-4 pb-24">
+          {/* 浮层卡片不模糊(输入条、底栏、顶栏已占三层玻璃);状态切换只动颜色,150ms */}
+          <div className={cn("flex w-44 flex-col items-center gap-2 rounded-sheet px-4 py-4 text-white shadow-[0_12px_32px_-12px_rgba(17,19,24,0.5)] transition-colors duration-fast",
+            cancelArmed ? "bg-red-solid" : "bg-[rgba(17,19,24,0.88)] dark:bg-[rgba(30,33,39,0.96)]")}>
             <PulseBars />
             {recordingStatus}
             <p data-testid="hold-overlay-hint" data-tone={cancelArmed ? "danger" : "normal"} aria-hidden="true"
-              className={cn("text-center text-sm leading-snug", cancelArmed ? "font-semibold text-white" : "text-white/90")}>
+              className={cn("text-center text-sub leading-snug", cancelArmed ? "font-semibold text-white" : "text-white/90")}>
               {overlayHint}
             </p>
           </div>
           {holding && (
             <div aria-hidden="true" className="absolute inset-x-0 flex justify-between px-8" style={{ bottom: zonesBottom }}>
-              <div data-testid="hold-zone-cancel" data-active={String(cancelArmed)} className="flex flex-col items-center gap-1">
-                <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-2 shadow transition-transform",
-                  cancelArmed ? "scale-110 border-red-600 bg-red-600 text-white" : "border-border bg-background/95 text-foreground")}>
+              <div data-testid="hold-zone-cancel" data-active={String(cancelArmed)} className="flex flex-col items-center gap-1.5">
+                <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-[0.5px] transition-[transform,background-color] duration-fast motion-reduce:transition-none",
+                  cancelArmed ? "scale-110 border-transparent bg-red-solid text-white" : "border-hair bg-surface text-ink shadow-card")}>
                   <XIcon className="h-7 w-7" />
                 </span>
-                <span className="rounded bg-background/90 px-1.5 text-xs text-foreground">{t("web.chat.hold.cancel")}</span>
+                <span className="rounded-inline bg-surface px-1.5 text-meta font-medium text-ink">{t("web.chat.hold.cancel")}</span>
               </div>
-              <div data-testid="hold-zone-text" data-active={String(textArmed)} className="flex flex-col items-center gap-1">
-                <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-2 text-2xl font-semibold shadow transition-transform",
-                  textArmed ? "scale-110 border-primary bg-primary text-primary-foreground" : "border-border bg-background/95 text-foreground")}>
+              <div data-testid="hold-zone-text" data-active={String(textArmed)} className="flex flex-col items-center gap-1.5">
+                <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-[0.5px] text-headline font-semibold transition-[transform,background-color] duration-fast motion-reduce:transition-none",
+                  textArmed ? "scale-110 border-transparent bg-blue text-on-blue" : "border-hair bg-surface text-ink shadow-card")}>
                   文
                 </span>
-                <span className="rounded bg-background/90 px-1.5 text-xs text-foreground">{t("web.chat.hold.toText")}</span>
+                <span className="rounded-inline bg-surface px-1.5 text-meta font-medium text-ink">{t("web.chat.hold.toText")}</span>
               </div>
             </div>
           )}

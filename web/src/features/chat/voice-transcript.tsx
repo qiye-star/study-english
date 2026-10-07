@@ -6,9 +6,9 @@ import { markTranscript } from "./voice-words";
 export function VoiceTranscript({ text, words }: { text: string; words?: AssessmentWordBrief[] }) {
   const pieces = useMemo(() => markTranscript(text, words), [text, words]);
   return (
-    <p className="whitespace-pre-wrap">
+    <p className="whitespace-pre-wrap break-words">
       {pieces.map((piece, i) => piece.poor
-        ? <mark key={i} data-testid="voice-word-poor" className="rounded bg-red-200 px-0.5 text-red-900">{piece.text}</mark>
+        ? <mark key={i} data-testid="voice-word-poor" className="rounded-[4px] bg-amber-tint px-[3px] text-amber">{piece.text}</mark>
         : <span key={i}>{piece.text}</span>)}
     </p>
   );
