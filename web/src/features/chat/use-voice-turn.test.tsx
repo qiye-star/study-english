@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { toAssessmentWav } from "~/audio/convert";
-import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest } from "~/lib/latency";
+import { abortLatencyTrace, finishLatencyTrace, latencyLog, resetLatencyForTest, startLatencyTrace } from "~/lib/latency";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { VOICE_MAX_MS, useVoiceTurn, type VoiceDraftEvent } from "./use-voice-turn";
@@ -656,6 +656,21 @@ describe("stop('fill') (plan 2026-10-07 R11)", () => {
     expect(t.onTranscribed).not.toHaveBeenCalled();
     expect(t.onDraft).toHaveBeenLastCalledWith({ kind: "discarded", key: "k1" });
     expect(latencyLog().at(-1)?.status).toBe("complete");
+  });
+
+  it("a typed message sent while the fill transcription is in flight keeps its own latency trace", async () => {
+    resetLatencyForTest();
+    let release!: (r: Response) => void;
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => new Promise<Response>((r) => { release = r; }) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.mock.calls).toHaveLength(1));
+    const textTurn = startLatencyTrace("text"); // 用户在转写进行时打字发送
+    await act(async () => { release(await json({ text: "late fill" })); });
+    await vi.waitFor(() => expect(t.onTranscribedText).toHaveBeenCalledWith("late fill"));
+    expect(latencyLog().filter((r) => r.kind === "text")).toHaveLength(0); // 文字这一轮仍在进行
+    finishLatencyTrace("aborted", textTurn);
+    expect(latencyLog().find((r) => r.kind === "text")?.id).toBe(textTurn);
   });
 
   it("keeps the default stop() as send", async () => {

@@ -104,6 +104,15 @@ describe("latency trace", () => {
     expect(latencyLog()[0].marks.tts_request).toBeUndefined();
   });
 
+  it("a turn-scoped finish only closes that turn", () => {
+    const voice = startLatencyTrace("voice");
+    const text = startLatencyTrace("text"); // 取代了 voice(voice 记为 aborted)
+    finishLatencyTrace("complete", voice); // 迟到的 voice 收尾不能关掉 text
+    expect(latencyLog().map((r) => [r.kind, r.status])).toEqual([["voice", "aborted"]]);
+    finishLatencyTrace("complete", text);
+    expect(latencyLog().map((r) => [r.kind, r.status])).toEqual([["voice", "aborted"], ["text", "complete"]]);
+  });
+
   it("reply marks need a transcript on a voice trace", () => {
     startLatencyTrace("voice");
     markLatency("release");

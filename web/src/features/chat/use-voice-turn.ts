@@ -159,7 +159,9 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         if (draft.deliver === "fill") {
           drafts.current.delete(key);
           opts.current.onDraft({ kind: "discarded", key });
-          finishLatencyTrace("complete"); // 转文字不发送:这一轮到此为止,不会有回复/朗读标记
+          // 转文字不发送:这一轮到此为止(不会有回复/朗读标记)。只结束自己这一轮:
+          // 转写进行时用户可能已经打字发送,那一轮的记录不能被这里关掉
+          finishLatencyTrace("complete", turn);
           try {
             opts.current.onTranscribedText?.(clean);
           } catch (fillError) {

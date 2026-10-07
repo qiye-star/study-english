@@ -101,9 +101,10 @@ function accepts(record: LatencyRecord, mark: LatencyMark): boolean {
   }
 }
 
-/** 结束当前记录(默认 complete)。所有函数都不会向产品代码抛异常。 */
-export function finishLatencyTrace(status: LatencyStatus = "complete"): void {
+/** 结束当前记录(默认 complete)。给出 turn 时只在仍是该轮次时生效。所有函数都不会向产品代码抛异常。 */
+export function finishLatencyTrace(status: LatencyStatus = "complete", turn?: number): void {
   try {
+    if (turn !== undefined && current?.id !== turn) return;
     close(status);
   } catch {
     current = null;
