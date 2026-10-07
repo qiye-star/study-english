@@ -10,14 +10,6 @@ import { GRAMMAR_SERVER_ERRORS } from "~/features/grammar/grammar-api";
 import { mayHaveMixedVoices } from "./mixed-voices";
 import type { AssessmentView, GrammarView } from "./ui-message";
 
-/**
- * 旧的实底分数色(通话字幕还在用,通话界面由 realtime 自己迁到 ~/components/score-tone)。
- * 对话页的徽标改用 redesign 的分数刻度(≥85 绿 / 70–84 琥珀 / 其余中性)。
- */
-export function scoreTone(score: number): string {
-  return score >= 80 ? "bg-emerald-600 text-white" : score >= 60 ? "bg-amber-500 text-white" : "bg-red-600 text-white";
-}
-
 /** 22px 高的徽标;按钮命中区向上下各扩 11px 到 44px,不撑高气泡。 */
 const badgeButton = "relative inline-flex items-center rounded-[7px] before:absolute before:inset-x-0 before:-inset-y-[11px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default";
 
