@@ -182,3 +182,54 @@
 10. 开着推理(无 no_thinking)时的 `<none>` 行为,以及真实环境噪声/真人背景对话下的 `<none>` 与前景选择(第 1 节)。
 
 上游调用累计(R20 预算内):识别 25 次(0.3 的 16 + 0.4 的 9 个连接)+ 基线 16 次;TTS 36 次(0.5 的 12 + 基线 24)。本任务未新增上游调用。
+
+## 8. 实时通话服务端冒烟(真实上游)
+
+Task 5.2 按调度改为服务端层冒烟(浏览器/Playwright 部分需要 Docker,本机不可用,仍待测)。日期 2026-10-07。
+
+**方法**:`server/scripts/realtime_smoke.py`(不启动服务,只连 `--base-url`)。本机 uvicorn(lane-X 代码,`--app-dir` + `python -P`,cwd 为主工作区 `server/` 以读取真实 `.env`,未打印),进程环境 `REALTIME_ENABLED=true`、`UPSTREAM_ASR_MODE=volc_stream`、临时 SQLite(先 `alembic upgrade head`),端口 8025;`REALTIME_ASR_MODE=stream` 与 `buffered` 各跑一遍,用后停服务、删临时数据。测试语音由服务自己的 TTS 接口(`volcengine/seed-tts-2.0`,`en_female_dacey_uranus_bigtts`)合成 "Hello, nice to meet you. I would like a cup of coffee, please."(mp3 → ffmpeg → 16 kHz PCM16,5.23 s),两遍复用同一段;上传按 100 ms/帧、绝对时间表实时节奏,语音后接 300 ms 静音再发 `utterance_end`。LLM 为服务默认预设模型。每个场景一个新会话;每个指标 N = 1(单次运行,不是统计值)。时间均以客户端发出 `utterance_end` 为 0(本机回环,无网络往返)。
+
+### 8.1 场景结果
+
+| 场景 | stream | buffered |
+|---|---|---|
+| 1 一整轮(识别 → 保存 → 回复 → 下行音频 → 评测 → 消息核对) | 通过 | 通过 |
+| 2 打断(机器人说话时上传第二句) | 通过 | 通过 |
+| 3a 回复中 `hangup` → 立即新 ticket 重连 | 通过(重连拿到 `ready`,非 4029) | 通过 |
+| 3b 回复中直接断开 TCP(不发关闭帧)→ 重连 | 通过(第 1 次即 `ready`,约 16 ms) | 通过(同左) |
+| 4 同一用户第二路并发 | 4029,第一路不受影响、正常 1000 挂断 | 同左 |
+| 5 无效 / 缺失 / 已用过的 ticket | 4001 / 4001 / 4001 | 同左 |
+| 服务端日志 | 0 条 ERROR/Traceback/`realtime call failed`,0 条 WARNING;ticket 全部为 `[redacted]` | 同左 |
+
+### 8.2 一整轮的时间(场景 1,ms,自 `utterance_end` 起)
+
+| 指标 | stream | buffered |
+|---|---|---|
+| 首个 `transcript_partial`(自第一帧音频起) | 1312(共 9 个 partial) | —(无 partial) |
+| `transcript_final` | **516** | **1203** |
+| 首个 `reply_delta` | 1844 | 2875 |
+| **首块下行音频**(turn_id 与本轮一致,24 kHz PCM) | **2297** | **3312** |
+| `reply_done`(服务端整段下发完) | 3828(回复 159 字符,音频 8.95 s) | 4218(103 字符,6.6 s) |
+| `assessment`(讯飞,`status=done`,已保存并关联到用户消息) | 2266,发音分 92.3 | 2968,发音分 87.3 |
+
+- 转写:两种模式都把测试句识别为 "Hello, nice to meet you. I would like a cup of coffee please."(只丢了一个逗号;按词比对 100%)。第 7.3 节第 1 项的 "ask not" 丢词问题本次**未复现**,但这次用的是 TTS 合成的清晰语音,不是 JFK 片段,不能据此关闭该未决项。
+- `transcript_final` 到首个 `reply_delta` 约 1.3–1.7 s(LLM 首字),首个 `reply_delta` 到首块音频约 0.45 s(首句完成 + TTS 首块),与第 3 节的 TTS 首块 300–400 ms 一致。
+- 服务端日志(`asr realtime done`):流式识别每句 5.8–5.9 s(自打开连接,含 5.5 s 实时上传),5/5 次 9 个 partial、无错误。buffered 的上传识别(`stt_volc_stream`)5 次:1188、**8104**、963、1149、**4126** ms——尾部延迟明显(8.1 s 那次是场景 2 的第一句,通话因此多了约 8 s),buffered 模式的回合延迟不稳定。
+- 回复内容未打印;`<think`/reasoning 等标记 0 次;LLM 流均以 `finish_reason` 正常结束(没有出现"流未结束"导致的 `llm_failed`),`error` 事件 0 个,`degraded` 0 次。
+
+### 8.3 打断、挂断与泄漏
+
+- 打断(场景 2):等旧一轮下发 ≥ 3 s 音频(实际 3.38 s)后开始上传第二句;第二句的第一帧到达后,旧一轮 `reply_done {interrupted: true}` 在 **32 ms**(stream)/ **16 ms**(buffered)内到达,之后**旧 turn_id 的音频帧 0 个**;状态回到 `listening`;日志 `interrupts=1 turns=2`。保存的消息依次为 user、assistant(已完整下发的句子 + `" …"`,26 / 32 字符)、user、assistant(完整回复,未带 `" …"`)。
+- 注意:服务端合成比实时快(场景 1 的 8.95 s 音频在 `utterance_end` 后 3.8 s 内已全部下发),所以"服务端仍在回复、可被打断"的窗口只到 `reply_done` 为止;之后用户再开口,打断只发生在客户端播放器(丢弃缓冲),服务端没有可取消的东西、也不会给已保存的完整回复加 `" …"`。本次为了打在服务端窗口内,用了"6 句"的系统提示词;短回复在真实使用中多数情况是客户端侧打断。
+- 挂断(场景 3a):回复中发 `hangup` → 1000,关闭前收到了该轮的 `reply_done`;因为挂断发生在第一块音频时、还没有完整下发的句子,**只保存了用户消息,没有助手消息**(符合 R13)。立即用新 ticket 重连拿到 `ready`,登记位已释放。
+- 断开(场景 3b):回复中直接 abort TCP → 服务端立即察觉(`realtime send failed error=WebSocketDisconnect`,INFO),`realtime_call close=1000` 记日志,第 1 次重连即 `ready`。本机回环会收到 RST;经过反向代理/移动网络时"察觉断开"可能要等到下一次发送超时(`SEND_TIMEOUT` 15 s)或 TCP 超时,期间同一用户重连会得到 4029——未验证。
+- 每次通话的 `timing event=realtime_call` 行 7 条(含重连与并发测试的空通话),全部 `close=1000`;被拒绝的连接(4029/4001)在拒绝前不占登记位,不记该行。
+
+### 8.4 未验证 / 待做
+
+1. 浏览器层(Playwright,`web/e2e/realtime.spec.ts`)、真实麦克风、`AudioContext`/麦克风轨道泄漏探针、复盘可用:需要 Docker Desktop,未做(e2e-results 由 lane S 负责)。
+2. "松手 → 第一块下行音频"的**浏览器层**数字未测;服务端层(`utterance_end` → 首块音频)为 stream 2297 ms、buffered 3312 ms(各 N = 1),不含客户端 VAD 收尾(600 ms)与播放缓冲。
+3. ticket 过期(60 s)未测(需要等待 60 s);静音 60 s 自动挂断、10 分钟上限、全局 5 路并发、`rate_limited`、`message_limit` 未用真实上游测(已有单测)。
+4. 中文/中英混说、噪声、真人语音的识别准确度(第 7.3 节第 1 项)仍未决。
+
+上游调用(R20 追加预算内):识别 10 次(每遍 5 句:场景 1 一句、场景 2 两句、场景 3 两句);LLM 10 次;TTS:测试句 1 次(经服务 TTS 接口)+ 通话内逐句合成约 25–30 次(通话内的逐句 TTS 不单独记日志,按回复句数估算);讯飞评测 10 次(每句用户话语一次)。
