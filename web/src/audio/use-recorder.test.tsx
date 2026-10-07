@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { useRecorder } from "./use-recorder";
 import { defaultRecordingStarter } from "./use-recorder";
+import { startPcmRecording, type PcmRecordingEnv } from "./pcm-recording";
+import { RecorderError, type RecorderErrorCode } from "./recorder";
+import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 
 describe("useRecorder", () => {
   it("starts and stops", async () => {
@@ -200,6 +203,49 @@ describe("default starter (plan 2026-10-07 R9/R31)", () => {
     await defaultRecordingStarter(fake.env, d)({ maxDurationMs: 1000 });
     expect(d.legacy).toHaveBeenCalledWith({ maxDurationMs: 1000, env: fake.env });
     expect(d.decide).not.toHaveBeenCalled();
+  });
+
+  describe("falls back to MediaRecorder when PCM start fails (review W1 I-4)", () => {
+    it.each<RecorderErrorCode | "plain">(["failed", "unsupported", "no_device", "plain"])("on %s", async (code) => {
+      const d = deps();
+      const context = {} as AudioContext;
+      d.decide.mockReturnValue({ mode: "pcm", context });
+      d.pcm.mockRejectedValueOnce(code === "plain" ? new DOMException("rate", "NotSupportedError") : new RecorderError(code));
+      expect(await defaultRecordingStarter(undefined, d)({ maxDurationMs: 1000 })).toBe(session);
+      expect(d.legacy).toHaveBeenCalledWith({ maxDurationMs: 1000 });
+    });
+
+    it.each<RecorderErrorCode>(["permission_denied", "mic_busy", "insecure_context"])("but not on %s", async (code) => {
+      const d = deps();
+      d.decide.mockReturnValue({ mode: "pcm", context: {} as AudioContext });
+      d.pcm.mockRejectedValueOnce(new RecorderError(code));
+      await expect(defaultRecordingStarter(undefined, d)({})).rejects.toMatchObject({ code });
+      expect(d.legacy).not.toHaveBeenCalled();
+    });
+
+    it("when the capture graph throws after getUserMedia (Firefox rate mismatch), with the microphone released first", async () => {
+      const shared = new FakeAudioContext(48000);
+      shared.state = "running";
+      shared.createMediaStreamSource.mockImplementation(() => { throw new DOMException("different sample-rate", "NotSupportedError"); });
+      const stream = fakeStream();
+      const env: PcmRecordingEnv = {
+        isSecureContext: true, getUserMedia: vi.fn(async () => stream), supportedConstraints: () => ({}),
+        createWorkletNode: () => new FakeWorkletNode() as unknown as AudioWorkletNode, workletUrl: "/w.js",
+        now: () => 0, document: { visibilityState: "visible", addEventListener: vi.fn(), removeEventListener: vi.fn() } as never,
+        setTimeout: vi.fn(), clearTimeout: vi.fn(),
+      };
+      const d = {
+        decide: () => ({ mode: "pcm" as const, context: asContext(shared) }),
+        pcm: (o: Parameters<typeof startPcmRecording>[0]) => startPcmRecording({ ...o, env }),
+        legacy: vi.fn(async () => {
+          expect(stream.track.stop).toHaveBeenCalledTimes(1); // 先放掉 PCM 那次拿到的麦克风
+          return session;
+        }),
+      };
+      expect(await defaultRecordingStarter(undefined, d)({ maxDurationMs: 1000 })).toBe(session);
+      expect(d.legacy).toHaveBeenCalledTimes(1);
+      expect(shared.close).not.toHaveBeenCalled();
+    });
   });
 
   it("decides synchronously when start() is called (inside the gesture)", () => {
