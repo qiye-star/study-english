@@ -758,7 +758,7 @@ export function ConversationPage({ recorderEnv }: { recorderEnv?: RecorderEnv })
             <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy}
               footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-1 flex flex-wrap justify-end gap-1">
-                  <PronunciationBadge view={m.assessment} onOpen={() => setDetailKey(m.key)} />
+                  <PronunciationBadge view={m.assessment} transcript={m.content} onOpen={() => setDetailKey(m.key)} />
                   <GrammarBadge view={m.grammar} onOpen={() => setDetailKey(m.key)} onRetry={() => resultsRef.current?.retryGrammar(m.key)} />
                 </div>
               ) : null}

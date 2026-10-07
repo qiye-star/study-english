@@ -23,6 +23,7 @@
         "custom": { "title": "Custom scenario", "short": "Custom", "description": "Describe any situation you want to practice (up to 500 characters).", "placeholder": "e.g. Returning a broken phone to a shop", "start": "Start" }
       },
       "speak": "Read aloud", "stopSpeaking": "Stop", "speakFailed": "Could not play the reply.", "nothingToRead": "There is nothing to read aloud in this reply.",
+      "hold": { "label": "Hold to talk (or press Space to start and again to send)", "keyboardStop": "Recording – press Space to send, Escape to cancel", "slideHint": "Slide up to cancel or convert to text", "cancel": "Cancel", "toText": "To text", "tooShort": "Hold to talk", "notReady": "Microphone is ready – hold to talk" },
       "autoSpeak": { "toggle": "Read replies aloud automatically", "blocked": "The browser blocked automatic playback.", "tapToRead": "Tap to read", "dismiss": "Dismiss" }, "speed": { "label": "Read-aloud speed {{rate}}" },
       "settingsForm": { "scenario": "Scenario", "scenarioHint": "Later replies follow the new scenario.", "scenarioNote": "Scenario conversations use the scenario's role instead of your own instructions.", "systemPrompt": "Role / instructions", "model": "Model", "ttsModel": "Voice model", "voice": "Voice", "save": "Save", "serverDefault": "Server default", "bilingual": "Bilingual (translate new replies automatically)", "grammarCheck": "Grammar check", "grammarCheckHint": "Point out grammar mistakes in your English messages.", "coachMode": "Coach mode", "coachModeHint": "The AI naturally repeats the correct form of words you mispronounced or got wrong.", "autoSpeak": "Read replies aloud automatically", "autoSpeakHint": "Each new reply is synthesized once (uses the speech service).", "level": "English level", "levelHint": "The AI keeps its vocabulary and sentence length at this level." },
       "voice": {
@@ -32,7 +33,8 @@
         "retryTranscribe": "Retry transcription", "sendKept": "Send this recording", "discard": "Discard",
         "details": "Details", "detailsDescription": "Pronunciation score and corrections for this message",
         "practiceThis": "Practice this sentence", "recording": "Recording", "heldBusy": "A reply was still in progress, so this recording was not sent yet.",
-        "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list"
+        "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list",
+        "mixedVoices": "Other voices may have been picked up", "nearFieldTip": "Speak close to the microphone; in noisy places use a headset. Other people's voices cannot be fully excluded."
       },
       "levels": { "auto": "Auto (no limit)", "A2": "A2 · Elementary", "B1": "B1 · Intermediate", "B2": "B2 · Upper intermediate", "C1": "C1 · Advanced" },
       "hints": { "button": "Not sure what to say?", "title": "Things you could say", "description": "Pick a reply, listen to it, practice it or save it.", "fill": "Use this reply", "speak": "Read aloud", "practice": "Practice", "save": "Save to practice list", "errors": { "invalid": "The suggestions could not be read. Try again." } },

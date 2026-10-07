@@ -254,3 +254,15 @@ describe("voice UI extras", () => {
     expect(screen.queryByTestId("badge-grammar")).toBeNull();
   });
 });
+
+describe("mixed voices hint (plan 2026-10-07 R10)", () => {
+  const words = ["the", "bus", "is", "late"].map((word) => ({ word }) as never);
+  it("shows a note for a low score that heard different words", () => {
+    renderWithProviders(<PronunciationBadge view={{ status: "done", scores: { ...SCORES, pronunciationScore: 30 }, words }} transcript="I want a coffee please" onOpen={vi.fn()} />);
+    expect(screen.getByTestId("voice-mixed-hint")).toHaveAttribute("role", "note");
+  });
+  it("stays quiet for a good score", () => {
+    renderWithProviders(<PronunciationBadge view={{ status: "done", scores: { ...SCORES, pronunciationScore: 80 }, words }} transcript="I want a coffee please" onOpen={vi.fn()} />);
+    expect(screen.queryByTestId("voice-mixed-hint")).toBeNull();
+  });
+});

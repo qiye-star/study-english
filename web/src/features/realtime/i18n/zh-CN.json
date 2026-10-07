@@ -1,0 +1,45 @@
+{
+  "web": {
+    "realtime": {
+      "start": "开始实时通话",
+      "title": "实时通话",
+      "status": {
+        "connecting": "正在连接…",
+        "listening": "聆听中",
+        "thinking": "思考中",
+        "speaking": "说话中",
+        "ended": "通话已结束"
+      },
+      "hangup": "挂断",
+      "mute": "静音",
+      "unmute": "取消静音",
+      "pushToTalk": "按住说话模式(适合嘈杂环境)",
+      "holdToSpeak": "按住说话",
+      "micInUse": "麦克风使用中",
+      "degraded": "网络/服务较慢",
+      "vadUnavailable": "语音检测不可用,已切换为按住说话",
+      "noSpeech": "没听清",
+      "endedInBackground": "通话因切到后台已结束",
+      "interrupted": "(已打断)",
+      "close": "关闭",
+      "errors": {
+        "unauthorized": "通话凭证已失效,请重试",
+        "disabled": "服务器未开启实时通话",
+        "not_found": "这个会话已不存在",
+        "idle_timeout": "长时间没有说话,已自动挂断",
+        "max_duration": "已达到单次通话时长上限",
+        "message_limit": "这个会话的消息已满",
+        "busy": "已有一路通话在进行",
+        "protocol": "通话出错中断",
+        "upstream": "语音识别服务不可用",
+        "generic": "通话已断开",
+        "asr_failed": "没听清,请再说一遍",
+        "llm_failed": "回复失败,请再说一次",
+        "tts_failed": "语音合成失败,只显示文字",
+        "rate_limited": "请求过于频繁,请稍候",
+        "micLost": "麦克风已中断",
+        "unsupported": "当前浏览器不支持实时通话"
+      }
+    }
+  }
+}
