@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     asr_stream_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
     asr_stream_resource_id: str = "volc.bigasr.sauc.duration"
     asr_stream_timeout_seconds: float = 30.0
+    # 每个进程同时进行的流式识别上限;超出的请求直接走回退路径,不连接火山
+    asr_stream_max_concurrency: int = 3
     volcengine_asr_key: str = ""
 
     azure_speech_key: str = ""

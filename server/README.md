@@ -131,16 +131,18 @@ UPSTREAM_ASR_MODE=volc_stream
 # 以下为默认值,一般不用改
 ASR_STREAM_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
 ASR_STREAM_RESOURCE_ID=volc.bigasr.sauc.duration
-ASR_STREAM_TIMEOUT_SECONDS=30
+ASR_STREAM_TIMEOUT_SECONDS=30      # 实际超时 = min(该值 + 音频秒数, 120)
+ASR_STREAM_MAX_CONCURRENCY=3       # 每进程并发上限,超出直接回退
 # 留空则复用 VOLCENGINE_TTS_KEY
 VOLCENGINE_ASR_KEY=
 ```
 
 - 需要在豆包语音控制台开通「大模型流式语音识别」(小时版,资源 ID `volc.bigasr.sauc.duration`);与 TTS 共用同一个 UUID Key。
-- 只有 16 kHz、单声道、16 位 PCM 的 WAV 走流式识别(网页端录音即为此格式);mp3 或其他采样率直接走 `UPSTREAM_WHISPER_MODE` 的路径。
-- 流式识别失败(鉴权、超时、协议错误、空结果)时记录失败类别并**自动回退**到 `UPSTREAM_WHISPER_MODE` 的路径;未配置回退时返回 502(鉴权失败为 `Upstream authentication failed`)。
+- 只有 16 kHz、单声道、16 位 PCM 的 WAV 走流式识别(网页端录音即为此格式);mp3 或其他采样率直接走 `UPSTREAM_WHISPER_MODE` 的路径。`UPSTREAM_WHISPER_MODE=openai` 时,只有 `response_format` 为空或 `json` 的请求走流式;`verbose_json`、`text`、`srt`、`vtt` 仍原样转发给 Whisper,响应格式不变。
+- 流式识别失败(鉴权、额度、超时、协议错误、空结果、意外异常)时记录失败类别、`connect_id` 与上游 `logid`,并**自动回退**到 `UPSTREAM_WHISPER_MODE` 的路径。同一进程连续 3 次鉴权或额度失败后,60 秒内不再尝试流式,直接回退;并发已满的请求也直接回退。
+- 未配置回退时:不适合流式的请求(mp3、非 16 kHz 等)返回 503 `Whisper upstream is not configured`;流式失败返回 502(鉴权失败为 `Upstream authentication failed`,其余为 `Upstream unavailable`),缺少密钥返回 503。
 - 成功时返回 `{"text": "...", "segments": []}`(与 `chat` 模式相同,无时间戳);`language` 参数被忽略(模型自动识别中英文)。
-- 日志只记录耗时与音频秒数(`asr volc_stream ok ms=... audio_s=...`),不记录文本与密钥。
+- 日志只记录耗时、音频秒数和失败类别(`asr volc_stream ok ms=... audio_s=...`),不记录文本与密钥。
 
 **语法检查模型**:默认用 `DEFAULT_LLM_MODEL` 和 LLM 上游(需支持 JSON 模式)。可用 `GRAMMAR_MODEL` 换模型,或用 `UPSTREAM_GRAMMAR_BASE_URL` / `UPSTREAM_GRAMMAR_KEY` 换到另一家 OpenAI 兼容服务。提示词由两部分组成:可替换的"检查规则"(内置默认 → `GRAMMAR_PROMPT` → `GRAMMAR_PROMPT_FILE`,文件优先;每个用户还可以在网页「我的」页改自己的规则并一键恢复默认)+ 服务端固定追加的输出格式要求(JSON 结构、类别、`original` 必须出自原文、最多 8 项)。模型输出会被严格校验,不合格返回 502,错误体不含上游内容。`GRAMMAR_PROMPT_FILE` 读不到或为空时服务拒绝启动。这些设置都不会通过 `/api/config` 暴露。
 

@@ -17,8 +17,10 @@ import io
 import json
 import logging
 import struct
+import time
 import uuid
 import wave
+import zlib
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -28,12 +30,23 @@ from websockets.asyncio.client import connect
 from app.config import Settings
 
 logger = logging.getLogger(__name__)
+# websockets logs the handshake request headers (including X-Api-Key) at DEBUG. The
+# connection gets its own logger pinned at INFO so a global DEBUG level never leaks the key.
+_ws_logger = logging.getLogger("app.asr_stream.websockets")
+_ws_logger.setLevel(logging.INFO)
 
 SAMPLE_RATE = 16000
 CHUNK_MS = 200
 CHUNK_BYTES = SAMPLE_RATE * 2 * CHUNK_MS // 1000  # 16-bit mono
 MAX_MESSAGE_BYTES = 1024 * 1024
+MAX_DECOMPRESSED_BYTES = 4 * 1024 * 1024
 OPEN_TIMEOUT = 10.0
+CLOSE_TIMEOUT = 2.0
+MAX_TIMEOUT = 120.0
+# Circuit breaker: after this many consecutive auth/quota failures, skip streaming for a while.
+BREAKER_THRESHOLD = 3
+BREAKER_COOLDOWN = 60.0
+QUOTA_CODES = {45000292}
 
 MSG_FULL_REQUEST = 0b0001
 MSG_AUDIO_ONLY = 0b0010
@@ -47,16 +60,51 @@ COMP_NONE = 0b0000
 COMP_GZIP = 0b0001
 AUTH_STATUSES = {401, 403}
 
-Kind = Literal["auth", "timeout", "protocol", "upstream", "empty", "not_configured"]
+Kind = Literal["auth", "quota", "timeout", "protocol", "upstream", "empty", "not_configured"]
 
 
 class AsrStreamError(Exception):
-    """`kind` is safe to log; `detail` holds upstream code/message only (never text or key)."""
+    """`kind` is safe to log; `detail` holds upstream code/message only (never text or key).
+    `connect_id` / `logid` identify the attempt for vendor support (never the key)."""
 
     def __init__(self, kind: Kind, detail: str = ""):
         super().__init__(kind)
         self.kind = kind
         self.detail = detail
+        self.connect_id = ""
+        self.logid = ""
+
+
+class AsrGate:
+    """Per-process admission control for streaming ASR: a non-blocking concurrency cap
+    (overflow goes to the fallback without connecting) and a short circuit breaker after
+    repeated auth/quota failures."""
+
+    def __init__(self, max_concurrency: int, clock=time.monotonic):
+        self._sem = asyncio.Semaphore(max(1, max_concurrency))
+        self._clock = clock
+        self._failures = 0
+        self._open_until = 0.0
+
+    async def try_enter(self) -> str | None:
+        """None if admitted (the caller must call leave()), otherwise the skip reason."""
+        if self._clock() < self._open_until:
+            return "breaker"
+        if self._sem.locked():
+            return "busy"
+        await self._sem.acquire()  # not locked, so this returns without waiting
+        return None
+
+    def leave(self, kind: str | None) -> None:
+        """Release the slot; `kind` is the failure kind, or None on success."""
+        self._sem.release()
+        if kind in ("auth", "quota"):
+            self._failures += 1
+            if self._failures >= BREAKER_THRESHOLD:
+                self._open_until = self._clock() + BREAKER_COOLDOWN
+                self._failures = 0
+        elif kind is None:
+            self._failures = 0
 
 
 @dataclass
@@ -85,6 +133,15 @@ def encode_audio(chunk: bytes, last: bool) -> bytes:
     body = gzip.compress(chunk)
     flags = FLAG_LAST if last else 0
     return _header(MSG_AUDIO_ONLY, flags, SER_NONE, COMP_GZIP) + struct.pack(">I", len(body)) + body
+
+
+def _gunzip(body: bytes) -> bytes:
+    """gzip-decompress with an output cap: a small frame must not inflate to gigabytes."""
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    out = d.decompress(body, MAX_DECOMPRESSED_BYTES)
+    if d.unconsumed_tail or not d.eof:
+        raise AsrStreamError("protocol", "decompressed payload too large or truncated")
+    return out
 
 
 def decode_frame(raw) -> Frame:
@@ -116,9 +173,10 @@ def decode_frame(raw) -> Frame:
         raise bad
     try:
         if compression == COMP_GZIP:
-            body = gzip.decompress(body)
+            body = _gunzip(body)
         payload = json.loads(body) if body else {}
-    except (OSError, EOFError, ValueError):
+    except (zlib.error, ValueError, RecursionError):
+        # RecursionError guards the JSON nesting depth (pathologically nested payloads).
         raise bad from None
     if not isinstance(payload, dict):
         raise bad
@@ -149,6 +207,14 @@ def _clean(value, limit: int = 200) -> str:
     return "".join(c if c.isprintable() else " " for c in str(value))[:limit]
 
 
+def _logid(headers) -> str:
+    try:
+        values = headers.get_all("X-Tt-Logid")
+    except Exception:  # noqa: BLE001 - diagnostics only
+        return ""
+    return _clean(values[0], 64) if values else ""
+
+
 def _request_payload(uid: str) -> dict:
     return {
         "user": {"uid": uid},
@@ -157,25 +223,47 @@ def _request_payload(uid: str) -> dict:
     }
 
 
+def stream_budget(settings: Settings, pcm_bytes: int) -> float:
+    """Base timeout plus one real-time factor of headroom, capped at MAX_TIMEOUT."""
+    return min(settings.asr_stream_timeout_seconds + pcm_bytes / (SAMPLE_RATE * 2), MAX_TIMEOUT)
+
+
 async def transcribe_pcm(settings: Settings, pcm: bytes, uid: str = "server") -> str:
+    """Final transcript, or AsrStreamError for any failure (so callers can always fall back).
+    Cancellation (BaseException) still propagates."""
+    connect_id = str(uuid.uuid4())
+    try:
+        return await _transcribe(settings, pcm, uid, connect_id)
+    except AsrStreamError as e:
+        e.connect_id = connect_id
+        raise
+    except Exception as e:  # noqa: BLE001 - RecursionError, MemoryError, library bugs...
+        err = AsrStreamError("protocol", f"unexpected {type(e).__name__}")
+        err.connect_id = connect_id
+        raise err from None
+
+
+async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str) -> str:
     key = settings.asr_stream_key
     if not key:
         raise AsrStreamError("not_configured")
     headers = {
         "X-Api-Key": key,
         "X-Api-Resource-Id": settings.asr_stream_resource_id,
-        "X-Api-Connect-Id": str(uuid.uuid4()),
+        "X-Api-Connect-Id": connect_id,
     }
+    logid = ""
     try:
-        # Base budget plus one real-time factor of headroom for long clips.
-        budget = settings.asr_stream_timeout_seconds + len(pcm) / (SAMPLE_RATE * 2)
-        async with asyncio.timeout(budget):
+        async with asyncio.timeout(stream_budget(settings, len(pcm))):
             async with connect(
                 settings.asr_stream_url,
                 additional_headers=headers,
                 open_timeout=OPEN_TIMEOUT,
                 max_size=MAX_MESSAGE_BYTES,
+                close_timeout=CLOSE_TIMEOUT,
+                logger=_ws_logger,
             ) as ws:
+                logid = _logid(ws.response.headers)
                 await ws.send(encode_full_request(_request_payload(uid)))
                 sender = asyncio.create_task(_send_audio(ws, pcm))
                 try:
@@ -183,19 +271,28 @@ async def transcribe_pcm(settings: Settings, pcm: bytes, uid: str = "server") ->
                 finally:
                     sender.cancel()
                     await asyncio.gather(sender, return_exceptions=True)
-    except AsrStreamError:
+    except AsrStreamError as e:
+        e.logid = logid
         raise
     except TimeoutError:
-        raise AsrStreamError("timeout") from None
+        err = AsrStreamError("timeout")
+        err.logid = logid
+        raise err from None
     except websockets.InvalidStatus as e:
         status = e.response.status_code
         kind: Kind = "auth" if status in AUTH_STATUSES else "upstream"
-        raise AsrStreamError(kind, f"http={status}") from None
+        err = AsrStreamError(kind, f"http={status}")
+        err.logid = _logid(e.response.headers)
+        raise err from None
     except (OSError, websockets.WebSocketException) as e:
-        raise AsrStreamError("upstream", type(e).__name__) from None
+        err = AsrStreamError("upstream", type(e).__name__)
+        err.logid = logid
+        raise err from None
     text = text.strip()
     if not text:
-        raise AsrStreamError("empty")
+        err = AsrStreamError("empty")
+        err.logid = logid
+        raise err
     return text
 
 
@@ -215,8 +312,10 @@ async def _collect(ws) -> str:
         async for raw in ws:
             frame = decode_frame(raw)
             if frame.msg_type == MSG_ERROR:
-                message = frame.payload.get("error") or frame.payload.get("message") or ""
-                raise AsrStreamError("upstream", f"code={frame.code} message={_clean(message)}")
+                message = _clean(frame.payload.get("error") or frame.payload.get("message") or "")
+                quota = frame.code in QUOTA_CODES or "quota" in message.lower()
+                kind: Kind = "quota" if quota else "upstream"
+                raise AsrStreamError(kind, f"code={frame.code} message={message}")
             if frame.last:
                 result = frame.payload.get("result")
                 text = result.get("text") if isinstance(result, dict) else None

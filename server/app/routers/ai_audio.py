@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 
-from app.asr_stream import SAMPLE_RATE, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
 from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
 from app.config import Settings
 from app.deps import get_settings, limited_user
@@ -173,51 +173,81 @@ def _fallback_configured(settings: Settings) -> bool:
     return settings.upstream_whisper_mode != "chat" or bool(settings.upstream_whisper_model)
 
 
-async def _read_audio_form(request: Request, limit: int) -> tuple[bytes, object, bytes]:
+async def _read_audio_form(request: Request, limit: int) -> tuple[bytes, object, object, bytes]:
     body = await read_limited_body(request, limit)
     form = await parse_buffered_form(request, body)
     try:
         upload = form.get("file")
         language = form.get("language")
+        response_format = form.get("response_format")
         if not isinstance(upload, UploadFile):
             raise HTTPException(400, "Audio file is required")
         audio = await upload.read()
     finally:
         await form.close()
-    return audio, language, body
+    return audio, language, response_format, body
+
+
+def _asr_gate(request: Request, settings: Settings) -> AsrGate:
+    state = request.app.state
+    if not hasattr(state, "asr_gate"):
+        state.asr_gate = AsrGate(settings.asr_stream_max_concurrency)
+    return state.asr_gate
+
+
+def _streamable_format(settings: Settings, response_format: object) -> bool:
+    """The stream returns {text, segments: []}. That matches chat mode for any format,
+    but openai mode must keep Whisper's verbose_json / text / srt / vtt responses."""
+    if settings.upstream_whisper_mode == "chat":
+        return True
+    return response_format is None or response_format in ("", "json")
 
 
 async def _stream_transcription(
     request: Request, settings: Settings, content_type: str, uid: str
 ) -> Response:
     """Volcengine streaming ASR first; on any failure fall back to the configured
-    UPSTREAM_WHISPER_MODE path. Logs carry failure class and timings only."""
-    audio, language, body = await _read_audio_form(request, MAX_AUDIO_BYTES)
-    pcm = wav_to_pcm(audio)
+    UPSTREAM_WHISPER_MODE path. Logs carry failure class, ids and timings only."""
+    audio, language, response_format, body = await _read_audio_form(request, MAX_AUDIO_BYTES)
+    pcm = wav_to_pcm(audio) if _streamable_format(settings, response_format) else None
     if pcm is not None:
         audio_s = len(pcm) / (SAMPLE_RATE * 2)
-        started = time.perf_counter()
-        try:
-            text = await transcribe_pcm(settings, pcm, uid)
-        except AsrStreamError as e:
-            elapsed = (time.perf_counter() - started) * 1000
-            fallback = _fallback_configured(settings)
+        fallback = _fallback_configured(settings)
+        gate = _asr_gate(request, settings)
+        skip = await gate.try_enter()
+        if skip is not None:
             logger.warning(
-                "asr volc_stream failed kind=%s detail=%s ms=%.0f audio_s=%.2f fallback=%s",
-                e.kind, e.detail, elapsed, audio_s, fallback,
+                "asr volc_stream skipped reason=%s audio_s=%.2f fallback=%s", skip, audio_s, fallback
             )
             if not fallback:
-                if e.kind == "not_configured":
-                    raise HTTPException(503, "Whisper upstream is not configured")
-                if e.kind == "auth":
-                    raise HTTPException(502, "Upstream authentication failed")
                 raise HTTPException(502, "Upstream unavailable")
         else:
-            logger.info(
-                "asr volc_stream ok ms=%.0f audio_s=%.2f",
-                (time.perf_counter() - started) * 1000, audio_s,
-            )
-            return JSONResponse({"text": text, "segments": []})
+            started = time.perf_counter()
+            kind = None
+            try:
+                text = await transcribe_pcm(settings, pcm, uid)
+            except AsrStreamError as e:
+                kind = e.kind
+                logger.warning(
+                    "asr volc_stream failed kind=%s detail=%s ms=%.0f audio_s=%.2f fallback=%s"
+                    " connect_id=%s logid=%s",
+                    e.kind, e.detail, (time.perf_counter() - started) * 1000, audio_s, fallback,
+                    e.connect_id, e.logid,
+                )
+                if not fallback:
+                    if e.kind == "not_configured":
+                        raise HTTPException(503, "Whisper upstream is not configured")
+                    if e.kind == "auth":
+                        raise HTTPException(502, "Upstream authentication failed")
+                    raise HTTPException(502, "Upstream unavailable")
+            else:
+                logger.info(
+                    "asr volc_stream ok ms=%.0f audio_s=%.2f",
+                    (time.perf_counter() - started) * 1000, audio_s,
+                )
+                return JSONResponse({"text": text, "segments": []})
+            finally:
+                gate.leave(kind)
     del pcm
     if settings.upstream_whisper_mode == "chat":
         del body
@@ -249,7 +279,7 @@ def _extract_text(response: httpx.Response) -> str:
 async def _chat_transcription(request: Request, settings: Settings) -> Response:
     if not settings.upstream_whisper_base_url or not settings.upstream_whisper_model:
         raise HTTPException(503, "Whisper upstream is not configured")
-    audio, language, _body = await _read_audio_form(
+    audio, language, _fmt, _body = await _read_audio_form(
         request, MAX_CHAT_AUDIO_BYTES + MULTIPART_OVERHEAD
     )
     del _body

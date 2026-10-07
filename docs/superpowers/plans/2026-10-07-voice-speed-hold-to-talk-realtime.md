@@ -52,9 +52,9 @@
 
 | # | 裁定 |
 |---|---|
-| R1 | **上游门控**:标〔需上游〕的步骤只在用户确认火山 TTS 与方舟识别已恢复、并同意产生费用后运行;运行前先跑 Task 0.3 的"连通性预检"(一次 TTS、一次识别),失败即整段记为"阻塞:上游"。阻塞期间:`REALTIME_ENABLED` 保持默认 `false`,`ASR_STREAM_ENABLED` 保持默认 `false`,设计文档 §7 第 1、4 条(提速可量化、实时端到端)在 `e2e-results.md` 的 OPEN ACCEPTANCE ITEMS 里保持 OPEN。 |
+| R1 | **上游门控**:标〔需上游〕的步骤只在用户确认火山 TTS 与方舟识别已恢复、并同意产生费用后运行;运行前先跑 Task 0.3 的"连通性预检"(一次 TTS、一次识别),失败即整段记为"阻塞:上游"。阻塞期间:`REALTIME_ENABLED` 保持默认 `false`,`UPSTREAM_ASR_MODE` 保持默认 `chat`,设计文档 §7 第 1、4 条(提速可量化、实时端到端)在 `e2e-results.md` 的 OPEN ACCEPTANCE ITEMS 里保持 OPEN。 |
 | R2 | **基线先行**:Task 0.1(打点)与 Task 0.2(测量脚本)提交后立刻打标签 `git tag voice-latency-baseline`。基线**必须**在这个标签对应的代码上测(Task 0.5);若上游在优化落地之后才恢复,用 `git worktree add ../ecue-baseline voice-latency-baseline` 起一份旧代码测基线,再在最新代码上测"之后",两组数字同一天、同一网络测量。任何优化任务(阶段 1 起)都不得在这个标签之前提交。 |
-| R3 | **识别走向与降级**:流式识别默认关(`ASR_STREAM_ENABLED=false`),只有 Task 0.4 spike 证明鉴权与帧协议可用、Task 1.6 完成后,才由用户在自己的 `.env` 里打开。实时通话的识别选择 `make_recognizers`(Task 4.4)按此开关选择 `VolcStreamRecognizer` 或 `BufferedRecognizer`;流式识别器创建失败 → 该通话改用 `BufferedRecognizer` 并下发 `{"type": "degraded", "reason": "asr"}`,界面显示"网络/服务较慢"(不整体失败)。语音消息(非通话)始终走现有上传识别 `/api/ai/audio/transcriptions`(本计划只优化它的客户端与提示词)。 |
+| R3 | **识别走向与降级**:流式识别默认关(`UPSTREAM_ASR_MODE=chat`;开启为 `UPSTREAM_ASR_MODE=volc_stream`,已随 spike 落地,见 `2026-10-07-volc-streaming-asr-spike.md`),由用户在自己的 `.env` 里打开。下文代码中的 `settings.asr_stream_enabled` 是只读属性,等价于 `upstream_asr_mode == "volc_stream"`;`ASR_STREAM_URL` 已用于上传识别(`bigmodel_nostream`),实时通话需要的 `bigmodel_async` 地址要另设配置项(Task 1.6 时决定)。实时通话的识别选择 `make_recognizers`(Task 4.4)按此开关选择 `VolcStreamRecognizer` 或 `BufferedRecognizer`;流式识别器创建失败 → 该通话改用 `BufferedRecognizer` 并下发 `{"type": "degraded", "reason": "asr"}`,界面显示"网络/服务较慢"(不整体失败)。语音消息(非通话)始终走现有上传识别 `/api/ai/audio/transcriptions`(本计划只优化它的客户端与提示词)。 |
 | R4 | **"没有清晰前景语音"的表示**:识别提示词要求此时**只输出 `<none>`**;服务端 `NO_SPEECH_TOKEN = "<none>"`,命中(去空白、忽略大小写)时返回 `200 {"text": "", "segments": []}`;上游返回空串仍是 `502 Upstream unavailable`(既有测试 `test_upstream_problems_are_502` 不改)。网页端空转写沿用既有 `web.chat.noSpeech` 提示。 |
 | R5 | **识别请求的提速参数**(仅 chat 模式):加 `max_tokens = STT_MAX_TOKENS`(默认 512)与 `thinking = {"type": "disabled"}`(由 `STT_DISABLE_THINKING` 控制,默认 `true`)。后者是否被方舟当前模型接受**未验证**:Task 0.3 用真实上游各测一次带/不带;若带上返回 4xx,门槛 0 记录"把 `STT_DISABLE_THINKING=false` 写进 `.env.example` 默认值"的决定并在 Task 1.2 照做。 |
 | R6 | **TTS 分块透传**:`POST /api/ai/audio/speech` 的请求体新增可选 `stream: bool = false`。`false`(缺省)行为与今天逐字节相同。`true` 且模型是火山时:服务端先从上游取到第一块音频再返回 `StreamingResponse`(`audio/mpeg`、`Cache-Control: no-store`、`X-Accel-Buffering: no`),所以"第一块之前"的错误仍是正常的 JSON 错误(502/503/400);第一块之后上游出错 → 截断响应并记日志(客户端会得到一段较短的音频)。`true` 但模型不是火山 → 忽略 `stream`,整段返回(向后兼容)。网页端的自动朗读**不**依赖这个开关(`<audio>` 需要完整 blob,R8 用"按句"实现提速);它的消费者是实时通话的服务端内部(直接用 `synthesize_stream` 生成器)与 Task 0.5/5.1 的首块延迟测量。 |
@@ -1285,7 +1285,7 @@ git commit -m "docs: decide the ASR path and latency targets from the spikes" -m
 
 **Interfaces:**
 - Consumes:既有 `Settings`、`tests/conftest.py` 的 `make_settings`。
-- Produces:`Settings` 新字段 —— `stt_max_tokens: int = 512`、`stt_disable_thinking: bool = True`(Task 0.6 决定为 false 时默认值改为 `False`)、`asr_stream_enabled: bool = False`、`asr_stream_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"`、`asr_stream_resource_id: str = "volc.bigasr.sauc.duration"`、`asr_stream_key: str = ""`、`realtime_enabled: bool = False`、`realtime_max_minutes: int = 10`(1–60)、`realtime_idle_timeout_seconds: int = 60`(10–600)、`realtime_max_sessions: int = 5`(1–100)、`realtime_ticket_ttl_seconds: int = 60`(10–300)、`realtime_tts_model: str = "volcengine/seed-tts-2.0"`、`realtime_tts_sample_rate: int = 24000`;属性 `resolved_asr_stream_key -> str`(`asr_stream_key` 去空白后非空用它,否则用 `volcengine_tts_key`)、`realtime_available -> bool`(`realtime_enabled` 且 `volcengine_tts_key` 非空、`realtime_tts_model` 在 `tts_model_list` 里、`upstream_llm_base_url` 非空、并且 `asr_stream_enabled` 或 `upstream_whisper_base_url` 非空)。若 Task 0.4 结论要求 App ID + Access Token 鉴权,再加 `asr_stream_app_id: str = ""`、`asr_stream_access_key: str = ""`。
+- Produces:`Settings` 新字段 —— `stt_max_tokens: int = 512`、`stt_disable_thinking: bool = True`(Task 0.6 决定为 false 时默认值改为 `False`)、`realtime_enabled: bool = False`、`realtime_max_minutes: int = 10`(1–60)、`realtime_idle_timeout_seconds: int = 60`(10–600)、`realtime_max_sessions: int = 5`(1–100)、`realtime_ticket_ttl_seconds: int = 60`(10–300)、`realtime_tts_model: str = "volcengine/seed-tts-2.0"`、`realtime_tts_sample_rate: int = 24000`;属性 `asr_stream_enabled -> bool`(`upstream_asr_mode == "volc_stream"`;`upstream_asr_mode`、`asr_stream_url`、`asr_stream_resource_id`、`volcengine_asr_key` 与属性 `asr_stream_key` 已由 spike 提交加入)、`realtime_available -> bool`(`realtime_enabled` 且 `volcengine_tts_key` 非空、`realtime_tts_model` 在 `tts_model_list` 里、`upstream_llm_base_url` 非空、并且 `asr_stream_enabled` 或 `upstream_whisper_base_url` 非空)。若 Task 0.4 结论要求 App ID + Access Token 鉴权,再加 `asr_stream_app_id: str = ""`、`asr_stream_access_key: str = ""`。
 
 - [ ] **Step 1: 写失败的测试** —— `server/tests/test_realtime_settings.py`:
 
@@ -1304,7 +1304,7 @@ VOLC = {
 def test_defaults_are_conservative():
     s = make_settings()
     assert s.realtime_enabled is False
-    assert s.asr_stream_enabled is False
+    assert s.asr_stream_enabled is False  # upstream_asr_mode 默认 chat
     assert (s.realtime_max_minutes, s.realtime_idle_timeout_seconds) == (10, 60)
     assert (s.realtime_max_sessions, s.realtime_ticket_ttl_seconds) == (5, 60)
     assert s.stt_max_tokens == 512
@@ -1312,8 +1312,8 @@ def test_defaults_are_conservative():
 
 
 def test_asr_stream_key_falls_back_to_the_tts_key():
-    assert make_settings(**VOLC).resolved_asr_stream_key == "volc-secret"
-    assert make_settings(**VOLC, asr_stream_key=" own ").resolved_asr_stream_key == "own"
+    assert make_settings(**VOLC).asr_stream_key == "volc-secret"
+    assert make_settings(**VOLC, volcengine_asr_key="own").asr_stream_key == "own"
 
 
 def test_realtime_available_needs_every_upstream():
@@ -1322,7 +1322,7 @@ def test_realtime_available_needs_every_upstream():
     assert make_settings(realtime_enabled=True).realtime_available is False  # 没有火山 TTS
     assert make_settings(**VOLC, realtime_enabled=True, upstream_llm_base_url="").realtime_available is False
     assert make_settings(**VOLC, realtime_enabled=True, upstream_whisper_base_url="").realtime_available is False
-    assert make_settings(**VOLC, realtime_enabled=True, upstream_whisper_base_url="", asr_stream_enabled=True).realtime_available is True
+    assert make_settings(**VOLC, realtime_enabled=True, upstream_whisper_base_url="", upstream_asr_mode="volc_stream").realtime_available is True
 
 
 @pytest.mark.parametrize("field,value", [
@@ -1342,10 +1342,7 @@ def test_limits_are_bounded(field, value):
     # ---- 语音提速与实时通话(设计文档 2026-10-07)----
     stt_max_tokens: int = 512
     stt_disable_thinking: bool = True
-    asr_stream_enabled: bool = False
-    asr_stream_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-    asr_stream_resource_id: str = "volc.bigasr.sauc.duration"
-    asr_stream_key: str = ""
+    # UPSTREAM_ASR_MODE / ASR_STREAM_URL / ASR_STREAM_RESOURCE_ID / VOLCENGINE_ASR_KEY 已存在(spike 提交)
     realtime_enabled: bool = False
     realtime_max_minutes: int = Field(10, ge=1, le=60)
     realtime_idle_timeout_seconds: int = Field(60, ge=10, le=600)
@@ -1359,8 +1356,9 @@ def test_limits_are_bounded(field, value):
 
 ```python
     @property
-    def resolved_asr_stream_key(self) -> str:
-        return self.asr_stream_key.strip() or self.volcengine_tts_key
+    def asr_stream_enabled(self) -> bool:
+        # 已有的 asr_stream_key 属性 = VOLCENGINE_ASR_KEY 或 VOLCENGINE_TTS_KEY
+        return self.upstream_asr_mode == "volc_stream"
 
     @property
     def realtime_available(self) -> bool:
@@ -1380,11 +1378,7 @@ def test_limits_are_bounded(field, value):
 # chat 模式识别:限制输出长度;关闭"深度思考"(若方舟模型不接受该参数,改为 false)
 STT_MAX_TOKENS=512
 STT_DISABLE_THINKING=true
-# 火山大模型流式识别:spike 通过后才打开;ASR_STREAM_KEY 留空则沿用 VOLCENGINE_TTS_KEY
-ASR_STREAM_ENABLED=false
-ASR_STREAM_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
-ASR_STREAM_RESOURCE_ID=volc.bigasr.sauc.duration
-ASR_STREAM_KEY=
+# 火山大模型流式识别的开关与配置已在上方(UPSTREAM_ASR_MODE 等,spike 提交)
 # 实时通话(默认关;需要火山 TTS、LLM 与识别都可用)
 REALTIME_ENABLED=false
 REALTIME_MAX_MINUTES=10
@@ -2391,7 +2385,7 @@ git commit -m "feat(server): add a per-utterance recognizer with an upload fallb
 - Create: `server/app/asr_stream.py`、`server/tests/test_asr_stream.py`
 
 **Interfaces:**
-- Consumes:Task 1.1 的 `asr_stream_url`、`asr_stream_resource_id`、`resolved_asr_stream_key`;Task 1.5 的 `AsrError`、`PartialCallback`、`RecognizerFactory`;spike 第 2 节的帧格式与鉴权头(若与下方不同,以 spike 为准修改常量与测试里的期望,并在提交信息里注明)。
+- Consumes:Task 1.1 的 `asr_stream_url`、`asr_stream_resource_id`、`asr_stream_key`;Task 1.5 的 `AsrError`、`PartialCallback`、`RecognizerFactory`;spike 第 2 节的帧格式与鉴权头(若与下方不同,以 spike 为准修改常量与测试里的期望,并在提交信息里注明)。
 - Produces:`encode_full_request(payload: dict, seq: int) -> bytes`;`encode_audio(pcm: bytes, seq: int, last: bool) -> bytes`;`@dataclass ServerFrame(kind: Literal["result", "error"], flags: int, seq: int | None, payload: dict | None, error_code: int | None, message: str)`;`decode_frame(data: bytes) -> ServerFrame`(格式错误抛 `AsrError("upstream")`);`class VolcStreamRecognizer`(实现 `UtteranceRecognizer`);`def volc_stream_factory(settings, uid: str, connect=websockets.asyncio.client.connect) -> RecognizerFactory`(连接失败/握手 401/403 → `AsrError("auth")`,其他 → `AsrError("upstream")`,都在工厂调用时抛出,便于 Task 4.3 的降级)。
 
 - [ ] **Step 1: 写失败的测试** —— `server/tests/test_asr_stream.py`(用本机 `websockets` 服务端扮演上游,不访问外网):
@@ -2657,7 +2651,7 @@ class VolcStreamRecognizer:
 def volc_stream_factory(settings: Settings, uid: str, connect=ws_connect) -> RecognizerFactory:
     async def factory(on_partial: PartialCallback) -> UtteranceRecognizer:
         headers = {
-            "X-Api-Key": settings.resolved_asr_stream_key,
+            "X-Api-Key": settings.asr_stream_key,
             "X-Api-Resource-Id": settings.asr_stream_resource_id,
             "X-Api-Connect-Id": str(uuid.uuid4()),
         }
@@ -6937,7 +6931,7 @@ async def test_tts_stream_maps_errors(monkeypatch):
 def test_recognizer_selection():
     _, fallback, mode = make_recognizers(None, make_settings(), "1")
     assert (fallback, mode) == (None, "buffered")
-    primary, fallback, mode = make_recognizers(None, make_settings(asr_stream_enabled=True, volcengine_tts_key="k"), "1")
+    primary, fallback, mode = make_recognizers(None, make_settings(upstream_asr_mode="volc_stream", volcengine_tts_key="k"), "1")
     assert mode in ("stream", "buffered")  # Task 1.6 未执行时为 buffered
     if mode == "stream":
         assert fallback is not None
@@ -7072,7 +7066,7 @@ def make_recognizers(http: httpx.AsyncClient, settings: Settings, uid: str) -> t
     try:
         from app.asr_stream import volc_stream_factory
     except ImportError:
-        logger.warning("ASR_STREAM_ENABLED is set but app.asr_stream is missing; using the buffered recognizer")
+        logger.warning("UPSTREAM_ASR_MODE=volc_stream but app.asr_stream has no realtime factory; using the buffered recognizer")
         return buffered, None, "buffered"
     return volc_stream_factory(settings, uid), buffered, "stream"
 
@@ -9388,7 +9382,7 @@ git commit -m "docs: record the optional end-to-end realtime dialogue spike" -m 
 ## 已知未决与未验证项(开工即知,执行中如实更新)
 
 1. **上游账号异常**(2026-10-05 起火山 TTS 403、方舟识别 502):Task 0.3–0.5、5.1、5.2、5.5 全部依赖用户恢复;阻塞期间按 R1 记录,不得用模拟冒充。
-2. **火山流式识别**(`sauc/bigmodel*`)的鉴权方式(UUID `X-Api-Key` 是否被接受、资源 ID、是否需 App ID + Access Token)、帧格式、鉴权类错误码:Task 0.4 验证;未验证前 `ASR_STREAM_ENABLED=false`,Task 1.6 不执行。
+2. **火山流式识别**(`sauc/bigmodel*`)的鉴权方式(UUID `X-Api-Key` 是否被接受、资源 ID、是否需 App ID + Access Token)、帧格式、鉴权类错误码:Task 0.4 验证;已验证(UUID Key + `volc.bigasr.sauc.duration` 可用),开关为 `UPSTREAM_ASR_MODE=volc_stream`。
 3. **方舟识别模型是否接受 `thinking: {"type": "disabled"}`、`<none>` 指令是否被严格遵守**:Task 0.3 验证。
 4. **火山 TTS 的 `pcm` 输出与 24 kHz 采样率、分块到达时间**:Task 0.5 验证;实时通话的下行采样率以此为准(`REALTIME_TTS_SAMPLE_RATE`)。
 5. **`@ricky0123/vad-web` 的 API**(`getStream`、`onFrameProcessed` 签名、资源文件名)随版本变化:Task 2.3 Step 1 核对并锁版本;iOS Safari 上 ONNX/WASM 的性能与它自建的第二个 `AudioContext` 是否被系统限制:未验证(真机)。

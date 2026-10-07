@@ -2,6 +2,7 @@ import asyncio
 import gzip
 import io
 import json
+import logging
 import struct
 import wave
 
@@ -11,11 +12,17 @@ from websockets.datastructures import Headers
 from websockets.http11 import Response
 
 from app.asr_stream import (
+    BREAKER_COOLDOWN,
+    BREAKER_THRESHOLD,
     CHUNK_BYTES,
+    MAX_DECOMPRESSED_BYTES,
+    MAX_TIMEOUT,
+    AsrGate,
     AsrStreamError,
     decode_frame,
     encode_audio,
     encode_full_request,
+    stream_budget,
     transcribe_pcm,
     wav_to_pcm,
 )
@@ -146,7 +153,8 @@ class FakeAsr:
         self.path = request.path
         if self.mode == "reject":
             body = b'{"error":"[resource_id=x] requested resource not granted"}'
-            return Response(403, "Forbidden", Headers([("Content-Length", str(len(body)))]), body)
+            headers = Headers([("Content-Length", str(len(body))), ("X-Tt-Logid", "LOG123")])
+            return Response(403, "Forbidden", headers, body)
         if self.mode == "reject500":
             return Response(500, "Error", Headers([("Content-Length", "0")]), b"")
         return None
@@ -156,6 +164,10 @@ class FakeAsr:
         self.frames.append(first)
         if self.mode == "error":
             await ws.send(server_error(45000292, "quota exceeded for types: concurrency"))
+            await ws.close()
+            return
+        if self.mode == "error_other":
+            await ws.send(server_error(45000001, "invalid params"))
             await ws.close()
             return
         await ws.send(server_response({"result": {"text": ""}}, seq=1))
@@ -168,6 +180,12 @@ class FakeAsr:
         seq = 2
         async for raw in ws:
             self.frames.append(raw)
+            if self.mode == "close_mid":
+                await ws.close()
+                return
+            if self.mode == "bomb":
+                await ws.send(server_response({"pad": "0" * (5 * 1024 * 1024)}, seq=-seq, last=True, gz=True))
+                return
             last = raw[1] & 0x0F == 0b0010
             if not last:
                 await ws.send(server_response({"result": {"text": "partial"}}, seq=seq))
@@ -186,7 +204,8 @@ class FakeAsr:
 @pytest.fixture
 async def fake():
     f = FakeAsr()
-    async with serve(f.handler, "127.0.0.1", 0, process_request=f.process_request) as server:
+    # max_queue=None: a handler that stops reading must still see the client's close frame.
+    async with serve(f.handler, "127.0.0.1", 0, process_request=f.process_request, max_queue=None) as server:
         port = server.sockets[0].getsockname()[1]
         f.url = f"ws://127.0.0.1:{port}/api/v3/sauc/bigmodel_nostream"
         yield f
@@ -241,6 +260,8 @@ async def test_handshake_403_is_auth_error(fake):
         await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
     assert e.value.kind == "auth"
     assert "tts-uuid" not in str(e.value) and "tts-uuid" not in e.value.detail
+    assert e.value.logid == "LOG123"
+    assert e.value.connect_id == fake.headers["X-Api-Connect-Id"]
 
 
 async def test_handshake_500_is_upstream_error(fake):
@@ -250,12 +271,58 @@ async def test_handshake_500_is_upstream_error(fake):
     assert e.value.kind == "upstream"
 
 
-async def test_error_frame_is_upstream_error_with_code(fake):
+async def test_quota_error_frame_is_quota_error_with_code(fake):
     fake.mode = "error"
     with pytest.raises(AsrStreamError) as e:
         await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
-    assert e.value.kind == "upstream"
+    assert e.value.kind == "quota"
     assert "45000292" in e.value.detail
+
+
+async def test_other_error_frame_is_upstream_error(fake):
+    fake.mode = "error_other"
+    with pytest.raises(AsrStreamError) as e:
+        await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
+    assert e.value.kind == "upstream"
+    assert "45000001" in e.value.detail
+
+
+async def test_server_close_mid_send_is_protocol_error(fake):
+    fake.mode = "close_mid"
+    pcm = b"\x00\x01" * (CHUNK_BYTES * 50)  # many chunks: the server closes while we still send
+    with pytest.raises(AsrStreamError) as e:
+        await transcribe_pcm(settings_for(fake.url), pcm)
+    assert e.value.kind == "protocol"
+
+
+async def test_gzip_bomb_from_server_is_protocol_error(fake):
+    fake.mode = "bomb"
+    with pytest.raises(AsrStreamError) as e:
+        await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
+    assert e.value.kind == "protocol"
+
+
+async def test_unexpected_exception_becomes_protocol_error(fake, monkeypatch):
+    def boom(raw):
+        raise MemoryError()
+
+    monkeypatch.setattr("app.asr_stream.decode_frame", boom)
+    with pytest.raises(AsrStreamError) as e:
+        await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
+    assert e.value.kind == "protocol"
+    assert "MemoryError" in e.value.detail
+    assert e.value.connect_id
+
+
+async def test_key_not_logged_even_at_debug(fake, caplog):
+    caplog.set_level(logging.DEBUG)
+    await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
+    # The fake *server* (test side) logs the headers it receives; only client records matter.
+    client = [r for r in caplog.records if not r.name.startswith("websockets.server")]
+    assert client is not None
+    assert all("tts-uuid" not in r.getMessage() for r in client)
+    assert not any(r.name == "app.asr_stream.websockets" and r.levelno < logging.INFO for r in client)
+    assert logging.getLogger("app.asr_stream.websockets").level == logging.INFO
 
 
 async def test_timeout(fake):
@@ -279,16 +346,16 @@ async def test_garbage_frame_is_protocol_error(fake):
     assert e.value.kind == "protocol"
 
 
-@pytest.mark.parametrize("mode", ["no_text"])
-async def test_empty_final_text_is_empty_error(fake, mode):
-    fake.mode = mode
+async def test_missing_final_text_is_empty_error(fake):
+    fake.mode = "no_text"
     with pytest.raises(AsrStreamError) as e:
         await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
     assert e.value.kind == "empty"
 
 
-async def test_blank_final_text_is_empty_error(fake):
-    fake.text = "   "
+@pytest.mark.parametrize("text", ["", "   ", "\n\t ", 42, None], ids=["empty", "spaces", "ws", "int", "null"])
+async def test_blank_or_non_string_final_text_is_empty_error(fake, text):
+    fake.text = text
     with pytest.raises(AsrStreamError) as e:
         await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
     assert e.value.kind == "empty"
@@ -322,5 +389,92 @@ def test_settings_defaults():
     assert s.asr_stream_resource_id == "volc.bigasr.sauc.duration"
     assert s.volcengine_asr_key == ""
     assert s.asr_stream_key == ""
+    assert s.asr_stream_timeout_seconds == 30
+    assert s.asr_stream_max_concurrency == 3
     assert Settings(_env_file=None, volcengine_tts_key="t").asr_stream_key == "t"
     assert Settings(_env_file=None, volcengine_tts_key="t", volcengine_asr_key="a").asr_stream_key == "a"
+
+
+# ---- decompression cap, JSON depth ----
+
+
+def test_decode_rejects_gzip_bomb():
+    bomb = gzip.compress(b'{"a":"' + b"0" * (MAX_DECOMPRESSED_BYTES + 10) + b'"}')
+    raw = bytes([0x11, 0x93, 0x11, 0]) + struct.pack(">iI", 1, len(bomb)) + bomb
+    assert len(raw) < 64 * 1024
+    with pytest.raises(AsrStreamError) as e:
+        decode_frame(raw)
+    assert e.value.kind == "protocol"
+
+
+def test_decode_accepts_payload_at_the_cap_boundary():
+    body = json.dumps({"result": {"text": "x" * 1000}}).encode()
+    gz = gzip.compress(body)
+    raw = bytes([0x11, 0x93, 0x11, 0]) + struct.pack(">iI", 1, len(gz)) + gz
+    assert decode_frame(raw).payload["result"]["text"] == "x" * 1000
+
+
+def test_decode_rejects_truncated_gzip():
+    gz = gzip.compress(b'{"a": 1}')[:-6]
+    raw = bytes([0x11, 0x93, 0x11, 0]) + struct.pack(">iI", 1, len(gz)) + gz
+    with pytest.raises(AsrStreamError) as e:
+        decode_frame(raw)
+    assert e.value.kind == "protocol"
+
+
+def test_decode_rejects_deeply_nested_json():
+    body = b'{"a":' + b"[" * 200_000 + b"]" * 200_000 + b"}"
+    raw = bytes([0x11, 0x93, 0x10, 0]) + struct.pack(">iI", 1, len(body)) + body
+    with pytest.raises(AsrStreamError) as e:
+        decode_frame(raw)
+    assert e.value.kind == "protocol"
+
+
+# ---- timeout budget ----
+
+
+def test_stream_budget_scales_with_audio_and_is_capped():
+    s = Settings(_env_file=None)
+    assert stream_budget(s, 0) == 30
+    assert stream_budget(s, 32000 * 10) == 40
+    assert stream_budget(s, 32000 * 600) == MAX_TIMEOUT == 120
+
+
+# ---- gate: concurrency cap and circuit breaker ----
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+async def test_gate_concurrency_cap():
+    gate = AsrGate(2)
+    assert await gate.try_enter() is None
+    assert await gate.try_enter() is None
+    assert await gate.try_enter() == "busy"
+    gate.leave(None)
+    assert await gate.try_enter() is None
+
+
+@pytest.mark.parametrize("kind", ["auth", "quota"])
+async def test_gate_breaker_opens_after_consecutive_auth_or_quota(kind):
+    clock = Clock()
+    gate = AsrGate(3, clock=clock)
+    for _ in range(BREAKER_THRESHOLD):
+        assert await gate.try_enter() is None
+        gate.leave(kind)
+    assert await gate.try_enter() == "breaker"
+    clock.now += BREAKER_COOLDOWN + 0.1
+    assert await gate.try_enter() is None
+
+
+async def test_gate_success_resets_and_other_failures_do_not_count():
+    gate = AsrGate(3, clock=Clock())
+    for kind in ["auth", "auth", None, "auth", "timeout", "upstream", "auth"]:
+        assert await gate.try_enter() is None
+        gate.leave(kind)
+    assert await gate.try_enter() is None

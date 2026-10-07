@@ -54,10 +54,25 @@
 
 ## 实现
 
-- `server/app/asr_stream.py`:帧编解码,`wav_to_pcm`(仅接受 16 kHz 单声道 16 位,否则返回 None),`transcribe_pcm(settings, pcm, uid)`;总超时为 `ASR_STREAM_TIMEOUT_SECONDS` 加上音频时长。错误类型 `AsrStreamError.kind` ∈ {auth, timeout, protocol, upstream, empty, not_configured};`detail` 只含 HTTP 状态或上游错误码,不含文本和密钥。
-- `POST /api/ai/audio/transcriptions`:当 `UPSTREAM_ASR_MODE=volc_stream` 且音频是合格 WAV 时走流式识别,返回 `{"text", "segments": []}`;否则(或失败时)走 `UPSTREAM_WHISPER_MODE` 的原路径(chat / openai)。未配置回退时:auth → 502 `Upstream authentication failed`,其他 → 502 `Upstream unavailable`,缺 Key → 503。日志:`asr volc_stream ok ms= audio_s=`、`asr volc_stream failed kind= detail= ms= audio_s= fallback=`、`asr chat ok ms= bytes=`。
-- 配置:`UPSTREAM_ASR_MODE`(默认 `chat`)、`ASR_STREAM_URL`、`ASR_STREAM_RESOURCE_ID`、`ASR_STREAM_TIMEOUT_SECONDS`、`VOLCENGINE_ASR_KEY`(空则用 `VOLCENGINE_TTS_KEY`)。
-- `scripts/smoke.py`:传入 `--wav` 时额外检查 WAV 转写。
+- `server/app/asr_stream.py`:
+  - 帧编解码:gzip 解压后最多 4 MiB,超出或截断都算协议错误;过深的 JSON 嵌套也算协议错误。
+  - `wav_to_pcm`:只接受 16 kHz、单声道、16 位,否则返回 None。
+  - `transcribe_pcm(settings, pcm, uid)`:超时为 `min(ASR_STREAM_TIMEOUT_SECONDS + 音频秒数, 120)`。任何非取消类异常都会转成 `AsrStreamError`,所以总能回退。
+  - `AsrStreamError.kind` ∈ {auth, quota, timeout, protocol, upstream, empty, not_configured}。`detail` 只含 HTTP 状态或上游错误码,`connect_id` 和 `logid`(`X-Tt-Logid`)用于联系厂商排查,都不含文本和密钥。
+  - `AsrGate`:每进程的非阻塞并发上限(`ASR_STREAM_MAX_CONCURRENCY`,默认 3),超出的请求不连接上游,直接回退。另有熔断:连续 3 次 auth/quota 失败后,60 秒内跳过流式。
+  - websockets 连接使用专用 logger,固定为 INFO,所以全局开 DEBUG 也不会打印带密钥的握手头。
+- `POST /api/ai/audio/transcriptions`:
+  - 当 `UPSTREAM_ASR_MODE=volc_stream`,音频是合格的 WAV,且(`UPSTREAM_WHISPER_MODE=chat`,或 `response_format` 为空/`json`)时,走流式识别并返回 `{"text", "segments": []}`。
+  - 否则(包括失败、并发已满、熔断中)走 `UPSTREAM_WHISPER_MODE` 的原路径(chat / openai),Whisper 的 `verbose_json`/`text`/`srt`/`vtt` 响应保持不变。
+  - 未配置回退时:不适合流式的请求返回 503 `Whisper upstream is not configured`;流式 auth 失败返回 502 `Upstream authentication failed`;其他失败(含并发已满、熔断)返回 502 `Upstream unavailable`;缺 Key 返回 503。
+  - 日志:`asr volc_stream ok ms= audio_s=`、`asr volc_stream failed kind= detail= ms= audio_s= fallback= connect_id= logid=`、`asr volc_stream skipped reason=busy|breaker`、`asr chat ok ms= bytes=`。
+- 配置:`UPSTREAM_ASR_MODE`(默认 `chat`)、`ASR_STREAM_URL`、`ASR_STREAM_RESOURCE_ID`、`ASR_STREAM_TIMEOUT_SECONDS`、`ASR_STREAM_MAX_CONCURRENCY`、`VOLCENGINE_ASR_KEY`(为空则用 `VOLCENGINE_TTS_KEY`)。
+- `scripts/smoke.py`:传入 `--wav` 时额外检查 WAV 转写(检查 `--reference` 的首词;如果首词是数字,可能因 ITN 误报失败)。
+
+## 评审后接受的已知限制(M3/M4)
+
+- 内存:volc_stream 模式一次请求会同时持有请求体、音频和 PCM 的副本,单个请求最多约 4 倍上传大小(25 MB 上传约 100 MB)。chat 回退模式也会先缓冲最多 25 MB,再返回 413(原来是 18 MB + 64 KiB)。
+- 18–25 MB 的合格 WAV 流式失败后回退到 chat,会得到 413 `Audio file is too large`,哪怕同一个文件在流式成功时能转写。
 
 ## 如何开启
 

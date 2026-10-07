@@ -82,7 +82,7 @@ async def test_stream_success_skips_chat(client, auth_headers, respx_mock, strea
 
 
 @pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
-@pytest.mark.parametrize("kind", ["auth", "timeout", "protocol", "upstream", "empty", "not_configured"])
+@pytest.mark.parametrize("kind", ["auth", "quota", "timeout", "protocol", "upstream", "empty", "not_configured"])
 async def test_stream_failure_falls_back_to_chat(client, auth_headers, respx_mock, stream_calls, caplog, kind):
     stream_calls.state["result"] = AsrStreamError(kind, "code=1 message=x")
     route = respx_mock.post(ARK).mock(return_value=ok())
@@ -124,6 +124,7 @@ async def test_unknown_format_still_400(client, auth_headers, respx_mock, stream
     "kind,error",
     [
         ("auth", "Upstream authentication failed"),
+        ("quota", "Upstream unavailable"),
         ("timeout", "Upstream unavailable"),
         ("protocol", "Upstream unavailable"),
         ("upstream", "Upstream unavailable"),
@@ -221,3 +222,111 @@ async def test_end_to_end_with_fake_ws_server(app, client, auth_headers, respx_m
     assert r.json() == {"text": "Fake server text.", "segments": []}
     assert not route.called
     assert sum(len(gzip.decompress(f[8:])) for f in received) == 32000
+
+
+# ---- response_format (openai mode keeps Whisper's formats) ----
+
+
+@pytest.mark.parametrize("settings_overrides", [{**VOLC}], indirect=True)
+@pytest.mark.parametrize("fmt", ["verbose_json", "text", "srt", "vtt"])
+async def test_openai_mode_non_json_format_skips_stream(client, auth_headers, respx_mock, stream_calls, fmt):
+    route = respx_mock.post(WHISPER).mock(return_value=httpx.Response(200, text="whisper says"))
+    r = await post(client, auth_headers, model="whisper-1", response_format=fmt)
+    assert r.status_code == 200 and r.text == "whisper says"
+    assert not stream_calls
+    assert f"response_format".encode() in route.calls.last.request.content
+    assert fmt.encode() in route.calls.last.request.content
+
+
+@pytest.mark.parametrize("settings_overrides", [{**VOLC}], indirect=True)
+@pytest.mark.parametrize("fmt", [None, "", "json"], ids=["absent", "blank", "json"])
+async def test_openai_mode_json_format_streams(client, auth_headers, respx_mock, stream_calls, fmt):
+    route = respx_mock.post(WHISPER).mock(return_value=httpx.Response(200, json={"text": "w"}))
+    form = {} if fmt is None else {"response_format": fmt}
+    r = await post(client, auth_headers, **form)
+    assert r.status_code == 200 and r.json() == {"text": "stream text", "segments": []}
+    assert len(stream_calls) == 1 and not route.called
+
+
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
+async def test_chat_mode_streams_regardless_of_format(client, auth_headers, respx_mock, stream_calls):
+    route = respx_mock.post(ARK).mock(return_value=ok())
+    r = await post(client, auth_headers, response_format="verbose_json")
+    assert r.json() == {"text": "stream text", "segments": []}
+    assert len(stream_calls) == 1 and not route.called
+
+
+# ---- gate ----
+
+
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC, "asr_stream_max_concurrency": 1}], indirect=True)
+async def test_busy_gate_goes_straight_to_fallback(app, client, auth_headers, respx_mock, stream_calls, caplog):
+    from app.asr_stream import AsrGate
+
+    gate = AsrGate(1)
+    assert await gate.try_enter() is None  # occupy the only slot
+    app.state.asr_gate = gate
+    route = respx_mock.post(ARK).mock(return_value=ok())
+    caplog.set_level(logging.INFO, logger="app.routers.ai_audio")
+    r = await post(client, auth_headers)
+    assert r.json() == {"text": "chat text", "segments": []}
+    assert not stream_calls and route.called
+    assert any("skipped reason=busy" in m for m in caplog.messages)
+
+
+@pytest.mark.parametrize(
+    "settings_overrides", [{**VOLC, "upstream_whisper_mode": "chat", "upstream_whisper_base_url": ""}], indirect=True
+)
+async def test_busy_gate_without_fallback_is_502(app, client, auth_headers, stream_calls):
+    from app.asr_stream import AsrGate
+
+    gate = AsrGate(1)
+    await gate.try_enter()
+    app.state.asr_gate = gate
+    r = await post(client, auth_headers)
+    assert r.status_code == 502 and r.json() == {"error": "Upstream unavailable"}
+    assert not stream_calls
+
+
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
+async def test_breaker_skips_stream_after_repeated_auth_failures(client, auth_headers, respx_mock, stream_calls):
+    from app.asr_stream import BREAKER_THRESHOLD
+
+    stream_calls.state["result"] = AsrStreamError("auth")
+    respx_mock.post(ARK).mock(return_value=ok())
+    for _ in range(BREAKER_THRESHOLD):
+        assert (await post(client, auth_headers)).status_code == 200
+    assert len(stream_calls) == BREAKER_THRESHOLD
+    r = await post(client, auth_headers)
+    assert r.json() == {"text": "chat text", "segments": []}
+    assert len(stream_calls) == BREAKER_THRESHOLD  # not attempted while the breaker is open
+
+
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
+async def test_slot_released_after_failure(app, client, auth_headers, respx_mock, stream_calls):
+    stream_calls.state["result"] = AsrStreamError("timeout")
+    respx_mock.post(ARK).mock(return_value=ok())
+    for _ in range(5):
+        await post(client, auth_headers)
+    assert len(stream_calls) == 5
+    assert not app.state.asr_gate._sem.locked()
+
+
+# ---- unexpected exceptions still fall back (real transcribe_pcm) ----
+
+
+@pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
+@pytest.mark.parametrize("exc", [RecursionError, MemoryError, ValueError, KeyError])
+async def test_unexpected_exception_falls_back(client, auth_headers, respx_mock, monkeypatch, caplog, exc):
+    async def boom(*a, **k):
+        raise exc("secret-detail")
+
+    monkeypatch.setattr("app.asr_stream._transcribe", boom)
+    route = respx_mock.post(ARK).mock(return_value=ok())
+    caplog.set_level(logging.INFO, logger="app.routers.ai_audio")
+    r = await post(client, auth_headers)
+    assert r.status_code == 200 and r.json() == {"text": "chat text", "segments": []}
+    assert route.called
+    line = next(m for m in caplog.messages if "volc_stream failed" in m)
+    assert "kind=protocol" in line and exc.__name__ in line and "connect_id=" in line
+    assert "secret-detail" not in caplog.text
