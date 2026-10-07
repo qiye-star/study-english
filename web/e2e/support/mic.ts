@@ -19,3 +19,17 @@ export async function recordFor(page: Page, ms: number): Promise<void> {
     await mic.click();
   }
 }
+
+/**
+ * 键盘后备录音(Space 开始、再按一次 Space 结束):录音时长由 whileRecording 决定,
+ * 用于"等计时器到 7 s"这类不固定时长的用例(R29)。仅适用于按住说话按钮(data-hold-to-talk)。
+ */
+export async function recordByKeyboard(page: Page, whileRecording: () => Promise<void>): Promise<void> {
+  const mic = page.getByTestId("chat-mic");
+  if ((await mic.getAttribute("data-hold-to-talk")) === null) throw new Error("recordByKeyboard needs the hold-to-talk button");
+  await mic.focus();
+  await page.keyboard.press("Space");
+  await expect(mic).toHaveAttribute("data-state", "recording");
+  await whileRecording();
+  await page.keyboard.press("Space");
+}

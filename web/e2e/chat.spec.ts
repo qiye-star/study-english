@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { registerViaApi, signIn } from "./support/auth";
 import { SPEECH_WAV, useFakeMicrophone } from "./support/fake-mic";
+import { recordByKeyboard } from "./support/mic";
 
 // 阶段 0 结论(docs/superpowers/plans/2026-10-04-mobile-web-spike-results.md 第 B 节):
 // Playwright 的 WebKit 构建没有 MediaRecorder,语音输入只能在 Chromium 上运行。
@@ -188,10 +189,11 @@ test("voice message: transcript, streamed reply, pronunciation and grammar badge
   const assessed = page.waitForResponse((r) => r.url().endsWith("/api/speech/assessments") && r.request().method() === "POST", { timeout: 150_000 });
   const grammar = page.waitForResponse((r) => r.url().endsWith("/api/ai/grammar"), { timeout: 150_000 });
 
-  await page.getByTestId("chat-mic").click();
-  // 素材开头即 "And so, my fellow Americans, ask not ...";以计时器为准录满 7 秒以上
-  await expect(page.getByTestId("voice-timer")).toHaveText(/^00:(0[7-9]|[1-5]\d) \//, { timeout: 30_000 });
-  await page.getByTestId("chat-mic").click();
+  // R29:按住说话没有固定时长;用键盘后备(Space 开始/Space 结束)保留"计时器到 7 秒"的断言
+  await recordByKeyboard(page, async () => {
+    // 素材开头即 "And so, my fellow Americans, ask not ...";以计时器为准录满 7 秒以上
+    await expect(page.getByTestId("voice-timer")).toHaveText(/^00:(0[7-9]|[1-5]\d) \//, { timeout: 30_000 });
+  });
   expect((await transcription).status()).toBe(200);
   const user = page.getByTestId("message-user").last();
   await expect(user).toHaveAttribute("data-voice", "sent", { timeout: 60_000 });
