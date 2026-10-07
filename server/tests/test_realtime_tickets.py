@@ -75,6 +75,24 @@ def test_expired_tickets_are_swept_before_live_ones_are_evicted():
     assert store.redeem(live) == TicketGrant(1, "live")
 
 
+def test_one_user_cannot_evict_other_users_tickets():
+    # review 4.1-m3: a user holds at most `max_per_user` live tickets; their own oldest goes first
+    clock = Clock()
+    store = TicketStore(60, clock=clock, max_tickets=10)
+    victim = store.issue(2, "v")
+    mine = [store.issue(1, str(i)) for i in range(50)]
+    assert store.redeem(victim) == TicketGrant(2, "v")
+    assert all(store.redeem(t) is None for t in mine[:-5])
+    assert [store.redeem(t) for t in mine[-5:]] == [TicketGrant(1, str(i)) for i in range(45, 50)]
+
+
+def test_per_user_cap_is_configurable():
+    store = TicketStore(60, max_per_user=2)
+    a, b, c = store.issue(1, "a"), store.issue(1, "b"), store.issue(1, "c")
+    assert store.redeem(a) is None
+    assert store.redeem(b) == TicketGrant(1, "b") and store.redeem(c) == TicketGrant(1, "c")
+
+
 def test_registry_one_call_per_user_and_a_global_cap():
     reg = RealtimeRegistry(max_sessions=2)
     assert reg.acquire(1) is True
