@@ -25,8 +25,9 @@ export function vadAssetBase(versions) {
   return `/vad/${vadAssetDirName(versions)}/`;
 }
 
-function packageDir(webRoot, name) {
-  const require = createRequire(path.join(webRoot, "package.json"));
+/** 从 fromDir 按 Node 解析规则找到 name 包的根目录(向上找 name 匹配的 package.json)。 */
+function packageDir(fromDir, name) {
+  const require = createRequire(path.join(fromDir, "package.json"));
   let dir = path.dirname(require.resolve(name));
   while (!existsSync(path.join(dir, "package.json")) || JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")).name !== name) {
     const parent = path.dirname(dir);
@@ -36,10 +37,17 @@ function packageDir(webRoot, name) {
   return dir;
 }
 
-const installedVersion = (webRoot, name) => JSON.parse(readFileSync(path.join(packageDir(webRoot, name), "package.json"), "utf8")).version;
+// ORT 从 vad-web 自己的位置解析(review F3 a1):Vite 打包的是 vad-web import 到的那份,目录名和 wasm 必须跟它一致
+function vadPackageDirs(webRoot) {
+  const vad = packageDir(webRoot, "@ricky0123/vad-web");
+  return { "@ricky0123/vad-web": vad, "onnxruntime-web": packageDir(vad, "onnxruntime-web") };
+}
+
+const versionAt = (dir) => JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")).version;
 
 export function installedVadVersions(webRoot) {
-  return { vad: installedVersion(webRoot, "@ricky0123/vad-web"), ort: installedVersion(webRoot, "onnxruntime-web") };
+  const dirs = vadPackageDirs(webRoot);
+  return { vad: versionAt(dirs["@ricky0123/vad-web"]), ort: versionAt(dirs["onnxruntime-web"]) };
 }
 
 /**
@@ -48,13 +56,14 @@ export function installedVadVersions(webRoot) {
  */
 export function copyVadAssets(webRoot, outRoot = path.join(webRoot, "public", "vad")) {
   const name = vadAssetDirName(installedVadVersions(webRoot));
+  const dirs = vadPackageDirs(webRoot);
   mkdirSync(outRoot, { recursive: true });
   for (const entry of readdirSync(outRoot)) if (entry !== name) rmSync(path.join(outRoot, entry), { recursive: true, force: true });
   const out = path.join(outRoot, name);
   mkdirSync(out, { recursive: true });
   const wanted = new Set();
   for (const [pkg, pattern] of SOURCES) {
-    const dir = path.join(packageDir(webRoot, pkg), "dist");
+    const dir = path.join(dirs[pkg], "dist");
     for (const file of readdirSync(dir)) {
       if (!pattern.test(file)) continue;
       copyFileSync(path.join(dir, file), path.join(out, file));
