@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
-import { recordFor } from "./support/mic";
+import { composerMode, recordFor } from "./support/mic";
 
 // 只在 E2E_LATENCY=1 时运行(需要真实上游;结果写进 docs/superpowers/plans/2026-10-07-voice-latency.md)。
 // E2E_FAKE_AUDIO 指向 .superpowers/latency/s5.wav 或 s15.wav;E2E_HOLD_MS 是"说话"时长(5000 或 15000)。
@@ -15,6 +15,7 @@ test("latency: release → transcript and reply → first audio", async ({ page,
   await page.goto("/chat");
   await page.getByTestId("conversation-new").click();
   await page.getByTestId("scenario-free").click();
+  await composerMode(page, "voice");
   await expect(page.getByTestId("chat-mic")).toBeEnabled();
   const results: unknown[] = [];
   for (let i = 0; i < RUNS + 1; i++) {

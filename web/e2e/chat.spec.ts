@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { registerViaApi, signIn } from "./support/auth";
 import { SPEECH_WAV, useFakeMicrophone } from "./support/fake-mic";
-import { recordByKeyboard } from "./support/mic";
+import { composerMode, recordByKeyboard } from "./support/mic";
 
 // 阶段 0 结论(docs/superpowers/plans/2026-10-04-mobile-web-spike-results.md 第 B 节):
 // Playwright 的 WebKit 构建没有 MediaRecorder,语音输入只能在 Chromium 上运行。
@@ -189,6 +189,8 @@ test("voice message: transcript, streamed reply, pronunciation and grammar badge
   const assessed = page.waitForResponse((r) => r.url().endsWith("/api/speech/assessments") && r.request().method() === "POST", { timeout: 150_000 });
   const grammar = page.waitForResponse((r) => r.url().endsWith("/api/ai/grammar"), { timeout: 150_000 });
 
+  // 输入栏默认是文字模式:先切到"按住 说话"长条
+  await composerMode(page, "voice");
   // R29:按住说话没有固定时长;用键盘后备(Space 开始/Space 结束)保留"计时器到 7 秒"的断言
   await recordByKeyboard(page, async () => {
     // 素材开头即 "And so, my fellow Americans, ask not ...";以计时器为准录满 7 秒以上

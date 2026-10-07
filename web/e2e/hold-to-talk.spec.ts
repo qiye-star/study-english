@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
 import { mockUpstreams, quiet, TRANSCRIPT, type UpstreamMocks } from "./support/mock-upstreams";
+import { composerMode } from "./support/mic";
 import { touchHold } from "./support/touch";
 
 // 提示条的确切文字(web.chat.hold.*,界面可能是英文或中文):只断言"有提示"的话,没走到预期分支
@@ -24,6 +25,7 @@ test.describe("hold to talk (touch)", () => {
     if ((await page.getByTestId("conversation-autospeak").getAttribute("aria-pressed")) === "true") {
       await page.getByTestId("conversation-autospeak").click(); // 本用例不验证朗读
     }
+    await composerMode(page, "voice"); // 输入栏默认是文字模式:切到"按住 说话"长条
     await expect(page.getByTestId("chat-mic")).toBeEnabled();
   });
 
@@ -53,6 +55,7 @@ test.describe("hold to talk (touch)", () => {
     const width = page.viewportSize()!.width;
     // 2 s:上滑只在麦克风就绪后生效,给慢的麦克风启动留余量(review F4 残余风险 a)
     await touchHold(page, page.getByTestId("chat-mic"), { ms: 2000, dy: -160, x: width * 0.8 });
+    await expect(page.getByTestId("chat-mode-toggle")).toHaveAttribute("data-mode", "text"); // 转文字后回到文字模式
     await expect(page.getByTestId("chat-input")).toHaveValue(TRANSCRIPT);
     await quiet(mocks);
     expect(mocks.seen.chat).toBe(0);
