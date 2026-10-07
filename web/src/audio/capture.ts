@@ -6,7 +6,7 @@ export interface CaptureEnv {
   isSecureContext: boolean;
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   supportedConstraints(): Record<string, boolean | undefined>;
-  createAudioContext?: () => AudioContext;
+  createAudioContext?: (options?: AudioContextOptions) => AudioContext;
   createWorkletNode?: (ctx: AudioContext) => AudioWorkletNode;
   workletUrl: string;
 }
@@ -32,7 +32,7 @@ export function browserCaptureEnv(): CaptureEnv {
     isSecureContext: typeof window !== "undefined" && window.isSecureContext,
     getUserMedia: devices?.getUserMedia ? (c) => devices.getUserMedia(c) : undefined,
     supportedConstraints: () => (devices?.getSupportedConstraints?.() ?? {}) as Record<string, boolean | undefined>,
-    createAudioContext: Ctx ? () => new Ctx() : undefined,
+    createAudioContext: Ctx ? (options) => new Ctx(options) : undefined,
     createWorkletNode: typeof AudioWorkletNode === "undefined" ? undefined : (ctx) => new AudioWorkletNode(ctx, "pcm-capture", { numberOfOutputs: 0 }),
     workletUrl,
   };
@@ -64,12 +64,24 @@ export function unlockAudioContext(ctx: AudioContext): void {
   }
 }
 
+const toCaptureError = (err: unknown) => (err instanceof RecorderError ? err : new RecorderError("failed", String(err)));
+
+/** 麦克风轨道的实际采样率(Firefox 要求 MediaStreamSource 与上下文同采样率);拿不到时 undefined。 */
+function streamSampleRate(stream: MediaStream): number | undefined {
+  try {
+    const rate = stream.getAudioTracks?.()[0]?.getSettings?.().sampleRate;
+    return typeof rate === "number" && rate > 0 ? rate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioContext; collect?: boolean } = {}): Promise<PcmCapture> {
   const env = opts.env ?? browserCaptureEnv();
   if (!env.isSecureContext) throw new RecorderError("insecure_context");
   if (!env.getUserMedia || (!opts.context && !env.createAudioContext)) throw new RecorderError("unsupported");
-  const owned = !opts.context;
-  const ctx = opts.context ?? env.createAudioContext!(); // 在 await 之前同步创建(iOS 手势)
+  let owned = !opts.context;
+  let ctx = opts.context ?? env.createAudioContext!(); // 在 await 之前同步创建(iOS 手势)
   void ctx.resume?.()?.catch?.((): void => undefined);
   let stream: MediaStream;
   try {
@@ -79,83 +91,112 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
     throw mapGetUserMediaError(err);
   }
   const tracks = stream.getTracks();
-  const source = ctx.createMediaStreamSource(stream);
-  const downsampler = new Downsampler(ctx.sampleRate, TARGET_RATE);
-  const frameListeners = new Set<(f: Float32Array, level: number) => void>();
-  const endListeners = new Set<() => void>();
-  const parts: Float32Array[] = [];
-  let released = false;
+  // 麦克风已到手:此后任何失败都必须停掉轨道、关闭自己创建的上下文(review W1 I-1)
+  try {
+    return await buildCapture();
+  } catch (err) {
+    tracks.forEach((t) => {
+      try { t.stop(); } catch { /* 已停止 */ }
+    });
+    if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+    throw toCaptureError(err);
+  }
 
-  const handle = (samples: Float32Array) => {
-    if (released) return;
-    const frame = downsampler.process(samples);
-    if (!frame.length) return;
-    if (opts.collect) parts.push(frame);
-    const level = dbfs(frameRms(frame));
-    frameListeners.forEach((cb) => cb(frame, level));
-  };
-
-  let via: PcmCapture["via"] = "script-processor";
-  let node: AudioNode | null = null;
-  let sink: AudioNode | null = null;
-  if (ctx.audioWorklet && env.createWorkletNode) {
+  function createSource(): MediaStreamAudioSourceNode {
     try {
-      await ctx.audioWorklet.addModule(env.workletUrl);
-      const worklet = env.createWorkletNode(ctx);
-      worklet.port.onmessage = (event: MessageEvent) => handle(event.data as Float32Array);
-      source.connect(worklet);
-      node = worklet;
-      via = "worklet";
-    } catch {
-      node = null;
+      return ctx.createMediaStreamSource(stream);
+    } catch (err) {
+      // Firefox:上下文与麦克风采样率不同(如中途切到 16 kHz 蓝牙耳机)会抛 NotSupportedError。
+      // 只重试一次:在麦克风的采样率上新建一个专用上下文(由本次采集拥有并关闭)。
+      const rate = streamSampleRate(stream);
+      if (!rate || rate === ctx.sampleRate || !env.createAudioContext) throw err;
+      if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+      ctx = env.createAudioContext({ sampleRate: rate });
+      owned = true;
+      void ctx.resume?.()?.catch?.((): void => undefined);
+      return ctx.createMediaStreamSource(stream);
     }
   }
-  if (!node) {
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    processor.onaudioprocess = (event) => handle(event.inputBuffer.getChannelData(0).slice());
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    source.connect(processor);
-    processor.connect(mute);
-    mute.connect(ctx.destination); // ScriptProcessor 需要连到输出才会工作
-    node = processor;
-    sink = mute;
-  }
-  const onEnded = () => endListeners.forEach((cb) => cb());
-  tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
 
-  return {
-    stream,
-    context: ctx,
-    via,
-    onFrame(cb) {
-      frameListeners.add(cb);
-      return () => frameListeners.delete(cb);
-    },
-    onTrackEnded(cb) {
-      endListeners.add(cb);
-      return () => endListeners.delete(cb);
-    },
-    collected: () => concatFloat(parts),
-    release() {
+  async function buildCapture(): Promise<PcmCapture> {
+    const source = createSource();
+    const downsampler = new Downsampler(ctx.sampleRate, TARGET_RATE);
+    const frameListeners = new Set<(f: Float32Array, level: number) => void>();
+    const endListeners = new Set<() => void>();
+    const parts: Float32Array[] = [];
+    let released = false;
+
+    const handle = (samples: Float32Array) => {
       if (released) return;
-      released = true;
-      frameListeners.clear();
-      endListeners.clear();
+      const frame = downsampler.process(samples);
+      if (!frame.length) return;
+      if (opts.collect) parts.push(frame);
+      const level = dbfs(frameRms(frame));
+      frameListeners.forEach((cb) => cb(frame, level));
+    };
+
+    let via: PcmCapture["via"] = "script-processor";
+    let node: AudioNode | null = null;
+    let sink: AudioNode | null = null;
+    if (ctx.audioWorklet && env.createWorkletNode) {
       try {
-        source.disconnect();
-        node?.disconnect();
-        sink?.disconnect();
+        await ctx.audioWorklet.addModule(env.workletUrl);
+        const worklet = env.createWorkletNode(ctx);
+        worklet.port.onmessage = (event: MessageEvent) => handle(event.data as Float32Array);
+        source.connect(worklet);
+        node = worklet;
+        via = "worklet";
       } catch {
-        /* 已断开 */
+        node = null;
       }
-      tracks.forEach((t) => {
-        t.removeEventListener?.("ended", onEnded);
-        t.stop();
-      });
-      if (owned) void ctx.close?.()?.catch?.((): void => undefined);
-    },
-  };
+    }
+    if (!node) {
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (event) => handle(event.inputBuffer.getChannelData(0).slice());
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(ctx.destination); // ScriptProcessor 需要连到输出才会工作
+      node = processor;
+      sink = mute;
+    }
+    const onEnded = () => endListeners.forEach((cb) => cb());
+    tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
+
+    return {
+      stream,
+      context: ctx,
+      via,
+      onFrame(cb) {
+        frameListeners.add(cb);
+        return () => frameListeners.delete(cb);
+      },
+      onTrackEnded(cb) {
+        endListeners.add(cb);
+        return () => endListeners.delete(cb);
+      },
+      collected: () => concatFloat(parts),
+      release() {
+        if (released) return;
+        released = true;
+        frameListeners.clear();
+        endListeners.clear();
+        try {
+          source.disconnect();
+          node?.disconnect();
+          sink?.disconnect();
+        } catch {
+          /* 已断开 */
+        }
+        tracks.forEach((t) => {
+          t.removeEventListener?.("ended", onEnded);
+          t.stop();
+        });
+        if (owned) void ctx.close?.()?.catch?.((): void => undefined);
+      },
+    };
+  }
 }
 
 /* ---- R31:页面级唯一 AudioContext、首次点击解锁、按住说话时的采集路径决策 ---- */

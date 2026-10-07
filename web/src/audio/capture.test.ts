@@ -91,6 +91,65 @@ describe("startPcmCapture", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  describe("failures after the microphone was granted (review W1 I-1)", () => {
+    it("stops the tracks and closes its own context when the graph setup throws", async () => {
+      const ctx = new FakeAudioContext();
+      ctx.audioWorklet = undefined;
+      ctx.createScriptProcessor.mockImplementation(() => { throw new Error("boom"); });
+      const { e, stream } = env({}, ctx);
+      await expect(startPcmCapture({ env: e })).rejects.toBeInstanceOf(RecorderError);
+      expect(stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(ctx.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops the tracks when the context rate is unusable (below 16 kHz)", async () => {
+      const ctx = new FakeAudioContext(8000);
+      const { e, stream } = env({}, ctx);
+      await expect(startPcmCapture({ env: e })).rejects.toMatchObject({ code: "failed" });
+      expect(stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(ctx.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops the tracks but never closes a borrowed context", async () => {
+      const shared = new FakeAudioContext();
+      shared.createMediaStreamSource.mockImplementation(() => { throw new DOMException("rate", "NotSupportedError"); });
+      const { e, stream } = env({ createAudioContext: undefined });
+      await expect(startPcmCapture({ env: e, context: asContext(shared) })).rejects.toMatchObject({ code: "failed" });
+      expect(stream.track.stop).toHaveBeenCalledTimes(1);
+      expect(shared.close).not.toHaveBeenCalled();
+    });
+
+    it("retries once on a dedicated context at the stream's rate when the source rejects a rate mismatch (Firefox)", async () => {
+      const shared = new FakeAudioContext(48000);
+      shared.createMediaStreamSource.mockImplementation(() => { throw new DOMException("different sample-rate", "NotSupportedError"); });
+      const dedicated = new FakeAudioContext(16000);
+      const create = vi.fn((_o?: AudioContextOptions) => asContext(dedicated));
+      const { e, stream } = env({ createAudioContext: create });
+      (stream.track as unknown as { getSettings: () => MediaTrackSettings }).getSettings = () => ({ sampleRate: 16000 });
+      const capture = await startPcmCapture({ env: e, context: asContext(shared), collect: true });
+      expect(create).toHaveBeenCalledWith({ sampleRate: 16000 });
+      expect(capture.context).toBe(asContext(dedicated));
+      expect(dedicated.resume).toHaveBeenCalled();
+      capture.release();
+      expect(dedicated.close).toHaveBeenCalledTimes(1);
+      expect(shared.close).not.toHaveBeenCalled();
+      expect(stream.track.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up after the single retry and still releases everything", async () => {
+      const shared = new FakeAudioContext(48000);
+      const dedicated = new FakeAudioContext(16000);
+      for (const c of [shared, dedicated]) c.createMediaStreamSource.mockImplementation(() => { throw new DOMException("rate", "NotSupportedError"); });
+      const { e, stream } = env({ createAudioContext: () => asContext(dedicated) });
+      (stream.track as unknown as { getSettings: () => MediaTrackSettings }).getSettings = () => ({ sampleRate: 16000 });
+      await expect(startPcmCapture({ env: e, context: asContext(shared) })).rejects.toMatchObject({ code: "failed" });
+      expect(dedicated.createMediaStreamSource).toHaveBeenCalledTimes(1);
+      expect(dedicated.close).toHaveBeenCalledTimes(1);
+      expect(shared.close).not.toHaveBeenCalled();
+      expect(stream.track.stop).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("does not close a context it did not create and reports track end", async () => {
     const shared = new FakeAudioContext();
     const { e, stream } = env();
