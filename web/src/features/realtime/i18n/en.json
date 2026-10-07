@@ -22,6 +22,7 @@
       "endedInBackground": "The call ended because the app went to the background",
       "interrupted": "(interrupted)",
       "close": "Close",
+      "captions": "Live captions",
       "errors": {
         "unauthorized": "The call link expired. Please try again.",
         "disabled": "Voice calls are not enabled on this server",
