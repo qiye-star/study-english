@@ -5,6 +5,7 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { cachedHints, type HintsInput } from "~/features/chat/hints";
 import { GRAMMAR_REV_KEY, grammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
+import { COMPOSER_MODE_KEY } from "~/features/chat/composer-mode";
 import { PRACTICE_DRAFT_KEY, clearDeviceData } from "./device-data";
 import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "./playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "./kv-cache";
@@ -52,6 +53,12 @@ describe("clearDeviceData", () => {
     clearDeviceData();
     await cachedHints(api, input);
     expect(mock.calls).toHaveLength(2);
+  });
+
+  it("forgets the composer mode (text / hold to talk) at logout", () => {
+    localStorage.setItem(COMPOSER_MODE_KEY, "voice");
+    clearDeviceData();
+    expect(localStorage.getItem(COMPOSER_MODE_KEY)).toBeNull();
   });
 
   it("clears cached grammar results with the rest of the kv cache", async () => {

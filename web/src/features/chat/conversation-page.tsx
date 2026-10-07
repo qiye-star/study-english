@@ -1,4 +1,4 @@
-import { LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { KeyboardIcon, LanguagesIcon, LightbulbIcon, ListChecksIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -27,6 +27,7 @@ import {
 } from "./chat-api";
 import { claimAudio, releaseAudio } from "./audio-focus";
 import { coachCandidates, coachNote } from "./coach";
+import { readComposerMode, writeComposerMode, type ComposerMode } from "./composer-mode";
 import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults } from "./chat-request";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
@@ -869,19 +870,31 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       });
   };
 
-  // R11 转文字:转写结果放进输入框,不发送。已有文字时用一个空格接在后面;输入框在转写期间是禁用的,
-  // 等它恢复可用再把焦点放进去
+  // 输入栏模式(仿微信):文字输入框或"按住 说话"长条,本机记住上次的模式。切换保留未发送的文字;
+  // 切到文字模式时把焦点放进输入框(光标在末尾),切到语音模式时输入框卸载(焦点留在切换按钮上)
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const focusInputRef = useRef(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode>(readComposerMode);
+  const switchComposer = (mode: ComposerMode) => {
+    setComposerMode(mode);
+    writeComposerMode(mode);
+    if (mode === "text") focusInputRef.current = true;
+    else inputRef.current?.blur();
+  };
+  // R11 转文字:转写结果放进输入框,不发送,并切到文字模式。已有文字时用一个空格接在后面;
+  // 输入框在转写期间是禁用的,等它恢复可用再把焦点放进去
   function onVoiceFill(text: string) {
     if (!mountedRef.current) return;
     setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${text}` : text));
-    focusInputRef.current = true;
+    switchComposer("text");
   }
   useEffect(() => {
-    if (!focusInputRef.current || voice.blocksTyping) return;
+    const el = inputRef.current;
+    if (!focusInputRef.current || voice.blocksTyping || !el) return;
     focusInputRef.current = false;
-    inputRef.current?.focus();
+    el.focus();
+    const end = el.value.length;
+    el.setSelectionRange?.(end, end);
   });
 
   // 按住说话的提示条(太短 / 麦克风刚就绪 / 已取消):role="status",2 秒后消失。
@@ -1086,32 +1099,41 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         </div>
       )}
       <form onSubmit={submit} className="flex items-end gap-2 border-t bg-background p-2">
-        <HoldToTalkButton voiceState={voice.state}
-          disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call || settling))}
-          onStart={() => {
-            // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
-            // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
-            stopTts();
-            claimAudio(micFocus);
-            return voice.start();
-          }}
-          onRelease={() => autoSpeak.prime()} // R5:松手这一下解锁,转写 + 回复完成后接着播
-          onFinish={(deliver) => { void voice.stop(deliver); }}
-          onDiscard={(reason) => {
-            // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
-            void voice.stop("discard");
-            const text = tRef.current(HOLD_HINTS[reason]);
-            if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
-          }} />
-        {recording ? (
-          <div data-testid="voice-recording" className="flex h-11 flex-1 items-center gap-2 rounded-md border px-3 text-base">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
-            <span className="sr-only">{t("web.chat.voice.recording")}</span>
-            <span data-testid="voice-timer" className="font-mono tabular-nums">{formatClock(voice.elapsedMs)} / {formatClock(VOICE_MAX_MS)}</span>
-          </div>
+        <Button type="button" data-testid="chat-mode-toggle" data-mode={composerMode} variant="ghost" size="icon" className="h-11 w-11 shrink-0"
+          aria-pressed={composerMode === "voice"}
+          aria-label={composerMode === "voice" ? t("web.chat.composer.toKeyboard") : t("web.chat.composer.toVoice")}
+          disabled={voiceBusy || sending || !conversation || !!call || settling}
+          onClick={() => switchComposer(composerMode === "voice" ? "text" : "voice")}>
+          {composerMode === "voice" ? <KeyboardIcon className="h-5 w-5" /> : <MicIcon className="h-5 w-5" />}
+        </Button>
+        {composerMode === "voice" ? (
+          <HoldToTalkButton voiceState={voice.state}
+            disabled={voice.state === "processing" || (voice.state === "idle" && (sending || !conversation || !!call || settling))}
+            recordingStatus={recording ? (
+              <div data-testid="voice-recording" className="flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 ring-1 ring-white" aria-hidden="true" />
+                <span className="sr-only">{t("web.chat.voice.recording")}</span>
+                <span data-testid="voice-timer" className="font-mono tabular-nums">{formatClock(voice.elapsedMs)} / {formatClock(VOICE_MAX_MS)}</span>
+              </div>
+            ) : null}
+            onStart={() => {
+              // 按下的同步阶段(iOS:getUserMedia 要在手势里调用)。录音期间不得有其他播放:
+              // 正在进行的朗读(含按句流水线的自动朗读)先停下,再占用音频焦点
+              stopTts();
+              claimAudio(micFocus);
+              return voice.start();
+            }}
+            onRelease={() => autoSpeak.prime()} // R5:松手这一下解锁,转写 + 回复完成后接着播
+            onFinish={(deliver) => { void voice.stop(deliver); }}
+            onDiscard={(reason) => {
+              // 丢弃:权限弹窗还开着(starting)时也会在麦克风到手后立刻释放;不上传、不留草稿
+              void voice.stop("discard");
+              const text = tRef.current(HOLD_HINTS[reason]);
+              if (mountedRef.current) setHoldHint((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
+            }} />
         ) : (
           <Textarea ref={inputRef} data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
-            disabled={voice.blocksTyping} className="max-h-40 min-h-11 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
+            disabled={voice.blocksTyping} className="max-h-40 min-h-11 min-w-0 flex-1 resize-none text-base" onChange={(e) => setInput(e.target.value)} />
         )}
         {voiceBusy && (
           <Button type="button" data-testid="chat-mic-cancel" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
@@ -1123,17 +1145,19 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           aria-label={t("web.chat.hints.button")} disabled={!conversation || sending || voiceBusy || !!call || settling} onClick={openHints}>
           <LightbulbIcon className="h-5 w-5" />
         </Button>
-        <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
-          aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call || settling}>
-          <SendIcon className="h-5 w-5" />
-        </Button>
+        {composerMode === "text" && (
+          <Button type="submit" data-testid="chat-send" size="icon" className="h-11 w-11 shrink-0"
+            aria-label={t("web.chat.send")} disabled={!input.trim() || sending || !conversation || voiceBusy || !!call || settling}>
+            <SendIcon className="h-5 w-5" />
+          </Button>
+        )}
       </form>
       <TurnDetailSheet message={detailMessage} onClose={() => setDetailKey(null)}>
         {detailMessage?.grammar?.result && <GrammarDetails result={detailMessage.grammar.result} onClose={() => setDetailKey(null)} />}
       </TurnDetailSheet>
       <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
       <HintsSheet open={hintsOpen} onOpenChange={setHintsOpen} state={hints.state} onRetry={hints.retry}
-        onFill={(text) => { setInput(text); setHintsOpen(false); }}
+        onFill={(text) => { setInput(text); setHintsOpen(false); switchComposer("text"); }}
         onSpeak={(i, text) => void tts.play(hintKey(i), text, config.ttsModel, config.ttsVoice)}
         speakStates={tts.states}
         onPractice={(text) => { setHintsOpen(false); goPractice(navigate, text); }}

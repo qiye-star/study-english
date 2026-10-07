@@ -16,6 +16,7 @@ import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { ConversationPage, POST_CALL_FOLLOW_UP_MS, POST_CALL_SETTLE_MAX_MS } from "./conversation-page";
 import { clearHintsMemory } from "./hints";
+import { COMPOSER_MODE_KEY } from "./composer-mode";
 import { sharedTtsCache } from "./tts";
 import { sharedAutoplayAudio } from "./use-tts-player";
 import { PLAYBACK_RATE_KEY, resetPlaybackRate } from "~/lib/playback-rate";
@@ -85,13 +86,28 @@ function gate() {
   const promise = new Promise<void>((r) => (release = r));
   return { promise, release };
 }
+/**
+ * 仿微信的输入栏:文字输入框与"按住 说话"长条二选一,由左侧的切换按钮切换。
+ * 切到指定模式(已在该模式时什么都不做;切换按钮可用时才点),返回该模式的主元素(chat-input 或 chat-mic)。
+ */
+async function composerMode(mode: "text" | "voice"): Promise<HTMLElement> {
+  const toggle = await screen.findByTestId("chat-mode-toggle");
+  if (toggle.getAttribute("data-mode") !== mode) {
+    await waitFor(() => expect(toggle).toBeEnabled());
+    await act(async () => { fireEvent.click(toggle); });
+    expect(toggle).toHaveAttribute("data-mode", mode);
+  }
+  return screen.getByTestId(mode === "voice" ? "chat-mic" : "chat-input");
+}
+const voiceMode = () => composerMode("voice");
+const textMode = () => composerMode("text");
 /** R29:按住麦克风 1 秒再松手(按住说话),替代"点一下开始、再点一下停止" */
 async function recordAndSend() {
-  await holdMic(await screen.findByTestId("chat-mic"), { ms: 1000 });
+  await holdMic(await voiceMode(), { ms: 1000 });
 }
 /** R29:键盘后备(Space 一次)开始录音并等麦克风就绪,替代"点一下 chat-mic 开始" */
 async function startRecording() {
-  const mic = await screen.findByTestId("chat-mic");
+  const mic = await voiceMode();
   await act(async () => { pressKey(mic); });
 }
 const callsTo = (mock: ReturnType<typeof createFetchMock>, method: string, path: string) =>
@@ -107,7 +123,10 @@ beforeAll(() => {
 });
 
 describe("ConversationPage", () => {
-  beforeEach(() => resetServerAiConfigCache());
+  beforeEach(() => {
+    resetServerAiConfigCache();
+    localStorage.removeItem(COMPOSER_MODE_KEY); // 每个用例都从默认的文字模式开始
+  });
 
   it("sends the stored level instruction with the next request", async () => {
     const { mock } = setup(routes({
@@ -116,7 +135,7 @@ describe("ConversationPage", () => {
       "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
     const system = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[0]).messages[0];
@@ -152,7 +171,7 @@ describe("ConversationPage", () => {
       "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
     }));
     expect(await screen.findByText("reply")).toBeInTheDocument();
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hello there!"));
     const chat = JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/ai/chat/completions")!.body as string);
@@ -177,7 +196,7 @@ describe("ConversationPage", () => {
       "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     expect(await screen.findByText("The AI service is unavailable. Please try again.")).toBeInTheDocument();
     expect(mock.calls.some((c) => c.url.pathname.endsWith("/messages") && c.method === "POST")).toBe(false);
@@ -274,7 +293,7 @@ describe("ConversationPage", () => {
       "POST /api/ai/chat/completions": () => sse([delta("Half an ans"), 'data: {"error": "Upstream unavailable"}\n\n']),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     expect(await screen.findByText("The AI service is unavailable. Please try again.")).toBeInTheDocument();
     expect(screen.queryByText(/Half an ans/)).toBeNull();
@@ -290,7 +309,7 @@ describe("ConversationPage", () => {
       "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     const form = screen.getByTestId("chat-input").closest("form")!;
     act(() => {
       form.requestSubmit();
@@ -311,7 +330,7 @@ describe("ConversationPage", () => {
       },
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/ai/chat/completions")).toBe(true));
     view.unmount();
@@ -329,7 +348,7 @@ describe("ConversationPage", () => {
       "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Hi", config: CONFIG }),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Answer"));
     expect(screen.queryByText(/SECRET THOUGHTS/)).toBeNull();
@@ -343,10 +362,10 @@ describe("ConversationPage", () => {
       "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Next", config: CONFIG }),
     }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Failed one");
+    await userEvent.type(await textMode(), "Failed one");
     await userEvent.click(screen.getByTestId("chat-send"));
     await screen.findByTestId("message-retry");
-    await userEvent.type(screen.getByTestId("chat-input"), "Next");
+    await userEvent.type(await textMode(), "Next");
     await userEvent.click(screen.getByTestId("chat-send"));
     await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fine"));
     expect(screen.queryByText("Failed one")).toBeNull();
@@ -359,7 +378,7 @@ describe("ConversationPage", () => {
   it("shows the generic empty-reply message for a 502 empty stream and does not save", async () => {
     const { mock } = setup(routes({ "POST /api/ai/chat/completions": () => sse(["data: [DONE]\n\n"]) }));
     await screen.findByText("reply");
-    await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+    await userEvent.type(await textMode(), "Hi");
     await userEvent.click(screen.getByTestId("chat-send"));
     expect(await screen.findByText("The AI returned an empty reply.")).toBeInTheDocument();
     expect(posted(mock)).toHaveLength(0);
@@ -414,7 +433,7 @@ describe("ConversationPage", () => {
       list.scrollTo = scrollTo as unknown as typeof list.scrollTo;
       layout(list, scrollTop);
       act(() => { list.dispatchEvent(new Event("scroll")); });
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
       // sending itself scrolls once (user just sent a message)
       await waitFor(() => expect(scrollTo).toHaveBeenCalled());
@@ -465,11 +484,11 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": async () => { await patchGate; return json({ id: "c1", name: "Renamed first", config: CONFIG }); },
       }));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hello"));
       await waitFor(() => expect(screen.getByTestId("chat-send")).toBeDisabled()); // input emptied; sending finished
-      await userEvent.type(screen.getByTestId("chat-input"), "Again");
+      await userEvent.type(await textMode(), "Again");
       await userEvent.click(screen.getByTestId("chat-send")); // second turn overlaps the pending rename
       await waitFor(() => expect(turn).toBe(2));
       await act(async () => { goTo("/chat/c2"); });
@@ -556,7 +575,7 @@ describe("ConversationPage", () => {
       await screen.findByText("reply");
       expect(screen.getByTestId("conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
       expect(screen.queryByTestId("message-translation")).toBeNull(); // 不补译旧消息
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getByTestId("message-translation")).toHaveAttribute("data-status", "done"));
       expect(screen.getAllByTestId("message-translation")).toHaveLength(1);
@@ -758,13 +777,15 @@ describe("ConversationPage", () => {
       await recordAndSend();
       expect(await screen.findByTestId("voice-transcribing")).toBeInTheDocument();
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "processing");
-      expect(screen.getByTestId("chat-input")).toBeDisabled(); // R19:转写中不能打字
-      expect(screen.getByTestId("chat-send")).toBeDisabled();
+      // R19:转写中不能打字——语音模式下没有输入框和发送按钮,切回文字输入的按钮也禁用
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+      expect(screen.queryByTestId("chat-send")).toBeNull();
+      expect(screen.getByTestId("chat-mode-toggle")).toBeDisabled();
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
       await waitFor(() => expect(aborted).toBe(true));
       await waitFor(() => expect(screen.queryAllByTestId("message-user")).toHaveLength(0));
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
-      expect(screen.getByTestId("chat-input")).toBeEnabled();
+      expect(await textMode()).toBeEnabled();
       expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(0);
       expect(callsTo(mock, "POST", "/api/speech/assessments")).toHaveLength(0);
     });
@@ -809,7 +830,7 @@ describe("ConversationPage", () => {
       await screen.findByText("reply");
       await recordAndSend();
       await screen.findByTestId("voice-error");
-      await userEvent.type(screen.getByTestId("chat-input"), "Typed instead");
+      await userEvent.type(await textMode(), "Typed instead");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fine"));
       expect(screen.queryByTestId("voice-error")).toBeNull();
@@ -872,7 +893,7 @@ describe("ConversationPage", () => {
       await recordAndSend();
       await screen.findByTestId("message-retry");
       await waitFor(() => expect(screen.getByTestId("badge-pronunciation")).toHaveAttribute("data-status", "done"));
-      await userEvent.type(screen.getByTestId("chat-input"), "Something else");
+      await userEvent.type(await textMode(), "Something else");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(callsTo(mock, "DELETE", "/api/assessments/a1")).toHaveLength(1));
     });
@@ -888,7 +909,7 @@ describe("ConversationPage", () => {
       await screen.findByText("reply");
       await recordAndSend();
       await screen.findByTestId("message-retry");
-      await userEvent.type(screen.getByTestId("chat-input"), "Something else");
+      await userEvent.type(await textMode(), "Something else");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fine"));
       expect(deletes(mock)).toHaveLength(0); // 评测还在路上
@@ -940,13 +961,18 @@ describe("ConversationPage", () => {
         "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
       }), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
-      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeDisabled());
+      // 回复流式期间切不到"按住说话"(麦克风不可用)
+      await waitFor(() => expect(screen.getByTestId("chat-mode-toggle")).toBeDisabled());
       await act(async () => { reply.release(); });
-      await waitFor(() => expect(screen.getByTestId("chat-mic")).toBeEnabled());
+      await waitFor(() => expect(screen.getByTestId("chat-mode-toggle")).toBeEnabled());
       await startRecording();
-      expect(screen.getByTestId("chat-send")).toBeDisabled();
+      // 回复结束后麦克风可用;录音时不能打字:没有输入框与发送按钮,也切不回文字输入
+      await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "recording"));
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+      expect(screen.queryByTestId("chat-send")).toBeNull();
+      expect(screen.getByTestId("chat-mode-toggle")).toBeDisabled();
     });
 
     it("disables the mic while a voice reply streams too", async () => {
@@ -1041,10 +1067,10 @@ describe("ConversationPage", () => {
           "PATCH /api/conversations/c1": RENAME,
         }));
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "One");
+        await userEvent.type(await textMode(), "One");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
-        await userEvent.type(screen.getByTestId("chat-input"), "Two");
+        await userEvent.type(await textMode(), "Two");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(msgPosts(mock)).toHaveLength(3));
         expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["One", "One", "Two"]);
@@ -1060,7 +1086,7 @@ describe("ConversationPage", () => {
         await recordAndSend();
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         await waitFor(() => expect(callsTo(mock, "DELETE", "/api/assessments/a1")).toHaveLength(1));
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(msgPosts(mock)).toHaveLength(2));
         expect(bodyOf(msgPosts(mock)[1]).messages[0]).toEqual({ role: "user", content: "Typed" });
@@ -1089,7 +1115,7 @@ describe("ConversationPage", () => {
           await act(async () => { lastToastAction(spy).onClick(); });
           await waitFor(() => expect(loads).toBe(2));
           // 下一轮排在队列后面:它的保存出现时,前一对的认领必然已经完成(确定性地证明没有重复保存)
-          await userEvent.type(screen.getByTestId("chat-input"), "Next");
+          await userEvent.type(await textMode(), "Next");
           await userEvent.click(screen.getByTestId("chat-send"));
           await waitFor(() => expect(msgPosts(mock)).toHaveLength(3));
           expect(msgPosts(mock).map((c) => bodyOf(c).messages[0].content)).toEqual(["I like apples", "I like apples", "Next"]);
@@ -1126,7 +1152,7 @@ describe("ConversationPage", () => {
       ];
       const lose = () => { throw new TypeError("Failed to fetch"); };
       const sendTyped = async (text: string) => {
-        await userEvent.type(screen.getByTestId("chat-input"), text);
+        await userEvent.type(await textMode(), text);
         await userEvent.click(screen.getByTestId("chat-send"));
       };
 
@@ -1194,7 +1220,7 @@ describe("ConversationPage", () => {
           "PATCH /api/conversations/c1": RENAME,
         }));
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         const before = callsTo(mock, "GET", "/api/conversations/c1/messages").length;
@@ -1266,7 +1292,7 @@ describe("ConversationPage", () => {
           "PATCH /api/conversations/c1": RENAME,
         }));
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         const before = callsTo(mock, "GET", "/api/conversations/c1/messages").length;
@@ -1326,7 +1352,7 @@ describe("ConversationPage", () => {
         await waitFor(() => expect(spy).toHaveBeenCalledWith("This conversation is full. Start a new one."));
         await waitFor(() => expect(callsTo(mock, "DELETE", "/api/assessments/a1")).toHaveLength(1));
         expect(notSavedToasts(spy)).toHaveLength(0);
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(spy.mock.calls.filter((c) => c[0] === "This conversation is full. Start a new one.")).toHaveLength(2));
         expect(msgPosts(mock)).toHaveLength(2); // 第一对没有被重发,队列没有堆积
@@ -1361,7 +1387,7 @@ describe("ConversationPage", () => {
           "POST /api/conversations/c1/messages": () => json({ error: "boom" }, 500),
         }));
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         await act(async () => { lastToastAction(spy).onClick(); });
@@ -1378,7 +1404,7 @@ describe("ConversationPage", () => {
           "PATCH /api/conversations/c1": () => json({ id: "c1", name: "Typed", config: CONFIG }),
         }));
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(notSavedToasts(spy)).toHaveLength(1));
         expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(0);
@@ -1407,7 +1433,7 @@ describe("ConversationPage", () => {
         const { handlers } = failingThenGated();
         setup(handlers, createFakeRecorderEnv().env);
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
         await startRecording();
@@ -1421,10 +1447,11 @@ describe("ConversationPage", () => {
         const { second, handlers } = failingThenGated();
         const { mock } = setup(handlers, createFakeRecorderEnv().env);
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
         // 同一帧里点了录音和重试:两个点击都发生在重新渲染之前
+        await voiceMode();
         act(() => {
           pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
@@ -1459,9 +1486,10 @@ describe("ConversationPage", () => {
           },
         }), createFakeRecorderEnv().env);
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
+        await voiceMode();
         act(() => {
           pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
@@ -1494,9 +1522,10 @@ describe("ConversationPage", () => {
           },
         }), createFakeRecorderEnv().env);
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
+        await voiceMode();
         act(() => {
           pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
@@ -1506,7 +1535,7 @@ describe("ConversationPage", () => {
         await screen.findByTestId("voice-send-kept");
         await act(async () => { second.release(); });
         await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "error"));
-        await userEvent.type(screen.getByTestId("chat-input"), "Brand new");
+        await userEvent.type(await textMode(), "Brand new");
         await userEvent.click(screen.getByTestId("chat-send"));
         await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Fresh"));
         const sentMessages = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[2]).messages as Array<{ role: string; content: string }>;
@@ -1520,9 +1549,10 @@ describe("ConversationPage", () => {
         const { second, handlers } = failingThenGated();
         setup(handlers, createFakeRecorderEnv().env);
         await screen.findByText("reply");
-        await userEvent.type(screen.getByTestId("chat-input"), "Typed");
+        await userEvent.type(await textMode(), "Typed");
         await userEvent.click(screen.getByTestId("chat-send"));
         await screen.findByTestId("message-retry");
+        await voiceMode();
         act(() => {
           pressKey(screen.getByTestId("chat-mic"));
           fireEvent.click(screen.getByTestId("message-retry"));
@@ -1667,7 +1697,8 @@ describe("ConversationPage", () => {
         await screen.findByText("Second chat hello");
         expect(fake.track.stop).toHaveBeenCalled();
         expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
-        expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+        expect(screen.queryByTestId("voice-recording")).toBeNull();
+        expect(await textMode()).toBeEnabled();
         expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
         expect(callsTo(mock, "POST", "/api/ai/audio/transcriptions")).toHaveLength(0);
       });
@@ -1762,7 +1793,7 @@ describe("ConversationPage", () => {
     it("flags errors in a typed message, shows details and offers the corrected sentence", async () => {
       const { mock } = setup(chatRoutes(() => json(WRONG), { "POST /api/practice-items": () => json({ id: "p1", text: "x", source: "grammar", created_at: "t" }) }));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.type(await textMode(), "She don't like coffee.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveTextContent("Grammar: 1 to fix"));
       expect(JSON.parse(callsTo(mock, "POST", "/api/ai/grammar")[0].body as string)).toEqual({ text: "She don't like coffee.", context: "Earlier **reply**" });
@@ -1781,7 +1812,7 @@ describe("ConversationPage", () => {
     it("shows a clean badge for a correct message and persists the result", async () => {
       const { mock } = setup(chatRoutes(() => json(RIGHT)));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "She doesn't like coffee.");
+      await userEvent.type(await textMode(), "She doesn't like coffee.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-errors", "0"));
       await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
@@ -1794,7 +1825,7 @@ describe("ConversationPage", () => {
       let attempt = 0;
       const { mock } = setup(chatRoutes(() => (++attempt === 1 ? json({ error: "Upstream unavailable" }, 502) : json(WRONG))));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.type(await textMode(), "She don't like coffee.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getByTestId("badge-grammar")).toHaveAttribute("data-status", "error"));
       expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(1);
@@ -1817,7 +1848,7 @@ describe("ConversationPage", () => {
         Object.defineProperty(list, "scrollTop", { configurable: true, writable: true, value: scrollTop });
         act(() => { list.dispatchEvent(new Event("scroll")); });
       };
-      await userEvent.type(screen.getByTestId("chat-input"), "She don't like coffee.");
+      await userEvent.type(await textMode(), "She don't like coffee.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
       layout(100); // the user scrolled up
@@ -1847,7 +1878,7 @@ describe("ConversationPage", () => {
     it("renders no (empty) footer under a user message that has neither result", async () => {
       setup(chatRoutes(() => json(RIGHT)));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi there");
+      await userEvent.type(await textMode(), "Hi there");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
       expect(screen.getAllByTestId("message-user")).toHaveLength(1);
@@ -1859,7 +1890,7 @@ describe("ConversationPage", () => {
         "GET /api/conversations/c1": () => json({ id: "c1", name: "Chat", config: { ...CONFIG, grammar_check: false } }),
       }));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "She doesn't like coffee at all.");
+      await userEvent.type(await textMode(), "She doesn't like coffee at all.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
       expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(0);
@@ -1869,7 +1900,7 @@ describe("ConversationPage", () => {
     it("skips messages with fewer than three English words", async () => {
       const { mock } = setup(chatRoutes(() => json(RIGHT)));
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi there");
+      await userEvent.type(await textMode(), "Hi there");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("I see."));
       expect(callsTo(mock, "POST", "/api/ai/grammar")).toHaveLength(0);
@@ -1900,7 +1931,7 @@ describe("ConversationPage", () => {
         "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m3" }, { id: "m4" }] }),
       }));
       await screen.findByText("Why?");
-      await userEvent.type(screen.getByTestId("chat-input"), "Because it is late");
+      await userEvent.type(await textMode(), "Because it is late");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
       return JSON.parse(callsTo(mock, "POST", "/api/ai/chat/completions")[0].body as string).messages[0].content as string;
@@ -1953,7 +1984,7 @@ describe("ConversationPage", () => {
       await screen.findByText(opts.history ? "Why?" : "reply");
       if (opts.voice) await recordAndSend();
       else {
-        await userEvent.type(screen.getByTestId("chat-input"), TYPED);
+        await userEvent.type(await textMode(), TYPED);
         await userEvent.click(screen.getByTestId("chat-send"));
       }
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
@@ -2041,7 +2072,7 @@ describe("ConversationPage", () => {
       mock.calls.filter((c) => c.method === "PATCH" && c.url.pathname === "/api/conversations/c1" && "config" in bodyOf(c));
     const speechCalls = (mock: ReturnType<typeof createFetchMock>) => callsTo(mock, "POST", "/api/ai/audio/speech");
     async function say(text: string) {
-      await userEvent.type(screen.getByTestId("chat-input"), text);
+      await userEvent.type(await textMode(), text);
       await userEvent.click(screen.getByTestId("chat-send"));
     }
     const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
@@ -2313,7 +2344,7 @@ describe("ConversationPage", () => {
       }));
       expect(await screen.findByTestId("conversation-scenario")).toHaveTextContent("Ordering coffee");
       expect(screen.getByTestId("conversation-level")).toHaveTextContent("B1");
-      await userEvent.type(screen.getByTestId("chat-input"), "A latte, please.");
+      await userEvent.type(await textMode(), "A latte, please.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));
       const system = bodyOf(callsTo(mock, "POST", "/api/ai/chat/completions")[0]).messages[0].content as string;
@@ -2439,7 +2470,7 @@ describe("ConversationPage", () => {
       expect(screen.getByTestId("chat-hints")).toBeDisabled();
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
       await waitFor(() => expect(screen.getByTestId("chat-hints")).toBeEnabled());
-      await userEvent.type(screen.getByTestId("chat-input"), "Hi");
+      await userEvent.type(await textMode(), "Hi");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getByTestId("chat-hints")).toBeDisabled());
       act(() => finish());
@@ -2853,7 +2884,7 @@ describe("ConversationPage", () => {
       ...extra,
     });
     async function say(text: string) {
-      await userEvent.type(screen.getByTestId("chat-input"), text);
+      await userEvent.type(await textMode(), text);
       await userEvent.click(screen.getByTestId("chat-send"));
     }
     const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
@@ -3054,7 +3085,7 @@ describe("ConversationPage", () => {
     it("hold and release sends a voice message", async () => {
       const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { ms: 1500 });
+      await holdMic(await voiceMode(), { ms: 1500 });
       await waitFor(() => expect(hit(mock, "/api/ai/audio/transcriptions")).toBe(true));
       await waitFor(() => expect(hit(mock, "/api/ai/chat/completions")).toBe(true));
       expect(await screen.findByTestId("message-user")).toHaveTextContent("I like apples");
@@ -3063,7 +3094,7 @@ describe("ConversationPage", () => {
     it("the mic button is labelled 'Hold to talk' and keeps the recording test ids while held", async () => {
       setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       expect(mic).toHaveAccessibleName(/hold to talk/i);
       expect(mic).toHaveAttribute("data-hold-to-talk");
       fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
@@ -3080,7 +3111,7 @@ describe("ConversationPage", () => {
       window.innerWidth = 400;
       const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 350 });
+      await holdMic(await voiceMode(), { dy: -150, x: 350 });
       await waitFor(() => expect(input().value).toBe("I like apples"));
       await waitFor(() => expect(input()).toHaveFocus());
       expect(hit(mock, "/api/ai/chat/completions")).toBe(false);
@@ -3095,7 +3126,7 @@ describe("ConversationPage", () => {
       setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
       await userEvent.type(input(), "Well,  ");
-      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 350 });
+      await holdMic(await voiceMode(), { dy: -150, x: 350 });
       await waitFor(() => expect(input().value).toBe("Well, I like apples"));
     });
 
@@ -3104,7 +3135,7 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       const { mock } = setup(holdRoutes(), fake.env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { dy: -150, x: 40 });
+      await holdMic(await voiceMode(), { dy: -150, x: 40 });
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
       expect(fake.track.stop).toHaveBeenCalled();
       expect(screen.getByTestId("hold-hint")).toHaveTextContent("Recording cancelled");
@@ -3117,7 +3148,7 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       const { mock } = setup(holdRoutes(), fake.env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      await holdMic(await voiceMode(), { ms: 100 });
       const hint = await screen.findByTestId("hold-hint");
       expect(hint).toHaveTextContent(/hold to talk|按住说话/i);
       expect(hint).toHaveAttribute("role", "status");
@@ -3158,7 +3189,7 @@ describe("ConversationPage", () => {
       fakeHintTimers();
       setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      await holdMic(await voiceMode(), { ms: 100 });
       expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
       await act(async () => { vi.advanceTimersByTime(1000); });
       expect(screen.getByTestId("hold-hint")).toBeInTheDocument();
@@ -3170,11 +3201,11 @@ describe("ConversationPage", () => {
       fakeHintTimers();
       setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 });
+      await holdMic(await voiceMode(), { ms: 100 });
       expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
       await act(async () => { vi.advanceTimersByTime(1500); });
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
-      await holdMic(screen.getByTestId("chat-mic"), { ms: 100 }); // 同样的"太短"提示
+      await holdMic(await voiceMode(), { ms: 100 }); // 同样的"太短"提示
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
       await act(async () => { vi.advanceTimersByTime(1000); });
       // 第一条的计时器(此时已过 2.5 s)不能把第二条提前收走
@@ -3190,7 +3221,7 @@ describe("ConversationPage", () => {
       const env = { ...fake.env, getUserMedia: () => new Promise<MediaStream>((r) => { grant = () => r(stream); }) };
       const { mock } = setup(holdRoutes(), env);
       await screen.findByText("reply");
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       let t = 10_000;
       const now = vi.spyOn(performance, "now").mockImplementation(() => t);
       try {
@@ -3211,7 +3242,7 @@ describe("ConversationPage", () => {
     it("keyboard fallback: Space starts and Space again sends", async () => {
       const { mock } = setup(holdRoutes(), createFakeRecorderEnv().env);
       await screen.findByText("reply");
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       pressKey(mic, " ");
       await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
       expect(mic).toHaveAccessibleName(/press Space to send/i);
@@ -3224,7 +3255,7 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       const { mock } = setup(holdRoutes(), fake.env);
       await screen.findByText("reply");
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       pressKey(mic, "Enter");
       await waitFor(() => expect(mic).toHaveAttribute("data-state", "recording"));
       pressKey(mic, "Escape");
@@ -3240,15 +3271,17 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       setup(holdRoutes({ "POST /api/ai/chat/completions": async () => { await reply.promise; return sse([delta("Done"), DONE_EVENT]); } }), fake.env);
       await screen.findByText("reply");
-      await userEvent.type(input(), "Hi");
-      await userEvent.click(screen.getByTestId("chat-send"));
-      const mic = screen.getByTestId("chat-mic");
+      // 文字模式下发出的回复期间切不到长条,所以用一条语音触发回复(长条留在原地)
+      const mic = await voiceMode();
+      await holdMic(mic, { ms: 1000 });
+      await waitFor(() => expect(screen.getByTestId("message-user")).toHaveTextContent("I like apples"));
       await waitFor(() => expect(mic).toBeDisabled());
+      const recorders = fake.recorders.length;
       fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
       pressKey(mic, " ");
       expect(mic).toHaveAttribute("data-state", "idle");
       expect(mic).toHaveAttribute("data-hold", "idle");
-      expect(fake.recorders).toHaveLength(0);
+      expect(fake.recorders).toHaveLength(recorders);
       await act(async () => { reply.release(); });
       await waitFor(() => expect(mic).toBeEnabled());
     });
@@ -3259,7 +3292,7 @@ describe("ConversationPage", () => {
       setup(holdRoutes(), fake.env);
       await userEvent.click(await screen.findByTestId("message-tts"));
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "playing"));
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
       await waitFor(() => expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle"));
       await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
@@ -3278,7 +3311,7 @@ describe("ConversationPage", () => {
         "GET /api/conversations/c2/messages": () => json({ messages: [{ id: "n0", conversation_id: "c2", role: "assistant", content: "Second chat hello" }] }),
       }), fake.env);
       await screen.findByText("reply");
-      const mic = screen.getByTestId("chat-mic");
+      const mic = await voiceMode();
       fireEvent.pointerDown(mic, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
       await waitFor(() => expect(mic).toHaveAttribute("data-hold", "recording"));
       await act(async () => { goTo("/chat/c2"); });
@@ -3286,6 +3319,244 @@ describe("ConversationPage", () => {
       expect(fake.track.stop).toHaveBeenCalled();
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-hold", "idle"));
       expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
+    });
+  });
+
+  describe("WeChat-style composer: text input or a 'hold to talk' bar", () => {
+    const innerWidth = window.innerWidth;
+    afterEach(() => {
+      window.innerWidth = innerWidth;
+      vi.restoreAllMocks();
+    });
+    const modeRoutes = (extra: Record<string, Handler> = {}) => routes({
+      "POST /api/ai/audio/transcriptions": () => json({ text: "I like apples" }),
+      "POST /api/speech/assessments": () => json(ASSESSED),
+      "POST /api/ai/chat/completions": () => sse([delta("Me too!"), DONE_EVENT]),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
+      ...extra,
+    });
+    const toggle = () => screen.getByTestId("chat-mode-toggle");
+    const input = () => screen.getByTestId("chat-input") as HTMLTextAreaElement;
+    const hit = (mock: ReturnType<typeof createFetchMock>, path: string) => mock.calls.some((c) => c.url.pathname === path);
+
+    it("starts in text mode: textarea and send button, no hold bar; the toggle offers voice", async () => {
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      expect(input()).toBeInTheDocument();
+      expect(screen.getByTestId("chat-send")).toBeInTheDocument();
+      expect(screen.queryByTestId("chat-mic")).toBeNull();
+      expect(toggle()).toHaveAttribute("data-mode", "text");
+      expect(toggle()).toHaveAttribute("aria-pressed", "false");
+      expect(toggle()).toHaveAccessibleName("Switch to voice");
+      expect(screen.getByTestId("chat-hints")).toBeInTheDocument();
+    });
+
+    it("the toggle swaps the textarea for a full-width 'Hold to talk' bar and back, keeping the draft and focusing the textarea at its end", async () => {
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await userEvent.type(input(), "Half a sentence");
+      await userEvent.click(toggle());
+      expect(toggle()).toHaveAttribute("data-mode", "voice");
+      expect(toggle()).toHaveAttribute("aria-pressed", "true");
+      expect(toggle()).toHaveAccessibleName("Switch to keyboard");
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+      expect(screen.queryByTestId("chat-send")).toBeNull(); // 语音模式没有发送按钮:长条就是动作
+      const bar = screen.getByTestId("chat-mic");
+      expect(bar).toHaveTextContent("Hold to talk");
+      expect(bar).toHaveAccessibleName(/hold to talk/i);
+      expect(screen.getByTestId("chat-hints")).toBeEnabled(); // 提示不需要文字,两种模式都有
+      expect(localStorage.getItem(COMPOSER_MODE_KEY)).toBe("voice");
+      await userEvent.click(toggle());
+      expect(toggle()).toHaveAttribute("data-mode", "text");
+      expect(input()).toHaveValue("Half a sentence");
+      await waitFor(() => expect(input()).toHaveFocus());
+      expect(input().selectionStart).toBe("Half a sentence".length);
+      expect(input().selectionEnd).toBe("Half a sentence".length);
+      expect(screen.getByTestId("chat-send")).toBeEnabled();
+      expect(screen.queryByTestId("chat-mic")).toBeNull();
+      expect(localStorage.getItem(COMPOSER_MODE_KEY)).toBe("text");
+    });
+
+    it("switching to voice takes the focus out of the textarea", async () => {
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await userEvent.click(input());
+      expect(input()).toHaveFocus();
+      await userEvent.click(toggle());
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+      expect(document.activeElement?.tagName).not.toBe("TEXTAREA");
+    });
+
+    it("remembers the last mode on this device", async () => {
+      localStorage.setItem(COMPOSER_MODE_KEY, "voice");
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      expect(toggle()).toHaveAttribute("data-mode", "voice");
+      expect(screen.getByTestId("chat-mic")).toBeInTheDocument();
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+    });
+
+    it("an unreadable stored mode or unavailable storage falls back to text without breaking the page", async () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("denied"); });
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      expect(toggle()).toHaveAttribute("data-mode", "text");
+      await userEvent.click(toggle());
+      expect(toggle()).toHaveAttribute("data-mode", "voice"); // 本页仍生效
+    });
+
+    it("the toggle is disabled until the conversation loads", async () => {
+      const loaded = gate();
+      setup(modeRoutes({ "GET /api/conversations/c1": async () => { await loaded.promise; return json({ id: "c1", name: "x", config: CONFIG }); } }),
+        createFakeRecorderEnv().env);
+      const t = await screen.findByTestId("chat-mode-toggle");
+      expect(t).toBeDisabled();
+      await act(async () => { loaded.release(); });
+      await waitFor(() => expect(t).toBeEnabled());
+    });
+
+    it("the toggle is disabled while recording, transcribing and while the reply streams, then works again", async () => {
+      const transcribed = gate();
+      const reply = gate();
+      setup(modeRoutes({
+        "POST /api/ai/audio/transcriptions": async () => { await transcribed.promise; return json({ text: "I like apples" }); },
+        "POST /api/ai/chat/completions": async () => { await reply.promise; return sse([delta("Me too!"), DONE_EVENT]); },
+      }), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const bar = await voiceMode();
+      let t = 10_000;
+      const now = vi.spyOn(performance, "now").mockImplementation(() => t);
+      fireEvent.pointerDown(bar, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(bar).toHaveAttribute("data-hold", "recording"));
+      expect(toggle()).toBeDisabled();
+      fireEvent.click(toggle());
+      expect(toggle()).toHaveAttribute("data-mode", "voice");
+      t += 1000;
+      fireEvent.pointerUp(bar, { pointerId: 1, clientX: 200, clientY: 700 });
+      now.mockRestore();
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "processing"));
+      expect(toggle()).toBeDisabled();
+      await act(async () => { transcribed.release(); });
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveAttribute("data-status", "streaming"));
+      expect(toggle()).toBeDisabled();
+      expect(bar).toBeDisabled();
+      await act(async () => { reply.release(); });
+      await waitFor(() => expect(toggle()).toBeEnabled());
+      expect(toggle()).toHaveAttribute("data-mode", "voice"); // 发出语音后仍留在语音模式
+    });
+
+    it("pressing the bar shows its pressed label and a centered overlay; sliding up arms cancel (red) or to-text", async () => {
+      window.innerWidth = 400;
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const bar = await voiceMode();
+      fireEvent.pointerDown(bar, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(bar).toHaveAttribute("data-hold", "recording"));
+      expect(bar).toHaveTextContent("Release to send");
+      const overlay = screen.getByTestId("hold-overlay");
+      const hint = screen.getByTestId("hold-overlay-hint");
+      expect(hint).toHaveTextContent("Slide up to cancel");
+      expect(hint).toHaveAttribute("data-tone", "normal");
+      expect(screen.getByTestId("hold-zone-cancel")).toHaveAttribute("data-active", "false");
+      expect(screen.getByTestId("hold-zone-text")).toHaveAttribute("data-active", "false");
+      expect(overlay).toContainElement(screen.getByTestId("voice-timer"));
+      fireEvent.pointerMove(bar, { pointerId: 1, clientX: 50, clientY: 560 });
+      expect(hint).toHaveTextContent("Release to cancel");
+      expect(hint).toHaveAttribute("data-tone", "danger");
+      expect(screen.getByTestId("hold-zone-cancel")).toHaveAttribute("data-active", "true");
+      expect(bar).toHaveTextContent("Release to cancel");
+      fireEvent.pointerMove(bar, { pointerId: 1, clientX: 350, clientY: 560 });
+      expect(hint).toHaveTextContent("Release to convert to text");
+      expect(screen.getByTestId("hold-zone-text")).toHaveAttribute("data-active", "true");
+      expect(screen.getByTestId("hold-zone-cancel")).toHaveAttribute("data-active", "false");
+      expect(bar).toHaveTextContent("Release to convert to text");
+      fireEvent.pointerCancel(bar, { pointerId: 1 });
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "idle"));
+      expect(screen.queryByTestId("hold-overlay")).toBeNull();
+      expect(bar).toHaveTextContent("Hold to talk");
+    });
+
+    it("'to text' fills the transcript, switches to text mode and focuses the textarea at the end", async () => {
+      window.innerWidth = 400;
+      const { mock } = setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await userEvent.type(input(), "Well,");
+      await holdMic(await voiceMode(), { dy: -150, x: 350 });
+      await waitFor(() => expect(toggle()).toHaveAttribute("data-mode", "text"));
+      await waitFor(() => expect(input()).toHaveValue("Well, I like apples"));
+      await waitFor(() => expect(input()).toHaveFocus());
+      expect(input().selectionStart).toBe("Well, I like apples".length);
+      expect(screen.getByTestId("chat-send")).toBeEnabled();
+      expect(screen.queryByTestId("chat-mic")).toBeNull();
+      expect(localStorage.getItem(COMPOSER_MODE_KEY)).toBe("text");
+      expect(hit(mock, "/api/ai/chat/completions")).toBe(false);
+    });
+
+    it("hold and release in voice mode sends and stays in voice mode", async () => {
+      const { mock } = setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await holdMic(await voiceMode(), { ms: 1500 });
+      await waitFor(() => expect(hit(mock, "/api/ai/chat/completions")).toBe(true));
+      expect(await screen.findByTestId("message-user")).toHaveTextContent("I like apples");
+      expect(toggle()).toHaveAttribute("data-mode", "voice");
+      expect(screen.queryByTestId("chat-input")).toBeNull();
+    });
+
+    it("a short tap on the bar and a cancel slide keep their hints", async () => {
+      window.innerWidth = 400;
+      setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const bar = await voiceMode();
+      await holdMic(bar, { ms: 100 });
+      expect(await screen.findByTestId("hold-hint")).toHaveTextContent("Hold to talk");
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "idle"));
+      await holdMic(bar, { dy: -150, x: 40 });
+      await waitFor(() => expect(screen.getByTestId("hold-hint")).toHaveTextContent("Recording cancelled"));
+    });
+
+    it("keyboard: Space on the bar starts (overlay explains the keys), Escape cancels, Space twice sends", async () => {
+      const { mock } = setup(modeRoutes(), createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      const bar = await voiceMode();
+      bar.focus();
+      pressKey(bar, " ");
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "recording"));
+      expect(screen.getByTestId("hold-overlay-hint")).toHaveTextContent(/press Space to send, Escape to cancel/i);
+      expect(screen.queryByTestId("hold-zone-cancel")).toBeNull(); // 键盘录音没有上滑落点
+      pressKey(bar, "Escape");
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "idle"));
+      expect(screen.getByTestId("hold-hint")).toHaveTextContent("Recording cancelled");
+      pressKey(bar, " ");
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "recording"));
+      pressKey(bar, " ");
+      await waitFor(() => expect(hit(mock, "/api/ai/chat/completions")).toBe(true));
+    });
+
+    it("'Use this reply' from the hints switches to text mode with the reply filled in", async () => {
+      const REPLIES = { replies: [1, 2, 3].map((i) => ({ text: `Reply ${i}.`, zh: `回复 ${i}` })) };
+      setup(modeRoutes({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: JSON.stringify(REPLIES) } }] }) }),
+        createFakeRecorderEnv().env);
+      await screen.findByText("reply");
+      await voiceMode();
+      await userEvent.click(screen.getByTestId("chat-hints"));
+      await userEvent.click((await screen.findAllByTestId("hint-fill"))[1]);
+      expect(toggle()).toHaveAttribute("data-mode", "text");
+      expect(input()).toHaveValue("Reply 2.");
+    });
+
+    it("voice mode without microphone support: the toggle works and a press shows the microphone error", async () => {
+      const error = vi.spyOn(toast, "error");
+      const fake = createFakeRecorderEnv();
+      const env = { ...fake.env, getUserMedia: () => Promise.reject(new DOMException("denied", "NotAllowedError")) };
+      setup(modeRoutes(), env);
+      await screen.findByText("reply");
+      const bar = await voiceMode();
+      fireEvent.pointerDown(bar, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+      await waitFor(() => expect(error).toHaveBeenCalled());
+      await waitFor(() => expect(bar).toHaveAttribute("data-state", "idle"));
+      expect(toggle()).toBeEnabled();
     });
   });
 });
@@ -3368,6 +3639,8 @@ describe("realtime call (plan 2026-10-07)", () => {
     await deleteDb();
     resetKvCacheForTests();
     localStorage.clear();
+    // 这些用例盯着麦克风:输入栏从"按住 说话"长条开始;要打字的用例用 textMode() 切换
+    localStorage.setItem(COMPOSER_MODE_KEY, "voice");
     // 假时钟随真实时间推进(麦克风、userEvent、waitFor 照常);挂断后等关闭的 3 s、补取的 2 s 由 advance 跳过
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
@@ -3595,7 +3868,10 @@ describe("realtime call (plan 2026-10-07)", () => {
     expect(screen.getByTestId("message-tts")).toHaveAttribute("data-state", "idle");
     expect(screen.getByTestId("chat-mic").closest("[inert]")).not.toBeNull();
     expect(screen.getByTestId("chat-mic")).toBeDisabled();
-    expect(screen.getByTestId("chat-send")).toBeDisabled();
+    // 发送:语音模式没有发送按钮,切回文字输入的按钮也被禁用(且在 inert 的页面里)
+    expect(screen.queryByTestId("chat-send")).toBeNull();
+    expect(screen.getByTestId("chat-mode-toggle")).toBeDisabled();
+    expect(screen.getByTestId("chat-mode-toggle").closest("[inert]")).not.toBeNull();
     expect(screen.getByTestId("conversation-call")).toBeDisabled();
     await hangUp(c.ws());
     expect(screen.getByTestId("chat-mic").closest("[inert]")).toBeNull();
@@ -3686,7 +3962,7 @@ describe("realtime call (plan 2026-10-07)", () => {
         "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
       }), c.env);
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hello there");
+      await userEvent.type(await textMode(), "Hello there");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(spy).toHaveBeenCalledWith(NOT_SAVED, expect.anything()));
       await userEvent.click(screen.getByTestId("conversation-call"));
@@ -3707,7 +3983,7 @@ describe("realtime call (plan 2026-10-07)", () => {
         "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: CONFIG }),
       }), c.env);
       await screen.findByText("reply");
-      await userEvent.type(screen.getByTestId("chat-input"), "Hello there");
+      await userEvent.type(await textMode(), "Hello there");
       await userEvent.click(screen.getByTestId("chat-send"));
       await screen.findByTestId("message-retry");
       await userEvent.click(screen.getByTestId("conversation-call"));
@@ -3741,7 +4017,7 @@ describe("realtime call (plan 2026-10-07)", () => {
       await hangUp(ws);
       await screen.findByText("Oh, what does she like?");
       await settle();
-      await userEvent.type(screen.getByTestId("chat-input"), "Thanks");
+      await userEvent.type(await textMode(), "Thanks");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("You are"));
       // 通话那句的语法结果在回复流式途中到达:不得触发重新加载(那会中止回复、丢掉保存)
@@ -3980,6 +4256,7 @@ describe("realtime call (plan 2026-10-07)", () => {
     });
 
     it("focus the user moved elsewhere while the call settles is left alone", async () => {
+      localStorage.setItem(COMPOSER_MODE_KEY, "text"); // 收尾期间打字:从文字模式开始
       const c = callEnv();
       setupCall(callRoutes(), c.env);
       const ws = await connect(c);
