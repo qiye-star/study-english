@@ -36,6 +36,11 @@
       "captions": "实时字幕",
       "translate": "翻译",
       "autoTranslate": "自动翻译",
+      "partner": "AI 伙伴",
+      "you": "你",
+      "muteShort": "静音",
+      "more": "更多",
+      "moreHint": "打开免提后,可在这里按住插话",
       "errors": {
         "unauthorized": "通话凭证已失效,请重试",
         "disabled": "服务器未开启实时通话",

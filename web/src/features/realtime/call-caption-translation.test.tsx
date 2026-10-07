@@ -70,6 +70,21 @@ describe("CallCaptionTranslation", () => {
     await waitFor(() => expect(calls(mock)).toBe(1));
   });
 
+  it("layout places the button and the translation line (both null while streaming)", async () => {
+    const { api } = setup();
+    const layout = (button: React.ReactNode, line: React.ReactNode) => (
+      <div data-testid="card"><div data-testid="head">{button}</div><p>Hello</p><div data-testid="foot">{line}</div></div>
+    );
+    renderWithProviders(<Harness api={api} nativeLanguage="zh-CN" captionKey="a-1" text="Hello" finished={false} auto={false} layout={layout} />);
+    expect(screen.getByTestId("card")).toBeInTheDocument(); // 卡片照常渲染
+    expect(screen.queryByTestId("call-caption-translate")).toBeNull();
+    act(() => patch({ finished: true }));
+    expect(screen.getByTestId("head")).toContainElement(screen.getByTestId("call-caption-translate"));
+    fireEvent.click(screen.getByTestId("call-caption-translate"));
+    await waitFor(() => expect(screen.getByTestId("foot")).toHaveTextContent("你好"));
+    expect(screen.getByTestId("message-translation")).toHaveAttribute("data-status", "done");
+  });
+
   it("ignores a late answer after unmount (no state update, no error)", async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));

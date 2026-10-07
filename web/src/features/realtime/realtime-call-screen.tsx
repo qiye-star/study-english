@@ -1,16 +1,20 @@
-import { EarIcon, LanguagesIcon, MicIcon, MicOffIcon, PhoneOffIcon, Volume2Icon, XIcon } from "lucide-react";
+import { EarIcon, LanguagesIcon, MicIcon, MicOffIcon, PhoneOffIcon, SlidersHorizontalIcon, Volume2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Button } from "@renderer/components/ui/button";
-import { cn } from "@renderer/lib/utils";
 import { browserCaptureEnv, getPageAudioContext, unlockAudioContext, type CaptureEnv } from "~/audio/capture";
 import type { ApiClient } from "~/api/client";
-import { scoreTone } from "~/features/chat/result-badges";
 import type { CallModel, InputMode } from "./call-machine";
-import { CallCaptionTranslation, readAutoTranslate, writeAutoTranslate } from "./call-caption-translation";
+import { readAutoTranslate, writeAutoTranslate } from "./call-caption-translation";
+import { CallCaptions } from "./call-captions";
+import { cx } from "./call-cx";
+import { CallModeSwitch, CallPttButton, CallTapToTalkButton, DockBarButton, DockKey, MicIndicator } from "./call-dock";
+import { CallHeader, CallHero, LevelBar } from "./call-hero";
 import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
 import { useRealtimeCall } from "./use-realtime-call";
+
+/** 浮动控制台 / 结束卡:玻璃 + 发丝线 + 28px 圆角,左右 16px,底部 max(12px, 安全区)。 */
+const DOCK = "glass relative z-30 mx-4 mb-[max(12px,env(safe-area-inset-bottom))] flex-none rounded-dock border-[0.5px] border-hair";
 
 export interface RealtimeCallScreenProps {
   model: CallModel;
@@ -27,6 +31,8 @@ export interface RealtimeCallScreenProps {
   onClose(): void;
   /** 通话字幕翻译(R16 复用):不传则不显示翻译入口(例如英文界面没有可译的目标语言)。 */
   translation?: { api: ApiClient; nativeLanguage: string };
+  /** 对话伙伴的名字(头像首字与字幕标题);不传时用通用称呼。 */
+  partnerName?: string;
 }
 
 /**
@@ -39,132 +45,6 @@ export function prepareCallAudio(env: CaptureEnv = browserCaptureEnv()): { conte
   if (!context) return null;
   unlockAudioContext(context);
   return { context, ownsContext: false };
-}
-
-const raf = (cb: () => void): number =>
-  typeof requestAnimationFrame === "function" ? requestAnimationFrame(cb) : window.setTimeout(cb, 50);
-const caf = (id: number): void =>
-  typeof cancelAnimationFrame === "function" ? cancelAnimationFrame(id) : window.clearTimeout(id);
-
-/** 电平条:直接写 DOM 宽度,不 setState(每帧重渲染整个界面没有必要)。 */
-function LevelBar({ level }: { level(): number }) {
-  const bar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      if (bar.current) bar.current.style.width = `${Math.round(Math.min(1, Math.max(0, level() * 3)) * 100)}%`;
-      frame = raf(tick);
-    };
-    frame = raf(tick);
-    return () => caf(frame);
-  }, [level]);
-  return (
-    <div data-testid="call-level" aria-hidden="true" className="h-2 w-40 overflow-hidden rounded-full bg-muted">
-      <div ref={bar} className="h-full bg-primary" style={{ width: "0%" }} />
-    </div>
-  );
-}
-
-const isHoldKey = (key: string) => key === " " || key === "Enter";
-
-/**
- * 通话里的"按住说话":按下即开始(音频是实时流出去的,所以没有聊天按钮那种上滑取消/转文字),松开即结束这句;
- * 按得太短(不足 MIN_HOLD_MS)由通话丢弃。免提时它也是"按住插话"(机器人说话时声音打断不了)。
- * 指针按住/松开;键盘 `Space`/`Enter` 按下/抬起;失焦、指针被取消、卸载都会结束这句。
- */
-function CallPttButton({ disabled, label, onDown, onUp, onHeldChange }: { disabled: boolean; label: string; onDown(): void; onUp(): void; onHeldChange?(held: boolean): void }) {
-  const [held, setHeld] = useState(false);
-  const heldRef = useRef(false);
-  const cb = useRef({ onDown, onUp, onHeldChange });
-  cb.current = { onDown, onUp, onHeldChange };
-
-  const down = () => {
-    if (heldRef.current || disabled) return;
-    heldRef.current = true;
-    setHeld(true);
-    cb.current.onHeldChange?.(true);
-    cb.current.onDown();
-  };
-  const up = (render = true) => {
-    if (!heldRef.current) return;
-    heldRef.current = false;
-    if (render) {
-      setHeld(false);
-      cb.current.onHeldChange?.(false);
-    }
-    cb.current.onUp();
-  };
-  const upRef = useRef(up);
-  upRef.current = up;
-
-  useEffect(() => {
-    if (disabled) upRef.current();
-  }, [disabled]);
-  // 卸载时按住着:结束这句(不 setState)
-  useEffect(() => () => upRef.current(false), []);
-
-  return (
-    <Button type="button" data-testid="call-ptt" data-held={String(held)} disabled={disabled}
-      variant={held ? "destructive" : "default"}
-      className="h-14 min-h-11 min-w-11 w-full select-none text-base"
-      style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
-      onContextMenu={(e) => e.preventDefault()}
-      onPointerDown={(e) => {
-        if (e.button > 0) return;
-        e.preventDefault();
-        try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 部分环境不支持 */ }
-        down();
-      }}
-      onPointerUp={() => up()}
-      onPointerCancel={() => up()}
-      onLostPointerCapture={() => up()}
-      onBlur={() => up()}
-      onKeyDown={(e) => {
-        if (!isHoldKey(e.key)) return;
-        e.preventDefault();
-        if (!e.repeat) down();
-      }}
-      onKeyUp={(e) => {
-        if (!isHoldKey(e.key)) return;
-        e.preventDefault();
-        up();
-      }}>
-      <MicIcon className="mr-1 h-5 w-5" aria-hidden="true" />
-      {label}
-    </Button>
-  );
-}
-
-/** 点按切换的说话键:按住说话模式下给读屏用户(双击无法"按住")和不便长按的人用。 */
-function CallTapToTalkButton({ disabled, onDown, onUp, onToggle }: { disabled: boolean; onDown(): void; onUp(): void; onToggle?(on: boolean): void }) {
-  const { t } = useTranslation();
-  const [on, setOn] = useState(false);
-  const onRef = useRef(false);
-  const cb = useRef({ onDown, onUp, onToggle });
-  cb.current = { onDown, onUp, onToggle };
-  const set = (next: boolean, render = true) => {
-    if (onRef.current === next) return;
-    onRef.current = next;
-    if (render) {
-      setOn(next);
-      cb.current.onToggle?.(next);
-    }
-    if (next) cb.current.onDown();
-    else cb.current.onUp();
-  };
-  const setRef = useRef(set);
-  setRef.current = set;
-  useEffect(() => {
-    if (disabled) setRef.current(false);
-  }, [disabled]);
-  useEffect(() => () => setRef.current(false, false), []);
-  return (
-    <Button type="button" data-testid="call-ptt-tap" variant={on ? "destructive" : "outline"} aria-pressed={on} disabled={disabled}
-      className="min-h-11 min-w-11 w-full text-base" onClick={() => set(!onRef.current)}>
-      <MicIcon className="mr-1 h-5 w-5" aria-hidden="true" />
-      {on ? t("web.realtime.tapToStop") : t("web.realtime.tapToTalk")}
-    </Button>
-  );
 }
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -205,29 +85,37 @@ function useModalIsolation(dialog: RefObject<HTMLElement>) {
   }, [dialog]);
 }
 
-export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode, onSpeaker, onPttDown, onPttUp, onClose, translation }: RealtimeCallScreenProps) {
+export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode, onSpeaker, onPttDown, onPttUp, onClose, translation, partnerName }: RealtimeCallScreenProps) {
   const { t, i18n } = useTranslation();
   const ended = model.phase === "ended";
   // 服务端可能带来新错误码:没有文案的键退回通用文案,不把键名露给用户
   const text = (key: string) => (i18n.exists(key) ? t(key) : t("web.realtime.errors.generic"));
+  const name = partnerName?.trim() || t("web.realtime.partner");
 
   const [autoTranslate, setAutoTranslate] = useState(readAutoTranslate);
 
-  const captionsRef = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
-  useEffect(() => {
-    const el = captionsRef.current;
-    if (el && stick.current) el.scrollTo?.({ top: el.scrollHeight });
-  }, [model.captions, model.partial]);
 
   // 焦点:打开时记住原焦点,关闭时归还;背后的页面 inert;通话中落在挂断键,结束后落在关闭键
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalIsolation(dialogRef);
   const hangupRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     (ended ? closeRef : hangupRef).current?.focus();
   }, [ended]);
+
+  // 「更多」面板:按住说话模式下的点按说话(读屏)、免提 + 自动模式下的按住插话
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreId = useId();
+
+  const captionsRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+  // 贴底:新字幕、以及「更多」面板开合让字幕区变矮/变高时,最新一句始终留在控制台上方
+  useEffect(() => {
+    const el = captionsRef.current;
+    if (el && stick.current) el.scrollTo?.({ top: el.scrollHeight });
+  }, [model.captions, model.partial, moreOpen, ended]);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Tab" && dialogRef.current) {
@@ -245,6 +133,12 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
     }
     if (e.key !== "Escape" || e.defaultPrevented) return;
     e.preventDefault();
+    if (moreOpen && !ended) {
+      // 面板开着:Escape 先收起面板,不挂断
+      setMoreOpen(false);
+      moreRef.current?.focus();
+      return;
+    }
     if (ended) onClose();
     else onHangup();
   };
@@ -253,121 +147,112 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
   // 点按键却还显示"点按结束说话"(review F2 m3)
   const [tapOn, setTapOn] = useState(false);
   const [holdOn, setHoldOn] = useState(false);
-  const phaseKey = model.phase === "idle" ? "connecting" : model.phase;
   const ptt = model.inputMode === "ptt";
   const micLive = !ptt || model.holding;
-  // 按住键:按住说话模式下是唯一的说话方式;免提+自动模式下用来插话(机器人说话时半双工,声音打断不了)
-  const showHold = ptt || model.speaker;
-  const modeLabelId = useId();
+  // 按住键:按住说话模式下是控制台第二个键(取代静音);免提+自动模式下在「更多」里用来插话(机器人说话时半双工,声音打断不了)
+  const holdInPanel = !ptt && model.speaker;
+  // 点按键 / 面板里的按住键卸载时(收起面板、切换模式)不会再回报状态:在这里复位,免得另一个键一直被禁用
+  useEffect(() => {
+    if (!(ptt && moreOpen)) setTapOn(false);
+  }, [ptt, moreOpen]);
+  useEffect(() => {
+    if (!(holdInPanel && moreOpen)) setHoldOn(false);
+  }, [holdInPanel, moreOpen]);
+
+  const toggleAutoTranslate = () => {
+    const next = !autoTranslate;
+    setAutoTranslate(next);
+    writeAutoTranslate(next);
+  };
+  const keyCount = translation ? 5 : 4;
+  const basicDetection = !ended && model.vadUnavailable && !ptt;
+  const notices = (model.degraded || model.notice || basicDetection) && (
+    <div className="mt-2 flex flex-col items-center gap-0.5 text-meta">
+      {model.degraded && <p data-testid="call-degraded" role="status" className="text-amber">{t("web.realtime.degraded")}</p>}
+      {model.notice && <p data-testid="call-notice" role="status" className="text-ink-2">{text(model.notice)}</p>}
+      {basicDetection && <p data-testid="call-basic-detection" className="text-ink-2">{t("web.realtime.basicDetection")}</p>}
+    </div>
+  );
+
   // 渲染到 body 下:背后整页都是对话框的兄弟节点,才能整体设为 inert
   return createPortal(
     <div ref={dialogRef} data-testid="call-screen" role="dialog" aria-modal="true" aria-label={t("web.realtime.title")} onKeyDown={onKeyDown}
-      className="fixed inset-0 z-50 flex flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      <header className="flex items-center justify-between gap-2 border-b p-3">
-        <span data-testid="call-status" data-phase={model.phase} role="status" className="text-base font-medium">
-          {t(`web.realtime.status.${phaseKey}`)}
-        </span>
-        {translation && (
-          <Button type="button" variant={autoTranslate ? "secondary" : "ghost"} size="sm" data-testid="call-auto-translate"
-            aria-pressed={autoTranslate} className="h-11 min-w-11 px-2"
-            onClick={() => { const next = !autoTranslate; setAutoTranslate(next); writeAutoTranslate(next); }}>
-            <LanguagesIcon className="mr-1 h-4 w-4" aria-hidden="true" />{t("web.realtime.autoTranslate")}
-          </Button>
-        )}
-        {!ended && (
-          // 按住说话模式下按住之外不采集:指示如实显示"已关闭"
-          <span data-testid="call-mic-indicator" data-live={String(micLive)}
-            className={cn("flex items-center gap-1 text-sm", micLive ? "text-red-600" : "text-muted-foreground")}>
-            <span className={cn("h-2 w-2 rounded-full", micLive ? "animate-pulse bg-red-600" : "bg-muted-foreground")} aria-hidden="true" />
-            {micLive ? t("web.realtime.micInUse") : t("web.realtime.micOffHold")}
-          </span>
-        )}
-      </header>
-      <div className="flex flex-col items-center gap-2 p-3">
-        {!ended && <LevelBar level={level} />}
-        {model.degraded && (
-          <p data-testid="call-degraded" role="status" className="text-sm text-amber-700">{t("web.realtime.degraded")}</p>
-        )}
-        {model.notice && (
-          <p data-testid="call-notice" role="status" className="text-sm text-muted-foreground">{text(model.notice)}</p>
-        )}
-      </div>
-      <div ref={captionsRef} data-testid="call-captions" data-lookup-context="" aria-label={t("web.realtime.captions")}
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] text-ink">
+      {/* 唯一的径向蓝色光晕:标记"通话中" */}
+      <div aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[52%] bg-[radial-gradient(120%_80%_at_50%_0%,var(--blue-wash),transparent_70%)]" />
+      <CallHeader phase={model.phase} />
+      <CallHero name={name} phase={model.phase}
+        subtitle={ended ? undefined : <MicIndicator live={micLive} />}
+        level={ended ? undefined : <LevelBar level={level} />}>
+        {notices}
+      </CallHero>
+      <CallCaptions ref={captionsRef} captions={model.captions} partial={model.partial} partnerName={name} live={!ended}
+        translation={translation} autoTranslate={autoTranslate}
         onScroll={(e) => {
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-        }}
-        className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-4">
-        {model.captions.map((c) => (
-          <div key={c.key} className={cn("flex flex-col gap-1", c.role === "user" ? "items-end" : "items-start")}>
-            <p className={cn("max-w-[85%] break-words rounded-lg px-3 py-2 text-base",
-              c.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted")}>
-              {c.text}
-              {c.interrupted && <span className="ml-1 text-xs opacity-70">{t("web.realtime.interrupted")}</span>}
-            </p>
-            {c.role === "user" && typeof c.score === "number" && (
-              <span data-testid="call-score" data-score={c.score}
-                className={cn("inline-flex h-6 items-center rounded-full px-2 text-xs", scoreTone(c.score))}>
-                {t("web.chat.voice.score", { score: c.score })}
-              </span>
-            )}
-            {translation && c.role === "assistant" && (
-              <CallCaptionTranslation api={translation.api} nativeLanguage={translation.nativeLanguage} captionKey={c.key} text={c.text}
-                finished={c.messageId !== undefined && !c.interrupted} auto={autoTranslate} />
-            )}
-          </div>
-        ))}
-        {model.partial && (
-          <p data-testid="call-partial" className="ml-auto max-w-[85%] break-words text-base italic text-muted-foreground">{model.partial}</p>
-        )}
-      </div>
+        }} />
       {ended ? (
-        <footer className="flex flex-col items-center gap-3 border-t p-4">
-          {model.error && <p data-testid="call-error" role="alert" className="text-center text-base">{text(model.error)}</p>}
-          <Button ref={closeRef} type="button" data-testid="call-close" className="min-h-11 min-w-11" onClick={onClose}>
-            <XIcon className="mr-1 h-4 w-4" aria-hidden="true" />{t("web.realtime.close")}
-          </Button>
-        </footer>
+        <div data-testid="call-end" className={cx(DOCK, "flex flex-col items-center gap-3 p-4")}>
+          {model.error && <p data-testid="call-error" role="alert" className="text-center text-body text-ink">{text(model.error)}</p>}
+          <button ref={closeRef} type="button" data-testid="call-close"
+            className="inline-flex min-h-11 min-w-11 w-full items-center justify-center gap-1.5 rounded-button bg-blue px-4 text-body font-semibold text-on-blue transition-opacity duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:opacity-80"
+            onClick={onClose}>
+            <XIcon className="h-4 w-4" aria-hidden="true" />{t("web.realtime.close")}
+          </button>
+        </div>
       ) : (
-        <footer className="flex flex-col items-center gap-3 border-t p-4">
-          {model.vadUnavailable && !ptt && (
-            <p data-testid="call-basic-detection" className="text-center text-xs text-muted-foreground">{t("web.realtime.basicDetection")}</p>
+        <>
+          {moreOpen && (
+            <div id={moreId} data-testid="call-more-panel" role="group" aria-label={t("web.realtime.more")}
+              className="relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-card border-[0.5px] border-hair bg-surface p-2 shadow-card">
+              {holdInPanel && (
+                <CallPttButton variant="bar" disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
+                  label={t("web.realtime.holdToInterrupt")} />
+              )}
+              {ptt && <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />}
+              {ptt && model.muted && (
+                // 按住说话模式隐藏了静音键:之前静音过的话在这里取消,否则按住说话键一直不可用
+                <DockBarButton data-testid="call-mute" aria-pressed={true} aria-label={t("web.realtime.unmute")} onClick={() => onMute(false)}>
+                  <MicOffIcon aria-hidden="true" />{t("web.realtime.unmute")}
+                </DockBarButton>
+              )}
+              {!ptt && !model.speaker && <p className="px-2 py-1.5 text-center text-sub text-ink-2">{t("web.realtime.moreHint")}</p>}
+            </div>
           )}
-          <div data-testid="call-input-mode" role="group" aria-labelledby={modeLabelId}
-            className="inline-flex rounded-lg border p-0.5">
-            <span id={modeLabelId} className="sr-only">{t("web.realtime.inputMode")}</span>
-            {(["auto", "ptt"] as const).map((mode) => (
-              <Button key={mode} type="button" data-testid={`call-mode-${mode}`} size="sm"
-                variant={model.inputMode === mode ? "secondary" : "ghost"} aria-pressed={model.inputMode === mode}
-                className="min-h-11 min-w-11 px-4"
-                onClick={() => { if (model.inputMode !== mode) onInputMode(mode); }}>
-                {mode === "auto" ? t("web.realtime.modeAuto") : t("web.realtime.modeHold")}
-              </Button>
-            ))}
+          <div data-testid="call-dock" className={cx(DOCK, "px-2.5 pb-[9px] pt-2")}>
+            <div className="flex h-8 items-center justify-center">
+              <CallModeSwitch value={model.inputMode} onChange={onInputMode} />
+            </div>
+            <div className="mt-1 grid items-start gap-1.5" style={{ gridTemplateColumns: `repeat(${keyCount}, minmax(0, 1fr))` }}>
+              <DockKey data-testid="call-speaker" tone={model.speaker ? "on" : "off"} aria-pressed={model.speaker} aria-label={t("web.realtime.speakerToggle")}
+                icon={model.speaker ? <Volume2Icon /> : <EarIcon />}
+                label={model.speaker ? t("web.realtime.speaker") : t("web.realtime.earpiece")}
+                onClick={() => onSpeaker(!model.speaker)} />
+              {ptt ? (
+                <CallPttButton variant="key" disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
+                  label={t("web.realtime.holdToSpeak")} />
+              ) : (
+                <DockKey data-testid="call-mute" tone={model.muted ? "on" : "off"} aria-pressed={model.muted}
+                  aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
+                  icon={model.muted ? <MicOffIcon /> : <MicIcon />} label={t("web.realtime.muteShort")}
+                  onClick={() => onMute(!model.muted)} />
+              )}
+              {translation && (
+                <DockKey data-testid="call-auto-translate" tone={autoTranslate ? "on" : "off"} aria-pressed={autoTranslate}
+                  aria-label={t("web.realtime.autoTranslate")} icon={<LanguagesIcon />} label={t("web.realtime.translate")}
+                  onClick={toggleAutoTranslate} />
+              )}
+              <DockKey ref={moreRef} data-testid="call-more" tone={moreOpen ? "on" : "off"} aria-expanded={moreOpen}
+                aria-controls={moreOpen ? moreId : undefined}
+                icon={<SlidersHorizontalIcon />} label={t("web.realtime.more")}
+                onClick={() => setMoreOpen((v) => !v)} />
+              <DockKey ref={hangupRef} data-testid="call-hangup" tone="end" aria-label={t("web.realtime.hangup")}
+                icon={<PhoneOffIcon />} label={t("web.realtime.hangup")} onClick={onHangup} />
+            </div>
           </div>
-          {showHold && (
-            <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
-              label={ptt ? t("web.realtime.holdToSpeak") : t("web.realtime.holdToInterrupt")} />
-          )}
-          {ptt && <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />}
-          <div className="flex items-center gap-4">
-            <Button type="button" data-testid="call-mute" variant="outline" size="icon" className="min-h-11 min-w-11"
-              aria-pressed={model.muted} aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
-              onClick={() => onMute(!model.muted)}>
-              {model.muted ? <MicOffIcon className="h-5 w-5" aria-hidden="true" /> : <MicIcon className="h-5 w-5" aria-hidden="true" />}
-            </Button>
-            <Button ref={hangupRef} type="button" data-testid="call-hangup" variant="destructive" size="icon"
-              className="min-h-11 min-w-11 rounded-full" aria-label={t("web.realtime.hangup")} onClick={onHangup}>
-              <PhoneOffIcon className="h-5 w-5" aria-hidden="true" />
-            </Button>
-            <Button type="button" data-testid="call-speaker" variant={model.speaker ? "secondary" : "outline"}
-              className="min-h-11 min-w-11 gap-1 px-3" aria-pressed={model.speaker} aria-label={t("web.realtime.speakerToggle")}
-              onClick={() => onSpeaker(!model.speaker)}>
-              {model.speaker ? <Volume2Icon className="h-5 w-5" aria-hidden="true" /> : <EarIcon className="h-5 w-5" aria-hidden="true" />}
-              <span aria-hidden="true">{model.speaker ? t("web.realtime.speaker") : t("web.realtime.earpiece")}</span>
-            </Button>
-          </div>
-        </footer>
+        </>
       )}
     </div>,
     document.body,
@@ -379,6 +264,8 @@ export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & {
   onClose(ending: CallEnding | null): void;
   /** 母语代码;不传(英文界面)则通话里不提供翻译。 */
   nativeLanguage?: string;
+  /** 对话伙伴的名字(通话头像与字幕标题);不传时用通用称呼。 */
+  partnerName?: string;
 };
 
 /**
@@ -386,13 +273,13 @@ export type RealtimeCallDialogProps = Omit<RealtimeCallOptions, "onChange"> & {
  * 其他原因结束(服务端关闭、超时、切后台 R16、麦克风错误……)→ 留在界面上显示原因与关闭按钮。
  * 传入页面共享上下文时用 `prepareCallAudio()` 的结果,`ownsContext` 为 false。
  */
-export function RealtimeCallDialog({ onClose, nativeLanguage, ...options }: RealtimeCallDialogProps) {
+export function RealtimeCallDialog({ onClose, nativeLanguage, partnerName, ...options }: RealtimeCallDialogProps) {
   const { model, call, handOff } = useRealtimeCall(options);
   const callRef = useRef(call);
   callRef.current = call;
   const level = useCallback(() => callRef.current?.level() ?? 0, []);
   return (
-    <RealtimeCallScreen model={model} level={level}
+    <RealtimeCallScreen model={model} level={level} partnerName={partnerName}
       onHangup={() => { call?.hangup(); onClose(handOff()); }}
       onMute={(m) => call?.setMuted(m)}
       onInputMode={(mode) => call?.setInputMode(mode)}
