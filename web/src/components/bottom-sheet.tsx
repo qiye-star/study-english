@@ -47,13 +47,15 @@ export const BottomSheetContent = forwardRef<ElementRef<typeof DialogPrimitive.C
 );
 BottomSheetContent.displayName = "BottomSheetContent";
 
-/** 抽屉标题区:17px 标题 + 13px 次要说明,右侧给关闭按钮留位。放在 BottomSheetContent 里第一个。 */
+/**
+ * 说明文字的类名不经 cn:默认 tailwind-merge 把 text-sub 当成文字颜色,会被 text-ink-2 挤掉。
+ * 抽屉标题区:17px 标题 + 13px 次要说明,右侧给关闭按钮留位。放在 BottomSheetContent 里第一个。 */
 export function BottomSheetHeader({ title, description, srOnlyDescription }: { title: string; description?: string; srOnlyDescription?: boolean }) {
   return (
     <div className="mb-3 pr-10">
       <DialogPrimitive.Title className="text-title font-semibold text-ink">{title}</DialogPrimitive.Title>
       {description ? (
-        <DialogPrimitive.Description className={cn("mt-1 text-sub text-ink-2", srOnlyDescription && "sr-only")}>{description}</DialogPrimitive.Description>
+        <DialogPrimitive.Description className={`mt-1 text-sub text-ink-2${srOnlyDescription ? " sr-only" : ""}`}>{description}</DialogPrimitive.Description>
       ) : null}
     </div>
   );

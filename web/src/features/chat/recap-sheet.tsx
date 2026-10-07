@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { cn } from "@renderer/lib/utils";
+import { cn } from "./cn";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { scoreToneClass } from "~/components/score-tone";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
-import { cn } from "@renderer/lib/utils";
+import { cn } from "./cn";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";

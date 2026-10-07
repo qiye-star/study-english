@@ -1,7 +1,7 @@
 import { LoaderIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@renderer/lib/utils";
+import { cn } from "./cn";
 import type { DiscardReason } from "./hold-to-talk";
 import { useHoldToTalk } from "./use-hold-to-talk";
 import type { VoiceTurnState } from "./use-voice-turn";

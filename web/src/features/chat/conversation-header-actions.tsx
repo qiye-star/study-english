@@ -2,7 +2,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { ChevronRightIcon, ClipboardListIcon, GaugeIcon, LanguagesIcon, PhoneIcon, Settings2Icon, SlidersHorizontalIcon, Volume2Icon } from "lucide-react";
 import { useRef, useState, type ComponentType, type ReactNode, type Ref, type SVGProps } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@renderer/lib/utils";
+import { cn } from "./cn";
 import { IconButton } from "~/components/icon-button";
 import { formatPlaybackRate, nextPlaybackRate, setPlaybackRate, usePlaybackRate } from "~/lib/playback-rate";
 
@@ -64,11 +64,12 @@ export function ConversationHeaderActions({
   const { t } = useTranslation();
   const rate = usePlaybackRate();
   const [open, setOpen] = useState(false);
-  // 复盘/设置:先关面板,等它真正卸载(焦点归还时)再开抽屉,免得两层 Radix 图层交接时把页面锁成 pointer-events:none
-  const afterCloseRef = useRef<(() => void) | null>(null);
+  // 复盘/设置:关掉面板并立刻打开抽屉(面板非模态,不锁 body);关闭时焦点不回到调整按钮,交给抽屉
+  const sheetOpeningRef = useRef(false);
   const openSheet = (action: () => void) => {
-    afterCloseRef.current = action;
+    sheetOpeningRef.current = true;
     setOpen(false);
+    action();
   };
   return (
     <div className="flex flex-none items-center">
@@ -92,11 +93,9 @@ export function ConversationHeaderActions({
           <PopoverPrimitive.Content data-testid="conversation-options-panel" align="end" sideOffset={4} collisionPadding={8}
             aria-label={t("web.chat.options.label")}
             onCloseAutoFocus={(event) => {
-              const action = afterCloseRef.current;
-              afterCloseRef.current = null;
-              if (!action) return;
-              event.preventDefault(); // 焦点交给即将打开的抽屉
-              action();
+              if (!sheetOpeningRef.current) return;
+              sheetOpeningRef.current = false;
+              event.preventDefault();
             }}
             className={cn(
               "z-40 w-[min(300px,calc(100vw-16px))] rounded-card border-[0.5px] border-hair bg-surface p-1 text-ink",
