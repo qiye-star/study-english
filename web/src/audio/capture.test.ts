@@ -91,6 +91,39 @@ describe("startPcmCapture", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  describe("release leaves nothing alive on the shared context (review W1 I-2)", () => {
+    it("worklet path: clears the port handler, stops the processor, disconnects and drops collected audio", async () => {
+      const shared = new FakeAudioContext();
+      const { e, node } = env();
+      const capture = await startPcmCapture({ env: e, context: asContext(shared), collect: true });
+      node.emit(new Float32Array(4800).fill(0.1));
+      expect(capture.collected().length).toBeGreaterThan(0);
+      expect(capture.collected().length).toBe(0); // 结果取走后不再持有
+      node.emit(new Float32Array(4800).fill(0.1));
+      const handler = node.port.onmessage;
+      capture.release();
+      expect(node.port.onmessage).toBeNull();
+      expect(node.port.postMessage).toHaveBeenCalledWith("stop");
+      expect(node.disconnect).toHaveBeenCalled();
+      expect(shared.source.disconnect).toHaveBeenCalled();
+      handler?.({ data: new Float32Array(4800).fill(0.1) } as MessageEvent); // 迟到的帧
+      expect(capture.collected().length).toBe(0);
+    });
+
+    it("script-processor path: clears onaudioprocess and disconnects every node even if one throws", async () => {
+      const shared = new FakeAudioContext();
+      shared.audioWorklet = undefined;
+      shared.source.disconnect.mockImplementation(() => { throw new Error("already"); });
+      const capture = await startPcmCapture({ env: env().e, context: asContext(shared), collect: true });
+      shared.processor.emit(new Float32Array(4800).fill(0.1));
+      capture.release();
+      expect(shared.processor.onaudioprocess).toBeNull();
+      expect(shared.processor.disconnect).toHaveBeenCalled();
+      expect(shared.gain.disconnect).toHaveBeenCalled();
+      expect(capture.collected().length).toBe(0);
+    });
+  });
+
   describe("failures after the microphone was granted (review W1 I-1)", () => {
     it("stops the tracks and closes its own context when the graph setup throws", async () => {
       const ctx = new FakeAudioContext();

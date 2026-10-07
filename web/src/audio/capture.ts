@@ -123,7 +123,7 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
     const downsampler = new Downsampler(ctx.sampleRate, TARGET_RATE);
     const frameListeners = new Set<(f: Float32Array, level: number) => void>();
     const endListeners = new Set<() => void>();
-    const parts: Float32Array[] = [];
+    let parts: Float32Array[] = [];
     let released = false;
 
     const handle = (samples: Float32Array) => {
@@ -135,39 +135,62 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
       frameListeners.forEach((cb) => cb(frame, level));
     };
 
+    /** 断开并解除一个采集节点的所有引用:页面级上下文从不关闭,残留的处理器/回调会连同录音一起常驻(review W1 I-2)。 */
+    const detachers: Array<() => void> = [() => source.disconnect()];
+    const detachAll = () => {
+      for (const detach of detachers.splice(0)) {
+        try { detach(); } catch { /* 已断开 */ }
+      }
+    };
+
     let via: PcmCapture["via"] = "script-processor";
-    let node: AudioNode | null = null;
-    let sink: AudioNode | null = null;
-    if (ctx.audioWorklet && env.createWorkletNode) {
+    try {
+      if (!(ctx.audioWorklet && env.createWorkletNode && (await attachWorklet()))) attachScriptProcessor();
+    } catch (err) {
+      detachAll();
+      throw err;
+    }
+
+    async function attachWorklet(): Promise<boolean> {
+      let worklet: AudioWorkletNode;
       try {
         await ctx.audioWorklet.addModule(env.workletUrl);
-        const worklet = env.createWorkletNode(ctx);
+        worklet = env.createWorkletNode!(ctx);
         worklet.port.onmessage = (event: MessageEvent) => handle(event.data as Float32Array);
         source.connect(worklet);
-        node = worklet;
-        via = "worklet";
       } catch {
-        node = null;
+        return false;
       }
+      detachers.push(() => {
+        worklet.port.onmessage = null;
+        worklet.port.postMessage("stop"); // 让 process() 返回 false,处理器停止并可回收
+      }, () => worklet.disconnect());
+      via = "worklet";
+      return true;
     }
-    if (!node) {
+
+    function attachScriptProcessor() {
       const processor = ctx.createScriptProcessor(4096, 1, 1);
+      detachers.push(() => { processor.onaudioprocess = null; }, () => processor.disconnect());
       processor.onaudioprocess = (event) => handle(event.inputBuffer.getChannelData(0).slice());
       const mute = ctx.createGain();
+      detachers.push(() => mute.disconnect());
       mute.gain.value = 0;
       source.connect(processor);
       processor.connect(mute);
       mute.connect(ctx.destination); // ScriptProcessor 需要连到输出才会工作
-      node = processor;
-      sink = mute;
+      via = "script-processor";
     }
+
     const onEnded = () => endListeners.forEach((cb) => cb());
     tracks.forEach((t) => t.addEventListener?.("ended", onEnded));
 
     return {
       stream,
       context: ctx,
-      via,
+      get via() {
+        return via;
+      },
       onFrame(cb) {
         frameListeners.add(cb);
         return () => frameListeners.delete(cb);
@@ -176,19 +199,19 @@ export async function startPcmCapture(opts: { env?: CaptureEnv; context?: AudioC
         endListeners.add(cb);
         return () => endListeners.delete(cb);
       },
-      collected: () => concatFloat(parts),
+      /** 取走已收集的 16 kHz 样本;之后不再持有它们(再次调用只返回其后新到的样本)。 */
+      collected() {
+        const taken = concatFloat(parts);
+        parts = [];
+        return taken;
+      },
       release() {
         if (released) return;
         released = true;
         frameListeners.clear();
         endListeners.clear();
-        try {
-          source.disconnect();
-          node?.disconnect();
-          sink?.disconnect();
-        } catch {
-          /* 已断开 */
-        }
+        parts = [];
+        detachAll();
         tracks.forEach((t) => {
           t.removeEventListener?.("ended", onEnded);
           t.stop();
