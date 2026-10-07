@@ -1,0 +1,406 @@
+[
+ {
+  "text": "Hello there. How are you?",
+  "sentences": [
+   "Hello there.",
+   "How are you?"
+  ]
+ },
+ {
+  "text": "Mr. Smith arrived at 3 p.m. Then he left.",
+  "sentences": [
+   "Mr. Smith arrived at 3 p.m. Then he left."
+  ]
+ },
+ {
+  "text": "Pi is 3.14 today. Nice!",
+  "sentences": [
+   "Pi is 3.14 today.",
+   "Nice!"
+  ]
+ },
+ {
+  "text": "She said \"Stop.\" Then she ran.",
+  "sentences": [
+   "She said \"Stop.\"",
+   "Then she ran."
+  ]
+ },
+ {
+  "text": "Wait... what? Really?!",
+  "sentences": [
+   "Wait... what?",
+   "Really?!"
+  ]
+ },
+ {
+  "text": "Well… I think so. OK.",
+  "sentences": [
+   "Well… I think so.",
+   "OK."
+  ]
+ },
+ {
+  "text": "你好。今天天气很好！你呢？",
+  "sentences": [
+   "你好。",
+   "今天天气很好！",
+   "你呢？"
+  ]
+ },
+ {
+  "text": "I like it.\nYou too",
+  "sentences": [
+   "I like it.",
+   "You too"
+  ]
+ },
+ {
+  "text": "Use e.g. this one. And that.",
+  "sentences": [
+   "Use e.g. this one.",
+   "And that."
+  ]
+ },
+ {
+  "text": "J. K. Rowling wrote it. Yes.",
+  "sentences": [
+   "J. K. Rowling wrote it.",
+   "Yes."
+  ]
+ },
+ {
+  "text": "It's version 2.0. Upgrade now.",
+  "sentences": [
+   "It's version 2.0.",
+   "Upgrade now."
+  ]
+ },
+ {
+  "text": "(Really.) Yes.",
+  "sentences": [
+   "(Really.)",
+   "Yes."
+  ]
+ },
+ {
+  "text": "No terminator at all",
+  "sentences": [
+   "No terminator at all"
+  ]
+ },
+ {
+  "text": "Stop! 42 people came. ... ok",
+  "sentences": [
+   "Stop!",
+   "42 people came. ... ok"
+  ]
+ },
+ {
+  "text": "   ",
+  "sentences": []
+ },
+ {
+  "text": "",
+  "sentences": []
+ },
+ {
+  "text": "\n\n \t\n",
+  "sentences": []
+ },
+ {
+  "text": "Dr. Who is here. Yes.",
+  "sentences": [
+   "Dr. Who is here.",
+   "Yes."
+  ]
+ },
+ {
+  "text": "Meet me at 9 a.m. Tomorrow works.",
+  "sentences": [
+   "Meet me at 9 a.m. Tomorrow works."
+  ]
+ },
+ {
+  "text": "It was cheap vs. expensive. Fine.",
+  "sentences": [
+   "It was cheap vs. expensive.",
+   "Fine."
+  ]
+ },
+ {
+  "text": "Made in the U.S. Then shipped.",
+  "sentences": [
+   "Made in the U.S. Then shipped."
+  ]
+ },
+ {
+  "text": "Fruit, i.e. apples. Done.",
+  "sentences": [
+   "Fruit, i.e. apples.",
+   "Done."
+  ]
+ },
+ {
+  "text": "See https://example.com/a.b. Then go.",
+  "sentences": [
+   "See https://example.com/a.b.",
+   "Then go."
+  ]
+ },
+ {
+  "text": "Visit www.example.com now. Thanks.",
+  "sentences": [
+   "Visit www.example.com now.",
+   "Thanks."
+  ]
+ },
+ {
+  "text": "Mail john.doe@example.com today. Thanks.",
+  "sentences": [
+   "Mail john.doe@example.com today.",
+   "Thanks."
+  ]
+ },
+ {
+  "text": "Version v1.2.3 is out. Update.",
+  "sentences": [
+   "Version v1.2.3 is out.",
+   "Update."
+  ]
+ },
+ {
+  "text": "He said (yes.) Then left.",
+  "sentences": [
+   "He said (yes.)",
+   "Then left."
+  ]
+ },
+ {
+  "text": "It is [done.] Next step.",
+  "sentences": [
+   "It is [done.]",
+   "Next step."
+  ]
+ },
+ {
+  "text": "She asked, \"Why?\" He shrugged.",
+  "sentences": [
+   "She asked, \"Why?\"",
+   "He shrugged."
+  ]
+ },
+ {
+  "text": "‘Go.’ ‘No.’",
+  "sentences": [
+   "‘Go.’",
+   "‘No.’"
+  ]
+ },
+ {
+  "text": "What?? No!! Really?!",
+  "sentences": [
+   "What??",
+   "No!!",
+   "Really?!"
+  ]
+ },
+ {
+  "text": "Is it?! Yes. Okay!",
+  "sentences": [
+   "Is it?!",
+   "Yes.",
+   "Okay!"
+  ]
+ },
+ {
+  "text": "It ended. then nothing.",
+  "sentences": [
+   "It ended. then nothing."
+  ]
+ },
+ {
+  "text": "Wait.... still waiting. Yes.",
+  "sentences": [
+   "Wait.... still waiting.",
+   "Yes."
+  ]
+ },
+ {
+  "text": "Hmm… Okay… Fine.",
+  "sentences": [
+   "Hmm… Okay… Fine."
+  ]
+ },
+ {
+  "text": "Really…? Yes.",
+  "sentences": [
+   "Really…?",
+   "Yes."
+  ]
+ },
+ {
+  "text": "Wait... Then go.",
+  "sentences": [
+   "Wait... Then go."
+  ]
+ },
+ {
+  "text": "你好。 Hello there.",
+  "sentences": [
+   "你好。",
+   "Hello there."
+  ]
+ },
+ {
+  "text": "你好！！？今天好。",
+  "sentences": [
+   "你好！！？",
+   "今天好。"
+  ]
+ },
+ {
+  "text": "他说“好。”然后走了。",
+  "sentences": [
+   "他说“好。”",
+   "然后走了。"
+  ]
+ },
+ {
+  "text": "你好。。。今天",
+  "sentences": [
+   "你好。。。",
+   "今天"
+  ]
+ },
+ {
+  "text": "Hello 你好。World.",
+  "sentences": [
+   "Hello 你好。",
+   "World."
+  ]
+ },
+ {
+  "text": "你好",
+  "sentences": [
+   "你好"
+  ]
+ },
+ {
+  "text": "Line one\nLine two\n\nLine three",
+  "sentences": [
+   "Line one",
+   "Line two",
+   "Line three"
+  ]
+ },
+ {
+  "text": "Hello.\r\nWorld.",
+  "sentences": [
+   "Hello.",
+   "World."
+  ]
+ },
+ {
+  "text": "First point\n- second point",
+  "sentences": [
+   "First point",
+   "- second point"
+  ]
+ },
+ {
+  "text": "   Leading and trailing spaces.   ",
+  "sentences": [
+   "Leading and trailing spaces."
+  ]
+ },
+ {
+  "text": "Hello.   World.",
+  "sentences": [
+   "Hello.",
+   "World."
+  ]
+ },
+ {
+  "text": "42.",
+  "sentences": []
+ },
+ {
+  "text": "...",
+  "sentences": []
+ },
+ {
+  "text": "?! ... 。。。",
+  "sentences": []
+ },
+ {
+  "text": "Hello. 42 is the answer.",
+  "sentences": [
+   "Hello.",
+   "42 is the answer."
+  ]
+ },
+ {
+  "text": "It costs $3.50 now. Buy it.",
+  "sentences": [
+   "It costs $3.50 now.",
+   "Buy it."
+  ]
+ },
+ {
+  "text": "Chapter 1. Introduction",
+  "sentences": [
+   "Chapter 1.",
+   "Introduction"
+  ]
+ },
+ {
+  "text": "Dr. J. Smith, Ph.D. is here. Hi.",
+  "sentences": [
+   "Dr. J. Smith, Ph.D. is here.",
+   "Hi."
+  ]
+ },
+ {
+  "text": "Ask Prof. Lee. She knows.",
+  "sentences": [
+   "Ask Prof. Lee.",
+   "She knows."
+  ]
+ },
+ {
+  "text": "Call me ASAP. Thanks.",
+  "sentences": [
+   "Call me ASAP.",
+   "Thanks."
+  ]
+ },
+ {
+  "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "sentences": [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ]
+ },
+ {
+  "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "sentences": [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ]
+ },
+ {
+  "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+  "sentences": [
+   "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+   "word word word word word"
+  ]
+ },
+ {
+  "text": "AAAAAAAAAA, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "sentences": [
+   "AAAAAAAAAA,",
+   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ]
+ }
+]
