@@ -1,8 +1,10 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { toast } from "sonner";
 import { describe, expect, it } from "vitest";
+import type { ReactElement } from "react";
 import { ThemedToaster } from "~/app";
+import i18n from "~/i18n";
 import { AppShell } from "./app-shell";
 import { BottomNav } from "./bottom-nav";
 import { initColorScheme, useIsDark } from "./color-scheme";
@@ -15,6 +17,16 @@ function HeightProbe({ win }: { win: Window }): null {
   return null;
 }
 
+function AppShellWith({ page }: { page: ReactElement }) {
+  return (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="*" element={page} />
+      </Route>
+    </Routes>
+  );
+}
+
 describe("layout", () => {
   it("bottom nav has three 56px targets with test ids", () => {
     render(<MemoryRouter initialEntries={["/chat"]}><BottomNav /></MemoryRouter>);
@@ -22,6 +34,43 @@ describe("layout", () => {
       expect(screen.getByTestId(id).className).toMatch(/\bmin-h-14\b/);
     }
     expect(screen.getByTestId("nav-chat")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("bottom nav is an always-on glass bar with the active tab in blue", () => {
+    render(<MemoryRouter initialEntries={["/me"]}><BottomNav /></MemoryRouter>);
+    const nav = screen.getByRole("navigation");
+    expect(nav.className).toMatch(/\bglass\b/);
+    expect(nav.className).toContain("glass-edge-t");
+    expect(nav.className).toContain("pb-[env(safe-area-inset-bottom)]");
+    expect(screen.getByTestId("nav-me").className).toMatch(/\btext-blue\b/);
+    expect(screen.getByTestId("nav-chat").className).toMatch(/\btext-ink-2\b/);
+  });
+
+  it("page header is transparent at rest and turns to glass once the shell scrolls", () => {
+    const shell = renderWithProviders(<AppShell />, { route: "/x" });
+    const main = shell.container.querySelector("main")!;
+    // 内容从玻璃底栏下穿过:滚动区为底栏留出空间
+    expect(main.className).toContain("pb-[calc(3.5rem+env(safe-area-inset-bottom))]");
+    shell.unmount();
+
+    function Page() {
+      return <PageHeader title="练习" />;
+    }
+    const { container } = renderWithProviders(<AppShellWith page={<Page />} />);
+    const header = container.querySelector("header")!;
+    expect(header.className).not.toContain("glass-bar");
+    act(() => {
+      const scroller = container.querySelector("main")!;
+      scroller.scrollTop = 120;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+    expect(header.className).toContain("glass-bar");
+  });
+
+  it("page header back button is a 44px labelled target", () => {
+    render(<MemoryRouter><PageHeader title="T" back="/me" /></MemoryRouter>);
+    const back = screen.getByRole("button", { name: i18n.t("web.common.back") });
+    expect(back.className).toMatch(/\bh-tap\b/);
   });
 
   it("writes the visual viewport height to --app-height and follows resizes", () => {

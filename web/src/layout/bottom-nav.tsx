@@ -1,7 +1,7 @@
 import { MessagesSquareIcon, MicIcon, UserIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
-import { cn } from "@renderer/lib/utils";
+import { GlassTabBar, tabBarItemClass } from "~/components/glass-tab-bar";
 
 const ITEMS = [
   { to: "/practice", icon: MicIcon, label: "web.nav.practice", testId: "nav-practice" },
@@ -12,26 +12,15 @@ const ITEMS = [
 export function BottomNav() {
   const { t } = useTranslation();
   return (
-    <nav aria-label={t("web.nav.label")} className="border-t bg-background pb-[env(safe-area-inset-bottom)]">
-      <ul className="grid grid-cols-3">
-        {ITEMS.map(({ to, icon: Icon, label, testId }) => (
-          <li key={to}>
-            <NavLink
-              to={to}
-              data-testid={testId}
-              className={({ isActive }) =>
-                cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs",
-                  isActive ? "font-medium text-primary" : "text-muted-foreground",
-                )
-              }
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-              {t(label)}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <GlassTabBar label={t("web.nav.label")} columns={ITEMS.length}>
+      {ITEMS.map(({ to, icon: Icon, label, testId }) => (
+        <li key={to}>
+          <NavLink to={to} data-testid={testId} className={({ isActive }) => tabBarItemClass(isActive)}>
+            <Icon aria-hidden />
+            {t(label)}
+          </NavLink>
+        </li>
+      ))}
+    </GlassTabBar>
   );
 }
