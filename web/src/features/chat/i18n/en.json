@@ -30,7 +30,7 @@
         "play": "Play recording", "pause": "Pause", "cancel": "Discard recording", "stopAndSend": "Stop and send",
         "assessing": "Assessing…", "assessFailed": "Assessment failed", "score": "Pronunciation {{score}}",
         "skippedNonEnglish": "Not assessed (not English)", "skippedTooLong": "Not assessed (too long)",
-        "retryTranscribe": "Retry transcription", "sendKept": "Send this recording", "discard": "Discard",
+        "fillFailed": "Couldn't convert to text: {{error}}", "retryTranscribe": "Retry transcription", "sendKept": "Send this recording", "discard": "Discard",
         "details": "Details", "detailsDescription": "Pronunciation score and corrections for this message",
         "practiceThis": "Practice this sentence", "recording": "Recording", "heldBusy": "A reply was still in progress, so this recording was not sent yet.",
         "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list",

@@ -112,13 +112,17 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     const draft = drafts.current.get(key);
     if (!draft || inflight.current || !mounted.current) return;
     const controller = new AbortController();
+    // 转文字(fill)失败的气泡要说明这是"转文字"失败:重试仍只填回输入框,不会发送
+    const failed = (error: string) => opts.current.onDraft({
+      kind: "failed", key, error: draft.deliver === "fill" ? tRef.current("web.chat.voice.fillFailed", { error }) : error,
+    });
     let turn: number | undefined;
     if (!draft.handoff) {
       if (draft.recording.noSpeech && !draft.noSpeechChecked) {
         draft.noSpeechChecked = true; // 只拦第一次:用户点"重试"即视为坚持发送
         abortLatencyTrace(draft.latencyTurn); // 没有上传:这一轮不计时
         draft.latencyTurn = undefined;
-        opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
+        failed(tRef.current("web.chat.noSpeech"));
         return;
       }
       turn = draft.latencyTurn;
@@ -153,7 +157,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
         markLatency("transcript", turn);
         if (!clean) {
           abortLatencyTrace(turn);
-          opts.current.onDraft({ kind: "failed", key, error: tRef.current("web.chat.noSpeech") });
+          failed(tRef.current("web.chat.noSpeech"));
           return;
         }
         if (draft.deliver === "fill") {
@@ -189,7 +193,7 @@ export function useVoiceTurn(options: UseVoiceTurnOptions) {
     } catch (err) {
       abortLatencyTrace(turn);
       if (mounted.current && !controller.signal.aborted) {
-        opts.current.onDraft({ kind: "failed", key, error: describeAudioError(tRef.current, err, CHAT_SERVER_ERRORS) });
+        failed(describeAudioError(tRef.current, err, CHAT_SERVER_ERRORS));
       }
     } finally {
       // 只有仍拥有 inflight 时才收尾:cancel()/reset() 已自行清理,新的转写可能已经开始

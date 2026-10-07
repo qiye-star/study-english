@@ -681,6 +681,27 @@ describe("stop('fill') (plan 2026-10-07 R11)", () => {
     expect(t.onTranscribedText).not.toHaveBeenCalled();
   });
 
+  it("a failed fill says it was converting to text, for errors and for no speech", async () => {
+    let calls = 0;
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => (++calls === 1 ? json({ detail: "x" }, 500) : json({ text: " " })) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop("fill"); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenCalledWith(expect.objectContaining({ kind: "failed" })));
+    expect(t.onDraft.mock.lastCall![0].error).toMatch(/convert.*text|转文字/i);
+    await act(async () => { t.hook.current.retry("k1"); });
+    await vi.waitFor(() => expect(calls).toBe(2));
+    await vi.waitFor(() => expect(t.onDraft.mock.lastCall![0]).toMatchObject({ kind: "failed" }));
+    expect(t.onDraft.mock.lastCall![0].error).toMatch(/convert.*text|转文字/i);
+  });
+
+  it("a failed send keeps the plain error text", async () => {
+    const t = setup({ "POST /api/ai/audio/transcriptions": () => json({ detail: "x" }, 500) });
+    await act(async () => { await t.hook.current.start(); });
+    await act(async () => { await t.hook.current.stop(); });
+    await vi.waitFor(() => expect(t.onDraft).toHaveBeenCalledWith(expect.objectContaining({ kind: "failed" })));
+    expect(t.onDraft.mock.lastCall![0].error).not.toMatch(/convert.*text|转文字/i);
+  });
+
   it("retry after a failed transcription still fills", async () => {
     let calls = 0;
     const t = setup({ "POST /api/ai/audio/transcriptions": () => (++calls === 1 ? json({ detail: "x" }, 500) : json({ text: "again" })) });
