@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { TtsCache, speakableText, stripMarkdown, truncateAtSentence, ttsKey } from "./tts";
+import { splitForSpeech } from "./sentence-stream";
 
 describe("tts helpers", () => {
   it("evicts least recently used urls and revokes them", () => {
@@ -17,6 +18,20 @@ describe("tts helpers", () => {
   it("strips markdown before speaking", () => {
     expect(speakableText("# Title\n**Bold** `code` [link](http://x) and _it_\n- item\n```js\nx()\n```")).toBe("Title Bold code link and it item");
     expect(speakableText("x".repeat(5000))).toHaveLength(4096);
+  });
+  it("emphasis spanning a sentence boundary leaves no literal markers in the per-sentence TTS text (review W2)", () => {
+    for (const reply of ["**One. Two.**", "__One. Two.__", "*One. Two.*", "_One. Two._", "***One. Two.***", "Say **this. And that** now."]) {
+      const spoken = splitForSpeech(reply).map(speakableText);
+      expect(spoken.length, reply).toBeGreaterThan(1);
+      for (const s of spoken) expect(s, reply).not.toMatch(/[*_]/);
+    }
+    expect(splitForSpeech("**One. Two.**").map(speakableText)).toEqual(["One.", "Two."]);
+    expect(splitForSpeech("Say **this. And that** now.").map(speakableText)).toEqual(["Say this.", "And that now."]);
+  });
+  it("keeps asterisks and underscores that are not emphasis markers", () => {
+    expect(speakableText("5 * 3 = 15")).toBe("5 * 3 = 15");
+    expect(speakableText("use snake_case and a*b")).toBe("use snake_case and a*b");
+    expect(speakableText("**Bold** and *it* and _it_")).toBe("Bold and it and it");
   });
   it("never splits a surrogate pair when truncating", () => {
     const text = "a".repeat(4095) + "😀" + "tail";

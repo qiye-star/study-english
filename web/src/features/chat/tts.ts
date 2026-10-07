@@ -99,8 +99,19 @@ export function stripMarkdown(markdown: string): string {
     .replace(/(?<![A-Za-z0-9_])_(?=\S)([^_\n]*?\S)_(?![A-Za-z0-9_])/g, "$1");
 }
 
+/**
+ * 逐句朗读时,跨句的强调会被切成两半("**One." / "Two.**"),stripMarkdown 只剥成对的标记。
+ * 这里去掉贴在词边上、另一侧是空白/行首行尾/括号引号的 1–3 个 `*`/`_`;两侧都是空白(5 * 3)
+ * 或两侧都是字符(a*b、snake_case)的保留。
+ */
+function dropStrayEmphasis(text: string): string {
+  return text
+    .replace(/(^|[\s(["'“‘])[*_]{1,3}(?=[^\s*_])/g, "$1")
+    .replace(/([^\s*_])[*_]{1,3}(?=$|[\s)\]"'”’.,!?;:])/g, "$1");
+}
+
 export function speakableText(markdown: string): string {
-  return truncateAtSentence(stripMarkdown(markdown).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
+  return truncateAtSentence(dropStrayEmphasis(stripMarkdown(markdown)).replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();
