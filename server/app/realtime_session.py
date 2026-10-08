@@ -17,13 +17,13 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
-from app.asr import MAX_UTTERANCE_BYTES, AsrError, RecognizerFactory, UtteranceRecognizer
+from app.speech.asr import MAX_UTTERANCE_BYTES, AsrError, RecognizerFactory, UtteranceRecognizer
 from app.realtime_protocol import (
     CLOSE_IDLE, CLOSE_MAX_DURATION, CLOSE_MESSAGE_LIMIT, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_UPSTREAM,
     HangupMsg, InterruptMsg, ProtocolError, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink,
     parse_client_message,
 )
-from app.sentence_split import SentenceSplitter
+from app.speech.sentence_split import SentenceSplitter
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.sentence_split import ABBREVIATIONS, MAX_SENTENCE_CHARS, SentenceSplitter, split_all
+from app.speech.sentence_split import ABBREVIATIONS, MAX_SENTENCE_CHARS, SentenceSplitter, split_all
 
 CASES = json.loads((Path(__file__).parent / "fixtures" / "sentence_cases.json").read_text(encoding="utf-8"))
 WORDS = ["hello", "world", "Mr.", "Dr.", "v3.14", "e.g.", "coffee", "please", "\"quoted\"", "really", "you", "tomorrow"]

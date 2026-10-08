@@ -1,7 +1,7 @@
 """Spike:按实时节奏向火山大模型流式识别推流(计划 Task 0.4,按裁定 R21/R22 缩减)。
 
 只读工具,不是产品代码。鉴权与帧协议已由 2026-10-07-volc-streaming-asr-spike.md 验证,
-这里复用 app.asr_stream 的帧编解码,密钥只取 Settings().asr_stream_key(进程内)。
+这里复用 app.speech.asr_stream 的帧编解码,密钥只取 Settings().asr_stream_key(进程内)。
 只打印"已配置/未配置"、状态码/错误码、耗时与测试样本(公开的 JFK 演讲片段)的简短转写;
 不打印请求头、密钥、URL 查询串或 logid。
 
@@ -27,7 +27,7 @@ from pathlib import Path
 import websockets
 from websockets.asyncio.client import connect
 
-from app.asr_stream import (
+from app.speech.asr_stream import (
     MSG_ERROR,
     _ws_logger,
     decode_frame,

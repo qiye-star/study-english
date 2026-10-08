@@ -11,7 +11,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from app.asr_stream import (
+from app.speech.asr_stream import (
     BREAKER_COOLDOWN,
     BREAKER_THRESHOLD,
     CHUNK_BYTES,
@@ -306,7 +306,7 @@ async def test_unexpected_exception_becomes_protocol_error(fake, monkeypatch):
     def boom(raw):
         raise MemoryError()
 
-    monkeypatch.setattr("app.asr_stream.decode_frame", boom)
+    monkeypatch.setattr("app.speech.asr_stream.decode_frame", boom)
     with pytest.raises(AsrStreamError) as e:
         await transcribe_pcm(settings_for(fake.url), b"\x00\x00" * 10)
     assert e.value.kind == "protocol"

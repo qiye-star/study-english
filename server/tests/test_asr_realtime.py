@@ -17,15 +17,15 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from app.asr import AsrError, make_transcriber, realtime_factory, shared_asr_gate
-from app.asr_realtime import (
+from app.speech.asr import AsrError, make_transcriber, realtime_factory, shared_asr_gate
+from app.speech.asr_realtime import (
     LAST_CHUNK_BYTES,
     MAX_FRAME_PCM_BYTES,
     VolcStreamRecognizer,
     volc_stream_factory,
 )
-from app.asr_stream import BREAKER_THRESHOLD, AsrGate
-from app.stt import pcm_to_wav
+from app.speech.asr_stream import BREAKER_THRESHOLD, AsrGate
+from app.speech.stt import pcm_to_wav
 from tests.conftest import make_settings
 
 KEY = "rt-secret-uuid"
@@ -671,7 +671,7 @@ async def test_gate_is_shared_with_the_upload_path(fake, monkeypatch):
     async def must_not_stream(*a, **k):  # pragma: no cover - the gate must skip it
         raise AssertionError("streamed past a full gate")
 
-    monkeypatch.setattr("app.asr.transcribe_pcm", must_not_stream)
+    monkeypatch.setattr("app.speech.asr.transcribe_pcm", must_not_stream)
     async with httpx.AsyncClient() as http:
         with pytest.raises(AsrError) as e:
             await make_transcriber(http, settings, gate=gate)(pcm_to_wav(CHUNK))
@@ -718,9 +718,9 @@ async def test_injects_into_realtime_factory(fake):
 
 
 def test_import_direction():
-    import app.asr
+    import app.speech.asr
 
-    source = pathlib.Path(app.asr.__file__).read_text(encoding="utf-8")
+    source = pathlib.Path(app.speech.asr.__file__).read_text(encoding="utf-8")
     assert "asr_realtime" not in source
 
 
@@ -740,7 +740,7 @@ async def test_logs_carry_no_text_or_key_and_the_websockets_logger_is_pinned(fak
         await rec.finish()
 
     client = [r for r in caplog.records if not r.name.startswith("websockets.server")]
-    assert any(r.name == "app.asr_realtime" for r in client)  # we do log outcomes
+    assert any(r.name == "app.speech.asr_realtime" for r in client)  # we do log outcomes
     for r in client:
         msg = r.getMessage()
         assert KEY not in msg and "secret words" not in msg

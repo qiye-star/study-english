@@ -81,7 +81,7 @@ def _wav16(frames=16000):
 @pytest.mark.parametrize("settings_overrides", [{**CHAT, "upstream_asr_mode": "volc_stream"}], indirect=True)
 @pytest.mark.parametrize("fail", [False, True])
 async def test_volc_stream_timing_line(client, auth_headers, respx_mock, monkeypatch, caplog, fail):
-    from app.asr_stream import AsrStreamError
+    from app.speech.asr_stream import AsrStreamError
 
     async def fake(settings, pcm, uid="server"):
         if fail:

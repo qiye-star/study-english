@@ -6,7 +6,7 @@ import struct
 import pytest
 
 from app import realtime_session
-from app.asr import AsrError
+from app.speech.asr import AsrError
 from app.realtime_session import (
     ConversationGoneError, LlmError, MessageLimitError, RealtimeLimits, RealtimeSession, TtsError, Upstreams,
 )

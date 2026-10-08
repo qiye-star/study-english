@@ -6,7 +6,7 @@ import wave
 import httpx
 import pytest
 
-from app.asr import (
+from app.speech.asr import (
     MAX_UTTERANCE_BYTES,
     AsrError,
     BufferedRecognizer,
@@ -15,8 +15,8 @@ from app.asr import (
     realtime_factory,
     shared_asr_gate,
 )
-from app.asr_stream import AsrGate, AsrStreamError
-from app.stt import pcm_to_wav
+from app.speech.asr_stream import AsrGate, AsrStreamError
+from app.speech.stt import pcm_to_wav
 from tests.conftest import make_settings
 
 ARK = "https://ark.test/api/v3/chat/completions"
@@ -138,7 +138,7 @@ def stream(monkeypatch):
             raise outcome
         return outcome
 
-    monkeypatch.setattr("app.asr.transcribe_pcm", fake)
+    monkeypatch.setattr("app.speech.asr.transcribe_pcm", fake)
     return state
 
 
@@ -224,7 +224,7 @@ async def test_cancelled_stream_is_neutral_for_the_breaker(monkeypatch):
         started.set()
         await asyncio.sleep(10)
 
-    monkeypatch.setattr("app.asr.transcribe_pcm", hang)
+    monkeypatch.setattr("app.speech.asr.transcribe_pcm", hang)
     gate = AsrGate(1)
     gate._failures = 2
     async with httpx.AsyncClient() as http:
@@ -301,10 +301,10 @@ def test_shared_gate_is_the_upload_endpoint_gate():
 
 
 def test_asr_stream_does_not_import_asr():
-    import app.asr_stream
+    import app.speech.asr_stream
 
-    source = open(app.asr_stream.__file__, encoding="utf-8").read()
-    assert "app.asr " not in source and "from app.asr import" not in source and "import app.asr\n" not in source
+    source = open(app.speech.asr_stream.__file__, encoding="utf-8").read()
+    assert "app.speech.asr " not in source and "from app.speech.asr import" not in source and "import app.speech.asr\n" not in source
 
 
 # ---- realtime recognizer selection (realtime_asr_mode) ----

@@ -16,9 +16,9 @@ from typing import Literal, Protocol
 import httpx
 from fastapi import HTTPException
 
-from app.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.speech.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
 from app.core.config import Settings, asr_stream_usable, whisper_fallback_configured
-from app.stt import pcm_to_wav, transcribe_wav
+from app.speech.stt import pcm_to_wav, transcribe_wav
 from app.core.timing import log_timing
 
 logger = logging.getLogger(__name__)

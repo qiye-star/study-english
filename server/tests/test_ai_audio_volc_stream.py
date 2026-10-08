@@ -6,7 +6,7 @@ import wave
 import httpx
 import pytest
 
-from app.asr_stream import AsrStreamError
+from app.speech.asr_stream import AsrStreamError
 
 ARK = "https://ark.test/api/v3/chat/completions"
 WHISPER = "https://whisper.test/v1/audio/transcriptions"
@@ -261,7 +261,7 @@ async def test_chat_mode_streams_regardless_of_format(client, auth_headers, resp
 
 @pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC, "asr_stream_max_concurrency": 1}], indirect=True)
 async def test_busy_gate_goes_straight_to_fallback(app, client, auth_headers, respx_mock, stream_calls, caplog):
-    from app.asr_stream import AsrGate
+    from app.speech.asr_stream import AsrGate
 
     gate = AsrGate(1)
     assert await gate.try_enter() is None  # occupy the only slot
@@ -278,7 +278,7 @@ async def test_busy_gate_goes_straight_to_fallback(app, client, auth_headers, re
     "settings_overrides", [{**VOLC, "upstream_whisper_mode": "chat", "upstream_whisper_base_url": ""}], indirect=True
 )
 async def test_busy_gate_without_fallback_is_502(app, client, auth_headers, stream_calls):
-    from app.asr_stream import AsrGate
+    from app.speech.asr_stream import AsrGate
 
     gate = AsrGate(1)
     await gate.try_enter()
@@ -290,7 +290,7 @@ async def test_busy_gate_without_fallback_is_502(app, client, auth_headers, stre
 
 @pytest.mark.parametrize("settings_overrides", [{**CHAT, **VOLC}], indirect=True)
 async def test_breaker_skips_stream_after_repeated_auth_failures(client, auth_headers, respx_mock, stream_calls):
-    from app.asr_stream import BREAKER_THRESHOLD
+    from app.speech.asr_stream import BREAKER_THRESHOLD
 
     stream_calls.state["result"] = AsrStreamError("auth")
     respx_mock.post(ARK).mock(return_value=ok())
@@ -321,7 +321,7 @@ async def test_unexpected_exception_falls_back(client, auth_headers, respx_mock,
     async def boom(*a, **k):
         raise exc("secret-detail")
 
-    monkeypatch.setattr("app.asr_stream._transcribe", boom)
+    monkeypatch.setattr("app.speech.asr_stream._transcribe", boom)
     route = respx_mock.post(ARK).mock(return_value=ok())
     caplog.set_level(logging.INFO, logger="app.routers.ai_audio")
     r = await post(client, auth_headers)

@@ -5,7 +5,7 @@ import wave
 import httpx
 import pytest
 
-from app.stt import CHAT_PROMPT, NO_SPEECH_TOKEN, pcm_to_wav, transcribe_wav
+from app.speech.stt import CHAT_PROMPT, NO_SPEECH_TOKEN, pcm_to_wav, transcribe_wav
 from tests.conftest import make_settings
 
 ARK = "https://ark.test/api/v3/chat/completions"

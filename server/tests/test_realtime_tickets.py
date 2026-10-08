@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from app.realtime_asr import effective_realtime_asr
+from app.speech.realtime_asr import effective_realtime_asr
 from app.realtime_tickets import RealtimeRegistry, TicketGrant, TicketStore
 from tests.conftest import make_settings
 

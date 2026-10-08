@@ -6,11 +6,11 @@ import logging
 import httpx
 import pytest
 
-from app import asr
+from app.speech import asr
 from app import realtime_providers as providers
-from app.asr import AsrError, BufferedRecognizer
-from app.asr_stream import AsrGate, AsrStreamError
-from app.realtime_asr import effective_realtime_asr
+from app.speech.asr import AsrError, BufferedRecognizer
+from app.speech.asr_stream import AsrGate, AsrStreamError
+from app.speech.realtime_asr import effective_realtime_asr
 from app.realtime_providers import (
     REALTIME_MAX_TOKENS,
     DbMessageStore,

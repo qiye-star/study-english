@@ -22,11 +22,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
 
-from app.asr import AsrError, shared_asr_gate
+from app.speech.asr import AsrError, shared_asr_gate
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User
-from app.realtime_asr import effective_realtime_asr
+from app.speech.realtime_asr import effective_realtime_asr
 from app.realtime_protocol import (
     CLOSE_BUSY,
     CLOSE_DISABLED,

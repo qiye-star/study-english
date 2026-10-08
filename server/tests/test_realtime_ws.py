@@ -8,10 +8,10 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
-from app.asr import AsrError
+from app.speech.asr import AsrError
 from app.core.db import Base
 from app.main import create_app
-from app.realtime_asr import effective_realtime_asr
+from app.speech.realtime_asr import effective_realtime_asr
 from app.realtime_protocol import StartMsg
 from app import realtime_session
 from app.realtime_session import RealtimeSession, Upstreams

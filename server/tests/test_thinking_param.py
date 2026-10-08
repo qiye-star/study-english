@@ -5,7 +5,7 @@ import pytest
 
 from app.core.config import send_thinking_param
 from app.realtime_providers import openai_llm_stream
-from app.stt import chat_body
+from app.speech.stt import chat_body
 from tests.conftest import make_settings
 
 SSE = b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'

@@ -12,7 +12,7 @@ Parameters are the ones verified by the Task 0.4 spike
   is the final text. Server-side segmentation (`definite`) is only display material.
 - silence only → no text frames, then a normal last frame with empty text → "" (no speech).
 
-Frame codec, error classification and the gate/breaker come from `app.asr_stream`; every
+Frame codec, error classification and the gate/breaker come from `app.speech.asr_stream`; every
 `AsrStreamError` becomes an `AsrError` for callers. Import direction: asr_realtime → asr_stream
 / asr only (asr.py receives this factory by injection, see `asr.realtime_factory`).
 Unverified upstream limits (max connection duration, idle cut-off) are handled defensively with
@@ -28,14 +28,14 @@ import uuid
 import websockets
 from websockets.asyncio.client import connect as ws_connect
 
-from app.asr import (
+from app.speech.asr import (
     MAX_UTTERANCE_BYTES,
     AsrError,
     PartialCallback,
     RecognizerFactory,
     _map_stream,
 )
-from app.asr_stream import (
+from app.speech.asr_stream import (
     AUTH_STATUSES,
     CLOSE_TIMEOUT,
     MAX_MESSAGE_BYTES,

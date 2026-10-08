@@ -9,12 +9,12 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 
-from app.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.speech.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
 from app.providers.azure import AzureError, AzureNotConfigured, AzureSpeech
 from app.core.config import Settings
 from app.core.deps import get_settings, limited_user
 from app.models import User
-from app.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
+from app.speech.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
 from app.core.timing import Stopwatch, log_timing
 from app.provider_clients import get_azure
 from app.core.upstream import check_upstream_auth

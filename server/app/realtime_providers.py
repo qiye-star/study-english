@@ -28,12 +28,12 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.asr import AsrError, RecognizerFactory, realtime_factory
-from app.asr_realtime import volc_stream_factory
-from app.asr_stream import AsrGate
+from app.speech.asr import AsrError, RecognizerFactory, realtime_factory
+from app.speech.asr_realtime import volc_stream_factory
+from app.speech.asr_stream import AsrGate
 from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.models import Conversation, Message, utcnow
-from app.realtime_asr import RealtimeAsr, effective_realtime_asr
+from app.speech.realtime_asr import RealtimeAsr, effective_realtime_asr
 from app.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream
 from app.providers.volcengine import VolcengineError, synthesize_stream
 
@@ -256,7 +256,7 @@ from app.routers.speech import (  # noqa: E402
     _ise_entry,
     cleanup_orphan_chat_recordings,
 )
-from app.stt import pcm_to_wav  # noqa: E402
+from app.speech.stt import pcm_to_wav  # noqa: E402
 from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured  # noqa: E402
 from app.providers.xfyun_result import to_assessment  # noqa: E402
 
