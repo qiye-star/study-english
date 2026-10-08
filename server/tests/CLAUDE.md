@@ -1,0 +1,26 @@
+# server/tests/
+
+pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
+
+## What lives here
+- `conftest.py` – `make_settings(**overrides)` (fake upstream URLs/keys, in-memory SQLite or
+  `TEST_DATABASE_URL`), fixtures `app`, `client` (httpx ASGI), `auth_headers` (registers alice)
+- `test_<area>.py` – one file per module/endpoint area; `test_*_api.py` hit routers
+- `test_architecture.py` – AST import scan enforcing the `app/` layering rules
+- `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter)
+
+## Allowed dependencies
+Anything in `app`, plus other test modules' helpers (`from tests.test_x import helper`).
+
+## Commands (from `server/`)
+- All: `uv run pytest -q` (~2.5 min; run halves by file glob if a runner caps time)
+- One file: `uv run pytest -q tests/test_realtime_ws.py`
+- Postgres: `TEST_DATABASE_URL=postgresql+asyncpg://... uv run pytest -q`
+
+## Conventions / pitfalls
+- Override settings per test with `@pytest.mark.parametrize("settings_overrides", [...], indirect=True)`
+  or by redefining the `settings_overrides` fixture in the module.
+- Monkeypatch targets are dotted strings (`"app.speech.asr.transcribe_pcm"`): patch where the
+  name is looked up, and update the string when a module moves.
+- Never call real vendors or put real keys in tests; use respx / fake sockets and dummy keys.
+- Log-hygiene tests assert keys/transcripts/tickets never appear in records: keep them.

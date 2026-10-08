@@ -191,7 +191,7 @@ VOLCENGINE_ASR_KEY=
 
 **`POST /api/realtime/ticket`**(需登录,按用户限流):请求 `{conversation_id}`,返回 `{ticket, expires_in}`。未开启返回 `503 Realtime is not enabled`;会话不属于该用户返回 404。票据一次性、进程内保存,每用户最多同时保留 5 张(再签发会挤掉最旧的)。
 
-**`WS /api/realtime?ticket=<ticket>`**(票据是认证方式,不带 Bearer 头)。协议(JSON 一律 snake_case,与 `web/src/features/realtime/protocol.ts` 逐字对应,服务端定义见 `app/realtime_protocol.py`):
+**`WS /api/realtime?ticket=<ticket>`**(票据是认证方式,不带 Bearer 头)。协议(JSON 一律 snake_case,与 `web/src/features/realtime/protocol.ts` 逐字对应,服务端定义见 `app/realtime/realtime_protocol.py`):
 
 - 连接后 10 s 内必须发 `start`:`{type:"start", system_prompt(≤ 8000 字符), model, temperature(0–2), voice, language:"en", save_recordings}`;未知字段、类型不符、超长一律按协议错误处理。
 - 上行二进制 = 16 kHz 单声道 PCM16LE,单帧 ≤ 32000 字节且为偶数字节;上行 JSON:`utterance_end`、`interrupt`、`hangup`。
@@ -221,7 +221,7 @@ VOLCENGINE_ASR_KEY=
 
 ### 耗时日志格式
 
-只记事件名与数字,**绝不记录用户文本、转写、回复、提示词或密钥**。一行 `timing event=<event> k=v ...`,键按字母序,值为整数、`true`/`false` 或 `[A-Za-z0-9_.-]{1,40}` 字符串(其他一律 `?`)。事件(`app/timing.py`):
+只记事件名与数字,**绝不记录用户文本、转写、回复、提示词或密钥**。一行 `timing event=<event> k=v ...`,键按字母序,值为整数、`true`/`false` 或 `[A-Za-z0-9_.-]{1,40}` 字符串(其他一律 `?`)。事件(`app/core/timing.py`):
 
 | event | 字段 | 说明 |
 |---|---|---|
