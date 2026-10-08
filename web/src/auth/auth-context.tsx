@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import { clearAuth, loadAuth, saveAuth, type StoredAuth } from "~/api/auth-storage";
 import { ApiClient } from "~/api/client";
 import type { AuthUser } from "~/api/types";
-import { clearDeviceData } from "~/lib/device-data";
+import { clearDeviceData } from "~/auth/device-data";
 import { normalizeUsername } from "./validation";
 
 export interface AuthContextValue {

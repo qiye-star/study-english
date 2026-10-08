@@ -7,8 +7,8 @@ import { GRAMMAR_REV_KEY, grammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
 import { COMPOSER_MODE_KEY } from "~/features/chat/composer-mode";
 import { PRACTICE_DRAFT_KEY, clearDeviceData } from "./device-data";
-import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "./playback-rate";
-import { kvGet, kvIdleForTests, kvSet } from "./kv-cache";
+import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "~/lib/playback-rate";
+import { kvGet, kvIdleForTests, kvSet } from "~/lib/kv-cache";
 
 describe("clearDeviceData", () => {
   it("empties the practice draft, lookup cache and TTS blobs, and never throws", async () => {

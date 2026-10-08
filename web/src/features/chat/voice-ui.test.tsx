@@ -7,7 +7,7 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import good from "~/test/fixtures/assessment-good.json";
 import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
-import { claimAudio } from "./audio-focus";
+import { claimAudio } from "~/audio/audio-focus";
 import { MessageBubble } from "./message-bubble";
 import { ApiError } from "~/api/client";
 import { GrammarBadge, PronunciationBadge } from "./result-badges";

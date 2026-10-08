@@ -5,7 +5,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PRACTICE_SERVER_ERRORS, getAssessmentAudio } from "~/features/practice/assessment-api";
 import { applyPlaybackRate, trackMediaElement } from "~/lib/playback-rate";
-import { claimAudio, releaseAudio } from "./audio-focus";
+import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { primeAudioElement } from "./use-tts-player";
 
 export function formatDuration(ms: number): string {

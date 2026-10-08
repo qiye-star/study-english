@@ -15,7 +15,6 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { formatClock } from "~/features/practice/practice-page";
 import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
 import { fetchRealtimeConfig, type RealtimeConfig } from "~/features/realtime/realtime-api";
 import type { CallEnding, RealtimeEnv } from "~/features/realtime/realtime-call";
@@ -26,7 +25,8 @@ import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, isAmbiguousSaveError, listMessages, updateConversation,
   type ChatMessage, type Conversation, type ConversationConfig, type MessageResultFields,
 } from "./chat-api";
-import { claimAudio, releaseAudio } from "./audio-focus";
+import { claimAudio, releaseAudio } from "~/audio/audio-focus";
+import { formatClock } from "~/lib/format-clock";
 import { coachCandidates, coachNote } from "./coach";
 import { readComposerMode, writeComposerMode, type ComposerMode } from "./composer-mode";
 import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults } from "./chat-request";

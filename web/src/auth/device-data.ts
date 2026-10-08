@@ -2,11 +2,11 @@ import { bumpGrammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
 import { clearHintsMemory } from "~/features/chat/hints";
 import { clearComposerMode } from "~/features/chat/composer-mode";
-import { kvClear } from "./kv-cache";
-import { resetPlaybackRate } from "./playback-rate";
-import { removeKey } from "./storage";
+import { kvClear } from "~/lib/kv-cache";
+import { resetPlaybackRate } from "~/lib/playback-rate";
+import { PRACTICE_DRAFT_KEY, removeKey } from "~/lib/storage";
 
-export const PRACTICE_DRAFT_KEY = "enjoy-web.practice.reference";
+export { PRACTICE_DRAFT_KEY };
 
 /** 退出登录时清掉本机上的每用户数据(练习草稿、语速、输入栏模式、递增语法提示词版本、查词/翻译/语法缓存、朗读音频)。任何失败都不抛出。 */
 export function clearDeviceData(): void {

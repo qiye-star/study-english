@@ -1,8 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import enjoyEn from "@/i18n/en.json";
-import enjoyEs from "@/i18n/es.json";
-import enjoyZh from "@/i18n/zh-CN.json";
+import { enjoyEn, enjoyEs, enjoyZh } from "~/shims/enjoy-sources";
 
 export const SUPPORTED_LANGUAGES = ["en", "zh-CN", "es"] as const;
 export type UiLanguage = (typeof SUPPORTED_LANGUAGES)[number];
