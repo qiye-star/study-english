@@ -1,0 +1,5 @@
+{
+  "web": {
+    "hold": { "label": "按住说话(也可按空格开始、再按一次发送)", "keyboardStop": "录音中——按空格发送,按 Esc 取消", "slideHint": "上滑取消 / 转文字", "cancel": "取消", "toText": "转文字", "releaseToCancel": "松开取消", "releaseToText": "松开转文字", "bar": "按住 说话", "barPressed": "松开 发送", "overlaySlide": "手指上滑,取消发送", "overlayCancel": "松开手指,取消发送", "overlayText": "松开 转文字" }
+  }
+}

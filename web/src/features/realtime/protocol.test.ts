@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLOSE, CLOSE_REASONS, CONTROL_TYPES, START_LIMITS, StartPayloadError, closeErrorKey, encodeControl, encodeStart, parseServerEvent, splitAudioFrame } from "./protocol";
+import { CLOSE, CLOSE_REASONS, CONTROL_TYPES, START_LIMITS, StartPayloadError, closeErrorKey, encodeControl, encodeStart, encodeUserText, parseServerEvent, splitAudioFrame } from "./protocol";
 
-const SERVER_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../server/app/realtime_protocol.py");
+const SERVER_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../server/app/realtime/realtime_protocol.py");
 
-describe("contract with server/app/realtime_protocol.py", () => {
+describe("contract with server/app/realtime/realtime_protocol.py", () => {
   // 两端已合并:服务端文件缺失(改名/移动)必须让契约测试失败,而不是静默跳过
   it("can read the server protocol file", () => {
     expect(existsSync(SERVER_FILE)).toBe(true);
@@ -38,6 +38,7 @@ describe("contract with server/app/realtime_protocol.py", () => {
     const num = (name: string) => Number(py().match(new RegExp(`^${name} = ([\\d_]+)\\r?$`, "m"))?.[1].replace(/_/g, ""));
     expect(START_LIMITS.systemPrompt).toBe(num("MAX_SYSTEM_PROMPT"));
     expect(START_LIMITS.clientText).toBe(num("MAX_CLIENT_TEXT"));
+    expect(START_LIMITS.userText).toBe(num("MAX_USER_TEXT"));
     expect(py()).toContain(`model: str = Field("", max_length=${START_LIMITS.model})`);
     expect(py()).toContain(`voice: str = Field(pattern=r"${START_LIMITS.voice.source}")`);
   });
@@ -49,6 +50,15 @@ describe("contract with server/app/realtime_protocol.py", () => {
       expect(JSON.parse(encodeControl(type))).toEqual({ type });
     }
     expect(CONTROL_TYPES).toContain("utterance_cancel");
+  });
+
+  it("user_text sends exactly the fields of UserTextMsg, with the server's bounds", () => {
+    const body = py().match(/^class UserTextMsg\(_Msg\):\r?\n([\s\S]*?)(?=^\S)/m)?.[1] ?? "";
+    const fields = [...body.matchAll(/^ {4}([a-z_]+):/gm)].map((m) => m[1]).sort();
+    expect(fields).toEqual(["text", "type"]);
+    expect(body).toContain('type: Literal["user_text"]');
+    expect(body).toContain("text: str = Field(min_length=1, max_length=MAX_USER_TEXT)");
+    expect(Object.keys(JSON.parse(encodeUserText("hi")!)).sort()).toEqual(fields);
   });
 
   it("maps close codes to translatable keys", () => {
@@ -104,6 +114,15 @@ describe("messages", () => {
       type: "start", system_prompt: "Hi", model: "m", temperature: 0.5, voice: "v_1x", language: "en", save_recordings: true,
     });
     expect(encodeControl("interrupt")).toBe('{"type":"interrupt"}');
+  });
+
+  it("encodes user_text trimmed, well-formed and within MAX_USER_TEXT; blank text is not sent", () => {
+    expect(JSON.parse(encodeUserText("  A latte, please. ")!)).toEqual({ type: "user_text", text: "A latte, please." });
+    expect(encodeUserText("   ")).toBeNull();
+    expect(encodeUserText("")).toBeNull();
+    const long = JSON.parse(encodeUserText("😀".repeat(START_LIMITS.userText + 5))!).text as string;
+    expect(Array.from(long)).toHaveLength(START_LIMITS.userText); // 按码点截,不拆代理对
+    expect(JSON.parse(encodeUserText("a\uD800b")!).text).toBe("a�b");
   });
 
   it("parses server events into camelCase and rejects unknown ones", () => {

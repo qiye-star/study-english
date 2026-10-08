@@ -126,4 +126,11 @@ describe("callReducer", () => {
     expect(m.captions).toHaveLength(MAX_CAPTIONS);
     expect(m.captions[0].text).toBe("t10");
   });
+
+  it("clear-partial drops the partial transcript of a withdrawn utterance", () => {
+    const m = callReducer({ ...INITIAL_CALL, phase: "listening", partial: "I wa" }, { type: "clear-partial" });
+    expect(m.partial).toBe("");
+    const same = { ...INITIAL_CALL };
+    expect(callReducer(same, { type: "clear-partial" })).toBe(same);
+  });
 });

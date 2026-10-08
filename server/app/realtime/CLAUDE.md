@@ -6,7 +6,9 @@ Server side of realtime voice calls (`WS /api/realtime?ticket=...`, off unless `
 - `realtime_protocol.py` – JSON control messages + binary audio frames; must match
   `web/src/features/realtime/protocol.ts` field for field (snake_case)
 - `realtime_session.py` – `RealtimeSession`: per-call turn state machine (ASR -> LLM -> TTS,
-  interrupts, limits); depends only on Protocols (`MessageStore`, `Assessor`, `Upstreams`)
+  interrupts, limits); depends only on Protocols (`MessageStore`, `Assessor`, `Upstreams`).
+  `user_text` (hold-to-talk "to text" on the web) is a turn that skips ASR and assessment but is
+  admitted, rate-limited, saved and answered like a finished utterance
 - `realtime_providers.py` – concrete wiring: OpenAI-compatible LLM stream, Volcengine TTS
   stream, recognizer selection (R25), DB message store, iFlytek assessor
 - `realtime_tickets.py` – one-time short-lived tickets (`TicketStore`) and call registry/caps

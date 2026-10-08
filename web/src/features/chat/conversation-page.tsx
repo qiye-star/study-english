@@ -31,7 +31,7 @@ import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSy
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { HintsSheet, hintKey } from "./hints-sheet";
-import type { DiscardReason } from "./hold-to-talk";
+import type { DiscardReason } from "~/lib/hold-gesture";
 import { HoldToTalkButton } from "./hold-to-talk-button";
 import { ConversationHeaderActions } from "./conversation-header-actions";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";

@@ -3,9 +3,9 @@
 Realtime voice calls over WebSocket `/api/realtime` (server ASR + LLM + TTS), with VAD or push-to-talk input.
 
 ## What lives here
-- `realtime-call.ts` (session: ticket → mic → VAD → socket, teardown), `call-machine.ts` (pure state), `protocol.ts` (mirrors `server/app/realtime_protocol.py`).
-- UI: `realtime-call-screen.tsx`, `call-hero.tsx`, `call-dock.tsx`, `call-captions.tsx`, `call-caption-translation.tsx`; hook `use-realtime-call.ts`.
-- `realtime-api.ts` (config, ticket, URL), `errors.ts`.
+- `realtime-call.ts` (session: ticket → mic → VAD → socket, teardown; hold: `pttDown`/`pttUp`/`pttCancel`/`pttToText`, `sendUserText`), `call-machine.ts` (pure state), `protocol.ts` (mirrors `server/app/realtime/realtime_protocol.py`).
+- UI: `realtime-call-screen.tsx`, `call-hero.tsx`, `call-dock.tsx` (keys + `CallHoldBar`, the wide hold bar built on `~/components/hold-to-talk-bar`), `call-text-draft.tsx` (to-text sheet), `call-captions.tsx`, `call-caption-translation.tsx`; hook `use-realtime-call.ts`.
+- `realtime-api.ts` (config, ticket, URL, `transcribeHeldAudio` for to-text), `errors.ts`.
 - `i18n/{en,zh-CN}.json` — this feature's strings.
 
 ## Public surface

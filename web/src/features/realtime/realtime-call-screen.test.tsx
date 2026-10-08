@@ -1,11 +1,11 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetPageAudioContextForTests, type CaptureEnv } from "~/audio/capture";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { FakeAudioContext, asContext } from "~/test/fake-audio";
-import "~/test/hold"; // jsdom 的 PointerEvent 补丁(带 button)
+import { holdMic, pressKey } from "~/test/hold"; // 也是 jsdom 的 PointerEvent 补丁(带 button)
 import { renderWithProviders } from "~/test/render";
 import { INITIAL_CALL, type CallModel } from "./call-machine";
 import type { RealtimeEnv } from "./realtime-call";
@@ -13,9 +13,21 @@ import { RealtimeCallDialog, RealtimeCallScreen, prepareCallAudio } from "./real
 import { BACKGROUND_GRACE_MS } from "./use-realtime-call";
 
 function render(model: Partial<CallModel> = {}, level: () => number = () => 0.3) {
-  const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+  const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onPttCancel: vi.fn(), onPttToText: vi.fn(async (_signal: AbortSignal) => ""), onSendText: vi.fn(() => true), onClose: vi.fn() };
   const view = renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening", ...model }} level={level} {...handlers} />);
   return { ...handlers, view };
+}
+
+/** 按下按住说话长条并等手势进入录音(通话的麦克风一直开着,立即就绪);返回松手函数(默认按了 1 s) */
+async function pressHold(el: HTMLElement) {
+  let t = 10_000;
+  vi.spyOn(performance, "now").mockImplementation(() => t);
+  fireEvent.pointerDown(el, { pointerId: 1, clientX: 200, clientY: 700, button: 0 });
+  await waitFor(() => expect(el).toHaveAttribute("data-hold", "recording"));
+  return (ms = 1000) => {
+    t += ms;
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 200, clientY: 700 });
+  };
 }
 
 function setVisibility(state: DocumentVisibilityState) {
@@ -142,35 +154,197 @@ describe("RealtimeCallScreen", () => {
     });
   });
 
-  it("push-to-talk mode shows a hold button usable by pointer and keyboard", () => {
+  it("push-to-talk mode shows a hold button usable by pointer and keyboard (chat semantics: Space starts, Space again sends)", async () => {
     const h = render({ inputMode: "ptt" });
     const ptt = screen.getByTestId("call-ptt");
     expect(ptt.className).toMatch(/min-h-11/);
-    fireEvent.pointerDown(ptt);
-    fireEvent.pointerUp(ptt);
-    fireEvent.keyDown(ptt, { key: " " });
-    fireEvent.keyUp(ptt, { key: " " });
+    await holdMic(ptt, { ms: 1000 });
+    expect(h.onPttDown).toHaveBeenCalledTimes(1);
+    expect(h.onPttUp).toHaveBeenCalledTimes(1);
+    pressKey(ptt, " ");
+    await waitFor(() => expect(ptt).toHaveAttribute("data-hold", "keyboard"));
     expect(h.onPttDown).toHaveBeenCalledTimes(2);
+    pressKey(ptt, " ");
     expect(h.onPttUp).toHaveBeenCalledTimes(2);
+    expect(h.onPttCancel).not.toHaveBeenCalled();
   });
 
-  it("the hold button ignores key repeat and duplicate releases, and releases on blur and unmount", () => {
+  it("the hold button ignores key repeat and other pointers, and discards on blur and unmount (nothing sent)", async () => {
     const h = render({ inputMode: "ptt" });
     const ptt = screen.getByTestId("call-ptt");
     fireEvent.keyDown(ptt, { key: "Enter" });
     fireEvent.keyDown(ptt, { key: "Enter", repeat: true });
-    fireEvent.pointerDown(ptt); // 已按住:不重复开始
+    fireEvent.pointerDown(ptt, { pointerId: 2 }); // 已在录音:不重复开始
     expect(h.onPttDown).toHaveBeenCalledTimes(1);
-    fireEvent.focusOut(ptt);
-    expect(h.onPttUp).toHaveBeenCalledTimes(1);
-    fireEvent.keyUp(ptt, { key: "Enter" }); // 已经松开:不重复
-    expect(h.onPttUp).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(ptt).toHaveAttribute("data-hold", "keyboard"));
+    fireEvent.blur(ptt); // 焦点移走:丢弃这一句
+    expect(h.onPttCancel).toHaveBeenCalledTimes(1);
+    fireEvent.keyUp(ptt, { key: "Enter" }); // 抬键不算第二次按
+    expect(h.onPttUp).not.toHaveBeenCalled();
     fireEvent.pointerDown(ptt, { button: 2 }); // 右键不算
     expect(h.onPttDown).toHaveBeenCalledTimes(1);
-    fireEvent.pointerDown(ptt);
+    fireEvent.pointerDown(ptt, { pointerId: 1, button: 0 });
     h.view.unmount();
     expect(h.onPttDown).toHaveBeenCalledTimes(2);
-    expect(h.onPttUp).toHaveBeenCalledTimes(2);
+    expect(h.onPttCancel).toHaveBeenCalledTimes(2);
+    expect(h.onPttUp).not.toHaveBeenCalled();
+  });
+
+  describe("hold gestures like chat: slide up to cancel or to text", () => {
+    let innerWidth = window.innerWidth;
+    afterEach(() => { window.innerWidth = innerWidth; });
+
+    it("the hold key is a wide bar spanning the dock under the key row (≥44 px, not a 52 px round key)", () => {
+      render({ inputMode: "ptt" });
+      const ptt = screen.getByTestId("call-ptt");
+      const dock = screen.getByTestId("call-dock");
+      const keyRow = screen.getByTestId("call-hangup").parentElement!;
+      expect(keyRow).not.toContainElement(ptt);
+      expect(keyRow.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))"); // 免提 / 更多 / 挂断
+      expect(ptt.parentElement!.parentElement).toBe(dock);
+      expect(ptt.parentElement!.className).toMatch(/\bflex\b/);
+      expect(ptt.className).toMatch(/\bflex-1\b/);
+      expect(ptt.className).toMatch(/\bh-11\b/);
+      expect(ptt.className).toMatch(/rounded-button/);
+      expect(ptt.className).not.toMatch(/rounded-full|h-key|w-key/);
+      expect(ptt.className).toMatch(/bg-blue-tint/); // 设计稿 v3:静止 blue-tint / blue
+      expect(ptt).toHaveAttribute("data-hold-to-talk");
+      expect(ptt.style.touchAction).toBe("none");
+      expect(ptt).toHaveAccessibleName(/hold|按住/i);
+    });
+
+    it("slide up to the left zone and release cancels: nothing is sent", async () => {
+      const h = render({ inputMode: "ptt" });
+      window.innerWidth = 400;
+      const ptt = screen.getByTestId("call-ptt");
+      fireEvent.pointerDown(ptt, { pointerId: 1, clientX: 200, clientY: 700 });
+      await waitFor(() => expect(screen.getByTestId("hold-overlay")).toBeInTheDocument());
+      fireEvent.pointerMove(ptt, { pointerId: 1, clientX: 50, clientY: 560 });
+      expect(screen.getByTestId("hold-zone-cancel")).toHaveAttribute("data-active", "true");
+      expect(screen.getByTestId("hold-status")).toHaveTextContent(/release to cancel|松开取消/i);
+      expect(ptt.className).toMatch(/bg-red-solid/);
+      fireEvent.pointerUp(ptt, { pointerId: 1, clientX: 50, clientY: 560 });
+      expect(h.onPttCancel).toHaveBeenCalledTimes(1);
+      expect(h.onPttUp).not.toHaveBeenCalled();
+      expect(h.onPttToText).not.toHaveBeenCalled();
+      expect(h.onHangup).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("hold-overlay")).toBeNull();
+    });
+
+    it("a quick tap is discarded as too short", async () => {
+      const h = render({ inputMode: "ptt" });
+      const release = await pressHold(screen.getByTestId("call-ptt"));
+      release(100);
+      expect(h.onPttCancel).toHaveBeenCalledTimes(1);
+      expect(h.onPttUp).not.toHaveBeenCalled();
+    });
+
+    it("Escape while holding cancels the utterance and does not hang up", async () => {
+      const h = render({ inputMode: "ptt" });
+      const ptt = screen.getByTestId("call-ptt");
+      pressKey(ptt, " ");
+      await waitFor(() => expect(ptt).toHaveAttribute("data-hold", "keyboard"));
+      fireEvent.keyDown(ptt, { key: "Escape" });
+      expect(h.onPttCancel).toHaveBeenCalledTimes(1);
+      expect(h.onHangup).not.toHaveBeenCalled();
+    });
+
+    it("entering a zone gives a light haptic tick where supported", async () => {
+      const vibrate = vi.fn();
+      Object.defineProperty(navigator, "vibrate", { configurable: true, value: vibrate });
+      try {
+        render({ inputMode: "ptt" });
+        window.innerWidth = 400;
+        const ptt = screen.getByTestId("call-ptt");
+        await pressHold(ptt);
+        fireEvent.pointerMove(ptt, { pointerId: 1, clientX: 350, clientY: 560 });
+        await waitFor(() => expect(vibrate).toHaveBeenCalledTimes(1));
+        fireEvent.pointerMove(ptt, { pointerId: 1, clientX: 50, clientY: 560 });
+        await waitFor(() => expect(vibrate).toHaveBeenCalledTimes(2));
+      } finally {
+        delete (navigator as { vibrate?: unknown }).vibrate;
+      }
+    });
+
+    it("slide up to 转文字: transcribes, shows an editable sheet above the dock; 发送 submits the edited text as the user's turn", async () => {
+      let resolve!: (text: string) => void;
+      const h = render({ inputMode: "ptt" });
+      h.onPttToText.mockImplementation(() => new Promise<string>((r) => { resolve = r; }));
+      window.innerWidth = 400;
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      expect(h.onPttToText).toHaveBeenCalledTimes(1);
+      expect(h.onPttToText.mock.calls[0][0]).toBeInstanceOf(AbortSignal);
+      expect(h.onPttUp).not.toHaveBeenCalled();
+      expect(h.onPttCancel).not.toHaveBeenCalled();
+      const sheet = screen.getByTestId("call-text-draft");
+      expect(sheet.className).toMatch(/\bglass\b/);
+      expect(sheet).toHaveAttribute("data-status", "transcribing");
+      expect(screen.getByTestId("call-text-draft-status")).toHaveTextContent(/Converting|正在转文字/);
+      expect(screen.getByTestId("call-text-draft-send")).toBeDisabled();
+      expect(sheet.compareDocumentPosition(screen.getByTestId("call-dock")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await act(async () => resolve("I want a latte"));
+      const input = screen.getByTestId("call-text-draft-input") as HTMLTextAreaElement;
+      expect(input.value).toBe("I want a latte");
+      expect(input).toHaveFocus();
+      expect(input).toHaveAccessibleName();
+      fireEvent.change(input, { target: { value: "I want a large latte" } });
+      for (const id of ["call-text-draft-send", "call-text-draft-discard"]) expect(screen.getByTestId(id).className).toMatch(/min-h-11/);
+      fireEvent.click(screen.getByTestId("call-text-draft-send"));
+      expect(h.onSendText).toHaveBeenCalledWith("I want a large latte");
+      expect(screen.queryByTestId("call-text-draft")).toBeNull();
+    });
+
+    it("丢弃 closes the sheet without sending; Escape discards the draft before it would hang up", async () => {
+      const h = render({ inputMode: "ptt" });
+      h.onPttToText.mockResolvedValue("hello");
+      window.innerWidth = 400;
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      await screen.findByDisplayValue("hello");
+      fireEvent.click(screen.getByTestId("call-text-draft-discard"));
+      expect(screen.queryByTestId("call-text-draft")).toBeNull();
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      const input = await screen.findByDisplayValue("hello");
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(screen.queryByTestId("call-text-draft")).toBeNull();
+      expect(h.onHangup).not.toHaveBeenCalled();
+      expect(h.onSendText).not.toHaveBeenCalled();
+    });
+
+    it("no speech or a failed transcription still lets the user type; a send while disconnected keeps the draft", async () => {
+      const h = render({ inputMode: "ptt" });
+      window.innerWidth = 400;
+      h.onPttToText.mockResolvedValueOnce("  ");
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      await waitFor(() => expect(screen.getByTestId("call-text-draft")).toHaveAttribute("data-status", "empty"));
+      expect(screen.getByTestId("call-text-draft-send")).toBeDisabled();
+      h.onPttToText.mockRejectedValueOnce(new Error("stt down"));
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      await waitFor(() => expect(screen.getByTestId("call-text-draft")).toHaveAttribute("data-status", "failed"));
+      expect(screen.getByTestId("call-text-draft-status")).toHaveTextContent(/type instead|直接输入/);
+      fireEvent.change(screen.getByTestId("call-text-draft-input"), { target: { value: "typed" } });
+      h.onSendText.mockReturnValueOnce(false);
+      fireEvent.keyDown(screen.getByTestId("call-text-draft-input"), { key: "Enter" });
+      expect(h.onSendText).toHaveBeenCalledWith("typed");
+      expect(screen.getByTestId("call-text-draft")).toHaveAttribute("data-status", "unsent");
+      expect(screen.getByTestId("call-text-draft-input")).toHaveValue("typed");
+    });
+
+    it("a newer to-text replaces the pending one, and the transcription is aborted when the call ends", async () => {
+      const signals: AbortSignal[] = [];
+      const h = render({ inputMode: "ptt" });
+      h.onPttToText.mockImplementation((signal: AbortSignal) => { signals.push(signal); return new Promise<string>(() => undefined); });
+      window.innerWidth = 400;
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      await holdMic(screen.getByTestId("call-ptt"), { dy: -120, x: 350 });
+      expect(signals[0].aborted).toBe(true);
+      expect(signals[1].aborted).toBe(false);
+      h.view.rerender(
+        <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "ended", inputMode: "ptt" }} level={() => 0}
+          onHangup={h.onHangup} onMute={h.onMute} onInputMode={h.onInputMode} onSpeaker={h.onSpeaker} onPttDown={h.onPttDown} onPttUp={h.onPttUp} onPttCancel={h.onPttCancel} onPttToText={h.onPttToText} onSendText={h.onSendText} onClose={h.onClose} />,
+      );
+      expect(signals[1].aborted).toBe(true);
+      expect(screen.queryByTestId("call-text-draft")).toBeNull();
+    });
   });
 
   it("the hold button is disabled while muted and absent outside push-to-talk mode", () => {
@@ -224,7 +398,7 @@ describe("RealtimeCallScreen", () => {
     expect(screen.getByTestId("call-hangup")).toHaveFocus();
     h.view.rerender(
       <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "ended", error: "web.realtime.errors.generic" }} level={() => 0}
-        onHangup={h.onHangup} onMute={h.onMute} onInputMode={h.onInputMode} onSpeaker={h.onSpeaker} onPttDown={h.onPttDown} onPttUp={h.onPttUp} onClose={h.onClose} />,
+        onHangup={h.onHangup} onMute={h.onMute} onInputMode={h.onInputMode} onSpeaker={h.onSpeaker} onPttDown={h.onPttDown} onPttUp={h.onPttUp} onPttCancel={h.onPttCancel} onPttToText={h.onPttToText} onSendText={h.onSendText} onClose={h.onClose} />,
     );
     expect(screen.getByTestId("call-close")).toHaveFocus();
   });
@@ -261,7 +435,7 @@ describe("RealtimeCallScreen", () => {
       const screenEl = (open: boolean) => (
         <StrictMode>
           {open && <RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} onHangup={vi.fn()} onMute={vi.fn()}
-            onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />}
+            onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onPttCancel={vi.fn()} onPttToText={async () => ""} onSendText={() => true} onClose={vi.fn()} />}
         </StrictMode>
       );
       const view = renderWithProviders(screenEl(true));
@@ -331,7 +505,7 @@ describe("RealtimeCallScreen", () => {
       expect(h.onPttUp).toHaveBeenCalledTimes(2);
     });
 
-    it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", () => {
+    it("tap and hold exclude each other: a hold release can never end a tapped utterance (review F2 m3)", async () => {
       const h = render({ inputMode: "ptt" });
       fireEvent.click(screen.getByTestId("call-more"));
       const tap = screen.getByTestId("call-ptt-tap");
@@ -343,19 +517,20 @@ describe("RealtimeCallScreen", () => {
       fireEvent.pointerUp(hold);
       expect(h.onPttDown).toHaveBeenCalledTimes(1);
       expect(h.onPttUp).not.toHaveBeenCalled(); // 还在说:点按键仍是"点按结束说话"
+      expect(h.onPttCancel).not.toHaveBeenCalled();
       expect(tap).toHaveTextContent(/Tap to stop|点按结束/);
       fireEvent.click(tap);
       expect(h.onPttUp).toHaveBeenCalledTimes(1);
       expect(hold).toBeEnabled();
       // 反过来:按住期间点按键不可用
-      fireEvent.pointerDown(hold);
+      const release = await pressHold(hold);
       expect(tap).toBeDisabled();
       fireEvent.click(tap);
       expect(tap).toHaveAttribute("aria-pressed", "false");
-      fireEvent.pointerUp(hold);
+      release();
       expect(h.onPttDown).toHaveBeenCalledTimes(2);
       expect(h.onPttUp).toHaveBeenCalledTimes(2);
-      expect(tap).toBeEnabled();
+      await waitFor(() => expect(tap).toBeEnabled());
     });
 
     it("has no tap toggle in auto mode", () => {
@@ -370,7 +545,7 @@ describe("RealtimeCallScreen", () => {
       const mock = createFetchMock({});
       const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
       renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening" }} level={() => 0} translation={{ api, nativeLanguage: "zh-CN" }}
-        onHangup={vi.fn()} onMute={vi.fn()} onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onClose={vi.fn()} />);
+        onHangup={vi.fn()} onMute={vi.fn()} onInputMode={vi.fn()} onSpeaker={vi.fn()} onPttDown={vi.fn()} onPttUp={vi.fn()} onPttCancel={vi.fn()} onPttToText={async () => ""} onSendText={() => true} onClose={vi.fn()} />);
       const dock = screen.getByTestId("call-dock");
       expect(dock.className).toMatch(/\bglass\b/);
       expect(dock).toContainElement(screen.getByTestId("call-input-mode"));
@@ -432,19 +607,22 @@ describe("RealtimeCallScreen", () => {
       expect(screen.getByTestId("call-ptt")).toBeEnabled();
     });
 
-    it("the pressed hold key shows its ring and data-held state", () => {
+    it("the pressed hold key shows its ring and data-held state", async () => {
       render({ inputMode: "ptt" });
       const ptt = screen.getByTestId("call-ptt");
       expect(ptt).toHaveAttribute("data-held", "false");
-      fireEvent.pointerDown(ptt);
+      expect(ptt.querySelector(".motion-safe\\:animate-ptt-ring")).toBeNull();
+      const release = await pressHold(ptt);
       expect(ptt).toHaveAttribute("data-held", "true");
+      expect(ptt.className).toMatch(/\bbg-blue\b/); // 按下:blue 实底
       expect(ptt.querySelector(".motion-safe\\:animate-ptt-ring")).not.toBeNull();
-      fireEvent.pointerUp(ptt);
+      release();
+      await waitFor(() => expect(ptt).toHaveAttribute("data-held", "false"));
       expect(ptt.querySelector(".motion-safe\\:animate-ptt-ring")).toBeNull();
     });
 
     it("shows the partner avatar and name, and labels captions by speaker", () => {
-      const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+      const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onPttCancel: vi.fn(), onPttToText: vi.fn(async (_signal: AbortSignal) => ""), onSendText: vi.fn(() => true), onClose: vi.fn() };
       renderWithProviders(<RealtimeCallScreen partnerName="Emma" level={() => 0} {...handlers} model={{
         ...INITIAL_CALL, phase: "speaking",
         captions: [
@@ -591,7 +769,7 @@ describe("RealtimeCallScreen caption translation", () => {
   function mountTranslating() {
     const mock = createFetchMock({ "POST /api/ai/chat/completions": () => reply("你好呀") });
     const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
-    const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onClose: vi.fn() };
+    const handlers = { onHangup: vi.fn(), onMute: vi.fn(), onInputMode: vi.fn(), onSpeaker: vi.fn(), onPttDown: vi.fn(), onPttUp: vi.fn(), onPttCancel: vi.fn(), onPttToText: vi.fn(async (_signal: AbortSignal) => ""), onSendText: vi.fn(() => true), onClose: vi.fn() };
     renderWithProviders(<RealtimeCallScreen model={{ ...INITIAL_CALL, phase: "listening", captions }} level={() => 0}
       translation={{ api, nativeLanguage: "zh-CN" }} {...handlers} />);
     return mock;

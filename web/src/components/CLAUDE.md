@@ -6,6 +6,7 @@ Shared presentational UI primitives for the redesign (glass bars, cards, sheets,
 - Layout chrome: `glass-top-bar.tsx`, `glass-tab-bar.tsx`, `bottom-sheet.tsx`.
 - Building blocks: `surface-card.tsx`, `section-group.tsx`, `list-card.ts`, `stat-tile.tsx`, `icon-button.tsx`, `icon-chip.tsx`, `segmented-control.tsx`, `avatar.tsx`, `tone-badge.tsx`, `markdown.tsx`.
 - Semantics: `tone.ts` (one meaning per hue), `score-tone.ts` (≥85 / 70–84 / <70).
+- Hold-to-talk: `hold-to-talk-bar.tsx` (bar + overlay + drop zones + live region; stateful by necessity) and `use-hold-gesture.ts`, used by chat and realtime calls; strings in `i18n/` (`web.hold.*`).
 
 ## Allowed dependencies
 - React, npm UI packages, `lib/`, `@renderer/lib/utils` (shim) and `@renderer/components/ui/*`. Never `features/`, `pages/`, `layout/`, `auth/`, `settings/` (architecture test).

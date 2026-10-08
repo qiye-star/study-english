@@ -8,9 +8,11 @@ import type { CallModel, InputMode } from "./call-machine";
 import { readAutoTranslate, writeAutoTranslate } from "./call-caption-translation";
 import { CallCaptions } from "./call-captions";
 import { cn } from "~/lib/cn";
-import { CallModeSwitch, CallPttButton, CallTapToTalkButton, DockBarButton, DockKey, MicIndicator } from "./call-dock";
+import { CallHoldBar, CallModeSwitch, CallPttButton, CallTapToTalkButton, DockBarButton, DockKey, MicIndicator } from "./call-dock";
 import { CallHeader, CallHero, LevelBar } from "./call-hero";
+import { CallTextDraft, type CallTextDraftState } from "./call-text-draft";
 import type { CallEnding, RealtimeCallOptions } from "./realtime-call";
+import { transcribeHeldAudio } from "./realtime-api";
 import { useRealtimeCall } from "./use-realtime-call";
 
 /** 浮动控制台 / 结束卡:玻璃 + 发丝线 + 28px 圆角,左右 16px,底部 max(12px, 安全区)。 */
@@ -28,6 +30,15 @@ export interface RealtimeCallScreenProps {
   onSpeaker(on: boolean): void;
   onPttDown(): void;
   onPttUp(): void;
+  /** 按住说话长条上滑到"取消"松手(或按得太短、手势被取消):撤回这一句,什么都不发给 AI */
+  onPttCancel(): void;
+  /**
+   * 上滑到"转文字"松手:同步撤回这一句并取走按住的音频,然后转写;resolve 转写文本("" = 没听到话)。
+   * 同步部分必须在 `await` 之前完成(还在松手的事件里)。
+   */
+  onPttToText(signal: AbortSignal): Promise<string>;
+  /** 把(编辑过的)文字作为用户这一轮发出;没连上时返回 false */
+  onSendText(text: string): boolean;
   onClose(): void;
   /** 通话字幕翻译(R16 复用):不传则不显示翻译入口(例如英文界面没有可译的目标语言)。 */
   translation?: { api: ApiClient; nativeLanguage: string };
@@ -85,7 +96,9 @@ function useModalIsolation(dialog: RefObject<HTMLElement>) {
   }, [dialog]);
 }
 
-export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode, onSpeaker, onPttDown, onPttUp, onClose, translation, partnerName }: RealtimeCallScreenProps) {
+export function RealtimeCallScreen({
+  model, level, onHangup, onMute, onInputMode, onSpeaker, onPttDown, onPttUp, onPttCancel, onPttToText, onSendText, onClose, translation, partnerName,
+}: RealtimeCallScreenProps) {
   const { t, i18n } = useTranslation();
   const ended = model.phase === "ended";
   // 服务端可能带来新错误码:没有文案的键退回通用文案,不把键名露给用户
@@ -109,13 +122,61 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
   const [moreOpen, setMoreOpen] = useState(false);
   const moreId = useId();
 
+  // "转文字"草稿:按住说话上滑到"转文字"松手 → 转写 → 在控制台上方编辑,发送 / 丢弃
+  const [draft, setDraft] = useState<CallTextDraftState | null>(null);
+  const transcribing = useRef<AbortController | null>(null);
+  const stopTranscribing = () => {
+    transcribing.current?.abort();
+    transcribing.current = null;
+  };
+  useEffect(() => stopTranscribing, []);
+  useEffect(() => {
+    if (ended) {
+      stopTranscribing();
+      setDraft(null);
+    }
+  }, [ended]);
+  const startToText = () => {
+    stopTranscribing();
+    const ctrl = new AbortController();
+    transcribing.current = ctrl;
+    setDraft({ status: "transcribing", text: "" });
+    onPttToText(ctrl.signal).then(
+      (text) => {
+        if (ctrl.signal.aborted) return;
+        transcribing.current = null;
+        setDraft(text.trim() ? { status: "ready", text: text.trim() } : { status: "empty", text: "" });
+      },
+      () => {
+        if (ctrl.signal.aborted) return;
+        transcribing.current = null;
+        setDraft({ status: "failed", text: "" });
+      },
+    );
+  };
+  const focusHoldBar = () => dialogRef.current?.querySelector<HTMLElement>('[data-testid="call-ptt"]')?.focus();
+  const discardDraft = () => {
+    stopTranscribing();
+    setDraft(null);
+    focusHoldBar();
+  };
+  const sendDraft = () => {
+    if (!draft || draft.status === "transcribing" || !draft.text.trim()) return;
+    if (!onSendText(draft.text)) {
+      setDraft({ ...draft, status: "unsent" });
+      return;
+    }
+    setDraft(null);
+    focusHoldBar();
+  };
+
   const captionsRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   // 贴底:新字幕、以及「更多」面板开合让字幕区变矮/变高时,最新一句始终留在控制台上方
   useEffect(() => {
     const el = captionsRef.current;
     if (el && stick.current) el.scrollTo?.({ top: el.scrollHeight });
-  }, [model.captions, model.partial, moreOpen, ended]);
+  }, [model.captions, model.partial, moreOpen, ended, draft !== null]);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Tab" && dialogRef.current) {
@@ -133,6 +194,11 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
     }
     if (e.key !== "Escape" || e.defaultPrevented) return;
     e.preventDefault();
+    if (draft && !ended) {
+      // 转文字草稿开着:Escape 先丢弃草稿,不挂断
+      discardDraft();
+      return;
+    }
     if (moreOpen && !ended) {
       // 面板开着:Escape 先收起面板,不挂断
       setMoreOpen(false);
@@ -164,7 +230,8 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
     setAutoTranslate(next);
     writeAutoTranslate(next);
   };
-  const keyCount = translation ? 5 : 4;
+  // 按住说话模式:静音键隐藏,按住说话是控制台整宽的长条(在按键行下面),按键少一个
+  const keyCount = (translation ? 5 : 4) - (ptt ? 1 : 0);
   const basicDetection = !ended && model.vadUnavailable && !ptt;
   const notices = (model.degraded || model.notice || basicDetection) && (
     <div className="mt-2 flex flex-col items-center gap-0.5 text-meta">
@@ -204,11 +271,12 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
         </div>
       ) : (
         <>
+          {draft && <CallTextDraft draft={draft} onChange={(text) => setDraft((d) => (d ? { ...d, text } : d))} onSend={sendDraft} onDiscard={discardDraft} />}
           {moreOpen && (
             <div id={moreId} data-testid="call-more-panel" role="group" aria-label={t("web.realtime.more")}
               className="relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-card border-[0.5px] border-hair bg-surface p-2 shadow-card">
               {holdInPanel && (
-                <CallPttButton variant="bar" disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
+                <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
                   label={t("web.realtime.holdToInterrupt")} />
               )}
               {ptt && <CallTapToTalkButton disabled={model.muted || holdOn} onDown={onPttDown} onUp={onPttUp} onToggle={setTapOn} />}
@@ -230,10 +298,7 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
                 icon={model.speaker ? <Volume2Icon /> : <EarIcon />}
                 label={model.speaker ? t("web.realtime.speaker") : t("web.realtime.earpiece")}
                 onClick={() => onSpeaker(!model.speaker)} />
-              {ptt ? (
-                <CallPttButton variant="key" disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
-                  label={t("web.realtime.holdToSpeak")} />
-              ) : (
+              {!ptt && (
                 <DockKey data-testid="call-mute" tone={model.muted ? "on" : "off"} aria-pressed={model.muted}
                   aria-label={model.muted ? t("web.realtime.unmute") : t("web.realtime.mute")}
                   icon={model.muted ? <MicOffIcon /> : <MicIcon />} label={t("web.realtime.muteShort")}
@@ -251,6 +316,13 @@ export function RealtimeCallScreen({ model, level, onHangup, onMute, onInputMode
               <DockKey ref={hangupRef} data-testid="call-hangup" tone="end" aria-label={t("web.realtime.hangup")}
                 icon={<PhoneOffIcon />} label={t("web.realtime.hangup")} onClick={onHangup} />
             </div>
+            {ptt && (
+              <div className="mt-2 flex px-0.5">
+                <CallHoldBar disabled={model.muted || tapOn} label={t("web.realtime.holdToSpeak")}
+                  onDown={onPttDown} onSend={onPttUp} onCancel={onPttCancel} onToText={startToText}
+                  onStateChange={(state) => setHoldOn(state !== "idle")} />
+              </div>
+            )}
           </div>
         </>
       )}
@@ -286,6 +358,13 @@ export function RealtimeCallDialog({ onClose, nativeLanguage, partnerName, ...op
       onSpeaker={(on) => call?.setSpeaker(on)}
       onPttDown={() => call?.pttDown()}
       onPttUp={() => call?.pttUp()}
+      onPttCancel={() => call?.pttCancel()}
+      onPttToText={async (signal) => {
+        // 同步:撤回这一句并取走音频(还在松手的事件里);随后转写(与聊天语音消息同一个接口)
+        const audio = call?.pttToText();
+        return audio ? transcribeHeldAudio(options.api, audio, signal) : "";
+      }}
+      onSendText={(text) => call?.sendUserText(text) ?? false}
       onClose={() => onClose(handOff())}
       translation={nativeLanguage ? { api: options.api, nativeLanguage } : undefined} />
   );

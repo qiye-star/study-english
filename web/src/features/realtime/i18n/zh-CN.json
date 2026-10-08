@@ -17,6 +17,7 @@
       "modeAuto": "自动",
       "modeHold": "按住说话",
       "holdToSpeak": "按住说话",
+      "textDraft": { "title": "转文字", "transcribing": "正在转文字…", "empty": "没有听到说话,可以直接输入。", "failed": "没能转成文字,可以直接输入。", "unsent": "未发送:通话未连接。", "input": "要发送的文字", "placeholder": "输入你想说的话", "send": "发送", "discard": "丢弃" },
       "holdToInterrupt": "按住插话",
       "tapToTalk": "点按开始说话",
       "tapToStop": "点按结束说话",

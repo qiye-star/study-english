@@ -1,6 +1,6 @@
 import camelcaseKeys from "camelcase-keys";
 
-/** 与 server/app/realtime_protocol.py 逐字对应(protocol.test.ts 直接读取服务端文件核对)。 */
+/** 与 server/app/realtime/realtime_protocol.py 逐字对应(protocol.test.ts 直接读取服务端文件核对)。 */
 export const CLOSE = {
   NORMAL: 1000, UNAUTHORIZED: 4001, DISABLED: 4003, NOT_FOUND: 4004, IDLE: 4008,
   MAX_DURATION: 4009, MESSAGE_LIMIT: 4013, BUSY: 4029, PROTOCOL: 4400, UPSTREAM: 4502,
@@ -60,6 +60,8 @@ export const START_LIMITS = {
   voice: /^[A-Za-z0-9_-]{3,100}$/,
   /** 一条客户端文本消息的上限(MAX_CLIENT_TEXT) */
   clientText: 16_384,
+  /** user_text 的字数上限(MAX_USER_TEXT,按码点计) */
+  userText: 2000,
 } as const;
 
 /** 开始消息无法满足服务端校验(目前只有音色:它没有可退回的默认值)。 */
@@ -105,3 +107,12 @@ export function encodeStart(p: StartPayload): string {
 export const CONTROL_TYPES = ["utterance_end", "utterance_cancel", "interrupt", "hangup"] as const;
 export type ControlType = (typeof CONTROL_TYPES)[number];
 export const encodeControl = (type: ControlType) => JSON.stringify({ type });
+
+/**
+ * 用户这一轮的文字(按住说话"转文字"后编辑发送):服务端跳过识别,与说完的一句一样保存 → 回复。
+ * 去掉首尾空白、孤立代理项换成 U+FFFD、按码点截到 MAX_USER_TEXT;空文字返回 null(服务端会拒绝)。
+ */
+export function encodeUserText(text: string): string | null {
+  const clean = codePoints(wellFormed(text.trim())).slice(0, START_LIMITS.userText).join("").trim();
+  return clean ? JSON.stringify({ type: "user_text", text: clean }) : null;
+}

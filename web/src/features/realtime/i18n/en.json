@@ -17,6 +17,7 @@
       "modeAuto": "Auto",
       "modeHold": "Hold to talk",
       "holdToSpeak": "Hold to speak",
+      "textDraft": { "title": "To text", "transcribing": "Converting to text…", "empty": "No speech heard – you can type instead.", "failed": "Couldn't convert to text – you can type instead.", "unsent": "Not sent – the call is not connected.", "input": "Message to send", "placeholder": "Type what you want to say", "send": "Send", "discard": "Discard" },
       "holdToInterrupt": "Hold to cut in",
       "tapToTalk": "Tap to talk",
       "tapToStop": "Tap to stop talking",

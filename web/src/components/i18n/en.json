@@ -1,0 +1,5 @@
+{
+  "web": {
+    "hold": { "label": "Hold to talk (or press Space to start and again to send)", "keyboardStop": "Recording – press Space to send, Escape to cancel", "slideHint": "Slide up to cancel or convert to text", "cancel": "Cancel", "toText": "To text", "releaseToCancel": "Release to cancel", "releaseToText": "Release to convert to text", "bar": "Hold to talk", "barPressed": "Release to send", "overlaySlide": "Slide up to cancel", "overlayCancel": "Release to cancel", "overlayText": "Release to convert to text" }
+  }
+}

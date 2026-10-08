@@ -5,8 +5,9 @@ import pytest
 
 from app.realtime import realtime_protocol as rp
 from app.realtime.realtime_protocol import (
-    CLOSE_REASONS, MAX_CLIENT_TEXT, MAX_SYSTEM_PROMPT, MAX_UPLINK_FRAME, HangupMsg, InterruptMsg, ProtocolError,
-    StartMsg, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink, parse_client_message,
+    CLOSE_REASONS, MAX_CLIENT_TEXT, MAX_SYSTEM_PROMPT, MAX_UPLINK_FRAME, MAX_USER_TEXT, HangupMsg, InterruptMsg,
+    ProtocolError, StartMsg, UserTextMsg, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink,
+    parse_client_message,
 )
 
 START = {"type": "start", "voice": "en_female_dacey_uranus_bigtts"}
@@ -34,6 +35,14 @@ def test_parse_each_message():
     assert isinstance(parse_client_message('{"type":"utterance_cancel"}'), UtteranceCancelMsg)
     assert isinstance(parse_client_message('{"type":"interrupt"}'), InterruptMsg)
     assert isinstance(parse_client_message('{"type":"hangup"}'), HangupMsg)
+    text = parse_client_message('{"type":"user_text","text":"A latte, please."}')
+    assert isinstance(text, UserTextMsg) and text.text == "A latte, please."
+
+
+def test_user_text_limits():
+    assert MAX_USER_TEXT == 2000
+    # 与网页端 encodeUserText() 的形状一致;非 ASCII 不转义
+    assert parse_client_message(json.dumps({"type": "user_text", "text": "你" * MAX_USER_TEXT}, ensure_ascii=False)).text
 
 
 def test_start_defaults():
@@ -113,6 +122,13 @@ def test_boundary_values_are_accepted(fields):
     "[" * 10000 + "]" * 10000,
     '{"type":"hangup"} trailing',
     '{"type":"hangup"}{"type":"hangup"}',
+    '{"type":"user_text"}',
+    '{"type":"user_text","text":""}',
+    '{"type":"user_text","text":null}',
+    '{"type":"user_text","text":5}',
+    '{"type":"user_text","text":["hi"]}',
+    '{"type":"user_text","text":"hi","extra":1}',
+    json.dumps({"type": "user_text", "text": "x" * (MAX_USER_TEXT + 1)}),
 ])
 def test_invalid_messages_raise(raw):
     with pytest.raises(ProtocolError):

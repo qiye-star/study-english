@@ -5,14 +5,14 @@ import {
 import { browserOutputEnv, createCallOutput, type CallOutput, type OutputEnv } from "~/audio/call-output";
 import { browserCaptureEnv, startPcmCapture, type CaptureEnv, type PcmCapture } from "~/audio/capture";
 import { createEnergyVad, type FrameVad } from "~/audio/energy-vad";
-import { TARGET_RATE, floatToPcm16, frameRms } from "~/audio/pcm";
+import { TARGET_RATE, concatFloat, floatToPcm16, frameRms } from "~/audio/pcm";
 import { createPcmPlayer, type PcmPlayer } from "~/audio/pcm-player";
 import type { VadSensitivity } from "~/audio/speech-gate";
 import { createVad, type VadCallbacks, type VadHandle } from "~/audio/vad";
 import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { INITIAL_CALL, callReducer, type CallAction, type CallModel, type InputMode } from "./call-machine";
 import { realtimeErrorKey } from "./errors";
-import { encodeControl, encodeStart, parseServerEvent, splitAudioFrame, type StartPayload } from "./protocol";
+import { encodeControl, encodeStart, encodeUserText, parseServerEvent, splitAudioFrame, type StartPayload } from "./protocol";
 import { createRealtimeTicket, realtimeUrl } from "./realtime-api";
 
 export const PRE_ROLL_MS = 500;
@@ -33,6 +33,9 @@ export const VAD_SILENT_FRAMES_MS = 3000;
 const VAD_SILENT_SAMPLES = (TARGET_RATE * VAD_SILENT_FRAMES_MS) / 1000;
 /** 按住不足这么久就松开 = 误触:什么都不发送(calls v2 Task 4)。 */
 export const MIN_HOLD_MS = 300;
+/** "转文字"时本地留存的按住音频上限(与聊天语音的 60 s 一致) */
+export const MAX_HELD_AUDIO_MS = 60_000;
+const MAX_HELD_SAMPLES = (TARGET_RATE * MAX_HELD_AUDIO_MS) / 1000;
 /** 免提时机器人的声音停下后,再屏蔽这么久的麦克风(房间里的余响)。 */
 export const ECHO_TAIL_MS = 300;
 /**
@@ -168,6 +171,9 @@ export class RealtimeCall {
   /** 按住未满 MIN_HOLD_MS 时先攒着的帧(含按下前的预录);满了才发出 */
   private holdBuffer: Float32Array[] = [];
   private holdLive = false;
+  /** 这次按住的全部音频(含按下前的预录)的本地副本:松手"转文字"时交给页面转写 */
+  private heldAudio: Float32Array[] = [];
+  private heldSamples = 0;
   private preRoll: Float32Array[] = [];
   private preRollSamples = 0;
   private micLevel = 0;
@@ -498,7 +504,14 @@ export class RealtimeCall {
     }
   }
 
+  private keepHeld(frame: Float32Array): void {
+    if (this.heldSamples + frame.length > MAX_HELD_SAMPLES) return;
+    this.heldAudio.push(frame);
+    this.heldSamples += frame.length;
+  }
+
   private onHeldFrame(frame: Float32Array): void {
+    this.keepHeld(frame);
     if (this.holdLive) return this.sendFrame(frame);
     this.holdBuffer.push(frame);
     if (this.now() - this.holdStartedAt >= MIN_HOLD_MS) this.flushHold();
@@ -586,6 +599,8 @@ export class RealtimeCall {
     if (this.torn || this.model.muted || this.holding) return;
     this.holding = true;
     this.holdStartedAt = this.now();
+    this.heldAudio = [];
+    this.heldSamples = 0;
     if (this.speaking) {
       this.holdLive = true;
     } else {
@@ -594,6 +609,7 @@ export class RealtimeCall {
       this.sentInUtterance = 0;
       this.holdLive = false;
       this.holdBuffer = this.preRoll;
+      this.holdBuffer.forEach((f) => this.keepHeld(f));
       this.clearPreRoll();
     }
     this.dispatch({ type: "holding", on: true });
@@ -610,8 +626,52 @@ export class RealtimeCall {
     if (!this.holdLive && this.now() - this.holdStartedAt >= MIN_HOLD_MS) this.flushHold();
     if (this.holdLive) this.endUtterance();
     else this.cancelUtterance();
+    this.finishHold();
+  }
+
+  /**
+   * 上滑到"取消"松手(或手势被系统取消、按得太短):撤回这一句 —— 已发出过音频时发 `utterance_cancel`,
+   * 服务端丢弃、不识别、不回复。不论按了多久,什么都不会到 AI。
+   */
+  pttCancel(): void {
+    if (!this.holding || this.torn) return;
+    this.abandonHold();
+  }
+
+  /**
+   * 上滑到"转文字"松手:与取消一样撤回这一句(服务端什么都不回复),但把按住期间的音频(16 kHz 单声道)交回给页面转写;
+   * 页面让用户编辑后用 `sendUserText` 发送。没有音频时返回 null。
+   */
+  pttToText(): Float32Array | null {
+    if (!this.holding || this.torn) return null;
+    const audio = this.heldSamples > 0 ? concatFloat(this.heldAudio) : null;
+    this.abandonHold();
+    return audio;
+  }
+
+  /** 发送用户这一轮的文字(`user_text`):先打断机器人,服务端保存后照常回复。没连上或文字为空时返回 false。 */
+  sendUserText(text: string): boolean {
+    if (this.torn || !this.isOpen()) return false;
+    const message = encodeUserText(text);
+    if (!message) return false;
+    this.interruptBot();
+    this.sendText(message);
+    return true;
+  }
+
+  /** 撤回按住的这一句(取消 / 转文字):不论长短都不结束它;服务端已收到的部分由 utterance_cancel 丢弃。 */
+  private abandonHold(): void {
+    this.holding = false;
+    this.cancelUtterance();
+    this.dispatch({ type: "clear-partial" }); // 撤回的那句不会有 transcript_final:清掉它的识别中字幕
+    this.finishHold();
+  }
+
+  private finishHold(): void {
     this.holdLive = false;
     this.holdBuffer = [];
+    this.heldAudio = [];
+    this.heldSamples = 0;
     this.detectors().forEach((d) => d.reset()); // 按住期间检测器听到的不算
     this.dispatch({ type: "holding", on: false });
   }
@@ -674,6 +734,7 @@ export class RealtimeCall {
     this.speaking = false;
     this.holding = false;
     this.holdBuffer = [];
+    this.heldAudio = [];
     this.preRoll = [];
     this.abort.abort();
     this.o.context.removeEventListener?.("statechange", this.onContextState);

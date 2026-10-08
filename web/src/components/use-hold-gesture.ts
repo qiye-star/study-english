@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IDLE, MAX_HOLD_MS, holdReducer, type DiscardReason, type HoldEvent, type HoldModel } from "./hold-to-talk";
+import { IDLE, holdReducer, type DiscardReason, type HoldEvent, type HoldModel } from "~/lib/hold-gesture";
 
-export interface UseHoldToTalkOptions {
+export interface UseHoldGestureOptions {
   /** 开始采集麦克风(在手势内同步调用);resolve(false) = 未能开始 */
   start(): Promise<boolean>;
   finish(deliver: "send" | "fill"): void;
   discard(reason: DiscardReason): void;
+  /** 按住(或键盘录音)最长这么久,到时按 `max` 事件结束(未进落点 = 发送) */
+  maxHoldMs: number;
 }
 
 const active = (m: HoldModel) => m.state === "recording" || m.state === "armed-cancel" || m.state === "armed-text" || (m.state === "keyboard" && m.micReady);
 
-export function useHoldToTalk(options: UseHoldToTalkOptions) {
+/** `holdReducer` 的 React 外壳:执行副作用、最长时长计时、切后台取消、卸载时丢弃。 */
+export function useHoldGesture(options: UseHoldGestureOptions) {
   const opts = useRef(options);
   opts.current = options;
   const modelRef = useRef<HoldModel>(IDLE);
@@ -25,7 +28,7 @@ export function useHoldToTalk(options: UseHoldToTalkOptions) {
     modelRef.current = next;
     if (mounted.current) setModel(next);
     if (next.state === "idle" && before.state !== "idle") generation.current += 1;
-    if (active(next) && !active(before)) timer.current = window.setTimeout(() => dispatch({ type: "max" }), MAX_HOLD_MS);
+    if (active(next) && !active(before)) timer.current = window.setTimeout(() => dispatch({ type: "max" }), opts.current.maxHoldMs);
     if (!active(next) && timer.current !== undefined) {
       window.clearTimeout(timer.current);
       timer.current = undefined;

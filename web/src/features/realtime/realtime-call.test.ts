@@ -921,6 +921,79 @@ describe("input modes are mutually exclusive (calls v2 Task 4)", () => {
   });
 });
 
+describe("hold gestures: slide to cancel / to text (chat parity)", () => {
+  it("cancel after a long hold sends utterance_cancel instead of utterance_end: nothing reaches the AI", async () => {
+    const s = await clocked();
+    s.call.setInputMode("ptt");
+    s.call.pttDown();
+    s.tick(MIN_HOLD_MS);
+    s.speech(3);
+    expect(s.ws().binaries()).toHaveLength(3);
+    s.ws().server({ type: "transcript_partial", text: "I want" });
+    expect(s.last().partial).toBe("I want");
+    s.call.pttCancel();
+    const types = s.ws().texts().map((m) => m.type);
+    expect(types.at(-1)).toBe("utterance_cancel");
+    expect(types).not.toContain("utterance_end");
+    expect(s.last()).toMatchObject({ holding: false, partial: "" }); // 撤回的那句不留识别中字幕
+    s.speech(2); // 松手后麦克风关闭
+    expect(s.ws().binaries()).toHaveLength(3);
+    s.call.pttCancel(); // 没在按住:什么都不做
+    expect(s.ws().texts().filter((m) => m.type === "utterance_cancel")).toHaveLength(1);
+  });
+
+  it("cancel before anything was sent sends nothing at all", async () => {
+    const s = await clocked();
+    s.call.setInputMode("ptt");
+    s.call.pttDown();
+    s.speech(1);
+    s.call.pttCancel();
+    expect(s.ws().binaries()).toHaveLength(0);
+    expect(s.ws().texts().map((m) => m.type)).toEqual(["start"]);
+  });
+
+  it("to text cancels the utterance on the server and returns the held audio (incl. pre-roll) for transcription", async () => {
+    const s = await clocked();
+    s.speech(2); // 自动模式的预录:并入按住这一句
+    s.call.pttDown();
+    s.tick(MIN_HOLD_MS);
+    s.speech(3);
+    const audio = s.call.pttToText();
+    expect(audio).toBeInstanceOf(Float32Array);
+    expect(audio!.length).toBe(5 * 1600);
+    expect(audio![0]).toBeCloseTo(0.2);
+    const types = s.ws().texts().map((m) => m.type);
+    expect(types.at(-1)).toBe("utterance_cancel");
+    expect(types).not.toContain("utterance_end");
+    expect(s.last().holding).toBe(false);
+    expect(s.call.pttToText()).toBeNull(); // 已经松开
+  });
+
+  it("to text with no audio yet returns null and sends nothing", async () => {
+    const s = await clocked();
+    s.call.setInputMode("ptt");
+    s.call.pttDown();
+    expect(s.call.pttToText()).toBeNull();
+    expect(s.ws().texts().map((m) => m.type)).toEqual(["start"]);
+  });
+
+  it("sendUserText sends user_text (trimmed), interrupting the bot first; blank or disconnected is refused", async () => {
+    const s = await clocked();
+    s.ws().server({ type: "state", state: "speaking" });
+    s.ws().onmessage?.({ data: audioFrame(1) });
+    const source = s.ctx.createBufferSource.mock.results[0].value;
+    expect(s.call.sendUserText("  I'd like a latte. ")).toBe(true);
+    expect(source.stop).toHaveBeenCalled();
+    const texts = s.ws().texts();
+    expect(texts.at(-2)).toEqual({ type: "interrupt" });
+    expect(texts.at(-1)).toEqual({ type: "user_text", text: "I'd like a latte." });
+    expect(s.call.sendUserText("   ")).toBe(false);
+    s.call.hangup();
+    expect(s.call.sendUserText("late")).toBe(false);
+    expect(s.ws().texts().filter((m) => m.type === "user_text")).toHaveLength(1);
+  });
+});
+
 describe("hands-free (speaker) mode never records the phone's own audio (calls v2 Task 3)", () => {
   /** 机器人开始说话并播放一段音频 */
   const botTalks = (s: Awaited<ReturnType<typeof clocked>>, turn = 1) => {

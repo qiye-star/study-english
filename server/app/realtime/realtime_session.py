@@ -20,8 +20,8 @@ from typing import Protocol
 from app.speech.asr import MAX_UTTERANCE_BYTES, AsrError, RecognizerFactory, UtteranceRecognizer
 from app.realtime.realtime_protocol import (
     CLOSE_IDLE, CLOSE_MAX_DURATION, CLOSE_MESSAGE_LIMIT, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_UPSTREAM,
-    HangupMsg, InterruptMsg, ProtocolError, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink,
-    parse_client_message,
+    HangupMsg, InterruptMsg, ProtocolError, UserTextMsg, UtteranceCancelMsg, UtteranceEndMsg, audio_frame,
+    check_uplink, parse_client_message,
 )
 from app.speech.sentence_split import SentenceSplitter
 
@@ -294,6 +294,8 @@ class RealtimeSession:
                     await self._on_utterance_end()
                 elif isinstance(msg, UtteranceCancelMsg):
                     await self._on_utterance_cancel()
+                elif isinstance(msg, UserTextMsg):
+                    await self._on_user_text(msg.text)
                 else:
                     raise ProtocolError("start was already received")
         except ProtocolError:
@@ -418,6 +420,30 @@ class RealtimeSession:
         self._discarding = False
         await _abort(recognizer)
 
+    async def _on_user_text(self, text: str) -> None:
+        """用户这一轮的文字(按住说话"转文字"后发送):与一句话同样准入(待识别上限、打断、额度),
+        然后跳过识别,直接走保存 → 回复;不评测(没有音频)。进行中的一句(若有)不受影响,照常成为下一轮。"""
+        self._last_activity = self._now()
+        text = text.strip()
+        if not text or self._fatal is not None or self._closed:
+            return
+        if self._pending_turns() >= MAX_PENDING_TURNS:
+            self.stats.dropped_utterances += 1
+            logger.info("realtime user text dropped reason=pending")
+            return
+        if self._busy():
+            await self._interrupt()
+        if not self._allow_turn():
+            await self._send({"type": "error", "code": "rate_limited"})
+            return
+        previous = self._turn
+        turn = _Turn(after=previous.done if previous else None)
+        self._turn = turn
+        await self._set_state("thinking")
+        turn.task = asyncio.create_task(self._run_turn(turn, None, b"", False, typed=text))
+        self._turn_tasks[turn.task] = turn
+        turn.task.add_done_callback(lambda t: self._turn_tasks.pop(t, None))
+
     async def _interrupt(self) -> None:
         turn = self._turn
         if turn is None or turn.task is None or turn.task.done():
@@ -469,9 +495,11 @@ class RealtimeSession:
             logger.warning("realtime save user message failed error=%s", type(e).__name__)
         return None
 
-    async def _run_turn(self, turn: _Turn, recognizer: UtteranceRecognizer, pcm: bytes, is_fallback: bool) -> None:
+    async def _run_turn(self, turn: _Turn, recognizer: UtteranceRecognizer | None, pcm: bytes, is_fallback: bool,
+                        typed: str | None = None) -> None:
+        """recognizer 为 None 时 `typed` 就是这一轮的文字(user_text)。"""
         try:
-            text = await self._recognise(recognizer, pcm, is_fallback)
+            text = typed if recognizer is None else await self._recognise(recognizer, pcm, is_fallback)
             if turn.after is not None:
                 await turn.after.wait()  # 保存顺序与说话顺序一致
             if self._fatal is not None:

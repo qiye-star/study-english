@@ -6,7 +6,7 @@ Conversations with the AI tutor: text and voice messages, hold-to-talk, auto-spe
 - Pages: `conversations-page.tsx`, `conversation-page.tsx` (orchestration; large).
 - Turns: `use-voice-turn.ts`, `turn-results.ts` (assessment + grammar, late PATCH), `chat-request.ts`, `chat-turns.ts`, `ui-message.ts`.
 - Speech out: `tts.ts`, `use-tts-player.ts` (sentence queue), `use-auto-speak.ts`, `sentence-stream.ts`, `sentences.ts`.
-- Hold-to-talk: `hold-to-talk.ts` (pure reducer), `use-hold-to-talk.ts`, `hold-to-talk-button.tsx`.
+- Hold-to-talk: `hold-to-talk-button.tsx` wires voice messages to the shared gesture (`~/lib/hold-gesture` reducer, `~/components/use-hold-gesture`, `~/components/hold-to-talk-bar` UI, shared with realtime calls).
 - Helpers: `hints*.ts(x)`, `recap*.ts(x)`, `scenarios.ts`, `levels.ts`, `coach.ts`, `composer-mode.ts`.
 - `i18n/{en,zh-CN}.json` — this feature's strings.
 

@@ -561,6 +561,84 @@ async def test_utterance_cancel_drops_the_half_utterance_without_a_turn():
     assert h.session.stats.turns == 1
 
 
+async def test_user_text_is_a_turn_without_recognition_or_assessment():
+    """按住说话"转文字"后发送的文字:不打开识别器、不评测,保存后与一句话同样回复(LLM → TTS)。"""
+    assessed = []
+
+    class Assessor:
+        async def assess(self, message_id, pcm, text):
+            assessed.append(message_id)
+            return {"status": "done", "result": {}, "assessment_id": None}
+
+    seen = []
+    h = Harness(assessor=Assessor(), llm=llm_of("Sure. ", "What size?", seen=seen))
+    task = asyncio.create_task(h.run())
+    h.send({"type": "user_text", "text": "  A latte, please.  "})
+    await h.until(lambda: "reply_done" in h.types())
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert h.factory.opened == 0 and assessed == []
+    assert h.of("transcript_final") == [{"type": "transcript_final", "text": "A latte, please.", "message_id": "m1"}]
+    assert [m["content"] for m in h.store.messages] == ["A latte, please.", "Sure. What size?"]
+    assert seen[0][-1] == {"role": "user", "content": "A latte, please."}
+    assert h.audio and h.session.stats.turns == 1
+    states = [e["state"] for e in h.events if e["type"] == "state"]
+    assert states == ["listening", "thinking", "speaking", "listening"]
+
+
+async def test_user_text_interrupts_a_reply_and_is_rate_limited_like_an_utterance():
+    calls = []
+
+    async def tts(text):
+        calls.append(text)
+        if len(calls) == 1:
+            await asyncio.Event().wait()  # 第一轮的语音一直在说:只能被打断
+        yield b"\x02\x00" * 240
+
+    h = Harness(tts=tts, limits=RealtimeLimits(max_seconds=30, idle_seconds=30))
+    task = asyncio.create_task(h.run())
+    await speak_once(h)
+    await h.until(lambda: "speaking" in [e.get("state") for e in h.events])
+    h.send({"type": "user_text", "text": "Make it large."})
+    await h.until(lambda: len(h.of("reply_done")) == 2)
+    first, second = h.of("reply_done")
+    assert first["interrupted"] is True and second["interrupted"] is False
+    assert [e["text"] for e in h.of("transcript_final")] == ["hello there", "Make it large."]
+    h.allow = False
+    h.send({"type": "user_text", "text": "And a cookie."})
+    await h.until(lambda: "error" in h.types())
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert h.of("error") == [{"type": "error", "code": "rate_limited"}]
+    assert "And a cookie." not in [m["content"] for m in h.store.messages]
+    assert h.session.stats.interrupts == 1
+
+
+async def test_user_text_after_a_cancelled_utterance_sends_only_the_text():
+    """网页端"转文字":先 utterance_cancel 撤回按住时流出的音频(服务端不识别、不回复),编辑后再发 user_text。"""
+    held = FakeRecognizer("should never be recognised")
+    h = Harness(factory=Factory(held))
+    task = asyncio.create_task(h.run())
+    h.send(PCM)
+    h.send({"type": "utterance_cancel"})
+    h.send({"type": "user_text", "text": "Edited text"})
+    await h.until(lambda: "reply_done" in h.types())
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert held.aborted and not held.finished
+    assert [e["text"] for e in h.of("transcript_final")] == ["Edited text"]
+    assert h.store.messages[0] == {"role": "user", "content": "Edited text"}
+
+
+async def test_whitespace_user_text_is_ignored():
+    h = Harness()
+    task = asyncio.create_task(h.run())
+    h.send({"type": "user_text", "text": "   "})
+    h.send({"type": "hangup"})
+    assert await task == 1000
+    assert "transcript_final" not in h.types() and h.store.messages == []
+
+
 async def test_messages_after_hangup_are_ignored():
     h = Harness()
     task = asyncio.create_task(h.run())

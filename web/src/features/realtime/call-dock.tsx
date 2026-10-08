@@ -1,40 +1,74 @@
 import { MicIcon } from "lucide-react";
 import { forwardRef, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { HoldToTalkBar } from "~/components/hold-to-talk-bar";
+import type { DiscardReason, HoldState } from "~/lib/hold-gesture";
 import type { InputMode } from "./call-machine";
+import { MAX_HELD_AUDIO_MS } from "./realtime-call";
 import { cn } from "~/lib/cn";
 
 /**
  * 控制台按键:52px 圆键 + 11px 标签,整列是一个按钮(命中区 ≥ 44)。
- * tone:off = 未激活(--key 底 + 发丝线)、on = 激活(蓝底)、end = 挂断(红底白字)、
- * ptt = 按住说话(静止蓝色底色;pressed 蓝色实底 + 3px 外环,外环只在允许动效时扩散)。
+ * tone:off = 未激活(--key 底 + 发丝线)、on = 激活(蓝底)、end = 挂断(红底白字)。
+ * 按住说话不是圆键,而是控制台整宽的长条(`CallHoldBar`)。
  */
-export type DockKeyTone = "off" | "on" | "end" | "ptt";
+export type DockKeyTone = "off" | "on" | "end";
 
 const KEY_BUTTON = "group flex min-h-11 min-w-11 select-none flex-col items-center gap-1 text-label font-medium leading-[1.2] tracking-[.01em] focus-visible:outline-none disabled:opacity-50";
 const KEY_CIRCLE = "relative flex h-key w-key items-center justify-center rounded-full border-[0.5px] transition-colors duration-fast ease-standard group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background [&>svg]:h-6 [&>svg]:w-6";
 
-export function dockKeyClasses(tone: DockKeyTone, pressed = false): { button: string; circle: string } {
+export function dockKeyClasses(tone: DockKeyTone): { button: string; circle: string } {
   switch (tone) {
     case "on":
       return { button: cn(KEY_BUTTON, "font-semibold text-blue"), circle: cn(KEY_CIRCLE, "border-transparent bg-blue text-on-blue") };
     case "end":
       return { button: cn(KEY_BUTTON, "text-red"), circle: cn(KEY_CIRCLE, "border-transparent bg-red-solid text-white") };
-    case "ptt":
-      return {
-        button: cn(KEY_BUTTON, "font-semibold text-blue"),
-        circle: cn(KEY_CIRCLE, "border-transparent", pressed ? "bg-blue text-on-blue" : "bg-blue-tint text-blue"),
-      };
     default:
       return { button: cn(KEY_BUTTON, "text-ink-2"), circle: cn(KEY_CIRCLE, "border-hair bg-key text-ink") };
   }
 }
 
-/** 按住说话键按下时的 3px 蓝色外环(放在圆键里) */
-export function PttRing() {
+/** 按住说话长条按下时的 3px 蓝色外环(只在允许动效时扩散) */
+function PttRing() {
   return (
-    <span aria-hidden="true"
-      className="pointer-events-none absolute -inset-[3px] rounded-full border-[3px] border-blue opacity-45 motion-safe:animate-ptt-ring" />
+    <span data-testid="call-ptt-ring" aria-hidden="true"
+      className="pointer-events-none absolute -inset-[3px] rounded-[15px] border-[3px] border-blue opacity-45 motion-safe:animate-ptt-ring" />
+  );
+}
+
+/** 通话里按住最长这么久(与"转文字"留存的音频上限一致),到时按松手处理 */
+export const CALL_MAX_HOLD_MS = MAX_HELD_AUDIO_MS;
+
+/**
+ * 按住说话模式下控制台整宽的"按住说话"长条:与聊天的长条同一套手势(共享 `HoldToTalkBar`)——
+ * 按住说话、松手发送;上滑到左边"取消"松手撤回(服务端丢弃,什么都不到 AI);上滑到右边"转文字"松手,转写后在控制台上方编辑再发送。
+ * 键盘 Space/Enter 第一次开始、第二次发送,Escape 取消。设计稿 v3:静止 blue-tint/blue,按下 blue 实底 + 3px 外环;高 44。
+ */
+export function CallHoldBar({ disabled, label, onDown, onSend, onCancel, onToText, onStateChange }: {
+  disabled: boolean;
+  label: string;
+  onDown(): void;
+  onSend(): void;
+  onCancel(reason: DiscardReason): void;
+  onToText(): void;
+  onStateChange?(state: HoldState): void;
+}) {
+  const [held, setHeld] = useState(false);
+  return (
+    <HoldToTalkBar testId="call-ptt" data={{ "data-held": String(held) }} tone="blue" disabled={disabled} live={!disabled} idleLabel={label}
+      maxHoldMs={CALL_MAX_HOLD_MS}
+      onStart={() => {
+        onDown(); // 通话的麦克风一直开着:按下即开始上行(按得太短由通话丢弃)
+        return Promise.resolve(true);
+      }}
+      onFinish={(deliver) => (deliver === "fill" ? onToText() : onSend())}
+      onDiscard={onCancel}
+      onRelease={() => undefined}
+      onStateChange={(state) => {
+        setHeld(state !== "idle");
+        onStateChange?.(state);
+      }}
+      adornment={(pressed) => (pressed ? <PttRing /> : null)} />
   );
 }
 
@@ -93,15 +127,13 @@ const barTone = (active: boolean) =>
   active ? "border-transparent bg-blue text-on-blue" : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,.04)]";
 
 /**
- * 通话里的"按住说话":按下即开始(音频是实时流出去的,所以没有聊天按钮那种上滑取消/转文字),松开即结束这句;
- * 按得太短(不足 MIN_HOLD_MS)由通话丢弃。免提时它也是"按住插话"(机器人说话时声音打断不了)。
- * 指针按住/松开;键盘 `Space`/`Enter` 按下/抬起;失焦、指针被取消、卸载都会结束这句。
- * variant:`key` = 控制台第二个键(按住说话模式);`bar` = 更多面板里的整行(免提 + 自动模式下的按住插话)。
+ * 更多面板里的"按住插话"(免提 + 自动模式:机器人说话时半双工,声音打断不了):按下即开始,松开即结束这句;
+ * 按得太短(不足 MIN_HOLD_MS)由通话丢弃。指针按住/松开;键盘 `Space`/`Enter` 按下/抬起;失焦、指针被取消、卸载都会结束这句。
+ * (按住说话模式下的主按键是带上滑取消/转文字的 `CallHoldBar`。)
  */
-export function CallPttButton({ disabled, label, variant, onDown, onUp, onHeldChange }: {
+export function CallPttButton({ disabled, label, onDown, onUp, onHeldChange }: {
   disabled: boolean;
   label: string;
-  variant: "key" | "bar";
   onDown(): void;
   onUp(): void;
   onHeldChange?(held: boolean): void;
@@ -136,10 +168,9 @@ export function CallPttButton({ disabled, label, variant, onDown, onUp, onHeldCh
   // 卸载时按住着:结束这句(不 setState)
   useEffect(() => () => upRef.current(false), []);
 
-  const key = dockKeyClasses("ptt", held);
   return (
     <button type="button" data-testid="call-ptt" data-held={String(held)} disabled={disabled}
-      className={variant === "key" ? key.button : cn(BAR, barTone(held))}
+      className={cn(BAR, barTone(held))}
       style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
@@ -162,20 +193,8 @@ export function CallPttButton({ disabled, label, variant, onDown, onUp, onHeldCh
         e.preventDefault();
         up();
       }}>
-      {variant === "key" ? (
-        <>
-          <span className={key.circle} aria-hidden="true">
-            <MicIcon />
-            {held && <PttRing />}
-          </span>
-          <span>{label}</span>
-        </>
-      ) : (
-        <>
-          <MicIcon aria-hidden="true" />
-          {label}
-        </>
-      )}
+      <MicIcon aria-hidden="true" />
+      {label}
     </button>
   );
 }

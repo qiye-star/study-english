@@ -39,7 +39,7 @@
 
 > **验证状态**:下面描述的是代码行为。单元测试用的是假设备、假 AudioContext、假上游;真机(iOS Safari、安卓 Chrome)、Docker 里的 Playwright 运行、嘈杂环境效果**都未验证**,清单见 `docs/superpowers/plans/e2e-results.md`(真机第 23–32 项)。延迟数字只引用 `docs/superpowers/plans/2026-10-07-voice-latency.md`。
 
-- **按住说话**(`src/features/chat/hold-to-talk-button.tsx`、`use-hold-to-talk.ts`,手势逻辑是纯 reducer `hold-to-talk.ts`):
+- **按住说话**(聊天 `src/features/chat/hold-to-talk-button.tsx` 与通话共用 `src/components/hold-to-talk-bar.tsx` + `use-hold-gesture.ts`,手势逻辑是纯 reducer `src/lib/hold-gesture.ts`):
   - 按下即开始申请麦克风(iOS 要求在手势里调用 `getUserMedia`),松手发送;60 s 上限(`VOICE_MAX_MS`)自动发送。
   - 距按下 < 300 ms 的松手视为误触,丢弃并提示"按住说话";麦克风还没就绪(权限弹窗期间)就松手,丢弃并提示"麦克风已准备好,请按住说话",迟到的麦克风会被释放。
   - 手指上移 80 px 进入"落点"模式(回到 40 px 内退出,有滞回):视口左半 = 取消,右半 = 转文字(转写后**填入输入框,不发送**,已有文字时追加)。`pointercancel` / `lostpointercapture` / 页面隐藏(含系统手势打断)一律丢弃,不发送。
@@ -61,6 +61,7 @@
   - 服务端识别 + LLM + 逐句 TTS,下行 24 kHz PCM 经 WebAudio 排队播放;打断(barge-in)时立即停播并发 `interrupt`,丢弃旧轮次的迟到音频。
   - VAD 加载失败时自动切到"按住说话"模式并提示(还有"点一下开始/再点结束"的备用开关)。每一条结束路径(挂断、服务端关闭、麦克风丢失、页面切后台、卸载)都释放麦克风与自己创建的 `AudioContext`,页面级共享上下文不被关闭;这些由 `realtime-call.test.ts` 等单测断言(假设备)。
   - **切后台 = 挂断**,回到前台显示"因切到后台已结束"(iOS 不允许后台保活);通话期间页面其余部分 `inert`,通话字幕里**不支持**查词。有未发送的本地状态(待 Retry 的保存、失败的回复、语音草稿)时不能开始通话(提示先发送、重试或丢弃);挂断时麦克风、VAD、播放器立即释放,但 WebSocket 留到服务端存完被打断的回复、自己关闭为止(最多 3 s);随后重新拉取消息列表,约 2 s 后再按消息 id 补取一次(服务端在关闭之后才链接的发音评测),这期间输入与麦克风禁用(从关闭起最多 6 s)。复盘/进度/词汇本可直接用,晚到的语法结果按消息 id 补到气泡上。
+  - **通话里的按住说话**(按住说话模式):控制台按键行下面是一条整宽 44 px 的"按住说话"长条(取代原来的 52 px 圆键),手势、阈值(300 ms 误触、上滑 80/40 px)、浮层与落点、读屏播报、键盘(`Space`/`Enter` 开始与发送、`Escape` 取消)都与聊天相同;进入落点时有一次轻触觉(`navigator.vibrate`,iOS Safari 不支持,静默跳过;聊天的长条也一样)。上滑到"取消"松手(或按得太短、手势被系统取消、失焦)→ 发 `utterance_cancel`,服务端丢弃已收到的音频,**什么都不到 AI**。上滑到"转文字"松手 → 同样 `utterance_cancel`,同时把按住期间的音频(含 500 ms 预录,最长 60 s)在本地转成 WAV,走聊天语音消息同一个转写接口 `/api/ai/audio/transcriptions`(英文提示),结果放进控制台上方的小玻璃面板,可编辑,「发送」作为用户这一轮发出(新的客户端消息 `user_text`:服务端跳过识别,与识别完成的一句走同一条路——保存 → LLM → TTS,同样消耗一次额度,不做发音评测),「丢弃」/`Escape` 关掉。转写会多一次 STT 调用;真机手感与触觉**未验证**。
   - 开发服务器的 `/api` 代理已开启 `ws: true`;生产环境需要反向代理转发 WebSocket,见 `server/README.md`。
 - **VAD 资源自托管**(不访问任何 CDN):`scripts/copy-vad-assets.mjs` 在 `yarn dev` / `yarn build` 之前把 4 个文件从 `node_modules`(`@ricky0123/vad-web/dist` 的 `silero_vad_v5.onnx`、`vad.worklet.bundle.min.js`,`onnxruntime-web/dist` 的 `ort-wasm-simd-threaded.wasm`、`.mjs`)复制到 `public/vad/<vad-web 版本>-ort<onnxruntime-web 版本>/`(取两个包的*已安装*版本,目前 `0.0.31-ort1.30.0`;任一包升级都会换 URL,缓存优先的 `sw.js` 不会给出旧文件;复制前会删掉 `public/vad/` 下的其他版本目录,`dist` 里不带旧版本;该目录被 git 忽略)。运行时从同源同一路径加载(`vite.config.ts` 的 `__VAD_ASSET_BASE__` 与脚本共用 `scripts/vad-assets.mjs`),`sw.js` 按 `/assets/` 同样的规则缓存。首次使用约 16.6 MB(wasm 14.2 MB + 模型 2.3 MB),蜂窝网络下的加载时间**未验证**。脚本发现文件数不是 4 会报错;升级这两个依赖后要重新核对文件名。
 - **测延迟**:

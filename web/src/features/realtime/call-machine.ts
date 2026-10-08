@@ -39,6 +39,7 @@ export type CallAction =
   | { type: "speaker"; on: boolean }
   | { type: "notice"; key: string | null }
   | { type: "local-interrupt" }
+  | { type: "clear-partial" }
   | { type: "vad-unavailable" };
 
 export const MAX_CAPTIONS = 50;
@@ -117,6 +118,8 @@ export function callReducer(m: CallModel, a: CallAction): CallModel {
       return { ...m, speaker: a.on };
     case "notice":
       return { ...m, notice: a.key };
+    case "clear-partial":
+      return m.partial ? { ...m, partial: "" } : m;
     case "vad-unavailable":
       return { ...m, vadUnavailable: true, notice: "web.realtime.vadUnavailable" };
     case "local-interrupt": {

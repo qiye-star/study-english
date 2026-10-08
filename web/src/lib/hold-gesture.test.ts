@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IDLE, SHORT_PRESS_MS, holdReducer, type HoldEffect, type HoldEvent, type HoldModel, type HoldState } from "./hold-to-talk";
+import { IDLE, SHORT_PRESS_MS, holdReducer, type HoldEffect, type HoldEvent, type HoldModel, type HoldState } from "./hold-gesture";
 
 const W = 400;
 const model = (state: HoldState, micReady = state !== "pressing"): HoldModel =>

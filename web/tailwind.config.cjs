@@ -120,7 +120,8 @@ module.exports = {
       keyframes: {
         ...enjoy.theme.extend.keyframes,
         breathe: { "0%": { transform: "scale(.92)", opacity: ".45" }, "100%": { transform: "scale(1.08)", opacity: "0" } },
-        "ptt-ring": { "0%": { transform: "scale(1)", opacity: ".45" }, "100%": { transform: "scale(1.25)", opacity: "0" } },
+        // 按住说话长条按下时的外环:横向几乎不放大(长条很宽),纵向向外扩散
+        "ptt-ring": { "0%": { transform: "scale(1)", opacity: ".45" }, "100%": { transform: "scale(1.03, 1.25)", opacity: "0" } },
         wave: { to: { height: "4px" } },
         caret: { to: { opacity: "0" } },
       },

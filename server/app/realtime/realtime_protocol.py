@@ -26,6 +26,7 @@ CLOSE_REASONS: dict[int, str] = {
 MAX_UPLINK_FRAME = 32_000
 MAX_SYSTEM_PROMPT = 8000
 MAX_CLIENT_TEXT = 16_384
+MAX_USER_TEXT = 2000
 
 
 class ProtocolError(Exception):
@@ -55,6 +56,13 @@ class UtteranceCancelMsg(_Msg):
     type: Literal["utterance_cancel"]
 
 
+class UserTextMsg(_Msg):
+    """用户这一轮的文字(网页端按住说话"转文字"后编辑再发送):与识别完成的一句走同一条路(保存 → LLM → TTS),
+    同样消耗一次额度;没有音频,所以不做发音评测。"""
+    type: Literal["user_text"]
+    text: str = Field(min_length=1, max_length=MAX_USER_TEXT)
+
+
 class InterruptMsg(_Msg):
     type: Literal["interrupt"]
 
@@ -64,12 +72,15 @@ class HangupMsg(_Msg):
 
 
 ClientMessage = Annotated[
-    Union[StartMsg, UtteranceEndMsg, UtteranceCancelMsg, InterruptMsg, HangupMsg], Field(discriminator="type")
+    Union[StartMsg, UtteranceEndMsg, UtteranceCancelMsg, UserTextMsg, InterruptMsg, HangupMsg],
+    Field(discriminator="type"),
 ]
 _ADAPTER: TypeAdapter = TypeAdapter(ClientMessage)
 
 
-def parse_client_message(text: str) -> StartMsg | UtteranceEndMsg | UtteranceCancelMsg | InterruptMsg | HangupMsg:
+def parse_client_message(
+    text: str,
+) -> StartMsg | UtteranceEndMsg | UtteranceCancelMsg | UserTextMsg | InterruptMsg | HangupMsg:
     if not isinstance(text, str):
         raise ProtocolError("expected a text message")
     if len(text) > MAX_CLIENT_TEXT:

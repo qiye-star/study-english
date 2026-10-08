@@ -1,10 +1,10 @@
-import { VOICE_MAX_MS } from "./use-voice-turn";
-
-/** 按住说话的手势状态机(计划 R11)。纯函数:时间与坐标都由事件带入。 */
+/**
+ * 按住说话的手势状态机(计划 R11)。纯函数:时间与坐标都由事件带入。
+ * 聊天的"按住 说话"长条与通话的按住说话键共用(components/hold-to-talk-bar.tsx);最长按住时长由调用方决定。
+ */
 export const SHORT_PRESS_MS = 300;
 export const SLIDE_ARM_PX = 80;
 export const SLIDE_DISARM_PX = 40;
-export const MAX_HOLD_MS = VOICE_MAX_MS - 250;
 
 export type HoldState = "idle" | "pressing" | "recording" | "armed-cancel" | "armed-text" | "keyboard";
 export interface HoldModel {
