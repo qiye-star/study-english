@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.models import Assessment, Message
 from app.realtime_providers import DbMessageStore, XfyunAssessor, make_assessor
-from app.xfyun import XfyunError
+from app.providers.xfyun import XfyunError
 from tests.conftest import make_settings
 
 GOOD_XML = (Path(__file__).parent / "fixtures" / "ise_good.xml").read_text(encoding="utf-8")

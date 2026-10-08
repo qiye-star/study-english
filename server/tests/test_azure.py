@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.azure import TOKEN_TTL, AzureError, AzureNotConfigured, AzureSpeech, build_ssml
+from app.providers.azure import TOKEN_TTL, AzureError, AzureNotConfigured, AzureSpeech, build_ssml
 
 STS = "https://eastus.api.cognitive.microsoft.com/sts/v1.0/issueToken"
 TTS = "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1"

@@ -35,7 +35,7 @@ from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_
 from app.models import Conversation, Message, utcnow
 from app.realtime_asr import RealtimeAsr, effective_realtime_asr
 from app.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream
-from app.volcengine import VolcengineError, synthesize_stream
+from app.providers.volcengine import VolcengineError, synthesize_stream
 
 logger = logging.getLogger(__name__)
 
@@ -257,8 +257,8 @@ from app.routers.speech import (  # noqa: E402
     cleanup_orphan_chat_recordings,
 )
 from app.stt import pcm_to_wav  # noqa: E402
-from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured  # noqa: E402
-from app.xfyun_result import to_assessment  # noqa: E402
+from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured  # noqa: E402
+from app.providers.xfyun_result import to_assessment  # noqa: E402
 
 ASSESS_MAX_SECONDS = 60
 ASSESS_MAX_BYTES = ASSESS_MAX_SECONDS * 32000  # PCM16 mono 16 kHz

@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import recordings
 from app.models import Assessment
 from app.provider_clients import get_xfyun
-from app.xfyun import XfyunError
-from app.xfyun_result import to_assessment
+from app.providers.xfyun import XfyunError
+from app.providers.xfyun_result import to_assessment
 
 FIXTURES = Path(__file__).parent / "fixtures"
 GOOD_XML = (FIXTURES / "ise_good.xml").read_text(encoding="utf-8")

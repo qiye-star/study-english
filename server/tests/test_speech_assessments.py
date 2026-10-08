@@ -6,7 +6,7 @@ import pytest
 
 from app.routers import speech as speech_module
 from app.provider_clients import get_xfyun
-from app.xfyun import XfyunError, XfyunNotConfigured
+from app.providers.xfyun import XfyunError, XfyunNotConfigured
 
 FIXTURES = Path(__file__).parent / "fixtures"
 GOOD_XML = (FIXTURES / "ise_good.xml").read_text(encoding="utf-8")

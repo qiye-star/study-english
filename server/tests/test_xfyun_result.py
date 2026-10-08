@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from app.xfyun_result import ARPABET_TO_IPA, arpabet_to_ipa, normalise_score, to_assessment
+from app.providers.xfyun_result import ARPABET_TO_IPA, arpabet_to_ipa, normalise_score, to_assessment
 
 FIXTURES = Path(__file__).parent / "fixtures"
 IPA_MAPPING = json.loads(

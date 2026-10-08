@@ -4,8 +4,8 @@ They live outside `app.providers` so vendor clients stay free of FastAPI imports
 tests/test_architecture.py)."""
 from fastapi import Request
 
-from app.azure import AzureSpeech
-from app.xfyun import XfyunIse
+from app.providers.azure import AzureSpeech
+from app.providers.xfyun import XfyunIse
 
 
 def get_azure(request: Request) -> AzureSpeech:

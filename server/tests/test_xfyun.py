@@ -11,7 +11,7 @@ import pytest
 from websockets.asyncio.server import serve
 
 from app.core.config import Settings
-from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, signed_url
+from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, signed_url
 
 FIXTURE_XML = (Path(__file__).parent / "fixtures" / "ise_good.xml").read_text(encoding="utf-8")
 NOW = datetime(2026, 10, 3, 1, 2, 3, tzinfo=timezone.utc)

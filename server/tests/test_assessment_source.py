@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.models import Assessment
 from app.provider_clients import get_xfyun
-from app.xfyun_result import to_assessment
+from app.providers.xfyun_result import to_assessment
 from tests.test_assessment_save import GOOD_XML, REFERENCE, FakeXfyun, make_wav
 
 URL = "/api/speech/assessments"

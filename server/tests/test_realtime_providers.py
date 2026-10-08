@@ -20,7 +20,7 @@ from app.realtime_providers import (
 )
 from app.realtime_session import ConversationGoneError, LlmError, MessageLimitError, TtsError
 from app.routers.realtime import realtime_config
-from app.volcengine import VolcengineError
+from app.providers.volcengine import VolcengineError
 from tests.conftest import make_settings
 
 LLM = "https://llm.test/v1/chat/completions"

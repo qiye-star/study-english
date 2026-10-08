@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from app.volcengine import StreamParser, VolcengineError, parse_stream, synthesize_stream
+from app.providers.volcengine import StreamParser, VolcengineError, parse_stream, synthesize_stream
 
 URL = "https://volc.test/api/v3/tts/unidirectional"
 OVERRIDES = {

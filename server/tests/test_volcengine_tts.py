@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app.routers.ai_audio import VOLCENGINE_VOICE
-from app.volcengine import VolcengineError, parse_stream
+from app.providers.volcengine import VolcengineError, parse_stream
 
 URL = "https://volc.test/api/v3/tts/unidirectional"
 OVERRIDES = {
@@ -80,7 +80,7 @@ async def test_only_seed_tts_2_is_accepted(client, auth_headers, respx_mock, mod
 async def test_upstream_failure_is_logged_without_secrets(client, auth_headers, respx_mock, caplog):
     body = obj(code=45000001, message="bad\x07thing secret-upstream-text " + "x" * 300)
     respx_mock.post(URL).mock(return_value=httpx.Response(200, content=body))
-    with caplog.at_level("WARNING", logger="app.volcengine"):
+    with caplog.at_level("WARNING", logger="app.providers.volcengine"):
         r = await speak(client, auth_headers, text="private sentence")
     assert r.status_code == 502
     assert "secret-upstream-text" not in r.text and "volc-secret" not in r.text
@@ -95,7 +95,7 @@ async def test_http_failure_is_logged_with_status(client, auth_headers, respx_mo
     respx_mock.post(URL).mock(
         return_value=httpx.Response(403, json={"header": {"code": 45000030, "message": "not granted"}})
     )
-    with caplog.at_level("WARNING", logger="app.volcengine"):
+    with caplog.at_level("WARNING", logger="app.providers.volcengine"):
         await speak(client, auth_headers)
     assert "403" in caplog.text and "45000030" in caplog.text
     assert "volc-secret" not in caplog.text
