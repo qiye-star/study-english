@@ -8,7 +8,7 @@ import pytest
 
 from app.models import Assessment
 from app.recordings import recording_relpath, write_recording
-from app.xfyun import get_xfyun
+from app.provider_clients import get_xfyun
 
 FIXTURES = Path(__file__).parent / "fixtures"
 GOOD_XML = (FIXTURES / "ise_good.xml").read_text(encoding="utf-8")

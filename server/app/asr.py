@@ -17,7 +17,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
-from app.config import Settings
+from app.config import Settings, asr_stream_usable, whisper_fallback_configured
 from app.stt import pcm_to_wav, transcribe_wav
 from app.timing import log_timing
 
@@ -74,14 +74,8 @@ def shared_asr_gate(state, settings: Settings) -> AsrGate:
     return state.asr_gate
 
 
-def _fallback_configured(settings: Settings) -> bool:
-    if not settings.upstream_whisper_base_url:
-        return False
-    return settings.upstream_whisper_mode != "chat" or bool(settings.upstream_whisper_model)
-
-
-def _stream_usable(settings: Settings) -> bool:
-    return settings.asr_stream_enabled and bool(settings.asr_stream_key)
+_fallback_configured = whisper_fallback_configured
+_stream_usable = asr_stream_usable
 
 
 def _map_http(e: HTTPException) -> AsrError:

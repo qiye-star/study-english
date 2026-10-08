@@ -177,8 +177,6 @@ class Settings(BaseSettings):
 
     @property
     def realtime_available(self) -> bool:
-        from app.realtime_asr import realtime_asr_configured  # app.realtime_asr imports this module
-
         return (
             self.realtime_enabled
             and bool(self.volcengine_tts_key)
@@ -186,3 +184,39 @@ class Settings(BaseSettings):
             and bool(self.upstream_llm_base_url)
             and realtime_asr_configured(self)
         )
+
+
+# --- ASR configuration predicates -------------------------------------------------------------
+# Pure functions of the settings (duck-typed, so tests may pass a SimpleNamespace). They live here,
+# not in the speech layer, because `Settings.realtime_available` needs them and the core layer must
+# not import speech modules (server layering, enforced by tests/test_architecture.py). The speech
+# modules re-export them under their historical names (`asr._fallback_configured`,
+# `realtime_asr.effective_realtime_asr`, ...), which stay the call sites' entry points.
+
+RealtimeAsr = Literal["stream", "buffered"]
+
+
+def whisper_fallback_configured(settings) -> bool:
+    if not settings.upstream_whisper_base_url:
+        return False
+    return settings.upstream_whisper_mode != "chat" or bool(settings.upstream_whisper_model)
+
+
+def asr_stream_usable(settings) -> bool:
+    return settings.asr_stream_enabled and bool(settings.asr_stream_key)
+
+
+def effective_realtime_asr(settings) -> RealtimeAsr:
+    if settings.realtime_asr_mode == "stream" and settings.asr_stream_key:
+        return "stream"
+    return "buffered"
+
+
+def realtime_asr_configured(settings) -> bool:
+    """Whether `realtime_providers.make_recognizers` can build a recognizer (review 4.1-m2).
+    `Settings.realtime_available` uses this, so the config/ticket endpoints never report a call
+    that would fail with 4502 at once, nor hide one that works. Stream needs only its key; buffered
+    needs the volc upload path or a usable chat/Whisper path (chat mode needs a model)."""
+    if effective_realtime_asr(settings) == "stream":
+        return True
+    return asr_stream_usable(settings) or whisper_fallback_configured(settings)

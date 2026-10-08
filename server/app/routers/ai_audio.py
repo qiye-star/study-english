@@ -10,12 +10,13 @@ from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 
 from app.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
-from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
+from app.azure import AzureError, AzureNotConfigured, AzureSpeech
 from app.config import Settings
 from app.deps import get_settings, limited_user
 from app.models import User
 from app.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
 from app.timing import Stopwatch, log_timing
+from app.provider_clients import get_azure
 from app.upstream import check_upstream_auth
 from app.volcengine import VolcengineError, synthesize as volcengine_synthesize, synthesize_stream
 from app.uploads import parse_buffered_form, read_limited_body

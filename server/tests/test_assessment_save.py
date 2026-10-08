@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
 from app.models import Assessment
-from app.xfyun import XfyunError, get_xfyun
+from app.provider_clients import get_xfyun
+from app.xfyun import XfyunError
 from app.xfyun_result import to_assessment
 
 FIXTURES = Path(__file__).parent / "fixtures"

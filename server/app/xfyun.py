@@ -9,7 +9,6 @@ from email.utils import format_datetime
 from urllib.parse import urlencode, urlsplit
 
 import websockets
-from fastapi import Request
 from websockets.asyncio.client import connect
 
 FRAME_BYTES = 1280
@@ -188,13 +187,3 @@ class XfyunIse:
                 except UnicodeDecodeError:
                     raise XfyunError("Invalid response from speech service") from None
         raise XfyunError("Speech service closed the connection early")
-
-
-def get_xfyun(request: Request) -> XfyunIse:
-    state = request.app.state
-    if not hasattr(state, "xfyun"):
-        s = state.settings
-        state.xfyun = XfyunIse(
-            s.xfyun_app_id, s.xfyun_api_key, s.xfyun_api_secret, s.xfyun_ws_url
-        )
-    return state.xfyun

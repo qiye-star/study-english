@@ -275,7 +275,7 @@ def test_signed_url_ignores_userinfo():
 def test_get_xfyun_caches_on_app_state():
     from types import SimpleNamespace
 
-    from app.xfyun import get_xfyun
+    from app.provider_clients import get_xfyun
 
     settings = Settings(_env_file=None, xfyun_app_id="a", xfyun_api_key="k", xfyun_api_secret="s")
     state = SimpleNamespace(settings=settings)

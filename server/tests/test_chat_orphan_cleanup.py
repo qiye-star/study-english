@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app import recordings
 from app.models import Assessment, utcnow
 from app.routers import speech
-from app.xfyun import get_xfyun
+from app.provider_clients import get_xfyun
 from tests.test_assessment_save import FakeXfyun, files_under, make_wav
 from tests.test_assessment_source import post
 from tests.test_conversations import create, register

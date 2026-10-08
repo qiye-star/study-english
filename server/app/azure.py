@@ -5,7 +5,6 @@ from collections.abc import Callable
 from xml.sax.saxutils import escape
 
 import httpx
-from fastapi import Request
 
 TOKEN_TTL = 8 * 60  # 秒。Azure token 有效期约 10 分钟,提前 2 分钟刷新。
 VOICE_RE = re.compile(r"^[A-Za-z]{2,3}-[A-Za-z0-9]{2,8}(-[A-Za-z0-9]+)+$")
@@ -87,11 +86,3 @@ class AzureSpeech:
         if resp.status_code != 200:
             raise AzureError(f"tts failed: {resp.status_code}")
         return resp.content
-
-
-def get_azure(request: Request) -> AzureSpeech:
-    state = request.app.state
-    if not hasattr(state, "azure"):
-        s = state.settings
-        state.azure = AzureSpeech(state.http, s.azure_speech_key, s.azure_speech_region)
-    return state.azure

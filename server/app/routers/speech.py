@@ -14,12 +14,13 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment  # noqa: F401
-from app.azure import AzureError, AzureNotConfigured, AzureSpeech, get_azure
+from app.azure import AzureError, AzureNotConfigured, AzureSpeech
+from app.provider_clients import get_azure, get_xfyun
 from app.config import Settings
 from app.deps import current_user, get_session, get_settings, limited_user
 from app.models import Assessment, Message, SpeechToken, User, utcnow
 from app.routers.conversations import drop_assessments, remove_files
-from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, get_xfyun
+from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured
 from app.xfyun_result import to_assessment
 
 router = APIRouter(prefix="/api/speech")
