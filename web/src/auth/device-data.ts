@@ -1,7 +1,5 @@
-import { bumpGrammarRev } from "~/features/grammar/grammar-api";
-import { sharedTtsCache } from "~/features/chat/tts";
-import { clearHintsMemory } from "~/features/chat/hints";
-import { clearComposerMode } from "~/features/chat/composer-mode";
+import { bumpGrammarRev } from "~/features/grammar";
+import { sharedTtsCache, clearHintsMemory, clearComposerMode } from "~/features/chat";
 import { kvClear } from "~/lib/kv-cache";
 import { resetPlaybackRate } from "~/lib/playback-rate";
 import { PRACTICE_DRAFT_KEY, removeKey } from "~/lib/storage";

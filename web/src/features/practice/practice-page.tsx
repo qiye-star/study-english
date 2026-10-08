@@ -16,7 +16,7 @@ import { useAuth } from "~/auth/auth-context";
 import { IconChip } from "~/components/icon-chip";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
-import { ttsErrorMessage, useTtsPlayer } from "~/features/chat/use-tts-player";
+import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { PageHeader } from "~/layout/page-header";
 import { formatClock } from "~/lib/format-clock";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";

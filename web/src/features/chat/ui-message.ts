@@ -1,5 +1,5 @@
-import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice/assessment-api";
-import type { GrammarResult } from "~/features/grammar/grammar-types";
+import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice";
+import type { GrammarResult } from "~/features/grammar";
 import type { ChatMessage } from "./chat-api";
 
 export type ResultStatus = "pending" | "done" | "skipped" | "error";

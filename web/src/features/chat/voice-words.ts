@@ -1,4 +1,4 @@
-import type { AssessmentWordBrief } from "~/features/practice/assessment-api";
+import type { AssessmentWordBrief } from "~/features/practice";
 
 export const POOR_ACCURACY = 60;
 

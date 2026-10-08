@@ -6,7 +6,7 @@ import { translateServerError } from "~/api/error-messages";
 import { scoreBadgeTone } from "~/components/score-tone";
 import { TONE_CLASS, type Tone } from "~/components/tone";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
-import { GRAMMAR_SERVER_ERRORS } from "~/features/grammar/grammar-api";
+import { GRAMMAR_SERVER_ERRORS } from "~/features/grammar";
 import { mayHaveMixedVoices } from "./mixed-voices";
 import type { AssessmentView, GrammarView } from "./ui-message";
 

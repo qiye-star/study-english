@@ -15,11 +15,9 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
-import { fetchRealtimeConfig, type RealtimeConfig } from "~/features/realtime/realtime-api";
-import type { CallEnding, RealtimeEnv } from "~/features/realtime/realtime-call";
-import { RealtimeCallDialog, prepareCallAudio } from "~/features/realtime/realtime-call-screen";
-import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
+import { goPractice, savePracticeItem } from "~/features/practice";
+import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
+import { AddVocabularyButton } from "~/features/vocabulary";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, isAmbiguousSaveError, listMessages, updateConversation,

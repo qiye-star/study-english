@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ApiClient } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { LOOKUP_SERVER_ERRORS, cachedTranslate } from "~/features/lookup/lookup";
+import { LOOKUP_SERVER_ERRORS, cachedTranslate } from "~/features/lookup";
 import { stripMarkdown } from "./tts";
 
 export type TranslationState = { status: "loading" } | { status: "done"; text: string } | { status: "error"; error: string };
