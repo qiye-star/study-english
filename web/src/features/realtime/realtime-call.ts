@@ -9,7 +9,7 @@ import { TARGET_RATE, floatToPcm16, frameRms } from "~/audio/pcm";
 import { createPcmPlayer, type PcmPlayer } from "~/audio/pcm-player";
 import type { VadSensitivity } from "~/audio/speech-gate";
 import { createVad, type VadCallbacks, type VadHandle } from "~/audio/vad";
-import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
+import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { INITIAL_CALL, callReducer, type CallAction, type CallModel, type InputMode } from "./call-machine";
 import { realtimeErrorKey } from "./errors";
 import { encodeControl, encodeStart, parseServerEvent, splitAudioFrame, type StartPayload } from "./protocol";

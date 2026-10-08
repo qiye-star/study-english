@@ -8,9 +8,7 @@ import { PronunciationAssessmentFulltextResult } from "@renderer/components/pron
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
-import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail } from "~/features/practice/assessment-api";
-import { MobileScoreResult } from "~/features/practice/mobile-score-result";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail, MobileScoreResult, goPractice, savePracticeItem } from "~/features/practice";
 import type { UiMessage } from "./ui-message";
 import { poorWords } from "./voice-words";
 

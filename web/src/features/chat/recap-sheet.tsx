@@ -8,7 +8,7 @@ import { useAuth } from "~/auth/auth-context";
 import { cn } from "~/lib/cn";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { scoreToneClass } from "~/components/score-tone";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { goPractice, savePracticeItem } from "~/features/practice";
 import type { StoredRecap } from "./chat-api";
 import type { Level } from "./levels";
 import { RECAP_SERVER_ERRORS, computeRecapFacts, generateRecap, isRecapStale } from "./recap";

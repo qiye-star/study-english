@@ -1,6 +1,6 @@
 import { completeChat, type ChatMessageInput } from "~/api/ai";
 import { ApiError, type ApiClient } from "~/api/client";
-import type { GrammarCategory } from "~/features/grammar/grammar-types";
+import type { GrammarCategory } from "~/features/grammar";
 import { extractJsonObject } from "~/lib/model-json";
 import type { RecapExpression, StoredRecap } from "./chat-api";
 import { levelHint, type Level } from "./levels";

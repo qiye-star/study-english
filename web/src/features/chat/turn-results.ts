@@ -1,8 +1,7 @@
 import type { ApiClient } from "~/api/client";
-import { assessPronunciation, briefWords, deleteAssessment } from "~/features/practice/assessment-api";
+import { assessPronunciation, briefWords, deleteAssessment } from "~/features/practice";
 import { patchMessage, type MessageResultFields } from "./chat-api";
-import { cachedGrammar, MAX_GRAMMAR_TEXT } from "~/features/grammar/grammar-api";
-import type { GrammarResult } from "~/features/grammar/grammar-types";
+import { cachedGrammar, MAX_GRAMMAR_TEXT, type GrammarResult } from "~/features/grammar";
 import { checkability, isAssessable } from "./english-check";
 import type { UiMessage } from "./ui-message";
 

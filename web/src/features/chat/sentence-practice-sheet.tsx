@@ -5,8 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { IconButton } from "~/components/icon-button";
-import { MAX_PRACTICE_TEXT } from "~/features/practice/practice-items-api";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
 import { splitSentences } from "./sentences";
 import { stripMarkdown } from "./tts";
 

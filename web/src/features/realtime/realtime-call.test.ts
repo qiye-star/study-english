@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
-import { claimAudio, releaseAudio } from "~/features/chat/audio-focus";
+import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { FakeAudioContext, FakeWorkletNode, asContext, fakeStream } from "~/test/fake-audio";
 import type { VadCallbacks, VadHandle } from "~/audio/vad";
@@ -14,8 +14,8 @@ const ownsContextIsRequired: {} extends Pick<RealtimeCallOptions, "ownsContext">
 void ownsContextIsRequired;
 import type { CallModel } from "./call-machine";
 
-vi.mock("~/features/chat/audio-focus", async (importOriginal) => {
-  const real = await importOriginal<typeof import("~/features/chat/audio-focus")>();
+vi.mock("~/audio/audio-focus", async (importOriginal) => {
+  const real = await importOriginal<typeof import("~/audio/audio-focus")>();
   return { claimAudio: vi.fn(real.claimAudio), releaseAudio: vi.fn(real.releaseAudio) };
 });
 

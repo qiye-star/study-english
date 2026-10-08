@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { ScrollRootProvider } from "~/components/glass-top-bar";
-import { LookupLayer } from "~/features/lookup/lookup-layer";
+import { LookupLayer } from "~/features/lookup";
 import { BottomNav } from "./bottom-nav";
 import { useAppHeight } from "./use-app-height";
 

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AssessmentWordBrief } from "~/features/practice/assessment-api";
+import type { AssessmentWordBrief } from "~/features/practice";
 import { markTranscript } from "./voice-words";
 
 /** 转写文字永远直接渲染,不依赖音频;有逐词评测时把读差的词标出来。 */

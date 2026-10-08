@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
 import { SurfaceCard } from "~/components/surface-card";
-import type { TtsState } from "~/features/chat/use-tts-player";
+import type { TtsState } from "~/features/chat";
 import type { VocabularyGrade, VocabularyItem } from "./vocabulary-api";
 
 const GRADES: VocabularyGrade[] = ["forgot", "hard", "good"];

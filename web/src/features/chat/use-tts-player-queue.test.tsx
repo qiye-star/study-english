@@ -5,7 +5,7 @@ import { ApiClient } from "~/api/client";
 import { latencyLog, markLatency, resetLatencyForTest, startLatencyTrace } from "~/lib/latency";
 import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { claimAudio } from "./audio-focus";
+import { claimAudio } from "~/audio/audio-focus";
 import { TtsCache } from "./tts";
 import { TtsPlaybackError, useTtsPlayer } from "./use-tts-player";
 

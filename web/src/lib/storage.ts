@@ -26,3 +26,6 @@ export function removeKey(key: string): void {
     /* 存储不可用时无需处理 */
   }
 }
+
+/** 练习页草稿(参考文本)的存储键;登出时由 auth/device-data 清除。 */
+export const PRACTICE_DRAFT_KEY = "enjoy-web.practice.reference";

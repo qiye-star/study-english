@@ -1,8 +1,8 @@
 import type { ApiClient } from "~/api/client";
 import { ApiError } from "~/api/client";
 import type { Paged } from "~/api/types";
-import type { GrammarResult } from "~/features/grammar/grammar-types";
-import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice/assessment-api";
+import type { GrammarResult } from "~/features/grammar";
+import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice";
 import type { Level } from "./levels";
 
 /** 场景(R1、R9):id 为 free / 预设 id / custom;custom 时带清洗后的自定义文本。 */

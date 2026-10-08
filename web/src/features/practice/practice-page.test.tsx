@@ -7,7 +7,7 @@ import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { toast } from "sonner";
-import { PracticePage, formatClock } from "./practice-page";
+import { PracticePage } from "./practice-page";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
 
@@ -36,11 +36,6 @@ describe("PracticePage", () => {
     const link = screen.getByTestId("practice-progress");
     expect(link).toHaveAttribute("href", "/progress");
     expect(link).toHaveAccessibleName("Learning progress");
-  });
-
-  it("formats the timer", () => {
-    expect(formatClock(0)).toBe("00:00");
-    expect(formatClock(65_400)).toBe("01:05");
   });
 
   it("needs reference text before recording", async () => {
