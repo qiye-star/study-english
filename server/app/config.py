@@ -137,7 +137,19 @@ class Settings(BaseSettings):
     def _thinking_mode(cls, value):
         return parse_thinking_mode(value)
 
+    # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
+    admin_username: str = ""
+    admin_password: str = ""
+    admin_token_ttl_minutes: int = Field(480, ge=5, le=1440)
+    # HMAC 密钥;留空则每次启动随机生成(重启后需重新登录)
+    admin_session_secret: str = ""
+    admin_dist_dir: str = ""
+
     app_version: str = "0.7.9"
+
+    @property
+    def admin_enabled(self) -> bool:
+        return bool(self.admin_username.strip() and self.admin_password)
 
     @property
     def llm_model_list(self) -> list[str]:

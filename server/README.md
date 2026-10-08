@@ -22,7 +22,9 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/practice-items[/{id}]            练习清单(GET/POST/DELETE;相同文本去重)
                                 ├ /api/vocabulary[/{id}[/review]]       词汇本(GET ?due=true、POST 去重、DELETE、复习按盒子法推进)
                                 ├ /api/stats?days=7|30|90&tz_offset_minutes=   学习进度(只读,按用户限流)
+                                ├ /api/admin/*                           管理端只读 API(见「管理端」;默认关闭)
                                 ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
+                                ├ /admin/**                              管理端网页(admin/dist,默认关闭)
                                 └ 其他 GET                       网页版(web/dist,SPA 回退到 index.html)
                               DB: users / access_tokens / speech_tokens / conversations / messages / assessments / vocabulary_items
 ```
@@ -43,6 +45,16 @@ docker compose up -d --build   # 需要 Docker Compose >= 2.20(depends_on 的 re
 docker compose ps          # server 应为 healthy
 curl localhost:8000/up     # {"status":"ok"}
 ```
+
+## 管理端
+
+只读后台,挂在 `/admin`(手机优先的网页),用于查看**所有用户**的账号、对话与聊天记录(含语法批注)、发音评测、录音回放、练习清单和词汇本。
+
+- 默认关闭。在 `server/.env` 设置 `ADMIN_USERNAME` 与 `ADMIN_PASSWORD`(≥ 12 位,否则拒绝启动)后重启即启用。
+- 登录后签发独立的短期 token(`ADMIN_TOKEN_TTL_MINUTES`,默认 480),与用户 token 互不通用;登录接口按 IP 限流。
+- API 全部在 `/api/admin/*`(`GET`,除登录外都要 `Authorization: Bearer <admin token>`);未启用时一律 404。
+- 前端是独立的 `admin/` 工作区(与 `web/` 零代码共享),Docker 镜像中单独构建并由本服务托管;本地开发 `yarn admin:dev`(端口 5174,`/api` 代理到 `ADMIN_DEV_API_TARGET`,默认 `http://127.0.0.1:8000`)。
+- 隐私:管理员能听到用户录音、读到全部聊天内容。请只通过 HTTPS 暴露,并在反向代理再限制来源。
 
 ## 本地开发
 

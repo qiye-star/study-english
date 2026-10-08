@@ -10,6 +10,7 @@
 !enjoy/tailwind.config.js
 !enjoy/assets/fonts
 !web
+!admin
 web/node_modules
 web/dist
 web/test-results
@@ -17,6 +18,10 @@ web/playwright-report
 web/.env*
 web/.vite
 web/coverage
+admin/node_modules
+admin/dist
+admin/.vite
+admin/coverage
 !server/pyproject.toml
 !server/uv.lock
 !server/app

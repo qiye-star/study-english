@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 设计方案:「听音室」—— 安静的仪表盘。
+ * 色:冷调石板灰中性色 + 单一信号青(accent),状态色(绿/琥珀/红)与 accent 分离。
+ * 字:系统无衬线(CJK 安全)排正文,等宽字体排所有数字(时间码、分数、计数)。
+ * 版:手机单列铺满,桌面居中一列;分割线分组代替逐项卡片;录音波形是主角。
+ * 颜色值一律 RGB 三元组,供 tailwind `rgb(var(--x) / <alpha>)` 使用。
+ */
+:root {
+  --bg: 243 245 247;
+  --surface: 255 255 255;
+  --sunken: 234 238 241;
+  --raised: 255 255 255;
+  --line: 222 228 232;
+  --line-strong: 196 205 211;
+  --fg: 24 32 38;
+  --fg-2: 70 84 94;
+  --muted: 94 108 118;
+  --accent: 10 112 142;
+  --accent-strong: 7 90 115;
+  --accent-soft: 225 240 245;
+  --accent-fg: 255 255 255;
+  --good: 24 128 76;
+  --warn: 156 98 7;
+  --bad: 194 50 54;
+  --good-soft: 222 243 230;
+  --warn-soft: 251 240 213;
+  --bad-soft: 252 228 228;
+  --wave: 118 132 142;
+  --shadow: 24 40 52;
+  --focus: 10 112 142;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: 15 20 25;
+    --surface: 23 30 36;
+    --sunken: 31 40 47;
+    --raised: 31 40 47;
+    --line: 42 53 61;
+    --line-strong: 66 80 90;
+    --fg: 230 236 240;
+    --fg-2: 176 190 199;
+    --muted: 147 163 173;
+    --accent: 92 188 216;
+    --accent-strong: 140 210 232;
+    --accent-soft: 24 52 64;
+    --accent-fg: 10 24 30;
+    --good: 86 204 138;
+    --warn: 226 182 72;
+    --bad: 240 115 112;
+    --good-soft: 22 54 38;
+    --warn-soft: 58 46 16;
+    --bad-soft: 68 30 32;
+    --wave: 110 126 138;
+    --shadow: 0 0 0;
+    --focus: 92 188 216;
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    height: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+    margin: 0;
+    min-height: 100%;
+    overscroll-behavior-y: none;
+    font-size: 15px;
+    line-height: 1.5;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* iOS 在输入框字号 < 16px 时会放大页面 */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  button,
+  a,
+  summary {
+    touch-action: manipulation;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--focus));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* 面板:一组相关内容,一个圆角容器;条目之间用分割线,而不是每条一张卡 */
+  .panel {
+    @apply overflow-hidden rounded-xl border border-line bg-surface;
+  }
+  .panel-head {
+    @apply flex min-h-[44px] items-center justify-between gap-3 px-4 pt-3 pb-1;
+  }
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  .tap {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  .chip {
+    @apply inline-flex min-h-[22px] items-center gap-1 rounded-md px-1.5 text-[12px] font-medium leading-none;
+  }
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 text-[15px] font-medium transition-[transform,background-color,opacity] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-fg;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-surface text-fg;
+  }
+  .btn-quiet {
+    @apply btn text-fg-2 hover:bg-sunken;
+  }
+  /* 列表行:左右对齐、分割线、可点击区域 >= 56px */
+  .row {
+    @apply flex min-h-[56px] items-center gap-3 px-4 py-3 text-left transition-colors;
+  }
+  .row-link {
+    @apply row w-full active:bg-sunken;
+  }
+  .divide-rows > * + * {
+    @apply border-t border-line;
+  }
+  .field {
+    @apply h-12 w-full rounded-lg border border-line bg-surface px-3.5 text-base text-fg outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-sunken;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(var(--surface) / 0.55), transparent);
+    animation: shimmer 1.6s infinite;
+  }
+  .fade-in {
+    animation: fade-in 220ms ease-out both;
+  }
+  .avatar {
+    background: hsl(var(--av-h) 45% 55% / 0.2);
+    color: hsl(var(--av-h) 50% 34%);
+    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    .avatar {
+      background: hsl(var(--av-h) 40% 55% / 0.22);
+      color: hsl(var(--av-h) 60% 74%);
+    }
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
