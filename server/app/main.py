@@ -11,7 +11,7 @@ from app.services.grammar import load_grammar_rules
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.ratelimit import RateLimiter
-from app.realtime_tickets import RealtimeRegistry, TicketStore
+from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,
 )

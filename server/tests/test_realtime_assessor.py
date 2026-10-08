@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.models import Assessment, Message
-from app.realtime_providers import DbMessageStore, XfyunAssessor, make_assessor
+from app.realtime.realtime_providers import DbMessageStore, XfyunAssessor, make_assessor
 from app.providers.xfyun import XfyunError
 from tests.conftest import make_settings
 

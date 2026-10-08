@@ -27,7 +27,7 @@ from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User
 from app.speech.realtime_asr import effective_realtime_asr
-from app.realtime_protocol import (
+from app.realtime.realtime_protocol import (
     CLOSE_BUSY,
     CLOSE_DISABLED,
     CLOSE_NORMAL,
@@ -39,15 +39,15 @@ from app.realtime_protocol import (
     StartMsg,
     parse_client_message,
 )
-from app.realtime_providers import (
+from app.realtime.realtime_providers import (
     DbMessageStore,
     make_assessor,
     make_recognizers,
     openai_llm_stream,
     volc_tts_stream,
 )
-from app.realtime_session import CallStats, ConversationGoneError, RealtimeLimits, RealtimeSession, Upstreams
-from app.realtime_tickets import TicketGrant
+from app.realtime.realtime_session import CallStats, ConversationGoneError, RealtimeLimits, RealtimeSession, Upstreams
+from app.realtime.realtime_tickets import TicketGrant
 from app.routers.conversations import owned_conversation
 from app.core.timing import log_timing
 

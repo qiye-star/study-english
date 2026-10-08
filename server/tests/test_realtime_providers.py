@@ -7,18 +7,18 @@ import httpx
 import pytest
 
 from app.speech import asr
-from app import realtime_providers as providers
+from app.realtime import realtime_providers as providers
 from app.speech.asr import AsrError, BufferedRecognizer
 from app.speech.asr_stream import AsrGate, AsrStreamError
 from app.speech.realtime_asr import effective_realtime_asr
-from app.realtime_providers import (
+from app.realtime.realtime_providers import (
     REALTIME_MAX_TOKENS,
     DbMessageStore,
     make_recognizers,
     openai_llm_stream,
     volc_tts_stream,
 )
-from app.realtime_session import ConversationGoneError, LlmError, MessageLimitError, TtsError
+from app.realtime.realtime_session import ConversationGoneError, LlmError, MessageLimitError, TtsError
 from app.routers.realtime import realtime_config
 from app.providers.volcengine import VolcengineError
 from tests.conftest import make_settings

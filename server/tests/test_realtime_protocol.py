@@ -3,8 +3,8 @@ import struct
 
 import pytest
 
-from app import realtime_protocol as rp
-from app.realtime_protocol import (
+from app.realtime import realtime_protocol as rp
+from app.realtime.realtime_protocol import (
     CLOSE_REASONS, MAX_CLIENT_TEXT, MAX_SYSTEM_PROMPT, MAX_UPLINK_FRAME, HangupMsg, InterruptMsg, ProtocolError,
     StartMsg, UtteranceCancelMsg, UtteranceEndMsg, audio_frame, check_uplink, parse_client_message,
 )

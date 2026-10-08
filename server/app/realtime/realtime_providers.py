@@ -1,5 +1,5 @@
 """Real upstream adapters for realtime calls (plan Task 4.4): LLM stream, TTS stream,
-recognizer selection and message storage. They implement the types of `app.realtime_session`.
+recognizer selection and message storage. They implement the types of `app.realtime.realtime_session`.
 
 - LLM: OpenAI-compatible streaming chat completions (DeepSeek etc.) through the existing
   `UPSTREAM_LLM_*` settings; the model must be in `LLM_MODELS` (else the default),
@@ -34,7 +34,7 @@ from app.speech.asr_stream import AsrGate
 from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.models import Conversation, Message, utcnow
 from app.speech.realtime_asr import RealtimeAsr, effective_realtime_asr
-from app.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream
+from app.realtime.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream
 from app.providers.volcengine import VolcengineError, synthesize_stream
 
 logger = logging.getLogger(__name__)

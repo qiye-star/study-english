@@ -12,10 +12,10 @@ from app.speech.asr import AsrError
 from app.core.db import Base
 from app.main import create_app
 from app.speech.realtime_asr import effective_realtime_asr
-from app.realtime_protocol import StartMsg
-from app import realtime_session
-from app.realtime_session import RealtimeSession, Upstreams
-from app.realtime_tickets import TicketStore
+from app.realtime.realtime_protocol import StartMsg
+from app.realtime import realtime_session
+from app.realtime.realtime_session import RealtimeSession, Upstreams
+from app.realtime.realtime_tickets import TicketStore
 from app.routers import realtime as realtime_router
 from tests.conftest import make_settings
 from tests.test_realtime_session import Factory, FakeRecognizer, SlowAssessor, llm_of, tts_of
@@ -752,7 +752,7 @@ def test_background_drain_still_saves_and_links_the_assessment(ws_factory, monke
     from sqlalchemy import select
 
     from app.models import Assessment, Message
-    from app.realtime_providers import make_assessor
+    from app.realtime.realtime_providers import make_assessor
     from tests.test_realtime_assessor import FakeXfyun
 
     app, client = ws_factory(data_dir=str(tmp_path / "data"))

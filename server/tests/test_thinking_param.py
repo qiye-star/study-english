@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.core.config import send_thinking_param
-from app.realtime_providers import openai_llm_stream
+from app.realtime.realtime_providers import openai_llm_stream
 from app.speech.stt import chat_body
 from tests.conftest import make_settings
 
