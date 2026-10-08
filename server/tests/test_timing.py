@@ -3,7 +3,7 @@ import logging
 import httpx
 import pytest
 
-from app.timing import Stopwatch, log_timing
+from app.core.timing import Stopwatch, log_timing
 
 ARK = "https://ark.test/api/v3/chat/completions"
 CHAT = {

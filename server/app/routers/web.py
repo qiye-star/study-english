@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from app.config import Settings
-from app.deps import get_settings
+from app.core.config import Settings
+from app.core.deps import get_settings
 
 # Windows 注册表可能把 .js 映射成 text/plain,显式指定。
 mimetypes.add_type("text/javascript", ".js")

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import stats as rules
-from app.deps import get_session, limited_user
+from app.core.deps import get_session, limited_user
 from app.models import Assessment, Conversation, Message, User, utcnow
 
 router = APIRouter(prefix="/api")

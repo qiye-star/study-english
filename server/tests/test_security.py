@@ -1,4 +1,4 @@
-from app.security import hash_password, hash_token, new_token, verify_password
+from app.core.security import hash_password, hash_token, new_token, verify_password
 
 
 def test_password_roundtrip():

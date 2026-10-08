@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from app.asr import AsrError, RecognizerFactory, realtime_factory
 from app.asr_realtime import volc_stream_factory
 from app.asr_stream import AsrGate
-from app.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
+from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.models import Conversation, Message, utcnow
 from app.realtime_asr import RealtimeAsr, effective_realtime_asr
 from app.realtime_session import ConversationGoneError, LlmError, LlmStream, MessageLimitError, TtsError, TtsStream

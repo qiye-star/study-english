@@ -7,8 +7,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app import models  # noqa: F401  (把表注册到 Base.metadata)
-from app.config import Settings
-from app.db import Base, ensure_sqlite_dir
+from app.core.config import Settings
+from app.core.db import Base, ensure_sqlite_dir
 
 config = context.config
 if config.config_file_name is not None:

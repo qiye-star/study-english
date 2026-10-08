@@ -26,7 +26,7 @@ from app.asr_stream import (
     transcribe_pcm,
     wav_to_pcm,
 )
-from app.config import Settings
+from app.core.config import Settings
 
 
 def make_wav(rate=16000, channels=1, width=2, frames=1600) -> bytes:

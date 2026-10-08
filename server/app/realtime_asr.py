@@ -6,8 +6,8 @@ two can never disagree. Streaming needs `REALTIME_ASR_MODE=stream` and a streami
 A stream recognizer that fails to start degrades to buffered at run time (R3); that is a
 per-call event, not a configuration state.
 
-The predicates themselves live in `app.config` (`Settings.realtime_available` needs them and the
+The predicates themselves live in `app.core.config` (`Settings.realtime_available` needs them and the
 core layer must not import speech modules); this module stays the entry point everyone imports."""
-from app.config import RealtimeAsr, effective_realtime_asr, realtime_asr_configured
+from app.core.config import RealtimeAsr, effective_realtime_asr, realtime_asr_configured
 
 __all__ = ["RealtimeAsr", "effective_realtime_asr", "realtime_asr_configured"]

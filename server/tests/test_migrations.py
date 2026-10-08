@@ -8,7 +8,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine
 
 from app import models  # noqa: F401
-from app.db import Base
+from app.core.db import Base
 
 ROOT = Path(__file__).resolve().parent.parent
 

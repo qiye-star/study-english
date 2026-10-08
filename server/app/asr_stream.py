@@ -27,7 +27,7 @@ from typing import Literal
 import websockets
 from websockets.asyncio.client import connect
 
-from app.config import Settings
+from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 # websockets logs the handshake request headers (including X-Api-Key) at DEBUG. The

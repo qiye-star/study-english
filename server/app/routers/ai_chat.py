@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.config import Settings
-from app.deps import get_settings, limited_user
+from app.core.config import Settings
+from app.core.deps import get_settings, limited_user
 from app.models import User
-from app.upstream import check_upstream_auth
+from app.core.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 

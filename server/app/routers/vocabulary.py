@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
-from app.deps import current_user, get_session, get_settings
+from app.core.config import Settings
+from app.core.deps import current_user, get_session, get_settings
 from app.models import User, VocabularyItem, iso_utc, utcnow
 from app.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, next_review, validate_word
 

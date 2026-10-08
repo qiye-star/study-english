@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from app.config import send_thinking_param
+from app.core.config import send_thinking_param
 from app.realtime_providers import openai_llm_stream
 from app.stt import chat_body
 from tests.conftest import make_settings

@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from app.config import Settings
+from app.core.config import Settings
 
 ARK = "https://ark.test/api/v3/chat/completions"
 CHAT = {

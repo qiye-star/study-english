@@ -34,7 +34,7 @@ from app.asr_stream import (
     encode_audio,
     encode_full_request,
 )
-from app.config import Settings
+from app.core.config import Settings
 
 BASE = "wss://openspeech.bytedance.com/api/v3/sauc/"
 RESOURCE = "volc.bigasr.sauc.duration"

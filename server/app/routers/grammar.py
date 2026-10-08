@@ -2,11 +2,11 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from app.config import Settings
-from app.deps import get_settings, limited_user
+from app.core.config import Settings
+from app.core.deps import get_settings, limited_user
 from app.grammar import MAX_CONTEXT_CHARS, MAX_TEXT_CHARS, build_request, normalize_grammar, parse_model_output
 from app.models import User
-from app.upstream import check_upstream_auth
+from app.core.upstream import check_upstream_auth
 
 router = APIRouter(prefix="/api/ai")
 

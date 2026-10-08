@@ -51,7 +51,7 @@ from app.asr_stream import (
     encode_audio,
     encode_full_request,
 )
-from app.config import Settings
+from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 # websockets logs handshake headers (incl. X-Api-Key) at DEBUG: pin the connection logger at INFO.

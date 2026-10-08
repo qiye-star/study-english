@@ -1,4 +1,4 @@
-from app.config import Settings
+from app.core.config import Settings
 
 
 def test_model_lists_are_split_and_trimmed():

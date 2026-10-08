@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import current_user, get_session
+from app.core.deps import current_user, get_session
 from app.grammar import MAX_PROMPT_CHARS, clean_prompt
 from app.models import User
 

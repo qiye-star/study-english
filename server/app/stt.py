@@ -6,9 +6,9 @@ import wave
 import httpx
 from fastapi import HTTPException
 
-from app.config import STT_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
-from app.timing import Stopwatch, log_timing
-from app.upstream import check_upstream_auth
+from app.core.config import STT_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
+from app.core.timing import Stopwatch, log_timing
+from app.core.upstream import check_upstream_auth
 
 NO_SPEECH_TOKEN = "<none>"
 CHAT_PROMPT = (

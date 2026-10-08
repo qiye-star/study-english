@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
-from app.config import Settings
+from app.core.config import Settings
 from app.models import Assessment
 
 SCORE_KEYS = ("pronunciation_score", "accuracy_score", "fluency_score", "completeness_score")

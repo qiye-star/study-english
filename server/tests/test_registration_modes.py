@@ -25,7 +25,7 @@ async def test_invite_mode_needs_the_right_code(client):
 @pytest.mark.parametrize("settings_overrides", [{"registration_mode": "closed"}], indirect=True)
 async def test_closed_mode_still_allows_login_of_existing_users(app, client):
     from app.models import User
-    from app.security import hash_password
+    from app.core.security import hash_password
 
     async with app.state.sessionmaker() as session:
         session.add(User(id=12345678, username="bob", password_hash=hash_password("password123")))

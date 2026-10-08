@@ -6,8 +6,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import recordings
-from app.config import Settings
-from app.deps import current_user, get_session, get_settings
+from app.core.config import Settings
+from app.core.deps import current_user, get_session, get_settings
 from app.models import Assessment, Message, User, iso_utc
 
 router = APIRouter(prefix="/api")

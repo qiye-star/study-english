@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from app.deps import current_user
+from app.core.deps import current_user
 from app.models import User
 
 router = APIRouter(prefix="/api")

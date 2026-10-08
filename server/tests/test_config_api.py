@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.config import Settings
+from app.core.config import Settings
 from app.routers import config_api
 from app.routers.config_api import VoiceListError, apply_overrides, load_volcengine_voices, rewrite_tts
 

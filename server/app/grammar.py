@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from app.config import Settings
+from app.core.config import Settings
 
 CATEGORIES = ("tense", "agreement", "article", "preposition", "word_choice", "word_order", "plural", "spelling", "other")
 MAX_TEXT_CHARS = 2000

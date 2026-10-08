@@ -3,8 +3,8 @@ import os
 import httpx
 import pytest
 
-from app.config import Settings
-from app.db import Base
+from app.core.config import Settings
+from app.core.db import Base
 from app.main import create_app
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")

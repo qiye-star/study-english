@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from websockets.asyncio.server import serve
 
-from app.config import Settings
+from app.core.config import Settings
 from app.xfyun import XfyunError, XfyunIse, XfyunNotConfigured, signed_url
 
 FIXTURE_XML = (Path(__file__).parent / "fixtures" / "ise_good.xml").read_text(encoding="utf-8")

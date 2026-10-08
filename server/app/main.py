@@ -4,13 +4,13 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.config import Settings
-from app.db import make_engine
-from app.errors import install_error_handlers
+from app.core.config import Settings
+from app.core.db import make_engine
+from app.core.errors import install_error_handlers
 from app.grammar import load_grammar_rules
-from app.logging_setup import configure_logging
-from app.bodylimit import BodyLimitMiddleware
-from app.ratelimit import RateLimiter
+from app.core.logging_setup import configure_logging
+from app.core.bodylimit import BodyLimitMiddleware
+from app.core.ratelimit import RateLimiter
 from app.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,

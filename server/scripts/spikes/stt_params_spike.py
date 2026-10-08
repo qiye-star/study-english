@@ -22,7 +22,7 @@ from pathlib import Path
 
 import httpx
 
-from app.config import Settings
+from app.core.config import Settings
 
 # 与 Task 1.2 计划的提示词一致(R4 的 <none> + R10 的"只转写最近说话人")。
 PROMPT = (

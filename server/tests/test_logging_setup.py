@@ -3,8 +3,8 @@ import logging
 
 import pytest
 
-from app.logging_setup import configure_logging
-from app.timing import log_timing
+from app.core.logging_setup import configure_logging
+from app.core.timing import log_timing
 
 
 @pytest.fixture
@@ -80,7 +80,7 @@ def _record(name, msg, args):
 def test_redaction_keeps_the_access_formatter_args_shape(uvicorn_loggers):
     from uvicorn.logging import AccessFormatter
 
-    from app.logging_setup import QuerySecretFilter
+    from app.core.logging_setup import QuerySecretFilter
 
     record = _record("uvicorn.access", '%s - "%s %s HTTP/%s" %d',
                      ("127.0.0.1:5000", "GET", "/api/realtime?x=1&ticket=SeCrEt-_9&y=2", "1.1", 101))
@@ -91,7 +91,7 @@ def test_redaction_keeps_the_access_formatter_args_shape(uvicorn_loggers):
 
 
 def test_redaction_of_websocket_lines_and_plain_messages(uvicorn_loggers):
-    from app.logging_setup import QuerySecretFilter, redact_query_secrets
+    from app.core.logging_setup import QuerySecretFilter, redact_query_secrets
 
     record = _record("uvicorn.error", '%s - "WebSocket %s" [accepted]', ("127.0.0.1:5000", "/api/realtime?ticket=abc"))
     QuerySecretFilter().filter(record)
@@ -108,7 +108,7 @@ def test_redaction_survives_uvicorn_dictconfig_and_is_idempotent(uvicorn_loggers
 
     from uvicorn.config import LOGGING_CONFIG
 
-    from app.logging_setup import QuerySecretFilter, install_query_redaction
+    from app.core.logging_setup import QuerySecretFilter, install_query_redaction
 
     install_query_redaction()
     install_query_redaction()

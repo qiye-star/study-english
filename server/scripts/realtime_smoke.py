@@ -554,7 +554,7 @@ async def scenario_hangup_after_final(api: Api, ctx: dict) -> dict:
 
 def print_thinking() -> None:
     """In-process: does a realtime LLM request carry `thinking: disabled`? Prints booleans only."""
-    from app.config import LLM_THINKING_HOST_SUFFIXES, Settings, host_matches, send_thinking_param
+    from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, host_matches, send_thinking_param
     settings = Settings()
     sends = send_thinking_param(settings.realtime_llm_disable_thinking, settings.upstream_llm_base_url,
                                 LLM_THINKING_HOST_SUFFIXES)

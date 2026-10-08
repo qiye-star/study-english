@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
-from app.deps import current_user, get_session, get_settings
+from app.core.config import Settings
+from app.core.deps import current_user, get_session, get_settings
 from app.models import PracticeItem, User, iso_utc, utcnow
 
 router = APIRouter(prefix="/api")

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.config import Settings
+from app.core.config import Settings
 from app.models import iso_utc
 
 

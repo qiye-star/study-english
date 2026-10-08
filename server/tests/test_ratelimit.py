@@ -1,4 +1,4 @@
-from app.ratelimit import RateLimiter
+from app.core.ratelimit import RateLimiter
 
 
 def test_allows_up_to_limit_then_blocks():

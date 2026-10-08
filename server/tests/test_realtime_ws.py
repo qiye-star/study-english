@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from app.asr import AsrError
-from app.db import Base
+from app.core.db import Base
 from app.main import create_app
 from app.realtime_asr import effective_realtime_asr
 from app.realtime_protocol import StartMsg

@@ -9,10 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
-from app.deps import auth_rate_limit, current_user, get_session, get_settings
+from app.core.config import Settings
+from app.core.deps import auth_rate_limit, current_user, get_session, get_settings
 from app.models import AccessToken, User
-from app.security import hash_password, hash_token, new_token, verify_password
+from app.core.security import hash_password, hash_token, new_token, verify_password
 
 router = APIRouter(prefix="/api")
 

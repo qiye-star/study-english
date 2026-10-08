@@ -2,7 +2,7 @@
 
 The WebSocket is authenticated by a one-time ticket in the query string (`?ticket=`), as the web
 client sends it. uvicorn prints the query string in its access/WebSocket log lines, so
-`app.logging_setup` installs a filter that redacts `ticket=` values there; nothing here logs it.
+`app.core.logging_setup` installs a filter that redacts `ticket=` values there; nothing here logs it.
 
 Order of checks after `accept` (plan R12): disabled 4003 → ticket invalid/expired 4001 → user or
 global call slot taken 4029 → no valid `start` within `START_TIMEOUT` 4400 → conversation gone 4004
@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
 
 from app.asr import AsrError, shared_asr_gate
-from app.config import Settings
-from app.deps import current_user, get_session, get_settings, limited_user
+from app.core.config import Settings
+from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User
 from app.realtime_asr import effective_realtime_asr
 from app.realtime_protocol import (
@@ -49,7 +49,7 @@ from app.realtime_providers import (
 from app.realtime_session import CallStats, ConversationGoneError, RealtimeLimits, RealtimeSession, Upstreams
 from app.realtime_tickets import TicketGrant
 from app.routers.conversations import owned_conversation
-from app.timing import log_timing
+from app.core.timing import log_timing
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")

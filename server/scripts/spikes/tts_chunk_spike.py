@@ -20,7 +20,7 @@ from pathlib import Path
 
 import httpx
 
-from app.config import Settings
+from app.core.config import Settings
 
 REPLY_TEXT = "That sounds like a great plan. What time would you like to meet tomorrow?"
 LONG_TEXT = (

@@ -4,9 +4,9 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
+from app.core.config import Settings
 from app.models import AccessToken, User
-from app.security import hash_token
+from app.core.security import hash_token
 
 
 def get_settings(request: Request) -> Settings:
