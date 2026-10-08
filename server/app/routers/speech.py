@@ -1,7 +1,6 @@
 import io
 import logging
 import wave
-from datetime import timedelta
 from typing import Literal
 
 import httpx
@@ -10,7 +9,7 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 from starlette.requests import Request as StarletteRequest
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment  # noqa: F401
@@ -18,8 +17,9 @@ from app.providers.azure import AzureError, AzureNotConfigured, AzureSpeech
 from app.services.provider_clients import get_azure, get_xfyun
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
-from app.models import Assessment, Message, SpeechToken, User, utcnow
-from app.routers.conversations import drop_assessments, remove_files
+from app.models import SpeechToken, User
+from app.services.chat_recordings import cleanup_orphan_chat_recordings, drop_assessments, remove_files  # noqa: F401
+from app.services.pronunciation import MAX_REFERENCE_CHARS, TIMEOUT_BASE_SECONDS, TIMEOUT_CAP_SECONDS, _ise_entry
 from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured
 from app.providers.xfyun_result import to_assessment
 
@@ -28,9 +28,6 @@ logger = logging.getLogger(__name__)
 
 MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
 MAX_ASSESSMENT_SECONDS = 300
-MAX_REFERENCE_CHARS = 2000
-TIMEOUT_BASE_SECONDS = 30
-TIMEOUT_CAP_SECONDS = 330
 ASSESSMENT_RATE = 16000
 TRUTHY = {"true", "1", "yes"}
 SOURCES = ("practice", "chat")
@@ -92,15 +89,6 @@ async def update_token(
     return {"id": row.id, "state": row.state}
 
 
-def _ise_entry(language: str) -> str:
-    # English only for now: the result converter is validated against English
-    # results; iFlytek's Chinese format (pinyin phones, other scores) differs.
-    code = language.strip().lower()
-    if code == "en" or code.startswith(("en-", "en_")):
-        return "en_vip"
-    raise HTTPException(400, "Unsupported language")
-
-
 def _wav_to_pcm(data: bytes) -> bytes:
     try:
         with wave.open(io.BytesIO(data), "rb") as w:
@@ -137,36 +125,6 @@ async def _read_limited_body(request: Request) -> bytes:
             raise too_large
         chunks.append(chunk)
     return b"".join(chunks)
-
-
-async def cleanup_orphan_chat_recordings(session: AsyncSession, settings: Settings, user: User) -> None:
-    """Delete the caller's source=chat assessments that no message references and that are older than the grace
-    window (a tab died / a late link failed). Rows first, files after the commit. Never raises."""
-    try:
-        cutoff = utcnow() - timedelta(hours=settings.chat_orphan_grace_hours)
-        rows = (
-            await session.execute(
-                select(Assessment).where(
-                    Assessment.user_id == user.id,
-                    Assessment.source == "chat",
-                    Assessment.created_at < cutoff,
-                    ~exists().where(Message.assessment_id == Assessment.id),
-                )
-            )
-        ).scalars().all()
-        if not rows:
-            return
-        paths = await drop_assessments(session, list(rows))
-        await session.commit()
-    except Exception:
-        logger.warning("Orphan chat recording cleanup failed")
-        try:
-            await session.rollback()
-            await session.refresh(user)  # rollback expires the loaded user
-        except Exception:
-            pass
-        return
-    remove_files(settings, paths)
 
 
 @router.post("/assessments")

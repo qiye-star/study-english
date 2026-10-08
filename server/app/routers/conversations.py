@@ -10,11 +10,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import recordings
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
 from app.services.grammar import normalize_grammar
 from app.models import Assessment, Conversation, Message, User, iso_utc, utcnow
+from app.services.chat_recordings import IN_CHUNK, _chunks, drop_assessments, remove_files  # noqa: F401
 
 router = APIRouter(prefix="/api")
 
@@ -22,7 +22,6 @@ DEFAULT_NAME = "New conversation"
 MAX_CONFIG_BYTES = 16 * 1024
 MAX_SUMMARY_WORDS = 300
 RESULT_ROLE_ERROR = "Only user messages can carry assessment or grammar"
-IN_CHUNK = 500  # stay well under SQLite's bound-variable limit
 logger = logging.getLogger(__name__)
 ItemId = Annotated[str, Path(max_length=64)]
 
@@ -132,11 +131,6 @@ def checked_grammar(raw: dict, content: str) -> dict:
         raise HTTPException(422, "Invalid grammar result")
 
 
-def _chunks(items: list[str]):
-    for i in range(0, len(items), IN_CHUNK):
-        yield items[i : i + IN_CHUNK]
-
-
 async def owned_assessments(session: AsyncSession, user: User, ids: set[str]) -> dict[str, Assessment]:
     found: dict[str, Assessment] = {}
     for chunk in _chunks(sorted(ids)):
@@ -193,23 +187,6 @@ async def ensure_unlinked(session: AsyncSession, assessment_ids: set[str], excep
         stmt = stmt.where(Message.id != except_message_id)
     if (await session.execute(stmt.limit(1))).first() is not None:
         raise HTTPException(409, "Assessment already linked to another message")
-
-
-async def drop_assessments(session: AsyncSession, rows: list[Assessment]) -> list[str]:
-    """删除评测行并断开所有引用(SQLite 默认不执行 ON DELETE SET NULL);返回待删的录音相对路径。"""
-    for chunk in _chunks([row.id for row in rows]):
-        await session.execute(update(Message).where(Message.assessment_id.in_(chunk)).values(assessment_id=None))
-        await session.execute(delete(Assessment).where(Assessment.id.in_(chunk)))
-    return [row.audio_path for row in rows]
-
-
-def remove_files(settings: Settings, relpaths: list[str]) -> None:
-    # 先提交数据库、再删文件;删除失败被 delete_recording 吞掉:行已删除,配额已释放,残留文件只占磁盘
-    for relpath in relpaths:
-        try:
-            recordings.delete_recording(settings.resolved_data_dir, relpath)
-        except Exception:  # never raise after the commit
-            logger.warning("Could not remove a chat recording file")
 
 
 async def owned_conversation(session: AsyncSession, user: User, conversation_id: str) -> Conversation:

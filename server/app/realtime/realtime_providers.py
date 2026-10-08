@@ -249,12 +249,12 @@ import weakref  # noqa: E402
 
 from app.services.assessment_store import QuotaExceeded, check_quota, save_assessment  # noqa: E402
 from app.models import Assessment, User  # noqa: E402
-from app.routers.speech import (  # noqa: E402
+from app.services.chat_recordings import cleanup_orphan_chat_recordings  # noqa: E402
+from app.services.pronunciation import (  # noqa: E402
     MAX_REFERENCE_CHARS,
     TIMEOUT_BASE_SECONDS,
     TIMEOUT_CAP_SECONDS,
     _ise_entry,
-    cleanup_orphan_chat_recordings,
 )
 from app.speech.stt import pcm_to_wav  # noqa: E402
 from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured  # noqa: E402

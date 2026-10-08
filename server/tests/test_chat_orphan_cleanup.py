@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.services import recordings
 from app.models import Assessment, utcnow
-from app.routers import speech
+from app.services import chat_recordings
 from app.services.provider_clients import get_xfyun
 from tests.test_assessment_save import FakeXfyun, files_under, make_wav
 from tests.test_assessment_source import post
@@ -120,7 +120,7 @@ async def test_cleanup_failure_does_not_break_the_save(app, client, auth_headers
     async def boom(*args, **kwargs):
         raise RuntimeError("/secret/path")
 
-    monkeypatch.setattr(speech, "drop_assessments", boom)
+    monkeypatch.setattr(chat_recordings, "drop_assessments", boom)
     r = await post(client, auth_headers, save="true", source="chat")
     assert r.status_code == 200, r.text
     assert await ids(app) == {orphan, r.json()["assessment_id"]}
