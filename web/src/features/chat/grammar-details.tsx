@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { useAuth } from "~/auth/auth-context";
-import type { GrammarResult } from "~/features/grammar/grammar-types";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
+import type { GrammarResult } from "~/features/grammar";
+import { goPractice, savePracticeItem } from "~/features/practice";
 
 export function GrammarDetails({ result, onClose }: { result: GrammarResult; onClose(): void }) {
   const { api } = useAuth();

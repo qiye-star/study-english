@@ -1,4 +1,4 @@
-import { LANGUAGES } from "@/constants";
+import { LANGUAGES } from "~/shims/enjoy-sources";
 import { completeChat } from "~/api/ai";
 import { ApiError, type ApiClient } from "~/api/client";
 import { inflightDedupe, withSignal } from "~/lib/abortable";

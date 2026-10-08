@@ -4,7 +4,8 @@
     "enjoy",
     "1000-hours",
     "1000h-portal",
-    "web"
+    "web",
+    "admin"
   ],
   "scripts": {
     "start:enjoy": "echo 'Please use `yarn enjoy:start` instead'",
@@ -29,7 +30,11 @@
     "web:build": "yarn workspace web build",
     "web:test": "yarn workspace web test",
     "web:typecheck": "yarn workspace web typecheck",
-    "web:e2e": "yarn workspace web e2e"
+    "web:e2e": "yarn workspace web e2e",
+    "admin:dev": "yarn workspace admin dev",
+    "admin:build": "yarn workspace admin build",
+    "admin:test": "yarn workspace admin test",
+    "admin:typecheck": "yarn workspace admin typecheck"
   },
   "packageManager": "yarn@4.6.0",
   "engines": {

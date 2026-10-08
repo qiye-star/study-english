@@ -7,10 +7,8 @@ import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { MAX_PRACTICE_TEXT } from "~/features/practice/practice-items-api";
-import { goPractice, savePracticeItem } from "~/features/practice/save-practice-item";
-import { AddVocabularyButton } from "~/features/vocabulary/add-vocabulary-button";
-import { vocabularyFromLookup } from "~/features/vocabulary/save-vocabulary-item";
+import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
+import { AddVocabularyButton, vocabularyFromLookup } from "~/features/vocabulary";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";

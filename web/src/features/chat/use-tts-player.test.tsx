@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { claimAudio } from "./audio-focus";
+import { claimAudio } from "~/audio/audio-focus";
 import { TtsCache } from "./tts";
 import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
 import { TtsPlaybackError, sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer } from "./use-tts-player";

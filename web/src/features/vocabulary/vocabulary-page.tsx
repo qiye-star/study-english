@@ -17,7 +17,7 @@ import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import { SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
-import { ttsErrorMessage, useTtsPlayer } from "~/features/chat/use-tts-player";
+import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { PageHeader } from "~/layout/page-header";
 import { ReviewCard } from "./review-card";
 import {

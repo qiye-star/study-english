@@ -30,11 +30,9 @@ def dist_dir(settings: Settings) -> Path:
     return Path(settings.web_dist_dir) if settings.web_dist_dir else DEFAULT_DIST
 
 
-@router.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-async def web_app(path: str, settings: Settings = Depends(get_settings)):
-    if path == "api" or path.startswith("api/"):
-        raise HTTPException(404, "Not Found")
-    root = dist_dir(settings).resolve()
+def spa_response(root: Path, path: str) -> FileResponse:
+    """root 下的静态文件;assets/ 外的未知路径回退到 index.html(SPA)。含目录逃逸防护。"""
+    root = root.resolve()
     index = root / "index.html"
     if not index.is_file():
         raise HTTPException(404, "Web app is not built")
@@ -50,3 +48,10 @@ async def web_app(path: str, settings: Settings = Depends(get_settings)):
         if path.startswith("assets/"):
             raise HTTPException(404, "Not Found")
     return FileResponse(index, headers={"Cache-Control": NO_CACHE})
+
+
+@router.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+async def web_app(path: str, settings: Settings = Depends(get_settings)):
+    if path == "api" or path.startswith("api/"):
+        raise HTTPException(404, "Not Found")
+    return spa_response(dist_dir(settings), path)

@@ -3,8 +3,7 @@
  * 与 enjoy/src/commands/translate.command.ts(SYSTEM_PROMPT、TRANSLATION_PROMPT)。
  * 这两个文件依赖 @langchain 且常量未导出,因此只以 ?raw 读入源码文本并提取(不执行、不复制)。
  */
-import lookupSource from "@/commands/lookup.command.ts?raw";
-import translateSource from "@/commands/translate.command.ts?raw";
+import { lookupCommandSource as lookupSource, translateCommandSource as translateSource } from "~/shims/enjoy-sources";
 
 export function extractPrompt(source: string, pattern: RegExp, name: string): string {
   // Windows checkouts may use CRLF; normalise so prompts are identical everywhere.

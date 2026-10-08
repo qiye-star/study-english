@@ -2,8 +2,7 @@ import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import type { ApiClient } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { normalizeSelection, type LookupResult } from "~/features/lookup/lookup";
-import type { TextSelectionInfo } from "~/features/lookup/use-text-selection";
+import { normalizeSelection, type LookupResult, type TextSelectionInfo } from "~/features/lookup";
 import {
   MAX_VOCAB_EXAMPLE, MAX_VOCAB_MEANING, MAX_VOCAB_WORD, VOCABULARY_SERVER_ERRORS, addVocabularyItem, clipCodePoints,
   type VocabularyInput, type VocabularyItem,

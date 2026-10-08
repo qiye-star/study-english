@@ -16,10 +16,10 @@ import { useAuth } from "~/auth/auth-context";
 import { IconChip } from "~/components/icon-chip";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
-import { ttsErrorMessage, useTtsPlayer } from "~/features/chat/use-tts-player";
+import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { PageHeader } from "~/layout/page-header";
-import { PRACTICE_DRAFT_KEY as DRAFT_KEY } from "~/lib/device-data";
-import { readJson, writeJson } from "~/lib/storage";
+import { formatClock } from "~/lib/format-clock";
+import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";
 import { PRACTICE_SERVER_ERRORS, assessPronunciation } from "./assessment-api";
 
 const isString = (v: unknown): v is string => typeof v === "string";
@@ -44,11 +44,6 @@ function useToday(language: string): string {
   } catch {
     return now.toLocaleDateString();
   }
-}
-
-export function formatClock(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearAuth, saveAuth } from "~/api/auth-storage";
-import { PRACTICE_DRAFT_KEY } from "~/lib/device-data";
+import { PRACTICE_DRAFT_KEY } from "~/auth/device-data";
 import { kvGet, kvSet } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { AuthProvider, useAuth } from "./auth-context";

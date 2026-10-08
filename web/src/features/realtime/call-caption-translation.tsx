@@ -2,7 +2,7 @@ import { LanguagesIcon, LoaderIcon } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ApiClient } from "~/api/client";
-import { useMessageTranslations, type TranslationState } from "~/features/chat/use-message-translations";
+import { useMessageTranslations, type TranslationState } from "~/features/chat";
 import { cn } from "~/lib/cn";
 
 const AUTO_KEY = "enjoy-web:call-auto-translate";

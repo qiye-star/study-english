@@ -1,3 +1,4 @@
+import secrets
 from contextlib import asynccontextmanager
 
 import httpx
@@ -13,7 +14,7 @@ from app.core.bodylimit import BodyLimitMiddleware
 from app.core.ratelimit import RateLimiter
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,
+    admin, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,
 )
 
 
@@ -24,6 +25,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         raise RuntimeError("REGISTRATION_MODE=invite requires INVITE_CODE")
     if settings.default_llm_model not in settings.llm_model_list:
         raise RuntimeError("DEFAULT_LLM_MODEL must be one of LLM_MODELS")
+
+    if settings.admin_enabled and len(settings.admin_password) < 12:
+        raise RuntimeError("ADMIN_PASSWORD must be at least 12 characters")
 
     grammar_rules = load_grammar_rules(settings)
 
@@ -39,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="enjoy-server", lifespan=lifespan)
     app.state.settings = settings
+    app.state.admin_secret = (settings.admin_session_secret or secrets.token_hex(32)).encode()
     app.state.grammar_rules = grammar_rules
     app.state.engine = engine
     app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
@@ -52,10 +57,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     # 顺序重要:stubs 含 /api/** 的兜底写入路由,真实 API 必须在它之前;
-    # web(静态托管 + SPA 回退)兜底所有非 API 的 GET,必须最后。
+    # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         health, sessions, grammar_prompt, config_api, speech, conversations, assessments,
-        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, stubs, web,
+        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, admin, stubs, admin_web, web,
     ):
         app.include_router(module.router)
     return app

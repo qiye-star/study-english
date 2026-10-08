@@ -6,7 +6,7 @@ import { encodeWavPcm16 } from "~/audio/wav";
 import { markLatency } from "~/lib/latency";
 import { applyPlaybackRate, trackMediaElement } from "~/lib/playback-rate";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
-import { claimAudio, releaseAudio } from "./audio-focus";
+import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { synthesizeSpeech } from "./speech-api";
 import { TtsCache, sharedTtsCache, speakableText, ttsKey } from "./tts";
 
