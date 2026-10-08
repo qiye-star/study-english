@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.core.deps import get_settings, limited_user
-from app.grammar import MAX_CONTEXT_CHARS, MAX_TEXT_CHARS, build_request, normalize_grammar, parse_model_output
+from app.services.grammar import MAX_CONTEXT_CHARS, MAX_TEXT_CHARS, build_request, normalize_grammar, parse_model_output
 from app.models import User
 from app.core.upstream import check_upstream_auth
 

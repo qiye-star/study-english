@@ -16,10 +16,10 @@ from app.core.deps import get_settings, limited_user
 from app.models import User
 from app.speech.stt import CHAT_PROMPT, transcribe_chat  # noqa: F401 (CHAT_PROMPT for older importers)
 from app.core.timing import Stopwatch, log_timing
-from app.provider_clients import get_azure
+from app.services.provider_clients import get_azure
 from app.core.upstream import check_upstream_auth
 from app.providers.volcengine import VolcengineError, synthesize as volcengine_synthesize, synthesize_stream
-from app.uploads import parse_buffered_form, read_limited_body
+from app.services.uploads import parse_buffered_form, read_limited_body
 
 router = APIRouter(prefix="/api/ai")
 logger = logging.getLogger(__name__)

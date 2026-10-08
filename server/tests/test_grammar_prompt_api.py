@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from app.grammar import DEFAULT_GRAMMAR_RULES, GRAMMAR_OUTPUT_CONTRACT
+from app.services.grammar import DEFAULT_GRAMMAR_RULES, GRAMMAR_OUTPUT_CONTRACT
 
 URL = "/api/me/grammar-prompt"
 LLM = "https://llm.test/v1/chat/completions"

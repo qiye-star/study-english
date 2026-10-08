@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import func, select
 
-from app import recordings
-from app.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment
+from app.services import recordings
+from app.services.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment
 from app.models import Assessment
 
 RESULT = {"pronunciation_score": 80, "accuracy_score": 81, "fluency_score": 82, "completeness_score": 83, "words": []}

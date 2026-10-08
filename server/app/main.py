@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
-from app.grammar import load_grammar_rules
+from app.services.grammar import load_grammar_rules
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.ratelimit import RateLimiter

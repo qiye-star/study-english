@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.services import recordings
 from app.models import Assessment
-from app.provider_clients import get_xfyun
+from app.services.provider_clients import get_xfyun
 from app.providers.xfyun import XfyunError
 from app.providers.xfyun_result import to_assessment
 

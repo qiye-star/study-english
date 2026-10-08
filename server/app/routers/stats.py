@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import stats as rules
+from app.services import stats as rules
 from app.core.deps import get_session, limited_user
 from app.models import Assessment, Conversation, Message, User, utcnow
 

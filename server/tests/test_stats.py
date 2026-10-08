@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 
-from app.stats import AssessmentRow, MessageRow, aggregate, local_date, local_midnight_utc, poor_words, streak, window
+from app.services.stats import AssessmentRow, MessageRow, aggregate, local_date, local_midnight_utc, poor_words, streak, window
 
 UTC = timezone.utc
 NOW = datetime(2026, 10, 5, 3, 0, tzinfo=UTC)  # UTC 03:00;UTC+8 时为当天 11:00

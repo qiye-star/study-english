@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.services import recordings
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
 from app.models import Assessment, Message, User, iso_utc

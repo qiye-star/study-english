@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import current_user, get_session
-from app.grammar import MAX_PROMPT_CHARS, clean_prompt
+from app.services.grammar import MAX_PROMPT_CHARS, clean_prompt
 from app.models import User
 
 router = APIRouter(prefix="/api/me")

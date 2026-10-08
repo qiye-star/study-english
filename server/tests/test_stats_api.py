@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pytest
 
-from app import stats as stats_rules
+from app.services import stats as stats_rules
 from app.models import Assessment, Message, utcnow
 
 URL = "/api/stats"

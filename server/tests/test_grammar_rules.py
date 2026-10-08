@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.grammar import (
+from app.services.grammar import (
     CATEGORIES, DEFAULT_GRAMMAR_RULES, GRAMMAR_OUTPUT_CONTRACT, build_request, build_system_prompt, clean_prompt,
     load_grammar_rules, normalize_grammar, parse_model_output,
 )

@@ -6,9 +6,9 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app import recordings
+from app.services import recordings
 from app.models import Assessment, Message
-from app.recordings import recording_relpath, write_recording
+from app.services.recordings import recording_relpath, write_recording
 from tests.test_assessments_api import SCORES, make_wav
 
 GRAMMAR = {"has_errors": True, "corrected": "She doesn't like it.",

@@ -247,7 +247,7 @@ class DbMessageStore:
 import asyncio  # noqa: E402
 import weakref  # noqa: E402
 
-from app.assessment_store import QuotaExceeded, check_quota, save_assessment  # noqa: E402
+from app.services.assessment_store import QuotaExceeded, check_quota, save_assessment  # noqa: E402
 from app.models import Assessment, User  # noqa: E402
 from app.routers.speech import (  # noqa: E402
     MAX_REFERENCE_CHARS,

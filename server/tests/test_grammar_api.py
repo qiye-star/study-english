@@ -4,7 +4,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.grammar import DEFAULT_GRAMMAR_RULES, GRAMMAR_OUTPUT_CONTRACT
+from app.services.grammar import DEFAULT_GRAMMAR_RULES, GRAMMAR_OUTPUT_CONTRACT
 from app.models import User
 
 URL = "/api/ai/grammar"

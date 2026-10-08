@@ -3,7 +3,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.services import recordings
 from app.core.config import Settings
 from app.models import Assessment
 

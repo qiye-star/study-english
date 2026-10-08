@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.vocabulary import INTERVAL_DAYS, MAX_BOX, MAX_WORD, next_review, normalize_word, validate_word
+from app.services.vocabulary import INTERVAL_DAYS, MAX_BOX, MAX_WORD, next_review, normalize_word, validate_word
 
 NOW = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
 

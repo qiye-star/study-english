@@ -10,10 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.services import recordings
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
-from app.grammar import normalize_grammar
+from app.services.grammar import normalize_grammar
 from app.models import Assessment, Conversation, Message, User, iso_utc, utcnow
 
 router = APIRouter(prefix="/api")
