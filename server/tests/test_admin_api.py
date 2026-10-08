@@ -5,7 +5,7 @@ import pytest
 
 from app.admin import auth
 from app.models import Assessment, Conversation, Message, PracticeItem, User, VocabularyItem
-from app.recordings import recording_relpath, write_recording
+from app.services.recordings import recording_relpath, write_recording
 from tests.test_assessments_api import SCORES, make_wav
 
 ENABLED = {"admin_username": "root", "admin_password": "correct-horse-battery", "admin_session_secret": "s3cret"}

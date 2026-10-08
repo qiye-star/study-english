@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.config import Settings
-from app.deps import get_settings
+from app.core.config import Settings
+from app.core.deps import get_settings
 from app.routers.web import spa_response
 
 router = APIRouter()

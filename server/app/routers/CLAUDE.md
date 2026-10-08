@@ -7,17 +7,18 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
-`realtime` (config, ticket, WS), `stubs` (catch-all writes), `web` (static web/dist + SPA fallback).
+`realtime` (config, ticket, WS), `admin` (/api/admin/*, read-only), `stubs` (catch-all writes),
+`admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
-Anything below: core, models, providers, speech, services, realtime, and other routers.
+Anything below: core, models, providers, speech, services, realtime, admin, and other routers.
 Nothing outside `routers/` and `main.py` may import a router (`tests/test_architecture.py`):
 logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 
 ## Entry points
-`create_app()` registration order matters: real APIs first, then `stubs`, `web` last.
-`config_api.py` and `web.py` locate files relative to this directory (`../static_config`,
-`../../../web/dist`): moving them breaks paths.
+`create_app()` registration order matters: real APIs first, then `stubs`, `admin_web`, `web` last.
+`config_api.py`, `web.py` and `admin_web.py` locate files relative to this directory (`../static_config`,
+`../../../web/dist`, `../../../admin/dist`): moving them breaks paths.
 
 ## Tests
 `uv run pytest -q` (router tests are `tests/test_*_api.py`, `test_ai_*`, `test_realtime_ws.py`, ...)

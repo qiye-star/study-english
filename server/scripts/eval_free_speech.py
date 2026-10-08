@@ -116,7 +116,7 @@ _SAFE_MESSAGE = re.compile(r"[A-Za-z0-9 .,:;_'()/-]{1,120}")
 def _safe_error_code(r: httpx.Response) -> str:
     """Short server-authored message for the BLOCKED line.
 
-    The server shapes errors as {"error": "<message>"} (app/errors.py); `detail` is accepted as a fallback.
+    The server shapes errors as {"error": "<message>"} (app/core/errors.py); `detail` is accepted as a fallback.
     Only a short string made of printable ASCII and basic punctuation is shown (capped at 120 chars);
     dicts, lists, long or odd strings are never echoed. Falls back to a short code/type, then 'unknown'.
     """
@@ -256,7 +256,7 @@ def recommendations(summary: dict) -> list[str]:
     else:
         out.append("A 组转写保留错误的比例达标:不降级,GRAMMAR_FOR_VOICE 保持 true。")
     if summary.get("prompt_review_needed"):
-        out.append("B 组误报率超过阈值:逐条查看被误报的正确句,在 server/app/grammar.py 的 DEFAULT_GRAMMAR_RULES 里加/改一条针对性规则并重跑(不动 GRAMMAR_OUTPUT_CONTRACT)。")
+        out.append("B 组误报率超过阈值:逐条查看被误报的正确句,在 server/app/services/grammar.py 的 DEFAULT_GRAMMAR_RULES 里加/改一条针对性规则并重跑(不动 GRAMMAR_OUTPUT_CONTRACT)。")
     else:
         out.append("B 组误报率达标:内置规则不用改。")
     return out

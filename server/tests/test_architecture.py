@@ -5,8 +5,10 @@
     speech     -> core, providers
     services   -> core, providers
     realtime   -> core, providers, speech, services
+    admin      -> core, providers, speech, services, realtime (read-only admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
+                  (likewise only routers and main may import admin)
 
 `app.models` sits beside core: it may import core only, and every layer may import it.
 Lazy (function-level) imports count; so do `from app import x` and relative imports."""
@@ -15,7 +17,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-LAYERS = ("core", "providers", "speech", "services", "realtime", "routers")
+LAYERS = ("core", "providers", "speech", "services", "realtime", "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -25,8 +27,9 @@ ALLOWED: dict[str, set[str]] = {
     "speech": {"speech", "core", "models", "providers"},
     "services": {"services", "core", "models", "providers"},
     "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
-    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime"},
-    "main": {"core", "models", "providers", "speech", "services", "realtime", "routers"},
+    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime"},
+    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "admin"},
+    "main": {"core", "models", "providers", "speech", "services", "realtime", "admin", "routers"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -110,8 +113,11 @@ def test_scanner_sees_lazy_relative_and_package_imports(tmp_path):
         encoding="utf-8",
     )
     (app / "providers" / "vendor.py").write_text("from fastapi import Request\n", encoding="utf-8")
+    (app / "services").mkdir()
+    (app / "services" / "peek.py").write_text("from app.admin import service\n", encoding="utf-8")
     (app / "stray.py").write_text("", encoding="utf-8")
     found = violations(app)
     assert len([p for p in found if p.startswith("app/core/config.py")]) == 3
     assert any(p.startswith("app/providers/vendor.py:1") and "fastapi" in p for p in found)
     assert any(p.startswith("app/stray.py") for p in found)
+    assert any(p.startswith("app/services/peek.py:1") and "app.admin" in p for p in found)

@@ -11,6 +11,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
 | `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
+| `admin/` | read-only admin console: admin auth (HMAC tokens) + cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
 | `static_config/` | JSON config snapshots served by `/api/config/{key}` |
@@ -20,12 +21,14 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - providers -> core (and no FastAPI/Starlette)
 - speech, services -> core, models, providers
 - realtime -> core, models, providers, speech, services
+- admin -> core, models, providers, speech, services, realtime; only routers and `main.py` import admin
 - routers -> anything above; only `main.py` (and other routers) import routers
 - Lazy/function-level imports count too. A new top-level module fails the test: pick a package.
 
 ## Entry point
 `app.main:create_app` (factory). Router order in `create_app` matters: `stubs` (catch-all
-writes) must follow real APIs and `web` (SPA fallback) must be last.
+writes) must follow real APIs, `admin_web` (/admin) must precede `web`, and `web` (SPA fallback)
+must be last.
 
 ## Tests
 `cd server && uv run pytest -q`

@@ -8,10 +8,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import recordings
+from app.services import recordings
 from app.admin import auth, service
-from app.config import Settings
-from app.deps import auth_rate_limit, get_session, get_settings
+from app.core.config import Settings
+from app.core.deps import auth_rate_limit, get_session, get_settings
 
 router = APIRouter(prefix="/api/admin")
 guarded = APIRouter(dependencies=[Depends(auth.admin_required)])
