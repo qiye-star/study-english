@@ -7,7 +7,13 @@ POINTS = {"chat_turn": 1, "vocab_review": 1, "active_day": 5, "streak_7": 15, "s
 STREAK_STEP = 7
 
 
-def assessment_points(score: float | None) -> int:
+def assessment_points(score: float | None, *, rules=None) -> int:
+    """`rules` (admin v2, plan P-6): a RankRules read by duck typing; None = the built-in bands."""
+    if rules is not None:
+        bands = rules.points.assessment_bands
+        if score is None:
+            return bands[-1][1]
+        return next((pts for floor, pts in bands if score >= floor), bands[-1][1])
     if score is None:
         return 1
     if score >= 85:
@@ -109,9 +115,18 @@ def _done(task: StageTask, events: list[EventRow]) -> int:
     return sum(1 for e in events if e.kind == _KIND_OF[task.kind])
 
 
-def stage_progress(tier: int, events: list[EventRow]) -> list[TaskProgress]:
+def points_for(kind: str, *, rules=None) -> int:
+    """Fixed points of a non-assessment kind (chat_turn, vocab_review, active_day, streak_7, stage_task)."""
+    return getattr(rules.points, kind) if rules is not None else POINTS[kind]
+
+
+def stage_tasks_for(tier: int, *, rules=None) -> tuple:
+    return tuple(rules.stage_tasks.get(tier, ())) if rules is not None else STAGE_TASKS.get(tier, ())
+
+
+def stage_progress(tier: int, events: list[EventRow], *, rules=None) -> list[TaskProgress]:
     out = []
-    for task in STAGE_TASKS.get(tier, ()):
+    for task in stage_tasks_for(tier, rules=rules):
         done = _done(task, events)
         out.append(TaskProgress(task.key, task.kind, min(done, task.target), task.target, task.min_score, done >= task.target))
     return out
