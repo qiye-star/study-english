@@ -147,7 +147,7 @@ describe("rooms WebSocket events (recorded from the real server) match the proto
   it("the reducer folds the recorded session into a sensible room state", () => {
     let s = initialRoomState();
     s = roomReducer(s, { type: "assist", requestId: "r1", text: "I like 巧克力" });
-    s = roomReducer(s, { type: "say", pending: { clientId: "c1", text: "I like chocolate.", assistId: null } });
+    s = roomReducer(s, { type: "say", pending: { clientId: "c1", text: "I like chocolate.", assistId: null, seq: null } });
     const order = ["welcome", "message_system", "assist_reply", "ack", "message_text", "ai_typing", "message_ai_answer", "presence", "room_update", "notice", "error", "pong"];
     for (const name of order) s = roomReducer(s, { type: "event", event: parseRoomEvent(JSON.stringify(C.ws[name]))! });
     expect(s.status).toBe("live");

@@ -1,12 +1,17 @@
 import type { RoomEvent, RoomInfo, RoomMemberInfo, RoomMessage } from "./protocol";
 
-export interface PendingSay { clientId: string; text: string; assistId: string | null }
+/** 已发出、还没在列表里看到的消息。seq 来自 ack:消息本身(广播/补发)到达前气泡一直保留,断线重连时据 seq 为空判断要重发。 */
+export interface PendingSay { clientId: string; text: string; assistId: string | null; seq: number | null }
 export interface AssistEntry { requestId: string | null; request: string; reply: RoomMessage | null; status: "waiting" | "done" | "failed"; error: string | null }
 export type RoomStatus = "connecting" | "live" | "reconnecting" | "closed";
 export interface RoomState {
   status: RoomStatus; closeReason: string | null; room: RoomInfo | null; me: { userId: number; role: "owner" | "member" } | null;
   members: RoomMemberInfo[]; messages: RoomMessage[]; lastSeq: number; truncated: boolean; pending: PendingSay[];
   aiTyping: number[]; assist: AssistEntry[]; notice: string | null; error: string | null;
+  /** welcome 时房间的最新 seq:更大的才是实时到达的消息(其余是补发) */
+  liveFrom: number;
+  /** 最近一条实时到达的、别人发的消息:只给读屏播报用 */
+  announce: RoomMessage | null;
 }
 export type RoomAction =
   | { type: "status"; status: RoomStatus; reason?: string }
@@ -21,7 +26,7 @@ export type RoomAction =
 
 export const initialRoomState = (): RoomState => ({
   status: "connecting", closeReason: null, room: null, me: null, members: [], messages: [], lastSeq: 0, truncated: false,
-  pending: [], aiTyping: [], assist: [], notice: null, error: null,
+  pending: [], aiTyping: [], assist: [], notice: null, error: null, liveFrom: 0, announce: null,
 });
 
 /** 公共消息按 seq 去重、升序;私聊消息(助手)从不进入公共列表。 */
@@ -57,7 +62,10 @@ function pairReplayedReply(assist: AssistEntry[], m: RoomMessage): AssistEntry[]
 function onEvent(s: RoomState, e: RoomEvent): RoomState {
   switch (e.type) {
     case "welcome":
+      // 补发被截断(只给最新一页):旧列表与新页之间会有空洞,清空后从最新一页重新开始,「加载更早」才能补齐。
+      // 「AI 正在输入」不随补发重放:清空,补发里的 ai_answer / ai_status 会给出最终状态。
       return { ...s, status: "live", room: e.room, me: e.me, members: e.members, truncated: e.truncated,
+        messages: e.truncated ? [] : s.messages, aiTyping: [], liveFrom: e.lastSeq,
         assist: s.assist.length ? s.assist : historyEntries(e.assistHistory) };
     case "message": {
       const m = e.message;
@@ -67,10 +75,14 @@ function onEvent(s: RoomState, e: RoomEvent): RoomState {
         aiTyping = aiTyping.filter((x) => x !== m.replyTo);
         messages = messages.map((x) => (x.seq === m.replyTo ? { ...x, aiStatus: "done" as const } : x));
       }
-      return { ...s, messages, aiTyping, assist: pairReplayedReply(s.assist, m), lastSeq: Math.max(s.lastSeq, m.seq) };
+      const pending = s.pending.some((p) => p.seq === m.seq) ? s.pending.filter((p) => p.seq !== m.seq) : s.pending;
+      const live = m.lane === "public" && m.seq > s.liveFrom && m.kind !== "system" && !(m.sender.kind === "user" && m.sender.id === s.me?.userId);
+      return { ...s, messages, aiTyping, pending, announce: live ? m : s.announce, assist: pairReplayedReply(s.assist, m), lastSeq: Math.max(s.lastSeq, m.seq) };
     }
     case "ack":
-      return { ...s, pending: s.pending.filter((p) => p.clientId !== e.clientId), lastSeq: Math.max(s.lastSeq, e.seq) };
+      // 不推进 lastSeq:ack 先于消息本身(以及别人更早的消息)到达,这时断线会让补发跳过它们
+      if (s.messages.some((m) => m.seq === e.seq)) return { ...s, pending: s.pending.filter((p) => p.clientId !== e.clientId) };
+      return { ...s, pending: s.pending.map((p) => (p.clientId === e.clientId ? { ...p, seq: e.seq } : p)) };
     case "presence":
       return { ...s, members: e.members };
     case "ai_typing":

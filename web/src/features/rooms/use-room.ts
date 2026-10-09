@@ -27,9 +27,20 @@ export function useRoom(roomId: string) {
       getTicket: () => roomTicket(api, roomId),
       url: (ticket) => roomWsUrl(ticket, window.location),
       lastSeq: () => stateRef.current.lastSeq,
-      onEvent: (event) => { if (!disposed) dispatch({ type: "event", event }); },
+      onEvent: (event) => {
+        if (disposed) return;
+        dispatch({ type: "event", event });
+        // 断线前没拿到 ack 的消息:用原 client_id 重发,服务端 5 分钟内去重并回原来的 ack(spec §5.7)
+        if (event.type === "welcome") {
+          for (const p of stateRef.current.pending) {
+            const frame = p.seq === null ? encodeSay(p) : null;
+            if (frame) socket.send(frame);
+          }
+        }
+      },
       onStatus: (status, reason) => { if (!disposed) dispatch({ type: "status", status, reason }); },
-      isTerminalTicketError: (err) => err instanceof ApiError && (err.status === 404 || err.status === 403),
+      // 403 = 被移出房间(Removed from room);404 = 不存在或已结束
+      isTerminalTicketError: (err) => err instanceof ApiError && (err.status === 403 ? "kicked" : err.status === 404),
     });
     socketRef.current = socket;
     socket.connect();
@@ -65,7 +76,7 @@ export function useRoom(roomId: string) {
     const clientId = newId();
     const frame = encodeSay({ clientId, text, assistId });
     if (!frame || !socketRef.current?.send(frame)) return false;
-    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId } });
+    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId, seq: null } });
     return true;
   }, []);
 
