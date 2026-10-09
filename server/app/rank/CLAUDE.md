@@ -11,13 +11,26 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4. Off 
 - `scenarios.json` + `scenarios.py` – promotion-match scenarios
 - `grading.py` – examiner/judge prompts, judge parsing, composite score, gates (pure)
 - `match.py` – promotion-match orchestration with injected transcribe/assess/LLM
+- `rules.py` – admin-publishable `RankRules` (pydantic, frozen), `DEFAULT_RULES` (= the constants above, pinned by
+  `tests/test_rank_rules.py`), `rules_from_settings` (v0), `validate_rules`, JSON round trip
+- `rules_store.py` – `rank_rules(app)` cache: `current()` (published version or v0), `for_version(n)` (LRU 8);
+  invalidated through `on_revision(app, "rank_rules", ...)`. Draft/publish lives in `app/admin/rank_rules_admin.py`
+
+## Rules threading (admin v2)
+- Every rank function takes keyword-only `rules=None`; `None` = the built-in constants + Settings (exactly v0).
+  `tiers/points/grading/scenarios` read `rules` by duck typing and never import `rules.py` (cycle).
+- `routers/rank.py` passes the published rules (or `None` for v0) to new work; a match is pinned to
+  `promotion_matches.rules_version` and later steps use that version's rules.
+- Prompts are `str.format` templates (`grading.EXAMINER_TEMPLATE` / `JUDGE_TEMPLATE`); the legacy output is pinned by
+  `tests/fixtures/rank_prompts_legacy.json`. Admin templates are validated (exact fields, no `!r`/format spec, `<learner>`).
+- Admin profile edits hold `ledger.user_lock(user_id)` across their commit; admin void/regrade check `match.is_busy`.
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`. Never `rooms`, `realtime`,
 `admin` or `routers` (enforced by `tests/test_architecture.py`). Endpoints: `app/routers/rank.py`.
 
 ## Tests
-`uv run pytest -q tests/test_rank_*.py`
+`uv run pytest -q tests/test_rank_*.py tests/test_admin_rank*.py`
 
 ## Pitfalls
 - Never log transcripts, prompts, judge output or user text; log kinds, ids and numbers.

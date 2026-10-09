@@ -3,7 +3,10 @@ MatchDeps so tests never reach a vendor. Never logs transcripts, prompts or judg
 
 Concurrency (review #1/#2): the DB allows one open match per user (partial unique index, migration 0007);
 turns, finish and abandon on one match run one at a time (`_claim`, single worker); the verdict is written with a
-compare-and-set on the status; a match whose from_tier no longer matches the profile is voided, never graded."""
+compare-and-set on the status; a match whose from_tier no longer matches the profile is voided, never graded.
+
+Rules (admin v2 §5.2): every entry point takes `rules=None` (a RankRules; None = built-in constants and Settings).
+start_match records `rules_version`; callers pass that version's rules to the later steps (the match is pinned)."""
 import logging
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -52,6 +55,11 @@ class MatchDeps:
     judge: Callable[[list[dict]], Awaitable[str]]
 
 
+def is_busy(match_id: str) -> bool:
+    """A /turns, /finish or /abandon on this match is in flight (admin void/regrade must not interleave)."""
+    return match_id in _busy
+
+
 def _user_turns(match: PromotionMatch) -> int:
     return sum(1 for t in match.turns if t["role"] == "user")
 
@@ -83,9 +91,10 @@ async def _void_if_stale(session: AsyncSession, match: PromotionMatch, profile: 
         raise MatchError("not_active")
 
 
-def _fail(profile: RankProfile, now: datetime, settings: Settings) -> None:
-    ledger.apply_state(profile, after_failed_match(ledger.state_of(profile)), now)
-    profile.cooldown_until = now + timedelta(minutes=settings.rank_match_cooldown_minutes)
+def _fail(profile: RankProfile, now: datetime, settings: Settings, rules=None) -> None:
+    ledger.apply_state(profile, after_failed_match(ledger.state_of(profile), rules=rules), now)
+    minutes = rules.match.cooldown_minutes if rules is not None else settings.rank_match_cooldown_minutes
+    profile.cooldown_until = now + timedelta(minutes=minutes)
 
 
 async def active_match(session: AsyncSession, user_id: int) -> PromotionMatch | None:
@@ -95,10 +104,10 @@ async def active_match(session: AsyncSession, user_id: int) -> PromotionMatch | 
 
 
 async def _expire_if_needed(session: AsyncSession, match: PromotionMatch, profile: RankProfile,
-                            now: datetime, settings: Settings) -> bool:
+                            now: datetime, settings: Settings, rules=None) -> bool:
     if match.status == ACTIVE and as_utc(match.expires_at) <= now:
         match.status, match.finished_at = "expired", now
-        _fail(profile, now, settings)
+        _fail(profile, now, settings, rules)
         await session.commit()
         return True
     if match.status == "grading_failed" and as_utc(match.expires_at) + GRADING_GRACE <= now:
@@ -109,12 +118,14 @@ async def _expire_if_needed(session: AsyncSession, match: PromotionMatch, profil
 
 
 async def start_match(session: AsyncSession, user_id: int, now: datetime, *, settings: Settings,
-                      offset_minutes: int, rng: random.Random) -> PromotionMatch:
-    profile = await ledger.sync(session, user_id, now, offset_minutes, settings.rank_daily_rp_cap)
+                      offset_minutes: int, rng: random.Random, rules=None,
+                      rules_version: int | None = None) -> PromotionMatch:
+    profile = await ledger.sync(session, user_id, now, offset_minutes, settings.rank_daily_rp_cap, rules=rules)
     current = await active_match(session, user_id)
-    if current is not None and not await _expire_if_needed(session, current, profile, now, settings):
+    # an expired leftover is failed with the current rules (its own version only matters for grading)
+    if current is not None and not await _expire_if_needed(session, current, profile, now, settings, rules):
         raise MatchError("in_progress")
-    status = await ledger.promotion_for(session, profile, now, settings)
+    status = await ledger.promotion_for(session, profile, now, settings, rules=rules)
     if status.state != "eligible":
         raise MatchError(status.state)
     from_tier = profile.tier
@@ -122,19 +133,21 @@ async def start_match(session: AsyncSession, user_id: int, now: datetime, *, set
     utc_day = day = usage.utc_day(now)  # attempts per UTC day, never the client's offset (review #8)
     if not await usage.consume(session, "rank_match_global", "*", utc_day, settings.rank_matches_global_daily):
         raise MatchError("global_cap")
-    if not await usage.consume(session, "rank_match", str(user_id), day, settings.rank_match_daily_attempts):
+    if not await usage.consume(session, "rank_match", str(user_id), day,
+                               await ledger.daily_attempts(session, user_id, now, settings, rules=rules)):
         await usage.refund(session, "rank_match_global", "*", utc_day)
         raise MatchError("no_attempts")
     recent = set((await session.scalars(select(PromotionMatch.scenario_key).where(PromotionMatch.user_id == user_id)
                                         .order_by(PromotionMatch.started_at.desc()).limit(RECENT_SCENARIOS))).all())
-    scenario = pick_scenario(target, recent, rng)
+    scenario = pick_scenario(target, recent, rng, rules=rules)
     attempts = await session.scalar(select(func.count()).select_from(PromotionMatch).where(
         PromotionMatch.user_id == user_id, PromotionMatch.to_tier == target))
     match = PromotionMatch(
         user_id=user_id, from_tier=from_tier, to_tier=target, scenario_key=scenario.key, status=ACTIVE,
-        turn_limit=grading.TURNS[target], turns=[{"role": "ai", "text": scenario.opener}],
-        threshold=grading.THRESHOLDS[target], attempt_no=int(attempts or 0) + 1, started_at=now,
-        expires_at=now + timedelta(minutes=settings.rank_match_minutes))
+        turn_limit=grading.turns_for(target, rules=rules), turns=[{"role": "ai", "text": scenario.opener}],
+        threshold=grading.threshold_for(target, rules=rules), attempt_no=int(attempts or 0) + 1, started_at=now,
+        expires_at=now + timedelta(minutes=rules.match.match_minutes if rules is not None else settings.rank_match_minutes),
+        rules_version=rules_version)
     session.add(match)
     try:
         await session.commit()
@@ -148,15 +161,15 @@ async def start_match(session: AsyncSession, user_id: int, now: datetime, *, set
 
 
 async def add_turn(session: AsyncSession, deps: MatchDeps, match: PromotionMatch, profile: RankProfile,
-                   wav: bytes, now: datetime, settings: Settings) -> dict:
+                   wav: bytes, now: datetime, settings: Settings, *, rules=None) -> dict:
     async with _claim(session, match, profile):
-        return await _add_turn(session, deps, match, profile, wav, now, settings)
+        return await _add_turn(session, deps, match, profile, wav, now, settings, rules)
 
 
 async def _add_turn(session: AsyncSession, deps: MatchDeps, match: PromotionMatch, profile: RankProfile,
-                    wav: bytes, now: datetime, settings: Settings) -> dict:
+                    wav: bytes, now: datetime, settings: Settings, rules=None) -> dict:
     await _void_if_stale(session, match, profile, now)
-    if await _expire_if_needed(session, match, profile, now, settings):
+    if await _expire_if_needed(session, match, profile, now, settings, rules):
         raise MatchError("expired")
     if match.status != ACTIVE or _user_turns(match) >= match.turn_limit:
         raise MatchError("not_active")
@@ -164,9 +177,11 @@ async def _add_turn(session: AsyncSession, deps: MatchDeps, match: PromotionMatc
     if pcm is None:
         raise MatchError("bad_audio")
     seconds = len(pcm) / PCM_BYTES_PER_SECOND
-    if seconds < grading.MIN_SECONDS:
+    min_seconds, max_seconds = ((rules.match.min_seconds, rules.match.max_seconds) if rules is not None
+                                else (grading.MIN_SECONDS, grading.MAX_SECONDS))
+    if seconds < min_seconds:
         raise MatchError("too_short")
-    if seconds > grading.MAX_SECONDS:
+    if seconds > max_seconds:
         raise MatchError("too_long")
     try:
         transcript = (await deps.transcribe(wav)).strip()[:MAX_TRANSCRIPT]
@@ -187,9 +202,10 @@ async def _add_turn(session: AsyncSession, deps: MatchDeps, match: PromotionMatc
     done = index == match.turn_limit
     ai_line = None
     if not done:
-        scenario = scenario_by_key(match.scenario_key)
+        scenario = scenario_by_key(match.scenario_key, rules=rules)
         try:
-            ai_line = (await deps.examiner(grading.examiner_messages(scenario, match.to_tier, [*match.turns, turn])))[:MAX_AI_LINE]
+            ai_line = (await deps.examiner(grading.examiner_messages(scenario, match.to_tier, [*match.turns, turn],
+                                                                     rules=rules)))[:MAX_AI_LINE]
         except LlmUnavailable:
             raise MatchError("upstream") from None
     match.turns = [*match.turns, turn, *([{"role": "ai", "text": ai_line}] if ai_line else [])]
@@ -197,9 +213,9 @@ async def _add_turn(session: AsyncSession, deps: MatchDeps, match: PromotionMatc
     return {"turn_index": index, "transcript": transcript, "ai_line": ai_line, "done": done}
 
 
-async def _judge_once(deps: MatchDeps, match: PromotionMatch) -> grading.Judge:
-    scenario = scenario_by_key(match.scenario_key)
-    messages = grading.judge_messages(scenario, match.to_tier, match.turns)
+async def _judge_once(deps: MatchDeps, match: PromotionMatch, rules=None) -> grading.Judge:
+    scenario = scenario_by_key(match.scenario_key, rules=rules)
+    messages = grading.judge_messages(scenario, match.to_tier, match.turns, rules=rules)
     for _ in range(2):
         try:
             return grading.parse_judge(await deps.judge(messages), scenario.functions)
@@ -216,16 +232,16 @@ def _facts(match: PromotionMatch) -> list[grading.TurnFacts]:
 
 
 async def finish_match(session: AsyncSession, deps: MatchDeps, match: PromotionMatch, profile: RankProfile,
-                       now: datetime, settings: Settings) -> dict:
+                       now: datetime, settings: Settings, *, rules=None) -> dict:
     async with _claim(session, match, profile):
-        return await _finish(session, deps, match, profile, now, settings)
+        return await _finish(session, deps, match, profile, now, settings, rules)
 
 
 async def _finish(session: AsyncSession, deps: MatchDeps, match: PromotionMatch, profile: RankProfile,
-                  now: datetime, settings: Settings) -> dict:
+                  now: datetime, settings: Settings, rules=None) -> dict:
     if match.status not in OPEN:
         raise MatchError("not_active")
-    if await _expire_if_needed(session, match, profile, now, settings):
+    if await _expire_if_needed(session, match, profile, now, settings, rules):
         raise MatchError("expired")
     await _void_if_stale(session, match, profile, now)
     if _user_turns(match) < match.turn_limit:
@@ -234,7 +250,7 @@ async def _finish(session: AsyncSession, deps: MatchDeps, match: PromotionMatch,
     match.grade_attempts = attempt
     await session.commit()
     try:
-        judge = await _judge_once(deps, match)
+        judge = await _judge_once(deps, match, rules)
     except MatchError:
         if attempt >= MAX_GRADE_ATTEMPTS:
             match.status, match.finished_at = "expired", now  # no penalty: the failure is ours
@@ -243,10 +259,11 @@ async def _finish(session: AsyncSession, deps: MatchDeps, match: PromotionMatch,
         await session.commit()
         raise
     facts = _facts(match)
-    result = grading.verdict(judge, facts, match.to_tier)
-    if grading.is_borderline(result.total, result.threshold):
+    result = grading.verdict(judge, facts, match.to_tier, rules=rules)
+    if grading.is_borderline(result.total, result.threshold, rules=rules):
         try:
-            result = grading.verdict(grading.average(judge, await _judge_once(deps, match)), facts, match.to_tier)
+            result = grading.verdict(grading.average(judge, await _judge_once(deps, match, rules)), facts, match.to_tier,
+                                     rules=rules)
         except MatchError:
             pass  # keep the first verdict
     final = "passed" if result.passed else "failed"
@@ -264,7 +281,7 @@ async def _finish(session: AsyncSession, deps: MatchDeps, match: PromotionMatch,
         profile.tier_started_at, profile.cooldown_until = now, None
         match.status = "passed"
     else:
-        _fail(profile, now, settings)
+        _fail(profile, now, settings, rules)
         match.status = "failed"
     match.total, match.finished_at = result.total, now
     match.result = grading.verdict_out(result) | {
@@ -276,18 +293,18 @@ async def _finish(session: AsyncSession, deps: MatchDeps, match: PromotionMatch,
 
 
 async def abandon_match(session: AsyncSession, match: PromotionMatch, profile: RankProfile, now: datetime,
-                        settings: Settings) -> None:
+                        settings: Settings, *, rules=None) -> None:
     async with _claim(session, match, profile):
         if match.status not in OPEN:
             raise MatchError("not_active")
         match.status, match.finished_at = "abandoned", now
         if match.from_tier == profile.tier:  # a stale match is closed without penalising the new tier
-            _fail(profile, now, settings)
+            _fail(profile, now, settings, rules)
         await session.commit()
 
 
-def match_out(match: PromotionMatch) -> dict:
-    s = scenario_by_key(match.scenario_key)
+def match_out(match: PromotionMatch, *, rules=None) -> dict:
+    s = scenario_by_key(match.scenario_key, rules=rules)
     return {
         "id": match.id, "status": match.status, "from_tier": tier_key(match.from_tier), "to_tier": tier_key(match.to_tier),
         "scenario": {"key": s.key, "title_zh": s.title_zh, "title_en": s.title_en, "brief_zh": s.brief_zh,

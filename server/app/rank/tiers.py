@@ -38,18 +38,19 @@ class RankState:
     stars: int = 0
 
 
-def division_rp(tier: int) -> int:
-    return TIERS[tier].division_rp
+def division_rp(tier: int, *, rules=None) -> int:
+    """`rules` (admin v2, plan P-6): a RankRules read by duck typing; None = the TIERS table."""
+    return (rules.tiers[tier] if rules is not None else TIERS[tier]).division_rp
 
 
 def tier_key(index: int) -> str:
     return TIERS[index].key
 
 
-def add_rp(state: RankState, points: int) -> RankState:
+def add_rp(state: RankState, points: int, *, rules=None) -> RankState:
     if points <= 0:
         return state
-    size = division_rp(state.tier)
+    size = division_rp(state.tier, rules=rules)
     if state.tier == MASTER:
         total = state.rp + points
         return replace(state, rp=total % size, stars=state.stars + total // size)
@@ -62,8 +63,16 @@ def add_rp(state: RankState, points: int) -> RankState:
     return replace(state, division=division, rp=rp)
 
 
-def at_gate(state: RankState) -> bool:
-    return state.tier < MASTER and state.division == 1 and state.rp >= division_rp(state.tier)
+def clamp_rp(state: RankState, *, rules=None) -> RankState:
+    """After division_rp was lowered (admin v2 §5.2): cut rp to the new size (master: below one star). Never rolls
+    excess points into a division or star."""
+    size = division_rp(state.tier, rules=rules)
+    limit = size - 1 if state.tier == MASTER else size
+    return state if state.rp <= limit else replace(state, rp=limit)
+
+
+def at_gate(state: RankState, *, rules=None) -> bool:
+    return state.tier < MASTER and state.division == 1 and state.rp >= division_rp(state.tier, rules=rules)
 
 
 def promote(state: RankState) -> RankState:
@@ -73,8 +82,9 @@ def promote(state: RankState) -> RankState:
     return RankState(tier=tier, division=0 if tier == MASTER else 3, rp=0, stars=0)
 
 
-def after_failed_match(state: RankState) -> RankState:
-    return replace(state, rp=min(state.rp, int(division_rp(state.tier) * FAIL_KEEP)))
+def after_failed_match(state: RankState, *, rules=None) -> RankState:
+    keep = rules.match.fail_keep if rules is not None else FAIL_KEEP
+    return replace(state, rp=min(state.rp, int(division_rp(state.tier, rules=rules) * keep)))
 
 
 @dataclass(frozen=True)
