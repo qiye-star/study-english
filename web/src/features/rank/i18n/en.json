@@ -1,14 +1,37 @@
-{
-  "web": {
-    "rank": {
-      "title": "Rank",
-      "disabled": "Rank is not enabled on this server.",
-      "match": {
-        "title": "Promotion match"
-      },
-      "achievements": {
-        "title": "Achievements"
-      }
-    }
-  }
-}
+{ "web": { "rank": {
+  "title": "Rank", "disabled": "Rank is not enabled on this server.",
+  "tiers": { "bronze": "Bronze", "silver": "Silver", "gold": "Gold", "platinum": "Platinum", "diamond": "Diamond", "star": "Star", "master": "Master" },
+  "cefr": "CEFR {{level}}",
+  "card": { "progress": "{{rp}}/{{size}} RP", "toGate": "{{count}} RP to the promotion gate", "atGate": "At the promotion gate", "eligible": "Promotion match ready", "open": "View rank" },
+  "stars": "{{count}} stars",
+  "tasks": { "title": "Stage tasks", "assess": "Read {{target}} sentences", "assessMin": "Read {{target}} sentences scoring {{minScore}}+", "chat_turns": "{{target}} chat turns", "voice_turns": "{{target}} voice turns", "vocab_reviews": "Review words {{target}} times", "active_days": "Practise on {{target}} days", "progress": "{{done}}/{{target}}" },
+  "promotion": { "title": "Promotion match", "target": "Promote to {{tier}}", "start": "Start promotion match", "resume": "Resume promotion match", "attemptsLeft": "{{count}} attempts left today",
+    "locked_rp": "Fill this tier's RP to unlock", "locked_tasks": "Finish all stage tasks to unlock", "cooldown": "Cooling down, try again in {{time}}",
+    "no_attempts": "No attempts left today", "max_tier": "You are a Master", "unavailable": "Promotion matches are not available on this server", "active": "You have a promotion match in progress" },
+  "season": { "title": "Season {{id}}", "left": "{{days}} days left", "points": "Season RP {{points}}", "preseason": "Preseason" },
+  "recent": { "title": "Recent RP", "assessment": "Read-aloud", "voice_turn": "Voice turn", "chat_turn": "Chat turn", "vocab_review": "Word review", "active_day": "Active day", "streak_7": "7-day streak", "stage_task": "Stage task done", "other": "Practice" },
+  "achievementsLink": "Achievements", "newAchievements": "{{count}} new achievements unlocked",
+  "match": { "title": "Promotion match", "turn": "Turn {{n}}/{{total}}", "timeLeft": "{{time}} left", "briefTitle": "Scenario", "goals": "Your goals", "target": "Target {{tier}}",
+    "rules": "Speak every answer, no typing: {{turns}} turns within {{minutes}} minutes, 1.5–30 seconds each.", "begin": "Begin", "replay": "Replay",
+    "showText": "Show text", "hideText": "Hide text", "hold": "Hold to talk", "listening": "Listening…", "grading": "Grading…",
+    "partner": "Partner", "speaking": "speaking",
+    "abandon": "Give up", "abandonConfirm": "Giving up counts as a failed attempt. Continue?", "retry": "Retry", "ended": "This match has ended", "you": "You" },
+  "result": { "passed": "Promoted", "failed": "Not this time", "points": "pts", "passMark": "pass mark {{threshold}}", "score": "{{total}} / pass mark {{threshold}}",
+    "scores": "Scores", "notes": "Feedback", "next": "Next",
+    "dimensions": { "task": "Task", "accuracy": "Accuracy", "range": "Range", "interaction": "Interaction", "speech": "Pronunciation & fluency" },
+    "noSpeech": "Pronunciation was not scored", "goalsMet": "Goals met", "strengths": "Went well", "improve": "To improve", "drill": "Practise this", "practiceDrill": "Practise it",
+    "gates": { "task_low": "Not enough of the task done", "zero_dimension": "One dimension scored 0", "not_english": "Too little English", "echo": "A turn repeated the partner" },
+    "cooldown": "Try again in {{time}}", "cooldownTitle": "Cooling down", "backHome": "Back to rank" },
+  "achievements": { "title": "Achievements", "unlocked": "Unlocked {{date}}", "locked": "Locked",
+    "groups": { "streak": "Streak", "rank": "Rank", "speech": "Speech", "chat": "Chat", "vocab": "Vocabulary", "rooms": "Rooms", "season": "Season" },
+    "items": { "streak_3": "Three in a row", "streak_7": "Full week", "streak_30": "Regular", "streak_100": "Hundred days", "first_promotion": "First promotion", "first_try": "First try",
+      "tier_gold": "Road to gold", "tier_diamond": "Diamond heart", "tier_master": "Master", "pron_90": "Crystal clear", "pron_85_x20": "Steady", "chat_100": "Chatterbox",
+      "vocab_100": "Review habit", "room_first": "Newcomer", "room_assisted_10": "Put it to use", "season_climber": "Season climber", "season": "S{{id}} {{tier}}" },
+    "conditions": { "streak_3": "3-day streak", "streak_7": "7-day streak", "streak_30": "30-day streak", "streak_100": "100-day streak",
+      "first_promotion": "Pass a promotion match", "first_try": "Pass a promotion match on the first try", "tier_gold": "Reach Gold", "tier_diamond": "Reach Diamond", "tier_master": "Reach Master",
+      "pron_90": "Score 90+ on one sentence", "pron_85_x20": "Score 85+ on 20 sentences", "chat_100": "100 chat turns", "vocab_100": "Review words 100 times",
+      "room_first": "Join a practice room", "room_assisted_10": "Send 10 assistant-polished sentences", "season_climber": "Get promoted this season", "season": "Highest tier at season end" } },
+  "errors": { "notEligible": "You can't start a promotion match yet", "cooldown": "Cooling down, try again later", "noAttempts": "No attempts left today", "inProgress": "A promotion match is already in progress",
+    "unavailable": "Promotion matches are unavailable", "dailyLimit": "Today's matches are full, come back tomorrow", "expired": "This match timed out", "notActive": "This match has ended",
+    "tooShort": "Too short, speak for at least 1.5 seconds", "tooLong": "A turn can be 30 seconds at most", "badAudio": "The recording could not be read, try again", "upstream": "Speech service is busy, try again", "grading": "Grading failed, try again" }
+} } }
