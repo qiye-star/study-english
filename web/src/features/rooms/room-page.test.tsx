@@ -304,7 +304,7 @@ describe("RoomPage", () => {
   });
 
   it("recovers voice transcripts that finished while the socket was down (review M1)", async () => {
-    const pendingVoice = { duration_ms: 3000, status: "pending", transcript: null, lang: null, translation: null, translation_status: null, attempts: 1, audio: true };
+    const pendingVoice = { duration_ms: 3000, status: "pending", transcript: null as string | null, lang: null as string | null, translation: null as string | null, translation_status: null as string | null, attempts: 1, audio: true };
     const mineVoice = (voice: object, text = "") => user(6, text, { kind: "voice", sender: { kind: "user", id: 11111111, name: "alice" }, voice });
     const mock = setup({ "GET /api/rooms/config": () => json(V2_CONFIG),
       "GET /api/rooms/r1/messages": () => json({ messages: [user(5, "hi"), mineVoice({ ...pendingVoice, status: "done", transcript: "Back again." }, "Back again.")] }) });

@@ -15,6 +15,7 @@ import { TextTranslation } from "./extras/text-translation";
 import { isMostlyNative, speakable } from "./extras/text-tools";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
+import { TranslateQueue } from "./voice/translate-queue";
 import { VoiceBubble } from "./voice/voice-bubble";
 import { describeSettingsChanges } from "./create/settings-message";
 import { fetchRoomsConfig, type RoomsConfig } from "./rooms-api";
@@ -52,7 +53,8 @@ export interface RoomMessageListProps {
   autoText: boolean;
   onLoadEarlier(): void; onReport(message: RoomMessage): void;
   onReact(seq: number, key: ReactionKey, on: boolean): void; onQuote(message: RoomMessage): void;
-  onTranslateVoice(seq: number): void; onRetryVoice(seq: number): void;
+  /** 返回 false = 没有连接,没发出去 */
+  onTranslateVoice(seq: number): boolean; onRetryVoice(seq: number): void;
 }
 
 /**
@@ -73,6 +75,10 @@ export const RoomMessageList = memo(function RoomMessageList({
   const [selected, setSelected] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const meId = state.me?.userId ?? null;
+  // 自动翻译共用一个队列:限速在服务端 20 次/分钟之下,只为进入视野的语音请求(review M3)
+  const translateRef = useRef(onTranslateVoice);
+  translateRef.current = onTranslateVoice;
+  const translateQueue = useMemo(() => new TranslateQueue((seq) => translateRef.current(seq)), []);
   const bySeq = useMemo(() => new Map(state.messages.map((m) => [m.seq, m])), [state.messages]);
   const jump = useCallback((seq: number) => {
     const el = rootRef.current?.querySelector<HTMLElement>(`[data-seq="${seq}"]`);
@@ -193,7 +199,7 @@ export const RoomMessageList = memo(function RoomMessageList({
             {!mine && <span className="block text-meta font-semibold text-ink-2">{name}</span>}
             {m.quote && <QuoteBlock quote={m.quote} onJump={jump} />}
             {voice ? (
-              <VoiceBubble message={m} mine={mine} roomId={roomId} autoText={autoText} onTranslate={onTranslateVoice} onRetry={onRetryVoice} />
+              <VoiceBubble message={m} mine={mine} roomId={roomId} autoText={autoText} onTranslate={onTranslateVoice} onRetry={onRetryVoice} queue={translateQueue} />
             ) : <MessageText text={m.text} />}
             {m.assisted && (
               <span className="mt-0.5 flex items-center gap-[3px] text-label font-semibold text-blue">

@@ -16,6 +16,7 @@
         "retry": "重试",
         "translating": "正在翻译…",
         "translateFailed": "翻译失败,可以再点一次翻译",
+        "translateStalled": "翻译没有完成",
         "trTag": "译",
         "trTagLong": "译文:",
         "noSpeech": "没听清,再说一次",

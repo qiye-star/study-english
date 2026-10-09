@@ -6,7 +6,31 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
 import type { RoomMessage, VoiceInfo } from "../protocol";
+import { TRANSLATE_STALL_MS } from "./translate-queue";
 import { VoiceBubble } from "./voice-bubble";
+
+/** IntersectionObserver stub: show(true) puts every observed bubble in view. */
+function stubIntersection() {
+  const observers: { cb: IntersectionObserverCallback; els: Element[] }[] = [];
+  class IO {
+    els: Element[] = [];
+    constructor(readonly cb: IntersectionObserverCallback) { observers.push(this); }
+    observe(el: Element) { this.els.push(el); }
+    unobserve() { /* noop */ }
+    disconnect() { this.els = []; }
+    takeRecords(): IntersectionObserverEntry[] { return []; }
+  }
+  vi.stubGlobal("IntersectionObserver", IO);
+  return {
+    show(visible: boolean) {
+      act(() => {
+        for (const o of observers) {
+          o.cb(o.els.map((target) => ({ target, isIntersecting: visible }) as IntersectionObserverEntry), o as unknown as IntersectionObserver);
+        }
+      });
+    },
+  };
+}
 
 /** rerender 也要带上 Provider:用 wrapper 而不是把 Provider 写进 ui */
 function renderWithProviders(ui: ReactElement, { api }: { api?: ApiClient } = {}) {
@@ -20,7 +44,7 @@ const message = (v: VoiceInfo): RoomMessage => ({ seq: 7, id: "m7", lane: "publi
 
 describe("VoiceBubble", () => {
   beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); });
-  afterEach(async () => { cleanup(); vi.restoreAllMocks(); localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+  afterEach(async () => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
 
   it("hides others' transcripts until asked and requests translation once", () => {
     const onTranslate = vi.fn();
@@ -34,32 +58,76 @@ describe("VoiceBubble", () => {
     expect(screen.getByText("正在翻译…")).toBeTruthy();
   });
 
-  it("auto text shows transcript and asks for the translation", () => {
-    const onTranslate = vi.fn();
+  it("auto text asks for the translation only once the bubble is in view (review M3)", () => {
+    const io = stubIntersection();
+    const onTranslate = vi.fn(() => true);
     const { rerender } = renderWithProviders(<VoiceBubble message={message(voice())} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
     expect(screen.getByText("I tried the new noodle place.")).toBeTruthy();
+    expect(onTranslate).not.toHaveBeenCalled(); // history far above the viewport costs nothing
+    io.show(true);
     expect(onTranslate).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("正在翻译…")).toBeTruthy();
     rerender(<VoiceBubble message={message(voice({ translationStatus: "pending" }))} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
     expect(onTranslate).toHaveBeenCalledTimes(1);
   });
 
   it("auto text asks for the translation once the transcript arrives", () => {
-    const onTranslate = vi.fn();
+    const io = stubIntersection();
+    const onTranslate = vi.fn(() => true);
     const pending = voice({ status: "pending", transcript: null, lang: null });
     const { rerender } = renderWithProviders(<VoiceBubble message={message(pending)} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
+    io.show(true);
     expect(screen.getByText("正在转文字…")).toBeTruthy();
     expect(onTranslate).not.toHaveBeenCalled();
     rerender(<VoiceBubble message={message(voice())} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
     expect(onTranslate).toHaveBeenCalledTimes(1);
   });
 
+  it("does not spin forever when the request could not be sent", () => {
+    const io = stubIntersection();
+    const onTranslate = vi.fn(() => false); // offline
+    renderWithProviders(<VoiceBubble message={message(voice())} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
+    io.show(true);
+    expect(onTranslate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("正在翻译…")).toBeNull();
+    expect(screen.getByText("翻译没有完成")).toBeTruthy();
+    onTranslate.mockReturnValue(true);
+    fireEvent.click(screen.getByTestId("room-voice-translate-retry"));
+    expect(onTranslate).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("正在翻译…")).toBeTruthy();
+  });
+
+  it("falls back to a retry when no answer arrives (rate limited or quota)", () => {
+    vi.useFakeTimers();
+    try {
+      const io = stubIntersection();
+      const onTranslate = vi.fn(() => true);
+      renderWithProviders(<VoiceBubble message={message(voice())} mine={false} roomId="r1" autoText onTranslate={onTranslate} onRetry={vi.fn()} />);
+      io.show(true);
+      expect(screen.getByText("正在翻译…")).toBeTruthy();
+      act(() => { vi.advanceTimersByTime(TRANSLATE_STALL_MS + 10); });
+      expect(screen.queryByText("正在翻译…")).toBeNull();
+      expect(screen.getByTestId("room-voice-translate-retry")).toBeTruthy();
+      expect(onTranslate).toHaveBeenCalledTimes(1); // no automatic loop
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("lets only the sender retry a failed transcription", () => {
     const onRetry = vi.fn();
     const failed = message(voice({ status: "failed", transcript: null }));
-    const { unmount } = renderWithProviders(<VoiceBubble message={failed} mine roomId="r1" autoText={false} onTranslate={vi.fn()} onRetry={onRetry} />);
+    const { unmount, rerender } = renderWithProviders(<VoiceBubble message={failed} mine roomId="r1" autoText={false} onTranslate={vi.fn()} onRetry={onRetry} />);
     expect(screen.getByText("转写失败")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(onRetry).toHaveBeenCalledWith(7);
+    // review m1: no double frames while the retry is in flight
+    expect(screen.getByRole("button", { name: "重试" })).toBeDisabled();
+    rerender(<VoiceBubble message={message(voice({ status: "failed", transcript: null, attempts: 2 }))} mine roomId="r1" autoText={false} onTranslate={vi.fn()} onRetry={onRetry} />);
+    expect(screen.getByRole("button", { name: "重试" })).not.toBeDisabled();
+    // after 3 attempts the button is gone (mockup V8: at most 3)
+    rerender(<VoiceBubble message={message(voice({ status: "failed", transcript: null, attempts: 3 }))} mine roomId="r1" autoText={false} onTranslate={vi.fn()} onRetry={onRetry} />);
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
     unmount();
     renderWithProviders(<VoiceBubble message={failed} mine={false} roomId="r1" autoText={false} onTranslate={vi.fn()} onRetry={onRetry} />);
     expect(screen.queryByRole("button", { name: "重试" })).toBeNull();

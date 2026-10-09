@@ -16,6 +16,7 @@
         "retry": "Retry",
         "translating": "Translating…",
         "translateFailed": "Translation failed. Tap Translate to try again.",
+        "translateStalled": "Translation didn't finish",
         "trTag": "Tr",
         "trTagLong": "Translation:",
         "noSpeech": "Didn't catch that. Try again.",
