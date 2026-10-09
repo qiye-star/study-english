@@ -96,7 +96,9 @@ docker compose exec server python -m app.admin.recover clear-overrides [--key K]
 docker compose exec server python -m app.admin.recover unlock <管理员名>           # 解除登录锁定
 docker compose exec server python -m app.admin.recover reset-totp <管理员名>       # 清除库内账号的 TOTP 与恢复码
 docker compose exec server python -m app.admin.recover revoke-sessions           # 所有管理员下线
-docker compose exec server python -m app.admin.recover rotate-key --old <旧密钥>  # 新密钥先写进 .env;任一值解不开则什么都不改
+docker compose exec server python -m app.admin.recover rotate-key                # 隐藏输入旧/新密钥;任一值解不开则什么都不改
+# 密钥不再走命令行参数(会进 shell 历史、ps 与 docker exec 日志):交互输入,或在容器环境里设置
+# OLD_SETTINGS_ENCRYPTION_KEY / NEW_SETTINGS_ENCRYPTION_KEY
 ```
 
 **维护模式**(「公告与维护」页或 `MAINTENANCE_MODE`):`read_only` 拒绝用户的写操作(网页顶部显示「暂时只能查看」横幅),`full` 让除管理端外的 API 全部返回 503(网页显示维护页);打开时房间连接以 1012 断开、新连接以 1013 拒绝。管理端永远可用。开启需要二次验证 + 理由 + 输入 `MAINTENANCE_MODE`;它和设置页走同一条写入路径(有修订、可在设置历史里撤销)。
