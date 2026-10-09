@@ -353,6 +353,10 @@ async def rooms_ws(websocket: WebSocket, ticket: str = ""):
     if not rt.hub.attach(room.id, conn):
         await sender.close(CLOSE_BUSY)
         return
+    if not await _still_member(rt, room.id, grant.user_id):  # kicked/closed before attach: nothing closed us
+        rt.hub.detach(room.id, conn)
+        await sender.close(CLOSE_NOT_FOUND)
+        return
     stage = "hello"
     try:
         hello = parse_client_message(await _receive_text(websocket, HELLO_TIMEOUT))
@@ -374,6 +378,14 @@ async def rooms_ws(websocket: WebSocket, ticket: str = ""):
     finally:
         rt.hub.detach(room.id, conn)
         rt.hub.spawn(_presence_quietly(rt, room.id))
+
+
+async def _still_member(rt: RoomsRuntime, room_id: str, user_id: int) -> bool:
+    try:
+        room, _member = await rt.store.membership(room_id, user_id)
+    except RoomError:
+        return False
+    return room.status == "open"
 
 
 async def _presence_quietly(rt: RoomsRuntime, room_id: str) -> None:

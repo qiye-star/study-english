@@ -151,6 +151,27 @@ def test_close_codes(rooms_client, monkeypatch):
         assert closed_code(wa) == 1012
 
 
+def test_kick_between_membership_check_and_attach_still_disconnects(rooms_client):
+    """Review #7: a kick that lands before hub.attach found no socket to close; the socket must not stay live."""
+    app, client = rooms_client
+    room, alice, bob, bob_id, ticket = setup_room(client)
+    rt = rooms_router.runtime(app)
+    real_membership, calls = rt.store.membership, []
+
+    async def racing_membership(room_id, user_id):
+        result = await real_membership(room_id, user_id)
+        if not calls:
+            calls.append(1)
+            await rt.store.kick(room_id, result[0].owner_id, bob_id, utcnow())  # the owner kicks right now
+        return result
+
+    t = ticket(bob)
+    rt.store.membership = racing_membership
+    with client.websocket_connect(f"/api/rooms/ws?ticket={t}") as wb:
+        assert closed_code(wb) == 4004
+    assert rt.hub.online(room["id"]) == set()
+
+
 def test_owner_close_notifies_and_disconnects_with_4004(rooms_client):
     app, client = rooms_client
     room, alice, bob, _, ticket = setup_room(client)
