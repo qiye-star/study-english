@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DICTIONARY_PROMPT, TRANSLATION_PROMPT, TRANSLATION_SYSTEM_PROMPT, extractPrompt, renderTemplate } from "./prompts";
 
-describe("prompts reused from enjoy/src/commands", () => {
+describe("prompts reused from enjoy/src/shared/commands", () => {
   it("extracts the desktop prompts", () => {
     expect(DICTIONARY_PROMPT.startsWith("You are an {learning_language}-{native_language} dictionary.")).toBe(true);
     expect(DICTIONARY_PROMPT).toContain('"context_translation": "translation of the context in {native_language}"');

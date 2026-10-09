@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@renderer/components/ui";
-import { LANGUAGES } from "@/constants";
+import { LANGUAGES } from "@shared/constants";
 import { resetTtsVoice } from "@renderer/components/misc/tts-form";
 
 export const ConversationFormTTS = (props: {

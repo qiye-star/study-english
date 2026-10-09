@@ -24,7 +24,7 @@ function guardEnjoyDeps(): Plugin {
     async resolveId(source, importer, options) {
       if (!importer || !posix(importer).includes("/enjoy/src/")) return null;
       const bare = /^(@[\w.-]+\/)?[\w.-]/.test(source) && !path.isAbsolute(source);
-      if (!bare || source.startsWith("@/") || source.startsWith("@renderer/") || source.startsWith("~/")) return null;
+      if (!bare || source.startsWith("@/") || source.startsWith("@renderer/") || source.startsWith("@shared/") || source.startsWith("~/")) return null;
       const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
       if (resolved && posix(resolved.id).includes("/enjoy/node_modules/")) {
         this.error(`"${source}" (imported by ${posix(path.relative(repoRoot, importer))}) must be a dependency of web/package.json`);
@@ -57,6 +57,7 @@ export default defineConfig(({ mode }) => {
         { find: /^@bugsnag\/electron$/, replacement: shim("empty-module.ts") },
         { find: /^electron-log\/renderer$/, replacement: shim("empty-module.ts") },
         { find: /^@renderer\//, replacement: `${posix(enjoySrc)}/renderer/` },
+        { find: /^@shared\//, replacement: `${posix(enjoySrc)}/shared/` },
         { find: /^@\//, replacement: `${posix(enjoySrc)}/` },
         { find: /^~\//, replacement: `${posix(path.join(webRoot, "src"))}/` },
       ],

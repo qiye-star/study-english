@@ -1,47 +1,59 @@
 import { ipcMain, IpcMainEvent } from "electron";
 import { ChatMessage, Recording } from "@main/db/models";
 import { FindOptions, WhereOptions, Attributes, Op } from "sequelize";
-import log from "@main/logger";
 import { enjoyUrlToPath } from "@/main/utils";
 import fs from "fs-extra";
-import { ChatMessageStateEnum } from "@/types/enums";
+import { ChatMessageStateEnum } from "@/shared/types/enums";
+import { BaseHandler } from "./base-handler";
+import { withTransaction } from "@main/db/transaction";
 
-const logger = log.scope("db/handlers/chats-handler");
+class ChatMessagesHandler extends BaseHandler {
+  protected prefix = "chat-messages";
+  protected handlers = {
+    "find-all": this.findAll.bind(this),
+    "find-one": this.findOne.bind(this),
+    create: this.create.bind(this),
+    update: this.update.bind(this),
+    destroy: this.destroy.bind(this),
+  };
 
-class ChatMessagesHandler {
   private async findAll(
     _event: IpcMainEvent,
     options: FindOptions<Attributes<ChatMessage>> & { query?: string }
   ) {
-    const { query, where = {} } = options || {};
-    delete options.query;
-    delete options.where;
+    return this.handleRequest(_event, async () => {
+      const { query, where = {} } = options || {};
+      delete options.query;
+      delete options.where;
 
-    if (query) {
-      (where as any).content = {
-        [Op.like]: `%${query}%`,
-      };
-    }
-    const chatMessages = await ChatMessage.findAll({
-      where,
-      ...options,
+      if (query) {
+        (where as any).content = {
+          [Op.like]: `%${query}%`,
+        };
+      }
+      const chatMessages = await ChatMessage.findAll({
+        where,
+        ...options,
+      });
+
+      if (!chatMessages) {
+        return [];
+      }
+      return chatMessages.map((chatMessage) => chatMessage.toJSON());
     });
-
-    if (!chatMessages) {
-      return [];
-    }
-    return chatMessages.map((chatMessage) => chatMessage.toJSON());
   }
 
   private async findOne(
     _event: IpcMainEvent,
     where: WhereOptions<Attributes<ChatMessage>>
   ) {
-    const chatMessage = await ChatMessage.findOne({ where });
-    if (!chatMessage) {
-      return null;
-    }
-    return chatMessage.toJSON();
+    return this.handleRequest(_event, async () => {
+      const chatMessage = await ChatMessage.findOne({ where });
+      if (!chatMessage) {
+        return null;
+      }
+      return chatMessage.toJSON();
+    });
   }
 
   private async create(
@@ -50,39 +62,33 @@ class ChatMessagesHandler {
       recordingUrl?: string;
     }
   ) {
-    const { recordingUrl } = data;
-    delete data.recordingUrl;
+    return this.handleRequest(_event, async () => {
+      const { recordingUrl } = data;
+      delete data.recordingUrl;
 
-    const transaction = await ChatMessage.sequelize.transaction();
-    try {
-      const message = await ChatMessage.create(data);
+      return withTransaction(async (transaction) => {
+        const message = await ChatMessage.create(data, { transaction });
 
-      if (recordingUrl) {
-        // create new recording
-        const filePath = enjoyUrlToPath(recordingUrl);
-        const blob = fs.readFileSync(filePath);
-        const recording = await Recording.createFromBlob(
-          {
-            type: "audio/wav",
-            arrayBuffer: blob,
-          },
-          {
-            targetType: "ChatMessage",
-            targetId: message.id,
-          },
-          transaction
-        );
-        message.recording = recording;
-      }
+        if (recordingUrl) {
+          // create new recording
+          const filePath = enjoyUrlToPath(recordingUrl);
+          const blob = fs.readFileSync(filePath);
+          await Recording.createFromBlob(
+            {
+              type: "audio/wav",
+              arrayBuffer: blob,
+            },
+            {
+              targetType: "ChatMessage",
+              targetId: message.id,
+            },
+            transaction
+          );
+        }
 
-      await transaction.commit();
-
-      return (await message.reload()).toJSON();
-    } catch (error) {
-      await transaction.rollback();
-      logger.error(error);
-      throw error;
-    }
+        return (await message.reload()).toJSON();
+      });
+    });
   }
 
   private async update(
@@ -94,79 +100,59 @@ class ChatMessagesHandler {
       recordingUrl?: string;
     }
   ) {
-    const { recordingUrl } = data;
-    delete data.recordingUrl;
+    return this.handleRequest(_event, async () => {
+      const { recordingUrl } = data;
+      delete data.recordingUrl;
 
-    const message = await ChatMessage.findByPk(id);
-    if (!message) return;
+      const message = await ChatMessage.findByPk(id);
+      if (!message) return;
 
-    const transaction = await ChatMessage.sequelize.transaction();
+      return withTransaction(async (transaction) => {
+        if (recordingUrl) {
+          // destroy existing recording
+          await message.recording?.destroy({ transaction });
 
-    try {
-      if (recordingUrl) {
-        // destroy existing recording
-        await message.recording?.destroy({ transaction });
+          // create new recording
+          const filePath = enjoyUrlToPath(recordingUrl);
+          const blob = fs.readFileSync(filePath);
+          await Recording.createFromBlob(
+            {
+              type: "audio/wav",
+              arrayBuffer: blob,
+            },
+            {
+              targetType: "ChatMessage",
+              targetId: id,
+              referenceText: data.content,
+            },
+            transaction
+          );
+        } else if (message.recording) {
+          await message.recording.update(
+            {
+              referenceText: data.content,
+            },
+            { transaction }
+          );
+        }
 
-        // create new recording
-        const filePath = enjoyUrlToPath(recordingUrl);
-        const blob = fs.readFileSync(filePath);
-        await Recording.createFromBlob(
-          {
-            type: "audio/wav",
-            arrayBuffer: blob,
-          },
-          {
-            targetType: "ChatMessage",
-            targetId: id,
-            referenceText: data.content,
-          },
-          transaction
-        );
-      } else if (message.recording) {
-        await message.recording.update(
-          {
-            referenceText: data.content,
-          },
-          { transaction }
-        );
-      }
+        // update content
+        await message.update({ ...data }, { transaction });
 
-      // update content
-      await message.update({ ...data }, { transaction });
-
-      await transaction.commit();
-
-      return (await message.reload()).toJSON();
-    } catch (error) {
-      await transaction.rollback();
-      logger.error(error);
-      throw error;
-    }
+        return (await message.reload()).toJSON();
+      });
+    });
   }
 
   private async destroy(_event: IpcMainEvent, id: string) {
-    const message = await ChatMessage.findByPk(id);
-    if (!message) return;
+    return this.handleRequest(_event, async () => {
+      const message = await ChatMessage.findByPk(id);
+      if (!message) return;
 
-    await message.destroy();
+      await message.destroy();
 
-    return message.toJSON();
-  }
-
-  register() {
-    ipcMain.handle("chat-messages-find-all", this.findAll);
-    ipcMain.handle("chat-messages-find-one", this.findOne);
-    ipcMain.handle("chat-messages-create", this.create);
-    ipcMain.handle("chat-messages-update", this.update);
-    ipcMain.handle("chat-messages-destroy", this.destroy);
-  }
-
-  unregister() {
-    ipcMain.removeHandler("chat-messages-find-all");
-    ipcMain.removeHandler("chat-messages-find-one");
-    ipcMain.removeHandler("chat-messages-create");
-    ipcMain.removeHandler("chat-messages-update");
-    ipcMain.removeHandler("chat-messages-destroy");
+      return message.toJSON();
+    });
   }
 }
 

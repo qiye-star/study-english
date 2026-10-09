@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { WEB_API_URL, LANGUAGES, IPA_MAPPINGS } from "@/constants";
-import { Client } from "@/api";
+import { WEB_API_URL, LANGUAGES, IPA_MAPPINGS } from "@shared/constants";
+import { Client } from "@shared/api";
 import i18n from "@renderer/i18n";
 import ahoy from "ahoy.js";
 import { type Consumer } from "@rails/actioncable";
 import { DbProviderContext } from "@renderer/context";
-import { UserSettingKeyEnum } from "@/types/enums";
+import { UserSettingKeyEnum } from "@shared/types/enums";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -27,8 +27,7 @@ import {
 import { t } from "i18next";
 import { redirect } from "react-router-dom";
 import { Deposit } from "@renderer/components";
-import Bugsnag from "@bugsnag/electron";
-import BugsnagPluginReact from "@bugsnag/plugin-react";
+import { ConfigEvent } from "@shared/types/config.d";
 
 type AppSettingsProviderState = {
   webApi: Client;
@@ -108,26 +107,28 @@ export const AppSettingsProvider = ({
   const db = useContext(DbProviderContext);
 
   const fetchLanguages = async () => {
-    const language = await EnjoyApp.userSettings.get(
+    const language = await EnjoyApp.config.getUserSetting(
       UserSettingKeyEnum.LANGUAGE
     );
     setLanguage((language as "en" | "zh-CN") || "en");
     i18n.changeLanguage(language);
 
     const _nativeLanguage =
-      (await EnjoyApp.userSettings.get(UserSettingKeyEnum.NATIVE_LANGUAGE)) ||
-      "zh-CN";
+      (await EnjoyApp.config.getUserSetting(
+        UserSettingKeyEnum.NATIVE_LANGUAGE
+      )) || "zh-CN";
     setNativeLanguage(_nativeLanguage);
 
     const _learningLanguage =
-      (await EnjoyApp.userSettings.get(UserSettingKeyEnum.LEARNING_LANGUAGE)) ||
-      "en-US";
+      (await EnjoyApp.config.getUserSetting(
+        UserSettingKeyEnum.LEARNING_LANGUAGE
+      )) || "en-US";
     setLearningLanguage(_learningLanguage);
   };
 
   const switchLanguage = (language: "en" | "zh-CN") => {
-    EnjoyApp.userSettings
-      .set(UserSettingKeyEnum.LANGUAGE, language)
+    EnjoyApp.config
+      .setUserSetting(UserSettingKeyEnum.LANGUAGE, language)
       .then(() => {
         i18n.changeLanguage(language);
         setLanguage(language);
@@ -139,14 +140,14 @@ export const AppSettingsProvider = ({
     if (lang == learningLanguage) return;
 
     setNativeLanguage(lang);
-    EnjoyApp.userSettings.set(UserSettingKeyEnum.NATIVE_LANGUAGE, lang);
+    EnjoyApp.config.setUserSetting(UserSettingKeyEnum.NATIVE_LANGUAGE, lang);
   };
 
   const switchLearningLanguage = (lang: string) => {
     if (LANGUAGES.findIndex((l) => l.code == lang) < 0) return;
     if (lang == nativeLanguage) return;
 
-    EnjoyApp.userSettings.set(UserSettingKeyEnum.LEARNING_LANGUAGE, lang);
+    EnjoyApp.config.setUserSetting(UserSettingKeyEnum.LEARNING_LANGUAGE, lang);
     setLearningLanguage(lang);
   };
 
@@ -161,7 +162,9 @@ export const AppSettingsProvider = ({
   };
 
   const autoLogin = async () => {
-    const currentUser = await EnjoyApp.appSettings.getUser();
+    const currentUser = await EnjoyApp.config.getUserSetting(
+      UserSettingKeyEnum.PROFILE
+    );
     if (!currentUser) return;
 
     setUser(currentUser);
@@ -170,25 +173,21 @@ export const AppSettingsProvider = ({
   const login = async (user: UserType) => {
     if (!user?.id) return;
 
-    setUser(user);
-    if (user.accessToken) {
-      // Set current user to App settings
-      EnjoyApp.appSettings.setUser({ id: user.id, name: user.name });
-    }
+    console.log("login", user);
+    EnjoyApp.config.login(user);
   };
 
   const logout = () => {
-    setUser(null);
-    EnjoyApp.appSettings.setUser(null);
+    EnjoyApp.config.logout();
   };
 
   const fetchLibraryPath = async () => {
-    const dir = await EnjoyApp.appSettings.getLibrary();
+    const dir = await EnjoyApp.config.getLibrary();
     setLibraryPath(dir);
   };
 
   const setLibraryPathHandler = async (dir: string) => {
-    await EnjoyApp.appSettings.setLibrary(dir);
+    await EnjoyApp.config.setLibrary(dir);
     setLibraryPath(dir);
   };
 
@@ -206,13 +205,15 @@ export const AppSettingsProvider = ({
   };
 
   const setApiUrlHandler = async (url: string) => {
-    EnjoyApp.appSettings.setApiUrl(url).then(() => {
+    EnjoyApp.config.setApiUrl(url).then(() => {
       EnjoyApp.app.reload();
     });
   };
 
   const fetchRecorderConfig = async () => {
-    const config = await EnjoyApp.userSettings.get(UserSettingKeyEnum.RECORDER);
+    const config = await EnjoyApp.config.getUserSetting(
+      UserSettingKeyEnum.RECORDER
+    );
     if (config) {
       setRecorderConfig(config);
     } else {
@@ -228,16 +229,16 @@ export const AppSettingsProvider = ({
   };
 
   const setRecorderConfigHandler = async (config: RecorderConfigType) => {
-    return EnjoyApp.userSettings
-      .set(UserSettingKeyEnum.RECORDER, config)
+    return EnjoyApp.config
+      .setUserSetting(UserSettingKeyEnum.RECORDER, config)
       .then(() => {
         setRecorderConfig(config);
       });
   };
 
   const fetchVocabularyConfig = async () => {
-    EnjoyApp.userSettings
-      .get(UserSettingKeyEnum.VOCABULARY)
+    EnjoyApp.config
+      .getUserSetting(UserSettingKeyEnum.VOCABULARY)
       .then((config) => {
         setVocabularyConfig(config || { lookupOnMouseOver: true });
       })
@@ -248,7 +249,7 @@ export const AppSettingsProvider = ({
   };
 
   const setVocabularyConfigHandler = async (config: VocabularyConfigType) => {
-    await EnjoyApp.userSettings.set(UserSettingKeyEnum.VOCABULARY, config);
+    await EnjoyApp.config.setUserSetting(UserSettingKeyEnum.VOCABULARY, config);
     setVocabularyConfig(config);
   };
 
@@ -261,13 +262,49 @@ export const AppSettingsProvider = ({
     });
   };
 
-  useEffect(() => {
-    if (db.state === "connected") {
-      fetchLanguages();
-      fetchVocabularyConfig();
-      fetchRecorderConfig();
+  const handleConfigChange = (
+    _event: any,
+    state: {
+      type: ConfigEvent;
+      details: Record<string, any>;
     }
-  }, [db.state]);
+  ) => {
+    console.log("handleConfigChange", state);
+    switch (state.type) {
+      case ConfigEvent.APP_SETTINGS_CHANGED:
+        switch (state.details.key) {
+          case "apiUrl":
+            setApiUrl(state.details.value);
+            break;
+          case "library":
+            setLibraryPath(state.details.value);
+            break;
+          case "proxy":
+            setProxy(state.details.value);
+            break;
+        }
+        break;
+      case ConfigEvent.USER_SETTINGS_LOADED:
+        setUser(state.details.profile);
+        setRecorderConfig(state.details.recorder);
+        setVocabularyConfig(state.details.vocabulary);
+        setLanguage(state.details.language);
+        setNativeLanguage(state.details.nativeLanguage);
+        setLearningLanguage(state.details.learningLanguage);
+        break;
+      case ConfigEvent.USER_SETTINGS_UNLOADED:
+        setUser(null);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    fetchLanguages();
+    fetchVocabularyConfig();
+    fetchRecorderConfig();
+  }, [user]);
 
   useEffect(() => {
     autoLogin();
@@ -316,26 +353,12 @@ export const AppSettingsProvider = ({
   }, [webApi]);
 
   useEffect(() => {
-    if (!user) return;
+    EnjoyApp.config.onChange(handleConfigChange);
 
-    db.connect().then(async () => {
-      // Login via API, update profile to DB
-      if (user.accessToken) {
-        EnjoyApp.userSettings.set(UserSettingKeyEnum.PROFILE, user);
-      } else {
-        // Auto login from local settings, get full profile from DB
-        const profile = await EnjoyApp.userSettings.get(
-          UserSettingKeyEnum.PROFILE
-        );
-        setUser(profile);
-        EnjoyApp.appSettings.setUser({ id: profile.id, name: profile.name });
-      }
-    });
     return () => {
-      db.disconnect();
-      setUser(null);
+      EnjoyApp.config.removeChangeListener();
     };
-  }, [user?.id]);
+  }, []);
 
   return (
     <AppSettingsProviderContext.Provider

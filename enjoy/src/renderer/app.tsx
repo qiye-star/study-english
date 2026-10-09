@@ -14,10 +14,14 @@ import { Tooltip } from "react-tooltip";
 import { LookupWidget, TranslateWidget } from "./components";
 import Bugsnag from "@bugsnag/electron";
 import BugsnagPluginReact from "@bugsnag/plugin-react";
-import { Client } from "@/api";
-import { WEB_API_URL } from "@/constants";
+import { Client } from "@shared/api";
+import { WEB_API_URL } from "@shared/constants";
+import { useSettingsInit } from "./hooks/use-settings-init";
 
 function App() {
+  // Initialize settings
+  useSettingsInit();
+
   window.__ENJOY_APP__.app.isPackaged().then(async (isPackaged) => {
     if (!isPackaged) return;
     const client = new Client({

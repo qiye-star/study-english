@@ -47,6 +47,7 @@ export default defineConfig((env) => {
   const config: UserConfig = {
     build: {
       sourcemap: true,
+      outDir: `.vite/build`,
       lib: {
         entry: forgeConfigSelf.entry!,
         fileName: () => "[name].js",
@@ -84,7 +85,7 @@ export default defineConfig((env) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "@main": path.resolve(__dirname, "./src/main"),
-        "@commands": path.resolve(__dirname, "./src/commands"),
+        "@shared": path.resolve(__dirname, "./src/shared"),
       },
     },
   };

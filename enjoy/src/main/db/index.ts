@@ -1,5 +1,4 @@
 import { ipcMain } from "electron";
-import settings from "@main/settings";
 import { Sequelize } from "sequelize-typescript";
 import { Umzug, SequelizeStorage, Resolver, RunnableMigration } from "umzug";
 import {
@@ -20,8 +19,9 @@ import {
   Transcription,
   Video,
   UserSetting,
-} from "./models";
+} from "@main/db/models";
 import {
+  BaseHandler,
   audiosHandler,
   cacheObjectsHandler,
   chatAgentsHandler,
@@ -42,10 +42,10 @@ import {
 } from "./handlers";
 import os from "os";
 import path from "path";
-import { i18n } from "@main/i18n";
-import { UserSettingKeyEnum } from "@/types/enums";
-import log from "@main/logger";
+import log from "@main/services/logger";
 import fs from "fs-extra";
+import { config } from "@main/config";
+import { ConfigEvent } from "@shared/types/config.d";
 
 const __dirname = import.meta.dirname;
 const logger = log.scope("DB");
@@ -60,7 +60,15 @@ const db = {
   restore: async (backupFilePath: string) => {},
 };
 
-const handlers = [
+config.on(ConfigEvent.USER_LOGIN, async () => {
+  await db.connect();
+});
+
+config.on(ConfigEvent.USER_LOGOUT, async () => {
+  await db.disconnect();
+});
+
+const handlers: BaseHandler[] = [
   audiosHandler,
   cacheObjectsHandler,
   chatAgentsHandler,
@@ -92,9 +100,12 @@ db.connect = async () => {
     if (db.connection) {
       return;
     }
-    const dbPath = settings.dbPath();
+
+    const dbPath = config.dbPath();
     if (!dbPath) {
-      throw new Error("Db path is not ready");
+      throw new Error(
+        "Database path is not ready. Make sure user is set in config."
+      );
     }
 
     const sequelize = new Sequelize({
@@ -209,22 +220,22 @@ db.connect = async () => {
     logger.info("Vacuuming the database");
     await sequelize.query("VACUUM");
 
-    // initialize i18n
-    const language = (await UserSetting.get(
-      UserSettingKeyEnum.LANGUAGE
-    )) as string;
-    i18n(language);
+    // Don't initialize i18n with user settings here since they might not be loaded yet
+    // We'll do this after config.initialize() in main.ts
 
     // register handlers
-    logger.info(`Registering handlers`);
+    logger.info(`Registering ${handlers.length} handlers`);
     for (const handler of handlers) {
       handler.register();
     }
 
     db.connection = sequelize;
     logger.info("Database connection established");
+
+    config.loadUserSettings(UserSetting);
   } catch (err) {
     logger.error(err);
+    config.unloadUserSettings();
     throw err;
   } finally {
     db.isConnecting = false;
@@ -233,24 +244,26 @@ db.connect = async () => {
 
 db.disconnect = async () => {
   // unregister handlers
+  logger.info("Unregistering handlers");
   for (const handler of handlers) {
     handler.unregister();
   }
 
   await db.connection?.close();
   db.connection = null;
+  config.unloadUserSettings();
 };
 
 db.backup = async (options?: { force: boolean }) => {
   const force = options?.force ?? false;
 
-  const dbPath = settings.dbPath();
+  const dbPath = config.dbPath();
   if (!dbPath) {
     logger.error("Db path is not ready");
     return;
   }
 
-  const backupPath = path.join(settings.userDataPath(), "backup");
+  const backupPath = path.join(config.userDataPath(), "backup");
   fs.ensureDirSync(backupPath);
 
   const backupFiles = fs
@@ -286,7 +299,7 @@ db.backup = async (options?: { force: boolean }) => {
 };
 
 db.restore = async (backupFilePath: string) => {
-  const dbPath = settings.dbPath();
+  const dbPath = config.dbPath();
   if (!dbPath) {
     logger.error("Db path is not ready");
     return;
@@ -315,7 +328,7 @@ db.registerIpcHandlers = () => {
     if (db.isConnecting)
       return {
         state: "connecting",
-        path: settings.dbPath(),
+        path: config.dbPath(),
         error: null,
       };
 
@@ -323,14 +336,14 @@ db.registerIpcHandlers = () => {
       await db.connect();
       return {
         state: "connected",
-        path: settings.dbPath(),
+        path: config.dbPath(),
         error: null,
       };
     } catch (err) {
       return {
         state: "error",
         error: err.message,
-        path: settings.dbPath(),
+        path: config.dbPath(),
       };
     }
   });

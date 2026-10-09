@@ -1,6 +1,6 @@
 /**
- * 查词与翻译提示词复用桌面端原文:enjoy/src/commands/lookup.command.ts(DICITIONARY_PROMPT)
- * 与 enjoy/src/commands/translate.command.ts(SYSTEM_PROMPT、TRANSLATION_PROMPT)。
+ * 查词与翻译提示词复用桌面端原文:enjoy/src/shared/commands/lookup.command.ts(DICITIONARY_PROMPT)
+ * 与 enjoy/src/shared/commands/translate.command.ts(SYSTEM_PROMPT、TRANSLATION_PROMPT)。
  * 这两个文件依赖 @langchain 且常量未导出,因此只以 ?raw 读入源码文本并提取(不执行、不复制)。
  */
 import { lookupCommandSource as lookupSource, translateCommandSource as translateSource } from "~/shims/enjoy-sources";

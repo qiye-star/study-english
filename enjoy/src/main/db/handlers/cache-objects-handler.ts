@@ -3,20 +3,24 @@ import { CacheObject } from "@main/db/models";
 import fs from "fs-extra";
 import path from "path";
 import db from "@main/db";
-import settings from "@main/settings";
+import { config } from "@main/config";
+import { BaseHandler } from "./base-handler";
 
-class CacheObjectsHandler {
+class CacheObjectsHandler extends BaseHandler {
+  protected prefix = "cache-objects";
+  protected handlers = {
+    get: this.get.bind(this),
+    set: this.set.bind(this),
+    delete: this.delete.bind(this),
+    clear: this.clear.bind(this),
+    "write-file": this.writeFile.bind(this),
+  };
+
   private async get(event: IpcMainEvent, key: string) {
-    return CacheObject.get(key)
-      .then((value) => {
-        return value;
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
-      });
+    return this.handleRequest(event, async () => {
+      const value = await CacheObject.get(key);
+      return value;
+    });
   }
 
   private async set(
@@ -25,43 +29,24 @@ class CacheObjectsHandler {
     value: string | object,
     ttl?: number
   ) {
-    return CacheObject.set(key, value, ttl)
-      .then(() => {
-        return;
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
-      });
+    return this.handleRequest(event, async () => {
+      await CacheObject.set(key, value, ttl);
+      return true;
+    });
   }
 
   private async delete(event: IpcMainEvent, key: string) {
-    return CacheObject.destroy({ where: { key } })
-      .then(() => {
-        return;
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
-      });
+    return this.handleRequest(event, async () => {
+      await CacheObject.destroy({ where: { key } });
+    });
   }
 
   private async clear(event: IpcMainEvent) {
-    return CacheObject.destroy({ where: {} })
-      .then(() => {
-        db.connection.query("VACUUM");
-        return;
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
-      });
+    return this.handleRequest(event, async () => {
+      await CacheObject.destroy({ where: {} });
+      db.connection.query("VACUUM");
+      return true;
+    });
   }
 
   private async writeFile(
@@ -69,26 +54,12 @@ class CacheObjectsHandler {
     filename: string,
     data: ArrayBuffer
   ) {
-    const output = path.join(settings.cachePath(), filename);
-    fs.writeFileSync(output, Buffer.from(data));
+    return this.handleRequest(_event, async () => {
+      const output = path.join(config.cachePath(), filename);
+      fs.writeFileSync(output, Buffer.from(data));
 
-    return `enjoy://library/cache/${filename}`;
-  }
-
-  register() {
-    ipcMain.handle("cache-objects-get", this.get);
-    ipcMain.handle("cache-objects-set", this.set);
-    ipcMain.handle("cache-objects-delete", this.delete);
-    ipcMain.handle("cache-objects-clear", this.clear);
-    ipcMain.handle("cache-objects-write-file", this.writeFile);
-  }
-
-  unregister() {
-    ipcMain.removeHandler("cache-objects-get");
-    ipcMain.removeHandler("cache-objects-set");
-    ipcMain.removeHandler("cache-objects-delete");
-    ipcMain.removeHandler("cache-objects-clear");
-    ipcMain.removeHandler("cache-objects-write-file");
+      return `enjoy://library/cache/${filename}`;
+    });
   }
 }
 

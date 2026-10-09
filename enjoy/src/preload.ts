@@ -7,6 +7,7 @@ import {
   type AlignmentOptions,
   type RecognitionOptions,
 } from "echogarden/dist/api/API";
+import { ConfigEvent } from "@shared/types/config.d";
 
 contextBridge.exposeInMainWorld("__ENJOY_APP__", {
   app: {
@@ -260,38 +261,6 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     showErrorBox: (title: string, content: string) =>
       ipcRenderer.invoke("dialog-show-error-box", title, content),
   },
-  appSettings: {
-    get: (key: string) => {
-      return ipcRenderer.invoke("app-settings-get", key);
-    },
-    set: (key: string, value: any) => {
-      return ipcRenderer.invoke("app-settings-set", key, value);
-    },
-    getLibrary: () => {
-      return ipcRenderer.invoke("app-settings-get-library");
-    },
-    setLibrary: (library: string) => {
-      return ipcRenderer.invoke("app-settings-set-library", library);
-    },
-    getSessions: () => {
-      return ipcRenderer.invoke("app-settings-get-sessions");
-    },
-    getUser: () => {
-      return ipcRenderer.invoke("app-settings-get-user");
-    },
-    setUser: (user: UserType) => {
-      return ipcRenderer.invoke("app-settings-set-user", user);
-    },
-    getUserDataPath: () => {
-      return ipcRenderer.invoke("app-settings-get-user-data-path");
-    },
-    getApiUrl: () => {
-      return ipcRenderer.invoke("app-settings-get-api-url");
-    },
-    setApiUrl: (url: string) => {
-      return ipcRenderer.invoke("app-settings-set-api-url", url);
-    },
-  },
   userSettings: {
     get: (key: string) => {
       return ipcRenderer.invoke("user-settings-get", key);
@@ -299,6 +268,43 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     set: (key: string, value: any) => {
       return ipcRenderer.invoke("user-settings-set", key, value);
     },
+  },
+  config: {
+    // App settings
+    getLibrary: () => ipcRenderer.invoke("config-get-library"),
+    setLibrary: (library: string) =>
+      ipcRenderer.invoke("config-set-library", library),
+    getUser: () => ipcRenderer.invoke("config-get-user"),
+    setUser: (user: any) => ipcRenderer.invoke("config-set-user", user),
+    getUserDataPath: () => ipcRenderer.invoke("config-get-user-data-path"),
+    getApiUrl: () => ipcRenderer.invoke("config-get-api-url"),
+    setApiUrl: (url: string) => ipcRenderer.invoke("config-set-api-url", url),
+    getSessions: () => ipcRenderer.invoke("config-get-sessions"),
+
+    login: (user?: any) => ipcRenderer.invoke("config-login", user),
+    logout: () => ipcRenderer.invoke("config-logout"),
+
+    onChange: (
+      callback: (
+        event: IpcRendererEvent,
+        state: {
+          type: ConfigEvent;
+          details: Record<string, any>;
+        }
+      ) => void
+    ) => ipcRenderer.on("config-on-change", callback),
+    removeChangeListener: () => {
+      ipcRenderer.removeAllListeners("config-on-change");
+    },
+
+    // User settings
+    getUserSetting: (key: string) =>
+      ipcRenderer.invoke("config-get-user-setting", key),
+    setUserSetting: (key: string, value: any) =>
+      ipcRenderer.invoke("config-set-user-setting", key, value),
+
+    // Full config
+    get: () => ipcRenderer.invoke("config-get"),
   },
   path: {
     join: (...paths: string[]) => {
