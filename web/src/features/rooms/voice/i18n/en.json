@@ -13,6 +13,8 @@
         "pending": "Transcribing…",
         "empty": "Didn't catch that",
         "failed": "Transcription failed",
+        "resend": "Resend",
+        "discard": "Discard",
         "retry": "Retry",
         "translating": "Translating…",
         "translateFailed": "Translation failed. Tap Translate to try again.",

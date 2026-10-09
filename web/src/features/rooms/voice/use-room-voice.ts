@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { transcribe } from "~/api/ai";
+import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { toAssessmentWav } from "~/audio/convert";
@@ -24,6 +25,8 @@ export type RoomVoiceState = "idle" | "starting" | "recording" | "sending" | "tr
 export interface RoomVoiceController {
   state: RoomVoiceState; elapsedMs: number; error: string | null;
   start(): Promise<boolean>; finish(deliver: "send" | "fill"): void; discard(reason: DiscardReason): void; release(): void;
+  /** 上一条语音上传失败(网络、超时、5xx、限流)且录音还留着:可以「重发」(同一 client_id)或「丢弃」(review M9) */
+  failed?: boolean; retryUpload?(): void; discardFailed?(): void;
 }
 export interface UseRoomVoiceOptions {
   roomId: string; enabled: boolean; maxMs: number; target: "group" | "assist"; replyTo: number | null;
@@ -38,6 +41,14 @@ const ERRORS = { ...ROOMS_SERVER_ERRORS, ...ROOM_VOICE_SERVER_ERRORS };
 /** 手势层丢弃的提示(滑到取消落点不提示) */
 const HOLD_HINTS: Partial<Record<DiscardReason, string>> = { short: "web.rooms.voice.hold.tooShort", "not-ready": "web.rooms.voice.hold.notReady" };
 const defaultId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+/** 录音中每隔这么久再报一次 "recording"(接收方 6 秒没刷新就隐藏,spec §6.5,review M4) */
+export const SPEAKING_REFRESH_MS = 3000;
+/** 值得重发的上传失败:网络中断、超时、服务端 5xx、408、429 限流;4xx 校验错误(太短、格式、额度)重发也没用 */
+function retryable(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return true;
+  return err.status >= 500 || err.status === 408 || (err.status === 429 && /too many requests/i.test(err.message));
+}
+interface FailedUpload { wav: Blob; clientId: string; replyTo: number | null }
 /** 录音期间不得有别的播放;别处开始播放时录音不受影响 */
 const micFocus = (): void => undefined;
 
@@ -55,6 +66,12 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
   const generation = useRef(0); // discard/卸载递增,让过期的结果失效
   const inflight = useRef<AbortController | null>(null);
   const announced = useRef(false); // 已向房间广播 "recording"
+  const failedUpload = useRef<FailedUpload | null>(null); // 上传失败、还能重发的那一条
+  const [failed, setFailed] = useState(false);
+  const forgetFailed = useCallback(() => {
+    failedUpload.current = null;
+    setFailed(false);
+  }, []);
 
   const quiet = useCallback(() => {
     releaseAudio(micFocus);
@@ -86,9 +103,18 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
         else opts.current.onAssistDraft(clean);
         return;
       }
-      const { message } = await uploadVoice(api, roomId, wav, (o.newId ?? defaultId)(), replyTo);
-      if (stale()) return;
-      opts.current.onSent(message);
+      const clientId = (o.newId ?? defaultId)();
+      try {
+        const { message } = await uploadVoice(api, roomId, wav, clientId, replyTo);
+        if (stale()) return;
+        opts.current.onSent(message);
+      } catch (err) {
+        if (!stale() && retryable(err)) {
+          failedUpload.current = { wav, clientId, replyTo };
+          setFailed(true);
+        }
+        throw err;
+      }
     } catch (err) {
       if (!stale()) setError(describeAudioError(tRef.current, err, ERRORS));
     } finally {
@@ -119,6 +145,7 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
   const start = useCallback(async () => {
     if (!mounted.current || busy.current || !opts.current.enabled) return false;
     setError(null);
+    forgetFailed(); // 新的录音:上一条失败的不再保留
     claimAudio(micFocus); // 先让正在播的语音/朗读停下(同步阶段)
     if (opts.current.target === "group") {
       announced.current = true;
@@ -127,7 +154,7 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
     const ok = await startRecorder();
     if (!ok) quiet();
     return ok;
-  }, [startRecorder, quiet]);
+  }, [startRecorder, quiet, forgetFailed]);
 
   const finish = useCallback((mode: "send" | "fill") => {
     if (!mounted.current || busy.current) return;
@@ -154,6 +181,38 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
     setError(hint ? tRef.current(hint) : null);
   }, [cancelRecorder, quiet]);
 
+  /** 重发上一条失败的语音:同一个 client_id,服务端 5 分钟内去重(上次其实已经存下时不会重复)。 */
+  const retryUpload = useCallback(() => {
+    const item = failedUpload.current;
+    if (!item || !mounted.current || busy.current) return;
+    busy.current = true;
+    setError(null);
+    setPhase("sending");
+    const controller = new AbortController();
+    inflight.current = controller;
+    const gen = generation.current;
+    const stale = () => !mounted.current || gen !== generation.current || controller.signal.aborted;
+    void uploadVoice(api, opts.current.roomId, item.wav, item.clientId, item.replyTo).then(({ message }) => {
+      if (stale()) return;
+      forgetFailed();
+      opts.current.onSent(message);
+    }, (err) => {
+      if (stale()) return;
+      if (!retryable(err)) forgetFailed();
+      setError(describeAudioError(tRef.current, err, ERRORS));
+    }).finally(() => {
+      if (inflight.current === controller) {
+        inflight.current = null;
+        busy.current = false;
+        if (mounted.current) setPhase(null);
+      }
+    });
+  }, [api, forgetFailed]);
+  const discardFailed = useCallback(() => {
+    forgetFailed();
+    setError(null);
+  }, [forgetFailed]);
+
   /** 松手的同步阶段:播放解锁由 VoiceInput 做(primeAudioElement),这里没有别的事要在手势内完成。 */
   const release = useCallback((): void => undefined, []);
 
@@ -168,7 +227,14 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
     };
   }, [quiet]);
 
+  // 录音期间每 3 秒再报一次「正在说话」(只在已广播时;quiet() 之后 announced=false,不再刷新)
+  useEffect(() => {
+    if (recorder.state !== "recording") return;
+    const timer = setInterval(() => { if (announced.current) opts.current.onActivity("recording"); }, SPEAKING_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [recorder.state]);
+
   const recorderError = recorder.error ? describeAudioError(t, recorder.error) : null;
   const state: RoomVoiceState = phase ?? (recorder.state === "recording" ? "recording" : recorder.state === "starting" ? "starting" : "idle");
-  return { state, elapsedMs: recorder.elapsedMs, error: error ?? recorderError, start, finish, discard, release };
+  return { state, elapsedMs: recorder.elapsedMs, error: error ?? recorderError, start, finish, discard, release, failed, retryUpload, discardFailed };
 }

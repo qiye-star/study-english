@@ -52,4 +52,17 @@ describe("VoiceInput", () => {
     expect(screen.getByTestId("room-mic").textContent).toContain("正在转文字…");
     expect(screen.queryByTestId("room-voice-error")).toBeNull();
   });
+
+  it("offers resend and discard for a failed upload (review M9)", () => {
+    const retryUpload = vi.fn();
+    const discardFailed = vi.fn();
+    renderWithProviders(<VoiceInput voice={controller({ error: "网络连接失败", failed: true, retryUpload, discardFailed })} disabled={false} maxMs={60000} />);
+    const resend = screen.getByTestId("room-voice-resend");
+    expect(resend.textContent).toBe("重发");
+    expect(resend.className).toContain("min-h-tap");
+    resend.click();
+    expect(retryUpload).toHaveBeenCalled();
+    screen.getByTestId("room-voice-discard").click();
+    expect(discardFailed).toHaveBeenCalled();
+  });
 });

@@ -13,6 +13,8 @@
         "pending": "正在转文字…",
         "empty": "没听清",
         "failed": "转写失败",
+        "resend": "重发",
+        "discard": "丢弃",
         "retry": "重试",
         "translating": "正在翻译…",
         "translateFailed": "翻译失败,可以再点一次翻译",

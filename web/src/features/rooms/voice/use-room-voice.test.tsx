@@ -127,4 +127,67 @@ describe("useRoomVoice", () => {
     await act(async () => { expect(await hook.result.current.start()).toBe(false); });
     expect(cb.onActivity).not.toHaveBeenCalled();
   });
+
+  it("keeps telling the room someone is speaking while the recording lasts (review M4)", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const { hook, cb } = setup("group", {});
+      await act(async () => { await hook.result.current.start(); });
+      expect(hook.result.current.state).toBe("recording");
+      const count = () => cb.onActivity.mock.calls.filter(([s]) => s === "recording").length;
+      expect(count()).toBe(1);
+      act(() => { vi.advanceTimersByTime(20_000); }); // receivers drop it after 6 s without a refresh
+      expect(count()).toBeGreaterThanOrEqual(6);
+      act(() => hook.result.current.discard("slide"));
+      const after = count();
+      act(() => { vi.advanceTimersByTime(10_000); });
+      expect(count()).toBe(after);
+      expect(cb.onActivity).toHaveBeenLastCalledWith("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a failed upload for a retry with the same client id, or discards it (review M9)", async () => {
+    let fail = true;
+    const message = { seq: 5, id: "m5", kind: "voice" };
+    const mock = createFetchMock({ "POST /api/rooms/r1/voice": () => (fail ? json({ error: "Bad gateway" }, 502) : json({ seq: 5, message })) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    let n = 0;
+    const onSent = vi.fn();
+    const hook = renderHook(() => useRoomVoice({ roomId: "r1", enabled: true, maxMs: 60000, target: "group", replyTo: 4, starter: starter(),
+      newId: () => `c${(n += 1)}`, onFill: vi.fn(), onAssistDraft: vi.fn(), onSent, onActivity: vi.fn() }),
+    { wrapper: ({ children }) => <TestProviders api={api}>{children}</TestProviders> });
+    await act(async () => { await hook.result.current.start(); });
+    act(() => hook.result.current.finish("send"));
+    await waitFor(() => expect(hook.result.current.failed).toBe(true));
+    expect(hook.result.current.error).toBeTruthy();
+    fail = false;
+    act(() => hook.result.current.retryUpload());
+    await waitFor(() => expect(onSent).toHaveBeenCalled());
+    const ids = mock.calls.map((c) => (c.body as FormData).get("client_id"));
+    expect(ids).toEqual(["c1", "c1"]); // the server's 5-minute dedupe makes a retry after a lost response safe
+    expect((mock.calls[1].body as FormData).get("reply_to")).toBe("4");
+    expect(hook.result.current.failed).toBe(false);
+    // a validation error is final: nothing to retry
+    const bad = createFetchMock({ "POST /api/rooms/r1/voice": () => json({ error: "Audio too short" }, 400) });
+    const api2 = new ApiClient({ getToken: () => "t", fetchImpl: bad.fetch });
+    const hook2 = renderHook(() => useRoomVoice({ roomId: "r1", enabled: true, maxMs: 60000, target: "group", replyTo: null, starter: starter(),
+      onFill: vi.fn(), onAssistDraft: vi.fn(), onSent: vi.fn(), onActivity: vi.fn() }),
+    { wrapper: ({ children }) => <TestProviders api={api2}>{children}</TestProviders> });
+    await act(async () => { await hook2.result.current.start(); });
+    act(() => hook2.result.current.finish("send"));
+    await waitFor(() => expect(hook2.result.current.error).toBe("说话时间太短"));
+    expect(hook2.result.current.failed).toBe(false);
+  });
+
+  it("discarding a failed upload forgets it", async () => {
+    const { hook } = setup("group", { "POST /api/rooms/r1/voice": () => json({ error: "Bad gateway" }, 503) });
+    await act(async () => { await hook.result.current.start(); });
+    act(() => hook.result.current.finish("send"));
+    await waitFor(() => expect(hook.result.current.failed).toBe(true));
+    act(() => hook.result.current.discardFailed());
+    expect(hook.result.current.failed).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+  });
 });
