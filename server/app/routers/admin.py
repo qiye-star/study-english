@@ -38,9 +38,11 @@ async def users(
     q: Annotated[str, Query(max_length=64)] = "",
     page: Page = 1,
     per_page: PerPage = 20,
+    status: Annotated[Literal["all", "active", "disabled"], Query()] = "all",
+    sort: Annotated[Literal["recent", "created", "storage"], Query()] = "recent",
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.list_users(session, q, page, per_page)
+    return await service.list_users(session, q, page, per_page, status=status, sort=sort)
 
 
 @guarded.get("/users/{user_id}")

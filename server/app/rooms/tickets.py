@@ -32,6 +32,13 @@ class RoomTicketStore:
         self._items[ticket] = (now + self._ttl, RoomGrant(user_id, room_id))
         return ticket
 
+    def revoke_user(self, user_id: int) -> int:
+        """Drop every unredeemed ticket of a user (admin disable / token revocation)."""
+        keys = [k for k, (_, g) in self._items.items() if g.user_id == user_id]
+        for key in keys:
+            del self._items[key]
+        return len(keys)
+
     def redeem(self, ticket: str) -> RoomGrant | None:
         item = self._items.pop(ticket, None)
         if item is None or item[0] <= self._clock():

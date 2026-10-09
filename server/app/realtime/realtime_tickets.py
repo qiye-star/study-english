@@ -48,6 +48,13 @@ class TicketStore:
             return None
         return item[1]
 
+    def revoke_user(self, user_id: int) -> int:
+        """Drop every unredeemed ticket of a user (admin disable / token revocation)."""
+        keys = [k for k, (_, grant) in self._items.items() if grant.user_id == user_id]
+        for key in keys:
+            del self._items[key]
+        return len(keys)
+
     def __len__(self) -> int:
         return len(self._items)
 

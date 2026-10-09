@@ -238,3 +238,30 @@ def test_ticket_never_logged(rooms_client, caplog):
         wa.send_text('{"type":"hello","last_seq":0}')
         until(wa, "welcome")
     assert t not in caplog.text
+
+
+# ---- admin v2 moderation (lane community D1/D4) ----
+
+from tests.admin_helpers import ADMIN_ENABLED  # noqa: E402
+
+
+def admin_headers(client):
+    r = client.post("/api/admin/login", json={"username": "root", "password": "correct-horse-battery"})
+    return {"X-Admin-CSRF": r.json()["csrf_token"]}
+
+
+def test_admin_disable_user_disconnects_with_4010_and_voids_tickets(tmp_path, monkeypatch):
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    try:
+        room, alice, bob, bob_id, ticket = setup_room(client)
+        spare = ticket(bob)
+        with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(bob)}") as wb:
+            wb.send_json({"type": "hello", "last_seq": 0})
+            until(wb, "welcome")
+            r = client.post(f"/api/admin/users/{bob_id}/disable", headers=admin_headers(client), json={"reason": "刷屏"})
+            assert r.status_code == 200
+            assert closed_code(wb) == 4010
+        with client.websocket_connect(f"/api/rooms/ws?ticket={spare}") as ws:
+            assert closed_code(ws) == 4001  # unredeemed tickets were voided too
+    finally:
+        client.__exit__(None, None, None)
