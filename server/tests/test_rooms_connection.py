@@ -147,7 +147,40 @@ async def test_assist_quota_format_and_refunds(env):
     await env.ca.handle('{"type":"assist","request_id":"r2","text":"hi"}')
     await env.hub.drain()
     assert env.alice.sender.sent[-1] == {"type": "assist_failed", "request_id": "r2", "code": "format"}
+    assert env.refunds == []  # review #4: a draft can force non-JSON output, so a format failure still costs quota
+    env.replies["assist"] = ASSIST
+    env.fail = True
+    await env.ca.handle('{"type":"assist","request_id":"r3","text":"hi"}')
+    await env.hub.drain()
+    assert env.alice.sender.sent[-1] == {"type": "assist_failed", "request_id": "r3", "code": "upstream"}
     assert env.refunds == ["room_assist", "room_ai_global"]
+
+
+async def test_assist_one_in_flight_per_user_and_per_minute_limit(env):
+    """Review #4: one user must not queue dozens of assist calls on the shared AI gate."""
+    release = asyncio.Event()
+    calls = []
+
+    async def slow_complete(messages, max_tokens, temperature):
+        calls.append(1)
+        await release.wait()
+        return ASSIST
+
+    env.ca.deps.complete = slow_complete
+    for i in range(3):
+        await env.ca.handle(json.dumps({"type": "assist", "request_id": f"r{i}", "text": "hi"}))
+    await asyncio.sleep(0)
+    failed = [e for e in env.alice.sender.sent if e["type"] == "assist_failed"]
+    assert [(e["request_id"], e["code"]) for e in failed] == [("r1", "quota"), ("r2", "quota")]
+    assert env.quota["room_assist"] == 98  # only the admitted request consumed quota
+    release.set()
+    await env.hub.drain()
+    assert len(calls) == 1 and env.alice.sender.sent[-1]["type"] == "assist_reply"
+    env.ca.deps.assist_limiter = RateLimiter(1, 60)
+    await env.ca.handle('{"type":"assist","request_id":"m1","text":"hi"}')
+    await env.hub.drain()
+    await env.ca.handle('{"type":"assist","request_id":"m2","text":"hi"}')
+    assert env.alice.sender.sent[-1] == {"type": "assist_failed", "request_id": "m2", "code": "quota"}
 
 
 async def test_welcome_replays_without_others_private_lane(env):

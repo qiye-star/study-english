@@ -50,6 +50,7 @@ class RoomsRuntime:
     ai_room_limiter: RateLimiter
     ai_user_limiter: RateLimiter
     join_limiter: RateLimiter
+    assist_limiter: RateLimiter
     sweeper: asyncio.Task | None = None
 
 
@@ -64,7 +65,8 @@ def runtime(app) -> RoomsRuntime:
             ai_gate=asyncio.Semaphore(s.rooms_ai_concurrency), say_limiter=RateLimiter(limits.say_per_minute, 60),
             ai_room_limiter=RateLimiter(limits.ai_per_room_hour, 3600),
             ai_user_limiter=RateLimiter(limits.ai_per_user_10min, 600),
-            join_limiter=RateLimiter(limits.join_per_minute, 60))
+            join_limiter=RateLimiter(limits.join_per_minute, 60),
+            assist_limiter=RateLimiter(limits.assist_per_minute, 60))
         app.state.rooms = rt
     return rt
 
@@ -85,7 +87,7 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
             await usage.refund(s, scope, subject, usage.utc_day(utcnow()))
 
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
-                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available)
+                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter)
 
 
 def require_rooms(settings: Settings = Depends(get_settings)) -> Settings:

@@ -34,6 +34,7 @@ class ConnDeps:
     ai_room_limiter: RateLimiter
     ai_user_limiter: RateLimiter
     ai_available: bool
+    assist_limiter: RateLimiter | None = None  # per user; plus at most one assist in flight (hub.assist_inflight)
 
 
 def members_out(members, online: set[int]) -> list[dict]:
@@ -164,19 +165,37 @@ class RoomConnection:
             await self._to_me(event("assist_failed", request_id=msg.request_id, code="upstream"))
             return
         uid = str(self.user_id)
-        if not await d.consume("room_assist", uid, d.limits.assist_daily):
+        # Review #4: one assist in flight per user and a per-minute cap, so one user cannot flood the shared AI gate.
+        if self.user_id in d.hub.assist_inflight or (d.assist_limiter is not None and not d.assist_limiter.allow(uid)):
             await self._to_me(event("assist_failed", request_id=msg.request_id, code="quota"))
             return
-        if not await d.consume("room_ai_global", GLOBAL, d.limits.ai_global_daily):
-            await d.refund("room_assist", uid)
-            await self._to_me(event("assist_failed", request_id=msg.request_id, code="quota"))
-            return
-        async with d.hub.lock(self.room_id):
-            await d.store.append(self.room_id, lane="private", audience_id=self.user_id, sender_kind="user",
-                                 sender_id=self.user_id, kind="assist_request", text=text, now=d.clock())
-        d.hub.spawn(self._assist(msg.request_id, text))
+        d.hub.assist_inflight.add(self.user_id)
+        spawned = False
+        try:
+            if not await d.consume("room_assist", uid, d.limits.assist_daily):
+                await self._to_me(event("assist_failed", request_id=msg.request_id, code="quota"))
+                return
+            if not await d.consume("room_ai_global", GLOBAL, d.limits.ai_global_daily):
+                await d.refund("room_assist", uid)
+                await self._to_me(event("assist_failed", request_id=msg.request_id, code="quota"))
+                return
+            async with d.hub.lock(self.room_id):
+                await d.store.append(self.room_id, lane="private", audience_id=self.user_id, sender_kind="user",
+                                     sender_id=self.user_id, kind="assist_request", text=text, now=d.clock())
+            d.hub.spawn(self._assist(msg.request_id, text))
+            spawned = True
+        finally:
+            if not spawned:
+                d.hub.assist_inflight.discard(self.user_id)
 
     async def _assist(self, request_id: str, text: str) -> None:
+        d = self.deps
+        try:
+            await self._assist_once(request_id, text)
+        finally:
+            d.hub.assist_inflight.discard(self.user_id)
+
+    async def _assist_once(self, request_id: str, text: str) -> None:
         d = self.deps
         try:
             recent = await d.store.recent_public(self.room_id, assistant.ASSIST_CONTEXT)
@@ -187,11 +206,12 @@ class RoomConnection:
             reply = assistant.parse_assist(raw)
         except asyncio.CancelledError:
             raise
-        except Exception as e:  # LlmUnavailable / AssistFormatError / unexpected: refund, tell only the asker
+        except Exception as e:  # LlmUnavailable / AssistFormatError / unexpected: tell only the asker
             code = "format" if isinstance(e, assistant.AssistFormatError) else "upstream"
             logger.info("room assist failed code=%s kind=%s", code, getattr(e, "kind", type(e).__name__))
-            await d.refund("room_assist", str(self.user_id))
-            await d.refund("room_ai_global", GLOBAL)
+            if code == "upstream":  # a draft can force non-JSON output, so a format failure is not refunded
+                await d.refund("room_assist", str(self.user_id))
+                await d.refund("room_ai_global", GLOBAL)
             await self._to_me(event("assist_failed", request_id=request_id, code=code))
             return
         async with d.hub.lock(self.room_id):

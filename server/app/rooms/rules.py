@@ -36,6 +36,7 @@ class RoomLimits:
     retention_days: int = 0  # 0 = keep room messages forever; >0 = purge N days after close
     mine_closed_days: int = 7  # how long closed rooms stay listed in GET /api/rooms/mine
     assist_daily: int = 60
+    assist_per_minute: int = 10
     ai_per_room_hour: int = 30
     ai_global_daily: int = 1000
     say_per_minute: int = 20

@@ -640,7 +640,7 @@ Rules: 2–3 suggestions, each ≤ 25 words, at or slightly above the learner's 
 If the draft is already good English, the first suggestion is the draft itself (lightly corrected) and reply_zh says so.
 If the request is not about expressing something in English, reply_zh politely says you only help with English and suggestions is [].
 ```
-解析:取第一段 `{…}`;`suggestions` 最多 3 条、`en` 非空且 ≤ 300 字符;`glossary` 最多 5 条;`reply_zh` ≤ 120 字。无 JSON → `assist_failed{code:"format"}`(不扣额度)。`max_tokens=400`,温度 0.4。
+解析:取第一段 `{…}`;`suggestions` 最多 3 条、`en` 非空且 ≤ 300 字符;`glossary` 最多 5 条;`reply_zh` ≤ 120 字。无 JSON → `assist_failed{code:"format"}`(照常扣额度:草稿可以诱导模型不返回 JSON;只有上游失败才退还)。每人同时最多 1 个助手请求、每分钟最多 10 个,超出回 `assist_failed{code:"quota"}`。`max_tokens=400`,温度 0.4。
 
 ### 9.2 `@ai` 公共回答
 ```

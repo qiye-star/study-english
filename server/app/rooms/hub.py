@@ -25,6 +25,7 @@ class RoomHub:
         self._locks: dict[str, asyncio.Lock] = {}
         self._ai_locks: dict[str, asyncio.Lock] = {}
         self._ai_pending: dict[str, int] = {}
+        self.assist_inflight: set[int] = set()  # user ids with a private assist call running (any room)
         self.tasks: set[asyncio.Task] = set()
 
     def lock(self, room_id: str) -> asyncio.Lock:
