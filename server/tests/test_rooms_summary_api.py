@@ -148,8 +148,10 @@ def test_none_and_startup_requeue(tmp_path, monkeypatch):
                 await s.commit()
 
         client.portal.call(interrupted)
-        assert len(rt.startup_listeners) == 1
-        client.portal.call(rt.startup_listeners[0], rt)
+        # SV adds its own `_voice_resume` startup listener; run every one, as the lifespan does
+        assert len(rt.startup_listeners) == 2
+        for listener in list(rt.startup_listeners):
+            client.portal.call(listener, rt)
         client.portal.call(rt.hub.drain)
         done = client.get(f"/api/rooms/{room['id']}/summary", headers=alice).json()["summary"]
         assert done["status"] == "done" and done["finished_at"] is not None
