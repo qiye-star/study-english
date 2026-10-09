@@ -4,16 +4,19 @@ Live actions go through the room runtime (`app.routers.rooms.runtime`): close �
 kick → system message `kicked` + 4010; hide → `message_hidden{seq}` (the row is kept: R-6); AI mute →
 `room_update`. Each action is applied through the room store, then audited (`room.*`) and committed.
 Reading private assistant lanes is audited as `room.view_private`. Never logs message text."""
+import asyncio
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import rooms_admin
+from app.admin import audit, rooms_admin
 from app.admin.perms import AdminContext, require
 from app.core.deps import get_session
 from app.models import utcnow
+from app.services.recordings import absolute_path
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, MAX_ID, event
 from app.rooms.store import RoomError
 from app.routers.rooms import RoomsRuntime, after_close, presence, runtime, system_message, _room_json
@@ -162,6 +165,75 @@ async def hide_message(room_id: RoomId, message_id: Annotated[str, Path(max_leng
     await rooms_admin.record(session, ctx.actor, "room.hide_message", room_id,
                              after={"message_id": message_id, "seq": seq}, reason=payload.reason)
     return {"ok": True, "seq": seq}
+
+
+class SettingsIn(ReasonIn):
+    """Operator-editable room settings (spec 2026-10-10 §14); scenario/level/locked are not accepted."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(None, max_length=200)
+    join_mode: str | None = Field(None, max_length=16)
+    max_members: int | None = Field(None, ge=0, le=1000)
+    ai_public: bool | None = None
+    allow_voice: bool | None = None
+
+
+@router.patch("/rooms/{room_id}/settings")
+async def update_settings(room_id: RoomId, payload: SettingsIn, request: Request,
+                          ctx: AdminContext = Depends(require("operator")),
+                          session: AsyncSession = Depends(get_session)):
+    changes = payload.model_dump(exclude_none=True, exclude={"reason"})
+    try:
+        room, changed = await rooms_admin.update_settings(
+            session, ctx.actor, room_id, changes, payload.reason,
+            site_max_members=request.app.state.settings.rooms_max_members)
+    except rooms_admin.RoomSettingsError as e:
+        return JSONResponse({"error": e.error, "fields": e.fields}, status_code=e.status)
+    except rooms_admin.RoomAdminError as e:
+        _fail(e)
+    if changed:
+        rt = getattr(request.app.state, "rooms", None)
+        live = None if rt is None else await rt.store.room(room_id)
+        if live is not None and live.status == "open":
+            await system_message(rt, room_id, "settings", {"changes": changed})
+            await rt.hub.broadcast(room_id, event("room_update", room=await _room_json(rt, live, None)))
+    return {"settings": rooms_admin.settings_out(room), "changes": changed}
+
+
+AUDIO_MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}  # same as the member endpoint (rooms.audio)
+AUDIO_DIR = "room_audio"
+
+
+def _read_audio(data_dir, relpath: str) -> bytes | None:
+    try:
+        path = absolute_path(data_dir, relpath)
+    except ValueError:
+        return None
+    if not path.is_relative_to((data_dir / AUDIO_DIR).resolve()):
+        return None
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+@router.get("/rooms/{room_id}/messages/{message_id}/audio")
+async def play_audio(room_id: RoomId, message_id: Annotated[str, Path(max_length=MAX_ID)], request: Request,
+                     ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    """Admin listening is audited on every request (`room.audio.play`, room and message id only)."""
+    voice = await rooms_admin.voice_audio(session, room_id, message_id)
+    if voice is None:
+        raise HTTPException(404, "Message not found")
+    if voice.audio_path is None:
+        raise HTTPException(410, "Audio purged")
+    data = await asyncio.to_thread(_read_audio, request.app.state.settings.resolved_data_dir, voice.audio_path)
+    if data is None:
+        raise HTTPException(404, "Audio not found")
+    await audit.record(session, ctx.actor, "room.audio.play", target_type="room_message", target_id=message_id,
+                       summary=f"room {room_id}")
+    await session.commit()
+    return Response(data, media_type=AUDIO_MEDIA_TYPES.get(voice.audio_format, "application/octet-stream"),
+                    headers={"Cache-Control": "no-store"})
 
 
 @router.get("/reports")

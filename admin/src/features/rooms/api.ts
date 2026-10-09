@@ -40,16 +40,50 @@ export interface RoomMember {
   online: boolean;
 }
 
+export type JoinMode = "code" | "approval";
+
+/** 房间 v2 的 7 项设置 + 锁定 + 是否已生成邀请链接(从不返回 token)。 */
+export interface RoomSettings {
+  name: string;
+  scenario: string;
+  level: string;
+  joinMode: JoinMode;
+  maxMembers: number;
+  aiPublic: boolean;
+  allowVoice: boolean;
+  locked: boolean;
+  hasInvite: boolean;
+}
+
+/** operator 可改的 5 项(服务端 PATCH /api/admin/rooms/{id}/settings)。 */
+export type RoomSettingsChanges = Partial<Pick<RoomSettings, "name" | "joinMode" | "maxMembers" | "aiPublic" | "allowVoice">>;
+
 export interface RoomDetail extends RoomRow {
+  settings: RoomSettings;
   reportCount: number;
   members: RoomMember[];
+}
+
+export type VoiceStatus = "pending" | "done" | "empty" | "failed";
+
+/** 语音消息的管理视图;`audio=false` 表示音频已被清理(转写与译文保留)。 */
+export interface AdminVoice {
+  durationMs: number;
+  status: VoiceStatus;
+  transcript: string | null;
+  lang: string | null;
+  translation: string | null;
+  translationStatus: string | null;
+  audio: boolean;
+  purgedAt: string | null;
 }
 
 export interface AdminMessage {
   seq: number;
   id: string;
   lane: "public" | "private";
-  kind: "text" | "ai_answer" | "system" | "assist_request" | "assist_reply";
+  kind: "text" | "ai_answer" | "system" | "assist_request" | "assist_reply" | "voice";
+  voice: AdminVoice | null;
   sender: { kind: "user" | "ai" | "system"; id: number | null; name: string | null };
   audience: { id: number; name: string | null } | null;
   text: string;
@@ -121,6 +155,32 @@ export async function setRoomAi(id: string, muted: boolean, reason: string): Pro
 
 export async function hideMessage(id: string, messageId: string, reason: string): Promise<void> {
   await request(`/api/admin/rooms/${enc(id)}/messages/${enc(messageId)}/hide`, { method: "POST", json: { reason } });
+}
+
+const SETTING_WIRE: Record<keyof RoomSettingsChanges, string> = {
+  name: "name",
+  joinMode: "join_mode",
+  maxMembers: "max_members",
+  aiPublic: "ai_public",
+  allowVoice: "allow_voice",
+};
+
+/** 必须带理由;服务端审计 `room.settings`,并给房间发系统消息 `settings` 与 `room_update`。 */
+export async function patchRoomSettings(
+  id: string,
+  changes: RoomSettingsChanges,
+  reason: string,
+): Promise<{ settings: RoomSettings; changes: { field: string; value: unknown }[] }> {
+  const json: Record<string, unknown> = { reason };
+  for (const [k, v] of Object.entries(changes)) {
+    if (v !== undefined) json[SETTING_WIRE[k as keyof RoomSettingsChanges]] = v;
+  }
+  return camel(await request<unknown>(`/api/admin/rooms/${enc(id)}/settings`, { method: "PATCH", json }));
+}
+
+/** 带会话 Cookie 取语音音频;服务端每次写审计 `room.audio.play`。 */
+export async function fetchRoomAudio(id: string, messageId: string): Promise<Blob> {
+  return request<Blob>(`/api/admin/rooms/${enc(id)}/messages/${enc(messageId)}/audio`, { as: "blob" });
 }
 
 export async function listReports(status: ReportStatus, page: number) {

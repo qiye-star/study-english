@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { hasRole, useAdminSession } from "../../api/session";
-import { ConfirmDialog } from "../../components/confirm-dialog";
+import { ConfirmDialog, MIN_REASON } from "../../components/confirm-dialog";
 import { Dialog } from "../../components/dialog";
 import { Page } from "../../components/layout";
 import { ErrorState, Skeleton } from "../../components/states";
@@ -9,7 +9,21 @@ import { StatusDot } from "../../components/status-dot";
 import { S as Shell } from "../../strings";
 import { errorText, useAsync } from "../../hooks/use-async";
 import { formatDateTime } from "../../lib/format";
-import { closeRoom, getRoom, getRoomMessages, hideMessage, kickMember, setRoomAi, type AdminMessage, type Lane, type RoomMember } from "./api";
+import {
+  closeRoom,
+  getRoom,
+  getRoomMessages,
+  hideMessage,
+  kickMember,
+  patchRoomSettings,
+  setRoomAi,
+  type AdminMessage,
+  type JoinMode,
+  type Lane,
+  type RoomDetail,
+  type RoomMember,
+  type RoomSettingsChanges,
+} from "./api";
 import { RoomTimeline } from "./room-timeline";
 import { S } from "./strings";
 
@@ -57,6 +71,164 @@ function Members({ members, canModerate, onKick }: { members: RoomMember[]; canM
   );
 }
 
+const ST = S.settings;
+const NAME_MAX = 30;
+const SIZE_MAX = 8;
+
+function SettingRow({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div data-testid={`setting-${id}`} className="flex items-baseline justify-between gap-3 px-4 py-1.5 text-sm">
+      <dt className="shrink-0 text-fg-2">{label}</dt>
+      <dd className="num min-w-0 truncate text-right font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/** 7 项设置 + 锁定 + 邀请链接是否已生成(不显示 token);operator 可改 5 项,保存需填理由。 */
+function SettingsCard({ room, canEdit, onEdit }: { room: RoomDetail; canEdit: boolean; onEdit: () => void }) {
+  const s = room.settings;
+  const onOff = (v: boolean) => (v ? ST.on : ST.off);
+  return (
+    <section className="panel" aria-label={ST.title}>
+      <div className="panel-head">
+        <h2 className="text-sm font-semibold">{ST.title}</h2>
+        {canEdit && (
+          <button type="button" className="btn-quiet btn-sm" onClick={onEdit}>
+            {ST.edit}
+          </button>
+        )}
+      </div>
+      <dl className="pb-2">
+        <SettingRow id="name" label={ST.name} value={s.name || ST.unnamed} />
+        <SettingRow id="scenario" label={ST.scenario} value={ST.scenarios[s.scenario] ?? s.scenario} />
+        <SettingRow id="level" label={ST.level} value={s.level} />
+        <SettingRow id="joinMode" label={ST.joinMode} value={ST.joinModes[s.joinMode] ?? s.joinMode} />
+        <SettingRow id="maxMembers" label={ST.maxMembers} value={ST.maxMembersValue(s.maxMembers)} />
+        <SettingRow id="aiPublic" label={ST.aiPublic} value={onOff(s.aiPublic)} />
+        <SettingRow id="allowVoice" label={ST.allowVoice} value={onOff(s.allowVoice)} />
+        <SettingRow id="locked" label={ST.locked} value={ST.lockedValue[String(s.locked)]} />
+        <SettingRow id="invite" label={ST.invite} value={ST.inviteValue[String(s.hasInvite)]} />
+      </dl>
+    </section>
+  );
+}
+
+function SettingsDialog({ room, open, onClose, onSaved }: { room: RoomDetail; open: boolean; onClose: () => void; onSaved: () => void }) {
+  const s = room.settings;
+  const [name, setName] = useState(s.name);
+  const [joinMode, setJoinMode] = useState<JoinMode>(s.joinMode);
+  const [size, setSize] = useState(String(s.maxMembers));
+  const [aiPublic, setAiPublic] = useState(s.aiPublic);
+  const [allowVoice, setAllowVoice] = useState(s.allowVoice);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(s.name);
+    setJoinMode(s.joinMode);
+    setSize(String(s.maxMembers));
+    setAiPublic(s.aiPublic);
+    setAllowVoice(s.allowVoice);
+    setReason("");
+    setError(null);
+    setBusy(false);
+  }, [open, s]);
+
+  const n = Number(size);
+  const sizeOk = Number.isInteger(n) && n >= 2 && n <= SIZE_MAX && n >= room.memberCount;
+  const trimmed = name.trim();
+  const nameOk = [...trimmed].length <= NAME_MAX;
+  const changes: RoomSettingsChanges = {};
+  if (trimmed && trimmed !== s.name) changes.name = trimmed;
+  if (joinMode !== s.joinMode) changes.joinMode = joinMode;
+  if (sizeOk && n !== s.maxMembers) changes.maxMembers = n;
+  if (aiPublic !== s.aiPublic) changes.aiPublic = aiPublic;
+  if (allowVoice !== s.allowVoice) changes.allowVoice = allowVoice;
+  const canSave = !busy && sizeOk && nameOk && Object.keys(changes).length > 0 && reason.trim().length >= MIN_REASON;
+
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await patchRoomSettings(room.id, changes, reason.trim());
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      title={ST.editTitle}
+      onClose={busy ? () => undefined : onClose}
+      footer={
+        <>
+          <button type="button" className="btn-ghost btn-sm" onClick={onClose} disabled={busy}>
+            {Shell.dialogs.cancel}
+          </button>
+          <button type="button" className="btn-primary btn-sm" disabled={!canSave} onClick={() => void save()}>
+            {ST.save}
+          </button>
+        </>
+      }
+    >
+      <p className="text-xs leading-relaxed text-fg-2">{ST.editHelp}</p>
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-fg-2">{ST.name}</span>
+        <input className="field-sm" value={name} onChange={(e) => setName(e.target.value)} />
+        {!nameOk && <span className="block text-xs text-bad">{ST.nameHint}</span>}
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-fg-2">{ST.joinMode}</span>
+          <select className="field-sm" value={joinMode} onChange={(e) => setJoinMode(e.target.value as JoinMode)}>
+            {(["code", "approval"] as const).map((m) => (
+              <option key={m} value={m}>
+                {ST.joinModes[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-fg-2">{ST.maxMembers}</span>
+          <input className="field-sm num" inputMode="numeric" value={size} onChange={(e) => setSize(e.target.value)} />
+        </label>
+      </div>
+      {!sizeOk && <p className="text-xs text-bad">{ST.sizeHint(room.memberCount)}</p>}
+      <div className="flex gap-6 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={aiPublic} onChange={(e) => setAiPublic(e.target.checked)} />
+          {ST.aiPublic}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={allowVoice} onChange={(e) => setAllowVoice(e.target.checked)} />
+          {ST.allowVoice}
+        </label>
+      </div>
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-fg-2">{Shell.dialogs.reason}</span>
+        <textarea
+          className="field-sm h-auto min-h-[64px] py-2"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          maxLength={200}
+          placeholder={Shell.dialogs.reasonHint}
+        />
+      </label>
+      {error && (
+        <p role="alert" className="rounded-lg border border-bad/30 bg-bad-soft px-3 py-2 text-bad">
+          {error}
+        </p>
+      )}
+    </Dialog>
+  );
+}
+
 /** /rooms/:id:成员、时间线(公共默认,私聊需确认并写审计)、关闭房间 / 禁用 AI / 隐藏消息 / 移出成员(都要理由)。 */
 export function RoomDetailPage() {
   const { id = "" } = useParams();
@@ -70,6 +242,7 @@ export function RoomDetailPage() {
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(
     async (beforeSeq: number | null) => {
@@ -189,6 +362,7 @@ export function RoomDetailPage() {
                 </div>
               ) : (
                 <RoomTimeline
+                  roomId={id}
                   messages={messages}
                   canModerate={canModerate}
                   onHide={(message) => setPending({ kind: "hide", message })}
@@ -197,15 +371,18 @@ export function RoomDetailPage() {
                 />
               )}
             </section>
-            <aside className="panel" aria-label={D.members}>
-              <div className="panel-head">
-                <h2 className="text-sm font-semibold">{D.members}</h2>
-                <span className="num text-xs text-muted">
-                  {r.memberCount} / {r.onlineCount}
-                </span>
-              </div>
-              <Members members={r.members} canModerate={canModerate} onKick={(member) => setPending({ kind: "kick", member })} />
-            </aside>
+            <div className="space-y-4">
+              <SettingsCard room={r} canEdit={canModerate} onEdit={() => setEditing(true)} />
+              <aside className="panel" aria-label={D.members}>
+                <div className="panel-head">
+                  <h2 className="text-sm font-semibold">{D.members}</h2>
+                  <span className="num text-xs text-muted">
+                    {r.memberCount} / {r.onlineCount}
+                  </span>
+                </div>
+                <Members members={r.members} canModerate={canModerate} onKick={(member) => setPending({ kind: "kick", member })} />
+              </aside>
+            </div>
           </div>
         </>
       )}
@@ -234,6 +411,18 @@ export function RoomDetailPage() {
       >
         <p className="leading-relaxed text-fg-2">{T.privateBody}</p>
       </Dialog>
+
+      {r && canModerate && (
+        <SettingsDialog
+          room={r}
+          open={editing}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            refresh();
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmProps !== null}

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import announcements, audit, backups, housekeeping, system
+from app.admin import announcements, audit, backups, housekeeping, storage, system
 from app.admin.announcements import AnnouncementError
 from app.admin.perms import AdminContext, require, require_step_up, step_up_until
 from app.core import log_buffer
@@ -221,19 +221,59 @@ async def delete_backup(name: str, request: Request, ctx: AdminContext = Depends
 
 # ---- housekeeping (superadmin; running a tool needs step-up and a reason) ----
 
-Tool = Literal["orphan_recordings", "audit"]
+Tool = Literal["orphan_recordings", "audit", "room_audio"]
+ROOM_AUDIO_MIN_DAYS = 30
+ROOM_AUDIO_DEFAULT_DAYS = 365  # a suggestion only: the tool never runs by itself
 
 
 class HousekeepingRunIn(BaseModel):
     token: str | None = Field(None, max_length=64)
     older_than_days: int | None = Field(None, ge=1, le=36500)
     reason: str = Field(min_length=4, max_length=200)
+    confirm: str | None = Field(None, max_length=64)  # room_audio: the typed phrase "DELETE {count} FILES"
+
+
+class HousekeepingScanIn(BaseModel):
+    older_than_days: int = Field(ROOM_AUDIO_DEFAULT_DAYS, ge=ROOM_AUDIO_MIN_DAYS, le=36500)
+
+
+@router.get("/storage")
+async def storage_usage(request: Request, _: AdminContext = Depends(require("viewer")),
+                        session: AsyncSession = Depends(get_session)):
+    return await storage.storage_summary(session, request.app.state.settings.resolved_data_dir)
+
+
+async def _room_audio_run(body: HousekeepingRunIn, request: Request, ctx: AdminContext, session: AsyncSession):
+    days = body.older_than_days
+    if days is None or days < ROOM_AUDIO_MIN_DAYS:
+        return JSONResponse({"error": "Invalid settings", "fields": {
+            "older_than_days": f"at least {ROOM_AUDIO_MIN_DAYS}"}}, status_code=422)
+    try:
+        files, size = await housekeeping.purge_room_audio_detail(
+            session, request.app.state.settings, days, body.token or "", datetime.now(timezone.utc),
+            confirm=body.confirm or "")
+    except ValueError as e:
+        if str(e) == "Confirmation required":
+            return JSONResponse({"error": "Confirmation required"}, status_code=422)
+        return JSONResponse({"error": "Rescan required"}, status_code=409)
+    await audit.record(session, ctx.actor, "housekeeping.room_audio", target_type="room_audio",
+                       summary=f"deleted {files} files, {size} bytes",
+                       after={"files": files, "bytes": size, "older_than_days": days}, reason=body.reason)
+    await session.commit()
+    return {"deleted": files, "bytes": size}
 
 
 @router.post("/housekeeping/{tool}/scan")
-async def housekeeping_scan(tool: Tool, request: Request, _: AdminContext = Depends(require("superadmin")),
+async def housekeeping_scan(tool: Tool, request: Request, body: HousekeepingScanIn | None = None,
+                            _: AdminContext = Depends(require("superadmin")),
                             session: AsyncSession = Depends(get_session)):
     settings = request.app.state.settings
+    if tool == "room_audio":
+        days = (body or HousekeepingScanIn()).older_than_days
+        scan = await housekeeping.scan_room_audio(session, settings, days, datetime.now(timezone.utc))
+        return {"token": scan.token, "count": scan.count, "bytes": scan.bytes, "rooms": scan.rooms,
+                "samples": scan.samples, "older_than_days": days,
+                "confirm": housekeeping.confirm_phrase(scan.count)}
     if tool == "orphan_recordings":
         scan = await housekeeping.scan_orphan_recordings(session, settings)
         return {"token": scan.token, "count": scan.count, "bytes": scan.bytes, "samples": scan.samples}
@@ -245,6 +285,8 @@ async def housekeeping_scan(tool: Tool, request: Request, _: AdminContext = Depe
 async def housekeeping_run(tool: Tool, body: HousekeepingRunIn, request: Request,
                            ctx: AdminContext = Depends(require_step_up), session: AsyncSession = Depends(get_session)):
     settings = request.app.state.settings
+    if tool == "room_audio":
+        return await _room_audio_run(body, request, ctx, session)
     if tool == "orphan_recordings":
         try:
             deleted = await housekeeping.delete_orphan_recordings(session, settings, body.token or "")

@@ -49,6 +49,8 @@ export const S = {
     realtime: "实时通话",
     rank: "段位赛",
     rooms: "联机",
+    rooms_voice: "联机语音",
+    rooms_summary: "联机小结",
     admin: "管理端",
     other: "其他",
   } as Record<string, string>,
