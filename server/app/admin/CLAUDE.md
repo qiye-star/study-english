@@ -20,6 +20,14 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `recover.py` – `python -m app.admin.recover list-overrides|clear-overrides|unlock|reset-totp|revoke-sessions|rotate-key`
 - `auth.py` – env credential comparison (`credentials_match`)
 - `service.py` – v1 cross-user read queries (overview, users, conversations, assessments, ...)
+- `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
+  `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
+- `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (writes the
+  maintenance settings as overrides; turning it on = step-up + reason + typed `MAINTENANCE_MODE`)
+- `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings)
+- `housekeeping.py` – orphan recording scan/delete (token-guarded rescan), audit purge with anchor, `purge_expired`
+- `backups.py` – SQLite `VACUUM INTO` backups, prune, signed one-time download links, `daily_loop` (backup at
+  `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`.
@@ -33,7 +41,8 @@ Never import routers from here (room runtime lives in `routers/admin_rooms.py` v
 - Secrets appear only as `{"set", "source", "fp"}`; tests scan responses with `tests/admin_helpers.assert_no_secrets`.
 
 ## Tests
-`uv run pytest -q tests/test_admin_*.py tests/test_quotas.py tests/test_architecture.py`
+`uv run pytest -q tests/test_admin_*.py tests/test_quotas.py tests/test_architecture.py tests/test_usage.py
+tests/test_announcements.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py`
 (helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 
 ## Pitfalls

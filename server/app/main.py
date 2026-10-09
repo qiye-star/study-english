@@ -7,7 +7,7 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.admin import usage
+from app.admin import backups, usage
 from app.core import log_buffer, metering
 from app.core.config import Settings
 from app.core.db import make_engine
@@ -49,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks = app_.state.background_tasks
         tasks["watcher"] = asyncio.create_task(watch_revisions(app_))
         tasks["metering"] = asyncio.create_task(metering.flush_loop(app_))  # admin v2 §8.1
+        tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         yield
         await _stop_tasks(tasks, exclude="metering")
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
