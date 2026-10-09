@@ -12,7 +12,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
-| `rooms/` | practice rooms: codes, hub, assistant lane (admin-versioned templates), WS connection |
+| `rooms/` | practice rooms: codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
 | `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |

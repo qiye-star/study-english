@@ -37,6 +37,7 @@
     - 全量 E2E 回归:`yarn web:e2e --project=chromium-mobile`(此前的 11 通过是 2026-10-04/05 的结果,与现在的代码不是同一版本)。
     这些规格文件写好并通过 `E2E_INVITE_CODE=dummy npx playwright test --list`(78 个用例、10 个文件)和类型检查,**从未运行过**,第一次运行可能要调整触摸合成、选择器(`hold-hint`)、滑动坐标(取消 = 左 20% 宽,转文字 = 右 80%,dy −160)与按住时长。
 11. **生产反向代理(1Panel/OpenResty)转发 WebSocket**:需要你在面板里开启 WebSocket 支持并把读超时调到 ≥ `REALTIME_MAX_MINUTES`(默认 10 分钟,至少 660 s);未验证,见 `server/README.md`「实时通话的部署注意」与真机清单第 32 项。同时注意票据在 URL 里,代理访问日志会记录它(应用日志已脱敏)。
+12. **Rooms v2 未验证项**:`rooms-v2.spec.ts` 只在本机(无 Docker)跑过,真实语音上传/转写/翻译、镜像内 `lameenc`、真实小结质量与真机清单 R1–R13 全部未验证,见文末「Rooms v2」一节。
 
 状态:**尚未执行。** 本清单需要在能运行 Electron 应用、并配好真实上游(LLM / TTS / Whisper / Azure Speech)的机器上手动完成。
 自动化 Agent 所在环境没有原生模块的构建工具链(`sqlite3` 等构建失败),也没有真实密钥,因此无法执行。
@@ -310,3 +311,36 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 真实部署(HTTPS 反向代理后的 `__Host-` Secure Cookie、`ADMIN_IP_ALLOWLIST` 与 `TRUST_PROXY_HEADERS`、代理日志脱敏) | 未验证 |
 | 「测试连接」对真实上游、备份下载链接经反向代理、多 worker | 未验证(多 worker 不支持) |
 | 视觉对照(Z2,桌面 1440 / 1280) | 未做(属于 Z2) |
+
+## Rooms v2(计划 2026-10-10,Task Z1)
+
+### 自动化结果
+
+| 项 | 结果 |
+|---|---|
+| `rooms-v2.spec.ts`(两个上下文 A/B + 第三个上下文 C):A 建「需房主同意」房间(咖啡店、4 人)→ B 凭号申请 → A 在横幅里同意 → B 自动进房;B 发一句、A 引用回复(B 看到引用块)、B 点 👍(A 看到回应);A 输入时 B 看到「<A> 正在输入…」;A 打开助手停靠面板,断言最后一条消息底边 < 面板顶边;A 取邀请链接,C 打开链接直接进入并看到历史;A 按住说话(CDP 触摸 + 假麦克风),上传被 `page.route` 用 `rooms_v2_voice_contract.json` 的 `http.upload` 应答,语音气泡出现 | 本机通过(chromium-mobile,2026-10-10,连续 3 次);**未在 Docker E2E 栈运行**(本环境不用 Docker,重建容器需用户要求)。webkit-mobile 未运行(语音一步只在 Chromium 执行) |
+| `rooms.spec.ts`(v1 用例) | v2 创建表单去掉了话题按钮,用例改为点 `room-scenario-free`;本机通过(chromium-mobile)。未在 Docker 栈运行 |
+| 本机方式 | 临时 SQLite + `alembic upgrade head`(到 `0011`);环境变量同 E2E 栈(invite 注册、`RANK_ENABLED`/`ROOMS_ENABLED=true`、`ROOMS_AI_GLOBAL_DAILY=0`、`WEB_DIST_DIR=web/dist`)外加 `ROOMS_VOICE_ENABLED=true`,以及指向 `http://127.0.0.1:9`(不可达的本机端口)的 `UPSTREAM_LLM_BASE_URL` / `UPSTREAM_WHISPER_BASE_URL`(`UPSTREAM_WHISPER_MODE=openai`),只为让助手与语音入口显示;没有任何上游调用、没有密钥。uvicorn 于 8123,`E2E_BASE_URL=http://localhost:8123`。`docker-compose.e2e.yml` 已加 `ROOMS_VOICE_ENABLED: "true"` 供 Docker 栈使用 |
+| 真实录音上传、服务端 MP3 编码、转写、翻译、重试(真实上游) | 未验证(E2E 里上传是模拟的;服务端路径只有单测与 TestClient) |
+| 镜像内安装 `lameenc`(`docker compose build`) | 未验证 |
+| 学习小结(真实 LLM;规格 §17 要求抽检 5 份真实房间小结的质量) | 未验证 |
+| 管理端语音播放、`room_audio` 清理工具在浏览器里走一遍 | 未验证(有服务端测试与管理端单测) |
+| 视觉对照(Z2 Step 3,375×812,与 `docs/superpowers/design/rooms-v2/mockup.html` 并排) | 未做(属于 Z2) |
+
+### 真机设备清单(全部初始为"未验证")
+
+| # | 项 | iOS Safari | Android Chrome |
+|---|---|---|---|
+| R1 | 按住说话录音 10 秒并发送,对方收到语音与随后的转写 | 未验证 | 未验证 |
+| R2 | 上滑取消(不发送、不上传) | 未验证 | 未验证 |
+| R3 | 上滑转文字(只填进输入框,不存音频) | 未验证 | 未验证 |
+| R4 | 对方播放 MP3、语速跟随设置 | 未验证 | 未验证 |
+| R5 | 「转文字」「翻译」展开;自动转文字开关 | 未验证 | 未验证 |
+| R6 | 键盘弹出时助手面板收成一行,收起键盘后恢复 | 未验证 | 未验证 |
+| R7 | 拖动助手面板三档、收起与关闭 | 未验证 | 未验证 |
+| R8 | 切后台/锁屏再回来:重连并按 `last_seq` 补齐 | 未验证 | 未验证 |
+| R9 | 二维码被另一台手机扫码打开并加入 | 未验证 | 未验证 |
+| R10 | 邀请链接在应用内浏览器(微信等)中打开 | 未验证 | 未验证 |
+| R11 | 审批加入:等待页、房主同意后自动进房、被拒提示 | 未验证 | 未验证 |
+| R12 | 引用回复、表情回应、正在输入/正在说话 | 未验证 | 未验证 |
+| R13 | 房间结束后的学习小结页、生词一键进词汇本 | 未验证 | 未验证 |

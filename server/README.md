@@ -351,6 +351,21 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **重启**:关停时房间连接以 **1012** 断开,网页端自动重连并按 `last_seq` 补齐消息;重启前未答完的 `@ai` 问题标为「回答中断」。单 worker 限制同实时通话(房间锁、在线状态在进程内)。
 - **已知局限**:晋级赛发音分由讯飞以**识别文本为参考**评分(没有标准答案,偏宽松);真人代考无法杜绝(只收语音、限时、按轮上传,但不做身份核验);私聊助手的内容(`lane=private`)对用户只投递给本人,但**管理端可见**;房间号 6 位,靠加入限流(每人 10 次/分钟 + IP 限流)与房主「锁定」防穷举。
 
+## 联机练习 v2(计划 2026-10-10)
+
+规格:[docs/superpowers/specs/2026-10-10-rooms-v2-design.md](../docs/superpowers/specs/2026-10-10-rooms-v2-design.md);迁移 `0011_rooms_v2`(`alembic upgrade head`)。
+
+- **开关**:创建表单 7 项设置、需房主同意的加入、邀请链接与二维码、助手停靠面板、引用、表情回应、正在输入都随 `ROOMS_ENABLED` 生效,零新增上游调用。有上游成本的两项各有子开关,**默认关**:`ROOMS_VOICE_ENABLED`(语音消息;还需要识别上游:火山流式识别或 Whisper/对话模型兜底)、`ROOMS_SUMMARY_ENABLED`(房间结束时的学习小结;需要 `UPSTREAM_LLM_BASE_URL`)。关闭子开关时已存的语音仍可播放与翻译,已有小结仍可查看;回滚只需关开关,不需要降级迁移。
+- **全部新变量**见 `server/.env.example` 的「联机练习 v2」一节(每行有注释):`ROOMS_VOICE_ENABLED`、`ROOMS_VOICE_MAX_SECONDS`、`ROOMS_VOICE_DAILY_PER_USER`、`ROOMS_VOICE_GLOBAL_DAILY`、`ROOMS_VOICE_QUOTA_MB`、`ROOMS_VOICE_CONCURRENCY`、`ROOMS_VOICE_STORE_FORMAT`、`ROOMS_TRANSLATE_GLOBAL_DAILY`、`ROOMS_SUMMARY_ENABLED`、`ROOMS_SUMMARY_GLOBAL_DAILY`。全部在设置注册表里,可在管理端热改;`ROOMS_VOICE_CONCURRENCY` 只在启动时读取。
+- **语音配额(产品负责人确认的默认值)**:每人**每天**(UTC 日)200 MB(`ROOMS_VOICE_QUOTA_MB`,按当天已上传的字节计)+ 每天 100 条(`ROOMS_VOICE_DAILY_PER_USER`),两者都可在管理端按用户覆盖;不占练习录音的 `RECORDING_QUOTA_MB`。超出返回 429(`Voice storage quota reached` / `Daily voice limit reached`)。注意规格 §4.8/§11.2 原写的是累计总量,这里按负责人裁定改为按天(裁定 SV-1);管理端「存储」里看到的是每人累计字节。
+- **语音存储位置**:`DATA_DIR/room_audio/{room_id}/{message_id}.mp3`,上传后待转写的暂存 WAV 在 `DATA_DIR/room_audio/_staging/`。**不在 `recordings/` 下**(管理端「孤儿录音」工具只认识评测录音,放在那里会被误删)。所有路径都经目录逃逸校验,文件名是服务端生成的 uuid。
+- **格式**:上传只接受 16 kHz 单声道 16 位 WAV(≤ 60.5 秒、请求体 ≤ 2 100 000 字节);服务端用 `lameenc`(PyPI 自带 LAME 的 wheel,无需 ffmpeg)编码为 MP3 16 kHz 单声道 24 kbps 再保存。编码失败或 `ROOMS_VOICE_STORE_FORMAT=wav` 时保存 WAV(约 10 倍体积)。镜像内安装 `lameenc` 尚未在 `docker compose build` 中验证(Linux wheel 在锁文件里)。
+- **增长估算(估算,未实测)**:MP3 约 3 000 字节/秒;平均每条 10 秒约 30 KB → 每天 1 000 条约 30 MB/天、约 11 GB/年;全站上限 3 000 条/天且都是 60 秒时约 540 MB/天。WAV 兜底为 10 倍。
+- **永久保存与备份**:语音、转写、译文、小结默认永久保存;清扫只删除已结束超过 7 天的房间残留的暂存 WAV。管理端的 SQLite 备份**只含数据库**,`DATA_DIR/room_audio/` 必须和 `recordings/` 一样纳入部署方的目录备份。
+- **清理工具**:管理端「数据与备份」页(superadmin)的「房间语音清理」(`room_audio` 工具):先扫描(已结束超过 N 天的房间的音频,N ≥ 30、默认 365;`room_audio/` 下没有对应行的孤儿文件;超期暂存 WAV),再填原因 + 二次验证 + 扫描 token 执行。只删 `room_audio/` 下的文件;执行后 `audio_path=NULL, purged_at=now`,转写与译文保留,网页播放得到 410「音频已被管理员清理」。审计 `housekeeping.room_audio` 只记数量与字节。
+- **隐私**:音频只给本房成员(含已结束房间的成员);被移出的成员、非成员、被隐藏的消息得到 404。管理员在房间详情里播放语音需要 `operator` 及以上,**每次播放**都写审计 `room.audio.play`(只记房间与消息 id),只读 `room_audio/` 下的文件。日志与审计不记转写、译文、小结正文、邀请 token 或文件绝对路径。邀请 token 与房间票据同级保密:链接 `…/rooms/invite/<token>` 不要贴进公开渠道,房主可在邀请面板里重置(旧链接立即 404)。
+- **成本**:一条语音 = 发送时转写一次(全房共享,失败只有发送者能重试,最多 3 次)+ 第一次有人点「翻译」时翻译一次(全房共享);全站上限 `ROOMS_VOICE_GLOBAL_DAILY` / `ROOMS_TRANSLATE_GLOBAL_DAILY`。小结每个结束的房间最多一次 LLM 调用(失败可重试 1 次),全站 `ROOMS_SUMMARY_GLOBAL_DAILY`。用量页的 feature 为 `rooms_voice`(联机语音)与 `rooms_summary`(联机小结)。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

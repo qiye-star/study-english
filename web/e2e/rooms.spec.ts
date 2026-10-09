@@ -17,7 +17,7 @@ test("two members chat in a room by code; the owner removes one", async ({ brows
 
     await alice.goto("/rooms");
     await alice.getByTestId("room-create").click();
-    await alice.getByRole("button", { name: "美食" }).click();
+    await alice.getByTestId("room-scenario-free").click(); // rooms v2:话题按钮换成场景选择(SC1/WC2)
     await alice.getByTestId("room-create-submit").click();
     await expect(alice).toHaveURL(/\/rooms\/r\//);
     const codeText = await alice.getByTestId("room-code").innerText();
