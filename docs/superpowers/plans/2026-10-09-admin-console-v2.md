@@ -7202,3 +7202,6 @@ Rulings below override earlier text in this plan.
   every `audit.record` so the DB lock is held until the caller commits; correct across workers and on Postgres.
 - Ruling (recover rotate-key): keys come from `OLD_SETTINGS_ENCRYPTION_KEY` / `NEW_SETTINGS_ENCRYPTION_KEY` or a
   hidden prompt; `--old/--new` are gone.
+- Ruling (TOTP enrolment, security M3): `/me/totp/begin` and `/confirm` need self step-up; the enrolment token is
+  `encrypt({"a": account_id, "s": secret})`, valid 10 minutes and only for that account; both return 409 when TOTP is
+  already bound (re-binding = disable with step-up, then bind). The admin client's step-up dialog covers the UI.

@@ -3,6 +3,7 @@
 登录失败统一 401(不存在的用户名同样计数、同样响应);锁定期间不论密码对错 429 `Too many attempts`。
 审计只记动作与结果,永不记密码、验证码、恢复码、token、CSRF。
 """
+import json
 import time
 from datetime import datetime, timezone
 
@@ -207,9 +208,13 @@ async def change_password(body: PasswordIn, request: Request, ctx: AdminContext 
     return Response(status_code=204)
 
 
+ENROLMENT_TTL = 600  # seconds between /me/totp/begin and /me/totp/confirm
+
+
 @router.post("/me/totp/begin")
-async def totp_begin(request: Request, ctx: AdminContext = Depends(require("viewer"))):
-    """Nothing is stored yet: `enrolment` is the server-encrypted secret the confirm step sends back."""
+async def totp_begin(request: Request, ctx: AdminContext = Depends(require_self_step_up)):
+    """Nothing is stored yet: `enrolment` is the server-encrypted {account, secret} the confirm step sends back.
+    Step-up first (review M3): a hijacked session must not bind its own authenticator."""
     if ctx.account_id is None:
         raise HTTPException(400, "Env account TOTP is managed in .env")
     box = box_for(request.app.state.settings)
@@ -218,25 +223,35 @@ async def totp_begin(request: Request, ctx: AdminContext = Depends(require("view
     if ctx.totp_enabled:
         raise HTTPException(409, "TOTP already enabled")
     secret = totp.generate_secret()
-    return {"secret": secret, "uri": totp.provisioning_uri(secret, ctx.actor.name), "enrolment": box.encrypt(secret)}
+    enrolment = box.encrypt(json.dumps({"a": ctx.account_id, "s": secret}))
+    return {"secret": secret, "uri": totp.provisioning_uri(secret, ctx.actor.name), "enrolment": enrolment}
 
 
 @router.post("/me/totp/confirm")
-async def totp_confirm(body: TotpConfirmIn, request: Request, ctx: AdminContext = Depends(require("viewer")),
+async def totp_confirm(body: TotpConfirmIn, request: Request, ctx: AdminContext = Depends(require_self_step_up),
                        session: AsyncSession = Depends(get_session)):
+    """Binds only when no TOTP is bound (re-binding = disable with step-up, then bind), with an enrolment issued to
+    this account within ENROLMENT_TTL (review M3)."""
     if ctx.account_id is None:
         raise HTTPException(400, "Env account TOTP is managed in .env")
     box = box_for(request.app.state.settings)
     if box is None:
         raise HTTPException(409, "Encryption key not configured")
+    if ctx.totp_enabled:
+        raise HTTPException(409, "TOTP already enabled")
     try:
-        secret = box.decrypt(body.enrolment)
-    except SecretBoxError:
-        raise HTTPException(400, "Invalid enrolment") from None
+        data = json.loads(box.decrypt(body.enrolment, ttl=ENROLMENT_TTL))
+        secret = data["s"] if isinstance(data, dict) and data.get("a") == ctx.account_id else None
+    except (SecretBoxError, ValueError, KeyError, TypeError):
+        secret = None
+    if not isinstance(secret, str):
+        raise HTTPException(400, "Invalid enrolment")
     step = totp.verify(secret, body.code, time.time(), None)
     if step is None:
         raise HTTPException(400, "Invalid code")
     account = await session.get(AdminAccount, ctx.account_id)
+    if account.totp_enc:  # bound meanwhile by a parallel request
+        raise HTTPException(409, "TOTP already enabled")
     account.totp_enc, account.totp_last_step = box.encrypt(secret), step
     codes = await replace_recovery_codes(session, account.id)
     ctx.session.mfa_at = datetime.now(timezone.utc)
