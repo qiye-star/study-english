@@ -12,6 +12,7 @@ Rules kept here:
 import asyncio
 import logging
 import time
+import weakref
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -86,6 +87,13 @@ class VoiceService:
 
     def __init__(self, deps: VoiceDeps):
         self.deps = deps
+        self._senders: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
+
+    def _sender_lock(self, sender_id: int) -> asyncio.Lock:
+        lock = self._senders.get(sender_id)
+        if lock is None:
+            lock = self._senders[sender_id] = asyncio.Lock()
+        return lock
 
     # ---- upload (spec §4.2) ----
 
@@ -114,34 +122,37 @@ class VoiceService:
             quote = await d.store.quote_for(room.id, reply_to)
             if quote is None:
                 raise VoiceError("bad_reply")
-        data, fmt = await asyncio.to_thread(audio.stored_audio, wav, info.pcm, d.store_format())
-        used = await d.voices.used_bytes(sender_id, since=_day_start(now))
-        if used + len(data) > await d.quota_mb_for(sender_id) * MB:
-            raise VoiceError("quota")
+        data, fmt = await asyncio.to_thread(audio.stored_audio, info.pcm, d.store_format())
+        staging_wav = audio.canonical_wav(info.pcm)  # the upload's extra chunks are not kept (review m6)
         uid = str(sender_id)
-        if not await d.consume("room_voice", uid, await d.daily_for(sender_id)):
-            raise VoiceError("daily")
-        if not await d.consume("room_voice_global", GLOBAL, limits.voice_global_daily):
-            await d.refund("room_voice", uid)
-            raise VoiceError("daily")
-        message_id = new_uuid()
-        staging = audio.staging_relpath(message_id)
-        stored = audio.audio_relpath(room.id, message_id, fmt)
-        try:
-            await asyncio.to_thread(audio.write_file, d.data_dir, staging, wav)
-            await asyncio.to_thread(audio.write_file, d.data_dir, stored, data)
-            async with d.hub.lock(room.id):
-                msg, _voice = await d.voices.append_voice(
-                    room.id, sender_id=sender_id, client_id=client_id, reply_to=reply_to, quote=quote,
-                    duration_ms=info.duration_ms, audio_path=stored, audio_bytes=len(data), audio_format=fmt,
-                    staging_path=staging, now=now, message_id=message_id)
-        except BaseException as e:
-            for rel in (staging, stored):
-                await asyncio.to_thread(audio.delete_file, d.data_dir, rel)
-            await d.refund("room_voice", uid)
-            await d.refund("room_voice_global", GLOBAL)
-            logger.warning("room voice upload failed room=%s error=%s", room.id, type(e).__name__)
-            raise
+        # quota check through insert is one step per sender: parallel uploads (other rooms) cannot both pass (m8)
+        async with self._sender_lock(sender_id):
+            used = await d.voices.used_bytes(sender_id, since=_day_start(now))
+            if used + len(data) > await d.quota_mb_for(sender_id) * MB:
+                raise VoiceError("quota")
+            if not await d.consume("room_voice", uid, await d.daily_for(sender_id)):
+                raise VoiceError("daily")
+            if not await d.consume("room_voice_global", GLOBAL, limits.voice_global_daily):
+                await d.refund("room_voice", uid)
+                raise VoiceError("daily")
+            message_id = new_uuid()
+            staging = audio.staging_relpath(message_id)
+            stored = audio.audio_relpath(room.id, message_id, fmt)
+            try:
+                await asyncio.to_thread(audio.write_file, d.data_dir, staging, staging_wav)
+                await asyncio.to_thread(audio.write_file, d.data_dir, stored, data)
+                async with d.hub.lock(room.id):
+                    msg, _voice = await d.voices.append_voice(
+                        room.id, sender_id=sender_id, client_id=client_id, reply_to=reply_to, quote=quote,
+                        duration_ms=info.duration_ms, audio_path=stored, audio_bytes=len(data), audio_format=fmt,
+                        staging_path=staging, now=now, message_id=message_id)
+            except BaseException as e:
+                for rel in (staging, stored):
+                    await asyncio.to_thread(audio.delete_file, d.data_dir, rel)
+                await d.refund("room_voice", uid)
+                await d.refund("room_voice_global", GLOBAL)
+                logger.warning("room voice upload failed room=%s error=%s", room.id, type(e).__name__)
+                raise
         logger.info("room voice stored room=%s message=%s duration_ms=%d bytes=%d format=%s",
                     room.id, message_id, info.duration_ms, len(data), fmt)
         out = await d.store.out_one(msg.id)
@@ -152,6 +163,9 @@ class VoiceService:
     # ---- transcription (spec §4.4) ----
 
     async def _broadcast_voice(self, room_id: str, seq: int, voice) -> None:
+        """A message hidden while its job ran gets no update: its transcript/translation stay withheld (review m1)."""
+        if await self.deps.voices.is_hidden(voice.message_id):
+            return
         await self.deps.hub.broadcast(room_id, event("voice_update", seq=seq, voice=voice_out(voice)))
 
     async def _transcribe(self, room_id: str, message_id: str, seq: int, sender_id: int, *,
@@ -271,12 +285,12 @@ class VoiceService:
         if not d.available():  # sub-switch off: no new transcriptions (spec §11.2); translation still works
             await conn.send_self(event("notice", code="voice_off"))
             return
+        if not d.retry_limiter.allow(f"{conn.room_id}:{conn.user_id}"):  # before any DB work, for everyone (m7)
+            await conn.send_self(event("error", code="rate_limited"))
+            return
         found = await d.voices.by_seq(conn.room_id, seq)
         if found is None or found[0].sender_id != conn.user_id:
             await conn.send_self(event("error", code="bad_seq"))
-            return
-        if not d.retry_limiter.allow(f"{conn.room_id}:{conn.user_id}"):
-            await conn.send_self(event("error", code="rate_limited"))
             return
         msg, voice = found
         if voice.status != "failed":

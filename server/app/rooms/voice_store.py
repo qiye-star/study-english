@@ -47,6 +47,10 @@ class VoiceStore:
         async with self._sm() as s:
             return await s.get(RoomVoice, message_id)
 
+    async def is_hidden(self, message_id: str) -> bool:
+        async with self._sm() as s:
+            return await s.scalar(select(RoomMessage.hidden_at).where(RoomMessage.id == message_id)) is not None
+
     async def by_seq(self, room_id: str, seq: int) -> tuple[RoomMessage, RoomVoice] | None:
         """A public, visible voice message of the room by seq (hidden messages cannot be translated or retried)."""
         async with self._sm() as s:

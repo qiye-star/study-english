@@ -5,7 +5,9 @@ ROOMS_VOICE_STORE_FORMAT=wav, or when encoding fails). Files live under `{DATA_D
 `recordings/` (R2-18: the orphan-recordings tool only knows assessment audio). Every path goes through
 `services.recordings.absolute_path` (directory-escape check). Room audio is kept forever: nothing here deletes
 a stored clip on its own; `delete_file` is for staging WAVs and for undoing a failed upload. Never logs audio."""
+import io
 import logging
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,10 +62,22 @@ def encode_mp3(pcm: bytes) -> bytes:
     return bytes(enc.encode(pcm)) + bytes(enc.flush())
 
 
-def stored_audio(wav: bytes, pcm: bytes, fmt: str) -> tuple[bytes, str]:
-    """(bytes, format) to store. `mp3` encodes; if encoding fails the WAV is kept as is (clean fallback)."""
+def canonical_wav(pcm: bytes) -> bytes:
+    """A fresh 16 kHz mono PCM16 WAV around `pcm`: unknown RIFF chunks and trailing bytes of the upload are never
+    stored or served (review m6)."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(pcm)
+    return buf.getvalue()
+
+
+def stored_audio(pcm: bytes, fmt: str) -> tuple[bytes, str]:
+    """(bytes, format) to store. `mp3` encodes; if encoding fails a canonical WAV is kept (clean fallback)."""
     if fmt != "mp3":
-        return wav, "wav"
+        return canonical_wav(pcm), "wav"
     try:
         data = encode_mp3(pcm)
         if not data:
@@ -71,7 +85,7 @@ def stored_audio(wav: bytes, pcm: bytes, fmt: str) -> tuple[bytes, str]:
         return data, "mp3"
     except Exception as e:  # ImportError, encoder errors: keep the clip rather than lose it
         logger.warning("room voice mp3 encoding failed error=%s; storing wav", type(e).__name__)
-        return wav, "wav"
+        return canonical_wav(pcm), "wav"
 
 
 def audio_relpath(room_id: str, message_id: str, fmt: str) -> str:

@@ -31,9 +31,10 @@ def test_inspect_wav_allows_half_a_second_over_the_cap():
 
 def test_mp3_is_about_a_tenth_of_wav():
     wav = wav_bytes(10)
-    data, fmt = audio.stored_audio(wav, audio.inspect_wav(wav, min_ms=500, max_ms=60_000).pcm, "mp3")
+    pcm = audio.inspect_wav(wav, min_ms=500, max_ms=60_000).pcm
+    data, fmt = audio.stored_audio(pcm, "mp3")
     assert fmt == "mp3" and data[0] == 0xFF and 25_000 < len(data) < 40_000 and len(wav) > 300_000
-    assert audio.stored_audio(wav, b"", "wav") == (wav, "wav")
+    assert audio.stored_audio(pcm, "wav") == (wav, "wav")  # a canonical WAV of the same samples
 
 
 def test_mp3_encoding_failure_falls_back_to_wav(monkeypatch, caplog):
@@ -43,7 +44,7 @@ def test_mp3_encoding_failure_falls_back_to_wav(monkeypatch, caplog):
     monkeypatch.setattr(audio, "encode_mp3", broken)
     wav = wav_bytes(1)
     with caplog.at_level(logging.DEBUG, logger="app"):
-        assert audio.stored_audio(wav, b"\x00\x00" * 16000, "mp3") == (wav, "wav")
+        assert audio.stored_audio(audio.inspect_wav(wav, min_ms=500, max_ms=60_000).pcm, "mp3") == (wav, "wav")
     assert "RuntimeError" in caplog.text and "no encoder" not in caplog.text
 
 

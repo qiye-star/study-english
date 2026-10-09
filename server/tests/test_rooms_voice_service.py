@@ -331,3 +331,100 @@ async def test_wav_store_format(env):
                                        ("I like 巧克力 very much", "en"), ("", "en")])
 def test_detect_lang(text, lang):
     assert detect_lang(text) == lang
+
+
+async def test_hidden_while_pending_never_broadcasts_text(env):
+    """Review m1: an admin hides a clip while its transcription (or translation) is in flight."""
+    service, room, hub, senders, state, _ = env
+    gate, entered = asyncio.Event(), asyncio.Event()
+    real = service.deps.transcribe
+
+    async def slow(wav, sender_id):
+        entered.set()  # no DB session is open while the upstream runs (the test DB is one shared connection)
+        await gate.wait()
+        return await real(wav, sender_id)
+
+    service.deps.transcribe = slow
+    out = await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
+    await entered.wait()
+    await service.deps.store.hide(room.id, out["id"], NOW)
+    gate.set()
+    await hub.drain()
+    for uid in (A, B):
+        for e in events(senders[uid], "voice_update"):
+            assert e["voice"] is None or not e["voice"].get("transcript")
+    # translation that finishes after the hide
+    service.deps.transcribe = real
+    other = await service.upload(room, A, "alice", wav_bytes(2), "c2", None)
+    await hub.drain()
+    done = asyncio.Event()
+    release = asyncio.Event()
+    real_complete = service.deps.complete
+
+    async def slow_complete(messages, max_tokens, temperature):
+        done.set()
+        await release.wait()
+        return await real_complete(messages, max_tokens, temperature)
+
+    service.deps.complete = slow_complete
+    before = len(events(senders[B], "voice_update"))
+    await service.on_translate(FakeConn(hub, room.id, B), other["seq"])
+    await done.wait()
+    await service.deps.store.hide(room.id, other["id"], NOW)
+    release.set()
+    await hub.drain()
+    for e in events(senders[B], "voice_update")[before:]:
+        assert e["voice"] is None or not e["voice"].get("translation")
+
+
+async def test_retry_spam_by_non_senders_is_rate_limited(env):
+    """Review m7: the limiter runs before the DB lookup, for everyone."""
+    service, room, hub, senders, state, _ = env
+    out = await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
+    await hub.drain()
+    service.deps.retry_limiter = RateLimiter(1, 60)
+    bob = FakeConn(hub, room.id, B)
+    await service.on_retry(bob, out["seq"])
+    assert bob.sent[-1] == {"type": "error", "code": "bad_seq"}
+    await service.on_retry(bob, out["seq"])
+    assert bob.sent[-1] == {"type": "error", "code": "rate_limited"}
+
+
+async def test_parallel_uploads_cannot_overrun_the_daily_megabytes(env):
+    """Review m8: the quota check and the insert are atomic per sender."""
+    from app.rooms import audio
+
+    service, room, hub, senders, state, _ = env
+    wav = wav_bytes(3)
+    info = audio.inspect_wav(wav, min_ms=500, max_ms=60_000)
+    size = len(audio.stored_audio(info.pcm, "mp3")[0])
+    state["quota_mb"] = 1
+    await service.deps.voices.append_voice(room.id, sender_id=A, client_id="old", reply_to=None, quote=None,
+                                           duration_ms=1000, audio_path="room_audio/x/old.mp3",
+                                           audio_bytes=1_048_576 - size - size // 2, audio_format="mp3",
+                                           staging_path=None, now=NOW)
+    results = await asyncio.gather(*(service.upload(room, A, "alice", wav, f"p{i}", None) for i in range(3)),
+                                   return_exceptions=True)
+    await hub.drain()
+    ok = [r for r in results if isinstance(r, dict)]
+    assert len(ok) == 1
+    assert all(isinstance(r, VoiceError) and r.code == "quota" for r in results if not isinstance(r, dict))
+    assert await service.deps.voices.used_bytes(A) <= 1_048_576
+
+
+async def test_stored_wav_is_canonical_without_extra_chunks(env):
+    """Review m6: unknown RIFF chunks and trailing bytes of the upload are never stored."""
+    import struct
+
+    service, room, hub, senders, state, data_dir = env
+    service.deps.store_format = lambda: "wav"
+    clean = wav_bytes(1)
+    junk = b"LIST" + struct.pack("<I", 16) + b"INFOsecret-junk!"
+    riff = bytearray(clean[:12] + junk + clean[12:] + b"TRAILING-PAYLOAD")
+    riff[4:8] = struct.pack("<I", len(riff) - 8)
+    out = await service.upload(room, A, "alice", bytes(riff), "c1", None)
+    stored = (data_dir / f"room_audio/{room.id}/{out['id']}.wav").read_bytes()
+    assert b"secret-junk" not in stored and b"TRAILING" not in stored
+    assert stored == clean
+    assert (await service.deps.voices.get(out["id"])).audio_bytes == len(clean)
+    await hub.drain()
