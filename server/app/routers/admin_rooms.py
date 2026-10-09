@@ -200,11 +200,16 @@ async def update_settings(room_id: RoomId, payload: SettingsIn, request: Request
     return {"settings": rooms_admin.settings_out(room), "changes": changed}
 
 
-AUDIO_MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}  # same as the member endpoint (rooms.audio)
+# ---- SV adapter (integration Ruling INT-5) ----
+# rv2-lane-sv (server voice) is not merged yet, so admin playback cannot import `app.rooms.audio`. These two names
+# are the whole adapter: on the SV merge, AUDIO_MEDIA_TYPES becomes `audio.MEDIA_TYPES` and `_read_audio`'s body
+# becomes `audio.read_file(data_dir, relpath)` (keeping the None-on-missing/outside-dir contract used below).
+AUDIO_MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}  # = SV's audio.MEDIA_TYPES
 AUDIO_DIR = "room_audio"
 
 
 def _read_audio(data_dir, relpath: str) -> bytes | None:
+    """SV adapter: the stored voice file under `<data>/room_audio/`, or None (missing, unreadable, outside)."""
     try:
         path = absolute_path(data_dir, relpath)
     except ValueError:

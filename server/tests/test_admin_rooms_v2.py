@@ -166,3 +166,16 @@ async def test_list_search_and_reports_use_the_room_name(app, client):
     assert (await client.get(f"/api/admin/rooms/{room['id']}")).json()["name"] == "咖啡角"
     reports = (await client.get("/api/admin/reports")).json()["reports"]
     assert reports[0]["room"]["name"] == "咖啡角"
+
+
+def test_admin_settings_validation_is_the_owner_rule():
+    """Integration: AD's temporary validator is replaced by SC1's `rules.clean_settings` (one rule for both)."""
+    from app.admin.rooms_admin import clean_admin_settings
+    from app.rooms.rules import clean_settings
+
+    padded = "  " + "咖" * 30 + "  "  # 34 raw code points, 30 after cleaning: the owner may save it
+    for raw in ({"name": padded}, {"name": "咖" * 31}, {"join_mode": "open"}, {"max_members": 9},
+                {"max_members": 1}, {"max_members": 3, "allow_voice": False, "ai_public": True}, {"name": "   "}):
+        assert clean_admin_settings(raw, site_max_members=8) == clean_settings(raw, site_max_members=8, partial=True)
+    # the admin may not change scenario, level or the lock (spec §14): those keys are dropped, never applied
+    assert clean_admin_settings({"scenario": "cafe", "level": "C1", "locked": True}, site_max_members=8) == ({}, {})

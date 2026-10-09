@@ -11,12 +11,11 @@ from app.admin import audit
 from app.admin.audit import Actor
 from app.admin.service import _escape_like, paginate
 from app.models import Room, RoomMember, RoomMessage, RoomReport, RoomVoice, User, iso_utc
-from app.rooms.rules import RoomLimits, clean_text
+from app.rooms.rules import clean_settings
 
 Resolution = Literal["dismissed", "removed_message", "kicked", "closed_room"]
 RESOLUTIONS = ("dismissed", "removed_message", "kicked", "closed_room")
 SNIPPET = 200
-NAME_MAX = RoomLimits.name_max
 
 
 class RoomAdminError(Exception):
@@ -125,38 +124,13 @@ def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None, 
 
 # Editable by an operator (spec 2026-10-10 §14); scenario and level stay the owner's choice.
 ADMIN_SETTING_FIELDS = ("name", "join_mode", "max_members", "ai_public", "allow_voice")
-JOIN_MODES = ("code", "approval")
-SITE_MAX_ROOM = 8  # spec §3.1: 2..8 members, also capped by ROOMS_MAX_MEMBERS
 
 
 def clean_admin_settings(raw: dict, *, site_max_members: int) -> tuple[dict, dict[str, str]]:
-    """Partial validation of the operator-editable settings with the same rules and error codes as the owner's
-    `rooms.rules.clean_settings` (server-core lane): name ≤ 30 code points (cleaned; empty = unchanged),
-    join_mode code|approval, 2 ≤ max_members ≤ min(8, site max), booleans as given."""
-    clean: dict = {}
-    errors: dict[str, str] = {}
-    for key in ADMIN_SETTING_FIELDS:
-        if key not in raw or raw[key] is None:
-            continue
-        value = raw[key]
-        if key == "name":
-            if len(value) > NAME_MAX:
-                errors[key] = "too_long"
-            elif (text := clean_text(value, NAME_MAX)) is not None:
-                clean[key] = text
-        elif key == "join_mode":
-            if value in JOIN_MODES:
-                clean[key] = value
-            else:
-                errors[key] = "unknown"
-        elif key == "max_members":
-            if 2 <= value <= min(SITE_MAX_ROOM, site_max_members):
-                clean[key] = value
-            else:
-                errors[key] = "range"
-        else:
-            clean[key] = bool(value)
-    return clean, errors
+    """Partial validation of the operator-editable settings: the owner's rule (`rooms.rules.clean_settings`,
+    SC1) applied to the five admin fields only (spec §14; scenario, level and the lock are not admin-editable)."""
+    return clean_settings({k: raw[k] for k in ADMIN_SETTING_FIELDS if k in raw},
+                          site_max_members=site_max_members, partial=True)
 
 
 async def update_settings(session, actor: Actor, room_id: str, changes: dict, reason: str, *,
