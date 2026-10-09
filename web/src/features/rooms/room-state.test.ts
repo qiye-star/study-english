@@ -21,11 +21,37 @@ describe("roomReducer", () => {
     expect(s.lastSeq).toBe(4);
   });
 
-  it("tracks pending says until acked", () => {
-    let s = run([{ type: "say", pending: { clientId: "c1", text: "hi", assistId: null } }]);
+  it("keeps a pending say until its own message arrives, without advancing the resume cursor on ack", () => {
+    let s = run([{ type: "say", pending: { clientId: "c1", text: "hi", assistId: null, seq: null } }]);
     expect(s.pending).toHaveLength(1);
     s = run([ev({ type: "ack", clientId: "c1", seq: 5 })], s);
+    expect(s.pending).toEqual([{ clientId: "c1", text: "hi", assistId: null, seq: 5 }]); // no frame without the bubble
+    expect(s.lastSeq).toBe(0); // message 5 (and anything before it) has not been received yet
+    s = run([ev({ type: "message", message: msg(4) }), ev({ type: "message", message: msg(5) })], s);
     expect(s.pending).toEqual([]);
+    expect(s.lastSeq).toBe(5);
+  });
+
+  it("an ack for a message that already arrived (resend after reconnect) drops the pending bubble", () => {
+    const s = run([
+      { type: "say", pending: { clientId: "c1", text: "hi", assistId: null, seq: null } },
+      ev({ type: "message", message: msg(7) }), ev({ type: "ack", clientId: "c1", seq: 7 }),
+    ]);
+    expect(s.pending).toEqual([]);
+    expect(s.messages.map((m) => m.seq)).toEqual([7]);
+  });
+
+  it("a truncated replay restarts the list from the newest page and clears stale AI typing", () => {
+    const welcome = (truncated: boolean) => ev({ type: "welcome", room: { id: "r" }, me: { userId: 1, role: "owner" }, members: [], lastSeq: 900, truncated, assistHistory: [] });
+    let s = run([welcome(false), ev({ type: "message", message: msg(1) }), ev({ type: "message", message: msg(2, { aiStatus: "pending" }) }), ev({ type: "ai_typing", replyTo: 2 }),
+      { type: "say", pending: { clientId: "c1", text: "hi", assistId: null, seq: null } }]);
+    s = run([welcome(true), ev({ type: "message", message: msg(700) })], s);
+    expect(s.messages.map((m) => m.seq)).toEqual([700]); // no silent gap between 2 and 700; "load earlier" pages back from 700
+    expect(s.truncated).toBe(true);
+    expect(s.pending).toHaveLength(1);
+    expect(s.aiTyping).toEqual([]);
+    s = run([welcome(false), ev({ type: "message", message: msg(701) })], s);
+    expect(s.messages.map((m) => m.seq)).toEqual([700, 701]); // an untruncated replay merges
   });
 
   it("handles the @ai lifecycle", () => {

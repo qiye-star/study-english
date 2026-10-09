@@ -1,15 +1,15 @@
 import { TrophyIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { FeatureGate, type GateState } from "~/components/feature-gate";
 import { SectionGroup } from "~/components/section-group";
 import { PageHeader } from "~/layout/page-header";
 import { PromotionCard } from "./promotion-card";
-import { fetchRankConfig, fetchRankMe, RANK_SERVER_ERRORS, startMatch, type RankConfig, type RankMe } from "./rank-api";
+import { fetchRankConfig, RANK_SERVER_ERRORS, startMatch, type RankConfig, type RankMe } from "./rank-api";
+import { loadRankMe } from "./rank-me";
 import { StageTasks } from "./stage-tasks";
 import { TierBadge } from "./tier-badge";
 import { divisionLabel, pointsToGate, progressRatio } from "./tiers";
@@ -38,16 +38,19 @@ export function RankHomePage() {
       .then(async (value) => {
         setConfig(value);
         if (!value.enabled) return setState("disabled");
-        const profile = await fetchRankMe(api, undefined, ctrl.signal);
+        const profile = await loadRankMe(api, tRef.current); // 新成就在这里提示;语言切换不重新拉取
         if (ctrl.signal.aborted) return;
         setMe(profile);
         setState("ready");
-        // 只提示一次;语言切换不重新拉取
-        if (profile.newAchievements.length) toast.success(tRef.current("web.rank.newAchievements", { count: profile.newAchievements.length }));
       })
       .catch(() => { if (!ctrl.signal.aborted) setState("error"); });
     return () => ctrl.abort();
   }, [api, attempt]);
+
+  /** 冷却结束:静默重新拉取,出现「开始晋级赛」 */
+  const refresh = useCallback(() => {
+    loadRankMe(api, tRef.current).then(setMe, (): void => undefined);
+  }, [api]);
 
   async function start() {
     setStarting(true);
@@ -101,7 +104,7 @@ export function RankHomePage() {
               </SectionGroup>
             )}
             <SectionGroup title={t("web.rank.promotion.title")} bare>
-              <PromotionCard me={me} starting={starting} error={error} onStart={() => void start()}
+              <PromotionCard me={me} starting={starting} error={error} onStart={() => void start()} onCooldownEnd={refresh}
                 onResume={() => navigate(`/rank/match/${me.activeMatchId}`)} />
             </SectionGroup>
             <p data-testid="rank-season" className="mt-[18px] flex items-center justify-between gap-3 px-0.5 text-meta text-ink-2">

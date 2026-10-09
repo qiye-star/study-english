@@ -30,6 +30,7 @@
         "title": "房间",
         "code": "房间 {{code}}",
         "copied": "房间号已复制",
+        "copyManual": "无法复制,房间号:{{code}}",
         "online": "{{count}} 人在线",
         "ended": "已结束 · 只读",
         "placeholder": "说点什么,或 @ai 提问",
@@ -49,6 +50,7 @@
         "report": "举报",
         "reported": "已举报",
         "reportTitle": "举报这条消息",
+        "reportHint": "选择举报这条消息的原因。",
         "reportReasons": {
           "spam": "垃圾信息",
           "abuse": "骚扰或辱骂",
@@ -88,7 +90,8 @@
         "leave": "离开房间",
         "leaveConfirm": "离开后需要房间号才能再加入,确定吗?",
         "close": "结束房间",
-        "closeConfirm": "结束后所有人都不能再发消息,确定吗?"
+        "closeConfirm": "结束后所有人都不能再发消息,确定吗?",
+        "confirmHint": "在下方确认或取消。"
       },
       "notice": {
         "ai_off": "房主关闭了 AI 公开回答,可以用助手私聊",

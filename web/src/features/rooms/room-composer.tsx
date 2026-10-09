@@ -14,8 +14,10 @@ const keyClass = "flex size-tap flex-none items-center justify-center rounded-bu
  */
 export const RoomComposer = forwardRef<HTMLDivElement, {
   disabled: boolean; value: string; ai: boolean; banner?: ReactNode; onDismiss?(): void;
+  /** 没连上:可以继续输入,不能发送 */
+  offline?: boolean;
   onChange(v: string): void; onSend(): void; onOpenAssist(): void;
-}>(function RoomComposer({ disabled, value, ai, banner, onDismiss, onChange, onSend, onOpenAssist }, ref) {
+}>(function RoomComposer({ disabled, offline = false, value, ai, banner, onDismiss, onChange, onSend, onOpenAssist }, ref) {
   const { t } = useTranslation();
   const mention = mentionsAi(value).ai || /^@ai\s/i.test(value);
   return (
@@ -36,13 +38,13 @@ export const RoomComposer = forwardRef<HTMLDivElement, {
         )}
         <input data-testid="room-input" disabled={disabled} value={value} maxLength={ROOM_LIMITS.text} enterKeyHint="send"
           aria-label={t("web.rooms.room.placeholder")} placeholder={t("web.rooms.room.placeholder")} onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); onSend(); } }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); if (!offline) onSend(); } }}
           className="h-tap min-w-0 flex-1 rounded-button border-[0.5px] border-hair bg-surface px-3 text-base text-ink placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30 disabled:opacity-60" />
         {ai && (
           <button type="button" data-testid="room-assist-open" aria-label={t("web.rooms.assist.open")} disabled={disabled} onClick={onOpenAssist}
             className={cn(keyClass, "text-ink-2 hover:bg-surface-2")}><LanguagesIcon aria-hidden /></button>
         )}
-        <button type="button" data-testid="room-send" aria-label={t("web.rooms.room.send")} disabled={disabled || !value.trim()} onClick={onSend}
+        <button type="button" data-testid="room-send" aria-label={t("web.rooms.room.send")} disabled={disabled || offline || !value.trim()} onClick={onSend}
           className={cn(keyClass, "bg-blue text-on-blue")}><SendIcon aria-hidden /></button>
       </div>
     </div>

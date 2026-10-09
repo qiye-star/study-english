@@ -24,7 +24,8 @@ export interface RoomSocketOptions {
   createSocket?(url: string): SocketLike;
   backoffMs?: number[];
   pingMs?: number;
-  isTerminalTicketError?(err: unknown): boolean;
+  /** 票据错误是否终止重连;返回字符串时作为关闭原因(默认 not_found)。 */
+  isTerminalTicketError?(err: unknown): boolean | string;
 }
 
 /**
@@ -38,6 +39,8 @@ export class RoomSocket {
   private ping: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
   private everLive = false;
+  /** 最近一次收到帧的时间:iOS 挂起后连接可能已被服务端关掉,却还没有 close 事件 */
+  private lastFrameAt = 0;
 
   constructor(private readonly o: RoomSocketOptions) {}
 
@@ -53,18 +56,24 @@ export class RoomSocket {
       ticket = await this.o.getTicket();
     } catch (err) {
       if (this.stopped) return;
-      if (this.o.isTerminalTicketError?.(err)) return this.finish("not_found");
+      const terminal = this.o.isTerminalTicketError?.(err);
+      if (terminal) return this.finish(typeof terminal === "string" ? terminal : "not_found");
       return this.schedule();
     }
     if (this.stopped) return;
     const ws = (this.o.createSocket ?? ((url: string) => new WebSocket(url) as unknown as SocketLike))(this.o.url(ticket));
     this.ws = ws;
     ws.onopen = () => {
+      this.lastFrameAt = Date.now();
       ws.send(encodeHello(this.o.lastSeq()));
       this.clearPing();
-      this.ping = setInterval(() => this.send(encodePing()), this.o.pingMs ?? PING_MS);
+      this.ping = setInterval(() => {
+        if (this.silent()) this.drop();
+        else this.send(encodePing());
+      }, this.o.pingMs ?? PING_MS);
     };
     ws.onmessage = (e) => {
+      if (this.ws === ws) this.lastFrameAt = Date.now();
       const event = typeof e.data === "string" ? parseRoomEvent(e.data) : null;
       if (!event) return;
       if (event.type === "welcome") {
@@ -113,9 +122,27 @@ export class RoomSocket {
     return true;
   }
 
-  /** 正在退避等待时立即重连(页面重新可见)。 */
+  /** 两个心跳周期都没有任何帧(包括 pong):连接已死 */
+  private silent(): boolean {
+    return this.ws?.readyState === 1 && Date.now() - this.lastFrameAt > (this.o.pingMs ?? PING_MS) * 2;
+  }
+
+  /** 主动丢弃一条死连接,按非终止断线处理(重连并从 lastSeq 补发)。 */
+  private drop(): void {
+    const ws = this.ws;
+    if (!ws) return;
+    this.ws = null; // 先解绑:随后的 onclose 不再处理
+    this.clearPing();
+    ws.close(ROOM_CLOSE.NORMAL);
+    this.o.onStatus("reconnecting");
+    this.schedule();
+  }
+
+  /** 页面重新可见:正在退避等待时立即重连;连接看似打开却早已没有帧时,丢弃并立即重连。 */
   reconnectNow(): void {
-    if (this.stopped || this.ws || !this.timer) return;
+    if (this.stopped) return;
+    if (this.silent()) this.drop();
+    if (this.ws || !this.timer) return;
     clearTimeout(this.timer);
     this.timer = null;
     this.connect();

@@ -126,6 +126,46 @@ describe("RoomSocket", () => {
     expect(FakeSocket.all).toHaveLength(2);
   });
 
+  it("drops a silent socket on the next ping and reconnects", async () => {
+    const { socket, statuses } = setup({ backoffMs: [1000] });
+    socket.connect();
+    await vi.runOnlyPendingTimersAsync();
+    FakeSocket.all[0].open();
+    FakeSocket.all[0].push({ type: "welcome", room: {}, me: {}, members: [], last_seq: 0, truncated: false, assist_history: [] });
+    await vi.advanceTimersByTimeAsync(25_000);
+    FakeSocket.all[0].push({ type: "pong" }); // answered: still alive
+    await vi.advanceTimersByTimeAsync(50_000);
+    expect(FakeSocket.all).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(25_000); // 75 s without a frame
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeSocket.all).toHaveLength(2);
+  });
+
+  it("reconnectNow replaces a socket that went silent while the page was hidden", async () => {
+    const { socket, statuses } = setup();
+    socket.connect();
+    await vi.runOnlyPendingTimersAsync();
+    FakeSocket.all[0].open();
+    socket.reconnectNow(); // fresh: keep it
+    expect(FakeSocket.all).toHaveLength(1);
+    vi.setSystemTime(Date.now() + 120_000); // suspended: no timers ran, no close event
+    socket.reconnectNow();
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await vi.runOnlyPendingTimersAsync();
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(FakeSocket.all[0].readyState).toBe(3);
+  });
+
+  it("a 403 ticket (removed from the room) closes with the kicked reason", async () => {
+    const removed = Object.assign(new Error("Removed from room"), { status: 403 });
+    const { socket, statuses } = setup({ getTicket: () => Promise.reject(removed),
+      isTerminalTicketError: (e) => ((e as { status?: number }).status === 403 ? "kicked" : false) });
+    socket.connect();
+    await vi.runOnlyPendingTimersAsync();
+    expect(statuses.at(-1)).toBe("closed:kicked");
+  });
+
   it("ignores frames that are not known events", async () => {
     const { socket, events } = setup();
     socket.connect();

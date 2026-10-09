@@ -12,7 +12,7 @@ const reply: RoomMessage = { seq: 6, id: "a6", lane: "private", kind: "assist_re
     suggestions: [{ en: "I like chocolate.", noteZh: "最常用" }, { en: "I'm really into chocolate!", noteZh: "更口语" }] } };
 
 function setup(entries: AssistEntry[], disabled = false) {
-  const props = { onAsk: vi.fn(), onSend: vi.fn(), onEdit: vi.fn(), onOpenChange: vi.fn() };
+  const props = { onAsk: vi.fn(() => true), onSend: vi.fn(), onEdit: vi.fn(), onOpenChange: vi.fn() };
   renderWithProviders(<AssistTray open entries={entries} disabled={disabled} {...props} />);
   return props;
 }
@@ -29,6 +29,24 @@ describe("AssistTray", () => {
     fireEvent.click(screen.getByTestId("assist-ask"));
     expect(p.onAsk).toHaveBeenCalledWith("I like 巧克力");
     expect((screen.getByTestId("assist-input") as HTMLInputElement).value).toBe("");
+  });
+
+  it("keeps the draft when the question could not be sent", () => {
+    const onAsk = vi.fn(() => false);
+    renderWithProviders(<AssistTray open entries={[]} onAsk={onAsk} onSend={vi.fn()} onEdit={vi.fn()} onOpenChange={vi.fn()} />);
+    fireEvent.change(screen.getByTestId("assist-input"), { target: { value: "怎么说" } });
+    fireEvent.click(screen.getByTestId("assist-ask"));
+    expect(onAsk).toHaveBeenCalledWith("怎么说");
+    expect((screen.getByTestId("assist-input") as HTMLInputElement).value).toBe("怎么说");
+  });
+
+  it("can't ask or send while offline but keeps typing", () => {
+    renderWithProviders(<AssistTray open offline entries={[{ requestId: "r1", request: "q", reply, status: "done", error: null }]}
+      onAsk={vi.fn()} onSend={vi.fn()} onEdit={vi.fn()} onOpenChange={vi.fn()} />);
+    fireEvent.change(screen.getByTestId("assist-input"), { target: { value: "x" } });
+    expect((screen.getByTestId("assist-ask") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getAllByTestId("assist-send")[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getAllByTestId("assist-edit")[0] as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("shows glossary and suggestions; send and edit hand the sentence back", () => {

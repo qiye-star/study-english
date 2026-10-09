@@ -1,5 +1,5 @@
 import { FlagIcon, PlayIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "~/lib/cn";
 import type { RankMe } from "./rank-api";
@@ -7,17 +7,29 @@ import { formatCountdown } from "./tiers";
 import { CARD, PRIMARY_BUTTON } from "./ui";
 
 /** 晋级赛卡:6 种状态 + 进行中(spec §10.2)。只有 eligible 有主按钮;进行中显示「继续晋级赛」。 */
-export function PromotionCard({ me, starting, error, onStart, onResume }: {
+export function PromotionCard({ me, starting, error, onStart, onResume, onCooldownEnd }: {
   me: RankMe; starting: boolean; error: string | null; onStart: () => void; onResume: () => void;
+  /** 冷却倒计时走完时调用一次(重新拉取资格) */
+  onCooldownEnd?: () => void;
 }) {
   const { t } = useTranslation();
   const { promotion } = me;
   const [now, setNow] = useState(() => Date.now());
+  const endRef = useRef(onCooldownEnd);
+  endRef.current = onCooldownEnd;
+  const until = promotion.state === "cooldown" ? Date.parse(promotion.cooldownUntil ?? "") : NaN;
   useEffect(() => {
-    if (promotion.state !== "cooldown") return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    if (Number.isNaN(until)) return;
+    const id = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= until) {
+        window.clearInterval(id); // 停在 0:00,不再空转
+        endRef.current?.();
+      }
+    }, 1000);
     return () => window.clearInterval(id);
-  }, [promotion.state]);
+  }, [until]);
   const target = promotion.targetTier ? t("web.rank.promotion.target", { tier: t(`web.rank.tiers.${promotion.targetTier}`) }) : null;
   let note: string;
   if (me.activeMatchId) note = t("web.rank.promotion.active");

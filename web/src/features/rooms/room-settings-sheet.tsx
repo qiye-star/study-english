@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@renderer/components/ui/alert-dialog";
 import { Switch } from "@renderer/components/ui/switch";
 import { translateServerError } from "~/api/error-messages";
@@ -133,8 +133,11 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
         </BottomSheetContent>
       </BottomSheet>
       <AlertDialog open={!!confirm} onOpenChange={(v) => { if (!v) setConfirm(null); }}>
-        <AlertDialogContent aria-describedby={undefined} className="rounded-sheet border-[0.5px] border-hair bg-surface">
-          <AlertDialogHeader><AlertDialogTitle className="text-title font-semibold text-ink">{confirm?.title}</AlertDialogTitle></AlertDialogHeader>
+        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-title font-semibold text-ink">{confirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription className="sr-only">{t("web.rooms.settings.confirmHint")}</AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction data-testid="room-confirm" className="h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90"

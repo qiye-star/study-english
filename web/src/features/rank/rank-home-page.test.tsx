@@ -1,5 +1,5 @@
-import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -59,6 +59,27 @@ describe("RankHomePage", () => {
     const until = new Date(Date.now() + 65_000).toISOString();
     setup({ ...CONTRACT.me, promotion: { ...CONTRACT.me.promotion, state: "cooldown", cooldown_until: until } });
     expect((await screen.findByTestId("promotion-card")).textContent).toMatch(/冷却中,1:0\d 后可再战/);
+  });
+
+  it("refreshes when the cooldown runs out so the start button appears", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let mes = 0;
+      const until = new Date(Date.now() + 3_000).toISOString();
+      const cooling = { ...CONTRACT.me, promotion: { ...CONTRACT.me.promotion, state: "cooldown", cooldown_until: until } };
+      const mock = createFetchMock({
+        "GET /api/rank/config": () => json(CONTRACT.config),
+        "GET /api/rank/me": () => { mes += 1; return json(mes === 1 ? cooling : { ...CONTRACT.me, new_achievements: [] }); },
+      });
+      renderWithProviders(<RankHomePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rank", path: "/rank" });
+      await screen.findByTestId("promotion-card");
+      expect(screen.queryByTestId("rank-start")).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+      expect(await screen.findByTestId("rank-start")).toBeTruthy();
+      expect(mes).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("offers resume when a match is in progress", async () => {

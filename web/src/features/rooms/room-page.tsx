@@ -28,6 +28,32 @@ const CLOSE_KEYS: Record<string, string> = {
 };
 const NOTICE_MS = 5000;
 
+/** 复制房间号:非 HTTPS(局域网部署)没有 navigator.clipboard,退回 execCommand;都不行时把号码直接告诉用户。 */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 退回下面的办法 */
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  try {
+    return typeof document.execCommand === "function" && document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+  }
+}
+
 /** 房间 /rooms/r/:roomId:先确认功能已开,再连接。 */
 export function RoomPage() {
   const { roomId = "" } = useParams();
@@ -69,7 +95,7 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   const { t } = useTranslation();
   const navigate = useNavigate();
   const room = useRoom(roomId);
-  const { state, dismiss } = room;
+  const { state, dismiss, loadEarlier: loadMore } = room;
   const [draft, setDraft] = useState("");
   const [settings, setSettings] = useState(false);
   const [assistOpen, setAssistOpen] = useState(false);
@@ -83,6 +109,8 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   const prependFrom = useRef<number | null>(null);
 
   const closed = state.status === "closed";
+  /** 没连上(连接中/重连中)时不能发送:输入保留,按钮禁用,横幅说明 */
+  const offline = state.status !== "live";
   const info = state.room;
   const online = state.members.filter((m) => m.online).length;
 
@@ -114,11 +142,11 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   };
   const loadEarlier = useCallback(() => {
     prependFrom.current = listRef.current?.scrollHeight ?? null;
-    room.loadEarlier().catch((err) => {
+    loadMore().catch((err) => {
       prependFrom.current = null;
       toast.error(translateServerError(t, err, ROOMS_SERVER_ERRORS));
     });
-  }, [room, t]);
+  }, [loadMore, t]);
 
   // 提示与错误 5 秒后自动消失
   useEffect(() => {
@@ -151,7 +179,7 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   const code = info?.code;
   const subtitle = closed || info?.status === "closed" ? t("web.rooms.room.ended") : code ? (
     <button type="button" data-testid="room-code" className="hit-expand inline-flex max-w-full items-center gap-1 tabular-nums"
-      onClick={() => void navigator.clipboard?.writeText(code).then(() => toast.success(t("web.rooms.room.copied")), () => {})}>
+      onClick={() => void copyText(code).then((ok) => (ok ? toast.success(t("web.rooms.room.copied")) : toast(t("web.rooms.room.copyManual", { code }))))}>
       <span className="truncate">{t("web.rooms.room.code", { code: `${code.slice(0, 3)} ${code.slice(3)}` })} · {t("web.rooms.room.online", { count: online })}</span>
       <CopyIcon aria-hidden className="size-3 flex-none" />
     </button>
@@ -163,7 +191,11 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
         title={info?.topic || t("web.rooms.room.title")} subtitle={subtitle}
         leading={<IconButton label={t("web.common.back")} onClick={() => navigate("/rooms")}><ChevronLeftIcon /></IconButton>}
         actions={info ? <IconButton label={t("web.rooms.settings.title")} onClick={() => setSettings(true)}><SlidersHorizontalIcon /></IconButton> : undefined} />
-      <div ref={listRef} data-testid="room-messages" onScroll={onScroll} aria-live="polite" aria-relevant="additions"
+      {/* 读屏只播报实时到达的别人的消息;列表本身不是 live 区域(补发与「加载更早」不该被整页朗读) */}
+      <div data-testid="room-announcer" role="log" aria-live="polite" className="sr-only">
+        {state.announce ? `${state.announce.kind === "ai_answer" ? t("web.rooms.room.aiName") : state.announce.sender.name ?? "?"}: ${state.announce.text}` : ""}
+      </div>
+      <div ref={listRef} data-testid="room-messages" onScroll={onScroll}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-gutter"
         style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 }}>
         <div aria-hidden className="mt-auto" />
@@ -172,13 +204,14 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
         )}
         <RoomMessageList state={state} reported={reported} onLoadEarlier={loadEarlier} onReport={setReporting} />
       </div>
-      <RoomComposer ref={composerRef} disabled={closed} ai={aiAvailable} value={draft} onChange={setDraft} onSend={send}
+      <RoomComposer ref={composerRef} disabled={closed} offline={offline} ai={aiAvailable} value={draft} onChange={setDraft} onSend={send}
         onOpenAssist={() => setAssistOpen(true)}
-        banner={status ?? message} onDismiss={!status && message ? dismiss : undefined} />
+        banner={status ?? message ?? (state.status === "connecting" ? t("web.rooms.room.connecting") : null)}
+        onDismiss={!status && message ? dismiss : undefined} />
       <RoomSettingsSheet open={settings} onOpenChange={setSettings} state={state} onChanged={room.applyRoom} />
       <BottomSheet open={!!reporting} onOpenChange={(v) => { if (!v) setReporting(null); }}>
-        <BottomSheetContent aria-describedby={undefined}>
-          <BottomSheetHeader title={t("web.rooms.room.reportTitle")} />
+        <BottomSheetContent>
+          <BottomSheetHeader title={t("web.rooms.room.reportTitle")} description={t("web.rooms.room.reportHint")} srOnlyDescription />
           <div className="space-y-2">
             {REPORT_REASONS.map((reason) => (
               <button key={reason} type="button" className={ghostButton} onClick={() => void report(reason)}>
@@ -188,8 +221,8 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
           </div>
         </BottomSheetContent>
       </BottomSheet>
-      <AssistTray open={assistOpen} onOpenChange={setAssistOpen} entries={state.assist} disabled={closed}
-        onAsk={(text) => void room.ask(text)}
+      <AssistTray open={assistOpen} onOpenChange={setAssistOpen} entries={state.assist} disabled={closed} offline={offline}
+        onAsk={(text) => room.ask(text) !== null}
         onSend={(text, assistId) => { if (room.say(text, assistId)) { stick.current = true; setAssistOpen(false); } }}
         onEdit={(text) => { setDraft(text); setAssistOpen(false); }} />
     </div>
