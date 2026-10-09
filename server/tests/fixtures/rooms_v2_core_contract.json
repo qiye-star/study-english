@@ -1,0 +1,197 @@
+{
+  "http": {
+    "create": {
+      "room": {
+        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "code": "882319",
+        "topic": "alice的房间",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 51122416,
+        "my_role": "owner",
+        "member_count": 1,
+        "online_count": 0,
+        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "closed_at": null,
+        "name": "alice的房间",
+        "scenario": "cafe",
+        "level": "A2",
+        "join_mode": "approval",
+        "max_members": 4,
+        "allow_voice": true
+      }
+    },
+    "patch": {
+      "room": {
+        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "code": "882319",
+        "topic": "alice的房间",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 51122416,
+        "my_role": "owner",
+        "member_count": 1,
+        "online_count": 0,
+        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "closed_at": null,
+        "name": "alice的房间",
+        "scenario": "cafe",
+        "level": "B1",
+        "join_mode": "approval",
+        "max_members": 4,
+        "allow_voice": true
+      }
+    },
+    "join_pending": {
+      "request": {
+        "id": "713a8214-775a-4321-9cdd-61934c28696c",
+        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "room_name": "alice的房间",
+        "user_id": 57045254,
+        "name": "bob",
+        "status": "pending",
+        "created_at": "2026-10-09T16:55:20.613203+00:00"
+      }
+    },
+    "request": {
+      "request": {
+        "id": "713a8214-775a-4321-9cdd-61934c28696c",
+        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "room_name": "alice的房间",
+        "user_id": 57045254,
+        "name": "bob",
+        "status": "pending",
+        "created_at": "2026-10-09T16:55:20.613203+00:00"
+      }
+    },
+    "requests": {
+      "requests": [
+        {
+          "id": "713a8214-775a-4321-9cdd-61934c28696c",
+          "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+          "room_name": "alice的房间",
+          "user_id": 57045254,
+          "name": "bob",
+          "status": "pending",
+          "created_at": "2026-10-09T16:55:20.613203+00:00"
+        }
+      ]
+    },
+    "approve": {
+      "request": {
+        "id": "713a8214-775a-4321-9cdd-61934c28696c",
+        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "room_name": "alice的房间",
+        "user_id": 57045254,
+        "name": "bob",
+        "status": "approved",
+        "created_at": "2026-10-09T16:55:20.613203+00:00"
+      }
+    },
+    "invite": {
+      "token": "<redacted>",
+      "path": "/rooms/invite/<redacted>"
+    },
+    "invite_preview": {
+      "invite": {
+        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "name": "alice的房间",
+        "scenario": "cafe",
+        "level": "B1",
+        "member_count": 2,
+        "max_members": 4,
+        "joined": false
+      }
+    },
+    "invite_join": {
+      "room": {
+        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "code": "882319",
+        "topic": "alice的房间",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 51122416,
+        "my_role": "member",
+        "member_count": 3,
+        "online_count": 1,
+        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "closed_at": null,
+        "name": "alice的房间",
+        "scenario": "cafe",
+        "level": "B1",
+        "join_mode": "approval",
+        "max_members": 4,
+        "allow_voice": true
+      }
+    }
+  },
+  "ws": {
+    "join_request": {
+      "type": "join_request",
+      "request": {
+        "id": "713a8214-775a-4321-9cdd-61934c28696c",
+        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "room_name": "alice的房间",
+        "user_id": 57045254,
+        "name": "bob",
+        "status": "pending",
+        "created_at": "2026-10-09T16:55:20.613203+00:00"
+      }
+    },
+    "join_request_closed": {
+      "type": "join_request_closed",
+      "id": "713a8214-775a-4321-9cdd-61934c28696c",
+      "status": "approved"
+    },
+    "message_quote": {
+      "type": "message",
+      "message": {
+        "seq": 5,
+        "id": "a60e486e-b8ac-4806-af47-c643632aa671",
+        "lane": "public",
+        "kind": "text",
+        "sender": {
+          "kind": "user",
+          "id": 51122416,
+          "name": "alice"
+        },
+        "text": "again",
+        "assisted": false,
+        "reply_to": 4,
+        "ai_status": null,
+        "meta": {
+          "quote": {
+            "seq": 4,
+            "name": "alice",
+            "kind": "text",
+            "text": "hello"
+          }
+        },
+        "created_at": "2026-10-09T16:55:20.855734+00:00",
+        "hidden": false,
+        "quote": {
+          "seq": 4,
+          "name": "alice",
+          "kind": "text",
+          "text": "hello"
+        },
+        "voice": null,
+        "reactions": []
+      }
+    },
+    "reaction": {
+      "type": "reaction",
+      "seq": 4,
+      "key": "like",
+      "user_ids": [
+        51122416
+      ]
+    }
+  }
+}
