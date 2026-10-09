@@ -153,7 +153,7 @@ v1 的「锁定」保留在房主设置里(不属于 7 项,沿用 v1 行为:锁�
 
 ### 4.3 播放
 
-- `GET /api/rooms/{room_id}/voice/{message_id}`:成员(含已结束房间的成员)可取;`audio/mpeg`;`Cache-Control: private, max-age=86400`;`ETag` = message_id。非成员 404;音频已被管理员清理 → `410 Audio removed`。
+- `GET /api/rooms/{room_id}/voice/{message_id}`:成员(含已结束房间的成员)可取;`audio/mpeg`;`Cache-Control: private, no-cache`(每次用 ETag 复核,踢出/隐藏/清理立即生效)、`X-Content-Type-Options: nosniff`、`Content-Disposition: inline`;`ETag` = message_id。非成员 404;音频已被管理员清理 → `410 Audio removed`。
 - 网页:点播放时在手势内 `primeAudioElement`(iOS 解锁),再带鉴权取音频 → blob URL → 播放;全应用同一时刻只播一段(`claimAudio`);**永不自动播放**(iOS/Android 自动播放策略,也避免多人房间里突然出声)。语速跟随全局播放速度(`trackMediaElement`)。
 - 气泡:播放键 + 时长 `0:12` + 装饰性的声波条(不是真实电平)+「转文字」「翻译」两个 44px 小按钮。
 

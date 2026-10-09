@@ -39,7 +39,10 @@ VOICE_ERRORS: dict[str, tuple[int, str]] = {
     "rate": (429, "Too many requests, please try again later"), "bad_reply": (400, "Invalid reply"),
     "not_found": (404, "Room not found"),
 }
-CACHE_CONTROL = "private, max-age=86400"
+# revalidate on every play (ETag/304 is cheap and runs after the membership and hidden checks), so a kick, a hide or a
+# purge wins over the browser cache (review m5); never let a browser sniff a stored clip as something else
+CACHE_CONTROL = "private, no-cache"
+SAFE_HEADERS = {"X-Content-Type-Options": "nosniff", "Content-Disposition": "inline"}
 
 
 def install(app, rt: RoomsRuntime) -> None:
@@ -172,7 +175,7 @@ async def play_voice(room_id: str, message_id: str, request: Request, user: User
     if path is None:
         raise HTTPException(410, "Audio removed")
     etag = f'"{message_id}"'
-    headers = {"Cache-Control": CACHE_CONTROL, "ETag": etag}
+    headers = {"Cache-Control": CACHE_CONTROL, "ETag": etag, **SAFE_HEADERS}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
     try:

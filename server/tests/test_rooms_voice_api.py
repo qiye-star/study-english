@@ -56,10 +56,13 @@ def test_upload_play_and_access_rules(tmp_path, monkeypatch, caplog):
         assert not (data_dir / "recordings").exists()  # R2-18: never under recordings/
         audio = client.get(f"/api/rooms/{room['id']}/voice/{mid}", headers=bob)
         assert audio.status_code == 200 and audio.headers["content-type"] == "audio/mpeg"
-        assert audio.headers["cache-control"] == "private, max-age=86400" and audio.content[0] == 0xFF
+        # review m5: revalidate every time (kick/hide/purge must win over the browser cache), never sniff
+        assert audio.headers["cache-control"] == "private, no-cache" and audio.content[0] == 0xFF
+        assert audio.headers["x-content-type-options"] == "nosniff"
+        assert audio.headers["content-disposition"] == "inline"
         assert audio.headers["etag"] == f'"{mid}"'
         again = client.get(f"/api/rooms/{room['id']}/voice/{mid}", headers={**bob, "If-None-Match": f'"{mid}"'})
-        assert again.status_code == 304
+        assert again.status_code == 304 and again.headers["cache-control"] == "private, no-cache"
         assert client.get(f"/api/rooms/{room['id']}/voice/{mid}", headers=mallory).status_code == 404
         assert client.get(f"/api/rooms/{room['id']}/voice/nope", headers=bob).status_code == 404
         # the message history carries the shared transcript

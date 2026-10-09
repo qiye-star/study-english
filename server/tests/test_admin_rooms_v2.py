@@ -141,6 +141,7 @@ async def test_voice_timeline_and_audited_playback(app, client):
     r = await client.get(url)
     assert r.status_code == 200 and r.content == b"ID3"
     assert r.headers["content-type"] == "audio/mpeg" and r.headers["cache-control"] == "no-store"
+    assert r.headers["x-content-type-options"] == "nosniff" and r.headers["content-disposition"] == "inline"
     await client.get(url)
     plays = await _audits(app, "room.audio.play")
     assert len(plays) == 2 and plays[0].target_id == m.id and room["id"] in plays[0].summary

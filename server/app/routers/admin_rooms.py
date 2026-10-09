@@ -235,7 +235,8 @@ async def play_audio(room_id: RoomId, message_id: Annotated[str, Path(max_length
                        summary=f"room {room_id}")
     await session.commit()
     return Response(data, media_type=audio.MEDIA_TYPES.get(voice.audio_format, "application/octet-stream"),
-                    headers={"Cache-Control": "no-store"})
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                             "Content-Disposition": "inline"})
 
 
 @router.get("/reports")
