@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 段位赛与联机练习 mockup v1</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+/* ------------------------------------------------------------------
+   Canvas (around the phones; not app UI)
+------------------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2.group{font-size:15px;font-weight:600;margin-top:44px;letter-spacing:-.01em}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:80ch;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:20px;align-items:flex-start}
+.spec{width:375px}
+.spec > p.frame-cap{font-size:12px;color:#5b6170;margin:12px 2px 0;letter-spacing:.01em;line-height:1.5}
+.spec > p.frame-cap b{color:#1b1d22;font-weight:600}
+
+/* ------------------------------------------------------------------
+   Design tokens — copied from redesign-v3/mockup.html (one meaning per hue)
+------------------------------------------------------------------ */
+.phone{
+  --bg:#FFFFFF;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;
+  --hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);
+  --surface:#FFFFFF;--surface-2:#F5F6F8;
+  --glass:rgba(255,255,255,.72);--glass-solid:rgba(255,255,255,.94);--glass-shadow:0 1px 0 rgba(17,19,24,.04);
+  --blue:#2456DB;--blue-tint:#EAF0FF;
+  --teal:#0E7067;--teal-tint:#E3F5F2;
+  --amber:#9A4B00;--amber-tint:#FFF0DE;
+  --green:#157A3B;--green-tint:#E4F6EA;
+  --red:#D1242F;
+  --r-sm:10px;--r-md:14px;--r-lg:20px;
+  --f-11:11px;--f-12:12px;--f-13:13px;--f-15:15px;--f-17:17px;--f-22:22px;--f-28:28px;
+  color:var(--ink);background:var(--bg)
+}
+.phone{position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:var(--f-15);line-height:1.4}
+.phone i.ti{line-height:1;display:inline-block}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;letter-spacing:-.01em;z-index:40;pointer-events:none}
+.statusbar .sig{display:flex;gap:5px;align-items:center;font-size:14px}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;z-index:40}
+
+/* glass recipe (design-notes): solid fallback, blur where supported, none for reduced transparency */
+.glass{background:var(--glass-solid);box-shadow:var(--glass-shadow)}
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+  .topbar.glass{background:rgba(255,255,255,.80);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+}
+@media (prefers-reduced-transparency:reduce){.glass{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+.topbar{position:absolute;top:0;left:0;right:0;z-index:30;padding-top:47px;box-shadow:inset 0 -.5px 0 var(--hair),var(--glass-shadow)}
+.topbar.rest{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.topbar .bar{height:52px;display:flex;align-items:center;padding:0 8px;gap:4px}
+.topbar .title{font-size:var(--f-17);font-weight:600;letter-spacing:-.015em;flex:1;min-width:0;padding:0 8px}
+.topbar .title small{display:block;font-size:var(--f-12);font-weight:500;color:var(--ink-2);letter-spacing:0;margin-top:1px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);font-size:22px;flex:none}
+
+.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding-bottom:22px}
+.tabbar ul{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);height:56px}
+.tabbar li{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--f-11);font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.tabbar li i{font-size:24px}
+.tabbar li.on{color:var(--blue);font-weight:600}
+
+.scroll{position:absolute;inset:0;overflow:hidden}
+.content{padding:99px 16px 110px}
+.h-sec{font-size:var(--f-13);font-weight:600;color:var(--ink-2);letter-spacing:.01em;margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between;min-height:18px}
+.link{color:var(--blue);font-weight:500;display:inline-flex;align-items:center;gap:2px;font-size:var(--f-13);min-height:44px;padding:0 8px;margin:-13px -8px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.muted{color:var(--ink-2)}
+.card{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);box-shadow:0 1px 2px rgba(17,19,24,.03)}
+.list{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 12px 10px 14px}
+.rowi + .rowi{border-top:.5px solid var(--hair-2)}
+.rowi .t{flex:1;min-width:0}
+.rowi .t b{display:block;font-weight:500;font-size:var(--f-15);letter-spacing:-.005em}
+.rowi .t span{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.rowi .v{font-size:var(--f-13);color:var(--ink-2);display:flex;align-items:center;gap:4px;flex:none}
+.rowi .v i{font-size:18px;color:var(--ink-3)}
+.chip{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.chip.blue{background:var(--blue-tint);color:var(--blue)}
+.chip.gray{background:var(--surface-2);color:var(--ink-2)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:7px;font-size:var(--f-12);font-weight:600;letter-spacing:.01em;white-space:nowrap;flex:none}
+.badge.blue{background:var(--blue-tint);color:var(--blue)}
+.badge.green{background:var(--green-tint);color:var(--green)}
+.badge.amber{background:var(--amber-tint);color:var(--amber)}
+.badge.gray{background:var(--surface-2);color:var(--ink-2)}
+.btn{height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--f-15);font-weight:600;letter-spacing:-.005em;border:0;padding:0 18px;width:100%}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.ghost{background:var(--surface);border:.5px solid var(--hair);color:var(--ink)}
+.btn.sm{height:44px;font-size:var(--f-13);width:auto;flex:1}
+.btn i{font-size:20px}
+.bar-track{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;background:var(--blue)}
+
+/* ------------------------------------------------------------------
+   New: tier badge (neutral disc + tier glyph + roman division; no new hue)
+------------------------------------------------------------------ */
+.tier{position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--surface-2);color:var(--ink);box-shadow:inset 0 0 0 .5px var(--hair);flex:none}
+.tier.md{width:48px;height:48px;font-size:26px}
+.tier.lg{width:96px;height:96px;font-size:50px}
+.tier .roman{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);min-width:22px;text-align:center;line-height:18px;background:var(--surface);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:inset 0 0 0 .5px var(--hair);font-variant-numeric:tabular-nums}
+.tier.lg .roman{font-size:13px;line-height:20px;min-width:30px;bottom:-9px;padding:0 8px}
+
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:6px}
+.hero h2{font-size:var(--f-22);font-weight:600;letter-spacing:-.02em;margin-top:18px}
+.hero .cefr{font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.hero .bar-track{width:200px;margin-top:12px}
+.hero .meta{font-size:var(--f-12);color:var(--ink-2);margin-top:8px}
+
+.task{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 14px}
+.task + .task{border-top:.5px solid var(--hair-2)}
+.task .tick{width:24px;height:24px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.task.done .tick{background:var(--blue);color:#fff}
+.task .t{flex:1;font-size:var(--f-15)}
+.task .n{font-size:var(--f-12);color:var(--ink-2)}
+
+.promo{padding:14px}
+.promo b{display:block;font-size:var(--f-15);font-weight:600;letter-spacing:-.01em}
+.promo p{font-size:var(--f-12);color:var(--ink-2);margin-top:3px}
+.promo .btn{margin-top:12px}
+.season{display:flex;justify-content:space-between;align-items:center;margin-top:18px;font-size:var(--f-12);color:var(--ink-2)}
+
+/* match */
+.turns{position:absolute;left:0;right:0;top:99px;bottom:150px;padding:8px 16px 14px;display:flex;flex-direction:column;justify-content:flex-end;gap:12px;overflow:hidden}
+.brief{padding:12px 14px}
+.brief .goals{margin-top:8px;display:grid;gap:4px;font-size:var(--f-13)}
+.brief .goals span{display:flex;gap:6px;align-items:center;color:var(--ink-2)}
+.brief .goals span i{font-size:14px}
+.brief .goals span.ok{color:var(--ink)}
+.brief .goals span.ok i{color:var(--green)}
+.ai-line{align-self:flex-start;max-width:88%;padding:10px 12px;border-radius:var(--r-md);border-top-left-radius:6px;background:var(--surface);border:.5px solid var(--hair);font-size:var(--f-15);line-height:1.5}
+.ai-line .who{font-size:var(--f-11);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.ai-line.hidden .dots{color:var(--ink-2);letter-spacing:.3em}
+.me-line{align-self:flex-end;max-width:88%;padding:10px 12px;border-radius:var(--r-md);border-top-right-radius:6px;background:var(--blue-tint);font-size:var(--f-15);line-height:1.5}
+.dock{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding:6px 12px 30px}
+.dock .tools{display:flex;justify-content:space-between}
+.dock .tools span{display:inline-flex;align-items:center;gap:5px;min-height:44px;font-size:var(--f-13);font-weight:500;color:var(--ink-2)}
+.dock .tools span i{font-size:18px}
+.holdbar{height:52px;border-radius:14px;background:var(--blue-tint);color:var(--blue);display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--f-15);font-weight:600;letter-spacing:.02em}
+.holdbar.pressed{background:var(--blue);color:#fff;box-shadow:0 0 0 3px rgba(36,86,219,.25)}
+.wave{display:flex;align-items:center;gap:2px;height:16px}
+.wave i{display:block;width:3px;border-radius:2px;background:currentColor;height:var(--h,8px)}
+
+/* result */
+.result-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:4px}
+.result-hero h2{font-size:var(--f-22);font-weight:600;letter-spacing:-.02em;margin-top:18px}
+.result-hero h2.pass{color:var(--green)}
+.result-hero .score{font-size:var(--f-13);color:var(--ink-2);margin-top:4px}
+.result-hero .score b{font-size:var(--f-28);font-weight:600;color:var(--ink);letter-spacing:-.03em;margin-right:2px}
+.dims{padding:12px 14px;display:grid;gap:10px}
+.dim{display:grid;grid-template-columns:86px 1fr 34px;gap:10px;align-items:center;font-size:var(--f-13)}
+.dim .l{color:var(--ink-2)}
+.dim .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.note{padding:12px 14px;font-size:var(--f-13);line-height:1.5}
+.note + .note{border-top:.5px solid var(--hair-2)}
+.note b{display:block;font-size:var(--f-12);color:var(--ink-2);font-weight:600;margin-bottom:3px}
+.drill{font-size:var(--f-17);font-weight:500;letter-spacing:-.01em;line-height:1.45}
+.gate{display:inline-flex;align-items:center;gap:6px;font-size:var(--f-13);color:var(--ink-2);margin-top:6px}
+
+/* achievements */
+.ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ach{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:112px}
+.ach .ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px}
+.ach b{font-size:var(--f-13);font-weight:600;margin-top:8px;letter-spacing:-.005em}
+.ach span{font-size:var(--f-11);color:var(--ink-2);margin-top:2px;line-height:1.35}
+.ach.locked .ic{background:var(--surface-2);color:var(--ink-3)}
+.ach.locked b{color:var(--ink-2)}
+.ic.amber{background:var(--amber-tint);color:var(--amber)}
+.ic.green{background:var(--green-tint);color:var(--green)}
+.ic.blue{background:var(--blue-tint);color:var(--blue)}
+.ic.teal{background:var(--teal-tint);color:var(--teal)}
+.ic.ink{background:var(--surface-2);color:var(--ink)}
+
+/* lobby */
+.code{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.code span{height:56px;border-radius:12px;background:var(--surface);border:.5px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:var(--f-22);font-weight:600;font-variant-numeric:tabular-nums}
+.code span.cur{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.keypad{position:absolute;left:0;right:0;bottom:0;z-index:35;background:#D1D4DA;padding:6px 6px 30px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keypad span{height:46px;border-radius:6px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;font-weight:400;box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.keypad span small{font-size:9px;letter-spacing:.12em;font-weight:600;margin-top:-3px}
+.keypad span.fn{background:transparent;box-shadow:none;font-size:22px}
+
+/* room chat */
+.msgs{position:absolute;left:0;right:0;top:99px;bottom:100px;padding:8px 16px 14px;display:flex;flex-direction:column;justify-content:flex-end;gap:12px;overflow:hidden}
+.sys{text-align:center;font-size:var(--f-11);color:var(--ink-2);font-weight:500;letter-spacing:.02em}
+.msg{display:flex;gap:8px;max-width:88%}
+.msg.other{align-self:flex-start}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.ava{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:var(--f-12);font-weight:600;background:var(--surface-2);color:var(--ink);border:.5px solid var(--hair-2);margin-top:2px}
+.bub{border-radius:var(--r-md);padding:8px 12px 8px;font-size:var(--f-15);line-height:1.5;letter-spacing:-.005em}
+.msg.other .bub{background:var(--surface);border:.5px solid var(--hair);border-top-left-radius:6px}
+.msg.me .bub{background:var(--blue-tint);border-top-right-radius:6px}
+.bub .name{display:block;font-size:var(--f-12);font-weight:600;color:var(--ink-2)}
+.bub .tag{display:inline-flex;align-items:center;gap:3px;margin-top:3px;font-size:var(--f-11);font-weight:600;color:var(--blue)}
+.bub .tag i{font-size:13px}
+.at{color:var(--blue);font-weight:600}
+.ai-card{align-self:flex-start;max-width:92%;background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);padding:10px 12px}
+.ai-card .who{font-size:var(--f-11);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.ai-card .quote{margin-top:6px;padding-left:8px;border-left:2px solid var(--hair);font-size:var(--f-12);color:var(--ink-2)}
+.ai-card p{margin-top:6px;font-size:var(--f-15);line-height:1.5}
+.ai-card p.zh{font-size:var(--f-13);color:var(--ink-2);margin-top:4px}
+.composer{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding:8px 8px 30px}
+.composer .rowc{display:flex;align-items:center;gap:6px}
+.composer .in{flex:1;height:44px;border-radius:12px;background:var(--surface);border:.5px solid var(--hair);display:flex;align-items:center;padding:0 12px;font-size:var(--f-15);color:var(--ink-2)}
+.composer .in.filled{color:var(--ink)}
+.kbtn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;color:var(--ink-2);flex:none}
+.kbtn.on{background:var(--blue-tint);color:var(--blue)}
+.kbtn.send{background:var(--blue);color:#fff}
+
+/* assistant tray (bottom sheet, the 3rd blurred layer) */
+.scrim{position:absolute;inset:0;background:rgba(17,19,24,.28);z-index:31}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:32;border-radius:20px 20px 0 0;box-shadow:inset 0 .5px 0 var(--hair);padding:8px 16px 30px;max-height:640px}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:0 auto 10px}
+.sheet .hd{display:flex;align-items:center;justify-content:space-between}
+.sheet .hd b{font-size:var(--f-17);font-weight:600;letter-spacing:-.015em}
+.sheet .hd small{display:block;font-size:var(--f-12);color:var(--ink-2);font-weight:500}
+.ask{margin:12px 0 0 auto;width:fit-content;max-width:85%;background:var(--blue-tint);border-radius:var(--r-md);border-top-right-radius:6px;padding:8px 12px;font-size:var(--f-15)}
+.reply{margin-top:10px;background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);padding:12px}
+.reply .zh{font-size:var(--f-13);line-height:1.5}
+.gloss{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.gloss span{font-size:var(--f-12);background:var(--surface-2);border-radius:6px;padding:3px 8px}
+.sugg{border-top:.5px solid var(--hair-2);margin-top:10px;padding-top:10px}
+.sugg .en{font-size:var(--f-15);font-weight:500;line-height:1.45}
+.sugg .nt{font-size:var(--f-12);color:var(--ink-2);margin-top:1px}
+.sugg .acts{display:flex;gap:8px;margin-top:8px}
+.sugg .acts .btn{height:44px;font-size:var(--f-13)}
+.sugg .acts .btn.ghost{flex:0 0 72px}
+.trayin{display:flex;gap:8px;margin-top:12px}
+.trayin .in{flex:1;height:44px;border-radius:12px;background:var(--surface);border:.5px solid var(--hair);display:flex;align-items:center;padding:0 12px;font-size:var(--f-15);color:var(--ink-2)}
+.trayin .btn{width:auto;height:44px}
+
+/* game (extra) */
+.game{padding:12px 14px}
+.game .hd{display:flex;justify-content:space-between;align-items:center}
+.game .hd b{font-size:var(--f-15);font-weight:600}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.chain span{height:30px;padding:0 10px;border-radius:8px;background:var(--surface-2);display:inline-flex;align-items:center;font-size:var(--f-13);font-weight:500}
+.chain span em{font-style:normal;color:var(--blue);font-weight:700}
+.chain i{color:var(--ink-3);font-size:14px}
+.turnbar{display:flex;gap:6px;margin-top:10px}
+.turnbar span{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
+.turnbar span.on{background:var(--blue)}
+.verdict{display:flex;align-items:center;gap:6px;font-size:var(--f-12);margin-top:6px}
+.verdict.ok{color:var(--green)}
+.verdict.no{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>Enjoy · 段位赛与联机练习 — 视觉稿 v1</h1>
+  <p class="lede">沿用 redesign-v3:纯白底、磨砂玻璃仅用于顶栏(滚动后)/ 底栏 / 输入条 / 一个临时面板;一色一义。段位不引入新色相:徽章是中性圆底 + 段位图形 + 罗马数字;进度与"你"用钴蓝;连续天数琥珀;词汇青;高分与"通过"绿;"未通过"用次要灰,不用红(红只属于挂断与退出)。导航由 3 项变 4 项(练习 / 对话 / 联机 / 我的),段位入口在练习首页与「我的」。规格:docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md。</p>
+
+  <h2 class="group">段位赛</h2>
+  <div class="row">
+
+    <!-- ===================================== R1 · Rank home -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="hero">
+            <span class="tier lg"><i class="ti ti-shield-star"></i><span class="roman">I</span></span>
+            <h2>黄金</h2>
+            <span class="cefr">对齐 CEFR B1</span>
+            <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+            <span class="meta num">120/120 段位点 · 已到晋级门</span>
+          </div>
+
+          <div class="h-sec">阶段练习 <span class="num" style="font-weight:500">3/3</span></div>
+          <div class="list">
+            <div class="task done"><span class="tick"><i class="ti ti-check"></i></span><span class="t">跟读 20 句且 ≥75 分</span><span class="n num">20/20</span></div>
+            <div class="task done"><span class="tick"><i class="ti ti-check"></i></span><span class="t">语音对话 20 轮</span><span class="n num">20/20</span></div>
+            <div class="task done"><span class="tick"><i class="ti ti-check"></i></span><span class="t">复习单词 30 次</span><span class="n num">30/30</span></div>
+          </div>
+
+          <div class="h-sec">晋级赛</div>
+          <div class="card promo">
+            <b>晋级到 铂金</b>
+            <p>6 轮语音对话,AI 考官按 4 项评分 + 发音。今天还可以打 3 场。</p>
+            <div class="btn primary"><i class="ti ti-flag"></i>开始晋级赛</div>
+          </div>
+
+          <div class="season"><span>S1 赛季 · 剩 18 天</span><span class="num">赛季积分 486</span></div>
+
+          <div class="h-sec">最近获得</div>
+          <div class="list">
+            <div class="rowi" style="min-height:44px"><div class="t"><b style="font-size:13px">跟读 · 92 分</b></div><span class="v num" style="color:var(--blue);font-weight:600">+4</span></div>
+          </div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">段位</div><span class="iconbtn"><i class="ti ti-trophy"></i></span></div></header>
+        <nav class="tabbar glass"><ul>
+          <li class="on"><i class="ti ti-microphone"></i>练习</li><li><i class="ti ti-messages"></i>对话</li><li><i class="ti ti-users-group"></i>联机</li><li><i class="ti ti-user"></i>我的</li>
+        </ul></nav>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>R1 段位首页</b> — 大徽章(中性圆底 + 盾星图形 + 罗马数字 I),进度条钴蓝;三项阶段练习全部完成(蓝底勾)后晋级赛卡出现主按钮。其他状态:锁定(说明还差什么)、冷却(倒计时)、次数用完、进行中(「继续晋级赛」)。右上奖杯进入成就墙。</p>
+    </div>
+
+    <!-- ===================================== R2 · Match in progress -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="turns">
+          <div class="card brief">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:15px">退换商品</b><span class="badge gray">目标 铂金</span></div>
+            <div class="goals">
+              <span class="ok"><i class="ti ti-circle-check"></i>explain the problem</span>
+              <span class="ok"><i class="ti ti-circle-check"></i>say when you bought it</span>
+              <span><i class="ti ti-circle"></i>ask for an exchange or a refund</span>
+              <span><i class="ti ti-circle"></i>respond to the store's condition</span>
+            </div>
+          </div>
+          <div class="ai-line"><div class="who"><i class="ti ti-user-circle"></i>店员</div>Hi, welcome back. How can I help you today?</div>
+          <div class="me-line">Hi, I bought these headphones on Saturday, but the left side makes a buzzing noise.</div>
+          <div class="ai-line hidden"><div class="who"><i class="ti ti-volume"></i>店员 · 正在说</div><span class="dots">· · ·</span></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">晋级赛<small class="num">第 2/6 轮 · 剩 16:05</small></div><span class="iconbtn"><i class="ti ti-dots"></i></span></div></header>
+        <div class="dock glass">
+          <div class="tools"><span><i class="ti ti-reload"></i>重听</span><span><i class="ti ti-eye"></i>看文字</span><span>放弃本场</span></div>
+          <div class="holdbar pressed"><span class="wave"><i style="--h:6px"></i><i style="--h:12px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:14px"></i><i style="--h:7px"></i><i style="--h:11px"></i></span>松开 发送</div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>R2 晋级赛 · 进行中</b> — 只收语音:底部按住说话(按下为钴蓝实底 + 3px 环),没有键盘入口。AI 台词默认只播放不显示(「看文字」可开),防止照读。目标清单只在简报与结果里勾选,进行中不显示分数。</p>
+    </div>
+
+    <!-- ===================================== R3 · Result pass -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="result-hero">
+            <span class="tier lg"><i class="ti ti-hexagon"></i><span class="roman">III</span></span>
+            <h2 class="pass">晋级成功</h2>
+            <div class="score"><b class="num">74</b>分 · 通过线 68</div>
+            <div style="display:flex;gap:6px;margin-top:10px"><span class="badge green"><i class="ti ti-check"></i>一次过</span><span class="badge blue">铂金 III</span></div>
+          </div>
+          <div class="h-sec">评分</div>
+          <div class="card dims">
+            <div class="dim"><span class="l">任务完成</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="v num">3/4</span></div>
+            <div class="dim"><span class="l">语法准确</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="v num">3/4</span></div>
+            <div class="dim"><span class="l">词汇与表达</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="v num">2/4</span></div>
+            <div class="dim"><span class="l">连贯与互动</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="v num">3/4</span></div>
+            <div class="dim"><span class="l">发音与流利</span><div class="bar-track"><div class="bar-fill" style="width:81%"></div></div><span class="v num">81</span></div>
+          </div>
+          <div class="h-sec">点评</div>
+          <div class="list">
+            <div class="note"><b>做得好</b>能清楚说明问题,并主动给出购买时间。</div>
+            <div class="note"><b>可以更好</b>多用连接词把要求说完整,比如 "so I'd like to…"。</div>
+          </div>
+          <div class="h-sec">推荐练习</div>
+          <div class="card" style="padding:14px">
+            <p class="drill">Could I exchange them for a new pair?</p>
+            <div style="display:flex;gap:8px;margin-top:12px"><div class="btn ghost sm"><i class="ti ti-microphone"></i>去练这句</div></div>
+          </div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">晋级赛</div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>R3 结果 · 通过</b> — 标题绿色(与分数刻度 ≥85 同义:好结果),新段位徽章;5 个维度用钴蓝进度条(维度是中性的度量,不按分数上色);推荐句可一键加入练习列表并跳到跟读。</p>
+    </div>
+
+    <!-- ===================================== R4 · Result fail -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="result-hero">
+            <span class="tier lg"><i class="ti ti-shield-star"></i><span class="roman">I</span></span>
+            <h2>差一点</h2>
+            <div class="score"><b class="num">61</b>分 · 通过线 68</div>
+            <span class="gate"><i class="ti ti-alert-circle"></i>任务完成不足:没有说清要换货还是退款</span>
+          </div>
+          <div class="h-sec">评分</div>
+          <div class="card dims">
+            <div class="dim"><span class="l">任务完成</span><div class="bar-track"><div class="bar-fill" style="width:25%"></div></div><span class="v num">1/4</span></div>
+            <div class="dim"><span class="l">语法准确</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="v num">2/4</span></div>
+            <div class="dim"><span class="l">词汇与表达</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="v num">2/4</span></div>
+            <div class="dim"><span class="l">连贯与互动</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="v num">2/4</span></div>
+            <div class="dim"><span class="l">发音与流利</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div><span class="v num">70</span></div>
+          </div>
+          <div class="h-sec">下一步</div>
+          <div class="list">
+            <div class="rowi"><span class="chip gray"><i class="ti ti-clock"></i></span><div class="t"><b>冷却 30 分钟</b><span>段位点降到 96/120,再练 24 点回到晋级门</span></div></div>
+            <div class="rowi"><span class="chip blue"><i class="ti ti-microphone"></i></span><div class="t"><b>I'd like a refund, please.</b><span>推荐练习 · 去练这句</span></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+          </div>
+          <div class="btn ghost" style="margin-top:18px">回到段位</div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">晋级赛</div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>R4 结果 · 未通过</b> — 标题用墨色,原因用次要灰,不用红;明确告诉用户冷却多久、点数掉到多少、该练哪句。门槛未过(任务、0 分维度、英文太少、复读)时即使总分够也不通过。</p>
+    </div>
+
+    <!-- ===================================== R5 · Achievements -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="h-sec" style="margin-top:4px">坚持</div>
+          <div class="ach-grid">
+            <div class="ach"><span class="ic amber"><i class="ti ti-flame"></i></span><b>三日不辍</b><span>10月3日 解锁</span></div>
+            <div class="ach"><span class="ic amber"><i class="ti ti-flame"></i></span><b>一周全勤</b><span>10月7日 解锁</span></div>
+            <div class="ach locked"><span class="ic"><i class="ti ti-flame"></i></span><b>月度常客</b><span>连续活跃 30 天</span></div>
+          </div>
+          <div class="h-sec">段位</div>
+          <div class="ach-grid">
+            <div class="ach"><span class="ic blue"><i class="ti ti-trending-up"></i></span><b>初次晋级</b><span>10月5日 解锁</span></div>
+            <div class="ach"><span class="ic blue"><i class="ti ti-target"></i></span><b>一次过</b><span>10月9日 解锁</span></div>
+            <div class="ach"><span class="ic ink"><i class="ti ti-shield-star"></i></span><b>黄金之路</b><span>10月5日 解锁</span></div>
+          </div>
+          <div class="h-sec">发音 · 词汇 · 联机</div>
+          <div class="ach-grid">
+            <div class="ach"><span class="ic green"><i class="ti ti-microphone"></i></span><b>字正腔圆</b><span>9月30日 解锁</span></div>
+            <div class="ach"><span class="ic teal"><i class="ti ti-cards"></i></span><b>温故知新</b><span>10月8日 解锁</span></div>
+            <div class="ach locked"><span class="ic"><i class="ti ti-wand"></i></span><b>学以致用</b><span>用助手组句发到群里 10 次</span></div>
+          </div>
+          <div class="h-sec">赛季</div>
+          <div class="ach-grid">
+            <div class="ach locked"><span class="ic"><i class="ti ti-flag"></i></span><b>赛季攀登者</b><span>本赛季晋级 1 次</span></div>
+          </div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">成就<small class="num">8/17</small></div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>R5 成就墙</b> — 3 列网格,按组排列。已解锁按语义色:连续琥珀、发音绿、词汇青、段位与联机钴蓝、段位图形墨色;未解锁是 surface-2 底 + ink-3 图形(仅图形,文字仍为次要灰),写明达成条件。</p>
+    </div>
+  </div>
+
+  <h2 class="group">联机练习</h2>
+  <div class="row">
+
+    <!-- ===================================== M1 · Lobby -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="h-sec" style="margin-top:4px">输入 6 位房间号</div>
+          <div class="code"><span>4</span><span>8</span><span>2</span><span>9</span><span class="cur"></span><span></span></div>
+          <div class="btn primary" style="margin-top:12px;opacity:.4">加入</div>
+          <div class="btn ghost" style="margin-top:8px"><i class="ti ti-plus"></i>创建房间</div>
+          <p class="muted" style="font-size:12px;margin-top:10px">房间 24 小时后自动结束;@ai 的回答所有人都能看到。</p>
+          <div class="h-sec">我的房间</div>
+          <div class="list">
+            <div class="rowi"><span class="chip blue"><i class="ti ti-users-group"></i></span><div class="t"><b>美食</b><span>进行中 · 3 人在线</span></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+          </div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><div class="title">联机练习</div></div></header>
+        <div class="keypad">
+          <span>1</span><span>2<small>ABC</small></span><span>3<small>DEF</small></span>
+          <span>4<small>GHI</small></span><span>5<small>JKL</small></span><span>6<small>MNO</small></span>
+          <span>7<small>PQRS</small></span><span>8<small>TUV</small></span><span>9<small>WXYZ</small></span>
+          <span class="fn"></span><span>0</span><span class="fn"><i class="ti ti-backspace"></i></span>
+        </div>
+      </div>
+      <p class="frame-cap"><b>M1 联机大厅 · 输入房间号</b> — 6 格大号数字,系统数字键盘;粘贴 "482 913" 或全角数字自动规整;不满 6 位时「加入」不可点。失败文案区分:不存在/已结束、已锁定、已满、被移出。</p>
+    </div>
+
+    <!-- ===================================== M2 · Room chat with @ai -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs">
+          <div class="sys">bob 加入了房间</div>
+          <div class="msg other"><span class="ava">B</span><div class="bub"><span class="name">bob</span>What snacks do you guys like?</div></div>
+          <div class="msg me"><div class="bub">I like chocolate, especially dark chocolate.<br><span class="tag"><i class="ti ti-language"></i>助手润色</span></div></div>
+          <div class="msg other"><span class="ava">L</span><div class="bub"><span class="name">lily</span><span class="at">@ai</span> what's the difference between "snack" and "dessert"?</div></div>
+          <div class="ai-card">
+            <div class="who">AI 助手</div>
+            <div class="quote">lily: what's the difference between "snack" and "dessert"?</div>
+            <p>A snack is any small food you eat between meals. A dessert is a sweet dish you eat after a meal. Example: "Chips are my favorite snack, but cake is my favorite dessert."</p>
+            <p class="zh">中文:snack 是两餐之间的零食,dessert 是饭后的甜点。</p>
+          </div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食<small class="num">房间 482 913 · 3 人在线 <i class="ti ti-copy" style="font-size:12px"></i></small></div><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="kbtn"><i class="ti ti-at"></i></span>
+            <span class="in">说点什么,或 @ai 提问</span>
+            <span class="kbtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn send" style="opacity:.4"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>M2 房间群聊 · @ai 公开回答</b> — 别人中性气泡 + 名字;自己钴蓝浅底;经助手组句的消息常显「助手润色」小标。@ai 的回答是中性卡片,标「AI 助手」并引用提问,所有成员可见;关闭 AI 公开回答时只提示提问者。</p>
+    </div>
+
+    <!-- ===================================== M3 · Assistant tray -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs">
+          <div class="msg other"><span class="ava">B</span><div class="bub"><span class="name">bob</span>What snacks do you guys like?</div></div>
+          <div class="msg other"><span class="ava">L</span><div class="bub"><span class="name">lily</span>Chips! Definitely chips.</div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="scrim"></div>
+        <div class="sheet glass">
+          <div class="grab"></div>
+          <div class="hd"><div><b>助手</b><small>仅你可见 · 发送前不会出现在群里</small></div><span class="iconbtn"><i class="ti ti-x"></i></span></div>
+          <div class="ask">I like 巧克力</div>
+          <div class="reply">
+            <p class="zh">巧克力是 chocolate。结合大家在聊零食,下面三种说法都自然:</p>
+            <div class="gloss"><span>巧克力 → chocolate</span></div>
+            <div class="sugg">
+              <p class="en">I like chocolate.</p><p class="nt">最常用</p>
+              <div class="acts"><div class="btn primary"><i class="ti ti-send"></i>发送到群聊</div><div class="btn ghost">编辑</div></div>
+            </div>
+            <div class="sugg">
+              <p class="en">I'm really into chocolate, especially dark chocolate.</p><p class="nt">更口语</p>
+              <div class="acts"><div class="btn primary"><i class="ti ti-send"></i>发送到群聊</div><div class="btn ghost">编辑</div></div>
+            </div>
+          </div>
+          <div class="trayin"><span class="in">想说什么?中英混写也行</span><div class="btn primary">问助手</div></div>
+        </div>
+        <div class="homebar" style="z-index:41"></div>
+      </div>
+      <p class="frame-cap"><b>M3 助手私聊 · 组句后一键发送</b> — 底部玻璃面板(本屏第 3 层模糊)。"I like 巧克力" → 中文说明 + 术语片 + 2–3 条贴合当前话题的英文句;「发送到群聊」直接进公共通道并带「助手润色」;「编辑」填回输入框。助手额度每人每天 60 次。</p>
+    </div>
+
+    <!-- ===================================== X1 · Extra: word chain game -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs">
+          <div class="card game" style="align-self:stretch">
+            <div class="hd"><b>单词接龙 · 第 2 回合</b><span class="badge blue">轮到你</span></div>
+            <p class="muted" style="font-size:12px;margin-top:3px">用上一个词的最后一个字母开头,说一个和「美食」有关的词。AI 当裁判。</p>
+            <div class="chain">
+              <span>pizz<em>a</em></span><i class="ti ti-arrow-right"></i><span>appl<em>e</em></span><i class="ti ti-arrow-right"></i><span>eg<em>g</em></span><i class="ti ti-arrow-right"></i><span style="background:var(--blue-tint);color:var(--blue)">g …</span>
+            </div>
+            <div class="turnbar"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+            <div class="verdict ok"><i class="ti ti-check"></i>egg 有效 · bob +1</div>
+          </div>
+          <div class="msg other"><span class="ava">B</span><div class="bub"><span class="name">bob</span>egg</div></div>
+          <div class="ai-card"><div class="who">AI 助手 · 裁判</div><p>Nice! "Egg" works. Now a food word that starts with <b>g</b>.</p></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食<small class="num">房间 482 913 · 小游戏进行中</small></div><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="kbtn on"><i class="ti ti-puzzle"></i></span>
+            <span class="in filled">grapes</span>
+            <span class="kbtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn send"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>X1 建议功能 · 房间小游戏(AI 主持)</b> — 房主开局「单词接龙」;游戏卡钉在消息流顶部显示链条与回合;AI 只在每回合结算时调用一次(判拼写、判是否接上、给提示),成本可控。同框架可放「两真一假」「情景剧」。属于 P1,不在本计划内实现。</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
