@@ -50,6 +50,31 @@
           "expiredHint": "The room may have ended or the owner reset the link. Ask the owner for a new one.",
           "toLobby": "Go to rooms"
         },
+        "summary": {
+          "title": "Learning summary",
+          "subtitle": "{{name}} · Ended",
+          "view": "View",
+          "pending": "Writing the summary…",
+          "later": "The summary is still being written. Check back later.",
+          "failed": "The summary couldn't be written",
+          "words": "New words: {{count}}",
+          "fixes": "To say better: {{count}}",
+          "people": "People: {{count}}",
+          "fixesTitle": "Could be said better",
+          "onlyYou": "Only you",
+          "wordsTitle": "New words",
+          "backToChat": "Back to the chat",
+          "skipped": {
+            "few_messages": "Not enough messages for a summary this time",
+            "disabled": "Learning summaries are off",
+            "quota": "Today's summaries are used up, so none was written",
+            "none": "This room has no learning summary"
+          },
+          "errors": {
+            "open": "The room is still open; the summary comes after it ends",
+            "cannotRetry": "This summary can't be retried again"
+          }
+        },
         "activity": {
           "someone": "Someone",
           "sep": ", ",

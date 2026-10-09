@@ -50,6 +50,31 @@
           "expiredHint": "房间可能已结束,或房主重置了链接。请向房主要一个新的链接。",
           "toLobby": "去联机大厅"
         },
+        "summary": {
+          "title": "学习小结",
+          "subtitle": "{{name}} · 已结束",
+          "view": "查看",
+          "pending": "正在生成小结…",
+          "later": "小结还在生成,稍后再来看",
+          "failed": "小结生成失败",
+          "words": "{{count}} 个新词",
+          "fixes": "{{count}} 句可以说得更好",
+          "people": "{{count}} 人",
+          "fixesTitle": "可以说得更好",
+          "onlyYou": "仅你可见",
+          "wordsTitle": "新词",
+          "backToChat": "回看聊天记录",
+          "skipped": {
+            "few_messages": "这次聊得不多,没有生成小结",
+            "disabled": "学习小结没有开启",
+            "quota": "今天的小结名额已用完,这次没有生成",
+            "none": "这个房间没有学习小结"
+          },
+          "errors": {
+            "open": "房间还没结束,结束后才有小结",
+            "cannotRetry": "这份小结不能再重试了"
+          }
+        },
         "activity": {
           "someone": "有人",
           "sep": ",",
