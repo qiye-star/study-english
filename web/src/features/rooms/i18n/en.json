@@ -15,16 +15,7 @@
       },
       "create": {
         "title": "Create a room",
-        "topic": "Topic (optional)",
-        "submit": "Create",
-        "topics": {
-          "travel": "Travel",
-          "food": "Food",
-          "movies": "Movies",
-          "work": "Work",
-          "campus": "Campus",
-          "free": "Free talk"
-        }
+        "submit": "Create"
       },
       "room": {
         "title": "Room",

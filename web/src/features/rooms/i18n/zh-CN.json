@@ -15,16 +15,7 @@
       },
       "create": {
         "title": "创建房间",
-        "topic": "话题(可选)",
-        "submit": "创建",
-        "topics": {
-          "travel": "旅行",
-          "food": "美食",
-          "movies": "电影",
-          "work": "工作",
-          "campus": "校园",
-          "free": "自由聊"
-        }
+        "submit": "创建"
       },
       "room": {
         "title": "房间",

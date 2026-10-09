@@ -11,7 +11,7 @@ import { cn } from "~/lib/cn";
 import { CodeInput } from "./code-input";
 import { CreateRoomSheet } from "./create-room-sheet";
 import type { RoomInfo } from "./protocol";
-import { fetchRoomsConfig, joinRoom, myRooms, normalizeCode, ROOMS_SERVER_ERRORS } from "./rooms-api";
+import { fetchRoomsConfig, joinRoom, myRooms, normalizeCode, ROOMS_SERVER_ERRORS, type RoomsConfig } from "./rooms-api";
 import { ghostButton, primaryButton } from "./ui";
 
 const formatCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
@@ -28,11 +28,13 @@ export function RoomsLobbyPage() {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [config, setConfig] = useState<RoomsConfig | null>(null);
   useEffect(() => {
     const ctrl = new AbortController();
     setState("loading");
     fetchRoomsConfig(api, ctrl.signal)
       .then(async (c) => {
+        setConfig(c);
         if (!c.enabled) return setState("disabled");
         setRooms(await myRooms(api, ctrl.signal));
         setState("ready");
@@ -82,7 +84,7 @@ export function RoomsLobbyPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body font-medium tracking-[-0.005em] text-ink">
-                      {room.topic || (room.code ? t("web.rooms.room.code", { code: formatCode(room.code) }) : t("web.rooms.room.title"))}
+                      {room.name || room.topic || (room.code ? t("web.rooms.room.code", { code: formatCode(room.code) }) : t("web.rooms.room.title"))}
                     </span>
                     <span className="mt-0.5 block text-meta tabular-nums text-ink-2">
                       {open ? t("web.rooms.lobby.open", { count: room.onlineCount }) : t("web.rooms.lobby.closed")}
@@ -95,7 +97,7 @@ export function RoomsLobbyPage() {
           </SectionGroup>
         </div>
       </FeatureGate>
-      <CreateRoomSheet open={creating} onOpenChange={setCreating} onCreated={(room) => navigate(`/rooms/r/${encodeURIComponent(room.id)}`)} />
+      <CreateRoomSheet open={creating} onOpenChange={setCreating} config={config} onCreated={(room) => navigate(`/rooms/r/${encodeURIComponent(room.id)}`)} />
     </>
   );
 }
