@@ -110,3 +110,48 @@ describe("RoomMessageList (v2 extras)", () => {
     expect(screen.getByText("房主修改了房间设置")).toBeTruthy();
   });
 });
+
+describe("RoomMessageList bubble layout (short own messages wrapped per letter)", () => {
+  const row = (el: HTMLElement) => el.closest<HTMLElement>("[data-message-id]")!;
+
+  it("lays each message row across the list so the 88% cap is measured against the list, not the bubble", () => {
+    setup([msg(3, "Hi"), msg(4, "OK", { sender: { kind: "user", id: 11, name: "alice" } }),
+      msg(5, "Sure", { kind: "ai_answer", sender: { kind: "ai", id: null, name: null } })]);
+    for (const bubble of screen.getAllByTestId("room-message")) {
+      // a shrink-wrapped row (self-start / self-end) made max-w-[88%] resolve against the bubble's own width
+      expect(row(bubble).className.split(/\s+/)).toContain("w-full");
+      expect(row(bubble).className).not.toMatch(/\bself-(start|end)\b/);
+    }
+    const mine = screen.getAllByTestId("room-message").find((m) => m.dataset.mine === "true")!;
+    expect(row(mine).className).toContain("items-end");
+  });
+
+  it("a tap on the empty part of a row still closes the open action row", () => {
+    setup([msg(3, "Hi", { sender: { kind: "user", id: 11, name: "alice" } })]);
+    fireEvent.click(screen.getByText("Hi"));
+    expect(screen.getByTestId("msg-quote")).toBeTruthy();
+    fireEvent.pointerDown(screen.getByText("Hi")); // inside the bubble: stays open
+    expect(screen.getByTestId("msg-quote")).toBeTruthy();
+    fireEvent.pointerDown(row(screen.getByText("Hi"))); // blank space beside the bubble
+    expect(screen.queryByTestId("msg-quote")).toBeNull();
+  });
+
+  it("gives a pending bubble the same row as the confirmed one, so it does not re-wrap on ack", () => {
+    const mock = createFetchMock({});
+    const state: RoomState = { ...stateWith([]), pending: [{ clientId: "c1", text: "On my way", assistId: null, seq: null, replyTo: null }] };
+    renderWithProviders(<RoomMessageList state={state} roomId="r1" reported={new Set()} autoText={false} onLoadEarlier={vi.fn()} onReport={vi.fn()}
+      onReact={vi.fn()} onQuote={vi.fn()} onTranslateVoice={vi.fn()} onRetryVoice={vi.fn()} />,
+    { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const pending = screen.getByTestId("room-pending");
+    expect(pending.getAttribute("aria-busy")).toBe("true");
+    expect(pending.textContent).toBe("On my way");
+    const line = pending.parentElement!;
+    expect(line.className).toContain("max-w-[88%]");
+    expect(line.className).toContain("flex-row-reverse");
+    // the slot where the confirmed bubble gets its 「更多操作」 button: same width, not focusable, hidden from readers
+    const slot = line.querySelector<HTMLElement>("[data-testid=room-pending-slot]")!;
+    expect(slot.getAttribute("aria-hidden")).toBe("true");
+    expect(slot.className).toContain("size-7");
+    expect(line.parentElement!.className.split(/\s+/)).toContain("w-full");
+  });
+});

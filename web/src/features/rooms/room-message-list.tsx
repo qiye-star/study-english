@@ -87,7 +87,8 @@ export const RoomMessageList = memo(function RoomMessageList({
     const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") setSelected(null); };
     const onDown = (e: PointerEvent) => {
       const own = [...(rootRef.current?.querySelectorAll("[data-message-id]") ?? [])].find((el) => el.getAttribute("data-message-id") === selected);
-      if (!own || !own.contains(e.target as Node)) setSelected(null);
+      // 行占满列表宽:点到行本身(气泡旁的空白)也算「点别处」
+      if (!own || own === e.target || !own.contains(e.target as Node)) setSelected(null);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onDown);
@@ -221,7 +222,7 @@ export const RoomMessageList = memo(function RoomMessageList({
     if (m.kind === "ai_answer") {
       const question = m.replyTo !== null ? bySeq.get(m.replyTo) : undefined;
       return (
-        <div key={m.id} data-seq={m.seq} data-message-id={m.id} className="flex max-w-full flex-col items-start self-start">
+        <div key={m.id} data-seq={m.seq} data-message-id={m.id} className="flex w-full flex-col items-start">
           <div className="flex max-w-[92%] gap-1">
           <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
             className="min-w-0 rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
@@ -241,7 +242,8 @@ export const RoomMessageList = memo(function RoomMessageList({
     const name = m.sender.name ?? "?";
     const voice = m.kind === "voice";
     return (
-      <div key={m.id} data-seq={m.seq} data-message-id={m.id} className={cn("flex max-w-full flex-col", mine ? "items-end self-end" : "items-start self-start")}>
+      // 行占满列表宽(w-full),气泡的 max-w-[88%] 才按列表宽算;行若随内容收缩(self-end),百分比按气泡自身宽度算,短消息会被逐字折行
+      <div key={m.id} data-seq={m.seq} data-message-id={m.id} className={cn("flex w-full flex-col", mine ? "items-end" : "items-start")}>
         <div className={cn("flex max-w-[88%] gap-2", mine && "flex-row-reverse")}>
           {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
           <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
@@ -279,9 +281,15 @@ export const RoomMessageList = memo(function RoomMessageList({
       )}
       {state.messages.map(render)}
       {state.pending.map((p) => (
-        <div key={p.clientId} data-testid="room-pending" aria-busy="true"
-          className="max-w-[88%] self-end rounded-card rounded-tr-inline bg-blue-tint px-3 py-2 text-body leading-dialogue opacity-60">
-          <MessageText text={p.text} />
+        // 与确认后的自己消息同一行结构(含「更多操作」的占位),ack 到达时气泡不重新折行、不跳动
+        <div key={p.clientId} className="flex w-full flex-col items-end">
+          <div className="flex max-w-[88%] flex-row-reverse gap-2">
+            <div data-testid="room-pending" aria-busy="true"
+              className="min-w-0 rounded-card rounded-tr-inline bg-blue-tint px-3 py-2 text-body leading-dialogue tracking-[-0.005em] opacity-60">
+              <MessageText text={p.text} />
+            </div>
+            <span data-testid="room-pending-slot" aria-hidden="true" className="size-7 flex-none" />
+          </div>
         </div>
       ))}
       {state.aiTyping.length > 0 && (
