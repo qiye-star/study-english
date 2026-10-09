@@ -63,6 +63,14 @@ def add_rp(state: RankState, points: int, *, rules=None) -> RankState:
     return replace(state, division=division, rp=rp)
 
 
+def clamp_rp(state: RankState, *, rules=None) -> RankState:
+    """After division_rp was lowered (admin v2 §5.2): cut rp to the new size (master: below one star). Never rolls
+    excess points into a division or star."""
+    size = division_rp(state.tier, rules=rules)
+    limit = size - 1 if state.tier == MASTER else size
+    return state if state.rp <= limit else replace(state, rp=limit)
+
+
 def at_gate(state: RankState, *, rules=None) -> bool:
     return state.tier < MASTER and state.division == 1 and state.rp >= division_rp(state.tier, rules=rules)
 

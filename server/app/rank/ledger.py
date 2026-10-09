@@ -13,9 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.quotas import overrides_for
 from app.models import Assessment, Conversation, Message, RankProfile, VocabularyItem, XpEvent
 from app.rank import points as rules
-from app.rank.tiers import MASTER, RankState, Season, add_rp, at_gate
+from app.rank.points import EventRow, TaskProgress, stage_progress
+from app.rank.tiers import MASTER, RankState, Season, add_rp, at_gate, clamp_rp
 from app.services import usage
 from app.services.stats import as_utc
 
@@ -58,7 +60,7 @@ def _score(scores: object) -> int | None:
 
 
 async def _collect(session: AsyncSession, user_id: int, since: datetime, now: datetime,
-                   offset: int) -> tuple[list[rules.Candidate], datetime]:
+                   offset: int, rank_rules=None) -> tuple[list[rules.Candidate], datetime]:
     out: list[rules.Candidate] = []
     watermark = now - SAFETY
     a_rows = (await session.execute(
@@ -68,20 +70,22 @@ async def _collect(session: AsyncSession, user_id: int, since: datetime, now: da
     for id_, at, source, scores in a_rows:
         score = _score(scores)
         kind = "voice_turn" if source == "chat" else "assessment"
-        out.append(rules.Candidate(kind, id_, usage.local_day(at, offset), rules.assessment_points(score), score, as_utc(at)))
+        out.append(rules.Candidate(kind, id_, usage.local_day(at, offset), rules.assessment_points(score, rules=rank_rules),
+                                   score, as_utc(at)))
     m_rows = (await session.execute(
         select(Message.id, Message.created_at).join(Conversation, Conversation.id == Message.conversation_id)
         .where(Conversation.user_id == user_id, Message.role == "user", Message.created_at >= since)
         .order_by(Message.created_at).limit(MAX_SYNC_ROWS))).all()
     for id_, at in m_rows:
-        out.append(rules.Candidate("chat_turn", id_, usage.local_day(at, offset), rules.POINTS["chat_turn"], None, as_utc(at)))
+        out.append(rules.Candidate("chat_turn", id_, usage.local_day(at, offset), rules.points_for("chat_turn", rules=rank_rules), None,
+                                   as_utc(at)))
     v_rows = (await session.execute(
         select(VocabularyItem.id, VocabularyItem.reps, VocabularyItem.last_reviewed_at)
         .where(VocabularyItem.user_id == user_id, VocabularyItem.last_reviewed_at >= since)
         .order_by(VocabularyItem.last_reviewed_at).limit(MAX_SYNC_ROWS))).all()
     for id_, reps, at in v_rows:
         out.append(rules.Candidate("vocab_review", f"{id_}:{reps}", usage.local_day(at, offset),
-                                   rules.POINTS["vocab_review"], None, as_utc(at)))
+                                   rules.points_for("vocab_review", rules=rank_rules), None, as_utc(at)))
     for rows in (a_rows, m_rows, v_rows):
         if len(rows) >= MAX_SYNC_ROWS:
             watermark = min(watermark, as_utc(rows[-1][-1] if rows is v_rows else rows[-1][1]))
@@ -101,17 +105,23 @@ async def _user_lock(user_id: int) -> AsyncIterator[None]:
             _sync_locks.pop(user_id, None)
 
 
-async def sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int) -> RankProfile:
+async def sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int, *,
+               rules=None) -> RankProfile:
     """One sync per user at a time (single worker): concurrent /me requests would compute the same fresh events
-    and the loser would hit the xp_events unique index (review #10)."""
+    and the loser would hit the xp_events unique index (review #10).
+
+    `rules` (admin v2): a RankRules; when given its `points.daily_cap` replaces `daily_cap`, points come from it and an
+    rp above a (lowered) division_rp is clamped to the new size."""
     async with _user_lock(user_id):
-        return await _sync(session, user_id, now, offset_minutes, daily_cap)
+        return await _sync(session, user_id, now, offset_minutes,
+                           daily_cap if rules is None else rules.points.daily_cap, rules)
 
 
-async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int) -> RankProfile:
+async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int,
+                rank_rules=None) -> RankProfile:
     profile = await load_profile(session, user_id, now)
     since = as_utc(profile.synced_at) if profile.synced_at else now - timedelta(days=SYNC_LOOKBACK_DAYS)
-    candidates, watermark = await _collect(session, user_id, since, now, offset_minutes)
+    candidates, watermark = await _collect(session, user_id, since, now, offset_minutes, rank_rules)
     seen = set((await session.execute(select(XpEvent.kind, XpEvent.ref_id).where(
         XpEvent.user_id == user_id, XpEvent.created_at >= since - timedelta(seconds=1)))).all())
     fresh = [c for c in candidates if (c.kind, c.ref_id) not in seen]
@@ -127,41 +137,44 @@ async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minut
         XpEvent.user_id == user_id, XpEvent.kind == "active_day"))).all())
     for day in sorted(days - known_active):
         first = min(c.created_at for c in fresh if c.day == day)
-        events.append(rules.Candidate("active_day", day, day, rules.POINTS["active_day"], None, first))
+        events.append(rules.Candidate("active_day", day, day, rules.points_for("active_day", rules=rank_rules), None,
+                                      first))
     active_dates = {date.fromisoformat(d) for d in known_active | {e.day for e in events if e.kind == "active_day"}}
     known_streaks = set((await session.scalars(select(XpEvent.ref_id).where(
         XpEvent.user_id == user_id, XpEvent.kind == "streak_7"))).all())
     for end in rules.streak_ends(active_dates):
         ref = f"streak:{end.isoformat()}"
         if ref not in known_streaks:
-            events.append(rules.Candidate("streak_7", ref, end.isoformat(), rules.POINTS["streak_7"], None, now))
-    state = state_of(profile)
+            events.append(rules.Candidate("streak_7", ref, end.isoformat(), rules.points_for("streak_7", rules=rank_rules),
+                                          None, now))
+    state = clamp_rp(state_of(profile), rules=rank_rules)
     for e in events:
         session.add(XpEvent(user_id=user_id, kind=e.kind, ref_id=e.ref_id, points=e.points, score=e.score,
                             day=e.day, tier=profile.tier, created_at=e.created_at))
-        state = add_rp(state, e.points)
+        state = add_rp(state, e.points, rules=rank_rules)
     await session.flush()
     apply_state(profile, state, now)
     done_refs = set((await session.scalars(select(XpEvent.ref_id).where(
         XpEvent.user_id == user_id, XpEvent.kind == "stage_task"))).all())
-    for task in await stage_progress_for(session, profile):
+    stage_points = rules.points_for("stage_task", rules=rank_rules)
+    for task in await stage_progress_for(session, profile, rules=rank_rules):
         ref = f"{profile.tier}:{task.key}"
         if task.complete and ref not in done_refs:
-            session.add(XpEvent(user_id=user_id, kind="stage_task", ref_id=ref, points=rules.POINTS["stage_task"],
+            session.add(XpEvent(user_id=user_id, kind="stage_task", ref_id=ref, points=stage_points,
                                 score=None, day=usage.local_day(now, offset_minutes), tier=profile.tier, created_at=now))
-            apply_state(profile, add_rp(state_of(profile), rules.POINTS["stage_task"]), now)
+            apply_state(profile, add_rp(state_of(profile), stage_points, rules=rank_rules), now)
     profile.synced_at = watermark
     await session.commit()
     return profile
 
 
-async def stage_progress_for(session: AsyncSession, profile: RankProfile) -> list[rules.TaskProgress]:
+async def stage_progress_for(session: AsyncSession, profile: RankProfile, *, rules=None) -> list[TaskProgress]:
     # Spec §2.3 counts from tier_started_at: events are stamped with the tier at sync time, so activity done before a
     # promotion but synced after it would otherwise count for the new tier (review #17).
     rows = (await session.execute(select(XpEvent.kind, XpEvent.score, XpEvent.day).where(
         XpEvent.user_id == profile.user_id, XpEvent.tier == profile.tier,
         XpEvent.created_at >= profile.tier_started_at))).all()
-    return rules.stage_progress(profile.tier, [rules.EventRow(k, s, d) for k, s, d in rows])
+    return stage_progress(profile.tier, [EventRow(k, s, d) for k, s, d in rows], rules=rules)
 
 
 @dataclass(frozen=True)
@@ -173,8 +186,8 @@ class Promotion:
     target_tier: int | None
 
 
-def promotion_status(state: RankState, tasks: list[rules.TaskProgress], *, now: datetime,
-                     cooldown_until: datetime | None, attempts_left: int, available: bool) -> Promotion:
+def promotion_status(state: RankState, tasks: list[TaskProgress], *, now: datetime,
+                     cooldown_until: datetime | None, attempts_left: int, available: bool, rules=None) -> Promotion:
     target = None if state.tier >= MASTER else state.tier + 1
 
     def result(name: str, reason: str | None = None) -> Promotion:
@@ -184,7 +197,7 @@ def promotion_status(state: RankState, tasks: list[rules.TaskProgress], *, now: 
         return result("max_tier")
     if not available:
         return result("unavailable")
-    if not at_gate(state):
+    if not at_gate(state, rules=rules):
         return result("locked", "rp")
     if not all(t.complete for t in tasks):
         return result("locked", "tasks")
@@ -195,13 +208,22 @@ def promotion_status(state: RankState, tasks: list[rules.TaskProgress], *, now: 
     return result("eligible")
 
 
-async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings) -> Promotion:
+async def daily_attempts(session: AsyncSession, user_id: int, now: datetime, settings: Settings, *, rules=None) -> int:
+    """Per-user override (user_quota_overrides) > the rules' daily_attempts > RANK_MATCH_DAILY_ATTEMPTS."""
+    override = (await overrides_for(session, user_id, now)).get("rank_match_daily_attempts")
+    if override is not None:
+        return override
+    return rules.match.daily_attempts if rules is not None else settings.rank_match_daily_attempts
+
+
+async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings, *,
+                        rules=None) -> Promotion:
     """Match attempts are counted per UTC day: a client-supplied offset could otherwise span 3 dates (review #8)."""
-    tasks = await stage_progress_for(session, profile)
-    left = await usage.remaining(session, "rank_match", str(profile.user_id), usage.utc_day(now),
-                                 settings.rank_match_daily_attempts)
+    tasks = await stage_progress_for(session, profile, rules=rules)
+    limit = await daily_attempts(session, profile.user_id, now, settings, rules=rules)
+    left = await usage.remaining(session, "rank_match", str(profile.user_id), usage.utc_day(now), limit)
     return promotion_status(state_of(profile), tasks, now=now, cooldown_until=profile.cooldown_until,
-                            attempts_left=left, available=settings.rank_match_available)
+                            attempts_left=left, available=settings.rank_match_available, rules=rules)
 
 
 async def recent_events(session: AsyncSession, user_id: int, limit: int = 5) -> list[XpEvent]:

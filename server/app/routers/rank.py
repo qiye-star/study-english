@@ -1,5 +1,9 @@
 """Rank endpoints (spec 2026-10-09 §7.1). Off unless RANK_ENABLED; the config endpoint always answers.
-Never logs transcripts or judge output; the WAV body is size-limited like /api/speech/assessments."""
+Never logs transcripts or judge output; the WAV body is size-limited like /api/speech/assessments.
+
+Rules (admin v2 §5.2): new work uses the published version (`rank_rules(app).current()`); an existing match uses the
+version it was started with (`match.rules_version`). v0 (nothing published / NULL version) is passed as `rules=None`,
+i.e. the built-in constants + Settings, which `rules_from_settings` mirrors exactly."""
 import random
 from datetime import date
 
@@ -15,7 +19,9 @@ from app.providers import llm
 from app.providers.xfyun_result import to_assessment
 from app.rank import achievements, ledger
 from app.rank import match as matches
-from app.rank.tiers import TIERS, Season, season_of, tier_key
+from app.rank.rules import RankRules
+from app.rank.rules_store import rank_rules
+from app.rank.tiers import TIERS, Season, division_rp, season_of, tier_key
 from app.services.pronunciation import _ise_entry
 from app.services.provider_clients import get_xfyun
 from app.services.uploads import parse_buffered_form, read_limited_body
@@ -73,41 +79,60 @@ def build_deps(request: Request, settings: Settings, user_id: int) -> matches.Ma
     return matches.MatchDeps(transcribe, assess, examiner, judge)
 
 
-def _season(settings: Settings, offset: int = 0) -> tuple[Season | None, dict | None]:
+async def _live(request: Request) -> tuple[int | None, RankRules | None]:
+    version, rules = await rank_rules(request.app).current()
+    return version, (rules if version is not None else None)
+
+
+async def _pinned(request: Request, match: PromotionMatch) -> RankRules | None:
+    if match.rules_version is None:
+        return None
+    return await rank_rules(request.app).for_version(match.rules_version)
+
+
+def _season_rule(settings: Settings, rules: RankRules | None) -> tuple[date, int]:
+    if rules is not None:
+        return rules.season.anchor, rules.season.weeks
+    return settings.rank_season_anchor, settings.rank_season_weeks
+
+
+def _season(settings: Settings, rules: RankRules | None, offset: int = 0) -> tuple[Season | None, dict | None]:
     today = date.fromisoformat(local_day(utcnow(), offset))
-    season = season_of(today, settings.rank_season_anchor, settings.rank_season_weeks)
+    season = season_of(today, *_season_rule(settings, rules))
     return season, (None if season is None else
                     {"id": season.id, "starts_on": season.starts_on.isoformat(), "ends_on": season.ends_on.isoformat()})
 
 
 @router.get("/config")
-async def rank_config(_: User = Depends(current_user), settings: Settings = Depends(get_settings)):
+async def rank_config(request: Request, _: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     if not settings.rank_enabled:
         return {"enabled": False, "match_available": False, "tiers": [], "season": None}
+    _, rules = await _live(request)
     return {"enabled": True, "match_available": settings.rank_match_available,
             "tiers": [{"key": t.key, "index": t.index, "cefr": t.cefr, "divisions": t.divisions,
-                       "division_rp": t.division_rp} for t in TIERS],
-            "season": _season(settings)[1]}
+                       "division_rp": division_rp(t.index, rules=rules)} for t in TIERS],
+            "season": _season(settings, rules)[1]}
 
 
 @router.get("/me")
-async def rank_me(tz_offset_minutes: int = TZ_OFFSET, user: User = Depends(current_user),
+async def rank_me(request: Request, tz_offset_minutes: int = TZ_OFFSET, user: User = Depends(current_user),
                   session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_rank)):
     now = utcnow()
-    profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap)
-    tasks = await ledger.stage_progress_for(session, profile)
-    promo = await ledger.promotion_for(session, profile, now, settings)
-    season, season_json = _season(settings, tz_offset_minutes)
+    _, rules = await _live(request)
+    profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap, rules=rules)
+    tasks = await ledger.stage_progress_for(session, profile, rules=rules)
+    promo = await ledger.promotion_for(session, profile, now, settings, rules=rules)
+    season, season_json = _season(settings, rules, tz_offset_minutes)
     snap = await achievements.snapshot(session, user.id, profile.best_tier, season)
     today = date.fromisoformat(local_day(now, 0))  # ended seasons by UTC: a client offset must not end one early
     keys = achievements.earned(snap) | await achievements.season_badges(
-        session, user.id, today, settings.rank_season_anchor, settings.rank_season_weeks)
+        session, user.id, today, *_season_rule(settings, rules))
     new = await achievements.unlock_new(session, user.id, keys, now)
     current = await matches.active_match(session, user.id)
     events = await ledger.recent_events(session, user.id)
     return {
         "tier": tier_key(profile.tier), "tier_index": profile.tier, "division": profile.division, "rp": profile.rp,
-        "division_rp": TIERS[profile.tier].division_rp, "stars": profile.stars,
+        "division_rp": division_rp(profile.tier, rules=rules), "stars": profile.stars,
         "stage_tasks": [{"key": t.key, "kind": t.kind, "done": t.done, "target": t.target, "min_score": t.min_score,
                          "complete": t.complete} for t in tasks],
         "promotion": {"state": promo.state, "reason": promo.reason,
@@ -135,33 +160,35 @@ async def _owned(session: AsyncSession, user: User, match_id: str) -> PromotionM
 
 
 @router.post("/matches")
-async def start(tz_offset_minutes: int = TZ_OFFSET, user: User = Depends(limited_user),
+async def start(request: Request, tz_offset_minutes: int = TZ_OFFSET, user: User = Depends(limited_user),
                 session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_rank)):
+    version, rules = await _live(request)
     try:
         row = await matches.start_match(session, user.id, utcnow(), settings=settings,
-                                        offset_minutes=tz_offset_minutes, rng=random.Random())
+                                        offset_minutes=tz_offset_minutes, rng=random.Random(),
+                                        rules=rules, rules_version=version)
     except matches.MatchError as e:
         _raise(e)
-    return {"match": matches.match_out(row)}
+    return {"match": matches.match_out(row, rules=rules)}
 
 
 @router.get("/matches")
-async def history(page: int = Query(1, ge=1, le=1000), user: User = Depends(current_user),
+async def history(request: Request, page: int = Query(1, ge=1, le=1000), user: User = Depends(current_user),
                   session: AsyncSession = Depends(get_session), _: Settings = Depends(require_rank)):
     rows = (await session.scalars(
         select(PromotionMatch).where(PromotionMatch.user_id == user.id)
         .order_by(PromotionMatch.started_at.desc())
         .offset((page - 1) * HISTORY_PER_PAGE).limit(HISTORY_PER_PAGE + 1))).all()
-    items = [{k: v for k, v in matches.match_out(r).items() if k != "turns"} | {"total": r.total}
-             for r in rows[:HISTORY_PER_PAGE]]
+    items = [{k: v for k, v in matches.match_out(r, rules=await _pinned(request, r)).items() if k != "turns"}
+             | {"total": r.total} for r in rows[:HISTORY_PER_PAGE]]
     return {"matches": items, "page": page, "next": page + 1 if len(rows) > HISTORY_PER_PAGE else None}
 
 
 @router.get("/matches/{match_id}")
-async def get_match(match_id: str, user: User = Depends(current_user), session: AsyncSession = Depends(get_session),
-                    _: Settings = Depends(require_rank)):
+async def get_match(match_id: str, request: Request, user: User = Depends(current_user),
+                    session: AsyncSession = Depends(get_session), _: Settings = Depends(require_rank)):
     row = await _owned(session, user, match_id)
-    return {"match": matches.match_out(row), "verdict": row.result}
+    return {"match": matches.match_out(row, rules=await _pinned(request, row)), "verdict": row.result}
 
 
 async def _wav(request: Request) -> bytes:
@@ -184,9 +211,10 @@ async def turn(match_id: str, request: Request, user: User = Depends(limited_use
     row = await _owned(session, user, match_id)
     wav = await _wav(request)
     profile = await ledger.load_profile(session, user.id, utcnow())
+    rules = await _pinned(request, row)
     try:
         return await matches.add_turn(session, build_deps(request, settings, user.id), row, profile, wav, utcnow(),
-                                      settings)
+                                      settings, rules=rules)
     except matches.MatchError as e:
         _raise(e)
 
@@ -196,21 +224,23 @@ async def finish(match_id: str, request: Request, user: User = Depends(limited_u
                  session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_rank)):
     row = await _owned(session, user, match_id)
     profile = await ledger.load_profile(session, user.id, utcnow())
+    rules = await _pinned(request, row)
     try:
         verdict = await matches.finish_match(session, build_deps(request, settings, user.id), row, profile, utcnow(),
-                                             settings)
+                                             settings, rules=rules)
     except matches.MatchError as e:
         _raise(e)
-    return {"match": matches.match_out(row), "verdict": verdict}
+    return {"match": matches.match_out(row, rules=rules), "verdict": verdict}
 
 
 @router.post("/matches/{match_id}/abandon")
-async def abandon(match_id: str, user: User = Depends(current_user), session: AsyncSession = Depends(get_session),
-                  settings: Settings = Depends(require_rank)):
+async def abandon(match_id: str, request: Request, user: User = Depends(current_user),
+                  session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_rank)):
     row = await _owned(session, user, match_id)
     profile = await ledger.load_profile(session, user.id, utcnow())
+    rules = await _pinned(request, row)
     try:
-        await matches.abandon_match(session, row, profile, utcnow(), settings)
+        await matches.abandon_match(session, row, profile, utcnow(), settings, rules=rules)
     except matches.MatchError as e:
         _raise(e)
-    return {"match": matches.match_out(row)}
+    return {"match": matches.match_out(row, rules=rules)}
