@@ -93,7 +93,8 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     group: G.security,
     items: [
       { to: "/audit", label: I.audit, icon: ScrollIcon, min: "viewer" },
-      { to: "/security", label: I.security, icon: KeyIcon, min: "superadmin" },
+      // min viewer: everyone manages their own sessions / TOTP / password there; the accounts table is superadmin-only
+      { to: "/security", label: I.security, icon: KeyIcon, min: "viewer" },
     ],
   },
 ];
