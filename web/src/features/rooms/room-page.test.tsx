@@ -24,7 +24,11 @@ class FakeWebSocket {
 }
 
 const user = (seq: number, text: string, over = {}) => ({ seq, id: `m${seq}`, lane: "public", kind: "text", sender: { kind: "user", id: 22, name: "bob" },
-  text, assisted: false, reply_to: null as number | null, ai_status: null as string | null, meta: null as unknown, created_at: "2026-10-09T09:00:00+00:00", ...over });
+  text, assisted: false, reply_to: null as number | null, ai_status: null as string | null, meta: null as unknown, created_at: "2026-10-09T09:00:00+00:00",
+  quote: null as unknown, voice: null as unknown, reactions: [] as unknown[], ...over });
+const V2_CONFIG = { enabled: true, ai_available: true, max_members: 8, max_text: 500, scenarios: [{ key: "free", title_zh: "自由聊天", title_en: "Free talk" }],
+  levels: ["A1", "A2", "B1", "B2", "C1"], default_max_members: 4, name_max: 30, voice_available: false, max_voice_ms: 60000,
+  summary_available: false, reactions: ["like", "love", "haha", "wow", "clap", "thanks"] };
 const MEMBERS = [{ user_id: 11111111, name: "alice", role: "owner", online: true }, { user_id: 22, name: "bob", role: "member", online: true }];
 
 function setup(routes: Record<string, Handler> = {}) {
@@ -238,6 +242,51 @@ describe("RoomPage", () => {
     expect(screen.getByText("still live")).toBeTruthy();
     expect((screen.getByTestId("room-input") as HTMLInputElement).disabled).toBe(false);
     expect(screen.queryByText("房间已结束,只能查看。")).toBeNull();
+  });
+
+  it("routes the composer to the assistant while the assistant is open", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    fireEvent.click(screen.getByTestId("room-assist-open"));
+    expect(screen.getByTestId("room-target-assist").textContent).toContain("问助手");
+    fireEvent.change(screen.getByTestId("room-input"), { target: { value: "I like 巧克力" } });
+    fireEvent.click(screen.getByTestId("room-send"));
+    expect(JSON.parse(FakeWebSocket.last!.sent.at(-1)!)).toMatchObject({ type: "assist", text: "I like 巧克力" });
+    expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("");
+    fireEvent.click(screen.getByTestId("room-target-clear"));
+    expect(screen.queryByTestId("room-target-assist")).toBeNull();
+    fireEvent.change(screen.getByTestId("room-input"), { target: { value: "Hi all" } });
+    fireEvent.click(screen.getByTestId("room-send"));
+    expect(JSON.parse(FakeWebSocket.last!.sent.at(-1)!)).toMatchObject({ type: "say", text: "Hi all", reply_to: null });
+  });
+
+  it("shows the voice toggle only when the site and the room allow voice", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live({ ...ROOM, allow_voice: true });
+    expect(screen.queryByTestId("room-voice-toggle")).toBeNull(); // site voice is off
+  });
+
+  it("shows the voice toggle when voice is available and switches the input", async () => {
+    setup({ "GET /api/rooms/config": () => json({ ...V2_CONFIG, voice_available: true }) });
+    await live({ ...ROOM, allow_voice: true });
+    fireEvent.click(screen.getByTestId("room-voice-toggle"));
+    expect(screen.queryByTestId("room-input")).toBeNull(); // the (stub) hold-to-talk input replaces the text box
+    fireEvent.click(screen.getByTestId("room-voice-toggle"));
+    expect(screen.getByTestId("room-input")).toBeTruthy();
+  });
+
+  it("renders v2 messages and the invite button", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(2, "Any food?") });
+    FakeWebSocket.last!.push({ type: "message", message: user(3, "Noodles!", { kind: "voice", reply_to: 2,
+      quote: { seq: 2, name: "bob", kind: "text", text: "Any food?" }, reactions: [{ key: "like", user_ids: [22] }],
+      voice: { duration_ms: 6400, status: "done", transcript: "Noodles!", lang: "en", translation: null, translation_status: null, attempts: 1, audio: true } }) });
+    expect(screen.getByText("Any food?")).toBeTruthy();
+    const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
+    expect(voice.textContent).toContain("Noodles!");
+    expect(voice.closest("[data-seq]")?.getAttribute("data-seq")).toBe("3");
+    expect(screen.getByTestId("room-invite")).toBeTruthy();
   });
 
   it("explains when rooms are off", async () => {

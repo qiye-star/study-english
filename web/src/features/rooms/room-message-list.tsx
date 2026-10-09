@@ -1,10 +1,14 @@
-import { FlagIcon, LanguagesIcon } from "lucide-react";
-import { memo, useMemo, useState, type KeyboardEvent } from "react";
+import { LanguagesIcon } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar } from "~/components/avatar";
 import { cn } from "~/lib/cn";
-import type { RoomMessage } from "./protocol";
+import { MessageActions } from "./extras/message-actions";
+import { QuoteBlock } from "./extras/quote-block";
+import { ReactionBar } from "./extras/reaction-bar";
+import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
+import { VoiceBubble } from "./voice/voice-bubble";
 
 const AT_AI = /^(\s*@(?:ai|助手))(?=$|[\s:：,，])/i;
 
@@ -33,44 +37,66 @@ function AiAnswer({ text }: { text: string }) {
   );
 }
 
+export interface RoomMessageListProps {
+  state: RoomState; roomId: string; reported: ReadonlySet<string>;
+  /** 「联机语音自动转文字」偏好(传给 VoiceBubble) */
+  autoText: boolean;
+  onLoadEarlier(): void; onReport(message: RoomMessage): void;
+  onReact(seq: number, key: ReactionKey, on: boolean): void; onQuote(message: RoomMessage): void;
+  onTranslateVoice(seq: number): void; onRetryVoice(seq: number): void;
+}
+
 /**
- * 公共消息列表(视觉稿 M2):别人 = 中性气泡 + 名字;自己 = blue-tint;@ai 回答 = 中性卡片(AI 助手 + 引用提问);系统 = 居中 11px。
- * 点别人的消息展开「举报」(44px)。系统消息按 i18n 模板渲染(服务端只存 key + 参数)。
+ * 公共消息列表(视觉稿 M2 / rooms-v2):别人 = 中性气泡 + 名字;自己 = blue-tint;@ai 回答 = 中性卡片(AI 助手 + 引用提问);系统 = 居中 11px。
+ * v2 插槽:语音消息 → VoiceBubble;有引用 → 气泡内先渲染 QuoteBlock(点按滚动到 data-seq 元素);气泡下方 ReactionBar;
+ * 点消息选中 → MessageActions(取代 v1 的举报行)。每条消息的根元素带 data-seq。WE 车道在 F5 之后独占本文件。
+ * 系统消息按 i18n 模板渲染(服务端只存 key + 参数)。
  */
-export const RoomMessageList = memo(function RoomMessageList({ state, reported, onLoadEarlier, onReport }: {
-  state: RoomState; reported: ReadonlySet<string>; onLoadEarlier(): void; onReport(message: RoomMessage): void;
-}) {
+export const RoomMessageList = memo(function RoomMessageList({
+  state, roomId, reported, autoText, onLoadEarlier, onReport, onReact, onQuote, onTranslateVoice, onRetryVoice,
+}: RoomMessageListProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
-  const meId = state.me?.userId;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const meId = state.me?.userId ?? null;
   const bySeq = useMemo(() => new Map(state.messages.map((m) => [m.seq, m])), [state.messages]);
+  const jump = useCallback((seq: number) => {
+    const el = rootRef.current?.querySelector<HTMLElement>(`[data-seq="${seq}"]`);
+    el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, []);
 
-  const reportRow = (m: RoomMessage, align: "start" | "end") => selected === m.id && (
+  const actionsRow = (m: RoomMessage, mine: boolean, align: "start" | "end") => selected === m.id && (
     <div className={cn("mt-0.5 flex", align === "end" ? "justify-end" : "justify-start")}>
-      {reported.has(m.id) ? (
-        <span className="inline-flex h-tap items-center px-2 text-meta font-medium text-ink-2">{t("web.rooms.room.reported")}</span>
-      ) : (
-        <button type="button" data-testid="room-report" onClick={() => onReport(m)}
-          className="inline-flex h-tap items-center gap-1 rounded-[9px] px-2 text-meta font-medium text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[15px]">
-          <FlagIcon aria-hidden />{t("web.rooms.room.report")}
-        </button>
-      )}
+      <MessageActions message={m} mine={mine} meId={meId} canReport={!mine} reported={reported.has(m.id)}
+        onReact={(key, on) => onReact(m.seq, key, on)} onQuote={() => { onQuote(m); setSelected(null); }} onReport={() => onReport(m)} />
     </div>
   );
+  const reactions = (m: RoomMessage, align: "start" | "end") => (
+    m.reactions?.length ? (
+      <div className={cn("mt-0.5 flex", align === "end" ? "justify-end" : "justify-start")}>
+        <ReactionBar reactions={m.reactions} meId={meId} onToggle={(key, on) => onReact(m.seq, key, on)} />
+      </div>
+    ) : null
+  );
   const toggle = (m: RoomMessage) => setSelected((cur) => (cur === m.id ? null : m.id));
+  const selectable = (m: RoomMessage) => ({
+    role: "button", tabIndex: 0, "aria-expanded": selected === m.id,
+    onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("button, a, audio")) toggle(m); },
+    onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter" && e.target === e.currentTarget) toggle(m); },
+  });
 
   const render = (m: RoomMessage) => {
     if (m.hidden) {
-      // 管理员隐藏的消息:保留位置,只显示占位(正文不再下发)
+      // 管理员隐藏的消息:保留位置,只显示占位(正文、语音、回应都不再下发)
       return (
-        <p key={m.id} data-testid="room-message" data-kind="hidden" className="self-center text-meta italic text-ink-2">
+        <p key={m.id} data-seq={m.seq} data-testid="room-message" data-kind="hidden" className="self-center text-meta italic text-ink-2">
           {t("web.rooms.room.hidden")}
         </p>
       );
     }
     if (m.kind === "system") {
       return (
-        <p key={m.id} data-testid="room-message" data-kind="system" className="text-center text-label font-medium tracking-[0.02em] text-ink-2">
+        <p key={m.id} data-seq={m.seq} data-testid="room-message" data-kind="system" className="text-center text-label font-medium tracking-[0.02em] text-ink-2">
           {t(`web.rooms.room.system.${m.text}`, { ...((m.meta ?? {}) as Record<string, string>), defaultValue: "" })}
         </p>
       );
@@ -78,9 +104,8 @@ export const RoomMessageList = memo(function RoomMessageList({ state, reported, 
     if (m.kind === "ai_answer") {
       const question = m.replyTo !== null ? bySeq.get(m.replyTo) : undefined;
       return (
-        <div key={m.id} className="max-w-[92%] self-start">
-          <div data-testid="room-message" data-kind="ai_answer" role="button" tabIndex={0} aria-expanded={selected === m.id}
-            onClick={() => toggle(m)} onKeyDown={(e) => { if (e.key === "Enter") toggle(m); }}
+        <div key={m.id} data-seq={m.seq} className="max-w-[92%] self-start">
+          <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
             className="rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>
             {question && (
@@ -88,23 +113,26 @@ export const RoomMessageList = memo(function RoomMessageList({ state, reported, 
             )}
             <AiAnswer text={m.text} />
           </div>
-          {reportRow(m, "start")}
+          {reactions(m, "start")}
+          {actionsRow(m, false, "start")}
         </div>
       );
     }
-    const mine = meId !== undefined && m.sender.id === meId;
+    const mine = meId !== null && m.sender.id === meId;
     const name = m.sender.name ?? "?";
+    const voice = m.kind === "voice";
     return (
-      <div key={m.id} className={cn("flex max-w-[88%] flex-col", mine ? "self-end" : "self-start")}>
+      <div key={m.id} data-seq={m.seq} className={cn("flex max-w-[88%] flex-col", mine ? "self-end" : "self-start")}>
         <div className={cn("flex gap-2", mine && "flex-row-reverse")}>
           {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
-          <div data-testid="room-message" data-kind="text" data-mine={mine ? "true" : "false"}
-            {...(mine ? {} : { role: "button", tabIndex: 0, "aria-expanded": selected === m.id,
-              onClick: () => toggle(m), onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter") toggle(m); } })}
+          <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
             className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               mine ? "rounded-tr-inline bg-blue-tint" : "rounded-tl-inline border-[0.5px] border-hair bg-surface")}>
             {!mine && <span className="block text-meta font-semibold text-ink-2">{name}</span>}
-            <MessageText text={m.text} />
+            {m.quote && <QuoteBlock quote={m.quote} onJump={jump} />}
+            {voice ? (
+              <VoiceBubble message={m} mine={mine} roomId={roomId} autoText={autoText} onTranslate={onTranslateVoice} onRetry={onRetryVoice} />
+            ) : <MessageText text={m.text} />}
             {m.assisted && (
               <span className="mt-0.5 flex items-center gap-[3px] text-label font-semibold text-blue">
                 <LanguagesIcon aria-hidden className="size-[13px]" />{t("web.rooms.room.assisted")}
@@ -118,13 +146,14 @@ export const RoomMessageList = memo(function RoomMessageList({ state, reported, 
             )}
           </div>
         </div>
-        {!mine && reportRow(m, "start")}
+        {reactions(m, mine ? "end" : "start")}
+        {actionsRow(m, mine, mine ? "end" : "start")}
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={rootRef} className="flex flex-col gap-3">
       {state.truncated && state.messages.length > 0 && (
         <button type="button" data-testid="room-load-earlier" onClick={onLoadEarlier}
           className="tap-link self-center !my-0 text-sub font-medium text-blue">{t("web.rooms.room.loadEarlier")}</button>

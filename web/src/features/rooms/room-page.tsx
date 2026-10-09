@@ -1,5 +1,5 @@
-import { ChevronLeftIcon, CopyIcon, SlidersHorizontalIcon } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeftIcon, CopyIcon, SlidersHorizontalIcon, UserPlusIcon } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -10,15 +10,26 @@ import { FeatureGate, type GateState } from "~/components/feature-gate";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
 import { IconButton } from "~/components/icon-button";
 import { PageHeader } from "~/layout/page-header";
-import { AssistTray } from "./assist-tray";
-import type { RoomMessage } from "./protocol";
+import { AssistDock, type DockSnap } from "./assist/assist-dock";
+import { AssistEntry } from "./assist/assist-entry";
+import { useSoftKeyboard } from "./assist/use-soft-keyboard";
+import { JoinRequestBanner } from "./create/join-requests";
+import { ActivityLine } from "./extras/activity-line";
+import { InviteSheet } from "./extras/invite-sheet";
+import { QuoteBar } from "./extras/quote-block";
+import { SummaryCard } from "./extras/summary-card";
+import { useTypingEmitter } from "./extras/use-typing-emitter";
+import { ROOM_PROTOCOL_VERSION, type QuoteInfo, type RoomMessage } from "./protocol";
 import { RoomComposer } from "./room-composer";
 import { RoomMessageList } from "./room-message-list";
 import { RoomSettingsSheet } from "./room-settings-sheet";
 import type { RoomState } from "./room-state";
-import { fetchRoomsConfig, reportMessage, ROOMS_SERVER_ERRORS } from "./rooms-api";
+import { fetchRoomsConfig, reportMessage, ROOMS_SERVER_ERRORS, type RoomsConfig } from "./rooms-api";
 import { ghostButton } from "./ui";
 import { useRoom } from "./use-room";
+import { useRoomVoiceAutoText } from "./voice/auto-text";
+import { useRoomVoice } from "./voice/use-room-voice";
+import { VoiceInput } from "./voice/voice-input";
 
 const REPORT_REASONS = ["spam", "abuse", "other"] as const;
 const CLOSE_KEYS: Record<string, string> = {
@@ -60,18 +71,18 @@ export function RoomPage() {
   const { api } = useAuth();
   const { t } = useTranslation();
   const [state, setState] = useState<GateState>("loading");
-  const [aiAvailable, setAiAvailable] = useState(false);
+  const [config, setConfig] = useState<RoomsConfig | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const ctrl = new AbortController();
     setState("loading");
     fetchRoomsConfig(api, ctrl.signal).then((c) => {
-      setAiAvailable(c.aiAvailable);
+      setConfig(c);
       setState(c.enabled ? "ready" : "disabled");
     }, () => { if (!ctrl.signal.aborted) setState("error"); });
     return () => ctrl.abort();
   }, [api, attempt]);
-  if (state === "ready") return <RoomView key={roomId} roomId={roomId} aiAvailable={aiAvailable} />;
+  if (state === "ready" && config) return <RoomView key={roomId} roomId={roomId} config={config} />;
   return (
     <>
       <PageHeader title={t("web.rooms.room.title")} back="/rooms" />
@@ -86,21 +97,39 @@ function bannerText(t: (key: string) => string, state: RoomState): string | null
   return null;
 }
 
+const quoteOf = (m: RoomMessage): QuoteInfo => ({ seq: m.seq, name: m.kind === "ai_answer" ? null : m.sender.name, kind: m.kind, text: m.text });
+
 /**
- * 房间群聊(视觉稿 M2):玻璃顶栏(话题 + 房间号点按复制 + 在线人数,右侧成员与设置)、底部锚定的消息列表、玻璃输入条。
- * 与对话页同构:顶栏与输入条浮在列表上,列表自己滚动。
+ * 房间群聊(视觉稿 rooms-v2):玻璃顶栏(房间名 + 房间号点按复制 + 在线人数,右侧邀请、成员与设置)、底部锚定的消息列表、
+ * 助手停靠面板(在输入条之上,不遮挡聊天)、玻璃输入条。与对话页同构:顶栏与输入条浮在列表上,列表自己滚动。
+ *
+ * F5 之后本文件冻结(计划 2026-10-10 rooms-v2):各车道只替换 voice/ assist/ extras/ create/ 里的插槽实现,签名不变;
+ * 需要改这里时在计划里写 Addendum,由 foundation 执行者改。
  */
-function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolean }) {
+function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const { api } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const room = useRoom(roomId);
   const { state, dismiss, loadEarlier: loadMore } = room;
+  const aiAvailable = config.aiAvailable;
   const [draft, setDraft] = useState("");
   const [settings, setSettings] = useState(false);
-  const [assistOpen, setAssistOpen] = useState(false);
   const [reporting, setReporting] = useState<RoomMessage | null>(null);
   const [reported, setReported] = useState<ReadonlySet<string>>(() => new Set());
+  // v2 插槽状态
+  const [target, setTarget] = useState<"group" | "assist">("group");
+  const [quote, setQuote] = useState<RoomMessage | null>(null);
+  const [voiceMode, setVoiceMode] = useState<"text" | "voice">("text");
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockSnap, setDockSnap] = useState<DockSnap>("mid");
+  const [dockHeight, setDockHeight] = useState(0);
+  const [unread, setUnread] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set());
+  const keyboardOpen = useSoftKeyboard();
+  const autoText = useRoomVoiceAutoText();
+  const typingEmitter = useTypingEmitter(room.typing);
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerHeight, setComposerHeight] = useState(64);
@@ -113,6 +142,37 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   const offline = state.status !== "live";
   const info = state.room;
   const online = state.members.filter((m) => m.online).length;
+  const ended = closed || info?.status === "closed";
+  const isOwner = state.me?.role === "owner" || info?.myRole === "owner";
+  const voiceEnabled = !!config.voiceAvailable && !!info?.allowVoice && !closed;
+
+  const voice = useRoomVoice({
+    roomId, enabled: voiceEnabled, maxMs: config.maxVoiceMs, target, replyTo: quote?.seq ?? null,
+    onFill: (text) => { setDraft(text); setVoiceMode("text"); },
+    onAssistDraft: (text) => { room.ask(text); },
+    onSent: (message) => { room.addMessage(message); setQuote(null); stick.current = true; },
+    onActivity: (s) => { room.typing(s); },
+  });
+
+  // 新的助手回复到达而面板关闭或收成一行:入口亮未读点(welcome 带回的历史条目 requestId 为 null,不算新)
+  const doneReplies = state.assist.filter((a) => a.status === "done" && a.requestId !== null).length;
+  const seenReplies = useRef(doneReplies);
+  useEffect(() => {
+    if (doneReplies > seenReplies.current && (!dockOpen || dockSnap === "row")) setUnread(true);
+    seenReplies.current = doneReplies;
+  }, [doneReplies, dockOpen, dockSnap]);
+  const toggleDock = () => {
+    if (dockOpen) {
+      setDockOpen(false);
+      setTarget("group");
+    } else {
+      setDockOpen(true);
+      setTarget("assist");
+      setUnread(false);
+    }
+  };
+  const closeDock = useCallback(() => { setDockOpen(false); setTarget("group"); }, []);
+  const joinRequests = useMemo(() => state.joinRequests.filter((r) => !decided.has(r.id)), [state.joinRequests, decided]);
 
   useLayoutEffect(() => {
     const el = composerRef.current;
@@ -135,7 +195,7 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
     } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [state.messages.length, firstSeq, state.pending.length, state.aiTyping.length, composerHeight]);
+  }, [state.messages.length, firstSeq, state.pending.length, state.aiTyping.length, composerHeight, dockHeight]);
   const onScroll = () => {
     const el = listRef.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
@@ -156,10 +216,20 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   }, [state.notice, state.error, dismiss]);
 
   const send = () => {
-    if (room.say(draft)) {
+    if (target === "assist") {
+      if (room.ask(draft) !== null) setDraft("");
+      return;
+    }
+    if (room.say(draft, null, quote?.seq ?? null)) {
       setDraft("");
+      setQuote(null);
+      typingEmitter.onSent();
       stick.current = true;
     }
+  };
+  const changeDraft = (text: string) => {
+    setDraft(text);
+    if (target === "group") typingEmitter.onDraft(text);
   };
   async function report(reason: (typeof REPORT_REASONS)[number]) {
     const target = reporting;
@@ -176,6 +246,7 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
 
   const status = bannerText(t, state);
   const message = state.notice ? t(`web.rooms.notice.${state.notice}`) : state.error ? t(`web.rooms.errors.${state.error}`) : null;
+  const newVersion = state.protocol > ROOM_PROTOCOL_VERSION ? t("web.rooms.room.newVersion") : null;
   const code = info?.code;
   const subtitle = closed || info?.status === "closed" ? t("web.rooms.room.ended") : code ? (
     <button type="button" data-testid="room-code" className="hit-expand inline-flex max-w-full items-center gap-1 tabular-nums"
@@ -188,25 +259,55 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <GlassTopBar className="absolute inset-x-0 top-0" scrolled={scrolled}
-        title={info?.topic || t("web.rooms.room.title")} subtitle={subtitle}
+        title={info?.name || info?.topic || t("web.rooms.room.title")} subtitle={subtitle}
         leading={<IconButton label={t("web.common.back")} onClick={() => navigate("/rooms")}><ChevronLeftIcon /></IconButton>}
-        actions={info ? <IconButton label={t("web.rooms.settings.title")} onClick={() => setSettings(true)}><SlidersHorizontalIcon /></IconButton> : undefined} />
+        actions={info ? (
+          <>
+            {!ended && (
+              <IconButton data-testid="room-invite" label={t("web.rooms.room.invite")} onClick={() => setInviteOpen(true)}><UserPlusIcon /></IconButton>
+            )}
+            <IconButton label={t("web.rooms.settings.title")} onClick={() => setSettings(true)}><SlidersHorizontalIcon /></IconButton>
+          </>
+        ) : undefined} />
+      {isOwner && !ended && joinRequests.length > 0 && (
+        <div className="absolute inset-x-0 z-20 px-gutter" style={{ top: "calc(52px + env(safe-area-inset-top) + 4px)" }}>
+          <JoinRequestBanner roomId={roomId} requests={joinRequests} onDecided={(id) => setDecided((cur) => new Set(cur).add(id))} />
+        </div>
+      )}
       {/* 读屏只播报实时到达的别人的消息;列表本身不是 live 区域(补发与「加载更早」不该被整页朗读) */}
       <div data-testid="room-announcer" role="log" aria-live="polite" className="sr-only">
         {state.announce ? `${state.announce.kind === "ai_answer" ? t("web.rooms.room.aiName") : state.announce.sender.name ?? "?"}: ${state.announce.text}` : ""}
       </div>
       <div ref={listRef} data-testid="room-messages" onScroll={onScroll}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-gutter"
-        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 }}>
+        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + dockHeight + 14 }}>
         <div aria-hidden className="mt-auto" />
+        {ended && info && <SummaryCard roomId={roomId} />}
         {closed && state.room && state.messages.length === 0 && (
           <p className="py-8 text-center text-sub text-ink-2">{t("web.rooms.room.historyEmpty")}</p>
         )}
-        <RoomMessageList state={state} reported={reported} onLoadEarlier={loadEarlier} onReport={setReporting} />
+        <RoomMessageList state={state} roomId={roomId} reported={reported} autoText={autoText} onLoadEarlier={loadEarlier} onReport={setReporting}
+          onReact={room.react} onQuote={(m) => { setQuote(m); setTarget("group"); }}
+          onTranslateVoice={room.translateVoice} onRetryVoice={room.retryVoice} />
       </div>
-      <RoomComposer ref={composerRef} disabled={closed} offline={offline} ai={aiAvailable} value={draft} onChange={setDraft} onSend={send}
-        onOpenAssist={() => setAssistOpen(true)}
-        banner={status ?? message ?? (state.status === "connecting" ? t("web.rooms.room.connecting") : null)}
+      <AssistDock open={dockOpen && aiAvailable} snap={dockSnap} keyboardOpen={keyboardOpen} entries={state.assist} disabled={closed} offline={offline}
+        onSnap={setDockSnap} onClose={closeDock}
+        onAsk={(text) => room.ask(text) !== null}
+        onSend={(text, assistId) => { if (room.say(text, assistId)) stick.current = true; }}
+        onEdit={(text) => { setDraft(text); setTarget("group"); setDockSnap("row"); }}
+        onHeight={setDockHeight} />
+      <RoomComposer ref={composerRef} disabled={closed} offline={offline} ai={aiAvailable} value={draft} onChange={changeDraft} onSend={send}
+        leading={aiAvailable ? <AssistEntry open={dockOpen} unread={unread} disabled={closed} onToggle={toggleDock} /> : undefined}
+        target={target} onClearTarget={() => setTarget("group")}
+        voice={{ available: voiceEnabled, mode: voiceMode, onToggle: () => setVoiceMode((m) => (m === "voice" ? "text" : "voice")),
+          input: <VoiceInput voice={voice} disabled={closed || offline} maxMs={config.maxVoiceMs} /> }}
+        above={(
+          <>
+            {quote && <QuoteBar quote={quoteOf(quote)} onClear={() => setQuote(null)} />}
+            <ActivityLine activity={state.activity} members={state.members} meId={state.me?.userId ?? null} />
+          </>
+        )}
+        banner={status ?? message ?? newVersion ?? (state.status === "connecting" ? t("web.rooms.room.connecting") : null)}
         onDismiss={!status && message ? dismiss : undefined} />
       <RoomSettingsSheet open={settings} onOpenChange={setSettings} state={state} onChanged={room.applyRoom} />
       <BottomSheet open={!!reporting} onOpenChange={(v) => { if (!v) setReporting(null); }}>
@@ -221,10 +322,7 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
           </div>
         </BottomSheetContent>
       </BottomSheet>
-      <AssistTray open={assistOpen} onOpenChange={setAssistOpen} entries={state.assist} disabled={closed} offline={offline}
-        onAsk={(text) => room.ask(text) !== null}
-        onSend={(text, assistId) => { if (room.say(text, assistId)) { stick.current = true; setAssistOpen(false); } }}
-        onEdit={(text) => { setDraft(text); setAssistOpen(false); }} />
+      <InviteSheet open={inviteOpen} onOpenChange={setInviteOpen} roomId={roomId} isOwner={isOwner} joinMode={info?.joinMode ?? "code"} />
     </div>
   );
 }

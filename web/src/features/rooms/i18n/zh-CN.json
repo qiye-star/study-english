@@ -63,7 +63,11 @@
           "kicked": "{{name}} 被移出了房间",
           "topic": "话题改为「{{topic}}」",
           "owner": "{{name}} 成为房主"
-        }
+        },
+        "askAssist": "问助手",
+        "backToGroup": "改回发到群聊",
+        "newVersion": "有新版本,刷新后可用全部功能",
+        "invite": "邀请"
       },
       "assist": {
         "title": "助手 · 仅你可见",
