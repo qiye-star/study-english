@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
@@ -185,6 +186,22 @@ describe("RoomPage", () => {
     expect(await screen.findByText("我想说你好")).toBeTruthy();
     fireEvent.click(screen.getByTestId("assist-edit"));
     await waitFor(() => expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("Hello everyone!"));
+  });
+
+  it("survives StrictMode's mount, unmount, mount without ending up closed", async () => {
+    const mock = createFetchMock({
+      "GET /api/rooms/config": () => json({ enabled: true, ai_available: true, max_members: 8, max_text: 500 }),
+      "POST /api/rooms/r1/ticket": () => json({ ticket: "secret-ticket", expires_in: 60 }),
+    });
+    renderWithProviders(<StrictMode><RoomPage /></StrictMode>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
+      route: "/rooms/r/r1", path: "/rooms/r/:roomId", user: { id: "11111111", name: "alice" } });
+    await waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBe('{"type":"hello","last_seq":0}'));
+    expect(screen.queryByText("房间已结束,只能查看。")).toBeNull(); // the trial unmount must not leave a terminal "closed"
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(1, "still live") });
+    expect(screen.getByText("still live")).toBeTruthy();
+    expect((screen.getByTestId("room-input") as HTMLInputElement).disabled).toBe(false);
+    expect(screen.queryByText("房间已结束,只能查看。")).toBeNull();
   });
 
   it("explains when rooms are off", async () => {

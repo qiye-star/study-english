@@ -21,12 +21,14 @@ export function useRoom(roomId: string) {
   const meId = user ? Number(user.id) : null;
 
   useEffect(() => {
+    // 卸载(含 StrictMode 的试卸载)后旧连接的回调一律忽略:否则 close() 发出的「closed」会把新连接的状态锁死在终态
+    let disposed = false;
     const socket = new RoomSocket({
       getTicket: () => roomTicket(api, roomId),
       url: (ticket) => roomWsUrl(ticket, window.location),
       lastSeq: () => stateRef.current.lastSeq,
-      onEvent: (event) => dispatch({ type: "event", event }),
-      onStatus: (status, reason) => dispatch({ type: "status", status, reason }),
+      onEvent: (event) => { if (!disposed) dispatch({ type: "event", event }); },
+      onStatus: (status, reason) => { if (!disposed) dispatch({ type: "status", status, reason }); },
       isTerminalTicketError: (err) => err instanceof ApiError && (err.status === 404 || err.status === 403),
     });
     socketRef.current = socket;
@@ -34,6 +36,7 @@ export function useRoom(roomId: string) {
     const onVisible = () => { if (document.visibilityState === "visible") socket.reconnectNow(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      disposed = true;
       document.removeEventListener("visibilitychange", onVisible);
       socket.close();
       socketRef.current = null;
