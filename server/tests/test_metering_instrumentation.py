@@ -45,6 +45,23 @@ async def test_streaming_chat_counts_relayed_bytes(app, client, auth_headers, re
     assert row.user_id is not None
 
 
+async def test_streaming_chat_asks_for_usage_and_records_tokens(app, client, auth_headers, respx_mock):
+    """Review correctness m8: the web streams chat, so byte counts left the main feature without a cost estimate."""
+    import json as _json
+
+    sse = (b'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n'
+           b'data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":34,"total_tokens":46}}\n\n'
+           b'data: [DONE]\n\n')
+    route = respx_mock.post("https://llm.test/v1/chat/completions").respond(
+        200, content=sse, headers={"content-type": "text/event-stream"})
+    r = await client.post("/api/ai/chat/completions", headers=auth_headers,
+                          json={"model": "gpt-4o", "stream": True, "messages": [{"role": "user", "content": "hello"}]})
+    assert r.status_code == 200 and r.content == sse  # relayed untouched
+    assert _json.loads(route.calls.last.request.content)["stream_options"] == {"include_usage": True}
+    row = _only_row()
+    assert (row.unit, row.units_in, row.units_out, row.status) == ("tokens", 12, 34, 200)
+
+
 async def test_upstream_auth_failure_is_still_recorded(app, client, auth_headers, respx_mock):
     respx_mock.post("https://llm.test/v1/chat/completions").respond(401, json={"error": "bad key"})
     r = await client.post("/api/ai/chat/completions", headers=auth_headers,
