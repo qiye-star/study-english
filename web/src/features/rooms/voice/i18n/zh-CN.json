@@ -3,6 +3,8 @@
     "rooms": {
       "voice": {
         "noSpeech": "没听清,再说一次",
+        "sending": "正在发送…",
+        "transcribing": "正在转文字…",
         "interrupted": "录音被打断,这段没有发送",
         "hold": { "tooShort": "说话时间太短", "notReady": "麦克风已准备好,请按住说话" },
         "errors": {

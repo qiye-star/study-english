@@ -3,6 +3,8 @@
     "rooms": {
       "voice": {
         "noSpeech": "Didn't catch that. Try again.",
+        "sending": "Sending…",
+        "transcribing": "Transcribing…",
         "interrupted": "Recording was interrupted and not sent",
         "hold": { "tooShort": "Too short. Hold to talk.", "notReady": "Microphone is ready. Hold to talk." },
         "errors": {
