@@ -168,10 +168,10 @@ def promotion_status(state: RankState, tasks: list[rules.TaskProgress], *, now: 
     return result("eligible")
 
 
-async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings,
-                        offset_minutes: int) -> Promotion:
+async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings) -> Promotion:
+    """Match attempts are counted per UTC day: a client-supplied offset could otherwise span 3 dates (review #8)."""
     tasks = await stage_progress_for(session, profile)
-    left = await usage.remaining(session, "rank_match", str(profile.user_id), usage.local_day(now, offset_minutes),
+    left = await usage.remaining(session, "rank_match", str(profile.user_id), usage.utc_day(now),
                                  settings.rank_match_daily_attempts)
     return promotion_status(state_of(profile), tasks, now=now, cooldown_until=profile.cooldown_until,
                             attempts_left=left, available=settings.rank_match_available)

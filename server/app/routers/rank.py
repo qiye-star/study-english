@@ -96,10 +96,10 @@ async def rank_me(tz_offset_minutes: int = TZ_OFFSET, user: User = Depends(curre
     now = utcnow()
     profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap)
     tasks = await ledger.stage_progress_for(session, profile)
-    promo = await ledger.promotion_for(session, profile, now, settings, tz_offset_minutes)
+    promo = await ledger.promotion_for(session, profile, now, settings)
     season, season_json = _season(settings, tz_offset_minutes)
     snap = await achievements.snapshot(session, user.id, profile.best_tier, season)
-    today = date.fromisoformat(local_day(now, tz_offset_minutes))
+    today = date.fromisoformat(local_day(now, 0))  # ended seasons by UTC: a client offset must not end one early
     keys = achievements.earned(snap) | await achievements.season_badges(
         session, user.id, today, settings.rank_season_anchor, settings.rank_season_weeks)
     new = await achievements.unlock_new(session, user.id, keys, now)

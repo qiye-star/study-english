@@ -176,6 +176,16 @@ async def test_expiry_attempt_limits_and_in_progress(eligible):
         assert e.value.code == "expired" and match.status == "expired" and profile.rp == 96
 
 
+async def test_attempts_are_counted_per_utc_day_whatever_the_client_offset(eligible):
+    """Review #8: switching tz_offset_minutes between calls must not unlock another day's attempts."""
+    async with eligible.state.sessionmaker() as s:
+        await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=-720, rng=random.Random(0))
+        profile = await s.get(RankProfile, UID)
+        left = SETTINGS.rank_match_daily_attempts - 1
+        assert (await m.ledger.promotion_for(s, profile, NOW, SETTINGS)).attempts_left == left
+        assert await usage.remaining(s, "rank_match", str(UID), "2026-10-09", SETTINGS.rank_match_daily_attempts) == left
+
+
 async def test_abandon_counts_as_failure(eligible):
     async with eligible.state.sessionmaker() as s:
         match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))

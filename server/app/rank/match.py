@@ -114,12 +114,12 @@ async def start_match(session: AsyncSession, user_id: int, now: datetime, *, set
     current = await active_match(session, user_id)
     if current is not None and not await _expire_if_needed(session, current, profile, now, settings):
         raise MatchError("in_progress")
-    status = await ledger.promotion_for(session, profile, now, settings, offset_minutes)
+    status = await ledger.promotion_for(session, profile, now, settings)
     if status.state != "eligible":
         raise MatchError(status.state)
     from_tier = profile.tier
     target = from_tier + 1
-    utc_day, day = usage.utc_day(now), usage.local_day(now, offset_minutes)
+    utc_day = day = usage.utc_day(now)  # attempts per UTC day, never the client's offset (review #8)
     if not await usage.consume(session, "rank_match_global", "*", utc_day, settings.rank_matches_global_daily):
         raise MatchError("global_cap")
     if not await usage.consume(session, "rank_match", str(user_id), day, settings.rank_match_daily_attempts):
