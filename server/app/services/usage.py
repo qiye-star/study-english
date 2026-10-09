@@ -1,11 +1,13 @@
 """Daily counters shared by rank and rooms (`daily_usage`). Survive restarts, unlike RateLimiter.
-Increments are a single conditional UPDATE, so concurrent coroutines cannot exceed the limit."""
+Increments are a single conditional UPDATE, so concurrent coroutines cannot exceed the limit. The first row of a
+day is created with INSERT ... ON CONFLICT DO NOTHING: these helpers never roll back the caller's session (a
+rollback would expire every ORM object the request already loaded)."""
 from datetime import datetime, timedelta
 
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import insert_ignore
 from app.models import DailyUsage
 from app.services.stats import as_utc
 
@@ -38,14 +40,14 @@ async def consume(session: AsyncSession, scope: str, subject: str, day: str, lim
             await session.commit()
             return True
         if await _count(session, scope, subject, day) >= limit:
-            await session.rollback()
-            return False
-        session.add(DailyUsage(scope=scope, subject=subject, day=day, count=1))
-        try:
+            break
+        inserted = await session.execute(
+            insert_ignore(session, DailyUsage).values(scope=scope, subject=subject, day=day, count=1))
+        if inserted.rowcount:
             await session.commit()
             return True
-        except IntegrityError:  # another coroutine inserted the row first: retry the UPDATE
-            await session.rollback()
+        # another coroutine inserted the row first: retry the UPDATE
+    await session.commit()
     return False
 
 
