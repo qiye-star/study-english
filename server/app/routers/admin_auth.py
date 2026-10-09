@@ -1,17 +1,28 @@
-"""管理端登录/登出/会话(spec §4.3)。登录失败统一 401;成功与失败都写审计(不含密码)。"""
+"""管理端登录/登出/会话、TOTP、二次验证、改密(spec §4.3–4.6)。
+
+登录失败统一 401(不存在的用户名同样计数、同样响应);锁定期间不论密码对错 429 `Too many attempts`。
+审计只记动作与结果,永不记密码、验证码、恢复码、token、CSRF。
+"""
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import audit, sessions as sess
-from app.admin.accounts import authenticate
+from app.admin import audit, lockout, sessions as sess, totp
+from app.admin.accounts import (
+    authenticate, check_password, replace_recovery_codes, totp_secret, use_recovery_code,
+)
 from app.admin.audit import Actor
-from app.admin.perms import AdminContext, current_admin, require, require_enabled
+from app.admin.perms import (
+    AdminContext, check_unsafe, require, require_enabled, require_self_step_up, resolve_admin, step_up_until,
+)
 from app.core.deps import auth_rate_limit, client_ip, get_session
-from app.core.secretbox import box_for
-from app.models import iso_utc
+from app.core.secretbox import SecretBoxError, box_for
+from app.core.security import hash_password
+from app.models import AdminAccount, AdminRecoveryCode, iso_utc
 
 router = APIRouter(prefix="/api/admin")
 
@@ -21,30 +32,115 @@ class LoginIn(BaseModel):
     password: str = Field(max_length=200)
 
 
-def _out(request: Request, ctx_role: str, username: str, row, csrf: str, mfa_required: bool) -> dict:
+class CodeIn(BaseModel):
+    code: str = Field(max_length=32)
+
+
+class StepUpIn(BaseModel):
+    password: str = Field(max_length=200)
+    code: str | None = Field(None, max_length=32)
+
+
+class PasswordIn(BaseModel):
+    current: str = Field(max_length=200)
+    new: str = Field(min_length=12, max_length=200)
+
+
+class TotpConfirmIn(BaseModel):
+    enrolment: str = Field(max_length=1000)
+    code: str = Field(max_length=32)
+
+
+def _out(request: Request, role: str, username: str, row, csrf: str, *, mfa_required: bool,
+         totp_enabled: bool) -> dict:
     s = request.app.state.settings
-    return {"username": username, "role": ctx_role, "csrf_token": csrf, "expires_at": iso_utc(row.expires_at),
-            "mfa_required": mfa_required, "step_up_until": None, "totp_enabled": False,
-            "safe_mode": request.app.state.settings_hub.safe_mode, "maintenance_mode": s.maintenance_mode}
+    until = step_up_until(s, row)
+    return {"username": username, "role": role, "csrf_token": csrf, "expires_at": iso_utc(row.expires_at),
+            "mfa_required": mfa_required, "step_up_until": until.isoformat() if until else None,
+            "totp_enabled": totp_enabled, "safe_mode": request.app.state.settings_hub.safe_mode,
+            "maintenance_mode": s.maintenance_mode}
+
+
+async def _locked(request: Request, session: AsyncSession, username: str, ip: str, now: datetime) -> None:
+    if await lockout.check(session, username, ip, now):
+        await audit.record(session, Actor(username.strip()[:64], "-", None, ip), "auth.login.locked", result="denied")
+        await session.commit()
+        raise HTTPException(429, "Too many attempts")
+
+
+async def _failed(request: Request, session: AsyncSession, username: str, ip: str, now: datetime,
+                  action: str, *, session_id: str | None = None) -> None:
+    s = request.app.state.settings
+    actor = Actor(username.strip()[:64], "-", session_id, ip)
+    await audit.record(session, actor, action, result="denied")
+    if await lockout.fail(session, username, ip, now, threshold=s.admin_lockout_threshold,
+                          minutes=s.admin_lockout_minutes):
+        await audit.record(session, actor, "auth.lockout", result="denied")
+    if lockout.global_alarm(await lockout.global_failures(session, username), s.admin_lockout_threshold):
+        await audit.record(session, actor, "auth.login.alarm", result="denied")
+    await session.commit()
+
+
+def _check_totp(request: Request, secret: str, code: str, account: AdminAccount | None) -> bool:
+    """Verify and consume a TOTP code (replay-safe: per account in the DB, env account in process memory)."""
+    state = request.app.state
+    last = account.totp_last_step if account is not None else getattr(state, "env_totp_last_step", None)
+    step = totp.verify(secret, code, time.time(), last)
+    if step is None:
+        return False
+    if account is not None:
+        account.totp_last_step = step
+    else:
+        state.env_totp_last_step = step
+    return True
 
 
 @router.post("/login", dependencies=[Depends(require_enabled), Depends(auth_rate_limit)])
 async def login(body: LoginIn, request: Request, response: Response, session: AsyncSession = Depends(get_session)):
     settings = request.app.state.settings
     ip = client_ip(request)
+    now = datetime.now(timezone.utc)
+    await _locked(request, session, body.username, ip, now)
     principal = await authenticate(session, settings, box_for(settings), body.username, body.password)
     if principal is None:
-        await audit.record(session, Actor(body.username.strip()[:64], "-", None, ip), "auth.login.fail", result="denied")
-        await session.commit()
+        await _failed(request, session, body.username, ip, now, "auth.login.fail")
         raise HTTPException(401, "Invalid username or password")
-    now = datetime.now(timezone.utc)
-    row, token, csrf = await sess.create(session, principal, secret=request.app.state.admin_secret, ip=ip, user_agent=request.headers.get("user-agent", ""),
-                                         now=now, ttl_minutes=settings.admin_token_ttl_minutes,
-                                         mfa_done=principal.totp_secret is None)
-    await audit.record(session, Actor(principal.username, principal.role, row.id, ip), "auth.login")
+    await lockout.succeed(session, body.username, ip)
+    mfa_required = principal.totp_secret is not None
+    row, token, csrf = await sess.create(session, principal, secret=request.app.state.admin_secret, ip=ip,
+                                         user_agent=request.headers.get("user-agent", ""), now=now,
+                                         ttl_minutes=settings.admin_token_ttl_minutes, mfa_done=not mfa_required)
+    await audit.record(session, Actor(principal.username, principal.role, row.id, ip),
+                       "auth.login.password" if mfa_required else "auth.login")
     await session.commit()
     sess.set_cookie(response, settings, token, settings.admin_token_ttl_minutes * 60)
-    return _out(request, principal.role, principal.username, row, csrf, principal.totp_secret is not None)
+    return _out(request, principal.role, principal.username, row, csrf, mfa_required=mfa_required,
+                totp_enabled=mfa_required)
+
+
+@router.post("/login/totp", dependencies=[Depends(auth_rate_limit)])
+async def login_totp(body: CodeIn, request: Request, session: AsyncSession = Depends(get_session)):
+    """Second login step: a TOTP code or an unused recovery code completes MFA for the pending session."""
+    settings = request.app.state.settings
+    row, account = await resolve_admin(request, session)
+    check_unsafe(request, row)
+    ip = client_ip(request)
+    now = datetime.now(timezone.utc)
+    await _locked(request, session, row.username, ip, now)
+    secret = totp_secret(settings, box_for(settings), account)
+    ok = bool(secret) and _check_totp(request, secret, body.code, account)
+    if not ok and account is not None:
+        ok = await use_recovery_code(session, account.id, body.code, now)
+    if not ok:
+        await _failed(request, session, row.username, ip, now, "auth.mfa.fail", session_id=row.id)
+        raise HTTPException(401, "Invalid code")
+    await lockout.succeed(session, row.username, ip)
+    row.mfa_at = now
+    role = account.role if account is not None else "superadmin"
+    await audit.record(session, Actor(row.username, role, row.id, ip), "auth.login")
+    await session.commit()
+    csrf = sess.csrf_for(request.app.state.admin_secret, row.id)
+    return _out(request, role, row.username, row, csrf, mfa_required=False, totp_enabled=True)
 
 
 @router.post("/logout", status_code=204)
@@ -60,6 +156,101 @@ async def logout(request: Request, ctx: AdminContext = Depends(require("viewer")
 
 @router.get("/session")
 async def get_admin_session(request: Request, ctx: AdminContext = Depends(require("viewer"))):
-    # get_session 是请求级缓存的依赖:ctx.session 属于本请求的数据库会话
     csrf = sess.csrf_for(request.app.state.admin_secret, ctx.session.id)
-    return _out(request, ctx.role, ctx.actor.name, ctx.session, csrf, False)
+    return _out(request, ctx.role, ctx.actor.name, ctx.session, csrf, mfa_required=False,
+                totp_enabled=ctx.totp_enabled)
+
+
+@router.post("/step-up")
+async def step_up(body: StepUpIn, request: Request, ctx: AdminContext = Depends(require("viewer")),
+                  session: AsyncSession = Depends(get_session)):
+    """Re-enter the password (+ TOTP when bound); dangerous endpoints then pass for ADMIN_STEP_UP_MINUTES."""
+    settings = request.app.state.settings
+    now = datetime.now(timezone.utc)
+    ip = ctx.actor.ip
+    await _locked(request, session, ctx.actor.name, ip, now)
+    ok = await check_password(session, settings, ctx.account_id, ctx.actor.name, body.password)
+    if ok and ctx.totp_enabled:
+        account = await session.get(AdminAccount, ctx.account_id) if ctx.account_id is not None else None
+        secret = totp_secret(settings, box_for(settings), account)
+        ok = bool(secret) and bool(body.code) and _check_totp(request, secret, body.code or "", account)
+    if not ok:
+        await _failed(request, session, ctx.actor.name, ip, now, "auth.step_up.fail", session_id=ctx.session.id)
+        raise HTTPException(401, "Invalid credentials")
+    ctx.session.step_up_at = now
+    await audit.record(session, ctx.actor, "auth.step_up")
+    await session.commit()
+    return {"step_up_until": step_up_until(settings, ctx.session).isoformat()}
+
+
+@router.post("/me/password", status_code=204)
+async def change_password(body: PasswordIn, request: Request, ctx: AdminContext = Depends(require("viewer")),
+                          session: AsyncSession = Depends(get_session)):
+    if ctx.account_id is None:
+        raise HTTPException(400, "Env account password is managed in .env")
+    settings = request.app.state.settings
+    now = datetime.now(timezone.utc)
+    await _locked(request, session, ctx.actor.name, ctx.actor.ip, now)
+    if not await check_password(session, settings, ctx.account_id, ctx.actor.name, body.current):
+        await _failed(request, session, ctx.actor.name, ctx.actor.ip, now, "auth.password.fail",
+                      session_id=ctx.session.id)
+        raise HTTPException(401, "Invalid credentials")
+    account = await session.get(AdminAccount, ctx.account_id)
+    account.password_hash = hash_password(body.new)
+    account.password_changed_at = now
+    revoked = await sess.revoke_all(session, account_id=ctx.account_id, username=ctx.actor.name, now=now,
+                                    except_id=ctx.session.id)
+    await audit.record(session, ctx.actor, "auth.password.change", target_type="admin", target_id=ctx.actor.name,
+                       summary=f"revoked {revoked} other sessions")
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.post("/me/totp/begin")
+async def totp_begin(request: Request, ctx: AdminContext = Depends(require("viewer"))):
+    """Nothing is stored yet: `enrolment` is the server-encrypted secret the confirm step sends back."""
+    if ctx.account_id is None:
+        raise HTTPException(400, "Env account TOTP is managed in .env")
+    box = box_for(request.app.state.settings)
+    if box is None:
+        raise HTTPException(409, "Encryption key not configured")
+    if ctx.totp_enabled:
+        raise HTTPException(409, "TOTP already enabled")
+    secret = totp.generate_secret()
+    return {"secret": secret, "uri": totp.provisioning_uri(secret, ctx.actor.name), "enrolment": box.encrypt(secret)}
+
+
+@router.post("/me/totp/confirm")
+async def totp_confirm(body: TotpConfirmIn, request: Request, ctx: AdminContext = Depends(require("viewer")),
+                       session: AsyncSession = Depends(get_session)):
+    if ctx.account_id is None:
+        raise HTTPException(400, "Env account TOTP is managed in .env")
+    box = box_for(request.app.state.settings)
+    if box is None:
+        raise HTTPException(409, "Encryption key not configured")
+    try:
+        secret = box.decrypt(body.enrolment)
+    except SecretBoxError:
+        raise HTTPException(400, "Invalid enrolment") from None
+    step = totp.verify(secret, body.code, time.time(), None)
+    if step is None:
+        raise HTTPException(400, "Invalid code")
+    account = await session.get(AdminAccount, ctx.account_id)
+    account.totp_enc, account.totp_last_step = box.encrypt(secret), step
+    codes = await replace_recovery_codes(session, account.id)
+    ctx.session.mfa_at = datetime.now(timezone.utc)
+    await audit.record(session, ctx.actor, "auth.totp.enable", target_type="admin", target_id=ctx.actor.name)
+    await session.commit()
+    return {"recovery_codes": codes}
+
+
+@router.delete("/me/totp", status_code=204)
+async def totp_disable(ctx: AdminContext = Depends(require_self_step_up), session: AsyncSession = Depends(get_session)):
+    if ctx.account_id is None:
+        raise HTTPException(400, "Env account TOTP is managed in .env")
+    account = await session.get(AdminAccount, ctx.account_id)
+    account.totp_enc, account.totp_last_step = None, None
+    await session.execute(delete(AdminRecoveryCode).where(AdminRecoveryCode.account_id == account.id))
+    await audit.record(session, ctx.actor, "auth.totp.disable", target_type="admin", target_id=ctx.actor.name)
+    await session.commit()
+    return Response(status_code=204)

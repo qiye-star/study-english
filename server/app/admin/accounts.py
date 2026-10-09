@@ -4,12 +4,13 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.admin.auth import credentials_match
+from app.admin.totp import new_recovery_codes, normalise_recovery_code
 from app.core.secretbox import SecretBoxError
 from app.core.security import hash_password, verify_password
-from app.models import AdminAccount
+from app.models import AdminAccount, AdminRecoveryCode
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +67,47 @@ async def create_account(session, *, username: str, password: str, role: str, cr
 
 async def get_account(session, account_id: int) -> AdminAccount | None:
     return await session.get(AdminAccount, account_id)
+
+
+async def check_password(session, settings, account_id: int | None, username: str, password: str) -> bool:
+    """Re-check the signed-in admin's password (step-up, password change). Env account: env credentials."""
+    if account_id is None:
+        return bool(settings.admin_username.strip()) and credentials_match(settings, username, password)
+    account = await session.get(AdminAccount, account_id)
+    if account is None or account.disabled_at is not None:
+        verify_password(_DUMMY_HASH, password)
+        return False
+    return verify_password(account.password_hash, password)
+
+
+def totp_secret(settings, box, account: AdminAccount | None) -> str | None:
+    """The bound TOTP secret (env account: ADMIN_TOTP_SECRET), or None when unbound or unreadable."""
+    if account is None:
+        return settings.admin_totp_secret.strip() or None
+    if not account.totp_enc or box is None:
+        return None
+    try:
+        return box.decrypt(account.totp_enc)
+    except SecretBoxError:
+        return None
+
+
+async def replace_recovery_codes(session, account_id: int) -> list[str]:
+    """New one-time recovery codes (argon2 hashes stored); the plain codes are returned exactly once."""
+    await session.execute(delete(AdminRecoveryCode).where(AdminRecoveryCode.account_id == account_id))
+    codes = new_recovery_codes()
+    session.add_all([AdminRecoveryCode(account_id=account_id, code_hash=hash_password(c)) for c in codes])
+    return codes
+
+
+async def use_recovery_code(session, account_id: int, code: str, now: datetime) -> bool:
+    code = normalise_recovery_code(code)
+    if len(code) != 9:
+        return False
+    rows = (await session.scalars(select(AdminRecoveryCode).where(
+        AdminRecoveryCode.account_id == account_id, AdminRecoveryCode.used_at.is_(None)))).all()
+    for row in rows:
+        if verify_password(row.code_hash, code):
+            row.used_at = now
+            return True
+    return False
