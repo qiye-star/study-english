@@ -7225,3 +7225,8 @@ Rulings below override earlier text in this plan.
   `ADMIN_LOCKOUT_MINUTES` (down), lengthening `ADMIN_STEP_UP_MINUTES` / `ADMIN_IDLE_MINUTES` / `ADMIN_TOKEN_TTL_MINUTES`,
   lowering `ADMIN_AUDIT_RETENTION_DAYS` and any `INVITE_CODE` change are dangerous (step-up + reason + typed confirm),
   on every path (PATCH, reset, revert, import). Tightening stays a plain save.
+- Ruling (per-user quota ceiling, security m2): operators may set a per-user override up to 10x the site value
+  (`AI_RATE_LIMIT_PER_MINUTE` also at most 600); above that only a superadmin with step-up and a note of at least 4
+  characters (the reason) may set it (403 `Above operator limit` / `Step-up required`, 409 `Reason required`).
+- Ruling (denials, security m8): 403 `Forbidden` / `Step-up required` from the role and step-up dependencies write
+  `auth.denied` (target = route path) at most once per session, path and minute.

@@ -12,9 +12,9 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin import invites, users_admin
-from app.admin.perms import AdminContext, require, require_step_up
+from app.admin.perms import AdminContext, deny, require, require_step_up, step_up_until
 from app.core.deps import get_session
-from app.core.quotas import quota_cache
+from app.core.quotas import QUOTA_KEYS, quota_cache
 from app.models import utcnow
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, event
 
@@ -152,6 +152,15 @@ async def set_quota(user_id: UserId, key: QuotaKey, payload: QuotaIn, request: R
     expires = payload.expires_at
     if expires is not None and expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
+    settings = request.app.state.settings
+    if key in QUOTA_KEYS and payload.value > users_admin.operator_ceiling(settings, key):
+        # unbounded upstream spend or disk: superadmin + step-up + a reason (the note), like the site-wide threshold
+        if ctx.role != "superadmin":
+            raise HTTPException(403, "Above operator limit")
+        if step_up_until(settings, ctx.session) is None:
+            await deny(request, session, ctx, "Step-up required")
+        if len(payload.note.strip()) < 4:
+            raise HTTPException(409, "Reason required")
     try:
         item = await users_admin.set_quota(session, ctx.actor, request.app.state.settings, user_id, key,
                                            value=payload.value, expires_at=expires, note=payload.note.strip(),

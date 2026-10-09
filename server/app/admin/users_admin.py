@@ -182,6 +182,16 @@ async def quotas(session, settings, user_id: int, now: datetime) -> list[dict]:
     return [_quota_item(settings, key, rows.get(key), now) for key in QUOTA_KEYS]
 
 
+OPERATOR_FACTOR = 10  # operators may set a per-user quota up to 10x the site default (review security m2)
+# ... and never above the value that needs superadmin + step-up for the site-wide setting
+OPERATOR_CAP = {"ai_rate_limit_per_minute": 600}
+
+
+def operator_ceiling(settings, key: str) -> int:
+    ceiling = max(1, int(getattr(settings, QUOTA_KEYS[key]))) * OPERATOR_FACTOR
+    return min(ceiling, OPERATOR_CAP.get(key, ceiling))
+
+
 async def set_quota(session, actor: Actor, settings, user_id: int, key: str, *, value: int,
                     expires_at: datetime | None, note: str, now: datetime) -> dict:
     if key not in QUOTA_KEYS:

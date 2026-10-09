@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.core.quotas import QuotaCache, effective
 from app.models import AdminAudit, UserQuotaOverride
-from tests.admin_helpers import ADMIN_ENABLED, login_as
+from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, login_as
 from tests.test_admin_api import register
 
 
@@ -103,3 +103,28 @@ async def test_recording_quota_override(app, client):
         await s.commit()
         with pytest.raises(QuotaExceeded):
             await check_quota(s, settings, uid, 1024)
+
+
+async def test_operator_cannot_raise_a_quota_far_above_the_site_default(app, client):
+    """Review security m2: per-user overrides bypassed the superadmin threshold for upstream spend and disk."""
+    uid, _ = await register(client, "heidi")
+    op = await login_as(app, client, "operator")
+    s = app.state.settings
+    for key, value in (("ai_rate_limit_per_minute", 10_000_000), ("ai_rate_limit_per_minute", 601),
+                       ("recording_quota_mb", s.recording_quota_mb * 10 + 1), ("rooms_max_owned", s.rooms_max_owned * 10 + 1)):
+        r = await client.put(f"/api/admin/users/{uid}/quotas/{key}", headers=op, json={"value": value, "note": "测试账号"})
+        assert r.status_code == 403 and r.json() == {"error": "Above operator limit"}, (key, value)
+    r = await client.put(f"/api/admin/users/{uid}/quotas/recording_quota_mb", headers=op,
+                         json={"value": s.recording_quota_mb * 10})
+    assert r.status_code == 200  # up to 10x the site default stays an operator action
+    client.cookies.clear()
+    su = await login_as(app, client, "superadmin")
+    body = {"value": 601, "note": "压测账号"}
+    r = await client.put(f"/api/admin/users/{uid}/quotas/ai_rate_limit_per_minute", headers=su, json=body)
+    assert r.status_code == 403 and r.json() == {"error": "Step-up required"}
+    assert (await client.post("/api/admin/step-up", headers=su, json={"password": PASSWORD})).status_code == 200
+    r = await client.put(f"/api/admin/users/{uid}/quotas/ai_rate_limit_per_minute", headers=su,
+                         json={"value": 601, "note": ""})
+    assert r.status_code == 409 and r.json() == {"error": "Reason required"}
+    assert (await client.put(f"/api/admin/users/{uid}/quotas/ai_rate_limit_per_minute", headers=su,
+                             json=body)).status_code == 200

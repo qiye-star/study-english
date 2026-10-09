@@ -7,7 +7,8 @@ Disabled (404 everywhere) unless `ADMIN_USERNAME` and `ADMIN_PASSWORD` (>= 12 ch
 client IP is outside `ADMIN_IP_ALLOWLIST`.
 
 ## What lives here
-- `perms.py` – `require_enabled` (+ IP allowlist), `current_admin` (cookie session, MFA, CSRF/Origin,
+- `perms.py` – `require_enabled` (+ IP allowlist), `current_admin` (cookie session, MFA, CSRF/Origin, denials audited
+  as `auth.denied` via `deny`,
   `ADMIN_REQUIRE_TOTP` gate), `require(role)`, `require_step_up` / `require_operator_step_up` /
   `require_self_step_up`, `AdminContext`, `REQUIRED_ROLE_ATTR`
 - `sessions.py` – DB sessions (`admin_sessions`): token/CSRF stored as SHA-256 only, idle + absolute
@@ -43,7 +44,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   delete user (explicit deletes: SQLite has no FK cascade; rank snapshots deleted, metering rows anonymised to the
   system user; owned rooms pass to the earliest other member, a room
   nobody else joined is kept closed with `owner_id = NULL` — rooms and room messages are never deleted),
-  per-user quota overrides (`quota.set|clear`)
+  per-user quota overrides (`quota.set|clear`; above `operator_ceiling` = 10x the site value only superadmin + step-up)
 - `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
 - `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
   `routers/admin_rooms.py`
