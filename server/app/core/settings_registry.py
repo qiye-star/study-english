@@ -114,7 +114,8 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("stt_disable_thinking", "asr", "enum", "识别关闭深度思考"),
     # assessment
     _s("azure_speech_key", "assessment", "secret", "Azure Speech 密钥"),
-    _s("azure_speech_region", "assessment", "str", "Azure 区域", pair="azure_speech_key"),
+    _s("azure_speech_region", "assessment", "str", "Azure 区域", pair="azure_speech_key", danger=_URL_DANGER,
+       help_zh="只填区域名(如 eastus);它决定 Azure 密钥发往的主机"),
     _s("xfyun_app_id", "assessment", "str", "讯飞 APPID"),
     _s("xfyun_api_key", "assessment", "secret", "讯飞 APIKey"),
     _s("xfyun_api_secret", "assessment", "secret", "讯飞 APISecret"),

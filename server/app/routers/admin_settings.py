@@ -172,12 +172,15 @@ async def run_probe(upstream: str, request: Request, body: ProbeIn | None = None
             candidate = compose(current, values)
         except OverrideError as exc:
             return JSONResponse({"error": "Invalid settings", "fields": exc.fields}, status_code=422)
+        # The saved key may go to an unsaved endpoint only with the same step-up a save would need (review M2).
+        if svc.pair_violations(values, current) and not stepped_up(ctx, current):
+            return JSONResponse({"error": "Step-up required"}, status_code=403)
         pairs = [k for k in svc.pair_violations(values, current) if k not in set(body.confirm_pairs)]
         if pairs:
             return JSONResponse({"error": "Key would be sent to a new host",
-                                 "details": {"pairs": pairs, "hosts": {k: svc.host_of(str(values[k])) for k in pairs}}},
+                                 "details": {"pairs": pairs, "hosts": svc.pair_hosts(values, pairs)}},
                                 status_code=409)
-    result = await probes.probe(request.app.state.http, candidate, upstream, allow_cost=body.allow_cost)
+    result = await probes.probe(candidate, upstream, allow_cost=body.allow_cost)
     await audit.record(session, ctx.actor, "probe.run", target_type="upstream", target_id=upstream,
                        summary=result.code, result="ok" if result.ok else "error")
     await session.commit()

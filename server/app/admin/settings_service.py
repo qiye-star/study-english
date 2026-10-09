@@ -35,11 +35,38 @@ class SaveResult:
     apply_errors: list[str]
 
 
+DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+# Non-URL settings that form the host their paired key is sent to (review M2).
+HOST_FORMING = {"azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/"}
+
+
 def host_of(url: str) -> str:
     try:
         return (urlsplit(url or "").hostname or "").lower()
     except ValueError:
         return ""
+
+
+def keyed_endpoint(key: str) -> bool:
+    """Settings whose value decides where a key is sent: every `url` setting and the host-forming ones."""
+    return SPECS[key].kind == "url" or key in HOST_FORMING
+
+
+def url_for(key: str, value) -> str:
+    if key in HOST_FORMING:
+        return HOST_FORMING[key](value) if value else ""
+    return str(value or "")
+
+
+def endpoint_of(key: str, value) -> tuple[str, str, int | None]:
+    """(scheme, host, port) the key would travel to: a scheme (TLS -> plain) or port change counts as a new
+    endpoint, not only a new host (review m5)."""
+    try:
+        parts = urlsplit(url_for(key, value))
+        scheme = parts.scheme.lower()
+        return scheme, (parts.hostname or "").lower(), parts.port or DEFAULT_PORTS.get(scheme)
+    except ValueError:
+        return "", "", None
 
 
 def _jsonable(value):
@@ -59,8 +86,8 @@ def danger_reasons(key: str, old, new) -> list[str]:
         return [spec.danger or _THRESHOLD_TEXT] if isinstance(new, int) and new > _THRESHOLD_UP[key] else []
     if not spec.danger:
         return []
-    if spec.kind == "url":
-        return [spec.danger] if host_of(str(old)) != host_of(str(new)) else []
+    if keyed_endpoint(key):
+        return [spec.danger] if endpoint_of(key, old) != endpoint_of(key, new) else []
     rules = {
         "registration_mode": new == "open",
         "log_level": new == "DEBUG",
@@ -85,17 +112,21 @@ def _pair_value(current: Settings, pair: str) -> str:
 
 
 def pair_violations(changes: dict, current: Settings) -> list[str]:
-    """URL keys whose host changes while their paired key stays: the existing key would go to the new host."""
+    """Endpoint settings (URLs and host-forming ones such as the Azure region) whose scheme/host/port changes while
+    their paired key stays: the existing key would go to the new endpoint."""
     out = []
     for key, value in changes.items():
         spec = SPECS[key]
-        if spec.kind != "url" or not spec.pair or value is None:
+        if not keyed_endpoint(key) or not spec.pair or value is None:
             continue
-        new_host = host_of(str(value))
-        if new_host and new_host != host_of(getattr(current, key)) and spec.pair not in changes \
-                and _pair_value(current, spec.pair):
+        new = endpoint_of(key, value)
+        if new[1] and new != endpoint_of(key, getattr(current, key)) and spec.pair not in changes                 and _pair_value(current, spec.pair):
             out.append(key)
     return out
+
+
+def pair_hosts(changes: dict, keys: list[str]) -> dict[str, str]:
+    return {k: host_of(url_for(k, changes[k])) for k in keys}
 
 
 # After a rank rules publish these six settings are read-only; the admin UI shows the same hint in Chinese.
@@ -184,7 +215,7 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     pairs = [k for k in pair_violations({k: changes[k] for k in changed}, current) if k not in set(confirm_pairs)]
     if pairs:
         raise SettingsError(409, "Key would be sent to a new host",
-                            details={"pairs": pairs, "hosts": {k: host_of(str(changes[k])) for k in pairs}})
+                            details={"pairs": pairs, "hosts": pair_hosts(changes, pairs)})
     if not hub.safe_mode:
         try:
             hub.prepare(new)  # listener pre-checks (e.g. grammar rules reload)

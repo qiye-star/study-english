@@ -7209,3 +7209,11 @@ Rulings below override earlier text in this plan.
   (`admin_sessions.mfa_failures`); the MFA step also locks per username (any IP) after 2 x ADMIN_LOCKOUT_THRESHOLD
   failures (`admin_login_state` row `ip='mfa'`, doubling like the pair lock). `client_ip` takes the right-most
   `X-Forwarded-For` entry (one appending proxy).
+- Ruling (key-to-new-host guard, security M2/m5): `AZURE_SPEECH_REGION` must match `^[a-z0-9]{2,32}$` (Settings
+  validator) and is a host-forming setting paired with `AZURE_SPEECH_KEY` (danger + pair guard like a URL). Endpoints
+  are compared as (scheme, host, port), so `https -> http` or a port change needs step-up, reason, typed confirm and
+  `confirm_pairs`. The probe route applies the same rule: sending the saved key to an unsaved endpoint needs step-up
+  and `confirm_pairs`; a key typed together with the new endpoint needs neither.
+- Ruling (probe SSRF, security m4): resolve once, block unless every address `is_global`, connect to that address
+  (httpcore network backend / websockets `host=`) with the real name for SNI and certificate checks; WebSocket
+  redirects are not followed.

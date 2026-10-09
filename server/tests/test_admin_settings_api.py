@@ -89,3 +89,83 @@ async def test_revisions_export_import(app, client):
         audit_rows = [(a.before, a.after) for a in (await s.scalars(select(AdminAudit))).all()]
     assert {"settings.update", "settings.export", "settings.import", "settings.revert"} <= set(actions)
     assert "sk-tts-secret-777" not in json.dumps(audit_rows, ensure_ascii=False)
+
+
+# ---- review security M2 / m5: every host-forming setting guards its key (region, scheme, port) ------------------
+
+async def _su(app, client, step_up: bool = True) -> dict:
+    h = await login_as(app, client, "superadmin")
+    if step_up:
+        assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    return h
+
+
+async def test_azure_region_must_be_a_region_name(app, client):
+    h = await _su(app, client)
+    for bad in ("evil.example/x?", "evil.example", "east us", "a" * 40, "x"):
+        r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"azure_speech_region": bad}})
+        assert r.status_code == 422, bad
+    assert app.state.settings.azure_speech_region == "eastus"
+
+
+async def test_azure_region_change_is_dangerous_and_pair_guarded(app, client):
+    h = await _su(app, client, step_up=False)
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"azure_speech_region": "westus"}})
+    assert r.status_code == 403 and r.json() == {"error": "Step-up required"}
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"azure_speech_region": "westus"}})
+    assert r.status_code == 409 and r.json()["details"]["confirm"] == "AZURE_SPEECH_REGION"
+    body = {"changes": {"azure_speech_region": "westus"}, "reason": "迁移区域", "confirm": "AZURE_SPEECH_REGION"}
+    r = await client.patch("/api/admin/settings", headers=h, json=body)
+    assert r.status_code == 409 and r.json()["error"] == "Key would be sent to a new host"
+    assert r.json()["details"]["hosts"] == {"azure_speech_region": "westus.api.cognitive.microsoft.com"}
+    r = await client.patch("/api/admin/settings", headers=h, json={**body, "confirm_pairs": ["azure_speech_region"]})
+    assert r.status_code == 200 and app.state.settings.azure_speech_region == "westus"
+
+
+@pytest.mark.parametrize("new", ["http://llm.test/v1", "https://llm.test:8443/v1"])
+async def test_scheme_or_port_change_of_a_keyed_url_is_dangerous_and_pair_guarded(app, client, new):
+    h = await _su(app, client, step_up=False)
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"upstream_llm_base_url": new}})
+    assert r.status_code == 403  # https -> http would send the key in cleartext
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    body = {"changes": {"upstream_llm_base_url": new}, "reason": "换端口或协议", "confirm": "UPSTREAM_LLM_BASE_URL"}
+    r = await client.patch("/api/admin/settings", headers=h, json=body)
+    assert r.status_code == 409 and r.json()["error"] == "Key would be sent to a new host"
+
+
+async def test_path_only_change_needs_no_step_up(app, client):
+    h = await _su(app, client, step_up=False)
+    r = await client.patch("/api/admin/settings", headers=h,
+                           json={"changes": {"upstream_llm_base_url": "https://llm.test/v2"}})
+    assert r.status_code == 200, r.text
+
+
+async def test_probe_never_sends_the_saved_key_to_an_unsaved_host_without_step_up(app, client, monkeypatch):
+    from app.admin import probes as probes_mod
+    from app.admin.probes import ProbeResult
+
+    calls = []
+
+    async def fake_probe(s, upstream, **kw):
+        calls.append((upstream, s.azure_speech_region, s.upstream_llm_base_url))
+        return ProbeResult(True, 200, 5, "ok")
+
+    monkeypatch.setattr(probes_mod, "probe", fake_probe)
+    h = await _su(app, client, step_up=False)
+    r = await client.post("/api/admin/probes/azure", headers=h, json={"values": {"azure_speech_region": "evil.example/x?"}})
+    assert r.status_code == 422
+    for upstream, values in (("azure", {"azure_speech_region": "westus"}),
+                             ("llm", {"upstream_llm_base_url": "http://llm.test/v1"})):
+        key = next(iter(values))
+        r = await client.post(f"/api/admin/probes/{upstream}", headers=h, json={"values": values, "confirm_pairs": [key]})
+        assert r.status_code == 403 and r.json() == {"error": "Step-up required"}, upstream
+    assert calls == []
+    # a key typed together with the new host is not the saved key: no step-up needed
+    r = await client.post("/api/admin/probes/llm", headers=h, json={
+        "values": {"upstream_llm_base_url": "https://other.example/v1", "upstream_llm_key": "sk-typed-new-key"}})
+    assert r.status_code == 200 and calls == [("llm", "eastus", "https://other.example/v1")]
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    r = await client.post("/api/admin/probes/azure", headers=h,
+                          json={"values": {"azure_speech_region": "westus"}, "confirm_pairs": ["azure_speech_region"]})
+    assert r.status_code == 200 and calls[-1][:2] == ("azure", "westus")

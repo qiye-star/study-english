@@ -20,13 +20,17 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `totp.py` – RFC 6238 TOTP (stdlib) and recovery codes
 - `recover.py` – `python -m app.admin.recover list-overrides|clear-overrides|unlock|reset-totp|revoke-sessions|rotate-key`
 - `auth.py` – env credential comparison (`credentials_match`)
-- `settings_service.py` – runtime settings: `list_settings`, `save` (danger/step-up/typed confirm, key-pair guard,
+- `settings_service.py` – runtime settings: `list_settings`, `save` (danger/step-up/typed confirm, key-pair guard on
+  every key-bearing endpoint: `url` settings and `HOST_FORMING` ones such as `azure_speech_region`, compared as
+  (scheme, host, port),
   revisions, publish through the hub; the **only** settings write path, also used by `announcements.set_maintenance`
   and import/revert), `revert`, export/import; the six `managed_by="rank_rules"` keys are read-only (409
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
   `missing_prices` from `usage.missing_prices` and `invite_without_codes`)
-- `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded, returns only `{ok, status, ms, code}`
+- `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
+  `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
+  Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`
 - `rank_rules_admin.py` / `rank_ops.py` / `rank_sim.py` – rank rules drafts/validate/publish (bumps
   `config_revisions['rank_rules']`), per-user and site-wide rank operations (reset with undo), impact simulation.
   Resets, point cuts and undo void the affected users' open matches (409 `Match is busy` mid-request); bulk ops hold
