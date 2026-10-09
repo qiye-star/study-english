@@ -2,6 +2,7 @@
   "web": {
     "rooms": {
       "voice": {
+        "announce": "{{name}} 发来一条语音,{{duration}}",
         "play": "播放语音",
         "pause": "暂停",
         "playFailed": "无法播放这条语音",

@@ -37,6 +37,18 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
   const assist = target === "assist";
   const voiceMode = voice.available && voice.mode === "voice";
   const placeholder = assist ? t("web.rooms.assist.placeholder") : t("web.rooms.room.placeholder");
+  /** 「问助手 ×」胶囊:文字模式在输入框左内侧;语音模式在长条之上(松手会发给助手,不是群里,review m10) */
+  const assistPill = assist ? (
+    <span data-testid="room-target-assist"
+      className={cn("inline-flex h-[26px] flex-none items-center gap-px rounded-[8px] bg-blue-tint pl-2 pr-0.5 text-meta font-semibold text-blue", voiceMode ? "mb-1 self-start" : "mr-2")}>
+      {voiceMode ? t("web.rooms.room.voiceToAssist") : t("web.rooms.room.askAssist")}
+      <button type="button" data-testid="room-target-clear" aria-label={t("web.rooms.room.backToGroup")}
+        onClick={() => { onClearTarget(); inputRef.current?.focus(); }}
+        className={cn(smallKey, "flex size-[22px] items-center justify-center rounded-full before:-inset-[11px] [&_svg]:size-3.5")}>
+        <XIcon aria-hidden />
+      </button>
+    </span>
+  ) : null;
   return (
     <div ref={ref} data-testid="room-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-2">
       {banner && (
@@ -56,23 +68,13 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
             className={cn(keyClass, "text-ink-2 hover:bg-surface-2")}>{voiceMode ? <KeyboardIcon aria-hidden /> : <MicIcon aria-hidden />}</button>
         )}
         {voiceMode ? (
-          <div data-testid="room-voice-box" className="min-w-0 flex-1">{voice.input}</div>
+          <div data-testid="room-voice-box" className="flex min-w-0 flex-1 flex-col">{assistPill}{voice.input}</div>
         ) : (
           <div data-testid="room-input-box"
             className={cn("relative flex h-tap min-w-0 flex-1 items-center rounded-button bg-surface pr-1.5 transition-shadow duration-fast",
               assist ? "border border-blue/40 pl-1.5" : "border-[0.5px] border-hair pl-3",
               "focus-within:border-blue focus-within:ring-[3px] focus-within:ring-blue/15")}>
-            {assist && (
-              <span data-testid="room-target-assist"
-                className="mr-2 inline-flex h-[26px] flex-none items-center gap-px rounded-[8px] bg-blue-tint pl-2 pr-0.5 text-meta font-semibold text-blue">
-                {t("web.rooms.room.askAssist")}
-                <button type="button" data-testid="room-target-clear" aria-label={t("web.rooms.room.backToGroup")}
-                  onClick={() => { onClearTarget(); inputRef.current?.focus(); }}
-                  className={cn(smallKey, "flex size-[22px] items-center justify-center rounded-full before:-inset-[11px] [&_svg]:size-3.5")}>
-                  <XIcon aria-hidden />
-                </button>
-              </span>
-            )}
+            {assistPill}
             <input ref={inputRef} data-testid="room-input" disabled={disabled} value={value} maxLength={ROOM_LIMITS.text} enterKeyHint="send"
               aria-label={placeholder} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); if (!offline) onSend(); } }}

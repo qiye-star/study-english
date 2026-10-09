@@ -2,6 +2,7 @@
   "web": {
     "rooms": {
       "voice": {
+        "announce": "{{name}} sent a voice message, {{duration}}",
         "play": "Play voice message",
         "pause": "Pause",
         "playFailed": "Could not play this voice message",

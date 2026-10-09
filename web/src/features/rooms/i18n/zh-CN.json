@@ -62,6 +62,7 @@
           "settings": "房主修改了房间设置"
         },
         "askAssist": "问助手",
+        "voiceToAssist": "说给助手",
         "backToGroup": "改回发到群聊",
         "newVersion": "有新版本,刷新后可用全部功能",
         "invite": "邀请"

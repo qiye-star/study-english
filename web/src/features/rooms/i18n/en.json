@@ -62,6 +62,7 @@
           "settings": "The owner changed the room settings"
         },
         "askAssist": "Ask assistant",
+        "voiceToAssist": "Speak to the assistant",
         "backToGroup": "Send to the room instead",
         "newVersion": "A new version is available. Refresh to use every feature.",
         "invite": "Invite"

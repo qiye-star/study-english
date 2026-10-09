@@ -8,6 +8,8 @@ import { getRoomSummary, retryRoomSummary, SUMMARY_SERVER_ERRORS, type RoomSumma
 /** 生成中每 3 秒轮询一次,最多 60 秒(spec §6.1);之后提示稍后再看。 */
 export const SUMMARY_POLL_MS = 3_000;
 export const SUMMARY_POLL_MAX_MS = 60_000;
+/** 房间刚在眼前结束:服务端先广播 closed,再建小结行;这段时间内 "none" 也按「生成中」轮询(review M5) */
+export const SUMMARY_START_WAIT_MS = 15_000;
 
 export interface RoomSummaryState {
   summary: RoomSummaryView | null;
@@ -21,7 +23,7 @@ export interface RoomSummaryState {
 }
 
 /** 小结卡片与小结页共用:取一次;pending 时轮询;failed 时可重试(成功后若回到 pending 继续轮询)。卸载后不再 setState。 */
-export function useRoomSummary(roomId: string): RoomSummaryState {
+export function useRoomSummary(roomId: string, { waitForStart = false }: { waitForStart?: boolean } = {}): RoomSummaryState {
   const { api } = useAuth();
   const { t } = useTranslation();
   const tRef = useRef(t);
@@ -45,8 +47,13 @@ export function useRoomSummary(roomId: string): RoomSummaryState {
     const tick = () => {
       getRoomSummary(api, roomId, ctrl.signal).then((s) => {
         if (ctrl.signal.aborted) return;
-        setSummary(s);
         setError(null);
+        const starting = waitForStart && s.status === "none" && Date.now() - started + SUMMARY_POLL_MS <= SUMMARY_START_WAIT_MS;
+        setSummary(starting ? { ...s, status: "pending" } : s);
+        if (starting) {
+          timer = setTimeout(tick, SUMMARY_POLL_MS);
+          return;
+        }
         if (s.status !== "pending") return;
         if (Date.now() - started + SUMMARY_POLL_MS > SUMMARY_POLL_MAX_MS) setTimedOut(true);
         else timer = setTimeout(tick, SUMMARY_POLL_MS);
@@ -59,7 +66,7 @@ export function useRoomSummary(roomId: string): RoomSummaryState {
       ctrl.abort();
       if (timer !== null) clearTimeout(timer);
     };
-  }, [api, roomId, round]);
+  }, [api, roomId, round, waitForStart]);
 
   const retry = useCallback(() => {
     setRetrying(true);

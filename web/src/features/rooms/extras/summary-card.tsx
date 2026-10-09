@@ -12,9 +12,13 @@ const card = "mb-3 flex items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5
  * done →「学习小结 · 3 个新词 · 2 句可以说得更好」+「查看」(到 /rooms/r/:roomId/summary);pending →「正在生成小结…」(每 3 秒轮询,最多 60 秒);
  * failed →「小结生成失败」+「重试」;skipped / none / 取不到 → 不渲染。房间页只在房间已结束时渲染它。
  */
-export function SummaryCard({ roomId }: { roomId: string }): JSX.Element | null {
+export function SummaryCard({ roomId, justClosed = false }: {
+  roomId: string;
+  /** 房间是在我们眼前结束的(收到了 closed 事件):小结行可能还没建,先按「生成中」等一会儿 */
+  justClosed?: boolean;
+}): JSX.Element | null {
   const { t } = useTranslation();
-  const { summary, error, timedOut, retrying, retry } = useRoomSummary(roomId);
+  const { summary, error, timedOut, retrying, retry } = useRoomSummary(roomId, { waitForStart: justClosed });
   if (error || !summary) return null;
   const icon = (
     <span aria-hidden className="inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue">

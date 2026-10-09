@@ -1,5 +1,6 @@
 import { ChevronLeftIcon, CopyIcon, SlidersHorizontalIcon, UserPlusIcon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ import { ghostButton } from "./ui";
 import { useRoom } from "./use-room";
 import { useRoomVoiceAutoText } from "./voice/auto-text";
 import { useRoomVoice } from "./voice/use-room-voice";
+import { formatVoiceDuration } from "./voice/voice-bubble";
 import { VoiceInput } from "./voice/voice-input";
 
 const REPORT_REASONS = ["spam", "abuse", "other"] as const;
@@ -38,6 +40,8 @@ const CLOSE_KEYS: Record<string, string> = {
   disabled: "web.rooms.errors.closed_disabled", protocol: "web.rooms.errors.closed_protocol", admin: "web.rooms.errors.closed_admin",
 };
 const NOTICE_MS = 5000;
+/** 在房间里亲眼看到的结束(收到 closed 事件):学习小结马上要开始生成(review M5) */
+const LIVE_CLOSE = new Set(["owner", "idle", "expired", "admin"]);
 
 /** 复制房间号:非 HTTPS(局域网部署)没有 navigator.clipboard,退回 execCommand;都不行时把号码直接告诉用户。 */
 async function copyText(text: string): Promise<boolean> {
@@ -112,7 +116,9 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const navigate = useNavigate();
   const room = useRoom(roomId);
   const { state, dismiss, loadEarlier: loadMore } = room;
-  const aiAvailable = config.aiAvailable;
+
+  // 管理员为本房关闭了 AI:助手入口与 @ 键都不显示(spec §5.2,review m9)
+  const aiAvailable = config.aiAvailable && !state.room?.aiMuted;
   const [draft, setDraft] = useState("");
   const [settings, setSettings] = useState(false);
   const [reporting, setReporting] = useState<RoomMessage | null>(null);
@@ -131,6 +137,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const autoText = useRoomVoiceAutoText();
   const typingEmitter = useTypingEmitter(room.typing);
   const listRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerHeight, setComposerHeight] = useState(64);
   const scrolled = useScrolled(listRef);
@@ -143,6 +150,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const info = state.room;
   const online = state.members.filter((m) => m.online).length;
   const ended = closed || info?.status === "closed";
+  const justClosed = closed && LIVE_CLOSE.has(state.closeReason ?? "") && !!config.summaryAvailable;
   const isOwner = state.me?.role === "owner" || info?.myRole === "owner";
   const voiceEnabled = !!config.voiceAvailable && !!info?.allowVoice && !closed;
 
@@ -155,12 +163,15 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   });
 
   // 新的助手回复到达而面板关闭或收成一行:入口亮未读点(welcome 带回的历史条目 requestId 为 null,不算新)
+  // 「看得见」= 面板打开、没收成一行、键盘也没把它压成一行;看得见时清除未读(spec §5.2,review m3)
   const doneReplies = state.assist.filter((a) => a.status === "done" && a.requestId !== null).length;
   const seenReplies = useRef(doneReplies);
+  const dockShowing = dockOpen && dockSnap !== "row" && !keyboardOpen;
   useEffect(() => {
-    if (doneReplies > seenReplies.current && (!dockOpen || dockSnap === "row")) setUnread(true);
+    if (doneReplies > seenReplies.current && !dockShowing) setUnread(true);
     seenReplies.current = doneReplies;
-  }, [doneReplies, dockOpen, dockSnap]);
+  }, [doneReplies, dockShowing]);
+  useEffect(() => { if (dockShowing) setUnread(false); }, [dockShowing]);
   const toggleDock = () => {
     if (dockOpen) {
       setDockOpen(false);
@@ -196,6 +207,17 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
       el.scrollTop = el.scrollHeight;
     }
   }, [state.messages.length, firstSeq, state.pending.length, state.aiTyping.length, composerHeight, dockHeight]);
+  // 内容自己变高(点开最后一条的操作行、转写到达、回应出现、展开译文):在底部时继续贴底,不让它藏到输入条下面(review M6)
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const list = listRef.current;
+      if (list && stick.current && prependFrom.current === null) list.scrollTop = list.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const onScroll = () => {
     const el = listRef.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
@@ -245,6 +267,12 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   }
 
   const status = bannerText(t, state);
+  const announced = state.announce;
+  const announceText = !announced ? "" : announced.kind === "voice" && !announced.text
+    ? t("web.rooms.voice.announce", { name: announced.sender.name ?? "?", duration: formatVoiceDuration(announced.voice?.durationMs ?? 0) })
+    : `${announced.kind === "ai_answer" ? t("web.rooms.room.aiName") : announced.sender.name ?? "?"}: ${announced.text}`;
+  const listTop = "calc(52px + env(safe-area-inset-top) + 12px)";
+  const listBottom = composerHeight + dockHeight + 14;
   const message = state.notice ? t(`web.rooms.notice.${state.notice}`) : state.error ? t(`web.rooms.errors.${state.error}`) : null;
   const newVersion = state.protocol > ROOM_PROTOCOL_VERSION ? t("web.rooms.room.newVersion") : null;
   const code = info?.code;
@@ -276,25 +304,30 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
       )}
       {/* 读屏只播报实时到达的别人的消息;列表本身不是 live 区域(补发与「加载更早」不该被整页朗读) */}
       <div data-testid="room-announcer" role="log" aria-live="polite" className="sr-only">
-        {state.announce ? `${state.announce.kind === "ai_answer" ? t("web.rooms.room.aiName") : state.announce.sender.name ?? "?"}: ${state.announce.text}` : ""}
+        {announceText}
       </div>
       <div ref={listRef} data-testid="room-messages" onScroll={onScroll}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-gutter"
-        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + dockHeight + 14 }}>
+        style={{ paddingTop: listTop, paddingBottom: listBottom, scrollPaddingTop: listTop, scrollPaddingBottom: listBottom }}>
         <div aria-hidden className="mt-auto" />
-        {ended && info && <SummaryCard roomId={roomId} />}
+        <div ref={contentRef} className="flex flex-col">
+        {ended && info && <SummaryCard roomId={roomId} justClosed={justClosed} />}
         {closed && state.room && state.messages.length === 0 && (
           <p className="py-8 text-center text-sub text-ink-2">{t("web.rooms.room.historyEmpty")}</p>
         )}
         <RoomMessageList state={state} roomId={roomId} reported={reported} autoText={autoText} onLoadEarlier={loadEarlier} onReport={setReporting}
           onReact={room.react} onQuote={(m) => { setQuote(m); setTarget("group"); }}
           onTranslateVoice={room.translateVoice} onRetryVoice={room.retryVoice} />
+        </div>
       </div>
       <AssistDock open={dockOpen && aiAvailable} snap={dockSnap} keyboardOpen={keyboardOpen} entries={state.assist} disabled={closed} offline={offline}
         onSnap={setDockSnap} onClose={closeDock}
         onAsk={(text) => room.ask(text) !== null}
         onSend={(text, assistId) => { if (room.say(text, assistId)) stick.current = true; }}
-        onEdit={(text) => { setDraft(text); setTarget("group"); setDockSnap("row"); }}
+        onEdit={(text) => {
+          // 语音模式下也要有文本框可聚焦:同步渲染出来,AssistDock 随后在同一次点按里聚焦(iOS 才弹键盘,review M8)
+          flushSync(() => { setDraft(text); setTarget("group"); setDockSnap("row"); setVoiceMode("text"); });
+        }}
         onHeight={setDockHeight} />
       <RoomComposer ref={composerRef} disabled={closed} offline={offline} ai={aiAvailable} value={draft} onChange={changeDraft} onSend={send}
         leading={aiAvailable ? <AssistEntry open={dockOpen} unread={unread} disabled={closed} onToggle={toggleDock} /> : undefined}

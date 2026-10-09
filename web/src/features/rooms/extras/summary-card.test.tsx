@@ -10,9 +10,9 @@ const DONE = { status: "done", reason: null as string | null, overview_zh: "聊�
   words: [{ en: "noodles", zh: "面条", example: "I love noodles." }, { en: "spicy", zh: "辣的", example: "Too spicy!" }, { en: "to go", zh: "外带", example: "To go, please." }],
   my_fixes: [{ seq: 3, original: "I want a ice latte big.", better: "Could I get a large iced latte?", note_zh: "点单用 Could I get…" }, { seq: 5, original: "How much is it all?", better: "How much is that altogether?", note_zh: "altogether" }] };
 
-function setup(routes: Record<string, Handler>) {
+function setup(routes: Record<string, Handler>, justClosed = false) {
   const mock = createFetchMock(routes);
-  renderWithProviders(<SummaryCard roomId="r1" />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+  renderWithProviders(<SummaryCard roomId="r1" justClosed={justClosed} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
   return mock;
 }
 
@@ -72,5 +72,31 @@ describe("SummaryCard", () => {
     const mock = setup({});
     await waitFor(() => expect(mock.calls).toHaveLength(1));
     expect(screen.queryByTestId("summary-card")).toBeNull();
+  });
+
+  it("waits for the summary to start when the room ended while we were in it (review M5)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let calls = 0;
+    const mock = setup({ "GET /api/rooms/r1/summary": () => {
+      calls += 1;
+      return json({ summary: calls === 1 ? { status: "none" } : calls === 2 ? { status: "pending" } : DONE });
+    } }, true);
+    // the close broadcast beats the summary row: "none" first, but the people in the room still see it coming
+    expect(await screen.findByText("正在生成小结…")).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+    expect(await screen.findByRole("link", { name: "查看" })).toBeTruthy();
+    expect(mock.calls.length).toBe(3);
+  });
+
+  it("gives up on 'none' after a short wait (summaries off or the room was not eligible)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const mock = setup({ "GET /api/rooms/r1/summary": () => json({ summary: { status: "none" } }) }, true);
+    await screen.findByText("正在生成小结…");
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(screen.queryByTestId("summary-card")).toBeNull();
+    const n = mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(mock.calls.length).toBe(n);
   });
 });

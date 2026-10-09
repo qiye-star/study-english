@@ -322,6 +322,119 @@ describe("RoomPage", () => {
     expect(fetched.url.searchParams.get("before_seq")).toBe("7");
   });
 
+  const assistReply = (requestId: string | null = null) => ({ type: "assist_reply", request_id: requestId, message: { seq: 5, id: "a5", lane: "private",
+    kind: "assist_reply", sender: { kind: "ai", id: null as number | null, name: null as string | null }, text: "x", assisted: false, reply_to: null as number | null, ai_status: null as string | null, created_at: "",
+    meta: { reply_zh: "巧克力是 chocolate。", glossary: [] as unknown[], suggestions: [{ en: "I like chocolate.", note_zh: "最常用" }] } } });
+
+  it("改一改 brings the text box back when the composer is in voice mode (review M8)", async () => {
+    setup({ "GET /api/rooms/config": () => json({ ...V2_CONFIG, voice_available: true }) });
+    await live({ ...ROOM, allow_voice: true });
+    fireEvent.click(screen.getByTestId("room-voice-toggle"));
+    expect(screen.queryByTestId("room-input")).toBeNull();
+    fireEvent.click(screen.getByTestId("room-assist-open"));
+    // m10: in voice mode the hold bar says the recording goes to the assistant
+    expect(within(screen.getByTestId("room-composer")).getByTestId("room-target-assist")).toBeTruthy();
+    const ask = { type: "assist", request_id: "q1" };
+    FakeWebSocket.last!.push(assistReply(ask.request_id));
+    FakeWebSocket.last!.push({ type: "welcome", room: { ...ROOM, allow_voice: true }, me: { user_id: 11111111, role: "owner" }, members: MEMBERS,
+      last_seq: 0, truncated: false, assist_history: [{ seq: 4, id: "q4", lane: "private", kind: "assist_request", sender: { kind: "user", id: 11111111, name: "alice" },
+        text: "我想说我喜欢巧克力", assisted: false, reply_to: null, ai_status: null, meta: null, created_at: "" }, assistReply().message] });
+    fireEvent.click(await screen.findByTestId("assist-edit"));
+    const input = screen.getByTestId("room-input") as HTMLInputElement;
+    expect(input.value).toBe("I like chocolate.");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("members in the room see the summary coming when the room ends (review M5)", async () => {
+    let n = 0;
+    setup({ "GET /api/rooms/config": () => json({ ...V2_CONFIG, summary_available: true }),
+      "GET /api/rooms/r1/summary": () => { n += 1; return json({ summary: { status: "none" } }); } });
+    await live();
+    FakeWebSocket.last!.push({ type: "closed", reason: "owner" });
+    expect(await screen.findByText("正在生成小结…")).toBeTruthy();
+    expect(n).toBe(1);
+  });
+
+  it("clears the assistant's unread dot when the panel is expanded (review m3)", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    fireEvent.click(screen.getByTestId("room-assist-open"));
+    fireEvent.click(screen.getByTestId("assist-dock-toggle")); // collapse to one row
+    fireEvent.change(screen.getByTestId("room-input"), { target: { value: "I like 巧克力" } });
+    fireEvent.click(screen.getByTestId("room-send"));
+    const ask = JSON.parse(FakeWebSocket.last!.sent.at(-1)!);
+    FakeWebSocket.last!.push(assistReply(ask.request_id));
+    expect(screen.getByTestId("assist-unread")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("assist-dock-toggle")); // expand: the reply is visible now
+    expect(screen.queryByTestId("assist-unread")).toBeNull();
+  });
+
+  it("hides the assistant when an administrator muted AI in the room (review m9)", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live({ ...ROOM, ai_muted: true });
+    expect(screen.queryByTestId("room-assist-open")).toBeNull();
+    expect(screen.queryByTestId("room-at-ai")).toBeNull();
+  });
+
+  it("announces a voice message without its text and keeps typing out of the live region (review m5)", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(2, "", { kind: "voice",
+      voice: { duration_ms: 6400, status: "pending", transcript: null, lang: null, translation: null, translation_status: null, attempts: 1, audio: true } }) });
+    expect(screen.getByTestId("room-announcer").textContent).toBe("bob 发来一条语音,0:06");
+    FakeWebSocket.last!.push({ type: "activity", user_id: 22, state: "typing" });
+    const line = screen.getByTestId("room-activity");
+    expect(line.getAttribute("aria-live")).toBeNull();
+    expect(line.getAttribute("role")).toBeNull();
+  });
+
+  it("keeps the newest message's actions above the composer (review M6)", async () => {
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    vi.stubGlobal("ResizeObserver", class {
+      els: Element[] = [];
+      constructor(readonly cb: ResizeObserverCallback) { observers.push(this); }
+      observe(el: Element) { this.els.push(el); }
+      unobserve() { /* noop */ }
+      disconnect() { this.els = []; }
+    });
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(2, "Last one") });
+    const list = screen.getByTestId("room-messages");
+    let height = 1000;
+    Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => height });
+    Object.defineProperty(list, "clientHeight", { configurable: true, get: () => 600 });
+    list.scrollTop = 400; // at the bottom
+    fireEvent.scroll(list);
+    fireEvent.click(screen.getByText("Last one")); // the action row opens under the last bubble
+    height = 1180;
+    const content = observers.find((o) => o.els.some((el) => list.contains(el) && el !== list))!;
+    act(() => content.cb([], content as unknown as ResizeObserver));
+    expect(list.scrollTop).toBe(1180);
+    expect(list.style.scrollPaddingBottom).toBe(list.style.paddingBottom);
+  });
+
+  it("exposes bubble controls to screen readers with a separate actions button (review M7)", async () => {
+    setup({ "GET /api/rooms/config": () => json(V2_CONFIG) });
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(2, "Hello there") });
+    const bubble = screen.getAllByTestId("room-message").find((m) => m.textContent?.includes("Hello there"))!;
+    expect(bubble.getAttribute("role")).toBeNull();
+    expect(bubble.getAttribute("tabindex")).toBeNull();
+    const more = screen.getByRole("button", { name: "更多操作" });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    const actions = document.getElementById(more.getAttribute("aria-controls")!);
+    expect(actions).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(bubble); // a tap on the bubble is still a pointer shortcut
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.pointerDown(document.body); // tapping elsewhere closes it
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("explains when rooms are off", async () => {
     const mock = createFetchMock({ "GET /api/rooms/config": () => json({ enabled: false, ai_available: false, max_members: 8, max_text: 500 }) });
     renderWithProviders(<RoomPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/r/r1", path: "/rooms/r/:roomId" });

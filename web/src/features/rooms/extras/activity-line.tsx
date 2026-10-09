@@ -8,7 +8,7 @@ type Active = { name: string; state: "typing" | "recording" };
 /**
  * 输入条之上一行 12px 次要色「lily 正在输入…」/「bob 正在说话…」(spec §6.5,视觉稿 V12 .act):不含自己、按收到时间新到旧;
  * 两人同状态「lily、bob 正在输入…」,状态不同时分别列出;三人及以上「lily、bob 等 3 人正在输入…」(最多两个名字)。
- * 过期(6 秒)由 reducer 的 activity_expire 处理。说话时前面是蓝色话筒,输入时是三个点。
+ * 过期(6 秒)由 reducer 的 activity_expire 处理。不是 live 区域:这是环境信息,读屏只播报消息(review m5)。说话时前面是蓝色话筒,输入时是三个点。
  */
 export function ActivityLine({ activity, members, meId }: {
   activity: RoomState["activity"]; members: RoomMemberInfo[]; meId: number | null;
@@ -38,7 +38,7 @@ export function ActivityLine({ activity, members, meId }: {
   }
   const speaking = active.some((x) => x.state === "recording");
   return (
-    <div role="status" aria-live="polite" data-testid="room-activity" className="flex min-w-0 items-center gap-1.5 px-1.5 pb-[7px] text-meta text-ink-2">
+    <div data-testid="room-activity" className="flex min-w-0 items-center gap-1.5 px-1.5 pb-[7px] text-meta text-ink-2">
       {speaking ? (
         <MicIcon aria-hidden className="size-3.5 flex-none text-blue" />
       ) : (

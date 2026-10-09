@@ -15,12 +15,12 @@ describe("ActivityLine", () => {
   beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); });
   afterEach(async () => { localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
 
-  const line = () => screen.getByRole("status");
+  const line = () => screen.getByTestId("room-activity"); // ambient text, not a live region (review m5)
 
   it("leaves myself out", () => {
     renderWithProviders(<ActivityLine activity={{ 11: { state: "typing", at: 2 }, 22: { state: "typing", at: 1 } }} members={members} meId={11} />);
     expect(line().textContent).toBe("lily 正在输入…");
-    expect(line().getAttribute("aria-live")).toBe("polite");
+    expect(line().getAttribute("aria-live")).toBeNull();
   });
 
   it("says who is speaking", () => {
@@ -43,7 +43,7 @@ describe("ActivityLine", () => {
 
   it("renders nothing without activity from others", () => {
     renderWithProviders(<ActivityLine activity={{ 11: { state: "typing", at: 1 } }} members={members} meId={11} />);
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByTestId("room-activity")).toBeNull();
   });
 
   it("uses 'someone' for a member not in the list", () => {
