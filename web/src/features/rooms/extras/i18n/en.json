@@ -22,7 +22,19 @@
         "quoteHidden": "The quoted message was hidden",
         "replyTo": "Replying to",
         "replySep": ": ",
-        "clearQuote": "Cancel quote"
+        "clearQuote": "Cancel quote",
+        "activity": {
+          "someone": "Someone",
+          "sep": ", ",
+          "typingOne": "{{name}} is typing…",
+          "speakingOne": "{{name}} is speaking…",
+          "typingTwo": "{{a}} and {{b}} are typing…",
+          "speakingTwo": "{{a}} and {{b}} are speaking…",
+          "mixedTwo": "{{a}} and {{b}} are typing or speaking…",
+          "typingMany": "{{a}}, {{b}} and {{others}} more are typing…",
+          "speakingMany": "{{a}}, {{b}} and {{others}} more are speaking…",
+          "mixedMany": "{{a}}, {{b}} and {{others}} more are typing or speaking…"
+        }
       }
     }
   }

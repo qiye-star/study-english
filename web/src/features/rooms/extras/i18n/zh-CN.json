@@ -22,7 +22,19 @@
         "quoteHidden": "引用的消息已被隐藏",
         "replyTo": "回复",
         "replySep": ":",
-        "clearQuote": "取消引用"
+        "clearQuote": "取消引用",
+        "activity": {
+          "someone": "有人",
+          "sep": ",",
+          "typingOne": "{{name}} 正在输入…",
+          "speakingOne": "{{name}} 正在说话…",
+          "typingTwo": "{{a}}、{{b}} 正在输入…",
+          "speakingTwo": "{{a}}、{{b}} 正在说话…",
+          "mixedTwo": "{{a}}、{{b}} 正在输入或说话…",
+          "typingMany": "{{a}}、{{b}} 等 {{count}} 人正在输入…",
+          "speakingMany": "{{a}}、{{b}} 等 {{count}} 人正在说话…",
+          "mixedMany": "{{a}}、{{b}} 等 {{count}} 人正在输入或说话…"
+        }
       }
     }
   }
