@@ -71,7 +71,7 @@ export const S = {
       rank_match_daily_attempts: "每日晋级赛次数",
       rooms_assist_daily_per_user: "每日房间助手次数",
       rooms_max_owned: "拥有房间上限",
-      rooms_voice_quota_mb: "联机语音存储(MB)",
+      rooms_voice_quota_mb: "联机语音每日上传(MB)",
       rooms_voice_daily_per_user: "每日联机语音条数",
     } as Record<string, string>,
   },

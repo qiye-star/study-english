@@ -200,11 +200,11 @@ v1 的「锁定」保留在房主设置里(不属于 7 项,沿用 v1 行为:锁�
 - 编码:服务端用 `lameenc`(PyPI,自带 LAME 的二进制 wheel,无需系统 ffmpeg)在线程池里编码;编码 60 秒音频的耗时预计远小于 1 秒(估算,未测)。
 - 兜底:`ROOMS_VOICE_STORE_FORMAT=wav` 时直接保存 WAV(约 32 000 字节/秒,10 倍体积);用于 `lameenc` 在部署平台不可用时。计划第一步验证 wheel 可用性。
 - 暂存 WAV:转写 `done/empty` 后立即删除;`failed` 保留,直到重试成功或房间结束 7 天后由清扫器删除(此后不能重试)。
-- 上限:单条 ≤ 60.5 秒、上传体 ≤ 2 100 000 字节;每人语音存储 200 MB(`ROOMS_VOICE_QUOTA_MB`,约 1 100 分钟 MP3,估算)。
+- 上限:单条 ≤ 60.5 秒、上传体 ≤ 2 100 000 字节;每人**每天**语音上传 200 MB(`ROOMS_VOICE_QUOTA_MB`,按 UTC 日计,约 1 100 分钟 MP3,估算)+ 每天 100 条(`ROOMS_VOICE_DAILY_PER_USER`)。**集成裁定(产品负责人确认)**:配额按天计算,不是累计总量(SV-1)。
 
 ### 4.9 语音配额与录音配额的关系
 
-**裁定 R2-10:房间语音用独立的每人配额 `rooms_voice_quota_mb`**,不计入跟读/对话录音的 `recording_quota_mb`。理由:房间音频永久保存且用户删不掉,若共用配额,房间语音会挤掉用户自己能管理的练习录音。两者都在管理端「存储」里按用户可见;两个配额都能按用户覆盖(admin §7)。配额满时上传返回 `429 Voice storage quota reached`,网页提示"语音存储已满,可以继续发文字"。
+**裁定 R2-10:房间语音用独立的每人配额 `rooms_voice_quota_mb`**,不计入跟读/对话录音的 `recording_quota_mb`。理由:房间音频永久保存且用户删不掉,若共用配额,房间语音会挤掉用户自己能管理的练习录音。两者都在管理端「存储」里按用户可见;两个配额都能按用户覆盖(admin §7)。配额(每人每天,见 §4.8)满时上传返回 `429 Voice storage quota reached`,网页提示"今天的语音存储额度已用完,可以继续发文字"。
 
 ---
 
@@ -499,7 +499,7 @@ v1 的「锁定」保留在房主设置里(不属于 7 项,沿用 v1 行为:锁�
 | `ROOMS_VOICE_MAX_SECONDS` | 60 | 10–60 | 单条上限 |
 | `ROOMS_VOICE_DAILY_PER_USER` | 100 | 0–1000 | 每人每日条数(可按用户覆盖) |
 | `ROOMS_VOICE_GLOBAL_DAILY` | 3000 | 0–100000 | 全站每日转写次数(含重试) |
-| `ROOMS_VOICE_QUOTA_MB` | 200 | 0–100000 | 每人语音存储(可按用户覆盖) |
+| `ROOMS_VOICE_QUOTA_MB` | 200 | 0–100000 | 每人**每天**语音上传字节(UTC 日;产品负责人确认按天,可按用户覆盖) |
 | `ROOMS_VOICE_CONCURRENCY` | 4 | 1–32 | 同时进行的语音转写(需重启) |
 | `ROOMS_VOICE_STORE_FORMAT` | mp3 | mp3/wav | §4.8 |
 | `ROOMS_TRANSLATE_GLOBAL_DAILY` | 3000 | 0–100000 | 全站每日语音翻译次数 |

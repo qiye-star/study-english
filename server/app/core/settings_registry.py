@@ -164,7 +164,7 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_voice_max_seconds", "rooms", "int", "单条语音最长秒数"),
     _s("rooms_voice_daily_per_user", "rooms", "int", "每人每日语音条数", help_zh="可按用户覆盖"),
     _s("rooms_voice_global_daily", "rooms", "int", "全站每日语音转写次数", help_zh="含重试", danger=_COST),
-    _s("rooms_voice_quota_mb", "rooms", "int", "每人语音存储上限 MB", help_zh="不占录音配额;可按用户覆盖"),
+    _s("rooms_voice_quota_mb", "rooms", "int", "每人每天语音上传上限 MB", help_zh="按 UTC 日计(产品负责人确认);不占录音配额;可按用户覆盖"),
     _s("rooms_voice_concurrency", "rooms", "int", "语音转写并发", apply="restart"),
     _s("rooms_voice_store_format", "rooms", "enum", "语音存储格式", choices=("mp3", "wav"),
        help_zh="mp3 = 24 kbps(约 WAV 的 1/10);wav 仅在 lameenc 不可用时使用"),
