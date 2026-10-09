@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 联机练习 v2 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+/* ------------------------------------------------------------------
+   Canvas (around the phones; not app UI)
+------------------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2.group{font-size:15px;font-weight:600;margin-top:44px;letter-spacing:-.01em}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:92ch;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:20px;align-items:flex-start}
+.spec{width:375px}
+.spec > p.frame-cap{font-size:12px;color:#5b6170;margin:12px 2px 0;letter-spacing:.01em;line-height:1.5}
+.spec > p.frame-cap b{color:#1b1d22;font-weight:600}
+
+/* ------------------------------------------------------------------
+   Tokens — redesign-v3 (one meaning per hue); .phone.dark overrides
+------------------------------------------------------------------ */
+.phone{
+  --bg:#FFFFFF;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;
+  --hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);
+  --surface:#FFFFFF;--surface-2:#F5F6F8;
+  --glass:rgba(255,255,255,.72);--glass-solid:rgba(255,255,255,.94);--glass-top:rgba(255,255,255,.80);
+  --blue:#2456DB;--blue-tint:#EAF0FF;--on-blue:#FFFFFF;
+  --teal:#0E7067;--teal-tint:#E3F5F2;
+  --amber:#9A4B00;--amber-dot:#E08A1E;--amber-tint:#FFF0DE;
+  --green:#157A3B;--green-tint:#E4F6EA;
+  --red:#D1242F;--red-solid:#E0313C;
+  --scrim:rgba(17,19,24,.28);--dock-shadow:0 -10px 28px -18px rgba(17,19,24,.35);
+  --r-md:14px;
+  color:var(--ink);background:var(--bg)
+}
+.phone.dark{
+  --bg:#0F1013;--ink:#F3F4F6;--ink-2:#A6ABB8;--ink-3:#6E7482;
+  --hair:rgba(255,255,255,.14);--hair-2:rgba(255,255,255,.08);
+  --surface:#17191E;--surface-2:#1E2127;
+  --glass:rgba(23,25,30,.66);--glass-solid:rgba(23,25,30,.94);--glass-top:rgba(23,25,30,.74);
+  --blue:#8FB0FF;--blue-tint:rgba(143,176,255,.14);--on-blue:#0F1013;
+  --teal:#5FD1C4;--teal-tint:rgba(95,209,196,.14);
+  --amber:#F2B056;--amber-dot:#F2B056;--amber-tint:rgba(242,176,86,.14);
+  --green:#6FD39A;--red:#FF7B7B;
+  --scrim:rgba(0,0,0,.5);--dock-shadow:0 -10px 28px -18px rgba(0,0,0,.8)
+}
+.phone{position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:15px;line-height:1.4}
+.phone i.ti{line-height:1;display:inline-block}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;letter-spacing:-.01em;z-index:40;pointer-events:none;color:var(--ink)}
+.statusbar .sig{display:flex;gap:5px;align-items:center;font-size:14px}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;z-index:45}
+
+/* glass recipe (design-notes): solid fallback, blur where supported, none for reduced transparency */
+.glass{background:var(--glass-solid)}
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+  .topbar.glass{background:var(--glass-top);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+}
+@media (prefers-reduced-transparency:reduce){.glass{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+.topbar{position:absolute;top:0;left:0;right:0;z-index:30;padding-top:47px;box-shadow:inset 0 -.5px 0 var(--hair)}
+.topbar.rest{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.topbar .bar{height:52px;display:flex;align-items:center;padding:0 4px;gap:0}
+.topbar .title{font-size:17px;font-weight:600;letter-spacing:-.015em;flex:1;min-width:0;padding:0 4px}
+.topbar .title small{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;color:var(--ink-2);letter-spacing:0;margin-top:1px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);font-size:22px;flex:none}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--ink-2)}
+
+/* ---------- room chat ---------- */
+.msgs{position:absolute;left:0;right:0;top:99px;padding:8px 16px 12px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;overflow:hidden}
+.sys{text-align:center;font-size:11px;color:var(--ink-2);font-weight:500;letter-spacing:.02em}
+.msg{display:flex;gap:8px;max-width:88%}
+.msg.other{align-self:flex-start}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.msg .col{display:flex;flex-direction:column;min-width:0}
+.msg.me .col{align-items:flex-end}
+.ava{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--surface-2);color:var(--ink);box-shadow:inset 0 0 0 .5px var(--hair-2);margin-top:2px}
+.bub{border-radius:var(--r-md);padding:8px 12px;font-size:15px;line-height:1.5;letter-spacing:-.005em}
+.msg.other .bub{background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);border-top-left-radius:6px}
+.msg.me .bub{background:var(--blue-tint);border-top-right-radius:6px}
+.bub .name{display:block;font-size:12px;font-weight:600;color:var(--ink-2)}
+.bub .tag{display:inline-flex;align-items:center;gap:3px;margin-top:3px;font-size:11px;font-weight:600;color:var(--blue)}
+.bub .tag i{font-size:13px}
+.at{color:var(--blue);font-weight:600}
+.sel .bub{box-shadow:inset 0 0 0 1.5px var(--blue)}
+
+/* quote inside a bubble, reactions under it */
+.qb{display:block;padding:1px 0 1px 8px;border-left:2px solid var(--hair);margin:2px 0 5px;font-size:12px;line-height:1.45;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.qb b{color:var(--ink);font-weight:600;margin-right:4px}
+.rx{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.rx span{height:26px;padding:0 9px;border-radius:13px;background:var(--surface-2);font-size:13px;display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.rx span.mine{background:var(--blue-tint);color:var(--blue);font-weight:600}
+
+/* voice bubble */
+.vrow{display:flex;align-items:center;gap:10px;min-width:176px}
+.play{width:34px;height:34px;border-radius:50%;background:var(--blue);color:var(--on-blue);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.msg.other .play{background:var(--surface-2);color:var(--ink)}
+.wave{display:flex;align-items:center;gap:2px;height:20px;flex:1}
+.wave i{display:block;width:3px;border-radius:2px;background:currentColor;opacity:.55;height:var(--h,8px)}
+.msg.me .wave{color:var(--blue)}
+.dur{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.vacts{display:flex;gap:2px;margin:4px -6px -4px}
+.vacts span{min-height:32px;display:inline-flex;align-items:center;gap:4px;padding:0 6px;font-size:12px;font-weight:600;color:var(--ink-2);border-radius:8px}
+.vacts span i{font-size:15px}
+.vacts span.on{color:var(--blue)}
+.vt{margin-top:6px;padding-top:7px;border-top:.5px solid var(--hair-2);font-size:15px;line-height:1.5}
+.vtr{display:flex;gap:6px;font-size:13px;line-height:1.5;color:var(--ink-2);margin-top:4px}
+.vtr em{font-style:normal;flex:none;font-size:11px;font-weight:600;height:18px;padding:0 5px;border-radius:5px;background:var(--surface-2);display:inline-flex;align-items:center;margin-top:1px;color:var(--ink-2)}
+.msg.me .vtr em{background:rgba(255,255,255,.7)}
+.vstate{font-size:12px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:6px}
+.vstate .retry{color:var(--blue);font-weight:600;min-height:32px;display:inline-flex;align-items:center}
+
+/* ai answer card */
+.ai-card{align-self:flex-start;max-width:92%;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);border-radius:var(--r-md);padding:10px 12px}
+.ai-card .who{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.ai-card p{margin-top:5px;font-size:15px;line-height:1.5}
+
+/* composer (glass) */
+.composer{position:absolute;left:0;right:0;bottom:0;z-index:31;box-shadow:inset 0 .5px 0 var(--hair);padding:8px 8px 30px}
+.composer .rowc{display:flex;align-items:center;gap:6px}
+.composer .in{flex:1;min-width:0;height:44px;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);display:flex;align-items:center;padding:0 6px 0 12px;font-size:15px;color:var(--ink-2);white-space:nowrap;overflow:hidden}
+.composer .in.focus{box-shadow:inset 0 0 0 1px var(--blue),0 0 0 3px rgba(36,86,219,.14);color:var(--ink)}
+.composer .in.asst{box-shadow:inset 0 0 0 1px rgba(36,86,219,.4)}
+.composer .in .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.composer .in .atk{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:18px;flex:none}
+.pill{display:inline-flex;align-items:center;gap:1px;height:26px;padding:0 2px 0 8px;margin-left:-6px;margin-right:8px;border-radius:8px;background:var(--blue-tint);color:var(--blue);font-size:12px;font-weight:600;flex:none}
+.pill i{font-size:14px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+.caret{display:inline-block;width:1.5px;height:18px;background:var(--blue);vertical-align:-3px;margin-left:1px}
+.kbtn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;color:var(--ink-2);flex:none}
+.kbtn.send{background:var(--blue);color:var(--on-blue)}
+.kbtn.send.off{opacity:.4}
+.aibtn{position:relative;width:44px;height:44px;border-radius:50%;background:var(--blue);color:var(--on-blue);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none;box-shadow:0 4px 10px -4px rgba(36,86,219,.55)}
+.aibtn.open{background:var(--blue-tint);color:var(--blue);box-shadow:none}
+.aibtn .dot{position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:var(--amber-dot);box-shadow:0 0 0 2px var(--bg)}
+.act{font-size:12px;color:var(--ink-2);padding:0 6px 7px;display:flex;align-items:center;gap:6px}
+.act .dots{display:inline-flex;gap:2px}
+.act .dots i{display:block;width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.act .mic{color:var(--blue);font-size:14px}
+.qbar{display:flex;align-items:center;gap:8px;margin:0 2px 8px;padding:4px 4px 4px 10px;border-radius:10px;background:var(--surface-2);font-size:12px;color:var(--ink-2)}
+.qbar .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qbar b{color:var(--ink);font-weight:600}
+.qbar .x{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink-2)}
+
+/* hold-to-talk bar */
+.hold{flex:1;height:44px;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair),0 1px 2px rgba(17,19,24,.04);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--ink)}
+.hold.pressed{background:var(--blue-tint);color:var(--blue);box-shadow:inset 0 0 0 .5px rgba(36,86,219,.4)}
+.hold.cancel{background:var(--red-solid);color:#fff;box-shadow:none}
+.ov{position:absolute;inset:0;background:var(--scrim);z-index:35}
+.ovcard{position:absolute;left:50%;top:300px;transform:translateX(-50%);width:176px;border-radius:20px;padding:16px 14px;background:rgba(17,19,24,.88);color:#fff;text-align:center;z-index:36;box-shadow:0 12px 32px -12px rgba(17,19,24,.5)}
+.ovcard.red{background:var(--red-solid)}
+.ovcard .bars{display:flex;justify-content:center;align-items:center;gap:4px;height:32px}
+.ovcard .bars i{display:block;width:6px;border-radius:3px;background:#fff;height:var(--h)}
+.ovcard .clock{font-size:17px;font-weight:600;margin-top:8px;font-variant-numeric:tabular-nums}
+.ovcard p{font-size:13px;line-height:1.4;margin-top:6px;color:rgba(255,255,255,.9)}
+.ovcard.red p{font-weight:600;color:#fff}
+.zones{position:absolute;left:0;right:0;bottom:100px;display:flex;justify-content:space-between;padding:0 32px;z-index:36}
+.zone{display:flex;flex-direction:column;align-items:center;gap:6px}
+.zone .c{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 .5px var(--hair),0 2px 8px rgba(17,19,24,.12)}
+.zone .c.txt{font-size:22px;font-weight:600}
+.zone.on .c{transform:scale(1.1)}
+.zone.on.cancel .c{background:var(--red-solid);color:#fff;box-shadow:none}
+.zone.on.text .c{background:var(--blue);color:var(--on-blue);box-shadow:none}
+.zone span.l{font-size:12px;font-weight:500;background:var(--surface);border-radius:6px;padding:0 6px;color:var(--ink)}
+
+/* docked assistant panel (solid surface: the 3 blur layers are top bar, composer, sheet) */
+.dock{position:absolute;left:0;right:0;z-index:29;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:inset 0 .5px 0 var(--hair),var(--dock-shadow);display:flex;flex-direction:column;overflow:hidden}
+.dock .grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:6px auto 0;flex:none}
+.dock .hd{display:flex;align-items:center;gap:8px;height:42px;padding:0 4px 0 14px;flex:none}
+.dock .hd .ic{width:26px;height:26px;border-radius:8px;background:var(--blue-tint);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+.dock .hd b{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.dock .hd small{font-size:12px;color:var(--ink-2);font-weight:500}
+.dock .hd .sp{flex:1}
+.dock .hd .iconbtn{width:40px;height:40px;font-size:19px;color:var(--ink-2)}
+.dock .body{flex:1;min-height:0;overflow:hidden;padding:0 14px 10px;display:flex;flex-direction:column;gap:8px;-webkit-mask-image:linear-gradient(#000 calc(100% - 18px),transparent);mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.dock .ask{align-self:flex-end;max-width:85%;background:var(--blue-tint);border-radius:var(--r-md);border-top-right-radius:6px;padding:7px 12px;font-size:15px}
+.dock .zh{font-size:13px;line-height:1.5;color:var(--ink)}
+.gloss{display:flex;gap:6px;flex-wrap:wrap}
+.gloss span{font-size:12px;background:var(--surface-2);border-radius:6px;padding:3px 8px}
+.scard{border-radius:12px;box-shadow:inset 0 0 0 .5px var(--hair);padding:9px 8px 8px 12px;display:flex;flex-direction:column;flex:none}
+.scard .t{min-width:0;padding-right:4px}
+.scard .acts{display:flex;align-items:center;gap:6px;margin-top:6px}
+.scard .acts .nt{flex:1;margin:0}
+.scard .en{font-size:15px;font-weight:500;line-height:1.4}
+.scard .nt{font-size:12px;color:var(--ink-2);margin-top:1px}
+.sbtn{height:36px;min-width:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:0 10px;font-size:13px;font-weight:600;flex:none}
+.sbtn.pri{background:var(--blue);color:var(--on-blue)}
+.sbtn.gh{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 .5px var(--hair)}
+.sbtn i{font-size:16px}
+.dock.rowmode .hd{height:52px}
+.dock.rowmode .sum{flex:1;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:7px;font-size:11px;font-weight:600;white-space:nowrap;flex:none}
+.badge.amber{background:var(--amber-tint);color:var(--amber)}
+.badge.blue{background:var(--blue-tint);color:var(--blue)}
+.badge.gray{background:var(--surface-2);color:var(--ink-2)}
+.badge.teal{background:var(--teal-tint);color:var(--teal)}
+
+/* iOS keyboard (frame V3) */
+.kb{position:absolute;left:0;right:0;bottom:0;height:291px;background:#D1D4DA;z-index:33;padding:8px 3px 0}
+.kb .sugg{height:36px;display:flex;justify-content:space-around;align-items:center;font-size:15px;color:#111318;border-bottom:.5px solid rgba(17,19,24,.12);margin:-8px -3px 8px;background:#D1D4DA}
+.kb .r{display:flex;justify-content:center;gap:6px;margin-bottom:11px}
+.kb .r span{width:31px;height:42px;border-radius:5px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:21px;color:#111318}
+.kb .r span.w{width:42px;background:#ABB0BA;font-size:16px}
+.kb .r span.sp{width:182px;font-size:14px}
+.kb .r span.go{width:86px;background:#2456DB;color:#fff;font-size:15px}
+
+/* sheets (create, invite) */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:34}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:36;border-radius:20px 20px 0 0;box-shadow:inset 0 .5px 0 var(--hair);padding:8px 16px 30px}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:0 auto 8px}
+.sheet .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.sheet .hd b{font-size:17px;font-weight:600;letter-spacing:-.015em}
+.sheet .hd small{display:block;font-size:12px;color:var(--ink-2);font-weight:500}
+.lbl{font-size:13px;font-weight:600;color:var(--ink-2);margin:14px 2px 6px;display:flex;justify-content:space-between}
+.lbl span{font-weight:500}
+.field{height:44px;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);display:flex;align-items:center;padding:0 12px;font-size:16px;color:var(--ink-3)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips span{height:34px;padding:0 12px;border-radius:10px;background:var(--surface-2);font-size:13px;font-weight:500;color:var(--ink-2);display:inline-flex;align-items:center;position:relative}
+.chips span::before{content:"";position:absolute;inset:-5px 0}
+.chips span.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+.seg{display:flex;background:var(--surface-2);border-radius:10px;padding:2px;gap:2px}
+.seg span{flex:1;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--ink-2)}
+.seg span.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(17,19,24,.1),inset 0 0 0 .5px var(--hair)}
+.hint{font-size:12px;color:var(--ink-2);margin:6px 2px 0;line-height:1.45}
+.list{background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);border-radius:var(--r-md);overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px 8px 14px}
+.rowi + .rowi{border-top:.5px solid var(--hair-2)}
+.rowi .t{flex:1;min-width:0}
+.rowi .t b{display:block;font-weight:500;font-size:15px}
+.rowi .t span{display:block;font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.4}
+.rowi .v{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:4px;flex:none}
+.rowi .v i{font-size:18px;color:var(--ink-3)}
+.stepper{display:flex;align-items:center;gap:2px}
+.stepper span{width:36px;height:36px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--ink)}
+.stepper b{width:34px;text-align:center;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.sw{width:44px;height:26px;border-radius:13px;background:var(--surface-2);box-shadow:inset 0 0 0 .5px var(--hair);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(17,19,24,.25)}
+.sw.on{background:var(--blue);box-shadow:none}
+.sw.on::after{left:20px}
+.btn{height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.005em;padding:0 18px;width:100%}
+.btn.primary{background:var(--blue);color:var(--on-blue)}
+.btn.ghost{background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);color:var(--ink)}
+.btn i{font-size:20px}
+.chip{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.chip.blue{background:var(--blue-tint);color:var(--blue)}
+.chip.gray{background:var(--surface-2);color:var(--ink-2)}
+.chip.amber{background:var(--amber-tint);color:var(--amber)}
+
+/* page content (me, summary) */
+.scroll{position:absolute;inset:0;overflow:hidden}
+.content{padding:99px 16px 110px}
+.h-sec{font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.01em;margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between}
+.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding-bottom:22px}
+.tabbar ul{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);height:56px}
+.tabbar li{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:500;color:var(--ink-2)}
+.tabbar li i{font-size:24px}
+.tabbar li.on{color:var(--blue);font-weight:600}
+.me-head{display:flex;align-items:center;gap:14px;padding:8px 2px 4px}
+.me-head .big{width:56px;height:56px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600}
+.me-head b{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.me-head span{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.card{background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair);border-radius:var(--r-md)}
+.ovw{padding:14px}
+.ovw .meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ovw p{font-size:15px;line-height:1.55}
+.fix{padding:12px 14px}
+.fix + .fix{border-top:.5px solid var(--hair-2)}
+.fix .o{font-size:13px;color:var(--ink-2);line-height:1.45}
+.fix .b{font-size:15px;font-weight:500;line-height:1.45;margin-top:3px;display:flex;gap:6px}
+.fix .b i{color:var(--blue);font-size:16px;margin-top:3px}
+.fix .n{font-size:12px;color:var(--ink-2);margin-top:3px}
+.word{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 14px}
+.word + .word{border-top:.5px solid var(--hair-2)}
+.word .t{flex:1;min-width:0}
+.word .t b{font-size:15px;font-weight:600}
+.word .t b small{font-weight:500;color:var(--ink-2);font-size:13px;margin-left:6px}
+.word .t span{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.addv{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;color:var(--teal);flex:none}
+.addv.done{color:var(--ink-3)}
+.qrbox{width:212px;height:212px;margin:10px auto 0;background:#fff;border-radius:16px;box-shadow:inset 0 0 0 .5px rgba(17,19,24,.12);display:flex;align-items:center;justify-content:center;color:#111318}
+.linkrow{display:flex;gap:8px;margin-top:14px}
+.linkrow .field{flex:1;min-width:0;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linkrow .sbtn{height:44px;padding:0 14px;font-size:14px}
+
+/* action rows for reactions / quote (frame V12) */
+.actpop{align-self:flex-start;margin:-4px 0 0 38px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair),0 10px 24px -14px rgba(17,19,24,.35);border-radius:14px;padding:4px;display:flex;flex-direction:column;gap:2px}
+.actpop .emo{display:flex;gap:2px}
+.actpop .emo span{width:44px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:21px}
+.actpop .emo span.on{background:var(--blue-tint)}
+.actpop .tools{display:flex;gap:2px;border-top:.5px solid var(--hair-2);padding-top:2px}
+.actpop .tools span{flex:1;min-height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;color:var(--ink)}
+.actpop .tools span i{font-size:16px;color:var(--ink-2)}
+.trans{font-size:13px;color:var(--ink-2);line-height:1.5;margin-top:4px;padding-left:2px}
+.banner{position:absolute;left:12px;right:12px;top:105px;z-index:28;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--hair),0 6px 18px -10px rgba(17,19,24,.3);display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;font-size:13px}
+.banner .t{flex:1}
+.banner .sbtn{height:34px}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>Enjoy · 联机练习 v2 — 视觉稿</h1>
+  <p class="lede">沿用 redesign-v3:纯白底;磨砂玻璃只给顶栏、输入条和一个临时弹层(一屏最多三层),停靠助手面板是实色 surface + 发丝线 + 上投影;一色一义:蓝 = 主操作 / 你 / 助手入口,琥珀 = 提示(未读点),青 = 词汇,红 = 危险与取消落点。界面装饰不用 emoji;只有表情回应用 6 个固定字形。规格:docs/superpowers/specs/2026-10-10-rooms-v2-design.md;计划:docs/superpowers/plans/2026-10-10-rooms-v2.md。所有人名、房间、句子都是示例。</p>
+
+  <h2 class="group">创建与助手面板</h2>
+  <div class="row">
+
+    <!-- ============================== V1 create room -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content">
+          <div class="h-sec" style="margin-top:4px">输入 6 位房间号</div>
+          <div class="field" style="justify-content:center;letter-spacing:.3em;color:var(--ink-3)">— — — — — —</div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><div class="title" style="padding-left:12px">联机练习</div></div></header>
+        <div class="scrim"></div>
+        <div class="sheet glass" style="padding-bottom:30px">
+          <div class="grab"></div>
+          <div class="hd"><b>创建房间</b><span class="iconbtn" style="font-size:20px;color:var(--ink-2)"><i class="ti ti-x"></i></span></div>
+          <div class="lbl" style="margin-top:4px">房间名 <span class="num">0/30</span></div>
+          <div class="field">lily的房间</div>
+          <div class="lbl">场景 <span>影响助手和 @ai</span></div>
+          <div class="chips">
+            <span class="on">自由聊天</span><span>咖啡店点单</span><span>求职面试</span><span>机场入境</span><span>酒店入住</span><span>看医生</span><span>租房看房</span><span>问路</span><span>社交闲聊</span>
+          </div>
+          <div class="lbl">目标水平 <span>影响助手的难度</span></div>
+          <div class="seg"><span>A1</span><span class="on">A2</span><span>B1</span><span>B2</span><span>C1</span></div>
+          <div class="lbl">加入方式</div>
+          <div class="seg"><span class="on">凭房间号</span><span>需房主同意</span></div>
+          <div class="list" style="margin-top:12px">
+            <div class="rowi" style="min-height:52px"><div class="t"><b>人数上限</b></div><div class="stepper"><span><i class="ti ti-minus"></i></span><b>4</b><span><i class="ti ti-plus"></i></span></div></div>
+            <div class="rowi"><div class="t"><b>AI 公开回答</b><span>@ai 的回答所有人可见</span></div><span class="sw on"></span></div>
+            <div class="rowi"><div class="t"><b>允许语音消息</b><span>按住说话发语音,文字全员共享</span></div><span class="sw on"></span></div>
+          </div>
+          <div class="btn primary" style="margin-top:14px">创建</div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V1 创建房间(7 项)</b> — 房间名默认「某某的房间」(灰色占位,不填就用它);场景是可换行的选择片;目标水平与加入方式用分段控件;人数上限步进 2–8,默认 4;两个开关。站点没开语音时「允许语音消息」整行不出现。建好后房主在「成员与设置」里改同样的控件(人数不能低于当前成员数)。</p>
+    </div>
+
+    <!-- ============================== V2 room + docked assistant -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:339px">
+          <div class="sys">mia 加入了房间</div>
+          <div class="msg me"><div class="col"><div class="bub">I like dark chocolate.<br><span class="tag"><i class="ti ti-language"></i>助手润色</span></div></div></div>
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span>What snacks do you guys like?</div><div class="rx"><span>👍 2</span></div></div></div>
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Chips! Definitely chips.</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线 <i class="ti ti-copy" style="font-size:12px"></i></small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="dock" style="bottom:104px;height:235px">
+          <div class="grab"></div>
+          <div class="hd"><span class="ic"><i class="ti ti-language"></i></span><b>助手</b><small>仅你可见</small><span class="sp"></span><span class="iconbtn"><i class="ti ti-chevron-down"></i></span><span class="iconbtn"><i class="ti ti-x"></i></span></div>
+          <div class="body">
+            <div class="ask">我最喜欢的零食是辣条</div>
+            <p class="zh">辣条可以说 spicy gluten strips;结合大家在聊零食,下面两种说法都自然:</p>
+            <div class="scard"><div class="t"><p class="en">My favorite snack is spicy gluten strips.</p></div><div class="acts"><p class="nt">最常用</p><span class="sbtn pri"><i class="ti ti-send"></i>发送</span><span class="sbtn gh">改一改</span></div></div>
+            <div class="scard"><div class="t"><p class="en">I'm really into spicy snacks, like latiao.</p></div><div class="acts"><p class="nt">更口语</p><span class="sbtn pri"><i class="ti ti-send"></i>发送</span><span class="sbtn gh">改一改</span></div></div>
+          </div>
+        </div>
+        <div class="composer glass">
+          <div class="act"><span class="dots"><i></i><i></i><i></i></span>bob 正在输入…</div>
+          <div class="rowc">
+            <span class="aibtn open"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-microphone"></i></span>
+            <span class="in asst"><span class="pill">问助手<i class="ti ti-x"></i></span><span class="grow">想说什么?中英混写也行</span></span>
+            <span class="kbtn send off"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V2 房间 · 助手停靠面板(中档 28%)</b> — 面板在输入条上方,不是弹层:没有遮罩,上面的聊天照常可见、可滚动、可点。入口是输入条最左的圆形按钮(打开时变浅蓝)。面板打开时输入框带「问助手 ×」胶囊,发出去的是私聊草稿;点 × 回到群聊。建议卡「发送」直发群里(带「助手润色」),「改一改」填回输入框。抓手可拖到 40% 或收成一行。</p>
+    </div>
+
+    <!-- ============================== V3 keyboard open, dock collapsed -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:403px">
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span>What snacks do you guys like?</div></div></div>
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Chips! Definitely chips.</div></div></div>
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span>Anyone tried latiao?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="dock rowmode" style="bottom:351px;height:52px;border-radius:16px 16px 0 0">
+          <div class="hd" style="height:52px"><span class="ic"><i class="ti ti-language"></i></span><span class="sum"><b style="font-size:13px">助手</b> · My favorite snack is spicy gluten strips.</span><span class="iconbtn"><i class="ti ti-chevron-up"></i></span><span class="iconbtn"><i class="ti ti-x"></i></span></div>
+        </div>
+        <div class="composer glass" style="bottom:291px;padding:8px">
+          <div class="rowc">
+            <span class="aibtn open"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-microphone"></i></span>
+            <span class="in focus"><span class="grow">My favorite snack is spicy gluten strips<span class="caret"></span></span></span>
+            <span class="kbtn send"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="kb">
+          <div class="sugg"><span>strips</span><span>strip</span><span>stripes</span></div>
+          <div class="r"><span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span></div>
+          <div class="r"><span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span><span>j</span><span>k</span><span>l</span></div>
+          <div class="r"><span class="w"><i class="ti ti-arrow-big-up"></i></span><span>z</span><span>x</span><span>c</span><span>v</span><span>b</span><span>n</span><span>m</span><span class="w"><i class="ti ti-backspace"></i></span></div>
+          <div class="r"><span class="w">123</span><span class="sp">space</span><span class="go">send</span></div>
+        </div>
+        <div class="homebar" style="background:#111318"></div>
+      </div>
+      <p class="frame-cap"><b>V3 键盘弹出 · 面板收成一行</b> — 点了「改一改」:句子进输入框、目标回到群聊、键盘弹出。面板自动收成 52px 的一行(只留最常用的那条建议),键盘收起后恢复原高度;聊天仍有三条消息可见。判定用 visualViewport 缩小 25% 以上,不支持时用"触屏 + 输入框聚焦"。</p>
+    </div>
+  </div>
+
+  <h2 class="group">语音消息</h2>
+  <div class="row">
+
+    <!-- ============================== V4 voice idle -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="sys">房主把场景改为「咖啡店点单」</div>
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span><div class="vrow"><span class="play"><i class="ti ti-player-play-filled"></i></span><span class="wave"><i style="--h:6px"></i><i style="--h:12px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:14px"></i><i style="--h:7px"></i><i style="--h:11px"></i><i style="--h:5px"></i><i style="--h:9px"></i></span><span class="dur">0:09</span></div><div class="vacts"><span><i class="ti ti-file-text"></i>转文字</span><span><i class="ti ti-language"></i>翻译</span></div></div></div></div>
+          <div class="msg me"><div class="col"><div class="bub"><div class="vrow"><span class="play"><i class="ti ti-player-play-filled"></i></span><span class="wave"><i style="--h:8px"></i><i style="--h:14px"></i><i style="--h:10px"></i><i style="--h:16px"></i><i style="--h:6px"></i><i style="--h:12px"></i></span><span class="dur">0:04</span></div><div class="vt">Can I get an iced latte, please?</div><div class="vacts"><span class="on"><i class="ti ti-file-text"></i>收起</span><span><i class="ti ti-language"></i>翻译</span></div></div></div></div>
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Sure! What size would you like?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i><span class="dot"></span></span>
+            <span class="kbtn"><i class="ti ti-keyboard"></i></span>
+            <span class="hold">按住 说话</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V4 语音 · 静止</b> — 与对话页同一个"按住 说话"长条(共享组件);左边是键盘/话筒切换。别人的语音默认只显示语音条 +「转文字」「翻译」;自己的语音默认展开转写,便于确认服务端听到了什么。助手入口上的琥珀点 = 面板关着时来了新建议。</p>
+    </div>
+
+    <!-- ============================== V5 recording -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Sure! What size would you like?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-keyboard"></i></span>
+            <span class="hold pressed">松开 发送</span>
+          </div>
+        </div>
+        <div class="ov"></div>
+        <div class="ovcard"><div class="bars"><i style="--h:16px"></i><i style="--h:28px"></i><i style="--h:32px"></i><i style="--h:22px"></i><i style="--h:14px"></i></div><div class="clock">0:07</div><p>手指上滑,取消发送</p></div>
+        <div class="zones">
+          <div class="zone cancel"><span class="c"><i class="ti ti-x"></i></span><span class="l">取消</span></div>
+          <div class="zone text"><span class="c txt">文</span><span class="l">转文字</span></div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V5 录音中</b> — 浮层卡片显示计时(最长 60 秒,结束前自动发送);长条变浅蓝"松开 发送"。同时向房间广播"正在说话"。浮层卡片不模糊(三层玻璃已占满)。</p>
+    </div>
+
+    <!-- ============================== V6 slide to cancel -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Sure! What size would you like?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-keyboard"></i></span>
+            <span class="hold cancel">松开取消</span>
+          </div>
+        </div>
+        <div class="ov"></div>
+        <div class="ovcard red"><div class="bars"><i style="--h:12px"></i><i style="--h:20px"></i><i style="--h:26px"></i><i style="--h:18px"></i><i style="--h:10px"></i></div><div class="clock">0:09</div><p>松开手指,取消发送</p></div>
+        <div class="zones">
+          <div class="zone cancel on"><span class="c"><i class="ti ti-x"></i></span><span class="l">取消</span></div>
+          <div class="zone text"><span class="c txt">文</span><span class="l">转文字</span></div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V6 上滑到左侧 · 取消</b> — 红色只用于取消落点(危险/退出语义);松手丢弃录音,不上传、不计额度。进入落点时轻震(支持的设备)。</p>
+    </div>
+
+    <!-- ============================== V7 slide to text -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Sure! What size would you like?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-keyboard"></i></span>
+            <span class="hold pressed">松开转文字</span>
+          </div>
+        </div>
+        <div class="ov"></div>
+        <div class="ovcard"><div class="bars"><i style="--h:14px"></i><i style="--h:24px"></i><i style="--h:30px"></i><i style="--h:20px"></i><i style="--h:12px"></i></div><div class="clock">0:05</div><p>松开 转文字</p></div>
+        <div class="zones">
+          <div class="zone cancel"><span class="c"><i class="ti ti-x"></i></span><span class="l">取消</span></div>
+          <div class="zone text on"><span class="c txt">文</span><span class="l">转文字</span></div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V7 上滑到右侧 · 转文字</b> — 松手后只把识别结果填进输入框并切回键盘,可以先改再发;不发语音、不存音频(与通话的转文字一致)。助手面板打开时,松手发送也会先转文字再作为助手草稿(不把练习中的语音发进群里)。</p>
+    </div>
+
+    <!-- ============================== V8 voice bubble expanded -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span><div class="vrow"><span class="play"><i class="ti ti-player-pause-filled"></i></span><span class="wave"><i style="--h:6px"></i><i style="--h:12px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:14px"></i><i style="--h:7px"></i><i style="--h:11px"></i><i style="--h:5px"></i><i style="--h:9px"></i></span><span class="dur">0:03 / 0:09</span></div>
+            <div class="vt">I tried the new noodle place near the station yesterday. The broth was amazing!</div>
+            <div class="vtr"><em>译</em><span>我昨天去了车站附近新开的面馆,汤太好喝了!</span></div>
+            <div class="vacts"><span class="on"><i class="ti ti-file-text"></i>收起</span><span class="on"><i class="ti ti-language"></i>收起翻译</span></div></div>
+            <div class="rx"><span class="mine">😮 1</span></div></div></div>
+          <div class="msg other"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span><div class="vrow"><span class="play"><i class="ti ti-player-play-filled"></i></span><span class="wave"><i style="--h:9px"></i><i style="--h:14px"></i><i style="--h:6px"></i><i style="--h:12px"></i><i style="--h:8px"></i></span><span class="dur">0:02</span></div>
+            <div class="vstate"><i class="ti ti-loader-2"></i>正在转文字…</div></div></div></div>
+          <div class="msg me"><div class="col"><div class="bub"><div class="vrow"><span class="play"><i class="ti ti-player-play-filled"></i></span><span class="wave"><i style="--h:8px"></i><i style="--h:14px"></i><i style="--h:10px"></i><i style="--h:16px"></i><i style="--h:6px"></i></span><span class="dur">0:05</span></div>
+            <div class="vstate">转写失败 · <span class="retry">重试</span></div></div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-keyboard"></i></span>
+            <span class="hold">按住 说话</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V8 语音气泡 · 转写与翻译展开</b> — 转写在发送时由服务端做一次,翻译第一次有人点时做一次,结果全房共享(不按收听者重复调用)。译文 13px 次要色、前缀「译」小标。其他状态:正在转文字、没听清、转写失败(只有发送者看到「重试」,最多 3 次)、音频已清理(播放键禁用)。从不自动播放。</p>
+    </div>
+
+    <!-- ============================== V9 settings toggle -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content" style="padding-top:103px">
+          <div class="me-head"><span class="big">L</span><div><b>lily</b><span>黄金 I · 对齐 B1</span></div></div>
+          <div class="h-sec">学习</div>
+          <div class="list">
+            <div class="rowi"><span class="chip blue"><i class="ti ti-chart-line"></i></span><div class="t"><b>学习进度</b></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+            <div class="rowi"><span class="chip gray"><i class="ti ti-cards"></i></span><div class="t"><b>词汇本</b></div><span class="v num">128<i class="ti ti-chevron-right"></i></span></div>
+          </div>
+          <div class="h-sec">语音</div>
+          <div class="list">
+            <div class="rowi"><span class="chip gray"><i class="ti ti-player-track-next"></i></span><div class="t"><b>朗读语速</b><span>作用于朗读、自动朗读、语音消息回放和跟读页的先听范读。</span></div><span class="v num">1×<i class="ti ti-chevron-right"></i></span></div>
+            <div class="rowi"><span class="chip blue"><i class="ti ti-file-text"></i></span><div class="t"><b>联机语音自动转文字</b><span>收到语音消息时自动显示文字和翻译</span></div><span class="sw"></span></div>
+          </div>
+          <div class="h-sec">通用</div>
+          <div class="list">
+            <div class="rowi"><span class="chip gray"><i class="ti ti-language"></i></span><div class="t"><b>界面语言</b></div><span class="v">简体中文<i class="ti ti-chevron-right"></i></span></div>
+          </div>
+        </div></div>
+        <header class="topbar rest"><div class="bar"><div class="title" style="padding-left:12px">我的</div></div></header>
+        <nav class="tabbar glass"><ul><li><i class="ti ti-microphone"></i>练习</li><li><i class="ti ti-messages"></i>对话</li><li><i class="ti ti-users-group"></i>联机</li><li class="on"><i class="ti ti-user"></i>我的</li></ul></nav>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V9 设置 · 联机语音自动转文字</b> — 「我的 → 语音」新增一行,默认关(存在本设备)。打开后,收到的语音自动展开转写与译文(译文不存在时自动请求一次,仍是全房共享的那一份);关闭时每条语音上都有手动「转文字」「翻译」。联机功能关闭时这一行不显示。</p>
+    </div>
+  </div>
+
+  <h2 class="group">加量功能</h2>
+  <div class="row">
+
+    <!-- ============================== V10 summary -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content" style="padding-top:111px;padding-bottom:40px">
+          <div class="card ovw">
+            <div class="meta"><span class="badge gray num">45 分钟</span><span class="badge gray num">4 人</span><span class="badge gray num">86 条消息</span><span class="badge blue">咖啡店点单 · A2</span></div>
+            <p>大家轮流当店员和顾客,点了咖啡和甜点,还聊到了周末去哪家店。你用 latte、iced、to go 都很自然,问尺寸的句子还可以更完整。</p>
+          </div>
+          <div class="h-sec">可以说得更好 <span class="badge gray">仅你可见</span></div>
+          <div class="list">
+            <div class="fix"><p class="o">I want a ice latte big.</p><p class="b"><i class="ti ti-arrow-right"></i>Could I get a large iced latte, please?</p><p class="n">点单用 Could I get…;iced 表示"加冰的";尺寸放在名词前。</p></div>
+            <div class="fix"><p class="o">How much is it all?</p><p class="b"><i class="ti ti-arrow-right"></i>How much is that altogether?</p><p class="n">altogether 是结账时最常用的说法。</p></div>
+          </div>
+          <div class="h-sec">新词 <span class="muted num" style="font-weight:500">3</span></div>
+          <div class="list">
+            <div class="word"><div class="t"><b>to go<small>外带</small></b><span>Can I get it to go?</span></div><span class="addv"><i class="ti ti-book-2"></i></span></div>
+            <div class="word"><div class="t"><b>oat milk<small>燕麦奶</small></b><span>Could you make it with oat milk?</span></div><span class="addv done"><i class="ti ti-check"></i></span></div>
+            <div class="word"><div class="t"><b>altogether<small>总共</small></b><span>That's eight dollars altogether.</span></div><span class="addv"><i class="ti ti-book-2"></i></span></div>
+          </div>
+          <div class="btn ghost" style="margin-top:18px">回看聊天记录</div>
+        </div></div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">学习小结<small>美食角 · 已结束</small></div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V10 房间学习小结</b> — 房间结束后生成一次(每房一次 LLM,有全站上限)。概述与生词全员可见;"可以说得更好"只给本人(原句由服务端按消息序号取,不让模型编)。生词一键加入词汇本(青色 = 词汇;已加入变灰勾)。批改不用红绿,只用墨色与次要色。</p>
+    </div>
+
+    <!-- ============================== V11 invite sheet -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:82px">
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span>Let's invite Mia too!</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass"><div class="rowc"><span class="aibtn"><i class="ti ti-language"></i></span><span class="kbtn"><i class="ti ti-microphone"></i></span><span class="in"><span class="grow">说点什么</span><span class="atk"><i class="ti ti-at"></i></span></span><span class="kbtn send off"><i class="ti ti-send"></i></span></div></div>
+        <div class="scrim"></div>
+        <div class="sheet glass">
+          <div class="grab"></div>
+          <div class="hd"><div><b>邀请朋友</b><small class="num">美食角 · 3/4 人 · 咖啡店点单</small></div><span class="iconbtn" style="font-size:20px;color:var(--ink-2)"><i class="ti ti-x"></i></span></div>
+          <div class="qrbox"><svg id="qr" width="184" height="184" viewBox="0 0 29 29" role="img" aria-label="邀请二维码(示意)"></svg></div>
+          <div class="linkrow"><span class="field">enjoy.example.com/rooms/invite/k2Hq…</span><span class="sbtn gh"><i class="ti ti-copy"></i>复制</span></div>
+          <div class="btn primary" style="margin-top:10px"><i class="ti ti-share"></i>分享链接</div>
+          <div class="btn ghost" style="margin-top:8px">重置链接</div>
+          <p class="hint" style="text-align:center;margin-top:10px">打开链接直接进入房间,不需要房主再同意;重置后旧链接立即失效。</p>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V11 邀请链接与二维码</b> — 顶栏「邀请」进入。二维码在本地生成(不经第三方;图中为示意图案)。邀请链接绕过审批,所以「需房主同意」的房间只有房主能取链接;房主可重置。链接 token 与票据同级保密,不进日志。</p>
+    </div>
+
+    <!-- ============================== V12 reactions + quote -->
+    <div class="spec">
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:126px">
+          <div class="msg me"><div class="col"><div class="bub"><span class="qb"><b>bob</b>What snacks do you guys like?</span>I like dark chocolate.<br><span class="tag"><i class="ti ti-language"></i>助手润色</span></div><div class="rx"><span>👍 2</span><span>❤️ 1</span></div></div></div>
+          <div class="msg other sel"><span class="ava">L</span><div class="col"><div class="bub"><span class="name">lily</span>Have you tried the matcha one?</div></div></div>
+          <div class="actpop">
+            <div class="emo"><span class="on">👍</span><span>❤️</span><span>😂</span><span>😮</span><span>👏</span><span>🙏</span></div>
+            <div class="tools"><span><i class="ti ti-arrow-back-up"></i>引用</span><span><i class="ti ti-language"></i>译</span><span><i class="ti ti-volume"></i>朗读</span><span><i class="ti ti-flag"></i>举报</span></div>
+          </div>
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span>Not yet. Is it sweet?</div><div class="trans">还没有。它甜吗?</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="composer glass">
+          <div class="qbar"><span class="t">回复 <b>lily</b>:Have you tried the matcha one?</span><span class="x"><i class="ti ti-x"></i></span></div>
+          <div class="act"><i class="ti ti-microphone mic"></i>bob 正在说话…</div>
+          <div class="rowc">
+            <span class="aibtn"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-microphone"></i></span>
+            <span class="in focus"><span class="grow">Yes! It's a bit bitter<span class="caret"></span></span></span>
+            <span class="kbtn send"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V12 表情回应 · 引用回复 · 正在说话</b> — 点一条消息出现操作行:6 个固定表情(唯一用 emoji 的地方)+ 引用 / 译 / 朗读 / 举报,各 44px 命中区。自己点过的回应片为浅蓝。引用后输入条上方出现"回复 lily:…",发出的气泡内带引用块。「译」「朗读」与对话页一致(按收听者各自请求);bob 的消息下就是展开的译文。</p>
+    </div>
+  </div>
+
+  <h2 class="group">深色</h2>
+  <div class="row">
+
+    <!-- ============================== V13 dark -->
+    <div class="spec">
+      <div class="phone dark">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="msgs" style="bottom:339px">
+          <div class="msg other"><span class="ava">B</span><div class="col"><div class="bub"><span class="name">bob</span><div class="vrow"><span class="play"><i class="ti ti-player-play-filled"></i></span><span class="wave"><i style="--h:6px"></i><i style="--h:12px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:14px"></i><i style="--h:7px"></i></span><span class="dur">0:06</span></div><div class="vacts"><span><i class="ti ti-file-text"></i>转文字</span><span><i class="ti ti-language"></i>翻译</span></div></div><div class="rx"><span class="mine">👏 2</span></div></div></div>
+          <div class="msg me"><div class="col"><div class="bub">Me too! Let's order together.</div></div></div>
+        </div>
+        <header class="topbar glass"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left"></i></span><div class="title">美食角<small class="num">房间 482 913 · 3 人在线</small></div><span class="iconbtn"><i class="ti ti-user-plus"></i></span><span class="iconbtn"><i class="ti ti-adjustments-horizontal"></i></span></div></header>
+        <div class="dock" style="bottom:104px;height:235px">
+          <div class="grab"></div>
+          <div class="hd"><span class="ic"><i class="ti ti-language"></i></span><b>助手</b><small>仅你可见</small><span class="sp"></span><span class="iconbtn"><i class="ti ti-chevron-down"></i></span><span class="iconbtn"><i class="ti ti-x"></i></span></div>
+          <div class="body">
+            <div class="ask">我要大杯,少冰</div>
+            <div class="gloss"><span>少冰 → light ice</span></div>
+            <div class="scard"><div class="t"><p class="en">A large one with light ice, please.</p></div><div class="acts"><p class="nt">最常用</p><span class="sbtn pri"><i class="ti ti-send"></i>发送</span><span class="sbtn gh">改一改</span></div></div>
+            <div class="scard"><div class="t"><p class="en">Could I get a large, easy on the ice?</p></div><div class="acts"><p class="nt">更口语</p><span class="sbtn pri"><i class="ti ti-send"></i>发送</span><span class="sbtn gh">改一改</span></div></div>
+          </div>
+        </div>
+        <div class="composer glass">
+          <div class="act"><span class="dots"><i></i><i></i><i></i></span>lily 正在输入…</div>
+          <div class="rowc">
+            <span class="aibtn open"><i class="ti ti-language"></i></span>
+            <span class="kbtn"><i class="ti ti-microphone"></i></span>
+            <span class="in asst"><span class="pill">问助手<i class="ti ti-x"></i></span><span class="grow">想说什么?中英混写也行</span></span>
+            <span class="kbtn send off"><i class="ti ti-send"></i></span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>V13 深色 · 房间 + 停靠面板</b> — 深色令牌:页面 #0F1013、面板 surface #17191E、蓝 #8FB0FF(蓝底上的字为 #0F1013)、琥珀 #F2B056;面板阴影加深以与底色分层。玻璃在深色下为 rgba(23,25,30,.66)。</p>
+    </div>
+  </div>
+</div>
+<script>
+// Illustrative QR-like pattern for frame V11 only (the app renders a real code locally with qrcode-generator).
+(function () {
+  var svg = document.getElementById("qr");
+  if (!svg) return;
+  var n = 29, d = "", seed = 7;
+  function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function finder(x, y) { return x >= 0 && y >= 0 && x < 7 && y < 7; }
+  function inFinder(x, y) { return finder(x, y) || finder(x - (n - 7), y) || finder(x, y - (n - 7)); }
+  function finderDark(x, y) {
+    var fx = x >= n - 7 ? x - (n - 7) : x, fy = y >= n - 7 ? y - (n - 7) : y;
+    var e = Math.min(fx, fy, 6 - fx, 6 - fy);
+    return e === 0 || e >= 2;
+  }
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+    var dark = inFinder(x, y) ? finderDark(x, y) : (x === 6 || y === 6) ? (x + y) % 2 === 0 : rnd() > 0.52;
+    if (inFinder(x - 1, y) && !inFinder(x, y) && x === 7) dark = false;
+    if (dark) d += "M" + x + " " + y + "h1v1h-1z";
+  }
+  var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  p.setAttribute("d", d);
+  p.setAttribute("fill", "currentColor");
+  p.setAttribute("shape-rendering", "crispEdges");
+  svg.appendChild(p);
+})();
+</script>
+</body>
+</html>
