@@ -98,6 +98,10 @@ def pair_violations(changes: dict, current: Settings) -> list[str]:
     return out
 
 
+# After a rank rules publish these six settings are read-only; the admin UI shows the same hint in Chinese.
+MANAGED_HINT = "Managed by the published rank rules; change it in the rank rules editor (/rank/rules)"
+
+
 async def rank_rules_managed(session) -> bool:
     return bool(await session.scalar(select(RankRuleSet.id).where(RankRuleSet.status == "published").limit(1)))
 
@@ -138,7 +142,7 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
         if spec.env_only:
             raise SettingsError(400, "Setting is read-only", fields={key: "Setting is read-only"})
         if spec.managed_by == "rank_rules" and managed:
-            raise SettingsError(409, "Managed by rank rules", fields={key: "Managed by rank rules"})
+            raise SettingsError(409, "Managed by rank rules", fields={key: MANAGED_HINT})
         if spec.secret and changes[key] is not None and box is None:
             raise SettingsError(409, "Encryption key not configured")
     current_values = await _current_overrides(session, app, box)

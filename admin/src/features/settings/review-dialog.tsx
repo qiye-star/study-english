@@ -7,7 +7,7 @@ import { SpinnerIcon } from "../../components/icons";
 import { errorText } from "../../hooks/use-async";
 import { S as Shell } from "../../strings";
 import { saveSettings, type SaveResult, type SettingItem } from "./api";
-import { confirmPhrase, dangerOf, diffValues, type Draft } from "./model";
+import { confirmPhrase, dangerOf, diffValues, managedErrorText, type Draft } from "./model";
 import { S } from "./strings";
 
 /**
@@ -68,7 +68,10 @@ export function ReviewDialog({
       onSaved(result);
     } catch (e) {
       const details = e instanceof ApiError ? e.details : undefined;
-      if (e instanceof ApiError && e.status === 409 && details && Array.isArray(details.pairs)) {
+      const managed = managedErrorText(e);
+      if (managed) {
+        setError(managed);
+      } else if (e instanceof ApiError && e.status === 409 && details && Array.isArray(details.pairs)) {
         const hosts = (details.hosts ?? {}) as Record<string, string>;
         setPairs((details.pairs as string[]).map((key) => ({ key, host: hosts[key] ?? "" })));
       } else if (e instanceof ApiError && e.status === 409 && details && typeof details.confirm === "string") {
