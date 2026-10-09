@@ -63,9 +63,9 @@ class ImportApplyIn(BaseModel):
 
 
 @router.get("/settings")
-async def list_settings(request: Request, _: AdminContext = Depends(require("viewer")),
+async def list_settings(request: Request, ctx: AdminContext = Depends(require("viewer")),
                         session: AsyncSession = Depends(get_session)):
-    return await svc.list_settings(session, request.app)
+    return await svc.list_settings(session, request.app, role=ctx.role)
 
 
 @router.patch("/settings")

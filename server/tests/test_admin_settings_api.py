@@ -169,3 +169,20 @@ async def test_probe_never_sends_the_saved_key_to_an_unsaved_host_without_step_u
     r = await client.post("/api/admin/probes/azure", headers=h,
                           json={"values": {"azure_speech_region": "westus"}, "confirm_pairs": ["azure_speech_region"]})
     assert r.status_code == 200 and calls[-1][:2] == ("azure", "westus")
+
+
+async def test_lower_roles_do_not_see_admin_env_values(app, client):
+    """Review security m3: the emergency username (also the lockout key) and the IP allowlist are superadmin-only."""
+    app.state.base_settings = app.state.base_settings.model_copy(update={"admin_ip_allowlist": "203.0.113.0/24"})
+    for role in ("viewer", "operator"):
+        client.cookies.clear()
+        await login_as(app, client, role)
+        items = {i["key"]: i for i in (await client.get("/api/admin/settings")).json()["items"]}
+        for key in ("admin_username", "admin_ip_allowlist", "admin_cookie_secure"):
+            assert items[key]["env_value"] is None and items[key]["effective"] is None, (role, key)
+            assert items[key].get("masked") is True
+        assert "root" not in json.dumps(items["admin_username"]) and "203.0.113" not in json.dumps(items)
+    client.cookies.clear()
+    await login_as(app, client, "superadmin")
+    items = {i["key"]: i for i in (await client.get("/api/admin/settings")).json()["items"]}
+    assert items["admin_username"]["env_value"] == "root"

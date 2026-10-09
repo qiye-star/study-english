@@ -274,7 +274,9 @@ def _decrypt(box, token: str) -> str | None:
         return None
 
 
-async def list_settings(session, app) -> dict:
+async def list_settings(session, app, *, role: str = "superadmin") -> dict:
+    """`role` below superadmin gets the env-only admin values (emergency username = lockout key, IP allowlist, ...)
+    masked (review security m3)."""
     await sessions.ensure_secret(app)
     base: Settings = app.state.base_settings
     current: Settings = app.state.settings
@@ -319,6 +321,9 @@ async def list_settings(session, app) -> dict:
             item["pending"] = _jsonable(hub.pending_restart[key]) if key in hub.pending_restart else None
             item["out_of_range"] = isinstance(env_value, (int, float)) and not isinstance(env_value, bool) and (
                 (lo is not None and env_value < lo) or (hi is not None and env_value > hi))
+            if spec.env_only and spec.group == "admin" and role != "superadmin":
+                item.update(default=None, env_value=None, override=None, effective=None, pending=None,
+                            out_of_range=False, masked=True)
         items.append(item)
     revisions = await read_revisions(session)
     return {
