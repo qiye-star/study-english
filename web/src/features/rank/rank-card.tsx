@@ -1,10 +1,11 @@
 import { ChevronRightIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import { cn } from "~/lib/cn";
-import { fetchRankConfig, fetchRankMe, type RankMe } from "./rank-api";
+import { fetchRankConfig, type RankMe } from "./rank-api";
+import { loadRankMe } from "./rank-me";
 import { TierBadge } from "./tier-badge";
 import { divisionLabel, pointsToGate, progressRatio } from "./tiers";
 
@@ -13,10 +14,12 @@ export function RankCard({ className }: { className?: string }) {
   const { api } = useAuth();
   const { t } = useTranslation();
   const [me, setMe] = useState<RankMe | null>(null);
+  const tRef = useRef(t);
+  tRef.current = t;
   useEffect(() => {
     const ctrl = new AbortController();
     fetchRankConfig(api, ctrl.signal)
-      .then((c) => (c.enabled ? fetchRankMe(api, undefined, ctrl.signal) : null))
+      .then((c) => (c.enabled ? loadRankMe(api, tRef.current) : null))
       .then((value) => { if (!ctrl.signal.aborted) setMe(value); }, (): void => undefined);
     return () => ctrl.abort();
   }, [api]);
