@@ -76,6 +76,22 @@ async def test_owner_leaving_hands_over(store):
     assert (await store.room(room.id)).owner_id == B
 
 
+async def test_owner_leaving_an_empty_room_loses_owner_powers(store):
+    """Review #12: the ex-owner is not a member any more; the next joiner inherits the room."""
+    room = await store.create(A, "", NOW)
+    assert await store.leave(room.id, A, NOW) is None
+    for call in (store.update(room.id, A, locked=True), store.kick(room.id, A, B, NOW), store.close_by_owner(room.id, A, NOW)):
+        with pytest.raises(RoomError) as e:
+            await call
+        assert e.value.code == "forbidden"
+    await store.join(room.code, B, NOW)
+    assert [(m.user_id, m.role) for m in await store.members(room.id)] == [(B, "owner")]
+    assert (await store.room(room.id)).owner_id == B
+    await store.update(room.id, B, locked=False)
+    await store.join(room.code, A, NOW)
+    assert {m.user_id: m.role for m in await store.members(room.id)} == {A: "member", B: "owner"}
+
+
 async def test_seq_replay_filters_private_and_truncates(store):
     room = await store.create(A, "", NOW)
     await store.join(room.code, B, NOW)

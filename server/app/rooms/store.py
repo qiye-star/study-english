@@ -96,10 +96,15 @@ class RoomStore:
                                                                                       *_ACTIVE))
             if count >= self.limits.max_members:
                 raise RoomError("full")
+            has_owner = await s.scalar(select(RoomMember.id).where(RoomMember.room_id == room.id,
+                                                                   RoomMember.role == "owner", *_ACTIVE))
+            role = "member" if has_owner is not None else "owner"  # the owner left an empty room: inherit it
             if member is None:
-                s.add(RoomMember(room_id=room.id, user_id=user_id, role="member", joined_at=now, kicked=False))
+                s.add(RoomMember(room_id=room.id, user_id=user_id, role=role, joined_at=now, kicked=False))
             else:
-                member.left_at, member.joined_at, member.role = None, now, "member"
+                member.left_at, member.joined_at, member.role = None, now, role
+            if role == "owner":
+                room.owner_id = user_id
             room.last_active_at = now
             await s.commit()
             return room, True
@@ -166,6 +171,10 @@ class RoomStore:
         if room is None or room.status != "open":
             raise RoomError("not_found")
         if room.owner_id != owner_id:
+            raise RoomError("forbidden")
+        owner = await s.scalar(select(RoomMember.id).where(  # an owner who left keeps owner_id but no powers
+            RoomMember.room_id == room_id, RoomMember.user_id == owner_id, RoomMember.role == "owner", *_ACTIVE))
+        if owner is None:
             raise RoomError("forbidden")
         return room
 
