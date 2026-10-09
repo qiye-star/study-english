@@ -16,7 +16,7 @@ export interface RoomMessage {
   hidden?: boolean;
 }
 export interface RoomInfo {
-  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; ownerId: number;
+  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; /** null = 房主已删除(房间只读保留) */ ownerId: number | null;
   myRole: "owner" | "member" | null; memberCount: number; onlineCount: number; createdAt: string; closedAt: string | null;
 }
 export interface RoomMemberInfo { userId: number; name: string; role: "owner" | "member"; online: boolean }

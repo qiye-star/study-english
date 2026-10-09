@@ -83,3 +83,11 @@ it("gives viewers a read-only view", async () => {
   expect(screen.queryByRole("button", { name: "关闭房间" })).toBeNull();
   expect(within(screen.getByTestId("member-22222222")).queryByRole("button", { name: "移出" })).toBeNull();
 });
+
+it("shows a deleted owner's kept room as read-only with 已删除用户", async () => {
+  vi.mocked(api.getRoom).mockResolvedValue(
+    roomFixture({ status: "closed", code: null, closeReason: "admin", owner: { id: null, name: null }, members: [] }),
+  );
+  renderPage();
+  expect(await screen.findByText(/已删除用户/)).toBeInTheDocument();
+});

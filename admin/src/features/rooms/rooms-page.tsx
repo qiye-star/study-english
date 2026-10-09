@@ -39,7 +39,7 @@ export function RoomsPage() {
       ),
     },
     { key: "code", header: L.code, render: (r) => <span className="num text-fg-2">{r.code ?? r.lastCode}</span> },
-    { key: "owner", header: L.owner, render: (r) => r.owner.name ?? S.timeline.unknownUser },
+    { key: "owner", header: L.owner, render: (r) => (r.owner.id === null ? S.timeline.deletedOwner : (r.owner.name ?? S.timeline.unknownUser)) },
     { key: "members", header: L.members, numeric: true, render: (r) => `${r.memberCount} / ${r.onlineCount}` },
     { key: "messages", header: L.messages, numeric: true, render: (r) => r.messageCount },
     { key: "active", header: L.lastActive, render: (r) => <span className="text-fg-2">{formatRelative(r.lastActiveAt)}</span> },

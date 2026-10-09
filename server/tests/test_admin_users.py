@@ -92,6 +92,10 @@ async def test_delete_room_owner_keeps_shared_rooms_and_their_messages(app, clie
     shared = (await client.post("/api/rooms", headers=ha, json={"topic": "美食"})).json()["room"]
     await client.post("/api/rooms/join", headers=hb, json={"code": shared["code"]})
     solo = (await client.post("/api/rooms", headers=ha, json={"topic": "独自"})).json()["room"]
+    async with app.state.sessionmaker() as s:
+        s.add(RoomMessage(room_id=solo["id"], seq=1, lane="public", sender_kind="user", sender_id=alice, kind="text",
+                          text="only me", assisted=False))
+        await s.commit()
     h = await login_as(app, client, "superadmin")
     await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
     r = await client.request("DELETE", f"/api/admin/users/{alice}", headers=h,
@@ -103,7 +107,16 @@ async def test_delete_room_owner_keeps_shared_rooms_and_their_messages(app, clie
         assert await s.scalar(select(func.count()).select_from(RoomMessage)
                               .where(RoomMessage.room_id == shared["id"])) >= 1  # kept (R-6)
         assert await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.user_id == alice)) == 0
-        assert await s.get(Room, solo["id"]) is None  # nobody else ever joined: nothing of anyone else to keep
+        # owner ruling: rooms and their messages are kept forever; a room nobody else joined stays as a closed,
+        # read-only room without owner (shown as 已删除用户)
+        kept = await s.get(Room, solo["id"])
+        assert kept is not None and kept.owner_id is None and kept.status == "closed" and kept.code is None
+        assert await s.scalar(select(func.count()).select_from(RoomMessage).where(RoomMessage.room_id == solo["id"])) == 1
+        assert await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == solo["id"])) == 0
+    detail = (await client.get(f"/api/admin/rooms/{solo['id']}")).json()
+    assert detail["owner"] == {"id": None, "name": None} and detail["status"] == "closed"
+    listed = (await client.get("/api/admin/rooms", params={"status": "closed"})).json()
+    assert solo["id"] in str(listed)
 
 
 async def test_viewer_cannot_moderate(app, client):

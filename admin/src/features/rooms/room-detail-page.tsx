@@ -147,7 +147,7 @@ export function RoomDetailPage() {
             />
             <span className="num text-fg-2">{S.list.code} {r.code ?? r.lastCode}</span>
             <span className="text-fg-2">
-              {D.owner} {r.owner.name ?? T.unknownUser}
+              {D.owner} {r.owner.id === null ? T.deletedOwner : (r.owner.name ?? T.unknownUser)}
             </span>
             <span className="num text-fg-2">
               {D.created} {formatDateTime(r.createdAt)}

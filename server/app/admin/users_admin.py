@@ -16,7 +16,7 @@ from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
     AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile, Room,
-    RoomMember, RoomMessage, RoomReport, SpeechToken, User, UserAchievement, UserQuotaOverride, VocabularyItem,
+    RoomMember, RoomReport, SpeechToken, User, UserAchievement, UserQuotaOverride, VocabularyItem,
     XpEvent, iso_utc,
 )
 from app.services import recordings
@@ -90,12 +90,12 @@ async def reset_password(session, actor: Actor, user_id: int) -> str:
 
 
 async def _release_rooms(session, user_id: int, now: datetime) -> tuple[list[str], int, int]:
-    """Rooms owned by the user (rooms.owner_id is ON DELETE RESTRICT). Open ones close with reason "admin".
-    Ownership passes to the earliest other member, so shared rooms and every message in them are kept (R-6);
-    a room nobody else ever joined holds only the user's own content and is deleted with the user.
-    Returns (rooms closed now, transferred, removed)."""
+    """Rooms owned by the user. Open ones close with reason "admin". Ownership passes to the earliest other member;
+    a room nobody else ever joined is kept as a closed, read-only room without owner (owner_id NULL, shown as
+    已删除用户). Owner ruling: rooms and messages are never deleted with a user (R-6).
+    Returns (rooms closed now, transferred, orphaned)."""
     closed: list[str] = []
-    transferred = removed = 0
+    transferred = orphaned = 0
     for room in (await session.scalars(select(Room).where(Room.owner_id == user_id))).all():
         if room.status == "open":
             room.status, room.code, room.closed_at, room.close_reason = "closed", None, now, "admin"
@@ -110,13 +110,10 @@ async def _release_rooms(session, user_id: int, now: datetime) -> tuple[list[str
                 heir.role = "owner"
             transferred += 1
         else:
-            await session.execute(delete(RoomReport).where(RoomReport.room_id == room.id))
-            await session.execute(delete(RoomMessage).where(RoomMessage.room_id == room.id))
-            await session.execute(delete(RoomMember).where(RoomMember.room_id == room.id))
-            await session.delete(room)
-            removed += 1
+            room.owner_id = None
+            orphaned += 1
     await session.flush()
-    return closed, transferred, removed
+    return closed, transferred, orphaned
 
 
 async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_username: str, reason: str,
@@ -127,7 +124,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     if confirm_username.strip().lower() != user.username:
         raise UserAdminError(409, "Confirmation required")
     recording_bytes = await recordings.used_bytes(session, user_id)
-    closed, transferred, removed = await _release_rooms(session, user_id, now)
+    closed, transferred, orphaned = await _release_rooms(session, user_id, now)
     conversations = select(Conversation.id).where(Conversation.user_id == user_id)
     await session.execute(delete(Message).where(Message.conversation_id.in_(conversations)))
     await session.execute(update(Message).where(Message.assessment_id.in_(
@@ -142,7 +139,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await audit.record(session, actor, "user.delete", target_type="user", target_id=user_id,
                        summary=user.username,
                        after={"deleted": True, "recordings_bytes": recording_bytes,
-                              "rooms_transferred": transferred, "rooms_removed": removed},
+                              "rooms_transferred": transferred, "rooms_orphaned": orphaned},
                        reason=reason)
     await session.commit()
     _remove_recordings(settings, user_id)
