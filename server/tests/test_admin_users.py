@@ -25,8 +25,7 @@ async def test_disable_blocks_login_tokens_and_enable_restores(app, client):
     async with app.state.sessionmaker() as s:
         assert await s.scalar(select(func.count()).select_from(SpeechToken).where(SpeechToken.user_id == uid)) == 0
     r = await client.post("/api/sessions", json={"provider": "password", "username": "alice", "password": "password123"})
-    assert r.status_code == 200  # can log in, but every authed call is 403
-    assert (await client.get("/api/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"})).status_code == 403
+    assert r.status_code == 403 and r.json() == {"error": "Account disabled"}  # no new token (review M1)
     listing = (await client.get("/api/admin/users", params={"status": "disabled"})).json()
     assert [u["id"] for u in listing["users"]] == [uid] and listing["users"][0]["disabled_at"]
     assert (await client.post(f"/api/admin/users/{uid}/enable", headers=h, json={"reason": "申诉通过"})).status_code == 200

@@ -13,4 +13,8 @@ describe("translateServerError", () => {
     expect(translateServerError(t, new ApiError(503, "Maintenance"))).toBe("The service is under maintenance. Please try again later.");
     expect(i18n.t("web.errors.maintenance", { lng: "zh-CN" })).toBe("服务维护中,请稍后再试。");
   });
+  it("explains a disabled account in both languages", () => {
+    expect(translateServerError(t, new ApiError(403, "Account disabled"))).toBe("This account has been disabled.");
+    expect(i18n.t("web.errors.accountDisabled", { lng: "zh-CN" })).toBe("该账号已被停用。");
+  });
 });

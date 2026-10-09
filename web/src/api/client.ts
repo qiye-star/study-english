@@ -90,7 +90,12 @@ export class ApiClient {
     }
     try {
       if (response.status === 401 && token) this.options.onUnauthorized?.();
-      if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+      if (!response.ok) {
+        const message = await errorMessage(response);
+        // An account disabled by an admin: the token is useless, so sign out like a 401 (logging in again shows why).
+        if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.();
+        throw new ApiError(response.status, message);
+      }
       if (as === "raw") return response as unknown as T;
       if (as === "blob") return (await response.blob()) as unknown as T;
       const text = await response.text();

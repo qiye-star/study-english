@@ -17,7 +17,7 @@
       "passwordLength": "Password must be 8–128 characters."
     },
     "errors": {
-      "invalidLogin": "Invalid username or password.", "usernameTaken": "This username is already taken.",
+      "accountDisabled": "This account has been disabled.", "invalidLogin": "Invalid username or password.", "usernameTaken": "This username is already taken.",
       "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
       "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",
       "timeout": "The request timed out.", "aborted": "The request was cancelled.", "unknown": "Something went wrong.",
