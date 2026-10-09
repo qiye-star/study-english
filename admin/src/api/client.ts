@@ -9,6 +9,8 @@ export class ApiError extends Error {
     message: string,
     /** 字段级校验错误:`{"error": "Invalid settings", "fields": {key: msg}}` */
     public readonly fields?: Record<string, string>,
+    /** 结构化详情 `{"details": {...}}`:`confirm`、`pairs`/`hosts`、`conflicts` 等 */
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -49,12 +51,15 @@ function queryString(query?: RequestOptions["query"]): string {
   return text ? `?${text}` : "";
 }
 
-async function errorBody(response: Response): Promise<{ message: string; fields?: Record<string, string> }> {
+async function errorBody(
+  response: Response,
+): Promise<{ message: string; fields?: Record<string, string>; details?: Record<string, unknown> }> {
   try {
     const body = await response.json();
     if (body && typeof body.error === "string" && body.error) {
       const fields = body.fields && typeof body.fields === "object" ? (body.fields as Record<string, string>) : undefined;
-      return { message: body.error, fields };
+      const details = body.details && typeof body.details === "object" ? (body.details as Record<string, unknown>) : undefined;
+      return { message: body.error, fields, details };
     }
   } catch {
     /* 非 JSON 错误体 */
@@ -92,12 +97,12 @@ export function createClient(options: ClientOptions) {
       throw new ApiError(0, NETWORK_ERROR);
     }
     if (!response.ok) {
-      const { message, fields } = await errorBody(response);
+      const { message, fields, details } = await errorBody(response);
       if (response.status === 401 && opts.auth !== false) options.onUnauthorized();
       if (response.status === 403 && message === STEP_UP_REQUIRED && allowStepUp && (await options.onStepUp())) {
         return once<T>(path, opts, false);
       }
-      throw new ApiError(response.status, message, fields);
+      throw new ApiError(response.status, message, fields, details);
     }
     if (opts.as === "blob") return (await response.blob()) as T;
     if (opts.as === "none" || response.status === 204) return undefined as T;
