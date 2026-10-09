@@ -106,6 +106,11 @@ class RoomStore:
         # Create and join check a count and then insert; one at a time keeps the caps exact (single worker, review #16).
         self._admission = asyncio.Lock()
 
+    @property
+    def admission(self) -> asyncio.Lock:
+        """The admission lock, for writers outside the store (admin setting edits) that change a cap."""
+        return self._admission
+
     async def create(self, owner_id: int, topic: str, now: datetime, *, max_owned: int | None = None,
                      settings: dict | None = None) -> Room:
         """`max_owned` is the owner's own cap (admin per-user quota override); default: the site limit.
@@ -554,6 +559,8 @@ class RoomStore:
                 changed.append({"field": field, "value": changes[field]})
             for c in changed:
                 setattr(room, c["field"], c["value"])
+            if any(c["field"] == "join_mode" and c["value"] == "approval" for c in changed):
+                room.invite_token = None  # a member's link from the `code` days must not bypass approval (R2-4)
             if changed:
                 await s.commit()
             return room, changed
