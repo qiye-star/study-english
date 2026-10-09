@@ -67,6 +67,7 @@ async def test_user_rank_view(app, users):
     assert out["profile"]["tier_key"] == "gold" and out["profile"]["at_gate"] is True
     assert out["attempts_today"] == {"day": "2026-10-09", "used": 3, "limit": 3, "left": 0}
     assert out["quota_override"] is None and len(out["stage_tasks"]) == 3
+    assert out["division_rps"] == [100, 100, 120, 140, 160, 200, 200]
     assert out["recent_events"][0] | {"created_at": None} == {
         "kind": "admin_adjust", "points": 5, "day": "2026-10-09", "tier": 2, "created_at": None, "actor": "ops",
         "reason": "补偿"}
@@ -85,7 +86,7 @@ async def test_void_failed_match_restores_gate_and_refunds(app, users):
         await s.commit()
         p = await s.get(RankProfile, U1)
         usage = await s.scalar(select(DailyUsage.count).where(DailyUsage.subject == str(U1)))
-    assert out["status"] == "voided" and out["restored"] is True
+    assert out["status"] == "voided" and out["restored"] is True and out["gates_failed"] == []
     assert (p.rp, p.cooldown_until) == (120, None) and usage == 2
     with pytest.raises(rank_ops.RankOpError) as exc:
         async with app.state.sessionmaker() as s:

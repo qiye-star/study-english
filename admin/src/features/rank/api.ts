@@ -250,6 +250,8 @@ export interface UserRank {
   promotion: { state: string; reason: string | null; cooldownUntil: string | null; attemptsLeft: number; targetTier: string | null } | null;
   attemptsToday: { day: string; used: number; limit: number; left: number };
   quotaOverride: number | null;
+  /** 每个段位的每小段点数(当前生效规则),用于定级时的点数上限 */
+  divisionRps?: number[];
   recentEvents: RankEvent[];
   matches: MatchRow[];
   achievements: AchievementItem[];

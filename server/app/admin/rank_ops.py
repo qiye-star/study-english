@@ -81,7 +81,8 @@ def match_row_out(m: PromotionMatch, rules=None) -> dict:
     return {"id": m.id, "user_id": m.user_id, "status": m.status, "from_tier": tier_key(m.from_tier),
             "to_tier": tier_key(m.to_tier), "scenario_key": m.scenario_key, "scenario_title_zh": title,
             "total": m.total, "threshold": m.threshold, "attempt_no": m.attempt_no, "rules_version": m.rules_version,
-            "started_at": _iso(m.started_at), "finished_at": _iso(m.finished_at)}
+            "started_at": _iso(m.started_at), "finished_at": _iso(m.finished_at),
+            "gates_failed": list((m.result or {}).get("gates_failed") or [])}
 
 
 async def user_rank(session, user_id: int, now: datetime, rules, *, settings=None) -> dict:
@@ -95,7 +96,8 @@ async def user_rank(session, user_id: int, now: datetime, rules, *, settings=Non
         DailyUsage.scope == "rank_match", DailyUsage.subject == str(user_id), DailyUsage.day == day)) or 0)
     out: dict = {"profile": None, "stage_tasks": [], "promotion": None,
                  "attempts_today": {"day": day, "used": used, "limit": limit, "left": max(0, limit - used)},
-                 "quota_override": override}
+                 "quota_override": override,
+                 "division_rps": [division_rp(t.index, rules=rules) for t in TIERS]}
     if profile is not None:
         tasks = await ledger.stage_progress_for(session, profile, rules=rules)
         promo = ledger.promotion_status(
