@@ -1,11 +1,18 @@
 import { LanguagesIcon } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
+import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
+import { ttsErrorMessage, useMessageTranslations, useTtsPlayer } from "~/features/chat";
 import { cn } from "~/lib/cn";
+import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { MessageActions } from "./extras/message-actions";
 import { QuoteBlock } from "./extras/quote-block";
 import { ReactionBar } from "./extras/reaction-bar";
+import { TextTranslation } from "./extras/text-translation";
+import { isMostlyNative, speakable } from "./extras/text-tools";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
 import { VoiceBubble } from "./voice/voice-bubble";
@@ -56,6 +63,11 @@ export const RoomMessageList = memo(function RoomMessageList({
   state, roomId, reported, autoText, onLoadEarlier, onReport, onReact, onQuote, onTranslateVoice, onRetryVoice,
 }: RoomMessageListProps) {
   const { t } = useTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
+  const { api } = useAuth();
+  const { language } = useSettings();
+  const native = nativeLanguageCode(language);
   const [selected, setSelected] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const meId = state.me?.userId ?? null;
@@ -65,19 +77,56 @@ export const RoomMessageList = memo(function RoomMessageList({
     el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
   }, []);
 
-  const actionsRow = (m: RoomMessage, mine: boolean, align: "start" | "end") => selected === m.id && (
-    <div className={cn("mt-0.5 flex", align === "end" ? "justify-end" : "justify-start")}>
-      <MessageActions message={m} mine={mine} meId={meId} canReport={!mine} reported={reported.has(m.id)}
-        onReact={(key, on) => onReact(m.seq, key, on)} onQuote={() => { onQuote(m); setSelected(null); }} onReport={() => onReport(m)} />
-    </div>
-  );
-  const reactions = (m: RoomMessage, align: "start" | "end") => (
-    m.reactions?.length ? (
-      <div className={cn("mt-0.5 flex", align === "end" ? "justify-end" : "justify-start")}>
-        <ReactionBar reactions={m.reactions} meId={meId} onToggle={(key, on) => onReact(m.seq, key, on)} />
+  // 文本消息的「译」「朗读」(spec §6.2 / R2-14):与对话页同一套 hook,按收听者各自请求、命中本地缓存不再调用
+  const translations = useMessageTranslations(api, native);
+  const tts = useTtsPlayer(api, { onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)) });
+  // 默认音色:第一次打开操作行时才取(进房不多发请求);模块级缓存
+  const [ai, setAi] = useState<ServerAiConfig | null>(null);
+  const aiRef = useRef<Promise<ServerAiConfig | null> | null>(null);
+  const loadAi = useCallback(() => {
+    aiRef.current ??= loadServerAiConfig(api).then((c): ServerAiConfig => { setAi(c); return c; }, (): null => { aiRef.current = null; return null; });
+    return aiRef.current;
+  }, [api]);
+  useEffect(() => { if (selected !== null) void loadAi(); }, [selected, loadAi]);
+  const speak = (m: RoomMessage) => {
+    const text = speakable(m);
+    if (ai) {
+      if (ai.defaultTts.model) void tts.play(m.id, text, ai.defaultTts.model, ai.defaultTts.voice);
+      else toast.error(t("web.rooms.extras.speakUnavailable"));
+      return;
+    }
+    tts.prime(); // iOS:在点击的同步阶段解锁播放器,取到配置后再播
+    void loadAi().then((c) => {
+      if (c?.defaultTts.model) void tts.play(m.id, text, c.defaultTts.model, c.defaultTts.voice);
+      else toast.error(tRef.current("web.rooms.extras.speakUnavailable"));
+    });
+  };
+  const textual = (m: RoomMessage) => (m.kind === "text" || m.kind === "ai_answer") && !m.hidden && speakable(m) !== "";
+
+  /** 气泡下方:译文(.trans)、回应片(.rx)、选中时的操作行(.actpop);别人的消息与气泡对齐(头像 30 + 间距 8 = 38px 缩进) */
+  const under = (m: RoomMessage, mine: boolean, align: "start" | "end", indent: boolean) => {
+    const text = textual(m) ? speakable(m) : "";
+    const open = !!translations.open[m.id] && text !== "";
+    const hasReactions = !!m.reactions?.some((r) => r.userIds.length > 0);
+    const isSelected = selected === m.id;
+    if (!open && !hasReactions && !isSelected) return null;
+    const canTranslate = text !== "" && !isMostlyNative(text, native);
+    return (
+      <div className={cn("flex max-w-full flex-col", align === "end" ? "items-end" : "items-start", indent && "pl-[38px]")}>
+        {open && <TextTranslation state={translations.states[m.id]} onRetry={() => translations.retry(m.id, text)} />}
+        {hasReactions && <ReactionBar reactions={m.reactions} meId={meId} onToggle={(key, on) => onReact(m.seq, key, on)} />}
+        {isSelected && (
+          <div className="mt-1 max-w-full">
+            <MessageActions message={m} mine={mine} meId={meId} canReport={!mine} reported={reported.has(m.id)}
+              onReact={(key, on) => { onReact(m.seq, key, on); setSelected(null); }}
+              onQuote={() => { onQuote(m); setSelected(null); }} onReport={() => onReport(m)}
+              onTranslate={canTranslate ? () => translations.toggle(m.id, text) : undefined} translateOpen={open}
+              onSpeak={text ? () => speak(m) : undefined} speakState={tts.states[m.id] ?? "idle"} />
+          </div>
+        )}
       </div>
-    ) : null
-  );
+    );
+  };
   const toggle = (m: RoomMessage) => setSelected((cur) => (cur === m.id ? null : m.id));
   const selectable = (m: RoomMessage) => ({
     role: "button", tabIndex: 0, "aria-expanded": selected === m.id,
@@ -104,17 +153,16 @@ export const RoomMessageList = memo(function RoomMessageList({
     if (m.kind === "ai_answer") {
       const question = m.replyTo !== null ? bySeq.get(m.replyTo) : undefined;
       return (
-        <div key={m.id} data-seq={m.seq} className="max-w-[92%] self-start">
+        <div key={m.id} data-seq={m.seq} className="flex max-w-full flex-col items-start self-start">
           <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
-            className="rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="max-w-[92%] rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>
             {question && (
               <p className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
             )}
             <AiAnswer text={m.text} />
           </div>
-          {reactions(m, "start")}
-          {actionsRow(m, false, "start")}
+          {under(m, false, "start", false)}
         </div>
       );
     }
@@ -122,8 +170,8 @@ export const RoomMessageList = memo(function RoomMessageList({
     const name = m.sender.name ?? "?";
     const voice = m.kind === "voice";
     return (
-      <div key={m.id} data-seq={m.seq} className={cn("flex max-w-[88%] flex-col", mine ? "self-end" : "self-start")}>
-        <div className={cn("flex gap-2", mine && "flex-row-reverse")}>
+      <div key={m.id} data-seq={m.seq} className={cn("flex max-w-full flex-col", mine ? "items-end self-end" : "items-start self-start")}>
+        <div className={cn("flex max-w-[88%] gap-2", mine && "flex-row-reverse")}>
           {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
           <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
             className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -146,8 +194,7 @@ export const RoomMessageList = memo(function RoomMessageList({
             )}
           </div>
         </div>
-        {reactions(m, mine ? "end" : "start")}
-        {actionsRow(m, mine, mine ? "end" : "start")}
+        {under(m, mine, mine ? "end" : "start", !mine)}
       </div>
     );
   };

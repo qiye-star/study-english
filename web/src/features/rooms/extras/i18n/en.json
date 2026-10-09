@@ -1,0 +1,29 @@
+{
+  "web": {
+    "rooms": {
+      "errors": {
+        "bad_reply": "That message can't be quoted"
+      },
+      "extras": {
+        "actions": "Message actions",
+        "reactionNames": {
+          "like": "Like",
+          "love": "Love",
+          "haha": "Haha",
+          "wow": "Wow",
+          "clap": "Clap",
+          "thanks": "Thanks"
+        },
+        "reactionChip": "{{name}} {{count}}",
+        "quote": "Quote",
+        "translate": "Translate",
+        "speak": "Read aloud",
+        "speakUnavailable": "Read aloud is unavailable right now",
+        "quoteHidden": "The quoted message was hidden",
+        "replyTo": "Replying to",
+        "replySep": ": ",
+        "clearQuote": "Cancel quote"
+      }
+    }
+  }
+}

@@ -282,7 +282,8 @@ describe("RoomPage", () => {
     FakeWebSocket.last!.push({ type: "message", message: user(3, "Noodles!", { kind: "voice", reply_to: 2,
       quote: { seq: 2, name: "bob", kind: "text", text: "Any food?" }, reactions: [{ key: "like", user_ids: [22] }],
       voice: { duration_ms: 6400, status: "done", transcript: "Noodles!", lang: "en", translation: null, translation_status: null, attempts: 1, audio: true } }) });
-    expect(screen.getByText("Any food?")).toBeTruthy();
+    // the message itself and the quote block inside the reply (WE1 Addendum: QuoteBlock now renders the quoted text)
+    expect(screen.getAllByText("Any food?")).toHaveLength(2);
     const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
     expect(voice.textContent).toContain("Noodles!");
     expect(voice.closest("[data-seq]")?.getAttribute("data-seq")).toBe("3");

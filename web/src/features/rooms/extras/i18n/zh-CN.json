@@ -1,0 +1,29 @@
+{
+  "web": {
+    "rooms": {
+      "errors": {
+        "bad_reply": "这条消息不能引用"
+      },
+      "extras": {
+        "actions": "消息操作",
+        "reactionNames": {
+          "like": "赞",
+          "love": "爱心",
+          "haha": "大笑",
+          "wow": "惊讶",
+          "clap": "鼓掌",
+          "thanks": "感谢"
+        },
+        "reactionChip": "{{name}} {{count}}",
+        "quote": "引用",
+        "translate": "译",
+        "speak": "朗读",
+        "speakUnavailable": "暂时无法朗读",
+        "quoteHidden": "引用的消息已被隐藏",
+        "replyTo": "回复",
+        "replySep": ":",
+        "clearQuote": "取消引用"
+      }
+    }
+  }
+}
