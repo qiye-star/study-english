@@ -303,6 +303,25 @@ describe("RoomPage", () => {
     expect(screen.getByTestId("room-invite")).toBeTruthy();
   });
 
+  it("recovers voice transcripts that finished while the socket was down (review M1)", async () => {
+    const pendingVoice = { duration_ms: 3000, status: "pending", transcript: null, lang: null, translation: null, translation_status: null, attempts: 1, audio: true };
+    const mineVoice = (voice: object, text = "") => user(6, text, { kind: "voice", sender: { kind: "user", id: 11111111, name: "alice" }, voice });
+    const mock = setup({ "GET /api/rooms/config": () => json(V2_CONFIG),
+      "GET /api/rooms/r1/messages": () => json({ messages: [user(5, "hi"), mineVoice({ ...pendingVoice, status: "done", transcript: "Back again." }, "Back again.")] }) });
+    await live();
+    FakeWebSocket.last!.push({ type: "message", message: user(5, "hi") });
+    FakeWebSocket.last!.push({ type: "message", message: mineVoice(pendingVoice) });
+    expect(screen.getByTestId("room-voice").dataset.status).toBe("pending");
+    FakeWebSocket.last!.drop(1006); // the voice_update goes out while we are offline
+    await waitFor(() => expect(FakeWebSocket.count).toBe(2), { timeout: 3000 });
+    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":6,"v":2}'));
+    FakeWebSocket.last!.push({ type: "welcome", room: ROOM, me: { user_id: 11111111, role: "owner" }, members: MEMBERS, last_seq: 6, truncated: false, assist_history: [] });
+    await waitFor(() => expect(screen.getByTestId("room-voice").dataset.status).toBe("done"));
+    expect(screen.getByTestId("room-voice").textContent).toContain("Back again.");
+    const fetched = mock.calls.find((c) => c.url.pathname === "/api/rooms/r1/messages")!;
+    expect(fetched.url.searchParams.get("before_seq")).toBe("7");
+  });
+
   it("explains when rooms are off", async () => {
     const mock = createFetchMock({ "GET /api/rooms/config": () => json({ enabled: false, ai_available: false, max_members: 8, max_text: 500 }) });
     renderWithProviders(<RoomPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/r/r1", path: "/rooms/r/:roomId" });

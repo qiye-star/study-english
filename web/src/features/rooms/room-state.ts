@@ -31,6 +31,10 @@ export type RoomAction =
   /** 清除 ACTIVITY_TTL_MS 之前的活动 */
   | { type: "activity_expire"; now: number }
   | { type: "say"; pending: PendingSay }
+  /** 自己经 HTTP 发出的消息(语音上传的响应):放进列表,但不推进 lastSeq(更早的别人的消息可能还在 WS 路上,review M2) */
+  | { type: "local_message"; message: RoomMessage }
+  /** 重连后用 HTTP 取回的消息:只更新列表里已有消息的语音状态(断线期间错过的 voice_update,review M1) */
+  | { type: "voice_sync"; messages: RoomMessage[] }
   | { type: "assist"; requestId: string; text: string }
   /** 更早的一页;more 给出时据此更新「还有更早的」。 */
   | { type: "prepend"; messages: RoomMessage[]; more?: boolean }
@@ -125,8 +129,12 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       // 不推进 lastSeq:ack 先于消息本身(以及别人更早的消息)到达,这时断线会让补发跳过它们
       if (s.messages.some((m) => m.seq === e.seq)) return { ...s, pending: s.pending.filter((p) => p.clientId !== e.clientId) };
       return { ...s, pending: s.pending.map((p) => (p.clientId === e.clientId ? { ...p, seq: e.seq } : p)) };
-    case "presence":
-      return { ...s, members: e.members };
+    case "presence": {
+      // 房主离开后服务端把房主交给最早的成员:成员表带 role,跟着更新自己的角色(review m8)
+      const mine = s.me ? e.members.find((m) => m.userId === s.me!.userId) : undefined;
+      const me = s.me && mine && mine.role !== s.me.role ? { ...s.me, role: mine.role } : s.me;
+      return { ...s, members: e.members, me };
+    }
     case "ai_typing":
       return s.aiTyping.includes(e.replyTo) ? s : { ...s, aiTyping: [...s.aiTyping, e.replyTo] };
     case "ai_failed":
@@ -137,9 +145,14 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
         assist: s.assist.map((a) => (a.requestId === e.requestId ? { ...a, reply: e.message, status: "done" as const } : a)) };
     case "assist_failed":
       return { ...s, assist: s.assist.map((a) => (a.requestId === e.requestId ? { ...a, status: "failed" as const, error: e.code } : a)) };
-    case "room_update":
-      // 广播的 room 不带个人角色(my_role=null):保留自己的
-      return { ...s, room: s.room ? { ...e.room, myRole: s.room.myRole } : e.room };
+    case "room_update": {
+      // 广播的 room 不带个人角色(my_role=null):保留自己的;房主转移(ownerId 变成自己或别人)时据 ownerId 改写
+      const meId = s.me?.userId;
+      const own = meId !== undefined && e.room.ownerId !== undefined && e.room.ownerId !== null;
+      const myRole = own ? (e.room.ownerId === meId ? "owner" : "member") : e.room.myRole ?? s.room?.myRole ?? null;
+      const me = s.me && own ? { ...s.me, role: myRole as "owner" | "member" } : s.me;
+      return { ...s, me, room: { ...e.room, myRole } };
+    }
     case "notice":
       return { ...s, notice: e.code };
     case "error":
@@ -182,6 +195,16 @@ export function roomReducer(s: RoomState, a: RoomAction): RoomState {
     }
     case "say":
       return { ...s, pending: [...s.pending, a.pending] };
+    case "local_message":
+      return { ...s, messages: merge(s.messages, [a.message]) };
+    case "voice_sync": {
+      const fresh = new Map(a.messages.filter((m) => m.voice).map((m) => [m.seq, m]));
+      if (!fresh.size) return s;
+      return { ...s, messages: s.messages.map((m) => {
+        const f = fresh.get(m.seq);
+        return f && m.voice && !m.hidden && f.id === m.id ? { ...m, voice: f.voice, text: f.text } : m;
+      }) };
+    }
     case "assist":
       return { ...s, assist: [...s.assist, { requestId: a.requestId, request: a.text, reply: null, status: "waiting", error: null }] };
     case "prepend":

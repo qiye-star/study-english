@@ -9,6 +9,11 @@ import { initialRoomState, roomReducer } from "./room-state";
 import { RoomSocket } from "./room-socket";
 import { getRoom, HISTORY_PAGE, LATEST_SEQ, roomHistory, roomTicket } from "./rooms-api";
 
+/** 语音状态还会变的消息(转写或翻译进行中)的 seq。 */
+function waitingVoiceSeqs(messages: RoomMessage[]): number[] {
+  return messages.filter((m) => !m.hidden && (m.voice?.status === "pending" || m.voice?.translationStatus === "pending")).map((m) => m.seq);
+}
+
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).slice(0, 64);
 /** 多久清一次过期的「正在输入」(ACTIVITY_TTL_MS 之前的)。 */
 const ACTIVITY_SWEEP_MS = 2000;
@@ -34,7 +39,15 @@ export function useRoom(roomId: string) {
       lastSeq: () => stateRef.current.lastSeq,
       onEvent: (event) => {
         if (disposed) return;
+        // 补发只给 last_seq 之后的消息:列表里还在「转文字中 / 翻译中」的语音,其 voice_update 可能在断线期间错过了(review M1)
+        const stalled = event.type === "welcome" && !event.truncated ? waitingVoiceSeqs(stateRef.current.messages) : [];
         dispatch({ type: "event", event, at: Date.now() });
+        if (stalled.length) {
+          roomHistory(api, roomId, Math.max(...stalled) + 1).then(
+            (messages) => { if (!disposed) dispatch({ type: "voice_sync", messages }); },
+            (): void => undefined, // 取不到就等下一次 voice_update
+          );
+        }
         // 断线前没拿到 ack 的消息:用原 client_id 重发,服务端 5 分钟内去重并回原来的 ack(spec §5.7)
         if (event.type === "welcome") {
           for (const p of stateRef.current.pending) {
@@ -93,8 +106,8 @@ export function useRoom(roomId: string) {
   const react = useCallback((seq: number, key: ReactionKey, on: boolean) => send(encodeReact(seq, key, on)), []);
   const translateVoice = useCallback((seq: number) => send(encodeVoiceTranslate(seq)), []);
   const retryVoice = useCallback((seq: number) => send(encodeVoiceRetry(seq)), []);
-  /** HTTP 上传的语音消息({seq, message}):立即放进列表,广播随后到达时按 seq 去重。 */
-  const addMessage = useCallback((message: RoomMessage) => dispatch({ type: "event", event: { type: "message", message } }), []);
+  /** HTTP 上传的语音消息({seq, message}):立即放进列表,广播随后到达时按 seq 去重;不推进补发游标(review M2)。 */
+  const addMessage = useCallback((message: RoomMessage) => dispatch({ type: "local_message", message }), []);
 
   const ask = useCallback((text: string) => {
     const requestId = newId();

@@ -183,4 +183,34 @@ describe("roomReducer v2", () => {
     const s = roomReducer(initialRoomState(), { type: "event", event: { type: "message", message: v1 as RoomMessage } });
     expect(s.messages[0].reactions).toEqual([]);
   });
+
+  it("merges an own HTTP voice upload without advancing the resume cursor (review M2)", () => {
+    let s = run([ev({ type: "message", message: msg(3) })]);
+    s = run([{ type: "local_message", message: msg(7, { kind: "voice", sender: { kind: "user", id: 1, name: "alice" } }) }], s);
+    expect(s.messages.map((m) => m.seq)).toEqual([3, 7]);
+    expect(s.lastSeq).toBe(3); // 4..6 have not been received: a reconnect hello must still ask for them
+    expect(s.announce?.seq).not.toBe(7); // not read out as a live message
+    s = run([ev({ type: "message", message: msg(5) }), ev({ type: "message", message: msg(7) })], s);
+    expect(s.lastSeq).toBe(7);
+  });
+
+  it("reconciles voice state fetched after a reconnect without adding messages (review M1)", () => {
+    const pending: VoiceInfo = { durationMs: 2000, status: "pending", transcript: null, lang: null, translation: null,
+      translationStatus: null, attempts: 1, audio: true };
+    const done: VoiceInfo = { ...pending, status: "done", transcript: "Hello there.", lang: "en", translation: "你好。", translationStatus: "done" };
+    let s = run([ev({ type: "message", message: msg(2, { kind: "voice", text: "", voice: pending }) }), ev({ type: "message", message: msg(4) })]);
+    s = run([{ type: "voice_sync", messages: [msg(1), msg(2, { kind: "voice", text: "Hello there.", voice: done }), msg(3)] }], s);
+    expect(s.messages.map((m) => m.seq)).toEqual([2, 4]);
+    expect(s.messages[0].voice).toEqual(done);
+    expect(s.messages[0].text).toBe("Hello there.");
+  });
+
+  it("follows an ownership transfer from presence and room updates (review m8)", () => {
+    let s = run([ev({ type: "welcome", room: { id: "r", ownerId: 1, myRole: "member" }, me: { userId: 2, role: "member" }, members: [],
+      lastSeq: 0, truncated: false, assistHistory: [] })]);
+    s = run([ev({ type: "presence", members: [{ userId: 2, name: "lily", role: "owner", online: true }] })], s);
+    expect(s.me?.role).toBe("owner");
+    s = run([ev({ type: "room_update", room: { id: "r", ownerId: 2, myRole: null } })], s);
+    expect(s.room?.myRole).toBe("owner");
+  });
 });
