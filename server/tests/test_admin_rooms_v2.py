@@ -179,3 +179,52 @@ def test_admin_settings_validation_is_the_owner_rule():
         assert clean_admin_settings(raw, site_max_members=8) == clean_settings(raw, site_max_members=8, partial=True)
     # the admin may not change scenario, level or the lock (spec §14): those keys are dropped, never applied
     assert clean_admin_settings({"scenario": "cafe", "level": "C1", "locked": True}, site_max_members=8) == ({}, {})
+
+
+async def test_admin_playback_uses_sv_audio_files_and_stays_under_room_audio(app, client):
+    """Integration (SV merged): admin playback reads clips through SV's `app.rooms.audio` helpers, is audited per
+    play, answers 410 after the AD purge tool removed the clip, and never serves a file outside `room_audio/`."""
+    from datetime import timedelta
+
+    from app.admin import housekeeping
+    from app.rooms import audio
+
+    alice, ha = await register(client, "alice")
+    room = await _room(client, ha)
+    data = app.state.settings.resolved_data_dir
+    m = await _voice(app, room["id"], alice, audio_path=None)
+    rel = audio.audio_relpath(room["id"], m.id, "mp3")
+    audio.write_file(data, rel, b"\xff\xf3clip")
+    (data / "recordings").mkdir(parents=True)
+    (data / "recordings" / "a.wav").write_bytes(b"RIFF-not-room-audio")
+    outside = [await _voice(app, room["id"], alice, audio_path=p)
+               for p in ("recordings/a.wav", "room_audio/../recordings/a.wav", "../escape.mp3")]
+    async with app.state.sessionmaker() as s:
+        voice = await s.get(RoomVoice, m.id)
+        voice.audio_path, voice.purged_at = rel, None
+        for o in outside:
+            (await s.get(RoomVoice, o.id)).purged_at = None
+        await s.commit()
+    await login_as(app, client, "operator")
+    url = f"/api/admin/rooms/{room['id']}/messages/{m.id}/audio"
+    r = await client.get(url)
+    assert r.status_code == 200 and r.content == b"\xff\xf3clip" and r.headers["content-type"] == "audio/mpeg"
+    assert len(await _audits(app, "room.audio.play")) == 1
+    for o in outside:
+        r = await client.get(f"/api/admin/rooms/{room['id']}/messages/{o.id}/audio")
+        assert r.status_code == 404 and b"RIFF" not in r.content
+    assert len(await _audits(app, "room.audio.play")) == 1  # refused reads are not plays
+    async with app.state.sessionmaker() as s:
+        (await s.get(Room, room["id"])).status = "closed"
+        (await s.get(Room, room["id"])).closed_at = NOW - timedelta(days=400)
+        await s.commit()
+    settings = app.state.settings
+    async with app.state.sessionmaker() as s:
+        scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
+        assert rel in scan.samples
+        await housekeeping.purge_room_audio(s, settings, 365, scan.token, NOW, grace=0)
+        await s.commit()
+    assert not (data / rel).exists() and (data / "recordings" / "a.wav").exists()
+    r = await client.get(url)
+    assert r.status_code == 410 and r.json() == {"error": "Audio purged"}
+    assert len(await _audits(app, "room.audio.play")) == 1
