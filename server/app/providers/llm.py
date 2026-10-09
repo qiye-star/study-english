@@ -4,6 +4,7 @@ import logging
 
 import httpx
 
+from app.core import metering
 from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 
 logger = logging.getLogger(__name__)
@@ -31,17 +32,31 @@ async def complete(http: httpx.AsyncClient, settings: Settings, messages: list[d
         body["thinking"] = {"type": "disabled"}
     url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
     headers = {"Authorization": f"Bearer {settings.upstream_llm_key}", "Content-Type": "application/json"}
+    provider = metering.provider_of(settings.upstream_llm_base_url)
+    timer = metering.Timer()
     try:
         response = await http.post(url, json=body, headers=headers, timeout=httpx.Timeout(timeout, connect=10.0))
     except httpx.HTTPError as e:
+        metering.record("llm", provider, model, 0, timer.ms())
         logger.warning("llm complete failed error=%s", type(e).__name__)
         raise LlmUnavailable("network") from None
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+    tokens = metering.tokens_of(payload)
+    if tokens:
+        metering.record("llm", provider, model, response.status_code, timer.ms(), units_in=tokens[0],
+                        units_out=tokens[1], unit="tokens")
+    else:
+        metering.record("llm", provider, model, response.status_code, timer.ms(), units_out=len(response.content),
+                        unit="bytes")
     if response.status_code != 200:
         logger.warning("llm complete http status=%s", response.status_code)
         raise LlmUnavailable("http")
     try:
-        content = response.json()["choices"][0]["message"]["content"]
-    except (ValueError, KeyError, IndexError, TypeError):
+        content = payload["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
         raise LlmUnavailable("format") from None
     if not isinstance(content, str) or not content.strip():
         raise LlmUnavailable("empty")

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from starlette.background import BackgroundTask
 
+from app.core import metering
 from app.core.config import Settings
 from app.core.deps import get_settings, limited_user
 from app.models import User
@@ -22,6 +23,20 @@ def _clamp(body: dict, field: str, cap: int) -> None:
         raise HTTPException(400, f"Invalid {field}")
     if value > cap:
         body[field] = cap
+
+
+def _record_completion(provider: str, model: str, upstream: httpx.Response, ms: int) -> None:
+    """Numbers only: the usage block of the reply, or its size when the upstream sent none."""
+    try:
+        tokens = metering.tokens_of(upstream.json())
+    except ValueError:
+        tokens = None
+    if tokens:
+        metering.record("llm", provider, model, upstream.status_code, ms, units_in=tokens[0], units_out=tokens[1],
+                        unit="tokens")
+    else:
+        metering.record("llm", provider, model, upstream.status_code, ms, units_out=len(upstream.content),
+                        unit="bytes")
 
 
 @router.post("/chat/completions")
@@ -54,6 +69,8 @@ async def chat_completions(
         "Content-Type": "application/json",
     }
     http: httpx.AsyncClient = request.app.state.http
+    provider, model = metering.provider_of(settings.upstream_llm_base_url), str(body["model"])
+    timer = metering.Timer()
 
     try:
         if body.get("stream"):
@@ -64,16 +81,21 @@ async def chat_completions(
             try:
                 check_upstream_auth(upstream.status_code)
             except HTTPException:
+                metering.record("llm", provider, model, upstream.status_code, timer.ms(), unit="bytes")
                 await upstream.aclose()
                 raise
 
             async def relay():
+                status, sent = upstream.status_code, 0
                 try:
                     async for chunk in upstream.aiter_bytes():
+                        sent += len(chunk)
                         yield chunk
                 except httpx.HTTPError:
+                    status = 0
                     yield b'data: {"error": "Upstream unavailable"}\n\n'
                 finally:
+                    metering.record("llm", provider, model, status, timer.ms(), units_out=sent, unit="bytes")
                     with anyio.CancelScope(shield=True):
                         await upstream.aclose()
 
@@ -94,8 +116,10 @@ async def chat_completions(
 
         upstream = await http.post(url, json=body, headers=headers)
     except httpx.HTTPError:
+        metering.record("llm", provider, model, 0, timer.ms())
         raise HTTPException(502, "Upstream unavailable")
 
+    _record_completion(provider, model, upstream, timer.ms())
     check_upstream_auth(upstream.status_code)
 
     return Response(

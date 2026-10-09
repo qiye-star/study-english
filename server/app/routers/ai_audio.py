@@ -11,6 +11,7 @@ from starlette.datastructures import UploadFile
 
 from app.speech.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
 from app.providers.azure import AzureError, AzureNotConfigured, AzureSpeech
+from app.core import metering
 from app.core.config import Settings
 from app.core.deps import get_settings, limited_user
 from app.models import User
@@ -150,6 +151,8 @@ async def speech(
     if not settings.upstream_tts_base_url:
         raise HTTPException(503, "TTS upstream is not configured")
     http: httpx.AsyncClient = request.app.state.http
+    provider, timer = metering.provider_of(settings.upstream_tts_base_url), metering.Timer()
+    status = 0
     try:
         upstream = await http.post(
             settings.upstream_tts_base_url.rstrip("/") + "/audio/speech",
@@ -161,8 +164,12 @@ async def speech(
             },
             headers={"Authorization": f"Bearer {settings.upstream_tts_key}"},
         )
+        status = upstream.status_code
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+    finally:
+        metering.record("tts", provider, model.removeprefix("openai/"), status, timer.ms(),
+                        units_in=len(payload.input), unit="chars")
     check_upstream_auth(upstream.status_code)
     return Response(
         content=upstream.content,
@@ -194,6 +201,8 @@ async def _openai_transcription(
     request: Request, settings: Settings, content_type: str, data: bytes
 ) -> Response:
     http: httpx.AsyncClient = request.app.state.http
+    units, unit = metering.audio_units(data)
+    provider, timer, status = metering.provider_of(settings.upstream_whisper_base_url), metering.Timer(), 0
     try:
         upstream = await http.post(
             settings.upstream_whisper_base_url.rstrip("/") + "/audio/transcriptions",
@@ -204,8 +213,12 @@ async def _openai_transcription(
             },
             timeout=httpx.Timeout(300.0, connect=10.0),
         )
+        status = upstream.status_code
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+    finally:
+        metering.record("stt", provider, settings.upstream_whisper_model or "whisper", status, timer.ms(),
+                        units_in=units, unit=unit)
     check_upstream_auth(upstream.status_code)
     return Response(
         content=upstream.content,

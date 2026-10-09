@@ -8,6 +8,8 @@ from typing import Literal
 
 import httpx
 
+from app.core import metering
+
 SUCCESS_END_CODE = 20000000
 AUTH_STATUSES = {401, 403}
 TIMEOUT = httpx.Timeout(120.0, connect=10.0)
@@ -111,6 +113,11 @@ def parse_stream(raw: bytes) -> bytes:
     return b"".join(chunks)
 
 
+def _meter(url: str, resource_id: str, text: str, status: int, timer: metering.Timer) -> None:
+    metering.record("tts", metering.provider_of(url), resource_id, status, timer.ms(), units_in=len(text),
+                    unit="chars")
+
+
 async def synthesize(
     http: httpx.AsyncClient,
     url: str,
@@ -120,6 +127,7 @@ async def synthesize(
     speaker: str,
     uid: str,
 ) -> bytes:
+    timer = metering.Timer()
     try:
         response = await http.post(
             url,
@@ -135,8 +143,10 @@ async def synthesize(
             timeout=TIMEOUT,
         )
     except httpx.HTTPError as e:
+        _meter(url, resource_id, text, 0, timer)
         logger.warning("Volcengine TTS request failed: %s", type(e).__name__)
         raise VolcengineError("upstream")
+    _meter(url, resource_id, text, response.status_code, timer)
     if response.status_code != 200:
         code, message = _error_info(response.content)
         logger.warning(
@@ -169,11 +179,14 @@ async def synthesize_stream(
         headers={"X-Api-Key": api_key, "X-Api-Resource-Id": resource_id},
         timeout=TIMEOUT,
     )
+    timer = metering.Timer()
     try:
         response = await http.send(request, stream=True)
     except httpx.HTTPError as e:
+        _meter(url, resource_id, text, 0, timer)
         logger.warning("Volcengine TTS request failed: %s", type(e).__name__)
         raise VolcengineError("upstream")
+    _meter(url, resource_id, text, response.status_code, timer)  # ms = time to the response headers
     try:
         if response.status_code != 200:
             code, message = _error_info(await response.aread())

@@ -6,6 +6,7 @@ import wave
 import httpx
 from fastapi import HTTPException
 
+from app.core import metering
 from app.core.config import STT_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.core.timing import Stopwatch, log_timing
 from app.core.upstream import check_upstream_auth
@@ -57,6 +58,8 @@ async def transcribe_chat(http: httpx.AsyncClient, settings: Settings, audio: by
     if not settings.upstream_whisper_base_url or not settings.upstream_whisper_model:
         raise HTTPException(503, "Whisper upstream is not configured")
     watch = Stopwatch()
+    units, unit = metering.audio_units(audio)
+    provider = metering.provider_of(settings.upstream_whisper_base_url)
     try:
         upstream = await http.post(
             settings.upstream_whisper_base_url.rstrip("/") + "/chat/completions",
@@ -66,8 +69,11 @@ async def transcribe_chat(http: httpx.AsyncClient, settings: Settings, audio: by
         )
     except httpx.HTTPError:
         log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=0)
+        metering.record("stt", provider, settings.upstream_whisper_model, 0, watch.ms(), units_in=units, unit=unit)
         raise HTTPException(502, "Upstream unavailable")
     log_timing("stt_chat", ms=watch.ms(), audio_bytes=len(audio), status=upstream.status_code)
+    metering.record("stt", provider, settings.upstream_whisper_model, upstream.status_code, watch.ms(),
+                    units_in=units, unit=unit)
     check_upstream_auth(upstream.status_code)
     if not upstream.is_success:
         raise HTTPException(502, "Upstream unavailable")
@@ -92,14 +98,19 @@ async def transcribe_wav(http: httpx.AsyncClient, settings: Settings, wav: bytes
     data = {"model": "whisper-1", "response_format": "json"}
     if language:
         data["language"] = language
+    units, unit = metering.audio_units(wav)
+    provider, timer, status = metering.provider_of(settings.upstream_whisper_base_url), metering.Timer(), 0
     try:
         upstream = await http.post(
             settings.upstream_whisper_base_url.rstrip("/") + "/audio/transcriptions",
             files={"file": ("audio.wav", wav, "audio/wav")}, data=data,
             headers={"Authorization": f"Bearer {settings.upstream_whisper_key}"}, timeout=TIMEOUT,
         )
+        status = upstream.status_code
     except httpx.HTTPError:
         raise HTTPException(502, "Upstream unavailable")
+    finally:
+        metering.record("stt", provider, "whisper-1", status, timer.ms(), units_in=units, unit=unit)
     check_upstream_auth(upstream.status_code)
     if not upstream.is_success:
         raise HTTPException(502, "Upstream unavailable")

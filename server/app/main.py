@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core import metering
 from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
@@ -41,13 +42,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await reload_from_db(app_, startup=True)  # DB overrides on top of env (admin v2 §3.6)
         await run_startup_hooks(app_)
         await rooms.rooms_startup(app_)
-        watcher = asyncio.create_task(watch_revisions(app_))
+        tasks = app_.state.background_tasks
+        tasks["watcher"] = asyncio.create_task(watch_revisions(app_))
+        tasks["metering"] = asyncio.create_task(metering.flush_loop(app_))  # admin v2 §8.1
         yield
-        watcher.cancel()
-        with suppress(asyncio.CancelledError):
-            await watcher
+        await _stop_tasks(tasks, exclude="metering")
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
+        await _stop_tasks(tasks)  # metering last: its final flush keeps the calls made while shutting down
         await http.aclose()
         await engine.dispose()
 
@@ -65,9 +67,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
+    app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     app.add_middleware(BodyLimitMiddleware)
+    app.add_middleware(metering.MeteringMiddleware)  # added last = outermost
 
     install_error_handlers(app)
     # 顺序重要:stubs 含 /api/** 的兜底写入路由,真实 API 必须在它之前;
@@ -80,6 +84,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         app.include_router(module.router)
     return app
+
+
+async def _stop_tasks(tasks: dict[str, asyncio.Task], exclude: str | None = None) -> None:
+    chosen = [t for name, t in tasks.items() if name != exclude]
+    for task in chosen:
+        task.cancel()
+    for task in chosen:
+        with suppress(asyncio.CancelledError, Exception):
+            await task
 
 
 def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:

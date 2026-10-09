@@ -20,7 +20,10 @@ Foundation layer used by every other package.
   `watch_revisions`/`on_revision` (5 s poll of `config_revisions`), `register_startup_hook`
 - `secretbox.py` – Fernet `SecretBox` for stored secrets (`SETTINGS_ENCRYPTION_KEY`), keyed `fingerprint`
 - `quotas.py` – per-user quota overrides: `quota_for`, `overrides_for`, `QUOTA_KEYS`
-- `metering.py` – metering context (`bind_user`, `feature_scope`); the queue/recorder arrives with lane ops (E1)
+- `metering.py` – upstream call metering (admin v2 §8.1): `record(kind, provider, model, status, ms, units_in=,
+  units_out=, unit=)` into the bounded in-memory `METER` (never raises; numbers only), `MeteringMiddleware`
+  (feature by path), `bind_user` (called by `current_user`), `feature_scope`, `flush_loop` (5 s batch writes to
+  `upstream_calls`, hourly `rollup_and_prune` into `usage_daily`); helpers `provider_of`, `audio_units`, `pcm_ms`
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
@@ -31,7 +34,7 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 `runtime_settings.SettingsHub` (`app.state.settings_hub`; `app.state.base_settings` is the env-only base).
 
 ## Tests
-`uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py`
+`uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py`
 
 ## Pitfalls
 - Settings field names are the env contract (`.env.example`, docker-compose); renaming breaks deploys.
@@ -41,3 +44,5 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
   object in a module global — overrides replace `app.state.settings` at runtime.
 - Ticket redaction in `logging_setup` is security-relevant: keep its tests green.
 - Never log or print settings values that hold keys.
+- Every new upstream call needs a `metering.record(...)` at the call site (success and failure; status 0 = no
+  response). Never pass text, prompts or URLs with query strings to it — `provider_of(base_url)` only.

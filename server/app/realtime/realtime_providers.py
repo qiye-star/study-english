@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from app.speech.asr import AsrError, RecognizerFactory, realtime_factory
 from app.speech.asr_realtime import volc_stream_factory
 from app.speech.asr_stream import AsrGate
+from app.core import metering
 from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_param
 from app.models import Conversation, Message, utcnow
 from app.speech.realtime_asr import RealtimeAsr, effective_realtime_asr
@@ -62,12 +63,15 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
         if send_thinking_param(settings.realtime_llm_disable_thinking, settings.upstream_llm_base_url,
                                LLM_THINKING_HOST_SUFFIXES):
             body["thinking"] = {"type": "disabled"}  # reasoning would delay the first word and eat max_tokens
+        provider, timer = metering.provider_of(settings.upstream_llm_base_url), metering.Timer()
         try:
             response = await http.send(
                 http.build_request("POST", url, json=body, headers=headers, timeout=LLM_TIMEOUT), stream=True)
         except httpx.HTTPError as e:
+            metering.record("llm", provider, chosen, 0, timer.ms(), unit="bytes")
             logger.warning("Realtime LLM request failed: %s", type(e).__name__)
             raise LlmError() from None
+        status, received = response.status_code, 0
         try:
             if response.status_code != 200:
                 logger.warning("Realtime LLM HTTP %s", response.status_code)
@@ -75,6 +79,7 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
             finished = None  # finish_reason (or "done"), once seen
             spoke = False
             async for line in response.aiter_lines():
+                received += len(line) + 1
                 line = line.strip()
                 if not line.startswith("data:"):
                     continue  # blank separators, SSE comments (keep-alive), event:/id: fields
@@ -112,9 +117,11 @@ def openai_llm_stream(http: httpx.AsyncClient, settings: Settings, model: str, t
                 # Cut at the token cap: what was said is kept and saved as a normal reply (no suffix).
                 logger.warning("Realtime LLM reply cut at max_tokens=%d", max_tokens)
         except httpx.HTTPError as e:
+            status = 0
             logger.warning("Realtime LLM stream failed: %s", type(e).__name__)
             raise LlmError() from None
         finally:
+            metering.record("llm", provider, chosen, status, timer.ms(), units_out=received, unit="bytes")
             await response.aclose()
 
     return stream
@@ -338,7 +345,10 @@ class XfyunAssessor:
 
 
 def make_assessor(app, settings: Settings, user_id: int, save: bool) -> XfyunAssessor | None:
-    xfyun = getattr(app.state, "xfyun", None) or XfyunIse(
+    # Built in the call's WebSocket handler (`build_upstreams`) before the session's tasks start, so this
+    # binding attributes every upstream call of the call (LLM, TTS, ASR, assessment) to the user.
+    metering.bind_user(user_id)
+    xfyun =getattr(app.state, "xfyun", None) or XfyunIse(
         settings.xfyun_app_id, settings.xfyun_api_key, settings.xfyun_api_secret, settings.xfyun_ws_url)
     if not xfyun.configured:
         return None
