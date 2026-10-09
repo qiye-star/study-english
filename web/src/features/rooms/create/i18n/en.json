@@ -1,0 +1,75 @@
+{
+  "web": {
+    "rooms": {
+      "v2": {
+        "errors": {
+          "invalidSettings": "Some settings are not valid. Check them and try again.",
+          "belowMembers": "The member limit can't be lower than the current number of members",
+          "tryLater": "The owner just declined your request. Try again later.",
+          "tooManyRequests": "This room has too many pending requests. Try again later.",
+          "requestNotFound": "This request no longer exists"
+        },
+        "create": {
+          "defaultName": "{{name}}'s room",
+          "name": "Room name",
+          "nameCount": "{{count}}/{{max}}",
+          "scenario": "Scenario",
+          "scenarioHint": "Shapes the assistant and @ai",
+          "level": "Target level",
+          "levelHint": "Sets the assistant's difficulty",
+          "joinMode": "Who can join",
+          "joinCode": "Anyone with the code",
+          "joinApproval": "Owner approval",
+          "joinCodeHint": "Anyone who knows the room code can join right away.",
+          "joinApprovalHint": "People who enter the code wait for your approval; invite links join directly.",
+          "maxMembers": "Member limit",
+          "fewer": "Lower the member limit",
+          "more": "Raise the member limit",
+          "aiPublic": "Public AI answers",
+          "aiPublicHint": "Everyone sees @ai answers",
+          "allowVoice": "Allow voice messages",
+          "allowVoiceHint": "Hold to talk; the text is shared with everyone"
+        },
+        "settings": {
+          "group": "Room settings",
+          "requests": "Join requests",
+          "requestsEmpty": "No pending join requests",
+          "nameSave": "Save"
+        },
+        "requests": {
+          "one": "{{name}} wants to join",
+          "many": "{{name}} and {{others}} more want to join",
+          "view": "View",
+          "hide": "Hide",
+          "approve": "Approve",
+          "deny": "Decline",
+          "approveName": "Approve {{name}}",
+          "denyName": "Decline {{name}}"
+        },
+        "lobby": {
+          "pending": "Asked to join “{{name}}”. Waiting for the owner.",
+          "cancel": "Withdraw",
+          "denied": "The owner didn't approve your request",
+          "expired": "Your request expired. You can try again.",
+          "dismiss": "OK"
+        },
+        "system": {
+          "name": "renamed the room to “{{value}}”",
+          "scenario": "changed the scenario to “{{value}}”",
+          "level": "set the target level to {{value}}",
+          "join_mode_code": "let anyone with the code join",
+          "join_mode_approval": "now approves who joins",
+          "max_members": "set the member limit to {{value}}",
+          "ai_public_on": "turned on public AI answers",
+          "ai_public_off": "turned off public AI answers",
+          "allow_voice_on": "allowed voice messages",
+          "allow_voice_off": "turned off voice messages",
+          "locked_on": "locked the room",
+          "locked_off": "unlocked the room",
+          "prefix": "The owner",
+          "separator": "; "
+        }
+      }
+    }
+  }
+}
