@@ -29,16 +29,16 @@ async def test_viewer_reads_operator_cannot_write(app, client):
 
 async def test_superadmin_patch_reset_and_errors(app, client):
     h = await login_as(app, client, "superadmin")
-    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"rate_limit_per_minute": 20}, "reason": "x"})
-    assert r.status_code == 200 and r.json()["changed"] == ["rate_limit_per_minute"]
-    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"rate_limit_per_minute": -1}})
-    assert r.status_code == 422 and "rate_limit_per_minute" in r.json()["fields"]
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"max_practice_items": 20}, "reason": "x"})
+    assert r.status_code == 200 and r.json()["changed"] == ["max_practice_items"]
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"max_practice_items": -1}})
+    assert r.status_code == 422 and "max_practice_items" in r.json()["fields"]
     r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"database_url": "x"}})
     assert r.status_code == 400 and r.json()["error"] == "Setting is read-only"
-    r = await client.delete("/api/admin/settings/rate_limit_per_minute", headers=h, params={"reason": "回退"})
-    assert r.status_code == 200 and app.state.settings.rate_limit_per_minute == app.state.base_settings.rate_limit_per_minute
+    r = await client.delete("/api/admin/settings/max_practice_items", headers=h, params={"reason": "回退"})
+    assert r.status_code == 200 and app.state.settings.max_practice_items == app.state.base_settings.max_practice_items
     assert (await client.delete("/api/admin/settings/nope", headers=h)).status_code == 400
-    assert (await client.patch("/api/admin/settings", json={"changes": {"rate_limit_per_minute": 20}})).status_code == 403
+    assert (await client.patch("/api/admin/settings", json={"changes": {"max_practice_items": 20}})).status_code == 403
 
 
 async def test_danger_flow_through_step_up(app, client):

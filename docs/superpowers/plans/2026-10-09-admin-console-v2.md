@@ -7221,3 +7221,7 @@ Rulings below override earlier text in this plan.
   in overview/detail and every draft create/save response); `POST .../draft/publish` requires `draft_etag` and answers
   409 `Draft changed` when the draft is no longer the reviewed one. The admin rules page sends the etag of the draft it
   shows or just saved; the prompt editor sends the etag of the saved draft it displays.
+- Ruling (security settings, security m1): weakening `RATE_LIMIT_PER_MINUTE` / `ADMIN_LOCKOUT_THRESHOLD` (up),
+  `ADMIN_LOCKOUT_MINUTES` (down), lengthening `ADMIN_STEP_UP_MINUTES` / `ADMIN_IDLE_MINUTES` / `ADMIN_TOKEN_TTL_MINUTES`,
+  lowering `ADMIN_AUDIT_RETENTION_DAYS` and any `INVITE_CODE` change are dangerous (step-up + reason + typed confirm),
+  on every path (PATCH, reset, revert, import). Tightening stays a plain save.

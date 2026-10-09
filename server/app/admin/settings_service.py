@@ -78,6 +78,10 @@ _THRESHOLD_UP = {"ai_rate_limit_per_minute": 600, "realtime_max_sessions": 20}
 _THRESHOLD_TEXT = "调高会增加上游费用"
 
 
+def _up(old, new) -> bool:
+    return isinstance(new, int) and isinstance(old, int) and new > old
+
+
 def danger_reasons(key: str, old, new) -> list[str]:
     spec = SPECS[key]
     if old == new:
@@ -95,8 +99,16 @@ def danger_reasons(key: str, old, new) -> list[str]:
         "room_message_retention_days": isinstance(new, int) and new > 0,
         "realtime_enabled": new is True,
         "admin_require_totp": new is True,
-        "rank_matches_global_daily": isinstance(new, int) and isinstance(old, int) and new > old,
-        "rooms_ai_global_daily": isinstance(new, int) and isinstance(old, int) and new > old,
+        "rank_matches_global_daily": _up(old, new),
+        "rooms_ai_global_daily": _up(old, new),
+        # security settings: only the weakening direction is dangerous (review security m1)
+        "rate_limit_per_minute": _up(old, new),
+        "admin_lockout_threshold": _up(old, new),
+        "admin_lockout_minutes": _up(new, old),
+        "admin_step_up_minutes": _up(old, new),
+        "admin_idle_minutes": _up(old, new),
+        "admin_token_ttl_minutes": _up(old, new),
+        "admin_audit_retention_days": _up(new, old),
     }
     return [spec.danger] if rules.get(key, True) else []
 
