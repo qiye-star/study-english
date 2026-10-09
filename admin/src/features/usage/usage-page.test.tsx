@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as session from "../../api/session";
+import * as settingsApi from "../settings/api";
 import * as api from "./api";
 import { summaryFixture } from "./test-fixtures";
 import { UsagePage } from "./usage-page";
@@ -16,6 +17,11 @@ const viewer = {
   username: "v", role: "viewer" as const, csrfToken: "c", expiresAt: "2099-01-01T00:00:00Z", stepUpUntil: null,
   totpEnabled: false, safeMode: false, maintenanceMode: "off" as const,
 };
+
+vi.mock("../settings/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../settings/api")>();
+  return { ...actual, runProbe: vi.fn() };
+});
 
 beforeEach(() => {
   vi.mocked(api.getSummary).mockReset().mockResolvedValue(summaryFixture({ costComplete: false }));
@@ -47,16 +53,25 @@ it("hides the price warning when every call is priced and breaks errors down", a
   expect(api.getTopUsers).toHaveBeenLastCalledWith(7, "calls");
 });
 
-it("shows the probe shortcut only to superadmins", async () => {
+it("lets superadmins run the real test-connection probe per upstream row (never shows keys)", async () => {
   vi.mocked(api.getHealth).mockResolvedValue([
     { kind: "llm", provider: "deepseek", calls: 10, errors: 1, successRate: 0.9, lastErrorStatus: 429, lastErrorAt: null },
+    { kind: "tts", provider: "volcengine", calls: 4, errors: 0, successRate: 1, lastErrorStatus: null, lastErrorAt: null },
+    { kind: "probe", provider: "deepseek", calls: 1, errors: 0, successRate: 1, lastErrorStatus: null, lastErrorAt: null },
   ]);
+  vi.mocked(settingsApi.runProbe).mockResolvedValue({ ok: true, status: 200, ms: 87, code: "ok" });
   const { unmount } = render(<MemoryRouter><UsagePage /></MemoryRouter>);
-  expect(await screen.findByText("deepseek")).toBeInTheDocument();
+  expect((await screen.findAllByText("deepseek")).length).toBeGreaterThan(0);
   expect(screen.getByText("90.0%")).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: "测试连接" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "测试连接" })).toBeNull();
   unmount();
   vi.spyOn(session, "useAdminSession").mockReturnValue({ ...viewer, role: "superadmin" });
   render(<MemoryRouter><UsagePage /></MemoryRouter>);
-  expect(await screen.findByRole("link", { name: "测试连接" })).toBeInTheDocument();
+  const buttons = await screen.findAllByRole("button", { name: "测试连接" });
+  expect(buttons).toHaveLength(2); // llm + volcengine tts; the probe kind itself has no probe
+  await userEvent.click(buttons[1]);
+  expect(settingsApi.runProbe).toHaveBeenLastCalledWith("volc_tts", { values: {}, allowCost: false, confirmPairs: [] });
+  await userEvent.click(buttons[0]);
+  expect(settingsApi.runProbe).toHaveBeenLastCalledWith("llm", { values: {}, allowCost: false, confirmPairs: [] });
+  expect((await screen.findAllByText(/200 · 87 ms/)).length).toBeGreaterThan(0);
 });
