@@ -201,8 +201,10 @@ describe("RoomPage", () => {
     setup();
     await live();
     fireEvent.click(screen.getByTestId("room-assist-open"));
-    fireEvent.change(await screen.findByTestId("assist-input"), { target: { value: "I like 巧克力" } });
-    fireEvent.click(screen.getByTestId("assist-ask"));
+    // v2: the docked panel has no input of its own; the composer targets the assistant while it is open
+    expect(screen.getByTestId("assist-dock")).toBeTruthy();
+    fireEvent.change(screen.getByTestId("room-input"), { target: { value: "I like 巧克力" } });
+    fireEvent.click(screen.getByTestId("room-send"));
     const ask = JSON.parse(FakeWebSocket.last!.sent.at(-1)!);
     expect(ask).toMatchObject({ type: "assist", text: "I like 巧克力" });
     FakeWebSocket.last!.push({ type: "assist_reply", request_id: ask.request_id, message: { seq: 5, id: "a5", lane: "private", kind: "assist_reply",
@@ -211,7 +213,10 @@ describe("RoomPage", () => {
     expect(screen.queryAllByTestId("room-message")).toHaveLength(0); // the private lane never enters the public list
     fireEvent.click(await screen.findByTestId("assist-send"));
     expect(JSON.parse(FakeWebSocket.last!.sent.at(-1)!)).toMatchObject({ type: "say", text: "I like chocolate.", assist_id: "a5" });
-    await waitFor(() => expect(screen.queryByTestId("assist-tray")).toBeNull());
+    // R2-11 (Addendum WA-1): the docked panel stays open after sending, the used suggestion says so and the composer still asks the assistant
+    expect(screen.getByTestId("assist-dock")).toBeTruthy();
+    expect(screen.getByText("已发送")).toBeTruthy();
+    expect(screen.getByTestId("room-target-assist")).toBeTruthy();
   });
 
   it("edits a suggestion in the composer", async () => {
@@ -226,6 +231,8 @@ describe("RoomPage", () => {
     expect(await screen.findByText("我想说你好")).toBeTruthy();
     fireEvent.click(screen.getByTestId("assist-edit"));
     await waitFor(() => expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("Hello everyone!"));
+    expect(screen.queryByTestId("room-target-assist")).toBeNull(); // back to the group
+    expect(screen.getByTestId("assist-dock").style.height).toBe("52px"); // collapsed to one row, not closed
   });
 
   it("survives StrictMode's mount, unmount, mount without ending up closed", async () => {
