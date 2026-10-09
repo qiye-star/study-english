@@ -48,7 +48,8 @@ export const S = {
   invalidTemplates: "情景模板格式不对:需要 1–50 项,每项恰有 key / name / description / prompt",
   allGood: "检查通过",
   grammarNote: "语法规则不做占位符替换;输出格式由服务端固定追加,这里改不掉。",
-  boundaryNote: "学习者文本会被放进边界标签内并转义,删掉标签会让提示词注入防护失效。",
+  boundaryNote:
+    "学习者文本会被放进边界标签内并转义,删掉标签会让提示词注入防护失效。单独一行写 [[user]] 可把它下面的部分作为用户消息发送(默认模板就是这样);没有这一行时整段作为系统提示。",
   // versions + diff
   versionsTitle: "版本",
   noVersions: "还没有发布过版本",

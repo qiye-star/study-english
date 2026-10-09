@@ -29,6 +29,7 @@ from app.rooms.rules import MAX_TEXT, RoomLimits
 from app.rooms.store import RoomError, RoomStore, message_out, room_out
 from app.rooms.tickets import RoomTicketStore
 from app.services import usage
+from app.services.prompts import prompt_cache
 
 router = APIRouter(prefix="/api/rooms")
 logger = logging.getLogger(__name__)
@@ -127,9 +128,14 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
         async with sm() as s:
             return await effective(s, app, user_id, "rooms_assist_daily_per_user")
 
+    async def templates() -> dict[str, str | None]:
+        """Published admin templates (admin v2 G2); the prompt cache reads the DB once per key until a publish."""
+        cache = prompt_cache(app)
+        return {key: (await cache.get(key))[1] for key in ("rooms.assist", "rooms.answer")}
+
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
                     rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
-                    assist_daily_for)
+                    assist_daily_for, templates)
 
 
 def require_rooms(settings: Settings = Depends(get_settings)) -> Settings:

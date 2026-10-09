@@ -50,9 +50,9 @@ def default_body(app, key: str) -> str | None:
     if key == "grammar.rules":
         return grammar.resolve_rules(app.state.settings, None)
     if key == "rooms.assist":
-        return getattr(assistant, "DEFAULT_ASSIST_TEMPLATE", None)  # added by G2 (template form of M4's prompt)
+        return assistant.DEFAULT_ASSIST_TEMPLATE  # template form of M4's prompt (G2)
     if key == "rooms.answer":
-        return getattr(assistant, "DEFAULT_ANSWER_TEMPLATE", None)
+        return assistant.DEFAULT_ANSWER_TEMPLATE
     return TEMPLATES_FILE.read_text(encoding="utf-8")
 
 
@@ -173,10 +173,6 @@ async def publish(session, app, actor: Actor, key: str, *, reason: str) -> int:
     return version
 
 
-def _escape(text: str) -> str:
-    return (text or "").replace("<", "‹").replace(">", "›")
-
-
 def test_messages(app, key: str, body: str, sample: dict[str, str]) -> tuple[list[dict], str, object]:
     """(messages, model, settings) for one test run; never persisted or logged."""
     settings = app.state.settings
@@ -188,10 +184,8 @@ def test_messages(app, key: str, body: str, sample: dict[str, str]) -> tuple[lis
         base_url, api_key = settings.grammar_upstream
         upstream = settings.model_copy(update={"upstream_llm_base_url": base_url, "upstream_llm_key": api_key})
         return req["messages"], settings.resolved_grammar_model, upstream
-    spec = PROMPTS[key]
-    values = {name: _escape(sample.get(name, "")) for name in spec.required}
-    system = grammar.clean_prompt(body).format(**values)
-    return [{"role": "system", "content": system}], settings.resolved_rooms_ai_model, settings
+    # same rendering as the live room socket (escaping, optional [[user]] split; G2)
+    return assistant.render_test(key, grammar.clean_prompt(body), sample), settings.resolved_rooms_ai_model, settings
 
 
 async def test_run(session, app, actor: Actor, key: str, body: str, sample: dict[str, str]) -> dict:

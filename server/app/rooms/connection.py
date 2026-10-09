@@ -37,6 +37,11 @@ class ConnDeps:
     assist_limiter: RateLimiter | None = None  # per user; plus at most one assist in flight (hub.assist_inflight)
     # The user's daily assist cap (admin per-user quota override); None = limits.assist_daily for everyone
     assist_daily_for: Callable[[int], Awaitable[int]] | None = None
+    # Published admin prompt templates (admin v2 G2); None per key = the built-in default. Cached, no DB read per call.
+    templates: Callable[[], Awaitable[dict[str, str | None]]] | None = None
+
+    async def template(self, key: str) -> str | None:
+        return (await self.templates()).get(key) if self.templates is not None else None
 
 
 def members_out(members, online: set[int]) -> list[dict]:
@@ -146,8 +151,10 @@ class RoomConnection:
                 room = await d.store.room(self.room_id)
                 recent = await d.store.recent_public(self.room_id, assistant.ANSWER_CONTEXT)
                 try:
+                    template = await d.template("rooms.answer")
                     async with d.ai_gate:
-                        raw = await d.complete(assistant.answer_messages(room.topic, recent, self.name, question),
+                        raw = await d.complete(assistant.answer_messages(room.topic, recent, self.name, question,
+                                                                         template=template),
                                                assistant.ANSWER_MAX_TOKENS, assistant.ANSWER_TEMPERATURE)
                     text = assistant.clean_answer(raw)
                     if not text:
@@ -217,8 +224,9 @@ class RoomConnection:
         try:
             recent = await d.store.recent_public(self.room_id, assistant.ASSIST_CONTEXT)
             level = await d.store.user_level(self.user_id)
+            template = await d.template("rooms.assist")
             async with d.ai_gate:
-                raw = await d.complete(assistant.compose_messages(text, recent, level),
+                raw = await d.complete(assistant.compose_messages(text, recent, level, template=template),
                                        assistant.ASSIST_MAX_TOKENS, assistant.ASSIST_TEMPERATURE)
             reply = assistant.parse_assist(raw)
         except asyncio.CancelledError:

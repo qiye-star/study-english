@@ -1,6 +1,12 @@
-"""Room assistant (private compose lane) and public @ai prompts and parsing (spec 2026-10-09 §9). Pure."""
+"""Room assistant (private compose lane) and public @ai prompts and parsing (spec 2026-10-09 §9). Pure
+(templates come from the caller; admin v2 G2)."""
 import json
+import logging
 from dataclasses import dataclass
+
+from app.services.prompts import validate_prompt
+
+logger = logging.getLogger(__name__)
 
 ASSIST_MAX_TOKENS = 400
 ASSIST_TEMPERATURE = 0.4
@@ -75,16 +81,51 @@ ANSWER_SYSTEM = (
 )
 
 
-def compose_messages(draft: str, recent: list[tuple[str, str]], level: str | None) -> list[dict]:
-    return [{"role": "system", "content": COMPOSE_SYSTEM.format(level=level or "unknown")},
-            {"role": "user", "content": f"<chat>\n{_chat(recent)}\n</chat>\n<draft>{_escape(draft)}</draft>"}]
+# Admin v2 G2: both prompts are versioned templates (admin「提示词」rooms.assist / rooms.answer). A line that is exactly
+# USER_MARKER splits the rendered template into the system message (before) and the user message (after); without
+# it the whole template is the system message (as in the admin test run). Learner text is escaped before
+# `str.format`, so it can neither close a boundary tag nor add placeholders (format never re-reads values).
+USER_MARKER = "[[user]]"
+_SPLIT = f"\n{USER_MARKER}\n"
+
+DEFAULT_ASSIST_TEMPLATE = COMPOSE_SYSTEM + _SPLIT + "<chat>\n{chat}\n</chat>\n<draft>{draft}</draft>"
+DEFAULT_ANSWER_TEMPLATE = (
+    ANSWER_SYSTEM.replace("{", "{{").replace("}", "}}") + _SPLIT
+    + "<topic>{topic}</topic>\n<asker>{asker}</asker>\n<chat>\n{chat}\n</chat>\n<question>{question}</question>"
+)
+_FIELDS = {"rooms.assist": ("level", "chat", "draft"), "rooms.answer": ("topic", "asker", "chat", "question")}
+_DEFAULTS = {"rooms.assist": DEFAULT_ASSIST_TEMPLATE, "rooms.answer": DEFAULT_ANSWER_TEMPLATE}
 
 
-def answer_messages(topic: str, recent: list[tuple[str, str]], asker: str, question: str) -> list[dict]:
+def _render(key: str, template: str | None, values: dict[str, str]) -> list[dict]:
+    if template is None or validate_prompt(key, template):
+        if template is not None:
+            logger.warning("room prompt template ignored key=%s reason=invalid", key)
+        template = _DEFAULTS[key]
+    # split before formatting, so learner text containing the marker line cannot move the split
+    system, sep, user = template.partition(_SPLIT)
+    if not sep:
+        return [{"role": "system", "content": template.format(**values)}]
+    return [{"role": "system", "content": system.format(**values)}, {"role": "user", "content": user.format(**values)}]
+
+
+def render_test(key: str, template: str, sample: dict[str, str]) -> list[dict]:
+    """Admin test run: the same rendering with raw sample values (escaped here, `chat` given as plain text)."""
+    return _render(key, template, {name: _escape(sample.get(name, "")) for name in _FIELDS[key]})
+
+
+
+def compose_messages(draft: str, recent: list[tuple[str, str]], level: str | None,
+                     template: str | None = None) -> list[dict]:
+    return _render("rooms.assist", template,
+                   {"level": _escape(level or "unknown"), "chat": _chat(recent), "draft": _escape(draft)})
+
+
+def answer_messages(topic: str, recent: list[tuple[str, str]], asker: str, question: str,
+                    template: str | None = None) -> list[dict]:
     """Review #13: the owner-controlled topic and the asker's name go into the user message, fenced and escaped."""
-    return [{"role": "system", "content": ANSWER_SYSTEM},
-            {"role": "user", "content": f"<topic>{_escape(topic) or 'free talk'}</topic>\n<asker>{_escape(asker)}</asker>\n"
-                                        f"<chat>\n{_chat(recent)}\n</chat>\n<question>{_escape(question)}</question>"}]
+    return _render("rooms.answer", template, {"topic": _escape(topic) or "free talk", "asker": _escape(asker),
+                                              "chat": _chat(recent), "question": _escape(question)})
 
 
 def _object(raw: str) -> dict:
