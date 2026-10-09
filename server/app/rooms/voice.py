@@ -268,6 +268,9 @@ class VoiceService:
         counts against the site's daily voice cap, not the sender's daily clips."""
         d = self.deps
         limits = d.limits()
+        if not d.available():  # sub-switch off: no new transcriptions (spec §11.2); translation still works
+            await conn.send_self(event("notice", code="voice_off"))
+            return
         found = await d.voices.by_seq(conn.room_id, seq)
         if found is None or found[0].sender_id != conn.user_id:
             await conn.send_self(event("error", code="bad_seq"))
@@ -281,9 +284,6 @@ class VoiceService:
             return
         if voice.staging_path is None or voice.attempts >= limits.voice_attempts:
             await conn.send_self(event("notice", code="retry_limit"))
-            return
-        if not d.available():
-            await conn.send_self(event("notice", code="voice_off"))
             return
         if not await d.consume("room_voice_global", GLOBAL, limits.voice_global_daily):
             await conn.send_self(event("notice", code="voice_quota"))

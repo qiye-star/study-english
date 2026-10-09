@@ -119,7 +119,8 @@ async def test_empty_transcript_is_final_and_not_a_failure(env):
     assert state["refunds"] == []
 
 
-async def test_translate_once_for_everyone(env):
+async def test_translate_once_for_everyone(env, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
     service, room, hub, senders, state, _ = env
     out = await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
     await hub.drain()
@@ -133,6 +134,7 @@ async def test_translate_once_for_everyone(env):
     assert bob.sent[-1]["voice"]["translation"] == "我去了那家新面馆。"
     assert state["scopes"][-1] == ("llm", "rooms_voice", B)  # the requester pays
     assert state["consumed"].count("room_translate_global") == 1
+    assert "room voice translated" in caplog.text and "面馆" not in caplog.text and "noodle" not in caplog.text
 
 
 async def test_translate_errors(env):
@@ -211,7 +213,8 @@ async def test_retry_limits(env):
     assert alice.sent[-1] == {"type": "notice", "code": "retry_limit"}
 
 
-async def test_staging_cleanup_after_the_room_closed_ends_retries(env):
+async def test_staging_cleanup_after_the_room_closed_ends_retries(env, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
     service, room, hub, senders, state, data_dir = env
     state["fail"] = True
     out = await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
@@ -221,6 +224,7 @@ async def test_staging_cleanup_after_the_room_closed_ends_retries(env):
     assert await service.cleanup_staging(NOW + timedelta(days=8)) == 1
     assert not (data_dir / f"room_audio/_staging/{out['id']}.wav").exists()
     assert (data_dir / f"room_audio/{room.id}/{out['id']}.mp3").exists()  # the clip itself is kept forever
+    assert "staging cleaned files=1" in caplog.text and "_staging" not in caplog.text  # no paths in logs
     alice = FakeConn(hub, room.id, A)
     await service.on_retry(alice, out["seq"])
     assert alice.sent[-1] == {"type": "notice", "code": "retry_limit"}
