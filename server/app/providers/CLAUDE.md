@@ -7,6 +7,7 @@ Clients for external vendors. Pure I/O + protocol code; no web framework.
 - `azure.py` – Azure Speech: token issuing (cached), SSML TTS
 - `xfyun.py` – iFlytek ISE pronunciation assessment over WebSocket (signed URL)
 - `xfyun_result.py` – converts ISE XML into the assessment JSON the clients expect
+- `llm.py` – non-streaming chat completion (`complete`, `LlmUnavailable`) for rank and rooms
 
 ## Allowed dependencies
 `app.core` only (plus stdlib/httpx/websockets). Never FastAPI/Starlette (enforced by
