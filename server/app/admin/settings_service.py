@@ -141,6 +141,14 @@ def pair_hosts(changes: dict, keys: list[str]) -> dict[str, str]:
     return {k: host_of(url_for(k, changes[k])) for k in keys}
 
 
+# Spec §5.4: the season config is read-only once season 1 has begun (also without published rank rules).
+SEASON_KEYS = ("rank_season_anchor", "rank_season_weeks")
+
+
+def season_started(current: Settings) -> bool:
+    return datetime.now(timezone.utc).date() >= current.rank_season_anchor
+
+
 # After a rank rules publish these six settings are read-only; the admin UI shows the same hint in Chinese.
 MANAGED_HINT = "Managed by the published rank rules; change it in the rank rules editor (/rank/rules)"
 
@@ -213,6 +221,8 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     if problems:
         raise SettingsError(422, "Invalid settings", fields={"_": "; ".join(problems)})
     current: Settings = app.state.settings
+    if any(k in changes and getattr(new, k) != getattr(current, k) for k in SEASON_KEYS) and season_started(current):
+        raise SettingsError(409, "Season locked", fields={k: "Season locked" for k in SEASON_KEYS if k in changes})
     if new.admin_require_totp and not current.admin_require_totp and not actor_totp:
         raise SettingsError(409, "Bind TOTP first", fields={"admin_require_totp": "Bind TOTP first"})
     # A restart key's stored value may differ from the running one (pending): setting it back is a real change.
@@ -444,7 +454,7 @@ async def import_preview(session, app, payload: dict) -> dict:
         item: dict = {"env": env, "key": key if spec else None}
         if spec is None:
             item["status"] = "unknown"
-        elif spec.env_only or (spec.managed_by == "rank_rules" and managed):
+        elif spec.env_only or (spec.managed_by == "rank_rules" and managed)                 or (key in SEASON_KEYS and season_started(current)):
             item["status"] = "read_only"
         elif spec.secret:
             item["status"] = "secret"

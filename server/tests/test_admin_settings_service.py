@@ -166,13 +166,15 @@ async def test_reset_to_env_and_revert_with_conflicts(app):
     assert (exc.value.status, exc.value.error) == (409, "Nothing to change")
 
 
-async def test_date_values_round_trip(app):
-    await _save(app, {"rank_season_anchor": "2026-12-07"})
-    assert str(app.state.settings.rank_season_anchor) == "2026-12-07"
+@pytest.mark.parametrize("settings_overrides", [{**ADMIN_ENABLED, "settings_encryption_key": KEY,
+                                                 "rank_season_anchor": "2099-01-05"}], indirect=True)
+async def test_date_values_round_trip(app):  # season 1 not started yet (anchor in the future), so it is editable
+    await _save(app, {"rank_season_anchor": "2099-12-07"})
+    assert str(app.state.settings.rank_season_anchor) == "2099-12-07"
     async with app.state.sessionmaker() as s:
         listing = await svc.list_settings(s, app)
     item = next(i for i in listing["items"] if i["key"] == "rank_season_anchor")
-    assert item["override"] == "2026-12-07" and item["source"] == "override"
+    assert item["override"] == "2099-12-07" and item["source"] == "override"
     json.dumps(listing)
 
 
@@ -231,3 +233,17 @@ async def test_changing_the_invite_code_needs_step_up(app):
     with pytest.raises(svc.SettingsError) as exc:
         await _save(app, {"invite_code": "new-invite-code"})
     assert exc.value.status == 403
+
+
+@pytest.mark.parametrize("settings_overrides", [{**ADMIN_ENABLED, "settings_encryption_key": KEY,
+                                                 "rank_season_anchor": "2026-01-05"}], indirect=True)
+async def test_season_settings_are_locked_once_season_one_started(app):
+    """Review correctness m1 (spec §5.4): moving the anchor would shift season_of and awarded season badges."""
+    for change in ({"rank_season_anchor": "2026-02-02"}, {"rank_season_weeks": 4}):
+        with pytest.raises(svc.SettingsError) as exc:
+            await _save(app, change)
+        assert (exc.value.status, exc.value.error) == (409, "Season locked")
+    payload = {"format": "enjoy-admin-settings", "version": 1, "overrides": {"RANK_SEASON_WEEKS": 4}}
+    async with app.state.sessionmaker() as s:
+        preview = await svc.import_preview(s, app, payload)
+    assert preview["items"][0]["status"] == "read_only"
