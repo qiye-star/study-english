@@ -70,6 +70,18 @@ describe("ApiClient", () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
+  it("reports a 503 Maintenance so the app can show the maintenance state at once", async () => {
+    const onMaintenance = vi.fn();
+    const { api } = make(
+      { "GET /api/a": () => json({ error: "Maintenance" }, 503), "GET /api/b": () => json({ error: "Upstream down" }, 503) },
+      { onMaintenance },
+    );
+    await expect(api.request("GET", "/api/b")).rejects.toMatchObject({ status: 503 });
+    expect(onMaintenance).not.toHaveBeenCalled();
+    await expect(api.request("GET", "/api/a")).rejects.toMatchObject({ status: 503, message: "Maintenance" });
+    expect(onMaintenance).toHaveBeenCalledTimes(1);
+  });
+
   it("calls onUnauthorized for authenticated 401 only", async () => {
     const onUnauthorized = vi.fn();
     const { api } = make(

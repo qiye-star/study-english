@@ -22,6 +22,8 @@ export interface RequestOptions {
 export interface ApiClientOptions {
   getToken: () => string | null;
   onUnauthorized?: () => void;
+  /** 503 "Maintenance":服务端进入维护模式,应用据此立即刷新维护状态(不用等下一次轮询) */
+  onMaintenance?: () => void;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
 }
@@ -94,6 +96,7 @@ export class ApiClient {
         const message = await errorMessage(response);
         // An account disabled by an admin: the token is useless, so sign out like a 401 (logging in again shows why).
         if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.();
+        if (response.status === 503 && message === "Maintenance") this.options.onMaintenance?.();
         throw new ApiError(response.status, message);
       }
       if (as === "raw") return response as unknown as T;

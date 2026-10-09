@@ -66,6 +66,17 @@ export function useAnnouncements(): AnnouncementsState | null {
 /** 测试用:清空缓存。 */
 export function resetAnnouncementsForTests(): void {
   current = null;
+  lastMaintenanceNote = -Infinity;
+}
+
+const MAINTENANCE_REFRESH_MS = 10_000;
+let lastMaintenanceNote = -Infinity;
+
+/** 某个 API 返回了 503 Maintenance:立即刷新维护状态(最多每 10 秒一次),维护页/横幅马上出现。 */
+export function noteMaintenance(now: number = Date.now()): void {
+  if (now - lastMaintenanceNote < MAINTENANCE_REFRESH_MS) return;
+  lastMaintenanceNote = now;
+  void refresh();
 }
 
 /** 按界面语言选文案:中文界面用中文;其他语言用英文,英文为空时回退中文。 */
