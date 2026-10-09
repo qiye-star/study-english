@@ -16,9 +16,9 @@ async def test_unknown_route_uses_error_envelope(client):
     assert "error" in r.json()
 
 
-def test_invite_mode_requires_code():
-    with pytest.raises(RuntimeError, match="INVITE_CODE"):
-        create_app(make_settings(registration_mode="invite", invite_code=""))
+def test_invite_mode_starts_without_env_code():
+    # admin-issued DB invite codes work without INVITE_CODE (admin v2 integration); the doctor warns instead
+    assert create_app(make_settings(registration_mode="invite", invite_code="")) is not None
 
 
 def test_default_model_must_be_listed():

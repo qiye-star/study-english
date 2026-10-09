@@ -50,7 +50,7 @@ async def test_invalid_values_report_fields_and_change_nothing(app):
     assert exc.value.status == 422 and "rate_limit_per_minute" in exc.value.fields
     assert app.state.settings.realtime_max_minutes == 10
     with pytest.raises(svc.SettingsError) as exc:
-        await _save(app, {"registration_mode": "invite", "invite_code": ""}, reason="x", confirm=None)
+        await _save(app, {"default_llm_model": "not-in-the-list"}, reason="x", confirm=None)
     assert exc.value.status == 422
 
 

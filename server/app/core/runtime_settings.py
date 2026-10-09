@@ -109,8 +109,8 @@ def compose(base: Settings, overrides: dict[str, object]) -> Settings:
 
 def runtime_problems(s: Settings) -> list[str]:
     problems: list[str] = []
-    if s.registration_mode == "invite" and not s.invite_code:
-        problems.append("REGISTRATION_MODE=invite requires INVITE_CODE")
+    # invite mode no longer needs INVITE_CODE: admin-issued DB codes work too (admin v2 §7); the config doctor
+    # warns when neither exists (`invite_without_codes`)
     if s.default_llm_model not in s.llm_model_list:
         problems.append("DEFAULT_LLM_MODEL must be one of LLM_MODELS")
     if s.admin_enabled and len(s.admin_password) < 12:
