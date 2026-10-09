@@ -391,6 +391,15 @@ class AppSecret(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AuditHead(Base):
+    """One row (id=1): the hash of the newest audit row. Every `audit.record` updates it first, which takes the DB
+    write lock (SQLite) / row lock (Postgres) until the caller commits, so writers in any process chain in order."""
+    __tablename__ = "audit_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hash: Mapped[str] = mapped_column(String(64))
+
+
 class SettingOverride(Base):
     __tablename__ = "setting_overrides"
 

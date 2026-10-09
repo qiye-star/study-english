@@ -1,4 +1,4 @@
-"""admin console v2 review fixes: app_secrets (stable admin session secret)
+"""admin console v2 review fixes: app_secrets (stable admin session secret), audit_head (serialised audit chain)
 
 Revision ID: 0010
 Revises: 0009
@@ -25,7 +25,12 @@ def upgrade() -> None:
         sa.Column('value', sa.String(length=128), nullable=False),
         sa.Column('created_at', TZ, nullable=False),
         sa.PrimaryKeyConstraint('name'))
+    op.create_table('audit_head',
+        sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column('hash', sa.String(length=64), nullable=False),
+        sa.PrimaryKeyConstraint('id'))
 
 
 def downgrade() -> None:
+    op.drop_table('audit_head')
     op.drop_table('app_secrets')
