@@ -3,7 +3,7 @@ import camelcaseKeys from "camelcase-keys";
 /** 与 server/app/rooms/protocol.py 逐字对应(protocol.test.ts 直接读取服务端文件核对)。 */
 export const ROOM_CLOSE = { NORMAL: 1000, RESTART: 1012, UNAUTHORIZED: 4001, DISABLED: 4003, NOT_FOUND: 4004, KICKED: 4010, BUSY: 4029, PROTOCOL: 4400 } as const;
 export const ROOM_LIMITS = { clientText: 8192, sayRaw: 2000, assistText: 500, id: 64, text: 500 } as const;
-export const ROOM_SERVER_EVENT_TYPES = ["welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed", "room_update", "notice", "error", "closed", "pong"] as const;
+export const ROOM_SERVER_EVENT_TYPES = ["welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed", "room_update", "notice", "error", "closed", "pong", "message_hidden"] as const;
 const TERMINAL = new Set<number>([ROOM_CLOSE.DISABLED, ROOM_CLOSE.NOT_FOUND, ROOM_CLOSE.KICKED, ROOM_CLOSE.PROTOCOL]);
 
 export interface RoomSender { kind: "user" | "ai" | "system"; id: number | null; name: string | null }
@@ -12,9 +12,11 @@ export interface RoomMessage {
   seq: number; id: string; lane: "public" | "private"; kind: "text" | "ai_answer" | "system" | "assist_request" | "assist_reply";
   sender: RoomSender; text: string; assisted: boolean; replyTo: number | null; aiStatus: "pending" | "done" | "failed" | null;
   meta: Record<string, unknown> | null; createdAt: string;
+  /** 管理员隐藏:行保留(R-6),正文与 meta 不再下发 */
+  hidden?: boolean;
 }
 export interface RoomInfo {
-  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; ownerId: number;
+  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; ownerId: number;
   myRole: "owner" | "member" | null; memberCount: number; onlineCount: number; createdAt: string; closedAt: string | null;
 }
 export interface RoomMemberInfo { userId: number; name: string; role: "owner" | "member"; online: boolean }
@@ -31,7 +33,8 @@ export type RoomEvent =
   | { type: "notice"; code: "ai_off" | "ai_busy" | "ai_quota" }
   | { type: "error"; code: "rate_limited" | "empty" | "bad_assist" }
   | { type: "closed"; reason: string }
-  | { type: "pong" };
+  | { type: "pong" }
+  | { type: "message_hidden"; seq: number };
 
 const TYPES = new Set<string>(ROOM_SERVER_EVENT_TYPES);
 

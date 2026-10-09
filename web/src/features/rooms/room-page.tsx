@@ -24,7 +24,7 @@ const REPORT_REASONS = ["spam", "abuse", "other"] as const;
 const CLOSE_KEYS: Record<string, string> = {
   kicked: "web.rooms.errors.kickedClose", not_found: "web.rooms.errors.notFound", ended: "web.rooms.room.closedNote",
   owner: "web.rooms.errors.closed_owner", idle: "web.rooms.errors.closed_idle", expired: "web.rooms.errors.closed_expired",
-  disabled: "web.rooms.errors.closed_disabled", protocol: "web.rooms.errors.closed_protocol",
+  disabled: "web.rooms.errors.closed_disabled", protocol: "web.rooms.errors.closed_protocol", admin: "web.rooms.errors.closed_admin",
 };
 const NOTICE_MS = 5000;
 

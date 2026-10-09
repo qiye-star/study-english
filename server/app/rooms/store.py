@@ -34,17 +34,20 @@ class MemberView:
 
 
 def message_out(m: RoomMessage, name: str | None) -> dict:
+    """Member view. A message hidden by an admin keeps its row (R-6) but its text and meta are withheld."""
+    hidden = m.hidden_at is not None
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
             "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": name},
-            "text": m.text, "assisted": bool(m.assisted), "reply_to": m.reply_to, "ai_status": m.ai_status,
-            "meta": m.meta, "created_at": iso_utc(m.created_at)}
+            "text": "" if hidden else m.text, "assisted": bool(m.assisted), "reply_to": m.reply_to,
+            "ai_status": m.ai_status, "meta": None if hidden else m.meta, "created_at": iso_utc(m.created_at),
+            "hidden": hidden}
 
 
 def room_out(room: Room, *, my_role: str | None, member_count: int, online_count: int) -> dict:
     return {"id": room.id, "code": room.code, "topic": room.topic, "status": room.status, "locked": room.locked,
-            "ai_public": room.ai_public, "owner_id": room.owner_id, "my_role": my_role, "member_count": member_count,
-            "online_count": online_count, "created_at": iso_utc(room.created_at),
-            "closed_at": iso_utc(room.closed_at) if room.closed_at else None}
+            "ai_public": room.ai_public, "ai_muted": bool(room.ai_muted), "owner_id": room.owner_id,
+            "my_role": my_role, "member_count": member_count, "online_count": online_count,
+            "created_at": iso_utc(room.created_at), "closed_at": iso_utc(room.closed_at) if room.closed_at else None}
 
 
 _ACTIVE = (RoomMember.left_at.is_(None), RoomMember.kicked.is_(False))
@@ -58,13 +61,14 @@ class RoomStore:
         # Create and join check a count and then insert; one at a time keeps the caps exact (single worker, review #16).
         self._admission = asyncio.Lock()
 
-    async def create(self, owner_id: int, topic: str, now: datetime) -> Room:
+    async def create(self, owner_id: int, topic: str, now: datetime, *, max_owned: int | None = None) -> Room:
+        """`max_owned` is the owner's own cap (admin per-user quota override); default: the site limit."""
         async with self._admission, self._sm() as s:
             if await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open")) >= self.limits.max_active:
                 raise RoomError("capacity")
             owned = await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open",
                                                                                 Room.owner_id == owner_id))
-            if owned >= self.limits.max_owned:
+            if owned >= (self.limits.max_owned if max_owned is None else max_owned):
                 raise RoomError("too_many")
             for _ in range(CODE_ATTEMPTS):
                 code = self._code_gen()
@@ -193,6 +197,51 @@ class RoomStore:
             member.kicked, member.left_at = True, now
             await s.commit()
 
+    async def admin_kick(self, room_id: str, user_id: int, now: datetime) -> None:
+        """Admin removal: no owner check, works on the owner too (ownership passes to the earliest member) and on
+        someone who already left (so they cannot rejoin with the code)."""
+        async with self._sm() as s:
+            room = await s.get(Room, room_id)
+            if room is None:
+                raise RoomError("not_found")
+            member = await s.scalar(select(RoomMember).where(RoomMember.room_id == room_id,
+                                                             RoomMember.user_id == user_id))
+            if member is None:
+                raise RoomError("not_found")
+            if member.kicked:
+                return
+            member.kicked, member.left_at = True, member.left_at or now
+            if member.role == "owner":
+                member.role = "member"
+                heir = await s.scalar(select(RoomMember).where(RoomMember.room_id == room_id,
+                                                               RoomMember.user_id != user_id, *_ACTIVE)
+                                      .order_by(RoomMember.joined_at, RoomMember.id).limit(1))
+                if heir is not None:
+                    heir.role = "owner"
+                    room.owner_id = heir.user_id
+            await s.commit()
+
+    async def hide(self, room_id: str, message_id: str, now: datetime) -> int:
+        """Admin hide: sets `hidden_at` and keeps the row (R-6: room messages are never deleted). Returns the seq."""
+        async with self._sm() as s:
+            msg = await s.scalar(select(RoomMessage).where(RoomMessage.id == message_id,
+                                                           RoomMessage.room_id == room_id))
+            if msg is None or msg.kind == "system":
+                raise RoomError("not_found")
+            if msg.hidden_at is None:
+                msg.hidden_at = now
+                await s.commit()
+            return msg.seq
+
+    async def set_ai_muted(self, room_id: str, muted: bool) -> Room:
+        async with self._sm() as s:
+            room = await s.get(Room, room_id)
+            if room is None:
+                raise RoomError("not_found")
+            room.ai_muted = muted
+            await s.commit()
+            return room
+
     async def update(self, room_id: str, owner_id: int, *, topic: str | None = None, locked: bool | None = None,
                      ai_public: bool | None = None) -> Room:
         async with self._sm() as s:
@@ -292,7 +341,8 @@ class RoomStore:
 
     async def recent_public(self, room_id: str, limit: int) -> list[tuple[str, str]]:
         rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "public",
-                                                      RoomMessage.kind.in_(("text", "ai_answer")))
+                                                      RoomMessage.kind.in_(("text", "ai_answer")),
+                                                      RoomMessage.hidden_at.is_(None))
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
         return [(AI_NAME if m.sender_kind == "ai" else (n or ""), m.text) for m, n in reversed(rows)]
 

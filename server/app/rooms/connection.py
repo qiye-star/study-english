@@ -35,6 +35,8 @@ class ConnDeps:
     ai_user_limiter: RateLimiter
     ai_available: bool
     assist_limiter: RateLimiter | None = None  # per user; plus at most one assist in flight (hub.assist_inflight)
+    # The user's daily assist cap (admin per-user quota override); None = limits.assist_daily for everyone
+    assist_daily_for: Callable[[int], Awaitable[int]] | None = None
 
 
 def members_out(members, online: set[int]) -> list[dict]:
@@ -122,7 +124,7 @@ class RoomConnection:
     async def _admit_ai(self) -> bool:
         d = self.deps
         room = await d.store.room(self.room_id)
-        if not d.ai_available or room is None or not room.ai_public:
+        if not d.ai_available or room is None or not room.ai_public or room.ai_muted:
             await self._send(event("notice", code="ai_off"))
             return False
         if d.hub.ai_pending(self.room_id) >= d.limits.ai_queue:
@@ -173,6 +175,11 @@ class RoomConnection:
         if not d.ai_available:
             await self._to_me(event("assist_failed", request_id=msg.request_id, code="upstream"))
             return
+        room = await d.store.room(self.room_id)
+        if room is not None and room.ai_muted:  # an admin turned AI off in this room: the tray request ends too
+            await self._to_me(event("notice", code="ai_off"))
+            await self._to_me(event("assist_failed", request_id=msg.request_id, code="upstream"))
+            return
         uid = str(self.user_id)
         # Review #4: one assist in flight per user and a per-minute cap, so one user cannot flood the shared AI gate.
         if self.user_id in d.hub.assist_inflight or (d.assist_limiter is not None and not d.assist_limiter.allow(uid)):
@@ -181,7 +188,8 @@ class RoomConnection:
         d.hub.assist_inflight.add(self.user_id)
         spawned = False
         try:
-            if not await d.consume("room_assist", uid, d.limits.assist_daily):
+            daily = d.limits.assist_daily if d.assist_daily_for is None else await d.assist_daily_for(self.user_id)
+            if not await d.consume("room_assist", uid, daily):
                 await self._to_me(event("assist_failed", request_id=msg.request_id, code="quota"))
                 return
             if not await d.consume("room_ai_global", GLOBAL, d.limits.ai_global_daily):

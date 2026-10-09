@@ -28,11 +28,11 @@ const keys = (r: Record<string, true>) => Object.keys(r).sort();
 const camel = (v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as Record<string, unknown>;
 const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 
-const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, ownerId: true,
+const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
   myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true };
 const MEMBER: Record<keyof RoomMemberInfo, true> = { userId: true, name: true, role: true, online: true };
 const MESSAGE: Record<keyof RoomMessage, true> = { seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true,
-  replyTo: true, aiStatus: true, meta: true, createdAt: true };
+  replyTo: true, aiStatus: true, meta: true, createdAt: true, hidden: true };
 const SENDER: Record<keyof RoomSender, true> = { kind: true, id: true, name: true };
 const CONFIG: Record<keyof RoomsConfig, true> = { enabled: true, aiAvailable: true, maxMembers: true, maxText: true };
 type Ev<T extends RoomEvent["type"]> = Record<keyof Extract<RoomEvent, { type: T }>, true>;
@@ -50,6 +50,7 @@ const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
   error: { type: true, code: true },
   closed: { type: true, reason: true },
   pong: { type: true },
+  message_hidden: { type: true, seq: true },
 };
 type Code<T extends RoomEvent["type"]> = Extract<RoomEvent, { type: T }> extends { code: infer C } ? C & string : never;
 const CODES: { [K in "error" | "notice" | "ai_failed" | "assist_failed"]: Record<Code<K>, true> } = {

@@ -13,7 +13,9 @@ from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user, get_settings, limited_user
+from app.core.quotas import effective
 from app.core.ratelimit import RateLimiter
+from app.core.settings_registry import SPECS
 from app.models import User, utcnow
 from app.providers import llm
 from app.rooms.codes import normalize_code
@@ -52,6 +54,38 @@ class RoomsRuntime:
     join_limiter: RateLimiter
     assist_limiter: RateLimiter
     sweeper: asyncio.Task | None = None
+    ai_concurrency: int = 0
+
+    def reconfigure(self, settings: Settings, old: Settings | None = None) -> None:
+        """Hot reload (admin v2 §3.6, §10): new limits for later requests/messages; live sockets close when rooms
+        are switched off (4003) or maintenance starts (1012, clients reconnect and get the maintenance answer)."""
+        limits = RoomLimits.from_settings(settings)
+        self.limits = self.store.limits = limits
+        self.ai_room_limiter.limit = limits.ai_per_room_hour
+        self.say_limiter.limit = limits.say_per_minute
+        self.ai_user_limiter.limit = limits.ai_per_user_10min
+        self.join_limiter.limit = limits.join_per_minute
+        self.assist_limiter.limit = limits.assist_per_minute
+        self.tickets.set_ttl(settings.rooms_ticket_ttl_seconds)
+        if settings.rooms_ai_concurrency != self.ai_concurrency:  # calls already holding the old gate finish on it
+            self.ai_gate = asyncio.Semaphore(settings.rooms_ai_concurrency)
+            self.ai_concurrency = settings.rooms_ai_concurrency
+        code = None
+        if not settings.rooms_enabled:
+            code = CLOSE_DISABLED
+        elif getattr(settings, "maintenance_mode", "off") != "off":
+            code = CLOSE_RESTART
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if code is not None and self.hub.active_rooms():
+            self.hub.spawn(self.hub.close_all(code))
+        if settings.rooms_enabled and old is not None and not old.rooms_enabled and self.sweeper is None:
+            self.sweeper = asyncio.get_running_loop().create_task(_sweep_loop(self))  # switched on at runtime
+
+
+RUNTIME_KEYS = frozenset({k for k in SPECS if k.startswith(("rooms_", "room_"))} | {"maintenance_mode"})
 
 
 def runtime(app) -> RoomsRuntime:
@@ -66,8 +100,11 @@ def runtime(app) -> RoomsRuntime:
             ai_room_limiter=RateLimiter(limits.ai_per_room_hour, 3600),
             ai_user_limiter=RateLimiter(limits.ai_per_user_10min, 600),
             join_limiter=RateLimiter(limits.join_per_minute, 60),
-            assist_limiter=RateLimiter(limits.assist_per_minute, 60))
+            assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency)
         app.state.rooms = rt
+        hub = getattr(app.state, "settings_hub", None)
+        if hub is not None:
+            hub.subscribe("rooms_runtime", lambda old, new: rt.reconfigure(new, old), keys=RUNTIME_KEYS)
     return rt
 
 
@@ -86,8 +123,13 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
         async with sm() as s:
             await usage.refund(s, scope, subject, usage.utc_day(utcnow()))
 
+    async def assist_daily_for(user_id: int) -> int:
+        async with sm() as s:
+            return await effective(s, app, user_id, "rooms_assist_daily_per_user")
+
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
-                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter)
+                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
+                    assist_daily_for)
 
 
 def require_rooms(settings: Settings = Depends(get_settings)) -> Settings:
@@ -153,8 +195,10 @@ async def rooms_config(_: User = Depends(current_user), settings: Settings = Dep
 async def create_room(payload: CreateIn, request: Request, user: User = Depends(limited_user),
                       _: Settings = Depends(require_rooms)):
     rt = runtime(request.app)
+    async with request.app.state.sessionmaker() as s:
+        max_owned = await effective(s, request.app, user.id, "rooms_max_owned")
     try:
-        room = await rt.store.create(user.id, payload.topic, utcnow())
+        room = await rt.store.create(user.id, payload.topic, utcnow(), max_owned=max_owned)
     except RoomError as e:
         _raise(e)
     return {"room": await _room_json(rt, room, "owner")}

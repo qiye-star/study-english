@@ -32,6 +32,10 @@ class RoomTicketStore:
         self._items[ticket] = (now + self._ttl, RoomGrant(user_id, room_id))
         return ticket
 
+    def set_ttl(self, seconds: float) -> None:
+        """Hot reload: only tickets issued from now on get the new lifetime."""
+        self._ttl = seconds
+
     def revoke_user(self, user_id: int) -> int:
         """Drop every unredeemed ticket of a user (admin disable / token revocation)."""
         keys = [k for k, (_, g) in self._items.items() if g.user_id == user_id]

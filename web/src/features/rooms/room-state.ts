@@ -106,6 +106,9 @@ function onEvent(s: RoomState, e: RoomEvent): RoomState {
       return { ...s, status: "closed", closeReason: e.reason, aiTyping: [] };
     case "pong":
       return s;
+    case "message_hidden":
+      // 管理员隐藏了一条消息:保留位置,清掉正文
+      return { ...s, messages: s.messages.map((x) => (x.seq === e.seq ? { ...x, hidden: true, text: "", meta: null } : x)) };
   }
 }
 
