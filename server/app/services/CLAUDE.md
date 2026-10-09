@@ -10,6 +10,10 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `pronunciation.py` – iFlytek ISE request limits and language -> engine entry (`_ise_entry`)
 - `uploads.py` – size-limited body read + buffered multipart parsing
 - `grammar.py` – grammar-check prompt rules, request building, output normalization
+- `prompts.py` – admin-versioned prompts (spec admin v2 §11): `PROMPTS` registry, `validate_prompt`,
+  `prompt_cache(app)` (published versions; refreshed on `config_revisions['prompts']`), `apply_grammar`
+  (a published `grammar.rules` sets `app.state.grammar_rules` + `grammar_rules_pinned`; it replaces only the
+  rules, never `GRAMMAR_OUTPUT_CONTRACT`)
 - `stats.py` – learning-progress aggregation (streaks, scores, weak words)
 - `vocabulary.py` – word normalization and Leitner-box review scheduling
 - `provider_clients.py` – FastAPI getters caching `AzureSpeech` / `XfyunIse` on `app.state`
@@ -21,12 +25,12 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 
 ## Entry points
 `save_assessment`, `check_quota`, `cleanup_orphan_chat_recordings`, `normalize_grammar`,
-`aggregate`, `next_review`, `get_azure`, `get_xfyun`.
+`aggregate`, `next_review`, `get_azure`, `get_xfyun`, `prompt_cache`, `validate_prompt`.
 
 ## Tests
-`uv run pytest -q tests/test_assessment_store.py tests/test_chat_orphan_cleanup.py tests/test_grammar_rules.py tests/test_stats.py tests/test_vocabulary_rules.py`
+`uv run pytest -q tests/test_assessment_store.py tests/test_chat_orphan_cleanup.py tests/test_grammar_rules.py tests/test_prompts.py tests/test_stats.py tests/test_vocabulary_rules.py`
 
 ## Pitfalls
 - Commit DB rows first, delete files after; file removal must never raise after a commit.
-- Never log recording paths, user text, prompts or keys.
+- Never log recording paths, user text, prompts or keys (prompt versions: key + version only).
 - Tests override `get_xfyun` via `app.dependency_overrides`: keep it importable from here.
