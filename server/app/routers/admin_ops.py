@@ -1,16 +1,19 @@
-"""运维端点(spec §9、§12、§13):公告、维护模式。薄端点:业务在 app.admin.*,写操作同一事务审计。"""
+"""运维端点(spec §9、§12、§13):公告、维护模式、系统状态、脱敏日志。薄端点:业务在 app.admin.*,写操作同一事务审计。"""
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import announcements
+from app.admin import announcements, audit, system
 from app.admin.announcements import AnnouncementError
 from app.admin.perms import AdminContext, require, step_up_until
+from app.core import log_buffer
 from app.core.deps import get_session
+from app.models import AdminAudit
 
 router = APIRouter(prefix="/api/admin")
 
@@ -111,3 +114,25 @@ async def set_maintenance(body: MaintenanceIn, request: Request, ctx: AdminConte
         return _error(e)
     return {"revision": result.revision, "changed": result.changed,
             **announcements.maintenance_out(request.app.state.settings)}
+
+
+# ---- system status (viewer) and the redacted in-memory log viewer (operator) ----
+
+@router.get("/system")
+async def system_status(request: Request, _: AdminContext = Depends(require("viewer")),
+                        session: AsyncSession = Depends(get_session)):
+    return await system.status(request.app, session)
+
+
+@router.get("/logs")
+async def logs(level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None,
+               logger: str | None = Query(None, max_length=100), q: str | None = Query(None, max_length=200),
+               after_id: int | None = Query(None, ge=0), limit: int = Query(200, ge=1, le=2000),
+               ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    seen = await session.scalar(select(AdminAudit.id).where(AdminAudit.action == "logs.view",
+                                                            AdminAudit.session_id == ctx.session.id).limit(1))
+    if seen is None:  # audited once per admin session
+        await audit.record(session, ctx.actor, "logs.view")
+        await session.commit()
+    entries = log_buffer.query(level=level, logger_prefix=logger, q=q, after_id=after_id, limit=limit)
+    return {"entries": [e.__dict__ for e in entries], "capacity": log_buffer.BUFFER_CAPACITY}

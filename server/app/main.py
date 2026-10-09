@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.admin import usage
-from app.core import metering
+from app.core import log_buffer, metering
 from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
@@ -17,6 +17,7 @@ from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.maintenance import MaintenanceMiddleware
 from app.core.ratelimit import RateLimiter
+from app.core.settings_registry import SECRETS
 from app.core.runtime_settings import (
     SettingsHub, reload_from_db, run_startup_hooks, runtime_problems, watch_revisions,
 )
@@ -73,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
+    _log_secrets(None, settings)
     app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(MaintenanceMiddleware)  # reads app.state.settings per request (hot)
     app.add_middleware(metering.MeteringMiddleware)  # added last = outermost
@@ -97,6 +99,11 @@ async def _stop_tasks(tasks: dict[str, asyncio.Task], exclude: str | None = None
     for task in chosen:
         with suppress(asyncio.CancelledError, Exception):
             await task
+
+
+def _log_secrets(old: Settings | None, new: Settings) -> None:
+    """The log viewer redacts every current secret value (admin v2 §13)."""
+    log_buffer.set_secrets(str(getattr(new, key, "") or "") for key in SECRETS)
 
 
 def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
@@ -137,6 +144,7 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
         if rt is not None and old.maintenance_mode == "off" and new.maintenance_mode != "off":
             rt.hub.spawn(rt.hub.close_all(CLOSE_RESTART))
 
+    hub.subscribe("log_secrets", _log_secrets, keys=set(SECRETS))
     hub.subscribe("maintenance_rooms", maintenance_apply, keys={"maintenance_mode"})
     hub.subscribe("metering_prices", lambda o, n: None, keys={"usage_prices_json"},
                   prepare=lambda new: usage.parse_prices(new.usage_prices_json))

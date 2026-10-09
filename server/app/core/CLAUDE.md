@@ -24,6 +24,11 @@ Foundation layer used by every other package.
   units_out=, unit=)` into the bounded in-memory `METER` (never raises; numbers only), `MeteringMiddleware`
   (feature by path), `bind_user` (called by `current_user`), `feature_scope`, `flush_loop` (5 s batch writes to
   `upstream_calls`, hourly `rollup_and_prune` into `usage_daily`); helpers `provider_of`, `audio_units`, `pcm_ms`
+- `maintenance.py` – `MaintenanceMiddleware` (pure ASGI, reads `maintenance_mode` per request): read_only → 503 on
+  `/api/**` writes, full → 503 on all `/api/**`; `/up`, `/api/admin`, `/api/announcements`, `POST /api/sessions`
+  (read_only) pass; new WebSockets get close 1013 before accept
+- `log_buffer.py` – in-memory ring buffer (2000) on the `app` and `uvicorn.error` loggers for the admin log viewer;
+  `redact` (ticket/Bearer/key=…/JSON keys/current secret values via `set_secrets`); installed by `configure_logging`
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
@@ -34,7 +39,7 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 `runtime_settings.SettingsHub` (`app.state.settings_hub`; `app.state.base_settings` is the env-only base).
 
 ## Tests
-`uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py`
+`uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py tests/test_maintenance.py tests/test_log_buffer.py`
 
 ## Pitfalls
 - Settings field names are the env contract (`.env.example`, docker-compose); renaming breaks deploys.
