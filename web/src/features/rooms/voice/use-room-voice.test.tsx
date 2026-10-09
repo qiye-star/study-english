@@ -73,7 +73,7 @@ describe("useRoomVoice", () => {
     const { hook } = setup("group", { "POST /api/rooms/r1/voice": () => json({ error: "Voice storage quota reached" }, 429) });
     await act(async () => { await hook.result.current.start(); });
     act(() => hook.result.current.finish("send"));
-    await waitFor(() => expect(hook.result.current.error).toBe("语音存储已满,可以继续发文字"));
+    await waitFor(() => expect(hook.result.current.error).toBe("今天的语音存储额度已用完,可以继续发文字"));
     expect(hook.result.current.state).toBe("idle");
   });
 

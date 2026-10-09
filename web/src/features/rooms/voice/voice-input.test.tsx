@@ -42,9 +42,9 @@ describe("VoiceInput", () => {
   });
 
   it("shows the busy label and the error line", () => {
-    renderWithProviders(<VoiceInput voice={controller({ state: "sending", error: "语音存储已满,可以继续发文字" })} disabled={false} maxMs={60000} />);
+    renderWithProviders(<VoiceInput voice={controller({ state: "sending", error: "今天的语音存储额度已用完,可以继续发文字" })} disabled={false} maxMs={60000} />);
     expect(screen.getByTestId("room-mic").textContent).toContain("正在发送…");
-    expect(screen.getByTestId("room-voice-error").textContent).toBe("语音存储已满,可以继续发文字");
+    expect(screen.getByTestId("room-voice-error").textContent).toBe("今天的语音存储额度已用完,可以继续发文字");
   });
 
   it("shows the transcribing label", () => {
