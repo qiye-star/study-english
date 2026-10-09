@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 管理后台 v2 mockup</title>
+<style>
+/* ------------------------------------------------------------------
+   Canvas (around the frames; not app UI)
+------------------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#111318;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{padding:40px 32px 80px;min-width:1504px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas p.lede{color:#5B6170;font-size:13px;margin-top:6px;max-width:110ch;line-height:1.55}
+.canvas h2.group{font-size:15px;font-weight:600;margin-top:44px;letter-spacing:-.01em}
+.cap{font-size:12px;color:#5B6170;margin:10px 2px 0;line-height:1.5;max-width:1440px}
+.cap b{color:#111318;font-weight:600}
+.frame{position:relative;overflow:hidden;background:var(--bg);border-radius:10px;box-shadow:0 0 0 1px rgba(17,19,24,.10),0 18px 40px -24px rgba(17,19,24,.35);margin-top:16px}
+.desk{width:1440px;height:900px}
+.tab{width:1024px;height:768px}
+
+/* ------------------------------------------------------------------
+   Design tokens — redesign-v3 (one meaning per hue), admin uses surface-2 as page
+------------------------------------------------------------------ */
+.frame{
+  --bg:#F5F6F8; --surface:#FFFFFF; --surface-2:#F5F6F8; --sunken:#EEF0F3;
+  --ink:#111318; --ink-2:#5B6170; --ink-3:#8A90A0; --hair:rgba(17,19,24,.12); --hair-2:rgba(17,19,24,.07);
+  --blue:#2456DB; --blue-tint:#EAF0FF; --blue-strong:#1C45B2;
+  --amber:#9A4B00; --amber-tint:#FFF0DE;
+  --green:#157A3B; --green-tint:#E4F6EA;
+  --red:#D1242F; --red-tint:#FCE8E9;
+  color:var(--ink);font-size:13px;line-height:1.4;font-variant-numeric:tabular-nums;
+}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;font-size:12px;letter-spacing:0}
+.muted{color:var(--ink-2)}
+.num{font-variant-numeric:tabular-nums}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s{width:16px;height:16px}
+
+/* ------------------------------------------------------------------
+   Shell: sidebar (desktop) / icon rail (tablet) + top bar
+------------------------------------------------------------------ */
+.shell{display:grid;grid-template-columns:232px 1fr;height:100%}
+.tab .shell{grid-template-columns:64px 1fr}
+.side{background:var(--surface);box-shadow:inset -1px 0 0 var(--hair);display:flex;flex-direction:column;padding:12px 10px;gap:2px;overflow:hidden}
+.brand{display:flex;align-items:center;gap:8px;padding:6px 8px 14px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+.side .g{font-size:11px;color:var(--ink-2);letter-spacing:.06em;padding:12px 10px 4px}
+.side a{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px}
+.side a.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+.side a .cnt{margin-left:auto;font-size:11px;color:var(--ink-2)}
+.rail{background:var(--surface);box-shadow:inset -1px 0 0 var(--hair);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .mark{width:30px;height:30px;border-radius:9px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;margin-bottom:10px}
+.rail a{width:44px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--ink-2)}
+.rail a.on{background:var(--blue-tint);color:var(--blue)}
+.rail .sep{width:28px;height:1px;background:var(--hair);margin:6px 0}
+.main{display:flex;flex-direction:column;min-width:0;height:100%;overflow:hidden}
+.top{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);box-shadow:inset 0 -1px 0 var(--hair)}
+.crumb{font-size:13px;color:var(--ink-2)}
+.crumb b{color:var(--ink);font-weight:600;font-size:15px}
+.top .sp{flex:1}
+.env{font-size:11px;border-radius:6px;padding:3px 8px;box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-2)}
+.who{display:flex;align-items:center;gap:8px;font-size:13px}
+.av{width:28px;height:28px;border-radius:50%;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--hair);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--ink)}
+.role{font-size:11px;padding:2px 7px;border-radius:6px;background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--hair)}
+.content{flex:1;min-height:0;overflow:hidden;padding:20px 24px 24px;display:flex;flex-direction:column;gap:14px}
+
+/* ------------------------------------------------------------------
+   Primitives
+------------------------------------------------------------------ */
+.card{background:var(--surface);border-radius:12px;box-shadow:0 0 0 1px var(--hair-2),0 1px 2px rgba(17,19,24,.04)}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 16px;box-shadow:inset 0 -1px 0 var(--hair-2)}
+.card-h h3{font-size:13px;font-weight:600}
+.btn{height:32px;padding:0 12px;border-radius:8px;border:0;background:var(--surface);box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink);font:inherit;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:default;white-space:nowrap}
+.btn.pri{background:var(--blue);color:#fff;box-shadow:none;font-weight:600}
+.btn.dis{opacity:.45}
+.btn.danger{color:var(--red);box-shadow:inset 0 0 0 1px rgba(209,36,47,.35)}
+.btn.ghost{box-shadow:none;background:transparent;color:var(--ink-2)}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:6px;font-size:11px;font-weight:500;white-space:nowrap}
+.b-neutral{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--hair-2)}
+.b-amber{background:var(--amber-tint);color:var(--amber)}
+.b-green{background:var(--green-tint);color:var(--green)}
+.b-blue{background:var(--blue-tint);color:var(--blue)}
+.b-red{background:var(--red-tint);color:var(--red)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.d-green{background:var(--green)}.d-amber{background:var(--amber)}.d-red{background:var(--red)}.d-grey{background:var(--ink-3)}
+.inp{height:32px;border-radius:8px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--hair);padding:0 10px;display:flex;align-items:center;font-size:13px;color:var(--ink);min-width:0}
+.inp.changed{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.inp.ro{background:var(--surface-2);color:var(--ink-2)}
+.inp .ph{color:var(--ink-3)}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:9px;padding:2px;box-shadow:inset 0 0 0 1px var(--hair-2)}
+.seg span{height:28px;padding:0 12px;display:grid;place-items:center;border-radius:7px;font-size:12px;color:var(--ink-2)}
+.seg span.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(17,19,24,.10),0 0 0 1px var(--hair-2)}
+.tabs{display:flex;gap:2px;box-shadow:inset 0 -1px 0 var(--hair)}
+.tabs span{height:38px;padding:0 14px;display:flex;align-items:center;font-size:13px;color:var(--ink-2);position:relative}
+.tabs span.on{color:var(--ink);font-weight:600}
+.tabs span.on::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:2px;border-radius:2px;background:var(--blue)}
+.tabs span .badge{margin-left:6px}
+table{border-collapse:collapse;width:100%}
+th{font-size:11px;color:var(--ink-2);font-weight:500;text-align:left;padding:8px 12px;letter-spacing:.02em;box-shadow:inset 0 -1px 0 var(--hair-2);white-space:nowrap}
+td{padding:9px 12px;box-shadow:inset 0 -1px 0 var(--hair-2);vertical-align:middle}
+td.r,th.r{text-align:right}
+.scrim{position:absolute;inset:0;background:rgba(17,19,24,.38)}
+.dialog{position:absolute;background:var(--surface);border-radius:14px;box-shadow:0 24px 60px -20px rgba(17,19,24,.45),0 0 0 1px var(--hair-2);display:flex;flex-direction:column}
+.dialog .dh{padding:18px 20px 10px}
+.dialog .dh h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.dialog .db{padding:4px 20px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.dialog .df{padding:12px 20px 16px;display:flex;justify-content:flex-end;gap:8px;box-shadow:inset 0 1px 0 var(--hair-2)}
+.lbl{font-size:12px;color:var(--ink-2);margin-bottom:5px}
+.note{font-size:12px;color:var(--ink-2);line-height:1.5}
+.warnline{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--red);line-height:1.45}
+.ambline{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--amber);line-height:1.45;background:var(--amber-tint);border-radius:8px;padding:8px 10px}
+.check{width:16px;height:16px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--ink-3);flex:none;margin-top:1px}
+.check.on{background:var(--blue);box-shadow:none;position:relative}
+.check.on::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+/* ------------------------------------------------------------------
+   Settings editor
+------------------------------------------------------------------ */
+.set-grid{display:grid;grid-template-columns:224px 1fr;gap:14px;min-height:0;flex:1}
+.groups{padding:6px}
+.groups div{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:8px;font-size:13px;color:var(--ink-2)}
+.groups div.on{background:var(--surface-2);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--hair-2)}
+.groups div .badge{margin-left:auto}
+.groups .sep{height:1px;background:var(--hair-2);margin:6px 4px;padding:0}
+.rows{display:flex;flex-direction:column;min-height:0}
+.srow{display:grid;grid-template-columns:236px 1fr 112px;gap:18px;padding:14px 18px;box-shadow:inset 0 -1px 0 var(--hair-2);position:relative;align-items:start}
+.srow.edited::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--blue)}
+.srow .k{font-size:13px;font-weight:600}
+.srow .env{display:inline-block;margin-top:3px;box-shadow:none;padding:0;font-size:11px}
+.srow .h{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.45}
+.srow .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.srow .ctl{display:flex;flex-direction:column;gap:7px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:26px;padding:0 9px;border-radius:7px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--hair-2);display:inline-flex;align-items:center;gap:6px;font-size:12px}
+.secret{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
+.secret b{color:var(--ink);font-weight:600}
+.probe{display:flex;align-items:center;gap:8px;font-size:12px}
+.savebar{position:absolute;left:256px;right:24px;bottom:20px;height:56px;border-radius:12px;background:var(--surface);box-shadow:0 12px 32px -14px rgba(17,19,24,.35),0 0 0 1px var(--hair);display:flex;align-items:center;gap:12px;padding:0 12px 0 18px}
+.doctor{display:flex;align-items:center;gap:12px;padding:10px 14px}
+.restartbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--amber-tint);border-radius:10px;color:var(--amber);font-size:12px}
+
+/* ------------------------------------------------------------------
+   Diff table
+------------------------------------------------------------------ */
+.diff td{font-size:12px;padding:10px 12px;white-space:nowrap}
+.diff .old{color:var(--ink-2);text-decoration:line-through;text-decoration-color:rgba(91,97,112,.45)}
+.diff .arrow{color:var(--ink-3);width:24px;text-align:center}
+.diff .new{color:var(--ink);font-weight:600}
+
+/* ------------------------------------------------------------------
+   Rank rules
+------------------------------------------------------------------ */
+.draftbar{display:flex;align-items:center;gap:14px;padding:12px 16px}
+.draftbar .seg2{display:flex;flex-direction:column;gap:2px}
+.draftbar .vsep{width:1px;align-self:stretch;background:var(--hair-2)}
+.rr-grid{display:grid;grid-template-columns:1fr 360px;gap:14px;flex:1;min-height:0}
+.mt td,.mt th{text-align:center}
+.mt td:first-child,.mt th:first-child{text-align:left}
+.cell{display:inline-flex;width:56px;height:30px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--hair);align-items:center;justify-content:center;font-size:13px}
+.cell.chg{background:var(--blue-tint);box-shadow:inset 0 0 0 1.5px var(--blue);color:var(--blue-strong);font-weight:600}
+.wrow{display:grid;grid-template-columns:120px 1fr 64px;gap:12px;align-items:center;padding:7px 0}
+.track{height:6px;border-radius:3px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--hair-2);position:relative}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--blue)}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kv .f .inp{width:100%}
+.sim .m{display:flex;align-items:baseline;justify-content:space-between;padding:10px 16px;box-shadow:inset 0 -1px 0 var(--hair-2)}
+.sim .m .l{font-size:12px;color:var(--ink-2)}
+.sim .m .v{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.sim .m .v .from{color:var(--ink-2);font-weight:500}
+.sim .m .v .ar{color:var(--ink-3);margin:0 4px;font-weight:400}
+.delta{font-size:11px;color:var(--ink-2);margin-left:6px;font-weight:500}
+.pool{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:10px 16px 14px}
+.pool div{background:var(--surface-2);border-radius:8px;padding:6px 0;text-align:center;font-size:11px;color:var(--ink-2)}
+.pool div b{display:block;color:var(--ink);font-size:15px;font-weight:600}
+
+/* ------------------------------------------------------------------
+   User detail / rank panel (tablet)
+------------------------------------------------------------------ */
+.uhead{display:flex;align-items:center;gap:14px}
+.uhead .big{width:44px;height:44px;border-radius:50%;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--hair);display:grid;place-items:center;font-weight:600;font-size:17px}
+.uhead h2{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.tierbox{display:flex;gap:16px;align-items:center;padding:16px}
+.shieldwrap{width:56px;height:56px;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;color:var(--ink)}
+.shieldwrap svg{width:32px;height:32px}
+.prog{height:8px;border-radius:4px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--hair-2);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.stat{display:flex;flex-direction:column;gap:3px;padding:0 16px;box-shadow:inset 1px 0 0 var(--hair-2)}
+.stat .l{font-size:11px;color:var(--ink-2)}
+.stat .v{font-size:15px;font-weight:600}
+.task{display:grid;grid-template-columns:20px 1fr 120px 60px;gap:10px;align-items:center;padding:9px 16px;box-shadow:inset 0 -1px 0 var(--hair-2);font-size:13px}
+.tick{width:18px;height:18px;border-radius:50%;background:var(--green-tint);color:var(--green);display:grid;place-items:center}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:392px;background:var(--surface);box-shadow:-24px 0 60px -30px rgba(17,19,24,.45),inset 1px 0 0 var(--hair);display:flex;flex-direction:column}
+.sheet .dh{padding:18px 20px 6px}
+.sheet .dh h3{font-size:17px;font-weight:600}
+.sheet .db{padding:10px 20px;display:flex;flex-direction:column;gap:14px;flex:1}
+.sheet .df{padding:14px 20px;display:flex;gap:8px;justify-content:flex-end;box-shadow:inset 0 1px 0 var(--hair-2)}
+.pickrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pick{height:52px;border-radius:9px;box-shadow:inset 0 0 0 1px var(--hair);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--ink-2)}
+.pick svg{width:18px;height:18px}
+.pick.on{box-shadow:inset 0 0 0 1.5px var(--blue);background:var(--blue-tint);color:var(--blue)}
+.textarea{height:64px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--hair);padding:8px 10px;font-size:13px}
+
+/* ------------------------------------------------------------------
+   Usage dashboard
+------------------------------------------------------------------ */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi{padding:14px 16px}
+.kpi .l{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.kpi .v{font-size:28px;font-weight:600;letter-spacing:-.03em;margin-top:6px;line-height:1}
+.kpi .s{font-size:12px;color:var(--ink-2);margin-top:8px}
+.u-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;min-height:0}
+.hb{display:grid;grid-template-columns:96px 1fr 72px;gap:10px;align-items:center;padding:6px 16px;font-size:12px}
+.hb .bar{height:10px;border-radius:3px;background:var(--blue)}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* ------------------------------------------------------------------
+   Audit
+------------------------------------------------------------------ */
+.filters{display:flex;gap:8px;align-items:center;padding:10px 14px}
+.chain{display:flex;align-items:center;gap:8px;font-size:12px;padding:9px 14px;color:var(--green);background:var(--green-tint);border-radius:10px}
+.arow{display:grid;grid-template-columns:118px 150px 170px 1fr 66px 20px;gap:12px;align-items:center;padding:10px 16px;box-shadow:inset 0 -1px 0 var(--hair-2);font-size:12px}
+.arow .act{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px}
+.expand{background:var(--surface-2);padding:12px 16px 14px 146px;box-shadow:inset 0 -1px 0 var(--hair-2)}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>管理后台 v2 · 视觉稿</h1>
+  <p class="lede">配套 <span class="mono">docs/superpowers/specs/2026-10-09-admin-console-v2-design.md</span> 与实现计划。颜色取自 redesign-v3 的语义令牌(一色一义):蓝 = 主操作 / 选中 / 进度 / 本次修改;绿 = 健康 / 已生效 / 通过;琥珀 = 待重启 / 提醒 / 漂移;红 = 危险文字 / 错误;中性灰承担其余一切。没有新色相,没有渐变与表情符号;数字一律等宽数字(tabular-nums)。桌面框 1440×900(侧栏 232px),平板框 1024×768(64px 图标栏)。数据均为示例。</p>
+
+  <!-- =================================================================
+       01 · Settings editor (desktop)
+  ================================================================== -->
+  <h2 class="group">01 · 运行时设置(桌面 1440)</h2>
+  <div class="frame desk" id="f-settings">
+    <div class="shell">
+      <aside class="side">
+        <div class="brand"><span class="mark">En</span>Enjoy 管理后台</div>
+        <div class="g">总览</div>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>概览</a>
+        <a><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>系统状态</a>
+        <div class="g">用户与内容</div>
+        <a><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>用户</a>
+        <a><svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>录音</a>
+        <div class="g">段位与联机</div>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>段位与比赛</a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg>段位规则</a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4z"/><path d="M17 9h3v8h-1v3l-3-3h-4"/></svg>房间<span class="cnt">12</span></a>
+        <div class="g">用量与配置</div>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>用量与费用</a>
+        <a class="on"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>运行时设置</a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>提示词</a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 10v4h3l6 4V6L7 10zM17 9a4 4 0 0 1 0 6"/></svg>公告与维护</a>
+        <div class="g">安全</div>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M7 3h10v18l-5-3-5 3z"/></svg>审计日志</a>
+        <a><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>管理员与会话</a>
+      </aside>
+      <section class="main">
+        <header class="top">
+          <div class="crumb">配置 / <b>运行时设置</b></div>
+          <span class="badge b-neutral">修订 #48</span>
+          <div class="sp"></div>
+          <span class="env">生产 · enjoy.example.com</span>
+          <div class="who"><span class="av">R</span>root<span class="role">超级管理员</span></div>
+        </header>
+        <div class="content">
+          <div style="display:flex;gap:12px;align-items:stretch">
+            <div class="card doctor" style="flex:1">
+              <span class="dot d-red"></span>
+              <div style="flex:1"><b style="font-weight:600">配置诊断 · 1 个错误 · 3 个提醒</b>
+                <div class="note" style="margin-top:2px">实时通话已开启但不可用:缺少 <span class="mono">VOLCENGINE_TTS_KEY</span>、<span class="mono">REALTIME_TTS_MODEL</span> 不在 <span class="mono">TTS_MODELS</span> 中</div></div>
+              <button class="btn sm ghost">展开</button>
+            </div>
+            <button class="btn"><svg class="i s" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>历史</button>
+            <button class="btn"><svg class="i s" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>导出</button>
+            <button class="btn"><svg class="i s" viewBox="0 0 24 24"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>导入</button>
+          </div>
+          <div class="restartbar"><svg class="i s" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg><b style="font-weight:600">1 项设置等待重启生效</b><span class="mono">ASR_STREAM_MAX_CONCURRENCY</span> 当前 3 · 重启后 6 <span style="flex:1"></span><span>由运维执行 <span class="mono">docker compose restart server</span></span></div>
+          <div class="set-grid">
+            <div class="card groups">
+              <div>功能开关<span class="badge b-neutral">3</span></div>
+              <div>注册与访问</div>
+              <div>限流与配额<span class="badge b-blue">1 改动</span></div>
+              <div class="on">大模型<span class="badge b-blue">2 改动</span></div>
+              <div>语法检查</div>
+              <div>语音合成</div>
+              <div>语音识别<span class="badge b-amber">待重启</span></div>
+              <div>发音评测</div>
+              <div>实时通话<span class="badge b-red">不可用</span></div>
+              <div>段位赛</div>
+              <div>联机练习</div>
+              <div>管理端</div>
+              <div>运维与维护</div>
+              <div class="sep"></div>
+              <div>系统(只读)</div>
+            </div>
+            <div class="card rows">
+              <div class="card-h"><h3>大模型</h3><span class="note">OpenAI 兼容上游;改地址或密钥对新请求即时生效</span><span style="flex:1"></span><span class="note">加密主密钥:已配置</span></div>
+              <div class="srow edited">
+                <div><div class="k">LLM 地址</div><div class="env mono muted">UPSTREAM_LLM_BASE_URL</div><div class="h">只需支持 chat completions(含流式)与 JSON 模式。</div></div>
+                <div class="ctl">
+                  <div class="inp changed mono">https://ark.cn-beijing.volces.com/api/v3</div>
+                  <div class="warnline"><svg class="i s" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.01"/></svg>危险:改主机会把配对的密钥发送到新地址。原值 <span class="mono">https://api.deepseek.com/v1</span></div>
+                  <div class="probe"><button class="btn sm">测试连接</button><span class="dot d-green"></span><span>连接正常 · 200 · 212 ms</span><span class="muted">(使用表单中的新值与新密钥)</span></div>
+                </div>
+                <div class="meta"><span class="badge b-neutral">覆盖</span><span class="note">即时生效</span></div>
+              </div>
+              <div class="srow edited">
+                <div><div class="k">LLM 密钥</div><div class="env mono muted">UPSTREAM_LLM_KEY</div><div class="h">只进不出:后台永不显示明文,只显示指纹。</div></div>
+                <div class="ctl">
+                  <div class="secret"><svg class="i s" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>当前 <b>已设置 · 指纹 a1b2c3d4</b> · 来源 覆盖 · env 也已设置(指纹 7e5d0c11)</span></div>
+                  <div class="inp changed"><span class="mono">••••••••••••••••••••</span><span style="flex:1"></span><span class="note">新值 · 指纹 9f8e7d6c</span></div>
+                  <div style="display:flex;gap:8px"><button class="btn sm ghost">撤销本次输入</button><button class="btn sm ghost">清除覆盖(恢复为 env)</button></div>
+                </div>
+                <div class="meta"><span class="badge b-neutral">覆盖</span><span class="note">即时生效</span></div>
+              </div>
+              <div class="srow">
+                <div><div class="k">可选模型</div><div class="env mono muted">LLM_MODELS</div><div class="h">逗号分隔;默认模型必须在其中。</div></div>
+                <div class="ctl"><div class="chips"><span class="chip mono">deepseek-v4-pro</span><span class="chip mono">deepseek-v4-flash</span><span class="chip" style="color:var(--ink-2)">+ 添加</span></div></div>
+                <div class="meta"><span class="badge b-neutral">覆盖</span><span class="note">即时生效</span></div>
+              </div>
+              <div class="srow">
+                <div><div class="k">默认模型</div><div class="env mono muted">DEFAULT_LLM_MODEL</div></div>
+                <div class="ctl"><div class="inp mono" style="width:260px">deepseek-v4-flash<span style="flex:1"></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div></div>
+                <div class="meta"><span class="badge b-neutral">覆盖</span><span class="badge b-amber">env 已变更</span></div>
+              </div>
+              <div class="srow">
+                <div><div class="k">聊天 max_tokens 上限</div><div class="env mono muted">LLM_MAX_TOKENS</div><div class="h">范围 64–32768。</div></div>
+                <div class="ctl"><div class="inp num" style="width:120px">4096</div></div>
+                <div class="meta"><span class="badge b-neutral">env</span><span class="note">即时生效</span></div>
+              </div>
+              <div class="srow" style="box-shadow:none">
+                <div><div class="k" style="color:var(--ink-2)">数据库连接</div><div class="env mono muted">DATABASE_URL</div></div>
+                <div class="ctl"><div class="inp ro">已设置 · 指纹 3c90aa21 · 只能在 .env 中修改并重启</div></div>
+                <div class="meta"><span class="badge b-neutral">env-only</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="savebar">
+      <span class="dot" style="background:var(--blue)"></span>
+      <b style="font-weight:600">2 项未保存</b><span class="note">其中 1 项危险 · 保存需要二次验证、理由与输入确认</span>
+      <span style="flex:1"></span>
+      <button class="btn ghost">放弃修改</button>
+      <button class="btn pri">检查并保存</button>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:分组导航显示每组的改动数与"待重启 / 不可用"状态;每行 = 标签 + env 名 + 说明 + 控件 + 来源(env / 覆盖 / 默认 / env-only)+ 生效方式。本次修改用左侧蓝条与蓝色描边标出;密钥只显示指纹与来源,输入框留空 = 不修改。顶部诊断与待重启条常驻。保存不在行内完成:统一进入"保存前检查"。</p>
+
+  <!-- =================================================================
+       02 · Review dialog (desktop)
+  ================================================================== -->
+  <h2 class="group">02 · 保存前检查(差异 + 危险确认)</h2>
+  <div class="frame desk" id="f-review">
+    <div id="review-bg" style="position:absolute;inset:0"></div>
+    <div class="scrim"></div>
+    <div class="dialog" style="left:310px;top:96px;width:820px">
+      <div class="dh"><h3>保存前检查</h3><p class="note" style="margin-top:4px">修订 #49 · 2 项修改 · 保存后对新请求立即生效</p></div>
+      <div class="db">
+        <div class="card" style="box-shadow:0 0 0 1px var(--hair-2)">
+          <table class="diff">
+            <tr><th>设置</th><th>当前</th><th></th><th>保存后</th><th>生效</th></tr>
+            <tr><td><b style="font-weight:600">LLM 地址</b><div class="mono muted">UPSTREAM_LLM_BASE_URL</div></td><td class="old mono">api.deepseek.com/v1</td><td class="arrow">→</td><td class="new mono">ark.cn-beijing.volces.com/api/v3</td><td><span class="note">即时</span></td></tr>
+            <tr><td><b style="font-weight:600">LLM 密钥</b><div class="mono muted">UPSTREAM_LLM_KEY</div></td><td class="old">已设置 · a1b2c3d4</td><td class="arrow">→</td><td class="new">已设置 · 9f8e7d6c</td><td><span class="note">即时</span></td></tr>
+          </table>
+        </div>
+        <div class="warnline"><svg class="i s" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.01"/></svg><span><b style="font-weight:600">危险修改</b> · LLM 地址改了主机:改主机会把配对的密钥发送到新地址。本次同时提交了新密钥,无需额外确认发送现有密钥。</span></div>
+        <div><div class="lbl">理由(写入审计,必填)</div><div class="inp">迁移到方舟,DeepSeek 余额不足(402 增多)</div></div>
+        <div><div class="lbl">输入 UPSTREAM_LLM_BASE_URL 以确认</div><div class="inp mono changed">UPSTREAM_LLM_BASE_URL</div></div>
+        <div style="display:flex;gap:8px;align-items:flex-start" class="note"><span class="check on"></span><span>保存后立刻对 LLM 上游执行一次"测试连接"(免费:<span class="mono">GET /models</span>)</span></div>
+        <div class="ambline"><svg class="i s" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>需要二次验证:点击保存后会要求重新输入密码与 TOTP 验证码(5 分钟内有效)。</span></div>
+      </div>
+      <div class="df"><button class="btn ghost">返回修改</button><button class="btn pri">保存</button></div>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:差异表是唯一的保存入口;密钥行只比较指纹。危险项给出注册表里的原因文案,要求理由 + 精确输入 env 名;若改了主机但没给新密钥,这里会多出一个必须勾选的"我确认把现有密钥发送到 {主机}"。二次验证由客户端在服务端返回 403 后自动弹出并重放请求。</p>
+
+  <!-- =================================================================
+       03 · Rank rules editor (desktop)
+  ================================================================== -->
+  <h2 class="group">03 · 段位规则:草稿 → 预演 → 发布(桌面 1440)</h2>
+  <div class="frame desk">
+    <div class="shell">
+      <aside class="side" id="side-copy"></aside>
+      <section class="main">
+        <header class="top">
+          <div class="crumb">段位 / <b>段位规则</b></div>
+          <div class="sp"></div>
+          <span class="env">生产 · enjoy.example.com</span>
+          <div class="who"><span class="av">O</span>ops<span class="role">运营</span></div>
+        </header>
+        <div class="content">
+          <div class="card draftbar">
+            <div class="seg2"><span class="note">已发布</span><b style="font-weight:600">v3 · 10-08 21:40 由 root 发布</b></div>
+            <div class="vsep"></div>
+            <div class="seg2"><span class="note">草稿(基于 v3)</span><b style="font-weight:600">ops 编辑于 08:12 · 4 处修改</b></div>
+            <span class="badge b-green"><span class="dot d-green"></span>校验通过</span>
+            <span style="flex:1"></span>
+            <button class="btn">丢弃草稿</button>
+            <button class="btn">校验</button>
+            <button class="btn">保存草稿</button>
+            <button class="btn dis" title="发布需要超级管理员">发布</button>
+          </div>
+          <div class="rr-grid">
+            <div class="card" style="display:flex;flex-direction:column;min-height:0">
+              <div class="tabs" style="padding:0 8px"><span>段位与点数</span><span>阶段练习</span><span class="on">晋级赛<span class="badge b-blue">3</span></span><span>情景池<span class="badge b-blue">1</span></span><span>提示词</span><span>赛季</span></div>
+              <div style="padding:14px 16px;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+                <div>
+                  <div class="lbl" style="display:flex"><span>轮数与通过线(按目标段位)</span><span style="flex:1"></span><span>通过线 0–100 · 轮数 3–12</span></div>
+                  <table class="mt">
+                    <tr><th>目标段位</th><th>白银</th><th>黄金</th><th>铂金</th><th>钻石</th><th>星耀</th><th>王者</th></tr>
+                    <tr><td>用户发言轮数</td><td><span class="cell">5</span></td><td><span class="cell">5</span></td><td><span class="cell">6</span></td><td><span class="cell">6</span></td><td><span class="cell">7</span></td><td><span class="cell">8</span></td></tr>
+                    <tr><td>通过线</td><td><span class="cell">60</span></td><td><span class="cell chg">67</span></td><td><span class="cell chg">70</span></td><td><span class="cell">70</span></td><td><span class="cell">73</span></td><td><span class="cell">76</span></td></tr>
+                  </table>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+                  <div>
+                    <div class="lbl" style="display:flex"><span>评分权重</span><span style="flex:1"></span><span class="num" style="color:var(--ink)">合计 100%</span></div>
+                    <div class="wrow"><span>任务完成</span><div class="track"><i style="width:30%"></i></div><span class="cell" style="width:64px">30%</span></div>
+                    <div class="wrow"><span>语法准确</span><div class="track"><i style="width:20%"></i></div><span class="cell" style="width:64px">20%</span></div>
+                    <div class="wrow"><span>词汇与表达</span><div class="track"><i style="width:15%"></i></div><span class="cell" style="width:64px">15%</span></div>
+                    <div class="wrow"><span>连贯与互动</span><div class="track"><i style="width:20%"></i></div><span class="cell chg" style="width:64px">20%</span></div>
+                    <div class="wrow"><span>发音与流利</span><div class="track"><i style="width:15%"></i></div><span class="cell chg" style="width:64px">15%</span></div>
+                  </div>
+                  <div>
+                    <div class="lbl">硬门槛与时长</div>
+                    <div class="kv" style="grid-template-columns:1fr 1fr">
+                      <div class="f"><div class="lbl">任务完成至少(0–4)</div><div class="inp">2</div></div>
+                      <div class="f"><div class="lbl">英文轮占比至少</div><div class="inp">70%</div></div>
+                      <div class="f"><div class="lbl">每轮时长(秒)</div><div class="inp">1.5 – 30</div></div>
+                      <div class="f"><div class="lbl">临界复评(分)</div><div class="inp">3</div></div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="lbl">次数、冷却与时限</div>
+                  <div class="kv">
+                    <div class="f"><div class="lbl">每人每天场数</div><div class="inp">3</div></div>
+                    <div class="f"><div class="lbl">失败冷却(分钟)</div><div class="inp">30</div></div>
+                    <div class="f"><div class="lbl">单场时限(分钟)</div><div class="inp">20</div></div>
+                    <div class="f"><div class="lbl">失败后保留点数</div><div class="inp">80%</div></div>
+                  </div>
+                  <p class="note" style="margin-top:8px">比赛钉住开始时的规则版本:进行中的比赛不受本次发布影响。按用户的次数覆盖优先于这里的值。</p>
+                </div>
+              </div>
+            </div>
+            <div class="card sim" style="display:flex;flex-direction:column;min-height:0">
+              <div class="card-h"><h3>影响预演</h3><span class="note">当前 v3 → 草稿 · 只读</span><span style="flex:1"></span><button class="btn sm">重新计算</button></div>
+              <div class="m"><span class="l">到达段位门的用户</span><span class="v num"><span class="from">12</span><span class="ar">→</span>12</span></div>
+              <div class="m"><span class="l">点数将被截断的用户</span><span class="v num"><span class="from">0</span><span class="ar">→</span>0</span></div>
+              <div class="m"><span class="l">阶段练习全部完成</span><span class="v num"><span class="from">31</span><span class="ar">→</span>31</span></div>
+              <div class="m"><span class="l">触顶的用户日(近 14 天)</span><span class="v num"><span class="from">18%</span><span class="ar">→</span>18%</span></div>
+              <div class="m"><span class="l">近 30 天判定:通过 → 未通过</span><span class="v num">2 场<span class="delta">共 41 场</span></span></div>
+              <div class="m"><span class="l">近 30 天判定:未通过 → 通过</span><span class="v num">0 场</span></div>
+              <div style="padding:10px 16px"><div class="ambline"><svg class="i s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/></svg><span>判定翻转仅作提示,不会改动已结束比赛的结果。</span></div></div>
+              <div class="lbl" style="padding:2px 16px 0">情景池(启用数 / 目标段位)</div>
+              <div class="pool"><div>白银<b>2</b></div><div>黄金<b>3</b></div><div>铂金<b>2</b></div><div>钻石<b>2</b></div><div>星耀<b>2</b></div><div>王者<b>2</b></div></div>
+              <div class="m" style="box-shadow:none"><span class="l">升一个大段位(估算)</span><span class="v num" style="font-size:13px;white-space:nowrap">青铜 5–8 天 · 钻石 8–12 天</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:草稿条同时给出"已发布版本"和"草稿基线",校验结果以中性/绿色/红色计数表示;改动过的单元格用蓝色描边(蓝 = 本次修改)。预演面板只陈述"当前 → 草稿",变化不是好坏,所以数字不着红绿;仅"判定翻转"用琥珀提示。运营可编辑与预演,"发布"对其置灰(超级管理员 + 二次验证 + 理由)。</p>
+
+  <!-- =================================================================
+       04 · User detail + rank reset (tablet)
+  ================================================================== -->
+  <h2 class="group">04 · 用户详情 · 段位页签 + 重置段位(平板 1024)</h2>
+  <div class="frame tab">
+    <div class="shell">
+      <nav class="rail">
+        <span class="mark">En</span>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></a>
+        <a class="on"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg></a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4z"/></svg></a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></a>
+        <span class="sep"></span>
+        <a><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></a>
+        <a><svg class="i" viewBox="0 0 24 24"><path d="M7 3h10v18l-5-3-5 3z"/></svg></a>
+      </nav>
+      <section class="main">
+        <header class="top">
+          <div class="crumb">用户 / <b>alice</b></div>
+          <div class="sp"></div>
+          <div class="who"><span class="av">O</span><span class="role">运营</span></div>
+        </header>
+        <div class="content" style="gap:12px;padding:16px 20px">
+          <div class="uhead"><span class="big">A</span><div><h2>alice</h2><div class="note mono">#12345678 · 注册于 2026-09-14 · 最近活跃 2 小时前</div></div><span style="flex:1"></span><span class="badge b-green"><span class="dot d-green"></span>正常</span></div>
+          <div class="tabs"><span>对话</span><span>评测与录音</span><span>练习</span><span>词汇</span><span class="on">段位</span><span>治理</span></div>
+          <div class="card">
+            <div class="tierbox">
+              <span class="shieldwrap"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 8.5l1.2 2.4 2.6.4-1.9 1.8.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.8 2.6-.4z"/></svg></span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px"><b style="font-size:17px;font-weight:600">黄金 I</b><span class="note">B1</span><span class="badge b-blue">段位门</span></div>
+                <div class="prog" style="margin-top:8px;width:240px"><i style="width:100%"></i></div>
+                <div class="note num" style="margin-top:5px">120 / 120 点 · 阶段练习 3/3 完成</div>
+              </div>
+              <div class="stat"><span class="l">历史最高</span><span class="v">黄金</span></div>
+              <div class="stat"><span class="l">冷却</span><span class="v num" style="color:var(--amber)">剩 18 分</span></div>
+              <div class="stat"><span class="l">今日剩余场数</span><span class="v num">2 / 5</span><span class="badge b-neutral">已覆盖为 5 次/日</span></div>
+            </div>
+            <div style="display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap">
+              <button class="btn sm">清除冷却</button><button class="btn sm">重置今日次数</button><button class="btn sm">加减点</button><button class="btn sm">授予 / 撤销成就</button><button class="btn sm pri">重置段位 / 定级</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>晋级赛</h3><span class="note">近 30 天 4 场</span></div>
+            <table>
+              <tr><th>时间</th><th>目标</th><th>情景</th><th>状态</th><th class="r">总分 / 通过线</th><th>规则</th></tr>
+              <tr><td class="num">10-09 08:40</td><td>铂金</td><td>退换商品</td><td><span class="badge b-neutral">未通过 · 任务完成不足</span></td><td class="r num">64 / 68</td><td class="mono">v3</td></tr>
+              <tr><td class="num">10-08 21:02</td><td>铂金</td><td>介绍自己的工作</td><td><span class="badge b-amber">评分失败</span></td><td class="r num">— / 68</td><td class="mono">v3</td></tr>
+              <tr><td class="num">10-05 19:31</td><td>黄金</td><td>酒店入住出了问题</td><td><span class="badge b-green">通过</span></td><td class="r num">71 / 65</td><td class="mono">v2</td></tr>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="scrim" style="left:64px"></div>
+    <div class="sheet">
+      <div class="dh"><h3>重置段位 / 定级</h3><p class="note" style="margin-top:4px">alice · 当前 黄金 I · 120 点</p></div>
+      <div class="db">
+        <div><div class="lbl">段位</div>
+          <div class="pickrow">
+            <span class="pick"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>青铜</span>
+            <span class="pick on"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM12 3v18"/></svg>白银</span>
+            <span class="pick"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 9l1 2 2 .3-1.5 1.4.4 2-1.9-1-1.9 1 .4-2L9 11.3l2-.3z"/></svg>黄金</span>
+            <span class="pick"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>铂金</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><div class="lbl">小段</div><div class="seg" style="width:100%"><span class="on" style="flex:1">III</span><span style="flex:1">II</span><span style="flex:1">I</span></div></div>
+          <div><div class="lbl">点数(0–100)</div><div class="inp num">0</div></div>
+        </div>
+        <div><div class="lbl">理由(写入审计,必填)</div><div class="textarea">老用户申请定级:线下测评为 A2,白银起步更合适。</div></div>
+        <div class="note" style="display:flex;gap:8px"><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-2)"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><span>执行前写入快照,7 天内可在"段位与比赛"页撤销。点数流水保留;冷却清除;阶段练习从现在重新计数;历史最高段位不变。</span></div>
+        <div class="ambline"><svg class="i s" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>此操作需要二次验证。</span></div>
+      </div>
+      <div class="df"><button class="btn ghost">取消</button><button class="btn pri">确认重置为 白银 III</button></div>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:平板用 64px 图标栏;段位页签头部给出段位图形(段位靠图形区分,不新增色相)、点数进度(蓝)、冷却(琥珀,提示语义)与按用户覆盖的次数。比赛状态:通过 = 绿,未通过 = 中性(不用红),评分失败 = 琥珀。重置以右侧抽屉呈现,左侧上下文仍可见。</p>
+
+  <!-- =================================================================
+       05 · Usage dashboard (desktop)
+  ================================================================== -->
+  <h2 class="group">05 · 用量与费用(桌面 1440)</h2>
+  <div class="frame desk">
+    <div class="shell">
+      <aside class="side" id="side-copy-2"></aside>
+      <section class="main">
+        <header class="top">
+          <div class="crumb">用量 / <b>用量与费用</b></div>
+          <div class="sp"></div>
+          <div class="seg"><span>1 天</span><span class="on">7 天</span><span>30 天</span><span>90 天</span></div>
+          <div class="who"><span class="av">R</span><span class="role">超级管理员</span></div>
+        </header>
+        <div class="content">
+          <div class="kpis">
+            <div class="card kpi"><div class="l">上游调用</div><div class="v num">18,402</div><div class="s">日均 2,629</div></div>
+            <div class="card kpi"><div class="l">错误率</div><div class="v num">2.7%</div><div class="s">498 次失败</div></div>
+            <div class="card kpi"><div class="l">估算费用 <span class="badge b-neutral">估算</span></div><div class="v num">¥86.40</div><div class="s" style="color:var(--amber)">部分模型缺单价 · 去设置单价表</div></div>
+            <div class="card kpi"><div class="l">耗时 P50 / P95</div><div class="v num" style="font-size:22px;margin-top:10px">640 / 2,310 ms</div><div class="s">仅最近 90 天原始记录</div></div>
+            <div class="card kpi"><div class="l">活跃用户</div><div class="v num">37</div><div class="s">有上游调用的用户</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.75fr 1fr;gap:12px">
+          <div class="card" style="padding-bottom:6px">
+            <div class="card-h"><h3>每日调用</h3><div class="legend"><span><i style="background:var(--blue)"></i>成功</span><span><i style="background:var(--ink-3)"></i>失败</span></div><span style="flex:1"></span><button class="btn sm ghost">查看数据表</button></div>
+            <svg viewBox="0 0 780 170" width="100%" height="170" role="img" aria-label="近 7 天每日上游调用">
+              <g font-size="11" fill="#5B6170" font-family="-apple-system,PingFang SC,sans-serif"><text x="0" y="22">3k</text><text x="0" y="82">1.5k</text><text x="0" y="142">0</text></g>
+              <g stroke="rgba(17,19,24,.07)"><line x1="34" y1="18" x2="780" y2="18"/><line x1="34" y1="78" x2="780" y2="78"/><line x1="34" y1="138" x2="780" y2="138"/></g>
+              <g fill="#2456DB"><rect x="48" y="52" width="70" height="86" rx="3"/><rect x="154" y="40" width="70" height="98" rx="3"/><rect x="260" y="47" width="70" height="91" rx="3"/><rect x="366" y="31" width="70" height="107" rx="3"/><rect x="472" y="44" width="70" height="94" rx="3"/><rect x="578" y="58" width="70" height="80" rx="3"/><rect x="684" y="36" width="70" height="102" rx="3"/></g>
+              <g fill="#8A90A0"><rect x="48" y="48" width="70" height="3" rx="1"/><rect x="154" y="36" width="70" height="3" rx="1"/><rect x="260" y="44" width="70" height="2" rx="1"/><rect x="366" y="22" width="70" height="8" rx="1"/><rect x="472" y="40" width="70" height="3" rx="1"/><rect x="578" y="55" width="70" height="2" rx="1"/><rect x="684" y="33" width="70" height="2" rx="1"/></g>
+              <g font-size="11" fill="#5B6170" text-anchor="middle" font-family="-apple-system,PingFang SC,sans-serif"><text x="83" y="160">10-03</text><text x="189" y="160">10-04</text><text x="295" y="160">10-05</text><text x="401" y="160">10-06</text><text x="507" y="160">10-07</text><text x="613" y="160">10-08</text><text x="719" y="160">10-09</text></g>
+              <text x="401" y="17" font-size="11" fill="#5B6170" text-anchor="middle" font-family="-apple-system,PingFang SC,sans-serif">402 激增</text>
+              </svg>
+          </div>
+          <div class="card" style="min-height:0;overflow:hidden">
+            <div class="card-h"><h3>Top 用户</h3><div class="seg" style="margin-left:4px"><span class="on">按估算费用</span><span>按调用数</span></div></div>
+            <table>
+              <tr><th>用户</th><th class="r">调用</th><th class="r">估算费用</th><th class="r">占比</th></tr>
+              <tr><td>alice <span class="mono muted">#12345678</span></td><td class="r num">2,914</td><td class="r num">¥14.20</td><td class="r num">16%</td></tr>
+              <tr><td>bob <span class="mono muted">#20481733</span></td><td class="r num">2,377</td><td class="r num">¥9.85</td><td class="r num">11%</td></tr>
+              <tr><td>lily <span class="mono muted">#31907245</span></td><td class="r num">1,602</td><td class="r num">¥7.12</td><td class="r num">8%</td></tr>
+              <tr><td>kai <span class="mono muted">#47220190</span></td><td class="r num">1,150</td><td class="r num">¥4.03</td><td class="r num">5%</td></tr>
+            </table>
+          </div>
+          </div>
+          <div class="u-grid" style="flex:1">
+            <div class="card">
+              <div class="card-h"><h3>按功能</h3><span class="note">调用 · 估算费用</span></div>
+              <div style="padding:6px 0">
+                <div class="hb"><span>对话</span><div class="bar" style="width:100%"></div><span class="r num">7,920</span></div>
+                <div class="hb"><span>实时通话</span><div class="bar" style="width:52%;opacity:.85"></div><span class="r num">4,110</span></div>
+                <div class="hb"><span>发音评测</span><div class="bar" style="width:36%;opacity:.7"></div><span class="r num">2,840</span></div>
+                <div class="hb"><span>晋级赛</span><div class="bar" style="width:20%;opacity:.6"></div><span class="r num">1,590</span></div>
+                <div class="hb"><span>联机房间</span><div class="bar" style="width:14%;opacity:.5"></div><span class="r num">1,102</span></div>
+                <div class="hb"><span>语法检查</span><div class="bar" style="width:10%;opacity:.45"></div><span class="r num">840</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>错误分解</h3><span class="note">共 498 次</span></div>
+              <table>
+                <tr><th>类别</th><th class="r">次数</th><th class="r">占比</th></tr>
+                <tr><td>402 余额不足</td><td class="r num">311</td><td class="r num">62%</td></tr>
+                <tr><td>429 上游限流</td><td class="r num">97</td><td class="r num">19%</td></tr>
+                <tr><td>网络 / 超时</td><td class="r num">58</td><td class="r num">12%</td></tr>
+                <tr><td>5xx</td><td class="r num">29</td><td class="r num">6%</td></tr>
+                <tr><td>鉴权 401/403</td><td class="r num">3</td><td class="r num">1%</td></tr>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>上游健康(近 15 分钟)</h3></div>
+              <table>
+                <tr><th>上游</th><th class="r">成功率</th><th>最近错误</th><th></th></tr>
+                <tr><td><span class="dot d-green"></span> 方舟 LLM</td><td class="r num">99.6%</td><td class="muted">—</td><td class="r"><button class="btn sm">测试连接</button></td></tr>
+                <tr><td><span class="dot d-amber"></span> 豆包语音 TTS</td><td class="r num">93.1%</td><td class="num">429 · 3 分钟前</td><td class="r"><button class="btn sm">测试连接</button></td></tr>
+                <tr><td><span class="dot d-green"></span> 讯飞 ISE</td><td class="r num">100%</td><td class="muted">—</td><td class="r"><button class="btn sm">测试连接</button></td></tr>
+                <tr><td><span class="dot d-grey"></span> Azure Speech</td><td class="r num">—</td><td class="muted">未配置</td><td class="r"></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:所有金额旁标"估算",缺单价时以琥珀提示并链接单价表。图表单一色相(蓝 = 成功调用),失败用中性灰,不引入第二种品牌色;"按功能"用同一蓝的明度阶区分,数字始终在旁。上游健康点:绿 = 正常,琥珀 = 降级,灰 = 未配置;"测试连接"只返回结果码与耗时。</p>
+
+  <!-- =================================================================
+       06 · Audit log (tablet)
+  ================================================================== -->
+  <h2 class="group">06 · 审计日志(平板 1024)</h2>
+  <div class="frame tab">
+    <div class="shell">
+      <nav class="rail" id="rail-copy"></nav>
+      <section class="main">
+        <header class="top">
+          <div class="crumb">安全 / <b>审计日志</b></div>
+          <div class="sp"></div>
+          <div class="who"><span class="av">R</span><span class="role">超级管理员</span></div>
+        </header>
+        <div class="content" style="padding:16px 20px;gap:12px">
+          <div class="chain"><svg class="i s" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><b style="font-weight:600">哈希链完整</b><span>已校验 1,284 条 · 10-09 09:12</span><span style="flex:1"></span><button class="btn sm" style="background:transparent">重新校验</button></div>
+          <div class="card filters">
+            <div class="inp" style="width:170px"><span class="ph">操作人</span></div>
+            <div class="inp" style="width:170px">动作:settings.*<span style="flex:1"></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="inp" style="width:170px"><span class="ph">对象 ID</span></div>
+            <span style="flex:1"></span><span class="note">按时间倒序</span>
+          </div>
+          <div class="card" style="flex:1;min-height:0;overflow:hidden">
+            <div class="arow" style="padding-top:8px;padding-bottom:8px"><span class="muted" style="font-size:11px">时间</span><span class="muted" style="font-size:11px">操作人</span><span class="muted" style="font-size:11px">动作</span><span class="muted" style="font-size:11px">摘要</span><span class="muted" style="font-size:11px">结果</span><span></span></div>
+            <div class="arow"><span class="num">10-09 09:10:42</span><span>root <span class="role">超级</span></span><span class="act">settings.update</span><span>2 setting(s) · 理由:迁移到方舟</span><span><span class="badge b-neutral">ok</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 15l6-6 6 6"/></svg></div>
+            <div class="expand">
+              <table class="diff" style="background:var(--surface);border-radius:8px;box-shadow:0 0 0 1px var(--hair-2)">
+                <tr><th>设置</th><th>之前</th><th></th><th>之后</th></tr>
+                <tr><td class="mono">UPSTREAM_LLM_BASE_URL</td><td class="old mono">https://api.deepseek.com/v1</td><td class="arrow">→</td><td class="new mono">https://ark.cn-beijing.volces.com/api/v3</td></tr>
+                <tr><td class="mono">UPSTREAM_LLM_KEY</td><td class="old">已设置 · a1b2c3d4</td><td class="arrow">→</td><td class="new">已设置 · 9f8e7d6c</td></tr>
+              </table>
+              <div class="note" style="margin-top:8px">IP 203.0.113.5 · 会话 3f1c… · 已二次验证 · 修订 #49 · <span style="color:var(--blue)">撤销此修订</span></div>
+            </div>
+            <div class="arow"><span class="num">10-09 09:08:15</span><span>root <span class="role">超级</span></span><span class="act">auth.step_up</span><span>密码 + TOTP</span><span><span class="badge b-neutral">ok</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="arow"><span class="num">10-09 08:52:03</span><span>ops <span class="role">运营</span></span><span class="act">rank.user.reset</span><span>user 12345678 · 黄金 I → 白银 III · 快照 b71e…</span><span><span class="badge b-neutral">ok</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="arow"><span class="num">10-09 08:40:51</span><span>ops <span class="role">运营</span></span><span class="act">rank.rules.publish</span><span>需要超级管理员</span><span><span class="badge b-amber">denied</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="arow"><span class="num">10-09 08:31:20</span><span>ops <span class="role">运营</span></span><span class="act">room.view_private</span><span>room 6f0a… · 查看私聊通道</span><span><span class="badge b-neutral">ok</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="arow"><span class="num">10-09 07:58:47</span><span>ghost <span class="role">—</span></span><span class="act">auth.login.fail</span><span>203.0.113.77 · 第 5 次 · 已锁定 15 分钟</span><span><span class="badge b-amber">denied</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="arow" style="box-shadow:none"><span class="num">10-09 07:41:09</span><span>cli <span class="role">超级</span></span><span class="act">auth.cli_unlock</span><span>admin ops</span><span><span class="badge b-neutral">ok</span></span><svg class="i s" viewBox="0 0 24 24" style="color:var(--ink-3)"><path d="M6 9l6 6 6-6"/></svg></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="cap"><b>要点</b>:顶部是哈希链完整性(绿 = 完整;断链时变红并给出起始条目)。结果徽标:ok 中性、denied 琥珀、error 红——失败的登录与越权尝试同样入审计。展开行用与"保存前检查"相同的差异表,密钥只显示指纹;审计从不包含密码、token、用户文本或提示词正文。</p>
+</div>
+<script>
+  // Static mockup helpers: reuse the sidebar / rail markup and the settings frame as a dimmed backdrop.
+  (function () {
+    var side = document.querySelector("#f-settings .side");
+    ["side-copy", "side-copy-2"].forEach(function (id) {
+      var el = document.getElementById(id);
+      el.innerHTML = side.innerHTML;
+      el.querySelectorAll("a.on").forEach(function (a) { a.classList.remove("on"); });
+      var target = id === "side-copy" ? "段位规则" : "用量与费用";
+      el.querySelectorAll("a").forEach(function (a) { if (a.textContent.trim().indexOf(target) === 0) a.classList.add("on"); });
+    });
+    var rail = document.querySelector(".tab .rail");
+    var copy = document.getElementById("rail-copy");
+    copy.innerHTML = rail.innerHTML;
+    copy.querySelectorAll("a.on").forEach(function (a) { a.classList.remove("on"); });
+    copy.querySelectorAll("a")[6].classList.add("on");
+    var bg = document.getElementById("review-bg");
+    bg.innerHTML = document.getElementById("f-settings").innerHTML;
+  })();
+</script>
+</body>
+</html>
