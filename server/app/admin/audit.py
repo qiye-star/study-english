@@ -88,18 +88,30 @@ async def record(session, actor: Actor, action: str, *, target_type=None, target
     return row
 
 
-async def _anchored(session, first: AdminAudit) -> bool:
-    """The oldest remaining row may follow deleted rows only when an `audit.purge` row names it as its anchor
-    (review m7): deleting the oldest rows straight in the database no longer verifies."""
-    if first.prev_hash == GENESIS:
-        return True
+async def _anchor_row(session, first: AdminAudit) -> AdminAudit | None:
+    """The `audit.purge` row that names `first` (the oldest remaining row) as its anchor, if any."""
     purges = (await session.scalars(select(AdminAudit).where(AdminAudit.action == "audit.purge",
                                                            AdminAudit.id >= first.id))).all()
     for p in purges:
         anchor = (p.before or {}).get("anchor_id")
         if anchor == first.id or (anchor is None and p.id == first.id):
-            return True
-    return False
+            return p
+    return None
+
+
+async def _anchored(session, first: AdminAudit) -> bool:
+    """The oldest remaining row may follow deleted rows only when an `audit.purge` row names it as its anchor
+    (review m7): deleting the oldest rows straight in the database no longer verifies."""
+    return first.prev_hash == GENESIS or await _anchor_row(session, first) is not None
+
+
+async def chain_anchor(session) -> int | None:
+    """Id of the `audit.purge` row the chain starts from (None = it starts at GENESIS or is empty/broken)."""
+    first = await session.scalar(select(AdminAudit).order_by(AdminAudit.id).limit(1))
+    if first is None or first.prev_hash == GENESIS:
+        return None
+    row = await _anchor_row(session, first)
+    return row.id if row is not None else None
 
 
 async def verify(session, *, start_id: int | None = None) -> tuple[bool, int | None]:

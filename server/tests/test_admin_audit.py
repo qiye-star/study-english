@@ -113,3 +113,4 @@ async def test_verify_detects_deleted_head_rows_unless_a_purge_anchor_covers_the
         await housekeeping.purge_audit(s, ROOT, 400, retention_days=180)
         await s.commit()
         assert await verify(s) == (True, None)
+
