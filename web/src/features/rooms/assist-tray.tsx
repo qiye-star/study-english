@@ -23,18 +23,20 @@ function assistMeta(meta: Record<string, unknown> | null | undefined): AssistMet
  * 助手私聊面板(spec §5.4,视觉稿 M3):只有本人可见;对话式——自己的草稿(blue-tint)→ 中文说明 + 术语片 + 2–3 条建议。
  * 建议句「发送到群聊」直接进公共通道(带「助手润色」),「编辑」填回输入框再改。
  */
-export function AssistTray({ open, onOpenChange, entries, disabled = false, onAsk, onSend, onEdit }: {
+export function AssistTray({ open, onOpenChange, entries, disabled = false, offline = false, onAsk, onSend, onEdit }: {
   open: boolean; onOpenChange(v: boolean): void; entries: AssistEntry[]; disabled?: boolean;
-  onAsk(text: string): void; onSend(text: string, assistId: string): void; onEdit(text: string): void;
+  /** 没连上:还能输入与编辑,不能提问或发送 */
+  offline?: boolean;
+  /** 返回是否已发出;没发出时保留草稿 */
+  onAsk(text: string): boolean; onSend(text: string, assistId: string): void; onEdit(text: string): void;
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const ask = () => {
     const text = draft.trim();
-    if (!text || disabled) return;
-    onAsk(text);
-    setDraft("");
+    if (!text || disabled || offline) return;
+    if (onAsk(text)) setDraft("");
   };
   const last = entries.at(-1);
   useEffect(() => {
@@ -74,7 +76,7 @@ export function AssistTray({ open, onOpenChange, entries, disabled = false, onAs
                         <p className="text-body font-medium leading-[1.45]">{s.en}</p>
                         {s.noteZh && <p className="mt-px text-meta text-ink-2">{s.noteZh}</p>}
                         <div className="mt-2 flex gap-2">
-                          <button type="button" data-testid="assist-send" disabled={disabled || !replyId} className={cn(smallPrimaryButton, "flex-1")}
+                          <button type="button" data-testid="assist-send" disabled={disabled || offline || !replyId} className={cn(smallPrimaryButton, "flex-1")}
                             onClick={() => replyId && onSend(s.en, replyId)}><SendIcon aria-hidden />{t("web.rooms.assist.send")}</button>
                           <button type="button" data-testid="assist-edit" disabled={disabled} className={cn(smallGhostButton, "w-[72px] flex-none")}
                             onClick={() => onEdit(s.en)}>{t("web.rooms.assist.edit")}</button>
@@ -91,7 +93,7 @@ export function AssistTray({ open, onOpenChange, entries, disabled = false, onAs
           <input data-testid="assist-input" value={draft} maxLength={ROOM_LIMITS.assistText} disabled={disabled} enterKeyHint="send"
             aria-label={t("web.rooms.assist.placeholder")} placeholder={t("web.rooms.assist.placeholder")}
             onChange={(e) => setDraft(e.target.value)} className={cn(fieldInput, "flex-1")} />
-          <button type="submit" data-testid="assist-ask" disabled={disabled || !draft.trim()} className={cn(smallPrimaryButton, "px-4 text-body")}>
+          <button type="submit" data-testid="assist-ask" disabled={disabled || offline || !draft.trim()} className={cn(smallPrimaryButton, "px-4 text-body")}>
             {t("web.rooms.assist.ask")}
           </button>
         </form>

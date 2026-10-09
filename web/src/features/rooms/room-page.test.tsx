@@ -114,6 +114,42 @@ describe("RoomPage", () => {
     await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":5}'));
   });
 
+  it("resends an unacknowledged message after a reconnect with the same client id and shows it once", async () => {
+    setup();
+    await live();
+    fireEvent.change(screen.getByTestId("room-input"), { target: { value: "Are you there?" } });
+    fireEvent.click(screen.getByTestId("room-send"));
+    const first = FakeWebSocket.last!;
+    const say = JSON.parse(first.sent.at(-1)!);
+    first.drop(1006); // dropped before the ack
+    expect((screen.getByTestId("room-send") as HTMLButtonElement).disabled).toBe(true); // nothing can be sent while reconnecting
+    await waitFor(() => expect(FakeWebSocket.count).toBe(2), { timeout: 3000 });
+    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":0}'));
+    FakeWebSocket.last!.push({ type: "welcome", room: ROOM, me: { user_id: 11111111, role: "owner" }, members: MEMBERS, last_seq: 4, truncated: false, assist_history: [] });
+    const resent = FakeWebSocket.last!.sent.map((f) => JSON.parse(f)).filter((f) => f.type === "say");
+    expect(resent).toEqual([say]);
+    // the server had stored it: the replay carries the real message, then the dedup ack
+    FakeWebSocket.last!.push({ type: "message", message: user(4, "Are you there?", { sender: { kind: "user", id: 11111111, name: "alice" } }) });
+    FakeWebSocket.last!.push({ type: "ack", client_id: say.client_id, seq: 4 });
+    expect(screen.getAllByText("Are you there?")).toHaveLength(1);
+    expect(screen.queryByTestId("room-pending")).toBeNull();
+  });
+
+  it("announces only live messages from others, not the whole list", async () => {
+    setup();
+    await live();
+    expect(screen.getByTestId("room-messages").getAttribute("aria-live")).toBeNull();
+    FakeWebSocket.last!.push({ type: "message", message: user(2, "Hi there") });
+    expect(screen.getByTestId("room-announcer").textContent).toBe("bob: Hi there");
+    FakeWebSocket.last!.push({ type: "message", message: user(3, "Mine", { sender: { kind: "user", id: 11111111, name: "alice" } }) });
+    expect(screen.getByTestId("room-announcer").textContent).toBe("bob: Hi there");
+  });
+
+  it("a member removed from the room sees that, not 'not found'", async () => {
+    setup({ "POST /api/rooms/r1/ticket": () => json({ error: "Removed from room" }, 403) });
+    expect(await screen.findByText("你已被移出房间")).toBeTruthy();
+  });
+
   it("opens an ended room as read-only history", async () => {
     setup({
       "POST /api/rooms/r1/ticket": () => json({ error: "Room not found" }, 404),

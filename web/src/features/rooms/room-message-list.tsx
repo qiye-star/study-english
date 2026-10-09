@@ -1,5 +1,5 @@
 import { FlagIcon, LanguagesIcon } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { memo, useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar } from "~/components/avatar";
 import { cn } from "~/lib/cn";
@@ -37,13 +37,13 @@ function AiAnswer({ text }: { text: string }) {
  * 公共消息列表(视觉稿 M2):别人 = 中性气泡 + 名字;自己 = blue-tint;@ai 回答 = 中性卡片(AI 助手 + 引用提问);系统 = 居中 11px。
  * 点别人的消息展开「举报」(44px)。系统消息按 i18n 模板渲染(服务端只存 key + 参数)。
  */
-export function RoomMessageList({ state, reported, onLoadEarlier, onReport }: {
+export const RoomMessageList = memo(function RoomMessageList({ state, reported, onLoadEarlier, onReport }: {
   state: RoomState; reported: ReadonlySet<string>; onLoadEarlier(): void; onReport(message: RoomMessage): void;
 }) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
   const meId = state.me?.userId;
-  const bySeq = new Map(state.messages.map((m) => [m.seq, m]));
+  const bySeq = useMemo(() => new Map(state.messages.map((m) => [m.seq, m])), [state.messages]);
 
   const reportRow = (m: RoomMessage, align: "start" | "end") => selected === m.id && (
     <div className={cn("mt-0.5 flex", align === "end" ? "justify-end" : "justify-start")}>
@@ -133,4 +133,4 @@ export function RoomMessageList({ state, reported, onLoadEarlier, onReport }: {
       )}
     </div>
   );
-}
+});

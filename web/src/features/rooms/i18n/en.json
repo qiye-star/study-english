@@ -30,6 +30,7 @@
         "title": "Room",
         "code": "Room {{code}}",
         "copied": "Room code copied",
+        "copyManual": "Couldn't copy. Room code: {{code}}",
         "online": "{{count}} online",
         "ended": "Ended · read only",
         "placeholder": "Say something, or ask @ai",
@@ -49,6 +50,7 @@
         "report": "Report",
         "reported": "Reported",
         "reportTitle": "Report this message",
+        "reportHint": "Choose why you are reporting this message.",
         "reportReasons": {
           "spam": "Spam",
           "abuse": "Harassment or abuse",
@@ -88,7 +90,8 @@
         "leave": "Leave room",
         "leaveConfirm": "You'll need the room code to come back. Leave?",
         "close": "End room",
-        "closeConfirm": "Nobody can post after the room ends. Continue?"
+        "closeConfirm": "Nobody can post after the room ends. Continue?",
+        "confirmHint": "Confirm or cancel below."
       },
       "notice": {
         "ai_off": "The owner turned off public AI answers; use the assistant instead",
