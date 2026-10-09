@@ -227,3 +227,51 @@ def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
     finally:
         con.close()
     command.upgrade(cfg, "head")
+
+
+ADMIN_V2_TABLES = {
+    "admin_accounts", "admin_sessions", "admin_login_state", "admin_recovery_codes", "admin_audit",
+    "setting_overrides", "setting_revisions", "config_revisions", "rank_rule_sets", "rank_profile_snapshots",
+    "prompt_versions", "announcements", "upstream_calls", "usage_daily", "user_quota_overrides", "invite_codes",
+}
+
+
+def test_0008_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0007")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'h', '2026-10-05 00:00:00')")
+        _match_row(con, "open", "active", "2026-10-09 10:00:00")
+        con.commit()
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    try:
+        assert ADMIN_V2_TABLES <= _tables(db)
+        assert "disabled_at" in _columns(con, "users")
+        assert "rules_version" in _columns(con, "promotion_matches")
+        assert "ai_muted" in _columns(con, "rooms")
+        assert "hidden_at" in _columns(con, "room_messages")
+        assert {"resolved_at", "resolved_by", "resolution"} <= _columns(con, "room_reports")
+        assert con.execute("select status, rules_version from promotion_matches").fetchone() == ("active", None)
+        # 0007's partial unique index survives the column add
+        assert any(r[1] == "uq_promotion_matches_user_open" for r in con.execute("pragma index_list(promotion_matches)"))
+    finally:
+        con.close()
+    command.downgrade(cfg, "0007")
+    con = sqlite3.connect(db)
+    try:
+        assert not (ADMIN_V2_TABLES & _tables(db))
+        assert "disabled_at" not in _columns(con, "users")
+        assert "rules_version" not in _columns(con, "promotion_matches")
+        assert "ai_muted" not in _columns(con, "rooms")
+        index = next(r for r in con.execute("pragma index_list(promotion_matches)") if r[1] == "uq_promotion_matches_user_open")
+        assert index[2] == 1 and index[4] == 1
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+        assert con.execute("select status from promotion_matches").fetchone() == ("active",)
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    assert ADMIN_V2_TABLES <= _tables(db)

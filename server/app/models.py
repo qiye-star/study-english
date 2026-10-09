@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -31,6 +31,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     grammar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AccessToken(Base):
@@ -197,6 +198,7 @@ class PromotionMatch(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rules_version: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = v0 / built-in rules
 
 
 class UserAchievement(Base):
@@ -239,6 +241,7 @@ class Room(Base):
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     close_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    ai_muted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class RoomMember(Base):
@@ -277,6 +280,7 @@ class RoomMessage(Base):
     client_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class RoomReport(Base):
@@ -289,3 +293,236 @@ class RoomReport(Base):
     reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     reason: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+# ---- 管理后台 v2(设计文档 2026-10-09-admin-console-v2 §15)----
+
+class AdminAccount(Base):
+    __tablename__ = "admin_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(32), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(16))  # viewer / operator / superadmin
+    totp_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminSession(Base):
+    __tablename__ = "admin_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admin_accounts.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL = env 应急账号
+    username: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ip: Mapped[str] = mapped_column(String(64))
+    user_agent: Mapped[str] = mapped_column(String(120))
+    mfa_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    step_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    csrf_hash: Mapped[str] = mapped_column(String(64))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminLoginState(Base):
+    __tablename__ = "admin_login_state"
+    __table_args__ = (UniqueConstraint("username", "ip", name="uq_admin_login_state_username_ip"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64))
+    ip: Mapped[str] = mapped_column(String(64))  # "*" = 按用户名的全局计数
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    lock_level: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AdminRecoveryCode(Base):
+    __tablename__ = "admin_recovery_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("admin_accounts.id", ondelete="CASCADE"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(255))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminAudit(Base):
+    __tablename__ = "admin_audit"
+    __table_args__ = (Index("ix_admin_audit_target", "target_type", "target_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    actor: Mapped[str] = mapped_column(String(64), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    ip: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(48), index=True)
+    target_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str] = mapped_column(String(200), default="")
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    result: Mapped[str] = mapped_column(String(8), default="ok")
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))
+
+
+class SettingOverride(Base):
+    __tablename__ = "setting_overrides"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)  # JSON 文本;secret=True 时为 Fernet token
+    secret: Mapped[bool] = mapped_column(Boolean, default=False)
+    env_fp: Mapped[str] = mapped_column(String(16))
+    revision: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_by: Mapped[str] = mapped_column(String(64))
+
+
+class SettingRevision(Base):
+    __tablename__ = "setting_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    actor: Mapped[str] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(200), default="")
+    changes: Mapped[list] = mapped_column(JSON)  # [{key, op, old, new}];密钥为 {"enc": token}
+    reverted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class ConfigRevision(Base):
+    __tablename__ = "config_revisions"
+
+    name: Mapped[str] = mapped_column(String(32), primary_key=True)  # settings / rank_rules / prompts
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RankRuleSet(Base):
+    __tablename__ = "rank_rule_sets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    version: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
+    status: Mapped[str] = mapped_column(String(12))  # draft / published / archived
+    rules: Mapped[dict] = mapped_column(JSON)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RankProfileSnapshot(Base):
+    __tablename__ = "rank_profile_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    batch_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    data: Mapped[dict] = mapped_column(JSON)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PromptVersion(Base):
+    __tablename__ = "prompt_versions"
+    __table_args__ = (UniqueConstraint("key", "version", name="uq_prompt_versions_key_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(48), index=True)
+    version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(12))
+    body: Mapped[str] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    level: Mapped[str] = mapped_column(String(8))  # info / warning
+    text_zh: Mapped[str] = mapped_column(String(280))
+    text_en: Mapped[str] = mapped_column(String(280))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dismissible: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UpstreamCall(Base):
+    __tablename__ = "upstream_calls"
+    __table_args__ = (Index("ix_upstream_calls_user_id_at", "user_id", "at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feature: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(16))
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(64))
+    status: Mapped[int] = mapped_column(Integer)
+    ms: Mapped[int] = mapped_column(Integer)
+    units_in: Mapped[int] = mapped_column(Integer, default=0)
+    units_out: Mapped[int] = mapped_column(Integer, default=0)
+    unit: Mapped[str] = mapped_column(String(8))
+
+
+class UsageDaily(Base):
+    __tablename__ = "usage_daily"
+    __table_args__ = (UniqueConstraint("day", "feature", "kind", "provider", "model", "user_id",
+                                       name="uq_usage_daily_bucket"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)
+    feature: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(16))
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int] = mapped_column(Integer, default=0)  # 0 = 无用户(系统调用)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    units_in: Mapped[int] = mapped_column(Integer, default=0)
+    units_out: Mapped[int] = mapped_column(Integer, default=0)
+    ms_total: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class UserQuotaOverride(Base):
+    __tablename__ = "user_quota_overrides"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    updated_by: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class InviteCode(Base):
+    __tablename__ = "invite_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    label: Mapped[str] = mapped_column(String(64), default="")
+    max_uses: Mapped[int] = mapped_column(Integer)
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
