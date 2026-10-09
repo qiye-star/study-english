@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -169,9 +169,17 @@ class XpEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+OPEN_MATCH = text("status IN ('active', 'grading_failed')")
+
+
 class PromotionMatch(Base):
     __tablename__ = "promotion_matches"
-    __table_args__ = (Index("ix_promotion_matches_user_id_started_at", "user_id", "started_at"),)
+    __table_args__ = (
+        Index("ix_promotion_matches_user_id_started_at", "user_id", "started_at"),
+        # At most one open match per user, enforced by the DB (migration 0007).
+        Index("uq_promotion_matches_user_open", "user_id", unique=True, sqlite_where=OPEN_MATCH,
+              postgresql_where=OPEN_MATCH),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -185,6 +193,7 @@ class PromotionMatch(Base):
     total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     threshold: Mapped[int] = mapped_column(Integer)
     attempt_no: Mapped[int] = mapped_column(Integer)
+    grade_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

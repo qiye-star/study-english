@@ -31,7 +31,7 @@ ASSESS_TIMEOUT = 40.0
 HISTORY_PER_PAGE = 20
 TZ_OFFSET = Query(0, ge=-720, le=840)
 MATCH_ERRORS: dict[str, tuple[int, str]] = {
-    "in_progress": (409, "Match in progress"), "locked": (403, "Not eligible"), "max_tier": (403, "Not eligible"),
+    "in_progress": (409, "Match in progress"), "busy": (409, "Match in progress"), "locked": (403, "Not eligible"), "max_tier": (403, "Not eligible"),
     "cooldown": (429, "Cooldown"), "no_attempts": (429, "No attempts left"),
     "unavailable": (503, "Promotion matches are not available"), "global_cap": (503, "Daily match limit reached"),
     "expired": (410, "Match expired"), "not_active": (409, "Match is not active"),

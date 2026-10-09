@@ -1,13 +1,20 @@
+import asyncio
 import json
 import random
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-from app.models import RankProfile, User
+from app.core.db import Base
+from app.main import create_app
+from app.models import PromotionMatch, RankProfile, User
 from app.providers.llm import LlmUnavailable
 from app.rank import match as m
 from app.rank import points
+from app.services import usage
+from app.services.stats import as_utc
 from app.speech.asr import AsrError
 from app.speech.stt import pcm_to_wav
 from tests.conftest import make_settings
@@ -177,3 +184,163 @@ async def test_abandon_counts_as_failure(eligible):
         assert match.status == "abandoned" and profile.rp == 96
         with pytest.raises(m.MatchError):
             await m.abandon_match(s, match, profile, NOW, SETTINGS)
+
+
+@pytest.fixture
+async def file_app(tmp_path, monkeypatch):
+    """A file-backed SQLite DB: separate sessions get separate connections, as in production."""
+    monkeypatch.setitem(points.STAGE_TASKS, 2, ())
+    url = f"sqlite+aiosqlite:///{(tmp_path / 'r.db').as_posix()}"
+    application = create_app(make_settings(rank_enabled=True, database_url=url))
+    async with application.state.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with application.state.sessionmaker() as s:
+        s.add(User(id=UID, username="u", password_hash="x"))
+        s.add(RankProfile(user_id=UID, tier=2, division=1, rp=120, stars=0, best_tier=2, tier_started_at=NOW,
+                          synced_at=NOW, updated_at=NOW))
+        await s.commit()
+    yield application
+    await application.state.http.aclose()
+    await application.state.engine.dispose()
+
+
+async def _start(app_):
+    async with app_.state.sessionmaker() as s:
+        try:
+            return (await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))).id
+        except m.MatchError as e:
+            return e.code
+
+
+async def test_concurrent_starts_create_one_match_and_refund_the_loser(file_app, monkeypatch):
+    """Review #1: simultaneous POST /matches must not create two open matches."""
+    real_promotion_for = m.ledger.promotion_for
+
+    async def slow_promotion_for(*args, **kwargs):  # every request passes the open-match check first
+        status = await real_promotion_for(*args, **kwargs)
+        await asyncio.sleep(0.05)
+        return status
+
+    monkeypatch.setattr(m.ledger, "promotion_for", slow_promotion_for)
+    results = await asyncio.gather(*(_start(file_app) for _ in range(3)))
+    assert sorted(r == "in_progress" for r in results) == [False, True, True], results
+    async with file_app.state.sessionmaker() as s:
+        open_ = (await s.scalars(select(PromotionMatch).where(PromotionMatch.status.in_(m.OPEN)))).all()
+        assert len(open_) == 1
+        assert await usage.remaining(s, "rank_match", str(UID), "2026-10-09", SETTINGS.rank_match_daily_attempts) == 2
+        assert await usage.remaining(s, "rank_match_global", "*", "2026-10-09", SETTINGS.rank_matches_global_daily) \
+            == SETTINGS.rank_matches_global_daily - 1
+
+
+async def test_open_match_is_unique_per_user_in_the_db(file_app):
+    async with file_app.state.sessionmaker() as s:
+        for _ in range(2):
+            s.add(PromotionMatch(user_id=UID, from_tier=2, to_tier=3, scenario_key="x", status="active", turn_limit=6,
+                                 turns=[], threshold=68, attempt_no=1, started_at=NOW, expires_at=NOW))
+        with pytest.raises(IntegrityError):
+            await s.commit()
+
+
+async def test_stale_from_tier_never_promotes_twice(eligible):
+    """Review #1: a match started at gold must not promote a user who is no longer gold."""
+    async with eligible.state.sessionmaker() as s:
+        match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))
+        profile = await s.get(RankProfile, UID)
+        fakes = Fakes()
+        await play(s, fakes, match, profile, 6)
+        profile.tier = 3  # promoted by another match meanwhile
+        await s.commit()
+        with pytest.raises(m.MatchError) as e:
+            await m.finish_match(s, fakes.deps(), match, profile, NOW + timedelta(minutes=8), SETTINGS)
+        assert e.value.code == "not_active" and match.status == "expired"
+        assert profile.tier == 3 and fakes.judge_calls == 0
+
+
+async def test_parallel_finish_grades_once(file_app):
+    """Review #2: parallel /finish calls must not each run the judge and re-roll the verdict."""
+    async with file_app.state.sessionmaker() as s:
+        match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))
+        profile = await s.get(RankProfile, UID)
+        await play(s, Fakes(), match, profile, 6)
+    fakes = Fakes([judge_json(task=4, dims=4)] * 4)
+    deps = fakes.deps()
+    real_judge = deps.judge
+
+    async def slow_judge(messages):
+        await asyncio.sleep(0.05)
+        return await real_judge(messages)
+
+    deps.judge = slow_judge
+
+    async def finish():
+        async with file_app.state.sessionmaker() as s:
+            row = await s.get(PromotionMatch, match.id)
+            prof = await s.get(RankProfile, UID)
+            try:
+                return (await m.finish_match(s, deps, row, prof, NOW + timedelta(minutes=8), SETTINGS))["passed"]
+            except m.MatchError as e:
+                return e.code
+
+    results = await asyncio.gather(finish(), finish(), finish())
+    assert sorted(map(str, results)) == ["True", "busy", "busy"], results
+    assert fakes.judge_calls == 1
+    async with file_app.state.sessionmaker() as s:
+        assert (await s.get(RankProfile, UID)).tier == 3
+
+
+async def test_parallel_turns_are_rejected(file_app):
+    """Review #2: parallel /turns on one match must not each call the upstreams and overwrite each other."""
+    async with file_app.state.sessionmaker() as s:
+        match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))
+    fakes = Fakes()
+    deps = fakes.deps()
+    real_examiner = deps.examiner
+
+    async def slow_examiner(messages):
+        await asyncio.sleep(0.05)
+        return await real_examiner(messages)
+
+    deps.examiner = slow_examiner
+
+    async def turn():
+        async with file_app.state.sessionmaker() as s:
+            row = await s.get(PromotionMatch, match.id)
+            prof = await s.get(RankProfile, UID)
+            try:
+                return (await m.add_turn(s, deps, row, prof, WAV, NOW + timedelta(minutes=1), SETTINGS))["turn_index"]
+            except m.MatchError as e:
+                return e.code
+
+    assert sorted(map(str, await asyncio.gather(turn(), turn(), turn()))) == ["1", "busy", "busy"]
+    assert fakes.examiner_calls == 1
+    async with file_app.state.sessionmaker() as s:
+        assert len((await s.get(PromotionMatch, match.id)).turns) == 3
+
+
+async def test_grading_failed_is_capped_and_expires(eligible):
+    """Review #2: a grading_failed match cannot be re-graded forever."""
+    async with eligible.state.sessionmaker() as s:
+        match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))
+        profile = await s.get(RankProfile, UID)
+        await play(s, Fakes(), match, profile, 6)
+        fakes = Fakes(["nope"] * 2 * m.MAX_GRADE_ATTEMPTS)
+        for _ in range(m.MAX_GRADE_ATTEMPTS):
+            with pytest.raises(m.MatchError) as e:
+                await m.finish_match(s, fakes.deps(), match, profile, NOW, SETTINGS)
+            assert e.value.code == "grading_failed"
+        assert match.status == "expired" and fakes.judge_calls == 2 * m.MAX_GRADE_ATTEMPTS
+        assert profile.cooldown_until is None  # our grading failed, not the learner
+        with pytest.raises(m.MatchError) as e:
+            await m.finish_match(s, fakes.deps(), match, profile, NOW, SETTINGS)
+        assert e.value.code == "not_active"
+
+    async with eligible.state.sessionmaker() as s:
+        match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(1))
+        profile = await s.get(RankProfile, UID)
+        await play(s, Fakes(), match, profile, 6)
+        with pytest.raises(m.MatchError):
+            await m.finish_match(s, Fakes(["nope", "nope"]).deps(), match, profile, NOW, SETTINGS)
+        late = as_utc(match.expires_at) + m.GRADING_GRACE + timedelta(seconds=1)
+        with pytest.raises(m.MatchError) as e:
+            await m.finish_match(s, Fakes().deps(), match, profile, late, SETTINGS)
+        assert e.value.code == "expired" and match.status == "expired"
