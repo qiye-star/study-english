@@ -194,7 +194,9 @@ async def summary(session, settings, days: int, now: datetime) -> dict:
         m = _add(by_model, (g.kind, g.provider, g.model, g.unit), g, cost)
         m["units_in"] = m.get("units_in", 0) + g.units_in
         m["units_out"] = m.get("units_out", 0) + g.units_out
-        _add(daily, g.day, g, cost)
+        d = _add(daily, g.day, g, cost)
+        features = d.setdefault("features", {})
+        features[g.feature] = features.get(g.feature, 0) + g.calls
         if g.user_id:
             users.add(g.user_id)
     since = _since(now, days)

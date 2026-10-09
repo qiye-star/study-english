@@ -82,6 +82,7 @@ async def test_daily_rollups_join_the_raw_rows_and_missing_prices(app):
         assert out["totals"]["cost_complete"] is False  # stt has no price, the stream is in bytes
         assert out["totals"]["active_users"] == 0
         assert [d["day"] for d in out["daily"]] == sorted(d["day"] for d in out["daily"])
+        assert [d["features"] for d in out["daily"]] == [{"audio": 4}, {"chat": 1}]
         stt = next(m for m in out["by_model"] if m["kind"] == "stt")
         assert (stt["unit"], stt["units_in"], stt["cost"]) == ("audio_ms", 60_000, None)
         week = await usage.summary(s, app.state.settings, 7, NOW)
