@@ -325,3 +325,14 @@ def test_0009_room_owner_nullable_set_null_keeps_rooms_and_round_trips(tmp_path,
     finally:
         con.close()
     command.upgrade(cfg, "head")
+
+
+def test_0010_admin_review_fixes_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0009")
+    command.upgrade(cfg, "0010")
+    assert "app_secrets" in _tables(db)
+    command.downgrade(cfg, "0009")
+    assert "app_secrets" not in _tables(db)
+    command.upgrade(cfg, "head")
+    assert "app_secrets" in _tables(db)

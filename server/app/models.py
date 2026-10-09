@@ -380,6 +380,17 @@ class AdminAudit(Base):
     hash: Mapped[str] = mapped_column(String(64))
 
 
+class AppSecret(Base):
+    """Server-generated secrets that must survive restarts and be shared by workers (review B1 ruling):
+    `admin_session` = the CSRF/fingerprint/backup-link key when ADMIN_SESSION_SECRET is empty;
+    `admin_session_check` = SHA-256 of the key in use, so a changed key signs every admin session out."""
+    __tablename__ = "app_secrets"
+
+    name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    value: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class SettingOverride(Base):
     __tablename__ = "setting_overrides"
 

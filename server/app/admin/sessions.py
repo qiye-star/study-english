@@ -1,12 +1,14 @@
 """库内管理会话(spec §4.3):token 与 CSRF 只存 SHA-256;Cookie HttpOnly + SameSite=Strict(+ __Host-/Secure)。"""
+import hashlib
 import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, update
 
+from app.core.db import insert_ignore
 from app.core.security import hash_token
-from app.models import AdminSession, iso_utc, new_uuid
+from app.models import AdminSession, AppSecret, iso_utc, new_uuid
 
 SECURE_COOKIE = "__Host-enjoy_admin"
 DEV_COOKIE = "enjoy_admin"
@@ -19,6 +21,44 @@ def _utc(v: datetime) -> datetime:
 
 def cookie_name(settings) -> str:
     return SECURE_COOKIE if settings.admin_cookie_secure else DEV_COOKIE
+
+
+SECRET_NAME, CHECK_NAME = "admin_session", "admin_session_check"
+
+
+async def _stored(session, name: str) -> str | None:
+    return await session.scalar(select(AppSecret.value).where(AppSecret.name == name))
+
+
+async def ensure_secret(app) -> bytes:
+    """The admin session secret (CSRF HMAC, env fingerprints, backup links), stable across restarts and workers.
+
+    Ruling (review B1): ADMIN_SESSION_SECRET when set; otherwise 32 random bytes generated once and kept in
+    `app_secrets` (insert-if-absent, so every worker reads the same value). It is not derived from
+    SETTINGS_ENCRYPTION_KEY, which is optional and rotatable (`recover rotate-key`). When the secret in use differs
+    from the one recorded at the last start (the env value changed), every admin session is revoked: admins log in
+    again instead of being stuck on "CSRF check failed". The value itself is never logged or returned."""
+    cached = getattr(app.state, "admin_secret", None)
+    if cached:
+        return cached
+    configured = (app.state.base_settings.admin_session_secret or "").strip()
+    async with app.state.sessionmaker() as session:
+        if configured:
+            secret = configured
+        else:
+            await session.execute(insert_ignore(session, AppSecret.__table__).values(
+                name=SECRET_NAME, value=secrets.token_hex(32), created_at=datetime.now(timezone.utc)))
+            secret = await _stored(session, SECRET_NAME)
+        check = hashlib.sha256(f"admin-session-check:{secret}".encode()).hexdigest()
+        await session.execute(insert_ignore(session, AppSecret.__table__).values(
+            name=CHECK_NAME, value=check, created_at=datetime.now(timezone.utc)))
+        if await _stored(session, CHECK_NAME) != check:
+            now = datetime.now(timezone.utc)
+            await session.execute(update(AdminSession).where(AdminSession.revoked_at.is_(None)).values(revoked_at=now))
+            await session.execute(update(AppSecret).where(AppSecret.name == CHECK_NAME).values(value=check))
+        await session.commit()
+    app.state.admin_secret = secret.encode()
+    return app.state.admin_secret
 
 
 def csrf_for(secret: bytes, session_id: str) -> str:

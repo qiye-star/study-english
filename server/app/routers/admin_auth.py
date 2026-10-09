@@ -100,6 +100,7 @@ async def login(body: LoginIn, request: Request, response: Response, session: As
     settings = request.app.state.settings
     ip = client_ip(request)
     now = datetime.now(timezone.utc)
+    secret = await sess.ensure_secret(request.app)
     await _locked(request, session, body.username, ip, now)
     principal = await authenticate(session, settings, box_for(settings), body.username, body.password)
     if principal is None:
@@ -107,7 +108,7 @@ async def login(body: LoginIn, request: Request, response: Response, session: As
         raise HTTPException(401, "Invalid username or password")
     await lockout.succeed(session, body.username, ip)
     mfa_required = principal.totp_secret is not None
-    row, token, csrf = await sess.create(session, principal, secret=request.app.state.admin_secret, ip=ip,
+    row, token, csrf = await sess.create(session, principal, secret=secret, ip=ip,
                                          user_agent=request.headers.get("user-agent", ""), now=now,
                                          ttl_minutes=settings.admin_token_ttl_minutes, mfa_done=not mfa_required)
     await audit.record(session, Actor(principal.username, principal.role, row.id, ip),

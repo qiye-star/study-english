@@ -73,6 +73,7 @@ def check_unsafe(request: Request, row: AdminSession) -> None:
 async def resolve_admin(request: Request, session: AsyncSession) -> tuple[AdminSession, AdminAccount | None]:
     """Live session + its account (None = env emergency account), MFA not checked. 404/401 otherwise."""
     require_enabled(request)
+    await sess.ensure_secret(request.app)  # first admin request of this process: stable secret (review B1)
     settings = request.app.state.settings
     token = request.cookies.get(sess.cookie_name(settings), "")
     now = datetime.now(timezone.utc)

@@ -6,7 +6,7 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 
-from app.admin import usage
+from app.admin import sessions, usage
 from app.core.config import realtime_asr_configured
 from app.core.secretbox import box_for, fingerprint
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
@@ -124,11 +124,12 @@ async def gather_facts(session, app) -> Facts:
     if base.admin_enabled and not base.admin_totp_secret.strip():
         without_totp += 1
     drift = []
+    secret = await sessions.ensure_secret(app)
     for row in (await session.scalars(select(SettingOverride))).all():
         if hasattr(base, row.key):
             value = getattr(base, row.key)
             value = value.isoformat() if hasattr(value, "isoformat") else value
-            if row.env_fp != fingerprint(app.state.admin_secret, "" if value is None else str(value)):
+            if row.env_fp != fingerprint(secret, "" if value is None else str(value)):
                 drift.append(row.key)
     since = datetime.now(timezone.utc) - timedelta(hours=24)
     alarm = await session.scalar(select(AdminAudit.id).where(

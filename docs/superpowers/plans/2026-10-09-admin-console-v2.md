@@ -7188,3 +7188,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - 任务 A8 及所有页面任务:布局只做 ≥1024px 桌面(侧栏 + 内容区 + 右侧面板);删除"平板图标栏 / 手机底部 Tab"验收项;新增验收:视口 <1024px 显示"请使用桌面浏览器访问管理后台"整页提示,且不渲染业务页。
 - Z2 视觉对照:只比对桌面 1440 与 1280 两个宽度,不做平板 1024 / 手机。
 - 影响预演面板(D 线 C 任务)固定为右侧面板,不做底部面板形态。
+
+## Addendum (2026-10-10): review fixes (security review + correctness review)
+
+Rulings below override earlier text in this plan.
+
+- Ruling (B1 admin session secret): `ADMIN_SESSION_SECRET` when set; otherwise a random 32-byte secret generated once
+  and stored in the new `app_secrets` table (insert-if-absent, shared by all workers, loaded lazily by
+  `admin/sessions.ensure_secret`). Not derived from `SETTINGS_ENCRYPTION_KEY` (optional and rotatable). A SHA-256
+  check value of the secret in use is stored too; when it differs at the next start (env value changed), every admin
+  session is revoked so admins log in again instead of hitting "CSRF check failed".

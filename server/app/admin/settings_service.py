@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
 
-from app.admin import audit
+from app.admin import audit, sessions
 from app.admin.audit import Actor
 from app.core.config import Settings
 from app.core.runtime_settings import (
@@ -131,6 +131,7 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
                stepped_up: bool = False, action: str = "settings.update") -> SaveResult:
     if not changes:
         raise SettingsError(400, "No changes")
+    await sessions.ensure_secret(app)  # env fingerprints (`_fp`) use the stable admin secret
     base: Settings = app.state.base_settings
     hub = app.state.settings_hub
     box = box_for(base)
@@ -241,6 +242,7 @@ def _decrypt(box, token: str) -> str | None:
 
 
 async def list_settings(session, app) -> dict:
+    await sessions.ensure_secret(app)
     base: Settings = app.state.base_settings
     current: Settings = app.state.settings
     hub = app.state.settings_hub

@@ -68,6 +68,8 @@ tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py 
 
 ## Pitfalls
 - Never log or audit passwords, TOTP/recovery codes, tokens, CSRF, secrets, user text or prompt bodies.
-- `ADMIN_SESSION_SECRET` empty => random per process; CSRF tokens (HMAC of the session id) change on restart.
+- `ADMIN_SESSION_SECRET` empty => generated once and stored in `app_secrets` (`sessions.ensure_secret`, loaded on the
+  first admin request), so CSRF tokens and env fingerprints survive restarts and match across workers; changing the
+  env value revokes every admin session. Read it via `await sessions.ensure_secret(app)`, never `app.state` directly.
 - `admin_web` must be registered before `web` (SPA fallback) in `create_app`.
 - The audit chain is serialised per process (P-5); multiple workers may fork it (`verify` reports where).

@@ -1,5 +1,4 @@
 import asyncio
-import secrets
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 
@@ -61,7 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.base_settings = settings  # env only; app.state.settings = base + DB overrides
     app.state.settings = settings
     app.state.started_at = datetime.now(timezone.utc)
-    app.state.admin_secret = (settings.admin_session_secret or secrets.token_hex(32)).encode()
+    app.state.admin_secret = None  # loaded on first admin use: admin.sessions.ensure_secret (review B1)
     app.state.grammar_rules = grammar_rules
     app.state.engine = engine
     app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
