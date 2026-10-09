@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listUsers } from "../api/endpoints";
-import type { UserSummary } from "../api/types";
+import { listUsers, type UserRow, type UserSort, type UserStatusFilter } from "../features/users/api";
+import { S as U } from "../features/users/strings";
 import { Avatar } from "../components/avatar";
 import { ChevronIcon, SearchIcon } from "../components/icons";
-import { Screen, TOP_BAR_H, TopBar } from "../components/layout";
+import { Chips, Screen, TOP_BAR_H, TopBar } from "../components/layout";
 import { PagedList } from "../components/states";
 import { usePaged } from "../hooks/use-paged";
 import { formatBytes, formatRelative } from "../lib/format";
 import { S } from "../strings";
 
-export function UserCard({ user }: { user: UserSummary }) {
+export function UserCard({ user }: { user: UserRow }) {
   return (
     <li>
       <Link to={`/users/${encodeURIComponent(user.id)}`} className="row-link">
         <Avatar name={user.username} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold leading-tight">{user.username}</p>
+          <p className="flex items-center gap-2 truncate text-base font-semibold leading-tight">
+            {user.username}
+            {user.disabled_at && <span className="badge bg-bad-soft text-bad">{U.list.disabledBadge}</span>}
+          </p>
           <p className="mt-0.5 truncate text-xs text-muted">
             {S.users.lastActive} {formatRelative(user.last_active_at)}
           </p>
@@ -48,10 +51,13 @@ export function UsersPage() {
     return () => clearTimeout(t);
   }, [input]);
 
-  const paged = usePaged<UserSummary>(async (page) => {
-    const r = await listUsers(q, page);
+  const [status, setStatus] = useState<UserStatusFilter>("all");
+  const [sort, setSort] = useState<UserSort>("recent");
+
+  const paged = usePaged<UserRow>(async (page) => {
+    const r = await listUsers(q, page, { status, sort });
     return { items: r.users, next: r.next, total: r.total };
-  }, [q]);
+  }, [q, status, sort]);
 
   return (
     <>
@@ -73,6 +79,24 @@ export function UsersPage() {
             className="field h-11 pl-10"
           />
         </label>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <Chips
+            label={U.list.status}
+            value={status}
+            onChange={setStatus}
+            options={(["all", "active", "disabled"] as const).map((v) => ({ value: v, label: U.list.statuses[v] }))}
+          />
+          <label className="flex items-center gap-2 text-sm text-fg-2">
+            {U.list.sort}
+            <select className="field-sm w-auto" value={sort} onChange={(e) => setSort(e.target.value as UserSort)}>
+              {(["recent", "created", "storage"] as const).map((v) => (
+                <option key={v} value={v}>
+                  {U.list.sorts[v]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
       <Screen className="pt-2">
         <PagedList paged={paged} empty={q ? S.users.emptySearch : S.users.empty}>
