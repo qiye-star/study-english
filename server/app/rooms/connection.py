@@ -104,10 +104,16 @@ class RoomConnection:
                 return
         is_ai, question = mention(text)
         ask = await self._admit_ai() if is_ai else False
-        async with d.hub.lock(self.room_id):
-            m = await d.store.append(self.room_id, lane="public", sender_kind="user", sender_id=self.user_id, kind="text",
-                                     text=text, now=now, assisted=msg.assist_id is not None,
-                                     ai_status="pending" if ask else None, client_id=msg.client_id)
+        try:
+            async with d.hub.lock(self.room_id):
+                m = await d.store.append(self.room_id, lane="public", sender_kind="user", sender_id=self.user_id,
+                                         kind="text", text=text, now=now, assisted=msg.assist_id is not None,
+                                         ai_status="pending" if ask else None, client_id=msg.client_id)
+        except BaseException:
+            if ask:  # the question was never stored: release its queue slot and quota
+                d.hub.ai_leave(self.room_id)
+                await d.refund("room_ai_global", GLOBAL)
+            raise
         await self._send(event("ack", client_id=msg.client_id, seq=m.seq))
         await d.hub.broadcast(self.room_id, event("message", message=message_out(m, self.name)))
         if ask:
@@ -122,11 +128,12 @@ class RoomConnection:
         if d.hub.ai_pending(self.room_id) >= d.limits.ai_queue:
             await self._send(event("notice", code="ai_busy"))
             return False
+        d.hub.ai_enter(self.room_id)  # reserve the slot before any await (review #11)
         if (not d.ai_room_limiter.allow(self.room_id) or not d.ai_user_limiter.allow(str(self.user_id))
                 or not await d.consume("room_ai_global", GLOBAL, d.limits.ai_global_daily)):
+            d.hub.ai_leave(self.room_id)
             await self._send(event("notice", code="ai_quota"))
             return False
-        d.hub.ai_enter(self.room_id)
         return True
 
     async def _answer(self, seq: int, message_id: str, question: str) -> None:

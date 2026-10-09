@@ -126,6 +126,41 @@ async def test_at_ai_queue_is_bounded(env):
     assert {"type": "notice", "code": "ai_quota"} in env.bob.sender.sent
 
 
+async def test_at_ai_admission_reserves_the_queue_slot_before_awaiting(env):
+    """Review #11: concurrent @ai sends all passed the queue check before any of them entered the queue."""
+    release = asyncio.Event()
+
+    async def blocked(messages, max_tokens, temperature):
+        await release.wait()
+        return "ok"
+
+    real_consume = env.cb.deps.consume
+
+    async def slow_consume(scope, subject, limit):
+        await asyncio.sleep(0.2)
+        return await real_consume(scope, subject, limit)
+
+    env.cb.deps.complete, env.cb.deps.consume = blocked, slow_consume
+    for _ in range(env.store.limits.ai_queue - 1):
+        env.hub.ai_enter(env.room.id)
+    await asyncio.gather(*(env.cb.handle(json.dumps({"type": "say", "client_id": f"q{i}", "text": "@ai hi"}))
+                           for i in range(2)))
+    assert env.hub.ai_pending(env.room.id) == env.store.limits.ai_queue
+    assert {"type": "notice", "code": "ai_busy"} in env.bob.sender.sent
+    release.set()
+    await env.hub.drain()
+
+
+async def test_at_ai_append_failure_releases_queue_and_quota(env, monkeypatch):
+    async def broken_append(*args, **kwargs):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(env.store, "append", broken_append)
+    with pytest.raises(RuntimeError):
+        await env.cb.handle('{"type":"say","client_id":"q","text":"@ai hi"}')
+    assert env.hub.ai_pending(env.room.id) == 0 and env.refunds == ["room_ai_global"]
+
+
 async def test_assist_is_private_and_send_is_marked_assisted(env):
     await env.ca.handle('{"type":"assist","request_id":"r1","text":"I like 巧克力"}')
     await env.hub.drain()
