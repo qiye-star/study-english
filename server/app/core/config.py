@@ -1,3 +1,4 @@
+import ipaddress
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -171,7 +172,48 @@ class Settings(BaseSettings):
     admin_session_secret: str = ""
     admin_dist_dir: str = ""
 
+    # ---- 管理后台 v2(设计文档 2026-10-09-admin-console-v2 §3.2)----
+    settings_encryption_key: str = ""
+    admin_settings_safe_mode: bool = False
+    admin_ip_allowlist: str = ""
+    admin_cookie_secure: bool = True
+    admin_totp_secret: str = ""
+    admin_require_totp: bool = False
+    admin_idle_minutes: int = Field(30, ge=5, le=240)
+    admin_lockout_threshold: int = Field(5, ge=3, le=20)
+    admin_lockout_minutes: int = Field(15, ge=1, le=1440)
+    admin_step_up_minutes: int = Field(5, ge=1, le=30)
+    admin_audit_retention_days: int = Field(365, ge=30, le=3650)
+    maintenance_mode: Literal["off", "read_only", "full"] = "off"
+    maintenance_message_zh: str = Field("", max_length=280)
+    maintenance_message_en: str = Field("", max_length=280)
+    usage_prices_json: str = "{}"
+    usage_currency: str = "CNY"
+    usage_raw_retention_days: int = Field(90, ge=7, le=730)
+    backup_dir: str = ""
+    backup_keep: int = Field(7, ge=1, le=60)
+    backup_hour_utc: int = Field(-1, ge=-1, le=23)
+    build_sha: str = ""
+
+    @field_validator("admin_ip_allowlist")
+    @classmethod
+    def _cidrs(cls, value: str) -> str:
+        for item in _split(value):
+            try:
+                ipaddress.ip_network(item, strict=False)
+            except ValueError:
+                raise ValueError("invalid CIDR") from None
+        return value
+
     app_version: str = "0.7.9"
+
+    @property
+    def admin_ip_networks(self) -> list:
+        return [ipaddress.ip_network(item, strict=False) for item in _split(self.admin_ip_allowlist)]
+
+    @property
+    def resolved_backup_dir(self) -> Path:
+        return Path(self.backup_dir) if self.backup_dir else self.resolved_data_dir / "backups"
 
     @property
     def admin_enabled(self) -> bool:
