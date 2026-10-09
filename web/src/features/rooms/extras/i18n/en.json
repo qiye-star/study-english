@@ -5,6 +5,8 @@
         "bad_reply": "That message can't be quoted"
       },
       "extras": {
+        "moreActions": "More actions",
+        "quoteVoice": "Voice message",
         "actions": "Message actions",
         "reactionNames": {
           "like": "Like",

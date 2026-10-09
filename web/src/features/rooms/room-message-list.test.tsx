@@ -40,6 +40,14 @@ describe("RoomMessageList (v2 extras)", () => {
     expect(screen.queryByTestId("msg-quote")).toBeNull();
   });
 
+  it("ignores a second tap on the same reaction until the server answers (review m6)", () => {
+    const { props } = setup([msg(3, "Hi", { reactions: [{ key: "like", userIds: [22] }] })]);
+    fireEvent.click(screen.getByTestId("reaction-like"));
+    fireEvent.click(screen.getByTestId("reaction-like")); // quick double tap: state has not changed yet
+    expect(props.onReact).toHaveBeenCalledTimes(1);
+    expect(props.onReact).toHaveBeenCalledWith(3, "like", true);
+  });
+
   it("reacts with the message seq and closes the row", () => {
     const { props } = setup([msg(3, "Hi", { reactions: [{ key: "like", userIds: [11] }] })]);
     fireEvent.click(screen.getByText("Hi"));

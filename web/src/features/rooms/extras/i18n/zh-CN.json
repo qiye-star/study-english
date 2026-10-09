@@ -5,6 +5,8 @@
         "bad_reply": "这条消息不能引用"
       },
       "extras": {
+        "moreActions": "更多操作",
+        "quoteVoice": "语音消息",
         "actions": "消息操作",
         "reactionNames": {
           "like": "赞",

@@ -1,5 +1,5 @@
-import { LanguagesIcon } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { LanguagesIcon, MoreHorizontalIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
@@ -19,6 +19,13 @@ import { TranslateQueue } from "./voice/translate-queue";
 import { VoiceBubble } from "./voice/voice-bubble";
 import { describeSettingsChanges } from "./create/settings-message";
 import { fetchRoomsConfig, type RoomsConfig } from "./rooms-api";
+
+/** 操作行的 id(「更多操作」的 aria-controls) */
+const actionsId = (messageId: string) => `room-actions-${messageId}`;
+/** 回应切换等回音的最长时间 */
+const REACT_PENDING_MS = 5000;
+const MORE_CLASS = "relative flex size-7 flex-none items-center justify-center self-end rounded-full text-ink-3 transition-colors duration-fast "
+  + "before:absolute before:-inset-2 before:content-[''] hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4";
 
 const AT_AI = /^(\s*@(?:ai|助手))(?=$|[\s:：,，])/i;
 
@@ -74,6 +81,40 @@ export const RoomMessageList = memo(function RoomMessageList({
   const native = nativeLanguageCode(language);
   const [selected, setSelected] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // 打开的操作行:Esc 或点别处关闭(review M7);打开后滚到可见(review M6,列表的 scroll-padding 让开输入条)
+  useEffect(() => {
+    if (selected === null) return;
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") setSelected(null); };
+    const onDown = (e: PointerEvent) => {
+      const own = [...(rootRef.current?.querySelectorAll("[data-message-id]") ?? [])].find((el) => el.getAttribute("data-message-id") === selected);
+      if (!own || !own.contains(e.target as Node)) setSelected(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [selected]);
+  useLayoutEffect(() => {
+    if (selected === null) return;
+    document.getElementById(actionsId(selected))?.scrollIntoView?.({ block: "nearest" });
+  }, [selected]);
+  // 回应:同一条同一表情的上一次切换还没回音时忽略新的点按(快速连点不会发两次 on,review m6)
+  const reacting = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const reactOnce = useCallback((seq: number, key: ReactionKey, on: boolean) => {
+    const id = `${seq}:${key}`;
+    if (reacting.current.has(id)) return;
+    reacting.current.set(id, setTimeout(() => reacting.current.delete(id), REACT_PENDING_MS));
+    onReact(seq, key, on);
+  }, [onReact]);
+  const reactionsKey = state.messages.map((m) => `${m.seq}:${(m.reactions ?? []).map((r) => `${r.key}${r.userIds.join(".")}`).join(",")}`).join("|");
+  useEffect(() => { // 回应事件到了:放开所有等待中的切换
+    for (const [id, timer] of reacting.current) {
+      clearTimeout(timer);
+      reacting.current.delete(id);
+    }
+  }, [reactionsKey]);
   const meId = state.me?.userId ?? null;
   // 自动翻译共用一个队列:限速在服务端 20 次/分钟之下,只为进入视野的语音请求(review M3)
   const translateRef = useRef(onTranslateVoice);
@@ -133,11 +174,11 @@ export const RoomMessageList = memo(function RoomMessageList({
     return (
       <div className={cn("flex max-w-full flex-col", align === "end" ? "items-end" : "items-start", indent && "pl-[38px]")}>
         {open && <TextTranslation state={translations.states[m.id]} onRetry={() => translations.retry(m.id, text)} />}
-        {hasReactions && <ReactionBar reactions={m.reactions} meId={meId} onToggle={(key, on) => onReact(m.seq, key, on)} />}
+        {hasReactions && <ReactionBar reactions={m.reactions} meId={meId} onToggle={(key, on) => reactOnce(m.seq, key, on)} />}
         {isSelected && (
-          <div className="mt-1 max-w-full">
+          <div id={actionsId(m.id)} className="mt-1 max-w-full">
             <MessageActions message={m} mine={mine} meId={meId} canReport={!mine} reported={reported.has(m.id)}
-              onReact={(key, on) => { onReact(m.seq, key, on); setSelected(null); }}
+              onReact={(key, on) => { reactOnce(m.seq, key, on); setSelected(null); }}
               onQuote={() => { onQuote(m); setSelected(null); }} onReport={() => onReport(m)}
               onTranslate={canTranslate ? () => translations.toggle(m.id, text) : undefined} translateOpen={open}
               onSpeak={text ? () => speak(m) : undefined} speakState={tts.states[m.id] ?? "idle"} />
@@ -147,11 +188,18 @@ export const RoomMessageList = memo(function RoomMessageList({
     );
   };
   const toggle = (m: RoomMessage) => setSelected((cur) => (cur === m.id ? null : m.id));
+  /** 点气泡 = 指针的快捷方式(不是 role=button:气泡里的播放、转文字、翻译、引用都要单独给读屏,review M7) */
   const selectable = (m: RoomMessage) => ({
-    role: "button", tabIndex: 0, "aria-expanded": selected === m.id,
     onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("button, a, audio")) toggle(m); },
-    onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter" && e.target === e.currentTarget) toggle(m); },
   });
+  /** 气泡旁的「更多操作」:键盘与读屏打开操作行的入口;视觉 28px,命中区扩到 44px */
+  const moreButton = (m: RoomMessage) => (
+    <button type="button" data-testid="room-message-more" aria-label={t("web.rooms.extras.moreActions")}
+      aria-expanded={selected === m.id} aria-controls={actionsId(m.id)} onClick={() => toggle(m)}
+      className={MORE_CLASS}>
+      <MoreHorizontalIcon aria-hidden />
+    </button>
+  );
 
   const render = (m: RoomMessage) => {
     if (m.hidden) {
@@ -173,14 +221,17 @@ export const RoomMessageList = memo(function RoomMessageList({
     if (m.kind === "ai_answer") {
       const question = m.replyTo !== null ? bySeq.get(m.replyTo) : undefined;
       return (
-        <div key={m.id} data-seq={m.seq} className="flex max-w-full flex-col items-start self-start">
+        <div key={m.id} data-seq={m.seq} data-message-id={m.id} className="flex max-w-full flex-col items-start self-start">
+          <div className="flex max-w-[92%] gap-1">
           <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
-            className="max-w-[92%] rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="min-w-0 rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
             <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>
             {question && (
               <p className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
             )}
             <AiAnswer text={m.text} />
+          </div>
+          {moreButton(m)}
           </div>
           {under(m, false, "start", false)}
         </div>
@@ -190,11 +241,11 @@ export const RoomMessageList = memo(function RoomMessageList({
     const name = m.sender.name ?? "?";
     const voice = m.kind === "voice";
     return (
-      <div key={m.id} data-seq={m.seq} className={cn("flex max-w-full flex-col", mine ? "items-end self-end" : "items-start self-start")}>
+      <div key={m.id} data-seq={m.seq} data-message-id={m.id} className={cn("flex max-w-full flex-col", mine ? "items-end self-end" : "items-start self-start")}>
         <div className={cn("flex max-w-[88%] gap-2", mine && "flex-row-reverse")}>
           {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
           <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
-            className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em]",
               mine ? "rounded-tr-inline bg-blue-tint" : "rounded-tl-inline border-[0.5px] border-hair bg-surface")}>
             {!mine && <span className="block text-meta font-semibold text-ink-2">{name}</span>}
             {m.quote && <QuoteBlock quote={m.quote} onJump={jump} />}
@@ -213,6 +264,7 @@ export const RoomMessageList = memo(function RoomMessageList({
               <span className="mt-0.5 block text-label text-ink-2">{t("web.rooms.room.aiFailed")}</span>
             )}
           </div>
+          {moreButton(m)}
         </div>
         {under(m, mine, mine ? "end" : "start", !mine)}
       </div>
