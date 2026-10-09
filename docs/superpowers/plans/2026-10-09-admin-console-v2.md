@@ -7237,3 +7237,6 @@ Rulings below override earlier text in this plan.
   achievement unlocks while maintenance is on; live realtime calls end with 1012 when maintenance turns on (the web
   shows its generic call-ended error; the banner follows within 5 min or on the next API call). Still allowed by
   design: `POST /api/sessions` (login) writes an access token.
+- Not changed (correctness m14, admin unmounts pages below 1024 px): Addendum R-7 requires that a viewport under
+  1024 px shows the desktop-only notice **and does not render business pages**; keeping pages mounted under an
+  overlay would break that acceptance item. Needs a product decision before changing.
