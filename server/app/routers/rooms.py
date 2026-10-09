@@ -23,7 +23,7 @@ from app.core.deps import auth_rate_limit, current_user, get_settings, limited_u
 from app.core.quotas import effective
 from app.core.ratelimit import RateLimiter
 from app.core.settings_registry import SPECS
-from app.models import User, utcnow
+from app.models import User, iso_utc, utcnow
 from app.providers import llm
 from app.rooms.codes import normalize_code
 from app.rooms.connection import ConnDeps, RoomConnection, members_out
@@ -48,7 +48,8 @@ ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "not_found": (404, "Room not found"), "locked": (403, "Room is locked"), "full": (409, "Room is full"),
     "kicked": (403, "Removed from room"), "capacity": (503, "Room capacity reached"), "too_many": (429, "Too many rooms"),
     "forbidden": (403, "Only the owner can do that"), "bad_reason": (400, "Invalid reason"),
-    "below_members": (409, "Below current members"),
+    "below_members": (409, "Below current members"), "cooldown": (429, "Try again later"),
+    "too_many_requests": (429, "Too many requests for this room"), "no_request": (404, "Request not found"),
 }
 
 
@@ -123,6 +124,7 @@ def runtime(app) -> RoomsRuntime:
             join_limiter=RateLimiter(limits.join_per_minute, 60),
             assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency)
         rt.app = app
+        rt.sweep_listeners.append(_expire_requests)
         app.state.rooms = rt
         for install in getattr(app.state, "rooms_extensions", ()):
             install(app, rt)
@@ -238,6 +240,33 @@ async def presence(rt: RoomsRuntime, room_id: str) -> None:
     await rt.hub.broadcast(room_id, event("presence", members=members_out(members, rt.hub.online(room_id))))
 
 
+async def _owner_event(rt: RoomsRuntime, room_id: str, data: dict) -> None:
+    """Join-request events go to the owner's sockets only (spec 2026-10-10 §9)."""
+    room = await rt.store.room(room_id)
+    if room is not None:
+        await rt.hub.broadcast(room_id, data, only_user=room.owner_id)
+
+
+async def _request_closed(rt: RoomsRuntime, room_id: str, request_id: str, status: str) -> None:
+    await _owner_event(rt, room_id, event("join_request_closed", id=request_id, status=status))
+
+
+async def _admitted(rt: RoomsRuntime, room_id: str, user_ids: list[int]) -> None:
+    for user_id in user_ids:
+        await system_message(rt, room_id, "joined", {"name": await rt.store.username(user_id)})
+    if user_ids:
+        await presence(rt, room_id)
+
+
+async def _expire_requests(rt: RoomsRuntime, now: datetime) -> None:
+    """Sweep listener: pending join requests past `join_request_minutes` expire; the owner is told per request."""
+    expired = await rt.store.expire_requests(now)
+    for room_id, request_id in expired:
+        await _request_closed(rt, room_id, request_id, "expired")
+    if expired:
+        logger.info("rooms join requests expired=%d", len(expired))
+
+
 @router.get("/config")
 async def rooms_config(_: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     return {"enabled": settings.rooms_enabled, "ai_available": settings.rooms_ai_available,
@@ -275,8 +304,14 @@ async def join_room(payload: JoinIn, request: Request, user: User = Depends(curr
     code = normalize_code(payload.code)
     if code is None:
         raise HTTPException(404, "Room not found")
+    now = utcnow()
     try:
-        room, joined = await rt.store.join(code, user.id, utcnow())
+        room, joined, pending = await rt.store.join(code, user.id, now)
+        if pending is not None:
+            request = await rt.store.request_view(pending.id)
+            if request["created_at"] == iso_utc(now):  # a new request, not the user's existing pending one
+                await _owner_event(rt, room.id, event("join_request", request=request))
+            return JSONResponse({"request": request}, status_code=202)
         _, member = await rt.store.membership(room.id, user.id)
     except RoomError as e:
         _raise(e)
@@ -284,6 +319,31 @@ async def join_room(payload: JoinIn, request: Request, user: User = Depends(curr
         await system_message(rt, room.id, "joined", {"name": user.username})
         await presence(rt, room.id)
     return {"room": await _room_json(rt, room, member.role)}
+
+
+@router.get("/requests/{request_id}")
+async def my_request(request_id: str, request: Request, user: User = Depends(current_user),
+                     _: Settings = Depends(require_rooms)):
+    """The requester polls the request (spec 2026-10-10 §3.4); `approved` means they are a member now."""
+    rt = runtime(request.app)
+    try:
+        return {"request": await rt.store.get_request(request_id[:MAX_ID], user.id)}
+    except RoomError as e:
+        _raise(e)
+
+
+@router.delete("/requests/{request_id}")
+async def cancel_request(request_id: str, request: Request, user: User = Depends(current_user),
+                         _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    try:
+        before = await rt.store.get_request(request_id[:MAX_ID], user.id)
+        cancelled = await rt.store.cancel_request(request_id[:MAX_ID], user.id, utcnow())
+    except RoomError as e:
+        _raise(e)
+    if before["status"] == "pending" and cancelled.status == "cancelled":
+        await _request_closed(rt, cancelled.room_id, cancelled.id, "cancelled")
+    return {"request": await rt.store.request_view(cancelled.id)}
 
 
 @router.get("/mine")
@@ -316,6 +376,41 @@ async def room_messages(room_id: str, request: Request, before_seq: int = Query(
     return {"messages": await rt.store.history_out(room.id, user.id, before_seq, limit)}
 
 
+@router.get("/{room_id}/requests")
+async def room_requests(room_id: str, request: Request, user: User = Depends(current_user),
+                        _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    try:
+        return {"requests": await rt.store.list_requests(room_id[:MAX_ID], user.id)}
+    except RoomError as e:
+        _raise(e)
+
+
+async def _decide(request: Request, user: User, room_id: str, request_id: str, approve: bool) -> dict:
+    rt = runtime(request.app)
+    room_id = room_id[:MAX_ID]
+    try:
+        decided = await rt.store.decide_request(room_id, user.id, request_id[:MAX_ID], approve, utcnow())
+    except RoomError as e:
+        _raise(e)
+    await _request_closed(rt, room_id, decided.id, decided.status)
+    if approve:
+        await _admitted(rt, room_id, [decided.user_id])
+    return {"request": await rt.store.request_view(decided.id)}
+
+
+@router.post("/{room_id}/requests/{request_id}/approve")
+async def approve_request(room_id: str, request_id: str, request: Request, user: User = Depends(current_user),
+                          _: Settings = Depends(require_rooms)):
+    return await _decide(request, user, room_id, request_id, True)
+
+
+@router.post("/{room_id}/requests/{request_id}/deny")
+async def deny_request(room_id: str, request_id: str, request: Request, user: User = Depends(current_user),
+                       _: Settings = Depends(require_rooms)):
+    return await _decide(request, user, room_id, request_id, False)
+
+
 @router.post("/{room_id}/ticket")
 async def room_ticket(room_id: str, request: Request, user: User = Depends(limited_user),
                       settings: Settings = Depends(require_rooms)):
@@ -343,12 +438,18 @@ async def update_room(room_id: str, payload: PatchIn, request: Request, user: Us
         return _invalid_settings(errors)
     room_id = room_id[:MAX_ID]
     try:
+        before = await rt.store.room(room_id)
         _room, changes = await rt.store.update_settings(room_id, user.id, values)
         room = await rt.store.update(room_id, user.id, locked=payload.locked)
     except RoomError as e:
         _raise(e)
     if changes:
         await system_message(rt, room.id, "settings", {"changes": changes})
+    if before is not None and before.join_mode == "approval" and room.join_mode == "code":
+        closed = await rt.store.approve_all(room.id, utcnow())  # spec 2026-10-10 §3.2
+        for r in closed:
+            await _request_closed(rt, room.id, r.id, r.status)
+        await _admitted(rt, room.id, [r.user_id for r in closed if r.status == "approved"])
     await rt.hub.broadcast(room.id, event("room_update", room=await _room_json(rt, room, None)))
     return {"room": await _room_json(rt, room, "owner")}
 

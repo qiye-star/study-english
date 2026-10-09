@@ -142,35 +142,171 @@ class RoomStore:
                     await s.rollback()
             raise RoomError("capacity")
 
-    async def join(self, code: str, user_id: int, now: datetime) -> tuple[Room, bool]:
+    async def _admit(self, s, room: Room, member: RoomMember | None, user_id: int, now: datetime) -> str:
+        """Write the membership (no commit). Returns the role: an owner who left an empty room is inherited."""
+        has_owner = await s.scalar(select(RoomMember.id).where(RoomMember.room_id == room.id,
+                                                               RoomMember.role == "owner", *_ACTIVE))
+        role = "member" if has_owner is not None else "owner"
+        if member is None:
+            s.add(RoomMember(room_id=room.id, user_id=user_id, role=role, joined_at=now, kicked=False))
+        else:
+            member.left_at, member.joined_at, member.role = None, now, role
+        if role == "owner":
+            room.owner_id = user_id
+        room.last_active_at = now
+        return role
+
+    async def _seat_free(self, s, room: Room) -> bool:
+        count = await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == room.id,
+                                                                                  *_ACTIVE))
+        return count < min(room.max_members, self.limits.max_members)
+
+    async def _member_row(self, s, room_id: str, user_id: int) -> RoomMember | None:
+        return await s.scalar(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+
+    async def join(self, code: str, user_id: int, now: datetime) -> tuple[Room, bool, RoomJoinRequest | None]:
+        """(room, joined, request). An `approval` room answers a non-member with a pending join request instead
+        (spec 2026-10-10 3.4): one pending request per user and room (the existing row comes back), a cooldown
+        after a denial, at most `join_pending_per_room` pending per room. Kicked, locked and full come first."""
         async with self._admission, self._sm() as s:
             room = await s.scalar(select(Room).where(Room.code == code, Room.status == "open"))
             if room is None:
                 raise RoomError("not_found")
-            member = await s.scalar(select(RoomMember).where(RoomMember.room_id == room.id,
-                                                             RoomMember.user_id == user_id))
+            member = await self._member_row(s, room.id, user_id)
             if member is not None and member.kicked:
                 raise RoomError("kicked")
             if member is not None and member.left_at is None:
-                return room, False
+                return room, False, None
             if room.locked:
                 raise RoomError("locked")
-            count = await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == room.id,
-                                                                                      *_ACTIVE))
-            if count >= min(room.max_members, self.limits.max_members):
+            if not await self._seat_free(s, room):
                 raise RoomError("full")
             has_owner = await s.scalar(select(RoomMember.id).where(RoomMember.room_id == room.id,
                                                                    RoomMember.role == "owner", *_ACTIVE))
-            role = "member" if has_owner is not None else "owner"  # the owner left an empty room: inherit it
-            if member is None:
-                s.add(RoomMember(room_id=room.id, user_id=user_id, role=role, joined_at=now, kicked=False))
-            else:
-                member.left_at, member.joined_at, member.role = None, now, role
-            if role == "owner":
-                room.owner_id = user_id
-            room.last_active_at = now
+            if room.join_mode == "approval" and has_owner is not None:  # nobody could approve an ownerless room
+                return room, False, await self._request(s, room, user_id, now)
+            await self._admit(s, room, member, user_id, now)
             await s.commit()
-            return room, True
+            return room, True, None
+
+    async def _request(self, s, room: Room, user_id: int, now: datetime) -> RoomJoinRequest:
+        pending = await s.scalar(select(RoomJoinRequest).where(
+            RoomJoinRequest.room_id == room.id, RoomJoinRequest.user_id == user_id,
+            RoomJoinRequest.status == "pending").order_by(RoomJoinRequest.created_at).limit(1))
+        if pending is not None:
+            return pending
+        denied = await s.scalar(select(RoomJoinRequest.id).where(
+            RoomJoinRequest.room_id == room.id, RoomJoinRequest.user_id == user_id,
+            RoomJoinRequest.status == "denied",
+            RoomJoinRequest.decided_at > now - timedelta(minutes=self.limits.join_deny_cooldown_minutes)).limit(1))
+        if denied is not None:
+            raise RoomError("cooldown")
+        count = await s.scalar(select(func.count()).select_from(RoomJoinRequest).where(
+            RoomJoinRequest.room_id == room.id, RoomJoinRequest.status == "pending"))
+        if count >= self.limits.join_pending_per_room:
+            raise RoomError("too_many_requests")
+        request = RoomJoinRequest(id=new_uuid(), room_id=room.id, user_id=user_id, status="pending", created_at=now)
+        s.add(request)
+        await s.commit()
+        return request
+
+    async def decide_request(self, room_id: str, owner_id: int, request_id: str, approve: bool,
+                             now: datetime) -> RoomJoinRequest:
+        """The owner approves (writes the membership; locked, full and kicked refuse) or denies a pending request."""
+        async with self._admission, self._sm() as s:
+            room = await self._owned_room(s, room_id, owner_id)
+            request = await s.scalar(select(RoomJoinRequest).where(
+                RoomJoinRequest.id == request_id, RoomJoinRequest.room_id == room_id,
+                RoomJoinRequest.status == "pending"))
+            if request is None:
+                raise RoomError("no_request")
+            if approve:
+                member = await self._member_row(s, room_id, request.user_id)
+                if member is not None and member.kicked:
+                    raise RoomError("kicked")
+                if member is None or member.left_at is not None:
+                    if room.locked:
+                        raise RoomError("locked")
+                    if not await self._seat_free(s, room):
+                        raise RoomError("full")
+                    await self._admit(s, room, member, request.user_id, now)
+            request.status = "approved" if approve else "denied"
+            request.decided_at, request.decided_by = now, owner_id
+            await s.commit()
+            return request
+
+    async def cancel_request(self, request_id: str, user_id: int, now: datetime) -> RoomJoinRequest:
+        """The requester withdraws; a request that is no longer pending comes back unchanged."""
+        async with self._admission, self._sm() as s:
+            request = await s.scalar(select(RoomJoinRequest).where(RoomJoinRequest.id == request_id,
+                                                                   RoomJoinRequest.user_id == user_id))
+            if request is None:
+                raise RoomError("no_request")
+            if request.status == "pending":
+                request.status, request.decided_at = "cancelled", now
+                await s.commit()
+            return request
+
+    async def _requests_out(self, *conds) -> list[dict]:
+        async with self._sm() as s:
+            rows = (await s.execute(select(RoomJoinRequest, User.username, Room.name, Room.topic)
+                                    .join(User, User.id == RoomJoinRequest.user_id)
+                                    .join(Room, Room.id == RoomJoinRequest.room_id)
+                                    .where(*conds)
+                                    .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
+        return [request_out(r, n, rn or rt) for r, n, rn, rt in rows]
+
+    async def request_view(self, request_id: str) -> dict | None:
+        rows = await self._requests_out(RoomJoinRequest.id == request_id)
+        return rows[0] if rows else None
+
+    async def get_request(self, request_id: str, user_id: int) -> dict:
+        """The requester's own request (polled by the lobby); anyone else gets `no_request`."""
+        rows = await self._requests_out(RoomJoinRequest.id == request_id, RoomJoinRequest.user_id == user_id)
+        if not rows:
+            raise RoomError("no_request")
+        return rows[0]
+
+    async def list_requests(self, room_id: str, owner_id: int) -> list[dict]:
+        async with self._sm() as s:
+            await self._owned_room(s, room_id, owner_id)
+        return await self.pending_requests(room_id)
+
+    async def expire_requests(self, now: datetime) -> list[tuple[str, str]]:
+        """Pending requests older than `join_request_minutes` become expired. Returns [(room_id, request_id)]."""
+        cutoff = now - timedelta(minutes=self.limits.join_request_minutes)
+        async with self._admission, self._sm() as s:
+            rows = (await s.scalars(select(RoomJoinRequest).where(RoomJoinRequest.status == "pending",
+                                                                  RoomJoinRequest.created_at <= cutoff)
+                                    .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
+            for r in rows:
+                r.status, r.decided_at = "expired", now
+            if rows:
+                await s.commit()
+            return [(r.room_id, r.id) for r in rows]
+
+    async def approve_all(self, room_id: str, now: datetime) -> list[RoomJoinRequest]:
+        """The room went back to `code`: pending requests are approved in request order while seats last and the
+        rest expire (spec 2026-10-10 3.2). A locked room approves nobody. Returns every request it closed."""
+        async with self._admission, self._sm() as s:
+            room = await s.get(Room, room_id)
+            if room is None:
+                return []
+            rows = (await s.scalars(select(RoomJoinRequest).where(RoomJoinRequest.room_id == room_id,
+                                                                  RoomJoinRequest.status == "pending")
+                                    .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
+            for r in rows:
+                member = await self._member_row(s, room_id, r.user_id)
+                ok = room.status == "open" and not room.locked and not (member is not None and member.kicked)
+                if ok and (member is None or member.left_at is not None):
+                    ok = await self._seat_free(s, room)
+                    if ok:
+                        await self._admit(s, room, member, r.user_id, now)
+                        await s.flush()  # the next seat count sees this member
+                r.status, r.decided_at = ("approved" if ok else "expired"), now
+            if rows:
+                await s.commit()
+            return list(rows)
 
     async def membership(self, room_id: str, user_id: int) -> tuple[Room, RoomMember]:
         """Active membership (not left, not kicked) in an open or closed room."""
@@ -474,13 +610,7 @@ class RoomStore:
         return [{"seq": seq, **g} for seq, items in by_seq.items() for g in _group(items)]
 
     async def pending_requests(self, room_id: str) -> list[dict]:
-        async with self._sm() as s:
-            rows = (await s.execute(select(RoomJoinRequest, User.username, Room.name, Room.topic)
-                                    .join(User, User.id == RoomJoinRequest.user_id)
-                                    .join(Room, Room.id == RoomJoinRequest.room_id)
-                                    .where(RoomJoinRequest.room_id == room_id, RoomJoinRequest.status == "pending")
-                                    .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
-        return [request_out(r, n, rn or rt) for r, n, rn, rt in rows]
+        return await self._requests_out(RoomJoinRequest.room_id == room_id, RoomJoinRequest.status == "pending")
 
     async def assist_history(self, room_id: str, user_id: int, limit: int):
         rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "private",
