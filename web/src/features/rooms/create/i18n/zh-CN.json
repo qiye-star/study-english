@@ -33,8 +33,7 @@
         "settings": {
           "group": "房间设置",
           "requests": "加入请求",
-          "requestsEmpty": "没有待处理的加入请求",
-          "nameSave": "保存"
+          "requestsEmpty": "没有待处理的加入请求"
         },
         "requests": {
           "one": "{{name}} 想加入",
@@ -54,20 +53,20 @@
           "dismiss": "知道了"
         },
         "system": {
-          "name": "房间名改为「{{value}}」",
-          "scenario": "场景改为「{{value}}」",
-          "level": "目标水平改为 {{value}}",
-          "join_mode_code": "加入方式改为凭房间号",
-          "join_mode_approval": "加入方式改为需房主同意",
-          "max_members": "人数上限改为 {{value}}",
+          "summary": "房主{{changes}}",
+          "separator": ",",
+          "name": "把房间名改为「{{value}}」",
+          "scenario": "把场景改为「{{value}}」",
+          "level": "把目标水平改为 {{value}}",
+          "join_mode_code": "改为凭房间号加入",
+          "join_mode_approval": "改为需房主同意才能加入",
+          "max_members": "把人数上限改为 {{value}}",
           "ai_public_on": "开启了 AI 公开回答",
           "ai_public_off": "关闭了 AI 公开回答",
-          "allow_voice_on": "允许语音消息",
+          "allow_voice_on": "允许了语音消息",
           "allow_voice_off": "关闭了语音消息",
           "locked_on": "锁定了房间",
-          "locked_off": "解除了房间锁定",
-          "prefix": "房主",
-          "separator": ";"
+          "locked_off": "解除了房间锁定"
         }
       }
     }

@@ -33,8 +33,7 @@
         "settings": {
           "group": "Room settings",
           "requests": "Join requests",
-          "requestsEmpty": "No pending join requests",
-          "nameSave": "Save"
+          "requestsEmpty": "No pending join requests"
         },
         "requests": {
           "one": "{{name}} wants to join",
@@ -66,8 +65,8 @@
           "allow_voice_off": "turned off voice messages",
           "locked_on": "locked the room",
           "locked_off": "unlocked the room",
-          "prefix": "The owner",
-          "separator": "; "
+          "summary": "The owner {{changes}}",
+          "separator": ", "
         }
       }
     }

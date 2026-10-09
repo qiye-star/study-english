@@ -53,7 +53,8 @@
           "left": "{{name}} 离开了房间",
           "kicked": "{{name}} 被移出了房间",
           "topic": "话题改为「{{topic}}」",
-          "owner": "{{name}} 成为房主"
+          "owner": "{{name}} 成为房主",
+          "settings": "房主修改了房间设置"
         },
         "askAssist": "问助手",
         "backToGroup": "改回发到群聊",
@@ -73,9 +74,6 @@
       },
       "settings": {
         "title": "成员与设置",
-        "topic": "话题",
-        "save": "保存",
-        "saved": "已保存",
         "locked": "锁定房间(不再收新成员)",
         "aiPublic": "AI 公开回答 @ai",
         "members": "成员",

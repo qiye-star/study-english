@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -10,36 +10,38 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
-import { cn } from "~/lib/cn";
-import type { RoomInfo } from "./protocol";
+import { JoinRequestRows } from "./create/join-requests";
+import { listJoinRequests, ROOMS_ALL_SERVER_ERRORS, updateRoomSettings, type RoomSettingsInput } from "./create/rooms-v2-api";
+import { SettingsFields } from "./create/settings-fields";
+import type { JoinRequestInfo, RoomInfo } from "./protocol";
 import type { RoomState } from "./room-state";
-import { closeRoom, kickMember, leaveRoom, ROOMS_SERVER_ERRORS, updateRoom } from "./rooms-api";
-import { fieldInput } from "./ui";
+import { closeRoom, fetchRoomsConfig, kickMember, leaveRoom, type RoomsConfig } from "./rooms-api";
 
 interface Confirm { title: string; action: string; run(): Promise<void> }
+type SettingKey = keyof RoomSettingsInput;
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, children, bare = false }: { title: string; children: ReactNode; bare?: boolean }) {
   return (
     <section className="mt-section first:mt-0">
       <h3 className="mx-0.5 mb-2 text-sub font-semibold tracking-[0.01em] text-ink-2">{title}</h3>
-      <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">{children}</div>
+      {bare ? children : <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">{children}</div>}
     </section>
   );
 }
 
-function SwitchRow({ id, label, checked, disabled, onChange }: { id: string; label: string; checked: boolean; disabled: boolean; onChange(v: boolean): void }) {
-  return (
-    <div className="flex min-h-row items-center justify-between gap-3 px-3.5 py-2.5">
-      <label htmlFor={id} className="min-w-0 text-body font-medium text-ink">{label}</label>
-      <Switch id={id} data-testid={id} checked={checked} disabled={disabled} onCheckedChange={onChange}
-        className="hit-expand h-[26px] w-11 data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
-    </div>
-  );
+/** 房间当前的设置(v1 服务端不下发 v2 字段时退回默认值)。 */
+function settingsOf(room: RoomInfo, config: RoomsConfig | null): RoomSettingsInput {
+  return {
+    name: room.name || room.topic || "", scenario: room.scenario ?? "free", level: room.level, joinMode: room.joinMode ?? "code",
+    maxMembers: room.maxMembers ?? config?.defaultMaxMembers ?? 4, aiPublic: room.aiPublic, allowVoice: room.allowVoice ?? true, locked: room.locked,
+  };
 }
 
 /**
- * 成员与设置:房主改话题、锁定、AI 公开回答、移出成员、结束房间(红字,二次确认);所有人可看成员、离开房间。
- * 房间结束后只剩成员列表。HTTP 返回的房间经 onChanged 立即生效(广播 room_update 也会到)。
+ * 成员与设置:房主改 7 项设置(与创建表单同一组控件,mode="edit",人数上限不低于当前成员数)+ 锁定;改动即时保存,
+ * 失败 toast 并回滚该项。房主还看到「加入请求」(HTTP 列表 + 实时 state.joinRequests)。移出成员、结束房间(红字,二次确认);
+ * 所有人可看成员、离开房间。房间结束后只剩成员列表。HTTP 返回的房间经 onChanged 立即生效(广播 room_update 也会到)。
+ * 房间页(冻结)不传 config,这里打开时自己取一次 /api/rooms/config。
  */
 export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
   open: boolean; onOpenChange(v: boolean): void; state: RoomState; onChanged(room: RoomInfo): void;
@@ -48,47 +50,98 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const room = state.room;
+  const roomId = room?.id ?? "";
   const live = state.status !== "closed" && room?.status !== "closed";
   const owner = state.me?.role === "owner" && live;
-  const [topic, setTopic] = useState(room?.topic ?? "");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
-  const currentTopic = room?.topic ?? "";
-  useEffect(() => { if (open) setTopic(currentTopic); }, [open, currentTopic]);
+  const [config, setConfig] = useState<RoomsConfig | null>(null);
+  /** 正在保存的改动(乐观显示);成功后由服务端返回的房间接替,失败时删掉即回滚 */
+  const [pending, setPending] = useState<RoomSettingsInput>({});
+  const [fetched, setFetched] = useState<JoinRequestInfo[]>([]);
+  const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!open || !owner || config) return;
+    const ctrl = new AbortController();
+    fetchRoomsConfig(api, ctrl.signal).then(setConfig, () => { /* 取不到就不显示设置项,锁定与成员照常 */ });
+    return () => ctrl.abort();
+  }, [open, owner, config, api]);
+  // 连着时以实时列表为准(welcome 带全量,join_request 增、join_request_closed 删);没连上(重连中)时用 HTTP 取一次
+  const connected = state.status === "live";
+  useEffect(() => {
+    if (!open || !owner || !roomId || connected) return;
+    const ctrl = new AbortController();
+    listJoinRequests(api, roomId, ctrl.signal).then(setFetched, () => { /* 取不到就只显示实时列表 */ });
+    return () => ctrl.abort();
+  }, [open, owner, roomId, connected, api]);
+
+  const requests = useMemo(
+    () => (connected ? state.joinRequests : fetched).filter((r) => r.status === "pending" && !decided.has(r.id)),
+    [connected, state.joinRequests, fetched, decided],
+  );
+
   if (!room) return null;
+  const value: RoomSettingsInput = { ...settingsOf(room, config), ...pending };
+  const memberCount = Math.max(2, state.members.length || room.memberCount || 0);
 
   async function act(fn: () => Promise<void>) {
     setBusy(true);
     try {
       await fn();
     } catch (err) {
-      toast.error(translateServerError(t, err, ROOMS_SERVER_ERRORS));
+      toast.error(translateServerError(t, err, ROOMS_ALL_SERVER_ERRORS));
     } finally {
       setBusy(false);
     }
   }
-  const patch = (p: { topic?: string; locked?: boolean; aiPublic?: boolean }) => act(async () => { onChanged(await updateRoom(api, room.id, p)); });
+  /** 只保存变了的项;每项独立保存、独立回滚。 */
+  function save(next: RoomSettingsInput) {
+    const current = { ...settingsOf(room!, config), ...pending };
+    const changed = (Object.keys(next) as SettingKey[]).filter((k) => next[k] !== undefined && next[k] !== current[k]);
+    if (!changed.length) return;
+    const patch: RoomSettingsInput = {};
+    for (const k of changed) Object.assign(patch, { [k]: next[k] });
+    setPending((cur) => ({ ...cur, ...patch }));
+    const drop = () => setPending((cur) => {
+      const rest = { ...cur };
+      for (const k of changed) if (rest[k] === patch[k]) delete rest[k];
+      return rest;
+    });
+    updateRoomSettings(api, room!.id, patch).then((updated) => {
+      onChanged(updated);
+      drop();
+    }, (err) => {
+      toast.error(translateServerError(t, err, ROOMS_ALL_SERVER_ERRORS));
+      drop();
+    });
+  }
 
   return (
     <>
       <BottomSheet open={open} onOpenChange={onOpenChange}>
         <BottomSheetContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto">
           <BottomSheetHeader title={t("web.rooms.settings.title")} />
-          {owner && (
-            <Group title={t("web.rooms.settings.topic")}>
-              <form className="flex items-center gap-2 px-3.5 py-2.5" onSubmit={(e) => { e.preventDefault(); void patch({ topic: topic.trim() }); }}>
-                <input data-testid="room-topic" aria-label={t("web.rooms.settings.topic")} value={topic} maxLength={100}
-                  onChange={(e) => setTopic(e.target.value)} className={cn(fieldInput, "flex-1")} />
-                <button type="submit" disabled={busy || topic.trim() === room.topic}
-                  className="tap-link !m-0 font-semibold text-blue disabled:opacity-40">{t("web.rooms.settings.save")}</button>
-              </form>
+          {owner && config && (
+            <Group title={t("web.rooms.v2.settings.group")} bare>
+              <SettingsFields value={value} onChange={save} config={config} mode="edit" namePlaceholder="" minMembers={memberCount} />
             </Group>
           )}
           {owner && (
             <div className="mt-2 divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">
-              <SwitchRow id="room-lock" label={t("web.rooms.settings.locked")} checked={room.locked} disabled={busy} onChange={(v) => void patch({ locked: v })} />
-              <SwitchRow id="room-ai-public" label={t("web.rooms.settings.aiPublic")} checked={room.aiPublic} disabled={busy} onChange={(v) => void patch({ aiPublic: v })} />
+              <div className="flex min-h-row items-center justify-between gap-3 px-3.5 py-2.5">
+                <label htmlFor="room-lock" className="min-w-0 text-body font-medium text-ink">{t("web.rooms.settings.locked")}</label>
+                <Switch id="room-lock" data-testid="room-lock" checked={!!value.locked} onCheckedChange={(locked) => save({ locked })}
+                  className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+              </div>
             </div>
+          )}
+          {owner && (value.joinMode === "approval" || requests.length > 0) && (
+            <Group title={t("web.rooms.v2.settings.requests")}>
+              {requests.length === 0
+                ? <p className="px-3.5 py-4 text-sub text-ink-2">{t("web.rooms.v2.settings.requestsEmpty")}</p>
+                : <JoinRequestRows roomId={room.id} requests={requests} onDecided={(id) => setDecided((cur) => new Set(cur).add(id))} />}
+            </Group>
           )}
           <Group title={t("web.rooms.settings.members")}>
             {state.members.map((m) => (
