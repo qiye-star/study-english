@@ -243,6 +243,19 @@ class RoomStore:
                 RoomMessage.id == message_id, RoomMessage.room_id == room_id, RoomMessage.lane == "private",
                 RoomMessage.audience_id == user_id, RoomMessage.kind == "assist_reply"))
 
+    async def claim_assist(self, message_id: str, user_id: int, room_id: str) -> bool:
+        """Mark the user's assist reply as used by one public send (review #9). Callers hold the room lock."""
+        async with self._sm() as s:
+            reply = await s.scalar(select(RoomMessage).where(
+                RoomMessage.id == message_id, RoomMessage.room_id == room_id, RoomMessage.lane == "private",
+                RoomMessage.audience_id == user_id, RoomMessage.kind == "assist_reply"))
+            meta = reply.meta if reply is not None and isinstance(reply.meta, dict) else None
+            if meta is None or meta.get("used"):
+                return False
+            reply.meta = {**meta, "used": True}
+            await s.commit()
+            return True
+
     def _visible(self, room_id: str, user_id: int):
         return (RoomMessage.room_id == room_id,
                 or_(RoomMessage.lane == "public", RoomMessage.audience_id == user_id))

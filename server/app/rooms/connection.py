@@ -96,9 +96,12 @@ class RoomConnection:
         if not d.say_limiter.allow(f"{self.room_id}:{self.user_id}"):
             await self._send(event("error", code="rate_limited"))
             return
-        if msg.assist_id is not None and await d.store.get_assist(msg.assist_id, self.user_id, self.room_id) is None:
-            await self._send(event("error", code="bad_assist"))
-            return
+        if msg.assist_id is not None:  # each assist reply marks exactly one send as assisted
+            async with d.hub.lock(self.room_id):
+                claimed = await d.store.claim_assist(msg.assist_id, self.user_id, self.room_id)
+            if not claimed:
+                await self._send(event("error", code="bad_assist"))
+                return
         is_ai, question = mention(text)
         ask = await self._admit_ai() if is_ai else False
         async with d.hub.lock(self.room_id):

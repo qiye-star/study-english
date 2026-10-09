@@ -136,6 +136,11 @@ async def test_assist_is_private_and_send_is_marked_assisted(env):
     assert env.bob.sender.sent[-1]["message"]["assisted"] is True
     await env.cb.handle(json.dumps({"type": "say", "client_id": "s2", "text": "steal", "assist_id": reply["id"]}))
     assert env.bob.sender.sent[-1] == {"type": "error", "code": "bad_assist"}
+    # review #9: one suggestion marks one send; a reused assist_id is rejected, a retried send still gets its ack
+    await env.ca.handle(json.dumps({"type": "say", "client_id": "s3", "text": "hi", "assist_id": reply["id"]}))
+    assert env.alice.sender.sent[-1] == {"type": "error", "code": "bad_assist"}
+    await env.ca.handle(json.dumps({"type": "say", "client_id": "s1", "text": "I like chocolate.", "assist_id": reply["id"]}))
+    assert env.alice.sender.sent[-1]["type"] == "ack"
 
 
 async def test_assist_quota_format_and_refunds(env):
