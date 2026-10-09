@@ -36,7 +36,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI):
+        await rooms.rooms_startup(app_)
         yield
+        await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await http.aclose()
         await engine.dispose()

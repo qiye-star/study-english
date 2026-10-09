@@ -3,10 +3,13 @@ answers. State lives in the DB; `app.state.rooms` (RoomsRuntime) holds only the 
 Closed rooms stay readable (detail + messages) for their members; messages are kept forever by default.
 Never logs tickets or message text."""
 import asyncio
+import logging
+from contextlib import suppress
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from pydantic import BaseModel, Field
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user, get_settings, limited_user
@@ -14,15 +17,21 @@ from app.core.ratelimit import RateLimiter
 from app.models import User, utcnow
 from app.providers import llm
 from app.rooms.codes import normalize_code
-from app.rooms.connection import ConnDeps, members_out
-from app.rooms.hub import RoomHub
-from app.rooms.protocol import CLOSE_KICKED, CLOSE_NORMAL, CLOSE_NOT_FOUND, MAX_ID, event
+from app.rooms.connection import ConnDeps, RoomConnection, members_out
+from app.rooms.hub import Conn, RoomHub
+from app.rooms.protocol import (
+    CLOSE_BUSY, CLOSE_DISABLED, CLOSE_KICKED, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_RESTART,
+    CLOSE_UNAUTHORIZED, HELLO_TIMEOUT, MAX_ID, HelloMsg, ProtocolError, event, parse_client_message,
+)
 from app.rooms.rules import MAX_TEXT, RoomLimits
 from app.rooms.store import RoomError, RoomStore, message_out, room_out
 from app.rooms.tickets import RoomTicketStore
 from app.services import usage
 
 router = APIRouter(prefix="/api/rooms")
+logger = logging.getLogger(__name__)
+IDLE_SECONDS = 60.0
+SWEEP_SECONDS = 60.0
 ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "not_found": (404, "Room not found"), "locked": (403, "Room is locked"), "full": (409, "Room is full"),
     "kicked": (403, "Removed from room"), "capacity": (503, "Room capacity reached"), "too_many": (429, "Too many rooms"),
@@ -289,3 +298,136 @@ async def report_message(room_id: str, message_id: str, payload: ReportIn, reque
     except RoomError as e:
         _raise(e)
     return {"ok": True}
+
+
+# ---- WebSocket, sweeper and restart behaviour (spec §5.2, §5.7–5.8) ----
+
+class _WsSender:
+    def __init__(self, websocket: WebSocket):
+        self.ws = websocket
+
+    async def send_json(self, data: dict) -> None:
+        await self.ws.send_json(data)
+
+    async def close(self, code: int) -> None:
+        if WebSocketState.DISCONNECTED in (self.ws.application_state, self.ws.client_state):
+            return
+        await self.ws.close(code)
+
+
+async def _receive_text(websocket: WebSocket, timeout: float) -> str:
+    message = await asyncio.wait_for(websocket.receive(), timeout)
+    if message["type"] == "websocket.disconnect":
+        raise WebSocketDisconnect(message.get("code", 1000))
+    text = message.get("text")
+    if not isinstance(text, str):
+        raise ProtocolError("binary frames are not accepted")
+    return text
+
+
+@router.websocket("/ws")
+async def rooms_ws(websocket: WebSocket, ticket: str = ""):
+    await websocket.accept()
+    app = websocket.app
+    settings = app.state.settings
+    sender = _WsSender(websocket)
+    if not settings.rooms_enabled:
+        await sender.close(CLOSE_DISABLED)
+        return
+    rt = runtime(app)
+    grant = rt.tickets.redeem(ticket)
+    if grant is None:
+        await sender.close(CLOSE_UNAUTHORIZED)
+        return
+    try:
+        room, _member = await rt.store.membership(grant.room_id, grant.user_id)
+    except RoomError:
+        await sender.close(CLOSE_NOT_FOUND)
+        return
+    if room.status != "open":
+        await sender.close(CLOSE_NOT_FOUND)
+        return
+    conn = Conn(grant.user_id, sender)
+    if not rt.hub.attach(room.id, conn):
+        await sender.close(CLOSE_BUSY)
+        return
+    stage = "hello"
+    try:
+        hello = parse_client_message(await _receive_text(websocket, HELLO_TIMEOUT))
+        if not isinstance(hello, HelloMsg):
+            raise ProtocolError("expected hello")
+        stage = "live"
+        connection = RoomConnection(deps_for(app, rt, settings), room.id, grant.user_id,
+                                    await rt.store.username(grant.user_id), conn)
+        await connection.welcome(hello.last_seq)
+        rt.hub.spawn(_presence_quietly(rt, room.id))
+        while True:
+            await connection.handle(await _receive_text(websocket, IDLE_SECONDS))
+    except (asyncio.TimeoutError, TimeoutError):
+        await sender.close(CLOSE_PROTOCOL if stage == "hello" else CLOSE_NORMAL)
+    except ProtocolError:
+        await sender.close(CLOSE_PROTOCOL)
+    except (WebSocketDisconnect, RuntimeError):  # client gone, or the socket was closed by kick/close/shutdown
+        pass
+    finally:
+        rt.hub.detach(room.id, conn)
+        rt.hub.spawn(_presence_quietly(rt, room.id))
+
+
+async def _presence_quietly(rt: RoomsRuntime, room_id: str) -> None:
+    """Presence runs as a hub task, not in the socket task: a socket task can be cancelled when its client goes
+    away, and cancelling it in the middle of a DB call can wedge the aiosqlite connection close."""
+    try:
+        await presence(rt, room_id)
+    except Exception as e:
+        logger.info("rooms presence failed error=%s", type(e).__name__)
+
+
+async def sweep_once(rt: RoomsRuntime, now) -> list[tuple[str, str]]:
+    """Close idle/expired rooms, notify and disconnect their members, drop their in-memory state.
+    Messages are never deleted here unless ROOM_MESSAGE_RETENTION_DAYS > 0 (purge is a no-op at 0)."""
+    closed = await rt.store.sweep(now, rt.hub.active_rooms())
+    for room_id, reason in closed:
+        await rt.hub.broadcast(room_id, event("closed", reason=reason))
+        await rt.hub.close_room(room_id, CLOSE_NOT_FOUND)
+        rt.hub.forget(room_id)
+    await rt.store.purge(now)
+    return closed
+
+
+async def _sweep_loop(rt: RoomsRuntime) -> None:
+    while True:
+        await asyncio.sleep(SWEEP_SECONDS)
+        try:
+            closed = await sweep_once(rt, utcnow())
+            if closed:
+                logger.info("rooms sweep closed=%d", len(closed))
+        except Exception as e:
+            logger.warning("rooms sweep failed error=%s", type(e).__name__)
+
+
+async def rooms_startup(app) -> None:
+    """Spec §5.8: pending @ai questions from before a restart are marked failed; the sweeper starts."""
+    if not app.state.settings.rooms_enabled:
+        return
+    rt = runtime(app)
+    try:
+        failed = await rt.store.fail_pending_ai()
+        logger.info("rooms startup pending_ai_failed=%d", failed)
+    except Exception as e:
+        logger.warning("rooms startup cleanup failed error=%s", type(e).__name__)
+    if rt.sweeper is None:
+        rt.sweeper = asyncio.create_task(_sweep_loop(rt))
+
+
+async def rooms_shutdown(app) -> None:
+    rt = getattr(app.state, "rooms", None)
+    if rt is None:
+        return
+    if rt.sweeper is not None:
+        rt.sweeper.cancel()
+        with suppress(asyncio.CancelledError):
+            await rt.sweeper
+        rt.sweeper = None
+    await rt.hub.close_all(CLOSE_RESTART)
+    await rt.hub.cancel_tasks()
