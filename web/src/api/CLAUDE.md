@@ -7,6 +7,7 @@ HTTP client and server contracts shared by all features.
 - `ai.ts` — `/api/ai/*` helpers incl. SSE chat streaming (`streamChatCompletion`) and speech-to-text (`transcribe`, used by chat voice messages and call to-text).
 - `auth-storage.ts` — persisted session token (`enjoy-web.auth`), memory fallback.
 - `server-config.ts` — cached server AI config (models, voices); `error-messages.ts` — server error → i18n key.
+- `announcements.ts` — public announcements + maintenance state (`fetchAnnouncements`, no auth).
 - `types.ts` — shared response types.
 
 ## Allowed dependencies

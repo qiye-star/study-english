@@ -10,5 +10,7 @@ describe("translateServerError", () => {
     expect(translateServerError(t, new ApiError(0, "AI response timed out"))).toBe("The request timed out.");
     expect(translateServerError(t, new ApiError(500, "some raw english"))).toBe("Something went wrong.");
     expect(translateServerError(t, new Error("x"))).toBe("Something went wrong.");
+    expect(translateServerError(t, new ApiError(503, "Maintenance"))).toBe("The service is under maintenance. Please try again later.");
+    expect(i18n.t("web.errors.maintenance", { lng: "zh-CN" })).toBe("服务维护中,请稍后再试。");
   });
 });
