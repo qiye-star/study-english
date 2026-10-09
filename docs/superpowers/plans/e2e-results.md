@@ -288,3 +288,12 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | 30 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 31 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
 | 32 | 未验证(需要用户提供设备与 HTTPS 地址) | 未验证(需要用户提供设备与 HTTPS 地址) | |
+
+## 2026-10-09 段位赛与联机练习
+
+| 项 | 结果 |
+|---|---|
+| `rank.spec.ts`(模拟 `/api/rank/*`,零上游) | 本机通过(chromium-mobile,2026-10-09);**未在 Docker E2E 栈运行**。本机方式:不用 Docker,临时 SQLite + `alembic upgrade head` 后以 E2E 栈相同的环境变量(invite 注册、`RANK_ENABLED`/`ROOMS_ENABLED=true`、`ROOMS_AI_GLOBAL_DAILY=0`、`WEB_DIST_DIR=web/dist`)起 uvicorn 于 8123,`E2E_BASE_URL=http://localhost:8123` 运行;没有配置任何上游密钥 |
+| `rooms.spec.ts`(两浏览器上下文,AI 关闭) | 本机通过(chromium-mobile 与 webkit-mobile,方式同上);**未在 Docker E2E 栈运行** |
+| 真实上游晋级赛 3 场(白银/黄金/铂金各 1 场,记录总分、维度、是否与人工判断一致) | 未验证 |
+| 房间 `@ai` 与助手组句(真实 LLM,各 5 次,记录格式错误次数) | 未验证 |

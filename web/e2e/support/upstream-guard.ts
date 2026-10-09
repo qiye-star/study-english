@@ -8,7 +8,9 @@
  * - /api/assessments 只读数据库;/api/speech/assessments(讯飞)不放行。
  */
 const OWN_BACKEND = /^\/api\/(users|me|conversations|messages|config|stats|vocabulary|practice-items|upload|sessions|assessments)(\/|$)/;
-const OWN_BACKEND_EXACT = new Set(["/api/realtime/config"]);
+// 段位/联机的配置与段位读数在练习页、「我的」和底部导航加载时就会请求(RANK_ENABLED / ROOMS_ENABLED),只读写数据库。
+// /api/rank/matches/*(考官、转写、评分)与 /api/rooms/ws(房间 AI)会触达上游,不放行。
+const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "/api/rank/me", "/api/rank/achievements", "/api/rooms/config"]);
 
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname);
