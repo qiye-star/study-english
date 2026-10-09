@@ -4,7 +4,7 @@ import pytest
 
 from app.core.settings_registry import SPECS
 from app.rank.rules import DEFAULT_RULES, rules_json
-from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, login_as
+from tests.admin_helpers import publish_draft, ADMIN_ENABLED, PASSWORD, login_as
 
 RANK_KEYS = {"rank_daily_rp_cap", "rank_match_daily_attempts", "rank_match_cooldown_minutes", "rank_match_minutes",
              "rank_season_anchor", "rank_season_weeks"}
@@ -30,7 +30,7 @@ async def test_publish_locks_the_six_rank_settings(app, client):
     data = rules_json(DEFAULT_RULES)
     data["points"]["daily_cap"] = 80
     await client.put("/api/admin/rank/rules/draft", headers=su, json={"rules": data, "note": ""})
-    assert (await client.post("/api/admin/rank/rules/draft/publish", headers=su, json={"reason": "上线"})).status_code == 200
+    assert (await publish_draft(client, "/api/admin/rank/rules/draft/publish", su, "上线")).status_code == 200
 
     listing = (await client.get("/api/admin/settings")).json()
     assert listing["rank_rules_managed"] is True

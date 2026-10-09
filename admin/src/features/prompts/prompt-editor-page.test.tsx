@@ -20,7 +20,7 @@ beforeEach(() => {
     spec: { key: "rooms.answer", label: "@ai 公开回答", kind: "text", required: ["topic", "asker", "chat", "question"],
             boundaries: ["<chat>", "</chat>", "<question>", "</question>"], maxChars: 8000 },
     published: null, versions: [], defaultBody: "Topic {topic}. {asker} <chat>{chat}</chat> <question>{question}</question>",
-    draft: { body: "Topic {topic}. <chat>{chat}</chat>", note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z" },
+    draft: { body: "Topic {topic}. <chat>{chat}</chat>", note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z", etag: "p0" },
   });
   asRole("operator");
 });
@@ -59,7 +59,7 @@ it("updates checks live while typing", async () => {
 });
 
 it("saves the draft with the note", async () => {
-  vi.mocked(api.savePromptDraft).mockResolvedValue({ body: VALID, note: "n", updatedBy: "ops", updatedAt: "2026-10-09T09:00:00Z" });
+  vi.mocked(api.savePromptDraft).mockResolvedValue({ body: VALID, note: "n", updatedBy: "ops", updatedAt: "2026-10-09T09:00:00Z", etag: "p1" });
   renderAt();
   const editor = await screen.findByLabelText("提示词正文");
   await userEvent.clear(editor);
@@ -81,7 +81,7 @@ it("lets a superadmin publish a valid saved draft with a reason and run a test",
       { version: 1, status: "archived", note: "", createdBy: "a", createdAt: "2026-09-01T00:00:00Z", publishedBy: "root", publishedAt: "2026-09-01T00:00:00Z" },
     ],
     defaultBody: null,
-    draft: { body: VALID, note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z" },
+    draft: { body: VALID, note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z", etag: "p-reviewed" },
   });
   vi.mocked(api.publishPrompt).mockResolvedValue({ version: 3 });
   vi.mocked(api.testPrompt).mockResolvedValue({ output: "Hello there", ms: 812 });
@@ -101,7 +101,7 @@ it("lets a superadmin publish a valid saved draft with a reason and run a test",
   const dialog = await screen.findByRole("dialog");
   await userEvent.type(within(dialog).getByRole("textbox"), "上线新版本");
   await userEvent.click(within(dialog).getByRole("button", { name: "发布" }));
-  expect(api.publishPrompt).toHaveBeenCalledWith("rooms.answer", "上线新版本");
+  expect(api.publishPrompt).toHaveBeenCalledWith("rooms.answer", "上线新版本", "p-reviewed"); // review M4
 });
 
 it("offers a new draft when none exists and rollback from a version", async () => {
@@ -112,7 +112,7 @@ it("offers a new draft when none exists and rollback from a version", async () =
     defaultBody: "Built-in rules",
     draft: null,
   });
-  vi.mocked(api.createPromptDraft).mockResolvedValue({ body: "Only tense.", note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z" });
+  vi.mocked(api.createPromptDraft).mockResolvedValue({ body: "Only tense.", note: "", updatedBy: "ops", updatedAt: "2026-10-09T08:00:00Z", etag: "p2" });
   renderAt("grammar.rules");
   const editor = await screen.findByLabelText("提示词正文");
   expect(editor).toHaveValue("Only tense.");

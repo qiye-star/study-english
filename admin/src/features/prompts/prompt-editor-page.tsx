@@ -227,7 +227,8 @@ function Editor({ detail, reload }: { detail: PromptDetail; reload: () => void }
         reasonRequired
         onClose={() => setConfirm(null)}
         onConfirm={async (reason) => {
-          const r = await publishPrompt(spec.key, reason).catch((e) => {
+          // 绑定到审阅的这份草稿:别人在此期间保存过则 409 Draft changed(review M4)
+          const r = await publishPrompt(spec.key, reason, draft?.etag ?? "").catch((e) => {
             throw new Error(messageFor(e));
           });
           setConfirm(null);

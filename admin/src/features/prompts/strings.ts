@@ -105,6 +105,7 @@ export const S = {
   errors: {
     "Draft exists": "已经有草稿了,请刷新页面",
     "No draft": "草稿不存在(可能已被发布或丢弃),请刷新页面",
+    "Draft changed": "草稿在你审阅后被修改过,请刷新页面重新审阅后再发布",
     "Invalid prompt": "校验未通过,请修正后再试",
     "Unknown version": "版本不存在",
     "Upstream unavailable": "上游模型不可用,稍后再试",

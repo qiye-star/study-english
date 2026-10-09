@@ -143,6 +143,7 @@ export function rulesError(code: string): { tab: RulesTab; text: string } {
 export const S = {
   rankPage: "段位与比赛",
   rankRulesPage: "段位规则",
+  draftChanged: "草稿在你审阅后被修改过,请刷新页面重新审阅后再发布",
   matchPage: "比赛详情",
   userRankPanel: "段位",
   draftBar: {

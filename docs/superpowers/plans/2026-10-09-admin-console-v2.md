@@ -7217,3 +7217,7 @@ Rulings below override earlier text in this plan.
 - Ruling (probe SSRF, security m4): resolve once, block unless every address `is_global`, connect to that address
   (httpcore network backend / websockets `host=`) with the real name for SNI and certificate checks; WebSocket
   redirects are not followed.
+- Ruling (publish binding, security M4): rank-rules and prompt drafts carry an `etag` (SHA-256 of draft id + content,
+  in overview/detail and every draft create/save response); `POST .../draft/publish` requires `draft_etag` and answers
+  409 `Draft changed` when the draft is no longer the reviewed one. The admin rules page sends the etag of the draft it
+  shows or just saved; the prompt editor sends the etag of the saved draft it displays.

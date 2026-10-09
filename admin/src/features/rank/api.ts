@@ -90,6 +90,8 @@ export interface DraftRules {
   basedOn: number | null;
   updatedBy: string;
   updatedAt: string | null;
+  /** 草稿内容标识;发布时带上审阅时看到的这个值,服务端草稿已变则 409 Draft changed */
+  etag: string;
 }
 
 export interface VersionItem {
@@ -288,13 +290,14 @@ async function post<T>(path: string, json: unknown = {}): Promise<T> {
 export const getRules = () => get<RulesOverview>("/api/admin/rank/rules");
 export const getVersion = (v: number) => get<VersionDetail>(`/api/admin/rank/rules/versions/${v}`);
 export const createDraft = (fromVersion?: number | null) =>
-  post<{ rules: RankRules; note: string }>("/api/admin/rank/rules/draft", { from_version: fromVersion ?? null });
+  post<{ rules: RankRules; note: string; etag: string }>("/api/admin/rank/rules/draft", { from_version: fromVersion ?? null });
 export const saveDraft = (rules: RankRules, note: string) =>
-  request<{ rules: RankRules; note: string }>("/api/admin/rank/rules/draft", { method: "PUT", json: { rules, note } });
+  request<{ rules: RankRules; note: string; etag: string }>("/api/admin/rank/rules/draft", { method: "PUT", json: { rules, note } });
 export const deleteDraft = () => request<void>("/api/admin/rank/rules/draft", { method: "DELETE" });
 export const validateDraft = () => post<{ errors: string[] }>("/api/admin/rank/rules/draft/validate");
 export const simulateDraft = () => post<Impact>("/api/admin/rank/rules/draft/simulate");
-export const publishDraft = (reason: string) => post<{ version: number }>("/api/admin/rank/rules/draft/publish", { reason });
+export const publishDraft = (reason: string, draftEtag: string) =>
+  post<{ version: number }>("/api/admin/rank/rules/draft/publish", { reason, draft_etag: draftEtag });
 
 /* ---- 概览与全体操作 ---- */
 export const getRankOverview = () => get<RankOverview>("/api/admin/rank/overview");

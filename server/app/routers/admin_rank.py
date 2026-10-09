@@ -51,6 +51,10 @@ class ReasonIn(BaseModel):
     reason: Reason
 
 
+class PublishIn(ReasonIn):
+    draft_etag: str = Field(min_length=1, max_length=64)  # the draft version the superadmin reviewed (review M4)
+
+
 class DayIn(BaseModel):
     day: str = Field(max_length=10)
 
@@ -119,7 +123,7 @@ async def draft_create(body: DraftIn, request: Request, ctx: AdminContext = Depe
         row = await rra.create_draft(session, ctx.actor, from_version=body.from_version, cache=rank_rules(request.app))
     except rra.RulesError as e:
         return _error(e)
-    return {"rules": row.rules, "note": row.note}
+    return {"rules": row.rules, "note": row.note, "etag": rra.draft_etag(row)}
 
 
 @router.put("/rank/rules/draft")
@@ -129,7 +133,7 @@ async def draft_save(body: DraftSaveIn, ctx: AdminContext = Depends(require("ope
         row = await rra.save_draft(session, ctx.actor, body.rules, body.note)
     except rra.RulesError as e:
         return _error(e)
-    return {"rules": row.rules, "note": row.note}
+    return {"rules": row.rules, "note": row.note, "etag": rra.draft_etag(row)}
 
 
 @router.delete("/rank/rules/draft", status_code=204)
@@ -160,10 +164,10 @@ async def draft_simulate(request: Request, _: AdminContext = Depends(require("op
 
 
 @router.post("/rank/rules/draft/publish")
-async def draft_publish(body: ReasonIn, request: Request, ctx: AdminContext = Depends(require_step_up),
+async def draft_publish(body: PublishIn, request: Request, ctx: AdminContext = Depends(require_step_up),
                         session: AsyncSession = Depends(get_session)):
     try:
-        return {"version": await rra.publish(session, request.app, ctx.actor, reason=body.reason)}
+        return {"version": await rra.publish(session, request.app, ctx.actor, reason=body.reason, etag=body.draft_etag)}
     except rra.RulesError as e:
         return _error(e)
 

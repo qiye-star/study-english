@@ -31,3 +31,15 @@ def assert_no_secrets(payload: object, settings) -> None:
         value = str(getattr(settings, key, "") or "")
         if len(value) >= 6:
             assert value not in text, f"secret {key} leaked"
+
+
+async def draft_etag(client, publish_path: str) -> str:
+    """The etag of the draft behind a `.../draft/publish` path (rank rules or a prompt), "no-draft" when there is none."""
+    draft = (await client.get(publish_path.removesuffix("/draft/publish"))).json().get("draft")
+    return (draft or {}).get("etag") or "no-draft"
+
+
+async def publish_draft(client, publish_path: str, headers: dict, reason: str):
+    """Publish the current draft as reviewed: sends its etag (review M4)."""
+    return await client.post(publish_path, headers=headers,
+                             json={"reason": reason, "draft_etag": await draft_etag(client, publish_path)})

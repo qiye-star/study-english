@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.models import AdminAudit, PromotionMatch, RankProfile, utcnow
 from app.rank.rules import DEFAULT_RULES, rules_json
-from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, assert_no_secrets, login_as
+from tests.admin_helpers import publish_draft, ADMIN_ENABLED, PASSWORD, assert_no_secrets, login_as
 from tests.test_rank_match import Fakes, judge_json
 
 
@@ -27,13 +27,13 @@ async def test_draft_validate_simulate_publish_roles(app, client):
     assert (await client.post("/api/admin/rank/rules/draft/validate", headers=op)).json() == {"errors": []}
     sim = (await client.post("/api/admin/rank/rules/draft/simulate", headers=op)).json()
     assert "daily_cap" in sim and "verdicts" in sim
-    assert (await client.post("/api/admin/rank/rules/draft/publish", headers=op, json={"reason": "x"})).status_code == 403
+    assert (await publish_draft(client, "/api/admin/rank/rules/draft/publish", op, "x")).status_code == 403
     client.cookies.clear()
     su = await login_as(app, client, "superadmin")
-    r = await client.post("/api/admin/rank/rules/draft/publish", headers=su, json={"reason": "活动周"})
+    r = await publish_draft(client, "/api/admin/rank/rules/draft/publish", su, "活动周")
     assert r.status_code == 403 and r.json()["error"] == "Step-up required"
     await client.post("/api/admin/step-up", headers=su, json={"password": PASSWORD})
-    r = await client.post("/api/admin/rank/rules/draft/publish", headers=su, json={"reason": "活动周"})
+    r = await publish_draft(client, "/api/admin/rank/rules/draft/publish", su, "活动周")
     assert r.status_code == 200 and r.json() == {"version": 1}
     overview = (await client.get("/api/admin/rank/rules")).json()
     assert overview["published"]["rules"]["points"]["daily_cap"] == 75 and overview["draft"] is None
@@ -188,3 +188,28 @@ async def test_rules_work_while_rank_is_disabled(app, client):
     assert (await client.post("/api/admin/rank/rules/draft", headers=op, json={})).status_code == 201
     assert (await client.get("/api/admin/rank/rules")).json()["draft"]["based_on"] is None
     assert (await client.get("/api/admin/rank/overview")).json()["profiles"] == 0
+
+
+async def test_publish_is_bound_to_the_reviewed_draft(app, client):
+    """Review M4: an operator saving between the superadmin's review and publish must not get unreviewed rules live."""
+    import httpx
+
+    su = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=su, json={"password": PASSWORD})
+    assert (await client.post("/api/admin/rank/rules/draft", headers=su, json={})).status_code == 201
+    reviewed = (await client.get("/api/admin/rank/rules")).json()["draft"]["etag"]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as other:
+        op = await login_as(app, other, "operator")
+        data = rules_json(DEFAULT_RULES)
+        data["points"]["daily_cap"] = 500
+        saved = await other.put("/api/admin/rank/rules/draft", headers=op, json={"rules": data, "note": "swap"})
+        assert saved.status_code == 200 and saved.json()["etag"] != reviewed
+    r = await client.post("/api/admin/rank/rules/draft/publish", headers=su, json={"reason": "活动周"})
+    assert r.status_code == 422  # the etag of the reviewed draft is required
+    r = await client.post("/api/admin/rank/rules/draft/publish", headers=su,
+                          json={"reason": "活动周", "draft_etag": reviewed})
+    assert r.status_code == 409 and r.json() == {"error": "Draft changed"}
+    assert (await client.get("/api/admin/rank/rules")).json()["published"] is None
+    r = await client.post("/api/admin/rank/rules/draft/publish", headers=su,
+                          json={"reason": "活动周", "draft_etag": saved.json()["etag"]})
+    assert r.status_code == 200
