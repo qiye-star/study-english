@@ -1,10 +1,14 @@
 import json
+import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core.config import Settings
 from app.core.deps import get_settings
+from app.services.prompts import prompt_cache, validate_prompt
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -118,11 +122,30 @@ def apply_overrides(key: str, data, settings: Settings):
     return data
 
 
+# Snapshot keys an admin can override with a published prompt version (admin v2 §11).
+PROMPT_KEYS = {"chat_agent_templates": "config.chat_agent_templates"}
+
+
+async def _published(request: Request, key: str):
+    prompt_key = PROMPT_KEYS.get(key)
+    if prompt_key is None:
+        return None
+    _, body = await prompt_cache(request.app).get(prompt_key)
+    if body is None:
+        return None
+    if validate_prompt(prompt_key, body):
+        logger.warning("published prompt ignored key=%s reason=invalid", prompt_key)
+        return None
+    return json.loads(body)
+
+
 @router.get("/config/{key}")
-async def get_config(key: str, settings: Settings = Depends(get_settings)):
+async def get_config(key: str, request: Request, settings: Settings = Depends(get_settings)):
     if key == "app_version":
         return {"version": settings.app_version}
     if key not in SNAPSHOT_KEYS:
         raise HTTPException(404, "Unknown config key")
-    data = json.loads((STATIC / f"{key}.json").read_text(encoding="utf-8"))
+    data = await _published(request, key)
+    if data is None:
+        data = json.loads((STATIC / f"{key}.json").read_text(encoding="utf-8"))
     return apply_overrides(key, data, settings)
