@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import metering
 from app.core.config import Settings
 from app.models import AccessToken, User
 from app.core.security import hash_token
@@ -32,6 +33,9 @@ async def current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(401, "Unauthorized")
+    if user.disabled_at is not None:
+        raise HTTPException(403, "Account disabled")
+    metering.bind_user(user.id)
     return user
 
 

@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request
 
+from app.admin.perms import require_enabled
 from app.core.config import Settings
 from app.core.deps import get_settings
 from app.routers.web import spa_response
@@ -20,7 +21,6 @@ def admin_dist_dir(settings: Settings) -> Path:
 
 @router.api_route("/admin", methods=["GET", "HEAD"], include_in_schema=False)
 @router.api_route("/admin/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-async def admin_app(path: str = "", settings: Settings = Depends(get_settings)):
-    if not settings.admin_enabled:
-        raise HTTPException(404, "Not Found")
+async def admin_app(request: Request, path: str = "", settings: Settings = Depends(get_settings)):
+    require_enabled(request)  # 404 when the admin console is off (or, from A7, the client IP is not allowed)
     return spa_response(admin_dist_dir(settings), path)

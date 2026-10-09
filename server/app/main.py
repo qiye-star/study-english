@@ -19,7 +19,8 @@ from app.core.runtime_settings import (
 )
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, rank, realtime, rooms, sessions, speech, stats, stubs, vocabulary, web,
+    admin, admin_accounts, admin_auth, admin_ops, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin_users, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, rank, realtime, rooms, sessions, speech, stats, stubs, vocabulary, web,
 )
 
 
@@ -73,7 +74,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         health, sessions, grammar_prompt, config_api, speech, conversations, assessments,
-        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, admin, stubs, admin_web, web,
+        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms,
+        admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
+        admin_prompts, stubs, admin_web, web,
     ):
         app.include_router(module.router)
     return app

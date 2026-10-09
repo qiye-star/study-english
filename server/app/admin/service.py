@@ -1,4 +1,4 @@
-"""管理端只读查询。不带 user_id 过滤:调用方必须已通过 admin_required。"""
+"""管理端只读查询。不带 user_id 过滤:调用方必须已通过 perms.require("viewer")。"""
 
 from datetime import date, datetime, timedelta, timezone
 

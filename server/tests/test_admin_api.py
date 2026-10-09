@@ -3,13 +3,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.admin import auth
 from app.models import Assessment, Conversation, Message, PracticeItem, User, VocabularyItem
 from app.services.recordings import recording_relpath, write_recording
+from tests.admin_helpers import ADMIN_ENABLED as ENABLED, login_as
 from tests.test_assessments_api import SCORES, make_wav
-
-ENABLED = {"admin_username": "root", "admin_password": "correct-horse-battery", "admin_session_secret": "s3cret"}
-
 
 @pytest.fixture
 def settings_overrides(tmp_path):
@@ -17,9 +14,8 @@ def settings_overrides(tmp_path):
 
 
 @pytest.fixture
-def admin(app):
-    token, _ = auth.issue_token(app.state.admin_secret, 60)
-    return {"Authorization": f"Bearer {token}"}
+async def admin(app, client):
+    return await login_as(app, client, "viewer")  # session cookie stays in `client`
 
 
 async def register(client, username):
@@ -185,5 +181,6 @@ async def test_practice_items_and_vocabulary(client, admin, world):
     "/api/admin/users/1/assessments",
 ])
 async def test_every_endpoint_requires_admin(client, path):
-    # 未带 token 必须是 401,而不是被 /api/** 兜底路由吞成 200 {}
+    # 未带会话 Cookie 必须是 401,而不是被 /api/** 兜底路由吞成 200 {};v1 的 Bearer token 也一律 401
     assert (await client.get(path)).status_code == 401
+    assert (await client.get(path, headers={"Authorization": "Bearer abc.def"})).status_code == 401

@@ -1,39 +1,25 @@
-"""管理端只读 API:/api/admin/*。登录之外全部要求 admin token(见 app/admin/auth.py)。"""
+"""管理端 v1 只读 API:/api/admin/*。全部要求管理会话(Cookie)且角色 >= viewer;登录见 admin_auth.py。"""
 
-from datetime import datetime, timezone
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import recordings
-from app.admin import auth, service
+from app.admin import service
+from app.admin.perms import require
 from app.core.config import Settings
-from app.core.deps import auth_rate_limit, get_session, get_settings
+from app.core.deps import get_session, get_settings
 
 router = APIRouter(prefix="/api/admin")
-guarded = APIRouter(dependencies=[Depends(auth.admin_required)])
+guarded = APIRouter(dependencies=[Depends(require("viewer"))])
 
 ItemId = Annotated[str, Path(max_length=64)]
 UserId = Annotated[int, Path(ge=1, le=2**31 - 1)]
 Page = Annotated[int, Query(ge=1, le=10_000)]
 PerPage = Annotated[int, Query(ge=1, le=50)]
 Source = Annotated[Literal["all", "practice", "chat"], Query()]
-
-
-class LoginIn(BaseModel):
-    username: str = Field(max_length=100)
-    password: str = Field(max_length=200)
-
-
-@router.post("/login", dependencies=[Depends(auth.require_enabled), Depends(auth_rate_limit)])
-async def login(body: LoginIn, request: Request, settings: Settings = Depends(get_settings)):
-    if not auth.credentials_match(settings, body.username, body.password):
-        raise HTTPException(401, "Invalid username or password")
-    token, expires = auth.issue_token(request.app.state.admin_secret, settings.admin_token_ttl_minutes)
-    return {"token": token, "expires_at": datetime.fromtimestamp(expires, timezone.utc).isoformat()}
 
 
 def _found(value, what: str):
