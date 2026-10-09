@@ -40,7 +40,8 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `rooms.assistant.render_test`, same as live
 - `service.py` – v1 cross-user read queries (overview, users with `status`/`sort`, conversations, assessments, ...)
 - `users_admin.py` – disable/enable, revoke tokens, reset password (temp password returned once, never logged),
-  delete user (explicit deletes: SQLite has no FK cascade; owned rooms pass to the earliest other member, a room
+  delete user (explicit deletes: SQLite has no FK cascade; rank snapshots deleted, metering rows anonymised to the
+  system user; owned rooms pass to the earliest other member, a room
   nobody else joined is kept closed with `owner_id = NULL` — rooms and room messages are never deleted),
   per-user quota overrides (`quota.set|clear`)
 - `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`

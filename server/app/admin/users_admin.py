@@ -15,9 +15,9 @@ from app.admin.audit import Actor
 from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
-    AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile, Room,
-    RoomMember, RoomReport, SpeechToken, User, UserAchievement, UserQuotaOverride, VocabularyItem,
-    XpEvent, iso_utc,
+    AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile,
+    RankProfileSnapshot, Room, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User, UserAchievement,
+    UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
 )
 from app.services import recordings
 
@@ -116,6 +116,23 @@ async def _release_rooms(session, user_id: int, now: datetime) -> tuple[list[str
     return closed, transferred, orphaned
 
 
+async def _anonymise_metering(session, user_id: int) -> None:
+    """Review security m9: cost history stays, but no longer names the deleted user (raw calls -> NULL user, daily
+    buckets merged into the system bucket user_id=0, which is unique per day/feature/kind/provider/model)."""
+    await session.execute(update(UpstreamCall).where(UpstreamCall.user_id == user_id).values(user_id=None))
+    for row in (await session.scalars(select(UsageDaily).where(UsageDaily.user_id == user_id))).all():
+        system = await session.scalar(select(UsageDaily).where(
+            UsageDaily.day == row.day, UsageDaily.feature == row.feature, UsageDaily.kind == row.kind,
+            UsageDaily.provider == row.provider, UsageDaily.model == row.model, UsageDaily.user_id == 0))
+        if system is None:
+            row.user_id = 0
+            continue
+        for column in ("calls", "errors", "units_in", "units_out", "ms_total"):
+            setattr(system, column, getattr(system, column) + getattr(row, column))
+        await session.delete(row)
+    await session.flush()
+
+
 async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_username: str, reason: str,
                       now: datetime) -> dict:
     """Deletes the user and everything they own (explicit deletes: SQLite does not enforce FK cascades),
@@ -135,6 +152,8 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.execute(delete(RoomMember).where(RoomMember.user_id == user_id))
     await session.execute(delete(RoomReport).where(RoomReport.reporter_id == user_id))
     await session.execute(delete(DailyUsage).where(DailyUsage.subject == str(user_id)))
+    await session.execute(delete(RankProfileSnapshot).where(RankProfileSnapshot.user_id == user_id))
+    await _anonymise_metering(session, user_id)
     await session.execute(delete(User).where(User.id == user_id))
     await audit.record(session, actor, "user.delete", target_type="user", target_id=user_id,
                        summary=user.username,

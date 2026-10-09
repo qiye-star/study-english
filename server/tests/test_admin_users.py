@@ -142,3 +142,33 @@ async def test_user_list_sort_and_status(app, client):
     active = (await client.get("/api/admin/users", params={"status": "active"})).json()
     assert {u["id"] for u in active["users"]} == {a, b} and active["total"] == 2
     assert all(u["disabled_at"] is None for u in active["users"])
+
+
+async def test_delete_user_leaves_no_rows_with_their_id_but_keeps_usage_totals(app, client):
+    """Review security m9: snapshots and metering rows kept the deleted user's id and activity."""
+    from datetime import datetime, timezone
+
+    from app.models import RankProfileSnapshot, UpstreamCall, UsageDaily
+
+    uid, _ = await register(client, "dora")
+    now = datetime.now(timezone.utc)
+    bucket = dict(day="2026-10-09", feature="chat", kind="llm", provider="p", model="m")
+    async with app.state.sessionmaker() as s:
+        s.add(RankProfileSnapshot(batch_id="usr-" + "0" * 32, user_id=uid, data={"tier": 1}, at=now))
+        s.add(UpstreamCall(at=now, user_id=uid, feature="chat", kind="llm", provider="p", model="m", status=200, ms=5,
+                           units_in=3, units_out=4, unit="tokens"))
+        s.add(UsageDaily(**bucket, user_id=uid, calls=2, errors=0, units_in=6, units_out=8, ms_total=10))
+        s.add(UsageDaily(**bucket, user_id=0, calls=1, errors=1, units_in=1, units_out=1, ms_total=1))
+        await s.commit()
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "dora", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    async with app.state.sessionmaker() as s:
+        assert await s.scalar(select(func.count()).select_from(RankProfileSnapshot).where(RankProfileSnapshot.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UpstreamCall).where(UpstreamCall.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UsageDaily).where(UsageDaily.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UpstreamCall)) == 1  # cost history stays, anonymised
+        merged = (await s.scalars(select(UsageDaily))).all()
+    assert [(u.user_id, u.calls, u.units_in) for u in merged] == [(0, 3, 7)]
