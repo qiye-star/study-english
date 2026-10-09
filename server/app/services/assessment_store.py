@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import recordings
 from app.core.config import Settings
+from app.core.quotas import quota_for
 from app.models import Assessment
 
 SCORE_KEYS = ("pronunciation_score", "accuracy_score", "fluency_score", "completeness_score")
@@ -15,7 +16,7 @@ class QuotaExceeded(Exception):
 
 
 async def check_quota(session: AsyncSession, settings: Settings, user_id: int, nbytes: int) -> None:
-    quota = settings.recording_quota_mb * 1024 * 1024
+    quota = await quota_for(session, settings, user_id, "recording_quota_mb") * 1024 * 1024
     if await recordings.used_bytes(session, user_id) + nbytes > quota:
         raise QuotaExceeded()
 

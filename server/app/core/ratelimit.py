@@ -20,7 +20,9 @@ class RateLimiter:
         for key in [k for k, h in self._hits.items() if not h or now - h[-1] >= self.window]:
             del self._hits[key]
 
-    def allow(self, key: str) -> bool:
+    def allow(self, key: str, limit: int | None = None) -> bool:
+        """`limit` overrides `self.limit` for this key (per-user quota overrides)."""
+        effective = self.limit if limit is None else limit
         now = self._clock()
         self._sweep(now)
         hits = self._hits[key]
@@ -28,7 +30,7 @@ class RateLimiter:
             hits.popleft()
         if not hits:
             del self._hits[key]
-        if len(hits) >= self.limit:
+        if len(hits) >= effective:
             return False
         self._hits[key].append(now)
         return True

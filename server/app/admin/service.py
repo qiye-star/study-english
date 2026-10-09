@@ -1,8 +1,9 @@
 """管理端只读查询。不带 user_id 过滤:调用方必须已通过 perms.require("viewer")。"""
 
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -85,6 +86,7 @@ def _user_row(row) -> dict:
         "assessments": int(assessments or 0),
         "recording_bytes": int(recording_bytes or 0),
         "last_active_at": _iso(_later(last_conv, last_assess)),
+        "disabled_at": _iso(user.disabled_at),
     }
 
 
@@ -92,16 +94,36 @@ def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-async def list_users(session: AsyncSession, q: str, page: int, per_page: int) -> dict:
-    stmt = select(User, *_user_stats_columns())
+async def list_users(
+    session: AsyncSession, q: str, page: int, per_page: int, *,
+    status: Literal["all", "active", "disabled"] = "all", sort: Literal["recent", "created", "storage"] = "recent",
+) -> dict:
+    columns = _user_stats_columns()
+    _, _, recording_bytes, last_conv, last_assess = columns
+    stmt = select(User, *columns)
     count_stmt = select(func.count()).select_from(User)
+    conds = []
     q = q.strip()
     if q:
         cond = User.username.ilike(f"%{_escape_like(q)}%", escape="\\")
         if q.isdigit() and len(q) <= 9:
             cond = or_(cond, User.id == int(q))
-        stmt, count_stmt = stmt.where(cond), count_stmt.where(cond)
-    rows, nxt = await paginate(session, stmt.order_by(User.created_at.desc(), User.id.desc()), page, per_page)
+        conds.append(cond)
+    if status == "active":
+        conds.append(User.disabled_at.is_(None))
+    elif status == "disabled":
+        conds.append(User.disabled_at.is_not(None))
+    if conds:
+        stmt, count_stmt = stmt.where(*conds), count_stmt.where(*conds)
+    if sort == "storage":
+        order = (recording_bytes.desc(), User.created_at.desc(), User.id.desc())
+    elif sort == "created":
+        order = (User.created_at.desc(), User.id.desc())
+    else:  # most recently active first; users without any activity fall back to their sign-up time
+        latest = case((last_conv.is_(None), last_assess), (last_assess.is_(None), last_conv),
+                      (last_conv > last_assess, last_conv), else_=last_assess)
+        order = (func.coalesce(latest, User.created_at).desc(), User.id.desc())
+    rows, nxt = await paginate(session, stmt.order_by(*order), page, per_page)
     return {
         "users": [_user_row(r) for r in rows],
         "page": page,
@@ -136,6 +158,7 @@ async def get_user(session: AsyncSession, user_id: int) -> dict | None:
         },
         "recording_bytes": base["recording_bytes"],
         "last_active_at": base["last_active_at"],
+        "disabled_at": base["disabled_at"],
     }
 
 

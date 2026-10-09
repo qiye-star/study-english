@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user, get_session, get_settings
-from app.models import AccessToken, User
+from app.models import AccessToken, User, utcnow
 from app.core.security import hash_password, hash_token, new_token, verify_password
+from app.services import invites
 
 router = APIRouter(prefix="/api")
 
@@ -82,13 +83,17 @@ async def register(
 ):
     if settings.registration_mode == "closed":
         raise HTTPException(403, "Registration is closed")
-    if settings.registration_mode == "invite" and not secrets.compare_digest(
-        (payload.invite_code or "").encode(), settings.invite_code.encode()
-    ):
-        raise HTTPException(403, "Invalid invite code")
+    # invite mode: the env INVITE_CODE (unlimited) or one use of a live DB code (admin v2 §7). The DB use is
+    # taken in the same transaction as the new user, so a failed registration (409) does not consume it.
+    db_code = settings.registration_mode == "invite" and not (
+        settings.invite_code and secrets.compare_digest((payload.invite_code or "").encode(),
+                                                        settings.invite_code.encode()))
 
     password_hash = await asyncio.to_thread(hash_password, payload.password)
     for _ in range(5):
+        if db_code and not await invites.consume(session, payload.invite_code or "", utcnow()):
+            await session.rollback()
+            raise HTTPException(403, "Invalid invite code")
         user = User(id=_new_user_id(), username=payload.username, password_hash=password_hash)
         session.add(user)
         try:

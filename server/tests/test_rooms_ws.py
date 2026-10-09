@@ -238,3 +238,93 @@ def test_ticket_never_logged(rooms_client, caplog):
         wa.send_text('{"type":"hello","last_seq":0}')
         until(wa, "welcome")
     assert t not in caplog.text
+
+
+# ---- admin v2 moderation (lane community D1/D4) ----
+
+from tests.admin_helpers import ADMIN_ENABLED  # noqa: E402
+
+
+def admin_headers(client):
+    r = client.post("/api/admin/login", json={"username": "root", "password": "correct-horse-battery"})
+    return {"X-Admin-CSRF": r.json()["csrf_token"]}
+
+
+def test_admin_disable_user_disconnects_with_4010_and_voids_tickets(tmp_path, monkeypatch):
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    try:
+        room, alice, bob, bob_id, ticket = setup_room(client)
+        spare = ticket(bob)
+        with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(bob)}") as wb:
+            wb.send_json({"type": "hello", "last_seq": 0})
+            until(wb, "welcome")
+            r = client.post(f"/api/admin/users/{bob_id}/disable", headers=admin_headers(client), json={"reason": "刷屏"})
+            assert r.status_code == 200
+            assert closed_code(wb) == 4010
+        with client.websocket_connect(f"/api/rooms/ws?ticket={spare}") as ws:
+            assert closed_code(ws) == 4001  # unredeemed tickets were voided too
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_admin_close_disconnects_with_4004(tmp_path, monkeypatch):
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    try:
+        room, alice, _, _, ticket = setup_room(client)
+        with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(alice)}") as wa:
+            wa.send_json({"type": "hello", "last_seq": 0})
+            until(wa, "welcome")
+            r = client.post(f"/api/admin/rooms/{room['id']}/close", headers=admin_headers(client), json={"reason": "违规"})
+            assert r.status_code == 200
+            assert until(wa, "closed")[-1] == {"type": "closed", "reason": "admin"}
+            assert closed_code(wa) == 4004
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_admin_kick_disconnects_with_4010(tmp_path, monkeypatch):
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    try:
+        room, alice, bob, bob_id, ticket = setup_room(client)
+        with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(alice)}") as wa, \
+                client.websocket_connect(f"/api/rooms/ws?ticket={ticket(bob)}") as wb:
+            for ws in (wa, wb):
+                ws.send_json({"type": "hello", "last_seq": 0})
+                until(ws, "welcome")
+            r = client.post(f"/api/admin/rooms/{room['id']}/kick", headers=admin_headers(client),
+                            json={"user_id": bob_id, "reason": "刷屏"})
+            assert r.status_code == 200
+            assert closed_code(wb) == 4010
+            event = until(wa, "message")[-1]["message"]
+            while event["kind"] != "system" or event["text"] != "kicked":
+                event = until(wa, "message")[-1]["message"]
+            assert event["meta"] == {"name": "bob"}
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_admin_hide_and_ai_mute_reach_members(tmp_path, monkeypatch):
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    try:
+        room, alice, bob, bob_id, ticket = setup_room(client)
+        with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(alice)}") as wa:
+            wa.send_json({"type": "hello", "last_seq": 0})
+            until(wa, "welcome")
+            wa.send_json({"type": "say", "client_id": "c1", "text": "oops"})
+            seq = until(wa, "ack")[-1]["seq"]
+            history = client.get(f"/api/rooms/{room['id']}/messages", params={"before_seq": 100}, headers=alice).json()
+            mid = [m for m in history["messages"] if m["seq"] == seq][0]["id"]
+            h = admin_headers(client)
+            assert client.post(f"/api/admin/rooms/{room['id']}/messages/{mid}/hide", headers=h,
+                               json={"reason": "误发"}).status_code == 200
+            assert until(wa, "message_hidden")[-1] == {"type": "message_hidden", "seq": seq}
+            assert client.post(f"/api/admin/rooms/{room['id']}/ai", headers=h,
+                               json={"muted": True, "reason": "刷屏"}).status_code == 200
+            assert until(wa, "room_update")[-1]["room"]["ai_muted"] is True
+            wa.send_json({"type": "say", "client_id": "c2", "text": "@ai hello?"})
+            assert until(wa, "notice")[-1] == {"type": "notice", "code": "ai_off"}
+            wa.send_json({"type": "assist", "request_id": "r1", "text": "I like 巧克力"})
+            events = until(wa, "assist_failed")
+            assert {"type": "notice", "code": "ai_off"} in events and events[-1]["request_id"] == "r1"
+    finally:
+        client.__exit__(None, None, None)

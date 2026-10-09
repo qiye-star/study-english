@@ -27,7 +27,7 @@ HELLO_TIMEOUT = 10.0
 
 SERVER_EVENT_TYPES = (
     "welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed",
-    "room_update", "notice", "error", "closed", "pong",
+    "room_update", "notice", "error", "closed", "pong", "message_hidden",
 )
 ERROR_CODES = ("rate_limited", "empty", "bad_assist")
 NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota")

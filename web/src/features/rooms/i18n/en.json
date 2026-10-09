@@ -41,6 +41,7 @@
         "aiTyping": "AI assistant is typing…",
         "aiFailed": "Answer interrupted, ask @ai again",
         "aiPending": "Waiting for AI",
+        "hidden": "This message was hidden by an administrator",
         "reconnecting": "Connection lost, reconnecting…",
         "connecting": "Connecting…",
         "closedNote": "This room has ended; read only.",
@@ -117,7 +118,8 @@
         "closed_expired": "The room reached 24 hours and ended",
         "closed_disabled": "Practice rooms were turned off",
         "closed_protocol": "Connection error, go back and enter the room again",
-        "kickedClose": "You were removed from the room"
+        "kickedClose": "You were removed from the room",
+        "closed_admin": "An administrator closed the room"
       }
     }
   }

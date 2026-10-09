@@ -3,14 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
-import * as endpoints from "../api/endpoints";
-import type { UserSummary } from "../api/types";
+import * as usersApi from "../features/users/api";
+import type { UserRow } from "../features/users/api";
 import { UsersPage } from "./users-page";
 
-vi.mock("../api/endpoints", () => ({ listUsers: vi.fn() }));
-const listUsers = vi.mocked(endpoints.listUsers);
+vi.mock("../features/users/api", () => ({ listUsers: vi.fn() }));
+const listUsers = vi.mocked(usersApi.listUsers);
+const DEFAULT = { status: "all", sort: "recent" };
 
-const user = (n: number): UserSummary => ({
+const user = (n: number): UserRow => ({
   id: `u${n}`,
   username: `user${n}`,
   created_at: "2026-01-01T00:00:00Z",
@@ -64,7 +65,7 @@ describe("UsersPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "加载更多" }));
     expect(await screen.findByText("user2")).toBeInTheDocument();
     expect(screen.getByText("user1")).toBeInTheDocument();
-    expect(listUsers).toHaveBeenLastCalledWith("", 2);
+    expect(listUsers).toHaveBeenLastCalledWith("", 2, DEFAULT);
     expect(screen.queryByRole("button", { name: "加载更多" })).not.toBeInTheDocument();
   });
 
@@ -74,7 +75,18 @@ describe("UsersPage", () => {
     await screen.findByText("user1");
     listUsers.mockResolvedValue({ users: [], page: 1, next: null, total: 0 });
     await userEvent.type(screen.getByRole("searchbox"), "zz");
-    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("zz", 1));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("zz", 1, DEFAULT));
     expect(await screen.findByText("没有匹配的用户")).toBeInTheDocument();
+  });
+
+  it("filters by status and sort, and marks disabled users", async () => {
+    listUsers.mockResolvedValue({ users: [{ ...user(1), disabled_at: "2026-10-09T09:00:00Z" }], page: 1, next: null, total: 1 });
+    renderPage();
+    expect(await screen.findByText("user1")).toBeInTheDocument();
+    expect(screen.getAllByText("已停用").length).toBeGreaterThan(1); // the chip and the badge
+    await userEvent.click(screen.getByRole("button", { name: "已停用" }));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "recent" }));
+    await userEvent.selectOptions(screen.getByRole("combobox"), "storage");
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "storage" }));
   });
 });

@@ -60,6 +60,14 @@ export const RoomMessageList = memo(function RoomMessageList({ state, reported, 
   const toggle = (m: RoomMessage) => setSelected((cur) => (cur === m.id ? null : m.id));
 
   const render = (m: RoomMessage) => {
+    if (m.hidden) {
+      // 管理员隐藏的消息:保留位置,只显示占位(正文不再下发)
+      return (
+        <p key={m.id} data-testid="room-message" data-kind="hidden" className="self-center text-meta italic text-ink-2">
+          {t("web.rooms.room.hidden")}
+        </p>
+      );
+    }
     if (m.kind === "system") {
       return (
         <p key={m.id} data-testid="room-message" data-kind="system" className="text-center text-label font-medium tracking-[0.02em] text-ink-2">

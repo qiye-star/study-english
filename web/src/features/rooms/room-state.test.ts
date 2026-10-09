@@ -21,6 +21,14 @@ describe("roomReducer", () => {
     expect(s.lastSeq).toBe(4);
   });
 
+  it("marks a message hidden by an administrator and drops its text", () => {
+    const s = run([
+      ev({ type: "message", message: msg(1) }), ev({ type: "message", message: msg(2, { meta: { a: 1 } }) }),
+      ev({ type: "message_hidden", seq: 2 }), ev({ type: "message_hidden", seq: 99 }),
+    ]);
+    expect(s.messages.map((m) => [m.seq, m.hidden ?? false, m.text, m.meta])).toEqual([[1, false, "t1", null], [2, true, "", null]]);
+  });
+
   it("keeps a pending say until its own message arrives, without advancing the resume cursor on ack", () => {
     let s = run([{ type: "say", pending: { clientId: "c1", text: "hi", assistId: null, seq: null } }]);
     expect(s.pending).toHaveLength(1);

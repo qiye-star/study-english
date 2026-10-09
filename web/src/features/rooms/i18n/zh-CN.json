@@ -41,6 +41,7 @@
         "aiTyping": "AI 助手正在输入…",
         "aiFailed": "回答中断,可以重新 @ai",
         "aiPending": "等待 AI 回答",
+        "hidden": "该消息已被管理员隐藏",
         "reconnecting": "连接中断,正在重连…",
         "connecting": "正在连接…",
         "closedNote": "房间已结束,只能查看。",
@@ -117,7 +118,8 @@
         "closed_expired": "房间已到 24 小时,已结束",
         "closed_disabled": "联机练习已被关闭",
         "closed_protocol": "连接出错,请返回大厅重新进入",
-        "kickedClose": "你已被移出房间"
+        "kickedClose": "你已被移出房间",
+        "closed_admin": "房间已被管理员关闭"
       }
     }
   }

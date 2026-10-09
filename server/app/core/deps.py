@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import metering
 from app.core.config import Settings
+from app.core.quotas import quota_cache
 from app.models import AccessToken, User
 from app.core.security import hash_token
 
@@ -52,8 +53,10 @@ async def auth_rate_limit(request: Request) -> None:
         raise HTTPException(429, "Too many requests, please try again later")
 
 
-async def limited_user(request: Request, user: User = Depends(current_user)) -> User:
-    """已鉴权用户 + 按用户 ID 的每分钟限流(用于会消耗上游额度的接口)。"""
-    if not request.app.state.user_limiter.allow(str(user.id)):
+async def limited_user(request: Request, user: User = Depends(current_user),
+                       session: AsyncSession = Depends(get_session)) -> User:
+    """已鉴权用户 + 按用户 ID 的每分钟限流(用于会消耗上游额度的接口);按用户配额覆盖优先(§7)。"""
+    overrides = await quota_cache(request.app).get(session, user.id)
+    if not request.app.state.user_limiter.allow(str(user.id), overrides.get("ai_rate_limit_per_minute")):
         raise HTTPException(429, "Too many requests, please try again later")
     return user
