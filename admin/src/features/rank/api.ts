@@ -301,7 +301,7 @@ export const getRankOverview = () => get<RankOverview>("/api/admin/rank/overview
 export const clearAllCooldowns = (reason: string) => post<{ users: number }>("/api/admin/rank/clear-cooldowns", { reason });
 export const resetAll = (reason: string, confirm: string) =>
   post<{ batchId: string; users: number }>("/api/admin/rank/reset-all", { reason, confirm });
-export const undoReset = (batchId: string) => post<{ users: number }>(`/api/admin/rank/reset-all/${encodeURIComponent(batchId)}/undo`);
+export const undoReset = (batchId: string) => post<{ users: number; skipped: number }>(`/api/admin/rank/reset-all/${encodeURIComponent(batchId)}/undo`);
 
 /* ---- 单个用户 ---- */
 const userPath = (id: number) => `/api/admin/users/${id}/rank`;

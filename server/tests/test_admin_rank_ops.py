@@ -116,7 +116,7 @@ async def test_reset_user_and_reset_all_with_undo(app, users):
         await s.commit()
         p = await s.get(RankProfile, U2)
         assert (p.tier, p.rp, p.best_tier, p.cooldown_until) == (1, 10, 4, None)
-        assert await rank_ops.undo_reset(s, OPS, batch, NOW) == 1
+        assert await rank_ops.undo_reset(s, OPS, batch, NOW) == (1, 0)
         await s.commit()
         assert (await s.get(RankProfile, U2)).tier == 4
         batch, n = await rank_ops.reset_all(s, OPS, reason="新赛制", now=NOW)
@@ -127,7 +127,7 @@ async def test_reset_user_and_reset_all_with_undo(app, users):
         with pytest.raises(rank_ops.RankOpError) as exc:
             await rank_ops.undo_reset(s, OPS, batch, NOW + timedelta(days=8))
         assert exc.value.status == 410
-        assert await rank_ops.undo_reset(s, OPS, batch, NOW + timedelta(days=6)) == 2
+        assert await rank_ops.undo_reset(s, OPS, batch, NOW + timedelta(days=6)) == (2, 0)
         await s.commit()
         p1 = await s.get(RankProfile, U1)
         assert (p1.tier, p1.division, p1.rp) == (2, 1, 120) and p1.cooldown_until is not None
@@ -166,3 +166,37 @@ async def test_clear_all_cooldowns(app, users):
         assert await rank_ops.clear_all_cooldowns(s, OPS, reason="评委故障补偿") == 1
         await s.commit()
         assert (await s.get(RankProfile, U1)).cooldown_until is None
+
+
+async def test_undo_of_reset_all_keeps_a_later_single_user_reset_and_overview_ignores_user_batches(app, users):
+    """Review m3: reset-all at T1, single-user reset of U2 at T2; undoing T1 must not overwrite U2's T2 state."""
+    async with app.state.sessionmaker() as s:
+        batch_all, _ = await rank_ops.reset_all(s, OPS, reason="新赛季", now=NOW)
+        await s.commit()
+        await rank_ops.reset_user(s, OPS, U2, tier=1, division=2, rp=5, reason="定级", now=NOW + timedelta(hours=1),
+                                  rules=DEFAULT_RULES)
+        await s.commit()
+        assert (await rank_ops.latest_reset(s, NOW + timedelta(hours=2)))["batch_id"] == batch_all
+        assert await rank_ops.undo_reset(s, OPS, batch_all, NOW + timedelta(hours=2)) == (1, 1)
+        await s.commit()
+        p1, p2 = await s.get(RankProfile, U1), await s.get(RankProfile, U2)
+    assert (p1.tier, p1.division, p1.rp) == (2, 1, 120)
+    assert (p2.tier, p2.division, p2.rp) == (1, 2, 5)
+
+
+async def test_purge_expired_drops_snapshots_after_the_undo_window(app, users):
+    """Review m4: snapshots are deleted after UNDO_DAYS (spec §5.6)."""
+    from app.admin import housekeeping
+    from app.models import RankProfileSnapshot
+
+    async with app.state.sessionmaker() as s:
+        await rank_ops.reset_all(s, OPS, reason="旧", now=datetime.now(timezone.utc) - timedelta(days=8))
+        await rank_ops.reset_user(s, OPS, U1, tier=1, division=3, rp=0, reason="新", now=datetime.now(timezone.utc),
+                                  rules=DEFAULT_RULES)
+        await s.commit()
+    async with app.state.sessionmaker() as s:
+        out = await housekeeping.purge_expired(s, datetime.now(timezone.utc))
+        await s.commit()
+        assert out["rank_profile_snapshots"] == 2
+        left = (await s.scalars(select(RankProfileSnapshot))).all()
+    assert [r.user_id for r in left] == [U1]

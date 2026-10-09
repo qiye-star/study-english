@@ -24,6 +24,7 @@ from app.services import usage
 from app.services.stats import as_utc
 
 UNDO_DAYS = 7
+ALL_BATCH, USER_BATCH = "all-", "usr-"  # snapshot batch id prefixes (+ 32 hex): site-wide vs single-user reset
 MAX_ADJUST = 1000
 VOIDABLE = ("failed", "expired", "abandoned", "grading_failed")
 PENALISED = ("failed", "expired", "abandoned")  # outcomes that cut rp and set a cooldown
@@ -154,6 +155,7 @@ async def adjust_points(session, actor: Actor, user_id: int, delta: int, *, reas
     if isinstance(delta, bool) or not isinstance(delta, int) or delta == 0 or abs(delta) > MAX_ADJUST:
         raise RankOpError(422, "Invalid delta")
     profile = await _profile(session, user_id, now)
+    voided = await _void_open(session, [user_id], now) if delta < 0 else 0
     before = _state(profile)
     state = ledger.state_of(profile)
     if delta > 0:
@@ -161,7 +163,8 @@ async def adjust_points(session, actor: Actor, user_id: int, delta: int, *, reas
     else:
         state = RankState(state.tier, state.division, max(0, state.rp + delta), state.stars)  # never demotes (R-1)
     row = await audit.record(session, actor, "rank.user.adjust_points", target_type="user", target_id=user_id,
-                             summary=f"delta {delta:+d}", before=before,
+                             summary=f"delta {delta:+d}" + (f", voided {voided} open match" if voided else ""),
+                             before=before,
                              after={"tier": state.tier, "division": state.division, "rp": state.rp}, reason=reason)
     session.add(XpEvent(user_id=user_id, kind="admin_adjust", ref_id=f"audit:{row.id}", points=delta, score=None,
                         day=usage.utc_day(now), tier=profile.tier, created_at=now))
@@ -189,14 +192,33 @@ async def void_match(session, actor: Actor, match_id: str, *, reason: str, now: 
     await audit.record(session, actor, "rank.match.void", target_type="match", target_id=match.id,
                        summary=f"{match.status} -> voided" + (" restored" if restored else ""), before=before,
                        after={"status": "voided"} | (_state(profile) if profile else {}), reason=reason)
-    await session.execute(update(DailyUsage).where(
-        DailyUsage.scope == "rank_match", DailyUsage.subject == str(match.user_id),
-        DailyUsage.day == usage.utc_day(as_utc(match.started_at)), DailyUsage.count > 0)
-        .values(count=DailyUsage.count - 1))
+    await _refund_attempt(session, match)
     match.status = "voided"
     match.finished_at = match.finished_at or now
     await session.flush()
     return match_row_out(match, rules) | {"restored": restored}
+
+
+async def _refund_attempt(session, match: PromotionMatch) -> None:
+    await session.execute(update(DailyUsage).where(
+        DailyUsage.scope == "rank_match", DailyUsage.subject == str(match.user_id),
+        DailyUsage.day == usage.utc_day(as_utc(match.started_at)), DailyUsage.count > 0)
+        .values(count=DailyUsage.count - 1))
+
+
+async def _void_open(session, user_ids: list[int] | None, now: datetime) -> int:
+    """Review M3: an admin profile edit (reset, point cut, reset-all) voids the user's open match, refunding the
+    attempt, so a match started at the gate can never promote from the edited state. 409 while one is mid-request."""
+    query = select(PromotionMatch).where(PromotionMatch.status.in_(matches.OPEN))
+    if user_ids is not None:
+        query = query.where(PromotionMatch.user_id.in_(user_ids))
+    rows = (await session.scalars(query)).all()
+    if any(matches.is_busy(m.id) for m in rows):
+        raise RankOpError(409, "Match is busy")
+    for m in rows:
+        await _refund_attempt(session, m)
+        m.status, m.finished_at = "voided", now
+    return len(rows)
 
 
 def _achievement_key_ok(key: str) -> bool:
@@ -240,32 +262,38 @@ async def reset_user(session, actor: Actor, user_id: int, *, tier: int = 0, divi
         if not 0 <= rp <= division_rp(tier, rules=rules) or (division > 1 and rp >= division_rp(tier, rules=rules)):
             raise RankOpError(422, "Invalid rp")
     profile = await _profile(session, user_id, now)
-    batch = str(uuid.uuid4())
+    voided = await _void_open(session, [user_id], now)
+    batch = USER_BATCH + uuid.uuid4().hex
     session.add(RankProfileSnapshot(batch_id=batch, user_id=user_id, data=_snapshot(profile), at=now))
     before = _state(profile)
     _reset(profile, tier, division, rp, now)
     await audit.record(session, actor, "rank.user.reset", target_type="user", target_id=user_id,
-                       summary=f"{tier_key(tier)} {division} {rp}", before=before, after=_state(profile) | {"batch": batch},
+                       summary=f"{tier_key(tier)} {division} {rp}", before=before,
+                       after=_state(profile) | {"batch": batch, "voided_matches": voided},
                        reason=reason)
     await session.flush()
     return batch
 
 
 async def reset_all(session, actor: Actor, *, reason: str, now: datetime) -> tuple[str, int]:
-    batch = str(uuid.uuid4())
+    """The caller holds every user's sync lock (`ledger.user_lock`) across the commit (review m2)."""
+    batch = ALL_BATCH + uuid.uuid4().hex
+    voided = await _void_open(session, None, now)
     profiles = (await session.scalars(select(RankProfile))).all()
     for p in profiles:
         session.add(RankProfileSnapshot(batch_id=batch, user_id=p.user_id, data=_snapshot(p), at=now))
         _reset(p, 0, 3, 0, now)
     await audit.record(session, actor, "rank.reset_all", target_type="rank", summary=f"{len(profiles)} users",
-                       after={"batch": batch, "users": len(profiles)}, reason=reason)
+                       after={"batch": batch, "users": len(profiles), "voided_matches": voided}, reason=reason)
     await session.flush()
     return batch, len(profiles)
 
 
 async def latest_reset(session, now: datetime) -> dict | None:
-    """The newest snapshot batch still inside the undo window (for the overview's undo button)."""
-    row = await session.scalar(select(RankProfileSnapshot).order_by(RankProfileSnapshot.id.desc()).limit(1))
+    """The newest site-wide reset batch still inside the undo window (for the overview's undo button); single-user
+    reset batches never show here (review m3)."""
+    row = await session.scalar(select(RankProfileSnapshot).where(RankProfileSnapshot.batch_id.like(ALL_BATCH + "%"))
+                               .order_by(RankProfileSnapshot.id.desc()).limit(1))
     if row is None or now - as_utc(row.at) > timedelta(days=UNDO_DAYS):
         return None
     n = len((await session.scalars(select(RankProfileSnapshot.id).where(RankProfileSnapshot.batch_id == row.batch_id))).all())
@@ -273,16 +301,25 @@ async def latest_reset(session, now: datetime) -> dict | None:
             "undo_until": _iso(as_utc(row.at) + timedelta(days=UNDO_DAYS))}
 
 
-async def undo_reset(session, actor: Actor, batch_id: str, now: datetime) -> int:
+async def undo_reset(session, actor: Actor, batch_id: str, now: datetime) -> tuple[int, int]:
+    """Restore a reset batch: (restored, skipped). A user reset again later (a newer snapshot exists) keeps that
+    later state (review m3). The caller holds the users' sync locks across the commit (review m2)."""
     rows = (await session.scalars(select(RankProfileSnapshot).where(RankProfileSnapshot.batch_id == batch_id[:36]))).all()
     if not rows:
         raise RankOpError(404, "Snapshot not found")
     if now - min(as_utc(r.at) for r in rows) > timedelta(days=UNDO_DAYS):
         raise RankOpError(410, "Snapshot expired")
-    restored = 0
+    newer = set((await session.scalars(select(RankProfileSnapshot.user_id).where(
+        RankProfileSnapshot.user_id.in_([r.user_id for r in rows]),
+        RankProfileSnapshot.id > max(r.id for r in rows)))).all())
+    await _void_open(session, [r.user_id for r in rows if r.user_id not in newer], now)
+    restored = skipped = 0
     for r in rows:
         p = await session.get(RankProfile, r.user_id)
         if p is None:
+            continue
+        if r.user_id in newer:
+            skipped += 1
             continue
         for k in SNAPSHOT_FIELDS:
             value = r.data.get(k)
@@ -292,10 +329,15 @@ async def undo_reset(session, actor: Actor, batch_id: str, now: datetime) -> int
         p.updated_at = now
         restored += 1
     await audit.record(session, actor, "rank.reset.undo", target_type="rank", target_id=batch_id,
-                       summary=f"{restored} users")
+                       summary=f"{restored} users" + (f", {skipped} skipped (reset again later)" if skipped else ""))
     await session.execute(delete(RankProfileSnapshot).where(RankProfileSnapshot.batch_id == batch_id[:36]))
     await session.flush()
-    return restored
+    return restored, skipped
+
+
+async def batch_users(session, batch_id: str) -> list[int]:
+    return list((await session.scalars(select(RankProfileSnapshot.user_id).where(
+        RankProfileSnapshot.batch_id == batch_id[:36]))).all())
 
 
 async def clear_all_cooldowns(session, actor: Actor, *, reason: str) -> int:

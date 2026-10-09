@@ -28,7 +28,10 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `missing_prices` from `usage.missing_prices` and `invite_without_codes`)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded, returns only `{ok, status, ms, code}`
 - `rank_rules_admin.py` / `rank_ops.py` / `rank_sim.py` – rank rules drafts/validate/publish (bumps
-  `config_revisions['rank_rules']`), per-user and site-wide rank operations (reset with undo), impact simulation
+  `config_revisions['rank_rules']`), per-user and site-wide rank operations (reset with undo), impact simulation.
+  Resets, point cuts and undo void the affected users' open matches (409 `Match is busy` mid-request); bulk ops hold
+  every affected user's `ledger.user_lock` across the commit; batch ids are `all-…` (site-wide, the overview's undo)
+  or `usr-…`; undo skips users reset again later; snapshots are purged after `UNDO_DAYS` by `purge_expired`
 - `prompts_admin.py` – prompt drafts/publish/test run (bodies never logged or audited); room templates render through
   `rooms.assistant.render_test`, same as live
 - `service.py` – v1 cross-user read queries (overview, users with `status`/`sort`, conversations, assessments, ...)

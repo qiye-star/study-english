@@ -83,6 +83,28 @@ async def test_reset_all_requires_exact_confirmation(app, client, auth_headers):
     assert (await client.post(f"/api/admin/rank/reset-all/{r.json()['batch_id']}/undo", headers=su)).status_code == 404
 
 
+async def test_reset_all_and_undo_wait_for_the_users_sync_lock(app, client, auth_headers):
+    """Review m2: a /api/rank/me sync holding the user's lock must finish before reset-all touches the profile."""
+    import asyncio
+
+    from app.rank import ledger
+
+    await client.get("/api/rank/me", headers=auth_headers)
+    uid = await uid_of(client, auth_headers)
+    su = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=su, json={"password": PASSWORD})
+    for path in ("/api/admin/rank/reset-all", None):
+        async with ledger.user_lock(uid):
+            if path is None:
+                path = f"/api/admin/rank/reset-all/{batch}/undo"
+            task = asyncio.create_task(client.post(path, headers=su, json={"reason": "新赛制", "confirm": "RESET 1 USERS"}))
+            await asyncio.sleep(0.2)
+            assert not task.done()  # blocked on the sync lock
+        r = await task
+        assert r.status_code == 200, r.text
+        batch = r.json().get("batch_id")
+
+
 async def test_user_rank_operations(app, client, auth_headers):
     uid = await uid_of(client, auth_headers)
     await client.get("/api/rank/me", headers=auth_headers)
@@ -126,7 +148,8 @@ async def test_matches_list_detail_void_and_regrade(app, client, auth_headers, m
                    "english": True, "echo": False, "short": False, "duration_ms": 3000},
                   {"role": "ai", "text": "Sure"}]
     async with app.state.sessionmaker() as s:
-        s.add(RankProfile(user_id=uid, tier=1, division=1, rp=80, stars=0, best_tier=1, tier_started_at=now,
+        s.add(RankProfile(user_id=uid, tier=1, division=1, rp=80, stars=0, best_tier=1,
+                          tier_started_at=now - timedelta(hours=1),  # reached silver before both matches started
                           cooldown_until=now + timedelta(minutes=30), synced_at=now, updated_at=now))
         s.add(PromotionMatch(id="failed1", user_id=uid, from_tier=1, to_tier=2, scenario_key="gold-hotel-problem",
                              status="failed", turn_limit=5, turns=turns, threshold=65, total=50, attempt_no=1,

@@ -12,7 +12,8 @@ from sqlalchemy import delete, func, or_, select
 
 from app.admin import audit
 from app.admin.audit import Actor
-from app.models import AdminAudit, AdminLoginState, AdminSession, Assessment, SpeechToken
+from app.admin.rank_ops import UNDO_DAYS
+from app.models import AdminAudit, AdminLoginState, AdminSession, Assessment, RankProfileSnapshot, SpeechToken
 
 MAX_SAMPLES = 20
 # A recording is written to disk a moment before its row is committed: younger files are never orphans.
@@ -111,5 +112,7 @@ async def purge_expired(session, now: datetime) -> dict:
         AdminLoginState.updated_at < now - timedelta(days=30),
         or_(AdminLoginState.locked_until.is_(None), AdminLoginState.locked_until < now)))
     tokens = await session.execute(delete(SpeechToken).where(SpeechToken.created_at < now - timedelta(days=1)))
+    snapshots = await session.execute(delete(RankProfileSnapshot).where(  # spec §5.6: gone after the undo window
+        RankProfileSnapshot.at < now - timedelta(days=UNDO_DAYS)))
     return {"admin_sessions": sessions.rowcount or 0, "admin_login_state": login.rowcount or 0,
-            "speech_tokens": tokens.rowcount or 0}
+            "speech_tokens": tokens.rowcount or 0, "rank_profile_snapshots": snapshots.rowcount or 0}

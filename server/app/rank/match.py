@@ -84,8 +84,10 @@ async def _claim(session: AsyncSession, match: PromotionMatch, profile: RankProf
 
 
 async def _void_if_stale(session: AsyncSession, match: PromotionMatch, profile: RankProfile, now: datetime) -> None:
-    """The profile moved off the match's from_tier (another match, or a demotion): never grade or promote it."""
-    if match.status in OPEN and match.from_tier != profile.tier:
+    """The profile moved off the match's from_tier (another match, or a demotion), or was edited after the match
+    started (an admin reset sets tier_started_at): never grade or promote it."""
+    edited = as_utc(profile.tier_started_at) > as_utc(match.started_at)
+    if match.status in OPEN and (match.from_tier != profile.tier or edited):
         match.status, match.finished_at = "expired", now
         await session.commit()
         raise MatchError("not_active")
