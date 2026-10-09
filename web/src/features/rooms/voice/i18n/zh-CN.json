@@ -1,0 +1,31 @@
+{
+  "web": {
+    "rooms": {
+      "voice": {
+        "noSpeech": "没听清,再说一次",
+        "interrupted": "录音被打断,这段没有发送",
+        "hold": { "tooShort": "说话时间太短", "notReady": "麦克风已准备好,请按住说话" },
+        "errors": {
+          "voiceOff": "这个房间现在不能发语音",
+          "badFormat": "录音格式不对,请重试",
+          "tooShort": "说话时间太短",
+          "tooLong": "语音太长了,最长 60 秒",
+          "tooLarge": "语音文件太大",
+          "quota": "语音存储已满,可以继续发文字",
+          "daily": "今天的语音条数已用完,可以继续发文字",
+          "badReply": "引用的消息已不存在",
+          "removed": "音频已被管理员清理"
+        }
+      },
+      "notice": {
+        "voice_off": "语音消息未开启",
+        "voice_quota": "今天的语音额度已用完",
+        "translate_quota": "今天的翻译次数已用完",
+        "retry_limit": "这条语音不能再重试了"
+      },
+      "errors": {
+        "bad_seq": "这条语音还不能翻译"
+      }
+    }
+  }
+}
