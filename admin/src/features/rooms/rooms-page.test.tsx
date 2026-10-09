@@ -38,7 +38,7 @@ it("searches and shows the empty state", async () => {
   renderPage();
   await screen.findByText("美食");
   vi.mocked(api.listRooms).mockResolvedValue({ rooms: [], page: 1, next: null, total: 0 });
-  await userEvent.type(screen.getByRole("searchbox", { name: "搜索房间号、话题或房主" }), "482913");
+  await userEvent.type(screen.getByRole("searchbox", { name: "搜索房间号、房间名或房主" }), "482913");
   await waitFor(() => expect(api.listRooms).toHaveBeenLastCalledWith({ status: "open", q: "482913", page: 1 }));
   expect(await screen.findByText("没有符合条件的房间")).toBeInTheDocument();
 });
@@ -53,4 +53,11 @@ it("navigates to the detail page on row click", async () => {
   renderPage();
   await userEvent.click(await screen.findByText("美食"));
   expect(await screen.findByText("detail page")).toBeInTheDocument();
+});
+
+it("shows and searches v2 rooms by name (their topic is empty)", async () => {
+  vi.mocked(api.listRooms).mockResolvedValue({ rooms: [roomRow({ name: "咖啡角", topic: "" })], page: 1, next: null, total: 1 });
+  renderPage();
+  expect(await screen.findByText("咖啡角")).toBeInTheDocument();
+  expect(screen.getByRole("searchbox", { name: "搜索房间号、房间名或房主" })).toBeInTheDocument();
 });

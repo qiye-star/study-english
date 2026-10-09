@@ -45,3 +45,9 @@ it("switches to resolved reports and shows the empty state", async () => {
   await waitFor(() => expect(api.listReports).toHaveBeenLastCalledWith("resolved", 1));
   expect(await screen.findByText("还没有处理过的举报")).toBeInTheDocument();
 });
+
+it("links the report to the room by its name", async () => {
+  vi.mocked(api.listReports).mockResolvedValue({ reports: [reportFixture({ room: { id: "r1", name: "咖啡角", topic: "", code: "482913" } })], page: 1, next: null });
+  renderPage();
+  expect(await screen.findByRole("link", { name: "咖啡角" })).toHaveAttribute("href", "/rooms/r1");
+});

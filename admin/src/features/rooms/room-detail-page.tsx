@@ -288,7 +288,7 @@ export function RoomDetailPage() {
 
   return (
     <Page
-      title={r ? r.topic || S.list.noTopic : S.roomDetailPage}
+      title={r ? r.name || r.topic || S.list.noTopic : S.roomDetailPage}
       actions={
         r && canModerate ? (
           <>

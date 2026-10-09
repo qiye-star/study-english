@@ -49,7 +49,9 @@ def _counts():
 
 
 def _room_row(room: Room, owner: str | None, members: int, messages: int, reports: int, online: int) -> dict:
-    return {"id": room.id, "code": room.code, "last_code": room.last_code, "topic": room.topic, "status": room.status,
+    # v2 rooms keep `topic` empty: `name` is the room's title (v1 rooms got name = topic in migration 0011)
+    return {"id": room.id, "code": room.code, "last_code": room.last_code, "name": room.name or room.topic,
+            "topic": room.topic, "status": room.status,
             "owner": {"id": room.owner_id, "name": owner}, "member_count": int(members or 0), "online_count": online,
             "message_count": int(messages or 0), "open_reports": int(reports or 0),
             "locked": room.locked, "ai_public": room.ai_public, "ai_muted": bool(room.ai_muted),
@@ -69,7 +71,7 @@ async def list_rooms(session, *, status: Literal["open", "closed", "all"], q: st
     if q:
         like = f"%{_escape_like(q)}%"
         conds.append(or_(Room.code == q, Room.last_code == q, Room.topic.ilike(like, escape="\\"),
-                         User.username.ilike(like, escape="\\")))
+                         Room.name.ilike(like, escape="\\"), User.username.ilike(like, escape="\\")))
     if conds:
         stmt, count = stmt.where(*conds), count.where(*conds)
     rows, nxt = await paginate(session, stmt.order_by(Room.last_active_at.desc(), Room.id), page, per_page)
@@ -227,7 +229,7 @@ def _snippet(text: str) -> str:
 
 async def list_reports(session, *, status: Literal["open", "resolved"], page: int, per_page: int = 20) -> dict:
     reporter, sender = aliased(User), aliased(User)
-    stmt = (select(RoomReport, Room.topic, Room.last_code, RoomMessage, reporter.username, sender.username)
+    stmt = (select(RoomReport, Room.name, Room.topic, Room.last_code, RoomMessage, reporter.username, sender.username)
             .join(Room, Room.id == RoomReport.room_id)
             .outerjoin(RoomMessage, RoomMessage.id == RoomReport.message_id)
             .outerjoin(reporter, reporter.id == RoomReport.reporter_id)
@@ -239,9 +241,9 @@ async def list_reports(session, *, status: Literal["open", "resolved"], page: in
                                                                         RoomReport.id.desc())
     rows, nxt = await paginate(session, stmt, page, per_page)
     out = []
-    for rep, topic, code, msg, reporter_name, sender_name in rows:
+    for rep, name, topic, code, msg, reporter_name, sender_name in rows:
         out.append({
-            "id": rep.id, "room": {"id": rep.room_id, "topic": topic, "code": code},
+            "id": rep.id, "room": {"id": rep.room_id, "name": name or topic, "topic": topic, "code": code},
             "message": None if msg is None else {
                 "id": msg.id, "seq": msg.seq, "text": _snippet(msg.text), "hidden": msg.hidden_at is not None,
                 "sender": {"kind": msg.sender_kind, "id": msg.sender_id, "name": sender_name}},

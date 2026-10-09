@@ -42,7 +42,7 @@ export function ReportsPage() {
       header: R.room,
       render: (r) => (
         <Link className="text-accent hover:underline" to={`/rooms/${encodeURIComponent(r.room.id)}`}>
-          {r.room.topic || S.list.noTopic}
+          {r.room.name || r.room.topic || S.list.noTopic}
         </Link>
       ),
     },

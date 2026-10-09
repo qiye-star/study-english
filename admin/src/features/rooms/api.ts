@@ -13,6 +13,8 @@ export interface RoomRow {
   id: string;
   code: string | null;
   lastCode: string;
+  /** rooms v2 title (v2 rooms keep `topic` empty; the server falls back to the topic for v1 rows) */
+  name: string;
   topic: string;
   status: RoomStatus;
   /** id null = the owner was deleted and nobody else had joined: the room is kept closed and read-only */
@@ -103,7 +105,7 @@ export interface Timeline {
 
 export interface Report {
   id: number;
-  room: { id: string; topic: string; code: string };
+  room: { id: string; name: string; topic: string; code: string };
   message: { id: string; seq: number; text: string; hidden: boolean; sender: { kind: string; id: number | null; name: string | null } } | null;
   reporter: { id: number; name: string | null };
   reason: string;

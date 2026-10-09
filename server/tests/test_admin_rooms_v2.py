@@ -149,3 +149,20 @@ async def test_voice_timeline_and_audited_playback(app, client):
     assert r.status_code == 410 and r.json() == {"error": "Audio purged"}
     assert (await client.get(f"/api/admin/rooms/other/messages/{m.id}/audio")).status_code == 404
     assert len(await _audits(app, "room.audio.play")) == 2  # failures are not plays
+
+
+async def test_list_search_and_reports_use_the_room_name(app, client):
+    """Integration gap: v2 rooms keep `topic` empty, so the admin list, search and reports carry `name`."""
+    alice, ha = await register(client, "alice")
+    room = (await client.post("/api/rooms", headers=ha, json={"name": "咖啡角", "scenario": "cafe"})).json()["room"]
+    async with app.state.sessionmaker() as s:
+        assert (await s.get(Room, room["id"])).topic == ""
+    m = await _voice(app, room["id"], alice, audio_path=None)
+    assert (await client.post(f"/api/rooms/{room['id']}/messages/{m.id}/report", headers=ha,
+                              json={"reason": "spam"})).status_code == 200
+    await login_as(app, client, "operator")
+    found = (await client.get("/api/admin/rooms", params={"q": "咖啡", "status": "all"})).json()
+    assert found["total"] == 1 and found["rooms"][0]["name"] == "咖啡角"
+    assert (await client.get(f"/api/admin/rooms/{room['id']}")).json()["name"] == "咖啡角"
+    reports = (await client.get("/api/admin/reports")).json()["reports"]
+    assert reports[0]["room"]["name"] == "咖啡角"

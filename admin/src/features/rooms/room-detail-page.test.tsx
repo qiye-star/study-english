@@ -147,3 +147,9 @@ it("shows a deleted owner's kept room as read-only with 已删除用户", async 
   renderPage();
   expect(await screen.findByText(/已删除用户/)).toBeInTheDocument();
 });
+
+it("titles a v2 room by its name", async () => {
+  vi.mocked(api.getRoom).mockResolvedValue(roomFixture({ name: "咖啡角", topic: "" }));
+  renderPage();
+  expect(await screen.findByRole("heading", { name: "咖啡角" })).toBeInTheDocument();
+});

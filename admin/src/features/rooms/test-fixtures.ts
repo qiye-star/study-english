@@ -2,7 +2,7 @@
 import type { AdminMessage, AdminVoice, Report, RoomDetail, RoomRow, RoomSettings, Timeline } from "./api";
 
 export const roomRow = (over: Partial<RoomRow> = {}): RoomRow => ({
-  id: "r1", code: "482913", lastCode: "482913", topic: "美食", status: "open", owner: { id: 11111111, name: "alice" },
+  id: "r1", code: "482913", lastCode: "482913", name: "美食", topic: "美食", status: "open", owner: { id: 11111111, name: "alice" },
   memberCount: 2, onlineCount: 1, messageCount: 3, openReports: 0, locked: false, aiPublic: true, aiMuted: false,
   createdAt: "2026-10-09T09:00:00Z", lastActiveAt: "2026-10-09T09:05:00Z", closedAt: null, closeReason: null, ...over,
 });
@@ -47,7 +47,7 @@ export const timelineFixture = (over: Partial<Timeline> = {}): Timeline => ({
 });
 
 export const reportFixture = (over: Partial<Report> = {}): Report => ({
-  id: 7, room: { id: "r1", topic: "美食", code: "482913" },
+  id: 7, room: { id: "r1", name: "美食", topic: "美食", code: "482913" },
   message: { id: "m43", seq: 43, text: "buy cheap followers", hidden: false, sender: { kind: "user", id: 22222222, name: "bob" } },
   reporter: { id: 11111111, name: "alice" }, reason: "spam", createdAt: "2026-10-09T09:04:00Z",
   resolvedAt: null, resolvedBy: null, resolution: null, ...over,

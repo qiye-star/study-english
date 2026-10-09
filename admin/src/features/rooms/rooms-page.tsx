@@ -33,7 +33,7 @@ export function RoomsPage() {
       header: L.topic,
       render: (r) => (
         <span className="flex items-center gap-2">
-          <span className="font-medium">{r.topic || L.noTopic}</span>
+          <span className="font-medium">{r.name || r.topic || L.noTopic}</span>
           {r.openReports > 0 && <span className="badge bg-warn-soft text-warn">{L.reports(r.openReports)}</span>}
         </span>
       ),
