@@ -7233,3 +7233,7 @@ Rulings below override earlier text in this plan.
 - Ruling (live calls, security m10 / correctness m11): disable, revoke tokens, reset password and delete end the
   user's live realtime call: `RealtimeRegistry.end_user` sends close 4001 (existing `unauthorized` code, no protocol
   change) and cancels the handler if the client has not finished 5 s later.
+- Ruling (read-only maintenance, correctness m6): `GET /api/rank/me` serves the stored profile without sync or
+  achievement unlocks while maintenance is on; live realtime calls end with 1012 when maintenance turns on (the web
+  shows its generic call-ended error; the banner follows within 5 min or on the next API call). Still allowed by
+  design: `POST /api/sessions` (login) writes an access token.

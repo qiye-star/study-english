@@ -14,7 +14,7 @@ from starlette.datastructures import UploadFile
 
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
-from app.models import PromotionMatch, User, iso_utc, utcnow
+from app.models import PromotionMatch, RankProfile, User, iso_utc, utcnow
 from app.providers import llm
 from app.providers.xfyun_result import to_assessment
 from app.rank import achievements, ledger
@@ -119,7 +119,12 @@ async def rank_me(request: Request, tz_offset_minutes: int = TZ_OFFSET, user: Us
                   session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_rank)):
     now = utcnow()
     _, rules = await _live(request)
-    profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap, rules=rules)
+    # read_only maintenance (e.g. a backup window): serve the stored profile, never sync or unlock (review m6)
+    read_only = settings.maintenance_mode != "off"
+    if read_only:
+        profile = await session.get(RankProfile, user.id) or ledger.blank_profile(user.id, now)
+    else:
+        profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap, rules=rules)
     tasks = await ledger.stage_progress_for(session, profile, rules=rules)
     promo = await ledger.promotion_for(session, profile, now, settings, rules=rules)
     season, season_json = _season(settings, rules, tz_offset_minutes)
@@ -127,7 +132,7 @@ async def rank_me(request: Request, tz_offset_minutes: int = TZ_OFFSET, user: Us
     today = date.fromisoformat(local_day(now, 0))  # ended seasons by UTC: a client offset must not end one early
     keys = achievements.earned(snap) | await achievements.season_badges(
         session, user.id, today, *_season_rule(settings, rules))
-    new = await achievements.unlock_new(session, user.id, keys, now)
+    new = [] if read_only else await achievements.unlock_new(session, user.id, keys, now)
     current = await matches.active_match(session, user.id)
     events = await ledger.recent_events(session, user.id)
     return {

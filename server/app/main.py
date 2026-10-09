@@ -136,6 +136,7 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
     hub.subscribe("xfyun", drop("xfyun"), keys={"xfyun_app_id", "xfyun_api_key", "xfyun_api_secret", "xfyun_ws_url"})
     hub.subscribe("grammar_rules", grammar_apply, keys={"grammar_prompt"}, prepare=grammar_prepare)
     hub.subscribe("log_secrets", _log_secrets, keys=set(SECRETS))
+    hub.subscribe("realtime_maintenance", realtime.end_calls_on_maintenance(app), keys={"maintenance_mode"})
     # Spec §9 "maintenance drops live room sockets with 1012" lives in the rooms runtime listener
     # (`routers/rooms.RoomsRuntime.reconfigure`); new room sockets are refused with 1013 by MaintenanceMiddleware.
     # Prices are parsed per request (admin.usage.prices_for); this only rejects a save with bad numbers.

@@ -1,6 +1,7 @@
 """维护模式(spec §9):纯 ASGI 中间件,每个请求读 `app.state.settings.maintenance_mode`,与热更新天然一致。
 
 - `read_only`:`/api/**` 的写请求 503(放行登录 `POST /api/sessions`、管理端、公告);新 WebSocket 握手以 1013 拒绝。
+  `GET /api/rank/me` 此时不做同步/解锁;进行中的实时通话在维护开启时以 1012 结束(routers/realtime 的设置监听)。
 - `full`:除 `/up`、管理端、公告外 `/api/**` 全部 503;静态页面照常(网页据公告接口显示维护页)。
 """
 import json

@@ -37,12 +37,17 @@ def apply_state(p: RankProfile, s: RankState, now: datetime) -> None:
     p.updated_at = now
 
 
+def blank_profile(user_id: int, now: datetime) -> RankProfile:
+    """A new learner's profile, not added to any session."""
+    return RankProfile(user_id=user_id, tier=0, division=3, rp=0, stars=0, best_tier=0,
+                       tier_started_at=now - timedelta(days=SYNC_LOOKBACK_DAYS), updated_at=now)
+
+
 async def load_profile(session: AsyncSession, user_id: int, now: datetime) -> RankProfile:
     profile = await session.get(RankProfile, user_id)
     if profile is not None:
         return profile
-    profile = RankProfile(user_id=user_id, tier=0, division=3, rp=0, stars=0, best_tier=0,
-                          tier_started_at=now - timedelta(days=SYNC_LOOKBACK_DAYS), updated_at=now)
+    profile = blank_profile(user_id, now)
     session.add(profile)
     try:
         await session.flush()

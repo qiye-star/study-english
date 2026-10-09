@@ -907,3 +907,21 @@ def test_disabling_the_user_ends_their_live_call(tmp_path, monkeypatch):
         wait_for(lambda: app.state.realtime_registry.active_count == 0)
     finally:
         client.__exit__(None, None, None)
+
+
+def test_maintenance_ends_live_calls_with_1012(ws_app):
+    """Review correctness m6: read_only/full maintenance must not let calls already connected keep writing."""
+    from app.core.runtime_settings import compose
+
+    app, client = ws_app
+    _, ticket = ticket_for(client, login(client))
+    with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+        ws.send_text(json.dumps(START))
+        receive_until(ws, "ready")
+
+        async def maintenance():
+            app.state.settings_hub.publish(compose(app.state.base_settings, {**ENABLED, "maintenance_mode": "read_only"}))
+
+        client.portal.call(maintenance)
+        assert until_close(ws)[1] == 1012
+    wait_for(lambda: app.state.realtime_registry.active_count == 0)

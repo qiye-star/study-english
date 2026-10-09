@@ -67,24 +67,31 @@ class RealtimeRegistry:
     def __init__(self, max_sessions: int):
         self._max = max_sessions
         self._users: set[int] = set()
-        self._ends: dict[int, Callable[[], Awaitable[None]]] = {}
+        self._ends: dict[int, Callable[[int], Awaitable[None]]] = {}
 
-    def attach(self, user_id: int, end: Callable[[], Awaitable[None]]) -> None:
-        """Remember how to end the user's live call (cancels the handler and closes the socket)."""
+    def attach(self, user_id: int, end: Callable[[int], Awaitable[None]]) -> None:
+        """Remember how to end the user's live call: `end(close_code)` closes the socket (handler cancelled later)."""
         self._ends[user_id] = end
 
-    def detach(self, user_id: int, end: Callable[[], Awaitable[None]]) -> None:
+    def detach(self, user_id: int, end: Callable[[int], Awaitable[None]]) -> None:
         if self._ends.get(user_id) is end:
             del self._ends[user_id]
 
-    async def end_user(self, user_id: int) -> bool:
+    async def end_user(self, user_id: int, code: int) -> bool:
         """Admin disable/revoke/reset/delete (review security m10): end the user's live call now instead of letting it
         run (and spend upstream money) until REALTIME_MAX_MINUTES. True when a call was ended."""
         end = self._ends.pop(user_id, None)
         if end is None:
             return False
-        await end()
+        await end(code)
         return True
+
+    async def end_all(self, code: int) -> int:
+        """Maintenance started (review correctness m6): end every live call."""
+        ended = 0
+        for user_id in list(self._ends):
+            ended += await self.end_user(user_id, code)
+        return ended
 
     @property
     def active_count(self) -> int:
