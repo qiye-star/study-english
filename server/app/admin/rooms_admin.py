@@ -10,11 +10,13 @@ from sqlalchemy.orm import aliased
 from app.admin import audit
 from app.admin.audit import Actor
 from app.admin.service import _escape_like, paginate
-from app.models import Room, RoomMember, RoomMessage, RoomReport, User, iso_utc
+from app.models import Room, RoomMember, RoomMessage, RoomReport, RoomVoice, User, iso_utc
+from app.rooms.rules import RoomLimits, clean_text
 
 Resolution = Literal["dismissed", "removed_message", "kicked", "closed_room"]
 RESOLUTIONS = ("dismissed", "removed_message", "kicked", "closed_room")
 SNIPPET = 200
+NAME_MAX = RoomLimits.name_max
 
 
 class RoomAdminError(Exception):
@@ -22,6 +24,14 @@ class RoomAdminError(Exception):
         super().__init__(error)
         self.status = status
         self.error = error
+
+
+class RoomSettingsError(RoomAdminError):
+    """400 {"error": "Invalid settings", "fields": {...}} (same shape as the member endpoints)."""
+
+    def __init__(self, fields: dict[str, str]):
+        super().__init__(400, "Invalid settings")
+        self.fields = fields
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -80,20 +90,108 @@ async def room_detail(session, room_id: str, online: set[int]) -> dict | None:
     total_reports = await session.scalar(select(func.count()).select_from(RoomReport)
                                          .where(RoomReport.room_id == room_id))
     return {**_room_row(room, owner, m, n, rep, len(online)),
+            "settings": settings_out(room),
             "report_count": int(total_reports or 0),
             "members": [{"user_id": mm.user_id, "name": name, "role": mm.role, "joined_at": iso_utc(mm.joined_at),
                          "left_at": _iso(mm.left_at), "kicked": bool(mm.kicked), "online": mm.user_id in online}
                         for mm, name in people]}
 
 
-def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None) -> dict:
+def settings_out(room: Room) -> dict:
+    """The 7 room settings + lock + whether an invite link exists (never the token itself)."""
+    return {"name": room.name, "scenario": room.scenario, "level": room.level, "join_mode": room.join_mode,
+            "max_members": room.max_members, "ai_public": room.ai_public, "allow_voice": room.allow_voice,
+            "locked": room.locked, "has_invite": room.invite_token is not None}
+
+
+def admin_voice_out(v: RoomVoice) -> dict:
+    """Voice details for the admin timeline; `audio` is False once the file was purged (text is kept)."""
+    return {"duration_ms": v.duration_ms, "status": v.status, "transcript": v.transcript, "lang": v.lang,
+            "translation": v.translation, "translation_status": v.translation_status,
+            "audio": v.audio_path is not None, "purged_at": _iso(v.purged_at)}
+
+
+def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None, voice: RoomVoice | None = None) -> dict:
     """Admin view: the full text, also of hidden messages (shown struck through with a badge)."""
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
             "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": sender},
             "audience": None if m.audience_id is None else {"id": m.audience_id, "name": audience},
             "text": m.text, "meta": m.meta, "assisted": bool(m.assisted), "reply_to": m.reply_to,
             "ai_status": m.ai_status, "created_at": iso_utc(m.created_at), "hidden": m.hidden_at is not None,
-            "hidden_at": _iso(m.hidden_at)}
+            "hidden_at": _iso(m.hidden_at), "voice": None if voice is None else admin_voice_out(voice)}
+
+
+# Editable by an operator (spec 2026-10-10 §14); scenario and level stay the owner's choice.
+ADMIN_SETTING_FIELDS = ("name", "join_mode", "max_members", "ai_public", "allow_voice")
+JOIN_MODES = ("code", "approval")
+SITE_MAX_ROOM = 8  # spec §3.1: 2..8 members, also capped by ROOMS_MAX_MEMBERS
+
+
+def clean_admin_settings(raw: dict, *, site_max_members: int) -> tuple[dict, dict[str, str]]:
+    """Partial validation of the operator-editable settings with the same rules and error codes as the owner's
+    `rooms.rules.clean_settings` (server-core lane): name ≤ 30 code points (cleaned; empty = unchanged),
+    join_mode code|approval, 2 ≤ max_members ≤ min(8, site max), booleans as given."""
+    clean: dict = {}
+    errors: dict[str, str] = {}
+    for key in ADMIN_SETTING_FIELDS:
+        if key not in raw or raw[key] is None:
+            continue
+        value = raw[key]
+        if key == "name":
+            if len(value) > NAME_MAX:
+                errors[key] = "too_long"
+            elif (text := clean_text(value, NAME_MAX)) is not None:
+                clean[key] = text
+        elif key == "join_mode":
+            if value in JOIN_MODES:
+                clean[key] = value
+            else:
+                errors[key] = "unknown"
+        elif key == "max_members":
+            if 2 <= value <= min(SITE_MAX_ROOM, site_max_members):
+                clean[key] = value
+            else:
+                errors[key] = "range"
+        else:
+            clean[key] = bool(value)
+    return clean, errors
+
+
+async def update_settings(session, actor: Actor, room_id: str, changes: dict, reason: str, *,
+                          site_max_members: int) -> tuple[Room, list[dict]]:
+    """Applies operator setting changes (already cleaned or raw: they are validated here), audits `room.settings`
+    (field names and boolean/number values only; the room name is recorded as "<changed>") and commits.
+    Returns the room and the fields that really changed, `[{field, value}]` in setting order."""
+    clean, errors = clean_admin_settings(changes, site_max_members=site_max_members)
+    if errors:
+        raise RoomSettingsError(errors)
+    room = await session.get(Room, room_id)
+    if room is None:
+        raise RoomAdminError(404, "Room not found")
+    changed = [{"field": k, "value": clean[k]} for k in ADMIN_SETTING_FIELDS
+               if k in clean and getattr(room, k) != clean[k]]
+    if not changed:
+        return room, []
+    if any(c["field"] == "max_members" for c in changed):
+        members, _, _ = _counts()
+        count = await session.scalar(select(members).select_from(Room).where(Room.id == room_id))
+        if clean["max_members"] < int(count or 0):
+            raise RoomAdminError(409, "Below current members")
+    before = {c["field"]: ("<changed>" if c["field"] == "name" else getattr(room, c["field"])) for c in changed}
+    for c in changed:
+        setattr(room, c["field"], c["value"])
+    await audit.record(session, actor, "room.settings", target_type="room", target_id=room_id,
+                       before=before,
+                       after={c["field"]: ("<changed>" if c["field"] == "name" else c["value"]) for c in changed},
+                       reason=reason)
+    await session.commit()
+    return room, changed
+
+
+async def voice_audio(session, room_id: str, message_id: str) -> RoomVoice | None:
+    """The voice row of a message in this room (any lane, hidden or not: the admin view ignores hiding)."""
+    return await session.scalar(select(RoomVoice).join(RoomMessage, RoomMessage.id == RoomVoice.message_id)
+                                .where(RoomVoice.message_id == message_id, RoomMessage.room_id == room_id))
 
 
 async def room_messages(session, room_id: str, *, lane: Literal["public", "all"], before_seq: int | None,
@@ -110,7 +208,11 @@ async def room_messages(session, room_id: str, *, lane: Literal["public", "all"]
     rows = (await session.execute(stmt.order_by(RoomMessage.seq.desc()).limit(limit + 1))).all()
     more = len(rows) > limit
     rows = list(reversed(rows[:limit]))
-    return {"messages": [admin_message_out(m, s, a) for m, s, a in rows],
+    voice_ids = [m.id for m, _, _ in rows if m.kind == "voice"]
+    voices = {} if not voice_ids else {
+        v.message_id: v for v in (await session.scalars(select(RoomVoice)
+                                                        .where(RoomVoice.message_id.in_(voice_ids)))).all()}
+    return {"messages": [admin_message_out(m, s, a, voices.get(m.id)) for m, s, a in rows],
             "next_before_seq": rows[0][0].seq if more and rows else None}
 
 
