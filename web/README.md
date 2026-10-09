@@ -69,6 +69,15 @@
   - 浏览器层:先按下面「E2E」起 E2E 栈,然后(chromium-mobile,假麦克风文件):`E2E_LATENCY=1 E2E_FAKE_AUDIO=<repo>/.superpowers/latency/s5.wav E2E_HOLD_MS=5000 yarn playwright test e2e/latency.spec.ts --project=chromium-mobile`(s15 换成 `s15.wav` 与 `E2E_HOLD_MS=15000`;`E2E_LATENCY_RUNS` 默认 5);输出里的 `LATENCY_RESULTS {...}` 一行就是各轮 `spans`(第一轮热身已剔除)。要真实上游(识别、LLM、TTS),会产生费用。
   - 方法(N、中位数、同日同机)、基线与结果表都在 `docs/superpowers/plans/2026-10-07-voice-latency.md`;`latency.spec.ts` 与 `hold-to-talk.spec.ts`(Playwright 触摸)**写好后没有在 Docker 栈上运行过**(本环境没有 Docker),第一次运行可能要调整触摸合成与选择器。
 
+## 段位赛与联机练习(计划 2026-10-09)
+
+两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页与「我的」没有段位卡,页面加载时只多请求一次 `GET /api/rank/config` 与 `GET /api/rooms/config`(`src/layout/feature-flags.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
+
+- **段位赛**(`src/features/rank`):练习页与「我的」顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
+- **联机练习**(`src/features/rooms`,底部第 3 个标签「联机」):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
+- 与服务端的契约:`src/features/rank/rank-contract.test.ts`、`src/features/rooms/rooms-contract.test.ts` 读取 `server/tests/fixtures/{rank,rooms}_contract.json`(由服务端测试对真实应用录制/核对),逐键绑定 TypeScript 类型。
+- **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

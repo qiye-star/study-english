@@ -5,7 +5,9 @@
     speech     -> core, providers
     services   -> core, providers
     realtime   -> core, providers, speech, services
-    admin      -> core, providers, speech, services, realtime (read-only admin console logic)
+    rank       -> core, providers, speech, services
+    rooms      -> core, providers, speech, services (rank and rooms never import each other)
+    admin      -> core, providers, speech, services, realtime, rank, rooms (read-only admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
                   (likewise only routers and main may import admin)
@@ -17,7 +19,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-LAYERS = ("core", "providers", "speech", "services", "realtime", "admin", "routers")
+LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -27,9 +29,11 @@ ALLOWED: dict[str, set[str]] = {
     "speech": {"speech", "core", "models", "providers"},
     "services": {"services", "core", "models", "providers"},
     "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
-    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime"},
-    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "admin"},
-    "main": {"core", "models", "providers", "speech", "services", "realtime", "admin", "routers"},
+    "rank": {"rank", "core", "models", "providers", "speech", "services"},
+    "rooms": {"rooms", "core", "models", "providers", "speech", "services"},
+    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms"},
+    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "admin"},
+    "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "admin", "routers"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -121,3 +125,20 @@ def test_scanner_sees_lazy_relative_and_package_imports(tmp_path):
     assert any(p.startswith("app/providers/vendor.py:1") and "fastapi" in p for p in found)
     assert any(p.startswith("app/stray.py") for p in found)
     assert any(p.startswith("app/services/peek.py:1") and "app.admin" in p for p in found)
+
+
+def test_rank_and_rooms_are_isolated_siblings(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("rank", "rooms", "realtime", "services"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "rank" / "a.py").write_text("from app.rooms import b\n", encoding="utf-8")
+    (app / "rooms" / "b.py").write_text("from app.realtime import c\n", encoding="utf-8")
+    (app / "services" / "d.py").write_text("from app.rank import a\n", encoding="utf-8")
+    (app / "rooms" / "ok.py").write_text("from app.services import d\nfrom app.speech import x\n", encoding="utf-8")
+    found = violations(app)
+    assert any(p.startswith("app/rank/a.py:1") for p in found)
+    assert any(p.startswith("app/rooms/b.py:1") for p in found)
+    assert any(p.startswith("app/services/d.py:1") for p in found)
+    assert not any(p.startswith("app/rooms/ok.py") for p in found)

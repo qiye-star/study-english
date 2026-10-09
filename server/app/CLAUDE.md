@@ -11,6 +11,8 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
 | `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
+| `rank/` | rank ladder, RP sync, promotion matches, achievements |
+| `rooms/` | practice rooms: codes, hub, assistant lane, WS connection |
 | `admin/` | read-only admin console: admin auth (HMAC tokens) + cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
@@ -21,8 +23,9 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - providers -> core (and no FastAPI/Starlette)
 - speech, services -> core, models, providers
 - realtime -> core, models, providers, speech, services
-- admin -> core, models, providers, speech, services, realtime; only routers and `main.py` import admin
-- routers -> anything above; only `main.py` (and other routers) import routers
+- rank, rooms -> core, models, providers, speech, services; never each other or realtime
+- admin -> core, models, providers, speech, services, realtime, rank, rooms; only routers and `main.py` import admin
+- routers -> anything above (incl. rank, rooms); only `main.py` (and other routers) import routers
 - Lazy/function-level imports count too. A new top-level module fails the test: pick a package.
 
 ## Entry point

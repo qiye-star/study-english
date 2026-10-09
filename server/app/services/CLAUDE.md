@@ -13,9 +13,10 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `stats.py` – learning-progress aggregation (streaks, scores, weak words)
 - `vocabulary.py` – word normalization and Leitner-box review scheduling
 - `provider_clients.py` – FastAPI getters caching `AzureSpeech` / `XfyunIse` on `app.state`
+- `usage.py` – persistent daily counters (`consume`, `remaining`, `refund`) for rank and rooms
 
 ## Allowed dependencies
-`app.core`, `app.models`, `app.providers`. Never speech/realtime/routers (enforced by
+`app.core`, `app.models`, `app.providers`. Never speech/realtime/rank/rooms/routers (enforced by
 `tests/test_architecture.py`). If a router helper is needed by realtime, move it here.
 
 ## Entry points

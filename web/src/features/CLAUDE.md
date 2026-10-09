@@ -1,6 +1,6 @@
 # web/src/features/
 
-One directory per product feature: chat, grammar, lookup, practice, progress, realtime, vocabulary.
+One directory per product feature: chat, grammar, lookup, practice, progress, rank, realtime, rooms, vocabulary.
 
 ## Rules (enforced by `src/architecture.test.ts`)
 - Every feature has `index.ts`; it exports only what other directories actually use.

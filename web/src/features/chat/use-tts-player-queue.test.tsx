@@ -79,6 +79,33 @@ describe("useTtsPlayer.playQueue (plan R8)", () => {
     expect(result.current.states.a1).toBe("error");
   });
 
+  it("onEnd fires when the last sentence has finished playing, not when it starts; stop() also ends it; errors do not", async () => {
+    const audio = fakeAudio();
+    const onEnd = vi.fn();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(okSpeech()), { cache: mkCache(), createAudio: () => audio }));
+    act(() => { const q = result.current.playQueue("a1", "m", "v", { onEnd }); q.push("One."); q.end(); });
+    await flush();
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(onEnd).not.toHaveBeenCalled(); // playing, not finished
+    act(() => audio.onended());
+    await flush();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    const stopped = vi.fn();
+    act(() => { const q = result.current.playQueue("a2", "m", "v", { onEnd: stopped }); q.push("Two."); q.end(); });
+    await flush();
+    act(() => result.current.stop());
+    expect(stopped).toHaveBeenCalledTimes(1);
+
+    const failed = vi.fn();
+    const onError = vi.fn();
+    (audio.play as ReturnType<typeof vi.fn>).mockImplementationOnce(() => Promise.reject(new Error("blocked")));
+    act(() => { const q = result.current.playQueue("a3", "m", "v", { onEnd: failed, onError }); q.push("Three."); q.end(); });
+    await flush();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  });
+
   it("uses the sentence cache", async () => {
     const mock = createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
     const cache = mkCache();

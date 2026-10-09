@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -137,6 +138,31 @@ class Settings(BaseSettings):
     def _thinking_mode(cls, value):
         return parse_thinking_mode(value)
 
+    # ---- 段位赛与联机练习(设计文档 2026-10-09)----
+    rank_enabled: bool = False
+    rank_daily_rp_cap: int = Field(60, ge=10, le=500)
+    rank_match_daily_attempts: int = Field(3, ge=1, le=20)
+    rank_match_cooldown_minutes: int = Field(30, ge=0, le=1440)
+    rank_match_minutes: int = Field(20, ge=5, le=60)
+    rank_matches_global_daily: int = Field(200, ge=1, le=100000)
+    rank_judge_model: str = ""
+    rank_season_anchor: date = date(2026, 11, 2)
+    rank_season_weeks: int = Field(8, ge=1, le=52)
+    rooms_enabled: bool = False
+    rooms_ai_model: str = ""
+    rooms_max_active: int = Field(50, ge=1, le=1000)
+    rooms_max_members: int = Field(8, ge=2, le=50)
+    rooms_max_owned: int = Field(3, ge=1, le=20)
+    rooms_idle_minutes: int = Field(30, ge=5, le=1440)
+    rooms_max_hours: int = Field(24, ge=1, le=168)
+    # 房间消息默认永久保存(产品负责人 2026-10-09);正数 = 房间关闭 N 天后清理
+    room_message_retention_days: int = Field(0, ge=0, le=3650)
+    rooms_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
+    rooms_assist_daily_per_user: int = Field(60, ge=0, le=1000)
+    rooms_ai_per_room_hour: int = Field(30, ge=0, le=1000)
+    rooms_ai_global_daily: int = Field(1000, ge=0, le=100000)
+    rooms_ai_concurrency: int = Field(4, ge=1, le=32)
+
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
     admin_password: str = ""
@@ -186,6 +212,27 @@ class Settings(BaseSettings):
     @property
     def asr_stream_enabled(self) -> bool:
         return self.upstream_asr_mode == "volc_stream"
+
+    @property
+    def resolved_rank_judge_model(self) -> str:
+        return self.rank_judge_model.strip() or self.default_llm_model
+
+    @property
+    def resolved_rooms_ai_model(self) -> str:
+        return self.rooms_ai_model.strip() or self.default_llm_model
+
+    @property
+    def rank_match_available(self) -> bool:
+        """晋级赛需要 LLM(考官 + 评委)和语音识别(火山流式或 Whisper/chat 回退)。"""
+        return (
+            self.rank_enabled
+            and bool(self.upstream_llm_base_url)
+            and (asr_stream_usable(self) or whisper_fallback_configured(self))
+        )
+
+    @property
+    def rooms_ai_available(self) -> bool:
+        return self.rooms_enabled and bool(self.upstream_llm_base_url)
 
     @property
     def realtime_available(self) -> bool:

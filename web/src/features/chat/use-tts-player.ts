@@ -72,6 +72,11 @@ export interface TtsPlayOptions {
   onError?: (err: unknown) => void;
   /** 没有可朗读的内容时静默,不调用 onNothingToRead(自动朗读用) */
   quietIfEmpty?: boolean;
+  /**
+   * 仅 playQueue:队列真正播完(最后一句 ended)、或被停止/打断时调用一次;出错时不调用(走 onError)。
+   * 需要"说完了才轮到用户"的调用方(晋级赛考官)据此等待,而不是等 play() 开始。
+   */
+  onEnd?: () => void;
 }
 
 export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAudio, onError, onNothingToRead }: TtsPlayerOptions = {}) {
@@ -190,6 +195,13 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
     let ended = false;
     let busy = false; // 正在等待/播放 fetched[next - 1]
     let first = true;
+    let settled = false; // onEnd / onError 只走一个,且只一次
+    const endOnce = () => {
+      if (settled) return;
+      settled = true;
+      opts.onEnd?.();
+    };
+    controller.signal.addEventListener("abort", endOnce); // stop()/prime()/新的播放/卸载
     const stale = () => controller.signal.aborted || currentRef.current !== messageKey;
     /** 正在播放时最多 QUEUE_PREFETCH 句在途;两句之间(未播放)再多一句,即将播放的那句 */
     const prefetch = () => {
@@ -211,6 +223,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
       releaseAudio(stop);
     };
     const fail = (err: unknown) => {
+      settled = true;
       controller.abort(); // 停掉剩余句子的合成
       finish();
       setState(messageKey, "error");
@@ -223,6 +236,7 @@ export function useTtsPlayer(api: ApiClient, { cache = sharedTtsCache, createAud
         if (ended) {
           finish();
           setState(messageKey, "idle");
+          endOnce();
         }
         return;
       }

@@ -172,3 +172,58 @@ def test_0005_vocabulary_table_keeps_data_and_round_trips(tmp_path, monkeypatch)
         con.close()
     command.upgrade(cfg, "head")
     assert "vocabulary_items" in _tables(db)
+
+
+def _match_row(con, match_id: str, status: str, started: str) -> None:
+    con.execute("insert into promotion_matches (id, user_id, from_tier, to_tier, scenario_key, status, turn_limit, turns, "
+                "threshold, attempt_no, started_at, expires_at) values (?, 12345678, 2, 3, 's', ?, 6, '[]', 68, 1, ?, ?)",
+                (match_id, status, started, started))
+
+
+def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0006")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'h', '2026-10-05 00:00:00')")
+        _match_row(con, "old", "active", "2026-10-09 10:00:00")
+        _match_row(con, "new", "grading_failed", "2026-10-09 11:00:00")
+        _match_row(con, "done", "passed", "2026-10-08 11:00:00")
+        con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at, "
+                    "last_active_at) values ('r', '482913', '482913', 12345678, 't', 'open', 0, 1, 1, '2026-10-09 10:00:00', "
+                    "'2026-10-09 10:00:00')")
+        con.execute("insert into room_messages (id, room_id, seq, lane, sender_kind, sender_id, kind, text, assisted, "
+                    "created_at) values ('m', 'r', 1, 'public', 'user', 12345678, 'text', 'hi', 0, '2026-10-09 10:00:00')")
+        con.commit()
+    finally:
+        con.close()
+
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    try:
+        statuses = dict(con.execute("select id, status from promotion_matches"))
+        assert statuses == {"old": "expired", "new": "grading_failed", "done": "passed"}
+        assert con.execute("select grade_attempts from promotion_matches where id = 'new'").fetchone() == (0,)
+        # (seq, name, unique, origin, partial)
+        index = next(r for r in con.execute("pragma index_list(promotion_matches)") if r[1] == "uq_promotion_matches_user_open")
+        assert index[2] == 1 and index[4] == 1
+        fks = con.execute("pragma foreign_key_list(rooms)").fetchall()
+        assert [(r[2], r[3], r[6]) for r in fks] == [("users", "owner_id", "RESTRICT")]  # review #14
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
+        assert con.execute("select code from rooms where id = 'r'").fetchone() == ("482913",)
+        try:
+            _match_row(con, "dup", "active", "2026-10-09 12:00:00")
+            raise AssertionError("second open match was accepted")
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        con.close()
+    command.downgrade(cfg, "0006")
+    con = sqlite3.connect(db)
+    try:
+        assert "grade_attempts" not in _columns(con, "promotion_matches")
+        assert [r[6] for r in con.execute("pragma foreign_key_list(rooms)")] == ["CASCADE"]
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")

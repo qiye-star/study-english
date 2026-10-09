@@ -9,5 +9,8 @@ services:
       INVITE_CODE: ${E2E_INVITE_CODE:?set E2E_INVITE_CODE}
       RATE_LIMIT_PER_MINUTE: "1000"
       UPSTREAM_ASR_MODE: ${E2E_UPSTREAM_ASR_MODE:-chat}
+      RANK_ENABLED: "true"
+      ROOMS_ENABLED: "true"
+      ROOMS_AI_GLOBAL_DAILY: "0"   # E2E 不调用房间 AI(零成本);AI 路径由 server/tests/test_rooms_ws.py 覆盖
     ports: !override
       - "127.0.0.1:8100:8000"

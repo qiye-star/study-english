@@ -22,6 +22,9 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/practice-items[/{id}]            练习清单(GET/POST/DELETE;相同文本去重)
                                 ├ /api/vocabulary[/{id}[/review]]       词汇本(GET ?due=true、POST 去重、DELETE、复习按盒子法推进)
                                 ├ /api/stats?days=7|30|90&tz_offset_minutes=   学习进度(只读,按用户限流)
+                                ├ /api/rank/*                            段位、阶段练习、成就、晋级赛(默认关,见「段位赛与联机练习」)
+                                ├ /api/rooms/*                           联机房间:建房/房间号加入/成员/历史/举报(默认关)
+                                ├ WS /api/rooms/ws?ticket=               房间实时消息、@ai、私聊助手(票据一次性,默认关)
                                 ├ /api/admin/*                           管理端只读 API(见「管理端」;默认关闭)
                                 ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
                                 ├ /admin/**                              管理端网页(admin/dist,默认关闭)
@@ -271,6 +274,20 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **票据在 URL 里**:浏览器 WebSocket 不能带自定义头,票据放在查询串 `?ticket=` 中。票据 60 s、一次性,风险有限。服务端已在 uvicorn 的 `uvicorn`、`uvicorn.error`、`uvicorn.access` 日志上做了脱敏(`ticket=[redacted]`,用真实 uvicorn 验证过);**反向代理的访问日志、浏览器地址历史/开发者工具里仍可能看到它**,需要时在代理里对该路径关闭或脱敏查询串。若在意,后续可改为首条 WS 消息或子协议携带票据(需同时改服务端与网页端协议)。
 - **`--ws-max-size`**:uvicorn 默认接收的 WebSocket 消息上限是 16 MiB,应用层的 32000 字节上限(`4400`)是在整帧收下之后才校验。`server/Dockerfile` 已加 `--ws-max-size 65536`;本机直接运行时自己加上:`uv run uvicorn app.main:create_app --factory --ws-max-size 65536`。
 - **单 worker**:票据、通话并发登记、限流、识别并发闸门与熔断、评测落盘锁都在进程内,**不支持多 worker**(`--workers 1`)。多 worker 下票据可能签在 A、兑换在 B 而失败,并发上限也会各算各的。
+
+## 段位赛与联机练习(计划 2026-10-09)
+
+规格:[docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md](../docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md)。
+
+- **两个开关,默认都关**:`RANK_ENABLED`、`ROOMS_ENABLED`(`false`)。关闭时网页与原来完全一样:底部导航 3 个标签、练习页与「我的」没有段位卡;`GET /api/rank/config`、`GET /api/rooms/config` 返回 `enabled:false`,其余 `/api/rank/*`、`/api/rooms/*` 返回 404,`WS /api/rooms/ws` 以 4003 关闭。打开 `ROOMS_ENABLED` 后底部导航变为 4 个标签(加「联机」);打开 `RANK_ENABLED` 后练习页与「我的」顶部出现段位卡。改开关后重启服务即可,无需迁移(表由 `alembic upgrade head` 的 `0006` 建好)。
+- **全部变量**见 `server/.env.example` 的「段位赛与联机练习」一节(每行都有注释):`RANK_DAILY_RP_CAP`、`RANK_MATCH_DAILY_ATTEMPTS`、`RANK_MATCH_COOLDOWN_MINUTES`、`RANK_MATCH_MINUTES`、`RANK_MATCHES_GLOBAL_DAILY`、`RANK_JUDGE_MODEL`、`RANK_SEASON_ANCHOR`、`RANK_SEASON_WEEKS`、`ROOMS_AI_MODEL`、`ROOMS_MAX_ACTIVE`、`ROOMS_MAX_MEMBERS`、`ROOMS_MAX_OWNED`、`ROOMS_IDLE_MINUTES`、`ROOMS_MAX_HOURS`、`ROOM_MESSAGE_RETENTION_DAYS`、`ROOMS_TICKET_TTL_SECONDS`、`ROOMS_ASSIST_DAILY_PER_USER`、`ROOMS_AI_PER_ROOM_HOUR`、`ROOMS_AI_GLOBAL_DAILY`、`ROOMS_AI_CONCURRENCY`。
+- **保留**:`ROOM_MESSAGE_RETENTION_DAYS=0`(默认)= 房间消息、成员与举报**永久保留**;清扫只结束空闲/超时的房间,不删数据。设为正数 N 时,关闭满 N 天的房间数据由清扫删除。已结束的房间成员仍可只读查看历史;「我的房间」只列出 7 天内结束的房间。
+- **晋级赛成本(估算,spec §3.6)**:单场上游调用上限 识别 ≤8、讯飞评测 ≤8、考官 LLM ≤7(每次 `max_tokens=120`)、评委 LLM ≤2(每次 `max_tokens=700`,输入约 2–3k token);每人每天 `RANK_MATCH_DAILY_ATTEMPTS` 场、全站每天 `RANK_MATCHES_GLOBAL_DAILY` 场。需要配置 LLM 与语音识别,否则 `match_available=false`(段位点与阶段练习仍可用)。评分失败的场次保持「进行中」,用户可在结果页「重新打分」或「放弃本场」。
+- **房间 AI 每日总额**:`ROOMS_AI_GLOBAL_DAILY`(默认 1000,`@ai` 与私聊助手合计;`0` = 关闭房间 AI,E2E 栈即如此),另有每房每小时 `ROOMS_AI_PER_ROOM_HOUR`、每人每天助手 `ROOMS_ASSIST_DAILY_PER_USER`;上游失败会退还额度。助手单次约 600–900 输入 token + ≤400 输出,`@ai` 约 1–1.5k 输入 + ≤300 输出(估算)。
+- **票据**:房间 WebSocket 与实时通话一样用一次性票据(`POST /api/rooms/{id}/ticket`,`ROOMS_TICKET_TTL_SECONDS` 秒),放在查询串 `?ticket=` 里;**不得进入日志**(uvicorn 日志已脱敏,反向代理访问日志需自己处理,见「实时通话的部署注意」)。
+- **反向代理**:必须放行 `/api/rooms/ws` 的 WebSocket 升级,配置与 `/api/realtime` 相同(`Upgrade`/`Connection` 头、读超时 ≥ 660s;客户端每 25 s 发 `ping`)。Nginx 可把 `location /api/realtime` 复制一份改成 `location /api/rooms/ws`。
+- **重启**:关停时房间连接以 **1012** 断开,网页端自动重连并按 `last_seq` 补齐消息;重启前未答完的 `@ai` 问题标为「回答中断」。单 worker 限制同实时通话(房间锁、在线状态在进程内)。
+- **已知局限**:晋级赛发音分由讯飞以**识别文本为参考**评分(没有标准答案,偏宽松);真人代考无法杜绝(只收语音、限时、按轮上传,但不做身份核验);私聊助手的内容(`lane=private`)对用户只投递给本人,但**管理端可见**;房间号 6 位,靠加入限流(每人 10 次/分钟 + IP 限流)与房主「锁定」防穷举。
 
 ## 成本保护
 

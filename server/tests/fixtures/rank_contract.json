@@ -1,0 +1,61 @@
+{
+  "config": {
+    "enabled": true, "match_available": true,
+    "tiers": [{"key": "bronze", "index": 0, "cefr": "A1", "divisions": 3, "division_rp": 100}],
+    "season": {"id": 1, "starts_on": "2026-11-02", "ends_on": "2026-12-27"}
+  },
+  "me": {
+    "tier": "gold", "tier_index": 2, "division": 1, "rp": 120, "division_rp": 120, "stars": 0,
+    "stage_tasks": [{"key": "assess", "kind": "assess", "done": 20, "target": 20, "min_score": 75, "complete": true}],
+    "promotion": {"state": "eligible", "reason": null, "cooldown_until": null, "attempts_left": 3, "target_tier": "platinum"},
+    "season": {"id": 1, "starts_on": "2026-11-02", "ends_on": "2026-12-27"}, "season_rp": 486,
+    "recent_events": [{"kind": "assessment", "points": 4, "day": "2026-11-09", "created_at": "2026-11-09T09:41:00+00:00"}],
+    "new_achievements": ["streak_7"], "active_match_id": null
+  },
+  "achievements": {
+    "achievements": [{"key": "streak_3", "group": "streak", "icon": "flame", "unlocked_at": "2026-11-05T08:00:00+00:00"}]
+  },
+  "match": {
+    "id": "6f1c2a3e-0000-4000-8000-000000000001", "status": "active", "from_tier": "gold", "to_tier": "platinum",
+    "scenario": {"key": "platinum-return-item", "title_zh": "退换商品", "title_en": "Returning an item",
+                 "brief_zh": "你买的耳机有杂音,去店里要求换货或退款。", "functions": ["explain the problem"]},
+    "turn_limit": 6, "turns": [{"role": "ai", "text": "Hi, welcome back. How can I help you today?"}],
+    "attempt_no": 1, "started_at": "2026-11-09T09:41:00+00:00", "expires_at": "2026-11-09T10:01:00+00:00",
+    "finished_at": null
+  },
+  "turn": {"turn_index": 1, "transcript": "Hi, I bought these headphones last week.", "ai_line": "Oh no, what seems to be the problem?", "done": false},
+  "finish_pass": {
+    "match": {
+      "id": "6f1c2a3e-0000-4000-8000-000000000001", "status": "passed", "from_tier": "gold", "to_tier": "platinum",
+      "scenario": {"key": "platinum-return-item", "title_zh": "退换商品", "title_en": "Returning an item",
+                   "brief_zh": "你买的耳机有杂音,去店里要求换货或退款。", "functions": ["explain the problem"]},
+      "turn_limit": 6, "turns": [{"role": "ai", "text": "Hi, welcome back. How can I help you today?"}],
+      "attempt_no": 1, "started_at": "2026-11-09T09:41:00+00:00", "expires_at": "2026-11-09T10:01:00+00:00",
+      "finished_at": "2026-11-09T09:52:00+00:00"
+    },
+    "verdict": {
+      "passed": true, "total": 74, "threshold": 68,
+      "dimensions": {"task": 3, "accuracy": 3, "range": 2, "interaction": 3, "speech": 81.4},
+      "speech_available": true, "gates_failed": [], "functions_met": ["explain the problem"],
+      "strengths_zh": ["能清楚说明问题"], "improve_zh": ["多用连接词"], "drill_en": "Could I exchange them for a new pair?",
+      "new_tier": "platinum", "cooldown_until": null
+    }
+  },
+  "finish_fail": {
+    "match": {
+      "id": "6f1c2a3e-0000-4000-8000-000000000002", "status": "failed", "from_tier": "gold", "to_tier": "platinum",
+      "scenario": {"key": "platinum-return-item", "title_zh": "退换商品", "title_en": "Returning an item",
+                   "brief_zh": "你买的耳机有杂音,去店里要求换货或退款。", "functions": ["explain the problem"]},
+      "turn_limit": 6, "turns": [{"role": "ai", "text": "Hi, welcome back. How can I help you today?"}],
+      "attempt_no": 2, "started_at": "2026-11-09T09:41:00+00:00", "expires_at": "2026-11-09T10:01:00+00:00",
+      "finished_at": "2026-11-09T09:52:00+00:00"
+    },
+    "verdict": {
+      "passed": false, "total": 61, "threshold": 68,
+      "dimensions": {"task": 1, "accuracy": 2, "range": 2, "interaction": 2, "speech": 70.2},
+      "speech_available": true, "gates_failed": ["task_low"], "functions_met": [],
+      "strengths_zh": ["发音清楚"], "improve_zh": ["先说清楚想要换货还是退款"], "drill_en": "I'd like a refund, please.",
+      "new_tier": null, "cooldown_until": "2026-11-09T10:22:00+00:00"
+    }
+  }
+}

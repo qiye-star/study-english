@@ -50,7 +50,6 @@
 - **P-5** 考官 LLM 失败时本轮不落库,返回 502,客户端重传同一段录音即可(识别与评测会重做,成本可接受)。
 - **P-6** 房间 `@ai` 与助手调用的 LLM 由 `ConnDeps.complete` 注入;测试永远注入假实现,不打 respx。
 - **P-7** 房间系统消息只存模板 key(`joined`/`left`/`kicked`/`topic`/`owner`),网页渲染文案。
-- **P-8**(产品负责人 2026-10-09,spec R-6)房间消息(公共 + 私聊助手)永久保留:`ROOM_MESSAGE_RETENTION_DAYS` 默认 0 = 永久;清扫(M7)只结束 idle/expired 房间并清内存状态,保留期为 0 时 `purge` 是空操作;正数时只删结束超过 N 天的房间的消息与举报(成员、房间行保留)。已结束房间对成员只读可见;离开房间不删除其消息。管理端手动清理工具以后再做(不在本计划)。
 
 ---
 
@@ -172,8 +171,7 @@ Expected: FAIL(`Settings` 无 `rank_enabled`;架构测试报 `module outside the
     rooms_max_owned: int = Field(3, ge=1, le=20)
     rooms_idle_minutes: int = Field(30, ge=5, le=1440)
     rooms_max_hours: int = Field(24, ge=1, le=168)
-    # 0 = 房间消息永久保留(spec 裁定 R-6);正数 = 结束超过 N 天的房间删除消息与举报
-    room_message_retention_days: int = Field(0, ge=0, le=3650)
+    room_message_retention_days: int = Field(0, ge=0, le=3650)  # 0 = 永久保留(产品负责人 2026-10-09)
     rooms_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
     rooms_assist_daily_per_user: int = Field(60, ge=0, le=1000)
     rooms_ai_per_room_hour: int = Field(30, ge=0, le=1000)
@@ -343,7 +341,7 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5. Off unle
 ## What lives here
 - `protocol.py` – WS messages and close codes; mirrored by `web/src/features/rooms/protocol.ts`
 - `codes.py`, `rules.py` – codes, text cleaning, `@ai` parsing, limits (pure)
-- `store.py` – all DB access (create/join/seq/replay/sweep/purge; purge is a no-op while ROOM_MESSAGE_RETENTION_DAYS=0)
+- `store.py` – all DB access (create/join/seq/replay/sweep/purge)
 - `hub.py`, `tickets.py` – connections + broadcast, one-time tickets (in-process, single worker)
 - `assistant.py` – assistant/`@ai` prompts and parsing (pure)
 - `connection.py` – one socket's message handling
@@ -389,7 +387,7 @@ ROOMS_MAX_MEMBERS=8
 ROOMS_MAX_OWNED=3
 ROOMS_IDLE_MINUTES=30
 ROOMS_MAX_HOURS=24
-# 房间消息保留天数:0(默认)= 永久保留;正数 = 房间结束超过 N 天后删除其消息与举报(成员与房间行保留)
+# 房间关闭后消息/成员/举报的保留天数;0 = 永久保留(默认),正数 = 关闭满 N 天后由清扫删除
 ROOM_MESSAGE_RETENTION_DAYS=0
 ROOMS_TICKET_TTL_SECONDS=60
 ROOMS_ASSIST_DAILY_PER_USER=60
@@ -4104,7 +4102,8 @@ class RoomLimits:
     max_owned: int = 3
     idle_minutes: int = 30
     max_hours: int = 24
-    message_retention_days: int = 0  # 0 = keep forever (spec R-6)
+    retention_days: int = 0  # 0 = keep room messages forever; >0 = purge N days after close
+    mine_closed_days: int = 7  # how long closed rooms stay listed in GET /api/rooms/mine
     assist_daily: int = 60
     ai_per_room_hour: int = 30
     ai_global_daily: int = 1000
@@ -4121,7 +4120,7 @@ class RoomLimits:
     def from_settings(cls, s) -> "RoomLimits":
         return cls(max_members=s.rooms_max_members, max_active=s.rooms_max_active, max_owned=s.rooms_max_owned,
                    idle_minutes=s.rooms_idle_minutes, max_hours=s.rooms_max_hours,
-                   message_retention_days=s.room_message_retention_days, assist_daily=s.rooms_assist_daily_per_user,
+                   retention_days=s.room_message_retention_days, assist_daily=s.rooms_assist_daily_per_user,
                    ai_per_room_hour=s.rooms_ai_per_room_hour, ai_global_daily=s.rooms_ai_global_daily)
 ```
 
@@ -4176,7 +4175,7 @@ async def store(app):
         s.add_all([User(id=u, username=n, password_hash="x") for u, n in ((A, "alice"), (B, "bob"), (C, "carol"))])
         await s.commit()
     codes = iter(["482913", "482913", "573920", "684031", "795142"])
-    return RoomStore(app.state.sessionmaker, RoomLimits(max_members=2, max_owned=2, max_active=3), code_gen=lambda: next(codes))
+    return RoomStore(app.state.sessionmaker, RoomLimits(max_members=2, max_owned=2, max_active=3, retention_days=7), code_gen=lambda: next(codes))
 
 
 async def test_create_join_and_errors(store):
@@ -4252,21 +4251,12 @@ async def test_close_frees_code_and_sweep_purge(store):
     idle = await store.create(A, "", NOW - timedelta(hours=1))
     assert await store.sweep(NOW, online={again.id}) == [(idle.id, "idle")]
     await store.append(idle.id, lane="public", sender_kind="user", sender_id=A, kind="text", text="x", now=NOW)
-    # default retention 0 = keep forever (spec R-6): purge never deletes messages
-    assert await store.purge(NOW + timedelta(days=3650)) == 0
-    assert [m.text for m, _ in await store.history(idle.id, A, 100, 50)] == ["x"]
-    assert [r.id for r, _ in await store.mine(A, NOW + timedelta(days=365))].count(idle.id) == 1  # ended room stays readable
+    assert await store.purge(NOW + timedelta(days=8)) >= 1
+    assert await store.history(idle.id, A, 100, 50) == []
 
 
-async def test_purge_only_with_positive_retention(app, store):
-    windowed = RoomStore(app.state.sessionmaker, RoomLimits(message_retention_days=7), code_gen=lambda: "906253")
-    room = await windowed.create(A, "", NOW)
-    await windowed.append(room.id, lane="public", sender_kind="user", sender_id=A, kind="text", text="x", now=NOW)
-    await windowed.close(room.id, "owner", NOW)
-    assert await windowed.purge(NOW + timedelta(days=6)) == 0
-    assert await windowed.purge(NOW + timedelta(days=8)) == 1
-    assert await windowed.history(room.id, A, 100, 50) == []
-    assert len(await windowed.members(room.id)) == 1  # members and the room row are kept
+async def test_purge_is_off_by_default(app):
+    assert await RoomStore(app.state.sessionmaker, RoomLimits()).purge(NOW + timedelta(days=3650)) == 0
 
 
 async def test_fail_pending_ai_and_reports(store, app):
@@ -4303,7 +4293,6 @@ from app.services.stats import as_utc
 CODE_ATTEMPTS = 5
 REPORT_REASONS = ("spam", "abuse", "other")
 AI_NAME = "AI 助手"
-MINE_CLOSED_LIMIT = 50  # ended rooms listed in /api/rooms/mine (read-only history, spec R-6)
 
 
 class RoomError(Exception):
@@ -4551,14 +4540,12 @@ class RoomStore:
         return list(reversed(rows))
 
     async def mine(self, user_id: int, now: datetime) -> list[tuple[Room, str]]:
-        """Open rooms plus the 50 most recently ended ones (read-only history; messages are kept, spec R-6)."""
+        since = now - timedelta(days=self.limits.mine_closed_days)
         async with self._sm() as s:
-            base = select(Room, RoomMember.role).join(RoomMember, RoomMember.room_id == Room.id).where(
-                RoomMember.user_id == user_id, *_ACTIVE)
-            open_rows = (await s.execute(base.where(Room.status == "open").order_by(Room.last_active_at.desc()))).all()
-            closed_rows = (await s.execute(base.where(Room.status == "closed")
-                                           .order_by(Room.closed_at.desc()).limit(MINE_CLOSED_LIMIT))).all()
-        return [(r, role) for r, role in [*open_rows, *closed_rows]]
+            rows = (await s.execute(select(Room, RoomMember.role).join(RoomMember, RoomMember.room_id == Room.id).where(
+                RoomMember.user_id == user_id, *_ACTIVE, or_(Room.status == "open", Room.closed_at >= since))
+                .order_by(Room.status.desc(), Room.last_active_at.desc()))).all()
+        return [(r, role) for r, role in rows]
 
     async def sweep(self, now: datetime, online: set[str]) -> list[tuple[str, str]]:
         closed: list[tuple[str, str]] = []
@@ -4576,18 +4563,17 @@ class RoomStore:
         return closed
 
     async def purge(self, now: datetime) -> int:
-        """Deletes messages (and reports) of rooms ended more than N days ago, only when
-        ROOM_MESSAGE_RETENTION_DAYS = N > 0. With the default 0 messages are kept forever (spec R-6)
-        and this never touches the database. Members and the room row are always kept."""
-        if self.limits.message_retention_days <= 0:
+        if self.limits.retention_days <= 0:  # default: keep forever
             return 0
-        cutoff = now - timedelta(days=self.limits.message_retention_days)
+        cutoff = now - timedelta(days=self.limits.retention_days)
         async with self._sm() as s:
             ids = list((await s.scalars(select(Room.id).where(Room.status == "closed", Room.closed_at <= cutoff))).all())
             if not ids:
                 return 0
             result = await s.execute(delete(RoomMessage).where(RoomMessage.room_id.in_(ids)))
+            await s.execute(delete(RoomMember).where(RoomMember.room_id.in_(ids)))
             await s.execute(delete(RoomReport).where(RoomReport.room_id.in_(ids)))
+            await s.execute(update(Room).where(Room.id.in_(ids)).values(topic=""))
             await s.commit()
             return result.rowcount or 0
 
@@ -4623,7 +4609,7 @@ git commit -m "feat(server): room store (codes, membership, seq, replay, sweep, 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-**Acceptance:** 撞号重试;容量/拥有上限;锁定/已满/被移出;房主转移;seq 连续;补发只含本人私聊且超量时取最新 200 条;关闭即释放号码;清扫 idle/expired 且只清内存状态;保留期为 0(默认)时 purge 绝不删除消息,正数时只删结束超过 N 天的房间的消息与举报;已结束房间对成员只读可见;启动时 pending → failed;举报去重。
+**Acceptance:** 撞号重试;容量/拥有上限;锁定/已满/被移出;房主转移;seq 连续;补发只含本人私聊且超量时取最新 200 条;关闭即释放号码;清扫 idle/expired;7 天后清理;启动时 pending → failed;举报去重。
 
 ---
 
@@ -6169,8 +6155,7 @@ async def sweep_once(rt: RoomsRuntime, now) -> list[tuple[str, str]]:
     closed = await rt.store.sweep(now, rt.hub.active_rooms())
     for room_id, reason in closed:
         await rt.hub.broadcast(room_id, event("closed", reason=reason))
-        await rt.hub.close_room(room_id, CLOSE_NOT_FOUND)  # ends the room and drops its in-memory state only
-    # Messages are kept forever by default (spec R-6): purge is a no-op unless ROOM_MESSAGE_RETENTION_DAYS > 0.
+        await rt.hub.close_room(room_id, CLOSE_NOT_FOUND)
     await rt.store.purge(now)
     return closed
 
@@ -9479,7 +9464,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | §5.6 审核与限流 | M1、M5、M6 |
 | §5.7 断线重连 | M7、WM3 |
 | §5.8 重启行为 | M7(`rooms_startup` / `rooms_shutdown`) |
-| §5.9 隐私与保留(R-6 消息永久保留) | S1(`ROOM_MESSAGE_RETENTION_DAYS=0`)、M2(`purge` 保留期为 0 时空操作、`mine` 列出已结束房间)、M7(清扫不删消息)、F1(README) |
+| §5.9 隐私与保留 | M2(`purge`)、F1(README) |
 | §6 数据模型 | S2 |
 | §7 API 与 WS | S1、S4、R7、M6、M7、WM1 |
 | §8 模块位置与分层 | S1(架构测试、CLAUDE.md) |

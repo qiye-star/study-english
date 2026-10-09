@@ -14,6 +14,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import type { Tone } from "~/components/tone";
 import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
+import { RankCard } from "~/features/rank";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -157,6 +158,8 @@ export function MePage() {
               value={stats.avgPronunciation === null ? "—" : oneDecimal(stats.avgPronunciation)} />
           </div>
         )}
+
+        <RankCard className="mt-4" />
 
         <SectionGroup title={t("web.me.groups.learning")}>
           <ListRow icon={<IconChip tone="blue" icon={BarChart3Icon} />} title={t("web.me.progress")} to="/progress" testId="me-progress"

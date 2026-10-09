@@ -1,0 +1,10 @@
+[
+  {"text": "@ai what does 'break the ice' mean?", "ai": true, "question": "what does 'break the ice' mean?"},
+  {"text": "@AI: how do I say 巧克力", "ai": true, "question": "how do I say 巧克力"},
+  {"text": "@助手 这句话对吗 I goes home", "ai": true, "question": "这句话对吗 I goes home"},
+  {"text": "@ai", "ai": false, "question": ""},
+  {"text": "@aide is a French word", "ai": false, "question": ""},
+  {"text": "hey @ai are you there", "ai": false, "question": ""},
+  {"text": "  @ai   spaces are trimmed  ", "ai": true, "question": "spaces are trimmed"},
+  {"text": "I like chocolate", "ai": false, "question": ""}
+]

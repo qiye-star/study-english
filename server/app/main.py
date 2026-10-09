@@ -14,7 +14,7 @@ from app.core.bodylimit import BodyLimitMiddleware
 from app.core.ratelimit import RateLimiter
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, realtime, sessions, speech, stats, stubs, vocabulary, web,
+    admin, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, rank, realtime, rooms, sessions, speech, stats, stubs, vocabulary, web,
 )
 
 
@@ -36,7 +36,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI):
+        await rooms.rooms_startup(app_)
         yield
+        await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await http.aclose()
         await engine.dispose()
@@ -60,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         health, sessions, grammar_prompt, config_api, speech, conversations, assessments,
-        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, admin, stubs, admin_web, web,
+        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, admin, stubs, admin_web, web,
     ):
         app.include_router(module.router)
     return app

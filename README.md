@@ -50,6 +50,14 @@ Enjoy 浏览器插件已经上线，支持 YouTube 和 Netflix。可访问 [Chro
 
 手机端录音与「添加到主屏幕」必须通过 HTTPS 访问(反向代理或隧道指向 127.0.0.1:8000),部署、数据与上限见 [server/README.md](./server/README.md)「手机网页版」,开发与测试见 [web/README.md](./web/README.md)。
 
+段位赛与联机练习默认关闭,开启时在 `server/.env` 中设置(改后 `docker compose up -d` 重启):
+
+    RANK_ENABLED=true                # 段位、阶段练习、成就与晋级赛(练习页与「我的」出现段位卡)
+    ROOMS_ENABLED=true               # 联机房间(底部导航从 3 个标签变为 4 个);反向代理需放行 WS /api/rooms/ws
+    ROOM_MESSAGE_RETENTION_DAYS=0    # 0 = 房间消息永久保留(默认);正数 = 房间关闭满 N 天后删除
+
+两个开关关闭时应用与原来完全一样。其余上限与成本见 [server/README.md](./server/README.md)「段位赛与联机练习」。
+
 
 ## 相关阅读
 

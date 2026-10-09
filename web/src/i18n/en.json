@@ -1,8 +1,8 @@
 {
   "web": {
     "appName": "Enjoy English Practice",
-    "common": { "loading": "Loading…", "retry": "Retry", "cancel": "Cancel", "delete": "Delete", "loadMore": "Load more", "back": "Back" },
-    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "me": "Me" },
+    "common": { "loading": "Loading…", "retry": "Retry", "cancel": "Cancel", "delete": "Delete", "loadMore": "Load more", "back": "Back", "loadFailed": "Could not load" },
+    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "rooms": "Rooms", "me": "Me" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
       "username": "Username", "password": "Password", "submit": "Log in", "registerSubmit": "Create account",
