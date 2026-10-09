@@ -15,16 +15,7 @@
       },
       "create": {
         "title": "Create a room",
-        "topic": "Topic (optional)",
-        "submit": "Create",
-        "topics": {
-          "travel": "Travel",
-          "food": "Food",
-          "movies": "Movies",
-          "work": "Work",
-          "campus": "Campus",
-          "free": "Free talk"
-        }
+        "submit": "Create"
       },
       "room": {
         "title": "Room",
@@ -62,7 +53,8 @@
           "left": "{{name}} left",
           "kicked": "{{name}} was removed",
           "topic": "Topic changed to “{{topic}}”",
-          "owner": "{{name}} is now the owner"
+          "owner": "{{name}} is now the owner",
+          "settings": "The owner changed the room settings"
         },
         "askAssist": "Ask assistant",
         "backToGroup": "Send to the room instead",
@@ -82,9 +74,6 @@
       },
       "settings": {
         "title": "Members & settings",
-        "topic": "Topic",
-        "save": "Save",
-        "saved": "Saved",
         "locked": "Lock room (no new members)",
         "aiPublic": "Public @ai answers",
         "members": "Members",

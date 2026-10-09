@@ -1,0 +1,74 @@
+{
+  "web": {
+    "rooms": {
+      "v2": {
+        "errors": {
+          "invalidSettings": "设置不符合要求,请检查后再试",
+          "belowMembers": "人数上限不能低于当前成员数",
+          "tryLater": "房主刚拒绝过你的申请,过一会儿再试",
+          "tooManyRequests": "这个房间待处理的申请太多了,稍后再试",
+          "requestNotFound": "申请不存在或已失效"
+        },
+        "create": {
+          "defaultName": "{{name}}的房间",
+          "name": "房间名",
+          "nameCount": "{{count}}/{{max}}",
+          "scenario": "场景",
+          "scenarioHint": "影响助手和 @ai",
+          "level": "目标水平",
+          "levelHint": "影响助手的难度",
+          "joinMode": "加入方式",
+          "joinCode": "凭房间号",
+          "joinApproval": "需房主同意",
+          "joinCodeHint": "知道房间号的人都能直接加入。",
+          "joinApprovalHint": "输入房间号后要等房主同意;邀请链接可以直接加入。",
+          "maxMembers": "人数上限",
+          "fewer": "减少人数上限",
+          "more": "增加人数上限",
+          "aiPublic": "AI 公开回答",
+          "aiPublicHint": "@ai 的回答所有人可见",
+          "allowVoice": "允许语音消息",
+          "allowVoiceHint": "按住说话发语音,文字全员共享"
+        },
+        "settings": {
+          "group": "房间设置",
+          "requests": "加入请求",
+          "requestsEmpty": "没有待处理的加入请求"
+        },
+        "requests": {
+          "one": "{{name}} 想加入",
+          "many": "{{name}} 等 {{count}} 人想加入",
+          "view": "查看",
+          "hide": "收起",
+          "approve": "同意",
+          "deny": "拒绝",
+          "approveName": "同意 {{name}} 加入",
+          "denyName": "拒绝 {{name}} 加入"
+        },
+        "lobby": {
+          "pending": "已申请加入「{{name}}」,等待房主同意",
+          "cancel": "撤回",
+          "denied": "房主没有同意",
+          "expired": "申请已过期,可以再试一次",
+          "dismiss": "知道了"
+        },
+        "system": {
+          "summary": "房主{{changes}}",
+          "separator": ",",
+          "name": "把房间名改为「{{value}}」",
+          "scenario": "把场景改为「{{value}}」",
+          "level": "把目标水平改为 {{value}}",
+          "join_mode_code": "改为凭房间号加入",
+          "join_mode_approval": "改为需房主同意才能加入",
+          "max_members": "把人数上限改为 {{value}}",
+          "ai_public_on": "开启了 AI 公开回答",
+          "ai_public_off": "关闭了 AI 公开回答",
+          "allow_voice_on": "允许了语音消息",
+          "allow_voice_off": "关闭了语音消息",
+          "locked_on": "锁定了房间",
+          "locked_off": "解除了房间锁定"
+        }
+      }
+    }
+  }
+}
