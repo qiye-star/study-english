@@ -21,6 +21,7 @@ from app.rooms.store import RoomStore, message_out, room_out
 
 logger = logging.getLogger(__name__)
 GLOBAL = "*"
+ACTIVITY_REPEAT = 3.0  # seconds: the same state is re-broadcast at most this often (spec 2026-10-10 §6.5)
 
 
 class VoiceHandler(Protocol):
@@ -125,10 +126,32 @@ class RoomConnection:
                 await self.deps.voice.on_retry(self, msg.seq)
 
     async def on_typing(self, msg: TypingMsg) -> None:
-        """Plan P2-3: accepted and ignored until SC4 (activity broadcast to the others)."""
+        """Typing / recording / idle to the other members only; throttled per connection, never stored. A state is
+        re-broadcast when it changes or after ACTIVITY_REPEAT seconds (spec 2026-10-10 §6.5)."""
+        d = self.deps
+        now = d.clock_mono()
+        if not d.hub.activity_allow(self.conn, now, d.limits.typing_interval):
+            return
+        key = (self.room_id, self.user_id)
+        last = d.hub.last_activity.get(key)
+        if (last is None and msg.state == "idle") or (
+                last is not None and last[0] == msg.state and now - last[1] < ACTIVITY_REPEAT):
+            return
+        d.hub.last_activity[key] = (msg.state, now)
+        await d.hub.broadcast(self.room_id, event("activity", user_id=self.user_id, state=msg.state),
+                              exclude_user=self.user_id)
 
     async def on_react(self, msg: ReactMsg) -> None:
-        """Plan P2-3: accepted and ignored until SC4 (toggle + reaction broadcast)."""
+        """Toggle one reaction; everyone gets the key's full user list (idempotent, spec 2026-10-10 §6.4)."""
+        d = self.deps
+        if d.react_limiter is not None and not d.react_limiter.allow(f"{self.room_id}:{self.user_id}"):
+            await self._send(event("error", code="rate_limited"))
+            return
+        users = await d.store.toggle_reaction(self.room_id, msg.seq, self.user_id, msg.key, msg.on, d.clock())
+        if users is None:
+            await self._send(event("error", code="bad_seq"))
+            return
+        await d.hub.broadcast(self.room_id, event("reaction", seq=msg.seq, key=msg.key, user_ids=users))
 
     async def on_say(self, msg: SayMsg) -> None:
         d = self.deps
@@ -146,6 +169,12 @@ class RoomConnection:
         if not d.say_limiter.allow(f"{self.room_id}:{self.user_id}"):
             await self._send(event("error", code="rate_limited"))
             return
+        quote = None
+        if msg.reply_to is not None:  # a reply stores a snapshot of the quoted message (spec 2026-10-10 §6.4)
+            quote = await d.store.quote_for(self.room_id, msg.reply_to)
+            if quote is None:
+                await self._send(event("error", code="bad_reply"))
+                return
         if msg.assist_id is not None:  # each assist reply marks exactly one send as assisted
             async with d.hub.lock(self.room_id):
                 claimed = await d.store.claim_assist(msg.assist_id, self.user_id, self.room_id)
@@ -158,7 +187,8 @@ class RoomConnection:
             async with d.hub.lock(self.room_id):
                 m = await d.store.append(self.room_id, lane="public", sender_kind="user", sender_id=self.user_id,
                                          kind="text", text=text, now=now, assisted=msg.assist_id is not None,
-                                         ai_status="pending" if ask else None, client_id=msg.client_id)
+                                         ai_status="pending" if ask else None, client_id=msg.client_id,
+                                         reply_to=msg.reply_to, meta={"quote": quote} if quote else None)
         except BaseException:
             if ask:  # the question was never stored: release its queue slot and quota
                 d.hub.ai_leave(self.room_id)

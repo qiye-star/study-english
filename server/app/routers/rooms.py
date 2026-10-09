@@ -67,6 +67,7 @@ class RoomsRuntime:
     assist_limiter: RateLimiter
     sweeper: asyncio.Task | None = None
     ai_concurrency: int = 0
+    react_limiter: RateLimiter | None = None  # rooms v2: 30 reactions/minute per room:user
     # ---- rooms v2 extension points (plan P2-1); filled by app.state.rooms_extensions ----
     voice: object | None = None  # connection.VoiceHandler (lane SV)
     close_listeners: list["CloseListener"] = field(default_factory=list)
@@ -84,6 +85,8 @@ class RoomsRuntime:
         self.ai_user_limiter.limit = limits.ai_per_user_10min
         self.join_limiter.limit = limits.join_per_minute
         self.assist_limiter.limit = limits.assist_per_minute
+        if self.react_limiter is not None:
+            self.react_limiter.limit = limits.react_per_minute
         self.tickets.set_ttl(settings.rooms_ticket_ttl_seconds)
         if settings.rooms_ai_concurrency != self.ai_concurrency:  # calls already holding the old gate finish on it
             self.ai_gate = asyncio.Semaphore(settings.rooms_ai_concurrency)
@@ -122,7 +125,8 @@ def runtime(app) -> RoomsRuntime:
             ai_room_limiter=RateLimiter(limits.ai_per_room_hour, 3600),
             ai_user_limiter=RateLimiter(limits.ai_per_user_10min, 600),
             join_limiter=RateLimiter(limits.join_per_minute, 60),
-            assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency)
+            assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency,
+            react_limiter=RateLimiter(limits.react_per_minute, 60))
         rt.app = app
         rt.sweep_listeners.append(_expire_requests)
         app.state.rooms = rt
@@ -161,7 +165,7 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
 
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
                     rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
-                    assist_daily_for, templates, voice=rt.voice)
+                    assist_daily_for, templates, voice=rt.voice, react_limiter=rt.react_limiter)
 
 
 async def after_close(rt: RoomsRuntime, room_id: str, reason: str) -> None:
@@ -661,6 +665,7 @@ async def rooms_ws(websocket: WebSocket, ticket: str = ""):
     finally:
         rt.hub.detach(room.id, conn)
         rt.hub.spawn(_presence_quietly(rt, room.id))
+        rt.hub.spawn(_activity_idle(rt, room.id, grant.user_id))
 
 
 async def _still_member(rt: RoomsRuntime, room_id: str, user_id: int) -> bool:
@@ -669,6 +674,19 @@ async def _still_member(rt: RoomsRuntime, room_id: str, user_id: int) -> bool:
     except RoomError:
         return False
     return room.status == "open"
+
+
+async def _activity_idle(rt: RoomsRuntime, room_id: str, user_id: int) -> None:
+    """The user's last socket in the room closed while typing/recording: tell the others `idle` on their behalf."""
+    if user_id in rt.hub.online(room_id):
+        return
+    last = rt.hub.last_activity.pop((room_id, user_id), None)
+    if last is None or last[0] == "idle":
+        return
+    try:
+        await rt.hub.broadcast(room_id, event("activity", user_id=user_id, state="idle"))
+    except Exception as e:
+        logger.info("rooms activity idle failed error=%s", type(e).__name__)
 
 
 async def _presence_quietly(rt: RoomsRuntime, room_id: str) -> None:

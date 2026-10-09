@@ -24,6 +24,8 @@ CODE_ATTEMPTS = 5
 INVITE_ATTEMPTS = 3
 REPORT_REASONS = ("spam", "abuse", "other")
 AI_NAME = "AI 助手"
+QUOTE_MAX = 80  # code points kept in a quote snapshot (spec 2026-10-10 §6.4)
+QUOTABLE = ("text", "voice", "ai_answer")  # also the kinds that take reactions
 IN_CHUNK = 500  # bound for IN (...) lists (same as services/chat_recordings.py)
 
 
@@ -646,6 +648,46 @@ class RoomStore:
                                                       RoomMessage.hidden_at.is_(None))
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
         return [(AI_NAME if m.sender_kind == "ai" else (n or ""), m.text) for m, n in reversed(rows)]
+
+    async def quote_for(self, room_id: str, seq: int) -> dict | None:
+        """Snapshot for `meta.quote` of a reply: public, not hidden, member text / voice / @ai answer only.
+        A voice message quotes its transcript ("" until there is one)."""
+        async with self._sm() as s:
+            row = (await s.execute(self._select().where(
+                RoomMessage.room_id == room_id, RoomMessage.seq == seq, RoomMessage.lane == "public",
+                RoomMessage.hidden_at.is_(None), RoomMessage.kind.in_(QUOTABLE)))).first()
+            if row is None:
+                return None
+            m, name = row
+            text = m.text or ""
+            if m.kind == "voice":
+                text = await s.scalar(select(RoomVoice.transcript).where(RoomVoice.message_id == m.id)) or ""
+        return {"seq": m.seq, "name": AI_NAME if m.sender_kind == "ai" else (name or ""), "kind": m.kind,
+                "text": text[:QUOTE_MAX]}
+
+    async def toggle_reaction(self, room_id: str, seq: int, user_id: int, key: str, on: bool,
+                              now: datetime) -> list[int] | None:
+        """Set or clear one user's reaction; returns the key's full user list (idempotent). None when the seq is
+        not a public, visible text / voice / @ai answer of this room."""
+        async with self._sm() as s:
+            message_id = await s.scalar(select(RoomMessage.id).where(
+                RoomMessage.room_id == room_id, RoomMessage.seq == seq, RoomMessage.lane == "public",
+                RoomMessage.hidden_at.is_(None), RoomMessage.kind.in_(QUOTABLE)))
+            if message_id is None:
+                return None
+            mine = (RoomReaction.message_id == message_id, RoomReaction.user_id == user_id, RoomReaction.key == key)
+            if on and await s.scalar(select(RoomReaction.id).where(*mine)) is None:
+                s.add(RoomReaction(room_id=room_id, message_id=message_id, seq=seq, user_id=user_id, key=key,
+                                   created_at=now))
+            elif not on:
+                await s.execute(delete(RoomReaction).where(*mine))
+            try:
+                await s.commit()
+            except IntegrityError:  # the same toggle raced in from another socket
+                await s.rollback()
+            return list((await s.scalars(select(RoomReaction.user_id).where(
+                RoomReaction.message_id == message_id, RoomReaction.key == key)
+                .order_by(RoomReaction.created_at, RoomReaction.id))).all())
 
     async def _attach(self, rows: list[tuple[RoomMessage, str | None]]) -> list[dict]:
         """v2 member view of `rows`: voice rows and reactions loaded in batches (public lane only)."""

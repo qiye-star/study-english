@@ -36,6 +36,9 @@ class RoomHub:
         self._ai_locks: dict[str, asyncio.Lock] = {}
         self._ai_pending: dict[str, int] = {}
         self.assist_inflight: set[int] = set()  # user ids with a private assist call running (any room)
+        # Typing/recording activity (spec 2026-10-10 §6.5): never stored, never replayed.
+        self.last_activity: dict[tuple[str, int], tuple[str, float]] = {}  # (room, user) -> (state, monotonic)
+        self._activity_seen: dict[Conn, float] = {}  # per-connection throttle: last processed frame
         self.tasks: set[asyncio.Task] = set()
 
     def lock(self, room_id: str) -> asyncio.Lock:
@@ -57,10 +60,20 @@ class RoomHub:
         else:
             self._ai_pending.pop(room_id, None)
 
+    def activity_allow(self, conn: Conn, now_mono: float, interval: float) -> bool:
+        """At most one typing frame per connection per `interval` seconds; the rest are dropped silently."""
+        last = self._activity_seen.get(conn)
+        if last is not None and now_mono - last < interval:
+            return False
+        self._activity_seen[conn] = now_mono
+        return True
+
     def forget(self, room_id: str) -> None:
         """Drop per-room memory (locks, AI counters) of a closed room with no connections left."""
         if room_id in self._rooms:
             return
+        for key in [k for k in self.last_activity if k[0] == room_id]:
+            del self.last_activity[key]
         lock, ai_lock = self._locks.get(room_id), self._ai_locks.get(room_id)
         if (lock is None or not lock.locked()) and (ai_lock is None or not ai_lock.locked()):
             self._locks.pop(room_id, None)
@@ -77,6 +90,7 @@ class RoomHub:
         return True
 
     def detach(self, room_id: str, conn: Conn) -> None:
+        self._activity_seen.pop(conn, None)
         conns = self._rooms.get(room_id)
         if conns and conn in conns:
             conns.remove(conn)
@@ -110,8 +124,10 @@ class RoomHub:
         except Exception:
             pass
 
-    async def broadcast(self, room_id: str, event: dict, *, only_user: int | None = None) -> None:
-        targets = [c for c in self._rooms.get(room_id, ()) if only_user is None or c.user_id == only_user]
+    async def broadcast(self, room_id: str, event: dict, *, only_user: int | None = None,
+                        exclude_user: int | None = None) -> None:
+        targets = [c for c in self._rooms.get(room_id, ())
+                   if (only_user is None or c.user_id == only_user) and c.user_id != exclude_user]
         if len(targets) == 1:
             await self.send(room_id, targets[0], event)
         elif targets:
