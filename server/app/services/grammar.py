@@ -55,6 +55,17 @@ def load_grammar_rules(settings: Settings) -> str:
     return env_rules or DEFAULT_GRAMMAR_RULES
 
 
+def resolve_rules(settings: Settings, published: str | None) -> str:
+    """已发布的 `grammar.rules` 提示词版本(管理后台 §11)> 环境/内置规则。
+
+    只替换"检查规则";输出契约由 build_system_prompt 固定追加,任何版本都去不掉。已发布正文无效(空或超长)时回落。"""
+    if published is not None:
+        text = clean_prompt(published)
+        if text and len(text) <= MAX_PROMPT_CHARS:
+            return text
+    return load_grammar_rules(settings)
+
+
 def _checked(text: str, source: str) -> str:
     """清洗后超过 MAX_PROMPT_CHARS 视为配置错误,启动失败;消息只含来源与上限,不含提示词内容。"""
     text = clean_prompt(text)
