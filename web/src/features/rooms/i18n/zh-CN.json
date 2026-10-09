@@ -17,7 +17,14 @@
         "title": "创建房间",
         "topic": "话题(可选)",
         "submit": "创建",
-        "topics": { "travel": "旅行", "food": "美食", "movies": "电影", "work": "工作", "campus": "校园", "free": "自由聊" }
+        "topics": {
+          "travel": "旅行",
+          "food": "美食",
+          "movies": "电影",
+          "work": "工作",
+          "campus": "校园",
+          "free": "自由聊"
+        }
       },
       "room": {
         "title": "房间",
@@ -27,6 +34,7 @@
         "ended": "已结束 · 只读",
         "placeholder": "说点什么,或 @ai 提问",
         "send": "发送",
+        "dismiss": "知道了",
         "assisted": "助手润色",
         "aiName": "AI 助手",
         "aiTyping": "AI 助手正在输入…",
@@ -41,7 +49,11 @@
         "report": "举报",
         "reported": "已举报",
         "reportTitle": "举报这条消息",
-        "reportReasons": { "spam": "垃圾信息", "abuse": "骚扰或辱骂", "other": "其他" },
+        "reportReasons": {
+          "spam": "垃圾信息",
+          "abuse": "骚扰或辱骂",
+          "other": "其他"
+        },
         "system": {
           "joined": "{{name}} 加入了房间",
           "left": "{{name}} 离开了房间",

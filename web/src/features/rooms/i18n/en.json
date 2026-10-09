@@ -17,7 +17,14 @@
         "title": "Create a room",
         "topic": "Topic (optional)",
         "submit": "Create",
-        "topics": { "travel": "Travel", "food": "Food", "movies": "Movies", "work": "Work", "campus": "Campus", "free": "Free talk" }
+        "topics": {
+          "travel": "Travel",
+          "food": "Food",
+          "movies": "Movies",
+          "work": "Work",
+          "campus": "Campus",
+          "free": "Free talk"
+        }
       },
       "room": {
         "title": "Room",
@@ -27,6 +34,7 @@
         "ended": "Ended · read only",
         "placeholder": "Say something, or ask @ai",
         "send": "Send",
+        "dismiss": "Dismiss",
         "assisted": "Polished with assistant",
         "aiName": "AI assistant",
         "aiTyping": "AI assistant is typing…",
@@ -41,7 +49,11 @@
         "report": "Report",
         "reported": "Reported",
         "reportTitle": "Report this message",
-        "reportReasons": { "spam": "Spam", "abuse": "Harassment or abuse", "other": "Other" },
+        "reportReasons": {
+          "spam": "Spam",
+          "abuse": "Harassment or abuse",
+          "other": "Other"
+        },
         "system": {
           "joined": "{{name}} joined",
           "left": "{{name}} left",
