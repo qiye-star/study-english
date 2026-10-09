@@ -1,5 +1,7 @@
+import asyncio
 import secrets
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI
@@ -12,6 +14,9 @@ from app.services.grammar import load_grammar_rules
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.ratelimit import RateLimiter
+from app.core.runtime_settings import (
+    SettingsHub, reload_from_db, run_startup_hooks, runtime_problems, watch_revisions,
+)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_web, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, rank, realtime, rooms, sessions, speech, stats, stubs, vocabulary, web,
@@ -21,13 +26,9 @@ from app.routers import (
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level)
-    if settings.registration_mode == "invite" and not settings.invite_code:
-        raise RuntimeError("REGISTRATION_MODE=invite requires INVITE_CODE")
-    if settings.default_llm_model not in settings.llm_model_list:
-        raise RuntimeError("DEFAULT_LLM_MODEL must be one of LLM_MODELS")
-
-    if settings.admin_enabled and len(settings.admin_password) < 12:
-        raise RuntimeError("ADMIN_PASSWORD must be at least 12 characters")
+    # The same checks guard every admin settings save, so a saved configuration can always start.
+    for problem in runtime_problems(settings):
+        raise RuntimeError(problem)
 
     grammar_rules = load_grammar_rules(settings)
 
@@ -36,15 +37,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI):
+        await reload_from_db(app_, startup=True)  # DB overrides on top of env (admin v2 §3.6)
+        await run_startup_hooks(app_)
         await rooms.rooms_startup(app_)
+        watcher = asyncio.create_task(watch_revisions(app_))
         yield
+        watcher.cancel()
+        with suppress(asyncio.CancelledError):
+            await watcher
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await http.aclose()
         await engine.dispose()
 
     app = FastAPI(title="enjoy-server", lifespan=lifespan)
+    app.state.base_settings = settings  # env only; app.state.settings = base + DB overrides
     app.state.settings = settings
+    app.state.started_at = datetime.now(timezone.utc)
     app.state.admin_secret = (settings.admin_session_secret or secrets.token_hex(32)).encode()
     app.state.grammar_rules = grammar_rules
     app.state.engine = engine
@@ -55,6 +64,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
+    app.state.settings_hub = hub = SettingsHub(app.state)
+    register_core_listeners(app, hub)
     app.add_middleware(BodyLimitMiddleware)
 
     install_error_handlers(app)
@@ -66,3 +77,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         app.include_router(module.router)
     return app
+
+
+def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
+    """Push hot-reloaded settings into objects that baked a value in at startup (admin v2 §3.6)."""
+    state = app.state
+
+    def grammar_prepare(new: Settings) -> None:
+        load_grammar_rules(new)  # raises RuntimeError with a value-free message
+
+    def grammar_apply(old: Settings, new: Settings) -> None:
+        if not getattr(state, "grammar_rules_pinned", False):  # set by the prompts lane (G1)
+            state.grammar_rules = load_grammar_rules(new)
+
+    def drop(*names: str):
+        def apply(old: Settings, new: Settings) -> None:
+            for name in names:
+                if hasattr(state, name):
+                    delattr(state, name)  # rebuilt lazily from the new settings (services/provider_clients.py)
+        return apply
+
+    hub.subscribe("logging", lambda o, n: configure_logging(n.log_level), keys={"log_level"})
+    hub.subscribe("limiter", lambda o, n: setattr(state.limiter, "limit", n.rate_limit_per_minute),
+                  keys={"rate_limit_per_minute"})
+    hub.subscribe("user_limiter", lambda o, n: setattr(state.user_limiter, "limit", n.ai_rate_limit_per_minute),
+                  keys={"ai_rate_limit_per_minute"})
+    hub.subscribe("realtime_tickets", lambda o, n: state.realtime_tickets.set_ttl(n.realtime_ticket_ttl_seconds),
+                  keys={"realtime_ticket_ttl_seconds"})
+    hub.subscribe("realtime_registry", lambda o, n: state.realtime_registry.set_max(n.realtime_max_sessions),
+                  keys={"realtime_max_sessions"})
+    hub.subscribe("azure", drop("azure"), keys={"azure_speech_key", "azure_speech_region"})
+    hub.subscribe("xfyun", drop("xfyun"), keys={"xfyun_app_id", "xfyun_api_key", "xfyun_api_secret", "xfyun_ws_url"})
+    hub.subscribe("grammar_rules", grammar_apply, keys={"grammar_prompt"}, prepare=grammar_prepare)

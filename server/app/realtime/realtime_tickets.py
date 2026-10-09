@@ -51,6 +51,10 @@ class TicketStore:
     def __len__(self) -> int:
         return len(self._items)
 
+    def set_ttl(self, seconds: float) -> None:
+        """Hot reload (admin v2 §3.6): only tickets issued from now on get the new lifetime."""
+        self._ttl = seconds
+
 
 class RealtimeRegistry:
     def __init__(self, max_sessions: int):
@@ -69,6 +73,10 @@ class RealtimeRegistry:
 
     def release(self, user_id: int) -> None:
         self._users.discard(user_id)
+
+    def set_max(self, n: int) -> None:
+        """Hot reload (admin v2 §3.6): affects later `acquire` calls; calls already running are never dropped."""
+        self._max = n
 
     @contextmanager
     def hold(self, user_id: int) -> Iterator[bool]:
