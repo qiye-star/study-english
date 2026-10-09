@@ -354,3 +354,32 @@ async def test_grading_failed_is_capped_and_expires(eligible):
         with pytest.raises(m.MatchError) as e:
             await m.finish_match(s, Fakes().deps(), match, profile, late, SETTINGS)
         assert e.value.code == "expired" and match.status == "expired"
+
+
+async def test_per_user_override_of_daily_attempts_is_enforced_by_start_match(eligible):
+    """Integration (lane D quota override × lane C rank): user_quota_overrides.rank_match_daily_attempts wins over
+    the site-wide setting in start_match itself, and an expired override no longer counts."""
+    from app.models import UserQuotaOverride
+
+    settings = make_settings(rank_enabled=True, rank_match_daily_attempts=1, rank_match_cooldown_minutes=0)
+    async with eligible.state.sessionmaker() as s:
+        s.add(UserQuotaOverride(user_id=UID, key="rank_match_daily_attempts", value=2, updated_by="ops"))
+        await s.commit()
+        for _ in range(2):
+            match = await m.start_match(s, UID, NOW, settings=settings, offset_minutes=0, rng=random.Random(0))
+            await s.commit()
+            profile = await s.get(RankProfile, UID)
+            await m.abandon_match(s, match, profile, NOW, settings)
+            profile.tier, profile.division, profile.rp, profile.cooldown_until = 2, 1, 120, None  # back at the gate
+            await s.commit()
+        assert (await m.ledger.promotion_for(s, profile, NOW, settings)).attempts_left == 0
+        with pytest.raises(m.MatchError) as e:
+            await m.start_match(s, UID, NOW, settings=settings, offset_minutes=0, rng=random.Random(0))
+        assert e.value.code == "no_attempts"
+        row = await s.get(UserQuotaOverride, (UID, "rank_match_daily_attempts"))
+        row.value, row.expires_at = 5, NOW - timedelta(minutes=1)  # expired: back to the site-wide 1 (already used)
+        await s.commit()
+        assert await m.ledger.daily_attempts(s, UID, NOW, settings) == 1
+        row.expires_at = None
+        await s.commit()
+        assert (await m.ledger.promotion_for(s, profile, NOW, settings)).attempts_left == 3
