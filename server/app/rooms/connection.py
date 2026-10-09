@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
 
+from app.core import metering
 from app.core.ratelimit import RateLimiter
 from app.providers.llm import LlmUnavailable
 from app.rooms import assistant
@@ -17,6 +18,7 @@ from app.rooms.protocol import (
     VoiceRetryMsg, VoiceTranslateMsg, event, parse_client_message,
 )
 from app.rooms.rules import MAX_TEXT, RoomLimits, clean_text, mention
+from app.rooms.scenarios import brief
 from app.rooms.store import RoomStore, message_out, room_out
 
 logger = logging.getLogger(__name__)
@@ -225,10 +227,14 @@ class RoomConnection:
                 recent = await d.store.recent_public(self.room_id, assistant.ANSWER_CONTEXT)
                 try:
                     template = await d.template("rooms.answer")
-                    async with d.ai_gate:
-                        raw = await d.complete(assistant.answer_messages(room.name or room.topic, recent, self.name, question,
-                                                                         template=template),
-                                               assistant.ANSWER_MAX_TOKENS, assistant.ANSWER_TEMPERATURE)
+                    messages = assistant.answer_messages(room.name or room.topic, recent, self.name, question,
+                                                         template=template, level=room.level,
+                                                         scenario=brief(room.scenario))
+                    metering.bind_user(self.user_id)  # the asker pays (admin usage), feature "rooms"
+                    with metering.feature_scope("rooms"):
+                        async with d.ai_gate:
+                            raw = await d.complete(messages, assistant.ANSWER_MAX_TOKENS,
+                                                   assistant.ANSWER_TEMPERATURE)
                     text = assistant.clean_answer(raw)
                     if not text:
                         raise LlmUnavailable("empty")
@@ -296,11 +302,14 @@ class RoomConnection:
         d = self.deps
         try:
             recent = await d.store.recent_public(self.room_id, assistant.ASSIST_CONTEXT)
-            level = await d.store.user_level(self.user_id)
+            room = await d.store.room(self.room_id)  # the room's level and scenario, not the asker's rank
             template = await d.template("rooms.assist")
-            async with d.ai_gate:
-                raw = await d.complete(assistant.compose_messages(text, recent, level, template=template),
-                                       assistant.ASSIST_MAX_TOKENS, assistant.ASSIST_TEMPERATURE)
+            messages = assistant.compose_messages(text, recent, room.level, template=template,
+                                                  scenario=brief(room.scenario))
+            metering.bind_user(self.user_id)
+            with metering.feature_scope("rooms"):
+                async with d.ai_gate:
+                    raw = await d.complete(messages, assistant.ASSIST_MAX_TOKENS, assistant.ASSIST_TEMPERATURE)
             reply = assistant.parse_assist(raw)
         except asyncio.CancelledError:
             raise

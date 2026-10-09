@@ -643,11 +643,13 @@ class RoomStore:
         return list(reversed(rows))
 
     async def recent_public(self, room_id: str, limit: int) -> list[tuple[str, str]]:
+        """AI context: visible member text, @ai answers and transcribed voice (prefixed "(voice) ")."""
         rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "public",
-                                                      RoomMessage.kind.in_(("text", "ai_answer")),
+                                                      RoomMessage.kind.in_(QUOTABLE), RoomMessage.text != "",
                                                       RoomMessage.hidden_at.is_(None))
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
-        return [(AI_NAME if m.sender_kind == "ai" else (n or ""), m.text) for m, n in reversed(rows)]
+        return [(AI_NAME if m.sender_kind == "ai" else (n or ""),
+                 f"(voice) {m.text}" if m.kind == "voice" else m.text) for m, n in reversed(rows)]
 
     async def quote_for(self, room_id: str, seq: int) -> dict | None:
         """Snapshot for `meta.quote` of a reply: public, not hidden, member text / voice / @ai answer only.
