@@ -12,15 +12,25 @@ class Sender(Protocol):
     async def close(self, code: int) -> None: ...
 
 
+SEND_TIMEOUT = 5.0
+CLOSE_DROPPED = 1000  # app.rooms.protocol.CLOSE_NORMAL: the web client reconnects and replays
+
+
+class Dropped(RuntimeError):
+    """Raised in a dropped connection's own receive loop so its socket task ends."""
+
+
 @dataclass(eq=False)
 class Conn:
     user_id: int
     sender: Sender
+    dropped: bool = False
 
 
 class RoomHub:
-    def __init__(self, connections_per_user: int = 3):
+    def __init__(self, connections_per_user: int = 3, send_timeout: float = SEND_TIMEOUT):
         self._max = connections_per_user
+        self._send_timeout = send_timeout
         self._rooms: dict[str, list[Conn]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._ai_locks: dict[str, asyncio.Lock] = {}
@@ -79,14 +89,33 @@ class RoomHub:
     def active_rooms(self) -> set[str]:
         return set(self._rooms)
 
+    async def send(self, room_id: str, conn: Conn, event: dict) -> None:
+        """Send with a timeout. A socket that errors or does not drain in time (client stopped reading) is dropped:
+        detached now and closed in the background, so it can never stall the room's senders (review #6)."""
+        if conn.dropped:
+            return
+        try:
+            await asyncio.wait_for(conn.sender.send_json(event), self._send_timeout)
+        except Exception:
+            self.drop(room_id, conn)
+
+    def drop(self, room_id: str, conn: Conn) -> None:
+        conn.dropped = True
+        self.detach(room_id, conn)
+        self.spawn(self._close_quietly(conn))
+
+    async def _close_quietly(self, conn: Conn) -> None:
+        try:
+            await asyncio.wait_for(conn.sender.close(CLOSE_DROPPED), self._send_timeout)
+        except Exception:
+            pass
+
     async def broadcast(self, room_id: str, event: dict, *, only_user: int | None = None) -> None:
-        for conn in list(self._rooms.get(room_id, ())):
-            if only_user is not None and conn.user_id != only_user:
-                continue
-            try:
-                await conn.sender.send_json(event)
-            except Exception:
-                self.detach(room_id, conn)
+        targets = [c for c in self._rooms.get(room_id, ()) if only_user is None or c.user_id == only_user]
+        if len(targets) == 1:
+            await self.send(room_id, targets[0], event)
+        elif targets:
+            await asyncio.gather(*(self.send(room_id, c, event) for c in targets))
 
     async def _close(self, room_id: str, conns: list[Conn], code: int) -> None:
         for conn in conns:

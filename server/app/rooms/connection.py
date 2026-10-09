@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from app.core.ratelimit import RateLimiter
 from app.providers.llm import LlmUnavailable
 from app.rooms import assistant
-from app.rooms.hub import Conn, RoomHub
+from app.rooms.hub import Conn, Dropped, RoomHub
 from app.rooms.protocol import (
     MAX_ASSIST_TEXT, AssistMsg, HelloMsg, PingMsg, ProtocolError, SayMsg, event, parse_client_message,
 )
@@ -46,10 +46,7 @@ class RoomConnection:
         self.deps, self.room_id, self.user_id, self.name, self.conn = deps, room_id, user_id, name, conn
 
     async def _send(self, data: dict) -> None:
-        try:
-            await self.conn.sender.send_json(data)
-        except Exception:
-            self.deps.hub.detach(self.room_id, self.conn)
+        await self.deps.hub.send(self.room_id, self.conn, data)
 
     async def _to_me(self, data: dict) -> None:
         await self.deps.hub.broadcast(self.room_id, data, only_user=self.user_id)
@@ -71,6 +68,8 @@ class RoomConnection:
             await self._send(event("message", message=message_out(m, n)))
 
     async def handle(self, raw: str) -> None:
+        if self.conn.dropped:  # the hub gave up on this socket (it stopped reading): end its receive loop
+            raise Dropped("connection dropped")
         msg = parse_client_message(raw)
         if isinstance(msg, PingMsg):
             await self._send(event("pong"))

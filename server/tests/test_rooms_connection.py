@@ -8,7 +8,7 @@ from app.core.ratelimit import RateLimiter
 from app.models import User
 from app.providers.llm import LlmUnavailable
 from app.rooms.connection import ConnDeps, RoomConnection
-from app.rooms.hub import Conn, RoomHub
+from app.rooms.hub import Conn, Dropped, RoomHub
 from app.rooms.protocol import ProtocolError
 from app.rooms.rules import RoomLimits
 from app.rooms.store import RoomStore
@@ -199,6 +199,14 @@ async def test_welcome_replays_without_others_private_lane(env):
     await RoomConnection(env.deps(), env.room.id, A, "alice", mine).welcome(3)
     assert [m["kind"] for m in mine.sender.sent[0]["assist_history"]] == ["assist_request", "assist_reply"]
     assert len(mine.sender.sent) == 1  # nothing after seq 3
+
+
+async def test_dropped_connection_ends_its_receive_loop(env):
+    env.hub.drop(env.room.id, env.alice)
+    with pytest.raises(Dropped):
+        await env.ca.handle('{"type":"ping"}')
+    await env.hub.drain()
+    assert env.alice.sender.closed == 1000 and env.hub.online(env.room.id) == {B}
 
 
 async def test_protocol_errors(env):

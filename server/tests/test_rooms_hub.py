@@ -43,6 +43,26 @@ async def test_failing_sender_is_dropped_and_close_paths():
     assert c.sender.closed == 1012
 
 
+class StuckSender(FakeSender):
+    """A client that keeps the socket open but never reads: send blocks forever (full write buffer)."""
+
+    async def send_json(self, data):
+        await asyncio.Event().wait()
+
+
+async def test_non_reading_member_is_dropped_without_stalling_the_room():
+    """Review #6: one stuck socket must not block every sender's broadcast."""
+    hub = RoomHub(send_timeout=0.05)
+    stuck, good = Conn(1, StuckSender()), Conn(2, FakeSender())
+    hub.attach("r", stuck)
+    hub.attach("r", good)
+    await asyncio.wait_for(hub.broadcast("r", {"type": "pong"}), 1)
+    assert good.sender.sent == [{"type": "pong"}] and hub.online("r") == {2} and stuck.dropped
+    await asyncio.wait_for(hub.broadcast("r", {"type": "pong"}), 1)
+    await hub.drain()
+    assert stuck.sender.closed == 1000 and len(good.sender.sent) == 2
+
+
 async def test_spawn_drain_and_ai_queue():
     hub = RoomHub()
     done = []
