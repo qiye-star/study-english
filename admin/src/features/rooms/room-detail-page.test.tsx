@@ -6,7 +6,7 @@ import * as session from "../../api/session";
 import type { Role } from "../../api/session";
 import * as api from "./api";
 import { RoomDetailPage } from "./room-detail-page";
-import { roomFixture, settingsFixture, timelineFixture } from "./test-fixtures";
+import { message, roomFixture, settingsFixture, timelineFixture, voiceFixture } from "./test-fixtures";
 
 vi.mock("./api");
 const asRole = (role: Role) =>
@@ -138,6 +138,37 @@ it("shows voice messages with duration, transcript, translation and audited play
   const purged = screen.getByTestId("msg-45");
   expect(within(purged).getByText("音频已清理")).toBeInTheDocument();
   expect(within(purged).queryByRole("button", { name: "播放" })).toBeNull();
+});
+
+it("does not offer to edit the settings of a closed room (web review m12)", async () => {
+  vi.mocked(api.getRoom).mockResolvedValue(roomFixture({ status: "closed", code: null, closeReason: "owner" }));
+  renderPage();
+  const card = await screen.findByRole("region", { name: "房间设置" });
+  expect(within(card).queryByRole("button", { name: "修改" })).toBeNull();
+});
+
+it("plays one clip at a time and recovers from a decode error (web review m13)", async () => {
+  vi.mocked(api.getRoomMessages).mockResolvedValue(timelineFixture({ messages: [
+    message(44, { kind: "voice", text: "first", voice: voiceFixture() }),
+    message(46, { kind: "voice", text: "second", voice: voiceFixture({ transcript: "second" }) }),
+  ] }));
+  vi.mocked(api.fetchRoomAudio).mockResolvedValue(new Blob(["ID3"], { type: "audio/mpeg" }));
+  const players: HTMLMediaElement[] = [];
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement) { players.push(this); return Promise.resolve(); });
+  const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+  Object.assign(URL, { createObjectURL: vi.fn(() => "blob:audio"), revokeObjectURL: vi.fn() });
+  renderPage();
+  const first = await screen.findByTestId("msg-44");
+  const second = screen.getByTestId("msg-46");
+  await userEvent.click(within(first).getByRole("button", { name: "播放" }));
+  await waitFor(() => expect(within(first).getByRole("button", { name: "停止" })).toBeInTheDocument());
+  await userEvent.click(within(second).getByRole("button", { name: "播放" }));
+  await waitFor(() => expect(within(second).getByRole("button", { name: "停止" })).toBeInTheDocument());
+  expect(pause).toHaveBeenCalled(); // the first clip was stopped
+  expect(within(first).getByRole("button", { name: "播放" })).toBeInTheDocument();
+  players.at(-1)!.dispatchEvent(new Event("error")); // corrupt or purged file after play() resolved
+  await waitFor(() => expect(within(second).getByRole("button", { name: "播放" })).toBeInTheDocument());
+  expect(within(second).getByRole("alert")).toHaveTextContent("播放失败");
 });
 
 it("shows a deleted owner's kept room as read-only with 已删除用户", async () => {

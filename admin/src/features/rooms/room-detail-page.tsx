@@ -372,7 +372,7 @@ export function RoomDetailPage() {
               )}
             </section>
             <div className="space-y-4">
-              <SettingsCard room={r} canEdit={canModerate} onEdit={() => setEditing(true)} />
+              <SettingsCard room={r} canEdit={canModerate && r.status === "open"} onEdit={() => setEditing(true)} />
               <aside className="panel" aria-label={D.members}>
                 <div className="panel-head">
                   <h2 className="text-sm font-semibold">{D.members}</h2>

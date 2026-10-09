@@ -7,6 +7,9 @@ import { S } from "./strings";
 const T = S.timeline;
 const V = S.voice;
 
+/** 同一时间只播一条:开始播放时先停下正在播的那一条(review m13) */
+let stopCurrent: (() => void) | null = null;
+
 /** 「播放」:带会话 Cookie 取音频(服务端每次写审计 `room.audio.play`),用 blob URL 播放,结束后释放。 */
 function PlayButton({ roomId, messageId }: { roomId: string; messageId: string }) {
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
@@ -16,9 +19,17 @@ function PlayButton({ roomId, messageId }: { roomId: string; messageId: string }
   const release = () => {
     const cur = audio.current;
     audio.current = null;
+    if (stopCurrent === stop) stopCurrent = null;
     if (!cur) return;
+    cur.el.onended = null;
+    cur.el.onerror = null;
     cur.el.pause();
     URL.revokeObjectURL(cur.url);
+  };
+  /** 被别的播放键打断:回到「播放」 */
+  const stop = () => {
+    release();
+    setState("idle");
   };
   useEffect(() => release, []);
 
@@ -33,15 +44,19 @@ function PlayButton({ roomId, messageId }: { roomId: string; messageId: string }
     try {
       const blob = await fetchRoomAudio(roomId, messageId);
       release();
+      if (stopCurrent) stopCurrent();
       const url = URL.createObjectURL(blob);
       const el = new Audio(url);
       audio.current = { el, url };
-      el.onended = () => {
-        release();
-        setState("idle");
+      stopCurrent = stop;
+      el.onended = () => stop();
+      // 解码失败(文件损坏、刚被清理)在 play() 之后才报:不留在「停止」
+      el.onerror = () => {
+        stop();
+        setError(V.playFailed);
       };
       await el.play();
-      setState("playing");
+      if (audio.current?.el === el) setState("playing");
     } catch (e) {
       release();
       setState("idle");
