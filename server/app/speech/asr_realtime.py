@@ -50,7 +50,9 @@ from app.speech.asr_stream import (
     decode_frame,
     encode_audio,
     encode_full_request,
+    meter_status,
 )
+from app.core import metering
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -110,7 +112,9 @@ class VolcStreamRecognizer:
         logid: str = "",
         idle_timeout: float = IDLE_TIMEOUT,
         final_timeout: float = FINAL_TIMEOUT,
+        meter: tuple[str, str] | None = None,
     ):
+        self._meter = meter  # (provider, model) for the usage meter; None = not metered
         self._ws = ws
         self._on_partial = on_partial
         self._gate = gate
@@ -149,6 +153,10 @@ class VolcStreamRecognizer:
         if not self._released:
             self._released = True
             self._gate.leave(kind)
+            if self._meter is not None:  # one usage record per utterance (admin v2 §8.1)
+                provider, model = self._meter
+                metering.record("asr_stream", provider, model, meter_status(self._failure), self._ms(),
+                                units_in=metering.pcm_ms(len(self._audio)), unit="audio_ms")
 
     def _fail(self, err: AsrStreamError) -> None:
         if self._failure is not None or self._final is not None:
@@ -345,7 +353,10 @@ def volc_stream_factory(
             finally:  # even if cancelled again during the close
                 gate.leave("aborted")
             raise
+        meter = (metering.provider_of(settings.asr_realtime_url), settings.asr_stream_resource_id)
         if failure is not None:
+            metering.record("asr_stream", *meter, meter_status(failure),
+                            round((time.perf_counter() - started) * 1000), unit="audio_ms")
             try:
                 if ws is not None:
                     await ws.close()
@@ -359,6 +370,7 @@ def volc_stream_factory(
         return VolcStreamRecognizer(
             ws, on_partial, gate,
             connect_id=connect_id, logid=logid, idle_timeout=idle_timeout, final_timeout=final_timeout,
+            meter=meter,
         )
 
     return factory

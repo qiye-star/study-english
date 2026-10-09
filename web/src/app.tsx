@@ -1,6 +1,10 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/auth/auth-context";
+import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } from "~/components/announcement-banner";
+import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
 import { ConversationPage, ConversationsPage } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
@@ -15,30 +19,53 @@ import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
 import { SettingsProvider } from "~/settings/settings-context";
 
+/**
+ * 公告横幅放在所有页面的顶部;下方区域把 --app-height 改成 100%,应用壳因此让出横幅的高度。
+ * 全站维护(full)时整页显示维护页,不渲染任何路由与导航。
+ */
+export function AnnouncementFrame() {
+  const state = useAnnouncements();
+  const { i18n } = useTranslation();
+  if (state?.maintenance.mode === "full") {
+    const m = state.maintenance;
+    return <MaintenanceScreen message={pickText(i18n.language, m.messageZh, m.messageEn)} onRetry={() => void refreshAnnouncements()} />;
+  }
+  return (
+    <div className="flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
+      <AnnouncementBanner />
+      <div className="relative min-h-0 flex-1 overflow-y-auto" style={{ "--app-height": "100%" } as CSSProperties}>
+        <Outlet />
+      </div>
+    </div>
+  );
+}
+
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/install" element={<InstallPage />} />
-      <Route element={<RequireAuth />}>
-        <Route element={<AppShell />}>
-          <Route path="/practice" element={<PracticePage />} />
-          <Route path="/practice/history" element={<HistoryPage />} />
-          <Route path="/practice/list" element={<PracticeListPage />} />
-          <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
-          <Route path="/chat" element={<ConversationsPage />} />
-          <Route path="/chat/:id" element={<ConversationPage />} />
-          <Route path="/progress" element={<ProgressPage />} />
-          <Route path="/vocabulary" element={<VocabularyPage />} />
-          <Route path="/rank" element={<RankHomePage />} />
-          <Route path="/rank/match/:id" element={<MatchPage />} />
-          <Route path="/rank/achievements" element={<AchievementsPage />} />
-          <Route path="/rooms" element={<RoomsLobbyPage />} />
-          <Route path="/rooms/r/:roomId" element={<RoomPage />} />
-          <Route path="/me" element={<MePage />} />
+      <Route element={<AnnouncementFrame />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/install" element={<InstallPage />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            <Route path="/practice" element={<PracticePage />} />
+            <Route path="/practice/history" element={<HistoryPage />} />
+            <Route path="/practice/list" element={<PracticeListPage />} />
+            <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
+            <Route path="/chat" element={<ConversationsPage />} />
+            <Route path="/chat/:id" element={<ConversationPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/vocabulary" element={<VocabularyPage />} />
+            <Route path="/rank" element={<RankHomePage />} />
+            <Route path="/rank/match/:id" element={<MatchPage />} />
+            <Route path="/rank/achievements" element={<AchievementsPage />} />
+            <Route path="/rooms" element={<RoomsLobbyPage />} />
+            <Route path="/rooms/r/:roomId" element={<RoomPage />} />
+            <Route path="/me" element={<MePage />} />
+          </Route>
         </Route>
+        <Route path="*" element={<Navigate to="/practice" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/practice" replace />} />
     </Routes>
   );
 }

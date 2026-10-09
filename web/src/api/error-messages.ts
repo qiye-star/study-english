@@ -11,6 +11,7 @@ const COMMON: Record<string, string> = {
   "Request timed out": "web.errors.timeout",
   "AI response timed out": "web.errors.timeout",
   "Request aborted": "web.errors.aborted",
+  Maintenance: "web.errors.maintenance", // 503 from the server's maintenance mode (admin console)
 };
 
 export function translateServerError(t: TFunction, err: unknown, extra: Record<string, string> = {}): string {

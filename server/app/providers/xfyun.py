@@ -11,6 +11,8 @@ from urllib.parse import urlencode, urlsplit
 import websockets
 from websockets.asyncio.client import connect
 
+from app.core import metering
+
 FRAME_BYTES = 1280
 MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_XML_BYTES = 1024 * 1024
@@ -133,6 +135,7 @@ class XfyunIse:
         if not self.configured:
             raise XfyunNotConfigured()
         url = signed_url(self.ws_url, self.api_key, self.api_secret)
+        timer, status = metering.Timer(), 0
         try:
             async with asyncio.timeout(timeout):
                 async with connect(url, max_size=MAX_MESSAGE_BYTES) as ws:
@@ -144,14 +147,23 @@ class XfyunIse:
                         # Provider may have sent an error frame before closing;
                         # fall through so _collect can read it.
                         pass
-                    return await self._collect(ws)
+                    xml = await self._collect(ws)
+                    status = 200
+                    return xml
         except XfyunError:
+            status = 502
             raise
         except TimeoutError:
             raise XfyunError("Speech service timed out") from None
+        except websockets.InvalidStatus as e:
+            status = e.response.status_code
+            raise XfyunError("Speech service connection failed") from None
         except (OSError, websockets.WebSocketException):
             # Deliberately generic: never echo the signed URL or its details.
             raise XfyunError("Speech service connection failed") from None
+        finally:
+            metering.record("assess_xfyun", "xfyun", "ise", status, timer.ms(), units_in=metering.pcm_ms(len(pcm)),
+                            unit="audio_ms")
 
     @staticmethod
     async def _collect(ws) -> str:

@@ -50,7 +50,10 @@ def install_query_redaction() -> None:
 
 
 def configure_logging(level: str = "INFO", stream: TextIO | None = None) -> None:
+    from app.core import log_buffer  # imports this module: keep the import lazy
+
     install_query_redaction()
+    log_buffer.install()  # in-memory redacted ring buffer for the admin log viewer (admin v2 §13)
     app_logger = logging.getLogger("app")
     resolved = logging.getLevelName(level.strip().upper()) if isinstance(level, str) else logging.INFO
     if not isinstance(resolved, int):
@@ -59,7 +62,7 @@ def configure_logging(level: str = "INFO", stream: TextIO | None = None) -> None
     if existing:
         app_logger.setLevel(resolved)
         return
-    if app_logger.handlers or logging.getLogger().handlers:
+    if [h for h in app_logger.handlers if h is not log_buffer.BUFFER] or logging.getLogger().handlers:
         return  # the host already configured logging; do not duplicate or override
     handler = logging.StreamHandler(stream or sys.stdout)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))

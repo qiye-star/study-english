@@ -2,6 +2,10 @@
   "web": {
     "appName": "Enjoy English Practice",
     "common": { "loading": "Loading…", "retry": "Retry", "cancel": "Cancel", "delete": "Delete", "loadMore": "Load more", "back": "Back", "loadFailed": "Could not load" },
+    "announcements": {
+      "label": "Announcements", "dismiss": "Dismiss announcement", "readOnly": "Maintenance: read-only for now",
+      "maintenanceTitle": "Under maintenance", "maintenanceBody": "We are upgrading the service. Please come back shortly.", "checkAgain": "Check again"
+    },
     "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "rooms": "Rooms", "me": "Me" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
@@ -16,7 +20,8 @@
       "invalidLogin": "Invalid username or password.", "usernameTaken": "This username is already taken.",
       "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
       "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",
-      "timeout": "The request timed out.", "aborted": "The request was cancelled.", "unknown": "Something went wrong."
+      "timeout": "The request timed out.", "aborted": "The request was cancelled.", "unknown": "Something went wrong.",
+      "maintenance": "The service is under maintenance. Please try again later."
     },
     "me": {
       "title": "Me", "username": "Account", "language": "Language",

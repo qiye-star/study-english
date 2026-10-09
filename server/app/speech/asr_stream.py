@@ -27,6 +27,7 @@ from typing import Literal
 import websockets
 from websockets.asyncio.client import connect
 
+from app.core import metering
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -232,15 +233,40 @@ async def transcribe_pcm(settings: Settings, pcm: bytes, uid: str = "server") ->
     """Final transcript, or AsrStreamError for any failure (so callers can always fall back).
     Cancellation (BaseException) still propagates."""
     connect_id = str(uuid.uuid4())
+    timer = metering.Timer()
     try:
-        return await _transcribe(settings, pcm, uid, connect_id)
+        text = await _transcribe(settings, pcm, uid, connect_id)
     except AsrStreamError as e:
         e.connect_id = connect_id
+        _meter(settings, meter_status(e), timer.ms(), len(pcm))
         raise
     except Exception as e:  # noqa: BLE001 - RecursionError, MemoryError, library bugs...
         err = AsrStreamError("protocol", f"unexpected {type(e).__name__}")
         err.connect_id = connect_id
+        _meter(settings, meter_status(err), timer.ms(), len(pcm))
         raise err from None
+    _meter(settings, 200, timer.ms(), len(pcm))
+    return text
+
+
+def meter_status(err: AsrStreamError | None) -> int:
+    """HTTP-like status for the usage meter: 200 ok, 401 auth, 402 quota, 0 timeout/network, else 502."""
+    if err is None or err.kind == "empty":
+        return 200  # "empty" = the upstream answered: no speech
+    if err.detail.startswith("http=") and err.detail[5:].isdigit():
+        return int(err.detail[5:])
+    if err.kind in ("auth", "quota", "timeout"):
+        return {"auth": 401, "quota": 402, "timeout": 0}[err.kind]
+    if err.kind == "upstream" and not err.detail.startswith("code="):
+        return 0  # connection failure (the detail is the exception type)
+    return 502  # error frame or protocol violation
+
+
+def _meter(settings: Settings, status: int, ms: int, pcm_bytes: int) -> None:
+    if not settings.asr_stream_key:
+        return  # not configured: no upstream call was made
+    metering.record("asr_stream", metering.provider_of(settings.asr_stream_url), settings.asr_stream_resource_id,
+                    status, ms, units_in=metering.pcm_ms(pcm_bytes), unit="audio_ms")
 
 
 async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str) -> str:
