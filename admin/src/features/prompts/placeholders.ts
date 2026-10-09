@@ -8,6 +8,8 @@
 export interface PromptRules {
   kind: "text" | "json";
   required: string[];
+  /** 允许出现但不强制的占位符(联机 v2 给已有键新增的字段;服务端 PromptSpec.optional) */
+  optional?: string[];
   boundaries: string[];
   maxChars: number;
   /** false = 正文原样使用(不做 format),花括号不检查(语法规则) */
@@ -139,7 +141,8 @@ export function checkPrompt(rules: PromptRules, raw: string): PromptCheck {
     } else {
       const seen = new Set(fields);
       result.missing = rules.required.filter((f) => !seen.has(f));
-      result.unknown = [...seen].filter((f) => !rules.required.includes(f) || !IDENT.test(f)).sort();
+      const known = [...rules.required, ...(rules.optional ?? [])];
+      result.unknown = [...seen].filter((f) => !known.includes(f) || !IDENT.test(f)).sort();
       if (result.missing.length) result.errors.push(`missing_fields:${[...result.missing].sort().join(",")}`);
       if (result.unknown.length) result.errors.push(`unknown_fields:${result.unknown.join(",")}`);
     }

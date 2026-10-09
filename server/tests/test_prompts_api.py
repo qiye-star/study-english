@@ -62,7 +62,10 @@ async def test_invalid_prompt_cannot_be_published(app, client):
 async def test_overview_detail_and_permissions(app, client):
     viewer = await login_as(app, client, "viewer")
     items = (await client.get("/api/admin/prompts")).json()
-    assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.answer", "config.chat_agent_templates"]
+    assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.answer", "rooms.voice_translate",
+                                         "rooms.summary", "config.chat_agent_templates"]
+    answer = (await client.get("/api/admin/prompts/rooms.answer")).json()["spec"]
+    assert answer["optional"] == ["level", "scenario"] and "scenario" in answer["sample_fields"]
     assert items[0] == {"key": "grammar.rules", "label": items[0]["label"], "kind": "text",
                         "published_version": None, "published_at": None, "has_draft": False}
     detail = (await client.get("/api/admin/prompts/grammar.rules")).json()

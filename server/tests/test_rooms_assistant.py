@@ -57,11 +57,14 @@ def test_default_templates_reproduce_legacy_prompts():
     for item in legacy:
         c = item["case"]
         recent = [tuple(x) for x in c["recent"]]
-        assert a.compose_messages(c["draft"], recent, c["level"], template=a.DEFAULT_ASSIST_TEMPLATE) == item["assist"]
-        assert a.answer_messages("美食", recent, "lily", c["draft"], template=a.DEFAULT_ANSWER_TEMPLATE) == item["answer"]
-        # no template (nothing published) is the same as the default
-        assert a.compose_messages(c["draft"], recent, c["level"]) == item["assist"]
-        assert a.answer_messages("美食", recent, "lily", c["draft"]) == item["answer"]
+        # plan P2-8: the v1 defaults are kept verbatim as V1_*; a published copy of them renders exactly as in v1
+        assert a.compose_messages(c["draft"], recent, c["level"], template=a.V1_ASSIST_TEMPLATE) == item["assist"]
+        assert a.answer_messages("美食", recent, "lily", c["draft"], template=a.V1_ANSWER_TEMPLATE) == item["answer"]
+        # no template (nothing published) is the same as the (v2) default
+        assert a.compose_messages(c["draft"], recent, c["level"]) == a.compose_messages(
+            c["draft"], recent, c["level"], template=a.DEFAULT_ASSIST_TEMPLATE)
+        assert a.answer_messages("美食", recent, "lily", c["draft"]) == a.answer_messages(
+            "美食", recent, "lily", c["draft"], template=a.DEFAULT_ANSWER_TEMPLATE)
 
 
 def test_default_templates_pass_prompt_validation():

@@ -31,6 +31,8 @@ class PromptSpec:
     formatted: bool = True
     # inputs the admin "test run" form asks for (in display order)
     sample_fields: tuple[str, ...] = ()
+    # placeholders a template may use but need not (rooms v2 R2-17: published v1 templates stay valid)
+    optional: frozenset[str] = frozenset()
 
 
 PROMPTS: dict[str, PromptSpec] = {
@@ -39,10 +41,19 @@ PROMPTS: dict[str, PromptSpec] = {
         sample_fields=("text", "context")),
     "rooms.assist": PromptSpec(
         "rooms.assist", "联机助手组句", "text", frozenset({"level", "chat", "draft"}),
-        ("<chat>", "</chat>", "<draft>", "</draft>"), 8000, sample_fields=("level", "chat", "draft")),
+        ("<chat>", "</chat>", "<draft>", "</draft>"), 8000, sample_fields=("level", "scenario", "chat", "draft"),
+        optional=frozenset({"scenario"})),
     "rooms.answer": PromptSpec(
         "rooms.answer", "@ai 公开回答", "text", frozenset({"topic", "asker", "chat", "question"}),
-        ("<chat>", "</chat>", "<question>", "</question>"), 8000, sample_fields=("topic", "asker", "chat", "question")),
+        ("<chat>", "</chat>", "<question>", "</question>"), 8000,
+        sample_fields=("topic", "level", "scenario", "asker", "chat", "question"),
+        optional=frozenset({"level", "scenario"})),
+    "rooms.voice_translate": PromptSpec(
+        "rooms.voice_translate", "联机语音翻译", "text", frozenset({"source", "target", "text"}),
+        ("<text>", "</text>"), 4000, sample_fields=("source", "target", "text")),
+    "rooms.summary": PromptSpec(
+        "rooms.summary", "联机学习小结", "text", frozenset({"level", "scenario", "members", "chat"}),
+        ("<chat>", "</chat>"), 8000, sample_fields=("level", "scenario", "members", "chat")),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }
@@ -111,7 +122,7 @@ def validate_prompt(key: str, body: str) -> list[str]:
         else:
             seen = set(fields)
             missing = sorted(spec.required - seen)
-            unknown = sorted({f for f in seen if f not in spec.required or not _IDENT.match(f)})
+            unknown = sorted({f for f in seen if f not in (spec.required | spec.optional) or not _IDENT.match(f)})
             if missing:
                 errors.append("missing_fields:" + ",".join(missing))
             if unknown:

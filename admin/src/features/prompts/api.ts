@@ -9,6 +9,8 @@ export interface PromptSpec {
   label: string;
   kind: PromptKind;
   required: string[];
+  /** 可选占位符(服务端 PromptSpec.optional);缺省视为空 */
+  optional?: string[];
   boundaries: string[];
   maxChars: number;
   /** false = 不做 format(语法规则);缺省视为 true */
@@ -63,6 +65,7 @@ interface RawSpec {
   label: string;
   kind: PromptKind;
   required: string[];
+  optional?: string[];
   boundaries: string[];
   max_chars: number;
   formatted: boolean;
@@ -114,7 +117,8 @@ export async function getPrompt(key: string): Promise<PromptDetail> {
   const d = await request<RawDetail>(path(key));
   return {
     spec: {
-      key: d.spec.key, label: d.spec.label, kind: d.spec.kind, required: d.spec.required, boundaries: d.spec.boundaries,
+      key: d.spec.key, label: d.spec.label, kind: d.spec.kind, required: d.spec.required, optional: d.spec.optional ?? [],
+      boundaries: d.spec.boundaries,
       maxChars: d.spec.max_chars, formatted: d.spec.formatted, sampleFields: d.spec.sample_fields,
     },
     published: d.published,

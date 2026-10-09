@@ -152,7 +152,8 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
     async def templates() -> dict[str, str | None]:
         """Published admin templates (admin v2 G2); the prompt cache reads the DB once per key until a publish."""
         cache = prompt_cache(app)
-        return {key: (await cache.get(key))[1] for key in ("rooms.assist", "rooms.answer")}
+        return {key: (await cache.get(key))[1]
+                for key in ("rooms.assist", "rooms.answer", "rooms.voice_translate", "rooms.summary")}
 
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
                     rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,

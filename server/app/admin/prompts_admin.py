@@ -41,7 +41,7 @@ def _spec(key: str) -> PromptSpec:
 
 def spec_out(spec: PromptSpec) -> dict:
     return {"key": spec.key, "label": spec.label_zh, "kind": spec.kind, "required": sorted(spec.required),
-            "boundaries": list(spec.boundaries), "max_chars": spec.max_chars, "formatted": spec.formatted,
+            "optional": sorted(spec.optional), "boundaries": list(spec.boundaries), "max_chars": spec.max_chars, "formatted": spec.formatted,
             "sample_fields": list(spec.sample_fields)}
 
 
@@ -53,6 +53,10 @@ def default_body(app, key: str) -> str | None:
         return assistant.DEFAULT_ASSIST_TEMPLATE  # template form of M4's prompt (G2)
     if key == "rooms.answer":
         return assistant.DEFAULT_ANSWER_TEMPLATE
+    if key == "rooms.voice_translate":
+        return assistant.DEFAULT_TRANSLATE_TEMPLATE
+    if key == "rooms.summary":
+        return assistant.DEFAULT_SUMMARY_TEMPLATE
     return TEMPLATES_FILE.read_text(encoding="utf-8")
 
 

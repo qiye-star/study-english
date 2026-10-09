@@ -27,6 +27,8 @@ describe("checkPrompt (same codes as the server)", () => {
     expect(checkPrompt(GRAMMAR, "x".repeat(2001)).errors).toEqual(["too_long"]);
     expect(checkPrompt(GRAMMAR, 'Reply like {"a": 1}').errors).toEqual([]);
     expect(checkPrompt(ASSIST, OK).errors).toEqual([]);
+    expect(checkPrompt(ASSIST, OK + " {scenario}").errors).toEqual(["unknown_fields:scenario"]);
+    expect(checkPrompt({ ...ASSIST, optional: ["scenario"] }, OK + " {scenario}").errors).toEqual([]);
     expect(checkPrompt(ASSIST, "Level {level}. <chat>{chat}</chat>").errors).toContain("missing_fields:draft");
     expect(checkPrompt(ASSIST, `${OK} {secret}`).errors).toContain("unknown_fields:secret");
     expect(checkPrompt(ASSIST, `${OK} {level.__class__}`).unknown).toEqual(["level.__class__"]);
