@@ -33,5 +33,5 @@
       "room_first": "第一次进入联机房间", "room_assisted_10": "用助手组句并发到群里 10 次", "season_climber": "本赛季晋级 1 次", "season": "赛季结束时的最高段位" } },
   "errors": { "notEligible": "还不能打晋级赛", "cooldown": "冷却中,请稍后再来", "noAttempts": "今天的次数已用完", "inProgress": "已有一场进行中的晋级赛",
     "unavailable": "晋级赛暂不可用", "dailyLimit": "今天全站的晋级赛已满,明天再来", "expired": "本场已超时", "notActive": "本场已结束",
-    "tooShort": "说得太短了,至少 1.5 秒", "tooLong": "一轮最多 30 秒", "badAudio": "录音格式不对,请重试", "upstream": "识别服务暂时不可用,请重试", "grading": "评分失败,请重试" }
+    "tooShort": "说得太短了,至少 1.5 秒", "tooLong": "一轮最多 30 秒", "badAudio": "录音格式不对,请重试", "upstream": "识别服务暂时不可用,请重试", "grading": "评分失败,请重试", "notFound": "找不到这场晋级赛" }
 } } }

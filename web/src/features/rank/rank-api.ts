@@ -51,6 +51,8 @@ export const RANK_SERVER_ERRORS: Record<string, string> = {
   "Audio too long": "web.rank.errors.tooLong",
   "Upstream unavailable": "web.rank.errors.upstream",
   "Grading failed": "web.rank.errors.grading",
+  "Match not found": "web.rank.errors.notFound",
+  "Rank is disabled": "web.rank.disabled",
 };
 
 /** 本地时区相对 UTC 的分钟数(东八区 = 480),服务端据此算"今天"。 */

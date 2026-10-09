@@ -33,5 +33,5 @@
       "room_first": "Join a practice room", "room_assisted_10": "Send 10 assistant-polished sentences", "season_climber": "Get promoted this season", "season": "Highest tier at season end" } },
   "errors": { "notEligible": "You can't start a promotion match yet", "cooldown": "Cooling down, try again later", "noAttempts": "No attempts left today", "inProgress": "A promotion match is already in progress",
     "unavailable": "Promotion matches are unavailable", "dailyLimit": "Today's matches are full, come back tomorrow", "expired": "This match timed out", "notActive": "This match has ended",
-    "tooShort": "Too short, speak for at least 1.5 seconds", "tooLong": "A turn can be 30 seconds at most", "badAudio": "The recording could not be read, try again", "upstream": "Speech service is busy, try again", "grading": "Grading failed, try again" }
+    "tooShort": "Too short, speak for at least 1.5 seconds", "tooLong": "A turn can be 30 seconds at most", "badAudio": "The recording could not be read, try again", "upstream": "Speech service is busy, try again", "grading": "Grading failed, try again", "notFound": "This match could not be found" }
 } } }

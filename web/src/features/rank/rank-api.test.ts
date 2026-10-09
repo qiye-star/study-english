@@ -41,7 +41,7 @@ describe("rank api", () => {
   it("maps every server error string", () => {
     expect(Object.keys(RANK_SERVER_ERRORS).sort()).toEqual([
       "Audio too long", "Audio too short", "Cooldown", "Daily match limit reached", "Expected 16 kHz mono WAV", "Grading failed",
-      "Match expired", "Match in progress", "Match is not active", "Match is not finished", "No attempts left", "Not eligible",
-      "Promotion matches are not available", "Upstream unavailable"]);
+      "Match expired", "Match in progress", "Match is not active", "Match is not finished", "Match not found", "No attempts left", "Not eligible",
+      "Promotion matches are not available", "Rank is disabled", "Upstream unavailable"]);
   });
 });
