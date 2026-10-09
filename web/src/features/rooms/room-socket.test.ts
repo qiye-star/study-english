@@ -40,7 +40,7 @@ describe("RoomSocket", () => {
     await vi.runOnlyPendingTimersAsync();
     const ws = FakeSocket.all[0];
     ws.open();
-    expect(JSON.parse(ws.sent[0])).toEqual({ type: "hello", last_seq: 0 });
+    expect(JSON.parse(ws.sent[0])).toEqual({ type: "hello", last_seq: 0, v: 2 });
     ws.push({ type: "welcome", room: {}, me: {}, members: [], last_seq: 0, truncated: false, assist_history: [] });
     expect(statuses).toEqual(["connecting", "live"]);
     ws.push({ type: "message", message: { seq: 7 } });
@@ -62,7 +62,7 @@ describe("RoomSocket", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(FakeSocket.all[1].url).toContain("ticket=t2");
     FakeSocket.all[1].open();
-    expect(JSON.parse(FakeSocket.all[1].sent[0])).toEqual({ type: "hello", last_seq: 12 });
+    expect(JSON.parse(FakeSocket.all[1].sent[0])).toEqual({ type: "hello", last_seq: 12, v: 2 });
   });
 
   it("backs off 1/2/4 seconds across failed attempts", async () => {

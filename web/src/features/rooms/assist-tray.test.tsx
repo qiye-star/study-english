@@ -7,7 +7,7 @@ import type { RoomMessage } from "./protocol";
 import type { AssistEntry } from "./room-state";
 
 const reply: RoomMessage = { seq: 6, id: "a6", lane: "private", kind: "assist_reply", sender: { kind: "ai", id: null, name: null }, text: "巧克力是 chocolate。",
-  assisted: false, replyTo: null, aiStatus: null, createdAt: "",
+  assisted: false, replyTo: null, aiStatus: null, createdAt: "", quote: null, voice: null, reactions: [],
   meta: { replyZh: "巧克力是 chocolate。", glossary: [{ src: "巧克力", en: "chocolate" }],
     suggestions: [{ en: "I like chocolate.", noteZh: "最常用" }, { en: "I'm really into chocolate!", noteZh: "更口语" }] } };
 

@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
-import { encodeAssist, encodeSay, roomWsUrl, type RoomInfo } from "./protocol";
+import {
+  encodeAssist, encodeReact, encodeSay, encodeTyping, encodeVoiceRetry, encodeVoiceTranslate, roomWsUrl,
+  type ActivityState, type ReactionKey, type RoomInfo, type RoomMessage,
+} from "./protocol";
 import { initialRoomState, roomReducer } from "./room-state";
 import { RoomSocket } from "./room-socket";
 import { getRoom, HISTORY_PAGE, LATEST_SEQ, roomHistory, roomTicket } from "./rooms-api";
 
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).slice(0, 64);
+/** 多久清一次过期的「正在输入」(ACTIVITY_TTL_MS 之前的)。 */
+const ACTIVITY_SWEEP_MS = 2000;
 
 /**
  * 一个房间的连接与状态:票据 → WebSocket(重连、补发、心跳由 RoomSocket 负责)。
@@ -29,7 +34,7 @@ export function useRoom(roomId: string) {
       lastSeq: () => stateRef.current.lastSeq,
       onEvent: (event) => {
         if (disposed) return;
-        dispatch({ type: "event", event });
+        dispatch({ type: "event", event, at: Date.now() });
         // 断线前没拿到 ack 的消息:用原 client_id 重发,服务端 5 分钟内去重并回原来的 ack(spec §5.7)
         if (event.type === "welcome") {
           for (const p of stateRef.current.pending) {
@@ -46,8 +51,10 @@ export function useRoom(roomId: string) {
     socket.connect();
     const onVisible = () => { if (document.visibilityState === "visible") socket.reconnectNow(); };
     document.addEventListener("visibilitychange", onVisible);
+    const sweep = window.setInterval(() => dispatch({ type: "activity_expire", now: Date.now() }), ACTIVITY_SWEEP_MS);
     return () => {
       disposed = true;
+      window.clearInterval(sweep);
       document.removeEventListener("visibilitychange", onVisible);
       socket.close();
       socketRef.current = null;
@@ -72,13 +79,22 @@ export function useRoom(roomId: string) {
     return () => ctrl.abort();
   }, [needsHistory, api, roomId, meId]);
 
-  const say = useCallback((text: string, assistId: string | null = null) => {
+  const say = useCallback((text: string, assistId: string | null = null, replyTo: number | null = null) => {
     const clientId = newId();
-    const frame = encodeSay({ clientId, text, assistId });
+    const frame = encodeSay({ clientId, text, assistId, replyTo });
     if (!frame || !socketRef.current?.send(frame)) return false;
-    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId, seq: null } });
+    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId, seq: null, replyTo } });
     return true;
   }, []);
+
+  /** 以下 v2 发送函数:没有连接(重连中、已结束)时返回 false,不排队。 */
+  const send = (frame: string) => socketRef.current?.send(frame) ?? false;
+  const typing = useCallback((s: ActivityState) => send(encodeTyping(s)), []);
+  const react = useCallback((seq: number, key: ReactionKey, on: boolean) => send(encodeReact(seq, key, on)), []);
+  const translateVoice = useCallback((seq: number) => send(encodeVoiceTranslate(seq)), []);
+  const retryVoice = useCallback((seq: number) => send(encodeVoiceRetry(seq)), []);
+  /** HTTP 上传的语音消息({seq, message}):立即放进列表,广播随后到达时按 seq 去重。 */
+  const addMessage = useCallback((message: RoomMessage) => dispatch({ type: "event", event: { type: "message", message } }), []);
 
   const ask = useCallback((text: string) => {
     const requestId = newId();
@@ -99,5 +115,5 @@ export function useRoom(roomId: string) {
   const applyRoom = useCallback((room: RoomInfo) => dispatch({ type: "event", event: { type: "room_update", room } }), []);
   const dismiss = useCallback(() => dispatch({ type: "dismiss" }), []);
 
-  return { state, say, ask, loadEarlier, applyRoom, dismiss };
+  return { state, say, ask, loadEarlier, applyRoom, dismiss, typing, react, translateVoice, retryVoice, addMessage };
 }

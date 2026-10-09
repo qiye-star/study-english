@@ -39,7 +39,7 @@ function setup(routes: Record<string, Handler> = {}) {
 }
 
 async function live(room: object = ROOM) {
-  await waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBe('{"type":"hello","last_seq":0}'));
+  await waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBe('{"type":"hello","last_seq":0,"v":2}'));
   FakeWebSocket.last!.push({ type: "welcome", room, me: { user_id: 11111111, role: "owner" },
     members: MEMBERS, last_seq: 0, truncated: false, assist_history: [] });
 }
@@ -111,7 +111,7 @@ describe("RoomPage", () => {
     FakeWebSocket.last!.drop(1012);
     expect(screen.getByText("连接中断,正在重连…")).toBeTruthy();
     await waitFor(() => expect(FakeWebSocket.count).toBe(2), { timeout: 3000 });
-    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":5}'));
+    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":5,"v":2}'));
   });
 
   it("resends an unacknowledged message after a reconnect with the same client id and shows it once", async () => {
@@ -124,7 +124,7 @@ describe("RoomPage", () => {
     first.drop(1006); // dropped before the ack
     expect((screen.getByTestId("room-send") as HTMLButtonElement).disabled).toBe(true); // nothing can be sent while reconnecting
     await waitFor(() => expect(FakeWebSocket.count).toBe(2), { timeout: 3000 });
-    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":0}'));
+    await waitFor(() => expect(FakeWebSocket.last!.sent[0]).toBe('{"type":"hello","last_seq":0,"v":2}'));
     FakeWebSocket.last!.push({ type: "welcome", room: ROOM, me: { user_id: 11111111, role: "owner" }, members: MEMBERS, last_seq: 4, truncated: false, assist_history: [] });
     const resent = FakeWebSocket.last!.sent.map((f) => JSON.parse(f)).filter((f) => f.type === "say");
     expect(resent).toEqual([say]);
@@ -231,7 +231,7 @@ describe("RoomPage", () => {
     });
     renderWithProviders(<StrictMode><RoomPage /></StrictMode>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
       route: "/rooms/r/r1", path: "/rooms/r/:roomId", user: { id: "11111111", name: "alice" } });
-    await waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBe('{"type":"hello","last_seq":0}'));
+    await waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBe('{"type":"hello","last_seq":0,"v":2}'));
     expect(screen.queryByText("房间已结束,只能查看。")).toBeNull(); // the trial unmount must not leave a terminal "closed"
     await live();
     FakeWebSocket.last!.push({ type: "message", message: user(1, "still live") });

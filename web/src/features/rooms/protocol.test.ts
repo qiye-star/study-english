@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { encodeAssist, encodeHello, encodePing, encodeSay, isTerminalClose, mentionsAi, parseRoomEvent, ROOM_CLOSE, ROOM_LIMITS, ROOM_SERVER_EVENT_TYPES, roomWsUrl } from "./protocol";
+import {
+  encodeAssist, encodeHello, encodePing, encodeReact, encodeSay, encodeTyping, encodeVoiceRetry, encodeVoiceTranslate, isTerminalClose,
+  mentionsAi, parseRoomEvent, REACTION_GLYPHS, REACTION_KEYS, ROOM_CLOSE, ROOM_LIMITS, ROOM_PROTOCOL_VERSION, ROOM_SERVER_EVENT_TYPES, roomWsUrl,
+} from "./protocol";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const server = readFileSync(path.resolve(here, "../../../../server/app/rooms/protocol.py"), "utf8");
@@ -28,11 +31,11 @@ describe("room protocol mirrors server/app/rooms/protocol.py", () => {
 
 describe("encoders and parser", () => {
   it("encodes frames within limits", () => {
-    expect(JSON.parse(encodeHello(7))).toEqual({ type: "hello", last_seq: 7 });
+    expect(JSON.parse(encodeHello(7))).toEqual({ type: "hello", last_seq: 7, v: 2 });
     expect(JSON.parse(encodePing())).toEqual({ type: "ping" });
     expect(encodeSay({ clientId: "c", text: "   " })).toBeNull();
     expect(Array.from(JSON.parse(encodeSay({ clientId: "c", text: "😀".repeat(3000) })!).text)).toHaveLength(ROOM_LIMITS.sayRaw);
-    expect(JSON.parse(encodeSay({ clientId: "c", text: " hi ", assistId: "a1" })!)).toEqual({ type: "say", client_id: "c", text: "hi", assist_id: "a1" });
+    expect(JSON.parse(encodeSay({ clientId: "c", text: " hi ", assistId: "a1" })!)).toEqual({ type: "say", client_id: "c", text: "hi", assist_id: "a1", reply_to: null });
     expect(Array.from(JSON.parse(encodeAssist({ requestId: "r", text: "巧".repeat(900) })!).text)).toHaveLength(500);
     expect(encodeAssist({ requestId: "r", text: " " })).toBeNull();
   });
@@ -53,5 +56,28 @@ describe("encoders and parser", () => {
   it("builds the socket url on the page origin", () => {
     expect(roomWsUrl("a b", { protocol: "https:", host: "x.test" })).toBe("wss://x.test/api/rooms/ws?ticket=a%20b");
     expect(roomWsUrl("t", { protocol: "http:", host: "localhost:5173" })).toBe("ws://localhost:5173/api/rooms/ws?ticket=t");
+  });
+});
+
+describe("protocol v2", () => {
+  it("mirrors the server constants", () => {
+    expect(server).toContain(`PROTOCOL_VERSION = ${ROOM_PROTOCOL_VERSION}`);
+    expect(server).toContain(`REACTION_KEYS = (${REACTION_KEYS.map((k) => `"${k}"`).join(", ")})`);
+    expect(Object.keys(REACTION_GLYPHS)).toEqual([...REACTION_KEYS]);
+    expect(server).toContain('ACTIVITY_STATES = ("typing", "recording", "idle")');
+  });
+  it("encodes the new client frames", () => {
+    expect(encodeHello(3)).toBe('{"type":"hello","last_seq":3,"v":2}');
+    expect(encodeSay({ clientId: "c", text: " hi ", replyTo: 5 })).toBe('{"type":"say","client_id":"c","text":"hi","assist_id":null,"reply_to":5}');
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi", replyTo: 0 })!).reply_to).toBeNull(); // the server would reject it (ge=1)
+    expect(encodeTyping("recording")).toBe('{"type":"typing","state":"recording"}');
+    expect(encodeReact(4, "like", true)).toBe('{"type":"react","seq":4,"key":"like","on":true}');
+    expect(encodeVoiceTranslate(4)).toBe('{"type":"voice_translate","seq":4}');
+    expect(encodeVoiceRetry(4)).toBe('{"type":"voice_retry","seq":4}');
+  });
+  it("keeps reaction keys as values after camelcasing", () => {
+    expect(parseRoomEvent('{"type":"reaction","seq":4,"key":"haha","user_ids":[1,2]}')).toEqual({ type: "reaction", seq: 4, key: "haha", userIds: [1, 2] });
+    expect(parseRoomEvent('{"type":"voice_update","seq":4,"voice":{"duration_ms":6400,"status":"done","transcript":"Hi","lang":"en","translation":null,"translation_status":null,"attempts":1,"audio":true}}'))
+      .toMatchObject({ type: "voice_update", voice: { durationMs: 6400, translationStatus: null } });
   });
 });

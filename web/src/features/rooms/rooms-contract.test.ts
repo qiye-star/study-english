@@ -29,15 +29,17 @@ const camel = (v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep
 const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 
 const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
-  myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true };
+  myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true,
+  name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
 const MEMBER: Record<keyof RoomMemberInfo, true> = { userId: true, name: true, role: true, online: true };
 const MESSAGE: Record<keyof RoomMessage, true> = { seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true,
-  replyTo: true, aiStatus: true, meta: true, createdAt: true, hidden: true };
+  replyTo: true, aiStatus: true, meta: true, createdAt: true, hidden: true, quote: true, voice: true, reactions: true };
 const SENDER: Record<keyof RoomSender, true> = { kind: true, id: true, name: true };
-const CONFIG: Record<keyof RoomsConfig, true> = { enabled: true, aiAvailable: true, maxMembers: true, maxText: true };
+const CONFIG: Record<keyof RoomsConfig, true> = { enabled: true, aiAvailable: true, maxMembers: true, maxText: true,
+  scenarios: true, levels: true, defaultMaxMembers: true, nameMax: true, voiceAvailable: true, maxVoiceMs: true, summaryAvailable: true, reactions: true };
 type Ev<T extends RoomEvent["type"]> = Record<keyof Extract<RoomEvent, { type: T }>, true>;
 const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
-  welcome: { type: true, room: true, me: true, members: true, lastSeq: true, truncated: true, assistHistory: true },
+  welcome: { type: true, room: true, me: true, members: true, lastSeq: true, truncated: true, assistHistory: true, protocol: true, reactions: true, joinRequests: true },
   message: { type: true, message: true },
   ack: { type: true, clientId: true, seq: true },
   presence: { type: true, members: true },
@@ -51,11 +53,17 @@ const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
   closed: { type: true, reason: true },
   pong: { type: true },
   message_hidden: { type: true, seq: true },
+  // v2 events not in the recorded session: compile-time checked here, recorded by the lanes' own contract files
+  activity: { type: true, userId: true, state: true },
+  reaction: { type: true, seq: true, key: true, userIds: true },
+  voice_update: { type: true, seq: true, voice: true },
+  join_request: { type: true, request: true },
+  join_request_closed: { type: true, id: true, status: true },
 };
 type Code<T extends RoomEvent["type"]> = Extract<RoomEvent, { type: T }> extends { code: infer C } ? C & string : never;
 const CODES: { [K in "error" | "notice" | "ai_failed" | "assist_failed"]: Record<Code<K>, true> } = {
-  error: { rate_limited: true, empty: true, bad_assist: true },
-  notice: { ai_off: true, ai_busy: true, ai_quota: true },
+  error: { rate_limited: true, empty: true, bad_assist: true, bad_reply: true, bad_seq: true },
+  notice: { ai_off: true, ai_busy: true, ai_quota: true, voice_off: true, voice_quota: true, translate_quota: true, retry_limit: true },
   ai_failed: { upstream: true, quota: true, restart: true },
   assist_failed: { upstream: true, quota: true, format: true },
 };
@@ -136,6 +144,10 @@ describe("rooms WebSocket events (recorded from the real server) match the proto
       expect(wireKeys(C.ws[name].message), name).toEqual(keys(MESSAGE));
     }
     expect(Object.keys(camel(C.ws.assist_reply.message.meta)).sort()).toEqual(["glossary", "replyZh", "suggestions"]);
+    // v2 (F2 re-recorded the session): every message carries quote / voice / reactions; welcome has the v2 keys
+    expect(Object.keys(C.ws.message_text.message)).toEqual(expect.arrayContaining(["quote", "voice", "reactions"]));
+    expect(C.ws.welcome).toMatchObject({ protocol: 2, reactions: [], join_requests: [] });
+    expect(C.http.config.reactions).toEqual(["like", "love", "haha", "wow", "clap", "thanks"]);
   });
 
   it("the code enums equal protocol.py", () => {

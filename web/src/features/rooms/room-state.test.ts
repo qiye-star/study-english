@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { RoomMessage } from "./protocol";
-import { initialRoomState, roomReducer, type RoomAction, type RoomState } from "./room-state";
+import type { RoomInfo, RoomMessage, VoiceInfo } from "./protocol";
+import { initialRoomState, normalizeMessage, roomReducer, type RoomAction, type RoomState } from "./room-state";
 
 const msg = (seq: number, over: Partial<RoomMessage> = {}): RoomMessage => ({
   seq, id: `m${seq}`, lane: "public", kind: "text", sender: { kind: "user", id: 1, name: "alice" }, text: `t${seq}`,
-  assisted: false, replyTo: null, aiStatus: null, meta: null, createdAt: "", ...over,
+  assisted: false, replyTo: null, aiStatus: null, meta: null, createdAt: "", quote: null, voice: null, reactions: [], ...over,
 });
 const ev = (event: object): RoomAction => ({ type: "event", event: event as never });
 const run = (actions: RoomAction[], s: RoomState = initialRoomState()) => actions.reduce(roomReducer, s);
@@ -126,5 +126,61 @@ describe("roomReducer", () => {
     ]);
     expect(s).toMatchObject({ status: "closed", closeReason: "ended", room, me: { userId: 1, role: "owner" }, truncated: true, lastSeq: 3 });
     expect(s.messages.map((m) => m.seq)).toEqual([2]);
+  });
+});
+
+const ROOM_INFO = { id: "r1" } as RoomInfo;
+const voiceMsg = (seq: number, voice: Partial<VoiceInfo>) => msg(seq, { text: "", kind: "voice",
+  voice: { durationMs: 6400, status: "pending", transcript: null, lang: null, translation: null, translationStatus: null, attempts: 0, audio: true, ...voice } });
+
+describe("roomReducer v2", () => {
+  it("tracks activity with injected time and expires it", () => {
+    let s = roomReducer(initialRoomState(), { type: "event", event: { type: "activity", userId: 22, state: "recording" }, at: 1_000 });
+    expect(s.activity[22]).toEqual({ state: "recording", at: 1_000 });
+    s = roomReducer(s, { type: "event", event: { type: "activity", userId: 22, state: "idle" }, at: 2_000 });
+    expect(s.activity[22]).toBeUndefined();
+    s = roomReducer(s, { type: "event", event: { type: "activity", userId: 33, state: "typing" }, at: 3_000 });
+    expect(roomReducer(s, { type: "activity_expire", now: 8_000 }).activity[33]).toBeDefined();
+    expect(roomReducer(s, { type: "activity_expire", now: 9_001 }).activity).toEqual({});
+  });
+  it("applies reactions and voice updates by seq", () => {
+    let s = roomReducer(initialRoomState(), { type: "event", event: { type: "message", message: voiceMsg(5, {}) } });
+    s = roomReducer(s, { type: "event", event: { type: "reaction", seq: 5, key: "like", userIds: [1, 2] } });
+    expect(s.messages[0].reactions).toEqual([{ key: "like", userIds: [1, 2] }]);
+    s = roomReducer(s, { type: "event", event: { type: "reaction", seq: 99, key: "like", userIds: [1] } }); // unknown seq: ignored
+    s = roomReducer(s, { type: "event", event: { type: "reaction", seq: 5, key: "like", userIds: [] } });
+    expect(s.messages[0].reactions).toEqual([]);
+    s = roomReducer(s, { type: "event", event: { type: "voice_update", seq: 5, voice: { ...s.messages[0].voice!, status: "done", transcript: "Hi there", lang: "en" } } });
+    expect(s.messages[0].voice?.status).toBe("done");
+    expect(s.messages[0].text).toBe("Hi there");
+  });
+  it("keeps the owner's join requests in sync", () => {
+    const req = { id: "q1", roomId: "r1", roomName: "美食", userId: 3, name: "carol", status: "pending" as const, createdAt: "" };
+    let s = roomReducer(initialRoomState(), { type: "event", event: { type: "join_request", request: req } });
+    s = roomReducer(s, { type: "event", event: { type: "join_request", request: req } });
+    expect(s.joinRequests).toHaveLength(1);
+    s = roomReducer(s, { type: "event", event: { type: "join_request_closed", id: "q1", status: "approved" } });
+    expect(s.joinRequests).toEqual([]);
+  });
+  it("welcome refreshes reactions for the last 200 seqs", () => {
+    let s = roomReducer(initialRoomState(), { type: "event", event: { type: "message", message: msg(9, { reactions: [{ key: "wow", userIds: [7] }] }) } });
+    s = roomReducer(s, { type: "event", event: { type: "message", message: msg(10) } });
+    s = roomReducer(s, { type: "event", event: { type: "welcome", room: ROOM_INFO, me: { userId: 1, role: "owner" }, members: [], lastSeq: 10, truncated: false,
+      assistHistory: [], protocol: 2, reactions: [{ seq: 10, key: "clap", userIds: [3] }], joinRequests: [] } });
+    expect(s.messages.map((m) => m.reactions)).toEqual([[], [{ key: "clap", userIds: [3] }]]);
+    expect(s.protocol).toBe(2);
+  });
+  it("hiding a message clears its v2 fields and the quotes of it", () => {
+    let s = roomReducer(initialRoomState(), { type: "event", event: { type: "message", message: msg(1, { reactions: [{ key: "like", userIds: [1] }] }) } });
+    s = roomReducer(s, { type: "event", event: { type: "message", message: msg(2, { replyTo: 1, quote: { seq: 1, name: "alice", kind: "text", text: "t1" } }) } });
+    s = roomReducer(s, { type: "event", event: { type: "message_hidden", seq: 1 } });
+    expect(s.messages[0]).toMatchObject({ hidden: true, quote: null, voice: null, reactions: [] });
+    expect(s.messages[1].quote).toEqual({ seq: 1, name: "alice", kind: "text", text: "" });
+  });
+  it("fills v2 fields a v1 server does not send", () => {
+    const { quote: _q, voice: _v, reactions: _r, ...v1 } = msg(3);
+    expect(normalizeMessage(v1 as RoomMessage)).toMatchObject({ quote: null, voice: null, reactions: [] });
+    const s = roomReducer(initialRoomState(), { type: "event", event: { type: "message", message: v1 as RoomMessage } });
+    expect(s.messages[0].reactions).toEqual([]);
   });
 });
