@@ -57,6 +57,7 @@ router = APIRouter(prefix="/api")
 
 START_TIMEOUT = 10.0  # seconds to wait for the first (`start`) message
 CLOSE_INTERNAL = 1011  # unexpected server error (standard code; the client shows its generic text)
+KICK_GRACE = 5.0  # seconds an admin-ended call may take to finish after its close frame
 CLOSE_GOING_AWAY = 1001  # the handler was cancelled (server shutdown); only logged
 DRAIN_GRACE = 10.0  # seconds a closed call's late assessments get to persist (in the background)
 DRAIN_SLACK = 1.0  # extra backstop on top of DRAIN_GRACE for the cancel-and-wait of late assessments
@@ -205,10 +206,23 @@ async def realtime_ws(websocket: WebSocket, ticket: str = ""):
     grant = app.state.realtime_tickets.redeem(ticket) if ticket else None
     if grant is None:
         return await _close(websocket, CLOSE_UNAUTHORIZED)
-    with app.state.realtime_registry.hold(grant.user_id) as acquired:
+    registry = app.state.realtime_registry
+    with registry.hold(grant.user_id) as acquired:
         if not acquired:
             return await _close(websocket, CLOSE_BUSY)
-        await _call(websocket, app, settings, grant)
+        handler = asyncio.current_task()
+
+        async def end() -> None:  # called from an admin request's task, never from this one
+            # The close frame first: the client's close reply ends `_call` normally (slot released, turns saved);
+            # a client that never answers is cancelled after a short grace.
+            await _close(websocket, CLOSE_UNAUTHORIZED)
+            asyncio.get_running_loop().call_later(KICK_GRACE, lambda: handler.done() or handler.cancel())
+
+        registry.attach(grant.user_id, end)
+        try:
+            await _call(websocket, app, settings, grant)
+        finally:
+            registry.detach(grant.user_id, end)
 
 
 async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGrant) -> None:

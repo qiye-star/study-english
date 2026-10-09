@@ -874,3 +874,36 @@ async def test_drain_errors_are_logged_by_type_only(caplog):
     assert not app.state.realtime_drains
     text = "\n".join(r.getMessage() for r in caplog.records)
     assert "RuntimeError" in text and "hello there" not in text
+
+
+# ---------------------------------------------------------------- admin ends a live call (review security m10)
+
+
+def test_disabling_the_user_ends_their_live_call(tmp_path, monkeypatch):
+    from app.admin.accounts import create_account
+    from tests.admin_helpers import ADMIN_ENABLED, PASSWORD
+
+    app = make_ws_app(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    client = _start(app)
+    try:
+        headers = login(client)
+        uid = client.get("/api/me", headers=headers).json()["id"]
+        _, ticket = ticket_for(client, headers)
+
+        async def operator():
+            async with app.state.sessionmaker() as s:
+                await create_account(s, username="ops", password=PASSWORD, role="operator", created_by="t")
+                await s.commit()
+
+        client.portal.call(operator)
+        csrf = client.post("/api/admin/login", json={"username": "ops", "password": PASSWORD}).json()["csrf_token"]
+        with client.websocket_connect(f"/api/realtime?ticket={ticket}") as ws:
+            ws.send_text(json.dumps(START))
+            receive_until(ws, "ready")
+            assert app.state.realtime_registry.active_count == 1
+            r = client.post(f"/api/admin/users/{uid}/disable", headers={"X-Admin-CSRF": csrf}, json={"reason": "滥用"})
+            assert r.status_code == 200
+            assert until_close(ws)[1] == 4001
+        wait_for(lambda: app.state.realtime_registry.active_count == 0)
+    finally:
+        client.__exit__(None, None, None)

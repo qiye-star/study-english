@@ -44,8 +44,9 @@ def _fail(e: users_admin.UserAdminError):
 
 
 async def cut_connections(app, user_id: int) -> None:
-    """Revoke unredeemed tickets and close the user's live room sockets with 4010."""
+    """Revoke unredeemed tickets, end a live realtime call (4001) and close the user's live room sockets with 4010."""
     app.state.realtime_tickets.revoke_user(user_id)
+    await app.state.realtime_registry.end_user(user_id)
     rt = getattr(app.state, "rooms", None)
     if rt is None:
         return

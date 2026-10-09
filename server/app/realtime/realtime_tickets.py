@@ -3,7 +3,7 @@ single worker only. Tickets are secrets: nothing here ever logs them."""
 import secrets
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -67,6 +67,24 @@ class RealtimeRegistry:
     def __init__(self, max_sessions: int):
         self._max = max_sessions
         self._users: set[int] = set()
+        self._ends: dict[int, Callable[[], Awaitable[None]]] = {}
+
+    def attach(self, user_id: int, end: Callable[[], Awaitable[None]]) -> None:
+        """Remember how to end the user's live call (cancels the handler and closes the socket)."""
+        self._ends[user_id] = end
+
+    def detach(self, user_id: int, end: Callable[[], Awaitable[None]]) -> None:
+        if self._ends.get(user_id) is end:
+            del self._ends[user_id]
+
+    async def end_user(self, user_id: int) -> bool:
+        """Admin disable/revoke/reset/delete (review security m10): end the user's live call now instead of letting it
+        run (and spend upstream money) until REALTIME_MAX_MINUTES. True when a call was ended."""
+        end = self._ends.pop(user_id, None)
+        if end is None:
+            return False
+        await end()
+        return True
 
     @property
     def active_count(self) -> int:

@@ -7230,3 +7230,6 @@ Rulings below override earlier text in this plan.
   characters (the reason) may set it (403 `Above operator limit` / `Step-up required`, 409 `Reason required`).
 - Ruling (denials, security m8): 403 `Forbidden` / `Step-up required` from the role and step-up dependencies write
   `auth.denied` (target = route path) at most once per session, path and minute.
+- Ruling (live calls, security m10 / correctness m11): disable, revoke tokens, reset password and delete end the
+  user's live realtime call: `RealtimeRegistry.end_user` sends close 4001 (existing `unauthorized` code, no protocol
+  change) and cancels the handler if the client has not finished 5 s later.
