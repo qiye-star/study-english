@@ -17,6 +17,7 @@ import { IconChip } from "~/components/icon-chip";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { RankCard } from "~/features/rank";
 import { PageHeader } from "~/layout/page-header";
 import { formatClock } from "~/lib/format-clock";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";
@@ -167,6 +168,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
         }
       />
       <div className="px-gutter pb-6">
+        <RankCard className="mt-2" />
         <SectionGroup title={t("web.practice.home.shadowing")} bare>
           <SurfaceCard className="p-3.5">
             <label htmlFor="reference" className="eyebrow">{t("web.practice.referenceLabel")}</label>
