@@ -55,6 +55,11 @@ class MatchDeps:
     judge: Callable[[list[dict]], Awaitable[str]]
 
 
+def is_busy(match_id: str) -> bool:
+    """A /turns, /finish or /abandon on this match is in flight (admin void/regrade must not interleave)."""
+    return match_id in _busy
+
+
 def _user_turns(match: PromotionMatch) -> int:
     return sum(1 for t in match.turns if t["role"] == "user")
 

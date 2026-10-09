@@ -105,6 +105,12 @@ async def _user_lock(user_id: int) -> AsyncIterator[None]:
             _sync_locks.pop(user_id, None)
 
 
+def user_lock(user_id: int):
+    """The per-user sync lock; admin profile edits hold it across their commit so a concurrent sync cannot overwrite
+    them with a stale copy (single worker)."""
+    return _user_lock(user_id)
+
+
 async def sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int, *,
                rules=None) -> RankProfile:
     """One sync per user at a time (single worker): concurrent /me requests would compute the same fresh events
