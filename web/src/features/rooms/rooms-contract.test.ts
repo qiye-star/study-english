@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { parseRoomEvent, type RoomEvent, type RoomInfo, type RoomMemberInfo, type RoomMessage, type RoomSender } from "./protocol";
+import { ROOMS_ALL_SERVER_ERRORS } from "./create/rooms-v2-api";
 import { initialRoomState, roomReducer } from "./room-state";
 import {
   closeRoom, createRoom, fetchRoomsConfig, getRoom, joinRoom, kickMember, leaveRoom, myRooms, reportMessage, roomHistory, roomTicket,
@@ -126,7 +127,8 @@ describe("rooms HTTP payloads (recorded from the real server) match the web type
     const messages = [...block.matchAll(/\(\d{3}, "([^"]+)"\)/g)].map((m) => m[1]);
     expect(messages.length).toBeGreaterThan(5);
     // Ruling: "Invalid reason" is unreachable from the web (the report sheet only offers spam/abuse/other) → generic error text.
-    expect(messages.filter((m) => m !== "Invalid reason" && !(m in ROOMS_SERVER_ERRORS))).toEqual([]);
+    // Integration ruling: v2 errors (SC) are mapped by WC's ROOMS_V2_SERVER_ERRORS; v2 callers use the union.
+    expect(messages.filter((m) => m !== "Invalid reason" && !(m in ROOMS_ALL_SERVER_ERRORS))).toEqual([]);
     expect(ROOMS_SERVER_ERRORS).toHaveProperty(["Rooms are disabled"]);
   });
 });
