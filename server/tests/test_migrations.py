@@ -189,6 +189,11 @@ def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
         _match_row(con, "old", "active", "2026-10-09 10:00:00")
         _match_row(con, "new", "grading_failed", "2026-10-09 11:00:00")
         _match_row(con, "done", "passed", "2026-10-08 11:00:00")
+        con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at, "
+                    "last_active_at) values ('r', '482913', '482913', 12345678, 't', 'open', 0, 1, 1, '2026-10-09 10:00:00', "
+                    "'2026-10-09 10:00:00')")
+        con.execute("insert into room_messages (id, room_id, seq, lane, sender_kind, sender_id, kind, text, assisted, "
+                    "created_at) values ('m', 'r', 1, 'public', 'user', 12345678, 'text', 'hi', 0, '2026-10-09 10:00:00')")
         con.commit()
     finally:
         con.close()
@@ -202,6 +207,10 @@ def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
         # (seq, name, unique, origin, partial)
         index = next(r for r in con.execute("pragma index_list(promotion_matches)") if r[1] == "uq_promotion_matches_user_open")
         assert index[2] == 1 and index[4] == 1
+        fks = con.execute("pragma foreign_key_list(rooms)").fetchall()
+        assert [(r[2], r[3], r[6]) for r in fks] == [("users", "owner_id", "RESTRICT")]  # review #14
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
+        assert con.execute("select code from rooms where id = 'r'").fetchone() == ("482913",)
         try:
             _match_row(con, "dup", "active", "2026-10-09 12:00:00")
             raise AssertionError("second open match was accepted")
@@ -213,6 +222,8 @@ def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
     con = sqlite3.connect(db)
     try:
         assert "grade_attempts" not in _columns(con, "promotion_matches")
+        assert [r[6] for r in con.execute("pragma foreign_key_list(rooms)")] == ["CASCADE"]
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
     finally:
         con.close()
     command.upgrade(cfg, "head")

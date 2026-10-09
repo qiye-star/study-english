@@ -227,7 +227,9 @@ class Room(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     code: Mapped[str | None] = mapped_column(String(6), unique=True, nullable=True)
     last_code: Mapped[str] = mapped_column(String(6))
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # RESTRICT: deleting an owner must never cascade to the room and its messages (migration 0007)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT", name="fk_rooms_owner_id_users"),
+                                          index=True)
     topic: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(8), default="open")
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
