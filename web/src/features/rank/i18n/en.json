@@ -15,7 +15,7 @@
     "rules": "Speak every answer, no typing: {{turns}} turns within {{minutes}} minutes, 1.5–30 seconds each.", "begin": "Begin", "replay": "Replay",
     "showText": "Show text", "hideText": "Hide text", "hold": "Hold to talk", "listening": "Listening…", "grading": "Grading…",
     "partner": "Partner", "speaking": "speaking",
-    "abandon": "Give up", "abandonConfirm": "Giving up counts as a failed attempt. Continue?", "retry": "Retry", "ended": "This match has ended", "you": "You" },
+    "abandon": "Give up", "abandonConfirm": "Giving up counts as a failed attempt. Continue?", "retry": "Retry", "regrade": "Grade again", "ended": "This match has ended", "you": "You" },
   "result": { "passed": "Promoted", "failed": "Not this time", "points": "pts", "passMark": "pass mark {{threshold}}", "score": "{{total}} / pass mark {{threshold}}",
     "scores": "Scores", "notes": "Feedback", "next": "Next",
     "dimensions": { "task": "Task", "accuracy": "Accuracy", "range": "Range", "interaction": "Interaction", "speech": "Pronunciation & fluency" },

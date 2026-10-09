@@ -15,7 +15,7 @@
     "rules": "全程语音作答,不能打字。共 {{turns}} 轮,{{minutes}} 分钟内完成,每轮 1.5–30 秒。", "begin": "开始", "replay": "重听",
     "showText": "看文字", "hideText": "隐藏文字", "hold": "按住 说话", "listening": "正在听…", "grading": "正在评分…",
     "partner": "对方", "speaking": "正在说",
-    "abandon": "放弃本场", "abandonConfirm": "放弃会算作一次未通过,确定吗?", "retry": "重试", "ended": "本场已结束", "you": "你" },
+    "abandon": "放弃本场", "abandonConfirm": "放弃会算作一次未通过,确定吗?", "retry": "重试", "regrade": "重新打分", "ended": "本场已结束", "you": "你" },
   "result": { "passed": "晋级成功", "failed": "差一点", "points": "分", "passMark": "通过线 {{threshold}}", "score": "{{total}} 分 / 通过线 {{threshold}}",
     "scores": "评分", "notes": "点评", "next": "下一步",
     "dimensions": { "task": "任务完成", "accuracy": "语法准确", "range": "词汇与表达", "interaction": "连贯与互动", "speech": "发音与流利" },

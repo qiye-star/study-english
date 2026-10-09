@@ -153,6 +153,38 @@ describe("MatchPage", () => {
     await waitFor(() => expect(screen.getByTestId("match-hold")).not.toBeDisabled());
   });
 
+  it("a match whose grading failed offers both 重新打分 and 放弃 (it blocks new matches until one of them)", async () => {
+    let finishes = 0;
+    const graded = { ...CONTRACT.match, status: "grading_failed", turn_limit: 1, turns: [...CONTRACT.match.turns, { role: "user", text: "My kettle is broken." }] };
+    const mock = createFetchMock({
+      [`GET /api/rank/matches/${id}`]: () => json({ match: graded, verdict: null }),
+      [`POST /api/rank/matches/${id}/finish`]: () => { finishes += 1; return json({ error: "Grading failed" }, 502); },
+      [`POST /api/rank/matches/${id}/abandon`]: () => json({ match: { ...graded, status: "abandoned", finished_at: "2026-11-09T09:50:00+00:00" } }),
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithProviders(<MatchPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: `/rank/match/${id}`, path: "/rank/match/:id" });
+    expect((await screen.findByTestId("match-error")).textContent).toContain("评分失败,请重试");
+    await waitFor(() => expect(finishes).toBe(1));
+    expect(screen.getByTestId("match-retry").textContent).toContain("重新打分");
+    expect(screen.getByTestId("match-error-abandon").textContent).toContain("放弃");
+    fireEvent.click(screen.getByTestId("match-retry"));
+    await waitFor(() => expect(finishes).toBe(2));
+    await screen.findByTestId("match-error-abandon");
+    await act(async () => { fireEvent.click(screen.getByTestId("match-error-abandon")); });
+    expect(confirm).toHaveBeenCalled();
+    expect(mock.calls.filter((c) => c.url.pathname.endsWith("/abandon"))).toHaveLength(1);
+    expect(await screen.findByText("本场已结束")).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it("a failed turn upload says 重试, not 重新打分", async () => {
+    const mock = createFetchMock({ [`GET /api/rank/matches/${id}`]: () => json({ error: "Upstream unavailable" }, 502) });
+    renderWithProviders(<MatchPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: `/rank/match/${id}`, path: "/rank/match/:id" });
+    expect((await screen.findByTestId("match-retry")).textContent).toContain("重试");
+    expect(screen.getByTestId("match-retry").textContent).not.toContain("重新打分");
+    expect(screen.queryByTestId("match-error-abandon")).toBeNull(); // 没加载到场次:没有可放弃的
+  });
+
   it("shows the result page for a finished match", async () => {
     const mock = createFetchMock({ [`GET /api/rank/matches/${id}`]: () => json(CONTRACT.finish_fail) });
     renderWithProviders(<MatchPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: `/rank/match/${id}`, path: "/rank/match/:id" });

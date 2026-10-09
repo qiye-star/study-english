@@ -16,6 +16,8 @@ import { CARD, GHOST_BUTTON, PRIMARY_BUTTON } from "./ui";
 import { MAX_HOLD_MS, useMatch } from "./use-match";
 
 const LIVE_PHASES = new Set(["ai_speaking", "your_turn", "recording", "uploading"]);
+/** 服务端仍视为"进行中"的场次(rank/match.py 的 OPEN):可以继续、重新打分或放弃 */
+const OPEN_STATUSES = new Set(["active", "grading_failed"]);
 const TOOL = "inline-flex min-h-tap items-center gap-[5px] rounded-button px-1 text-sub font-medium text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:size-[18px]";
 
 const matchMinutes = (match: Match) => Math.max(1, Math.round((Date.parse(match.expiresAt) - Date.parse(match.startedAt)) / 60_000)) || 20;
@@ -45,7 +47,7 @@ export function MatchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const m = useMatch(id);
-  const { phase, match, verdict, error, showText } = m.state;
+  const { phase, match, verdict, error, retry, showText } = m.state;
   const [now, setNow] = useState(() => Date.now());
   const live = LIVE_PHASES.has(phase);
   useEffect(() => {
@@ -97,9 +99,16 @@ export function MatchPage() {
         {phase === "error" && (
           <div role="alert" data-testid="match-error" className={cn("p-3.5 text-sub", CARD)}>
             <p>{error}</p>
-            <button type="button" className={cn(GHOST_BUTTON, "mt-3 h-tap")} onClick={m.retry}>
-              <RotateCcwIcon aria-hidden />{t("web.rank.match.retry")}
+            <button type="button" data-testid="match-retry" className={cn(GHOST_BUTTON, "mt-3 h-tap")} onClick={m.retry}>
+              <RotateCcwIcon aria-hidden />{t(retry === "finish" ? "web.rank.match.regrade" : "web.rank.match.retry")}
             </button>
+            {/* 评分失败的场次仍算"进行中",会挡住新的晋级赛:除了重新打分,也要能放弃(spec §3.4) */}
+            {match && OPEN_STATUSES.has(match.status) && (
+              <button type="button" data-testid="match-error-abandon" className={cn(GHOST_BUTTON, "mt-2 h-tap")}
+                onClick={() => { if (window.confirm(t("web.rank.match.abandonConfirm"))) void m.abandon(); }}>
+                {t("web.rank.match.abandon")}
+              </button>
+            )}
           </div>
         )}
       </div>
