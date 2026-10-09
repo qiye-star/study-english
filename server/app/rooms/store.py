@@ -16,7 +16,7 @@ from app.models import (
 )
 from app.rooms.codes import generate_code
 from app.rooms.protocol import REACTION_KEYS
-from app.rooms.rules import CEFR_BY_TIER, MAX_TOPIC, RoomLimits, clean_text
+from app.rooms.rules import CEFR_BY_TIER, MAX_TOPIC, NAME_MAX, SETTING_FIELDS, RoomLimits, clean_text, default_level
 from app.services.stats import as_utc
 
 CODE_ATTEMPTS = 5
@@ -102,8 +102,12 @@ class RoomStore:
         # Create and join check a count and then insert; one at a time keeps the caps exact (single worker, review #16).
         self._admission = asyncio.Lock()
 
-    async def create(self, owner_id: int, topic: str, now: datetime, *, max_owned: int | None = None) -> Room:
-        """`max_owned` is the owner's own cap (admin per-user quota override); default: the site limit."""
+    async def create(self, owner_id: int, topic: str, now: datetime, *, max_owned: int | None = None,
+                     settings: dict | None = None) -> Room:
+        """`max_owned` is the owner's own cap (admin per-user quota override); default: the site limit.
+        `settings` is `rules.clean_settings` output; missing fields get the defaults (spec 2026-10-10 §3.1). The v1
+        `topic` only seeds the name; the `topic` column is no longer written (R2-1)."""
+        settings = settings or {}
         async with self._admission, self._sm() as s:
             if await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open")) >= self.limits.max_active:
                 raise RoomError("capacity")
@@ -111,13 +115,24 @@ class RoomStore:
                                                                                 Room.owner_id == owner_id))
             if owned >= (self.limits.max_owned if max_owned is None else max_owned):
                 raise RoomError("too_many")
+            name = settings.get("name") or clean_text(topic or "", NAME_MAX)
+            if not name:
+                username = await s.scalar(select(User.username).where(User.id == owner_id)) or ""
+                name = f"{username}的房间"[:NAME_MAX]
+            level = settings.get("level")
+            if level is None:
+                level = default_level(await s.scalar(select(RankProfile.tier).where(RankProfile.user_id == owner_id)))
             for _ in range(CODE_ATTEMPTS):
                 code = self._code_gen()
                 if await s.scalar(select(Room.id).where(Room.code == code)):
                     continue
-                room = Room(id=new_uuid(), code=code, last_code=code, owner_id=owner_id,
-                            topic=clean_text(topic or "", MAX_TOPIC) or "", status="open", locked=False,
-                            ai_public=True, last_seq=0, created_at=now, last_active_at=now)
+                room = Room(id=new_uuid(), code=code, last_code=code, owner_id=owner_id, topic="", status="open",
+                            locked=False, ai_public=settings.get("ai_public", True), last_seq=0, created_at=now,
+                            last_active_at=now, name=name, scenario=settings.get("scenario", "free"), level=level,
+                            join_mode=settings.get("join_mode", "code"),
+                            max_members=settings.get("max_members", min(self.limits.default_max_members,
+                                                                        self.limits.max_members)),
+                            allow_voice=settings.get("allow_voice", True))
                 s.add(room)
                 s.add(RoomMember(room_id=room.id, user_id=owner_id, role="owner", joined_at=now, kicked=False))
                 try:
@@ -142,7 +157,7 @@ class RoomStore:
                 raise RoomError("locked")
             count = await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == room.id,
                                                                                       *_ACTIVE))
-            if count >= self.limits.max_members:
+            if count >= min(room.max_members, self.limits.max_members):
                 raise RoomError("full")
             has_owner = await s.scalar(select(RoomMember.id).where(RoomMember.room_id == room.id,
                                                                    RoomMember.role == "owner", *_ACTIVE))
@@ -303,6 +318,29 @@ class RoomStore:
                 room.ai_public = ai_public
             await s.commit()
             return room
+
+    async def update_settings(self, room_id: str, owner_id: int, changes: dict) -> tuple[Room, list[dict]]:
+        """Owner edit of the seven settings (`clean_settings(partial=True)` output). Returns the room and the fields
+        that really changed as [{field, value}] in SETTING_FIELDS order. `max_members` below the current member
+        count -> `below_members` (spec 2026-10-10 §3.2). Under the admission lock so a concurrent join cannot
+        slip past a lowered cap."""
+        async with self._admission, self._sm() as s:
+            room = await self._owned_room(s, room_id, owner_id)
+            changed: list[dict] = []
+            for field in SETTING_FIELDS:
+                if field not in changes or getattr(room, field) == changes[field]:
+                    continue
+                if field == "max_members":
+                    count = await s.scalar(select(func.count()).select_from(RoomMember).where(
+                        RoomMember.room_id == room_id, *_ACTIVE))
+                    if changes[field] < count:
+                        raise RoomError("below_members")
+                changed.append({"field": field, "value": changes[field]})
+            for c in changed:
+                setattr(room, c["field"], c["value"])
+            if changed:
+                await s.commit()
+            return room, changed
 
     async def close(self, room_id: str, reason: str, now: datetime) -> Room | None:
         async with self._sm() as s:

@@ -75,7 +75,7 @@ async def test_room_out_v2_and_pending_requests(app):
     store, room = await _store(app)
     out = room_out(room, my_role="owner", member_count=2, online_count=0)
     assert {k: out[k] for k in ("name", "topic", "scenario", "level", "join_mode", "max_members", "allow_voice")} == {
-        "name": "", "topic": "美食", "scenario": "free", "level": "B1", "join_mode": "code", "max_members": 4,
+        "name": "美食", "topic": "美食", "scenario": "free", "level": "A2", "join_mode": "code", "max_members": 4,
         "allow_voice": True}
     async with app.state.sessionmaker() as s:
         s.add(User(id=3, username="carol", password_hash="x"))

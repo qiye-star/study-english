@@ -61,7 +61,9 @@ async def test_closed_room_history_stays_readable(client, auth_headers):
     detail = await client.get(f"/api/rooms/{room['id']}", headers=auth_headers)
     assert detail.status_code == 200 and detail.json()["room"]["status"] == "closed"
     msgs = (await client.get(f"/api/rooms/{room['id']}/messages", params={"before_seq": 100}, headers=auth_headers)).json()
-    assert [(m["text"], m["meta"]) for m in msgs["messages"]] == [("topic", {"topic": "美食"})]
+    # v2 (spec 2026-10-10 §3.2): a legacy topic patch renames the room and posts one `settings` message
+    assert [(m["text"], m["meta"]) for m in msgs["messages"]] == [
+        ("settings", {"changes": [{"field": "name", "value": "美食"}]})]
     assert (await client.patch(f"/api/rooms/{room['id']}", json={"locked": True}, headers=auth_headers)).status_code == 404
     mine = (await client.get("/api/rooms/mine", headers=auth_headers)).json()["rooms"]
     assert [(r["id"], r["status"]) for r in mine] == [(room["id"], "closed")]

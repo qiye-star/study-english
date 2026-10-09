@@ -23,7 +23,7 @@ async def store(app):
 
 async def test_create_join_and_errors(store):
     room = await store.create(A, "  美食  ", NOW)
-    assert (room.code, room.topic, room.status) == ("482913", "美食", "open")
+    assert (room.code, room.name, room.topic, room.status) == ("482913", "美食", "", "open")  # R2-1: name, not topic
     other = await store.create(A, "", NOW)
     assert other.code == "573920"  # first draw collided with the open room
     with pytest.raises(RoomError) as e:

@@ -2,6 +2,8 @@
 import re
 from dataclasses import dataclass
 
+from app.rooms.scenarios import SCENARIOS
+
 MAX_TEXT = 500
 MAX_TOPIC = 100
 LEVELS = ("A1", "A2", "B1", "B2", "C1")  # room target levels (spec 2026-10-10 §3.1)
@@ -15,6 +17,73 @@ def clean_text(raw: str, limit: int = MAX_TEXT) -> str | None:
     text = " ".join(_CONTROL.sub(" ", raw or "").split())
     text = text[:limit].strip()
     return text or None
+
+
+JOIN_MODES = ("code", "approval")
+SETTING_FIELDS = ("name", "scenario", "level", "join_mode", "max_members", "ai_public", "allow_voice")
+NAME_MAX = 30
+MIN_MEMBERS = 2
+MAX_MEMBERS_CAP = 8  # spec 2026-10-10 §3.1: 2–8 and never above the site ROOMS_MAX_MEMBERS
+# Tier index -> default room level (spec R2-20: B1+ -> B1, C1+ -> C1); mirrors CEFR_BY_TIER without the "+".
+_LEVEL_BY_TIER = ("A1", "A2", "B1", "B1", "B2", "C1", "C1")
+
+
+@dataclass(frozen=True)
+class RoomSettings:
+    """The seven creation settings (spec 2026-10-10 §3.1)."""
+    name: str
+    scenario: str
+    level: str
+    join_mode: str
+    max_members: int
+    ai_public: bool
+    allow_voice: bool
+
+
+def default_level(tier: int | None) -> str:
+    """The creator's rank tier as a room level; no rank profile (or an unknown tier) -> A2."""
+    if tier is None or not 0 <= tier < len(_LEVEL_BY_TIER):
+        return "A2"
+    return _LEVEL_BY_TIER[tier]
+
+
+def clean_settings(raw: dict, *, site_max_members: int, partial: bool) -> tuple[dict, dict[str, str]]:
+    """Validate the settings present in `raw` -> (clean values, {field: error code}). Unknown keys are ignored.
+    A blank name is left out (create: the store fills the default; edit: no change). `partial` only matters for
+    the caller: both modes check exactly the keys that are present."""
+    values: dict = {}
+    errors: dict[str, str] = {}
+    if raw.get("name") is not None:
+        name = clean_text(str(raw["name"]), 10 * NAME_MAX)  # count code points after cleaning whitespace/controls
+        if name is not None and len(name) > NAME_MAX:
+            errors["name"] = "too_long"
+        elif name is not None:
+            values["name"] = name
+    if raw.get("scenario") is not None:
+        if raw["scenario"] in {s.key for s in SCENARIOS}:
+            values["scenario"] = raw["scenario"]
+        else:
+            errors["scenario"] = "unknown"
+    if raw.get("level") is not None:
+        if raw["level"] in LEVELS:
+            values["level"] = raw["level"]
+        else:
+            errors["level"] = "unknown"
+    if raw.get("join_mode") is not None:
+        if raw["join_mode"] in JOIN_MODES:
+            values["join_mode"] = raw["join_mode"]
+        else:
+            errors["join_mode"] = "unknown"
+    if raw.get("max_members") is not None:
+        size = raw["max_members"]
+        if isinstance(size, int) and not isinstance(size, bool) and                 MIN_MEMBERS <= size <= min(MAX_MEMBERS_CAP, site_max_members):
+            values["max_members"] = size
+        else:
+            errors["max_members"] = "range"
+    for key in ("ai_public", "allow_voice"):
+        if raw.get(key) is not None:
+            values[key] = bool(raw[key])
+    return values, errors
 
 
 def mention(text: str) -> tuple[bool, str]:

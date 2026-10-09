@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
@@ -32,7 +33,7 @@ from app.rooms.protocol import (
     CLOSE_UNAUTHORIZED, HELLO_TIMEOUT, MAX_ID, HelloMsg, ProtocolError, event, parse_client_message,
 )
 from app.rooms.protocol import REACTION_KEYS
-from app.rooms.rules import LEVELS, MAX_TEXT, RoomLimits
+from app.rooms.rules import LEVELS, MAX_TEXT, NAME_MAX, RoomLimits, clean_settings, clean_text
 from app.rooms.scenarios import SCENARIOS
 from app.rooms.store import RoomError, RoomStore, message_out, room_out
 from app.rooms.tickets import RoomTicketStore
@@ -47,6 +48,7 @@ ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "not_found": (404, "Room not found"), "locked": (403, "Room is locked"), "full": (409, "Room is full"),
     "kicked": (403, "Removed from room"), "capacity": (503, "Room capacity reached"), "too_many": (429, "Too many rooms"),
     "forbidden": (403, "Only the owner can do that"), "bad_reason": (400, "Invalid reason"),
+    "below_members": (409, "Below current members"),
 }
 
 
@@ -180,18 +182,32 @@ def _raise(e: RoomError):
     raise HTTPException(status, message) from None
 
 
-class CreateIn(BaseModel):
-    topic: str = Field("", max_length=200)
+class SettingsIn(BaseModel):
+    """The seven room settings (spec 2026-10-10 §3.1); values are checked by `rules.clean_settings`."""
+    name: str | None = Field(None, max_length=200)
+    scenario: str | None = Field(None, max_length=32)
+    level: str | None = Field(None, max_length=8)
+    join_mode: str | None = Field(None, max_length=16)
+    max_members: int | None = None
+    ai_public: bool | None = None
+    allow_voice: bool | None = None
+
+
+class CreateIn(SettingsIn):
+    topic: str = Field("", max_length=200)  # v1 clients: seeds the name
 
 
 class JoinIn(BaseModel):
     code: str = Field(min_length=1, max_length=32)
 
 
-class PatchIn(BaseModel):
-    topic: str | None = Field(None, max_length=200)
+class PatchIn(SettingsIn):
+    topic: str | None = Field(None, max_length=200)  # v1 clients: written to `name`, cut to 30 (R2-1)
     locked: bool | None = None
-    ai_public: bool | None = None
+
+
+def _invalid_settings(errors: dict[str, str]) -> JSONResponse:
+    return JSONResponse({"error": "Invalid settings", "fields": errors}, status_code=400)
 
 
 class KickIn(BaseModel):
@@ -235,12 +251,16 @@ async def rooms_config(_: User = Depends(current_user), settings: Settings = Dep
 
 @router.post("")
 async def create_room(payload: CreateIn, request: Request, user: User = Depends(limited_user),
-                      _: Settings = Depends(require_rooms)):
+                      settings: Settings = Depends(require_rooms)):
     rt = runtime(request.app)
+    values, errors = clean_settings(payload.model_dump(exclude_none=True, exclude={"topic"}),
+                                    site_max_members=settings.rooms_max_members, partial=False)
+    if errors:
+        return _invalid_settings(errors)
     async with request.app.state.sessionmaker() as s:
         max_owned = await effective(s, request.app, user.id, "rooms_max_owned")
     try:
-        room = await rt.store.create(user.id, payload.topic, utcnow(), max_owned=max_owned)
+        room = await rt.store.create(user.id, payload.topic, utcnow(), max_owned=max_owned, settings=values)
     except RoomError as e:
         _raise(e)
     return {"room": await _room_json(rt, room, "owner")}
@@ -311,16 +331,24 @@ async def room_ticket(room_id: str, request: Request, user: User = Depends(limit
 
 @router.patch("/{room_id}")
 async def update_room(room_id: str, payload: PatchIn, request: Request, user: User = Depends(current_user),
-                      _: Settings = Depends(require_rooms)):
+                      settings: Settings = Depends(require_rooms)):
+    """Owner edit of any subset of the seven settings plus `locked` (spec 2026-10-10 §3.2). One `settings` system
+    message lists every field that really changed; the v1 `topic` message is no longer produced."""
     rt = runtime(request.app)
+    raw = payload.model_dump(exclude_none=True, exclude={"topic", "locked"})
+    if payload.topic is not None and payload.name is None:
+        raw["name"] = clean_text(payload.topic, NAME_MAX) or ""
+    values, errors = clean_settings(raw, site_max_members=settings.rooms_max_members, partial=True)
+    if errors:
+        return _invalid_settings(errors)
+    room_id = room_id[:MAX_ID]
     try:
-        before = await rt.store.room(room_id[:MAX_ID])
-        room = await rt.store.update(room_id[:MAX_ID], user.id, topic=payload.topic, locked=payload.locked,
-                                     ai_public=payload.ai_public)
+        _room, changes = await rt.store.update_settings(room_id, user.id, values)
+        room = await rt.store.update(room_id, user.id, locked=payload.locked)
     except RoomError as e:
         _raise(e)
-    if payload.topic is not None and before is not None and room.topic != before.topic:
-        await system_message(rt, room.id, "topic", {"topic": room.topic})
+    if changes:
+        await system_message(rt, room.id, "settings", {"changes": changes})
     await rt.hub.broadcast(room.id, event("room_update", room=await _room_json(rt, room, None)))
     return {"room": await _room_json(rt, room, "owner")}
 

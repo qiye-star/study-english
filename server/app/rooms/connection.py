@@ -196,7 +196,7 @@ class RoomConnection:
                 try:
                     template = await d.template("rooms.answer")
                     async with d.ai_gate:
-                        raw = await d.complete(assistant.answer_messages(room.topic, recent, self.name, question,
+                        raw = await d.complete(assistant.answer_messages(room.name or room.topic, recent, self.name, question,
                                                                          template=template),
                                                assistant.ANSWER_MAX_TOKENS, assistant.ANSWER_TEMPERATURE)
                     text = assistant.clean_answer(raw)
