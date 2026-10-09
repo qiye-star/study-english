@@ -9,9 +9,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import audit, settings_service as svc
+from app.admin import audit, doctor, probes, settings_service as svc
 from app.admin.perms import AdminContext, require, step_up_until
 from app.core.deps import get_session
+from app.core.runtime_settings import OverrideError, compose
+from app.core.settings_registry import SPECS
 
 router = APIRouter(prefix="/api/admin")
 MAX_IMPORT_BYTES = 256 * 1024
@@ -136,6 +138,50 @@ async def import_preview(request: Request, _: AdminContext = Depends(require("su
         return JSONResponse({"error": "Unsupported file"}, status_code=400)
     except svc.SettingsError as exc:
         return _error(exc)
+
+
+@router.get("/doctor")
+async def get_doctor(request: Request, _: AdminContext = Depends(require("viewer")),
+                     session: AsyncSession = Depends(get_session)):
+    facts = await doctor.gather_facts(session, request.app)
+    return {"findings": [doctor.finding_out(f) for f in doctor.diagnose(request.app.state.settings, facts)]}
+
+
+class ProbeIn(BaseModel):
+    values: dict[str, Any] = Field(default_factory=dict, max_length=20)
+    allow_cost: bool = False
+    confirm_pairs: list[str] = Field(default_factory=list, max_length=20)
+
+
+@router.post("/probes/{upstream}")
+async def run_probe(upstream: str, request: Request, body: ProbeIn | None = None,
+                    ctx: AdminContext = Depends(require("superadmin")), session: AsyncSession = Depends(get_session)):
+    """Test an upstream with the saved values or with unsaved form values (an empty secret = keep the saved one)."""
+    if upstream not in probes.UPSTREAMS:
+        return JSONResponse({"error": "Unknown upstream"}, status_code=404)
+    body = body or ProbeIn()
+    current = request.app.state.settings
+    values = {k: v for k, v in body.values.items() if not (k in SPECS and SPECS[k].secret and v in ("", None))}
+    candidate = current
+    if values:
+        bad = [k for k in values if k not in SPECS or SPECS[k].env_only]
+        if bad:
+            return JSONResponse({"error": "Setting is read-only", "fields": {k[:64]: "Setting is read-only"
+                                                                             for k in bad}}, status_code=400)
+        try:
+            candidate = compose(current, values)
+        except OverrideError as exc:
+            return JSONResponse({"error": "Invalid settings", "fields": exc.fields}, status_code=422)
+        pairs = [k for k in svc.pair_violations(values, current) if k not in set(body.confirm_pairs)]
+        if pairs:
+            return JSONResponse({"error": "Key would be sent to a new host",
+                                 "details": {"pairs": pairs, "hosts": {k: svc.host_of(str(values[k])) for k in pairs}}},
+                                status_code=409)
+    result = await probes.probe(request.app.state.http, candidate, upstream, allow_cost=body.allow_cost)
+    await audit.record(session, ctx.actor, "probe.run", target_type="upstream", target_id=upstream,
+                       summary=result.code, result="ok" if result.ok else "error")
+    await session.commit()
+    return result.out()
 
 
 @router.post("/settings/import/apply")
