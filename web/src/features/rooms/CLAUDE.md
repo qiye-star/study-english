@@ -45,6 +45,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 - 助手面板的内容只属于本人;不要把 assist 事件放进公共消息列表。面板在输入条之上、不遮挡聊天(E2E 断言最后一条消息底边 < 面板顶边),用实色(一屏最多三层模糊)。
 - 语音:别人的语音默认只显示语音条,「转文字」「翻译」手动展开(或打开自动转文字);音频带鉴权取 Blob,只在点播放时请求;410 = 管理员已清理。
   语音配额是每人**每天** 200 MB + 100 条(产品负责人确认的默认值),文案要说「今天」。
+- 自动转文字的翻译只为进入视野的语音请求,经 `voice/translate-queue.ts` 限速(12 次/分钟、在途 2 条,低于服务端 20 次/分钟);
+  15 秒没有 voice_update 就显示「翻译没有完成 · 重试」,不自动重发。重连后列表里仍在转写/翻译中的语音用 HTTP 重新读一次(`voice_sync`)。
+- 自己 HTTP 上传的语音用 `local_message` 并入列表,不推进 `lastSeq`(补发游标只随 WS 的 message 前进)。
 - 管理员隐藏的消息(`hidden: true`,或收到 `message_hidden{seq}`)保留位置、正文为空,显示 `room.hidden` 占位,引用它的摘要也清空;管理员关闭房间 `closed{reason:"admin"}` → `errors.closed_admin`。
 - 房间消息永久保存:票据 404(房间已结束)时 `use-room` 改走 HTTP(`GET /api/rooms/{id}` + `/messages?before_seq=2147483647`)只读回看;`before_seq` 用 int32 上限,别用 MAX_SAFE_INTEGER。
 - 页面与对话页同构:顶栏、输入条 absolute 浮在自己滚动的列表上(不用 fixed,底部导航仍在)。v1 的底部弹层助手(`assist-tray.tsx`)已删除。

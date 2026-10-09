@@ -49,7 +49,11 @@ Contract fixtures (`CONTRACT_UPDATE=1` re-records): `tests/fixtures/rooms_contra
   or an explicit `ROOM_MESSAGE_RETENTION_DAYS` removes it.
 - Voice quota is per user **per UTC day**: `ROOMS_VOICE_QUOTA_MB` (default 200 MB) on `used_bytes(since=day start)`
   plus `ROOMS_VOICE_DAILY_PER_USER` (default 100 clips). Owner-confirmed default (SV-1); dropping `since=` in
-  `VoiceService.upload` would make it a lifetime total. Separate from `recording_quota_mb`.
+  `VoiceService.upload` would make it a lifetime total. Separate from `recording_quota_mb`. The MB check through the insert runs under a per-sender lock
+  (parallel uploads in several rooms cannot both pass). Learning summaries are also capped per room owner per day
+  (`RoomLimits.summary_owner_daily`, scope `room_summary_owner`) before the global budget.
+- A voice message hidden while its transcription/translation runs gets no `voice_update` (`_broadcast_voice`
+  checks `hidden_at`). Switching a room to `approval` (owner or operator) clears `invite_token`.
 - The web uses `camelcase-keys`, which rewrites object keys: reactions go on the wire as a `[{key, user_ids}]`
   list, never as an object keyed by reaction (R2-15). Same for any new map keyed by data.
 - Private-lane messages go only to `audience_id`; replay queries must filter the same way.
