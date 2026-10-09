@@ -334,6 +334,7 @@ class AdminSession(Base):
     step_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     csrf_hash: Mapped[str] = mapped_column(String(64))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    mfa_failures: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))  # wrong TOTP codes
 
 
 class AdminLoginState(Base):

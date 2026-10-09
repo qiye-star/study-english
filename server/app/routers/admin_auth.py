@@ -26,6 +26,7 @@ from app.core.security import hash_password
 from app.models import AdminAccount, AdminRecoveryCode, iso_utc
 
 router = APIRouter(prefix="/api/admin")
+MFA_SESSION_CAP = 5  # wrong TOTP/recovery codes per pending session before it is revoked (review M5)
 
 
 class LoginIn(BaseModel):
@@ -62,8 +63,10 @@ def _out(request: Request, role: str, username: str, row, csrf: str, *, mfa_requ
             "maintenance_mode": s.maintenance_mode}
 
 
-async def _locked(request: Request, session: AsyncSession, username: str, ip: str, now: datetime) -> None:
-    if await lockout.check(session, username, ip, now):
+async def _locked(request: Request, session: AsyncSession, username: str, ip: str, now: datetime, *,
+                  key: str | None = None) -> None:
+    """429 while (username, ip) — or (username, key) such as lockout.MFA_KEY — is locked."""
+    if await lockout.check(session, username, key or ip, now):
         await audit.record(session, Actor(username.strip()[:64], "-", None, ip), "auth.login.locked", result="denied")
         await session.commit()
         raise HTTPException(429, "Too many attempts")
@@ -129,14 +132,23 @@ async def login_totp(body: CodeIn, request: Request, session: AsyncSession = Dep
     ip = client_ip(request)
     now = datetime.now(timezone.utc)
     await _locked(request, session, row.username, ip, now)
+    await _locked(request, session, row.username, ip, now, key=lockout.MFA_KEY)  # per username, any IP (review M5)
     secret = totp_secret(settings, box_for(settings), account)
     ok = bool(secret) and _check_totp(request, secret, body.code, account)
     if not ok and account is not None:
         ok = await use_recovery_code(session, account.id, body.code, now)
     if not ok:
+        row.mfa_failures = (row.mfa_failures or 0) + 1
+        if row.mfa_failures >= MFA_SESSION_CAP:
+            row.revoked_at = now  # this pending session is spent: log in with the password again
+        if await lockout.fail(session, row.username, lockout.MFA_KEY, now, count_global=False,
+                              threshold=settings.admin_lockout_threshold * lockout.MFA_FACTOR,
+                              minutes=settings.admin_lockout_minutes):
+            await audit.record(session, Actor(row.username, "-", row.id, ip), "auth.mfa.lockout", result="denied")
         await _failed(request, session, row.username, ip, now, "auth.mfa.fail", session_id=row.id)
         raise HTTPException(401, "Invalid code")
     await lockout.succeed(session, row.username, ip)
+    await lockout.succeed(session, row.username, lockout.MFA_KEY)
     row.mfa_at = now
     role = account.role if account is not None else "superadmin"
     await audit.record(session, Actor(row.username, role, row.id, ip), "auth.login")

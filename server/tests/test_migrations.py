@@ -330,9 +330,27 @@ def test_0009_room_owner_nullable_set_null_keeps_rooms_and_round_trips(tmp_path,
 def test_0010_admin_review_fixes_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
     command.upgrade(cfg, "0009")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into admin_sessions (id, token_hash, username, created_at, last_seen_at, expires_at, ip, "
+                    "user_agent, csrf_hash) values ('s', 't', 'root', '2026-10-09 10:00:00', '2026-10-09 10:00:00', "
+                    "'2026-10-09 18:00:00', '1', 'ua', 'c')")
+        con.commit()
+    finally:
+        con.close()
     command.upgrade(cfg, "0010")
     assert {"app_secrets", "audit_head"} <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert con.execute("select mfa_failures from admin_sessions where id = 's'").fetchone() == (0,)
+    finally:
+        con.close()
     command.downgrade(cfg, "0009")
     assert not ({"app_secrets", "audit_head"} & _tables(db))
+    con = sqlite3.connect(db)
+    try:
+        assert "mfa_failures" not in _columns(con, "admin_sessions")
+    finally:
+        con.close()
     command.upgrade(cfg, "head")
     assert "app_secrets" in _tables(db)

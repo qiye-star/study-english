@@ -7205,3 +7205,7 @@ Rulings below override earlier text in this plan.
 - Ruling (TOTP enrolment, security M3): `/me/totp/begin` and `/confirm` need self step-up; the enrolment token is
   `encrypt({"a": account_id, "s": secret})`, valid 10 minutes and only for that account; both return 409 when TOTP is
   already bound (re-binding = disable with step-up, then bind). The admin client's step-up dialog covers the UI.
+- Ruling (TOTP login brute force, security M5): a pending session is revoked after 5 wrong codes
+  (`admin_sessions.mfa_failures`); the MFA step also locks per username (any IP) after 2 x ADMIN_LOCKOUT_THRESHOLD
+  failures (`admin_login_state` row `ip='mfa'`, doubling like the pair lock). `client_ip` takes the right-most
+  `X-Forwarded-For` entry (one appending proxy).

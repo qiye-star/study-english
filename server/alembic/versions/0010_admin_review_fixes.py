@@ -1,4 +1,5 @@
-"""admin console v2 review fixes: app_secrets (stable admin session secret), audit_head (serialised audit chain)
+"""admin console v2 review fixes: app_secrets (stable admin session secret), audit_head (serialised audit chain),
+admin_sessions.mfa_failures (per-session TOTP attempt cap)
 
 Revision ID: 0010
 Revises: 0009
@@ -29,8 +30,12 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
         sa.Column('hash', sa.String(length=64), nullable=False),
         sa.PrimaryKeyConstraint('id'))
+    with op.batch_alter_table('admin_sessions') as b:
+        b.add_column(sa.Column('mfa_failures', sa.Integer(), nullable=False, server_default=sa.text('0')))
 
 
 def downgrade() -> None:
+    with op.batch_alter_table('admin_sessions') as b:
+        b.drop_column('mfa_failures')
     op.drop_table('audit_head')
     op.drop_table('app_secrets')

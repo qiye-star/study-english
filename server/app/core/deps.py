@@ -42,7 +42,8 @@ async def current_user(
 
 def client_ip(request: Request) -> str:
     if request.app.state.settings.trust_proxy_headers:
-        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        # Right-most entry: the address our (trusted) proxy appended; anything left of it is client-controlled.
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
         if forwarded:
             return forwarded
     return request.client.host if request.client else "unknown"
