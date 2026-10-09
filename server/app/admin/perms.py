@@ -10,12 +10,13 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import sessions as sess
+from app.admin import audit, sessions as sess
 from app.admin.audit import Actor
 from app.core.deps import client_ip, get_session
-from app.models import AdminAccount, AdminSession
+from app.models import AdminAccount, AdminAudit, AdminSession
 
 Role = Literal["viewer", "operator", "superadmin"]
 ROLE_RANK = {"viewer": 0, "operator": 1, "superadmin": 2}
@@ -111,10 +112,26 @@ async def current_admin(request: Request, session: AsyncSession = Depends(get_se
     return AdminContext(actor, row.account_id, role, row, bound)
 
 
+async def deny(request: Request, session: AsyncSession, ctx: AdminContext, error: str) -> None:
+    """Audit `auth.denied` (target = route path), at most once per session, path and minute (spec §4.7, review
+    security m8), then raise 403 `error`."""
+    path = request.url.path[:64]
+    minute = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    seen = await session.scalar(select(AdminAudit.id).where(
+        AdminAudit.action == "auth.denied", AdminAudit.session_id == ctx.session.id, AdminAudit.target_id == path,
+        AdminAudit.at >= minute).limit(1))
+    if seen is None:
+        await audit.record(session, ctx.actor, "auth.denied", target_type="route", target_id=path, summary=error,
+                           result="denied")
+        await session.commit()
+    raise HTTPException(403, error)
+
+
 def require(role: Role):
-    async def dependency(ctx: AdminContext = Depends(current_admin)) -> AdminContext:
+    async def dependency(request: Request, ctx: AdminContext = Depends(current_admin),
+                         session: AsyncSession = Depends(get_session)) -> AdminContext:
         if ROLE_RANK[ctx.role] < ROLE_RANK[role]:
-            raise HTTPException(403, "Forbidden")
+            await deny(request, session, ctx, "Forbidden")
         return ctx
 
     setattr(dependency, REQUIRED_ROLE_ATTR, role)
@@ -132,9 +149,10 @@ def step_up_until(settings, row: AdminSession) -> datetime | None:
 def _step_up(min_role: Role):
     base = require(min_role)
 
-    async def dependency(request: Request, ctx: AdminContext = Depends(base)) -> AdminContext:
+    async def dependency(request: Request, ctx: AdminContext = Depends(base),
+                         session: AsyncSession = Depends(get_session)) -> AdminContext:
         if step_up_until(request.app.state.settings, ctx.session) is None:
-            raise HTTPException(403, "Step-up required")
+            await deny(request, session, ctx, "Step-up required")
         return ctx
 
     setattr(dependency, REQUIRED_ROLE_ATTR, min_role)

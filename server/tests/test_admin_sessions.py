@@ -93,3 +93,29 @@ async def test_disabled_end_user_gets_403(app, client, auth_headers):
 async def test_admin_disabled_when_env_account_missing(app, client):
     app.state.settings = app.state.settings.model_copy(update={"admin_username": ""})
     assert (await client.post("/api/admin/login", json={"username": "x", "password": PASSWORD})).status_code == 404
+
+
+async def test_permission_denials_are_audited_once_per_session_path_and_minute(app, client):
+    """Review security m8 (spec §4.7): an operator probing superadmin endpoints must leave a trace."""
+    from sqlalchemy import select
+
+    from app.models import AdminAudit
+
+    op = await login_as(app, client, "operator")
+    for _ in range(3):
+        assert (await client.get("/api/admin/settings/export")).status_code == 403
+    assert (await client.post("/api/admin/rank/reset-all", headers=op,
+                              json={"reason": "x", "confirm": "RESET 0 USERS"})).status_code == 403
+    client.cookies.clear()
+    su = await login_as(app, client, "superadmin")
+    r = await client.post("/api/admin/rank/reset-all", headers=su, json={"reason": "x", "confirm": "RESET 0 USERS"})
+    assert r.status_code == 403 and r.json() == {"error": "Step-up required"}
+    async with app.state.sessionmaker() as s:
+        rows = (await s.scalars(select(AdminAudit).where(AdminAudit.action == "auth.denied")
+                                .order_by(AdminAudit.id))).all()
+    assert [(a.actor, a.target_id, a.summary) for a in rows] == [
+        ("operator1", "/api/admin/settings/export", "Forbidden"),
+        ("operator1", "/api/admin/rank/reset-all", "Forbidden"),
+        ("superadmin1", "/api/admin/rank/reset-all", "Step-up required"),
+    ]
+    assert all(a.result == "denied" for a in rows)
