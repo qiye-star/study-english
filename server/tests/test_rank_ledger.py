@@ -77,6 +77,22 @@ async def test_vocab_reviews_and_stage_task_bonus(app, monkeypatch):
         assert (await ledger.sync(s, UID, NOW + timedelta(minutes=1), 0, 60)).rp == 17
 
 
+async def test_activity_from_before_the_tier_never_counts_for_its_stage_tasks(app, monkeypatch):
+    """Review #17: practice synced after a promotion is stamped with the new tier but happened before it."""
+    monkeypatch.setitem(points.STAGE_TASKS, 3, (points.StageTask("vocab_reviews", "vocab_reviews", 2),))
+    async with app.state.sessionmaker() as s:
+        await seed_user(s)
+        s.add(RankProfile(user_id=UID, tier=3, division=3, rp=0, stars=0, best_tier=3, tier_started_at=NOW,
+                          synced_at=NOW - timedelta(hours=1), updated_at=NOW))
+        for i in range(2):
+            s.add(VocabularyItem(id=f"v{i}", user_id=UID, word=f"w{i}", meaning="", source="manual", box=1,
+                                 due_at=NOW, reps=1, lapses=0, last_reviewed_at=NOW - timedelta(minutes=5)))
+        await s.commit()
+        profile = await ledger.sync(s, UID, NOW + timedelta(minutes=1), 0, 60)
+        tasks = await ledger.stage_progress_for(s, profile)
+        assert (tasks[0].done, tasks[0].complete) == (0, False)
+
+
 @pytest.mark.parametrize("state,tasks,kw,expected", [
     (RankState(tier=6, division=0), [], {}, ("max_tier", None)),
     (RankState(tier=2, division=1, rp=120), [], {"available": False}, ("unavailable", None)),
