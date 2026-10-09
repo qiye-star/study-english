@@ -58,7 +58,7 @@ def test_pairs_point_at_secret_keys_and_rank_keys_are_managed():
 
 def test_restart_keys():
     assert {k for k, s in SPECS.items() if s.apply == "restart" and not s.env_only} == {
-        "asr_stream_max_concurrency", "rooms_ai_concurrency"}
+        "asr_stream_max_concurrency", "rooms_ai_concurrency", "rooms_voice_concurrency"}
 
 
 def test_new_v2_defaults():

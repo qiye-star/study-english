@@ -4,6 +4,7 @@ from pathlib import Path
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine
 
@@ -275,3 +276,39 @@ def test_0008_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
         con.close()
     command.upgrade(cfg, "head")
     assert ADMIN_V2_TABLES <= _tables(db)
+
+
+ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_summaries"}
+
+
+def test_0010_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    previous = ScriptDirectory.from_config(cfg).get_revision("0010").down_revision
+    command.upgrade(cfg, previous)
+    con = sqlite3.connect(db)
+    con.execute("insert into users (id, username, password_hash, created_at) values (7, 'lily', 'x', '2026-10-09')")
+    con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at,"
+                " last_active_at, ai_muted) values ('r1', '482913', '482913', 7, '美食', 'open', 0, 1, 0, '2026-10-09',"
+                " '2026-10-09', 0), ('r2', null, '573920', 7, '', 'closed', 0, 1, 0, '2026-10-09', '2026-10-09', 0)")
+    con.commit()
+    con.close()
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    try:
+        assert ROOMS_V2_TABLES <= _tables(db)
+        rows = dict((r[0], r[1:]) for r in con.execute(
+            "select id, name, scenario, level, join_mode, max_members, allow_voice, invite_token from rooms"))
+        assert rows["r1"] == ("美食", "free", "B1", "code", 8, 1, None)
+        assert rows["r2"][0] == "lily的房间"
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+    finally:
+        con.close()
+    command.downgrade(cfg, previous)
+    con = sqlite3.connect(db)
+    try:
+        assert not ROOMS_V2_TABLES & _tables(db)
+        assert "name" not in {r[1] for r in con.execute("pragma table_info(rooms)")}
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")

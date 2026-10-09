@@ -47,10 +47,39 @@ class RoomLimits:
     connections_per_user: int = 3
     dedupe_minutes: int = 5
     join_per_minute: int = 10
+    # ---- rooms v2 (spec 2026-10-10 §11.2 fixed values; the settings-backed ones are mapped below) ----
+    voice_per_minute: int = 6
+    voice_daily: int = 100
+    voice_global_daily: int = 3000
+    voice_max_ms: int = 60_000
+    voice_min_ms: int = 500
+    voice_attempts: int = 3
+    voice_quota_mb: int = 200
+    translate_per_minute: int = 20
+    translate_global_daily: int = 3000
+    translate_attempts: int = 3
+    retry_per_minute: int = 6
+    react_per_minute: int = 30
+    typing_interval: float = 1.0
+    join_pending_per_room: int = 20
+    join_request_minutes: int = 10
+    join_deny_cooldown_minutes: int = 30
+    summary_min_messages: int = 6
+    summary_context: int = 150
+    summary_max_chars: int = 12_000
+    summary_global_daily: int = 200
+    summary_attempts: int = 2
+    staging_keep_days: int = 7
+    default_max_members: int = 4
+    name_max: int = 30
 
     @classmethod
     def from_settings(cls, s) -> "RoomLimits":
         return cls(max_members=s.rooms_max_members, max_active=s.rooms_max_active, max_owned=s.rooms_max_owned,
                    idle_minutes=s.rooms_idle_minutes, max_hours=s.rooms_max_hours,
                    retention_days=s.room_message_retention_days, assist_daily=s.rooms_assist_daily_per_user,
-                   ai_per_room_hour=s.rooms_ai_per_room_hour, ai_global_daily=s.rooms_ai_global_daily)
+                   ai_per_room_hour=s.rooms_ai_per_room_hour, ai_global_daily=s.rooms_ai_global_daily,
+                   voice_daily=s.rooms_voice_daily_per_user, voice_global_daily=s.rooms_voice_global_daily,
+                   voice_max_ms=s.rooms_voice_max_seconds * 1000, voice_quota_mb=s.rooms_voice_quota_mb,
+                   translate_global_daily=s.rooms_translate_global_daily,
+                   summary_global_daily=s.rooms_summary_global_daily)

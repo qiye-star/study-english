@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text
+from sqlalchemy import (JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text,
+                        true)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -242,6 +243,14 @@ class Room(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     close_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ai_muted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # ---- rooms v2 (spec 2026-10-10 §3.1, §7) ----
+    name: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    scenario: Mapped[str] = mapped_column(String(24), default="free", server_default="free")
+    level: Mapped[str] = mapped_column(String(2), default="B1", server_default="B1")
+    join_mode: Mapped[str] = mapped_column(String(8), default="code", server_default="code")
+    max_members: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
+    allow_voice: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    invite_token: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
 
 
 class RoomMember(Base):
@@ -526,3 +535,70 @@ class InviteCode(Base):
     created_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ---- 联机练习 v2(设计文档 2026-10-10-rooms-v2 §7)----
+
+class RoomVoice(Base):
+    __tablename__ = "room_voice"
+    __table_args__ = (Index("ix_room_voice_sender_id_created_at", "sender_id", "created_at"),)
+
+    message_id: Mapped[str] = mapped_column(ForeignKey("room_messages.id", ondelete="CASCADE"), primary_key=True)
+    room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    sender_id: Mapped[int] = mapped_column(Integer)  # no FK: survives user deletion like room_messages.sender_id
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    audio_path: Mapped[str | None] = mapped_column(String(200), nullable=True)  # NULL once purged
+    audio_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    audio_format: Mapped[str] = mapped_column(String(8))  # mp3 / wav
+    staging_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(8))  # pending / done / empty / failed
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lang: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    translation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    translation_status: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    translation_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    transcribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RoomReaction(Base):
+    __tablename__ = "room_reactions"
+    __table_args__ = (UniqueConstraint("message_id", "user_id", "key", name="uq_room_reactions_message_user_key"),
+                      Index("ix_room_reactions_room_id_seq", "room_id", "seq"))
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"))
+    message_id: Mapped[str] = mapped_column(ForeignKey("room_messages.id", ondelete="CASCADE"))
+    seq: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(Integer)
+    key: Mapped[str] = mapped_column(String(8))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RoomJoinRequest(Base):
+    __tablename__ = "room_join_requests"
+    __table_args__ = (Index("ix_room_join_requests_room_id_status", "room_id", "status"),
+                      Index("ix_room_join_requests_user_id_status", "user_id", "status"))
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(10))  # pending / approved / denied / expired / cancelled
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class RoomSummary(Base):
+    __tablename__ = "room_summaries"
+
+    room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(8))  # pending / done / failed / skipped
+    reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

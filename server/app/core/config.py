@@ -164,6 +164,17 @@ class Settings(BaseSettings):
     rooms_ai_per_room_hour: int = Field(30, ge=0, le=1000)
     rooms_ai_global_daily: int = Field(1000, ge=0, le=100000)
     rooms_ai_concurrency: int = Field(4, ge=1, le=32)
+    # ---- 联机练习 v2(设计文档 2026-10-10-rooms-v2 §11.2);有上游成本的两个子开关默认关 ----
+    rooms_voice_enabled: bool = False
+    rooms_voice_max_seconds: int = Field(60, ge=10, le=60)
+    rooms_voice_daily_per_user: int = Field(100, ge=0, le=1000)
+    rooms_voice_global_daily: int = Field(3000, ge=0, le=100000)
+    rooms_voice_quota_mb: int = Field(200, ge=0, le=100000)
+    rooms_voice_concurrency: int = Field(4, ge=1, le=32)
+    rooms_voice_store_format: Literal["mp3", "wav"] = "mp3"
+    rooms_translate_global_daily: int = Field(3000, ge=0, le=100000)
+    rooms_summary_enabled: bool = False
+    rooms_summary_global_daily: int = Field(200, ge=0, le=10000)
 
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
@@ -288,6 +299,16 @@ class Settings(BaseSettings):
     @property
     def rooms_ai_available(self) -> bool:
         return self.rooms_enabled and bool(self.upstream_llm_base_url)
+
+    @property
+    def rooms_voice_available(self) -> bool:
+        """Room voice uploads need the sub-switch and a recognizer (Volcengine stream or Whisper/chat fallback)."""
+        return self.rooms_enabled and self.rooms_voice_enabled and (
+            asr_stream_usable(self) or whisper_fallback_configured(self))
+
+    @property
+    def rooms_summary_available(self) -> bool:
+        return self.rooms_enabled and self.rooms_summary_enabled and bool(self.upstream_llm_base_url)
 
     @property
     def realtime_available(self) -> bool:

@@ -22,6 +22,8 @@ QUOTA_KEYS: dict[str, str] = {
     "rank_match_daily_attempts": "rank_match_daily_attempts",
     "rooms_assist_daily_per_user": "rooms_assist_daily_per_user",
     "rooms_max_owned": "rooms_max_owned",
+    "rooms_voice_quota_mb": "rooms_voice_quota_mb",
+    "rooms_voice_daily_per_user": "rooms_voice_daily_per_user",
 }
 
 

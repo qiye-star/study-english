@@ -71,6 +71,9 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("realtime_enabled", "features", "bool", "实时通话", apply="new_sessions", danger=_COST),
     _s("rank_enabled", "features", "bool", "段位赛", danger="关闭后段位接口返回 404"),
     _s("rooms_enabled", "features", "bool", "联机练习", danger="关闭会断开所有在线房间连接"),
+    _s("rooms_voice_enabled", "features", "bool", "联机语音消息", help_zh="关闭后不能上传或重试;已有语音照常播放、翻译",
+       danger=_COST),
+    _s("rooms_summary_enabled", "features", "bool", "联机学习小结", help_zh="房间结束时生成一次 AI 学习小结", danger=_COST),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
     _s("invite_code", "registration", "secret", "邀请码(env 单码)"),
@@ -153,6 +156,16 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_ai_per_room_hour", "rooms", "int", "每房每小时 @ai 次数"),
     _s("rooms_ai_global_daily", "rooms", "int", "全站每日房间 AI 次数", danger=_COST),
     _s("rooms_ai_concurrency", "rooms", "int", "房间 AI 并发", apply="restart"),
+    # rooms v2(设计文档 2026-10-10-rooms-v2 §11.2)
+    _s("rooms_voice_max_seconds", "rooms", "int", "单条语音最长秒数"),
+    _s("rooms_voice_daily_per_user", "rooms", "int", "每人每日语音条数", help_zh="可按用户覆盖"),
+    _s("rooms_voice_global_daily", "rooms", "int", "全站每日语音转写次数", help_zh="含重试", danger=_COST),
+    _s("rooms_voice_quota_mb", "rooms", "int", "每人语音存储上限 MB", help_zh="不占录音配额;可按用户覆盖"),
+    _s("rooms_voice_concurrency", "rooms", "int", "语音转写并发", apply="restart"),
+    _s("rooms_voice_store_format", "rooms", "enum", "语音存储格式", choices=("mp3", "wav"),
+       help_zh="mp3 = 24 kbps(约 WAV 的 1/10);wav 仅在 lameenc 不可用时使用"),
+    _s("rooms_translate_global_daily", "rooms", "int", "全站每日语音翻译次数", danger=_COST),
+    _s("rooms_summary_global_daily", "rooms", "int", "全站每日学习小结次数", danger=_COST),
     # admin
     _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟"),
     _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟"),
