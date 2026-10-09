@@ -339,8 +339,10 @@ def test_welcome_v2_and_new_frames_are_accepted(rooms_client):
         assert welcome["protocol"] == 2 and welcome["reactions"] == [] and welcome["join_requests"] == []
         for frame in ({"type": "typing", "state": "typing"}, {"type": "react", "seq": 1, "key": "like", "on": True}):
             ws.send_text(json.dumps(frame))
+        # The voice service is always installed (SV4): translating stays possible with the voice switch off
+        # (spec 2026-10-10 §11.2), so a seq that is not a voice message is `bad_seq`; retry answers `voice_off`.
         ws.send_text(json.dumps({"type": "voice_translate", "seq": 1}))
-        assert until(ws, "notice")[-1]["code"] == "voice_off"
+        assert until(ws, "error")[-1]["code"] == "bad_seq"
         ws.send_text(json.dumps({"type": "voice_retry", "seq": 1}))
         assert until(ws, "notice")[-1]["code"] == "voice_off"
         ws.send_text(json.dumps({"type": "say", "client_id": "q1", "text": "hello"}))
@@ -357,7 +359,7 @@ def test_runtime_extensions_and_after_close_listeners(rooms_client):
     app, client = rooms_client
     assert app.state.rooms_extensions == (rooms_voice.install, rooms_summary.install)
     rt = rooms_router.runtime(app)
-    assert rt.app is app and rt.voice is None
+    assert rt.app is app and isinstance(rt.voice, rooms_voice.VoiceService)  # SV4 installs it
     calls = []
 
     async def boom(rt_, room_id, reason):
