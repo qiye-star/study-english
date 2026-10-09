@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import delete
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin import audit, lockout, sessions as sess, totp
@@ -23,7 +23,8 @@ from app.admin.perms import (
 from app.core.deps import auth_rate_limit, client_ip, get_session
 from app.core.secretbox import SecretBoxError, box_for
 from app.core.security import hash_password
-from app.models import AdminAccount, AdminRecoveryCode, iso_utc
+from app.core.db import insert_ignore
+from app.models import AdminAccount, AdminLoginState, AdminRecoveryCode, iso_utc
 
 router = APIRouter(prefix="/api/admin")
 MFA_SESSION_CAP = 5  # wrong TOTP/recovery codes per pending session before it is revoked (review M5)
@@ -85,18 +86,36 @@ async def _failed(request: Request, session: AsyncSession, username: str, ip: st
     await session.commit()
 
 
-def _check_totp(request: Request, secret: str, code: str, account: AdminAccount | None) -> bool:
-    """Verify and consume a TOTP code (replay-safe: per account in the DB, env account in process memory)."""
-    state = request.app.state
-    last = account.totp_last_step if account is not None else getattr(state, "env_totp_last_step", None)
-    step = totp.verify(secret, code, time.time(), last)
+ENV_TOTP_KEY = "totp"  # admin_login_state row (env username, ip="totp"): the env account's last used TOTP step
+
+
+async def _check_totp(session: AsyncSession, request: Request, secret: str, code: str,
+                      account: AdminAccount | None) -> bool:
+    """Verify and consume a TOTP code with a conditional UPDATE (review m6): of concurrent requests, or requests in
+    different workers, presenting the same code exactly one wins. The env account's last step lives in the DB too."""
+    if account is not None:
+        await session.refresh(account, ["totp_last_step"])
+        step = totp.verify(secret, code, time.time(), account.totp_last_step)
+        if step is None:
+            return False
+        won = await session.execute(update(AdminAccount).where(
+            AdminAccount.id == account.id,
+            or_(AdminAccount.totp_last_step.is_(None), AdminAccount.totp_last_step < step))
+            .values(totp_last_step=step).execution_options(synchronize_session=False))
+        return won.rowcount == 1
+    name = request.app.state.settings.admin_username.strip().lower()[:64]
+    now = datetime.now(timezone.utc)
+    await session.execute(insert_ignore(session, AdminLoginState.__table__).values(
+        username=name, ip=ENV_TOTP_KEY, failures=-1, lock_level=0, updated_at=now))
+    last = await session.scalar(select(AdminLoginState.failures).where(
+        AdminLoginState.username == name, AdminLoginState.ip == ENV_TOTP_KEY))
+    step = totp.verify(secret, code, time.time(), None if last is None or last < 0 else last)
     if step is None:
         return False
-    if account is not None:
-        account.totp_last_step = step
-    else:
-        state.env_totp_last_step = step
-    return True
+    won = await session.execute(update(AdminLoginState).where(
+        AdminLoginState.username == name, AdminLoginState.ip == ENV_TOTP_KEY, AdminLoginState.failures < step)
+        .values(failures=step, updated_at=now).execution_options(synchronize_session=False))
+    return won.rowcount == 1
 
 
 @router.post("/login", dependencies=[Depends(require_enabled), Depends(auth_rate_limit)])
@@ -134,7 +153,7 @@ async def login_totp(body: CodeIn, request: Request, session: AsyncSession = Dep
     await _locked(request, session, row.username, ip, now)
     await _locked(request, session, row.username, ip, now, key=lockout.MFA_KEY)  # per username, any IP (review M5)
     secret = totp_secret(settings, box_for(settings), account)
-    ok = bool(secret) and _check_totp(request, secret, body.code, account)
+    ok = bool(secret) and await _check_totp(session, request, secret, body.code, account)
     if not ok and account is not None:
         ok = await use_recovery_code(session, account.id, body.code, now)
     if not ok:
@@ -187,7 +206,7 @@ async def step_up(body: StepUpIn, request: Request, ctx: AdminContext = Depends(
     if ok and ctx.totp_enabled:
         account = await session.get(AdminAccount, ctx.account_id) if ctx.account_id is not None else None
         secret = totp_secret(settings, box_for(settings), account)
-        ok = bool(secret) and bool(body.code) and _check_totp(request, secret, body.code or "", account)
+        ok = bool(secret) and bool(body.code) and await _check_totp(session, request, secret, body.code or "", account)
     if not ok:
         await _failed(request, session, ctx.actor.name, ip, now, "auth.step_up.fail", session_id=ctx.session.id)
         raise HTTPException(401, "Invalid credentials")

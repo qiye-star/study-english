@@ -122,3 +122,59 @@ async def test_client_ip_is_the_entry_the_trusted_proxy_appended(app, client):
     scope = {"type": "http", "app": app, "client": ("10.0.0.2", 1234),
              "headers": [(b"x-forwarded-for", b"6.6.6.6, 203.0.113.9")]}
     assert client_ip(Request(scope)) == "203.0.113.9"  # the left part is whatever the client sent
+
+
+# ---- review m6: one TOTP code is accepted once, also by concurrent requests and by other workers ----------------
+
+from app.core.db import Base  # noqa: E402
+from app.main import create_app  # noqa: E402
+from tests.conftest import make_settings  # noqa: E402
+
+
+async def _file_app(url: str, **extra):
+    app = create_app(make_settings(database_url=url, **{**ADMIN_ENABLED, **extra}))
+    async with app.state.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    return app
+
+
+async def _close(*apps):
+    for a in apps:
+        await a.state.http.aclose()
+        await a.state.engine.dispose()
+
+
+async def test_concurrent_logins_cannot_both_use_one_totp_code(tmp_path):
+    import asyncio
+
+    app = await _file_app(f"sqlite+aiosqlite:///{(tmp_path / 'r.db').as_posix()}", **_mfa_settings())
+    try:
+        secret = await _bound_account(app)
+        pending = [await _pending(app, n) for n in (1, 2, 3)]
+        code = _now_code(secret)
+        results = await asyncio.gather(*[c.post("/api/admin/login/totp", headers=h, json={"code": code})
+                                         for c, h in pending])
+        assert sorted(r.status_code for r in results) == [200, 401, 401]
+        for c, _ in pending:
+            await c.aclose()
+    finally:
+        await _close(app)
+
+
+async def test_env_account_totp_code_is_single_use_across_workers(tmp_path):
+    url = f"sqlite+aiosqlite:///{(tmp_path / 'w.db').as_posix()}"
+    secret = totp.generate_secret()
+    a = await _file_app(url, admin_totp_secret=secret)
+    b = await _file_app(url, admin_totp_secret=secret)
+    try:
+        code = _now_code(secret)
+        statuses = []
+        for worker in (a, b):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=worker), base_url="http://test") as c:
+                r = await c.post("/api/admin/login", json={"username": "root", "password": "correct-horse-battery"})
+                r = await c.post("/api/admin/login/totp", headers={"X-Admin-CSRF": r.json()["csrf_token"]},
+                                 json={"code": code})
+                statuses.append(r.status_code)
+        assert statuses == [200, 401]
+    finally:
+        await _close(a, b)
