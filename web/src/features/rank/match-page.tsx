@@ -92,7 +92,7 @@ export function MatchPage() {
         {match && phase !== "briefing" && <ScenarioCard match={match} />}
         {match && phase !== "briefing" && match.turns.map((item, i) => item.role === "ai" ? (
           <div key={i} data-testid="match-ai-line"
-            className="max-w-[88%] self-start rounded-card rounded-tl-inline border-[0.5px] border-hair bg-surface px-3 py-2.5 text-body leading-dialogue">
+            className="max-w-[88%] self-start break-words rounded-card rounded-tl-inline border-[0.5px] border-hair bg-surface px-3 py-2.5 text-body leading-dialogue">
             <div className="mb-[3px] flex items-center gap-1.5 text-label font-semibold uppercase tracking-eyebrow text-ink-2">
               {i === lastIndex && phase === "ai_speaking" ? <Volume2Icon aria-hidden className="size-3.5" /> : <UserRoundIcon aria-hidden className="size-3.5" />}
               {i === lastIndex && phase === "ai_speaking" ? `${t("web.rank.match.partner")} · ${t("web.rank.match.speaking")}` : t("web.rank.match.partner")}
@@ -101,7 +101,7 @@ export function MatchPage() {
           </div>
         ) : (
           <div key={i} data-testid="match-user-line"
-            className="max-w-[88%] self-end rounded-card rounded-tr-inline bg-blue-tint px-3 py-2.5 text-body leading-dialogue text-ink">
+            className="max-w-[88%] self-end break-words rounded-card rounded-tr-inline bg-blue-tint px-3 py-2.5 text-body leading-dialogue text-ink">
             {item.text}
           </div>
         ))}
