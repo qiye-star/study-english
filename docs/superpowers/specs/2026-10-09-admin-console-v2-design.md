@@ -436,7 +436,7 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 
 ### 5.6 全体操作
 
-- **全体段位重置**:superadmin + 二次验证 + 输入 `RESET {N} USERS`;模式 `tiers`(全员回青铜 III)或 `season_points`(仅清赛季积分的起点:写一条 `rank_resets` 锚点,赛季积分从锚点起算)。执行前把全部 `rank_profiles` 写入 `rank_profile_snapshots(batch_id, user_id, data, at)`;"撤销本次重置"在 7 天内可用(恢复快照,之后快照删除)。
+- **全体段位重置**:superadmin + 二次验证 + 输入 `RESET {N} USERS`;全员回青铜 III 0 点(`tier_started_at = now`,清冷却;`xp_events` 流水保留)。只清赛季积分的模式需要赛季锚点表,与显式赛季表一起列为以后(§14-20)。执行前把全部 `rank_profiles` 写入 `rank_profile_snapshots(batch_id, user_id, data, at)`;"撤销本次重置"在 7 天内可用(恢复快照,之后快照删除)。
 - **清除全部冷却 / 重置全站今日次数**:operator + 理由(用于事故后补偿,如评委上游故障)。
 - **排行榜封禁**:v1/v2 没有排行榜;封禁列为以后(与 spec §14 P1-7 一起做)。
 
@@ -470,7 +470,7 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 | 停用/启用 | operator | `users.disabled_at`(0007);`current_user` 对停用用户返回 403 `Account disabled`;停用时删除该用户全部 `access_tokens`、作废未用的语音 token,并把其房间连接以 4010 断开 |
 | 撤销登录 | operator | 删除 `access_tokens`(用户在所有设备上需重新登录) |
 | 重置密码 | operator | 服务端生成 16 位临时密码,**只在响应里出现一次**(界面"复制"后关闭即不可再看),同时撤销登录;不写日志、不进审计(审计只记"已重置") |
-| 配额覆盖 | operator | `user_quota_overrides(user_id, key, value, expires_at?, note)`;键:`recording_quota_mb`、`max_conversations`、`max_messages_per_conversation`、`max_practice_items`、`max_vocab_items`、`ai_rate_limit_per_minute`、`rank_match_daily_attempts`、`rooms_assist_daily_per_user`、`rooms_max_owned`;读取统一走 `services/quotas.quota_for()` |
+| 配额覆盖 | operator | `user_quota_overrides(user_id, key, value, expires_at?, note)`;键:`recording_quota_mb`、`max_conversations`、`max_messages_per_conversation`、`max_practice_items`、`max_vocab_items`、`ai_rate_limit_per_minute`、`rank_match_daily_attempts`、`rooms_assist_daily_per_user`、`rooms_max_owned`;读取统一走 `core/quotas.quota_for()`(放在 core,因为 `core/deps.limited_user` 也要读) |
 | 删除用户 | superadmin + 二次验证 + 输入用户名 | 级联删除库内数据与录音目录;不可撤销;审计保留用户名与 id |
 | 邀请码 | operator | `invite_codes`:多码、标签、可用次数、到期时间、撤销;明文只在创建时显示一次(存 SHA-256);`invite` 模式下 env 的 `INVITE_CODE` 与库内有效码都可用,使用时原子 +1 |
 | 用户数据导出 | — | 以后(§14) |
@@ -481,7 +481,7 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 
 ### 8.1 计量(`app/core/metering.py`)
 
-- **记录点**:所有上游调用处调用 `metering.record(kind, provider, model, status, ms, units_in, units_out, unit)`。`kind ∈ {llm, tts, stt, asr_stream, assess_azure, assess_xfyun, probe}`;`feature` 与 `user_id` 来自 contextvar:`MeteringMiddleware` 按路径前缀设定 feature(`/api/ai/chat` → `chat`、`/api/ai/audio` → `audio`、`/api/grammar` → `grammar`、`/api/speech` → `assessment`、`/api/realtime` → `realtime`、`/api/rank` → `rank`、`/api/rooms` → `rooms`、`/api/admin` → `admin`),`current_user` 绑定 user_id。
+- **记录点**:所有上游调用处调用 `metering.record(kind, provider, model, status, ms, units_in, units_out, unit)`。`kind ∈ {llm, tts, stt, asr_stream, assess_azure, assess_xfyun, probe}`;`feature` 与 `user_id` 来自 contextvar:`MeteringMiddleware` 按路径前缀设定 feature(`/api/ai/chat` → `chat`、`/api/ai/audio` → `audio`、`/api/ai/grammar` → `grammar`、`/api/speech` → `assessment`、`/api/realtime` → `realtime`、`/api/rank` → `rank`、`/api/rooms` → `rooms`、`/api/admin` → `admin`),`current_user` 绑定 user_id。
 - **不阻塞请求**:记录进内存队列(上限 10 000 条,满了丢最旧的并计数),后台任务每 5 秒批量写 `upstream_calls`。重启丢失最多 5 秒的计量,可接受。
 - **单位**:LLM 非流式取响应里的 `usage.prompt_tokens/completion_tokens`(`unit=tokens`);流式与拿不到 usage 的记输出字节数(`unit=bytes`);TTS 记字符数;识别记音频毫秒;评测记次数。**只记数字**,不记文本。
 - **表**:`upstream_calls(id, at, user_id?, feature, kind, provider, model, status, ms, units_in, units_out, unit)`,索引 `(at)`、`(user_id, at)`;每小时把 2 天前的原始行汇总进 `usage_daily(day, feature, kind, provider, model, user_id?, calls, errors, units_in, units_out, ms_total)`,并删除超过 `USAGE_RAW_RETENTION_DAYS`(默认 90)的原始行。
@@ -638,7 +638,8 @@ v1 的只读端点全部保留(改为 cookie 会话 + `viewer`)。
 
 ```
 core     settings_registry.py  runtime_settings.py  secretbox.py  metering.py  maintenance.py  log_buffer.py   (+ deps.py 的停用检查与计量绑定)
-services quotas.py  prompts.py                                                    (-> core, models, providers)
+core     quotas.py
+services prompts.py                                                               (-> core, models, providers)
 rank     rules.py  rules_store.py(规则缓存与存取)                                  (将存在的 rank 包内新增)
 rooms    (store/connection 小改:admin 关闭原因、ai_muted、hidden_at)
 admin    perms.py accounts.py sessions.py totp.py audit.py settings_service.py doctor.py probes.py rank_ops.py rank_sim.py
