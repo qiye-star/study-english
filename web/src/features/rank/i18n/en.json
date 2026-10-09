@@ -1,0 +1,14 @@
+{
+  "web": {
+    "rank": {
+      "title": "Rank",
+      "disabled": "Rank is not enabled on this server.",
+      "match": {
+        "title": "Promotion match"
+      },
+      "achievements": {
+        "title": "Achievements"
+      }
+    }
+  }
+}

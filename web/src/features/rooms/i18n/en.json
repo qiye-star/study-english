@@ -1,0 +1,11 @@
+{
+  "web": {
+    "rooms": {
+      "title": "Practice rooms",
+      "disabled": "Rooms are not enabled on this server.",
+      "room": {
+        "title": "Room"
+      }
+    }
+  }
+}

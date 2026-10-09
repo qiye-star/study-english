@@ -29,7 +29,7 @@ function AppShellWith({ page }: { page: ReactElement }) {
 
 describe("layout", () => {
   it("bottom nav has three 56px targets with test ids", () => {
-    render(<MemoryRouter initialEntries={["/chat"]}><BottomNav /></MemoryRouter>);
+    renderWithProviders(<BottomNav />, { route: "/chat" });
     for (const id of ["nav-practice", "nav-chat", "nav-me"]) {
       expect(screen.getByTestId(id).className).toMatch(/\bmin-h-14\b/);
     }
@@ -37,7 +37,7 @@ describe("layout", () => {
   });
 
   it("bottom nav is an always-on glass bar with the active tab in blue", () => {
-    render(<MemoryRouter initialEntries={["/me"]}><BottomNav /></MemoryRouter>);
+    renderWithProviders(<BottomNav />, { route: "/me" });
     const nav = screen.getByRole("navigation");
     expect(nav.className).toMatch(/\bglass\b/);
     expect(nav.className).toContain("glass-edge-t");

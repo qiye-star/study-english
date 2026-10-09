@@ -1,8 +1,8 @@
 {
   "web": {
     "appName": "Enjoy 英语练习",
-    "common": { "loading": "加载中…", "retry": "重试", "cancel": "取消", "delete": "删除", "loadMore": "加载更多", "back": "返回" },
-    "nav": { "label": "主导航", "practice": "练习", "chat": "对话", "me": "我的" },
+    "common": { "loading": "加载中…", "retry": "重试", "cancel": "取消", "delete": "删除", "loadMore": "加载更多", "back": "返回", "loadFailed": "加载失败" },
+    "nav": { "label": "主导航", "practice": "练习", "chat": "对话", "rooms": "联机", "me": "我的" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
       "username": "用户名", "password": "密码", "submit": "登录", "registerSubmit": "注册",

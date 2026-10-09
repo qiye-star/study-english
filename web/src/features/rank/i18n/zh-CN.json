@@ -1,0 +1,5 @@
+{ "web": { "rank": {
+  "title": "段位", "disabled": "段位赛未开启。",
+  "match": { "title": "晋级赛" },
+  "achievements": { "title": "成就" }
+} } }
