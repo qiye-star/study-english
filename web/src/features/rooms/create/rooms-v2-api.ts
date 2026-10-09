@@ -6,11 +6,8 @@ import { ROOMS_SERVER_ERRORS } from "../rooms-api";
 export interface RoomSettingsInput {
   name?: string; scenario?: string; level?: string; joinMode?: "code" | "approval"; maxMembers?: number; aiPublic?: boolean; allowVoice?: boolean; locked?: boolean;
 }
-/** 邀请预览(spec §8 `GET /api/rooms/invite/{token}`)。 */
-export interface InvitePreview { roomId: string; name: string; scenario: string; level: string; memberCount: number; maxMembers: number; joined: boolean }
 /** 输入房间号加入:凭房间号的房间直接加入(200 {room}),需房主同意的房间建一条请求(202 {request})。 */
 export type JoinResult = { kind: "joined"; room: RoomInfo } | { kind: "pending"; request: JoinRequestInfo };
-export interface InviteLink { token: string; path: string }
 
 /** v2 新增的服务端错误原文 → i18n key(create/i18n)。 */
 export const ROOMS_V2_SERVER_ERRORS: Record<string, string> = {
@@ -20,12 +17,11 @@ export const ROOMS_V2_SERVER_ERRORS: Record<string, string> = {
   "Too many requests for this room": "web.rooms.v2.errors.tooManyRequests",
   "Request not found": "web.rooms.v2.errors.requestNotFound",
 };
-/** v1 + v2 的房间错误表(translateServerError 的 extra)。 */
+/** v1 + v2 的房间错误表(translateServerError 的 extra)。邀请链接的接口只在 `extras/invite-api.ts`(review m11)。 */
 export const ROOMS_ALL_SERVER_ERRORS: Record<string, string> = { ...ROOMS_SERVER_ERRORS, ...ROOMS_V2_SERVER_ERRORS };
 
 const rid = (id: string) => `/api/rooms/${encodeURIComponent(id)}`;
 const reqPath = (id: string) => `/api/rooms/requests/${encodeURIComponent(id)}`;
-const invitePath = (token: string) => `/api/rooms/invite/${encodeURIComponent(token)}`;
 
 /** 只发送给出的键;ApiClient 会把 camelCase 改成服务端的 snake_case。 */
 function settingsBody(input: RoomSettingsInput): Record<string, unknown> {
@@ -66,19 +62,4 @@ export async function listJoinRequests(api: ApiClient, roomId: string, signal?: 
 export async function decideJoinRequest(api: ApiClient, roomId: string, requestId: string, approve: boolean): Promise<JoinRequestInfo> {
   const path = `${rid(roomId)}/requests/${encodeURIComponent(requestId)}/${approve ? "approve" : "deny"}`;
   return (await api.request<{ request: JoinRequestInfo }>("POST", path)).request;
-}
-/** 取(必要时生成)邀请链接。token 是机密(与票据同级):不记录、不放进错误信息。 */
-export function getInvite(api: ApiClient, roomId: string): Promise<InviteLink> {
-  return api.request<InviteLink>("POST", `${rid(roomId)}/invite`);
-}
-/** 房主重置邀请链接:旧链接立即失效。 */
-export function rotateInvite(api: ApiClient, roomId: string): Promise<InviteLink> {
-  return api.request<InviteLink>("POST", `${rid(roomId)}/invite/rotate`);
-}
-export async function previewInvite(api: ApiClient, token: string, signal?: AbortSignal): Promise<InvitePreview> {
-  return (await api.request<{ invite: InvitePreview }>("GET", invitePath(token), { signal })).invite;
-}
-/** 凭邀请链接加入(绕过审批,R2-4)。 */
-export async function joinByInvite(api: ApiClient, token: string): Promise<RoomInfo> {
-  return (await api.request<{ room: RoomInfo }>("POST", `${invitePath(token)}/join`)).room;
 }

@@ -9,9 +9,10 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import type { JoinRequestInfo, RoomInfo } from "../protocol";
 import { ROOM } from "../room-fixtures";
 import {
-  cancelJoinRequest, createRoomV2, decideJoinRequest, getInvite, getJoinRequest, joinByInvite, joinRoomV2, listJoinRequests, previewInvite,
-  ROOMS_V2_SERVER_ERRORS, rotateInvite, updateRoomSettings, type InvitePreview,
+  cancelJoinRequest, createRoomV2, decideJoinRequest, getJoinRequest, joinRoomV2, listJoinRequests,
+  ROOMS_V2_SERVER_ERRORS, updateRoomSettings,
 } from "./rooms-v2-api";
+import { getInvite, joinByInvite, previewInvite, rotateInvite, type InvitePreview } from "../extras/invite-api";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../../../server/tests/fixtures/rooms_v2_core_contract.json");
