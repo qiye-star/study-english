@@ -91,3 +91,18 @@ async def test_postgres_is_refused_with_a_pg_dump_hint(app, client, monkeypatch)
     assert r.status_code == 409 and r.json()["error"] == "Use pg_dump" and "pg_dump" in r.json()["details"]["hint"]
     body = (await client.get("/api/admin/backups")).json()
     assert body["supported"] is False and body["backups"] == [] and "pg_dump" in body["hint"]
+
+
+async def test_file_sqlite_uses_wal_so_vacuum_into_does_not_block_writers(tmp_path):
+    """Review correctness m7: with the rollback journal a VACUUM INTO reader made user commits fail after 5 s."""
+    from sqlalchemy import text
+
+    from app.core.db import make_engine
+
+    engine = make_engine(f"sqlite+aiosqlite:///{(tmp_path / 'wal.db').as_posix()}")
+    try:
+        async with engine.connect() as conn:
+            assert (await conn.execute(text("PRAGMA journal_mode"))).scalar() == "wal"
+            assert (await conn.execute(text("PRAGMA busy_timeout"))).scalar() >= 5000
+    finally:
+        await engine.dispose()
