@@ -1,0 +1,93 @@
+{
+  "web": {
+    "rooms": {
+      "errors": {
+        "bad_reply": "That message can't be quoted"
+      },
+      "extras": {
+        "actions": "Message actions",
+        "reactionNames": {
+          "like": "Like",
+          "love": "Love",
+          "haha": "Haha",
+          "wow": "Wow",
+          "clap": "Clap",
+          "thanks": "Thanks"
+        },
+        "reactionChip": "{{name}} {{count}}",
+        "quote": "Quote",
+        "translate": "Translate",
+        "speak": "Read aloud",
+        "speakUnavailable": "Read aloud is unavailable right now",
+        "quoteHidden": "The quoted message was hidden",
+        "replyTo": "Replying to",
+        "replySep": ": ",
+        "clearQuote": "Cancel quote",
+        "invite": {
+          "title": "Invite friends",
+          "description": "Send the link or QR code to a friend; opening it takes them into the room.",
+          "qrLabel": "Invite QR code",
+          "linkLabel": "Invite link",
+          "copy": "Copy",
+          "copied": "Link copied",
+          "copyManual": "Couldn't copy automatically. Long-press the link to copy it.",
+          "share": "Share link",
+          "shareTitle": "Practise English with me",
+          "reset": "Reset link",
+          "resetConfirm": "The old link and QR code stop working right away. Reset?",
+          "resetDo": "Reset",
+          "rotated": "New link created",
+          "hint": "Opening the link joins the room directly, without the owner's approval. Resetting disables the old link immediately.",
+          "approvalOnly": "This room needs the owner's approval, so only the owner can share a link",
+          "pageTitle": "Room invite",
+          "invitedYou": "A friend invited you to practise together",
+          "level": "Level {{level}}",
+          "members": "{{count}}/{{max}} people",
+          "join": "Join room",
+          "enter": "Enter room",
+          "joinHint": "Invite links let you in without waiting for the owner.",
+          "expired": "This invite link no longer works",
+          "expiredHint": "The room may have ended or the owner reset the link. Ask the owner for a new one.",
+          "toLobby": "Go to rooms"
+        },
+        "summary": {
+          "title": "Learning summary",
+          "subtitle": "{{name}} · Ended",
+          "view": "View",
+          "pending": "Writing the summary…",
+          "later": "The summary is still being written. Check back later.",
+          "failed": "The summary couldn't be written",
+          "words": "New words: {{count}}",
+          "fixes": "To say better: {{count}}",
+          "people": "People: {{count}}",
+          "fixesTitle": "Could be said better",
+          "onlyYou": "Only you",
+          "wordsTitle": "New words",
+          "backToChat": "Back to the chat",
+          "skipped": {
+            "few_messages": "Not enough messages for a summary this time",
+            "disabled": "Learning summaries are off",
+            "quota": "Today's summaries are used up, so none was written",
+            "none": "This room has no learning summary"
+          },
+          "errors": {
+            "open": "The room is still open; the summary comes after it ends",
+            "cannotRetry": "This summary can't be retried again"
+          }
+        },
+        "activity": {
+          "someone": "Someone",
+          "sep": ", ",
+          "typingOne": "{{name}} is typing…",
+          "speakingOne": "{{name}} is speaking…",
+          "typingTwo": "{{a}} and {{b}} are typing…",
+          "speakingTwo": "{{a}} and {{b}} are speaking…",
+          "mixedTwo": "{{a}} and {{b}} are typing or speaking…",
+          "typingMany": "{{a}}, {{b}} and {{others}} more are typing…",
+          "speakingMany": "{{a}}, {{b}} and {{others}} more are speaking…",
+          "mixedMany": "{{a}}, {{b}} and {{others}} more are typing or speaking…"
+        }
+      }
+    }
+  }
+}

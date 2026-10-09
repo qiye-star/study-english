@@ -31,6 +31,9 @@ const V2_CONFIG = { enabled: true, ai_available: true, max_members: 8, max_text:
   summary_available: false, reactions: ["like", "love", "haha", "wow", "clap", "thanks"] };
 const MEMBERS = [{ user_id: 11111111, name: "alice", role: "owner", online: true }, { user_id: 22, name: "bob", role: "member", online: true }];
 
+/** The last frame other than typing/idle (WE2 Addendum: the composer now sends typing while drafting and idle after sending). */
+const lastFrame = (ws: FakeWebSocket) => ws.sent.map((f) => JSON.parse(f)).filter((f) => f.type !== "typing").at(-1);
+
 function setup(routes: Record<string, Handler> = {}) {
   const mock = createFetchMock({
     "GET /api/rooms/config": () => json({ enabled: true, ai_available: true, max_members: 8, max_text: 500 }),
@@ -73,7 +76,7 @@ describe("RoomPage", () => {
     expect(screen.getByText("助手润色")).toBeTruthy();
     fireEvent.change(screen.getByTestId("room-input"), { target: { value: "Me too!" } });
     fireEvent.click(screen.getByTestId("room-send"));
-    const say = JSON.parse(FakeWebSocket.last!.sent.at(-1)!);
+    const say = lastFrame(FakeWebSocket.last!);
     expect(say).toMatchObject({ type: "say", text: "Me too!", assist_id: null });
     expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("");
     FakeWebSocket.last!.push({ type: "ack", client_id: say.client_id, seq: 3 });
@@ -124,7 +127,7 @@ describe("RoomPage", () => {
     fireEvent.change(screen.getByTestId("room-input"), { target: { value: "Are you there?" } });
     fireEvent.click(screen.getByTestId("room-send"));
     const first = FakeWebSocket.last!;
-    const say = JSON.parse(first.sent.at(-1)!);
+    const say = lastFrame(first);
     first.drop(1006); // dropped before the ack
     expect((screen.getByTestId("room-send") as HTMLButtonElement).disabled).toBe(true); // nothing can be sent while reconnecting
     await waitFor(() => expect(FakeWebSocket.count).toBe(2), { timeout: 3000 });
@@ -264,7 +267,7 @@ describe("RoomPage", () => {
     expect(screen.queryByTestId("room-target-assist")).toBeNull();
     fireEvent.change(screen.getByTestId("room-input"), { target: { value: "Hi all" } });
     fireEvent.click(screen.getByTestId("room-send"));
-    expect(JSON.parse(FakeWebSocket.last!.sent.at(-1)!)).toMatchObject({ type: "say", text: "Hi all", reply_to: null });
+    expect(lastFrame(FakeWebSocket.last!)).toMatchObject({ type: "say", text: "Hi all", reply_to: null });
   });
 
   it("shows the voice toggle only when the site and the room allow voice", async () => {
@@ -289,7 +292,8 @@ describe("RoomPage", () => {
     FakeWebSocket.last!.push({ type: "message", message: user(3, "Noodles!", { kind: "voice", reply_to: 2,
       quote: { seq: 2, name: "bob", kind: "text", text: "Any food?" }, reactions: [{ key: "like", user_ids: [22] }],
       voice: { duration_ms: 6400, status: "done", transcript: "Noodles!", lang: "en", translation: null, translation_status: null, attempts: 1, audio: true } }) });
-    expect(screen.getByText("Any food?")).toBeTruthy();
+    // the message itself and the quote block inside the reply (WE1 Addendum: QuoteBlock now renders the quoted text)
+    expect(screen.getAllByText("Any food?")).toHaveLength(2);
     const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
     // Addendum WV-1:别人的语音默认只显示语音条(spec §4.6),点「转文字」才展开转写
     expect(voice.textContent).not.toContain("Noodles!");

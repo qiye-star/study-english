@@ -1,0 +1,93 @@
+{
+  "web": {
+    "rooms": {
+      "errors": {
+        "bad_reply": "这条消息不能引用"
+      },
+      "extras": {
+        "actions": "消息操作",
+        "reactionNames": {
+          "like": "赞",
+          "love": "爱心",
+          "haha": "大笑",
+          "wow": "惊讶",
+          "clap": "鼓掌",
+          "thanks": "感谢"
+        },
+        "reactionChip": "{{name}} {{count}}",
+        "quote": "引用",
+        "translate": "译",
+        "speak": "朗读",
+        "speakUnavailable": "暂时无法朗读",
+        "quoteHidden": "引用的消息已被隐藏",
+        "replyTo": "回复",
+        "replySep": ":",
+        "clearQuote": "取消引用",
+        "invite": {
+          "title": "邀请朋友",
+          "description": "把链接或二维码发给朋友,打开就能进入房间。",
+          "qrLabel": "邀请二维码",
+          "linkLabel": "邀请链接",
+          "copy": "复制",
+          "copied": "链接已复制",
+          "copyManual": "无法自动复制,请长按链接手动复制",
+          "share": "分享链接",
+          "shareTitle": "来联机练英语",
+          "reset": "重置链接",
+          "resetConfirm": "重置后旧链接和二维码立即失效。确定重置吗?",
+          "resetDo": "重置",
+          "rotated": "已生成新链接",
+          "hint": "打开链接直接进入房间,不需要房主再同意;重置后旧链接立即失效。",
+          "approvalOnly": "需房主同意的房间,只有房主可以分享链接",
+          "pageTitle": "房间邀请",
+          "invitedYou": "朋友邀请你加入联机练习",
+          "level": "水平 {{level}}",
+          "members": "{{count}}/{{max}} 人",
+          "join": "加入房间",
+          "enter": "进入房间",
+          "joinHint": "通过邀请链接加入,不需要房主再同意。",
+          "expired": "邀请链接已失效",
+          "expiredHint": "房间可能已结束,或房主重置了链接。请向房主要一个新的链接。",
+          "toLobby": "去联机大厅"
+        },
+        "summary": {
+          "title": "学习小结",
+          "subtitle": "{{name}} · 已结束",
+          "view": "查看",
+          "pending": "正在生成小结…",
+          "later": "小结还在生成,稍后再来看",
+          "failed": "小结生成失败",
+          "words": "{{count}} 个新词",
+          "fixes": "{{count}} 句可以说得更好",
+          "people": "{{count}} 人",
+          "fixesTitle": "可以说得更好",
+          "onlyYou": "仅你可见",
+          "wordsTitle": "新词",
+          "backToChat": "回看聊天记录",
+          "skipped": {
+            "few_messages": "这次聊得不多,没有生成小结",
+            "disabled": "学习小结没有开启",
+            "quota": "今天的小结名额已用完,这次没有生成",
+            "none": "这个房间没有学习小结"
+          },
+          "errors": {
+            "open": "房间还没结束,结束后才有小结",
+            "cannotRetry": "这份小结不能再重试了"
+          }
+        },
+        "activity": {
+          "someone": "有人",
+          "sep": ",",
+          "typingOne": "{{name}} 正在输入…",
+          "speakingOne": "{{name}} 正在说话…",
+          "typingTwo": "{{a}}、{{b}} 正在输入…",
+          "speakingTwo": "{{a}}、{{b}} 正在说话…",
+          "mixedTwo": "{{a}}、{{b}} 正在输入或说话…",
+          "typingMany": "{{a}}、{{b}} 等 {{count}} 人正在输入…",
+          "speakingMany": "{{a}}、{{b}} 等 {{count}} 人正在说话…",
+          "mixedMany": "{{a}}、{{b}} 等 {{count}} 人正在输入或说话…"
+        }
+      }
+    }
+  }
+}
