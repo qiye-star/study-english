@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import users_admin
+from app.admin import invites, users_admin
 from app.admin.perms import AdminContext, require, require_step_up
 from app.core.deps import get_session
 from app.core.quotas import quota_cache
@@ -170,4 +170,43 @@ async def clear_quota(user_id: UserId, key: QuotaKey, request: Request,
     except users_admin.UserAdminError as e:
         _fail(e)
     quota_cache(request.app).invalidate(user_id)
+    return Response(status_code=204)
+
+
+# ---- invite codes (D3) ----
+
+class InviteIn(BaseModel):
+    label: str = Field("", max_length=64)
+    max_uses: int = Field(ge=1, le=invites.MAX_USES)
+    expires_at: datetime | None = None
+
+
+@router.get("/invites")
+async def list_invites(_: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return {"invites": await invites.listing(session)}
+
+
+@router.post("/invites", status_code=201)
+async def create_invite(payload: InviteIn, ctx: AdminContext = Depends(require("operator")),
+                        session: AsyncSession = Depends(get_session)):
+    expires = payload.expires_at
+    if expires is not None and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    try:
+        row, code = await invites.create(session, ctx.actor, label=payload.label, max_uses=payload.max_uses,
+                                         expires_at=expires, now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    return JSONResponse({"invite": invites.invite_out(row, utcnow()), "code": code}, status_code=201,
+                        headers={"Cache-Control": "no-store"})
+
+
+@router.delete("/invites/{invite_id}", status_code=204)
+async def revoke_invite(invite_id: Annotated[int, Path(ge=1, le=2**31 - 1)],
+                        ctx: AdminContext = Depends(require("operator")),
+                        session: AsyncSession = Depends(get_session)):
+    try:
+        await invites.revoke(session, ctx.actor, invite_id)
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
     return Response(status_code=204)
