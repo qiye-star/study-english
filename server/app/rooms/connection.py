@@ -24,7 +24,7 @@ GLOBAL = "*"
 class ConnDeps:
     store: RoomStore
     hub: RoomHub
-    limits: RoomLimits
+    limits_of: Callable[[], RoomLimits]  # read per use: hot-reloaded limits reach live sockets (review m12)
     complete: Callable[[list[dict], int, float], Awaitable[str]]
     consume: Callable[[str, str, int], Awaitable[bool]]
     refund: Callable[[str, str], Awaitable[None]]
@@ -33,12 +33,20 @@ class ConnDeps:
     say_limiter: RateLimiter
     ai_room_limiter: RateLimiter
     ai_user_limiter: RateLimiter
-    ai_available: bool
+    ai_available_of: Callable[[], bool]
     assist_limiter: RateLimiter | None = None  # per user; plus at most one assist in flight (hub.assist_inflight)
     # The user's daily assist cap (admin per-user quota override); None = limits.assist_daily for everyone
     assist_daily_for: Callable[[int], Awaitable[int]] | None = None
     # Published admin prompt templates (admin v2 G2); None per key = the built-in default. Cached, no DB read per call.
     templates: Callable[[], Awaitable[dict[str, str | None]]] | None = None
+
+    @property
+    def limits(self) -> RoomLimits:
+        return self.limits_of()
+
+    @property
+    def ai_available(self) -> bool:
+        return self.ai_available_of()
 
     async def template(self, key: str) -> str | None:
         return (await self.templates()).get(key) if self.templates is not None else None

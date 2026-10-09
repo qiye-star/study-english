@@ -42,8 +42,9 @@ class Env:
         async def refund(scope, subject):
             self.refunds.append(scope)
 
-        return ConnDeps(self.store, self.hub, self.store.limits, complete, consume, refund, lambda: NOW,
-                        asyncio.Semaphore(2), RateLimiter(3), RateLimiter(30, 3600), RateLimiter(5, 600), ai_available)
+        return ConnDeps(self.store, self.hub, lambda: self.store.limits, complete, consume, refund, lambda: NOW,
+                        asyncio.Semaphore(2), RateLimiter(3), RateLimiter(30, 3600), RateLimiter(5, 600),
+                        lambda: ai_available)
 
 
 @pytest.fixture

@@ -113,7 +113,8 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
     http, sm = app.state.http, app.state.sessionmaker
 
     async def complete(messages: list[dict], max_tokens: int, temperature: float) -> str:
-        return await llm.complete(http, settings, messages, model=settings.resolved_rooms_ai_model,
+        live = app.state.settings  # hot settings (model, upstream) apply to sockets opened earlier too
+        return await llm.complete(http, live, messages, model=live.resolved_rooms_ai_model,
                                   max_tokens=max_tokens, temperature=temperature)
 
     async def consume(scope: str, subject: str, limit: int) -> bool:
@@ -133,9 +134,9 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
         cache = prompt_cache(app)
         return {key: (await cache.get(key))[1] for key in ("rooms.assist", "rooms.answer")}
 
-    return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
-                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
-                    assist_daily_for, templates)
+    return ConnDeps(rt.store, rt.hub, lambda: rt.limits, complete, consume, refund, utcnow, rt.ai_gate,
+                    rt.say_limiter, rt.ai_room_limiter, rt.ai_user_limiter,
+                    lambda: app.state.settings.rooms_ai_available, rt.assist_limiter, assist_daily_for, templates)
 
 
 def require_rooms(settings: Settings = Depends(get_settings)) -> Settings:
