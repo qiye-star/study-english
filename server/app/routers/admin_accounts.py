@@ -189,7 +189,11 @@ async def list_audit(actor: str | None = Query(None, max_length=64), action: str
 async def verify_audit(ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
     """Recompute the whole hash chain; the check itself is audited (result only)."""
     ok, broken_at = await audit.verify(session)
+    anchor = await audit.chain_anchor(session) if ok else None
     await audit.record(session, ctx.actor, "audit.verify", target_type="audit",
                        summary="ok" if ok else f"broken at {broken_at}", result="ok" if ok else "error")
     await session.commit()
-    return {"ok": ok, "broken_at": broken_at}
+    out = {"ok": ok, "broken_at": broken_at}
+    if anchor is not None:
+        out["anchor_id"] = anchor  # the chain starts at this audit.purge anchor (older rows were purged)
+    return out

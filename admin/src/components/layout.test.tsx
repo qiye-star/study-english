@@ -19,7 +19,9 @@ it("hides superadmin-only navigation from viewers and shows the safe-mode bar", 
   });
   render(<MemoryRouter><AppShell /></MemoryRouter>);
   expect(screen.getAllByRole("link", { name: "概览" }).length).toBeGreaterThan(0);
-  expect(screen.queryByRole("link", { name: "管理员与会话" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "数据与备份" })).toBeNull();
+  // viewers and operators manage their own sessions, TOTP and password on the security page (lane B ruling)
+  expect(screen.getByRole("link", { name: "管理员与会话" })).toBeInTheDocument();
   expect(screen.getByText(/安全模式/)).toBeInTheDocument();
 });
 

@@ -107,3 +107,27 @@ async def test_bad_prices_are_rejected_by_the_hub_and_ignored_from_env(app):
 async def test_usage_endpoints_need_a_session(app, client):
     assert (await client.get("/api/admin/usage/summary")).status_code == 401
     assert (await client.get("/api/admin/usage/health")).status_code == 401
+
+
+async def test_latency_percentiles_come_from_one_bounded_query(app):
+    """Review correctness m9: P50 and P95 used to run two full ORDER BY ms sorts per dashboard load."""
+    from sqlalchemy import event
+
+    async with app.state.sessionmaker() as s:
+        for ms in range(1, 101):
+            s.add(UpstreamCall(at=NOW - timedelta(hours=1), user_id=1, feature="chat", kind="llm", provider="deepseek",
+                               model="deepseek-v4-flash", status=200, ms=ms, units_in=1, units_out=1, unit="tokens"))
+        await s.commit()
+        statements = []
+
+        def seen(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        event.listen(app.state.engine.sync_engine, "before_cursor_execute", seen)
+        try:
+            out = await usage.summary(s, app.state.settings, 7, NOW)
+        finally:
+            event.remove(app.state.engine.sync_engine, "before_cursor_execute", seen)
+    assert (out["totals"]["p50_ms"], out["totals"]["p95_ms"]) == (50, 95)
+    latency = [q for q in statements if "upstream_calls.ms" in q and "ORDER BY" in q]
+    assert len(latency) == 1 and "LIMIT" in latency[0]

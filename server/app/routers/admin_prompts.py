@@ -25,6 +25,7 @@ class DraftIn(BaseModel):
 
 class PublishIn(BaseModel):
     reason: str = Field(max_length=200)
+    draft_etag: str = Field(min_length=1, max_length=64)  # the draft version the superadmin reviewed (review M4)
 
     @field_validator("reason")
     @classmethod
@@ -92,7 +93,8 @@ async def delete_draft(key: str, ctx: AdminContext = Depends(require("operator")
 async def publish(key: str, payload: PublishIn, request: Request, ctx: AdminContext = Depends(require_step_up),
                   session: AsyncSession = Depends(get_session)):
     try:
-        return {"version": await pa.publish(session, request.app, ctx.actor, key, reason=payload.reason)}
+        return {"version": await pa.publish(session, request.app, ctx.actor, key, reason=payload.reason,
+                                          etag=payload.draft_etag)}
     except pa.PromptError as exc:
         return _error(exc)
 

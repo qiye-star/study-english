@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.admin import recover
 from app.models import SettingOverride
 
@@ -37,8 +39,15 @@ async def test_unlock_reset_totp_revoke_and_rotate(app, monkeypatch, capsys):
                               env_fp="", revision=1, updated_by="t"))
         await s.commit()
     monkeypatch.setattr(recover, "_sessionmaker", lambda: app.state.sessionmaker)
-    assert await recover.run(["rotate-key", "--old", Fernet.generate_key().decode(), "--new", new_key]) == 1
-    assert await recover.run(["rotate-key", "--old", old_key, "--new", new_key]) == 0
+    # Review m11: keys never travel on argv (shell history, ps, docker exec logs); they come from env or stdin
+    with pytest.raises(SystemExit):
+        await recover.run(["rotate-key", "--old", old_key, "--new", new_key])
+    capsys.readouterr()  # argparse echoes the rejected arguments back (the caller's own input)
+    monkeypatch.setenv("OLD_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("NEW_SETTINGS_ENCRYPTION_KEY", new_key)
+    assert await recover.run(["rotate-key"]) == 1
+    monkeypatch.setenv("OLD_SETTINGS_ENCRYPTION_KEY", old_key)
+    assert await recover.run(["rotate-key"]) == 0
     assert await recover.run(["unlock", "OPS"]) == 0
     assert await recover.run(["revoke-sessions"]) == 0
     assert await recover.run(["reset-totp", "ops"]) == 0

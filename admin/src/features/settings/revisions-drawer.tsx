@@ -6,7 +6,7 @@ import { ErrorState } from "../../components/states";
 import { errorText } from "../../hooks/use-async";
 import { formatDateTime } from "../../lib/format";
 import { listRevisions, revertRevision, type Revision, type RevisionSide, type SaveResult } from "./api";
-import { formatValue } from "./model";
+import { formatValue, managedErrorText } from "./model";
 import { S } from "./strings";
 
 function side(v: RevisionSide): string {
@@ -67,6 +67,8 @@ export function RevisionsDrawer({ canRevert, onClose, onReverted }: { canRevert:
         setPhrase(details.confirm);
         throw new Error(S.revertConfirmNeeded);
       }
+      const managed = managedErrorText(e);
+      if (managed) throw new Error(managed);
       throw e;
     }
   };

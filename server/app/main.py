@@ -1,5 +1,4 @@
 import asyncio
-import secrets
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 
@@ -61,7 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.base_settings = settings  # env only; app.state.settings = base + DB overrides
     app.state.settings = settings
     app.state.started_at = datetime.now(timezone.utc)
-    app.state.admin_secret = (settings.admin_session_secret or secrets.token_hex(32)).encode()
+    app.state.admin_secret = None  # loaded on first admin use: admin.sessions.ensure_secret (review B1)
     app.state.grammar_rules = grammar_rules
     app.state.engine = engine
     app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
@@ -139,6 +138,7 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
     hub.subscribe("xfyun", drop("xfyun"), keys={"xfyun_app_id", "xfyun_api_key", "xfyun_api_secret", "xfyun_ws_url"})
     hub.subscribe("grammar_rules", grammar_apply, keys={"grammar_prompt"}, prepare=grammar_prepare)
     hub.subscribe("log_secrets", _log_secrets, keys=set(SECRETS))
+    hub.subscribe("realtime_maintenance", realtime.end_calls_on_maintenance(app), keys={"maintenance_mode"})
     # Spec §9 "maintenance drops live room sockets with 1012" lives in the rooms runtime listener
     # (`routers/rooms.RoomsRuntime.reconfigure`); new room sockets are refused with 1013 by MaintenanceMiddleware.
     # Prices are parsed per request (admin.usage.prices_for); this only rejects a save with bad numbers.

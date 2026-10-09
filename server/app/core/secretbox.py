@@ -19,9 +19,10 @@ class SecretBox:
     def encrypt(self, plain: str) -> str:
         return self._fernet.encrypt(plain.encode()).decode()
 
-    def decrypt(self, token: str) -> str:
+    def decrypt(self, token: str, *, ttl: int | None = None) -> str:
+        """`ttl` (seconds): tokens encrypted longer ago are refused like undecryptable ones."""
         try:
-            return self._fernet.decrypt(token.encode()).decode()
+            return self._fernet.decrypt(token.encode(), ttl=ttl).decode()
         except (InvalidToken, ValueError, TypeError):
             raise SecretBoxError("cannot decrypt") from None
 

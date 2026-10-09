@@ -38,7 +38,7 @@ export interface RoomMessage {
   quote: QuoteInfo | null; voice: VoiceInfo | null; reactions: ReactionInfo[];
 }
 export interface RoomInfo {
-  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; ownerId: number;
+  id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; /** null = 房主已删除(房间只读保留) */ ownerId: number | null;
   myRole: "owner" | "member" | null; memberCount: number; onlineCount: number; createdAt: string; closedAt: string | null;
   /** v2 的 7 项设置(topic 仍下发,= name) */
   name: string; scenario: string; level: string; joinMode: "code" | "approval"; maxMembers: number; allowVoice: boolean;

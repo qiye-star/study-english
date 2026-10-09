@@ -3,6 +3,7 @@ import { ApiError } from "./client";
 
 const COMMON: Record<string, string> = {
   "Invalid username or password": "web.errors.invalidLogin",
+  "Account disabled": "web.errors.accountDisabled",
   "Username already taken": "web.errors.usernameTaken",
   "Registration is closed": "web.errors.registrationClosed",
   "Invalid invite code": "web.errors.invalidInvite",

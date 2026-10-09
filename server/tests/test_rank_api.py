@@ -93,3 +93,19 @@ async def test_turn_logs_never_include_transcripts(client, auth_headers, eligibl
     match = (await client.post("/api/rank/matches", headers=auth_headers)).json()["match"]
     await client.post(f"/api/rank/matches/{match['id']}/turns", headers=auth_headers, files={"file": ("t.wav", WAV, "audio/wav")})
     assert "MY-PRIVATE-WORDS" not in caplog.text
+
+
+async def test_rank_me_writes_nothing_in_read_only_maintenance(app, client, auth_headers):
+    """Review correctness m6: read_only (e.g. a backup window) must not let GET /api/rank/me sync and commit."""
+    from sqlalchemy import func, select
+
+    from app.core.runtime_settings import compose
+    from app.models import UserAchievement, XpEvent
+
+    app.state.settings_hub.publish(compose(app.state.base_settings, {"rank_enabled": True,
+                                                                     "maintenance_mode": "read_only"}))
+    r = await client.get("/api/rank/me", headers=auth_headers)
+    assert r.status_code == 200 and r.json()["tier"] == "bronze" and r.json()["new_achievements"] == []
+    async with app.state.sessionmaker() as s:
+        for model in (RankProfile, XpEvent, UserAchievement):
+            assert await s.scalar(select(func.count()).select_from(model)) == 0, model.__name__

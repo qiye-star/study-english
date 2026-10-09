@@ -40,3 +40,23 @@ async def test_filters_pagination_prefix_and_broken_chain(app, client):
         await s.execute(update(AdminAudit).where(AdminAudit.id == 1).values(summary="tampered"))
         await s.commit()
     assert (await client.get("/api/admin/audit/verify")).json() == {"ok": False, "broken_at": 1}
+
+async def test_verify_endpoint_reports_the_purge_anchor(app, client):
+    from sqlalchemy import delete, select
+
+    from app.admin import housekeeping
+    from app.admin.audit import Actor, record
+    from app.models import AdminAudit
+
+    ROOT = Actor("root", "superadmin", "s1", "203.0.113.5")
+
+    async with app.state.sessionmaker() as s:
+        rows = [await record(s, ROOT, "room.close", target_type="room", target_id=f"r{i}") for i in range(3)]
+        await s.commit()
+        await s.execute(delete(AdminAudit).where(AdminAudit.id == rows[0].id))
+        await housekeeping.purge_audit(s, ROOT, 400, retention_days=180)
+        await s.commit()
+        purge_row_id = (await s.scalars(select(AdminAudit.id).where(AdminAudit.action == "audit.purge"))).one()
+    await login_as(app, client, "operator")
+    body = (await client.get("/api/admin/audit/verify")).json()
+    assert body == {"ok": True, "broken_at": None, "anchor_id": purge_row_id}

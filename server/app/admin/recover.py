@@ -5,6 +5,8 @@
 """
 import argparse
 import asyncio
+import getpass
+import os
 import sys
 from datetime import datetime, timezone
 
@@ -18,6 +20,7 @@ from app.core.runtime_settings import bump_revision
 from app.core.secretbox import SecretBox, SecretBoxError
 from app.models import AdminAccount, AdminLoginState, AdminRecoveryCode, AdminSession, SettingOverride
 
+OLD_ENV, NEW_ENV = "OLD_SETTINGS_ENCRYPTION_KEY", "NEW_SETTINGS_ENCRYPTION_KEY"
 _ENGINES: list = []  # engines this CLI created (disposed by main(); tests patch _sessionmaker instead)
 
 
@@ -36,10 +39,14 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("unlock", help="clear login lockouts of an admin username").add_argument("username")
     sub.add_parser("reset-totp", help="remove TOTP and recovery codes of a DB admin account").add_argument("username")
     sub.add_parser("revoke-sessions", help="sign every admin out")
-    rotate = sub.add_parser("rotate-key", help="re-encrypt stored secrets from the old to the new SETTINGS_ENCRYPTION_KEY")
-    rotate.add_argument("--old", required=True)
-    rotate.add_argument("--new", required=True)
+    sub.add_parser("rotate-key", help="re-encrypt stored secrets from the old to the new SETTINGS_ENCRYPTION_KEY; "
+                   f"keys come from {OLD_ENV} / {NEW_ENV} or are prompted for (never on the command line)")
     return parser
+
+
+def _key(env: str, prompt: str) -> str:
+    """Review m11: a key on argv ends up in shell history, `ps` and `docker exec` logs; read env or a hidden prompt."""
+    return (os.environ.get(env) or "").strip() or getpass.getpass(prompt).strip()
 
 
 async def run(argv: list[str]) -> int:
@@ -76,7 +83,8 @@ async def run(argv: list[str]) -> int:
             await audit.record(s, audit.CLI_ACTOR, "auth.cli_revoke_all", summary=f"revoked {result.rowcount or 0}")
         elif args.cmd == "rotate-key":
             try:
-                old, new = SecretBox(args.old), SecretBox(args.new)
+                old = SecretBox(_key(OLD_ENV, "old SETTINGS_ENCRYPTION_KEY: "))
+                new = SecretBox(_key(NEW_ENV, "new SETTINGS_ENCRYPTION_KEY: "))
                 rows = (await s.scalars(select(SettingOverride).where(SettingOverride.secret.is_(True)))).all()
                 for row in rows:
                     row.value = new.encrypt(old.decrypt(row.value))

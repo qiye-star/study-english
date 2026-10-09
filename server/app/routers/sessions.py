@@ -124,6 +124,8 @@ async def login(payload: LoginIn, session: AsyncSession = Depends(get_session)):
         raise HTTPException(401, INVALID_LOGIN)
     if not await asyncio.to_thread(verify_password, user.password_hash, payload.password):
         raise HTTPException(401, INVALID_LOGIN)
+    if user.disabled_at is not None:  # after the password check: wrong passwords learn nothing about the account
+        raise HTTPException(403, "Account disabled")
     return _user_out(user, await _issue_token(session, user))
 
 

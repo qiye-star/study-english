@@ -230,9 +230,10 @@ class Room(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     code: Mapped[str | None] = mapped_column(String(6), unique=True, nullable=True)
     last_code: Mapped[str] = mapped_column(String(6))
-    # RESTRICT: deleting an owner must never cascade to the room and its messages (migration 0007)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT", name="fk_rooms_owner_id_users"),
-                                          index=True)
+    # Deleting an owner must never cascade to the room and its messages (0007 RESTRICT, 0009 SET NULL).
+    # NULL = the owner was deleted and nobody else had joined: a closed, read-only room kept forever (R-6).
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_rooms_owner_id_users"), index=True, nullable=True)
     topic: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(8), default="open")
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -342,6 +343,7 @@ class AdminSession(Base):
     step_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     csrf_hash: Mapped[str] = mapped_column(String(64))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    mfa_failures: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))  # wrong TOTP codes
 
 
 class AdminLoginState(Base):
@@ -385,6 +387,26 @@ class AdminAudit(Base):
     reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     result: Mapped[str] = mapped_column(String(8), default="ok")
     prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))
+
+
+class AppSecret(Base):
+    """Server-generated secrets that must survive restarts and be shared by workers (review B1 ruling):
+    `admin_session` = the CSRF/fingerprint/backup-link key when ADMIN_SESSION_SECRET is empty;
+    `admin_session_check` = SHA-256 of the key in use, so a changed key signs every admin session out."""
+    __tablename__ = "app_secrets"
+
+    name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    value: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AuditHead(Base):
+    """One row (id=1): the hash of the newest audit row. Every `audit.record` updates it first, which takes the DB
+    write lock (SQLite) / row lock (Postgres) until the caller commits, so writers in any process chain in order."""
+    __tablename__ = "audit_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     hash: Mapped[str] = mapped_column(String(64))
 
 

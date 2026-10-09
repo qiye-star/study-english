@@ -47,6 +47,8 @@ def _env(key: str, kind: Kind, label: str, **kw) -> SettingSpec:
 
 
 _URL_DANGER = "改主机会把配对的密钥发送到新地址"
+_WEAKER_LOGIN = "放宽会削弱登录防暴力破解"
+_LONGER_SESSIONS = "调长会让被盗或无人看管的管理会话更久有效"
 _COST = "打开后会产生上游费用"
 
 _ALL: tuple[SettingSpec, ...] = (
@@ -76,8 +78,9 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_summary_enabled", "features", "bool", "联机学习小结", help_zh="房间结束时生成一次 AI 学习小结", danger=_COST),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
-    _s("invite_code", "registration", "secret", "邀请码(env 单码)"),
-    _s("rate_limit_per_minute", "limits", "int", "登录/注册每分钟次数(按 IP)", min=1, max=10000),
+    _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册"),
+    _s("rate_limit_per_minute", "limits", "int", "登录/注册每分钟次数(按 IP)", min=1, max=10000,
+       danger=_WEAKER_LOGIN),
     _s("ai_rate_limit_per_minute", "limits", "int", "AI 接口每分钟次数(按用户)", min=1, max=10000),
     _s("recording_quota_mb", "limits", "int", "每人录音上限 MB", min=1, max=100000),
     _s("chat_orphan_grace_hours", "limits", "int", "孤儿对话录音保留小时", min=1, max=720),
@@ -117,7 +120,8 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("stt_disable_thinking", "asr", "enum", "识别关闭深度思考"),
     # assessment
     _s("azure_speech_key", "assessment", "secret", "Azure Speech 密钥"),
-    _s("azure_speech_region", "assessment", "str", "Azure 区域", pair="azure_speech_key"),
+    _s("azure_speech_region", "assessment", "str", "Azure 区域", pair="azure_speech_key", danger=_URL_DANGER,
+       help_zh="只填区域名(如 eastus);它决定 Azure 密钥发往的主机"),
     _s("xfyun_app_id", "assessment", "str", "讯飞 APPID"),
     _s("xfyun_api_key", "assessment", "secret", "讯飞 APIKey"),
     _s("xfyun_api_secret", "assessment", "secret", "讯飞 APISecret"),
@@ -167,13 +171,13 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_translate_global_daily", "rooms", "int", "全站每日语音翻译次数", danger=_COST),
     _s("rooms_summary_global_daily", "rooms", "int", "全站每日学习小结次数", danger=_COST),
     # admin
-    _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟"),
-    _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟"),
+    _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟", danger=_LONGER_SESSIONS),
+    _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟", danger=_LONGER_SESSIONS),
     _s("admin_require_totp", "admin", "bool", "超级管理员必须绑定 TOTP", danger="打开后未绑定的超级管理员不能执行写操作"),
-    _s("admin_lockout_threshold", "admin", "int", "锁定阈值(次)"),
-    _s("admin_lockout_minutes", "admin", "int", "锁定分钟"),
-    _s("admin_step_up_minutes", "admin", "int", "二次验证有效分钟"),
-    _s("admin_audit_retention_days", "admin", "int", "审计保留天数"),
+    _s("admin_lockout_threshold", "admin", "int", "锁定阈值(次)", danger=_WEAKER_LOGIN),
+    _s("admin_lockout_minutes", "admin", "int", "锁定分钟", danger=_WEAKER_LOGIN),
+    _s("admin_step_up_minutes", "admin", "int", "二次验证有效分钟", danger=_LONGER_SESSIONS),
+    _s("admin_audit_retention_days", "admin", "int", "审计保留天数", danger="调低会让更早的审计记录可以被清理"),
     # ops
     _s("log_level", "ops", "enum", "日志级别", choices=("DEBUG", "INFO", "WARNING", "ERROR"),
        danger="DEBUG 会产生大量日志"),

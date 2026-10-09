@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 
 import httpx
 import pytest
@@ -8,6 +10,24 @@ from app.core.db import Base
 from app.main import create_app
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
+
+def pytest_configure(config):
+    """A private tmp_path root per session. pytest's default root (%TEMP%/pytest-of-<user>/pytest-N) is shared and
+    rotated by every concurrent session (two halves of this suite, or another checkout), which on Windows left
+    half-deleted `garbage-*` dirs behind."""
+    if config.option.basetemp is None:
+        config.option.basetemp = tempfile.mkdtemp(prefix="enjoy-server-pytest-")
+        config.stash[_OWN_BASETEMP] = config.option.basetemp
+
+
+def pytest_unconfigure(config):
+    own = config.stash.get(_OWN_BASETEMP, None)
+    if own:
+        shutil.rmtree(own, ignore_errors=True)
+
+
+_OWN_BASETEMP = pytest.StashKey[str]()
 
 
 def make_settings(**overrides) -> Settings:

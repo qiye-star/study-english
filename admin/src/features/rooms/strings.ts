@@ -74,6 +74,7 @@ export const S = {
       owner: (m: Record<string, string>) => `${m.name ?? "?"} 成为房主`,
     } as Record<string, (m: Record<string, string>) => string>,
     unknownUser: "已删除的用户",
+    deletedOwner: "已删除用户",
   },
   reports: {
     title: "举报",

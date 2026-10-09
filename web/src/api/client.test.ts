@@ -55,6 +55,33 @@ describe("ApiClient", () => {
     await expect(api.request("GET", "/x")).rejects.toMatchObject({ status: 502, message: "HTTP 502" });
   });
 
+  it("signs out on an authenticated 403 Account disabled, but not on other 403s", async () => {
+    const onUnauthorized = vi.fn();
+    const { api } = make(
+      {
+        "GET /api/me": () => json({ error: "Account disabled" }, 403),
+        "GET /api/other": () => json({ error: "Forbidden" }, 403),
+      },
+      { onUnauthorized },
+    );
+    await expect(api.request("GET", "/api/other")).rejects.toMatchObject({ status: 403 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    await expect(api.request("GET", "/api/me")).rejects.toMatchObject({ status: 403, message: "Account disabled" });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a 503 Maintenance so the app can show the maintenance state at once", async () => {
+    const onMaintenance = vi.fn();
+    const { api } = make(
+      { "GET /api/a": () => json({ error: "Maintenance" }, 503), "GET /api/b": () => json({ error: "Upstream down" }, 503) },
+      { onMaintenance },
+    );
+    await expect(api.request("GET", "/api/b")).rejects.toMatchObject({ status: 503 });
+    expect(onMaintenance).not.toHaveBeenCalled();
+    await expect(api.request("GET", "/api/a")).rejects.toMatchObject({ status: 503, message: "Maintenance" });
+    expect(onMaintenance).toHaveBeenCalledTimes(1);
+  });
+
   it("calls onUnauthorized for authenticated 401 only", async () => {
     const onUnauthorized = vi.fn();
     const { api } = make(

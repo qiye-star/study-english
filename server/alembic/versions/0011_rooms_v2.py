@@ -1,11 +1,11 @@
 """rooms v2: room settings, voice messages, reactions, join requests, summaries
 
-Revision ID: 0010
-Revises: 0008
+Revision ID: 0011
+Revises: 0010
 Create Date: 2026-10-10 09:00:00.000000
 
-`alembic heads` on rooms-v2-plan printed `0008 (head)`: revision 0009 (O-1, deleted users keep their rooms)
-has not landed here, so this revision follows 0008. If 0009 merges first, set down_revision to '0009'.
+Written as 0010 after 0008; renumbered to 0011 after 0010 when admin-v2-plan merged (it carries 0009 room owner
+SET NULL and 0010 admin review fixes). Rooms whose owner was deleted (owner_id NULL since 0009) are named "房间".
 """
 from typing import Sequence, Union
 
@@ -13,8 +13,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '0010'
-down_revision: Union[str, Sequence[str], None] = '0008'
+revision: str = '0011'
+down_revision: Union[str, Sequence[str], None] = '0010'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -35,8 +35,8 @@ def upgrade() -> None:
     # v1 rooms keep the v1 site cap; names: topic, else "<owner>的房间" (spec §3.1 R2-1)
     op.execute("UPDATE rooms SET max_members = 8")
     op.execute("UPDATE rooms SET name = substr(topic, 1, 30) WHERE topic IS NOT NULL AND topic != ''")
-    op.execute("UPDATE rooms SET name = substr((SELECT username FROM users WHERE users.id = rooms.owner_id) || '的房间', 1, 30)"
-               " WHERE name = ''")
+    op.execute("UPDATE rooms SET name = substr(COALESCE((SELECT username FROM users WHERE users.id = rooms.owner_id)"
+               " || '的房间', '房间'), 1, 30) WHERE name = ''")
     op.create_table(
         'room_voice',
         sa.Column('message_id', sa.String(36), sa.ForeignKey('room_messages.id', ondelete='CASCADE'), primary_key=True),

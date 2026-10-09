@@ -1,3 +1,5 @@
+import json
+
 import anyio
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,6 +25,24 @@ def _clamp(body: dict, field: str, cap: int) -> None:
         raise HTTPException(400, f"Invalid {field}")
     if value > cap:
         body[field] = cap
+
+
+USAGE_TAIL = 16 * 1024  # the stream's last bytes, where OpenAI-style upstreams put the usage chunk
+
+
+def stream_tokens(tail: bytes) -> tuple[int, int] | None:
+    """(prompt, completion) tokens from the last SSE `data:` event that carries a usage block (review m8)."""
+    for line in reversed(tail.decode("utf-8", errors="ignore").splitlines()):
+        line = line.strip()
+        if not line.startswith("data:") or '"usage"' not in line:
+            continue
+        try:
+            tokens = metering.tokens_of(json.loads(line[5:].strip()))
+        except ValueError:
+            continue
+        if tokens:
+            return tokens
+    return None
 
 
 def _record_completion(provider: str, model: str, upstream: httpx.Response, ms: int) -> None:
@@ -74,6 +94,9 @@ async def chat_completions(
 
     try:
         if body.get("stream"):
+            # ask for the final usage chunk so streamed chats get a cost estimate (the relay passes it through)
+            if not isinstance(body.get("stream_options"), dict):
+                body["stream_options"] = {"include_usage": True}
             upstream = await http.send(
                 http.build_request("POST", url, json=body, headers=headers), stream=True
             )
@@ -86,16 +109,22 @@ async def chat_completions(
                 raise
 
             async def relay():
-                status, sent = upstream.status_code, 0
+                status, sent, tail = upstream.status_code, 0, b""
                 try:
                     async for chunk in upstream.aiter_bytes():
                         sent += len(chunk)
+                        tail = (tail + chunk)[-USAGE_TAIL:]
                         yield chunk
                 except httpx.HTTPError:
                     status = 0
                     yield b'data: {"error": "Upstream unavailable"}\n\n'
                 finally:
-                    metering.record("llm", provider, model, status, timer.ms(), units_out=sent, unit="bytes")
+                    tokens = stream_tokens(tail)
+                    if tokens:
+                        metering.record("llm", provider, model, status, timer.ms(), units_in=tokens[0],
+                                        units_out=tokens[1], unit="tokens")
+                    else:
+                        metering.record("llm", provider, model, status, timer.ms(), units_out=sent, unit="bytes")
                     with anyio.CancelScope(shield=True):
                         await upstream.aclose()
 

@@ -6,9 +6,10 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 
+from app.admin import sessions, usage
 from app.core.config import realtime_asr_configured
 from app.core.secretbox import box_for, fingerprint
-from app.models import AdminAccount, AdminAudit, SettingOverride
+from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
 
 Level = Literal["error", "warn", "info"]
 
@@ -16,7 +17,7 @@ CODES = (
     "realtime_unavailable", "rank_match_unavailable", "rooms_ai_unavailable", "grammar_upstream_missing",
     "registration_open", "no_encryption_key", "superadmin_without_totp", "insecure_cookie", "invalid_overrides",
     "env_drift", "pending_restart", "sqlite_without_backup", "missing_prices", "login_alarm", "safe_mode",
-    "retention_enabled",
+    "retention_enabled", "invite_without_codes",
 )
 
 
@@ -40,6 +41,7 @@ class Facts:
     backups: int
     missing_prices: tuple[str, ...]
     safe_mode: bool
+    live_invites: int = 0  # admin-issued invite codes that can still be used
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -70,6 +72,9 @@ def diagnose(s, f: Facts) -> list[Finding]:
         out.append(Finding("warn", "grammar_upstream_missing", ("upstream_grammar_base_url",), "语法检查没有可用的上游"))
     if s.registration_mode == "open":
         out.append(Finding("warn", "registration_open", ("registration_mode",), "注册开放:任何人都能注册并消耗上游额度"))
+    if s.registration_mode == "invite" and not s.invite_code and not f.live_invites:
+        out.append(Finding("warn", "invite_without_codes", ("registration_mode", "invite_code"),
+                           "邀请注册已开启,但既没有 INVITE_CODE 也没有可用的邀请码:现在没人能注册"))
     if not f.encryption:
         out.append(Finding("warn", "no_encryption_key", ("settings_encryption_key",),
                            "未设置加密主密钥,后台不能修改密钥,也不能绑定 TOTP"))
@@ -119,11 +124,12 @@ async def gather_facts(session, app) -> Facts:
     if base.admin_enabled and not base.admin_totp_secret.strip():
         without_totp += 1
     drift = []
+    secret = await sessions.ensure_secret(app)
     for row in (await session.scalars(select(SettingOverride))).all():
         if hasattr(base, row.key):
             value = getattr(base, row.key)
             value = value.isoformat() if hasattr(value, "isoformat") else value
-            if row.env_fp != fingerprint(app.state.admin_secret, "" if value is None else str(value)):
+            if row.env_fp != fingerprint(secret, "" if value is None else str(value)):
                 drift.append(row.key)
     since = datetime.now(timezone.utc) - timedelta(hours=24)
     alarm = await session.scalar(select(AdminAudit.id).where(
@@ -132,8 +138,14 @@ async def gather_facts(session, app) -> Facts:
         backend = make_url(base.database_url).get_backend_name()
     except Exception:  # noqa: BLE001 - never echo the URL (it may hold a password)
         backend = "unknown"
+    now = datetime.now(timezone.utc)
+    live_invites = await session.scalar(select(func.count()).select_from(InviteCode).where(
+        InviteCode.revoked_at.is_(None), InviteCode.uses < InviteCode.max_uses,
+        (InviteCode.expires_at.is_(None)) | (InviteCode.expires_at > now))) or 0
     return Facts(
         encryption=box_for(base) is not None, superadmins_without_totp=int(without_totp), invalid=dict(hub.invalid),
         drift=tuple(sorted(drift)), pending_restart=tuple(sorted(hub.pending_restart)), login_alarm=alarm is not None,
-        db_backend=backend, backups=_backups(base), missing_prices=(), safe_mode=hub.safe_mode,
+        db_backend=backend, backups=_backups(base),
+        missing_prices=await usage.missing_prices(session, app.state.settings, now), safe_mode=hub.safe_mode,
+        live_invites=int(live_invites),
     )

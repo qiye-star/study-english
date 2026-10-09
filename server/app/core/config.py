@@ -1,4 +1,5 @@
 import ipaddress
+import re
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -206,6 +207,15 @@ class Settings(BaseSettings):
     backup_keep: int = Field(7, ge=1, le=60)
     backup_hour_utc: int = Field(-1, ge=-1, le=23)
     build_sha: str = ""
+
+    @field_validator("azure_speech_region")
+    @classmethod
+    def _azure_region(cls, value: str) -> str:
+        """A bare region name (e.g. eastus): it becomes part of the host the Azure key is sent to (review M2)."""
+        value = value.strip().lower()
+        if value and not re.fullmatch(r"[a-z0-9]{2,32}", value):
+            raise ValueError("invalid Azure region (letters and digits only, e.g. eastus)")
+        return value
 
     @field_validator("admin_ip_allowlist")
     @classmethod

@@ -23,12 +23,17 @@ def settings_overrides(request):
     return {"rank_enabled": True, "rank_daily_rp_cap": 70, **getattr(request, "param", {})}
 
 
+async def _etag(s) -> str:
+    row = await rra._draft(s)
+    return rra.draft_etag(row) if row is not None else "no-draft"
+
+
 async def publish_with(app, s, mutate, reason="r"):
     await rra.create_draft(s, ROOT, from_version=None)
     data = rules_json(DEFAULT_RULES)
     mutate(data)
     await rra.save_draft(s, ROOT, data, "")
-    return await rra.publish(s, app, ROOT, reason=reason)
+    return await rra.publish(s, app, ROOT, reason=reason, etag=await _etag(s))
 
 
 async def test_v0_comes_from_settings_until_a_version_is_published(app):
@@ -42,7 +47,7 @@ async def test_v0_comes_from_settings_until_a_version_is_published(app):
         data["points"]["daily_cap"] = 90
         await rra.save_draft(s, ROOT, data, "提高上限")
         assert await rra.validate_draft(s, cache, TODAY) == []
-        v = await rra.publish(s, app, ROOT, reason="活动周")
+        v = await rra.publish(s, app, ROOT, reason="活动周", etag=await _etag(s))
     assert v == 1
     version, rules = await cache.current()
     assert (version, rules.points.daily_cap) == (1, 90)
@@ -67,14 +72,14 @@ async def test_only_one_draft_and_invalid_rules_block_publish(app):
         data["match"]["speech_weight"] = 0.9
         await rra.save_draft(s, ROOT, data, "")
         with pytest.raises(rra.RulesError) as exc:
-            await rra.publish(s, app, ROOT, reason="x")
+            await rra.publish(s, app, ROOT, reason="x", etag=await _etag(s))
         assert exc.value.status == 422 and "weights_sum" in exc.value.details["errors"]
         with pytest.raises(rra.RulesError) as exc:
             await rra.save_draft(s, ROOT, {**data, "unknown": 1}, "")
         assert exc.value.status == 422 and "unknown" in exc.value.details["fields"]
         await rra.delete_draft(s, ROOT)
         with pytest.raises(rra.RulesError) as exc:
-            await rra.publish(s, app, ROOT, reason="x")
+            await rra.publish(s, app, ROOT, reason="x", etag=await _etag(s))
         assert exc.value.status == 404
 
 
@@ -83,7 +88,7 @@ async def test_published_versions_are_immutable_and_rollback_is_a_new_version(ap
         for cap in (80, 100):
             await publish_with(app, s, lambda d, cap=cap: d["points"].__setitem__("daily_cap", cap))
         await rra.create_draft(s, ROOT, from_version=1)
-        assert await rra.publish(s, app, ROOT, reason="回滚到 v1") == 3
+        assert await rra.publish(s, app, ROOT, reason="回滚到 v1", etag=await _etag(s)) == 3
         overview = await rra.overview(s, rank_rules(app))
         statuses = {r.version: r.status for r in (await s.scalars(select(RankRuleSet))).all()}
     assert overview["published"]["version"] == 3 and overview["published"]["rules"]["points"]["daily_cap"] == 80

@@ -28,6 +28,8 @@ export const S = {
   envOnly: "只能在 .env 中修改并重启",
   managed: "由段位规则管理",
   managedLink: "去段位规则修改",
+  managedError: (keys: string) =>
+    `段位规则已发布,${keys} 已由段位规则管理,这里不能修改或回滚:请到「段位规则」页修改(新建草稿 → 发布)。`,
   secretSet: (fp: string) => `已设置 · ${fp}`,
   secretUnset: "未设置",
   secretNew: "新值(留空不修改)",

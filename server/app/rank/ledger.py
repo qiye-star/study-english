@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.quotas import overrides_for
+from app.core.quotas import quota_for
 from app.models import Assessment, Conversation, Message, RankProfile, VocabularyItem, XpEvent
 from app.rank import points as rules
 from app.rank.points import EventRow, TaskProgress, stage_progress
@@ -37,12 +37,17 @@ def apply_state(p: RankProfile, s: RankState, now: datetime) -> None:
     p.updated_at = now
 
 
+def blank_profile(user_id: int, now: datetime) -> RankProfile:
+    """A new learner's profile, not added to any session."""
+    return RankProfile(user_id=user_id, tier=0, division=3, rp=0, stars=0, best_tier=0,
+                       tier_started_at=now - timedelta(days=SYNC_LOOKBACK_DAYS), updated_at=now)
+
+
 async def load_profile(session: AsyncSession, user_id: int, now: datetime) -> RankProfile:
     profile = await session.get(RankProfile, user_id)
     if profile is not None:
         return profile
-    profile = RankProfile(user_id=user_id, tier=0, division=3, rp=0, stars=0, best_tier=0,
-                          tier_started_at=now - timedelta(days=SYNC_LOOKBACK_DAYS), updated_at=now)
+    profile = blank_profile(user_id, now)
     session.add(profile)
     try:
         await session.flush()
@@ -215,11 +220,11 @@ def promotion_status(state: RankState, tasks: list[TaskProgress], *, now: dateti
 
 
 async def daily_attempts(session: AsyncSession, user_id: int, now: datetime, settings: Settings, *, rules=None) -> int:
-    """Per-user override (user_quota_overrides) > the rules' daily_attempts > RANK_MATCH_DAILY_ATTEMPTS."""
-    override = (await overrides_for(session, user_id, now)).get("rank_match_daily_attempts")
-    if override is not None:
-        return override
-    return rules.match.daily_attempts if rules is not None else settings.rank_match_daily_attempts
+    """Per-user override (user_quota_overrides, via core.quotas.quota_for) > the rules' daily_attempts >
+    RANK_MATCH_DAILY_ATTEMPTS. Read uncached: start_match spends against it."""
+    if rules is not None:
+        settings = settings.model_copy(update={"rank_match_daily_attempts": rules.match.daily_attempts})
+    return await quota_for(session, settings, user_id, "rank_match_daily_attempts", now)
 
 
 async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings, *,

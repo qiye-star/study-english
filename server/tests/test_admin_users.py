@@ -25,8 +25,7 @@ async def test_disable_blocks_login_tokens_and_enable_restores(app, client):
     async with app.state.sessionmaker() as s:
         assert await s.scalar(select(func.count()).select_from(SpeechToken).where(SpeechToken.user_id == uid)) == 0
     r = await client.post("/api/sessions", json={"provider": "password", "username": "alice", "password": "password123"})
-    assert r.status_code == 200  # can log in, but every authed call is 403
-    assert (await client.get("/api/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"})).status_code == 403
+    assert r.status_code == 403 and r.json() == {"error": "Account disabled"}  # no new token (review M1)
     listing = (await client.get("/api/admin/users", params={"status": "disabled"})).json()
     assert [u["id"] for u in listing["users"]] == [uid] and listing["users"][0]["disabled_at"]
     assert (await client.post(f"/api/admin/users/{uid}/enable", headers=h, json={"reason": "申诉通过"})).status_code == 200
@@ -92,6 +91,10 @@ async def test_delete_room_owner_keeps_shared_rooms_and_their_messages(app, clie
     shared = (await client.post("/api/rooms", headers=ha, json={"topic": "美食"})).json()["room"]
     await client.post("/api/rooms/join", headers=hb, json={"code": shared["code"]})
     solo = (await client.post("/api/rooms", headers=ha, json={"topic": "独自"})).json()["room"]
+    async with app.state.sessionmaker() as s:
+        s.add(RoomMessage(room_id=solo["id"], seq=1, lane="public", sender_kind="user", sender_id=alice, kind="text",
+                          text="only me", assisted=False))
+        await s.commit()
     h = await login_as(app, client, "superadmin")
     await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
     r = await client.request("DELETE", f"/api/admin/users/{alice}", headers=h,
@@ -103,7 +106,16 @@ async def test_delete_room_owner_keeps_shared_rooms_and_their_messages(app, clie
         assert await s.scalar(select(func.count()).select_from(RoomMessage)
                               .where(RoomMessage.room_id == shared["id"])) >= 1  # kept (R-6)
         assert await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.user_id == alice)) == 0
-        assert await s.get(Room, solo["id"]) is None  # nobody else ever joined: nothing of anyone else to keep
+        # owner ruling: rooms and their messages are kept forever; a room nobody else joined stays as a closed,
+        # read-only room without owner (shown as 已删除用户)
+        kept = await s.get(Room, solo["id"])
+        assert kept is not None and kept.owner_id is None and kept.status == "closed" and kept.code is None
+        assert await s.scalar(select(func.count()).select_from(RoomMessage).where(RoomMessage.room_id == solo["id"])) == 1
+        assert await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == solo["id"])) == 0
+    detail = (await client.get(f"/api/admin/rooms/{solo['id']}")).json()
+    assert detail["owner"] == {"id": None, "name": None} and detail["status"] == "closed"
+    listed = (await client.get("/api/admin/rooms", params={"status": "closed"})).json()
+    assert solo["id"] in str(listed)
 
 
 async def test_viewer_cannot_moderate(app, client):
@@ -130,3 +142,33 @@ async def test_user_list_sort_and_status(app, client):
     active = (await client.get("/api/admin/users", params={"status": "active"})).json()
     assert {u["id"] for u in active["users"]} == {a, b} and active["total"] == 2
     assert all(u["disabled_at"] is None for u in active["users"])
+
+
+async def test_delete_user_leaves_no_rows_with_their_id_but_keeps_usage_totals(app, client):
+    """Review security m9: snapshots and metering rows kept the deleted user's id and activity."""
+    from datetime import datetime, timezone
+
+    from app.models import RankProfileSnapshot, UpstreamCall, UsageDaily
+
+    uid, _ = await register(client, "dora")
+    now = datetime.now(timezone.utc)
+    bucket = dict(day="2026-10-09", feature="chat", kind="llm", provider="p", model="m")
+    async with app.state.sessionmaker() as s:
+        s.add(RankProfileSnapshot(batch_id="usr-" + "0" * 32, user_id=uid, data={"tier": 1}, at=now))
+        s.add(UpstreamCall(at=now, user_id=uid, feature="chat", kind="llm", provider="p", model="m", status=200, ms=5,
+                           units_in=3, units_out=4, unit="tokens"))
+        s.add(UsageDaily(**bucket, user_id=uid, calls=2, errors=0, units_in=6, units_out=8, ms_total=10))
+        s.add(UsageDaily(**bucket, user_id=0, calls=1, errors=1, units_in=1, units_out=1, ms_total=1))
+        await s.commit()
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "dora", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    async with app.state.sessionmaker() as s:
+        assert await s.scalar(select(func.count()).select_from(RankProfileSnapshot).where(RankProfileSnapshot.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UpstreamCall).where(UpstreamCall.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UsageDaily).where(UsageDaily.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UpstreamCall)) == 1  # cost history stays, anonymised
+        merged = (await s.scalars(select(UsageDaily))).all()
+    assert [(u.user_id, u.calls, u.units_in) for u in merged] == [(0, 3, 7)]

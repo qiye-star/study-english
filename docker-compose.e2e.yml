@@ -1,5 +1,6 @@
 # E2E 专用覆盖文件,配合独立项目名使用(独立卷,不碰日常数据):
 #   export E2E_INVITE_CODE=<随机值>
+#   export E2E_ADMIN_PASSWORD=<随机值,≥ 12 位>   # 可选:启用管理端,web/e2e/admin-v2.spec.ts 需要;不设则该用例跳过
 #   docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
 services:
   server:
@@ -12,5 +13,8 @@ services:
       RANK_ENABLED: "true"
       ROOMS_ENABLED: "true"
       ROOMS_AI_GLOBAL_DAILY: "0"   # E2E 不调用房间 AI(零成本);AI 路径由 server/tests/test_rooms_ws.py 覆盖
+      ADMIN_USERNAME: ${E2E_ADMIN_USERNAME:-root}
+      ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-}   # 空 = 管理端关闭
+      ADMIN_COOKIE_SECURE: "false"   # E2E 栈是 http://localhost:8100
     ports: !override
       - "127.0.0.1:8100:8000"

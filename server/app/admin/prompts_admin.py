@@ -3,6 +3,8 @@
 语义同段位规则:一个草稿;发布的版本不可变;回滚 = 从旧版本建草稿再发布。审计只记键名与版本号,
 永不记提示词正文、试运行样例与输出。各写操作自己提交(发布后要在提交之后刷新缓存)。
 """
+import hashlib
+import hmac
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -64,8 +66,14 @@ async def _draft(session, key: str) -> PromptVersion | None:
     return await session.scalar(select(PromptVersion).where(PromptVersion.key == key, PromptVersion.status == "draft"))
 
 
+def draft_etag(row: PromptVersion) -> str:
+    """Identifies the draft body a reviewer saw; publish must present it (review M4)."""
+    return hashlib.sha256(f"{row.id}:{row.body}".encode()).hexdigest()[:32]
+
+
 def _draft_out(row: PromptVersion) -> dict:
-    return {"body": row.body, "note": row.note, "updated_by": row.created_by, "updated_at": iso_utc(row.created_at)}
+    return {"body": row.body, "note": row.note, "updated_by": row.created_by, "updated_at": iso_utc(row.created_at),
+            "etag": draft_etag(row)}
 
 
 def _version_out(row: PromptVersion) -> dict:
@@ -116,6 +124,7 @@ async def create_draft(session, app, actor: Actor, key: str, *, from_version: in
     row = PromptVersion(key=key, version=None, status="draft", body=body, note="", created_by=actor.name[:64],
                         created_at=datetime.now(timezone.utc))
     session.add(row)
+    await session.flush()  # the id is part of the etag
     await audit.record(session, actor, "prompt.draft.create", target_type="prompt", target_id=key,
                        after={"from_version": from_version})
     await session.commit()
@@ -147,11 +156,14 @@ async def delete_draft(session, actor: Actor, key: str) -> None:
     await session.commit()
 
 
-async def publish(session, app, actor: Actor, key: str, *, reason: str) -> int:
+async def publish(session, app, actor: Actor, key: str, *, reason: str, etag: str) -> int:
+    """Publishes the draft only when it is still the one the superadmin reviewed (`etag`), else 409."""
     _spec(key)
     row = await _draft(session, key)
     if row is None:
         raise PromptError(404, "No draft")
+    if not hmac.compare_digest(draft_etag(row), etag or ""):
+        raise PromptError(409, "Draft changed")
     errors = validate_prompt(key, row.body)
     if errors:
         raise PromptError(422, "Invalid prompt", {"errors": errors})

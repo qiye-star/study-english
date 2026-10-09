@@ -354,3 +354,98 @@ async def test_grading_failed_is_capped_and_expires(eligible):
         with pytest.raises(m.MatchError) as e:
             await m.finish_match(s, Fakes().deps(), match, profile, late, SETTINGS)
         assert e.value.code == "expired" and match.status == "expired"
+
+
+async def test_per_user_override_of_daily_attempts_is_enforced_by_start_match(eligible):
+    """Integration (lane D quota override × lane C rank): user_quota_overrides.rank_match_daily_attempts wins over
+    the site-wide setting in start_match itself, and an expired override no longer counts."""
+    from app.models import UserQuotaOverride
+
+    settings = make_settings(rank_enabled=True, rank_match_daily_attempts=1, rank_match_cooldown_minutes=0)
+    async with eligible.state.sessionmaker() as s:
+        s.add(UserQuotaOverride(user_id=UID, key="rank_match_daily_attempts", value=2, updated_by="ops"))
+        await s.commit()
+        for _ in range(2):
+            match = await m.start_match(s, UID, NOW, settings=settings, offset_minutes=0, rng=random.Random(0))
+            await s.commit()
+            profile = await s.get(RankProfile, UID)
+            await m.abandon_match(s, match, profile, NOW, settings)
+            profile.tier, profile.division, profile.rp, profile.cooldown_until = 2, 1, 120, None  # back at the gate
+            await s.commit()
+        assert (await m.ledger.promotion_for(s, profile, NOW, settings)).attempts_left == 0
+        with pytest.raises(m.MatchError) as e:
+            await m.start_match(s, UID, NOW, settings=settings, offset_minutes=0, rng=random.Random(0))
+        assert e.value.code == "no_attempts"
+        row = await s.get(UserQuotaOverride, (UID, "rank_match_daily_attempts"))
+        row.value, row.expires_at = 5, NOW - timedelta(minutes=1)  # expired: back to the site-wide 1 (already used)
+        await s.commit()
+        assert await m.ledger.daily_attempts(s, UID, NOW, settings) == 1
+        row.expires_at = None
+        await s.commit()
+        assert (await m.ledger.promotion_for(s, profile, NOW, settings)).attempts_left == 3
+
+
+# ---- review M3: admin profile edits void the open match (never promote from a non-gate state) ----------------------
+
+async def _played_match(s):
+    match = await m.start_match(s, UID, NOW, settings=SETTINGS, offset_minutes=0, rng=random.Random(0))
+    profile = await s.get(RankProfile, UID)
+    fakes = Fakes()
+    await play(s, fakes, match, profile, 6)
+    return match, profile, fakes
+
+
+@pytest.mark.parametrize("op", ["reset_same_tier", "cut_points", "reset_all"])
+async def test_admin_edit_during_open_match_voids_it_and_finish_never_promotes(eligible, op):
+    from app.admin import rank_ops
+    from app.admin.audit import Actor
+    from app.rank.rules import DEFAULT_RULES
+
+    ops = Actor("ops", "operator", "s1", "127.0.0.1")
+    later = NOW + timedelta(minutes=5)
+    async with eligible.state.sessionmaker() as s:
+        match, profile, fakes = await _played_match(s)
+        async with eligible.state.sessionmaker() as admin:
+            if op == "reset_same_tier":
+                await rank_ops.reset_user(admin, ops, UID, tier=2, division=3, rp=0, reason="纠正", now=later,
+                                          rules=DEFAULT_RULES)
+            elif op == "cut_points":
+                await rank_ops.adjust_points(admin, ops, UID, -100, reason="扣分", now=later, rules=DEFAULT_RULES)
+            else:
+                await rank_ops.reset_all(admin, ops, reason="新赛季", now=later)
+            await admin.commit()
+        with pytest.raises(m.MatchError) as e:
+            await m.finish_match(s, fakes.deps(), match, profile, NOW + timedelta(minutes=8), SETTINGS)
+        assert e.value.code == "not_active" and fakes.judge_calls == 0
+        await s.refresh(profile)
+        await s.refresh(match)
+        assert profile.tier < 3 and match.status == "voided"
+
+
+async def test_profile_reset_after_match_start_is_stale_even_without_admin_void(eligible):
+    """Backstop: a tier_started_at later than the match start means the profile was edited mid-match."""
+    async with eligible.state.sessionmaker() as s:
+        match, profile, fakes = await _played_match(s)
+        profile.division, profile.rp, profile.tier_started_at = 3, 0, NOW + timedelta(minutes=5)
+        await s.commit()
+        with pytest.raises(m.MatchError) as e:
+            await m.finish_match(s, fakes.deps(), match, profile, NOW + timedelta(minutes=8), SETTINGS)
+        assert e.value.code == "not_active" and profile.tier == 2
+
+
+async def test_admin_edit_refuses_while_the_match_is_busy(eligible):
+    from app.admin import rank_ops
+    from app.admin.audit import Actor
+    from app.rank.rules import DEFAULT_RULES
+
+    async with eligible.state.sessionmaker() as s:
+        match, _, _ = await _played_match(s)
+    m._busy.add(match.id)
+    try:
+        async with eligible.state.sessionmaker() as admin:
+            with pytest.raises(rank_ops.RankOpError) as exc:
+                await rank_ops.reset_user(admin, Actor("ops", "operator", "s1", "ip"), UID, tier=2, division=3, rp=0,
+                                          reason="x", now=NOW, rules=DEFAULT_RULES)
+            assert exc.value.status == 409
+    finally:
+        m._busy.discard(match.id)

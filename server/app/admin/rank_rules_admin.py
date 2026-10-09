@@ -4,6 +4,9 @@
 (`_LOCK`)、写审计并自行提交——草稿唯一与版本号递增都依赖这一点。审计不写规则正文(含提示词),只写版本号与
 改动的顶层字段名。"""
 import asyncio
+import hashlib
+import hmac
+import json
 import weakref
 from datetime import date, datetime, timezone
 
@@ -45,6 +48,12 @@ def changed_sections(before: dict | None, after: dict) -> list[str]:
     return sorted(k for k in after if before.get(k) != after.get(k))
 
 
+def draft_etag(row: RankRuleSet) -> str:
+    """Identifies the draft content a reviewer saw; publish must present it (review M4)."""
+    body = json.dumps({"id": row.id, "rules": row.rules}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(body.encode()).hexdigest()[:32]
+
+
 async def _draft(session) -> RankRuleSet | None:
     return await session.scalar(select(RankRuleSet).where(RankRuleSet.status == "draft")
                                 .order_by(RankRuleSet.id.desc()).limit(1))
@@ -69,7 +78,8 @@ async def overview(session, cache: RulesCache) -> dict:
     draft = None
     if draft_row is not None:
         draft = {"rules": draft_row.rules, "note": draft_row.note, "based_on": await _based_on(session, draft_row),
-                 "updated_by": draft_row.created_by, "updated_at": iso_utc(draft_row.created_at)}
+                 "updated_by": draft_row.created_by, "updated_at": iso_utc(draft_row.created_at),
+                 "etag": draft_etag(draft_row)}
     rows = (await session.scalars(select(RankRuleSet).where(RankRuleSet.version.is_not(None))
                                   .order_by(RankRuleSet.version.desc()))).all()
     return {
@@ -156,13 +166,16 @@ async def validate_draft(session, cache: RulesCache, today: date) -> list[str]:
     return validate_rules(draft, current=(await cache.current())[1], today=today)
 
 
-async def publish(session, app, actor: Actor, *, reason: str, now: datetime | None = None) -> int:
+async def publish(session, app, actor: Actor, *, reason: str, etag: str, now: datetime | None = None) -> int:
+    """Publishes the draft only when it is still the one the superadmin reviewed (`etag`), else 409."""
     now = now or datetime.now(timezone.utc)
     cache = rank_rules(app)
     async with _lock():
         row = await _draft(session)
         if row is None:
             raise RulesError(404, "No draft")
+        if not hmac.compare_digest(draft_etag(row), etag or ""):
+            raise RulesError(409, "Draft changed")
         current_version, current_data = await load_published(session)
         current = rules_from_json(current_data) if current_data is not None else cache.v0()
         errors = validate_rules(rules_from_json(row.rules), current=current, today=now.date())

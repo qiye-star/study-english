@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
 
-from app.admin import audit
+from app.admin import audit, sessions
 from app.admin.audit import Actor
 from app.core.config import Settings
 from app.core.runtime_settings import (
@@ -35,11 +35,38 @@ class SaveResult:
     apply_errors: list[str]
 
 
+DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+# Non-URL settings that form the host their paired key is sent to (review M2).
+HOST_FORMING = {"azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/"}
+
+
 def host_of(url: str) -> str:
     try:
         return (urlsplit(url or "").hostname or "").lower()
     except ValueError:
         return ""
+
+
+def keyed_endpoint(key: str) -> bool:
+    """Settings whose value decides where a key is sent: every `url` setting and the host-forming ones."""
+    return SPECS[key].kind == "url" or key in HOST_FORMING
+
+
+def url_for(key: str, value) -> str:
+    if key in HOST_FORMING:
+        return HOST_FORMING[key](value) if value else ""
+    return str(value or "")
+
+
+def endpoint_of(key: str, value) -> tuple[str, str, int | None]:
+    """(scheme, host, port) the key would travel to: a scheme (TLS -> plain) or port change counts as a new
+    endpoint, not only a new host (review m5)."""
+    try:
+        parts = urlsplit(url_for(key, value))
+        scheme = parts.scheme.lower()
+        return scheme, (parts.hostname or "").lower(), parts.port or DEFAULT_PORTS.get(scheme)
+    except ValueError:
+        return "", "", None
 
 
 def _jsonable(value):
@@ -51,6 +78,10 @@ _THRESHOLD_UP = {"ai_rate_limit_per_minute": 600, "realtime_max_sessions": 20}
 _THRESHOLD_TEXT = "调高会增加上游费用"
 
 
+def _up(old, new) -> bool:
+    return isinstance(new, int) and isinstance(old, int) and new > old
+
+
 def danger_reasons(key: str, old, new) -> list[str]:
     spec = SPECS[key]
     if old == new:
@@ -59,8 +90,8 @@ def danger_reasons(key: str, old, new) -> list[str]:
         return [spec.danger or _THRESHOLD_TEXT] if isinstance(new, int) and new > _THRESHOLD_UP[key] else []
     if not spec.danger:
         return []
-    if spec.kind == "url":
-        return [spec.danger] if host_of(str(old)) != host_of(str(new)) else []
+    if keyed_endpoint(key):
+        return [spec.danger] if endpoint_of(key, old) != endpoint_of(key, new) else []
     rules = {
         "registration_mode": new == "open",
         "log_level": new == "DEBUG",
@@ -68,8 +99,16 @@ def danger_reasons(key: str, old, new) -> list[str]:
         "room_message_retention_days": isinstance(new, int) and new > 0,
         "realtime_enabled": new is True,
         "admin_require_totp": new is True,
-        "rank_matches_global_daily": isinstance(new, int) and isinstance(old, int) and new > old,
-        "rooms_ai_global_daily": isinstance(new, int) and isinstance(old, int) and new > old,
+        "rank_matches_global_daily": _up(old, new),
+        "rooms_ai_global_daily": _up(old, new),
+        # security settings: only the weakening direction is dangerous (review security m1)
+        "rate_limit_per_minute": _up(old, new),
+        "admin_lockout_threshold": _up(old, new),
+        "admin_lockout_minutes": _up(new, old),
+        "admin_step_up_minutes": _up(old, new),
+        "admin_idle_minutes": _up(old, new),
+        "admin_token_ttl_minutes": _up(old, new),
+        "admin_audit_retention_days": _up(new, old),
     }
     return [spec.danger] if rules.get(key, True) else []
 
@@ -85,17 +124,33 @@ def _pair_value(current: Settings, pair: str) -> str:
 
 
 def pair_violations(changes: dict, current: Settings) -> list[str]:
-    """URL keys whose host changes while their paired key stays: the existing key would go to the new host."""
+    """Endpoint settings (URLs and host-forming ones such as the Azure region) whose scheme/host/port changes while
+    their paired key stays: the existing key would go to the new endpoint."""
     out = []
     for key, value in changes.items():
         spec = SPECS[key]
-        if spec.kind != "url" or not spec.pair or value is None:
+        if not keyed_endpoint(key) or not spec.pair or value is None:
             continue
-        new_host = host_of(str(value))
-        if new_host and new_host != host_of(getattr(current, key)) and spec.pair not in changes \
-                and _pair_value(current, spec.pair):
+        new = endpoint_of(key, value)
+        if new[1] and new != endpoint_of(key, getattr(current, key)) and spec.pair not in changes                 and _pair_value(current, spec.pair):
             out.append(key)
     return out
+
+
+def pair_hosts(changes: dict, keys: list[str]) -> dict[str, str]:
+    return {k: host_of(url_for(k, changes[k])) for k in keys}
+
+
+# Spec §5.4: the season config is read-only once season 1 has begun (also without published rank rules).
+SEASON_KEYS = ("rank_season_anchor", "rank_season_weeks")
+
+
+def season_started(current: Settings) -> bool:
+    return datetime.now(timezone.utc).date() >= current.rank_season_anchor
+
+
+# After a rank rules publish these six settings are read-only; the admin UI shows the same hint in Chinese.
+MANAGED_HINT = "Managed by the published rank rules; change it in the rank rules editor (/rank/rules)"
 
 
 async def rank_rules_managed(session) -> bool:
@@ -124,9 +179,12 @@ async def _current_overrides(session, app, box) -> dict[str, object]:
 
 
 async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", confirm=None, confirm_pairs=(),
-               stepped_up: bool = False, action: str = "settings.update") -> SaveResult:
+               stepped_up: bool = False, action: str = "settings.update", actor_totp: bool = True) -> SaveResult:
+    """`actor_totp`: whether the acting admin has TOTP bound; switching ADMIN_REQUIRE_TOTP on needs it (spec §3.2),
+    on every path that ends here (PATCH, reset, revert, import; review correctness m10)."""
     if not changes:
         raise SettingsError(400, "No changes")
+    await sessions.ensure_secret(app)  # env fingerprints (`_fp`) use the stable admin secret
     base: Settings = app.state.base_settings
     hub = app.state.settings_hub
     box = box_for(base)
@@ -138,7 +196,7 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
         if spec.env_only:
             raise SettingsError(400, "Setting is read-only", fields={key: "Setting is read-only"})
         if spec.managed_by == "rank_rules" and managed:
-            raise SettingsError(409, "Managed by rank rules", fields={key: "Managed by rank rules"})
+            raise SettingsError(409, "Managed by rank rules", fields={key: MANAGED_HINT})
         if spec.secret and changes[key] is not None and box is None:
             raise SettingsError(409, "Encryption key not configured")
     current_values = await _current_overrides(session, app, box)
@@ -163,8 +221,14 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     if problems:
         raise SettingsError(422, "Invalid settings", fields={"_": "; ".join(problems)})
     current: Settings = app.state.settings
+    if any(k in changes and getattr(new, k) != getattr(current, k) for k in SEASON_KEYS) and season_started(current):
+        raise SettingsError(409, "Season locked", fields={k: "Season locked" for k in SEASON_KEYS if k in changes})
+    if new.admin_require_totp and not current.admin_require_totp and not actor_totp:
+        raise SettingsError(409, "Bind TOTP first", fields={"admin_require_totp": "Bind TOTP first"})
+    # A restart key's stored value may differ from the running one (pending): setting it back is a real change.
     changed = [k for k in changes
-               if getattr(new, k) != getattr(current, k) or (changes[k] is None) != (k not in rows)]
+               if getattr(new, k) != getattr(current, k) or (changes[k] is None) != (k not in rows)
+               or k in hub.pending_restart]
     if not changed:
         raise SettingsError(409, "Nothing to change")
     danger = {k: r for k in changed if (r := danger_reasons(k, getattr(current, k), getattr(new, k)))}
@@ -177,7 +241,7 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     pairs = [k for k in pair_violations({k: changes[k] for k in changed}, current) if k not in set(confirm_pairs)]
     if pairs:
         raise SettingsError(409, "Key would be sent to a new host",
-                            details={"pairs": pairs, "hosts": {k: host_of(str(changes[k])) for k in pairs}})
+                            details={"pairs": pairs, "hosts": pair_hosts(changes, pairs)})
     if not hub.safe_mode:
         try:
             hub.prepare(new)  # listener pre-checks (e.g. grammar rules reload)
@@ -236,7 +300,10 @@ def _decrypt(box, token: str) -> str | None:
         return None
 
 
-async def list_settings(session, app) -> dict:
+async def list_settings(session, app, *, role: str = "superadmin") -> dict:
+    """`role` below superadmin gets the env-only admin values (emergency username = lockout key, IP allowlist, ...)
+    masked (review security m3)."""
+    await sessions.ensure_secret(app)
     base: Settings = app.state.base_settings
     current: Settings = app.state.settings
     hub = app.state.settings_hub
@@ -280,6 +347,9 @@ async def list_settings(session, app) -> dict:
             item["pending"] = _jsonable(hub.pending_restart[key]) if key in hub.pending_restart else None
             item["out_of_range"] = isinstance(env_value, (int, float)) and not isinstance(env_value, bool) and (
                 (lo is not None and env_value < lo) or (hi is not None and env_value > hi))
+            if spec.env_only and spec.group == "admin" and role != "superadmin":
+                item.update(default=None, env_value=None, override=None, effective=None, pending=None,
+                            out_of_range=False, masked=True)
         items.append(item)
     revisions = await read_revisions(session)
     return {
@@ -316,7 +386,7 @@ async def list_revisions(session, *, before_id: int | None = None, limit: int = 
 
 
 async def revert(session, app, actor, revision_id: int, *, reason: str, confirm: str | None, stepped_up: bool,
-                 acknowledge_conflicts: bool) -> SaveResult:
+                 acknowledge_conflicts: bool, actor_totp: bool = True) -> SaveResult:
     target = await session.get(SettingRevision, revision_id)
     if target is None:
         raise SettingsError(404, "Revision not found")
@@ -343,7 +413,7 @@ async def revert(session, app, actor, revision_id: int, *, reason: str, confirm:
         else:
             changes[c["key"]] = old.get("value")
     result = await save(session, app, actor, changes, reason=reason, confirm=confirm, stepped_up=stepped_up,
-                        action="settings.revert")
+                        action="settings.revert", actor_totp=actor_totp)
     target = await session.get(SettingRevision, revision_id)
     target.reverted_by = result.revision
     await session.commit()
@@ -384,7 +454,7 @@ async def import_preview(session, app, payload: dict) -> dict:
         item: dict = {"env": env, "key": key if spec else None}
         if spec is None:
             item["status"] = "unknown"
-        elif spec.env_only or (spec.managed_by == "rank_rules" and managed):
+        elif spec.env_only or (spec.managed_by == "rank_rules" and managed)                 or (key in SEASON_KEYS and season_started(current)):
             item["status"] = "read_only"
         elif spec.secret:
             item["status"] = "secret"
@@ -408,10 +478,10 @@ async def import_preview(session, app, payload: dict) -> dict:
 
 
 async def import_apply(session, app, actor, payload: dict, *, reason: str, confirm: str | None,
-                       stepped_up: bool) -> SaveResult:
+                       stepped_up: bool, actor_totp: bool = True) -> SaveResult:
     preview = await import_preview(session, app, payload)
     changes = {i["key"]: i["value"] for i in preview["items"] if i["status"] == "changed"}
     if not changes:
         raise SettingsError(409, "Nothing to change")
     return await save(session, app, actor, changes, reason=reason, confirm=confirm, stepped_up=stepped_up,
-                      action="settings.import")
+                      action="settings.import", actor_totp=actor_totp)

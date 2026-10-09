@@ -15,7 +15,8 @@ export interface RoomRow {
   lastCode: string;
   topic: string;
   status: RoomStatus;
-  owner: { id: number; name: string | null };
+  /** id null = the owner was deleted and nobody else had joined: the room is kept closed and read-only */
+  owner: { id: number | null; name: string | null };
   memberCount: number;
   onlineCount: number;
   messageCount: number;

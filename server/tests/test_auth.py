@@ -83,3 +83,25 @@ async def test_token_is_stored_hashed(app, client):
     async with app.state.sessionmaker() as session:
         hashes = (await session.execute(select(AccessToken.token_hash))).scalars().all()
     assert hashes and token not in hashes and len(hashes[0]) == 64
+
+
+async def test_disabled_user_login_is_403_and_issues_no_token(app, client, auth_headers):
+    from datetime import datetime, timezone
+
+    from sqlalchemy import func, update
+
+    from app.models import User
+
+    async with app.state.sessionmaker() as s:
+        await s.execute(update(User).where(User.username == "alice").values(disabled_at=datetime.now(timezone.utc)))
+        await s.commit()
+        before = await s.scalar(select(func.count()).select_from(AccessToken))
+    r = await client.post("/api/sessions", json={"provider": "password", "username": "alice",
+                                                 "password": "password123"})
+    assert r.status_code == 403 and r.json() == {"error": "Account disabled"}
+    assert "access_token" not in r.text
+    wrong = await client.post("/api/sessions", json={"provider": "password", "username": "alice",
+                                                     "password": "wrong-password"})
+    assert wrong.status_code == 401  # account state is not revealed to a wrong password
+    async with app.state.sessionmaker() as s:
+        assert await s.scalar(select(func.count()).select_from(AccessToken)) == before

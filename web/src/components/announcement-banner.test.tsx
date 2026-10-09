@@ -4,7 +4,7 @@ import i18n from "i18next";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as ann from "~/api/announcements";
 import { renderWithProviders } from "~/test/render";
-import { AnnouncementBanner, pickText, resetAnnouncementsForTests } from "./announcement-banner";
+import { AnnouncementBanner, noteMaintenance, pickText, resetAnnouncementsForTests } from "./announcement-banner";
 
 vi.mock("~/api/announcements");
 
@@ -70,4 +70,12 @@ it("picks the text for the interface language", () => {
   expect(pickText("zh-CN", "中文", "English")).toBe("中文");
   expect(pickText("en", "中文", "English")).toBe("English");
   expect(pickText("es", "中文", "")).toBe("中文");
+});
+
+it("refreshes at once when an API call answers Maintenance, at most every 10 seconds", async () => {
+  noteMaintenance(1_000);
+  noteMaintenance(5_000);
+  await vi.waitFor(() => expect(ann.fetchAnnouncements).toHaveBeenCalledTimes(1));
+  noteMaintenance(11_500);
+  await vi.waitFor(() => expect(ann.fetchAnnouncements).toHaveBeenCalledTimes(2));
 });

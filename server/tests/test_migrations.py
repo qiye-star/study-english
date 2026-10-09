@@ -199,7 +199,7 @@ def test_0007_dedupes_open_matches_and_round_trips(tmp_path, monkeypatch):
     finally:
         con.close()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0007")
     con = sqlite3.connect(db)
     try:
         statuses = dict(con.execute("select id, status from promotion_matches"))
@@ -278,18 +278,100 @@ def test_0008_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
     assert ADMIN_V2_TABLES <= _tables(db)
 
 
+def test_0009_room_owner_nullable_set_null_keeps_rooms_and_round_trips(tmp_path, monkeypatch):
+    """Owner ruling (integration): deleting a user never deletes rooms or messages; an ownerless room keeps NULL."""
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0008")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'h', '2026-10-05 00:00:00')")
+        con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at, "
+                    "last_active_at, ai_muted) values ('r', '482913', '482913', 12345678, 't', 'open', 0, 1, 1, "
+                    "'2026-10-09 10:00:00', '2026-10-09 10:00:00', 0)")
+        con.execute("insert into room_messages (id, room_id, seq, lane, sender_kind, sender_id, kind, text, assisted, "
+                    "created_at) values ('m', 'r', 1, 'public', 'user', 12345678, 'text', 'hi', 0, '2026-10-09 10:00:00')")
+        con.commit()
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    try:
+        fks = con.execute("pragma foreign_key_list(rooms)").fetchall()
+        assert [(r[2], r[3], r[6]) for r in fks] == [("users", "owner_id", "SET NULL")]
+        notnull = {r[1]: r[3] for r in con.execute("pragma table_info(rooms)")}
+        assert notnull["owner_id"] == 0
+        assert con.execute("select owner_id, code, ai_muted from rooms where id = 'r'").fetchone() == (12345678, "482913", 0)
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
+        con.execute("update rooms set owner_id = null where id = 'r'")
+        con.commit()
+    finally:
+        con.close()
+    try:  # an ownerless room cannot go back under NOT NULL: downgrade refuses instead of deleting it
+        command.downgrade(cfg, "0008")
+        raise AssertionError("downgrade dropped or broke an ownerless room")
+    except RuntimeError as exc:
+        assert "ownerless" in str(exc)
+    con = sqlite3.connect(db)
+    try:
+        con.execute("update rooms set owner_id = 12345678 where id = 'r'")
+        con.commit()
+    finally:
+        con.close()
+    command.downgrade(cfg, "0008")
+    con = sqlite3.connect(db)
+    try:
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+        assert {r[1]: r[3] for r in con.execute("pragma table_info(rooms)")}["owner_id"] == 1
+        assert con.execute("select text from room_messages where room_id = 'r'").fetchone() == ("hi",)
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+
+
+def test_0010_admin_review_fixes_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0009")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into admin_sessions (id, token_hash, username, created_at, last_seen_at, expires_at, ip, "
+                    "user_agent, csrf_hash) values ('s', 't', 'root', '2026-10-09 10:00:00', '2026-10-09 10:00:00', "
+                    "'2026-10-09 18:00:00', '1', 'ua', 'c')")
+        con.commit()
+    finally:
+        con.close()
+    command.upgrade(cfg, "0010")
+    assert {"app_secrets", "audit_head"} <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert con.execute("select mfa_failures from admin_sessions where id = 's'").fetchone() == (0,)
+    finally:
+        con.close()
+    command.downgrade(cfg, "0009")
+    assert not ({"app_secrets", "audit_head"} & _tables(db))
+    con = sqlite3.connect(db)
+    try:
+        assert "mfa_failures" not in _columns(con, "admin_sessions")
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    assert "app_secrets" in _tables(db)
+
+
 ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_summaries"}
 
 
-def test_0010_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
+def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    previous = ScriptDirectory.from_config(cfg).get_revision("0010").down_revision
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0011"]  # one head after the admin v2 merge
+    previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
+    assert previous == "0010"
     command.upgrade(cfg, previous)
     con = sqlite3.connect(db)
     con.execute("insert into users (id, username, password_hash, created_at) values (7, 'lily', 'x', '2026-10-09')")
     con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at,"
                 " last_active_at, ai_muted) values ('r1', '482913', '482913', 7, '美食', 'open', 0, 1, 0, '2026-10-09',"
-                " '2026-10-09', 0), ('r2', null, '573920', 7, '', 'closed', 0, 1, 0, '2026-10-09', '2026-10-09', 0)")
+                " '2026-10-09', 0), ('r2', null, '573920', 7, '', 'closed', 0, 1, 0, '2026-10-09', '2026-10-09', 0),"
+                " ('r3', null, '684031', null, '', 'closed', 0, 1, 0, '2026-10-09', '2026-10-09', 0)")
     con.commit()
     con.close()
     command.upgrade(cfg, "head")
@@ -300,7 +382,8 @@ def test_0010_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypa
             "select id, name, scenario, level, join_mode, max_members, allow_voice, invite_token from rooms"))
         assert rows["r1"] == ("美食", "free", "B1", "code", 8, 1, None)
         assert rows["r2"][0] == "lily的房间"
-        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+        assert rows["r3"][0] == "房间"  # owner deleted (0009 SET NULL): the NOT NULL name still gets a value
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "SET NULL")]
     finally:
         con.close()
     command.downgrade(cfg, previous)
@@ -308,7 +391,7 @@ def test_0010_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypa
     try:
         assert not ROOMS_V2_TABLES & _tables(db)
         assert "name" not in {r[1] for r in con.execute("pragma table_info(rooms)")}
-        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "RESTRICT")]
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "SET NULL")]
     finally:
         con.close()
     command.upgrade(cfg, "head")

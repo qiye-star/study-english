@@ -1,29 +1,19 @@
 """只追加的管理审计(spec §4.7)。哈希链:hash = sha256(prev_hash + canonical(row))。
 永不写入密码、token、密钥明文、用户内容、提示词正文;密钥用 redact_setting 只留指纹。"""
-import asyncio
 import hashlib
 import json
 import re
-import weakref
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.settings_registry import SPECS
-from app.models import AdminAudit
+from app.core.db import insert_ignore
+from app.models import AdminAudit, AuditHead
 
 GENESIS = "0" * 64
-# One lock per event loop (P-5: serialises the chain within a process; tests run each case on its own loop).
-_LOCKS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = weakref.WeakKeyDictionary()
-
-
-def _lock() -> asyncio.Lock:
-    loop = asyncio.get_running_loop()
-    lock = _LOCKS.get(loop)
-    if lock is None:
-        lock = _LOCKS[loop] = asyncio.Lock()
-    return lock
+HEAD_ID = 1
 
 
 def _iso(value: datetime) -> str:
@@ -63,21 +53,65 @@ def row_hash(prev_hash: str, row: AdminAudit) -> str:
     return hashlib.sha256(_canonical(prev_hash, row).encode()).hexdigest()
 
 
+async def _lock_head(session) -> str:
+    """Take the chain's write lock (held until the caller commits) and return the newest hash.
+
+    `UPDATE audit_head SET hash = hash` takes SQLite's RESERVED lock / the Postgres row lock before anything is read,
+    so a concurrent writer (same or another process) waits for our commit and then chains after our row. The head row
+    is created on first use from the newest existing audit row."""
+    locked = await session.execute(update(AuditHead).where(AuditHead.id == HEAD_ID).values(hash=AuditHead.hash))
+    if not locked.rowcount:
+        last = await session.scalar(select(AdminAudit.hash).order_by(AdminAudit.id.desc()).limit(1))
+        await session.execute(insert_ignore(session, AuditHead.__table__).values(id=HEAD_ID, hash=last or GENESIS))
+        await session.execute(update(AuditHead).where(AuditHead.id == HEAD_ID).values(hash=AuditHead.hash))
+    return await session.scalar(select(AuditHead.hash).where(AuditHead.id == HEAD_ID))
+
+
 async def record(session, actor: Actor, action: str, *, target_type=None, target_id=None, summary: str = "",
                  before=None, after=None, reason=None, result: str = "ok") -> AdminAudit:
-    async with _lock():
-        last = await session.scalar(select(AdminAudit.hash).order_by(AdminAudit.id.desc()).limit(1))
-        row = AdminAudit(
-            at=datetime.now(timezone.utc).replace(microsecond=0), actor=actor.name[:64], role=actor.role,
-            session_id=actor.session_id, ip=actor.ip[:64], action=action[:48], target_type=target_type,
-            target_id=None if target_id is None else str(target_id)[:64], summary=summary[:200],
-            before=before, after=after, reason=None if reason is None else reason[:200], result=result,
-            prev_hash=last or GENESIS,
-        )
-        row.hash = row_hash(row.prev_hash, row)
-        session.add(row)
-        await session.flush()
-        return row
+    """Append one row. The chain stays linear across requests and workers: the head lock taken here is released
+    only when the caller's transaction commits or rolls back (so commit promptly after recording)."""
+    # No process-local lock on top: a request holding the DB lock may record a second row (e.g. auth.lockout) while
+    # another waits for that DB lock, so an asyncio lock around this would deadlock until the busy timeout.
+    prev = await _lock_head(session)
+    row = AdminAudit(
+        at=datetime.now(timezone.utc).replace(microsecond=0), actor=actor.name[:64], role=actor.role,
+        session_id=actor.session_id, ip=actor.ip[:64], action=action[:48], target_type=target_type,
+        target_id=None if target_id is None else str(target_id)[:64], summary=summary[:200],
+        before=before, after=after, reason=None if reason is None else reason[:200], result=result,
+        prev_hash=prev,
+    )
+    row.hash = row_hash(row.prev_hash, row)
+    session.add(row)
+    await session.flush()
+    await session.execute(update(AuditHead).where(AuditHead.id == HEAD_ID).values(hash=row.hash))
+    return row
+
+
+async def _anchor_row(session, first: AdminAudit) -> AdminAudit | None:
+    """The `audit.purge` row that names `first` (the oldest remaining row) as its anchor, if any."""
+    purges = (await session.scalars(select(AdminAudit).where(AdminAudit.action == "audit.purge",
+                                                           AdminAudit.id >= first.id))).all()
+    for p in purges:
+        anchor = (p.before or {}).get("anchor_id")
+        if anchor == first.id or (anchor is None and p.id == first.id):
+            return p
+    return None
+
+
+async def _anchored(session, first: AdminAudit) -> bool:
+    """The oldest remaining row may follow deleted rows only when an `audit.purge` row names it as its anchor
+    (review m7): deleting the oldest rows straight in the database no longer verifies."""
+    return first.prev_hash == GENESIS or await _anchor_row(session, first) is not None
+
+
+async def chain_anchor(session) -> int | None:
+    """Id of the `audit.purge` row the chain starts from (None = it starts at GENESIS or is empty/broken)."""
+    first = await session.scalar(select(AdminAudit).order_by(AdminAudit.id).limit(1))
+    if first is None or first.prev_hash == GENESIS:
+        return None
+    row = await _anchor_row(session, first)
+    return row.id if row is not None else None
 
 
 async def verify(session, *, start_id: int | None = None) -> tuple[bool, int | None]:
@@ -86,6 +120,8 @@ async def verify(session, *, start_id: int | None = None) -> tuple[bool, int | N
         query = query.where(AdminAudit.id >= start_id)
     prev: str | None = None
     for row in (await session.scalars(query)).all():
+        if prev is None and start_id is None and not await _anchored(session, row):
+            return False, row.id
         if prev is not None and row.prev_hash != prev:
             return False, row.id
         if row_hash(row.prev_hash, row) != row.hash:

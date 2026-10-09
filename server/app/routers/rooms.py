@@ -142,7 +142,8 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
     http, sm = app.state.http, app.state.sessionmaker
 
     async def complete(messages: list[dict], max_tokens: int, temperature: float) -> str:
-        return await llm.complete(http, settings, messages, model=settings.resolved_rooms_ai_model,
+        live = app.state.settings  # hot settings (model, upstream) apply to sockets opened earlier too
+        return await llm.complete(http, live, messages, model=live.resolved_rooms_ai_model,
                                   max_tokens=max_tokens, temperature=temperature)
 
     async def consume(scope: str, subject: str, limit: int) -> bool:
@@ -163,9 +164,10 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
         return {key: (await cache.get(key))[1]
                 for key in ("rooms.assist", "rooms.answer", "rooms.voice_translate", "rooms.summary")}
 
-    return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
-                    rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
-                    assist_daily_for, templates, voice=rt.voice, react_limiter=rt.react_limiter)
+    return ConnDeps(rt.store, rt.hub, lambda: rt.limits, complete, consume, refund, utcnow, rt.ai_gate,
+                    rt.say_limiter, rt.ai_room_limiter, rt.ai_user_limiter,
+                    lambda: app.state.settings.rooms_ai_available, rt.assist_limiter, assist_daily_for, templates,
+                    voice=rt.voice, react_limiter=rt.react_limiter)
 
 
 async def after_close(rt: RoomsRuntime, room_id: str, reason: str) -> None:
@@ -247,7 +249,7 @@ async def presence(rt: RoomsRuntime, room_id: str) -> None:
 async def _owner_event(rt: RoomsRuntime, room_id: str, data: dict) -> None:
     """Join-request events go to the owner's sockets only (spec 2026-10-10 §9)."""
     room = await rt.store.room(room_id)
-    if room is not None:
+    if room is not None and room.owner_id is not None:  # ownerless (0009): only_user=None would reach everyone
         await rt.hub.broadcast(room_id, data, only_user=room.owner_id)
 
 

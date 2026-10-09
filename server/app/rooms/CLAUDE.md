@@ -9,7 +9,10 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5. Off unle
 - `codes.py`, `rules.py` – codes, text cleaning, `@ai` parsing, limits (pure)
 - `store.py` – all DB access (create/join/seq/replay/sweep/purge)
 - `hub.py`, `tickets.py` – connections + broadcast, one-time tickets (in-process, single worker)
-- `assistant.py` – assistant/`@ai` prompts and parsing (pure)
+- `assistant.py` – assistant/`@ai` prompts and parsing (pure). Prompts are templates (`DEFAULT_ASSIST_TEMPLATE`,
+  `DEFAULT_ANSWER_TEMPLATE`, rendering exactly the M4 messages — pinned by `tests/fixtures/rooms_prompts_legacy.json`); a published
+  admin version (`rooms.assist` / `rooms.answer`, via `ConnDeps.templates`) replaces them; a `[[user]]` line splits
+  system/user message; invalid templates fall back to the default; learner text is escaped before `str.format`
 - `connection.py` – one socket's message handling
 
 ## Allowed dependencies

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hasRole, useAdminSession } from "../../api/session";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { Page } from "../../components/layout";
@@ -41,6 +41,7 @@ export function RulesPage() {
   const draft = data?.draft ?? null;
   const base: RankRules | null = data?.published?.rules ?? data?.v0 ?? draft?.rules ?? null;
 
+  const etag = useRef<string | undefined>(undefined);
   const validate = useCallback(async () => {
     try {
       const r = await api.validateDraft();
@@ -52,6 +53,7 @@ export function RulesPage() {
 
   useEffect(() => {
     if (!data) return;
+    etag.current = data.draft?.etag;
     if (data.draft) {
       setLocal(cloneRules(data.draft.rules));
       setSaved(cloneRules(data.draft.rules));
@@ -90,12 +92,14 @@ export function RulesPage() {
     }
   };
 
-  /** 有未保存修改时先保存(校验、预演、发布都基于服务端的草稿) */
-  const saveIfDirty = async () => {
-    if (!local || unsaved === 0) return;
+  /** 有未保存修改时先保存(校验、预演、发布都基于服务端的草稿);返回服务端草稿的 etag */
+  const saveIfDirty = async (): Promise<string | undefined> => {
+    if (!local || unsaved === 0) return etag.current;
     if (localProblems.length) throw new Error(localProblems[0]);
-    await api.saveDraft(local, draft?.note ?? "");
+    const r = await api.saveDraft(local, draft?.note ?? "");
     setSaved(cloneRules(local));
+    etag.current = r?.etag;
+    return etag.current;
   };
 
   const edit = (mutate: (d: RankRules) => void) => {
@@ -141,8 +145,11 @@ export function RulesPage() {
     overview.reload();
   };
   const onPublish = async (reason: string) => {
-    await saveIfDirty();
-    const r = await api.publishDraft(reason);
+    // 发布绑定到本页显示/保存的那份草稿:别人在此期间改了草稿,服务端返回 409 Draft changed(review M4)
+    const reviewed = await saveIfDirty();
+    const r = await api.publishDraft(reason, reviewed ?? "").catch((e) => {
+      throw errorText(e) === "Draft changed" ? new Error(S.draftChanged) : e;
+    });
     setPublishing(false);
     setMessage({ tone: "ok", text: r ? `v${r.version}` : S.draftBar.publish });
     overview.reload();

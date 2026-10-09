@@ -99,4 +99,4 @@ async def test_purge_expired(app, client):
         ])
         await s.commit()
         assert await housekeeping.purge_expired(s, now) == {"admin_sessions": 1, "admin_login_state": 1,
-                                                            "speech_tokens": 1}
+                                                            "speech_tokens": 1, "rank_profile_snapshots": 0}

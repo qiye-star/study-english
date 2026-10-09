@@ -33,6 +33,8 @@ export interface PromptDraft {
   note: string;
   updatedBy: string;
   updatedAt: string;
+  /** 草稿内容标识;发布时带上审阅时看到的这个值,服务端草稿已变则 409 Draft changed */
+  etag: string;
 }
 
 export interface PromptVersion {
@@ -76,6 +78,7 @@ interface RawDraft {
   note: string;
   updated_by: string;
   updated_at: string;
+  etag: string;
 }
 interface RawVersion {
   version: number;
@@ -104,7 +107,9 @@ interface RawDetail {
 
 const path = (key: string, rest = "") => `/api/admin/prompts/${encodeURIComponent(key)}${rest}`;
 
-const toDraft = (d: RawDraft): PromptDraft => ({ body: d.body, note: d.note, updatedBy: d.updated_by, updatedAt: d.updated_at });
+const toDraft = (d: RawDraft): PromptDraft => ({
+  body: d.body, note: d.note, updatedBy: d.updated_by, updatedAt: d.updated_at, etag: d.etag,
+});
 
 export async function listPrompts(): Promise<PromptSummary[]> {
   const rows = await request<RawSummary[]>("/api/admin/prompts");
@@ -143,8 +148,8 @@ export async function deletePromptDraft(key: string): Promise<void> {
   await request(path(key, "/draft"), { method: "DELETE", as: "none" });
 }
 
-export async function publishPrompt(key: string, reason: string): Promise<{ version: number }> {
-  return request<{ version: number }>(path(key, "/draft/publish"), { method: "POST", json: { reason } });
+export async function publishPrompt(key: string, reason: string, draftEtag: string): Promise<{ version: number }> {
+  return request<{ version: number }>(path(key, "/draft/publish"), { method: "POST", json: { reason, draft_etag: draftEtag } });
 }
 
 export async function testPrompt(key: string, body: string, sample: Record<string, string>): Promise<TestResult> {

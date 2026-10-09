@@ -157,13 +157,15 @@ def _finish(item: dict) -> dict:
     return item
 
 
-async def _percentile(session, since: datetime, q: float) -> int | None:
-    count = await session.scalar(select(func.count()).select_from(UpstreamCall).where(UpstreamCall.at >= since))
-    if not count:
-        return None
-    offset = min(count - 1, max(0, math.ceil(q * count) - 1))
-    return await session.scalar(select(UpstreamCall.ms).where(UpstreamCall.at >= since)
-                                .order_by(UpstreamCall.ms).offset(offset).limit(1))
+LATENCY_SAMPLE = 50_000  # newest calls used for P50/P95 (one bounded query instead of two full sorts, review m9)
+
+
+async def _percentiles(session, since: datetime, qs: tuple[float, ...]) -> list[int | None]:
+    values = sorted((await session.scalars(select(UpstreamCall.ms).where(UpstreamCall.at >= since)
+                                           .order_by(UpstreamCall.at.desc()).limit(LATENCY_SAMPLE))).all())
+    if not values:
+        return [None for _ in qs]
+    return [values[min(len(values) - 1, max(0, math.ceil(q * len(values)) - 1))] for q in qs]
 
 
 async def _error_buckets(session, since: datetime) -> dict[str, int]:
@@ -200,6 +202,7 @@ async def summary(session, settings, days: int, now: datetime) -> dict:
         if g.user_id:
             users.add(g.user_id)
     since = _since(now, days)
+    p50, p95 = await _percentiles(session, since, (0.5, 0.95))
     complete = totals.pop("_priced")
     calls = totals["calls"]
     return {
@@ -209,7 +212,7 @@ async def summary(session, settings, days: int, now: datetime) -> dict:
             "calls": calls, "errors": totals["errors"],
             "error_rate": round(totals["errors"] / calls, 4) if calls else 0.0,
             "cost": round(totals["cost"], 6), "cost_complete": complete,
-            "p50_ms": await _percentile(session, since, 0.5), "p95_ms": await _percentile(session, since, 0.95),
+            "p50_ms": p50, "p95_ms": p95,
             "active_users": len(users),
         },
         "by_feature": sorted(({"feature": k, **_finish(v)} for k, v in by_feature.items()),

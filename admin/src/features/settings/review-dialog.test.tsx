@@ -40,3 +40,13 @@ it("adopts the server's confirmation phrase and shows field errors", async () =>
   expect(await screen.findByText(/must be between 1 and 10000/)).toBeInTheDocument();
   expect(api.saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ confirm: "CONFIRM", reason: "批量调整" }));
 });
+
+it("explains that rank settings are managed by the published rank rules", async () => {
+  vi.mocked(api.saveSettings).mockRejectedValueOnce(
+    new ApiError(409, "Managed by rank rules", { rank_match_minutes: "Managed by the published rank rules; change it in the rank rules editor (/rank/rules)" }),
+  );
+  render(<ReviewDialog items={fixtureList().items} draft={{ rate_limit_per_minute: 30 }} onSaved={() => {}} onClose={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(await screen.findByText(/已由段位规则管理.*段位规则.*页修改/)).toBeInTheDocument();
+  expect(screen.queryByText(/Managed by/)).toBeNull();
+});

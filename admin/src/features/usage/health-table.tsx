@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
-import { DataTable } from "../../components/data-table";
-import { RoleGate } from "../../components/role-gate";
+import { hasRole, useAdminSession } from "../../api/session";
+import { DataTable, type Column } from "../../components/data-table";
 import { StatusDot, type Tone } from "../../components/status-dot";
 import { formatRelative } from "../../lib/format";
+import { ProbeButton } from "../settings";
 import type { HealthRow } from "./api";
 import { percent } from "./kpi-row";
 import { S } from "./strings";
@@ -14,17 +14,39 @@ function tone(rate: number | null): Tone {
   return "bad";
 }
 
-/** 上游健康:最近 15 分钟每个上游的成功率与最近错误码;超级管理员可去配置诊断页"测试连接"。 */
+/** 计量的 kind/provider → 测试连接的上游名(server `admin/probes.UPSTREAMS`);null = 无对应探测。 */
+export function probeFor(row: Pick<HealthRow, "kind" | "provider">): string | null {
+  switch (row.kind) {
+    case "llm":
+      return "llm";
+    case "tts":
+      return row.provider === "volcengine" ? "volc_tts" : "tts";
+    case "stt":
+      return "whisper";
+    case "asr_stream":
+      return "asr_stream";
+    case "assess_azure":
+      return "azure";
+    case "assess_xfyun":
+      return "xfyun";
+    default:
+      return null;
+  }
+}
+
+/** 上游健康:最近 15 分钟每个上游的成功率与最近错误码;超级管理员可在行内"测试连接"(真实探测,只显示结果码/状态码/耗时,从不显示密钥)。 */
 export function HealthTable({ rows }: { rows: HealthRow[] }) {
+  const canProbe = hasRole(useAdminSession(), "superadmin");
+  const probeColumn: Column<HealthRow>[] = canProbe
+    ? [{ key: "probe", header: S.probe, render: (r) => {
+        const upstream = probeFor(r);
+        return upstream ? <ProbeButton upstream={upstream} values={{}} /> : "—";
+      } }]
+    : [];
   return (
     <section className="panel" aria-label={S.health}>
       <div className="panel-head">
         <h2 className="text-sm font-semibold text-fg-2">{S.health}</h2>
-        <RoleGate min="superadmin">
-          <Link to="/settings" className="btn-ghost btn-sm">
-            {S.probe}
-          </Link>
-        </RoleGate>
       </div>
       <DataTable
         caption={S.health}
@@ -41,6 +63,7 @@ export function HealthTable({ rows }: { rows: HealthRow[] }) {
             header: S.table.lastError,
             render: (r) => (r.lastErrorStatus === null ? "—" : <span className="num">{`${r.lastErrorStatus === 0 ? S.network : r.lastErrorStatus} · ${formatRelative(r.lastErrorAt)}`}</span>),
           },
+          ...probeColumn,
         ]}
       />
     </section>

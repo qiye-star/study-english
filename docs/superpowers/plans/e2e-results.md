@@ -297,3 +297,16 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | `rooms.spec.ts`(两浏览器上下文,AI 关闭) | 本机通过(chromium-mobile 与 webkit-mobile,方式同上);**未在 Docker E2E 栈运行** |
 | 真实上游晋级赛 3 场(白银/黄金/铂金各 1 场,记录总分、维度、是否与人工判断一致) | 未验证 |
 | 房间 `@ai` 与助手组句(真实 LLM,各 5 次,记录格式错误次数) | 未验证 |
+
+## 2026-10-09 管理后台 v2
+
+| 项 | 结果 |
+|---|---|
+| `admin-v2.spec.ts` 用例 1:后台热切换 `ROOMS_ENABLED`(理由 + 输入键名 + 二次验证)→ 网页底部导航不含「联机」→「历史」撤销该修订 → 网页恢复 | 本机通过(chromium-mobile,后台在 1440×900 桌面上下文,2026-10-09);**未在 Docker E2E 栈运行** |
+| 用例 2:段位规则新建草稿 → 每日上限 80 → 预演 → 校验 → 发布(理由 + 二次验证)→ `GET /api/rank/config` 的 `tiers` 不变、网页段位页正常;设置页 6 个 `RANK_*` 显示「由段位规则管理」 | 本机通过;未在 Docker 栈运行 |
+| 用例 3:「公告与维护」切到只读(确认 + 二次验证)→ 网页出现只读横幅、新建对话返回 503 `Maintenance` → 切回 off、横幅消失 | 本机通过;横幅最多滞后 60 秒(`/api/announcements` 带 `Cache-Control: max-age=60`,用例反复刷新等待);未在 Docker 栈运行 |
+| 用例 4:审计页「哈希链完整」,列出 `settings.revert`、`rank.rules.publish`、`maintenance.set` | 本机通过;未在 Docker 栈运行 |
+| 本机方式 | 不用 Docker:临时 SQLite + `alembic upgrade head`(到 `0009`),环境变量同 E2E 栈(invite 注册、`RANK_ENABLED`/`ROOMS_ENABLED=true`、`ROOMS_AI_GLOBAL_DAILY=0`)外加 `ADMIN_USERNAME=root`、随机 `ADMIN_PASSWORD`、`ADMIN_COOKIE_SECURE=false`、`WEB_DIST_DIR`/`ADMIN_DIST_DIR` 指向本地构建;uvicorn 于 8123,`E2E_BASE_URL=http://localhost:8123`;没有配置任何上游密钥。每次运行前删库(用例 1 假设 `ROOMS_ENABLED` 初始为开) |
+| 真实部署(HTTPS 反向代理后的 `__Host-` Secure Cookie、`ADMIN_IP_ALLOWLIST` 与 `TRUST_PROXY_HEADERS`、代理日志脱敏) | 未验证 |
+| 「测试连接」对真实上游、备份下载链接经反向代理、多 worker | 未验证(多 worker 不支持) |
+| 视觉对照(Z2,桌面 1440 / 1280) | 未做(属于 Z2) |

@@ -3,6 +3,7 @@ import { clearAuth, loadAuth, saveAuth, type StoredAuth } from "~/api/auth-stora
 import { ApiClient } from "~/api/client";
 import type { AuthUser } from "~/api/types";
 import { clearDeviceData } from "~/auth/device-data";
+import { noteMaintenance } from "~/components/announcement-banner";
 import { normalizeUsername } from "./validation";
 
 export interface AuthContextValue {
@@ -34,7 +35,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   }, []);
 
   const api = useMemo(
-    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logout(), fetchImpl }),
+    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logout(), onMaintenance: noteMaintenance, fetchImpl }),
     [logout, fetchImpl],
   );
 

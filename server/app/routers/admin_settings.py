@@ -63,9 +63,9 @@ class ImportApplyIn(BaseModel):
 
 
 @router.get("/settings")
-async def list_settings(request: Request, _: AdminContext = Depends(require("viewer")),
+async def list_settings(request: Request, ctx: AdminContext = Depends(require("viewer")),
                         session: AsyncSession = Depends(get_session)):
-    return await svc.list_settings(session, request.app)
+    return await svc.list_settings(session, request.app, role=ctx.role)
 
 
 @router.patch("/settings")
@@ -75,7 +75,7 @@ async def patch_settings(body: PatchIn, request: Request, ctx: AdminContext = De
         _totp_guard(ctx, body.changes)
         result = await svc.save(session, request.app, ctx.actor, body.changes, reason=body.reason,
                                 confirm=body.confirm, confirm_pairs=body.confirm_pairs,
-                                stepped_up=stepped_up(ctx, request.app.state.settings))
+                                stepped_up=stepped_up(ctx, request.app.state.settings), actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -88,7 +88,8 @@ async def reset_setting(key: str, request: Request, reason: str = Query("", max_
                         session: AsyncSession = Depends(get_session)):
     try:
         result = await svc.save(session, request.app, ctx.actor, {key[:64]: None}, reason=reason, confirm=confirm,
-                                stepped_up=stepped_up(ctx, request.app.state.settings), action="settings.reset")
+                                stepped_up=stepped_up(ctx, request.app.state.settings), action="settings.reset",
+                                actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -107,7 +108,7 @@ async def revert_revision(revision_id: int, body: RevertIn, request: Request,
     try:
         result = await svc.revert(session, request.app, ctx.actor, revision_id, reason=body.reason,
                                   confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings),
-                                  acknowledge_conflicts=body.acknowledge_conflicts)
+                                  acknowledge_conflicts=body.acknowledge_conflicts, actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -172,12 +173,15 @@ async def run_probe(upstream: str, request: Request, body: ProbeIn | None = None
             candidate = compose(current, values)
         except OverrideError as exc:
             return JSONResponse({"error": "Invalid settings", "fields": exc.fields}, status_code=422)
+        # The saved key may go to an unsaved endpoint only with the same step-up a save would need (review M2).
+        if svc.pair_violations(values, current) and not stepped_up(ctx, current):
+            return JSONResponse({"error": "Step-up required"}, status_code=403)
         pairs = [k for k in svc.pair_violations(values, current) if k not in set(body.confirm_pairs)]
         if pairs:
             return JSONResponse({"error": "Key would be sent to a new host",
-                                 "details": {"pairs": pairs, "hosts": {k: svc.host_of(str(values[k])) for k in pairs}}},
+                                 "details": {"pairs": pairs, "hosts": svc.pair_hosts(values, pairs)}},
                                 status_code=409)
-    result = await probes.probe(request.app.state.http, candidate, upstream, allow_cost=body.allow_cost)
+    result = await probes.probe(candidate, upstream, allow_cost=body.allow_cost)
     await audit.record(session, ctx.actor, "probe.run", target_type="upstream", target_id=upstream,
                        summary=result.code, result="ok" if result.ok else "error")
     await session.commit()
@@ -193,7 +197,7 @@ async def import_apply(body: ImportApplyIn, request: Request, ctx: AdminContext 
         overrides = body.payload.get("overrides")
         _totp_guard(ctx, {str(k).lower(): v for k, v in overrides.items()} if isinstance(overrides, dict) else {})
         result = await svc.import_apply(session, request.app, ctx.actor, body.payload, reason=body.reason,
-                                        confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings))
+                                        confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings), actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)

@@ -48,8 +48,7 @@ def test_coerce_normalises_csv_urls_and_rejects_credentials_in_urls():
 
 
 def test_runtime_problems_match_create_app_rules():
-    assert runtime_problems(make_settings(registration_mode="invite", invite_code="")) == [
-        "REGISTRATION_MODE=invite requires INVITE_CODE"]
+    assert runtime_problems(make_settings(registration_mode="invite", invite_code="")) == []
     assert runtime_problems(make_settings(default_llm_model="nope")) == ["DEFAULT_LLM_MODEL must be one of LLM_MODELS"]
 
 

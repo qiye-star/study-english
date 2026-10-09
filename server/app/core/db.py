@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from sqlalchemy import event
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -30,4 +31,18 @@ def make_engine(url: str) -> AsyncEngine:
             url, poolclass=StaticPool, connect_args={"check_same_thread": False}
         )
     ensure_sqlite_dir(url)
-    return create_async_engine(url, pool_pre_ping=True)
+    engine = create_async_engine(url, pool_pre_ping=True)
+    if make_url(url).get_backend_name() == "sqlite":
+        event.listen(engine.sync_engine, "connect", _sqlite_pragmas)
+    return engine
+
+
+def _sqlite_pragmas(dbapi_connection, _record) -> None:
+    """WAL lets readers (e.g. the backup's VACUUM INTO) run beside writers instead of making commits wait for the
+    exclusive lock and fail after the 5 s timeout (review correctness m7)."""
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
+    finally:
+        cursor.close()

@@ -1,4 +1,5 @@
 /** 草稿与差异的纯函数(界面只做预判;最终以服务端的危险/配对判定为准)。 */
+import { ApiError } from "../../api/client";
 import type { DiffValue } from "../../components/diff-table";
 import type { Scalar, SettingItem } from "./api";
 import { S } from "./strings";
@@ -76,4 +77,11 @@ export function formatValue(value: Scalar | undefined): string {
   if (value === null || value === undefined || value === "") return S.empty;
   if (typeof value === "boolean") return value ? S.on : S.off;
   return String(value);
+}
+
+/** 409 "Managed by rank rules"(段位规则发布后 6 个 rank_* 设置只读)→ 指向段位规则页的中文提示;否则 null。 */
+export function managedErrorText(e: unknown): string | null {
+  if (!(e instanceof ApiError) || e.status !== 409 || e.message !== "Managed by rank rules") return null;
+  const keys = Object.keys(e.fields ?? {}).map((k) => k.toUpperCase());
+  return S.managedError(keys.length ? keys.join("、") : "RANK_*");
 }

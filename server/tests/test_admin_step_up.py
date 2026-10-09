@@ -35,6 +35,7 @@ async def test_totp_enrolment_then_login_needs_code(app, client):
 
     app.state.settings = app.state.settings.model_copy(update={"settings_encryption_key": Fernet.generate_key().decode()})
     headers = await login_as(app, client, "operator", "ops")
+    await client.post("/api/admin/step-up", headers=headers, json={"password": PASSWORD})
     begin = (await client.post("/api/admin/me/totp/begin", headers=headers)).json()
     import time
 
@@ -101,6 +102,7 @@ async def test_recovery_codes_are_single_use(app, client):
 
     app.state.settings = app.state.settings.model_copy(update={"settings_encryption_key": Fernet.generate_key().decode()})
     headers = await login_as(app, client, "viewer", "viewer2")
+    await client.post("/api/admin/step-up", headers=headers, json={"password": PASSWORD})
     begin = (await client.post("/api/admin/me/totp/begin", headers=headers)).json()
     codes = (await client.post("/api/admin/me/totp/confirm", headers=headers, json={
         "enrolment": begin["enrolment"], "code": totp.code_at(begin["secret"], int(time.time() // 30))})).json()["recovery_codes"]
@@ -118,6 +120,7 @@ async def test_require_totp_blocks_superadmin_writes_until_bound(app, client):
     r = await client.post("/api/admin/_probe", headers=headers)
     assert r.status_code == 403 and r.json() == {"error": "TOTP required"}
     assert (await client.get("/api/admin/session")).status_code == 200  # reads still work
+    assert (await client.post("/api/admin/step-up", headers=headers, json={"password": PASSWORD})).status_code == 200
     r = await client.post("/api/admin/me/totp/begin", headers=headers)
     assert r.status_code == 409  # exempt path; here no encryption key is configured
 
@@ -137,3 +140,75 @@ async def test_password_change_revokes_other_sessions(app, client):
     r = await client.post("/api/admin/me/password", headers={"X-Admin-CSRF": env.json()["csrf_token"]},
                           json={"current": "x", "new": "another-long-password"})
     assert r.status_code == 400
+
+
+# ---- review M3: TOTP enrolment needs step-up, is bound to the account, expires, and never replaces a bound TOTP ----
+
+def _with_key(app):
+    from cryptography.fernet import Fernet
+
+    app.state.settings = app.state.settings.model_copy(update={"settings_encryption_key": Fernet.generate_key().decode()})
+
+
+def _now_code(secret: str) -> str:
+    import time
+
+    from app.admin import totp
+
+    return totp.code_at(secret, int(time.time() // 30))
+
+
+async def _step_up(client, headers, **extra):
+    r = await client.post("/api/admin/step-up", headers=headers, json={"password": PASSWORD, **extra})
+    assert r.status_code == 200, r.text
+
+
+async def test_totp_begin_and_confirm_need_step_up(app, client):
+    _with_key(app)
+    headers = await login_as(app, client, "operator", "ops")
+    r = await client.post("/api/admin/me/totp/begin", headers=headers)
+    assert r.status_code == 403 and r.json() == {"error": "Step-up required"}
+    r = await client.post("/api/admin/me/totp/confirm", headers=headers, json={"enrolment": "x", "code": "123456"})
+    assert r.status_code == 403 and r.json() == {"error": "Step-up required"}
+
+
+async def test_totp_confirm_never_replaces_a_bound_totp(app, client):
+    _with_key(app)
+    headers = await login_as(app, client, "operator", "ops")
+    await _step_up(client, headers)
+    first = (await client.post("/api/admin/me/totp/begin", headers=headers)).json()
+    assert (await client.post("/api/admin/me/totp/confirm", headers=headers,
+                              json={"enrolment": first["enrolment"], "code": _now_code(first["secret"])})).status_code == 200
+    # the old enrolment (or any other) cannot silently re-bind: disable (step-up) first
+    r = await client.post("/api/admin/me/totp/confirm", headers=headers,
+                          json={"enrolment": first["enrolment"], "code": _now_code(first["secret"])})
+    assert r.status_code == 409 and r.json() == {"error": "TOTP already enabled"}
+
+
+async def test_totp_enrolment_from_another_account_is_rejected(app, client):
+    import httpx
+
+    _with_key(app)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as attacker:
+        h_att = await login_as(app, attacker, "operator", "mallory")
+        await _step_up(attacker, h_att)
+        stolen = (await attacker.post("/api/admin/me/totp/begin", headers=h_att)).json()
+    victim = await login_as(app, client, "viewer", "victim")
+    await _step_up(client, victim)
+    r = await client.post("/api/admin/me/totp/confirm", headers=victim,
+                          json={"enrolment": stolen["enrolment"], "code": _now_code(stolen["secret"])})
+    assert r.status_code == 400 and r.json() == {"error": "Invalid enrolment"}
+
+
+async def test_totp_enrolment_expires_after_ten_minutes(app, client, monkeypatch):
+    import time
+
+    _with_key(app)
+    headers = await login_as(app, client, "operator", "ops")
+    await _step_up(client, headers)
+    begin = (await client.post("/api/admin/me/totp/begin", headers=headers)).json()
+    real = time.time
+    monkeypatch.setattr("cryptography.fernet.time.time", lambda: real() + 601)
+    r = await client.post("/api/admin/me/totp/confirm", headers=headers,
+                          json={"enrolment": begin["enrolment"], "code": _now_code(begin["secret"])})
+    assert r.status_code == 400 and r.json() == {"error": "Invalid enrolment"}

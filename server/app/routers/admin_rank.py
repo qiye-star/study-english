@@ -2,6 +2,7 @@
 
 角色(spec §4.2):查看 viewer;草稿与单人操作 operator;单人重置/定级 operator + 二次验证;发布、全体重置与撤销
 superadmin + 二次验证。RANK_ENABLED=false 时照常可用(开放前先配置规则)。每个写操作在同一事务写审计。"""
+from contextlib import AsyncExitStack
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -48,6 +49,10 @@ Reason = Annotated[str, Field(max_length=200), AfterValidator(_reason)]
 
 class ReasonIn(BaseModel):
     reason: Reason
+
+
+class PublishIn(ReasonIn):
+    draft_etag: str = Field(min_length=1, max_length=64)  # the draft version the superadmin reviewed (review M4)
 
 
 class DayIn(BaseModel):
@@ -118,7 +123,7 @@ async def draft_create(body: DraftIn, request: Request, ctx: AdminContext = Depe
         row = await rra.create_draft(session, ctx.actor, from_version=body.from_version, cache=rank_rules(request.app))
     except rra.RulesError as e:
         return _error(e)
-    return {"rules": row.rules, "note": row.note}
+    return {"rules": row.rules, "note": row.note, "etag": rra.draft_etag(row)}
 
 
 @router.put("/rank/rules/draft")
@@ -128,7 +133,7 @@ async def draft_save(body: DraftSaveIn, ctx: AdminContext = Depends(require("ope
         row = await rra.save_draft(session, ctx.actor, body.rules, body.note)
     except rra.RulesError as e:
         return _error(e)
-    return {"rules": row.rules, "note": row.note}
+    return {"rules": row.rules, "note": row.note, "etag": rra.draft_etag(row)}
 
 
 @router.delete("/rank/rules/draft", status_code=204)
@@ -159,10 +164,10 @@ async def draft_simulate(request: Request, _: AdminContext = Depends(require("op
 
 
 @router.post("/rank/rules/draft/publish")
-async def draft_publish(body: ReasonIn, request: Request, ctx: AdminContext = Depends(require_step_up),
+async def draft_publish(body: PublishIn, request: Request, ctx: AdminContext = Depends(require_step_up),
                         session: AsyncSession = Depends(get_session)):
     try:
-        return {"version": await rra.publish(session, request.app, ctx.actor, reason=body.reason)}
+        return {"version": await rra.publish(session, request.app, ctx.actor, reason=body.reason, etag=body.draft_etag)}
     except rra.RulesError as e:
         return _error(e)
 
@@ -199,20 +204,38 @@ async def reset_all(body: ResetAllIn, ctx: AdminContext = Depends(require_step_u
     expected = f"RESET {n} USERS"
     if body.confirm != expected:
         return JSONResponse({"error": "Confirmation required", "details": {"confirm": expected}}, status_code=409)
-    batch, users = await rank_ops.reset_all(session, ctx.actor, reason=body.reason, now=_now())
-    await session.commit()
-    return {"batch_id": batch, "users": users}
+    ids = list((await session.scalars(select(RankProfile.user_id))).all())
+
+    async def op():
+        batch, users = await rank_ops.reset_all(session, ctx.actor, reason=body.reason, now=_now())
+        return {"batch_id": batch, "users": users}
+    return await _users_op(ids, session, op)
 
 
 @router.post("/rank/reset-all/{batch_id}/undo")
 async def reset_all_undo(batch_id: str, ctx: AdminContext = Depends(require_step_up),
                          session: AsyncSession = Depends(get_session)):
-    try:
-        restored = await rank_ops.undo_reset(session, ctx.actor, batch_id, _now())
-    except rank_ops.RankOpError as e:
-        return _error(e)
-    await session.commit()
-    return {"users": restored}
+    ids = await rank_ops.batch_users(session, batch_id)
+
+    async def op():
+        restored, skipped = await rank_ops.undo_reset(session, ctx.actor, batch_id, _now())
+        return {"users": restored, "skipped": skipped}
+    return await _users_op(ids, session, op)
+
+
+async def _users_op(user_ids: list[int], session: AsyncSession, op):
+    """Bulk profile edits hold every affected user's sync lock (ascending ids, so two bulk ops cannot deadlock)
+    across the commit, like `_user_op` (review m2)."""
+    async with AsyncExitStack() as stack:
+        for uid in sorted(set(user_ids)):
+            await stack.enter_async_context(ledger.user_lock(uid))
+        try:
+            out = await op()
+        except rank_ops.RankOpError as e:
+            await session.rollback()
+            return _error(e)
+        await session.commit()
+        return out
 
 
 @router.post("/rank/clear-cooldowns")

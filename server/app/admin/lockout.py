@@ -9,6 +9,8 @@ from app.models import AdminLoginState
 MAX_LOCK = timedelta(hours=24)
 GLOBAL_FACTOR = 4
 GLOBAL_IP = "*"
+MFA_KEY = "mfa"  # per-username lock of the TOTP login step (review M5): only someone with the password can trip it
+MFA_FACTOR = 2  # the MFA step locks after MFA_FACTOR x ADMIN_LOCKOUT_THRESHOLD failures from any IP
 
 
 def _u(v: datetime | None) -> datetime | None:
@@ -39,14 +41,17 @@ async def check(session, username: str, ip: str, now: datetime) -> datetime | No
     return until if until and until > now else None
 
 
-async def fail(session, username: str, ip: str, now: datetime, *, threshold: int, minutes: int) -> datetime | None:
-    """Count one failure; returns the new lock end when this failure triggered a lock."""
+async def fail(session, username: str, ip: str, now: datetime, *, threshold: int, minutes: int,
+               count_global: bool = True) -> datetime | None:
+    """Count one failure; returns the new lock end when this failure triggered a lock. `ip` may also be a key such
+    as MFA_KEY (then `count_global=False`)."""
     row = await _row(session, username, ip)
     row.failures += 1
     row.updated_at = now
-    glob = await _row(session, username, GLOBAL_IP)
-    glob.failures += 1
-    glob.updated_at = now
+    if count_global:
+        glob = await _row(session, username, GLOBAL_IP)
+        glob.failures += 1
+        glob.updated_at = now
     if row.failures >= threshold:
         duration = min(timedelta(minutes=minutes) * (2 ** row.lock_level), MAX_LOCK)
         row.locked_until, row.lock_level, row.failures = now + duration, row.lock_level + 1, 0

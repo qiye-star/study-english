@@ -7188,3 +7188,55 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - 任务 A8 及所有页面任务:布局只做 ≥1024px 桌面(侧栏 + 内容区 + 右侧面板);删除"平板图标栏 / 手机底部 Tab"验收项;新增验收:视口 <1024px 显示"请使用桌面浏览器访问管理后台"整页提示,且不渲染业务页。
 - Z2 视觉对照:只比对桌面 1440 与 1280 两个宽度,不做平板 1024 / 手机。
 - 影响预演面板(D 线 C 任务)固定为右侧面板,不做底部面板形态。
+
+## Addendum (2026-10-10): review fixes (security review + correctness review)
+
+Rulings below override earlier text in this plan.
+
+- Ruling (B1 admin session secret): `ADMIN_SESSION_SECRET` when set; otherwise a random 32-byte secret generated once
+  and stored in the new `app_secrets` table (insert-if-absent, shared by all workers, loaded lazily by
+  `admin/sessions.ensure_secret`). Not derived from `SETTINGS_ENCRYPTION_KEY` (optional and rotatable). A SHA-256
+  check value of the secret in use is stored too; when it differs at the next start (env value changed), every admin
+  session is revoked so admins log in again instead of hitting "CSRF check failed".
+- Ruling (audit chain, overrides P-5): the chain is serialised by the one-row `audit_head` table, updated first in
+  every `audit.record` so the DB lock is held until the caller commits; correct across workers and on Postgres.
+- Ruling (recover rotate-key): keys come from `OLD_SETTINGS_ENCRYPTION_KEY` / `NEW_SETTINGS_ENCRYPTION_KEY` or a
+  hidden prompt; `--old/--new` are gone.
+- Ruling (TOTP enrolment, security M3): `/me/totp/begin` and `/confirm` need self step-up; the enrolment token is
+  `encrypt({"a": account_id, "s": secret})`, valid 10 minutes and only for that account; both return 409 when TOTP is
+  already bound (re-binding = disable with step-up, then bind). The admin client's step-up dialog covers the UI.
+- Ruling (TOTP login brute force, security M5): a pending session is revoked after 5 wrong codes
+  (`admin_sessions.mfa_failures`); the MFA step also locks per username (any IP) after 2 x ADMIN_LOCKOUT_THRESHOLD
+  failures (`admin_login_state` row `ip='mfa'`, doubling like the pair lock). `client_ip` takes the right-most
+  `X-Forwarded-For` entry (one appending proxy).
+- Ruling (key-to-new-host guard, security M2/m5): `AZURE_SPEECH_REGION` must match `^[a-z0-9]{2,32}$` (Settings
+  validator) and is a host-forming setting paired with `AZURE_SPEECH_KEY` (danger + pair guard like a URL). Endpoints
+  are compared as (scheme, host, port), so `https -> http` or a port change needs step-up, reason, typed confirm and
+  `confirm_pairs`. The probe route applies the same rule: sending the saved key to an unsaved endpoint needs step-up
+  and `confirm_pairs`; a key typed together with the new endpoint needs neither.
+- Ruling (probe SSRF, security m4): resolve once, block unless every address `is_global`, connect to that address
+  (httpcore network backend / websockets `host=`) with the real name for SNI and certificate checks; WebSocket
+  redirects are not followed.
+- Ruling (publish binding, security M4): rank-rules and prompt drafts carry an `etag` (SHA-256 of draft id + content,
+  in overview/detail and every draft create/save response); `POST .../draft/publish` requires `draft_etag` and answers
+  409 `Draft changed` when the draft is no longer the reviewed one. The admin rules page sends the etag of the draft it
+  shows or just saved; the prompt editor sends the etag of the saved draft it displays.
+- Ruling (security settings, security m1): weakening `RATE_LIMIT_PER_MINUTE` / `ADMIN_LOCKOUT_THRESHOLD` (up),
+  `ADMIN_LOCKOUT_MINUTES` (down), lengthening `ADMIN_STEP_UP_MINUTES` / `ADMIN_IDLE_MINUTES` / `ADMIN_TOKEN_TTL_MINUTES`,
+  lowering `ADMIN_AUDIT_RETENTION_DAYS` and any `INVITE_CODE` change are dangerous (step-up + reason + typed confirm),
+  on every path (PATCH, reset, revert, import). Tightening stays a plain save.
+- Ruling (per-user quota ceiling, security m2): operators may set a per-user override up to 10x the site value
+  (`AI_RATE_LIMIT_PER_MINUTE` also at most 600); above that only a superadmin with step-up and a note of at least 4
+  characters (the reason) may set it (403 `Above operator limit` / `Step-up required`, 409 `Reason required`).
+- Ruling (denials, security m8): 403 `Forbidden` / `Step-up required` from the role and step-up dependencies write
+  `auth.denied` (target = route path) at most once per session, path and minute.
+- Ruling (live calls, security m10 / correctness m11): disable, revoke tokens, reset password and delete end the
+  user's live realtime call: `RealtimeRegistry.end_user` sends close 4001 (existing `unauthorized` code, no protocol
+  change) and cancels the handler if the client has not finished 5 s later.
+- Ruling (read-only maintenance, correctness m6): `GET /api/rank/me` serves the stored profile without sync or
+  achievement unlocks while maintenance is on; live realtime calls end with 1012 when maintenance turns on (the web
+  shows its generic call-ended error; the banner follows within 5 min or on the next API call). Still allowed by
+  design: `POST /api/sessions` (login) writes an access token.
+- Not changed (correctness m14, admin unmounts pages below 1024 px): Addendum R-7 requires that a viewport under
+  1024 px shows the desktop-only notice **and does not render business pages**; keeping pages mounted under an
+  overlay would break that acceptance item. Needs a product decision before changing.
