@@ -3,8 +3,106 @@
     "rooms": {
       "title": "Practice rooms",
       "disabled": "Rooms are not enabled on this server.",
+      "lobby": {
+        "codeLabel": "Enter a 6-digit room code",
+        "join": "Join",
+        "create": "Create a room",
+        "mine": "My rooms",
+        "open": "Live · {{count}} online",
+        "closed": "Ended",
+        "empty": "No rooms yet. Create one and share the code.",
+        "rules": "Rooms end after 24 hours; everyone sees @ai answers."
+      },
+      "create": {
+        "title": "Create a room",
+        "topic": "Topic (optional)",
+        "submit": "Create",
+        "topics": { "travel": "Travel", "food": "Food", "movies": "Movies", "work": "Work", "campus": "Campus", "free": "Free talk" }
+      },
       "room": {
-        "title": "Room"
+        "title": "Room",
+        "code": "Room {{code}}",
+        "copied": "Room code copied",
+        "online": "{{count}} online",
+        "ended": "Ended · read only",
+        "placeholder": "Say something, or ask @ai",
+        "send": "Send",
+        "assisted": "Polished with assistant",
+        "aiName": "AI assistant",
+        "aiTyping": "AI assistant is typing…",
+        "aiFailed": "Answer interrupted, ask @ai again",
+        "aiPending": "Waiting for AI",
+        "reconnecting": "Connection lost, reconnecting…",
+        "connecting": "Connecting…",
+        "closedNote": "This room has ended; read only.",
+        "historyEmpty": "No messages were left in this room.",
+        "truncated": "Earlier messages not loaded",
+        "loadEarlier": "Load earlier messages",
+        "report": "Report",
+        "reported": "Reported",
+        "reportTitle": "Report this message",
+        "reportReasons": { "spam": "Spam", "abuse": "Harassment or abuse", "other": "Other" },
+        "system": {
+          "joined": "{{name}} joined",
+          "left": "{{name}} left",
+          "kicked": "{{name}} was removed",
+          "topic": "Topic changed to “{{topic}}”",
+          "owner": "{{name}} is now the owner"
+        }
+      },
+      "assist": {
+        "title": "Assistant · only you",
+        "subtitle": "Nothing appears in the room until you send it",
+        "open": "Assistant",
+        "placeholder": "What do you want to say? Mixing Chinese is fine, e.g. I like 巧克力",
+        "ask": "Ask",
+        "send": "Send to room",
+        "edit": "Edit",
+        "waiting": "Thinking…",
+        "empty": "Not sure how to say it? Ask here first, then send it to the room in one tap."
+      },
+      "settings": {
+        "title": "Members & settings",
+        "topic": "Topic",
+        "save": "Save",
+        "saved": "Saved",
+        "locked": "Lock room (no new members)",
+        "aiPublic": "Public @ai answers",
+        "members": "Members",
+        "owner": "Owner",
+        "online": "Online",
+        "kick": "Remove",
+        "kickConfirm": "Remove {{name}}? They can't rejoin.",
+        "leave": "Leave room",
+        "leaveConfirm": "You'll need the room code to come back. Leave?",
+        "close": "End room",
+        "closeConfirm": "Nobody can post after the room ends. Continue?"
+      },
+      "notice": {
+        "ai_off": "The owner turned off public AI answers; use the assistant instead",
+        "ai_busy": "The AI assistant is busy, try @ai again shortly",
+        "ai_quota": "No AI answers left today"
+      },
+      "errors": {
+        "notFound": "Room not found or ended",
+        "locked": "This room is locked",
+        "full": "This room is full",
+        "kicked": "You were removed from this room",
+        "tooMany": "You have too many rooms open",
+        "capacity": "The server has no free rooms, try later",
+        "ownerOnly": "Only the owner can do that",
+        "rate_limited": "Slow down a little",
+        "empty": "The message is empty",
+        "bad_assist": "That suggestion is no longer valid",
+        "assist_upstream": "The assistant is unavailable",
+        "assist_quota": "No assistant requests left today",
+        "assist_format": "The assistant didn't get that, try rephrasing",
+        "closed_owner": "The owner ended the room",
+        "closed_idle": "The room ended after being quiet",
+        "closed_expired": "The room reached 24 hours and ended",
+        "closed_disabled": "Practice rooms were turned off",
+        "closed_protocol": "Connection error, go back and enter the room again",
+        "kickedClose": "You were removed from the room"
       }
     }
   }

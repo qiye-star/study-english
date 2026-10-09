@@ -3,8 +3,106 @@
     "rooms": {
       "title": "联机练习",
       "disabled": "联机练习未开启。",
+      "lobby": {
+        "codeLabel": "输入 6 位房间号",
+        "join": "加入",
+        "create": "创建房间",
+        "mine": "我的房间",
+        "open": "进行中 · {{count}} 人在线",
+        "closed": "已结束",
+        "empty": "还没有房间。创建一个,把房间号发给朋友。",
+        "rules": "房间 24 小时后自动结束;@ai 的回答所有人都能看到。"
+      },
+      "create": {
+        "title": "创建房间",
+        "topic": "话题(可选)",
+        "submit": "创建",
+        "topics": { "travel": "旅行", "food": "美食", "movies": "电影", "work": "工作", "campus": "校园", "free": "自由聊" }
+      },
       "room": {
-        "title": "房间"
+        "title": "房间",
+        "code": "房间 {{code}}",
+        "copied": "房间号已复制",
+        "online": "{{count}} 人在线",
+        "ended": "已结束 · 只读",
+        "placeholder": "说点什么,或 @ai 提问",
+        "send": "发送",
+        "assisted": "助手润色",
+        "aiName": "AI 助手",
+        "aiTyping": "AI 助手正在输入…",
+        "aiFailed": "回答中断,可以重新 @ai",
+        "aiPending": "等待 AI 回答",
+        "reconnecting": "连接中断,正在重连…",
+        "connecting": "正在连接…",
+        "closedNote": "房间已结束,只能查看。",
+        "historyEmpty": "这个房间没有留下消息。",
+        "truncated": "更早的消息未加载",
+        "loadEarlier": "加载更早的消息",
+        "report": "举报",
+        "reported": "已举报",
+        "reportTitle": "举报这条消息",
+        "reportReasons": { "spam": "垃圾信息", "abuse": "骚扰或辱骂", "other": "其他" },
+        "system": {
+          "joined": "{{name}} 加入了房间",
+          "left": "{{name}} 离开了房间",
+          "kicked": "{{name}} 被移出了房间",
+          "topic": "话题改为「{{topic}}」",
+          "owner": "{{name}} 成为房主"
+        }
+      },
+      "assist": {
+        "title": "助手 · 仅你可见",
+        "subtitle": "发送前不会出现在群里",
+        "open": "助手",
+        "placeholder": "想说什么?中英混写也行,比如 I like 巧克力",
+        "ask": "问助手",
+        "send": "发送到群聊",
+        "edit": "编辑",
+        "waiting": "助手正在想…",
+        "empty": "不会用英文说?先在这里问助手,满意了再一键发到群里。"
+      },
+      "settings": {
+        "title": "成员与设置",
+        "topic": "话题",
+        "save": "保存",
+        "saved": "已保存",
+        "locked": "锁定房间(不再收新成员)",
+        "aiPublic": "AI 公开回答 @ai",
+        "members": "成员",
+        "owner": "房主",
+        "online": "在线",
+        "kick": "移出",
+        "kickConfirm": "确定把 {{name}} 移出房间?移出后不能再加入。",
+        "leave": "离开房间",
+        "leaveConfirm": "离开后需要房间号才能再加入,确定吗?",
+        "close": "结束房间",
+        "closeConfirm": "结束后所有人都不能再发消息,确定吗?"
+      },
+      "notice": {
+        "ai_off": "房主关闭了 AI 公开回答,可以用助手私聊",
+        "ai_busy": "AI 助手正忙,请稍后再 @ai",
+        "ai_quota": "今天的 AI 回答次数已用完"
+      },
+      "errors": {
+        "notFound": "房间不存在或已结束",
+        "locked": "房间已锁定",
+        "full": "房间已满",
+        "kicked": "你已被移出这个房间",
+        "tooMany": "你同时开的房间太多了",
+        "capacity": "服务器房间已满,稍后再试",
+        "ownerOnly": "只有房主可以这样做",
+        "rate_limited": "发得太快了,歇一下",
+        "empty": "消息是空的",
+        "bad_assist": "这条建议已失效",
+        "assist_upstream": "助手暂时不可用",
+        "assist_quota": "今天的助手次数已用完",
+        "assist_format": "助手没听懂,换个说法试试",
+        "closed_owner": "房主结束了房间",
+        "closed_idle": "房间长时间没人说话,已结束",
+        "closed_expired": "房间已到 24 小时,已结束",
+        "closed_disabled": "联机练习已被关闭",
+        "closed_protocol": "连接出错,请返回大厅重新进入",
+        "kickedClose": "你已被移出房间"
       }
     }
   }
