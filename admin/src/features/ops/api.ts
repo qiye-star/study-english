@@ -193,7 +193,7 @@ export async function deleteBackup(name: string): Promise<void> {
   await request(`/api/admin/backups/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
-export type HousekeepingTool = "orphan_recordings" | "audit";
+export type HousekeepingTool = "orphan_recordings" | "audit" | "room_audio";
 
 export interface OrphanScan {
   token: string;
@@ -207,19 +207,53 @@ export interface AuditScan {
   count: number;
 }
 
+/** 房间语音清理的预演:结束超过 N 天的房间音频 + 孤儿文件 + 过期暂存;`confirm` 是执行时要原样输入的短语。 */
+export interface RoomAudioScan extends OrphanScan {
+  rooms: number;
+  olderThanDays: number;
+  confirm: string;
+}
+
 export async function scanHousekeeping(tool: "orphan_recordings"): Promise<OrphanScan>;
 export async function scanHousekeeping(tool: "audit"): Promise<AuditScan>;
-export async function scanHousekeeping(tool: HousekeepingTool): Promise<OrphanScan | AuditScan> {
-  const r = await request<any>(`/api/admin/housekeeping/${tool}/scan`, { method: "POST" });
-  return tool === "audit" ? { retentionDays: r.retention_days, count: r.count } : r;
+export async function scanHousekeeping(tool: "room_audio", olderThanDays: number): Promise<RoomAudioScan>;
+export async function scanHousekeeping(tool: HousekeepingTool, olderThanDays?: number): Promise<OrphanScan | AuditScan | RoomAudioScan> {
+  const json = tool === "room_audio" ? { older_than_days: olderThanDays } : undefined;
+  const r = await request<any>(`/api/admin/housekeeping/${tool}/scan`, { method: "POST", json });
+  if (tool === "audit") return { retentionDays: r.retention_days, count: r.count };
+  if (tool === "room_audio") {
+    return { token: r.token, count: r.count, bytes: r.bytes, samples: r.samples ?? [], rooms: r.rooms, olderThanDays: r.older_than_days, confirm: r.confirm };
+  }
+  return r;
 }
 
 export async function runHousekeeping(
   tool: HousekeepingTool,
-  data: { token?: string; olderThanDays?: number; reason: string },
+  data: { token?: string; olderThanDays?: number; reason: string; confirm?: string },
 ): Promise<{ deleted: number }> {
   return request(`/api/admin/housekeeping/${tool}/run`, {
     method: "POST",
-    json: { token: data.token, older_than_days: data.olderThanDays, reason: data.reason },
+    json: { token: data.token, older_than_days: data.olderThanDays, reason: data.reason, confirm: data.confirm },
   });
+}
+
+export interface StorageSummary {
+  roomAudio: { files: number; bytes: number; stagingBytes: number; byMonth: { month: string; files: number; bytes: number }[] };
+  recordings: { files: number; bytes: number };
+  topVoiceUsers: { userId: number; username: string | null; bytes: number }[];
+}
+
+/** 存储用量(viewer):房间语音(永久保存)、暂存 WAV、跟读录音、按月增长、语音存储 Top 10。 */
+export async function getStorage(): Promise<StorageSummary> {
+  const r = await request<any>("/api/admin/storage");
+  return {
+    roomAudio: {
+      files: r.room_audio.files,
+      bytes: r.room_audio.bytes,
+      stagingBytes: r.room_audio.staging_bytes,
+      byMonth: r.room_audio.by_month ?? [],
+    },
+    recordings: r.recordings,
+    topVoiceUsers: (r.top_voice_users ?? []).map((u: any) => ({ userId: u.user_id, username: u.username ?? null, bytes: u.bytes })),
+  };
 }

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -6,7 +6,7 @@ import * as session from "../../api/session";
 import type { Role } from "../../api/session";
 import * as api from "./api";
 import { RoomDetailPage } from "./room-detail-page";
-import { roomFixture, timelineFixture } from "./test-fixtures";
+import { roomFixture, settingsFixture, timelineFixture } from "./test-fixtures";
 
 vi.mock("./api");
 const asRole = (role: Role) =>
@@ -82,4 +82,60 @@ it("gives viewers a read-only view", async () => {
   expect(within(msg).queryByRole("button", { name: "隐藏" })).toBeNull();
   expect(screen.queryByRole("button", { name: "关闭房间" })).toBeNull();
   expect(within(screen.getByTestId("member-22222222")).queryByRole("button", { name: "移出" })).toBeNull();
+  const card = screen.getByRole("region", { name: "房间设置" });
+  expect(within(card).queryByRole("button", { name: "修改" })).toBeNull();
+  expect(within(screen.getByTestId("msg-44")).queryByRole("button", { name: "播放" })).toBeNull();
+});
+
+it("shows the room settings and edits them with a reason", async () => {
+  vi.mocked(api.patchRoomSettings).mockResolvedValue({ settings: settingsFixture({ allowVoice: false }), changes: [] });
+  renderPage();
+  const card = await screen.findByRole("region", { name: "房间设置" });
+  expect(within(card).getByTestId("setting-scenario")).toHaveTextContent(/场景\s*咖啡店点单/);
+  expect(within(card).getByTestId("setting-joinMode")).toHaveTextContent("凭房间号");
+  expect(within(card).getByTestId("setting-invite")).toHaveTextContent("未生成");
+  await userEvent.click(within(card).getByRole("button", { name: "修改" }));
+  const dialog = screen.getByRole("dialog");
+  const save = within(dialog).getByRole("button", { name: "保存" });
+  expect(save).toBeDisabled();
+  await userEvent.click(within(dialog).getByRole("checkbox", { name: "允许语音" }));
+  expect(save).toBeDisabled(); // a reason is still missing
+  await userEvent.type(within(dialog).getByLabelText("理由"), "语音被滥用");
+  await userEvent.click(save);
+  expect(api.patchRoomSettings).toHaveBeenCalledWith("r1", { allowVoice: false }, "语音被滥用");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(api.getRoom).toHaveBeenCalledTimes(2);
+});
+
+it("rejects a size below the current members before saving", async () => {
+  renderPage();
+  const card = await screen.findByRole("region", { name: "房间设置" });
+  await userEvent.click(within(card).getByRole("button", { name: "修改" }));
+  const dialog = screen.getByRole("dialog");
+  const size = within(dialog).getByLabelText("人数上限");
+  await userEvent.clear(size);
+  await userEvent.type(size, "1");
+  await userEvent.type(within(dialog).getByLabelText("理由"), "缩小房间");
+  expect(within(dialog).getByText("2–8 人,且不少于当前 2 名成员")).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "保存" })).toBeDisabled();
+});
+
+it("shows voice messages with duration, transcript, translation and audited playback", async () => {
+  vi.mocked(api.fetchRoomAudio).mockResolvedValue(new Blob(["ID3"], { type: "audio/mpeg" }));
+  const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  const urls = { create: vi.fn(() => "blob:audio"), revoke: vi.fn() };
+  Object.assign(URL, { createObjectURL: urls.create, revokeObjectURL: urls.revoke });
+  renderPage();
+  const voice = await screen.findByTestId("msg-44");
+  expect(within(voice).getByText("0:06")).toBeInTheDocument();
+  expect(within(voice).getByText("已转写")).toBeInTheDocument();
+  expect(within(voice).getByText("Could I get a flat white, please?")).toBeInTheDocument();
+  expect(within(voice).getByText("可以给我一杯馥芮白吗?")).toBeInTheDocument();
+  await userEvent.click(within(voice).getByRole("button", { name: "播放" }));
+  expect(api.fetchRoomAudio).toHaveBeenCalledWith("r1", "m44");
+  await waitFor(() => expect(play).toHaveBeenCalled());
+  expect(urls.create).toHaveBeenCalled();
+  const purged = screen.getByTestId("msg-45");
+  expect(within(purged).getByText("音频已清理")).toBeInTheDocument();
+  expect(within(purged).queryByRole("button", { name: "播放" })).toBeNull();
 });
