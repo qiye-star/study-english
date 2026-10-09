@@ -86,6 +86,19 @@ describe("holdReducer: timing and geometry", () => {
     expect(holdReducer(armed, { type: "move", x: 100, y: 500 - 39 }).model.state).toBe("recording");
   });
 
+  it("without the to-text zone (allowToText: false) sliding up on either side arms cancel, never fill", () => {
+    const voiceOnly = holdReducer(holdReducer(IDLE, { ...EVENTS.down, allowToText: false } as HoldEvent).model, EVENTS["mic-ready"]).model;
+    expect(voiceOnly.noText).toBe(true);
+    expect(holdReducer(voiceOnly, { type: "move", x: 100, y: 400 }).model.state).toBe("armed-cancel");
+    const right = holdReducer(voiceOnly, { type: "move", x: 300, y: 380 }).model;
+    expect(right.state).toBe("armed-cancel");
+    expect(holdReducer(right, EVENTS.up).effects).toEqual([discard("slide")]);
+    expect(holdReducer(right, EVENTS.max).effects).toEqual([discard("slide")]);
+    expect(holdReducer(voiceOnly, EVENTS.up).effects).toEqual([send]);
+    // 下一次按住(默认)恢复两个落点
+    expect(holdReducer(IDLE, EVENTS.down).model.noText).toBeUndefined();
+  });
+
   it("does not arm before the microphone is ready", () => {
     const pressing = holdReducer(IDLE, EVENTS.down).model;
     expect(holdReducer(pressing, { type: "move", x: 100, y: 300 }).model.state).toBe("pressing");

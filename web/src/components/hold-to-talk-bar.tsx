@@ -23,6 +23,8 @@ export interface HoldToTalkBarProps {
   /** 静止时的文字(默认 "按住 说话") */
   idleLabel?: string;
   maxHoldMs: number;
+  /** 是否提供「转文字」落点(默认 true)。false = 只收语音(晋级赛):只有取消落点,上滑到任意一侧都是取消,永远不会 `onFinish("fill")` */
+  allowToText?: boolean;
   onStart(): Promise<boolean>;
   onFinish(deliver: "send" | "fill"): void;
   onDiscard(reason: DiscardReason): void;
@@ -63,7 +65,7 @@ function tick() {
  * 聊天(`features/chat/hold-to-talk-button.tsx`)与通话(`features/realtime/call-dock.tsx`)共用。
  */
 export function HoldToTalkBar({
-  testId, data, tone = "neutral", disabled, live, busy = false, busyLabel, idleLabel, maxHoldMs,
+  testId, data, tone = "neutral", disabled, live, busy = false, busyLabel, idleLabel, maxHoldMs, allowToText = true,
   onStart, onFinish, onDiscard, onRelease, onStateChange, recordingStatus, adornment,
 }: HoldToTalkBarProps) {
   const { t } = useTranslation();
@@ -101,7 +103,7 @@ export function HoldToTalkBar({
   const announcement =
     model.state === "armed-cancel" ? t("web.hold.releaseToCancel")
       : model.state === "armed-text" ? t("web.hold.releaseToText")
-        : model.state === "recording" ? t("web.hold.slideHint")
+        : model.state === "recording" ? t(allowToText ? "web.hold.slideHint" : "web.hold.slideHintCancel")
           : "";
   const pressed = holding || keyboard || model.state === "pressing";
   const label = busy ? busyLabel
@@ -138,7 +140,7 @@ export function HoldToTalkBar({
           pointer.current = e.pointerId;
           setZonesBottom(Math.max(0, window.innerHeight - e.currentTarget.getBoundingClientRect().top) + 16);
           try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 部分环境不支持 */ }
-          dispatch({ type: "down", x: e.clientX ?? 0, y: e.clientY ?? 0, t: now(), width: window.innerWidth });
+          dispatch({ type: "down", x: e.clientX ?? 0, y: e.clientY ?? 0, t: now(), width: window.innerWidth, allowToText });
         }}
         onPointerMove={(e) => { if (mine(e)) dispatch({ type: "move", x: e.clientX ?? 0, y: e.clientY ?? 0 }); }}
         onPointerUp={(e) => {
@@ -185,7 +187,7 @@ export function HoldToTalkBar({
             </p>
           </div>
           {holding && (
-            <div aria-hidden="true" className="absolute inset-x-0 flex justify-between px-8" style={{ bottom: zonesBottom }}>
+            <div aria-hidden="true" className={cn("absolute inset-x-0 flex px-8", allowToText ? "justify-between" : "justify-center")} style={{ bottom: zonesBottom }}>
               <div data-testid="hold-zone-cancel" data-active={String(cancelArmed)} className="flex flex-col items-center gap-1.5">
                 <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-[0.5px] transition-[transform,background-color] duration-fast motion-reduce:transition-none",
                   cancelArmed ? "scale-110 border-transparent bg-red-solid text-white" : "border-hair bg-surface text-ink shadow-card")}>
@@ -193,13 +195,13 @@ export function HoldToTalkBar({
                 </span>
                 <span className="rounded-inline bg-surface px-1.5 text-meta font-medium text-ink">{t("web.hold.cancel")}</span>
               </div>
-              <div data-testid="hold-zone-text" data-active={String(textArmed)} className="flex flex-col items-center gap-1.5">
+              {allowToText && <div data-testid="hold-zone-text" data-active={String(textArmed)} className="flex flex-col items-center gap-1.5">
                 <span className={cn("flex h-16 w-16 items-center justify-center rounded-full border-[0.5px] text-headline font-semibold transition-[transform,background-color] duration-fast motion-reduce:transition-none",
                   textArmed ? "scale-110 border-transparent bg-blue text-on-blue" : "border-hair bg-surface text-ink shadow-card")}>
                   文
                 </span>
                 <span className="rounded-inline bg-surface px-1.5 text-meta font-medium text-ink">{t("web.hold.toText")}</span>
-              </div>
+              </div>}
             </div>
           )}
         </div>

@@ -13,9 +13,11 @@ export interface HoldModel {
   downAt: number;
   width: number;
   micReady: boolean;
+  /** 本次按住没有「转文字」落点(只收语音,例如晋级赛):上滑到任意一侧都是取消 */
+  noText?: boolean;
 }
 export type HoldEvent =
-  | { type: "down"; x: number; y: number; t: number; width: number }
+  | { type: "down"; x: number; y: number; t: number; width: number; allowToText?: boolean }
   | { type: "mic-ready" }
   | { type: "mic-failed" }
   | { type: "move"; x: number; y: number }
@@ -36,6 +38,7 @@ function zone(model: HoldModel, x: number, y: number): HoldState {
   const dy = y - model.startY;
   const armed = model.state === "armed-cancel" || model.state === "armed-text";
   if (armed ? dy > -SLIDE_DISARM_PX : dy > -SLIDE_ARM_PX) return "recording";
+  if (model.noText) return "armed-cancel";
   return x < model.width / 2 ? "armed-cancel" : "armed-text";
 }
 
@@ -43,7 +46,10 @@ export function holdReducer(model: HoldModel, event: HoldEvent): { model: HoldMo
   const s = model.state;
   if (event.type === "reset") return s === "idle" ? out(model) : idle();
   if (s === "idle") {
-    if (event.type === "down") return out({ state: "pressing", startY: event.y, downAt: event.t, width: event.width, micReady: false }, { type: "start" });
+    if (event.type === "down") {
+      const next: HoldModel = { state: "pressing", startY: event.y, downAt: event.t, width: event.width, micReady: false };
+      return out(event.allowToText === false ? { ...next, noText: true } : next, { type: "start" });
+    }
     if (event.type === "key") return out({ ...IDLE, state: "keyboard" }, { type: "start" });
     return out(model);
   }

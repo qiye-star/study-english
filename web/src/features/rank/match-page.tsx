@@ -121,8 +121,9 @@ export function MatchPage() {
             <HoldToTalkBar testId="match-hold" tone="blue" disabled={phase !== "your_turn" && phase !== "recording"}
               live={phase === "recording"} busy={phase === "uploading"} busyLabel={t("web.rank.match.listening")}
               idleLabel={t("web.rank.match.hold")} maxHoldMs={MAX_HOLD_MS}
+              // 只收语音(spec §3.5):不提供「转文字」落点,上滑只能取消
+              allowToText={false}
               onStart={m.press}
-              // 只收语音:落在「转文字」也照常发送这一轮,没有可编辑的文字通道(spec §3.5)
               onFinish={() => m.release()}
               onDiscard={() => m.cancel()}
               onRelease={m.prime} />
