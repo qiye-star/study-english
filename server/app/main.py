@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.admin import usage
 from app.core import metering
 from app.core.config import Settings
 from app.core.db import make_engine
@@ -125,3 +126,6 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
     hub.subscribe("azure", drop("azure"), keys={"azure_speech_key", "azure_speech_region"})
     hub.subscribe("xfyun", drop("xfyun"), keys={"xfyun_app_id", "xfyun_api_key", "xfyun_api_secret", "xfyun_ws_url"})
     hub.subscribe("grammar_rules", grammar_apply, keys={"grammar_prompt"}, prepare=grammar_prepare)
+    # Prices are parsed per request (admin.usage.prices_for); this only rejects a save with bad numbers.
+    hub.subscribe("metering_prices", lambda o, n: None, keys={"usage_prices_json"},
+                  prepare=lambda new: usage.parse_prices(new.usage_prices_json))

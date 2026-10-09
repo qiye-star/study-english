@@ -28,6 +28,10 @@ _feature: ContextVar[str] = ContextVar("metering_feature", default="other")
 
 KINDS = ("llm", "tts", "stt", "asr_stream", "assess_azure", "assess_xfyun", "probe")
 UNITS = ("tokens", "bytes", "chars", "audio_ms", "calls")
+# usage_daily has no unit column: a rolled-up bucket keeps only the units of its kind's main unit
+# (an llm stream's bytes count as a call, not as tokens).
+DAILY_UNIT = {"llm": "tokens", "tts": "chars", "stt": "audio_ms", "asr_stream": "audio_ms",
+              "assess_xfyun": "audio_ms", "assess_azure": "calls", "probe": "calls"}
 FEATURE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/api/ai/chat", "chat"),
     ("/api/ai/audio", "audio"),
@@ -240,17 +244,18 @@ async def rollup_and_prune(session, now: datetime, raw_retention_days: int) -> t
     rows = (await session.execute(
         select(UpstreamCall.at, UpstreamCall.feature, UpstreamCall.kind, UpstreamCall.provider, UpstreamCall.model,
                UpstreamCall.user_id, UpstreamCall.status, UpstreamCall.ms, UpstreamCall.units_in,
-               UpstreamCall.units_out).where(UpstreamCall.at < cutoff))).all()
+               UpstreamCall.units_out, UpstreamCall.unit).where(UpstreamCall.at < cutoff))).all()
     if not rows:
         return 0, 0
     buckets: dict[tuple, list[int]] = {}
-    for at, feature, kind, provider, model, user_id, status, ms, units_in, units_out in rows:
+    for at, feature, kind, provider, model, user_id, status, ms, units_in, units_out, unit in rows:
         key = (_day(at), feature, kind, provider, model, user_id or 0)
         b = buckets.setdefault(key, [0, 0, 0, 0, 0])
         b[0] += 1
         b[1] += 0 if 200 <= status < 300 else 1
-        b[2] += units_in
-        b[3] += units_out
+        if unit == DAILY_UNIT.get(kind, "calls"):
+            b[2] += units_in
+            b[3] += units_out
         b[4] += ms
     days = {k[0] for k in buckets}
     existing = {(d.day, d.feature, d.kind, d.provider, d.model, d.user_id): d for d in
