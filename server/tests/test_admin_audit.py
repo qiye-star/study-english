@@ -93,7 +93,7 @@ async def test_parallel_bad_logins_keep_the_chain_intact(file_app):
     transport = httpx.ASGITransport(app=file_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         bad = {"username": "root", "password": "wrong-password-xx"}
-        results = await asyncio.gather(*[c.post("/api/admin/login", json=bad) for _ in range(6)])
+        results = await asyncio.gather(*[c.post("/api/admin/login", json=bad) for _ in range(12)])  # crosses the lockout
     assert {r.status_code for r in results} <= {401, 429}
     async with file_app.state.sessionmaker() as s:
         assert await verify(s) == (True, None)

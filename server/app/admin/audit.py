@@ -1,10 +1,8 @@
 """只追加的管理审计(spec §4.7)。哈希链:hash = sha256(prev_hash + canonical(row))。
 永不写入密码、token、密钥明文、用户内容、提示词正文;密钥用 redact_setting 只留指纹。"""
-import asyncio
 import hashlib
 import json
 import re
-import weakref
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -16,16 +14,6 @@ from app.models import AdminAudit, AuditHead
 
 GENESIS = "0" * 64
 HEAD_ID = 1
-# One lock per event loop: only saves DB lock waits within a process; `audit_head` is the real serialisation.
-_LOCKS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = weakref.WeakKeyDictionary()
-
-
-def _lock() -> asyncio.Lock:
-    loop = asyncio.get_running_loop()
-    lock = _LOCKS.get(loop)
-    if lock is None:
-        lock = _LOCKS[loop] = asyncio.Lock()
-    return lock
 
 
 def _iso(value: datetime) -> str:
@@ -83,20 +71,21 @@ async def record(session, actor: Actor, action: str, *, target_type=None, target
                  before=None, after=None, reason=None, result: str = "ok") -> AdminAudit:
     """Append one row. The chain stays linear across requests and workers: the head lock taken here is released
     only when the caller's transaction commits or rolls back (so commit promptly after recording)."""
-    async with _lock():
-        prev = await _lock_head(session)
-        row = AdminAudit(
-            at=datetime.now(timezone.utc).replace(microsecond=0), actor=actor.name[:64], role=actor.role,
-            session_id=actor.session_id, ip=actor.ip[:64], action=action[:48], target_type=target_type,
-            target_id=None if target_id is None else str(target_id)[:64], summary=summary[:200],
-            before=before, after=after, reason=None if reason is None else reason[:200], result=result,
-            prev_hash=prev,
-        )
-        row.hash = row_hash(row.prev_hash, row)
-        session.add(row)
-        await session.flush()
-        await session.execute(update(AuditHead).where(AuditHead.id == HEAD_ID).values(hash=row.hash))
-        return row
+    # No process-local lock on top: a request holding the DB lock may record a second row (e.g. auth.lockout) while
+    # another waits for that DB lock, so an asyncio lock around this would deadlock until the busy timeout.
+    prev = await _lock_head(session)
+    row = AdminAudit(
+        at=datetime.now(timezone.utc).replace(microsecond=0), actor=actor.name[:64], role=actor.role,
+        session_id=actor.session_id, ip=actor.ip[:64], action=action[:48], target_type=target_type,
+        target_id=None if target_id is None else str(target_id)[:64], summary=summary[:200],
+        before=before, after=after, reason=None if reason is None else reason[:200], result=result,
+        prev_hash=prev,
+    )
+    row.hash = row_hash(row.prev_hash, row)
+    session.add(row)
+    await session.flush()
+    await session.execute(update(AuditHead).where(AuditHead.id == HEAD_ID).values(hash=row.hash))
+    return row
 
 
 async def _anchored(session, first: AdminAudit) -> bool:
