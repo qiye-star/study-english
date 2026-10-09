@@ -156,6 +156,37 @@ describe("RoomPage", () => {
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname.endsWith("/close"))).toBe(true));
   });
 
+  it("composes with the assistant and sends the suggestion as assisted", async () => {
+    setup();
+    await live();
+    fireEvent.click(screen.getByTestId("room-assist-open"));
+    fireEvent.change(await screen.findByTestId("assist-input"), { target: { value: "I like 巧克力" } });
+    fireEvent.click(screen.getByTestId("assist-ask"));
+    const ask = JSON.parse(FakeWebSocket.last!.sent.at(-1)!);
+    expect(ask).toMatchObject({ type: "assist", text: "I like 巧克力" });
+    FakeWebSocket.last!.push({ type: "assist_reply", request_id: ask.request_id, message: { seq: 5, id: "a5", lane: "private", kind: "assist_reply",
+      sender: { kind: "ai", id: null, name: null }, text: "x", assisted: false, reply_to: null, ai_status: null, created_at: "",
+      meta: { reply_zh: "巧克力是 chocolate。", glossary: [], suggestions: [{ en: "I like chocolate.", note_zh: "最常用" }] } } });
+    expect(screen.queryAllByTestId("room-message")).toHaveLength(0); // the private lane never enters the public list
+    fireEvent.click(await screen.findByTestId("assist-send"));
+    expect(JSON.parse(FakeWebSocket.last!.sent.at(-1)!)).toMatchObject({ type: "say", text: "I like chocolate.", assist_id: "a5" });
+    await waitFor(() => expect(screen.queryByTestId("assist-tray")).toBeNull());
+  });
+
+  it("edits a suggestion in the composer", async () => {
+    setup();
+    await live();
+    FakeWebSocket.last!.push({ type: "welcome", room: ROOM, me: { user_id: 11111111, role: "owner" }, members: MEMBERS, last_seq: 0, truncated: false,
+      assist_history: [{ seq: 1, id: "q1", lane: "private", kind: "assist_request", sender: { kind: "user", id: 11111111, name: "alice" }, text: "我想说你好",
+        assisted: false, reply_to: null, ai_status: null, meta: null, created_at: "" },
+      { seq: 2, id: "a2", lane: "private", kind: "assist_reply", sender: { kind: "ai", id: null, name: null }, text: "x", assisted: false, reply_to: null,
+        ai_status: null, created_at: "", meta: { reply_zh: "x", glossary: [], suggestions: [{ en: "Hello everyone!", note_zh: "" }] } }] });
+    fireEvent.click(screen.getByTestId("room-assist-open"));
+    expect(await screen.findByText("我想说你好")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("assist-edit"));
+    await waitFor(() => expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("Hello everyone!"));
+  });
+
   it("explains when rooms are off", async () => {
     const mock = createFetchMock({ "GET /api/rooms/config": () => json({ enabled: false, ai_available: false, max_members: 8, max_text: 500 }) });
     renderWithProviders(<RoomPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/r/r1", path: "/rooms/r/:roomId" });

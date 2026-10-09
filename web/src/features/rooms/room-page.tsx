@@ -10,6 +10,7 @@ import { FeatureGate, type GateState } from "~/components/feature-gate";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
 import { IconButton } from "~/components/icon-button";
 import { PageHeader } from "~/layout/page-header";
+import { AssistTray } from "./assist-tray";
 import type { RoomMessage } from "./protocol";
 import { RoomComposer } from "./room-composer";
 import { RoomMessageList } from "./room-message-list";
@@ -187,7 +188,10 @@ function RoomView({ roomId, aiAvailable }: { roomId: string; aiAvailable: boolea
           </div>
         </BottomSheetContent>
       </BottomSheet>
-      {assistOpen && null}
+      <AssistTray open={assistOpen} onOpenChange={setAssistOpen} entries={state.assist} disabled={closed}
+        onAsk={(text) => void room.ask(text)}
+        onSend={(text, assistId) => { if (room.say(text, assistId)) { stick.current = true; setAssistOpen(false); } }}
+        onEdit={(text) => { setDraft(text); setAssistOpen(false); }} />
     </div>
   );
 }
