@@ -1,10 +1,11 @@
 import {
-  AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FlameIcon,
+  AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
   LanguagesIcon, LogOutIcon, SmartphoneIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
+import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "@renderer/lib/utils";
 import { Avatar } from "~/components/avatar";
 import { IconChip } from "~/components/icon-chip";
@@ -15,6 +16,7 @@ import type { Tone } from "~/components/tone";
 import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
+import { useRoomsEnabled } from "~/features/rooms";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -63,6 +65,24 @@ function SelectRow({ id, testId, icon, tone = "gray", title, hint, display, valu
   );
 }
 
+/** 开关行:外观同 SelectRow(图标片 / 标题 + 说明),右侧是开关;行高 ≥ 56,开关命中区 44。 */
+function SwitchRow({ id, testId, icon, tone = "gray", title, hint, checked, onChange }: {
+  id: string; testId: string; icon: LucideIcon; tone?: Tone; title: ReactNode; hint?: ReactNode; checked: boolean; onChange(value: boolean): void;
+}) {
+  const hintId = `${id}-hint`;
+  return (
+    <div className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3">
+      <IconChip tone={tone} icon={icon} />
+      <span className="min-w-0 flex-1">
+        <label htmlFor={id} className="block text-body font-medium tracking-[-0.005em] text-ink">{title}</label>
+        {hint ? <span id={hintId} className="mt-0.5 block text-meta text-ink-2">{hint}</span> : null}
+      </span>
+      <Switch id={id} data-testid={testId} checked={checked} onCheckedChange={onChange} aria-describedby={hint ? hintId : undefined}
+        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+    </div>
+  );
+}
+
 /** 近 7 天的活跃条:20px 方格,已练习为蓝色底色 + 勾,今天加描边。 */
 function WeekStrip({ stats }: { stats: Stats }) {
   const { t, i18n } = useTranslation();
@@ -101,7 +121,8 @@ function WeekStrip({ stats }: { stats: Stats }) {
 export function MePage() {
   const { t } = useTranslation();
   const { user, api, logout } = useAuth();
-  const { language, setLanguage } = useSettings();
+  const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText } = useSettings();
+  const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -174,6 +195,11 @@ export function MePage() {
             onChange={(v) => setPlaybackRate(Number(v) as PlaybackRate)}>
             {PLAYBACK_RATES.map((r) => <option key={r} value={String(r)}>{formatPlaybackRate(r)}</option>)}
           </SelectRow>
+          {roomsEnabled && (
+            <SwitchRow id={`${id}-room-voice-text`} testId="me-room-voice-auto-text" icon={FileTextIcon} tone="blue"
+              title={t("web.me.roomVoiceAutoText")} hint={t("web.me.roomVoiceAutoTextHint")}
+              checked={roomVoiceAutoText} onChange={setRoomVoiceAutoText} />
+          )}
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.general")} bare>

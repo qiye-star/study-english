@@ -24,8 +24,46 @@ describe("settings", () => {
     expect(screen.getByRole("button")).toHaveTextContent("zh-CN");
     expect(i18n.language).toBe("zh-CN");
     expect(document.documentElement.lang).toBe("zh-CN");
-    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN" });
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: false });
     await act(async () => { await i18n.changeLanguage("en"); });
+  });
+
+  describe("roomVoiceAutoText", () => {
+    function AutoProbe() {
+      const { roomVoiceAutoText, setRoomVoiceAutoText, setLanguage } = useSettings();
+      return (
+        <>
+          <span data-testid="auto">{String(roomVoiceAutoText)}</span>
+          <button onClick={() => setRoomVoiceAutoText(true)}>on</button>
+          <button onClick={() => setLanguage("en")}>en</button>
+        </>
+      );
+    }
+    const stored = () => JSON.parse(localStorage.getItem("enjoy-web.settings")!);
+
+    it("defaults to off for old storage and keeps the language when turned on", async () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+      render(<SettingsProvider><AutoProbe /></SettingsProvider>);
+      expect(screen.getByTestId("auto")).toHaveTextContent("false");
+      await act(async () => screen.getByRole("button", { name: "on" }).click());
+      expect(screen.getByTestId("auto")).toHaveTextContent("true");
+      expect(stored()).toEqual({ language: "zh-CN", roomVoiceAutoText: true });
+      await act(async () => screen.getByRole("button", { name: "en" }).click());
+      expect(stored()).toEqual({ language: "en", roomVoiceAutoText: true });
+    });
+
+    it("ignores a non-boolean value but keeps a valid language", () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "en", roomVoiceAutoText: "yes" }));
+      render(<SettingsProvider><AutoProbe /></SettingsProvider>);
+      expect(screen.getByTestId("auto")).toHaveTextContent("false");
+    });
+
+    it("keeps the preference when the stored language is invalid", async () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "fr", roomVoiceAutoText: true }));
+      render(<SettingsProvider><AutoProbe /></SettingsProvider>);
+      expect(screen.getByTestId("auto")).toHaveTextContent("true");
+      await act(async () => { await i18n.changeLanguage("en"); });
+    });
   });
 
   it("applies the saved language synchronously on the first render (no flash of the default)", async () => {

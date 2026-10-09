@@ -1,0 +1,49 @@
+{
+  "web": {
+    "rooms": {
+      "voice": {
+        "play": "Play voice message",
+        "pause": "Pause",
+        "playFailed": "Could not play this voice message",
+        "audioRemoved": "Audio removed",
+        "toText": "Text",
+        "hideText": "Hide",
+        "translate": "Translate",
+        "hideTranslation": "Hide translation",
+        "pending": "Transcribing…",
+        "empty": "Didn't catch that",
+        "failed": "Transcription failed",
+        "retry": "Retry",
+        "translating": "Translating…",
+        "translateFailed": "Translation failed. Tap Translate to try again.",
+        "trTag": "Tr",
+        "trTagLong": "Translation:",
+        "noSpeech": "Didn't catch that. Try again.",
+        "sending": "Sending…",
+        "transcribing": "Transcribing…",
+        "interrupted": "Recording was interrupted and not sent",
+        "hold": { "tooShort": "Too short. Hold to talk.", "notReady": "Microphone is ready. Hold to talk." },
+        "errors": {
+          "voiceOff": "Voice messages are off in this room",
+          "badFormat": "The recording format was wrong. Try again.",
+          "tooShort": "That was too short",
+          "tooLong": "Voice messages can be up to 60 seconds",
+          "tooLarge": "The voice file is too large",
+          "quota": "Voice storage is full. You can keep sending text.",
+          "daily": "You've used today's voice messages. You can keep sending text.",
+          "badReply": "The quoted message no longer exists",
+          "removed": "The audio was removed by an admin"
+        }
+      },
+      "notice": {
+        "voice_off": "Voice messages are off",
+        "voice_quota": "Today's voice allowance is used up",
+        "translate_quota": "Today's translations are used up",
+        "retry_limit": "This voice message can't be retried again"
+      },
+      "errors": {
+        "bad_seq": "This voice message can't be translated yet"
+      }
+    }
+  }
+}

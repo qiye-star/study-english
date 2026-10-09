@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
+import i18n from "~/i18n";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -85,6 +86,24 @@ describe("MePage", () => {
     await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
     expect(screen.queryByTestId("me-stats")).toBeNull();
     expect(screen.getByTestId("me-logout")).toBeInTheDocument();
+  });
+  it("offers the room voice auto-text switch only when rooms are on", async () => {
+    localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+    const mock = createFetchMock({ ...ROUTES, "GET /api/rooms/config": () => json({ enabled: true }) });
+    const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const toggle = await screen.findByTestId("me-room-voice-auto-text");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("联机语音自动转文字")).toBeInTheDocument();
+    expect(screen.getByText("收到语音消息时自动显示文字和翻译")).toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: true });
+    unmount();
+    localStorage.removeItem("enjoy-web.settings");
+    await i18n.changeLanguage("en");
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock({ ...ROUTES, "GET /api/rooms/config": () => json({ enabled: false }) }).fetch }) });
+    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    expect(screen.queryByTestId("me-room-voice-auto-text")).toBeNull();
   });
   it("links to the vocabulary book", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
