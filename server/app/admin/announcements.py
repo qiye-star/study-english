@@ -1,21 +1,19 @@
 """公告与维护模式开关(spec §9)。每个写操作在同一事务里写审计(只记级别、时间窗与摘要)。
 
-维护模式是普通设置(`maintenance_mode`、`maintenance_message_zh/en`):本模块按设置覆盖的存法写库
-(`setting_overrides` + `setting_revisions` + `config_revisions['settings']`),再 `reload_from_db` 立即生效;
+维护模式是普通设置(`maintenance_mode`、`maintenance_message_zh/en`):经 `settings_service.save(action="maintenance.set")`
+写库(修订、审计、发布中心与监听器与设置页同一条路径),立即生效;
 切到 read_only/full 是危险操作:超级管理员 + 二次验证 + 理由 + 输入 `MAINTENANCE_MODE` 确认。
 """
-import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from app.admin import audit
 from app.admin.audit import Actor
-from app.core.runtime_settings import OverrideError, bump_revision, coerce, compose, reload_from_db, runtime_problems
-from app.core.secretbox import fingerprint
+from app.core.runtime_settings import OverrideError, coerce
 from app.core.settings_registry import SPECS
-from app.models import Announcement, SettingOverride, SettingRevision, iso_utc
+from app.models import Announcement, SettingOverride, iso_utc
 
 LEVELS = ("info", "warning")
 MAX_TEXT = 280
@@ -146,8 +144,12 @@ def maintenance_out(settings) -> dict:
 
 async def set_maintenance(session, app, actor: Actor, changes: dict, *, reason: str, confirm: str | None,
                           stepped_up: bool) -> MaintenanceResult:
-    """Write the maintenance settings as DB overrides (caller has superadmin). A value equal to the env value
-    removes the override. Turning maintenance on (read_only/full) needs step-up + reason + typed confirmation."""
+    """Write the maintenance settings through the settings service (one write path: revision, audit
+    `maintenance.set`, hub publish and listeners). Caller has superadmin. A value equal to the env value resets the
+    override. Turning maintenance on (read_only/full) needs step-up + reason + typed MAINTENANCE_MODE (the registry
+    danger rule); every change needs a reason of at least 4 characters."""
+    from app.admin import settings_service  # module attribute, so tests can spy on save
+
     base, current = app.state.base_settings, app.state.settings
     changes = {k: v for k, v in changes.items() if k in MAINTENANCE_KEYS and v is not None}
     try:
@@ -159,44 +161,12 @@ async def set_maintenance(session, app, actor: Actor, changes: dict, *, reason: 
         raise AnnouncementError(409, "Nothing to change")
     if len(reason.strip()) < 4:
         raise AnnouncementError(422, "Invalid settings", {"fields": {"reason": "at least 4 characters"}})
-    if "maintenance_mode" in changed and coerced["maintenance_mode"] != "off":
-        if not stepped_up:
-            raise AnnouncementError(403, "Step-up required")
-        if (confirm or "").strip() != CONFIRM_PHRASE:
-            raise AnnouncementError(409, "Confirmation required",
-                                    {"confirm": CONFIRM_PHRASE, "danger": {"maintenance_mode": SPECS["maintenance_mode"].danger}})
-    rows = {r.key: r for r in (await session.scalars(
-        select(SettingOverride).where(SettingOverride.key.in_(changed)))).all()}
+    stored = set((await session.scalars(select(SettingOverride.key).where(SettingOverride.key.in_(changed)))).all())
+    writes = {k: (None if coerced[k] == getattr(base, k) and k in stored else coerced[k]) for k in changed}
     try:
-        new = compose(current, {k: coerced[k] for k in changed})
-    except OverrideError as exc:
-        raise AnnouncementError(422, "Invalid settings", {"fields": exc.fields}) from None
-    if runtime_problems(new):
-        raise AnnouncementError(422, "Invalid settings", {"fields": {"_": "; ".join(runtime_problems(new))}})
-    revision = SettingRevision(actor=actor.name[:64], reason=reason[:200], changes=[])
-    session.add(revision)
-    await session.flush()
-    now, log = datetime.now(timezone.utc), []
-    for key in changed:
-        old_row = rows.get(key)
-        old = {"source": "override", "value": json.loads(old_row.value)} if old_row else {"source": "env"}
-        if coerced[key] == getattr(base, key):
-            await session.execute(delete(SettingOverride).where(SettingOverride.key == key))
-            entry, op = {"source": "env"}, "reset"
-        else:
-            row = old_row or SettingOverride(key=key)
-            row.value, row.secret, row.revision = json.dumps(coerced[key], ensure_ascii=False), False, revision.id
-            row.updated_at, row.updated_by = now, actor.name[:64]
-            row.env_fp = fingerprint(app.state.admin_secret, str(getattr(base, key)))
-            session.add(row)
-            entry, op = {"source": "override", "value": coerced[key]}, "set"
-        log.append({"key": key, "op": op, "old": old, "new": entry})
-    revision.changes = log
-    await bump_revision(session, "settings")
-    await audit.record(session, actor, "maintenance.set", target_type="setting", target_id=",".join(changed)[:64],
-                       summary=f"maintenance_mode={new.maintenance_mode}",
-                       before={k: getattr(current, k) for k in changed}, after={k: getattr(new, k) for k in changed},
-                       reason=reason)
-    await session.commit()
-    await reload_from_db(app)
-    return MaintenanceResult(revision.id, changed)
+        result = await settings_service.save(session, app, actor, writes, reason=reason, confirm=confirm,
+                                             stepped_up=stepped_up, action="maintenance.set")
+    except settings_service.SettingsError as exc:
+        details = {"fields": exc.fields} if exc.status == 422 and exc.fields else (exc.details or None)
+        raise AnnouncementError(exc.status, exc.error, details) from None
+    return MaintenanceResult(result.revision, result.changed)

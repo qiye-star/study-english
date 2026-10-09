@@ -90,3 +90,27 @@ async def test_operator_cannot_switch_maintenance(app, client):
     h = await login_as(app, client, "operator")
     r = await client.post("/api/admin/maintenance", headers=h, json={"mode": "full", "reason": "xxxx"})
     assert r.status_code == 403
+
+
+async def test_maintenance_switch_goes_through_the_settings_service(app, client, monkeypatch):
+    """Integration (lane E × lane B): one write path for settings — revisions, guards, hub publish and listeners."""
+    from app.admin import settings_service
+
+    calls = []
+    real = settings_service.save
+
+    async def spy(session, app_, actor, changes, **kw):
+        calls.append((dict(changes), kw.get("action")))
+        return await real(session, app_, actor, changes, **kw)
+
+    monkeypatch.setattr(settings_service, "save", spy)
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.post("/api/admin/maintenance", headers=h,
+                          json={"mode": "full", "reason": "数据库迁移", "confirm": "MAINTENANCE_MODE"})
+    assert r.status_code == 200, r.text
+    assert calls == [({"maintenance_mode": "full"}, "maintenance.set")]
+    revisions = (await client.get("/api/admin/settings/revisions")).json()["items"]
+    assert revisions[0]["changes"][0]["key"] == "maintenance_mode"
+    r = await client.post("/api/admin/maintenance", headers=h, json={"mode": "off", "reason": "升级完成"})
+    assert r.status_code == 200 and calls[-1] == ({"maintenance_mode": None}, "maintenance.set")  # env value: reset
