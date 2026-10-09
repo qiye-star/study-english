@@ -5,6 +5,7 @@ import { useSoftKeyboard } from "./use-soft-keyboard";
 class FakeVisualViewport extends EventTarget {
   height = 812;
   width = 375;
+  scale = 1;
 }
 
 describe("useSoftKeyboard", () => {
@@ -33,6 +34,24 @@ describe("useSoftKeyboard", () => {
     expect(result.current).toBe(true);
     resize(812);
     expect(result.current).toBe(false);
+  });
+
+  it("does not take a pinch-zoom for the keyboard (review m4)", () => {
+    const { result } = renderHook(() => useSoftKeyboard());
+    resize(812);
+    act(() => {
+      vv.scale = 1.5; // iOS ignores user-scalable=no: zooming shrinks the visual viewport by the zoom factor
+      vv.height = 812 / 1.5;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      vv.scale = 1;
+      vv.height = 812;
+      vv.dispatchEvent(new Event("resize"));
+    });
+    resize(480);
+    expect(result.current).toBe(true); // the keyboard itself is still detected
   });
 
   it("treats a small shrink (browser toolbars) as no keyboard", () => {
