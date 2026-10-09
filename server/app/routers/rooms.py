@@ -400,7 +400,12 @@ async def invite_join(token: str, request: Request, user: User = Depends(current
 @router.get("/mine")
 async def my_rooms(request: Request, user: User = Depends(current_user), _: Settings = Depends(require_rooms)):
     rt = runtime(request.app)
-    return {"rooms": [await _room_json(rt, room, role) for room, role in await rt.store.mine(user.id, utcnow())]}
+    rows = await rt.store.mine(user.id, utcnow())
+    # ended rows show the learning summary as a subtitle (spec 2026-10-10 §6.1): None while open, "none" = no row
+    summaries = await rt.store.summary_statuses([room.id for room, _ in rows if room.status != "open"])
+    return {"rooms": [{**await _room_json(rt, room, role),
+                       "summary_status": None if room.status == "open" else summaries.get(room.id, "none")}
+                      for room, role in rows]}
 
 
 @router.get("/{room_id}")

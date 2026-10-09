@@ -14,7 +14,7 @@ import { joinRoomV2, ROOMS_ALL_SERVER_ERRORS } from "./create/rooms-v2-api";
 import { useJoinRequest } from "./create/use-join-request";
 import { CreateRoomSheet } from "./create-room-sheet";
 import type { RoomInfo } from "./protocol";
-import { fetchRoomsConfig, myRooms, normalizeCode, type RoomsConfig } from "./rooms-api";
+import { fetchRoomsConfig, myRooms, normalizeCode, type MyRoom, type RoomsConfig } from "./rooms-api";
 import { ghostButton, primaryButton, smallGhostButton } from "./ui";
 
 const formatCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
@@ -28,7 +28,7 @@ export function RoomsLobbyPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [state, setState] = useState<GateState>("loading");
-  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [rooms, setRooms] = useState<MyRoom[]>([]);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,8 +111,11 @@ export function RoomsLobbyPage() {
             {rooms.length === 0 && <p className="px-3.5 py-4 text-sub text-ink-2">{t("web.rooms.lobby.empty")}</p>}
             {rooms.map((room) => {
               const open = room.status === "open";
+              // 已结束且有小结(生成中 / 已生成 / 失败可重试):副标题标明,点进小结页(spec §6.1 入口)
+              const summary = !open && (room.summaryStatus === "done" || room.summaryStatus === "pending" || room.summaryStatus === "failed")
+                ? room.summaryStatus : null;
               return (
-                <Link key={room.id} to={`/rooms/r/${encodeURIComponent(room.id)}`} data-testid="my-room" data-status={room.status}
+                <Link key={room.id} to={`/rooms/r/${encodeURIComponent(room.id)}${summary ? "/summary" : ""}`} data-testid="my-room" data-status={room.status}
                   className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                   <span aria-hidden className={cn("inline-flex size-[34px] flex-none items-center justify-center rounded-badge",
                     open ? "bg-blue-tint text-blue" : "bg-surface-2 text-ink-2")}>
@@ -123,7 +126,8 @@ export function RoomsLobbyPage() {
                       {room.name || room.topic || (room.code ? t("web.rooms.room.code", { code: formatCode(room.code) }) : t("web.rooms.room.title"))}
                     </span>
                     <span className="mt-0.5 block text-meta tabular-nums text-ink-2">
-                      {open ? t("web.rooms.lobby.open", { count: room.onlineCount }) : t("web.rooms.lobby.closed")}
+                      {open ? t("web.rooms.lobby.open", { count: room.onlineCount })
+                        : summary ? t(`web.rooms.lobby.summary.${summary}`) : t("web.rooms.lobby.closed")}
                     </span>
                   </span>
                   <ChevronRightIcon aria-hidden className="size-[18px] flex-none text-ink-3" />

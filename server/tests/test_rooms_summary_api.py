@@ -155,3 +155,29 @@ def test_none_and_startup_requeue(tmp_path, monkeypatch):
         assert done["status"] == "done" and done["finished_at"] is not None
     finally:
         client.__exit__(None, None, None)
+
+
+def test_my_rooms_carry_the_summary_status(tmp_path, monkeypatch):
+    """Spec §6.1 entry: ended rows in 「我的房间」 show the summary as a subtitle, so /mine carries its status."""
+    app, client = make_client(tmp_path, monkeypatch, rooms_summary_enabled=True)
+    try:
+        rt = rooms_router.runtime(app)
+
+        async def complete(messages, max_tokens, temperature):
+            return SUMMARY
+
+        rt.summary_runner.complete = complete
+        alice, alice_id = login(client, "alice")
+        talked = client.post("/api/rooms", json={}, headers=alice).json()["room"]
+        _say(client, rt, talked["id"], alice_id, 6)
+        client.post(f"/api/rooms/{talked['id']}/close", headers=alice)
+        quiet = client.post("/api/rooms", json={}, headers=alice).json()["room"]
+        client.post(f"/api/rooms/{quiet['id']}/close", headers=alice)
+        client.portal.call(rt.hub.drain)
+        live = client.post("/api/rooms", json={}, headers=alice).json()["room"]
+        rows = {r["id"]: r for r in client.get("/api/rooms/mine", headers=alice).json()["rooms"]}
+        assert rows[talked["id"]]["summary_status"] == "done"
+        assert rows[quiet["id"]]["summary_status"] == "skipped"
+        assert rows[live["id"]]["summary_status"] is None  # open rooms have no summary yet
+    finally:
+        client.__exit__(None, None, None)

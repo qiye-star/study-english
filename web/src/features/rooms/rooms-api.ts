@@ -43,8 +43,11 @@ export async function createRoom(api: ApiClient, topic: string): Promise<RoomInf
 export async function joinRoom(api: ApiClient, code: string): Promise<RoomInfo> {
   return (await api.request<{ room: RoomInfo }>("POST", "/api/rooms/join", { json: { code } })).room;
 }
-export async function myRooms(api: ApiClient, signal?: AbortSignal): Promise<RoomInfo[]> {
-  return (await api.request<{ rooms: RoomInfo[] }>("GET", "/api/rooms/mine", { signal })).rooms;
+/** 「我的房间」一行:已结束的房间带学习小结状态(spec §6.1 入口;open 为 null,没有小结记录为 "none")。 */
+export type MySummaryStatus = "none" | "pending" | "done" | "failed" | "skipped";
+export type MyRoom = RoomInfo & { summaryStatus?: MySummaryStatus | null };
+export async function myRooms(api: ApiClient, signal?: AbortSignal): Promise<MyRoom[]> {
+  return (await api.request<{ rooms: MyRoom[] }>("GET", "/api/rooms/mine", { signal })).rooms;
 }
 export function getRoom(api: ApiClient, id: string, signal?: AbortSignal): Promise<{ room: RoomInfo; members: RoomMemberInfo[] }> {
   return api.request("GET", rid(id), { signal });

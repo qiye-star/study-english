@@ -92,6 +92,24 @@ describe("RoomsLobbyPage", () => {
       .toEqual({ scenario: "cafe", join_mode: "code", max_members: 4, ai_public: true, allow_voice: true });
   });
 
+  it("ended rows with a learning summary show it as the subtitle and open the summary", async () => {
+    setup(undefined, true, {
+      "GET /api/rooms/mine": () => json({ rooms: [
+        { ...ROOM, summary_status: null },
+        { ...ROOM, id: "r2", code: null, name: "咖啡角", status: "closed", summary_status: "done" },
+        { ...ROOM, id: "r3", code: null, name: "面馆", status: "closed", summary_status: "pending" },
+        { ...ROOM, id: "r4", code: null, name: "书店", status: "closed", summary_status: "skipped" },
+      ] }),
+    });
+    const rows = await screen.findAllByTestId("my-room");
+    expect(rows[1].textContent).toContain("已结束 · 学习小结");
+    expect(rows[1].getAttribute("href")).toBe("/rooms/r/r2/summary");
+    expect(rows[2].textContent).toContain("已结束 · 小结生成中");
+    expect(rows[2].getAttribute("href")).toBe("/rooms/r/r3/summary");
+    expect(rows[3].textContent).not.toContain("小结");
+    expect(rows[3].getAttribute("href")).toBe("/rooms/r/r4");
+  });
+
   it("explains when rooms are off", async () => {
     setup(undefined, false);
     expect(await screen.findByText("联机练习未开启。")).toBeTruthy();

@@ -748,6 +748,15 @@ class RoomStore:
                 .order_by(Room.status.desc(), Room.last_active_at.desc()))).all()
         return [(r, role) for r, role in rows]
 
+    async def summary_statuses(self, room_ids: list[str]) -> dict[str, str]:
+        """{room_id: learning-summary status} for rooms that have a summary row (spec 2026-10-10 §6.1)."""
+        if not room_ids:
+            return {}
+        async with self._sm() as s:
+            rows = (await s.execute(select(RoomSummary.room_id, RoomSummary.status)
+                                    .where(RoomSummary.room_id.in_(room_ids)))).all()
+        return {room_id: status for room_id, status in rows}
+
     async def sweep(self, now: datetime, online: set[str]) -> list[tuple[str, str]]:
         """Close idle/expired rooms. Never deletes messages (that is `purge`, off by default)."""
         closed: list[tuple[str, str]] = []

@@ -11,7 +11,12 @@
         "open": "Live · {{count}} online",
         "closed": "Ended",
         "empty": "No rooms yet. Create one and share the code.",
-        "rules": "Rooms end after 24 hours; everyone sees @ai answers."
+        "rules": "Rooms end after 24 hours; everyone sees @ai answers.",
+        "summary": {
+          "done": "Ended · Learning recap",
+          "pending": "Ended · Recap on the way",
+          "failed": "Ended · Recap failed"
+        }
       },
       "create": {
         "title": "Create a room",
