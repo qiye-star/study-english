@@ -21,7 +21,6 @@ from app.core.settings_registry import SECRETS
 from app.core.runtime_settings import (
     SettingsHub, reload_from_db, run_startup_hooks, runtime_problems, watch_revisions,
 )
-from app.rooms.protocol import CLOSE_RESTART
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_auth, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
@@ -137,15 +136,9 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
     hub.subscribe("azure", drop("azure"), keys={"azure_speech_key", "azure_speech_region"})
     hub.subscribe("xfyun", drop("xfyun"), keys={"xfyun_app_id", "xfyun_api_key", "xfyun_api_secret", "xfyun_ws_url"})
     hub.subscribe("grammar_rules", grammar_apply, keys={"grammar_prompt"}, prepare=grammar_prepare)
-    # Prices are parsed per request (admin.usage.prices_for); this only rejects a save with bad numbers.
-    def maintenance_apply(old: Settings, new: Settings) -> None:
-        # Spec §9: switching maintenance on drops live room sockets with 1012 (clients reconnect, see the banner,
-        # and the reconnect is refused with 1013 by MaintenanceMiddleware).
-        rt = getattr(state, "rooms", None)
-        if rt is not None and old.maintenance_mode == "off" and new.maintenance_mode != "off":
-            rt.hub.spawn(rt.hub.close_all(CLOSE_RESTART))
-
     hub.subscribe("log_secrets", _log_secrets, keys=set(SECRETS))
-    hub.subscribe("maintenance_rooms", maintenance_apply, keys={"maintenance_mode"})
+    # Spec §9 "maintenance drops live room sockets with 1012" lives in the rooms runtime listener
+    # (`routers/rooms.RoomsRuntime.reconfigure`); new room sockets are refused with 1013 by MaintenanceMiddleware.
+    # Prices are parsed per request (admin.usage.prices_for); this only rejects a save with bad numbers.
     hub.subscribe("metering_prices", lambda o, n: None, keys={"usage_prices_json"},
                   prepare=lambda new: usage.parse_prices(new.usage_prices_json))
