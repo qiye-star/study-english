@@ -24421,6 +24421,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"qrcode-generator@npm:1.4.4":
+  version: 1.4.4
+  resolution: "qrcode-generator@npm:1.4.4"
+  checksum: 10c0/3249fcff98cb9fa17c21329d3dfd895e294a2d6ea48161f7b377010779d41f0cd88668b7fb3478a659725061bb0a770b40a227c2f4853e8c4a6b947a9e8bf17a
+  languageName: node
+  linkType: hard
+
 "qs@npm:6.13.0":
   version: 6.13.0
   resolution: "qs@npm:6.13.0"
@@ -29439,6 +29446,7 @@ __metadata:
     onnxruntime-web: "npm:1.30.0"
     pitchfinder: "npm:^2.3.2"
     postcss: "npm:^8.5.3"
+    qrcode-generator: "npm:1.4.4"
     react: "npm:^18.3.1"
     react-dom: "npm:^18.3.1"
     react-i18next: "npm:^15.4.1"

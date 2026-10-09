@@ -10,7 +10,7 @@ import { ConversationPage, ConversationsPage } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
-import { RoomPage, RoomsLobbyPage } from "~/features/rooms";
+import { RoomInvitePage, RoomPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
@@ -61,6 +61,7 @@ export function AppRoutes() {
             <Route path="/rank/achievements" element={<AchievementsPage />} />
             <Route path="/rooms" element={<RoomsLobbyPage />} />
             <Route path="/rooms/r/:roomId" element={<RoomPage />} />
+            <Route path="/rooms/invite/:token" element={<RoomInvitePage />} />
             <Route path="/me" element={<MePage />} />
           </Route>
         </Route>
