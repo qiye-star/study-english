@@ -75,7 +75,7 @@ async def patch_settings(body: PatchIn, request: Request, ctx: AdminContext = De
         _totp_guard(ctx, body.changes)
         result = await svc.save(session, request.app, ctx.actor, body.changes, reason=body.reason,
                                 confirm=body.confirm, confirm_pairs=body.confirm_pairs,
-                                stepped_up=stepped_up(ctx, request.app.state.settings))
+                                stepped_up=stepped_up(ctx, request.app.state.settings), actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -88,7 +88,8 @@ async def reset_setting(key: str, request: Request, reason: str = Query("", max_
                         session: AsyncSession = Depends(get_session)):
     try:
         result = await svc.save(session, request.app, ctx.actor, {key[:64]: None}, reason=reason, confirm=confirm,
-                                stepped_up=stepped_up(ctx, request.app.state.settings), action="settings.reset")
+                                stepped_up=stepped_up(ctx, request.app.state.settings), action="settings.reset",
+                                actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -107,7 +108,7 @@ async def revert_revision(revision_id: int, body: RevertIn, request: Request,
     try:
         result = await svc.revert(session, request.app, ctx.actor, revision_id, reason=body.reason,
                                   confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings),
-                                  acknowledge_conflicts=body.acknowledge_conflicts)
+                                  acknowledge_conflicts=body.acknowledge_conflicts, actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)
@@ -196,7 +197,7 @@ async def import_apply(body: ImportApplyIn, request: Request, ctx: AdminContext 
         overrides = body.payload.get("overrides")
         _totp_guard(ctx, {str(k).lower(): v for k, v in overrides.items()} if isinstance(overrides, dict) else {})
         result = await svc.import_apply(session, request.app, ctx.actor, body.payload, reason=body.reason,
-                                        confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings))
+                                        confirm=body.confirm, stepped_up=stepped_up(ctx, request.app.state.settings), actor_totp=ctx.totp_enabled)
     except svc.SettingsError as exc:
         return _error(exc)
     return _result(result)

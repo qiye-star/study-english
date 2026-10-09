@@ -186,3 +186,20 @@ async def test_lower_roles_do_not_see_admin_env_values(app, client):
     await login_as(app, client, "superadmin")
     items = {i["key"]: i for i in (await client.get("/api/admin/settings")).json()["items"]}
     assert items["admin_username"]["env_value"] == "root"
+
+
+@pytest.mark.parametrize("settings_overrides", [{**ADMIN_ENABLED, "settings_encryption_key": Fernet.generate_key().decode(),
+                                                 "admin_require_totp": True}], indirect=True)
+async def test_revert_cannot_switch_require_totp_on_for_a_superadmin_without_totp(app, client):
+    """Review correctness m10: PATCH and import refuse it; revert must too."""
+    from app.admin import settings_service as svc
+    from app.admin.audit import Actor
+
+    async with app.state.sessionmaker() as s:  # someone with TOTP switched it off earlier
+        off = await svc.save(s, app, Actor("root", "superadmin", None, "ip"), {"admin_require_totp": False})
+    h = await login_as(app, client, "superadmin")  # no TOTP bound
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    r = await client.post(f"/api/admin/settings/revisions/{off.revision}/revert", headers=h,
+                          json={"reason": "恢复强制 TOTP", "confirm": "ADMIN_REQUIRE_TOTP"})
+    assert r.status_code == 409 and r.json()["error"] == "Bind TOTP first"
+    assert app.state.settings.admin_require_totp is False

@@ -171,7 +171,9 @@ async def _current_overrides(session, app, box) -> dict[str, object]:
 
 
 async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", confirm=None, confirm_pairs=(),
-               stepped_up: bool = False, action: str = "settings.update") -> SaveResult:
+               stepped_up: bool = False, action: str = "settings.update", actor_totp: bool = True) -> SaveResult:
+    """`actor_totp`: whether the acting admin has TOTP bound; switching ADMIN_REQUIRE_TOTP on needs it (spec §3.2),
+    on every path that ends here (PATCH, reset, revert, import; review correctness m10)."""
     if not changes:
         raise SettingsError(400, "No changes")
     await sessions.ensure_secret(app)  # env fingerprints (`_fp`) use the stable admin secret
@@ -211,6 +213,8 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     if problems:
         raise SettingsError(422, "Invalid settings", fields={"_": "; ".join(problems)})
     current: Settings = app.state.settings
+    if new.admin_require_totp and not current.admin_require_totp and not actor_totp:
+        raise SettingsError(409, "Bind TOTP first", fields={"admin_require_totp": "Bind TOTP first"})
     # A restart key's stored value may differ from the running one (pending): setting it back is a real change.
     changed = [k for k in changes
                if getattr(new, k) != getattr(current, k) or (changes[k] is None) != (k not in rows)
@@ -372,7 +376,7 @@ async def list_revisions(session, *, before_id: int | None = None, limit: int = 
 
 
 async def revert(session, app, actor, revision_id: int, *, reason: str, confirm: str | None, stepped_up: bool,
-                 acknowledge_conflicts: bool) -> SaveResult:
+                 acknowledge_conflicts: bool, actor_totp: bool = True) -> SaveResult:
     target = await session.get(SettingRevision, revision_id)
     if target is None:
         raise SettingsError(404, "Revision not found")
@@ -399,7 +403,7 @@ async def revert(session, app, actor, revision_id: int, *, reason: str, confirm:
         else:
             changes[c["key"]] = old.get("value")
     result = await save(session, app, actor, changes, reason=reason, confirm=confirm, stepped_up=stepped_up,
-                        action="settings.revert")
+                        action="settings.revert", actor_totp=actor_totp)
     target = await session.get(SettingRevision, revision_id)
     target.reverted_by = result.revision
     await session.commit()
@@ -464,10 +468,10 @@ async def import_preview(session, app, payload: dict) -> dict:
 
 
 async def import_apply(session, app, actor, payload: dict, *, reason: str, confirm: str | None,
-                       stepped_up: bool) -> SaveResult:
+                       stepped_up: bool, actor_totp: bool = True) -> SaveResult:
     preview = await import_preview(session, app, payload)
     changes = {i["key"]: i["value"] for i in preview["items"] if i["status"] == "changed"}
     if not changes:
         raise SettingsError(409, "Nothing to change")
     return await save(session, app, actor, changes, reason=reason, confirm=confirm, stepped_up=stepped_up,
-                      action="settings.import")
+                      action="settings.import", actor_totp=actor_totp)
