@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { FeatureGate } from "~/components/feature-gate";
 import { HoldToTalkBar } from "~/components/hold-to-talk-bar";
 import { ToneBadge } from "~/components/tone-badge";
 import { goPractice, savePracticeItem } from "~/features/practice";
@@ -20,15 +21,18 @@ const LIVE_PHASES = new Set(["ai_speaking", "your_turn", "recording", "uploading
 const OPEN_STATUSES = new Set(["active", "grading_failed"]);
 const TOOL = "inline-flex min-h-tap items-center gap-[5px] rounded-button px-1 text-sub font-medium text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:size-[18px]";
 
+/** 情景名:英文界面用英文名(简报只有中文) */
+const scenarioTitle = (match: Match, language: string) => (language.startsWith("en") && match.scenario.titleEn) || match.scenario.titleZh;
+
 const matchMinutes = (match: Match) => Math.max(1, Math.round((Date.parse(match.expiresAt) - Date.parse(match.startedAt)) / 60_000)) || 20;
 
 /** 情景卡:情景名 + 目标段位 + 目标清单(进行中不勾选、不显示分数;设计稿 R2)。 */
 function ScenarioCard({ match }: { match: Match }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div data-testid="match-brief" className={cn("px-3.5 py-3", CARD)}>
       <div className="flex items-center justify-between gap-2">
-        <b className="text-body font-semibold">{match.scenario.titleZh}</b>
+        <b className="text-body font-semibold">{scenarioTitle(match, i18n.language)}</b>
         <ToneBadge tone="gray">{t("web.rank.match.target", { tier: t(`web.rank.tiers.${match.toTier}`) })}</ToneBadge>
       </div>
       <ul className="mt-2 grid gap-1 text-sub text-ink-2">
@@ -44,10 +48,10 @@ function ScenarioCard({ match }: { match: Match }) {
 export function MatchPage() {
   const { id = "" } = useParams();
   const { api } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const m = useMatch(id);
-  const { phase, match, verdict, error, retry, showText } = m.state;
+  const { phase, match, verdict, error, retry, showText, speakFailed } = m.state;
   const [now, setNow] = useState(() => Date.now());
   const live = LIVE_PHASES.has(phase);
   useEffect(() => {
@@ -56,6 +60,14 @@ export function MatchPage() {
     return () => window.clearInterval(timer);
   }, [live]);
 
+  if (phase === "disabled") {
+    return (
+      <div className="flex flex-1 flex-col">
+        <PageHeader title={t("web.rank.match.title")} back="/rank" />
+        <FeatureGate state="disabled" disabledText={t("web.rank.disabled")}>{null}</FeatureGate>
+      </div>
+    );
+  }
   if (phase === "result" && match) {
     return (
       <div className="flex flex-1 flex-col">
@@ -114,6 +126,10 @@ export function MatchPage() {
       </div>
       {match && live && (
         <div data-testid="match-dock" className="glass glass-edge-t sticky bottom-0 z-30 px-3 pb-2 pt-1.5">
+          {m.micError && <p role="alert" data-testid="match-mic-error" className="mb-1 px-1 text-sub text-ink">{m.micError}</p>}
+          {!m.micError && speakFailed && (phase === "your_turn" || phase === "recording") && (
+            <p role="status" data-testid="match-speak-failed" className="mb-1 px-1 text-meta text-ink-2">{t("web.rank.match.speakFailed")}</p>
+          )}
           <div className="mb-1 flex justify-between">
             <button type="button" className={TOOL} disabled={phase !== "your_turn"} onClick={m.replay}>
               <Volume2Icon aria-hidden />{t("web.rank.match.replay")}
@@ -143,7 +159,7 @@ export function MatchPage() {
         <BottomSheetContent>
           {match && (
             <>
-              <BottomSheetHeader title={match.scenario.titleZh} description={match.scenario.briefZh} />
+              <BottomSheetHeader title={scenarioTitle(match, i18n.language)} description={match.scenario.briefZh} />
               <div data-testid="match-briefing" className="pb-2">
                 <p className="text-sub font-semibold text-ink-2">{t("web.rank.match.goals")}</p>
                 <ul className="mt-2 grid gap-1.5 text-body">

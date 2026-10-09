@@ -40,9 +40,12 @@ describe("matchReducer", () => {
   it("cancel returns to your turn; failures retry the right step", () => {
     let s = run([{ type: "loaded", match: match(), verdict: null }, { type: "begin" }, { type: "ai_done" }, { type: "press" }, { type: "cancel" }]);
     expect(s.phase).toBe("your_turn");
-    s = run([{ type: "press" }, { type: "release" }, { type: "failed", error: "说得太短了", retry: "turn" }], s);
+    s = run([{ type: "press" }, { type: "release" }, { type: "failed", error: "说得太短了", retry: "record" }], s);
     expect([s.phase, s.error]).toEqual(["error", "说得太短了"]);
-    expect(matchReducer(s, { type: "retry" }).phase).toBe("your_turn");
+    expect(matchReducer(s, { type: "retry" }).phase).toBe("your_turn"); // nothing reached the server: record again
+    const turn = matchReducer({ ...s, retry: "turn" }, { type: "retry" });
+    expect(turn.phase).toBe("loading"); // the upload may have landed, or the match expired: ask the server
+    expect(run([{ type: "loaded", match: match(), verdict: null }], turn).phase).toBe("your_turn"); // no second briefing
     const f = matchReducer({ ...s, retry: "finish" }, { type: "retry" });
     expect(f.phase).toBe("grading");
     expect(matchReducer({ ...s, retry: "load" }, { type: "retry" }).phase).toBe("loading");
@@ -54,6 +57,9 @@ describe("matchReducer", () => {
     expect(matchReducer(s, { type: "retry" })).toBe(s);
     expect(matchReducer(s, { type: "turn_ok", result: { turnIndex: 1, transcript: "x", aiLine: null, done: false } })).toBe(s);
     expect(matchReducer(s, { type: "toggle_text" }).showText).toBe(true);
+    expect(matchReducer(s, { type: "disabled" }).phase).toBe("disabled");
+    const speaking = run([{ type: "begin" }], s);
+    expect(matchReducer(speaking, { type: "ai_done", failed: true })).toMatchObject({ phase: "your_turn", showText: true, speakFailed: true });
     expect(matchReducer(s, { type: "ended", match: match({ status: "abandoned" }) }).phase).toBe("result");
   });
 });

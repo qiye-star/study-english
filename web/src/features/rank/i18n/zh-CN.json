@@ -14,7 +14,7 @@
   "match": { "title": "晋级赛", "turn": "第 {{n}}/{{total}} 轮", "timeLeft": "剩 {{time}}", "briefTitle": "情景简报", "goals": "你要做到", "target": "目标 {{tier}}",
     "rules": "全程语音作答,不能打字。共 {{turns}} 轮,{{minutes}} 分钟内完成,每轮 1.5–30 秒。", "begin": "开始", "replay": "重听",
     "showText": "看文字", "hideText": "隐藏文字", "hold": "按住 说话", "listening": "正在听…", "grading": "正在评分…",
-    "partner": "对方", "speaking": "正在说",
+    "partner": "对方", "speaking": "正在说", "speakFailed": "没能播放对方的话,已显示文字。",
     "abandon": "放弃本场", "abandonConfirm": "放弃会算作一次未通过,确定吗?", "retry": "重试", "regrade": "重新打分", "ended": "本场已结束", "you": "你" },
   "result": { "passed": "晋级成功", "failed": "差一点", "points": "分", "passMark": "通过线 {{threshold}}", "score": "{{total}} 分 / 通过线 {{threshold}}",
     "scores": "评分", "notes": "点评", "next": "下一步",
