@@ -91,3 +91,48 @@ def test_promotion_status(state, tasks, kw, expected):
     result = promotion_status(state, tasks, **args)
     assert isinstance(result, Promotion) and (result.state, result.reason) == expected
     assert result.target_tier == (None if state.tier == 6 else state.tier + 1)
+
+
+async def test_concurrent_syncs_and_unlocks_do_not_collide(tmp_path, monkeypatch):
+    """Review #10: two /me requests at once computed the same fresh events and the loser 500ed on the unique index."""
+    import asyncio
+
+    from app.core.db import Base
+    from app.main import create_app
+    from app.rank import achievements
+    from tests.conftest import make_settings
+
+    url = f"sqlite+aiosqlite:///{(tmp_path / 'l.db').as_posix()}"
+    app_ = create_app(make_settings(rank_enabled=True, database_url=url))
+    try:
+        async with app_.state.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        async with app_.state.sessionmaker() as s:
+            await seed_user(s)
+            s.add_all([assessment(i, 95, NOW - timedelta(minutes=i)) for i in range(5)])
+            await ledger.load_profile(s, UID, NOW)
+            await s.commit()
+
+        real_collect = ledger._collect
+
+        async def slow_collect(*args):  # every request computes its fresh events before any of them commits
+            out = await real_collect(*args)
+            await asyncio.sleep(0.05)
+            return out
+
+        monkeypatch.setattr(ledger, "_collect", slow_collect)
+
+        async def me():
+            async with app_.state.sessionmaker() as s:
+                profile = await ledger.sync(s, UID, NOW, 0, 60)
+                new = await achievements.unlock_new(s, UID, {"pron_90", "room_first"}, NOW)
+                return profile.rp, new
+
+        results = await asyncio.gather(me(), me(), me())
+        assert len({rp for rp, _ in results}) == 1
+        assert sorted(k for _, new in results for k in new) == ["pron_90", "room_first"]
+        async with app_.state.sessionmaker() as s:
+            assert await s.scalar(select(func.count()).select_from(XpEvent).where(XpEvent.kind == "active_day")) == 1
+    finally:
+        await app_.state.http.aclose()
+        await app_.state.engine.dispose()

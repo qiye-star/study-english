@@ -2,6 +2,9 @@
 
 Each sync scans rows created since the profile's watermark (first sync: the last 14 days), at most
 MAX_SYNC_ROWS per source. Events are idempotent by (user_id, kind, ref_id). Never logs user content."""
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -19,6 +22,7 @@ from app.services.stats import as_utc
 SYNC_LOOKBACK_DAYS = 14
 MAX_SYNC_ROWS = 2000
 SAFETY = timedelta(seconds=30)
+_sync_locks: dict[int, list] = {}  # user_id -> [asyncio.Lock, holders + waiters]
 
 
 def state_of(p: RankProfile) -> RankState:
@@ -84,7 +88,27 @@ async def _collect(session: AsyncSession, user_id: int, since: datetime, now: da
     return out, watermark
 
 
+@asynccontextmanager
+async def _user_lock(user_id: int) -> AsyncIterator[None]:
+    entry = _sync_locks.setdefault(user_id, [asyncio.Lock(), 0])
+    entry[1] += 1
+    try:
+        async with entry[0]:
+            yield
+    finally:
+        entry[1] -= 1
+        if entry[1] == 0:
+            _sync_locks.pop(user_id, None)
+
+
 async def sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int) -> RankProfile:
+    """One sync per user at a time (single worker): concurrent /me requests would compute the same fresh events
+    and the loser would hit the xp_events unique index (review #10)."""
+    async with _user_lock(user_id):
+        return await _sync(session, user_id, now, offset_minutes, daily_cap)
+
+
+async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minutes: int, daily_cap: int) -> RankProfile:
     profile = await load_profile(session, user_id, now)
     since = as_utc(profile.synced_at) if profile.synced_at else now - timedelta(days=SYNC_LOOKBACK_DAYS)
     candidates, watermark = await _collect(session, user_id, since, now, offset_minutes)

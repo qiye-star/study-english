@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import insert_ignore
 from app.models import PromotionMatch, RoomMember, RoomMessage, UserAchievement, XpEvent, iso_utc
 from app.rank.tiers import TIERS, Season, season_of
 
@@ -126,9 +127,12 @@ async def season_badges(session: AsyncSession, user_id: int, today: date, anchor
 
 async def unlock_new(session: AsyncSession, user_id: int, keys: set[str], now: datetime) -> list[str]:
     have = set((await session.scalars(select(UserAchievement.key).where(UserAchievement.user_id == user_id))).all())
-    new = sorted(keys - have)
-    for key in new:
-        session.add(UserAchievement(user_id=user_id, key=key, unlocked_at=now))
+    new = []
+    for key in sorted(keys - have):  # ON CONFLICT DO NOTHING: a concurrent /me may unlock the same key (review #10)
+        inserted = await session.execute(insert_ignore(session, UserAchievement).values(
+            user_id=user_id, key=key, unlocked_at=now))
+        if inserted.rowcount:
+            new.append(key)
     if new:
         await session.commit()
     return new
