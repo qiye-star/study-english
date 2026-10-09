@@ -168,8 +168,10 @@ async def save(session, app, actor: Actor, changes: dict, *, reason: str = "", c
     if problems:
         raise SettingsError(422, "Invalid settings", fields={"_": "; ".join(problems)})
     current: Settings = app.state.settings
+    # A restart key's stored value may differ from the running one (pending): setting it back is a real change.
     changed = [k for k in changes
-               if getattr(new, k) != getattr(current, k) or (changes[k] is None) != (k not in rows)]
+               if getattr(new, k) != getattr(current, k) or (changes[k] is None) != (k not in rows)
+               or k in hub.pending_restart]
     if not changed:
         raise SettingsError(409, "Nothing to change")
     danger = {k: r for k in changed if (r := danger_reasons(k, getattr(current, k), getattr(new, k)))}

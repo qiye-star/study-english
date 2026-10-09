@@ -44,6 +44,18 @@ async def test_restart_setting_is_saved_but_pending(app):
     assert app.state.settings.asr_stream_max_concurrency == 3
 
 
+async def test_pending_restart_can_be_set_back_to_the_running_value(app):
+    await _save(app, {"asr_stream_max_concurrency": 6})
+    result = await _save(app, {"asr_stream_max_concurrency": 3})  # changed my mind: back to the running value
+    assert result.changed == ["asr_stream_max_concurrency"] and result.pending_restart == []
+    assert app.state.settings_hub.pending_restart == {}
+    async with app.state.sessionmaker() as s:
+        assert json.loads((await s.get(SettingOverride, "asr_stream_max_concurrency")).value) == 3
+    with pytest.raises(svc.SettingsError) as exc:  # now really nothing to change
+        await _save(app, {"asr_stream_max_concurrency": 3})
+    assert exc.value.status == 409
+
+
 async def test_invalid_values_report_fields_and_change_nothing(app):
     with pytest.raises(svc.SettingsError) as exc:
         await _save(app, {"rate_limit_per_minute": 0, "realtime_max_minutes": 5})
