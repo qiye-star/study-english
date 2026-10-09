@@ -1,0 +1,24 @@
+{
+  "web": {
+    "rooms": {
+      "dock": {
+        "name": "Assistant",
+        "private": "Only you",
+        "newSuggestions_one": "{{count}} new suggestion",
+        "newSuggestions_other": "{{count}} new suggestions",
+        "collapse": "Collapse assistant",
+        "expand": "Expand assistant",
+        "close": "Close assistant",
+        "resize": "Drag to resize the assistant panel",
+        "send": "Send",
+        "edit": "Edit",
+        "sent": "Sent",
+        "retry": "Retry",
+        "empty": "Type what you want to say below (Chinese is fine too). The assistant suggests natural English you can send to the room in one tap.",
+        "rowHint": "Type what you want to say and get help phrasing it",
+        "entry": "Assistant",
+        "entryUnread": "Assistant, new suggestions"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "web": {
+    "rooms": {
+      "dock": {
+        "name": "助手",
+        "private": "仅你可见",
+        "newSuggestions_one": "{{count}} 条新建议",
+        "newSuggestions_other": "{{count}} 条新建议",
+        "collapse": "收起助手",
+        "expand": "展开助手",
+        "close": "关闭助手",
+        "resize": "拖动调整助手面板高度",
+        "send": "发送",
+        "edit": "改一改",
+        "sent": "已发送",
+        "retry": "重试",
+        "empty": "在下面的输入框写下想说的话(中英混写也行),助手给你地道的说法,满意了一键发到群里。",
+        "rowHint": "写下想说的话,助手帮你组句",
+        "entry": "助手",
+        "entryUnread": "助手,有新建议"
+      }
+    }
+  }
+}
