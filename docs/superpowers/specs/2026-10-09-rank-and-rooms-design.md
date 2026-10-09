@@ -288,11 +288,11 @@ Return ONLY JSON:
 create(open) ──▶ 有人在线 / 有消息 ──▶ 无人在线且 30 分钟无消息(idle) ──▶ closed(idle)
      │                                       创建满 24 小时 ──────────────▶ closed(expired)
      └── 房主「结束房间」 ──────────────────────────────────────────────▶ closed(owner)
-closed ──(7 天后)──▶ 删除消息、成员、举报(purge)
+closed ──▶ 只读历史(消息永久保留;仅当 ROOM_MESSAGE_RETENTION_DAYS > 0 时才按窗口删除消息)
 ```
 
-- 每 60 秒一次后台清扫(`rooms_sweeper`):关闭 idle/超时房间,清理过期数据。
-- 关闭时:在线成员收到 `closed{reason}` 并以 4004 断开;房间历史对原成员只读保留 7 天(`ROOMS_RETENTION_DAYS`)。
+- 每 60 秒一次后台清扫(`rooms_sweeper`):只结束 idle/超时房间并清理内存状态(连接、锁、限流窗口);**不删除任何消息**,除非管理员设置了 `ROOM_MESSAGE_RETENTION_DAYS > 0`(默认 0 = 永久保留)。
+- 关闭时:在线成员收到 `closed{reason}` 并以 4004 断开;已结束的房间对其成员(未离开、未被移出)长期只读可见。
 
 ### 5.3 容量与角色
 
@@ -385,7 +385,11 @@ closed ──(7 天后)──▶ 删除消息、成员、举报(purge)
 
 - 房间成员可以看到彼此的用户名(本实例用户名),看不到其他任何资料。
 - 私聊助手内容只投递给本人;管理端(只读)能看到 —— 与现有对话记录一致,写进 README。
-- 房间关闭 7 天后删除全部消息、成员、举报;房间行保留(`code` 已为 NULL,`topic` 清空)用于统计。
+- **裁定 R-6(产品负责人,2026-10-09):房间消息(公共通道与私聊助手通道)在数据库中永久保留。** `ROOM_MESSAGE_RETENTION_DAYS` 默认 0 = 永久保留;正数是管理员以后可选设置的清理窗口(只删除结束超过 N 天的房间的消息与举报,不删成员与房间行)。清扫任务在该值为 0 时绝不删除消息。
+- 表增长有上界:每房 `seq` 由单房消息量决定,受每人每房 20 条/分钟、房间最长 24 小时、每房 8 人等上限约束;`room_messages` 的唯一约束 `(room_id, seq)` 同时充当按房间顺序读取的索引(补发、历史翻页都走它)。
+- 已结束的房间对其成员保持只读历史;用户仍可「离开」房间(离开后不再出现在其列表中),但其已发送的消息保留在房间历史里。
+- 管理端以后可以提供一个可选的手动清理工具(本计划不实现)。
+- 房间关闭后 `code` 置 NULL,房间行保留。
 - v1 没有录音;所有 LLM 请求经服务端(网页不直连第三方)。
 
 ---
@@ -529,7 +533,7 @@ closed ──(7 天后)──▶ 删除消息、成员、举报(purge)
 | `GET /api/rooms/config` | `{enabled, ai_available, max_members, max_text}` |
 | `POST /api/rooms` `{topic}` | 创建 → `{room}`;`Too many rooms` 429、`Room capacity reached` 503 |
 | `POST /api/rooms/join` `{code}` | → `{room}`;`Room not found` 404(未知号与已关闭不区分)、`Room is locked` 403、`Room is full` 409、`Removed from room` 403 |
-| `GET /api/rooms/mine` | 我所在的开放房间 + 7 天内关闭的房间 |
+| `GET /api/rooms/mine` | 我所在的开放房间 + 最近 50 个已结束的房间(只读历史) |
 | `GET /api/rooms/{room_id}` | 房间详情 + 成员(成员才可见) |
 | `GET /api/rooms/{room_id}/messages?before_seq=&limit=` | 往前翻历史(含本人私聊) |
 | `POST /api/rooms/{room_id}/ticket` | `{ticket, expires_in}` |
@@ -696,7 +700,7 @@ Answer the question from {asker} for everyone in the room.
 **联机大厅 `/rooms`**
 - 6 格房间号输入(`inputmode="numeric"`,粘贴自动拆分)+「加入」主按钮。
 - 「创建房间」:底部弹层,话题(可选,预设 6 个:旅行、美食、电影、工作、校园、自由聊)。
-- 「我的房间」列表:开放的(在线人数)与 7 天内已结束的(只读)。
+- 「我的房间」列表:开放的(在线人数)与已结束的(只读历史,最近 50 个)。
 - 规则提示:"房间 24 小时后自动结束;AI 回答所有人可见"。
 - 状态:加入失败的 4 种文案(不存在/锁定/已满/被移出)。
 
@@ -739,7 +743,7 @@ Answer the question from {asker} for everyone in the room.
 | `ROOMS_MAX_OWNED` | 3 | |
 | `ROOMS_IDLE_MINUTES` | 30 | |
 | `ROOMS_MAX_HOURS` | 24 | |
-| `ROOMS_RETENTION_DAYS` | 7 | |
+| `ROOM_MESSAGE_RETENTION_DAYS` | 0 | 0 = 消息永久保留(R-6);正数 = 结束超过 N 天的房间删除消息 |
 | `ROOMS_TICKET_TTL_SECONDS` | 60 | |
 | `ROOMS_ASSIST_DAILY_PER_USER` | 60 | |
 | `ROOMS_AI_PER_ROOM_HOUR` | 30 | |
@@ -755,7 +759,7 @@ Answer the question from {asker} for everyone in the room.
 | 层 | 内容 | 工具 |
 |---|---|---|
 | 纯函数 | 段位数学、赛季、点数与上限、阶段任务、成就判定、评委解析、总分/门槛/复读/中文检测、房间号、`@ai` 解析、文本清理、助手解析 | pytest / vitest,无 IO |
-| 数据层 | 同步幂等(同一行同步两次不重复记点)、上限截断、seq 连续且唯一、补发只含本人私聊、清扫与清理、`fail_pending_ai` | pytest + 内存 SQLite(Postgres 用 `TEST_DATABASE_URL` 可跑) |
+| 数据层 | 同步幂等(同一行同步两次不重复记点)、上限截断、seq 连续且唯一、补发只含本人私聊、清扫(保留期为 0 时不删消息)、`fail_pending_ai` | pytest + 内存 SQLite(Postgres 用 `TEST_DATABASE_URL` 可跑) |
 | 编排 | 晋级赛:假识别/评测/LLM 注入,覆盖通过、失败、临界复评、评委格式错 → `grading_failed`、过期、放弃、冷却、次数 | pytest |
 | 路由 | 鉴权 401、功能关闭 404/503、错误字符串、契约样例键集合、`stubs` 不吞路由 | httpx ASGI + respx(LLM/识别) |
 | WebSocket | 票据一次性/过期 4001、关闭 4003、hello 超时 4400、两个客户端互发、私聊不外泄、`@ai` 广播、重连补发、被移出 4010、关闭 1012 | Starlette `TestClient` websocket |
@@ -815,6 +819,7 @@ Answer the question from {asker} for everyone in the room.
 | 同步扫描拖慢 `/api/rank/me` | 水位增量 + 每次 ≤2000 行 + 已有 `user_id` 索引;首次只回看 14 天 |
 | 房间号被穷举 | 6 位 + 加入限流 + 锁定 + 移出不可再入 |
 | 单进程连接数 | 50 房 × 8 人 × 3 连接 上限 1200;实际远低于此;每连接仅一个读循环 |
+| 房间消息永久保留导致表增长 | 单房上限(人数、时长、发言频率)约束总量;`(room_id, seq)` 唯一索引;需要时管理员设置 `ROOM_MESSAGE_RETENTION_DAYS` |
 | 重启丢失进行中的 AI 回答 | 启动时标记 `failed`,网页提示重问 |
 | 私聊内容泄露给他人 | 投递按 `audience_id` 过滤,补发查询同样过滤;WS 测试专门断言另一客户端收不到 |
 | 文案与色彩偏离设计系统 | 段位不引入新色相;视觉稿与 design-notes 对照评审(Task F2) |
@@ -831,7 +836,7 @@ Answer the question from {asker} for everyone in the room.
 4. **每天 3 场、失败冷却 30 分钟、点数降到 80%**是否过严?
 5. **「助手润色」标签不可关闭**(R-2)。
 6. **房间不做内容审核**(R-4),只靠举报、移出与短生命周期。若实例对外开放注册,需要重新评估。
-7. **房间消息保留 7 天**;私聊助手内容管理端可见。
+7. ~~房间消息保留 7 天~~ → 已裁定 R-6:房间消息永久保留(`ROOM_MESSAGE_RETENTION_DAYS=0`);私聊助手内容管理端可见。
 8. **老用户首次只回溯 14 天**的点数。
 
-已裁定(实现时照此执行,改动需更新本文):R-1 不降级不衰减;R-2 润色标签常显;R-3 `@ai` 非流式;R-4 不做内容过滤;R-5 房间票据独立实现。
+已裁定(实现时照此执行,改动需更新本文):R-1 不降级不衰减;R-2 润色标签常显;R-3 `@ai` 非流式;R-4 不做内容过滤;R-5 房间票据独立实现;R-6 房间消息永久保留(产品负责人 2026-10-09)。
