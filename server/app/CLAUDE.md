@@ -5,15 +5,15 @@ The FastAPI application package. Layered; each layer may only import the ones be
 ## Layout
 | Package | Holds |
 |---|---|
-| `core/` | settings, DB engine, FastAPI deps (auth), errors, logging, security, limits, timing |
+| `core/` | settings + settings registry, runtime overrides hub (`runtime_settings`), secret box, DB engine, FastAPI deps (auth), per-user quotas, metering, maintenance middleware, log ring buffer, errors, logging, security, limits, timing |
 | `models.py` | SQLAlchemy ORM schema (peer of core; imports only `core`) |
 | `providers/` | vendor clients: Volcengine, Azure Speech, iFlytek (xfyun) |
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
-| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary |
+| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
-| `rank/` | rank ladder, RP sync, promotion matches, achievements |
-| `rooms/` | practice rooms: codes, hub, assistant lane, WS connection |
-| `admin/` | admin console: cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, v1 cross-user queries |
+| `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
+| `rooms/` | practice rooms: codes, hub, assistant lane (admin-versioned templates), WS connection |
+| `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
 | `static_config/` | JSON config snapshots served by `/api/config/{key}` |
@@ -28,6 +28,12 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - routers -> anything above (incl. rank, rooms); only `main.py` (and other routers) import routers
 - Lazy/function-level imports count too. A new top-level module fails the test: pick a package.
 
+## Runtime settings (admin v2)
+`app.state.base_settings` = env only; `app.state.settings` = env + DB overrides (`setting_overrides`), swapped by
+`SettingsHub.publish` (listeners push hot values into long-lived objects). Read settings per request
+(`get_settings` / `app.state.settings`), never cache them at import or startup. Every settings write goes through
+`admin/settings_service.save` (maintenance included). Multi-process sync: `config_revisions` polled every 5 s.
+
 ## Entry point
 `app.main:create_app` (factory). Router order in `create_app` matters: `stubs` (catch-all
 writes) must follow real APIs, `admin_web` (/admin) must precede `web`, and `web` (SPA fallback)
@@ -41,3 +47,7 @@ must be last.
 - Logger names follow `__name__`, except the pinned `app.timing` and
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
+- Migrations: `alembic/versions/` is linear (head `0009`); `tests/test_migrations.py::test_models_match_migrations`
+  must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
+- Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
+  deleting a user never deletes rooms (`rooms.owner_id` nullable, `ON DELETE SET NULL`).

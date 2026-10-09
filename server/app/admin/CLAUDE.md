@@ -1,7 +1,8 @@
 # app/admin/
 
 Admin console business logic behind `/api/admin/*` (routers `admin.py` v1 read-only, `admin_auth.py`,
-`admin_*.py` v2). Spec: `docs/superpowers/specs/2026-10-09-admin-console-v2-design.md`.
+`admin_*.py` v2). **No longer read-only:** every write goes through `perms.require(...)` (+ step-up for dangerous
+actions) and writes an audit row in the same transaction. Spec: `docs/superpowers/specs/2026-10-09-admin-console-v2-design.md`.
 Disabled (404 everywhere) unless `ADMIN_USERNAME` and `ADMIN_PASSWORD` (>= 12 chars) are set, or when the
 client IP is outside `ADMIN_IP_ALLOWLIST`.
 
@@ -19,18 +20,31 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `totp.py` – RFC 6238 TOTP (stdlib) and recovery codes
 - `recover.py` – `python -m app.admin.recover list-overrides|clear-overrides|unlock|reset-totp|revoke-sessions|rotate-key`
 - `auth.py` – env credential comparison (`credentials_match`)
+- `settings_service.py` – runtime settings: `list_settings`, `save` (danger/step-up/typed confirm, key-pair guard,
+  revisions, publish through the hub; the **only** settings write path, also used by `announcements.set_maintenance`
+  and import/revert), `revert`, export/import; the six `managed_by="rank_rules"` keys are read-only (409
+  `Managed by rank rules`) once a rank rules version is published
+- `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
+  `missing_prices` from `usage.missing_prices` and `invite_without_codes`)
+- `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded, returns only `{ok, status, ms, code}`
+- `rank_rules_admin.py` / `rank_ops.py` / `rank_sim.py` – rank rules drafts/validate/publish (bumps
+  `config_revisions['rank_rules']`), per-user and site-wide rank operations (reset with undo), impact simulation
+- `prompts_admin.py` – prompt drafts/publish/test run (bodies never logged or audited); room templates render through
+  `rooms.assistant.render_test`, same as live
 - `service.py` – v1 cross-user read queries (overview, users with `status`/`sort`, conversations, assessments, ...)
 - `users_admin.py` – disable/enable, revoke tokens, reset password (temp password returned once, never logged),
-  delete user (explicit deletes: SQLite has no FK cascade; owned rooms pass to the earliest other member),
+  delete user (explicit deletes: SQLite has no FK cascade; owned rooms pass to the earliest other member, a room
+  nobody else joined is kept closed with `owner_id = NULL` — rooms and room messages are never deleted),
   per-user quota overrides (`quota.set|clear`)
 - `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
 - `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
   `routers/admin_rooms.py`
 - `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
-- `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (writes the
-  maintenance settings as overrides; turning it on = step-up + reason + typed `MAINTENANCE_MODE`)
-- `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings)
+- `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
+  over `settings_service.save(action="maintenance.set")`; turning it on = step-up + reason + typed `MAINTENANCE_MODE`)
+- `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings;
+  its findings are computed locally, separate from `doctor.py`)
 - `housekeeping.py` – orphan recording scan/delete (token-guarded rescan), audit purge with anchor, `purge_expired`
 - `backups.py` – SQLite `VACUUM INTO` backups, prune, signed one-time download links, `daily_loop` (backup at
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
@@ -47,8 +61,9 @@ Never import routers from here (room runtime lives in `routers/admin_rooms.py` v
 - Secrets appear only as `{"set", "source", "fp"}`; tests scan responses with `tests/admin_helpers.assert_no_secrets`.
 
 ## Tests
-`uv run pytest -q tests/test_admin_*.py tests/test_quotas.py tests/test_architecture.py tests/test_usage.py
-tests/test_announcements.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py`
+`uv run pytest -q tests/test_admin_*.py tests/test_quotas*.py tests/test_architecture.py tests/test_usage*.py
+tests/test_announcements.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py
+tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py tests/test_rank_rules*.py`
 (helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 
 ## Pitfalls

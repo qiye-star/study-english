@@ -25,7 +25,8 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /api/rank/*                            段位、阶段练习、成就、晋级赛(默认关,见「段位赛与联机练习」)
                                 ├ /api/rooms/*                           联机房间:建房/房间号加入/成员/历史/举报(默认关)
                                 ├ WS /api/rooms/ws?ticket=               房间实时消息、@ai、私聊助手(票据一次性,默认关)
-                                ├ /api/admin/*                           管理端只读 API(见「管理端」;默认关闭)
+                                ├ /api/announcements                     公告与维护状态(公开,只读)
+                                ├ /api/admin/*                           管理后台 API(Cookie 会话 + CSRF + 角色;见「管理后台 v2」;默认关闭)
                                 ├ 其余 POST/PUT/DELETE /api/**  鉴权后返回 {}(同步占位)
                                 ├ /admin/**                              管理端网页(admin/dist,默认关闭)
                                 └ 其他 GET                       网页版(web/dist,SPA 回退到 index.html)
@@ -42,7 +43,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
 ```bash
 cp server/.env.example server/.env
 # 编辑 server/.env,填写上游地址与密钥
-# .env.example 默认 REGISTRATION_MODE=closed:创建第一批账号时,先临时改为 open(或 invite + INVITE_CODE),
+# .env.example 默认 REGISTRATION_MODE=closed:创建第一批账号时,先临时改为 open(或 invite + 邀请码),
 # 注册完毕后改回 closed 并 `docker compose up -d` 重启。
 docker compose up -d --build   # 需要 Docker Compose >= 2.20(depends_on 的 required: false);镜像同时构建并托管手机网页版(`web/`),构建上下文为仓库根目录
 docker compose ps          # server 应为 healthy
@@ -51,13 +52,72 @@ curl localhost:8000/up     # {"status":"ok"}
 
 ## 管理端
 
-只读后台,挂在 `/admin`(手机优先的网页),用于查看**所有用户**的账号、对话与聊天记录(含语法批注)、发音评测、录音回放、练习清单和词汇本。
+后台挂在 `/admin`(**只做桌面浏览器**,宽度 < 1024px 时只显示「请使用桌面浏览器访问管理后台」)。v1 的只读查看(所有用户的账号、对话与聊天记录、发音评测、录音回放、练习清单和词汇本)保留;v2 起可以运营,见下一节「管理后台 v2」。
 
-- 默认关闭。在 `server/.env` 设置 `ADMIN_USERNAME` 与 `ADMIN_PASSWORD`(≥ 12 位,否则拒绝启动)后重启即启用。
-- 登录后签发独立的短期 token(`ADMIN_TOKEN_TTL_MINUTES`,默认 480),与用户 token 互不通用;登录接口按 IP 限流。
-- API 全部在 `/api/admin/*`(`GET`,除登录外都要 `Authorization: Bearer <admin token>`);未启用时一律 404。
-- 前端是独立的 `admin/` 工作区(与 `web/` 零代码共享),Docker 镜像中单独构建并由本服务托管;本地开发 `yarn admin:dev`(端口 5174,`/api` 代理到 `ADMIN_DEV_API_TARGET`,默认 `http://127.0.0.1:8000`)。
-- 隐私:管理员能听到用户录音、读到全部聊天内容。请只通过 HTTPS 暴露,并在反向代理再限制来源。
+- 默认关闭。在 `server/.env` 设置 `ADMIN_USERNAME` 与 `ADMIN_PASSWORD`(≥ 12 位,否则拒绝启动)后重启即启用;这是 env「应急」超级管理员,其他管理员在后台创建、存在库里。
+- 登录后是库内会话 + HttpOnly Cookie(不再是 Bearer token,Bearer 一律 401),非 GET 请求带 `X-Admin-CSRF`;会话绝对有效期 `ADMIN_TOKEN_TTL_MINUTES`(默认 480),空闲 `ADMIN_IDLE_MINUTES`(默认 30)后失效;登录按账号+IP 锁定、按 IP 限流。
+- API 全部在 `/api/admin/*`,每个端点声明最低角色;未启用时一律 404。
+- 前端是独立的 `admin/` 工作区(与 `web/` 零代码共享,说明见 `admin/README.md`),Docker 镜像中单独构建并由本服务托管;本地开发 `yarn admin:dev`(端口 5174,`/api` 代理到 `ADMIN_DEV_API_TARGET`,默认 `http://127.0.0.1:8000`;本地 http 开发需 `ADMIN_COOKIE_SECURE=false`)。
+- 隐私:管理员能听到用户录音、读到全部聊天内容(查看房间私聊会写审计)。请只通过 HTTPS 暴露,并在反向代理或 `ADMIN_IP_ALLOWLIST` 再限制来源。
+
+## 管理后台 v2
+
+规格:[docs/superpowers/specs/2026-10-09-admin-console-v2-design.md](../docs/superpowers/specs/2026-10-09-admin-console-v2-design.md);计划:`docs/superpowers/plans/2026-10-09-admin-console-v2.md`。需要先 `alembic upgrade head`(迁移 `0008_admin_v2`、`0009_room_owner_set_null`;Docker 启动时自动执行)。
+
+**能力**
+
+- **运行时设置**:大部分 `.env` 设置可在后台修改,值写进数据库的覆盖表、叠加在 env 之上(**永不写 `.env`、不重启容器**)。每项标明生效方式:即时 / 新会话生效 / 需重启(显示「待重启」)。危险项(开放注册、维护模式、DEBUG 日志、上游地址换主机等)需要二次验证 + 理由 + 输入键名确认;换上游主机时还要确认「把现有密钥发往新主机」。有修订历史、逐条撤销、导入导出(导出不含密钥)、配置诊断与「测试连接」(只返回结果码、状态码与耗时,从不回显密钥;探测拒绝私网地址)。数据库地址、加密主密钥等标为 env-only,后台只读。
+- **管理员与会话**:库内管理员账号(超级管理员 / 运营 / 只读三种角色)、我的会话、撤销会话、TOTP(含恢复码)与修改密码;每个角色都能管理自己的会话、TOTP 和密码,只有超级管理员能管理其他账号。
+- **审计日志**:每个写操作同事务写审计(哈希链,页面可校验「哈希链完整」);不记录密码、token、TOTP、密钥、用户文本和提示词正文。
+- **段位**:段位规则版本化(草稿 → 校验 → 影响预演 → 发布,进行中的比赛钉住开始时的版本);**发布后 6 个 `RANK_*` 设置(每日段位点上限、每日晋级赛次数、冷却、单场时限、赛季起点与周数)在设置页变为只读**,改动只能在「段位规则」页做。单人操作(调段、清冷却、补次数、作废比赛、成就)与全体重置(可撤销)。
+- **用户与内容**:停用/启用、撤销登录、重置密码、删除用户;按用户配额覆盖(存储、条数上限、AI 限流、每日晋级赛次数、房间助手次数、拥有房间数,可设过期);邀请码(多次码,限次数/过期/撤销,只存哈希)。**删除用户永不删除房间与房间消息**:他创建、有其他成员的房间转给最早加入的成员;没人加入过的房间关闭并只读保留,房主显示「已删除用户」;他在别的房间发的消息保留(不再显示名字)。
+- **房间**:列表、详情(时间线,查看私聊会写审计)、关闭、移出成员、关闭房间 AI、隐藏消息(只隐藏不删除)、举报处理。
+- **用量与费用**:按功能/用户/上游的调用量、错误分布、上游健康(超级管理员可在每行直接「测试连接」),费用为**估算**(见下文单价表)。
+- **提示词**:语法检查规则、房间助手组句、`@ai` 回答、对话情景模板可版本化发布(发布立即生效,无需重启)。房间两个模板里单独一行 `[[user]]` 之后的部分作为用户消息发送;学习者文本总在边界标签内并转义。
+- **公告与维护**、**系统状态与脱敏日志**、**数据与备份**(见下文)。
+
+**角色**:只读(viewer)看全部页面但不能写;运营(operator)可做用户/房间治理、邀请码、公告、段位单人操作;超级管理员(superadmin)可改设置、发布规则与提示词、管理账号、备份与清理、删除用户。危险操作需要二次验证(`ADMIN_STEP_UP_MINUTES` 内有效)。
+
+**Cookie 与 HTTPS**:默认 `ADMIN_COOKIE_SECURE=true`,Cookie 名为 `__Host-enjoy_admin`、带 `Secure; HttpOnly; SameSite=Strict`,**必须经 HTTPS 访问**,否则浏览器不保存 Cookie、登录后立刻掉线。只在本机 http 开发时设为 `false`。来源 IP 白名单 `ADMIN_IP_ALLOWLIST`(CIDR,逗号分隔)在启用 `TRUST_PROXY_HEADERS` 时按代理传来的真实 IP 判断。
+
+**加密主密钥** `SETTINGS_ENCRYPTION_KEY`:后台保存的上游密钥与 TOTP 密钥用它加密(Fernet)。生成:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+留空时密钥类设置在后台只读、不能绑定 TOTP。**务必与数据库分开单独备份**:丢失后库里的密钥覆盖与 TOTP 全部作废(只能重新录入/重新绑定)。换密钥用 `rotate-key`(见下)。
+
+**安全模式与应急命令**:覆盖值把服务弄坏时,在 `.env` 设 `ADMIN_SETTINGS_SAFE_MODE=true` 并重启,服务忽略数据库里的全部设置覆盖、只用 `.env`(后台顶部显示红条;此时保存的改动只写库、不生效)。命令行应急(每条写审计 `actor=cli`,运行中的服务 5 秒内自动重新加载设置):
+
+```bash
+docker compose exec server python -m app.admin.recover list-overrides            # 列出覆盖(密钥只显示 (secret))
+docker compose exec server python -m app.admin.recover clear-overrides [--key K] # 删除全部或一条覆盖
+docker compose exec server python -m app.admin.recover unlock <管理员名>           # 解除登录锁定
+docker compose exec server python -m app.admin.recover reset-totp <管理员名>       # 清除库内账号的 TOTP 与恢复码
+docker compose exec server python -m app.admin.recover revoke-sessions           # 所有管理员下线
+docker compose exec server python -m app.admin.recover rotate-key --old <旧密钥>  # 新密钥先写进 .env;任一值解不开则什么都不改
+```
+
+**维护模式**(「公告与维护」页或 `MAINTENANCE_MODE`):`read_only` 拒绝用户的写操作(网页顶部显示「暂时只能查看」横幅),`full` 让除管理端外的 API 全部返回 503(网页显示维护页);打开时房间连接以 1012 断开、新连接以 1013 拒绝。管理端永远可用。开启需要二次验证 + 理由 + 输入 `MAINTENANCE_MODE`;它和设置页走同一条写入路径(有修订、可在设置历史里撤销)。
+
+**用量与费用**:每次上游调用记录类型、上游、模型、状态、耗时与用量(不记内容),`USAGE_RAW_RETENTION_DAYS` 天后汇总为按日统计。费用 = 用量 × `USAGE_PRICES_JSON` 里的单价,**只是估算**;没有单价的模型在配置诊断里列出(`missing_prices`)。单价表示例(数值为占位示例,不是报价,**请按你的上游账单填写**):
+
+```json
+{"llm:deepseek-v4-flash": {"in_per_1k": 0.001, "out_per_1k": 0.002},
+ "llm:*": {"in_per_1k": 0.002, "out_per_1k": 0.008},
+ "tts:volcengine/seed-tts-2.0": {"per_1k_chars": 0.3},
+ "stt:*": {"per_minute": 0.06},
+ "assess_xfyun:*": {"per_call": 0.01}}
+```
+
+查找顺序:`类型:上游/模型` → `类型:模型` → `类型:*`。
+
+**备份与清理**(「数据与备份」页,超级管理员):SQLite 用 `VACUUM INTO` 生成一致性快照到 `BACKUP_DIR`(默认 `DATA_DIR/backups`),保留最近 `BACKUP_KEEP` 份;`BACKUP_HOUR_UTC`(0–23)每天自动备份一次,`-1` = 关。下载链接一次性、60 秒有效并绑定当前会话。录音目录与 `SETTINGS_ENCRYPTION_KEY` 不在快照里,需另外备份;Postgres 请用 `pg_dump`。清理工具:孤立录音文件(先扫描再删除)、早于保留期的审计日志(`ADMIN_AUDIT_RETENTION_DAYS`,清理后哈希链从保留的第一条起校验)。
+
+**系统状态与日志**:系统页显示版本(`BUILD_SHA`)、运行时间、数据库与迁移版本、后台任务、待重启项与诊断;日志页是进程内的脱敏日志环形缓冲(票据、Bearer、密钥值、Cookie 等一律替换),查看会写审计。
+
+**部署注意**:单 worker(审计哈希链的锁、限流、配额缓存、备份下载令牌、房间运行时都在进程内;设置与提示词的跨进程同步只靠 5 秒一次的修订号轮询);反向代理需转发 `/admin` 与 `/api/admin/*`,Cookie 路径为 `/`。**未在真实 HTTPS 反向代理后验证**(见 `docs/superpowers/plans/e2e-results.md`「2026-10-09 管理后台 v2」)。
 
 ## 本地开发
 
@@ -92,7 +152,7 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 `REGISTRATION_MODE`:
 
 - `open`:任何人可注册(默认)
-- `invite`:注册时必须提供与 `INVITE_CODE` 相同的邀请码
+- `invite`:注册时必须提供邀请码:`.env` 的 `INVITE_CODE`(单码,不限次数;可留空)或管理后台「邀请码」页发的多次码(限次数、可过期、可撤销,库里只存哈希)。两者都没有时没人能注册,配置诊断提示 `invite_without_codes`
 - `closed`:关闭注册
 
 注册与登录接口按 IP 限流,上限由 `RATE_LIMIT_PER_MINUTE` 控制(每分钟次数)。
