@@ -109,7 +109,7 @@ export function TotpCard({ me, onChanged }: { me: MySecurity; onChanged: () => v
           </div>
         </div>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-fg-2">{S.code}</span>
+          <span className="block text-xs font-medium text-fg-2">{S.code}</span>
           <input
             className="field-sm num w-[160px]"
             inputMode="numeric"

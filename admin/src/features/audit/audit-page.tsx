@@ -79,7 +79,7 @@ export function AuditPage() {
     <Page title={S.auditPage} actions={!viewer ? <IntegrityBar /> : undefined}>
       <form aria-label={S.filters} className="panel flex flex-wrap items-end gap-3 px-4 py-3" onSubmit={submit}>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-fg-2">{S.actor}</span>
+          <span className="block text-xs font-medium text-fg-2">{S.actor}</span>
           <input
             className="field-sm w-[180px] font-mono"
             value={viewer ? (session?.username ?? "") : (form.actor ?? "")}
@@ -89,7 +89,7 @@ export function AuditPage() {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-fg-2">{S.action}</span>
+          <span className="block text-xs font-medium text-fg-2">{S.action}</span>
           <select
             className="field-sm w-[220px]"
             value={form.actionPrefix ?? ""}
@@ -109,7 +109,7 @@ export function AuditPage() {
           </select>
         </label>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-fg-2">{S.target}</span>
+          <span className="block text-xs font-medium text-fg-2">{S.target}</span>
           <input className="field-sm w-[220px]" value={form.targetId ?? ""} placeholder={S.targetHint} onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))} />
         </label>
         <button type="submit" className="btn-primary btn-sm">
