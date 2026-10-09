@@ -264,6 +264,15 @@ async def _admitted(rt: RoomsRuntime, room_id: str, user_ids: list[int]) -> None
         await presence(rt, room_id)
 
 
+async def settle_requests(rt: RoomsRuntime, room_id: str) -> None:
+    """The room went back to `code` (owner or operator edit): pending requests are approved while seats last, the
+    rest expire (spec 2026-10-10 §3.2); the owner and the room are told."""
+    closed = await rt.store.approve_all(room_id, utcnow())
+    for r in closed:
+        await _request_closed(rt, room_id, r.id, r.status)
+    await _admitted(rt, room_id, [r.user_id for r in closed if r.status == "approved"])
+
+
 async def _expire_requests(rt: RoomsRuntime, now: datetime) -> None:
     """Sweep listener: pending join requests past `join_request_minutes` expire; the owner is told per request."""
     expired = await rt.store.expire_requests(now)
@@ -524,10 +533,7 @@ async def update_room(room_id: str, payload: PatchIn, request: Request, user: Us
     if changes:
         await system_message(rt, room.id, "settings", {"changes": changes})
     if before is not None and before.join_mode == "approval" and room.join_mode == "code":
-        closed = await rt.store.approve_all(room.id, utcnow())  # spec 2026-10-10 §3.2
-        for r in closed:
-            await _request_closed(rt, room.id, r.id, r.status)
-        await _admitted(rt, room.id, [r.user_id for r in closed if r.status == "approved"])
+        await settle_requests(rt, room.id)
     await rt.hub.broadcast(room.id, event("room_update", room=await _room_json(rt, room, None)))
     return {"room": await _room_json(rt, room, "owner")}
 

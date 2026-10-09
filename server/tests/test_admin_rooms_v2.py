@@ -228,3 +228,64 @@ async def test_admin_playback_uses_sv_audio_files_and_stays_under_room_audio(app
     r = await client.get(url)
     assert r.status_code == 410 and r.json() == {"error": "Audio purged"}
     assert len(await _audits(app, "room.audio.play")) == 1
+
+
+async def test_admin_switch_to_approval_kills_member_links(app, client):
+    """Review M1 (operator path): a member's link from a `code` room stops working once approval is on."""
+    _, ha = await register(client, "alice")
+    _, hb = await register(client, "bob")
+    _, hc = await register(client, "carol")
+    room = await _room(client, ha)
+    assert (await client.post("/api/rooms/join", headers=hb, json={"code": room["code"]})).status_code == 200
+    token = (await client.post(f"/api/rooms/{room['id']}/invite", headers=hb)).json()["token"]
+    h = await login_as(app, client, "operator")
+    r = await client.patch(f"/api/admin/rooms/{room['id']}/settings", headers=h,
+                           json={"join_mode": "approval", "reason": "收紧"})
+    assert r.status_code == 200 and r.json()["settings"]["has_invite"] is False
+    assert (await client.get(f"/api/rooms/invite/{token}", headers=hc)).status_code == 404
+    assert (await client.post(f"/api/rooms/invite/{token}/join", headers=hc)).status_code == 404
+
+
+async def test_admin_switch_to_code_settles_pending_requests(app, client):
+    """Review m2: the operator path approves waiting requesters like the owner path does."""
+    _, ha = await register(client, "alice")
+    _, hb = await register(client, "bob")
+    room = (await client.post("/api/rooms", headers=ha, json={"join_mode": "approval"})).json()["room"]
+    req = (await client.post("/api/rooms/join", headers=hb, json={"code": room["code"]})).json()["request"]
+    h = await login_as(app, client, "operator")
+    r = await client.patch(f"/api/admin/rooms/{room['id']}/settings", headers=h,
+                           json={"join_mode": "code", "reason": "放开"})
+    assert r.status_code == 200
+    mine = (await client.get(f"/api/rooms/requests/{req['id']}", headers=hb)).json()["request"]
+    assert mine["status"] == "approved"
+    assert (await client.get(f"/api/rooms/{room['id']}", headers=hb)).status_code == 200
+    assert (await client.get(f"/api/rooms/{room['id']}/requests", headers=ha)).json()["requests"] == []
+
+
+async def test_admin_settings_wait_for_the_admission_lock(app, client):
+    """Review m3: an operator edit is serialised with joins (RoomStore admission lock), like the owner edit."""
+    import asyncio
+
+    _, ha = await register(client, "alice")
+    room = await _room(client, ha)
+    h = await login_as(app, client, "operator")
+    rt = runtime(app)
+    async with rt.store.admission:
+        task = asyncio.create_task(client.patch(f"/api/admin/rooms/{room['id']}/settings", headers=h,
+                                                json={"max_members": 3, "reason": "缩小"}))
+        await asyncio.sleep(0.3)
+        assert not task.done()
+    r = await task
+    assert r.status_code == 200 and r.json()["settings"]["max_members"] == 3
+
+
+async def test_admin_cannot_edit_a_closed_room(app, client):
+    """Review web m12 (server side): ended rooms are read-only (R2-2)."""
+    _, ha = await register(client, "alice")
+    room = await _room(client, ha)
+    assert (await client.post(f"/api/rooms/{room['id']}/close", headers=ha)).status_code == 200
+    h = await login_as(app, client, "operator")
+    r = await client.patch(f"/api/admin/rooms/{room['id']}/settings", headers=h,
+                           json={"allow_voice": False, "reason": "已结束"})
+    assert r.status_code == 409 and r.json() == {"error": "Room is closed"}
+    assert await _audits(app, "room.settings") == []

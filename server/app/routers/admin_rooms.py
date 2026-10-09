@@ -5,6 +5,7 @@ kick → system message `kicked` + 4010; hide → `message_hidden{seq}` (the row
 `room_update`. Each action is applied through the room store, then audited (`room.*`) and committed.
 Reading private assistant lanes is audited as `room.view_private`. Never logs message text."""
 import asyncio
+import contextlib
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
@@ -20,7 +21,8 @@ from app.services.recordings import absolute_path
 from app.rooms import audio
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, MAX_ID, event
 from app.rooms.store import RoomError
-from app.routers.rooms import RoomsRuntime, after_close, presence, runtime, system_message, _room_json
+from app.routers.rooms import (RoomsRuntime, after_close, presence, runtime, settle_requests, system_message,
+                               _room_json)
 
 router = APIRouter(prefix="/api/admin")
 
@@ -184,19 +186,24 @@ async def update_settings(room_id: RoomId, payload: SettingsIn, request: Request
                           ctx: AdminContext = Depends(require("operator")),
                           session: AsyncSession = Depends(get_session)):
     changes = payload.model_dump(exclude_none=True, exclude={"reason"})
+    rt = getattr(request.app.state, "rooms", None)
+    # same admission lock as the owner edit: a join between the seat check and commit cannot beat a lowered cap
+    lock = rt.store.admission if rt is not None else contextlib.nullcontext()
     try:
-        room, changed = await rooms_admin.update_settings(
-            session, ctx.actor, room_id, changes, payload.reason,
-            site_max_members=request.app.state.settings.rooms_max_members)
+        async with lock:
+            room, changed = await rooms_admin.update_settings(
+                session, ctx.actor, room_id, changes, payload.reason,
+                site_max_members=request.app.state.settings.rooms_max_members)
     except rooms_admin.RoomSettingsError as e:
         return JSONResponse({"error": e.error, "fields": e.fields}, status_code=e.status)
     except rooms_admin.RoomAdminError as e:
         _fail(e)
     if changed:
-        rt = getattr(request.app.state, "rooms", None)
         live = None if rt is None else await rt.store.room(room_id)
         if live is not None and live.status == "open":
             await system_message(rt, room_id, "settings", {"changes": changed})
+            if any(c["field"] == "join_mode" and c["value"] == "code" for c in changed):
+                await settle_requests(rt, room_id)  # spec 2026-10-10 §3.2, as on the owner path
             await rt.hub.broadcast(room_id, event("room_update", room=await _room_json(rt, live, None)))
     return {"settings": rooms_admin.settings_out(room), "changes": changed}
 

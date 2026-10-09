@@ -136,7 +136,8 @@ def clean_admin_settings(raw: dict, *, site_max_members: int) -> tuple[dict, dic
 async def update_settings(session, actor: Actor, room_id: str, changes: dict, reason: str, *,
                           site_max_members: int) -> tuple[Room, list[dict]]:
     """Applies operator setting changes (already cleaned or raw: they are validated here), audits `room.settings`
-    (field names and boolean/number values only; the room name is recorded as "<changed>") and commits.
+    (field names and boolean/number values only; the room name is recorded as "<changed>") and commits. The caller
+    holds the room store's admission lock (a concurrent join must not slip past a lowered `max_members`).
     Returns the room and the fields that really changed, `[{field, value}]` in setting order."""
     clean, errors = clean_admin_settings(changes, site_max_members=site_max_members)
     if errors:
@@ -144,6 +145,8 @@ async def update_settings(session, actor: Actor, room_id: str, changes: dict, re
     room = await session.get(Room, room_id)
     if room is None:
         raise RoomAdminError(404, "Room not found")
+    if room.status != "open":
+        raise RoomAdminError(409, "Room is closed")  # ended rooms are read-only (R2-2)
     changed = [{"field": k, "value": clean[k]} for k in ADMIN_SETTING_FIELDS
                if k in clean and getattr(room, k) != clean[k]]
     if not changed:
@@ -156,6 +159,8 @@ async def update_settings(session, actor: Actor, room_id: str, changes: dict, re
     before = {c["field"]: ("<changed>" if c["field"] == "name" else getattr(room, c["field"])) for c in changed}
     for c in changed:
         setattr(room, c["field"], c["value"])
+    if any(c["field"] == "join_mode" and c["value"] == "approval" for c in changed):
+        room.invite_token = None  # links members shared in `code` mode must not bypass approval (R2-4)
     await audit.record(session, actor, "room.settings", target_type="room", target_id=room_id,
                        before=before,
                        after={c["field"]: ("<changed>" if c["field"] == "name" else c["value"]) for c in changed},
