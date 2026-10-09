@@ -22,6 +22,7 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 
 ## Pitfalls
 - 票据在 WS 地址里,是机密:不记录、不放进错误信息。
+- 契约:`rooms-contract.test.ts` 把 `protocol.ts` / `rooms-api.ts` 的类型逐键绑定到 `server/tests/fixtures/rooms_contract.json`(服务端 `test_web_contract.py` 对真实应用录制);改字段时两边一起改。
 - 路由用房间 id,不用房间号(号码关闭后会复用)。
 - 私聊面板的内容只属于本人;不要把 assist 事件放进公共消息列表。
 - 房间消息永久保存:票据 404(房间已结束)时 `use-room` 改走 HTTP(`GET /api/rooms/{id}` + `/messages?before_seq=2147483647`)只读回看;`before_seq` 用 int32 上限,别用 MAX_SAFE_INTEGER。

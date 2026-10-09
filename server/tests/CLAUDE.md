@@ -7,7 +7,11 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
   `TEST_DATABASE_URL`), fixtures `app`, `client` (httpx ASGI), `auth_headers` (registers alice)
 - `test_<area>.py` – one file per module/endpoint area; `test_*_api.py` hit routers
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
-- `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter)
+- `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
+  `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` (shared with web contract tests)
+- `test_web_contract.py` – drives a real room session and pins every rooms HTTP/WS payload shape in
+  `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional
+  change with `CONTRACT_UPDATE=1` (tickets are written redacted)
 
 ## Allowed dependencies
 Anything in `app`, plus other test modules' helpers (`from tests.test_x import helper`).

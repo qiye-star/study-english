@@ -20,7 +20,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4, §10
 `cd web && yarn vitest run src/features/rank`
 
 ## Pitfalls
-- 晋级赛只收语音;不要加文字输入通道(防作弊,spec §3.5)。
+- 晋级赛只收语音;不要加文字输入通道(防作弊,spec §3.5)。按住说话长条必须传 `allowToText={false}`(没有「转文字」落点;`match-page.voice-only.test.tsx` 断言)。
+- 评分失败(`grading_failed`)的场次服务端仍算进行中:错误卡要同时给「重新打分」与「放弃本场」。
+- 契约:`rank-contract.test.ts` 把类型逐键绑定到 `rank_contract.json`;改服务端字段时两边一起改。
 - 段位不引入新色相:通过 = green,未通过 = ink-2,进度 = blue。
 - iOS:`useMatch` 在「开始」点击与松手的同步阶段调用 `tts.prime()` 预热播放。
 - 测试默认语言是英文;断言中文文案的测试在 describe 里调用 `inChinese()`(写设置 + 切语言,SettingsProvider 才不会切回去)。

@@ -7,7 +7,7 @@ Shared presentational UI primitives for the redesign (glass bars, cards, sheets,
 - Building blocks: `surface-card.tsx`, `section-group.tsx`, `list-card.ts`, `stat-tile.tsx`, `icon-button.tsx`, `icon-chip.tsx`, `segmented-control.tsx`, `avatar.tsx`, `tone-badge.tsx`, `markdown.tsx`.
 - Feature switches: `feature-gate.tsx` (`FeatureGate`: loading / disabled / error + retry / ready; used by rank and rooms pages).
 - Semantics: `tone.ts` (one meaning per hue), `score-tone.ts` (≥85 / 70–84 / <70).
-- Hold-to-talk: `hold-to-talk-bar.tsx` (bar + overlay + drop zones + live region; stateful by necessity) and `use-hold-gesture.ts`, used by chat and realtime calls; strings in `i18n/` (`web.hold.*`).
+- Hold-to-talk: `hold-to-talk-bar.tsx` (bar + overlay + drop zones + live region; stateful by necessity) and `use-hold-gesture.ts`, used by chat, realtime calls and rank matches; strings in `i18n/` (`web.hold.*`). `allowToText={false}` hides the 转文字 zone (voice-only: any slide-up cancels, never `fill`).
 
 ## Allowed dependencies
 - React, npm UI packages, `lib/`, `@renderer/lib/utils` (shim) and `@renderer/components/ui/*`. Never `features/`, `pages/`, `layout/`, `auth/`, `settings/` (architecture test).
