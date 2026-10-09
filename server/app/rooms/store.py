@@ -730,8 +730,10 @@ class RoomStore:
         """All reactions on the room's last `messages` seqs as [{seq, key, user_ids}] (welcome refresh)."""
         async with self._sm() as s:
             floor = (await s.scalar(select(Room.last_seq).where(Room.id == room_id)) or 0) - messages
-            rows = (await s.scalars(select(RoomReaction).where(RoomReaction.room_id == room_id,
-                                                               RoomReaction.seq > floor)
+            rows = (await s.scalars(select(RoomReaction)
+                                    .join(RoomMessage, RoomMessage.id == RoomReaction.message_id)
+                                    .where(RoomReaction.room_id == room_id, RoomReaction.seq > floor,
+                                           RoomMessage.hidden_at.is_(None))  # like message_out (review m4)
                                     .order_by(RoomReaction.seq, RoomReaction.created_at, RoomReaction.id))).all()
         by_seq: dict[int, list[RoomReaction]] = {}
         for r in rows:

@@ -94,3 +94,16 @@ def test_scenarios_and_levels():
     assert scenario("nope") is None
     assert brief("nope") == brief("free") == "Free conversation; any everyday topic."
     assert LEVELS == ("A1", "A2", "B1", "B2", "C1")
+
+
+async def test_welcome_reactions_skip_hidden_messages(app):
+    """Review m4: `message_out` withholds reactions of hidden messages; the welcome refresh must too."""
+    store, room = await _store(app)
+    shown = await store.append(room.id, lane="public", sender_kind="user", sender_id=B, kind="text", text="a", now=NOW)
+    gone = await store.append(room.id, lane="public", sender_kind="user", sender_id=B, kind="text", text="b", now=NOW)
+    async with app.state.sessionmaker() as s:
+        s.add_all([RoomReaction(room_id=room.id, message_id=m.id, seq=m.seq, user_id=A, key="like", created_at=NOW)
+                   for m in (shown, gone)])
+        await s.commit()
+    await store.hide(room.id, gone.id, NOW)
+    assert await store.recent_reactions(room.id) == [{"seq": shown.seq, "key": "like", "user_ids": [A]}]
