@@ -79,9 +79,12 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
   const newCount = entries.reduce((n, e, i) => (e.reply && !seen.has(e.reply.id) ? n + (parsed[i]?.suggestions.length ?? 0) : n), 0);
 
   const last = entries.at(-1);
+  const lastRef = useRef<HTMLDivElement>(null);
+  // 新请求或新回复:把最新一条的开头(我的草稿)滚到面板顶部,读的顺序与视觉稿一致
   useEffect(() => {
-    const el = bodyRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    const body = bodyRef.current;
+    const item = lastRef.current;
+    if (body && item) body.scrollTop = Math.max(0, item.offsetTop - body.offsetTop);
   }, [open, row, entries.length, last?.status]);
 
   if (!open) return null;
@@ -189,7 +192,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
             const sentText = replyId ? sent[replyId] : undefined;
             const spent = !!meta?.used || sentText !== undefined;
             return (
-              <div key={entry.requestId ?? replyId ?? `h${i}`} className="flex flex-col gap-2">
+              <div key={entry.requestId ?? replyId ?? `h${i}`} ref={i === entries.length - 1 ? lastRef : undefined} className="flex flex-col gap-2">
                 {entry.request && (
                   <p className="max-w-[85%] self-end whitespace-pre-wrap break-words rounded-button rounded-tr-[6px] bg-blue-tint px-3 py-[7px] text-body text-ink">{entry.request}</p>
                 )}
