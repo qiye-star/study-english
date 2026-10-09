@@ -166,3 +166,30 @@ async def my_security(request: Request, ctx: AdminContext = Depends(require("vie
     return {"username": ctx.actor.name, "role": ctx.role, "env": ctx.account_id is None,
             "totp_enabled": ctx.totp_enabled, "encryption": box_for(settings) is not None,
             "require_totp": settings.admin_require_totp, "recovery_codes_left": codes_left}
+
+
+@router.get("/audit")
+async def list_audit(actor: str | None = Query(None, max_length=64), action: str | None = Query(None, max_length=48),
+                     action_prefix: str | None = Query(None, max_length=48),
+                     target_type: str | None = Query(None, max_length=32), target_id: str | None = Query(None, max_length=64),
+                     before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=200),
+                     ctx: AdminContext = Depends(require("viewer")), session: AsyncSession = Depends(get_session)):
+    """Newest first. Viewers only ever see their own entries (spec §4.2), whatever `actor` they ask for."""
+    if ctx.role == "viewer":
+        actor = ctx.actor.name
+    try:
+        return await audit.listing(session, actor=actor or None, action=action or None,
+                                   action_prefix=action_prefix or None, target_type=target_type or None,
+                                   target_id=target_id or None, before_id=before_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.get("/audit/verify")
+async def verify_audit(ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    """Recompute the whole hash chain; the check itself is audited (result only)."""
+    ok, broken_at = await audit.verify(session)
+    await audit.record(session, ctx.actor, "audit.verify", target_type="audit",
+                       summary="ok" if ok else f"broken at {broken_at}", result="ok" if ok else "error")
+    await session.commit()
+    return {"ok": ok, "broken_at": broken_at}

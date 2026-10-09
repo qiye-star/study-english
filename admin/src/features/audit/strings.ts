@@ -1,4 +1,41 @@
-/** features/audit 的界面文案(zh-CN)。占位由 foundation 生成,lane settings (B6) 替换。 */
+/** features/audit 的界面文案(zh-CN)。 */
 export const S = {
   auditPage: "审计日志",
+  chainOk: "哈希链完整",
+  chainBroken: (id: number) => `第 ${id} 条起链断裂`,
+  chainBrokenHint: "该条及之后的记录可能被修改或删除过。数据库管理员的直接修改不在保护范围内,但会在这里暴露。",
+  chainChecking: "正在校验哈希链…",
+  filters: "筛选",
+  actor: "操作人",
+  ownOnly: "只读角色只能查看自己的记录",
+  action: "动作",
+  allActions: "全部动作",
+  target: "对象",
+  targetHint: "对象 ID,例如用户名或设置键",
+  apply: "筛选",
+  reset: "清除",
+  cols: { at: "时间", actor: "操作人", action: "动作", target: "对象", summary: "摘要", result: "结果" },
+  result: { ok: "成功", denied: "拒绝", error: "错误" } as Record<string, string>,
+  expand: "展开",
+  collapse: "收起",
+  reason: "理由",
+  noDiff: "没有记录前后变化",
+  ip: "IP",
+  empty: "没有符合条件的记录",
+  loadMore: "加载更多",
 };
+
+/** 动作前缀筛选(服务端 action_prefix 只接受 [a-z_.]) */
+export const ACTION_PREFIXES: { value: string; label: string }[] = [
+  { value: "settings.", label: "settings.* 设置" },
+  { value: "auth.", label: "auth.* 登录与会话" },
+  { value: "admin.", label: "admin.* 管理员账号" },
+  { value: "rank.", label: "rank.* 段位" },
+  { value: "room.", label: "room.* 房间" },
+  { value: "user.", label: "user.* 用户" },
+  { value: "invite.", label: "invite.* 邀请码" },
+  { value: "prompt.", label: "prompt.* 提示词" },
+  { value: "announcement.", label: "announcement.* 公告" },
+  { value: "probe.", label: "probe.* 测试连接" },
+  { value: "audit.", label: "audit.* 审计" },
+];

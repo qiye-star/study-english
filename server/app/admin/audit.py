@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import weakref
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -100,9 +101,18 @@ def audit_out(row: AdminAudit) -> dict:
             "result": row.result}
 
 
+ACTION_PREFIX_RE = re.compile(r"^[a-z_.]{1,48}$")
+
+
 async def listing(session, *, actor=None, action=None, target_type=None, target_id=None,
-                  before_id=None, limit: int = 50) -> dict:
+                  before_id=None, limit: int = 50, action_prefix: str | None = None) -> dict:
+    """Newest first. `action_prefix` ("settings." / "auth.") matches with LIKE; only [a-z_.] is accepted, so it
+    can carry no LIKE wildcards (ValueError otherwise)."""
     query = select(AdminAudit).order_by(AdminAudit.id.desc()).limit(limit + 1)
+    if action_prefix is not None:
+        if not ACTION_PREFIX_RE.fullmatch(action_prefix):
+            raise ValueError("Invalid action prefix")
+        query = query.where(AdminAudit.action.like(action_prefix.replace("_", r"\_") + "%", escape="\\"))
     for column, value in ((AdminAudit.actor, actor), (AdminAudit.action, action),
                           (AdminAudit.target_type, target_type), (AdminAudit.target_id, target_id)):
         if value is not None:
