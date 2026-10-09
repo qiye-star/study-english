@@ -7198,3 +7198,7 @@ Rulings below override earlier text in this plan.
   `admin/sessions.ensure_secret`). Not derived from `SETTINGS_ENCRYPTION_KEY` (optional and rotatable). A SHA-256
   check value of the secret in use is stored too; when it differs at the next start (env value changed), every admin
   session is revoked so admins log in again instead of hitting "CSRF check failed".
+- Ruling (audit chain, overrides P-5): the chain is serialised by the one-row `audit_head` table, updated first in
+  every `audit.record` so the DB lock is held until the caller commits; correct across workers and on Postgres.
+- Ruling (recover rotate-key): keys come from `OLD_SETTINGS_ENCRYPTION_KEY` / `NEW_SETTINGS_ENCRYPTION_KEY` or a
+  hidden prompt; `--old/--new` are gone.

@@ -75,4 +75,6 @@ tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py 
   first admin request), so CSRF tokens and env fingerprints survive restarts and match across workers; changing the
   env value revokes every admin session. Read it via `await sessions.ensure_secret(app)`, never `app.state` directly.
 - `admin_web` must be registered before `web` (SPA fallback) in `create_app`.
-- The audit chain is serialised per process (P-5); multiple workers may fork it (`verify` reports where).
+- The audit chain is serialised through the one-row `audit_head` (DB write/row lock held until the caller commits):
+  commit promptly after `audit.record`, never await upstream calls between them. `verify` also needs the oldest row
+  to start at GENESIS or be named by an `audit.purge` anchor.
