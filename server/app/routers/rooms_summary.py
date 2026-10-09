@@ -68,10 +68,14 @@ def _runner(app, rt: RoomsRuntime) -> SummaryRunner:
     def limits() -> RoomLimits:
         return rt.limits
 
+    async def owner_of(room_id: str) -> int | None:
+        room = await rt.store.room(room_id)
+        return None if room is None else room.owner_id
+
     return SummaryRunner(store=SummaryStore(sm), complete=complete, consume=consume, refund=refund,
                          template=template, room_info=room_info, limits=limits,
                          available=lambda: settings().rooms_summary_available,
-                         model=lambda: settings().resolved_rooms_ai_model, clock=utcnow)
+                         model=lambda: settings().resolved_rooms_ai_model, clock=utcnow, owner_of=owner_of)
 
 
 def install(app, rt) -> None:

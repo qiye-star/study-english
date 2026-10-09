@@ -508,7 +508,7 @@ v1 的「锁定」保留在房主设置里(不属于 7 项,沿用 v1 行为:锁�
 
 固定值(代码常量,`RoomLimits`):语音 6 条/分钟/人/房;翻译请求 20/分钟/人;重试 6/分钟/人/房;回应 30/分钟/人/房;加入请求每房 20 条待处理、被拒冷却 30 分钟、10 分钟过期;小结最少 6 条成员消息、上下文 150 条 / 12 000 字。
 
-每日计数在 `daily_usage`(v1 表):scope `room_voice`(按用户)、`room_voice_global`、`room_translate_global`、`room_summary_global`。上游失败退还(v1 规则);格式错误(翻译输出为空、小结 JSON 无效)不退还全站额度但计入尝试次数。
+每日计数在 `daily_usage`(v1 表):scope `room_voice`(按用户)、`room_voice_global`、`room_translate_global`、`room_summary_global`、`room_summary_owner`(每个房主每日最多 10 次小结,先于全站额度计数,防止一个账号反复开房耗尽全站额度)。上游失败退还(v1 规则);格式错误(翻译输出为空、小结 JSON 无效)不退还全站额度但计入尝试次数。
 
 ### 11.3 计量(admin §8 的 `upstream_calls`)
 

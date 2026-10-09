@@ -138,6 +138,7 @@ class RoomLimits:
     summary_context: int = 150
     summary_max_chars: int = 12_000
     summary_global_daily: int = 200
+    summary_owner_daily: int = 10  # per room owner per UTC day: one account cannot drain the site budget
     summary_attempts: int = 2
     staging_keep_days: int = 7
     default_max_members: int = 4

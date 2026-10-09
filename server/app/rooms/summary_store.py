@@ -23,6 +23,7 @@ from app.rooms.summary import Line, SummaryFormatError, build_chat, eligible, pa
 logger = logging.getLogger(__name__)
 GLOBAL_SCOPE = "room_summary_global"
 GLOBAL_SUBJECT = "*"
+OWNER_SCOPE = "room_summary_owner"
 PROMPT_KEY = "rooms.summary"
 MODEL_MAX = 64
 
@@ -113,6 +114,21 @@ class SummaryRunner:
     available: Callable[[], bool]  # settings.rooms_summary_available
     model: Callable[[], str]
     clock: Callable[[], datetime]
+    owner_of: Callable[[str], Awaitable[int | None]] | None = None  # the room's owner, for the per-owner cap
+
+    async def _claim_budget(self, room_id: str, limits: RoomLimits) -> list[tuple[str, str]] | None:
+        """Per-owner daily count first (review m9), then the global one. Returns what was taken, None when out."""
+        taken: list[tuple[str, str]] = []
+        owner = await self.owner_of(room_id) if self.owner_of is not None else None
+        if owner is not None:
+            if not await self.consume(OWNER_SCOPE, str(owner), limits.summary_owner_daily):
+                return None
+            taken.append((OWNER_SCOPE, str(owner)))
+        if not await self.consume(GLOBAL_SCOPE, GLOBAL_SUBJECT, limits.summary_global_daily):
+            for scope, subject in taken:
+                await self.refund(scope, subject)
+            return None
+        return [*taken, (GLOBAL_SCOPE, GLOBAL_SUBJECT)]
 
     async def run(self, room_id: str, *, resume: bool = False) -> str:
         """Claim and generate once; returns the final status. A room already done/skipped/pending (or out of
@@ -159,7 +175,8 @@ class SummaryRunner:
         info = await self.room_info(room_id)
         if info is None:
             return await self._end(room_id, "skipped", "missing")
-        if not await self.consume(GLOBAL_SCOPE, GLOBAL_SUBJECT, limits.summary_global_daily):
+        taken = await self._claim_budget(room_id, limits)
+        if taken is None:
             return await self._end(room_id, "skipped", "quota")
         level, scenario, members = info
         messages = assistant.summary_messages(level, scenario, members, build_chat(lines, limits.summary_max_chars),
@@ -170,7 +187,8 @@ class SummaryRunner:
                 raw = await self.complete(messages, assistant.SUMMARY_MAX_TOKENS, assistant.SUMMARY_TEMPERATURE)
         except Exception as e:
             logger.info("rooms summary upstream failed room=%s error=%s", room_id, type(e).__name__)
-            await self.refund(GLOBAL_SCOPE, GLOBAL_SUBJECT)
+            for scope, subject in taken:
+                await self.refund(scope, subject)
             return await self._end(room_id, "failed", "upstream")
         try:
             data = parse_summary(raw, lines)

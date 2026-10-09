@@ -166,3 +166,41 @@ async def test_template_and_room_info_feed_the_prompt(env):
     assert await runner.run(room.id) == "done"
     content = state["calls"][0]["messages"][0]["content"]
     assert content.startswith("Custom B1 Free conversation. alice") and "#1 alice: I go there 0" in content
+
+
+async def test_one_owner_cannot_burn_the_site_summary_budget(env):
+    """Review m9: rooms owned by one account get at most `summary_owner_daily` summaries a day, counted before the
+    global budget; an upstream failure gives both counts back."""
+    rooms, room, store, base, state = env
+    counts: dict[tuple[str, str], int] = {}
+    refunds: list[tuple[str, str]] = []
+
+    async def consume(scope, subject, limit):
+        counts[(scope, subject)] = counts.get((scope, subject), 0) + 1
+        return counts[(scope, subject)] <= limit
+
+    async def refund(scope, subject):
+        refunds.append((scope, subject))
+        counts[(scope, subject)] -= 1
+
+    async def owner_of(_room_id):
+        return A
+
+    runner = SummaryRunner(store=store, complete=base.complete, consume=consume, refund=refund,
+                           template=base.template, room_info=base.room_info,
+                           limits=lambda: RoomLimits(summary_min_messages=2, summary_owner_daily=2),
+                           available=base.available, model=base.model, clock=base.clock, owner_of=owner_of)
+    await rooms.close(room.id, "owner", NOW)
+    made = []
+    for _ in range(3):  # one account opens and ends room after room
+        r = await rooms.create(A, "", NOW)
+        await _say(rooms, r, 3)
+        await rooms.close(r.id, "owner", NOW)
+        made.append(r)
+    state["fail"] = True
+    assert await runner.run(made[0].id) == "failed"
+    assert sorted(refunds) == [("room_summary_global", "*"), ("room_summary_owner", str(A))]
+    state["fail"] = False
+    assert [await runner.run(r.id) for r in made] == ["done", "done", "skipped"]
+    assert (await store.get(made[2].id)).reason == "quota"
+    assert counts[("room_summary_global", "*")] == 2  # the over-cap room never touched the global budget
