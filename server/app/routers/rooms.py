@@ -346,6 +346,51 @@ async def cancel_request(request_id: str, request: Request, user: User = Depends
     return {"request": await rt.store.request_view(cancelled.id)}
 
 
+# ---- invite links (spec 2026-10-10 §3.4, R2-4/R2-5). Registered before the /{room_id} routes; the token never
+# reaches logs, audit or error texts (the access log redacts /api/rooms/invite/<token>). ----
+
+MAX_TOKEN = 64
+
+
+def _invite_out(token: str) -> dict:
+    return {"token": token, "path": f"/rooms/invite/{token}"}
+
+
+@router.get("/invite/{token}")
+async def invite_preview(token: str, request: Request, user: User = Depends(current_user),
+                         _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    if not rt.join_limiter.allow(str(user.id)):
+        raise HTTPException(429, "Too many requests, please try again later")
+    try:
+        return {"invite": await rt.store.invite_preview(token[:MAX_TOKEN], user.id)}
+    except RoomError as e:
+        _raise(e)
+
+
+@router.post("/invite/{token}/join", dependencies=[Depends(auth_rate_limit)])
+async def invite_join(token: str, request: Request, user: User = Depends(current_user),
+                      _: Settings = Depends(require_rooms)):
+    """Joins directly, also in an `approval` room (R2-4); locked, full, kicked and closed answer like v1."""
+    rt = runtime(request.app)
+    if not rt.join_limiter.allow(str(user.id)):
+        raise HTTPException(429, "Too many requests, please try again later")
+    token = token[:MAX_TOKEN]
+    try:
+        preview = await rt.store.invite_preview(token, user.id)
+        pending = await rt.store.user_pending(preview["room_id"], user.id)
+        room, joined = await rt.store.join_by_invite(token, user.id, utcnow())
+        _, member = await rt.store.membership(room.id, user.id)
+    except RoomError as e:
+        _raise(e)
+    if joined:
+        for request_id in pending:
+            await _request_closed(rt, room.id, request_id, "approved")
+        await _admitted(rt, room.id, [user.id])
+        logger.info("rooms invite join room=%s", room.id)
+    return {"room": await _room_json(rt, room, member.role)}
+
+
 @router.get("/mine")
 async def my_rooms(request: Request, user: User = Depends(current_user), _: Settings = Depends(require_rooms)):
     rt = runtime(request.app)
@@ -409,6 +454,28 @@ async def approve_request(room_id: str, request_id: str, request: Request, user:
 async def deny_request(room_id: str, request_id: str, request: Request, user: User = Depends(current_user),
                        _: Settings = Depends(require_rooms)):
     return await _decide(request, user, room_id, request_id, False)
+
+
+@router.post("/{room_id}/invite")
+async def room_invite(room_id: str, request: Request, user: User = Depends(current_user),
+                      _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    try:
+        return _invite_out(await rt.store.invite_token(room_id[:MAX_ID], user.id))
+    except RoomError as e:
+        _raise(e)
+
+
+@router.post("/{room_id}/invite/rotate")
+async def rotate_invite(room_id: str, request: Request, user: User = Depends(current_user),
+                        _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    try:
+        token = await rt.store.rotate_invite(room_id[:MAX_ID], user.id)
+    except RoomError as e:
+        _raise(e)
+    logger.info("rooms invite rotated room=%s", room_id[:MAX_ID])
+    return _invite_out(token)
 
 
 @router.post("/{room_id}/ticket")

@@ -4,6 +4,7 @@ so the per-room `seq` stays gapless in the single worker. Never logs message tex
 Retention: room messages are kept forever by default (`RoomLimits.retention_days == 0`); closed rooms stay
 readable as history for their members. `purge` only deletes when ROOM_MESSAGE_RETENTION_DAYS > 0."""
 import asyncio
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -20,6 +21,7 @@ from app.rooms.rules import CEFR_BY_TIER, MAX_TOPIC, NAME_MAX, SETTING_FIELDS, R
 from app.services.stats import as_utc
 
 CODE_ATTEMPTS = 5
+INVITE_ATTEMPTS = 3
 REPORT_REASONS = ("spam", "abuse", "other")
 AI_NAME = "AI 助手"
 IN_CHUNK = 500  # bound for IN (...) lists (same as services/chat_recordings.py)
@@ -246,6 +248,82 @@ class RoomStore:
                 request.status, request.decided_at = "cancelled", now
                 await s.commit()
             return request
+
+    # ---- invite links (spec 2026-10-10 §3.4, R2-4/R2-5): the token is a secret, never logged ----
+
+    async def _new_token(self, room_id: str) -> str:
+        for _ in range(INVITE_ATTEMPTS):
+            token = secrets.token_urlsafe(16)
+            async with self._sm() as s:
+                room = await s.get(Room, room_id)
+                room.invite_token = token
+                try:
+                    await s.commit()
+                    return token
+                except IntegrityError:
+                    await s.rollback()
+        raise RoomError("capacity")
+
+    async def invite_token(self, room_id: str, user_id: int) -> str:
+        """The room's link token, created on first use. Any member of a `code` room may share it; in an `approval`
+        room only the owner (a member's link would bypass the owner)."""
+        room, member = await self.membership(room_id, user_id)
+        if room.status != "open":
+            raise RoomError("not_found")
+        if room.join_mode == "approval" and member.role != "owner":
+            raise RoomError("forbidden")
+        return room.invite_token or await self._new_token(room_id)
+
+    async def rotate_invite(self, room_id: str, owner_id: int) -> str:
+        async with self._sm() as s:
+            await self._owned_room(s, room_id, owner_id)
+        return await self._new_token(room_id)
+
+    async def _invite_room(self, s, token: str) -> Room:
+        room = await s.scalar(select(Room).where(Room.invite_token == token, Room.status == "open")) if token else None
+        if room is None:
+            raise RoomError("not_found")
+        return room
+
+    async def invite_preview(self, token: str, user_id: int) -> dict:
+        """Room name, scenario, level and size only; never the member list (spec 2026-10-10 §13)."""
+        async with self._sm() as s:
+            room = await self._invite_room(s, token)
+            count = await s.scalar(select(func.count()).select_from(RoomMember).where(RoomMember.room_id == room.id,
+                                                                                      *_ACTIVE))
+            joined = await s.scalar(select(RoomMember.id).where(RoomMember.room_id == room.id,
+                                                                RoomMember.user_id == user_id, *_ACTIVE))
+        return {"room_id": room.id, "name": room.name or room.topic, "scenario": room.scenario, "level": room.level,
+                "member_count": int(count or 0), "max_members": room.max_members, "joined": joined is not None}
+
+    async def join_by_invite(self, token: str, user_id: int, now: datetime) -> tuple[Room, bool]:
+        """Like `join` without the approval step (R2-4: the link is the owner's consent). A pending request of the
+        user in that room is settled as approved (the router reads `user_pending` first to tell the owner)."""
+        async with self._admission, self._sm() as s:
+            room = await self._invite_room(s, token)
+            member = await self._member_row(s, room.id, user_id)
+            if member is not None and member.kicked:
+                raise RoomError("kicked")
+            if member is not None and member.left_at is None:
+                return room, False
+            if room.locked:
+                raise RoomError("locked")
+            if not await self._seat_free(s, room):
+                raise RoomError("full")
+            await self._admit(s, room, member, user_id, now)
+            for r in (await s.scalars(select(RoomJoinRequest).where(
+                    RoomJoinRequest.room_id == room.id, RoomJoinRequest.user_id == user_id,
+                    RoomJoinRequest.status == "pending"))).all():
+                r.status, r.decided_at = "approved", now
+            await s.commit()
+            return room, True
+
+    async def user_pending(self, room_id: str, user_id: int) -> list[str]:
+        """Ids of the user's pending requests in the room (an invite join settles them)."""
+        async with self._sm() as s:
+            return list((await s.scalars(select(RoomJoinRequest.id).where(
+                RoomJoinRequest.room_id == room_id, RoomJoinRequest.user_id == user_id,
+                RoomJoinRequest.status == "pending"))).all())
 
     async def _requests_out(self, *conds) -> list[dict]:
         async with self._sm() as s:
