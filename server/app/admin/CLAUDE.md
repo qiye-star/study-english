@@ -19,7 +19,13 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `totp.py` – RFC 6238 TOTP (stdlib) and recovery codes
 - `recover.py` – `python -m app.admin.recover list-overrides|clear-overrides|unlock|reset-totp|revoke-sessions|rotate-key`
 - `auth.py` – env credential comparison (`credentials_match`)
-- `service.py` – v1 cross-user read queries (overview, users, conversations, assessments, ...)
+- `service.py` – v1 cross-user read queries (overview, users with `status`/`sort`, conversations, assessments, ...)
+- `users_admin.py` – disable/enable, revoke tokens, reset password (temp password returned once, never logged),
+  delete user (explicit deletes: SQLite has no FK cascade; owned rooms pass to the earliest other member),
+  per-user quota overrides (`quota.set|clear`)
+- `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
+- `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
+  `routers/admin_rooms.py`
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`.

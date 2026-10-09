@@ -24,3 +24,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5. Off unle
 - Private-lane messages go only to `audience_id`; replay queries must filter the same way.
 - State that must survive a restart lives in the DB; the hub holds only connections.
 - Protocol changes need the matching web change (`protocol.test.ts` reads this package's file).
+- Admin moderation (admin v2 §6, endpoints in `routers/admin_rooms.py`): messages are never deleted (R-6);
+  `hide` only sets `hidden_at` — `message_out` then withholds text/meta (`hidden: true`), `recent_public` skips them,
+  and `message_hidden{seq}` is broadcast. `rooms.ai_muted` makes `@ai` and the assistant answer `notice ai_off`.
+  Per-user caps (`rooms_max_owned`, `rooms_assist_daily_per_user`) come from `core.quotas` via the router.
+- `RoomsRuntime.reconfigure` (hub listener `rooms_runtime`) applies hot-reloaded limits; switching rooms off closes
+  sockets with 4003, maintenance with 1012.
