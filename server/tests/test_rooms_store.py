@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -74,6 +75,28 @@ async def test_owner_leaving_hands_over(store):
     assert await store.leave(room.id, A, NOW) == B
     assert [m.role for m in await store.members(room.id)] == ["owner"]
     assert (await store.room(room.id)).owner_id == B
+
+
+async def test_parallel_creates_and_joins_respect_the_caps(app, monkeypatch):
+    """Review #16: count-then-insert let parallel requests all pass the cap check."""
+    async with app.state.sessionmaker() as s:
+        s.add_all([User(id=u, username=f"u{u}", password_hash="x") for u in (A, B, C, 44444444)])
+        await s.commit()
+    codes = iter(f"{100000 + i}" for i in range(100))
+    store = RoomStore(app.state.sessionmaker, RoomLimits(max_members=2, max_owned=1), code_gen=lambda: next(codes))
+
+    async def run(coro):
+        try:
+            return await coro
+        except RoomError as e:
+            return e.code
+
+    created = await asyncio.gather(*(run(store.create(A, "", NOW)) for _ in range(3)))
+    assert sorted(map(str, (c if isinstance(c, str) else "ok" for c in created))) == ["ok", "too_many", "too_many"]
+    room = next(c for c in created if not isinstance(c, str))
+    joined = await asyncio.gather(*(run(store.join(room.code, u, NOW)) for u in (B, C, 44444444)))
+    assert sum(1 for j in joined if not isinstance(j, str)) == 1
+    assert await store.member_count(room.id) == 2
 
 
 async def test_owner_leaving_an_empty_room_loses_owner_powers(store):

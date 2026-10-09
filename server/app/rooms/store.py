@@ -3,6 +3,7 @@ so the per-room `seq` stays gapless in the single worker. Never logs message tex
 
 Retention: room messages are kept forever by default (`RoomLimits.retention_days == 0`); closed rooms stay
 readable as history for their members. `purge` only deletes when ROOM_MESSAGE_RETENTION_DAYS > 0."""
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -54,9 +55,11 @@ class RoomStore:
         self._sm = sessionmaker
         self.limits = limits
         self._code_gen = code_gen
+        # Create and join check a count and then insert; one at a time keeps the caps exact (single worker, review #16).
+        self._admission = asyncio.Lock()
 
     async def create(self, owner_id: int, topic: str, now: datetime) -> Room:
-        async with self._sm() as s:
+        async with self._admission, self._sm() as s:
             if await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open")) >= self.limits.max_active:
                 raise RoomError("capacity")
             owned = await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open",
@@ -80,7 +83,7 @@ class RoomStore:
             raise RoomError("capacity")
 
     async def join(self, code: str, user_id: int, now: datetime) -> tuple[Room, bool]:
-        async with self._sm() as s:
+        async with self._admission, self._sm() as s:
             room = await s.scalar(select(Room).where(Room.code == code, Room.status == "open"))
             if room is None:
                 raise RoomError("not_found")
