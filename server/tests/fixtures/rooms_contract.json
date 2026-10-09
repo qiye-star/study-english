@@ -1,0 +1,459 @@
+{
+  "http": {
+    "config": {
+      "enabled": true,
+      "ai_available": true,
+      "max_members": 8,
+      "max_text": 500
+    },
+    "create": {
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "owner_id": 65998347,
+        "my_role": "owner",
+        "member_count": 1,
+        "online_count": 0,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      }
+    },
+    "join": {
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "owner_id": 65998347,
+        "my_role": "member",
+        "member_count": 2,
+        "online_count": 0,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      }
+    },
+    "ticket": {
+      "ticket": "<redacted>",
+      "expires_in": 60
+    },
+    "patch": {
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": false,
+        "owner_id": 65998347,
+        "my_role": "owner",
+        "member_count": 2,
+        "online_count": 2,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      }
+    },
+    "detail": {
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": false,
+        "owner_id": 65998347,
+        "my_role": "owner",
+        "member_count": 2,
+        "online_count": 2,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      },
+      "members": [
+        {
+          "user_id": 65998347,
+          "name": "alice",
+          "role": "owner",
+          "online": true
+        },
+        {
+          "user_id": 13413373,
+          "name": "bob",
+          "role": "member",
+          "online": true
+        }
+      ]
+    },
+    "messages": {
+      "messages": [
+        {
+          "seq": 1,
+          "id": "36fec9c2-7f61-4dd0-8227-a00cf4e7d794",
+          "lane": "public",
+          "kind": "system",
+          "sender": {
+            "kind": "system",
+            "id": null,
+            "name": null
+          },
+          "text": "joined",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": null,
+          "meta": {
+            "name": "bob"
+          },
+          "created_at": "2026-10-09T13:08:01.240312+00:00"
+        },
+        {
+          "seq": 2,
+          "id": "0942f3bd-646c-43a1-b527-eaef22a5585c",
+          "lane": "private",
+          "kind": "assist_request",
+          "sender": {
+            "kind": "user",
+            "id": 65998347,
+            "name": "alice"
+          },
+          "text": "I like 巧克力",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": null,
+          "meta": null,
+          "created_at": "2026-10-09T13:08:01.308811+00:00"
+        },
+        {
+          "seq": 3,
+          "id": "682d94ab-178a-4e4c-b2b0-a9dd513ce7e1",
+          "lane": "private",
+          "kind": "assist_reply",
+          "sender": {
+            "kind": "ai",
+            "id": null,
+            "name": null
+          },
+          "text": "巧克力是 chocolate。",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": null,
+          "meta": {
+            "reply_zh": "巧克力是 chocolate。",
+            "suggestions": [
+              {
+                "en": "I like chocolate.",
+                "note_zh": "最常用"
+              }
+            ],
+            "glossary": []
+          },
+          "created_at": "2026-10-09T13:08:01.320864+00:00"
+        },
+        {
+          "seq": 4,
+          "id": "0a5b4c13-041c-4cae-8fed-20654b7ec807",
+          "lane": "public",
+          "kind": "text",
+          "sender": {
+            "kind": "user",
+            "id": 65998347,
+            "name": "alice"
+          },
+          "text": "I like chocolate.",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": null,
+          "meta": null,
+          "created_at": "2026-10-09T13:08:01.328998+00:00"
+        },
+        {
+          "seq": 5,
+          "id": "f6491315-774c-4c96-b76e-3aa2c6b43444",
+          "lane": "public",
+          "kind": "text",
+          "sender": {
+            "kind": "user",
+            "id": 13413373,
+            "name": "bob"
+          },
+          "text": "@ai what does break the ice mean?",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": "done",
+          "meta": null,
+          "created_at": "2026-10-09T13:08:01.341224+00:00"
+        },
+        {
+          "seq": 6,
+          "id": "fc83078d-8365-43bc-a856-12d684182d99",
+          "lane": "public",
+          "kind": "ai_answer",
+          "sender": {
+            "kind": "ai",
+            "id": null,
+            "name": null
+          },
+          "text": "It means starting a conversation.",
+          "assisted": false,
+          "reply_to": 5,
+          "ai_status": null,
+          "meta": null,
+          "created_at": "2026-10-09T13:08:01.359088+00:00"
+        },
+        {
+          "seq": 7,
+          "id": "070ff9ad-4e2a-41b5-8c54-12865a74f7ea",
+          "lane": "public",
+          "kind": "text",
+          "sender": {
+            "kind": "user",
+            "id": 65998347,
+            "name": "alice"
+          },
+          "text": "@ai hello?",
+          "assisted": false,
+          "reply_to": null,
+          "ai_status": null,
+          "meta": null,
+          "created_at": "2026-10-09T13:08:01.384601+00:00"
+        }
+      ]
+    },
+    "mine": {
+      "rooms": [
+        {
+          "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+          "code": "883156",
+          "topic": "美食",
+          "status": "open",
+          "locked": false,
+          "ai_public": false,
+          "owner_id": 65998347,
+          "my_role": "owner",
+          "member_count": 2,
+          "online_count": 2,
+          "created_at": "2026-10-09T13:08:01.206689+00:00",
+          "closed_at": null
+        }
+      ]
+    },
+    "report": {
+      "ok": true
+    },
+    "leave": {
+      "ok": true
+    },
+    "kick": {
+      "ok": true
+    },
+    "close": {
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": null,
+        "topic": "美食",
+        "status": "closed",
+        "locked": false,
+        "ai_public": false,
+        "owner_id": 65998347,
+        "my_role": "owner",
+        "member_count": 1,
+        "online_count": 0,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": "2026-10-09T13:08:01.516916+00:00"
+      }
+    }
+  },
+  "ws": {
+    "welcome": {
+      "type": "welcome",
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "owner_id": 65998347,
+        "my_role": "owner",
+        "member_count": 2,
+        "online_count": 2,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      },
+      "me": {
+        "user_id": 65998347,
+        "role": "owner"
+      },
+      "members": [
+        {
+          "user_id": 65998347,
+          "name": "alice",
+          "role": "owner",
+          "online": true
+        },
+        {
+          "user_id": 13413373,
+          "name": "bob",
+          "role": "member",
+          "online": true
+        }
+      ],
+      "last_seq": 1,
+      "truncated": false,
+      "assist_history": []
+    },
+    "message_text": {
+      "type": "message",
+      "message": {
+        "seq": 4,
+        "id": "0a5b4c13-041c-4cae-8fed-20654b7ec807",
+        "lane": "public",
+        "kind": "text",
+        "sender": {
+          "kind": "user",
+          "id": 65998347,
+          "name": "alice"
+        },
+        "text": "I like chocolate.",
+        "assisted": false,
+        "reply_to": null,
+        "ai_status": null,
+        "meta": null,
+        "created_at": "2026-10-09T13:08:01.328998+00:00"
+      }
+    },
+    "message_system": {
+      "type": "message",
+      "message": {
+        "seq": 1,
+        "id": "36fec9c2-7f61-4dd0-8227-a00cf4e7d794",
+        "lane": "public",
+        "kind": "system",
+        "sender": {
+          "kind": "system",
+          "id": null,
+          "name": null
+        },
+        "text": "joined",
+        "assisted": false,
+        "reply_to": null,
+        "ai_status": null,
+        "meta": {
+          "name": "bob"
+        },
+        "created_at": "2026-10-09T13:08:01.240312+00:00"
+      }
+    },
+    "message_ai_answer": {
+      "type": "message",
+      "message": {
+        "seq": 6,
+        "id": "fc83078d-8365-43bc-a856-12d684182d99",
+        "lane": "public",
+        "kind": "ai_answer",
+        "sender": {
+          "kind": "ai",
+          "id": null,
+          "name": null
+        },
+        "text": "It means starting a conversation.",
+        "assisted": false,
+        "reply_to": 5,
+        "ai_status": null,
+        "meta": null,
+        "created_at": "2026-10-09T13:08:01.359088+00:00"
+      }
+    },
+    "ack": {
+      "type": "ack",
+      "client_id": "c1",
+      "seq": 4
+    },
+    "presence": {
+      "type": "presence",
+      "members": [
+        {
+          "user_id": 65998347,
+          "name": "alice",
+          "role": "owner",
+          "online": true
+        },
+        {
+          "user_id": 13413373,
+          "name": "bob",
+          "role": "member",
+          "online": true
+        }
+      ]
+    },
+    "ai_typing": {
+      "type": "ai_typing",
+      "reply_to": 5
+    },
+    "assist_reply": {
+      "type": "assist_reply",
+      "request_id": "r1",
+      "message": {
+        "seq": 3,
+        "id": "682d94ab-178a-4e4c-b2b0-a9dd513ce7e1",
+        "lane": "private",
+        "kind": "assist_reply",
+        "sender": {
+          "kind": "ai",
+          "id": null,
+          "name": null
+        },
+        "text": "巧克力是 chocolate。",
+        "assisted": false,
+        "reply_to": null,
+        "ai_status": null,
+        "meta": {
+          "reply_zh": "巧克力是 chocolate。",
+          "suggestions": [
+            {
+              "en": "I like chocolate.",
+              "note_zh": "最常用"
+            }
+          ],
+          "glossary": []
+        },
+        "created_at": "2026-10-09T13:08:01.320864+00:00"
+      }
+    },
+    "error": {
+      "type": "error",
+      "code": "empty"
+    },
+    "notice": {
+      "type": "notice",
+      "code": "ai_off"
+    },
+    "room_update": {
+      "type": "room_update",
+      "room": {
+        "id": "8bcc1b32-1860-4377-a530-97386c157ba5",
+        "code": "883156",
+        "topic": "美食",
+        "status": "open",
+        "locked": false,
+        "ai_public": false,
+        "owner_id": 65998347,
+        "my_role": null,
+        "member_count": 2,
+        "online_count": 2,
+        "created_at": "2026-10-09T13:08:01.206689+00:00",
+        "closed_at": null
+      }
+    },
+    "pong": {
+      "type": "pong"
+    },
+    "closed": {
+      "type": "closed",
+      "reason": "owner"
+    }
+  }
+}
