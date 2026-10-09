@@ -86,4 +86,19 @@ describe("RoomMessageList (v2 extras)", () => {
     expect(screen.getByTestId("msg-quote")).toBeTruthy();
     expect(screen.queryByTestId("room-report")).toBeNull();
   });
+  it("spells out each settings change with WC's describeSettingsChanges", async () => {
+    const meta = { changes: [{ field: "name", value: "咖啡角" }, { field: "max_members", value: 5 }] };
+    setup([msg(3, "settings", { kind: "system", sender: { kind: "system", id: null, name: null }, meta })]);
+    expect(await screen.findByText("房主把房间名改为「咖啡角」,把人数上限改为 5")).toBeTruthy();
+  });
+
+  it("names a changed scenario from the rooms config and falls back to the generic text", async () => {
+    const meta = { changes: [{ field: "scenario", value: "cafe" }] };
+    setup([
+      msg(3, "settings", { kind: "system", sender: { kind: "system", id: null, name: null }, meta }),
+      msg(4, "settings", { kind: "system", sender: { kind: "system", id: null, name: null }, meta: { changes: [{ field: "x", value: 1 }] } }),
+    ], { "GET /api/rooms/config": () => json({ scenarios: [{ key: "cafe", title_zh: "咖啡店点单", title_en: "At a café" }] }) });
+    expect(await screen.findByText("房主把场景改为「咖啡店点单」")).toBeTruthy();
+    expect(screen.getByText("房主修改了房间设置")).toBeTruthy();
+  });
 });

@@ -16,6 +16,8 @@ import { isMostlyNative, speakable } from "./extras/text-tools";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
 import { VoiceBubble } from "./voice/voice-bubble";
+import { describeSettingsChanges } from "./create/settings-message";
+import { fetchRoomsConfig, type RoomsConfig } from "./rooms-api";
 
 const AT_AI = /^(\s*@(?:ai|助手))(?=$|[\s:：,，])/i;
 
@@ -88,6 +90,17 @@ export const RoomMessageList = memo(function RoomMessageList({
     return aiRef.current;
   }, [api]);
   useEffect(() => { if (selected !== null) void loadAi(); }, [selected, loadAi]);
+  // 「settings」系统消息逐项描述(WC 的 describeSettingsChanges);改了场景时才取 /api/rooms/config 换成场景名
+  const [scenarios, setScenarios] = useState<RoomsConfig["scenarios"] | undefined>(undefined);
+  const needsScenarios = useMemo(() => state.messages.some((m) => m.kind === "system" && m.text === "settings"
+    && Array.isArray((m.meta as { changes?: unknown } | null)?.changes)
+    && ((m.meta as { changes: { field?: unknown }[] }).changes).some((c) => c?.field === "scenario")), [state.messages]);
+  useEffect(() => {
+    if (!needsScenarios || scenarios) return;
+    const ctrl = new AbortController();
+    fetchRoomsConfig(api, ctrl.signal).then((c) => setScenarios(c.scenarios), (): void => undefined); // 取不到就显示场景 key
+    return () => ctrl.abort();
+  }, [api, needsScenarios, scenarios]);
   const speak = (m: RoomMessage) => {
     const text = speakable(m);
     if (ai) {
@@ -146,7 +159,8 @@ export const RoomMessageList = memo(function RoomMessageList({
     if (m.kind === "system") {
       return (
         <p key={m.id} data-seq={m.seq} data-testid="room-message" data-kind="system" className="text-center text-label font-medium tracking-[0.02em] text-ink-2">
-          {t(`web.rooms.room.system.${m.text}`, { ...((m.meta ?? {}) as Record<string, string>), defaultValue: "" })}
+          {(m.text === "settings" && describeSettingsChanges(t, m.meta, scenarios, language))
+            || t(`web.rooms.room.system.${m.text}`, { ...((m.meta ?? {}) as Record<string, string>), defaultValue: "" })}
         </p>
       );
     }
