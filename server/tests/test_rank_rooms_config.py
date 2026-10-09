@@ -36,7 +36,12 @@ async def test_config_reports_disabled_and_other_paths_404(client, auth_headers)
     r = await client.get("/api/rank/config", headers=auth_headers)
     assert r.json() == {"enabled": False, "match_available": False, "tiers": [], "season": None}
     r = await client.get("/api/rooms/config", headers=auth_headers)
-    assert r.json() == {"enabled": False, "ai_available": False, "max_members": 8, "max_text": 500}
+    rooms = r.json()
+    assert {k: rooms[k] for k in ("enabled", "ai_available", "max_members", "max_text")} == {
+        "enabled": False, "ai_available": False, "max_members": 8, "max_text": 500}
+    # rooms v2 fields (spec 2026-10-10 §8): costly sub-features report unavailable while rooms are off
+    assert (rooms["voice_available"], rooms["summary_available"], rooms["default_max_members"], rooms["max_voice_ms"]) == (
+        False, False, 4, 60_000)
     r = await client.get("/api/rank/me", headers=auth_headers)
     assert r.status_code == 404 and r.json() == {"error": "Rank is disabled"}
     r = await client.get("/api/rooms/mine", headers=auth_headers)
