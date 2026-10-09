@@ -157,3 +157,11 @@ async def test_real_uvicorn_never_prints_the_ticket(tmp_path, capfd, uvicorn_log
     assert "/up?ticket=[redacted]" in output
     assert '"WebSocket /api/realtime?ticket=[redacted]" [accepted]' in output
     assert "HttpSecret123" not in output and "WsSecret456" not in output
+
+
+def test_invite_tokens_in_paths_are_redacted():
+    from app.core.logging_setup import redact_query_secrets
+
+    line = '"GET /rooms/invite/AbC_123-xyz HTTP/1.1" 200 / "POST /api/rooms/invite/AbC_123-xyz/join HTTP/1.1"'
+    out = redact_query_secrets(line)
+    assert "AbC_123-xyz" not in out and out.count("[redacted]") == 2 and "/join" in out

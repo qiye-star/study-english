@@ -17,11 +17,15 @@ _MARK = "_enjoy_app_handler"
 # ticket is a bearer secret, so its value is redacted on those loggers.
 REDACTED_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn")
 _SECRET_QUERY = re.compile(r"(?i)\b(ticket=)[^&\s\"'#]+")
+# Room invite tokens travel in the path (/rooms/invite/<token>, /api/rooms/invite/<token>/join): same secrecy
+# as tickets (spec 2026-10-10 R2-5).
+_INVITE_PATH = re.compile(r"(/rooms/invite/)[A-Za-z0-9_-]+")
 REDACTED = "[redacted]"
 
 
 def redact_query_secrets(text: str) -> str:
-    return _SECRET_QUERY.sub(lambda m: m.group(1) + REDACTED, text)
+    text = _SECRET_QUERY.sub(lambda m: m.group(1) + REDACTED, text)
+    return _INVITE_PATH.sub(lambda m: m.group(1) + REDACTED, text)
 
 
 class QuerySecretFilter(logging.Filter):

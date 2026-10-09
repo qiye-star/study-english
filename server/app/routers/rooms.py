@@ -1,11 +1,17 @@
 """Room endpoints (spec 2026-10-09 §7.2–7.3, §5.7–5.8). Off unless ROOMS_ENABLED; the config endpoint always
 answers. State lives in the DB; `app.state.rooms` (RoomsRuntime) holds only the hub, tickets and rate windows.
 Closed rooms stay readable (detail + messages) for their members; messages are kept forever by default.
-Never logs tickets or message text."""
+Never logs tickets or message text.
+
+Rooms v2 extension points (plan P2-1): `RoomsRuntime.voice`, `close_listeners`, `sweep_listeners` and
+`startup_listeners` are filled by the install functions in `app.state.rooms_extensions` (set by `main.py` to
+`routers/rooms_voice.install` and `routers/rooms_summary.install`), so this module never imports those routers."""
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from pydantic import BaseModel, Field
@@ -25,7 +31,9 @@ from app.rooms.protocol import (
     CLOSE_BUSY, CLOSE_DISABLED, CLOSE_KICKED, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_RESTART,
     CLOSE_UNAUTHORIZED, HELLO_TIMEOUT, MAX_ID, HelloMsg, ProtocolError, event, parse_client_message,
 )
-from app.rooms.rules import MAX_TEXT, RoomLimits
+from app.rooms.protocol import REACTION_KEYS
+from app.rooms.rules import LEVELS, MAX_TEXT, RoomLimits
+from app.rooms.scenarios import SCENARIOS
 from app.rooms.store import RoomError, RoomStore, message_out, room_out
 from app.rooms.tickets import RoomTicketStore
 from app.services import usage
@@ -56,6 +64,12 @@ class RoomsRuntime:
     assist_limiter: RateLimiter
     sweeper: asyncio.Task | None = None
     ai_concurrency: int = 0
+    # ---- rooms v2 extension points (plan P2-1); filled by app.state.rooms_extensions ----
+    voice: object | None = None  # connection.VoiceHandler (lane SV)
+    close_listeners: list["CloseListener"] = field(default_factory=list)
+    sweep_listeners: list["SweepListener"] = field(default_factory=list)
+    startup_listeners: list["StartupListener"] = field(default_factory=list)
+    app: object | None = None
 
     def reconfigure(self, settings: Settings, old: Settings | None = None) -> None:
         """Hot reload (admin v2 §3.6, §10): new limits for later requests/messages; live sockets close when rooms
@@ -86,6 +100,10 @@ class RoomsRuntime:
             self.sweeper = asyncio.get_running_loop().create_task(_sweep_loop(self))  # switched on at runtime
 
 
+CloseListener = Callable[[RoomsRuntime, str, str], Awaitable[None]]  # (rt, room_id, reason)
+SweepListener = Callable[[RoomsRuntime, datetime], Awaitable[None]]  # (rt, now), after each sweep
+StartupListener = Callable[[RoomsRuntime], Awaitable[None]]  # after fail_pending_ai at startup
+
 RUNTIME_KEYS = frozenset({k for k in SPECS if k.startswith(("rooms_", "room_"))} | {"maintenance_mode"})
 
 
@@ -102,7 +120,10 @@ def runtime(app) -> RoomsRuntime:
             ai_user_limiter=RateLimiter(limits.ai_per_user_10min, 600),
             join_limiter=RateLimiter(limits.join_per_minute, 60),
             assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency)
+        rt.app = app
         app.state.rooms = rt
+        for install in getattr(app.state, "rooms_extensions", ()):
+            install(app, rt)
         hub = getattr(app.state, "settings_hub", None)
         if hub is not None:
             hub.subscribe("rooms_runtime", lambda old, new: rt.reconfigure(new, old), keys=RUNTIME_KEYS)
@@ -135,7 +156,16 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
 
     return ConnDeps(rt.store, rt.hub, rt.limits, complete, consume, refund, utcnow, rt.ai_gate, rt.say_limiter,
                     rt.ai_room_limiter, rt.ai_user_limiter, settings.rooms_ai_available, rt.assist_limiter,
-                    assist_daily_for, templates)
+                    assist_daily_for, templates, voice=rt.voice)
+
+
+async def after_close(rt: RoomsRuntime, room_id: str, reason: str) -> None:
+    """Runs every close listener (e.g. the learning summary) after a room closed; spawned on the hub."""
+    for listener in list(rt.close_listeners):
+        try:
+            await listener(rt, room_id, reason)
+        except Exception as e:  # a listener must never break closing
+            logger.warning("rooms close listener failed error=%s", type(e).__name__)
 
 
 def require_rooms(settings: Settings = Depends(get_settings)) -> Settings:
@@ -194,7 +224,12 @@ async def presence(rt: RoomsRuntime, room_id: str) -> None:
 @router.get("/config")
 async def rooms_config(_: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     return {"enabled": settings.rooms_enabled, "ai_available": settings.rooms_ai_available,
-            "max_members": settings.rooms_max_members, "max_text": MAX_TEXT}
+            "max_members": settings.rooms_max_members, "max_text": MAX_TEXT,
+            "scenarios": [{"key": s.key, "title_zh": s.title_zh, "title_en": s.title_en} for s in SCENARIOS],
+            "levels": list(LEVELS), "default_max_members": min(RoomLimits.default_max_members, settings.rooms_max_members),
+            "name_max": RoomLimits.name_max, "voice_available": settings.rooms_voice_available,
+            "max_voice_ms": settings.rooms_voice_max_seconds * 1000,
+            "summary_available": settings.rooms_summary_available, "reactions": list(REACTION_KEYS)}
 
 
 @router.post("")
@@ -257,7 +292,7 @@ async def room_messages(room_id: str, request: Request, before_seq: int = Query(
         room, _member = await rt.store.membership(room_id[:MAX_ID], user.id)
     except RoomError as e:
         _raise(e)
-    return {"messages": [message_out(m, n) for m, n in await rt.store.history(room.id, user.id, before_seq, limit)]}
+    return {"messages": await rt.store.history_out(room.id, user.id, before_seq, limit)}
 
 
 @router.post("/{room_id}/ticket")
@@ -336,6 +371,7 @@ async def close_room(room_id: str, request: Request, user: User = Depends(curren
     await rt.hub.broadcast(room.id, event("closed", reason="owner"))
     await rt.hub.close_room(room.id, CLOSE_NOT_FOUND)
     rt.hub.forget(room.id)
+    rt.hub.spawn(after_close(rt, room.id, "owner"))
     return {"room": await _room_json(rt, room, "owner")}
 
 
@@ -455,7 +491,13 @@ async def sweep_once(rt: RoomsRuntime, now) -> list[tuple[str, str]]:
         await rt.hub.broadcast(room_id, event("closed", reason=reason))
         await rt.hub.close_room(room_id, CLOSE_NOT_FOUND)
         rt.hub.forget(room_id)
+        rt.hub.spawn(after_close(rt, room_id, reason))
     await rt.store.purge(now)
+    for listener in list(rt.sweep_listeners):
+        try:
+            await listener(rt, now)
+        except Exception as e:
+            logger.warning("rooms sweep listener failed error=%s", type(e).__name__)
     return closed
 
 
@@ -480,6 +522,11 @@ async def rooms_startup(app) -> None:
         logger.info("rooms startup pending_ai_failed=%d", failed)
     except Exception as e:
         logger.warning("rooms startup cleanup failed error=%s", type(e).__name__)
+    for listener in list(rt.startup_listeners):
+        try:
+            await listener(rt)
+        except Exception as e:
+            logger.warning("rooms startup listener failed error=%s", type(e).__name__)
     if rt.sweeper is None:
         rt.sweeper = asyncio.create_task(_sweep_loop(rt))
 

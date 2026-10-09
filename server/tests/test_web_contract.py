@@ -120,6 +120,11 @@ def test_rooms_payloads_match_the_web_contract(tmp_path, monkeypatch):
     assert ws["notice"]["code"] == "ai_off" and ws["error"]["code"] == "empty" and ws["closed"]["reason"] == "owner"
     assert ws["assist_reply"]["message"]["lane"] == "private"
     assert set(ws["assist_reply"]["message"]["meta"]) == {"reply_zh", "suggestions", "glossary"}
+    # Rooms v2 (spec 2026-10-10 §8–9)
+    assert ws["welcome"]["protocol"] == 2 and ws["welcome"]["join_requests"] == []
+    assert set(ws["message_text"]["message"]) >= {"quote", "voice", "reactions"}
+    assert contract["http"]["config"]["reactions"] == ["like", "love", "haha", "wow", "clap", "thanks"]
+    assert {"name", "scenario", "level", "join_mode", "max_members", "allow_voice"} <= set(contract["http"]["create"]["room"])
 
 
 RANK = json.loads((Path(__file__).parent / "fixtures" / "rank_contract.json").read_text(encoding="utf-8"))

@@ -328,3 +328,46 @@ def test_admin_hide_and_ai_mute_reach_members(tmp_path, monkeypatch):
             assert {"type": "notice", "code": "ai_off"} in events and events[-1]["request_id"] == "r1"
     finally:
         client.__exit__(None, None, None)
+
+
+def test_welcome_v2_and_new_frames_are_accepted(rooms_client):
+    app, client = rooms_client
+    room, alice, bob, _, ticket = setup_room(client)
+    with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(alice)}") as ws:
+        ws.send_text(json.dumps({"type": "hello", "last_seq": 0}))  # v1 hello, no "v"
+        welcome = until(ws, "welcome")[-1]
+        assert welcome["protocol"] == 2 and welcome["reactions"] == [] and welcome["join_requests"] == []
+        for frame in ({"type": "typing", "state": "typing"}, {"type": "react", "seq": 1, "key": "like", "on": True}):
+            ws.send_text(json.dumps(frame))
+        ws.send_text(json.dumps({"type": "voice_translate", "seq": 1}))
+        assert until(ws, "notice")[-1]["code"] == "voice_off"
+        ws.send_text(json.dumps({"type": "voice_retry", "seq": 1}))
+        assert until(ws, "notice")[-1]["code"] == "voice_off"
+        ws.send_text(json.dumps({"type": "say", "client_id": "q1", "text": "hello"}))
+        got = until(ws, "message")[-1]["message"]
+        assert {"quote", "voice", "reactions"} <= set(got) and got["reactions"] == []
+        ws.send_text(json.dumps({"type": "ping"}))
+        until(ws, "pong")
+
+
+def test_runtime_extensions_and_after_close_listeners(rooms_client):
+    """Plan P2-1: main installs the voice/summary extensions; a failing close listener never breaks closing."""
+    from app.routers import rooms_summary, rooms_voice
+
+    app, client = rooms_client
+    assert app.state.rooms_extensions == (rooms_voice.install, rooms_summary.install)
+    rt = rooms_router.runtime(app)
+    assert rt.app is app and rt.voice is None
+    calls = []
+
+    async def boom(rt_, room_id, reason):
+        raise RuntimeError("listener failure")
+
+    async def record(rt_, room_id, reason):
+        calls.append((room_id, reason))
+
+    rt.close_listeners.extend([boom, record])
+    room, alice, _, _, _ = setup_room(client)
+    assert client.post(f"/api/rooms/{room['id']}/close", headers=alice).status_code == 200
+    client.portal.call(rt.hub.drain)
+    assert calls == [(room["id"], "owner")]

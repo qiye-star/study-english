@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 MAX_TEXT = 500
 MAX_TOPIC = 100
+LEVELS = ("A1", "A2", "B1", "B2", "C1")  # room target levels (spec 2026-10-10 §3.1)
 # Mirrors app.rank.tiers TIERS[*].cefr; rooms must not import rank (tests/test_architecture.py).
 CEFR_BY_TIER = ("A1", "A2", "B1", "B1+", "B2", "C1", "C1+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")

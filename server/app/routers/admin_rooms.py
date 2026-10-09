@@ -16,7 +16,7 @@ from app.core.deps import get_session
 from app.models import utcnow
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, MAX_ID, event
 from app.rooms.store import RoomError
-from app.routers.rooms import RoomsRuntime, presence, runtime, system_message, _room_json
+from app.routers.rooms import RoomsRuntime, after_close, presence, runtime, system_message, _room_json
 
 router = APIRouter(prefix="/api/admin")
 
@@ -59,6 +59,7 @@ async def _close(rt: RoomsRuntime, room_id: str) -> bool:
     await rt.hub.broadcast(room_id, event("closed", reason="admin"))
     await rt.hub.close_room(room_id, CLOSE_NOT_FOUND)
     rt.hub.forget(room_id)
+    rt.hub.spawn(after_close(rt, room_id, "admin"))
     return True
 
 

@@ -2,22 +2,34 @@
 injected through ConnDeps. Never logs message text, drafts or AI output."""
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Protocol
 
 from app.core.ratelimit import RateLimiter
 from app.providers.llm import LlmUnavailable
 from app.rooms import assistant
 from app.rooms.hub import Conn, Dropped, RoomHub
 from app.rooms.protocol import (
-    MAX_ASSIST_TEXT, AssistMsg, HelloMsg, PingMsg, ProtocolError, SayMsg, event, parse_client_message,
+    MAX_ASSIST_TEXT, PROTOCOL_VERSION, AssistMsg, HelloMsg, PingMsg, ProtocolError, ReactMsg, SayMsg, TypingMsg,
+    VoiceRetryMsg, VoiceTranslateMsg, event, parse_client_message,
 )
 from app.rooms.rules import MAX_TEXT, RoomLimits, clean_text, mention
 from app.rooms.store import RoomStore, message_out, room_out
 
 logger = logging.getLogger(__name__)
 GLOBAL = "*"
+
+
+class VoiceHandler(Protocol):
+    """Shared voice transcript translation and transcription retry (spec 2026-10-10 §4.4–4.5). Installed on
+    `RoomsRuntime.voice` by `routers/rooms_voice.install` (lane SV); None = voice off (`notice voice_off`)."""
+
+    async def on_translate(self, conn: "RoomConnection", seq: int) -> None: ...
+
+    async def on_retry(self, conn: "RoomConnection", seq: int) -> None: ...
 
 
 @dataclass
@@ -39,6 +51,10 @@ class ConnDeps:
     assist_daily_for: Callable[[int], Awaitable[int]] | None = None
     # Published admin prompt templates (admin v2 G2); None per key = the built-in default. Cached, no DB read per call.
     templates: Callable[[], Awaitable[dict[str, str | None]]] | None = None
+    # ---- rooms v2 (plan P2-1/P2-3) ----
+    voice: VoiceHandler | None = None
+    react_limiter: RateLimiter | None = None  # SC4: 30/minute per room:user
+    clock_mono: Callable[[], float] = time.monotonic  # SC4: typing/activity throttling
 
     async def template(self, key: str) -> str | None:
         return (await self.templates()).get(key) if self.templates is not None else None
@@ -58,21 +74,31 @@ class RoomConnection:
     async def _to_me(self, data: dict) -> None:
         await self.deps.hub.broadcast(self.room_id, data, only_user=self.user_id)
 
+    async def reply(self, data: dict) -> None:
+        """Send to every connection of this user in this room (e.g. a voice_update only the requester needs)."""
+        await self._to_me(data)
+
+    async def send_self(self, data: dict) -> None:
+        """Send to this connection only (e.g. an error for the frame it sent)."""
+        await self._send(data)
+
     async def welcome(self, last_seq: int) -> None:
         d = self.deps
         room = await d.store.room(self.room_id)
         members = await d.store.members(self.room_id)
         online = d.hub.online(self.room_id)
-        rows, truncated = await d.store.replay(self.room_id, self.user_id, last_seq, d.limits.replay_limit)
+        rows, truncated = await d.store.replay_out(self.room_id, self.user_id, last_seq, d.limits.replay_limit)
         history = await d.store.assist_history(self.room_id, self.user_id, d.limits.assist_history)
         role = next((m.role for m in members if m.user_id == self.user_id), "member")
         await self._send(event(
             "welcome", room=room_out(room, my_role=role, member_count=len(members), online_count=len(online)),
             me={"user_id": self.user_id, "role": role}, members=members_out(members, online),
             last_seq=room.last_seq, truncated=truncated,
-            assist_history=[message_out(m, n) for m, n in history]))
-        for m, n in rows:
-            await self._send(event("message", message=message_out(m, n)))
+            assist_history=[message_out(m, n) for m, n in history],
+            protocol=PROTOCOL_VERSION, reactions=await d.store.recent_reactions(self.room_id),
+            join_requests=await d.store.pending_requests(self.room_id) if role == "owner" else []))
+        for message in rows:
+            await self._send(event("message", message=message))
 
     async def handle(self, raw: str) -> None:
         if self.conn.dropped:  # the hub gave up on this socket (it stopped reading): end its receive loop
@@ -86,6 +112,23 @@ class RoomConnection:
             await self.on_say(msg)
         elif isinstance(msg, AssistMsg):
             await self.on_assist(msg)
+        elif isinstance(msg, TypingMsg):
+            await self.on_typing(msg)
+        elif isinstance(msg, ReactMsg):
+            await self.on_react(msg)
+        elif isinstance(msg, (VoiceTranslateMsg, VoiceRetryMsg)):
+            if self.deps.voice is None:
+                await self._send(event("notice", code="voice_off"))
+            elif isinstance(msg, VoiceTranslateMsg):
+                await self.deps.voice.on_translate(self, msg.seq)
+            else:
+                await self.deps.voice.on_retry(self, msg.seq)
+
+    async def on_typing(self, msg: TypingMsg) -> None:
+        """Plan P2-3: accepted and ignored until SC4 (activity broadcast to the others)."""
+
+    async def on_react(self, msg: ReactMsg) -> None:
+        """Plan P2-3: accepted and ignored until SC4 (toggle + reaction broadcast)."""
 
     async def on_say(self, msg: SayMsg) -> None:
         d = self.deps
@@ -122,7 +165,7 @@ class RoomConnection:
                 await d.refund("room_ai_global", GLOBAL)
             raise
         await self._send(event("ack", client_id=msg.client_id, seq=m.seq))
-        await d.hub.broadcast(self.room_id, event("message", message=message_out(m, self.name)))
+        await d.hub.broadcast(self.room_id, event("message", message=await d.store.out_one(m.id)))
         if ask:
             d.hub.spawn(self._answer(m.seq, m.id, question))
 

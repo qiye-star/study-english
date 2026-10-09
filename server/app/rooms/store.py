@@ -10,14 +10,19 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.models import RankProfile, Room, RoomMember, RoomMessage, RoomReport, User, iso_utc, new_uuid
+from app.models import (
+    RankProfile, Room, RoomJoinRequest, RoomMember, RoomMessage, RoomReaction, RoomReport, RoomSummary, RoomVoice, User,
+    iso_utc, new_uuid,
+)
 from app.rooms.codes import generate_code
+from app.rooms.protocol import REACTION_KEYS
 from app.rooms.rules import CEFR_BY_TIER, MAX_TOPIC, RoomLimits, clean_text
 from app.services.stats import as_utc
 
 CODE_ATTEMPTS = 5
 REPORT_REASONS = ("spam", "abuse", "other")
 AI_NAME = "AI 助手"
+IN_CHUNK = 500  # bound for IN (...) lists (same as services/chat_recordings.py)
 
 
 class RoomError(Exception):
@@ -33,21 +38,57 @@ class MemberView:
     role: str
 
 
-def message_out(m: RoomMessage, name: str | None) -> dict:
-    """Member view. A message hidden by an admin keeps its row (R-6) but its text and meta are withheld."""
+def voice_out(v: RoomVoice) -> dict:
+    """The shared voice state of one message (spec 2026-10-10 §9). `audio` is False once an admin purged the file."""
+    return {"duration_ms": v.duration_ms, "status": v.status, "transcript": v.transcript, "lang": v.lang,
+            "translation": v.translation, "translation_status": v.translation_status, "attempts": v.attempts,
+            "audio": v.audio_path is not None}
+
+
+def message_out(m: RoomMessage, name: str | None, *, voice: RoomVoice | None = None,
+                reactions: list[dict] | None = None) -> dict:
+    """Member view (protocol v2 shape). A message hidden by an admin keeps its row (R-6) but its text, meta, quote,
+    voice and reactions are withheld. `quote` is a promoted copy of `meta.quote`. Callers that need the voice and
+    reaction attachments use `RoomStore.replay_out / history_out / out_one` (plan P2-2)."""
     hidden = m.hidden_at is not None
+    quote = m.meta.get("quote") if isinstance(m.meta, dict) else None
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
             "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": name},
             "text": "" if hidden else m.text, "assisted": bool(m.assisted), "reply_to": m.reply_to,
             "ai_status": m.ai_status, "meta": None if hidden else m.meta, "created_at": iso_utc(m.created_at),
-            "hidden": hidden}
+            "hidden": hidden, "quote": None if hidden else quote,
+            "voice": None if hidden or voice is None else voice_out(voice),
+            "reactions": [] if hidden else list(reactions or [])}
 
 
 def room_out(room: Room, *, my_role: str | None, member_count: int, online_count: int) -> dict:
-    return {"id": room.id, "code": room.code, "topic": room.topic, "status": room.status, "locked": room.locked,
-            "ai_public": room.ai_public, "ai_muted": bool(room.ai_muted), "owner_id": room.owner_id,
-            "my_role": my_role, "member_count": member_count, "online_count": online_count,
-            "created_at": iso_utc(room.created_at), "closed_at": iso_utc(room.closed_at) if room.closed_at else None}
+    """`topic` stays for v1 clients and now carries the room name (spec R2-1)."""
+    return {"id": room.id, "code": room.code, "topic": room.name or room.topic, "status": room.status,
+            "locked": room.locked, "ai_public": room.ai_public, "ai_muted": bool(room.ai_muted),
+            "owner_id": room.owner_id, "my_role": my_role, "member_count": member_count, "online_count": online_count,
+            "created_at": iso_utc(room.created_at), "closed_at": iso_utc(room.closed_at) if room.closed_at else None,
+            "name": room.name, "scenario": room.scenario, "level": room.level, "join_mode": room.join_mode,
+            "max_members": room.max_members, "allow_voice": room.allow_voice}
+
+
+def request_out(r: RoomJoinRequest, name: str, room_name: str) -> dict:
+    return {"id": r.id, "room_id": r.room_id, "room_name": room_name, "user_id": r.user_id, "name": name,
+            "status": r.status, "created_at": iso_utc(r.created_at)}
+
+
+def _chunks(items: list):
+    for i in range(0, len(items), IN_CHUNK):
+        yield items[i:i + IN_CHUNK]
+
+
+def _group(items: list[RoomReaction]) -> list[dict]:
+    """Reactions of one message as [{key, user_ids}] in REACTION_KEYS order; only keys someone used."""
+    by_key: dict[str, list[int]] = {}
+    for r in items:
+        users = by_key.setdefault(r.key, [])
+        if r.user_id not in users:
+            users.append(r.user_id)
+    return [{"key": k, "user_ids": by_key[k]} for k in REACTION_KEYS if by_key.get(k)]
 
 
 _ACTIVE = (RoomMember.left_at.is_(None), RoomMember.kicked.is_(False))
@@ -230,6 +271,14 @@ class RoomStore:
                 raise RoomError("not_found")
             if msg.hidden_at is None:
                 msg.hidden_at = now
+                # Quote snapshots of the hidden message lose their text in the same commit (spec 2026-10-10 §6.4).
+                quoting = (await s.scalars(select(RoomMessage).where(
+                    RoomMessage.room_id == room_id, RoomMessage.reply_to == msg.seq,
+                    RoomMessage.kind.in_(("text", "voice"))))).all()
+                for q in quoting:
+                    quote = q.meta.get("quote") if isinstance(q.meta, dict) else None
+                    if isinstance(quote, dict) and quote.get("seq") == msg.seq:
+                        q.meta = {**q.meta, "quote": {**quote, "text": ""}}
                 await s.commit()
             return msg.seq
 
@@ -346,6 +395,55 @@ class RoomStore:
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
         return [(AI_NAME if m.sender_kind == "ai" else (n or ""), m.text) for m, n in reversed(rows)]
 
+    async def _attach(self, rows: list[tuple[RoomMessage, str | None]]) -> list[dict]:
+        """v2 member view of `rows`: voice rows and reactions loaded in batches (public lane only)."""
+        ids = [m.id for m, _ in rows if m.lane == "public"]
+        voices: dict[str, RoomVoice] = {}
+        reactions: dict[str, list[RoomReaction]] = {}
+        if ids:
+            async with self._sm() as s:
+                for chunk in _chunks(ids):
+                    voices.update({v.message_id: v for v in (await s.scalars(
+                        select(RoomVoice).where(RoomVoice.message_id.in_(chunk)))).all()})
+                    for r in (await s.scalars(select(RoomReaction).where(RoomReaction.message_id.in_(chunk))
+                                              .order_by(RoomReaction.created_at, RoomReaction.id))).all():
+                        reactions.setdefault(r.message_id, []).append(r)
+        return [message_out(m, n, voice=voices.get(m.id), reactions=_group(reactions.get(m.id, [])))
+                for m, n in rows]
+
+    async def replay_out(self, room_id: str, user_id: int, after_seq: int, limit: int) -> tuple[list[dict], bool]:
+        rows, truncated = await self.replay(room_id, user_id, after_seq, limit)
+        return await self._attach(rows), truncated
+
+    async def history_out(self, room_id: str, user_id: int, before_seq: int, limit: int) -> list[dict]:
+        return await self._attach(await self.history(room_id, user_id, before_seq, limit))
+
+    async def out_one(self, message_id: str) -> dict | None:
+        """One message in the v2 member view (for broadcasts). Private-lane rows come out without attachments."""
+        rows = await self._named(self._select().where(RoomMessage.id == message_id))
+        return (await self._attach(rows))[0] if rows else None
+
+    async def recent_reactions(self, room_id: str, messages: int = 200) -> list[dict]:
+        """All reactions on the room's last `messages` seqs as [{seq, key, user_ids}] (welcome refresh)."""
+        async with self._sm() as s:
+            floor = (await s.scalar(select(Room.last_seq).where(Room.id == room_id)) or 0) - messages
+            rows = (await s.scalars(select(RoomReaction).where(RoomReaction.room_id == room_id,
+                                                               RoomReaction.seq > floor)
+                                    .order_by(RoomReaction.seq, RoomReaction.created_at, RoomReaction.id))).all()
+        by_seq: dict[int, list[RoomReaction]] = {}
+        for r in rows:
+            by_seq.setdefault(r.seq, []).append(r)
+        return [{"seq": seq, **g} for seq, items in by_seq.items() for g in _group(items)]
+
+    async def pending_requests(self, room_id: str) -> list[dict]:
+        async with self._sm() as s:
+            rows = (await s.execute(select(RoomJoinRequest, User.username, Room.name, Room.topic)
+                                    .join(User, User.id == RoomJoinRequest.user_id)
+                                    .join(Room, Room.id == RoomJoinRequest.room_id)
+                                    .where(RoomJoinRequest.room_id == room_id, RoomJoinRequest.status == "pending")
+                                    .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
+        return [request_out(r, n, rn or rt) for r, n, rn, rt in rows]
+
     async def assist_history(self, room_id: str, user_id: int, limit: int):
         rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "private",
                                                       RoomMessage.audience_id == user_id)
@@ -384,10 +482,14 @@ class RoomStore:
             ids = list((await s.scalars(select(Room.id).where(Room.status == "closed", Room.closed_at <= cutoff))).all())
             if not ids:
                 return 0
+            # v2 rows first (FKs are not enforced on SQLite). Audio files are not touched here: the admin
+            # room_audio tool's orphan scan removes them (spec 2026-10-10 §12).
+            for model in (RoomVoice, RoomReaction, RoomJoinRequest, RoomSummary):
+                await s.execute(delete(model).where(model.room_id.in_(ids)))
             result = await s.execute(delete(RoomMessage).where(RoomMessage.room_id.in_(ids)))
             await s.execute(delete(RoomMember).where(RoomMember.room_id.in_(ids)))
             await s.execute(delete(RoomReport).where(RoomReport.room_id.in_(ids)))
-            await s.execute(update(Room).where(Room.id.in_(ids)).values(topic=""))
+            await s.execute(update(Room).where(Room.id.in_(ids)).values(topic="", name="", invite_token=None))
             await s.commit()
             return result.rowcount or 0
 
