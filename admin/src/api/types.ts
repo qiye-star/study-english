@@ -136,7 +136,15 @@ export interface VocabularyItem {
   created_at: string;
 }
 
-export interface LoginResponse {
-  token: string;
+/** `POST /api/admin/login`、`POST /login/totp`、`GET /session` 的响应(snake_case 原样) */
+export interface SessionWire {
+  username: string;
+  role: "viewer" | "operator" | "superadmin";
+  csrf_token: string;
   expires_at: string;
+  mfa_required: boolean;
+  step_up_until: string | null;
+  totp_enabled: boolean;
+  safe_mode: boolean;
+  maintenance_mode: "off" | "read_only" | "full";
 }

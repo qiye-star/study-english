@@ -3,62 +3,63 @@
 @tailwind utilities;
 
 /*
- * 设计方案:「听音室」—— 安静的仪表盘。
- * 色:冷调石板灰中性色 + 单一信号青(accent),状态色(绿/琥珀/红)与 accent 分离。
- * 字:系统无衬线(CJK 安全)排正文,等宽字体排所有数字(时间码、分数、计数)。
- * 版:手机单列铺满,桌面居中一列;分割线分组代替逐项卡片;录音波形是主角。
+ * 设计方案:管理后台 v2(docs/superpowers/specs/2026-10-09-admin-console-v2-design.md §18)。
+ * 令牌名沿用 v1,值换为 redesign-v3 的语义色,一色一义:
+ *   accent(蓝)= 主操作 / 选中 / 进度;good(绿)= 健康 / 已生效 / 通过;
+ *   warn(琥珀)= 待重启 / 提醒 / 漂移;bad(红)= 危险文字 / 错误 / 断链;其余一律中性灰。teal 不用。
+ * 只做桌面网页端(裁定 R-7,≥1024px);字:系统无衬线排正文,等宽数字(tabular-nums)排所有数字。
  * 颜色值一律 RGB 三元组,供 tailwind `rgb(var(--x) / <alpha>)` 使用。
  */
 :root {
-  --bg: 243 245 247;
+  --bg: 245 246 248; /* 页面底 = surface-2,卡片为白,便于密集表格分组 */
   --surface: 255 255 255;
-  --sunken: 234 238 241;
+  --sunken: 245 246 248;
   --raised: 255 255 255;
-  --line: 222 228 232;
-  --line-strong: 196 205 211;
-  --fg: 24 32 38;
-  --fg-2: 70 84 94;
-  --muted: 94 108 118;
-  --accent: 10 112 142;
-  --accent-strong: 7 90 115;
-  --accent-soft: 225 240 245;
+  --line: 229 231 235; /* ≈ hair rgba(17,19,24,.12) 在白底上 */
+  --line-strong: 209 213 219;
+  --fg: 17 19 24; /* ink */
+  --fg-2: 91 97 112; /* ink-2 */
+  --muted: 91 97 112; /* 文字一律 ink/ink-2;ink-3 只用于图形 */
+  --accent: 36 86 219; /* blue */
+  --accent-strong: 28 69 178;
+  --accent-soft: 234 240 255;
   --accent-fg: 255 255 255;
-  --good: 24 128 76;
-  --warn: 156 98 7;
-  --bad: 194 50 54;
-  --good-soft: 222 243 230;
-  --warn-soft: 251 240 213;
-  --bad-soft: 252 228 228;
-  --wave: 118 132 142;
-  --shadow: 24 40 52;
-  --focus: 10 112 142;
+  --good: 21 122 59; /* green */
+  --warn: 154 75 0; /* amber */
+  --bad: 209 36 47; /* red */
+  --good-soft: 228 246 234;
+  --warn-soft: 255 240 222;
+  --bad-soft: 252 232 233;
+  --wave: 138 144 160; /* ink-3,只用于图形 */
+  --shadow: 17 19 24;
+  --focus: 36 86 219;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: 15 20 25;
-    --surface: 23 30 36;
-    --sunken: 31 40 47;
-    --raised: 31 40 47;
-    --line: 42 53 61;
-    --line-strong: 66 80 90;
-    --fg: 230 236 240;
-    --fg-2: 176 190 199;
-    --muted: 147 163 173;
-    --accent: 92 188 216;
-    --accent-strong: 140 210 232;
-    --accent-soft: 24 52 64;
-    --accent-fg: 10 24 30;
-    --good: 86 204 138;
-    --warn: 226 182 72;
-    --bad: 240 115 112;
-    --good-soft: 22 54 38;
-    --warn-soft: 58 46 16;
-    --bad-soft: 68 30 32;
-    --wave: 110 126 138;
+    --bg: 15 16 19;
+    --surface: 23 25 30;
+    --sunken: 30 33 39;
+    --raised: 30 33 39;
+    --line: 44 47 54;
+    --line-strong: 62 66 75;
+    --fg: 243 244 246;
+    --fg-2: 166 171 184;
+    --muted: 166 171 184;
+    --accent: 143 176 255;
+    --accent-strong: 178 201 255;
+    --accent-soft: 30 38 60;
+    --accent-fg: 15 16 19;
+    --good: 111 211 154;
+    --warn: 242 176 86;
+    --bad: 255 123 123;
+    --good-soft: 24 46 34;
+    --warn-soft: 52 40 22;
+    --bad-soft: 56 28 30;
+    --wave: 110 116 130;
     --shadow: 0 0 0;
-    --focus: 92 188 216;
+    --focus: 143 176 255;
     color-scheme: dark;
   }
 }
@@ -147,6 +148,20 @@
   }
   .btn-quiet {
     @apply btn text-fg-2 hover:bg-sunken;
+  }
+  /* 危险操作:红字描边,不用红色大色块(一色一义) */
+  .btn-danger {
+    @apply btn border border-bad/35 bg-surface text-bad hover:bg-bad-soft;
+  }
+  /* 桌面密集控件:32px 高 */
+  .btn-sm {
+    @apply min-h-[32px] rounded-lg px-3 text-[13px];
+  }
+  .field-sm {
+    @apply h-9 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-fg outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25 disabled:bg-sunken disabled:text-fg-2;
+  }
+  .badge {
+    @apply inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[11px] font-medium;
   }
   /* 列表行:左右对齐、分割线、可点击区域 >= 56px */
   .row {

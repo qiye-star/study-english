@@ -1,44 +1,291 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { setStepUpHandler } from "../api/client";
+import * as session from "../api/session";
+import { hasRole, type AdminSession, type Role } from "../api/session";
 import { S } from "../strings";
-import { BackIcon, MicIcon, PulseIcon, UsersIcon } from "./icons";
+import {
+  BackIcon,
+  ChartIcon,
+  ChatsIcon,
+  DatabaseIcon,
+  DesktopIcon,
+  FlagIcon,
+  GearIcon,
+  KeyIcon,
+  ListIcon,
+  LogoutIcon,
+  MegaphoneIcon,
+  MicIcon,
+  PulseIcon,
+  ScrollIcon,
+  ServerIcon,
+  ShieldIcon,
+  SlidersIcon,
+  TextIcon,
+  TicketIcon,
+  UsersIcon,
+} from "./icons";
+import { StepUpDialog } from "./step-up-dialog";
 
-const TABS = [
-  { to: "/", label: S.tabs.overview, icon: PulseIcon, match: (p: string) => p === "/" },
-  { to: "/users", label: S.tabs.users, icon: UsersIcon, match: (p: string) => p.startsWith("/users") || p.startsWith("/conversations") },
-  { to: "/assessments", label: S.tabs.recordings, icon: MicIcon, match: (p: string) => p.startsWith("/assessments") },
+type Icon = ComponentType<SVGProps<SVGSVGElement>>;
+
+export interface NavItem {
+  to: string;
+  label: string;
+  icon: Icon;
+  min: Role;
+  /** 只在路径完全相等时高亮(用于 "/"、"/rank" 这类有子路由兄弟的项) */
+  end?: boolean;
+}
+
+const I = S.shell.items;
+const G = S.shell.groups;
+
+/** 侧栏导航(数据驱动,按最低角色过滤;服务端每个端点另有角色校验)。 */
+export const NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: G.overview,
+    items: [
+      { to: "/", label: I.overview, icon: PulseIcon, min: "viewer", end: true },
+      { to: "/system", label: I.system, icon: ServerIcon, min: "viewer" },
+    ],
+  },
+  {
+    group: G.content,
+    items: [
+      { to: "/users", label: I.users, icon: UsersIcon, min: "viewer" },
+      { to: "/assessments", label: I.recordings, icon: MicIcon, min: "viewer" },
+      { to: "/invites", label: I.invites, icon: TicketIcon, min: "operator" },
+    ],
+  },
+  {
+    group: G.rank,
+    items: [
+      { to: "/rank", label: I.rank, icon: ShieldIcon, min: "viewer", end: true },
+      { to: "/rank/rules", label: I.rankRules, icon: SlidersIcon, min: "viewer" },
+    ],
+  },
+  {
+    group: G.rooms,
+    items: [
+      { to: "/rooms", label: I.rooms, icon: ChatsIcon, min: "viewer" },
+      { to: "/reports", label: I.reports, icon: FlagIcon, min: "operator" },
+    ],
+  },
+  { group: G.usage, items: [{ to: "/usage", label: I.usage, icon: ChartIcon, min: "viewer" }] },
+  {
+    group: G.config,
+    items: [
+      { to: "/settings", label: I.settings, icon: GearIcon, min: "viewer" },
+      { to: "/prompts", label: I.prompts, icon: TextIcon, min: "viewer" },
+      { to: "/announcements", label: I.announcements, icon: MegaphoneIcon, min: "operator" },
+    ],
+  },
+  {
+    group: G.ops,
+    items: [
+      { to: "/logs", label: I.logs, icon: ListIcon, min: "operator" },
+      { to: "/data", label: I.data, icon: DatabaseIcon, min: "superadmin" },
+    ],
+  },
+  {
+    group: G.security,
+    items: [
+      { to: "/audit", label: I.audit, icon: ScrollIcon, min: "viewer" },
+      { to: "/security", label: I.security, icon: KeyIcon, min: "superadmin" },
+    ],
+  },
 ];
 
-/** 顶栏高度(不含安全区),供吸顶元素计算 top */
+/** 当前路径对应的导航项(最长前缀),用于顶栏面包屑 */
+export function navItemFor(pathname: string): { group: string; item: NavItem } | null {
+  let best: { group: string; item: NavItem } | null = null;
+  for (const g of NAV) {
+    for (const item of g.items) {
+      const hit = item.to === "/" ? pathname === "/" : pathname === item.to || pathname.startsWith(item.to + "/");
+      if (hit && (!best || item.to.length > best.item.to.length)) best = { group: g.group, item };
+    }
+  }
+  if (!best && pathname.startsWith("/conversations")) best = { group: G.content, item: NAV[1].items[0] };
+  return best;
+}
+
+/** 页面内 TopBar 的高度(吸顶偏移) */
 export const TOP_BAR_H = 52;
 
-export function TabBar() {
-  const { pathname } = useLocation();
+/** 裁定 R-7:只支持 ≥ 1024px 的桌面浏览器。没有 matchMedia(jsdom)时按桌面处理。 */
+export const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function desktopNow(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+  return window.matchMedia(DESKTOP_QUERY).matches;
+}
+
+function subscribeDesktop(cb: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+  const mql = window.matchMedia(DESKTOP_QUERY);
+  mql.addEventListener?.("change", cb);
+  return () => mql.removeEventListener?.("change", cb);
+}
+
+export function useIsDesktop(): boolean {
+  return useSyncExternalStore(subscribeDesktop, desktopNow, () => true);
+}
+
+function Sidebar({ current }: { current: AdminSession | null }) {
   return (
-    <nav aria-label="主导航" className="fixed inset-x-0 bottom-0 z-30 bg-surface/92 shadow-float backdrop-blur-xl" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <div className="mx-auto flex max-w-col">
-        {TABS.map(({ to, label, icon: Ico, match }) => {
-          const active = match(pathname);
+    <aside className="flex w-sidebar shrink-0 flex-col overflow-y-auto border-r border-line bg-surface px-2.5 py-3">
+      <div className="flex items-center gap-2 px-2 pb-3.5 pt-1.5 text-[15px] font-semibold tracking-tight">
+        <span aria-hidden="true" className="grid h-[26px] w-[26px] place-items-center rounded-lg bg-fg text-[12px] font-bold text-bg">
+          En
+        </span>
+        {S.shell.brand}
+      </div>
+      <nav aria-label={S.shell.nav} className="flex flex-col gap-0.5">
+        {NAV.map((g) => {
+          const items = g.items.filter((i) => hasRole(current, i.min));
+          if (items.length === 0) return null;
           return (
-            <NavLink
-              key={to}
-              to={to}
-              aria-current={active ? "page" : undefined}
-              className={`relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors ${
-                active ? "text-accent" : "text-muted hover:text-fg-2"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`absolute top-0 h-[2px] w-8 rounded-b-full bg-accent transition-[opacity,transform] duration-200 ${active ? "opacity-100 scale-x-100" : "opacity-0 scale-x-50"}`}
-              />
-              <Ico width={22} height={22} strokeWidth={active ? 2 : 1.75} />
-              {label}
-            </NavLink>
+            <div key={g.group} className="flex flex-col gap-0.5">
+              <p className="px-2.5 pb-1 pt-3 text-2xs tracking-[0.06em] text-fg-2">{g.group}</p>
+              {items.map(({ to, label, icon: Ico, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={({ isActive }) =>
+                    `flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors ${
+                      isActive ? "bg-accent-soft font-semibold text-accent" : "text-fg-2 hover:bg-sunken hover:text-fg"
+                    }`
+                  }
+                >
+                  <Ico width={18} height={18} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
           );
         })}
+      </nav>
+    </aside>
+  );
+}
+
+function ShellHeader({ current }: { current: AdminSession | null }) {
+  const { pathname } = useLocation();
+  const crumb = navItemFor(pathname);
+  return (
+    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line bg-surface px-5">
+      <div className="min-w-0 truncate text-[13px] text-fg-2">
+        {crumb ? (
+          <>
+            {crumb.group} / <b className="text-[15px] font-semibold text-fg">{crumb.item.label}</b>
+          </>
+        ) : (
+          <b className="text-[15px] font-semibold text-fg">{S.shell.brand}</b>
+        )}
       </div>
-    </nav>
+      <div className="flex-1" />
+      <span className="rounded-md px-2 py-0.5 text-2xs text-fg-2 ring-1 ring-inset ring-line">{window.location.host}</span>
+      {current && (
+        <div className="flex items-center gap-2 text-[13px]">
+          <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full bg-sunken text-[12px] font-semibold ring-1 ring-inset ring-line">
+            {current.username.slice(0, 1).toUpperCase()}
+          </span>
+          {current.username}
+          <span className="badge bg-sunken text-fg-2 ring-1 ring-inset ring-line">{S.shell.roles[current.role]}</span>
+        </div>
+      )}
+      <button type="button" className="btn-quiet btn-sm" onClick={() => void session.logout()}>
+        <LogoutIcon width={16} height={16} />
+        {S.common.logout}
+      </button>
+    </header>
+  );
+}
+
+/** 安全模式红条、维护模式琥珀条 */
+function StatusBars({ current }: { current: AdminSession | null }) {
+  if (!current) return null;
+  return (
+    <>
+      {current.safeMode && (
+        <div role="status" className="shrink-0 border-b border-bad/25 bg-bad-soft px-5 py-2 text-[13px] font-medium text-bad">
+          {S.shell.safeMode}
+        </div>
+      )}
+      {current.maintenanceMode !== "off" && (
+        <div role="status" className="shrink-0 border-b border-warn/25 bg-warn-soft px-5 py-2 text-[13px] font-medium text-warn">
+          {S.shell.maintenance[current.maintenanceMode]}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** < 1024px:整页提示,不渲染业务页(仍可退出登录)。 */
+export function DesktopOnly({ current }: { current: AdminSession | null }) {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
+      <DesktopIcon width={40} height={40} className="text-fg-2" />
+      <h1 className="text-lg font-semibold">{S.shell.desktopOnlyTitle}</h1>
+      <p className="max-w-[360px] text-sm leading-relaxed text-fg-2">{S.shell.desktopOnlyBody}</p>
+      {current && <p className="text-xs text-fg-2">{S.shell.signedInAs(current.username)}</p>}
+      {current && (
+        <button type="button" className="btn-ghost btn-sm" onClick={() => void session.logout()}>
+          {S.common.logout}
+        </button>
+      )}
+    </main>
+  );
+}
+
+/** v2 外壳:232px 侧栏 + 顶栏 + 状态条 + 可滚动内容区(最大 1200);承载二次验证弹窗。 */
+export function AppShell() {
+  const current = session.useAdminSession();
+  const desktop = useIsDesktop();
+  const [pending, setPending] = useState<((ok: boolean) => void) | null>(null);
+
+  useEffect(() => setStepUpHandler(() => new Promise<boolean>((resolve) => setPending(() => resolve))), []);
+
+  const finish = useCallback(
+    (ok: boolean) => {
+      pending?.(ok);
+      setPending(null);
+      if (ok) void session.refreshSession();
+    },
+    [pending],
+  );
+
+  if (!desktop) return <DesktopOnly current={current} />;
+  return (
+    <div className="flex h-dvh bg-bg">
+      <Sidebar current={current} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ShellHeader current={current} />
+        <StatusBars current={current} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-content">
+            <Outlet />
+          </div>
+        </div>
+      </div>
+      <StepUpDialog open={pending !== null} totp={!!current?.totpEnabled} onDone={() => finish(true)} onClose={() => finish(false)} />
+    </div>
+  );
+}
+
+/** v2 页面骨架:标题行(可带操作按钮)+ 内容。 */
+export function Page({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
+  return (
+    <main className="space-y-4 px-6 py-5">
+      <div className="flex min-h-[36px] items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
+      </div>
+      {children}
+    </main>
   );
 }
 
@@ -81,21 +328,6 @@ export function TopBar({
         {right}
       </div>
     </header>
-  );
-}
-
-/** 手机宽度铺满;桌面居中成一列。 */
-export function AppShell() {
-  return (
-    <div className="min-h-dvh bg-bg">
-      <div
-        className="mx-auto min-h-dvh max-w-col bg-bg sm:border-x sm:border-line"
-        style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom))", paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}
-      >
-        <Outlet />
-      </div>
-      <TabBar />
-    </div>
   );
 }
 

@@ -5,14 +5,17 @@ import { AssessmentCard } from "../components/assessment-card";
 import { Avatar } from "../components/avatar";
 import { ChevronIcon } from "../components/icons";
 import { Chips, Screen, TOP_BAR_H, TopBar, UnderlineTabs } from "../components/layout";
+import { UserRankPanel } from "../features/rank";
+import { UserAdminPanel } from "../features/users";
 import { ErrorState, PagedList, Skeleton } from "../components/states";
 import { useAsync } from "../hooks/use-async";
 import { usePaged } from "../hooks/use-paged";
 import { formatBytes, formatDateTime, formatRelative } from "../lib/format";
 import { S } from "../strings";
 
-type Tab = "chats" | "assessments" | "practice" | "vocab";
-const TABS: Tab[] = ["chats", "assessments", "practice", "vocab"];
+type Tab = "chats" | "assessments" | "practice" | "vocab" | "rank" | "admin";
+/** 「段位」「治理」两个页签的内容来自 features/rank 与 features/users(各自车道实现,本页不再改) */
+const TABS: Tab[] = ["chats", "assessments", "practice", "vocab", "rank", "admin"];
 
 function Chats({ userId }: { userId: string }) {
   const paged = usePaged<ConversationItem>(async (page) => {
@@ -178,6 +181,8 @@ export function UserDetailPage() {
             {tab === "assessments" && <Assessments userId={id} />}
             {tab === "practice" && <Practice userId={id} />}
             {tab === "vocab" && <Vocabulary userId={id} />}
+            {tab === "rank" && <UserRankPanel userId={id} />}
+            {tab === "admin" && <UserAdminPanel userId={id} />}
           </>
         )}
       </Screen>

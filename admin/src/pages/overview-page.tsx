@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { getOverview } from "../api/endpoints";
-import { clearSession } from "../api/session";
 import { ActivityChart } from "../components/activity-chart";
-import { LogoutIcon } from "../components/icons";
 import { Screen, TopBar } from "../components/layout";
 import { ErrorState, Skeleton } from "../components/states";
 import { useAsync } from "../hooks/use-async";
@@ -26,15 +24,7 @@ export function OverviewPage() {
 
   return (
     <>
-      <TopBar
-        title={S.overview.title}
-        subtitle={S.appName + " · " + S.common.readOnly}
-        right={
-          <button type="button" aria-label={S.common.logout} onClick={clearSession} className="tap flex items-center justify-center rounded-lg text-muted hover:text-fg active:bg-sunken">
-            <LogoutIcon />
-          </button>
-        }
-      />
+      <TopBar title={S.overview.title} subtitle={S.appName} />
       <Screen className="space-y-4">
         {error && !data ? (
           <ErrorState message={error} onRetry={reload} />
@@ -67,9 +57,6 @@ export function OverviewPage() {
             </div>
           </>
         )}
-        <button type="button" className="btn-quiet w-full text-muted" onClick={clearSession}>
-          {S.common.logout}
-        </button>
       </Screen>
     </>
   );

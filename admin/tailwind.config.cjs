@@ -5,6 +5,8 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // 只做桌面网页端(裁定 R-7):< desk 时整页提示"请使用桌面浏览器"
+      screens: { desk: "1024px" },
       colors: {
         bg: token("bg"),
         surface: token("surface"),
@@ -55,6 +57,10 @@ module.exports = {
       },
       maxWidth: {
         col: "600px",
+        content: "1200px",
+      },
+      width: {
+        sidebar: "232px",
       },
     },
   },

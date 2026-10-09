@@ -1,44 +1,83 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearSession, getSession, getToken, saveSession } from "./session";
+import * as endpoints from "./endpoints";
+import {
+  clearSession,
+  getAdminSession,
+  getCsrf,
+  getSessionStatus,
+  hasRole,
+  loadSession,
+  logout,
+  resetSessionForTests,
+  setPendingCsrf,
+  setSession,
+  type AdminSession,
+} from "./session";
 
-const future = () => new Date(Date.now() + 3600_000).toISOString();
+vi.mock("./endpoints", () => ({ getSession: vi.fn(), logout: vi.fn() }));
+
+const S1: AdminSession = {
+  username: "ops",
+  role: "operator",
+  csrfToken: "csrf-1",
+  expiresAt: "2099-01-01T00:00:00+00:00",
+  stepUpUntil: null,
+  totpEnabled: false,
+  safeMode: false,
+  maintenanceMode: "off",
+};
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  clearSession();
+  vi.mocked(endpoints.getSession).mockReset();
+  vi.mocked(endpoints.logout).mockReset();
+  resetSessionForTests();
 });
 
-describe("session storage", () => {
-  it("round-trips a session through sessionStorage", () => {
-    saveSession({ token: "abc", expires_at: future() });
-    expect(getToken()).toBe("abc");
-    expect(JSON.parse(sessionStorage.getItem("admin.session")!).token).toBe("abc");
+describe("admin session store", () => {
+  it("loads the cookie session from the server and exposes its CSRF token", async () => {
+    vi.mocked(endpoints.getSession).mockResolvedValue(S1);
+    expect(getSessionStatus()).toBe("unknown");
+    const p = loadSession();
+    expect(getSessionStatus()).toBe("loading");
+    await expect(p).resolves.toEqual(S1);
+    expect(getSessionStatus()).toBe("known");
+    expect(getCsrf()).toBe("csrf-1");
+  });
+
+  it("treats a failed session load as logged out", async () => {
+    vi.mocked(endpoints.getSession).mockRejectedValue(new Error("401"));
+    await expect(loadSession()).resolves.toBeNull();
+    expect(getSessionStatus()).toBe("known");
+    expect(getAdminSession()).toBeNull();
+  });
+
+  it("shares one in-flight request between concurrent loads", async () => {
+    vi.mocked(endpoints.getSession).mockResolvedValue(S1);
+    await Promise.all([loadSession(), loadSession()]);
+    expect(endpoints.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the pending CSRF only until a session exists", () => {
+    setPendingCsrf("pending");
+    expect(getCsrf()).toBe("pending");
+    setSession(S1);
+    expect(getCsrf()).toBe("csrf-1");
     clearSession();
-    expect(getSession()).toBeNull();
-    expect(sessionStorage.getItem("admin.session")).toBeNull();
+    expect(getCsrf()).toBeNull();
   });
 
-  it("treats an expired session as logged out", () => {
-    saveSession({ token: "abc", expires_at: new Date(Date.now() - 1000).toISOString() });
-    expect(getToken()).toBeNull();
+  it("logs out on the server and always clears locally", async () => {
+    setSession(S1);
+    vi.mocked(endpoints.logout).mockRejectedValue(new Error("network"));
+    await logout();
+    expect(endpoints.logout).toHaveBeenCalled();
+    expect(getAdminSession()).toBeNull();
   });
 
-  it("ignores corrupt stored values", () => {
-    clearSession();
-    sessionStorage.setItem("admin.session", "{not json");
-    expect(getSession()).toBeNull();
-    sessionStorage.setItem("admin.session", JSON.stringify({ token: 1 }));
-    expect(getSession()).toBeNull();
-  });
-
-  it("survives a throwing sessionStorage by keeping the session in memory", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-    saveSession({ token: "mem", expires_at: future() });
-    expect(getToken()).toBe("mem");
+  it("ranks roles", () => {
+    expect(hasRole(S1, "viewer")).toBe(true);
+    expect(hasRole(S1, "operator")).toBe(true);
+    expect(hasRole(S1, "superadmin")).toBe(false);
+    expect(hasRole(null, "viewer")).toBe(false);
   });
 });
