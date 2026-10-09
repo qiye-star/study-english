@@ -49,7 +49,8 @@ def send_thinking_param(mode: str, base_url: str, suffixes: tuple[str, ...]) -> 
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # hide_input_in_errors: a ValidationError must never echo a value back (secrets live in these fields)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     database_url: str = "sqlite+aiosqlite:///./data/app.db"
     log_level: str = "INFO"
@@ -203,6 +204,18 @@ class Settings(BaseSettings):
                 ipaddress.ip_network(item, strict=False)
             except ValueError:
                 raise ValueError("invalid CIDR") from None
+        return value
+
+    @field_validator("settings_encryption_key")
+    @classmethod
+    def _fernet_key(cls, value: str) -> str:
+        if value.strip():
+            from app.core.secretbox import SecretBox, SecretBoxError
+
+            try:
+                SecretBox(value)
+            except SecretBoxError:
+                raise ValueError("SETTINGS_ENCRYPTION_KEY is not a valid Fernet key") from None
         return value
 
     app_version: str = "0.7.9"
