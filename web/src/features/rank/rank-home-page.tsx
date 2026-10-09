@@ -80,7 +80,9 @@ export function RankHomePage() {
           <div className="px-gutter pb-8">
             <section data-testid="rank-hero" className="flex flex-col items-center pt-1.5 text-center">
               <TierBadge tier={me.tier} division={me.division} size="lg" />
-              <h2 className="mt-[18px] text-headline font-semibold">{`${t(`web.rank.tiers.${me.tier}`)} ${divisionLabel(me.division)}`.trim()}</h2>
+              <h2 className="mt-[18px] text-headline font-semibold" aria-label={`${t(`web.rank.tiers.${me.tier}`)} ${divisionLabel(me.division)}`.trim()}>
+                {t(`web.rank.tiers.${me.tier}`)}
+              </h2>
               {cefr && <p className="mt-0.5 text-meta text-ink-2">{t("web.rank.cefr", { level: cefr })}</p>}
               <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
                 className="mt-3 h-1.5 w-[200px] overflow-hidden rounded-full bg-surface-2">

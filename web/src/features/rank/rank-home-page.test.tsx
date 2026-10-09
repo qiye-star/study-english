@@ -22,7 +22,8 @@ describe("RankHomePage", () => {
   it("shows the tier, stage tasks and season", async () => {
     setup();
     expect(await screen.findByTestId("rank-hero")).toBeTruthy();
-    expect(screen.getByTestId("rank-hero").textContent).toContain("黄金 I");
+    expect(screen.getByRole("heading", { name: "黄金 I" }).textContent).toBe("黄金");
+    expect(screen.getByTestId("tier-badge").dataset.tier).toBe("gold");
     expect(screen.getAllByTestId("stage-task")[0].dataset.complete).toBe("true");
     expect(screen.getByText("跟读 20 句且 ≥75 分")).toBeTruthy();
     expect(screen.getByTestId("rank-season").textContent).toContain("S1 赛季");
