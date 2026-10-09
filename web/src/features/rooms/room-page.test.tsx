@@ -284,6 +284,9 @@ describe("RoomPage", () => {
       voice: { duration_ms: 6400, status: "done", transcript: "Noodles!", lang: "en", translation: null, translation_status: null, attempts: 1, audio: true } }) });
     expect(screen.getByText("Any food?")).toBeTruthy();
     const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
+    // Addendum WV-1:别人的语音默认只显示语音条(spec §4.6),点「转文字」才展开转写
+    expect(voice.textContent).not.toContain("Noodles!");
+    fireEvent.click(within(voice).getByTestId("room-voice-text"));
     expect(voice.textContent).toContain("Noodles!");
     expect(voice.closest("[data-seq]")?.getAttribute("data-seq")).toBe("3");
     expect(screen.getByTestId("room-invite")).toBeTruthy();

@@ -2,6 +2,22 @@
   "web": {
     "rooms": {
       "voice": {
+        "play": "Play voice message",
+        "pause": "Pause",
+        "playFailed": "Could not play this voice message",
+        "audioRemoved": "Audio removed",
+        "toText": "Text",
+        "hideText": "Hide",
+        "translate": "Translate",
+        "hideTranslation": "Hide translation",
+        "pending": "Transcribing…",
+        "empty": "Didn't catch that",
+        "failed": "Transcription failed",
+        "retry": "Retry",
+        "translating": "Translating…",
+        "translateFailed": "Translation failed. Tap Translate to try again.",
+        "trTag": "Tr",
+        "trTagLong": "Translation:",
         "noSpeech": "Didn't catch that. Try again.",
         "sending": "Sending…",
         "transcribing": "Transcribing…",

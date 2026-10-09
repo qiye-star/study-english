@@ -2,6 +2,22 @@
   "web": {
     "rooms": {
       "voice": {
+        "play": "播放语音",
+        "pause": "暂停",
+        "playFailed": "无法播放这条语音",
+        "audioRemoved": "音频已清理",
+        "toText": "转文字",
+        "hideText": "收起",
+        "translate": "翻译",
+        "hideTranslation": "收起翻译",
+        "pending": "正在转文字…",
+        "empty": "没听清",
+        "failed": "转写失败",
+        "retry": "重试",
+        "translating": "正在翻译…",
+        "translateFailed": "翻译失败,可以再点一次翻译",
+        "trTag": "译",
+        "trTagLong": "译文:",
         "noSpeech": "没听清,再说一次",
         "sending": "正在发送…",
         "transcribing": "正在转文字…",
