@@ -48,3 +48,8 @@ async def test_config_reports_enabled(client, auth_headers):
     assert (await client.get("/api/rank/config", headers=auth_headers)).json()["enabled"] is True
     rooms = (await client.get("/api/rooms/config", headers=auth_headers)).json()
     assert rooms["enabled"] is True and rooms["ai_available"] is True
+
+
+def test_room_messages_are_kept_forever_by_default():
+    assert make_settings().room_message_retention_days == 0
+    assert make_settings(room_message_retention_days=30).room_message_retention_days == 30

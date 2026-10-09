@@ -155,7 +155,8 @@ class Settings(BaseSettings):
     rooms_max_owned: int = Field(3, ge=1, le=20)
     rooms_idle_minutes: int = Field(30, ge=5, le=1440)
     rooms_max_hours: int = Field(24, ge=1, le=168)
-    rooms_retention_days: int = Field(7, ge=1, le=90)
+    # 房间消息默认永久保存(产品负责人 2026-10-09);正数 = 房间关闭 N 天后清理
+    room_message_retention_days: int = Field(0, ge=0, le=3650)
     rooms_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
     rooms_assist_daily_per_user: int = Field(60, ge=0, le=1000)
     rooms_ai_per_room_hour: int = Field(30, ge=0, le=1000)

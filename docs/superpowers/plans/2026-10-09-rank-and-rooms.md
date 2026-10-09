@@ -171,7 +171,7 @@ Expected: FAIL(`Settings` 无 `rank_enabled`;架构测试报 `module outside the
     rooms_max_owned: int = Field(3, ge=1, le=20)
     rooms_idle_minutes: int = Field(30, ge=5, le=1440)
     rooms_max_hours: int = Field(24, ge=1, le=168)
-    rooms_retention_days: int = Field(7, ge=1, le=90)
+    room_message_retention_days: int = Field(0, ge=0, le=3650)  # 0 = 永久保留(产品负责人 2026-10-09)
     rooms_ticket_ttl_seconds: int = Field(60, ge=10, le=300)
     rooms_assist_daily_per_user: int = Field(60, ge=0, le=1000)
     rooms_ai_per_room_hour: int = Field(30, ge=0, le=1000)
@@ -387,7 +387,8 @@ ROOMS_MAX_MEMBERS=8
 ROOMS_MAX_OWNED=3
 ROOMS_IDLE_MINUTES=30
 ROOMS_MAX_HOURS=24
-ROOMS_RETENTION_DAYS=7
+# 房间关闭后消息/成员/举报的保留天数;0 = 永久保留(默认),正数 = 关闭满 N 天后由清扫删除
+ROOM_MESSAGE_RETENTION_DAYS=0
 ROOMS_TICKET_TTL_SECONDS=60
 ROOMS_ASSIST_DAILY_PER_USER=60
 ROOMS_AI_PER_ROOM_HOUR=30
@@ -4101,7 +4102,8 @@ class RoomLimits:
     max_owned: int = 3
     idle_minutes: int = 30
     max_hours: int = 24
-    retention_days: int = 7
+    retention_days: int = 0  # 0 = keep room messages forever; >0 = purge N days after close
+    mine_closed_days: int = 7  # how long closed rooms stay listed in GET /api/rooms/mine
     assist_daily: int = 60
     ai_per_room_hour: int = 30
     ai_global_daily: int = 1000
@@ -4118,7 +4120,7 @@ class RoomLimits:
     def from_settings(cls, s) -> "RoomLimits":
         return cls(max_members=s.rooms_max_members, max_active=s.rooms_max_active, max_owned=s.rooms_max_owned,
                    idle_minutes=s.rooms_idle_minutes, max_hours=s.rooms_max_hours,
-                   retention_days=s.rooms_retention_days, assist_daily=s.rooms_assist_daily_per_user,
+                   retention_days=s.room_message_retention_days, assist_daily=s.rooms_assist_daily_per_user,
                    ai_per_room_hour=s.rooms_ai_per_room_hour, ai_global_daily=s.rooms_ai_global_daily)
 ```
 
@@ -4173,7 +4175,7 @@ async def store(app):
         s.add_all([User(id=u, username=n, password_hash="x") for u, n in ((A, "alice"), (B, "bob"), (C, "carol"))])
         await s.commit()
     codes = iter(["482913", "482913", "573920", "684031", "795142"])
-    return RoomStore(app.state.sessionmaker, RoomLimits(max_members=2, max_owned=2, max_active=3), code_gen=lambda: next(codes))
+    return RoomStore(app.state.sessionmaker, RoomLimits(max_members=2, max_owned=2, max_active=3, retention_days=7), code_gen=lambda: next(codes))
 
 
 async def test_create_join_and_errors(store):
@@ -4251,6 +4253,10 @@ async def test_close_frees_code_and_sweep_purge(store):
     await store.append(idle.id, lane="public", sender_kind="user", sender_id=A, kind="text", text="x", now=NOW)
     assert await store.purge(NOW + timedelta(days=8)) >= 1
     assert await store.history(idle.id, A, 100, 50) == []
+
+
+async def test_purge_is_off_by_default(app):
+    assert await RoomStore(app.state.sessionmaker, RoomLimits()).purge(NOW + timedelta(days=3650)) == 0
 
 
 async def test_fail_pending_ai_and_reports(store, app):
@@ -4534,7 +4540,7 @@ class RoomStore:
         return list(reversed(rows))
 
     async def mine(self, user_id: int, now: datetime) -> list[tuple[Room, str]]:
-        since = now - timedelta(days=self.limits.retention_days)
+        since = now - timedelta(days=self.limits.mine_closed_days)
         async with self._sm() as s:
             rows = (await s.execute(select(Room, RoomMember.role).join(RoomMember, RoomMember.room_id == Room.id).where(
                 RoomMember.user_id == user_id, *_ACTIVE, or_(Room.status == "open", Room.closed_at >= since))
@@ -4557,6 +4563,8 @@ class RoomStore:
         return closed
 
     async def purge(self, now: datetime) -> int:
+        if self.limits.retention_days <= 0:  # default: keep forever
+            return 0
         cutoff = now - timedelta(days=self.limits.retention_days)
         async with self._sm() as s:
             ids = list((await s.scalars(select(Room.id).where(Room.status == "closed", Room.closed_at <= cutoff))).all())

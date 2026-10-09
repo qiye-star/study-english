@@ -288,11 +288,11 @@ Return ONLY JSON:
 create(open) ──▶ 有人在线 / 有消息 ──▶ 无人在线且 30 分钟无消息(idle) ──▶ closed(idle)
      │                                       创建满 24 小时 ──────────────▶ closed(expired)
      └── 房主「结束房间」 ──────────────────────────────────────────────▶ closed(owner)
-closed ──(7 天后)──▶ 删除消息、成员、举报(purge)
+closed ──(默认永久保留;ROOM_MESSAGE_RETENTION_DAYS=N>0 时 N 天后)──▶ 删除消息、成员、举报(purge)
 ```
 
 - 每 60 秒一次后台清扫(`rooms_sweeper`):关闭 idle/超时房间,清理过期数据。
-- 关闭时:在线成员收到 `closed{reason}` 并以 4004 断开;房间历史对原成员只读保留 7 天(`ROOMS_RETENTION_DAYS`)。
+- 关闭时:在线成员收到 `closed{reason}` 并以 4004 断开;房间历史对原成员只读;「我的房间」列表显示 7 天内结束的房间。消息默认永久保存(`ROOM_MESSAGE_RETENTION_DAYS=0`)。
 
 ### 5.3 容量与角色
 
@@ -385,7 +385,7 @@ closed ──(7 天后)──▶ 删除消息、成员、举报(purge)
 
 - 房间成员可以看到彼此的用户名(本实例用户名),看不到其他任何资料。
 - 私聊助手内容只投递给本人;管理端(只读)能看到 —— 与现有对话记录一致,写进 README。
-- 房间关闭 7 天后删除全部消息、成员、举报;房间行保留(`code` 已为 NULL,`topic` 清空)用于统计。
+- **裁定(产品负责人 2026-10-09 更新)**:房间消息**永久保存**,`ROOM_MESSAGE_RETENTION_DAYS` 默认 0 = 永久;设为正数 N 时,清扫在房间关闭 N 天后删除全部消息、成员、举报,房间行保留(`code` 已为 NULL,`topic` 清空)用于统计。手动、带保护的清理工具(预演计数、输入确认、审计日志)属于管理端 v2,不在本计划。
 - v1 没有录音;所有 LLM 请求经服务端(网页不直连第三方)。
 
 ---
@@ -739,7 +739,7 @@ Answer the question from {asker} for everyone in the room.
 | `ROOMS_MAX_OWNED` | 3 | |
 | `ROOMS_IDLE_MINUTES` | 30 | |
 | `ROOMS_MAX_HOURS` | 24 | |
-| `ROOMS_RETENTION_DAYS` | 7 | |
+| `ROOM_MESSAGE_RETENTION_DAYS` | 0 | 0 = 永久保留;正数 = 关闭 N 天后清理 |
 | `ROOMS_TICKET_TTL_SECONDS` | 60 | |
 | `ROOMS_ASSIST_DAILY_PER_USER` | 60 | |
 | `ROOMS_AI_PER_ROOM_HOUR` | 30 | |
@@ -831,7 +831,7 @@ Answer the question from {asker} for everyone in the room.
 4. **每天 3 场、失败冷却 30 分钟、点数降到 80%**是否过严?
 5. **「助手润色」标签不可关闭**(R-2)。
 6. **房间不做内容审核**(R-4),只靠举报、移出与短生命周期。若实例对外开放注册,需要重新评估。
-7. **房间消息保留 7 天**;私聊助手内容管理端可见。
+7. **房间消息永久保留**(已更新:`ROOM_MESSAGE_RETENTION_DAYS=0`,可选清理窗口);私聊助手内容管理端可见。
 8. **老用户首次只回溯 14 天**的点数。
 
 已裁定(实现时照此执行,改动需更新本文):R-1 不降级不衰减;R-2 润色标签常显;R-3 `@ai` 非流式;R-4 不做内容过滤;R-5 房间票据独立实现。
