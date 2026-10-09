@@ -9,6 +9,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.models import User, VocabularyItem, iso_utc, utcnow
 from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, next_review, validate_word
@@ -122,7 +123,7 @@ async def create_vocabulary_item(
     if existing is not None:
         return item_out(existing)
     count = await session.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.user_id == user.id))
-    if count >= settings.max_vocab_items:
+    if count >= await effective(session, settings, user.id, "max_vocab_items"):
         raise HTTPException(429, "Vocabulary limit reached")
     now = utcnow()
     row = VocabularyItem(

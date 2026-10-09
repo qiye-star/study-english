@@ -6,12 +6,13 @@
 import asyncio
 import secrets
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
 
 from app.admin import audit
 from app.admin.audit import Actor
+from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
     AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile, Room,
@@ -146,6 +147,59 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.commit()
     _remove_recordings(settings, user_id)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
+
+
+def _quota_item(settings, key: str, row: UserQuotaOverride | None, now: datetime) -> dict:
+    field = QUOTA_KEYS[key]
+    live = row is not None and (row.expires_at is None or _utc(row.expires_at) > now)
+    return {"key": key, "setting": field, "default": getattr(settings, field),
+            "override": row.value if live else None, "expired": row is not None and not live,
+            "expires_at": iso_utc(row.expires_at) if row is not None and row.expires_at else None,
+            "note": row.note if row is not None else "", "updated_by": row.updated_by if row is not None else None,
+            "updated_at": iso_utc(row.updated_at) if row is not None else None}
+
+
+async def quotas(session, settings, user_id: int, now: datetime) -> list[dict]:
+    await _user(session, user_id)
+    rows = {r.key: r for r in (await session.scalars(
+        select(UserQuotaOverride).where(UserQuotaOverride.user_id == user_id))).all()}
+    return [_quota_item(settings, key, rows.get(key), now) for key in QUOTA_KEYS]
+
+
+async def set_quota(session, actor: Actor, settings, user_id: int, key: str, *, value: int,
+                    expires_at: datetime | None, note: str, now: datetime) -> dict:
+    if key not in QUOTA_KEYS:
+        raise UserAdminError(404, "Unknown quota")
+    user = await _user(session, user_id)
+    row = await session.get(UserQuotaOverride, (user_id, key))
+    before = None if row is None else {"value": row.value, "expires_at": iso_utc(row.expires_at) if row.expires_at else None}
+    if row is None:
+        row = UserQuotaOverride(user_id=user_id, key=key)
+        session.add(row)
+    row.value, row.expires_at, row.note, row.updated_by, row.updated_at = value, expires_at, note, actor.name[:64], now
+    await audit.record(session, actor, "quota.set", target_type="user", target_id=user_id,
+                       summary=f"{user.username} {key}", before=before,
+                       after={"key": key, "value": value, "expires_at": iso_utc(expires_at) if expires_at else None})
+    await session.commit()
+    return _quota_item(settings, key, row, now)
+
+
+async def clear_quota(session, actor: Actor, user_id: int, key: str) -> None:
+    if key not in QUOTA_KEYS:
+        raise UserAdminError(404, "Unknown quota")
+    user = await _user(session, user_id)
+    row = await session.get(UserQuotaOverride, (user_id, key))
+    if row is None:
+        raise UserAdminError(404, "Override not found")
+    before = {"key": key, "value": row.value}
+    await session.delete(row)
+    await audit.record(session, actor, "quota.clear", target_type="user", target_id=user_id,
+                       summary=f"{user.username} {key}", before=before)
+    await session.commit()
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _remove_recordings(settings, user_id: int) -> None:

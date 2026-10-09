@@ -25,6 +25,7 @@ from starlette.websockets import WebSocketState
 from app.speech.asr import AsrError, shared_asr_gate
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
+from app.core.quotas import effective
 from app.models import User
 from app.speech.realtime_asr import effective_realtime_asr
 from app.realtime.realtime_protocol import (
@@ -229,8 +230,9 @@ async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGran
             return
         except (TimeoutError, ProtocolError):
             return await close(CLOSE_PROTOCOL)
-        store = DbMessageStore(app.state.sessionmaker, grant.user_id, grant.conversation_id,
-                               settings.max_messages_per_conversation)
+        async with app.state.sessionmaker() as s:
+            max_messages = await effective(s, settings, grant.user_id, "max_messages_per_conversation")
+        store = DbMessageStore(app.state.sessionmaker, grant.user_id, grant.conversation_id, max_messages)
         try:
             await store.history(0)  # existence/ownership check only
         except ConversationGoneError:

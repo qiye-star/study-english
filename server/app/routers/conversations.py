@@ -11,6 +11,7 @@ from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.services.grammar import normalize_grammar
 from app.models import Assessment, Conversation, Message, User, iso_utc, utcnow
@@ -234,7 +235,7 @@ async def create_conversation(
     count = await session.scalar(
         select(func.count()).select_from(Conversation).where(Conversation.user_id == user.id)
     )
-    if count >= settings.max_conversations:
+    if count >= await effective(session, settings, user.id, "max_conversations"):
         raise HTTPException(429, "Conversation limit reached")
     now = utcnow()
     row = Conversation(
@@ -326,7 +327,7 @@ async def create_messages(
     existing = await session.scalar(
         select(func.count()).select_from(Message).where(Message.conversation_id == conversation.id)
     )
-    if existing + len(payload.messages) > settings.max_messages_per_conversation:
+    if existing + len(payload.messages) > await effective(session, settings, user.id, "max_messages_per_conversation"):
         raise HTTPException(429, "Message limit reached")
     for m in payload.messages:
         if (m.assessment_id or m.grammar is not None) and m.role != "user":

@@ -3,9 +3,10 @@
 停用/撤销登录/重置密码/删除还要断开在线状态:作废一次性票据(语音通话、房间),
 并以 4010 断开该用户的房间连接(`app.state.rooms` 存在时;admin 包不导入 routers)。
 """
+from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin import users_admin
 from app.admin.perms import AdminContext, require, require_step_up
 from app.core.deps import get_session
+from app.core.quotas import quota_cache
 from app.models import utcnow
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, event
 
@@ -120,4 +122,52 @@ async def delete_user(user_id: UserId, payload: DeleteIn, request: Request,
         _fail(e)
     await _close_rooms(request.app, result.pop("closed_rooms"))
     await cut_connections(request.app, user_id)
+    quota_cache(request.app).invalidate(user_id)
     return result
+
+
+# ---- per-user quota overrides (D2) ----
+
+QuotaKey = Annotated[str, Path(max_length=40)]
+
+
+class QuotaIn(BaseModel):
+    value: int = Field(ge=0, le=10_000_000)
+    expires_at: datetime | None = None
+    note: str = Field("", max_length=200)
+
+
+@router.get("/users/{user_id}/quotas")
+async def user_quotas(user_id: UserId, request: Request, _: AdminContext = Depends(require("operator")),
+                      session: AsyncSession = Depends(get_session)):
+    try:
+        return {"items": await users_admin.quotas(session, request.app.state.settings, user_id, utcnow())}
+    except users_admin.UserAdminError as e:
+        _fail(e)
+
+
+@router.put("/users/{user_id}/quotas/{key}")
+async def set_quota(user_id: UserId, key: QuotaKey, payload: QuotaIn, request: Request,
+                    ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    expires = payload.expires_at
+    if expires is not None and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    try:
+        item = await users_admin.set_quota(session, ctx.actor, request.app.state.settings, user_id, key,
+                                           value=payload.value, expires_at=expires, note=payload.note.strip(),
+                                           now=utcnow())
+    except users_admin.UserAdminError as e:
+        _fail(e)
+    quota_cache(request.app).invalidate(user_id)
+    return item
+
+
+@router.delete("/users/{user_id}/quotas/{key}", status_code=204)
+async def clear_quota(user_id: UserId, key: QuotaKey, request: Request,
+                      ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    try:
+        await users_admin.clear_quota(session, ctx.actor, user_id, key)
+    except users_admin.UserAdminError as e:
+        _fail(e)
+    quota_cache(request.app).invalidate(user_id)
+    return Response(status_code=204)

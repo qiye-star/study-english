@@ -2,6 +2,8 @@
 
 放在 core:`core/deps.limited_user` 也要读按用户覆盖,而 core 不能导入 services。
 """
+import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -37,3 +39,52 @@ async def overrides_for(session: AsyncSession, user_id: int, now: datetime | Non
 async def quota_for(session: AsyncSession, settings, user_id: int, key: str, now: datetime | None = None) -> int:
     field = QUOTA_KEYS[key]  # KeyError on unknown keys is intended
     return (await overrides_for(session, user_id, now)).get(key, getattr(settings, field))
+
+
+class QuotaCache:
+    """Per-process cache of each user's override rows (hot paths such as `limited_user` run on every AI call).
+    Rows are cached with their expiry, so an override still lapses on time; admin writes call `invalidate`."""
+
+    def __init__(self, ttl_seconds: float = 30.0, clock: Callable[[], float] = time.monotonic):
+        self._ttl = ttl_seconds
+        self._clock = clock
+        self._items: dict[int, tuple[float, list[tuple[str, int, datetime | None]]]] = {}
+
+    async def get(self, session: AsyncSession, user_id: int, now: datetime | None = None) -> dict[str, int]:
+        now = now or datetime.now(timezone.utc)
+        tick = self._clock()
+        item = self._items.get(user_id)
+        if item is None or item[0] <= tick:
+            rows = (await session.execute(select(UserQuotaOverride.key, UserQuotaOverride.value,
+                                                 UserQuotaOverride.expires_at)
+                                          .where(UserQuotaOverride.user_id == user_id))).all()
+            if len(self._items) >= MAX_CACHED_USERS:
+                self._items.clear()
+            item = self._items[user_id] = (tick + self._ttl, [tuple(r) for r in rows])
+        return {k: v for k, v, exp in item[1] if exp is None or _utc(exp) > now}
+
+    def invalidate(self, user_id: int | None = None) -> None:
+        if user_id is None:
+            self._items.clear()
+        else:
+            self._items.pop(user_id, None)
+
+
+MAX_CACHED_USERS = 10_000
+
+
+def quota_cache(app) -> QuotaCache:
+    cache = getattr(app.state, "quota_cache", None)
+    if cache is None:
+        cache = app.state.quota_cache = QuotaCache()
+    return cache
+
+
+async def effective(session: AsyncSession, app_or_settings, user_id: int, key: str) -> int:
+    """The user's limit for `key`: a live override (cached when given the app), else the site-wide setting."""
+    field = QUOTA_KEYS[key]
+    state = getattr(app_or_settings, "state", None)
+    if state is None:
+        return await quota_for(session, app_or_settings, user_id, key)
+    overrides = await quota_cache(app_or_settings).get(session, user_id)
+    return overrides.get(key, getattr(state.settings, field))

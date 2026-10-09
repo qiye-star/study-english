@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.models import PracticeItem, User, iso_utc, utcnow
 
@@ -72,7 +73,7 @@ async def create_practice_item(
     if existing is not None:
         return item_out(existing)
     count = await session.scalar(select(func.count()).select_from(PracticeItem).where(PracticeItem.user_id == user.id))
-    if count >= settings.max_practice_items:
+    if count >= await effective(session, settings, user.id, "max_practice_items"):
         raise HTTPException(429, "Practice item limit reached")
     row = PracticeItem(id=str(uuid.uuid4()), user_id=user.id, text=payload.text, source=payload.source, created_at=utcnow())
     session.add(row)
