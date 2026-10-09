@@ -1,4 +1,12 @@
-import { app, BrowserWindow, protocol, net } from "electron";
+import {
+  app,
+  BrowserWindow,
+  protocol,
+  net,
+  globalShortcut,
+  desktopCapturer,
+  screen,
+} from "electron";
 import path from "path";
 import fs from "fs-extra";
 import settings from "@main/settings";
@@ -9,6 +17,7 @@ import contextMenu from "electron-context-menu";
 import Bugsnag from "@bugsnag/electron";
 import { t } from "i18next";
 import { Client } from "./api";
+import sharp from "sharp";
 
 const logger = log.scope("main");
 
@@ -136,6 +145,83 @@ app.on("ready", async () => {
     }
 
     return net.fetch(`file:///${url}`);
+  });
+
+  globalShortcut.register("CommandOrControl+X", async () => {
+    console.log("CommandOrControl+X is pressed");
+
+    // get the mouse cursor position
+    const { x, y } = screen.getCursorScreenPoint();
+    console.log("mouse", x, y);
+
+    // get the display where the mouse is
+    const display = screen.getDisplayNearestPoint({ x, y });
+    const displaySize = display.workAreaSize;
+    console.log("display", displaySize.width, displaySize.height);
+
+    // calculate the capture area
+    let captureWidth = 1200;
+    let captureHeight = 500;
+    let left = Math.max(x - captureWidth / 2, 0);
+    let top = Math.max(y - captureHeight / 2, 0);
+
+    // Make sure the capture area is within the display
+    left = Math.min(left, displaySize.width - captureWidth);
+    top = Math.min(top, displaySize.height - captureHeight);
+    console.log("left", left, "top", top);
+
+    // capture screen and save to file
+    const sources = await desktopCapturer.getSources({
+      types: ["screen"],
+      // should be the same as the size of the display
+      thumbnailSize: displaySize,
+    });
+    const image = sources[0];
+    const size = image.thumbnail.getSize();
+    console.log("image", image);
+
+    const highlightSize = 20; // 高亮区域的大小
+    const highlightColor = { r: 255, g: 255, b: 0, alpha: 0.5 }; // 荧光黄色，半透明
+    const highlightBuffer = await sharp({
+      create: {
+        width: 20,
+        height: 20,
+        channels: 4,
+        background: { r: 255, g: 255, b: 0, alpha: 0.3 },
+      },
+    })
+      .png()
+      .toBuffer();
+    fs.writeFileSync(
+      path.join(settings.cachePath(), "mark.png"),
+      highlightBuffer
+    );
+
+    console.log("image", image.thumbnail.getSize());
+
+    // save image to file
+    const buffer = await sharp(await image.thumbnail.toPNG())
+      .grayscale()
+      .composite([
+        { input: highlightBuffer, blend: "over", top: y - 20, left: x - 50 },
+      ])
+      .toBuffer();
+    const cropedBuffer = await sharp(buffer)
+      .extract({
+        left: left,
+        top: top,
+        width: captureWidth,
+        height: captureHeight,
+      })
+      .png({
+        quality: 50,
+      })
+      .toBuffer();
+
+    fs.writeFileSync(
+      path.join(settings.cachePath(), "screenshot-for-lookup.png"),
+      cropedBuffer
+    );
   });
 
   mainWindow.init();
