@@ -1,29 +1,43 @@
 # app/admin/
 
-Read-only admin console logic behind `/api/admin/*` (routers `admin.py`, `admin_web.py`).
-Disabled unless `ADMIN_USERNAME` and `ADMIN_PASSWORD` (>= 12 chars) are set; then 404 everywhere.
+Admin console business logic behind `/api/admin/*` (routers `admin.py` v1 read-only, `admin_auth.py`,
+`admin_*.py` v2). Spec: `docs/superpowers/specs/2026-10-09-admin-console-v2-design.md`.
+Disabled (404 everywhere) unless `ADMIN_USERNAME` and `ADMIN_PASSWORD` (>= 12 chars) are set, or when the
+client IP is outside `ADMIN_IP_ALLOWLIST`.
 
 ## What lives here
-- `auth.py` – env-var credential check (constant-time), stateless HMAC admin tokens signed with
-  `app.state.admin_secret`, FastAPI guards `require_enabled` / `admin_required`
-- `service.py` – cross-user read queries: overview totals + daily buckets, users, conversations
-  and messages (with grammar notes), assessments, practice items, vocabulary; pagination helpers
+- `perms.py` – `require_enabled` (+ IP allowlist), `current_admin` (cookie session, MFA, CSRF/Origin,
+  `ADMIN_REQUIRE_TOTP` gate), `require(role)`, `require_step_up` / `require_operator_step_up` /
+  `require_self_step_up`, `AdminContext`, `REQUIRED_ROLE_ATTR`
+- `sessions.py` – DB sessions (`admin_sessions`): token/CSRF stored as SHA-256 only, idle + absolute
+  expiry, `__Host-enjoy_admin` (or `enjoy_admin` when `ADMIN_COOKIE_SECURE=false`) HttpOnly SameSite=Strict
+- `accounts.py` – env emergency superadmin + DB accounts (argon2), `authenticate`, `check_password`,
+  `totp_secret`, recovery codes
+- `audit.py` – append-only `admin_audit` with a SHA-256 hash chain: `record`, `verify`, `listing`,
+  `redact_setting`, `Actor`, `CLI_ACTOR`
+- `lockout.py` – per (username, IP) lockout doubling to 24 h; per-username global count only alarms
+- `totp.py` – RFC 6238 TOTP (stdlib) and recovery codes
+- `recover.py` – `python -m app.admin.recover list-overrides|clear-overrides|unlock|reset-totp|revoke-sessions|rotate-key`
+- `auth.py` – env credential comparison (`credentials_match`)
+- `service.py` – v1 cross-user read queries (overview, users, conversations, assessments, ...)
 
 ## Allowed dependencies
-`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`.
-Only `app/routers/` and `app/main.py` may import `app.admin` (enforced by
-`tests/test_architecture.py`). Never import routers from here.
+`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`.
+Only `app/routers/` and `app/main.py` may import `app.admin` (enforced by `tests/test_architecture.py`).
+Never import routers from here (room runtime lives in `routers/admin_rooms.py` via `app.routers.rooms.runtime`).
 
-## Entry points
-`auth.admin_required` (router dependency), `auth.issue_token` / `verify_token`,
-`service.overview`, `list_users`, `get_user`, `list_conversations`, `conversation_messages`,
-`list_assessments`, `get_assessment_row`, `list_practice_items`, `list_vocabulary`.
+## Rules for every write
+- Endpoint declares its minimum role (`Depends(require(...))`); `tests/test_admin_routes_guarded.py` walks the
+  route table. Non-GET requests pass CSRF in `current_admin`. Dangerous actions use a step-up dependency + `reason`.
+- Write the audit row with `audit.record(session, ctx.actor, "area.verb", ...)` in the same transaction.
+- Secrets appear only as `{"set", "source", "fp"}`; tests scan responses with `tests/admin_helpers.assert_no_secrets`.
 
 ## Tests
-`uv run pytest -q tests/test_admin_api.py tests/test_admin_auth.py tests/test_admin_web.py`
+`uv run pytest -q tests/test_admin_*.py tests/test_quotas.py tests/test_architecture.py`
+(helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 
 ## Pitfalls
-- Strictly read-only: no writes, no deletes. Admin tokens never share format/secret with user tokens.
-- `ADMIN_SESSION_SECRET` empty => random per process; restarts log admins out.
+- Never log or audit passwords, TOTP/recovery codes, tokens, CSRF, secrets, user text or prompt bodies.
+- `ADMIN_SESSION_SECRET` empty => random per process; CSRF tokens (HMAC of the session id) change on restart.
 - `admin_web` must be registered before `web` (SPA fallback) in `create_app`.
-- Never log admin credentials, tokens, user text or recording paths.
+- The audit chain is serialised per process (P-5); multiple workers may fork it (`verify` reports where).

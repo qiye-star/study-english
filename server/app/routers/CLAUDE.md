@@ -7,7 +7,9 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
-`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, WS /api/rooms/ws), `admin` (/api/admin/*, read-only), `stubs` (catch-all writes),
+`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, WS /api/rooms/ws), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
+`admin_accounts`, `admin_settings`, `admin_rank`, `admin_users`, `admin_rooms`, `admin_usage`, `admin_ops`,
+`admin_prompts` (admin v2 skeletons owned by their lanes), `stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
@@ -25,5 +27,7 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 
 ## Pitfalls
 - Auth via `Depends(current_user)` / `limited_user` (rate-limited) from `app.core.deps`.
+- Every `/api/admin/*` route declares a role: `Depends(app.admin.perms.require("viewer"|"operator"|"superadmin"))`
+  or a step-up dependency (`tests/test_admin_routes_guarded.py`); writes audit in the same transaction.
 - Map vendor exceptions to HTTP here; errors render as `{"error": ...}`.
 - Never log request bodies, tickets, keys or user text. New strings exposed to the web UI need zh+en locales on the web side.

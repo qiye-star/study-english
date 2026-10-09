@@ -66,7 +66,7 @@
 | 单 worker(`--workers 1`),SQLite 默认 | `server/Dockerfile` | 内存限流、内存日志缓冲可用;备份用 `VACUUM INTO` |
 | `scripts/` 不在镜像里 | `server/Dockerfile` | 应急恢复命令放在 `app/admin/recover.py`(`python -m app.admin.recover`) |
 | 管理前端:Vite + React 18 + react-router 7 + Tailwind 3,手机优先单列 + 底部 Tab,文案集中在 `strings.ts` | `admin/` | v2 改为响应式:≥1024 左侧导航 + 内容区;768–1023 图标侧栏;<768 保留底部 Tab;按功能分目录 |
-| 迁移到 0005,段位/联机将新增 0006 | `server/alembic/versions/` | v2 新增 `0007_admin_v2` |
+| 迁移到 0005,段位/联机新增 0006 与 0007(`0007_rank_rooms_guards`) | `server/alembic/versions/` | v2 新增 `0008_admin_v2` |
 
 ---
 
@@ -398,7 +398,7 @@ rank_rule_sets  id PK | version Int?(发布时分配,唯一) | status draft|publ
 - 同一时刻最多一个草稿;"新建草稿"从当前已发布版本(没有则 v0 = `rules_from_settings`)复制。
 - 编辑草稿:operator 及以上;发布:superadmin + 二次验证 + 理由。发布 = 事务内把旧 published 置 archived、草稿得到 `version = max+1`、`config_revisions['rank_rules'] += 1`、审计(只记版本号与差异摘要)。
 - **已发布版本不可变**;"回滚到 vN" = 以 vN 为内容新建草稿再发布(版本号继续增长)。
-- **比赛钉住版本**:`promotion_matches.rules_version`(0007 新增列,NULL = v0/默认)。比赛进行中规则改了,该场仍按开始时的版本出题、计轮、评分(`threshold` 本来就存在比赛行里)。
+- **比赛钉住版本**:`promotion_matches.rules_version`(0008 新增列,NULL = v0/默认)。比赛进行中规则改了,该场仍按开始时的版本出题、计轮、评分(`threshold` 本来就存在比赛行里)。
 - **生效范围**:点数规则只影响之后同步入账的事件(不追溯重算已入账的 `xp_events`,§22-6);`division_rp` 变小时,超出的点数在下次同步时截到新上限(段位门封顶规则不变);阶段任务改动立即影响"是否可打晋级赛"的判断。
 - **与 env 的关系**:发布过任一版本后,注册表中 `managed_by="rank_rules"` 的 6 个 env 设置在设置页只读并链接到段位规则;未发布前它们照常作为 v0 的来源。
 - **运行时缓存**:`rank_rules(app) -> RulesCache`(懒建、自注册到修订号轮询;`current` 属性;`invalidate()`;`by_version(n)` 带 LRU 8)。
@@ -428,7 +428,7 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 | 清除冷却 | operator | `cooldown_until = NULL` | `rank.user.clear_cooldown` |
 | 重置今日次数 | operator | 删除该用户本地日的 `daily_usage(scope='rank_match')` 行(按管理员所选日期) | `rank.user.reset_attempts` |
 | 加/减点 | operator | 写 `xp_events(kind='admin_adjust', ref_id='audit:{audit_id}', points=±n)`;正数走 `add_rp`;负数只在本小段内减到 0(不降级,R-1);理由必填 | `rank.user.adjust_points` |
-| 作废比赛 | operator | 状态 → `voided`(0007 允许);若该场是失败:恢复 `rp = division_rp`(比赛只能在段位门开始,所以失败前一定是满点)并清冷却;退还当日次数 | `rank.match.void` |
+| 作废比赛 | operator | 状态 → `voided`(0008 允许);若该场是失败:恢复 `rp = division_rp`(比赛只能在段位门开始,所以失败前一定是满点)并清冷却;退还当日次数 | `rank.match.void` |
 | 重新评分 | operator | 仅 `grading_failed` 的比赛,调用 rank 路由的 `finish` 逻辑 | `rank.match.regrade` |
 | 授予/撤销成就 | operator | 写/删 `user_achievements` | `rank.user.achievement` |
 | 重置段位 / 定级 | operator + 二次验证 | 设为指定 `tier/division/rp`(默认青铜 III 0 点),`tier_started_at = now`,清冷却;事件流水保留;先写快照 | `rank.user.reset` |
@@ -452,9 +452,9 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 | 房间详情与记录 | viewer | 成员(角色、加入/离开/被移出)、消息时间线;公共通道默认展示,私聊助手通道需点"显示私聊"(写审计 `room.view_private`);房间消息永久保留(R-6),记录完整可查 |
 | 关闭房间 | operator | `store.close(room_id, "admin", now)` + 广播 `closed{reason:"admin"}` + 4004 断开;网页新增文案 `closed_admin` |
 | 移出成员 | operator | 标记 `kicked`,写系统消息 `kicked`,`hub.close_user(..., 4010)` |
-| 禁用本房 AI | operator | `rooms.ai_muted = true`(0007 新增):`@ai` 与助手私聊都回 `notice{code:"ai_off"}`;恢复同理 |
+| 禁用本房 AI | operator | `rooms.ai_muted = true`(0008 新增):`@ai` 与助手私聊都回 `notice{code:"ai_off"}`;恢复同理 |
 | 举报队列 | operator | `room_reports` 增加 `resolved_at/resolved_by/resolution(dismissed|removed_message|kicked|closed_room)`;处理动作一键联动上面的操作 |
-| 隐藏消息 | operator | `room_messages.hidden_at`(0007 新增):对成员显示"该消息已被管理员隐藏",不删除(与 R-6 一致) |
+| 隐藏消息 | operator | `room_messages.hidden_at`(0008 新增):对成员显示"该消息已被管理员隐藏",不删除(与 R-6 一致) |
 | 房间限额 | superadmin | 即 `rooms_*` 设置(§3.2),热更新 |
 | 手动清理消息 | — | 以后(R-6) |
 
@@ -467,7 +467,7 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 | 功能 | 角色 | 说明 |
 |---|---|---|
 | 列表/搜索 | viewer | v1 已有;新增筛选"已停用"、排序"最近活跃/注册时间/录音占用" |
-| 停用/启用 | operator | `users.disabled_at`(0007);`current_user` 对停用用户返回 403 `Account disabled`;停用时删除该用户全部 `access_tokens`、作废未用的语音 token,并把其房间连接以 4010 断开 |
+| 停用/启用 | operator | `users.disabled_at`(0008);`current_user` 对停用用户返回 403 `Account disabled`;停用时删除该用户全部 `access_tokens`、作废未用的语音 token,并把其房间连接以 4010 断开 |
 | 撤销登录 | operator | 删除 `access_tokens`(用户在所有设备上需重新登录) |
 | 重置密码 | operator | 服务端生成 16 位临时密码,**只在响应里出现一次**(界面"复制"后关闭即不可再看),同时撤销登录;不写日志、不进审计(审计只记"已重置") |
 | 配额覆盖 | operator | `user_quota_overrides(user_id, key, value, expires_at?, note)`;键:`recording_quota_mb`、`max_conversations`、`max_messages_per_conversation`、`max_practice_items`、`max_vocab_items`、`ai_rate_limit_per_minute`、`rank_match_daily_attempts`、`rooms_assist_daily_per_user`、`rooms_max_owned`;读取统一走 `core/quotas.quota_for()`(放在 core,因为 `core/deps.limited_user` 也要读) |
@@ -608,13 +608,13 @@ v2 中赛季配置(`anchor`、`weeks`)**仅在第 1 赛季开始前可改**;开�
 
 ---
 
-## 15. 数据模型(Alembic `0007_admin_v2`,`down_revision = '0006'`)
+## 15. 数据模型(Alembic `0008_admin_v2`,`down_revision = '0007'`)
 
 新表:`admin_accounts`、`admin_sessions`、`admin_login_state`、`admin_recovery_codes`、`admin_audit`、`setting_overrides`、`setting_revisions`、`config_revisions`、`rank_rule_sets`、`rank_profile_snapshots`、`prompt_versions`、`announcements`、`upstream_calls`、`usage_daily`、`user_quota_overrides`、`invite_codes`。
 
 改旧表(SQLite 用 batch 模式):`users` + `disabled_at`;`promotion_matches` + `rules_version`(Integer, nullable),`status` 允许 `voided`(字符串列,无需约束变更);`rooms` + `ai_muted`(Boolean, default false);`room_messages` + `hidden_at`;`room_reports` + `resolved_at`、`resolved_by`、`resolution`。
 
-列定义以实现计划 Task A1 的代码为准;`tests/test_migrations.py` 新增 0007 往返测试与"模型与迁移一致"断言。降级(downgrade)完整实现,但上线回滚的推荐方式是关掉新功能而不是降级(会丢审计)。
+列定义以实现计划 Task A1 的代码为准;`tests/test_migrations.py` 新增 0008 往返测试与"模型与迁移一致"断言。降级(downgrade)完整实现,但上线回滚的推荐方式是关掉新功能而不是降级(会丢审计)。
 
 ## 16. API 总览(全部 `/api/admin/*`,JSON,错误 `{"error": "..."}`)
 
@@ -675,7 +675,7 @@ routers  admin.py(v1,改依赖)  admin_auth.py admin_accounts.py admin_settings.
 
 1. 合入后:未设置 `SETTINGS_ENCRYPTION_KEY` 也能运行(密钥只读);v1 的 Bearer 登录失效,管理员需刷新页面重新登录(cookie)。
 2. 部署说明:设置 `SETTINGS_ENCRYPTION_KEY` 并**单独备份**(丢了 = 库里的密钥覆盖全部作废,需重填);反向代理必须 HTTPS(`__Host-` cookie 要求);建议设置 `ADMIN_IP_ALLOWLIST`。
-3. 回滚:代码回退到 v1 后,0007 的表闲置无害;覆盖值不再生效(v1 不读),等于自动"恢复为 env"。
+3. 回滚:代码回退到 v1 后,0008 的表闲置无害;覆盖值不再生效(v1 不读),等于自动"恢复为 env"。
 
 ## 21. 风险与对策
 

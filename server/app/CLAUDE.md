@@ -13,7 +13,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements |
 | `rooms/` | practice rooms: codes, hub, assistant lane, WS connection |
-| `admin/` | read-only admin console: admin auth (HMAC tokens) + cross-user queries |
+| `admin/` | admin console: cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
 | `static_config/` | JSON config snapshots served by `/api/config/{key}` |

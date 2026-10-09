@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-09-admin-console-v2-design.md`(视觉稿 `docs/superpowers/design/admin-v2/mockup.html`)。依赖的进行中工作:`docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` 与 `docs/superpowers/plans/2026-10-09-rank-and-rooms.md`(本文用其任务号 S*/R*/M*/WR*/WM*/F* 标注依赖,其表、模块、开关以"将存在"引用)。
 
+> **迁移编号(foundation 执行时裁定)**:段位/联机计划已合入 `0007_rank_rooms_guards`,本计划的迁移因此为 `0008_admin_v2`(`down_revision = "0007"`);本文与设计文档中的迁移编号已同步改为 0008。
+
 ## Global Constraints
 
 - 永不写 `.env`、不执行外部命令、不重启容器;配置只写数据库。无效覆盖跳过不阻止启动;`ADMIN_SETTINGS_SAFE_MODE=true` 忽略全部覆盖。
@@ -17,7 +19,7 @@
 - 所有 `/api/admin/*` 端点必须声明最低角色(`Depends(require("viewer"|"operator"|"superadmin"))`);非 GET 必须过 CSRF;危险操作用 `require_step_up` 并要求 `reason`。`tests/test_admin_routes_guarded.py`(A6)遍历路由表强制。
 - 每个写操作在同一事务里写审计(`app.admin.audit.record`)。审计与日志不含:密码、token、CSRF、TOTP 码、恢复码、临时密码、密钥、用户文本/转写、提示词正文。
 - 分层由 `server/tests/test_architecture.py` 强制,不放宽:`core` 新模块只导入 `core`/`models`;`admin` 不导入 `routers`;需要房间运行时的端点放在 `routers/admin_rooms.py`,经 `app.routers.rooms.runtime(app)` 获取。
-- 迁移:只新增 `server/alembic/versions/0007_admin_v2.py`(`down_revision = "0006"`);`tests/test_migrations.py` 的"模型与迁移一致"测试保持绿色。
+- 迁移:只新增 `server/alembic/versions/0008_admin_v2.py`(`down_revision = "0007"`,`0007_rank_rooms_guards` 已由段位/联机计划占用);`tests/test_migrations.py` 的"模型与迁移一致"测试保持绿色。
 - 错误响应 `{"error": "..."}`(现有约定);字段级校验错误 `{"error": "Invalid settings", "fields": {...}}`。
 - 管理前端:不引入 UI/图表/状态库;文案只放各功能目录的 `strings.ts`(zh-CN);数字 `tabular-nums`;遵循 redesign-v3 一色一义(蓝 = 主操作/进度,绿 = 健康/生效,琥珀 = 待重启/提醒/漂移,红 = 危险文字/错误;teal 不用)。
 - 每个任务结束时:`cd server && uv run pytest -q`(或任务给出的子集 + `tests/test_architecture.py`)与 `yarn workspace admin typecheck && yarn workspace admin test` 绿色;涉及 `web/` 时加 `yarn web:typecheck && yarn web:test`。提交用 conventional 格式,以 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` 结尾,一个任务一个(或少数几个)逻辑提交。
@@ -29,7 +31,7 @@
 
 | 车道 | 任务 | 独占文件(只有本车道在其进行期间修改) | 依赖(本计划) | 依赖(段位/联机计划) |
 |---|---|---|---|---|
-| **foundation**(串行,一个执行者) | A1–A8 | `server/app/models.py`、`server/alembic/versions/0007_admin_v2.py`、`server/app/core/{config,settings_registry,secretbox,runtime_settings,metering,deps,quotas}.py`、`server/app/realtime/realtime_tickets.py`(两个 setter)、`server/app/main.py`、`server/pyproject.toml`、`server/uv.lock`、`server/app/admin/{audit,perms,accounts,sessions,lockout,totp,recover,auth}.py`、`server/app/routers/{admin,admin_auth,admin_web}.py` 与全部 `routers/admin_*.py` 骨架、`server/tests/admin_helpers.py`、`admin/src/{app.tsx,main.tsx,index.css,api/*,components/*,hooks/*}`、`admin/src/features/*/index.ts` 与占位页、`admin/src/pages/user-detail-page.tsx`(加「段位」「治理」两个页签插槽)、`admin/tailwind.config.cjs` | — | A1 ← S2(0006 与段位/房间模型);A2 ← S1(rank/rooms 设置字段) |
+| **foundation**(串行,一个执行者) | A1–A8 | `server/app/models.py`、`server/alembic/versions/0008_admin_v2.py`、`server/app/core/{config,settings_registry,secretbox,runtime_settings,metering,deps,quotas}.py`、`server/app/realtime/realtime_tickets.py`(两个 setter)、`server/app/main.py`、`server/pyproject.toml`、`server/uv.lock`、`server/app/admin/{audit,perms,accounts,sessions,lockout,totp,recover,auth}.py`、`server/app/routers/{admin,admin_auth,admin_web}.py` 与全部 `routers/admin_*.py` 骨架、`server/tests/admin_helpers.py`、`admin/src/{app.tsx,main.tsx,index.css,api/*,components/*,hooks/*}`、`admin/src/features/*/index.ts` 与占位页、`admin/src/pages/user-detail-page.tsx`(加「段位」「治理」两个页签插槽)、`admin/tailwind.config.cjs` | — | A1 ← S2(0006 与段位/房间模型);A2 ← S1(rank/rooms 设置字段) |
 | **settings**(B) | B1–B6 | `server/app/admin/{settings_service,doctor,probes}.py`、`server/app/admin/accounts.py`(B5 扩展)、`server/app/admin/audit.py`(B6 的 `action_prefix`)、`admin/src/api/client.ts`(B4 的 `ApiError.details`)、`server/app/routers/{admin_settings,admin_accounts}.py`、`admin/src/features/{settings,security,audit}/**`、`server/tests/test_admin_settings*.py`、`test_admin_doctor.py`、`test_admin_probes.py`、`test_admin_accounts_api.py`、`test_admin_audit_api.py` | A1–A8 | — |
 | **rank**(C) | C1–C7 | `server/app/rank/**`(新增 `rules.py`、`rules_store.py`,修改 `tiers.py points.py grading.py scenarios.py ledger.py match.py`)、`server/app/routers/rank.py`、`server/app/admin/{rank_rules_admin,rank_ops,rank_sim}.py`、`server/app/routers/admin_rank.py`、`admin/src/features/rank/**`、`server/tests/test_rank_rules*.py`、`test_admin_rank*.py` | A1–A8 | 全部 R1–R7 已合并 |
 | **community**(D) | D1–D6 | `server/app/core/{ratelimit,deps}.py`(`limited_user` 的按用户上限;foundation 已结束)、`server/app/services/assessment_store.py`、`server/app/routers/{conversations,practice_items,vocabulary,realtime,sessions,rooms,admin_users,admin_rooms}.py`(`realtime.py` 只改消息上限那一行)、`server/app/rooms/{store,connection}.py`、`server/app/admin/{users_admin,invites,rooms_admin}.py`、`admin/src/features/{users,rooms}/**`、`web/src/features/rooms/i18n/{zh-CN,en}.json`(只加 `closed_admin`、`hidden`)、`server/tests/test_admin_users*.py`、`test_quotas*.py`、`test_invites.py`、`test_admin_rooms*.py` | A1–A8 | D4、D6 ← M2、M5、M6、M7、WM5 已合并 |
@@ -57,11 +59,11 @@ C 车道的开发可以在 R7 合并前用 R7 的分支起步,但**合并必须�
 
 ## Foundation lane
 
-### Task A1: 迁移 0007、模型与配额读取
+### Task A1: 迁移 0008、模型与配额读取
 
 **Files:**
 - Modify: `server/app/models.py`
-- Create: `server/alembic/versions/0007_admin_v2.py`
+- Create: `server/alembic/versions/0008_admin_v2.py`
 - Create: `server/app/core/quotas.py`(放在 core:`core/deps.limited_user` 也要读按用户覆盖,core 不能导入 services)
 - Modify: `server/tests/test_migrations.py`
 - Test: `server/tests/test_quotas.py`
@@ -83,7 +85,7 @@ ADMIN_V2_TABLES = {
 }
 
 
-def test_0007_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
+def test_0008_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
     command.upgrade(cfg, "head")
     con = sqlite3.connect(db)
@@ -96,7 +98,7 @@ def test_0007_admin_v2_tables_columns_and_round_trip(tmp_path, monkeypatch):
     assert "hidden_at" in cols("room_messages")
     assert {"resolved_at", "resolved_by", "resolution"} <= cols("room_reports")
     con.close()
-    command.downgrade(cfg, "0006")
+    command.downgrade(cfg, "0007")
     con = sqlite3.connect(db)
     tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
     assert not (ADMIN_V2_TABLES & tables)
@@ -146,7 +148,7 @@ async def test_unknown_quota_key_is_an_error(app):
             await quota_for(session, app.state.settings, 1, "nope", NOW)
 ```
 
-- [ ] **Step 2: 跑测试确认失败** — Run: `cd server && uv run pytest -q tests/test_migrations.py tests/test_quotas.py` → FAIL(无 0007、无模型)
+- [ ] **Step 2: 跑测试确认失败** — Run: `cd server && uv run pytest -q tests/test_migrations.py tests/test_quotas.py` → FAIL(无 0008、无模型)
 
 - [ ] **Step 3: 实现**
 
@@ -385,21 +387,21 @@ class InviteCode(Base):
 
 (`Boolean`、`UniqueConstraint` 加到文件顶部的 `sqlalchemy` 导入;S2 已导入的不重复。)
 
-`server/alembic/versions/0007_admin_v2.py`:按上面模型逐表 `op.create_table`(列、外键 `ondelete`、唯一约束名与模型一致),索引用 `with op.batch_alter_table(...) as b: b.create_index(...)`(沿用 0005/0006 写法);旧表加列:
+`server/alembic/versions/0008_admin_v2.py`:按上面模型逐表 `op.create_table`(列、外键 `ondelete`、唯一约束名与模型一致),索引用 `with op.batch_alter_table(...) as b: b.create_index(...)`(沿用 0005/0006 写法);旧表加列:
 
 ```python
 """admin console v2
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0008
+Revises: 0007
 """
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0007"
-down_revision: str | None = "0006"
+revision: str = "0008"
+down_revision: str | None = "0007"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -506,13 +508,13 @@ async def quota_for(session: AsyncSession, settings, user_id: int, key: str, now
 - [ ] **Step 5: 提交**
 
 ```bash
-git add server/app/models.py server/alembic/versions/0007_admin_v2.py server/app/core/quotas.py server/tests/test_migrations.py server/tests/test_quotas.py
-git commit -m "feat(server): admin v2 schema (migration 0007) and per-user quota lookup
+git add server/app/models.py server/alembic/versions/0008_admin_v2.py server/app/core/quotas.py server/tests/test_migrations.py server/tests/test_quotas.py
+git commit -m "feat(server): admin v2 schema (migration 0008) and per-user quota lookup
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-**Acceptance:** 0007 升级/降级往返;模型与迁移一致;配额覆盖按到期时间生效,未知键报错。
+**Acceptance:** 0008 升级/降级往返;模型与迁移一致;配额覆盖按到期时间生效,未知键报错。
 
 ---
 
