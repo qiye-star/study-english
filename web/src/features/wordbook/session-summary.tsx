@@ -1,4 +1,4 @@
-import { CircleCheckIcon, GalleryVerticalEndIcon, RefreshCwIcon, RotateCcwIcon, TrendingUpIcon } from "lucide-react";
+import { CircleCheckIcon, GalleryVerticalEndIcon, KeyboardIcon, RefreshCwIcon, RotateCcwIcon, TrendingUpIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { IconChip } from "~/components/icon-chip";
@@ -10,7 +10,7 @@ import { DOCK, GHOST, PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
 
 export interface SessionStats {
-  kind: "learn" | "review";
+  kind: "learn" | "review" | "spell";
   /** 本轮学会 / 复习的词数 */
   total: number;
   /** 第一次就答对的词数 */
@@ -46,7 +46,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
           <p role="status" className="mt-1 text-sub text-ink-2">{line}</p>
         </SurfaceCard>
         <div className={cn("mt-2 grid gap-2", stats.points === null ? "grid-cols-2" : "grid-cols-3")}>
-          <StatTile tone="blue" icon={stats.kind === "learn" ? GalleryVerticalEndIcon : RefreshCwIcon}
+          <StatTile tone="blue" icon={stats.kind === "learn" ? GalleryVerticalEndIcon : stats.kind === "spell" ? KeyboardIcon : RefreshCwIcon}
             label={t(`web.wordbook.summary.${stats.kind}.tile`)} value={stats.total} />
           <StatTile tone="green" icon={CircleCheckIcon} label={t("web.wordbook.summary.correct")} value={stats.firstTry} />
           {stats.points !== null ? (

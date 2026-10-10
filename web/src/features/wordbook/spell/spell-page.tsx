@@ -1,4 +1,4 @@
-import { CheckIcon, KeyboardIcon, LanguagesIcon, LightbulbIcon, RulerIcon, Settings2Icon, Volume2Icon } from "lucide-react";
+import { KeyboardIcon, LanguagesIcon, LightbulbIcon, RulerIcon, Settings2Icon, Volume2Icon } from "lucide-react";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,9 @@ import {
   submitSpell,
   WORDBOOK_SERVER_ERRORS,
 } from "../wordbook-api";
+import { SessionSummary, type SessionStats } from "../session-summary";
+import { useRankEnabled } from "../use-rank-enabled";
+import { meaningLine } from "../word-card";
 import { ClozeBoard } from "./cloze-board";
 import { clozeReducer, initCloze } from "./cloze-engine";
 import { ExplainSheet } from "./explain-sheet";
@@ -77,6 +80,28 @@ const firstLetter = (line: ClozeLine, i: number) => wordFor(line, i).match(/[A-Z
 const sentenceText = (line: ClozeLine) =>
   line.segments.map((s) => (s.t === "text" ? s.v : wordFor(line, s.i))).join("").replace(/\s+/g, " ").trim();
 
+interface Tally { words: number; correct: number; counted: number; missed: SessionStats["missed"] }
+const EMPTY_TALLY: Tally = { words: 0, correct: 0, counted: 0, missed: [] };
+/** 每组 credit ≥ 60 计一次 spelling_set,默认 2 段位点(rank POINTS["spelling_set"];小结里只作估算)。 */
+const SPELLING_SET_POINTS = 2;
+
+function addToTally(prev: Tally, res: SpellResult): Tally {
+  const missed = res.words
+    .filter((w) => w.outcome !== "correct" && !prev.missed.some((m) => m.key === w.key))
+    .map((w) => ({ key: w.key, word: w.card.word || w.key, meaning: meaningLine(w.card.senses, 40) }));
+  return {
+    words: prev.words + res.words.length,
+    correct: prev.correct + res.words.filter((w) => w.outcome === "correct").length,
+    counted: prev.counted + (res.counted ? 1 : 0),
+    missed: [...prev.missed, ...missed],
+  };
+}
+
+const summaryStats = (tally: Tally, rankEnabled: boolean): SessionStats => ({
+  kind: "spell", total: tally.words, firstTry: tally.correct, missed: tally.missed,
+  points: rankEnabled ? tally.counted * SPELLING_SET_POINTS : null,
+});
+
 /** 按句拼写页(spec §6.6 / §11.5,视觉稿 06–09):组 → 提交 → 结果与讲解 → 下一组 → 小结。 */
 export function WordbookSpellPage() {
   const { t } = useTranslation();
@@ -103,7 +128,8 @@ export function WordbookSpellPage() {
   const [reporting, setReporting] = useState(false);
   const [reportError, setReportError] = useState("");
   const [reported, setReported] = useState<ReadonlySet<string>>(new Set());
-  const [tally, setTally] = useState({ words: 0, correct: 0 });
+  const [tally, setTally] = useState<Tally>(EMPTY_TALLY);
+  const rankEnabled = useRankEnabled();
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
 
   const tts = useTtsPlayer(api, { onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)) });
@@ -137,7 +163,7 @@ export function WordbookSpellPage() {
         setBookId(res.bookId);
         setSets(res.sets);
         setIndex(0);
-        setTally({ words: 0, correct: 0 });
+        setTally(EMPTY_TALLY);
         if (res.sets.length === 0) setPhase("empty");
         else start(res.sets[0]);
       },
@@ -168,7 +194,7 @@ export function WordbookSpellPage() {
         })),
       });
       setResult(res);
-      setTally((prev) => ({ words: prev.words + res.words.length, correct: prev.correct + res.words.filter((w) => w.outcome === "correct").length }));
+      setTally((prev) => addToTally(prev, res));
       setPhase("results");
       inputRef.current?.blur(); // 收起键盘,结果从顶部读起
     } catch (err) {
@@ -332,20 +358,17 @@ export function WordbookSpellPage() {
           </>
         ) : null}
 
-        {phase === "summary" ? (
-          <SurfaceCard className="flex flex-col items-center gap-1 px-4 py-5 text-center">
-            <span aria-hidden className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-tint text-green">
-              <CheckIcon className="h-6 w-6" />
-            </span>
-            <h2 className="text-headline font-semibold text-ink">{t("web.wordbookSpell.summaryTitle")}</h2>
-            <p className="text-sub text-ink-2">{t("web.wordbookSpell.summaryBody", tally)}</p>
-            <div className="mt-4 flex w-full gap-2">
-              <button type="button" className={GHOST} onClick={() => navigate("/wordbook")}>{t("web.wordbookSpell.home")}</button>
-              <button type="button" className={PRIMARY} onClick={() => load()}>{t("web.wordbookSpell.playAgain")}</button>
-            </div>
-          </SurfaceCard>
-        ) : null}
       </div>
+
+      {phase === "summary" ? (
+        <SessionSummary
+          stats={summaryStats(tally, rankEnabled)}
+          onHome={() => navigate("/wordbook")}
+          onAgain={() => load()}
+          onListen={(id, text) => { if (ai) void tts.play(id, text, ai.defaultTts.model, ai.defaultTts.voice); }}
+          canListen={canListen}
+        />
+      ) : null}
 
       {phase === "typing" ? (
         <div className="glass glass-edge-t sticky bottom-0 z-30 px-gutter py-2.5">

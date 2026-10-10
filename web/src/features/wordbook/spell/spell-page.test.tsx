@@ -4,7 +4,6 @@ import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
-import { LetterDiff } from "./letter-diff-standin";
 import { WordbookSpellPage } from "./spell-page";
 
 vi.mock("~/features/chat", () => ({
@@ -59,7 +58,9 @@ describe("WordbookSpellPage", () => {
     ]);
     const talk = await screen.findByTestId("spell-result-talk");
     expect(within(talk).getByText("小笔误")).toBeTruthy();
-    expect(within(talk).getByLabelText(/正确拼写 talk/)).toBeTruthy();
+    // 用 web-core 的 LetterDiff(role="img",逐字母 data-op),不是拼写目录里的替身
+    const diff = within(talk).getByRole("img", { name: /正确拼写 talk/ });
+    expect([...diff.querySelectorAll("[data-op]")].map((n) => n.getAttribute("data-op"))).toEqual(["eq", "sub", "sub", "eq"]);
     expect(within(talk).getByText("拼写接近,注意标出的字母")).toBeTruthy();
     expect(within(screen.getByTestId("spell-result-used to")).getByText("正确")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("75");
@@ -112,8 +113,13 @@ describe("WordbookSpellPage", () => {
     expect(report).toEqual({ book_id: "junior", key: "talk", sentence_id: "1".repeat(16), reason: "offensive" });
     expect(await within(talk).findByText("已举报,谢谢")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "完成" }));
-    expect(await screen.findByText("本轮拼写完成")).toBeTruthy();
-    expect(screen.getByText("拼写 2 个词 · 正确 1 个")).toBeTruthy();
+    // web-core 的会话小结(WC3 SessionSummary),不是拼写目录里的本地卡片
+    const summary = await screen.findByTestId("session-summary");
+    expect(within(summary).getByText("本轮拼写完成")).toBeTruthy();
+    expect(within(summary).getByRole("status").textContent).toBe("拼写 2 个词 · 一次答对 1");
+    expect(within(summary).getByText("talk")).toBeTruthy(); // 需要再看看
+    fireEvent.click(screen.getByRole("button", { name: "再来一轮" }));
+    await waitFor(() => expect(mock.calls.filter((c) => c.url.pathname.endsWith("/spell/sets"))).toHaveLength(2));
   });
 
   it("shows translated server errors instead of raw messages", async () => {
@@ -125,23 +131,5 @@ describe("WordbookSpellPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).not.toContain("Sentence changed");
     expect(screen.getByLabelText("第 1 空,共 3 空")).toBeInTheDocument();
-  });
-});
-
-describe("LetterDiff stand-in", () => {
-  it("marks missing, extra and wrong letters", () => {
-    const { container } = render(<LetterDiff expected="talking" diff={[
-      { op: "eq", a: "t", b: "t" }, { op: "eq", a: "a", b: "a" }, { op: "eq", a: "l", b: "l" }, { op: "eq", a: "k", b: "k" },
-      { op: "del", a: "i", b: "" }, { op: "eq", a: "n", b: "n" }, { op: "eq", a: "g", b: "g" }]} />);
-    const ops = [...container.querySelectorAll("[data-op]")].map((n) => `${n.getAttribute("data-op")}:${n.textContent}`);
-    expect(ops).toEqual(["eq:t", "eq:a", "eq:l", "eq:k", "del:i", "eq:n", "eq:g"]);
-    expect(container.firstElementChild?.getAttribute("aria-label")).toContain("talking");
-  });
-
-  it("renders a substitution as typed-then-expected", () => {
-    const { container } = render(<LetterDiff expected="cat" diff={[{ op: "eq", a: "c", b: "c" }, { op: "sub", a: "a", b: "u" }, { op: "eq", a: "t", b: "t" }]} />);
-    const sub = container.querySelector("[data-op=sub]")!;
-    expect(sub.querySelector("s")?.textContent).toBe("u");
-    expect(sub.querySelector("u")?.textContent).toBe("a");
   });
 });

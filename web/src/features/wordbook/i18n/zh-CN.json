@@ -138,6 +138,7 @@
         "title": "小结",
         "learn": { "title": "这一轮学完了", "count": "学会 {{n}} 个新词", "tile": "新词" },
         "review": { "title": "今天的复习完成了", "count": "复习 {{n}}", "tile": "复习" },
+        "spell": { "title": "本轮拼写完成", "count": "拼写 {{n}} 个词", "tile": "拼写" },
         "firstTry": "一次答对 {{n}}",
         "mastered": "{{n}} 个词进入「已掌握」",
         "correct": "答对",

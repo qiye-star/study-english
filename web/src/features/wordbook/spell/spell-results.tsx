@@ -5,7 +5,7 @@ import { scoreToneClass } from "~/components/score-tone";
 import { SurfaceCard } from "~/components/surface-card";
 import { cn } from "~/lib/cn";
 import type { BlankResult, Outcome, SpellResult, SpellWordResult } from "../wordbook-api";
-import { LetterDiff } from "./letter-diff-standin";
+import { LetterDiff } from "../letter-diff";
 import { OutcomeBadge } from "./outcome-badge";
 
 const ACT = "inline-flex min-h-tap items-center gap-1 px-2 text-sub font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-button disabled:opacity-40 [&_svg]:h-[17px] [&_svg]:w-[17px]";
@@ -31,7 +31,7 @@ function Yours({ blank }: { blank: BlankResult }) {
         <span className="text-ink-2">{t("web.wordbookSpell.notFilled")}</span>
       )}
       <span aria-hidden className="text-ink-2">→</span>
-      <b className="font-mono text-[17px] font-semibold tracking-[0.02em] text-ink" aria-label={t("web.wordbookSpell.diffLabel", { word: blank.expected })}>
+      <b className="font-mono text-[17px] font-semibold tracking-[0.02em] text-ink" aria-label={t("web.wordbook.diff.label", { word: blank.expected })}>
         {blank.expected}
       </b>
     </span>

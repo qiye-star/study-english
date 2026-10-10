@@ -9,7 +9,7 @@
 - `spell-results.tsx` (score status card + one row per word), `explain-sheet.tsx` (「为什么?」AI + dictionary explanation).
 - `spell-page.tsx` (sets → submit → results → next set → summary; report sheet; settings sheet), `prefs.ts`
   (`WORDBOOK_PREFS_KEY`, show letter count), `i18n/`.
-- `letter-diff-standin.tsx`: temporary copy of WC2's `../letter-diff.tsx`; delete and import `../letter-diff` once WC2 is merged.
+- Reused from the parent feature: `../letter-diff` (`LetterDiff`) and `../session-summary` (`SessionSummary`, kind `spell`).
 
 ## Public surface
 Only `WordbookSpellPage`, re-exported by `../index.ts`. Root keeps `data-testid="wordbook-spell-page"`.

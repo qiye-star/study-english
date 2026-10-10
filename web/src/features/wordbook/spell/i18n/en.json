@@ -31,7 +31,6 @@
       },
       "yours": "You wrote",
       "notFilled": "(blank)",
-      "diffLabel": "Correct spelling {{word}}",
       "listenWord": "Play {{word}}",
       "ttsUnavailable": "Text-to-speech is not configured",
       "whyButton": "Why?",
@@ -58,10 +57,6 @@
       "again": "Try again",
       "next": "Next set",
       "finish": "Done",
-      "summaryTitle": "Spelling round complete",
-      "summaryBody": "{{words}} words spelled · {{correct}} correct",
-      "playAgain": "Another round",
-      "home": "Back to Wordbook",
       "loading": "Building sentences…",
       "retry": "Retry"
     }

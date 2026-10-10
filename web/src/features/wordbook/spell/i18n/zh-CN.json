@@ -31,7 +31,6 @@
       },
       "yours": "你写的",
       "notFilled": "(没填)",
-      "diffLabel": "正确拼写 {{word}}",
       "listenWord": "朗读 {{word}}",
       "ttsUnavailable": "朗读未配置",
       "whyButton": "为什么?",
@@ -58,10 +57,6 @@
       "again": "再练一遍",
       "next": "下一组",
       "finish": "完成",
-      "summaryTitle": "本轮拼写完成",
-      "summaryBody": "拼写 {{words}} 个词 · 正确 {{correct}} 个",
-      "playAgain": "再来一轮",
-      "home": "回到首页",
       "loading": "正在组题…",
       "retry": "重试"
     }
