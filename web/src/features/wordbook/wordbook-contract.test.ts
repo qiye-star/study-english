@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import type {
-  AnswerResult, BlankResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, ItemState, Progress, Question, SpellResult,
+  AnswerResult, BlankResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, ItemState, Progress, Question, Segment, SpellResult,
   SpellWordResult, Today, WordbookBook,
 } from "./wordbook-api";
 
@@ -32,6 +32,7 @@ const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt:
 const ANSWER: Record<keyof AnswerResult, true> = { correct: true, outcome: true, grade: true, expected: true, diff: true, item: true, applied: true };
 const ITEM: Record<keyof ItemState, true> = { box: true, dueAt: true };
 const LINE: Record<keyof ClozeLine, true> = { key: true, sentenceId: true, segments: true, zh: true };
+const BLANK_SEGMENT: Record<keyof Extract<Segment, { t: "blank" }>, true> = { t: true, i: true, len: true, form: true };
 const SPELL: Record<keyof SpellResult, true> = { credit: true, counted: true, words: true };
 const WORD: Record<keyof SpellWordResult, true> = { key: true, outcome: true, credit: true, blanks: true, card: true, item: true };
 const BLANK: Record<keyof BlankResult, true> = { i: true, outcome: true, credit: true, typed: true, expected: true, diff: true };
@@ -70,6 +71,9 @@ describe.skipIf(contract === null)("wordbook contract (server fixture)", () => {
     if (answer.item) expect(keysOf(answer.item)).toEqual(keys(ITEM));
     const set = cc<{ sets: { lines: ClozeLine[] }[] }>(c.spell_sets).sets[0];
     expect(keysOf(set.lines[0])).toEqual(keys(LINE));
+    const blank = set.lines[0].segments.find((seg) => seg.t === "blank") as Extract<Segment, { t: "blank" }>;
+    expect(keysOf(blank)).toEqual(keys(BLANK_SEGMENT));
+    expect(typeof blank.form).toBe("string");
     const result = cc<SpellResult>(c.spell_submit);
     expect(keysOf(result)).toEqual(keys(SPELL));
     expect(keysOf(result.words[0])).toEqual(keys(WORD));

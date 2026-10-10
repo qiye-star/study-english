@@ -62,23 +62,15 @@ const blanksOf = (line: ClozeLine): Blank[] => line.segments.filter((s): s is Bl
 const blankCount = (set: ClozeSet) => set.lines.reduce((n, line) => Math.max(n, ...blanksOf(line).map((b) => b.i + 1)), 0);
 const lineOf = (set: ClozeSet, i: number) => set.lines.find((line) => blanksOf(line).some((b) => b.i === i));
 
-/** 某个空对应的词头单词:多词词头按顺序一空一词;对不上时退回整个词头。 */
-function wordFor(line: ClozeLine, i: number): string {
-  const blanks = blanksOf(line);
-  const words = line.key.split(/\s+/).filter(Boolean);
-  const offset = blanks.findIndex((b) => b.i === i);
-  return words.length === blanks.length && offset >= 0 ? words[offset] : line.key;
-}
+/** 某个空在句中的实际词形(服务端 `form`,如 go → went)。 */
+const formOf = (line: ClozeLine, i: number) => blanksOf(line).find((b) => b.i === i)?.form ?? "";
 
-/**
- * 首字母提示。服务端不下发答案(只有 len),所以取词头对应单词的首字母(计划 WS3)。
- * 不规则变形首字母不同(go → went)时会提示错;见 lane report 的 Ruling WS3-4。
- */
-const firstLetter = (line: ClozeLine, i: number) => wordFor(line, i).match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)?.[0]?.toLowerCase() ?? "";
+/** 首字母提示:句中实际词形的首字母(该空得分减半)。 */
+const firstLetter = (line: ClozeLine, i: number) => formOf(line, i).match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)?.[0]?.toLowerCase() ?? "";
 
-/** 「听这句」朗读的文本:文本段 + 各空对应的词头单词。 */
+/** 「听这句」朗读的文本:文本段 + 各空的实际词形。 */
 const sentenceText = (line: ClozeLine) =>
-  line.segments.map((s) => (s.t === "text" ? s.v : wordFor(line, s.i))).join("").replace(/\s+/g, " ").trim();
+  line.segments.map((s) => (s.t === "text" ? s.v : s.form)).join("").replace(/\s+/g, " ").trim();
 
 interface Tally { words: number; correct: number; counted: number; missed: SessionStats["missed"] }
 const EMPTY_TALLY: Tally = { words: 0, correct: 0, counted: 0, missed: [] };

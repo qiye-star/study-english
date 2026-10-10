@@ -6,14 +6,18 @@ import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { WordbookSpellPage } from "./spell-page";
 
+const play = vi.fn();
+vi.mock("~/api/server-config", () => ({
+  loadServerAiConfig: () => Promise.resolve({ llmModels: [], defaultLlmModel: "", ttsModels: ["tts-1"], voices: [], defaultTts: { model: "tts-1", voice: "alloy" } }),
+}));
 vi.mock("~/features/chat", () => ({
-  useTtsPlayer: () => ({ states: {}, play: vi.fn(), playQueue: vi.fn(), stop: vi.fn(), prime: vi.fn() }),
+  useTtsPlayer: () => ({ states: {}, play, playQueue: vi.fn(), stop: vi.fn(), prime: vi.fn() }),
   ttsErrorMessage: () => "tts error",
 }));
 
 const SET = { set_id: "abc123abc123", lines: [
-  { key: "talk", sentence_id: "1".repeat(16), zh: "经过一次长谈后,我们决定离婚。", segments: [{ t: "text", v: "After a long " }, { t: "blank", i: 0, len: 4 }, { t: "text", v: ", we decided on divorce." }] },
-  { key: "used to", sentence_id: "2".repeat(16), zh: "我以前住在海边的一个小镇。", segments: [{ t: "text", v: "I " }, { t: "blank", i: 1, len: 4 }, { t: "text", v: " " }, { t: "blank", i: 2, len: 2 }, { t: "text", v: " live in a small town by the sea." }] },
+  { key: "talk", sentence_id: "1".repeat(16), zh: "经过一次长谈后,我们决定离婚。", segments: [{ t: "text", v: "After a long " }, { t: "blank", i: 0, len: 4, form: "talk" }, { t: "text", v: ", we decided on divorce." }] },
+  { key: "used to", sentence_id: "2".repeat(16), zh: "我以前住在海边的一个小镇。", segments: [{ t: "text", v: "I " }, { t: "blank", i: 1, len: 4, form: "used" }, { t: "text", v: " " }, { t: "blank", i: 2, len: 2, form: "to" }, { t: "text", v: " live in a small town by the sea." }] },
 ] };
 const CARD = (word: string) => ({ key: word, word, us: "", uk: "", senses: [{ pos: "v", text: "说话" }], phrases: [] as unknown[], examples: [] as unknown[] });
 const RESULT = { credit: 75, counted: true, words: [
@@ -91,6 +95,23 @@ describe("WordbookSpellPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "首字母" }));
     expect(input).toHaveAttribute("aria-label", "第 3 空,共 3 空");
     expect((input as HTMLInputElement).value).toBe(S + "t");
+  });
+
+  it("hints and reads the sentence's actual form of an irregular word (go → went)", async () => {
+    const GO = { set_id: "def456def456", lines: [
+      { key: "go", sentence_id: "3".repeat(16), zh: "她早早回家了。", segments: [{ t: "text", v: "She " }, { t: "blank", i: 0, len: 4, form: "went" }, { t: "text", v: " home early." }] },
+    ] };
+    page({
+      "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [GO] }),
+    });
+    const input = await screen.findByLabelText("第 1 空,共 1 空");
+    expect(screen.queryByText(/went/)).toBeNull(); // 提交前不显示答案
+    fireEvent.click(screen.getByRole("button", { name: "首字母" }));
+    expect((input as HTMLInputElement).value).toBe(S + "w");
+    const listen = screen.getByRole("button", { name: "听这句" });
+    await waitFor(() => expect(listen).not.toBeDisabled());
+    fireEvent.click(listen);
+    expect(play).toHaveBeenCalledWith(expect.any(String), "She went home early.", "tts-1", "alloy");
   });
 
   it("explains how to get words when there are no sets", async () => {

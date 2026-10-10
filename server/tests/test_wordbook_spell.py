@@ -30,9 +30,32 @@ async def test_spell_sets_use_today_words_and_hide_answers(app, client, tmp_path
     assert sorted(l["key"] for l in s["lines"]) == sorted(FIVE)
     assert all(set(l) == {"key", "sentence_id", "segments", "zh"} for l in s["lines"])
     blanks = [seg for l in s["lines"] for seg in l["segments"] if seg["t"] == "blank"]
-    assert sorted(b["i"] for b in blanks) == [0, 1, 2, 3, 4] and all(set(b) == {"t", "i", "len"} for b in blanks)
+    assert sorted(b["i"] for b in blanks) == [0, 1, 2, 3, 4] and all(set(b) == {"t", "i", "len", "form"} for b in blanks)
     text = " ".join(seg.get("v", "") for l in s["lines"] for seg in l["segments"])
     assert "abandon" not in text and "absorb" not in text
+
+
+async def test_spell_blanks_carry_the_surface_form_for_hint_and_listen(app, client, tmp_path):
+    """首字母提示与「听这句」要用句中的实际词形(go → went),不是词头;form 只给这两样用,文本段里仍然没有答案。"""
+    h = await ready(app, client, tmp_path)
+    await client.post(f"{URL}/answers", headers=h, json={"book_id": "junior", "key": "go", "mode": "learn",
+                                                        "qtype": "meaning", "known": True, "tz_offset_minutes": 480})
+    body = (await client.post(f"{URL}/spell/sets", headers=h, json={"count": 1, "size": 6, "tz_offset_minutes": 480})).json()
+    go = next(l for l in body["sets"][0]["lines"] if l["key"] == "go")
+    (blank,) = [seg for seg in go["segments"] if seg["t"] == "blank"]
+    assert blank["form"] == "went" and blank["len"] == 4
+    assert "went" not in "".join(seg.get("v", "") for seg in go["segments"])
+
+
+async def test_set_out_gives_each_blank_of_a_phrase_its_own_form(tmp_path):
+    from app.wordbook.cloze import build_set
+    from app.wordbook.index import DictionaryStore
+    from app.wordbook.service import set_out
+    ds = DictionaryStore(make_data_dir(tmp_path))
+    c = await ds.cards("junior", ["used to", "go", "talk"])
+    (line_used, line_go, _) = set_out(build_set([c["used to"], c["go"], c["talk"]], size=3))["lines"]
+    assert [(b["i"], b["form"]) for b in line_used["segments"] if b["t"] == "blank"] == [(0, "used"), (1, "to")]
+    assert [(b["i"], b["form"]) for b in line_go["segments"] if b["t"] == "blank"] == [(2, "went")]
 
 
 async def test_spell_submit_four_outcomes_and_srs(app, client, tmp_path):

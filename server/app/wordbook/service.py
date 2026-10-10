@@ -308,11 +308,16 @@ class SpellInput:
 
 
 def set_out(s: ClozeSet) -> dict:
-    """答案不出现在响应里:空只给编号与长度。"""
-    def seg(x):
-        return {"t": "text", "v": x.v} if x.t == "text" else {"t": "blank", "i": x.i, "len": x.len}
-    return {"set_id": s.set_id, "lines": [{"key": l.key, "sentence_id": l.sentence_id,
-                                           "segments": [seg(x) for x in l.segments], "zh": l.zh} for l in s.lines]}
+    """文本段里没有答案;空给编号、长度与 `form`(句中实际词形,如 go → went)。
+
+    Ruling Z-c:`form` 只供「首字母」提示(该空减半)与「听这句」朗读(TTS 本来就念出答案)使用,网页在提交前
+    不把它渲染进空里;判分仍按 (key, sentence_id) 从词卡重算(P-W2),不信任客户端回传的任何答案。"""
+    def line(l):
+        forms = iter(l.expected)
+        segs = [{"t": "text", "v": x.v} if x.t == "text" else {"t": "blank", "i": x.i, "len": x.len, "form": next(forms)}
+                for x in l.segments]
+        return {"key": l.key, "sentence_id": l.sentence_id, "segments": segs, "zh": l.zh}
+    return {"set_id": s.set_id, "lines": [line(l) for l in s.lines]}
 
 
 async def spell_sets(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, count: int,

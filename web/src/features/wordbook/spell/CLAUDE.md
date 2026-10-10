@@ -29,5 +29,5 @@ Same as `../CLAUDE.md`; parent-feature modules via relative `../x` imports (`../
   `opacity-0` + 1px + 16px font, never `display:none` / `visibility:hidden`.
 - Tool buttons and blanks `preventDefault` on mousedown so tapping them does not close the keyboard.
 - No per-keystroke aria-live; announce once after submit (`role="status"` score card).
-- The server never sends answers: the first-letter hint and 「听这句」 use the headword's word for each blank
-  (wrong first letter for irregular forms such as go → went).
+- Each blank segment carries `form`, the sentence's actual word form (go → went), only for the first-letter hint and
+  「听这句」 TTS (Ruling Z-c). Never render it into a blank before submit; grading stays server-side from `(key, sentence_id)`.

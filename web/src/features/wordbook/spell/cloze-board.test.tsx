@@ -9,8 +9,8 @@ import { readPrefs, writePrefs, WORDBOOK_PREFS_KEY } from "./prefs";
 const SET: ClozeSet = {
   setId: "abc123abc123",
   lines: [
-    { key: "talk", sentenceId: "1".repeat(16), zh: "经过一次长谈后,我们决定离婚。", segments: [{ t: "text", v: "After a long " }, { t: "blank", i: 0, len: 4 }, { t: "text", v: ", we decided on divorce." }] },
-    { key: "used to", sentenceId: "2".repeat(16), zh: "我以前住在海边的一个小镇。", segments: [{ t: "text", v: "I " }, { t: "blank", i: 1, len: 4 }, { t: "text", v: " " }, { t: "blank", i: 2, len: 2 }, { t: "text", v: " live in a small town by the sea." }] },
+    { key: "talk", sentenceId: "1".repeat(16), zh: "经过一次长谈后,我们决定离婚。", segments: [{ t: "text", v: "After a long " }, { t: "blank", i: 0, len: 4, form: "talk" }, { t: "text", v: ", we decided on divorce." }] },
+    { key: "used to", sentenceId: "2".repeat(16), zh: "我以前住在海边的一个小镇。", segments: [{ t: "text", v: "I " }, { t: "blank", i: 1, len: 4, form: "used" }, { t: "text", v: " " }, { t: "blank", i: 2, len: 2, form: "to" }, { t: "text", v: " live in a small town by the sea." }] },
   ],
 };
 

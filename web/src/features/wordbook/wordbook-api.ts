@@ -24,7 +24,8 @@ export interface DiffOp { op: "eq" | "sub" | "ins" | "del"; a: string; b: string
 export interface ItemState { box: number; dueAt: string }
 export interface AnswerInput { bookId: BookId; key: string; mode: "learn" | "review"; qtype: QType; choice?: string; typed?: string; hinted?: boolean; known?: boolean }
 export interface AnswerResult { correct: boolean; outcome: Outcome | "known"; grade: Grade; expected: string; diff: DiffOp[] | null; item: ItemState | null; applied: boolean }
-export type Segment = { t: "text"; v: string } | { t: "blank"; i: number; len: number };
+/** 空的 `form` = 句中实际词形(go → went):只用于首字母提示与「听这句」,提交前不渲染进空里(Ruling Z-c)。 */
+export type Segment = { t: "text"; v: string } | { t: "blank"; i: number; len: number; form: string };
 export interface ClozeLine { key: string; sentenceId: string; segments: Segment[]; zh: string }
 export interface ClozeSet { setId: string; lines: ClozeLine[] }
 export interface BlankResult { i: number; outcome: Outcome; credit: number; typed: string; expected: string; diff: DiffOp[] }
