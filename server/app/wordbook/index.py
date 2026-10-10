@@ -109,6 +109,7 @@ class DictionaryStore:
         self._cards: OrderedDict[tuple[str, str], WordCard] = OrderedDict()
         self.hidden: frozenset[str] = frozenset()
         self.hidden_loaded = False
+        self._generation = 0  # reload() bumps it: a build or read in flight across a reload is not kept (review m6)
 
     def path_for(self, book_id: str) -> Path:
         spec = book_by_id(book_id)
@@ -118,6 +119,9 @@ class DictionaryStore:
 
     async def index(self, book_id: str) -> BookIndex:
         found = self._indexes.get(book_id)
+        if found is not None and self.stale(book_id):  # the file changed without an admin reload (one stat call)
+            self.reload(book_id)
+            found = None
         if found is not None:
             return found
         async with self._locks.setdefault(book_id, asyncio.Lock()):
@@ -126,11 +130,13 @@ class DictionaryStore:
                 path = self.path_for(book_id)
                 if not path.is_file():
                     raise DataUnavailable(book_id)
+                generation = self._generation
                 try:
                     found = await asyncio.to_thread(build_index, book_id, path)
                 except (OSError, ValueError):
                     raise DataUnavailable(book_id) from None
-                self._indexes[book_id] = found
+                if generation == self._generation:
+                    self._indexes[book_id] = found
         return found
 
     def _remember(self, slot: tuple[str, str], card: WordCard) -> None:
@@ -152,6 +158,7 @@ class DictionaryStore:
             elif key in index and key not in missing:
                 missing.append(key)
         if missing:
+            generation = self._generation
             try:
                 rows = await asyncio.to_thread(_read_rows, self.path_for(book_id),
                                                [index.offsets[index.ordinal[k]] for k in missing])
@@ -160,9 +167,12 @@ class DictionaryStore:
             hidden = self.hidden
             for key, group in zip(missing, rows):
                 card = merge_rows(group, hidden=hidden)
+                if card is not None and card.key != key:  # stale offsets landed on another headword
+                    raise DataUnavailable(book_id)
                 if card is not None:
                     found[key] = card
-                    self._remember((book_id, key), card)
+                    if generation == self._generation:
+                        self._remember((book_id, key), card)
         return {k: found[k] for k in keys if k in found}
 
     async def card(self, book_id: str, key: str) -> WordCard | None:
@@ -174,6 +184,7 @@ class DictionaryStore:
         self._cards.clear()
 
     def reload(self, book_id: str | None = None) -> None:
+        self._generation += 1
         if book_id is None:
             self._indexes.clear()
             self._cards.clear()

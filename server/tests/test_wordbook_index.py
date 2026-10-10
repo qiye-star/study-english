@@ -55,6 +55,49 @@ async def test_missing_book_hidden_sentences_reload_and_stale(tmp_path):
     assert store.loaded() == {}
 
 
+def _reverse_lines(path):
+    lines = [line for line in path.read_bytes().splitlines(keepends=True) if line.strip()]
+    path.write_bytes(b"".join(reversed(lines)))
+
+
+async def test_a_replaced_file_never_serves_another_words_card(tmp_path):
+    """Review m6: the file changes without an admin reload; stale offsets must not land on another headword."""
+    data = make_data_dir(tmp_path)
+    store = DictionaryStore(data)
+    await store.index("junior")
+    _reverse_lines(data / "junior.jsonl")
+    card = await store.card("junior", "able")
+    assert card is not None and card.key == "able"  # the stat check rebuilt the index
+
+
+async def test_offsets_that_point_at_another_word_are_data_unavailable(tmp_path):
+    store = DictionaryStore(make_data_dir(tmp_path))
+    index = await store.index("junior")
+    # the file changed without changing size or mtime: "able"'s old offset now starts "talk"'s line
+    index.offsets[index.ordinal["able"]] = (0,)
+    try:
+        card = await store.card("junior", "able")
+    except DataUnavailable:
+        card = None
+    assert card is None or card.key == "able"
+    assert all(c.key == k for (b, k), c in store._cards.items())
+
+
+async def test_a_build_in_flight_during_reload_is_not_kept(tmp_path, monkeypatch):
+    import app.wordbook.index as mod
+    store = DictionaryStore(make_data_dir(tmp_path))
+    real = mod.build_index
+
+    def slow(book_id, path):
+        found = real(book_id, path)
+        store.reload("junior")  # an admin reload lands while the old file is being indexed
+        return found
+
+    monkeypatch.setattr(mod, "build_index", slow)
+    await store.index("junior")
+    assert store.loaded() == {}
+
+
 async def test_corrupt_file_is_data_unavailable(tmp_path):
     data = tmp_path / "dict"
     data.mkdir()
