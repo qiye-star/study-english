@@ -285,6 +285,10 @@ async def test_admin_cannot_edit_a_closed_room(app, client):
     _, ha = await register(client, "alice")
     room = await _room(client, ha)
     assert (await client.post(f"/api/rooms/{room['id']}/close", headers=ha)).status_code == 200
+    # Closing spawns the learning-summary runner on the hub. The test DB is one shared in-memory connection
+    # (StaticPool): a background session that ends mid-way rolls back whatever another session has flushed but not
+    # committed yet, e.g. login_as's admin account -> "Invalid username or password" (flaky under load). Settle first.
+    await runtime(app).hub.drain()
     h = await login_as(app, client, "operator")
     r = await client.patch(f"/api/admin/rooms/{room['id']}/settings", headers=h,
                            json={"allow_voice": False, "reason": "已结束"})
