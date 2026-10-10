@@ -29,6 +29,13 @@ describe("English counts are pluralised (review m10)", () => {
     expect(t("web.wordbook.review.due", { count: 1, n: 1 })).toBe("1 word due");
     expect(t("web.wordbookSpell.setHead", { n: 1, total: 2, words: 1, count: 1 })).toBe("Set 1 of 2 · 1 word");
     expect(t("web.wordbookSpell.setHead", { n: 1, total: 2, words: 5, count: 5 })).toBe("Set 1 of 2 · 5 words");
+    expect(t("web.wordbook.goals.presets.days", { days: 1, count: 1 })).toBe("about 1 day to finish");
+    expect(t("web.wordbook.goals.presets.days", { days: 185, count: 185 })).toBe("about 185 days to finish");
+    expect(t("web.wordbook.goals.estimate.line", { days: 1, steady: 5, count: 1 })).toBe("About 1 day to finish · then about 5 reviews a day");
+    expect(t("web.wordbook.goals.streak.days", { n: 1, count: 1 })).toBe("1-day goal streak");
+    expect(t("web.wordbook.goals.streak.cellDays", { n: 1, count: 1 })).toBe("1 day");
+    expect(t("web.wordbook.goals.streak.cellDays", { n: 2, count: 2 })).toBe("2 days");
+    expect(t("web.wordbook.goals.reset.learned", { n: 2, count: 2 })).toBe("2 words learned in this book");
   });
 
   it("keeps the Chinese copy unchanged", async () => {
@@ -36,6 +43,8 @@ describe("English counts are pluralised (review m10)", () => {
     expect(i18n.t("web.wordbook.summary.learn.count", { count: 1, n: 1 })).toBe("学会 1 个新词");
     expect(i18n.t("web.wordbook.review.due", { count: 2, n: 2 })).toBe("到期 2 个词");
     expect(i18n.t("web.wordbookSpell.setHead", { n: 1, total: 2, words: 1, count: 1 })).toBe("第 1 组 / 共 2 组 · 1 个词");
+    expect(i18n.t("web.wordbook.goals.presets.days", { days: 1, count: 1 })).toBe("约 1 天学完");
+    expect(i18n.t("web.wordbook.goals.streak.cellDays", { n: 12, count: 12 })).toBe("12 天");
   });
 });
 

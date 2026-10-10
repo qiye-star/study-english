@@ -6,10 +6,11 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { WordbookHomePage } from "./home-page";
-import { CONFIG, ENROLLED_TODAY, NO_BOOK_TODAY, PLAN } from "./test-fixtures";
+import { GOALS_CONFIG, GOALS_ENROLLMENT, GOALS_PLAN, GOALS_TODAY, PAUSED_TODAY } from "./goals-test-fixtures";
+import { NO_BOOK_TODAY } from "./test-fixtures";
 
 function setup(today: unknown, extra: Parameters<typeof createFetchMock>[0] = {}) {
-  const mock = createFetchMock({ "GET /api/wordbook/config": () => json(CONFIG), "GET /api/wordbook/today": () => json(today), ...extra });
+  const mock = createFetchMock({ "GET /api/wordbook/config": () => json(GOALS_CONFIG), "GET /api/wordbook/today": () => json(today), ...extra });
   renderWithProviders(<WordbookHomePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook" });
   return mock;
 }
@@ -19,7 +20,7 @@ afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.chang
 
 describe("WordbookHomePage", () => {
   it("shows the book progress, today's plan and the three actions", async () => {
-    setup(ENROLLED_TODAY);
+    setup(GOALS_TODAY);
     expect(await screen.findByText("四级")).toBeTruthy();
     const bar = screen.getByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuenow", "7"); // 312 / 4544 已掌握
@@ -35,19 +36,20 @@ describe("WordbookHomePage", () => {
     expect(screen.getByTestId("wordbook-action-learn")).toHaveTextContent("12");
     expect(screen.getByTestId("wordbook-action-spell")).toHaveAttribute("href", "/wordbook/spell");
     expect(screen.getByTestId("wordbook-action-spell")).toHaveTextContent("按句拼写");
-    expect(screen.getByRole("link", { name: "词书与每日设置" })).toHaveAttribute("href", "/wordbook/books");
+    expect(screen.getByRole("button", { name: "每日目标设置" })).toBeTruthy();
+    expect(screen.queryByText("今天的目标完成了")).toBeNull();
     expect(screen.queryByText("复习积压,今天少学新词")).toBeNull();
   });
 
   it("marks finished actions as done and not clickable", async () => {
-    setup({ ...ENROLLED_TODAY, plan: { ...PLAN, review_left: 0, review_done: 34 } });
+    setup({ ...GOALS_TODAY, plan: { ...GOALS_PLAN, review_left: 0, review_done: 34 } });
     const review = await screen.findByTestId("wordbook-action-review");
     expect(review.tagName).not.toBe("A");
     expect(review).toHaveTextContent("已完成");
   });
 
   it("warns about a review backlog", async () => {
-    setup({ ...ENROLLED_TODAY, plan: { ...PLAN, review_due: 240, review_left: 100, new_left: 5, backlog_guard: true } });
+    setup({ ...GOALS_TODAY, plan: { ...GOALS_PLAN, review_due: 240, review_left: 100, new_left: 5, backlog_guard: true } });
     expect(await screen.findByText("复习积压,今天少学新词")).toBeTruthy();
   });
 
@@ -57,14 +59,14 @@ describe("WordbookHomePage", () => {
   });
 
   it("explains a turned-off book and offers another", async () => {
-    setup({ ...ENROLLED_TODAY, book: null, plan: null, progress: null });
+    setup({ ...GOALS_TODAY, book: null, plan: null, progress: null });
     expect(await screen.findByText("这本词书已停用,换一本吧")).toBeTruthy();
     expect(screen.getByRole("link", { name: "换一本" })).toHaveAttribute("href", "/wordbook/books");
   });
 
   it("shows a translated error with retry", async () => {
     let fail = true;
-    setup(null, { "GET /api/wordbook/today": () => (fail ? json({ error: "Wordbook data unavailable" }, 503) : json(ENROLLED_TODAY)) });
+    setup(null, { "GET /api/wordbook/today": () => (fail ? json({ error: "Wordbook data unavailable" }, 503) : json(GOALS_TODAY)) });
     expect(await screen.findByText("词书数据暂不可用,请稍后再试")).toBeTruthy();
     fail = false;
     await userEvent.click(screen.getByRole("button", { name: "重试" }));
@@ -75,5 +77,46 @@ describe("WordbookHomePage", () => {
     const mock = createFetchMock({ "GET /api/wordbook/config": () => json({ enabled: false }) });
     renderWithProviders(<WordbookHomePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook" });
     expect(await screen.findByText("背单词未开启")).toBeTruthy();
+  });
+
+  it("shows the goal streak in the plan card", async () => {
+    setup(GOALS_TODAY);
+    expect(await screen.findByTestId("wordbook-streak")).toHaveTextContent("连续12 天");
+  });
+
+  it("shows a dash before the first goal day", async () => {
+    setup({ ...GOALS_TODAY, streak: { current: 0, today_met: false } });
+    expect(await screen.findByTestId("wordbook-streak")).toHaveTextContent("连续—");
+  });
+
+  it("shows the paused book instead of the picker and resumes it", async () => {
+    let paused = true;
+    const mock = setup(null, {
+      "GET /api/wordbook/today": () => json(paused ? PAUSED_TODAY : GOALS_TODAY),
+      "POST /api/wordbook/enrollment/resume": () => { paused = false; return json(GOALS_ENROLLMENT); },
+    });
+    expect(await screen.findByTestId("wordbook-paused")).toHaveTextContent("四级已暂停");
+    expect(screen.queryByRole("button", { name: "每日目标设置" })).toBeNull();
+    expect(screen.getByRole("link", { name: "换一本" })).toHaveAttribute("href", "/wordbook/books");
+    await userEvent.click(screen.getByRole("button", { name: "继续学习" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/enrollment/resume")).toBe(true));
+    const call = mock.calls.find((c) => c.url.pathname === "/api/wordbook/enrollment/resume")!;
+    expect(JSON.parse(String(call.body))).toEqual({ book_id: "cet4" });
+    expect(await screen.findByRole("button", { name: "每日目标设置" })).toBeTruthy();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/wordbook$/);
+  });
+
+  it("explains a refused resume on the paused card", async () => {
+    setup(PAUSED_TODAY, { "POST /api/wordbook/enrollment/resume": () => json({ error: "Too many settings changes today" }, 429) });
+    await userEvent.click(await screen.findByRole("button", { name: "继续学习" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("今天改设置的次数太多了,明天再试");
+  });
+
+  it("works with an older server without goals keys", async () => {
+    const { paused: _p, streak: _s, ...legacy } = GOALS_TODAY;
+    setup(legacy);
+    expect(await screen.findByTestId("wordbook-streak")).toHaveTextContent("连续—");
+    await userEvent.click(screen.getByRole("button", { name: "每日目标设置" }));
+    expect(await screen.findByRole("dialog", { name: "每日目标" })).toHaveTextContent("还没有连续达标");
   });
 });

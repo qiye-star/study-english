@@ -12,6 +12,8 @@ const BASE = cn(
 export const PRIMARY = `${BASE} bg-blue text-on-blue active:bg-blue/90`;
 /** 次按钮(surface + 发丝线) */
 export const GHOST = `${BASE} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2`;
+/** 危险按钮(红底白字,只给「重置进度」;goals 视觉稿 08) */
+export const DANGER = `${BASE} bg-red-solid text-white active:bg-red-solid/90`;
 /** 会话页底部操作条(贴在 Tab 栏之上的玻璃条;视觉稿 .dock2) */
 export const DOCK = "glass glass-edge-t sticky bottom-0 z-30 mt-auto flex gap-2 px-gutter pb-2.5 pt-2.5";
 /** 44px 朗读键(视觉稿 .play) */

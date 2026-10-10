@@ -17,6 +17,11 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
   `session-machine.ts` also exports `startCard` / `cardReducer` / `ratingPayload` (peek + clamped `elapsedMs`), `planLearnQuiz`,
   `slotId` / `slotKey`, `learnTally`. The review page calls `reviewBatch(api, 20, { recall: true })`; `/config.learn` carries
   `autoplay` / `showExample`.
+- Daily goals (spec `2026-10-11-wordbook-goals-design.md`): `goals-math.ts` (estimates D / S = 5N / R(t), presets,
+  `previewPlan` mirroring the server's `plan.compute_plan`, `parseCount` with full-width digits), `goals-stepper.tsx`,
+  `goals-fields.tsx` (shared by the goal sheet and the book picker), `goals-sheet.tsx` (每日目标 sheet: extra words, streak,
+  change / pause / reset), `goals-confirm.tsx` (its pause / reset confirmations), `use-goals.ts` (only PATCH is optimistic),
+  `use-return-focus.ts`, `goals-test-fixtures.ts` (snake_case goals samples, extends `test-fixtures.ts`).
 
 ## Public surface
 `index.ts`: pages (lazy, from `lazy-pages.tsx`), `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`.
@@ -50,5 +55,12 @@ Other directories import only `~/features/wordbook`.
   and `elapsedMs`. Never show a box or spot-check result before the response, and never send an `elapsedMs` above
   600000 (the server rejects it with 422): use `ratingPayload` / `clampElapsed`.
 - While covered, the meaning, examples and phrases are not in the DOM at all (no blur or opacity tricks).
+- Plan rules live in three places that must change together: server `plan.compute_plan`, `goals-math.previewPlan` and the shared
+  table `server/tests/fixtures/wordbook_plan_cases.json` (the test also embeds the plan's copy until the server file exists).
+- `review_cap` 0 means "no limit" on the wire (`reviewUnlimited: true`); forms use `reviewCap: null`. Always read limits via `limitsOf`.
+- Never nest enjoy's `AlertDialog` inside a `BottomSheet`: it bundles another `@radix-ui/react-focus-scope` copy and the two
+  focus traps recurse forever. Use `goals-confirm.tsx` (same `@radix-ui/react-dialog`). Radix modals return focus only to a
+  `Trigger`; sheets opened by plain buttons spread `useReturnFocus()` on the content.
+- Pause / reset only from their confirmation dialogs; red is for reset only.
 - Audio: no autoplay before the first tap (iOS); `speaker.prime()` only on the first gesture; read in click handlers, not
   effects, so StrictMode cannot read twice (a second `play()` with the same id stops playback).

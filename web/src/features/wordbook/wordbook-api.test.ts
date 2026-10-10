@@ -73,7 +73,11 @@ describe("wordbook api", () => {
       "AI explanation unavailable", "Book is not active", "Book not found", "Daily answer limit reached",
       "Daily new-word limit reached", "Daily report limit reached",
       "No active book", "Question type mismatch", "Rating is required", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
-    ]);
+      // goals v2(spec 2026-10-11 §9)
+      "Book not enrolled", "Clear the review backlog first", "Confirmation does not match", "Conflicting review cap",
+      "Daily bonus limit reached", "Daily new words out of range", "Daily reset limit reached", "Finish today's new words first",
+      "No changes", "No new words left in this book", "Review cap out of range", "Too many settings changes today", "Unlimited reviews are off",
+    ].sort());
     for (const key of Object.values(WORDBOOK_SERVER_ERRORS)) {
       expect(typeof lookup(en, key), key).toBe("string");
       expect(typeof lookup(zh, key), key).toBe("string");

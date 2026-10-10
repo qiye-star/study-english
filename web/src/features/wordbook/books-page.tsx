@@ -5,23 +5,18 @@ import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
-import { SegmentedControl } from "~/components/segmented-control";
 import { ToneBadge } from "~/components/tone-badge";
 import { PageHeader } from "~/layout/page-header";
+import { GoalsFields, applyPatch, valueOf, type GoalsValue } from "./goals-fields";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { GHOST, PRIMARY, bookTitle, fmt } from "./ui";
+import { useReturnFocus } from "./use-return-focus";
 import { useWordbookConfig } from "./use-wordbook-config";
 import {
-  WORDBOOK_SERVER_ERRORS, fetchBooks, fetchToday, saveEnrollment, type BookProgress, type Enrollment, type OrderMode,
+  WORDBOOK_SERVER_ERRORS, fetchBooks, fetchToday, limitsOf, saveEnrollment, type BookProgress, type Enrollment,
 } from "./wordbook-api";
 
-const DAILY_NEW = ["10", "20", "30", "50"] as const;
-const REVIEW_CAP = ["50", "100", "200"] as const;
 const MAX_LEVEL = 6;
-
-/** 最接近的分段值(服务端允许 5–100 / 20–500 的任意值,界面只给几档)。 */
-const nearest = <T extends string>(options: readonly T[], value: number): T =>
-  options.reduce((best, o) => (Math.abs(Number(o) - value) < Math.abs(Number(best) - value) ? o : best), options[0]);
 
 /** 难度条:6 格,前 level 格青色(视觉稿 .lv)。 */
 function LevelBar({ level }: { level: number }) {
@@ -35,8 +30,6 @@ function LevelBar({ level }: { level: number }) {
   );
 }
 
-interface Settings { dailyNew: (typeof DAILY_NEW)[number]; reviewCap: (typeof REVIEW_CAP)[number]; orderMode: OrderMode }
-
 /** 选书页(spec §11.2,视觉稿 02):两列书卡,点书打开每日设置。 */
 export function WordbookBooksPage() {
   const { t, i18n } = useTranslation();
@@ -48,7 +41,8 @@ export function WordbookBooksPage() {
   const [error, setError] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
   const [picked, setPicked] = useState<BookProgress | null>(null);
-  const [settings, setSettings] = useState<Settings>({ dailyNew: "20", reviewCap: "100", orderMode: "shuffle" });
+  const [settings, setSettings] = useState<GoalsValue>({ dailyNew: 20, reviewCap: 100, orderMode: "shuffle" });
+  const sheetFocus = useReturnFocus();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -70,12 +64,8 @@ export function WordbookBooksPage() {
   const available = (id: string) => (config?.enabled ? config.books.find((b) => b.id === id)?.available !== false : true);
 
   const open = (book: BookProgress) => {
-    const source = enrollment ?? (config?.enabled ? config.defaults : { dailyNew: 20, reviewCap: 100 });
-    setSettings({
-      dailyNew: nearest(DAILY_NEW, source.dailyNew),
-      reviewCap: nearest(REVIEW_CAP, source.reviewCap),
-      orderMode: enrollment?.orderMode ?? "shuffle",
-    });
+    // 当前设置原样预填(自定义值不再吸附到最近的分段;goals spec §12.1)
+    setSettings(valueOf(enrollment ?? (config?.enabled ? config.defaults : { dailyNew: 20, reviewCap: 100 })));
     setSaveError(null);
     setPicked(book);
   };
@@ -86,7 +76,8 @@ export function WordbookBooksPage() {
     setSaveError(null);
     try {
       await saveEnrollment(api, {
-        bookId: picked.id, dailyNew: Number(settings.dailyNew), reviewCap: Number(settings.reviewCap), orderMode: settings.orderMode,
+        bookId: picked.id, dailyNew: settings.dailyNew, orderMode: settings.orderMode,
+        ...(settings.reviewCap === null ? { reviewUnlimited: true as const } : { reviewCap: settings.reviewCap }),
       });
       navigate("/wordbook");
     } catch (err) {
@@ -138,28 +129,11 @@ export function WordbookBooksPage() {
       <div className="px-gutter pb-6">{body}</div>
       <BottomSheet open={picked !== null} onOpenChange={(o) => { if (!o && !saving) setPicked(null); }}>
         {picked ? (
-          <BottomSheetContent>
+          <BottomSheetContent className="max-h-[88vh] overflow-y-auto" {...sheetFocus}>
             <BottomSheetHeader title={t("web.wordbook.books.sheetTitle", { book: bookTitle(picked, i18n.language) })}
               description={picked.learned > 0 ? t("web.wordbook.books.sheetLearned", { n: fmt(picked.learned) }) : t("web.wordbook.books.sheetFresh", { n: fmt(picked.words) })} />
-            <div className="space-y-3.5">
-              {([
-                ["dailyNew", DAILY_NEW],
-                ["reviewCap", REVIEW_CAP],
-              ] as const).map(([key, options]) => (
-                <div key={key}>
-                  <p aria-hidden className="mb-1.5 text-sub font-semibold text-ink-2">{t(`web.wordbook.books.${key}`)}</p>
-                  <SegmentedControl label={t(`web.wordbook.books.${key}`)} value={settings[key]} className="flex w-full" optionClassName="flex-1 min-w-0"
-                    onChange={(v) => setSettings((s) => ({ ...s, [key]: v }))}
-                    options={(options as readonly string[]).map((o) => ({ value: o, label: o }))} />
-                </div>
-              ))}
-              <div>
-                <p aria-hidden className="mb-1.5 text-sub font-semibold text-ink-2">{t("web.wordbook.books.orderLabel")}</p>
-                <SegmentedControl<OrderMode> label={t("web.wordbook.books.orderLabel")} value={settings.orderMode} className="flex w-full" optionClassName="flex-1 min-w-0"
-                  onChange={(v) => setSettings((s) => ({ ...s, orderMode: v }))}
-                  options={[{ value: "shuffle", label: t("web.wordbook.books.order.shuffle") }, { value: "book", label: t("web.wordbook.books.order.book") }]} />
-              </div>
-            </div>
+            <GoalsFields value={settings} limits={limitsOf(config)} remaining={Math.max(0, picked.words - picked.learned)}
+              onChange={(p) => setSettings((v) => applyPatch(v, p))} />
             <p className="mt-3 text-meta leading-dialogue text-ink-2">{t("web.wordbook.books.keepProgress")}</p>
             {saveError ? <p role="alert" className="mt-2 text-sub text-ink">{saveError}</p> : null}
             <div className="mt-4 flex gap-2">

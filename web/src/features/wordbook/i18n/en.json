@@ -34,7 +34,7 @@
         "pick": "No book chosen yet"
       },
       "home": {
-        "settings": "Books and daily settings",
+        "settings": "Daily goal settings",
         "total": "{{n}} words",
         "progressLabel": "Book progress",
         "mastered": "Mastered",
@@ -173,6 +173,76 @@
         "missedHint": "{{meaning}} · back tomorrow",
         "home": "Back to Wordbook",
         "again": "Another round"
+      },
+      "goals": {
+        "title": "Daily goal",
+        "open": "Daily goal settings",
+        "openFromRing": "Adjust today's goal",
+        "subtitle": "{{book}} · {{n}} words left · changes apply now",
+        "saved": "Saved",
+        "dailyNew": "New words per day",
+        "reviewCap": "Daily review limit",
+        "custom": "Custom",
+        "unlimited": "No limit",
+        "presets": {
+          "label": "Plans", "custom": "Custom", "easy": "Relaxed", "standard": "Standard", "sprint": "Sprint",
+          "values": "{{n}} new · {{cap}} reviews",
+          "days_one": "about {{days}} day to finish", "days_other": "about {{days}} days to finish",
+          "steady": "then about {{n}} reviews a day",
+          "limited": "Limited by the admin"
+        },
+        "stepper": { "less": "Decrease {{label}}", "more": "Increase {{label}}", "range": "Range {{min}}–{{max}}" },
+        "today": {
+          "label": "Today",
+          "new": "New {{done}} / {{target}} · {{left}} left",
+          "review": "Reviews {{done}} / {{total}}",
+          "reviewUnlimited": "Reviews {{done}} · {{due}} due (no limit)",
+          "backlog": "{{due}} due, above the review limit {{cap}}: at most 5 new words today (back to normal once reviews are under the limit)"
+        },
+        "estimate": {
+          "line_one": "About {{days}} day to finish · then about {{steady}} reviews a day",
+          "line_other": "About {{days}} days to finish · then about {{steady}} reviews a day",
+          "done": "You have learned every new word in this book",
+          "overCap": "Above your review limit of {{cap}}: reviews will pile up",
+          "note": "Assumes every answer is right; missed words go back to box 1, so expect more. Mastered words come back every 30 days, so reviews grow later on (about {{finish}} a day by the end)."
+        },
+        "order": { "label": "Order", "note": "New words come in the new order; learned words are not affected" },
+        "bonus": {
+          "label": "Extra words today", "sizes": "How many", "action": "Add {{n}} words", "left": "{{n}} more allowed today",
+          "needGoal": "Finish today's {{n}} remaining new words first", "backlog": "Clear the review backlog first",
+          "limit": "Today's extra words are capped at {{max}}", "off": "Extra words are turned off by the admin",
+          "finished": "You have learned every new word in this book"
+        },
+        "streak": {
+          "label": "Goal streak",
+          "days_one": "{{n}}-day goal streak", "days_other": "{{n}}-day goal streak",
+          "none": "No goal streak yet", "todayMet": "Goal met today", "todayNew": "{{n}} new words to go today", "todayReviews": "{{n}} reviews to go today",
+          "help": "A goal day = today's new words done (extra words not needed) and due reviews cleared, by your phone's date; one missed day restarts it.",
+          "cell": "Streak", "cellDays_one": "{{n}} day", "cellDays_other": "{{n}} days", "cellNone": "—"
+        },
+        "rows": { "switch": "Change book", "pause": "Pause this book", "reset": "Reset progress" },
+        "pause": {
+          "title": "Pause {{book}}?",
+          "body": "No new words or reviews will be scheduled and due words will pile up; your history stays and you can resume any time. Your goal streak is not frozen.",
+          "confirm": "Pause"
+        },
+        "reset": {
+          "title": "Reset progress in {{book}}?",
+          "clears": "Clears: the learning state (boxes, due dates) of words this book added, and your place in the book.",
+          "keeps": "Keeps: your answer history, rank points and achievements, goal streak, and words from your word list or other books (they still count as learned).",
+          "learned_one": "{{n}} word learned in this book", "learned_other": "{{n}} words learned in this book",
+          "input": "Type “{{book}}” to confirm", "confirm": "Reset progress", "done": "Progress in {{book}} was reset"
+        },
+        "paused": { "badge": "Paused", "note": "Words keep falling due while paused; after resuming they are spread over days by your review limit.", "resume": "Resume", "switch": "Change book" },
+        "goalMet": { "title": "Today's goal is done", "body": "Want a little more? Add a few extra new words.", "action": "Extra words" },
+        "errors": {
+          "noChanges": "Nothing to change", "outOfRangeNew": "New words per day is outside the allowed range",
+          "outOfRangeReview": "Daily review limit is outside the allowed range", "unlimitedOff": "“No limit” is turned off by the admin",
+          "conflicting": "Choose a review limit or “No limit”, not both", "settingsLimit": "Too many settings changes today, try tomorrow",
+          "notEnrolled": "You have not picked this book yet", "goalNotDone": "Finish today's new words before adding more",
+          "backlog": "Clear the review backlog before adding more", "bookFinished": "No new words left in this book",
+          "bonusLimit": "Today's extra words are used up", "resetLimit": "No more resets today", "confirmMismatch": "The book name does not match"
+        }
       }
     }
   }
