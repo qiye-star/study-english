@@ -167,6 +167,18 @@ describe("WordbookSpellPage", () => {
     expect(screen.getAllByRole("textbox")[0].className).not.toMatch(/animate-caret/);
   });
 
+  it("the settings switch knob stays visible when off, in dark mode too (review m9)", async () => {
+    page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+    await screen.findByLabelText("第 1 空,共 3 空");
+    fireEvent.click(screen.getByRole("button", { name: "拼写设置" }));
+    const toggle = await screen.findByRole("switch");
+    const knob = within(toggle).getByTestId("switch-knob");
+    if (toggle.getAttribute("aria-checked") === "true") fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(knob.className).toMatch(/\bbg-white\b/);
+    expect(knob.className).not.toMatch(/\bbg-surface\b/);
+  });
+
   it("first-letter hint marks the blank as hinted", async () => {
     const mock = page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
       "POST /api/wordbook/spell/submit": () => json(RESULT) });

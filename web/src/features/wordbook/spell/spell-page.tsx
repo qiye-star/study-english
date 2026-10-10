@@ -427,8 +427,9 @@ export function WordbookSpellPage() {
               <span className="mt-0.5 block text-meta text-ink-2">{t("web.wordbookSpell.showLengthNote")}</span>
             </span>
             <span aria-hidden className={cn("relative h-[26px] w-11 flex-none rounded-full transition-colors duration-fast", prefs.showLength ? "bg-blue" : "bg-surface-2 shadow-hair")}>
-              <span className={cn("absolute top-0.5 h-[22px] w-[22px] rounded-full transition-[left] duration-fast",
-                prefs.showLength ? "left-[20px] bg-white" : "left-0.5 bg-surface shadow-[0_1px_2px_rgba(17,19,24,0.2)]")} />
+              {/* 关时的圆钮也用白色 + 发丝线阴影:深色模式下 bg-surface 圆钮在 surface-2 轨道上看不见(review m9) */}
+              <span data-testid="switch-knob" className={cn("absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow-hair transition-[left] duration-fast",
+                prefs.showLength ? "left-[20px]" : "left-0.5")} />
             </span>
           </button>
         </BottomSheetContent>
