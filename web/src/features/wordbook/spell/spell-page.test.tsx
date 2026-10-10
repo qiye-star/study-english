@@ -101,6 +101,49 @@ describe("WordbookSpellPage", () => {
     expect(screen.getAllByRole("textbox")[0].textContent).toBe("talk");
   });
 
+  describe("keeps the active blank visible above the keyboard and the submit bar", () => {
+    const original = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    const scrolled: { el: Element; arg: unknown }[] = [];
+    let vv: EventTarget;
+    beforeEach(() => {
+      vv = new EventTarget();
+      Object.defineProperty(window, "visualViewport", { configurable: true, value: vv });
+      HTMLElement.prototype.scrollIntoView = function (this: Element, arg?: unknown) { scrolled.push({ el: this, arg }); };
+      scrolled.length = 0;
+    });
+    afterEach(() => {
+      if (original) Object.defineProperty(window, "visualViewport", original);
+      else delete (window as { visualViewport?: unknown }).visualViewport;
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it("scrolls again when the keyboard resizes the visual viewport, and on a tap of the current blank", async () => {
+      page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+      const input = await screen.findByLabelText("第 1 空,共 3 空");
+      const blanks = screen.getAllByRole("textbox");
+      // the blank leaves room for the page header and the sticky submit bar when scrolled into view
+      expect(blanks[2].className).toMatch(/scroll-mb-/);
+      expect(blanks[2].className).toMatch(/scroll-mt-/);
+      fireEvent.click(blanks[2]);
+      expect(document.activeElement).toBe(input);
+      await waitFor(() => expect(scrolled.some((s) => s.el === blanks[2])).toBe(true));
+      scrolled.length = 0;
+      act(() => { vv.dispatchEvent(new Event("resize")); }); // the keyboard finished opening
+      await waitFor(() => expect(scrolled).toContainEqual({ el: blanks[2], arg: { block: "nearest" } }));
+      scrolled.length = 0;
+      fireEvent.click(blanks[2]); // already the current blank: no state change, still revealed
+      await waitFor(() => expect(scrolled.some((s) => s.el === blanks[2])).toBe(true));
+    });
+
+    it("pins the hidden input to the top of the viewport, not behind the keyboard", async () => {
+      page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+      const input = await screen.findByLabelText("第 1 空,共 3 空");
+      expect(input.className).toMatch(/\btop-0\b/);
+      expect(input.className).not.toMatch(/\bbottom-0\b/);
+      expect(input.className).toMatch(/pointer-events-none/);
+    });
+  });
+
   it("first-letter hint marks the blank as hinted", async () => {
     const mock = page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
       "POST /api/wordbook/spell/submit": () => json(RESULT) });

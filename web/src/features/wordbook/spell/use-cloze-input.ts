@@ -133,8 +133,10 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
       enterKeyHint: "done" as const,
       inputMode: "text" as const,
       "aria-label": t("web.wordbookSpell.input", { n: state.active + 1, total: state.values.length }),
-      // 视觉隐藏但可聚焦:不能 display:none / visibility:hidden(移动端不弹键盘);16px 防 iOS 聚焦缩放
-      className: "fixed bottom-0 left-0 h-px w-px border-0 bg-transparent p-0 text-[16px] text-transparent caret-transparent opacity-0 outline-none",
+      // 视觉隐藏但可聚焦:不能 display:none / visibility:hidden(移动端不弹键盘);16px 防 iOS 聚焦缩放。
+      // 钉在视口顶部而不是底部:iOS 布局视口不随键盘变矮,bottom:0 会落在键盘后面,Safari 为露出光标会把整页上推
+      // (review web M3;需真机确认)。pointer-events-none:不挡页头的点击,聚焦只走 focusBlank。
+      className: "pointer-events-none fixed left-0 top-0 h-px w-px border-0 bg-transparent p-0 text-[16px] text-transparent caret-transparent opacity-0 outline-none",
     },
   };
 }

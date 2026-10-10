@@ -34,6 +34,7 @@ import { ExplainSheet } from "./explain-sheet";
 import { readPrefs, writePrefs } from "./prefs";
 import { outcomeNote, SpellResults } from "./spell-results";
 import { useClozeInput } from "./use-cloze-input";
+import { useRevealBlank } from "./use-reveal-blank";
 
 type Phase = "loading" | "error" | "empty" | "typing" | "results" | "summary";
 type ReportReason = "wrong" | "offensive" | "other";
@@ -199,12 +200,12 @@ export function WordbookSpellPage() {
 
   const { inputRef, inputProps, formProps, focusBlank } = useClozeInput({ state: cloze, dispatch, onSubmit: () => void submit() });
 
-  // 当前空滚到可见区(键盘弹起时 AppShell 的高度跟随 visualViewport,见 useAppHeight)
-  useEffect(() => {
-    if (phase !== "typing") return;
-    const el = document.querySelector<HTMLElement>(`[data-blank="${cloze.active}"]`);
-    el?.scrollIntoView?.({ block: "nearest" });
-  }, [cloze.active, phase]);
+  // 当前空滚到可见区(键盘弹起时 AppShell 的高度跟随 visualViewport,见 useAppHeight;键盘动画后再滚一次)
+  const reveal = useRevealBlank({ active: cloze.active, enabled: phase === "typing", input: () => inputRef.current });
+  const onFocusBlank = useCallback((i: number) => {
+    focusBlank(i);
+    reveal();
+  }, [focusBlank, reveal]);
 
   const currentLine = set ? lineOf(set, cloze.active) : undefined;
   const canListen = !!ai?.defaultTts.model;
@@ -310,7 +311,7 @@ export function WordbookSpellPage() {
               </b>
               <ToneBadge tone="gray">{t("web.wordbookSpell.fromDictionary")}</ToneBadge>
             </div>
-            <ClozeBoard set={set} state={cloze} showLength={prefs.showLength} showZh={showZh} onFocusBlank={focusBlank} />
+            <ClozeBoard set={set} state={cloze} showLength={prefs.showLength} showZh={showZh} onFocusBlank={onFocusBlank} />
             <div className="-mx-1 mt-1.5 flex flex-wrap gap-1">
               <button type="button" className={cn(TOOL, "bg-amber-tint text-amber")} onMouseDown={keepFocus} onClick={hint}>
                 <LightbulbIcon aria-hidden />{t("web.wordbookSpell.hint")}
