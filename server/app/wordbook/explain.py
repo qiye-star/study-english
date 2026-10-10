@@ -63,8 +63,10 @@ async def explain(session, http, settings, card: WordCard, user_id: int, now, *,
     未命中:先扣每人每日、再扣全站每日;上游失败两者都退还。"""
     if not settings.wordbook_ai_available:
         raise ExplainUnavailable("off")
+    model = settings.resolved_wordbook_ai_model
     cached = await session.get(WordbookExplanation, card.key)
-    if cached is not None:
+    # review m7:管理端发布了新提示词版本或换了模型 → 旧讲解过期,重新生成并覆盖
+    if cached is not None and cached.prompt_version == prompt_version and cached.model == model[:100]:
         return cached.body, True
     day = usage.utc_day(now)
     per_user = await quota_for(session, settings, user_id, "wordbook_ai_daily_per_user", now)
@@ -73,7 +75,6 @@ async def explain(session, http, settings, card: WordCard, user_id: int, now, *,
     if not await usage.consume(session, GLOBAL_SCOPE, GLOBAL_SUBJECT, day, settings.wordbook_ai_global_daily):
         await usage.refund(session, USER_SCOPE, str(user_id), day)
         raise ExplainUnavailable("global_cap")
-    model = settings.resolved_wordbook_ai_model
     try:
         with metering.feature_scope("wordbook"):
             text = await llm.complete(http, settings, render_messages(template, card), model=model,
@@ -84,8 +85,11 @@ async def explain(session, http, settings, card: WordCard, user_id: int, now, *,
         logger.warning("wordbook explain unavailable kind=%s word_len=%d", e.kind, len(card.key))
         raise ExplainUnavailable("upstream") from None
     body = text.strip()[:MAX_BODY]
-    session.add(WordbookExplanation(word=card.key, body=body, model=model[:100], prompt_version=prompt_version,
-                                    created_at=now))
+    if cached is not None:
+        cached.body, cached.model, cached.prompt_version, cached.created_at = body, model[:100], prompt_version, now
+    else:
+        session.add(WordbookExplanation(word=card.key, body=body, model=model[:100], prompt_version=prompt_version,
+                                        created_at=now))
     try:
         await session.commit()
     except IntegrityError:  # 并发的同词请求先写入了;两份都是合法讲解,返回自己这份

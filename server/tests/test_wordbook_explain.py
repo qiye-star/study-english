@@ -124,6 +124,31 @@ async def test_published_prompt_is_used_with_its_version(app, client, tmp_path):
         assert (await s.get(WordbookExplanation, "able")).prompt_version == 3
 
 
+@respx.mock
+async def test_cache_is_regenerated_after_a_new_prompt_version_or_model(app, client, tmp_path):
+    """Review m7: the cache is keyed by word, but a hit made with another prompt version or model is stale."""
+    from app.models import PromptVersion
+    route = respx.post(LLM).mock(side_effect=[reply("v-none"), reply("v-three"), reply("other-model")])
+    h = await login(app, client, tmp_path)
+    assert (await client.post(URL, headers=h, json={"key": "talk"})).json()["text"] == "v-none"
+    async with app.state.sessionmaker() as s:
+        s.add(PromptVersion(key="wordbook.explain", version=3, status="published", created_by="t",
+                            body="讲讲 <word>{word}</word>({meanings})例:{example}"))
+        await s.commit()
+    from app.services.prompts import prompt_cache
+    prompt_cache(app).invalidate()  # what publishing does
+    again =(await client.post(URL, headers=h, json={"key": "talk"})).json()
+    assert (again["text"], again["cached"]) == ("v-three", False)
+    assert (await client.post(URL, headers=h, json={"key": "talk"})).json() == {"key": "talk", "text": "v-three",
+                                                                                "cached": True}
+    app.state.settings = app.state.settings.model_copy(update={"wordbook_ai_model": "gpt-4o-mini"})
+    assert (await client.post(URL, headers=h, json={"key": "talk"})).json()["text"] == "other-model"
+    assert route.call_count == 3
+    async with app.state.sessionmaker() as s:
+        row = await s.get(WordbookExplanation, "talk")
+        assert (row.body, row.prompt_version, row.model) == ("other-model", 3, "gpt-4o-mini")
+
+
 def test_prompt_registered_with_a_valid_default():
     spec = PROMPTS["wordbook.explain"]
     assert spec.required == frozenset({"word", "meanings", "example"}) and "<word>" in spec.boundaries
