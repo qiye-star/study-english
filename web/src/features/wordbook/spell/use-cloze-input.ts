@@ -12,7 +12,14 @@ import { type ClozeAction, type ClozeState, interpretInput, SENTINEL } from "./c
  */
 export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState; dispatch: Dispatch<ClozeAction>; onSubmit: () => void }) {
   const { t } = useTranslation();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // 输入框常在首屏之后才出现(加载中 → 打字),「再练一遍 / 下一组」还会重新挂载:用回调 ref 记下元素,
+  // 监听器按元素挂载(review web M1)
+  const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
+  const setInput = useCallback((node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    setInputEl(node);
+  }, []);
   const composing = useRef(false);
   const [raw, setRaw] = useState<string | null>(null);
   const committed = SENTINEL + (state.values[state.active] ?? "");
@@ -46,7 +53,7 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
   }, [value, raw]);
 
   useEffect(() => {
-    const el = inputRef.current;
+    const el = inputEl;
     if (!el) return;
     const onBeforeInput = (event: Event) => {
       const e = event as InputEvent;
@@ -65,7 +72,7 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
     };
     el.addEventListener("beforeinput", onBeforeInput);
     return () => el.removeEventListener("beforeinput", onBeforeInput);
-  }, []);
+  }, [inputEl]);
 
   const focusBlank = useCallback((i: number) => {
     const el = inputRef.current;
@@ -86,6 +93,7 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
       },
     },
     inputProps: {
+      ref: setInput,
       type: "text",
       value,
       onChange: (e: ChangeEvent<HTMLInputElement>) => {

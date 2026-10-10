@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
@@ -72,6 +72,33 @@ describe("WordbookSpellPage", () => {
     expect(await screen.findByText("AI 讲解暂不可用")).toBeTruthy();
     // 数据讲解照常
     expect(within(screen.getByRole("dialog")).getAllByText(/说话/).length).toBeGreaterThan(0);
+  });
+
+  it("handles beforeinput on the real page: backspace on an empty blank goes back, a line break submits", async () => {
+    const mock = page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
+      "POST /api/wordbook/spell/submit": () => json(RESULT) });
+    const input = await screen.findByLabelText("第 1 空,共 3 空");
+    fireEvent.change(input, { target: { value: S + "talk " } });
+    expect(input).toHaveAttribute("aria-label", "第 2 空,共 3 空");
+    const back = new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true });
+    act(() => { input.dispatchEvent(back); });
+    expect(back.defaultPrevented).toBe(true);
+    expect(input).toHaveAttribute("aria-label", "第 1 空,共 3 空");
+    const enter = new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true });
+    act(() => { input.dispatchEvent(enter); });
+    expect(enter.defaultPrevented).toBe(true);
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname.endsWith("/submit"))).toBe(true));
+  });
+
+  it("composition keeps the active blank until it ends, then applies the final value", async () => {
+    page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+    const input = await screen.findByLabelText("第 1 空,共 3 空");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: S + "talk " } });
+    expect(input).toHaveAttribute("aria-label", "第 1 空,共 3 空");
+    fireEvent.compositionEnd(input, { target: { value: S + "talk " } });
+    expect(input).toHaveAttribute("aria-label", "第 2 空,共 3 空");
+    expect(screen.getAllByRole("textbox")[0].textContent).toBe("talk");
   });
 
   it("first-letter hint marks the blank as hinted", async () => {

@@ -4,14 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { clozeReducer, initCloze, SENTINEL } from "./cloze-engine";
 import { useClozeInput } from "./use-cloze-input";
 
-function Probe({ onSubmit, count = 2 }: { onSubmit: () => void; count?: number }) {
+function Probe({ onSubmit, count = 2, mounted = true }: { onSubmit: () => void; count?: number; mounted?: boolean }) {
   const [state, dispatch] = useReducer(clozeReducer, initCloze(count));
-  const { inputRef, inputProps, formProps, focusBlank } = useClozeInput({ state, dispatch, onSubmit });
+  const { inputProps, formProps, focusBlank } = useClozeInput({ state, dispatch, onSubmit });
   return (
     <div>
-      <form {...formProps}>
-        <input ref={inputRef} {...inputProps} />
-      </form>
+      {mounted ? (
+        <form {...formProps}>
+          <input {...inputProps} />
+        </form>
+      ) : null}
       <output data-testid="state">{JSON.stringify(state)}</output>
       <button type="button" onClick={() => focusBlank(1)}>
         go2
@@ -95,6 +97,30 @@ describe("useClozeInput", () => {
     act(() => { input.dispatchEvent(back); });
     expect(back.defaultPrevented).toBe(true);
     expect(stateOf().active).toBe(0);
+  });
+
+  it("attaches the beforeinput listener when the input mounts after the first render (and again after a remount)", () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(<Probe onSubmit={onSubmit} count={3} mounted={false} />);
+    const check = () => {
+      const input = screen.getByLabelText(/^Blank \d of 3$/) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: SENTINEL + "a " } });
+      expect(stateOf().active).toBe(1);
+      const back = new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true });
+      act(() => { input.dispatchEvent(back); });
+      expect(back.defaultPrevented).toBe(true);
+      expect(stateOf().active).toBe(0);
+      const enter = new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true });
+      act(() => { input.dispatchEvent(enter); });
+      expect(enter.defaultPrevented).toBe(true);
+    };
+    rerender(<Probe onSubmit={onSubmit} count={3} mounted />);
+    check();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    rerender(<Probe onSubmit={onSubmit} count={3} mounted={false} />);
+    rerender(<Probe onSubmit={onSubmit} count={3} mounted />);
+    check();
+    expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 
   it("focusBlank moves the active blank and focuses the hidden input with the caret at the end", () => {

@@ -329,7 +329,7 @@ export function WordbookSpellPage() {
             <p className="mt-3 text-meta leading-[1.5] text-ink-2">{t("web.wordbookSpell.tip")}</p>
             {submitError ? <p role="alert" className="mt-3 text-sub text-ink">{submitError}</p> : null}
             <form {...formProps}>
-              <input ref={inputRef} {...inputProps} />
+              <input {...inputProps} />
             </form>
           </>
         ) : null}
