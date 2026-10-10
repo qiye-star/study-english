@@ -58,7 +58,8 @@
       "next": "Next set",
       "finish": "Done",
       "loading": "Building sentences…",
-      "retry": "Retry"
+      "retry": "Retry",
+      "newSet": "New set"
     }
   }
 }

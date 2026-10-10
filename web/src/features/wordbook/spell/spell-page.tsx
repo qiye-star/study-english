@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -113,6 +114,7 @@ export function WordbookSpellPage() {
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [submitError, setSubmitError] = useState("");
+  const [stale, setStale] = useState(false);
   const [showZh, setShowZh] = useState(false);
   const [prefs, setPrefs] = useState(readPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -146,6 +148,7 @@ export function WordbookSpellPage() {
     setShowZh(false);
     if (!retry) setReported(new Set()); // 重练同一组时保留「已举报」,不能再举报一次
     setSubmitError("");
+    setStale(false);
     setPhase("typing");
   }, []);
 
@@ -199,6 +202,8 @@ export function WordbookSpellPage() {
       inputRef.current?.blur(); // 收起键盘,结果从顶部读起
     } catch (err) {
       setSubmitError(translateServerError(t, err, WORDBOOK_SERVER_ERRORS));
+      // 例句在作答时被管理员屏蔽 / 数据更新:这组每次提交都会 422,给一条出路(review m8)
+      setStale(err instanceof ApiError && err.message === "Sentence changed");
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -336,6 +341,9 @@ export function WordbookSpellPage() {
             </div>
             <p className="mt-3 text-meta leading-[1.5] text-ink-2">{t("web.wordbookSpell.tip")}</p>
             {submitError ? <p role="alert" className="mt-3 text-sub text-ink">{submitError}</p> : null}
+            {stale ? (
+              <button type="button" className={cn(GHOST, "mt-2")} onClick={() => load()}>{t("web.wordbookSpell.newSet")}</button>
+            ) : null}
             <form {...formProps}>
               <input {...inputProps} />
             </form>

@@ -258,14 +258,30 @@ describe("WordbookSpellPage", () => {
     expect(within(summary).getByRole("status").textContent).toBe("拼写 2 个词 · 一次答对 1");
   });
 
-  it("shows translated server errors instead of raw messages", async () => {
+  it("shows translated server errors and keeps typing for ordinary failures", async () => {
     page({
       "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
-      "POST /api/wordbook/spell/submit": () => json({ error: "Sentence changed" }, 409),
+      "POST /api/wordbook/spell/submit": () => json({ error: "Daily answer limit reached" }, 429),
     });
     fireEvent.click(await screen.findByRole("button", { name: "提交" }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).not.toContain("Sentence changed");
+    expect(alert.textContent).toBe("今天作答次数已达上限,明天再来");
     expect(screen.getByLabelText("第 1 空,共 3 空")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "换一组" })).toBeNull();
+  });
+
+  it("a changed sentence (422) offers a way out of the set (review m8)", async () => {
+    let sets = 0;
+    const mock = page({
+      "POST /api/wordbook/spell/sets": () => { sets += 1; return json({ book_id: "junior", sets: [SET] }); },
+      "POST /api/wordbook/spell/submit": () => json({ error: "Sentence changed" }, 422),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "提交" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("例句已更新,请重新开始这一组");
+    fireEvent.click(screen.getByRole("button", { name: "换一组" }));
+    await waitFor(() => expect(sets).toBe(2));
+    expect(mock.calls.filter((c) => c.url.pathname.endsWith("/spell/sets"))).toHaveLength(2);
+    expect(await screen.findByLabelText("第 1 空,共 3 空")).toBeInTheDocument();
   });
 });
