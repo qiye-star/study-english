@@ -1,8 +1,9 @@
 import { ChevronDownIcon, EyeIcon, EyeOffIcon, Volume2Icon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
+import { RecallCover } from "./recall-cover";
 import type { Card, Sense } from "./wordbook-api";
 
 const MAX_SENSES = 4;
@@ -62,18 +63,29 @@ export function ListenButton({ id, text, accent, label, onListen, listening, can
 /**
  * 词卡(spec §6.3,视觉稿 04):词头 34px、美 / 英音标各带 44px 朗读键、释义(最多 4 条)、
  * 首条例句(目标词琥珀高亮,译文可收起,可朗读)、短语(折叠,最多 5 条)。
+ * 背单词 v2(spec 2026-10-11-wordbook-recall §3.1):`covered` 时释义 / 例句 / 短语换成遮罩按钮(不在 DOM 里);
+ * `showExample` 关时不显示例句块;`badge` 显示在眉题右侧;`regionRef` 指向释义区(翻开后移焦点用)。都不传时与 v1 相同。
  */
-export function WordCardView({ card, eyebrow, onListen, listening, canListen = true, className }: ListenProps & {
+export function WordCardView({
+  card, eyebrow, onListen, listening, canListen = true, className, covered = false, onReveal, showExample = true, badge, regionRef,
+}: ListenProps & {
   card: Card; eyebrow?: ReactNode; className?: string;
+  covered?: boolean; onReveal?: () => void; showExample?: boolean; badge?: ReactNode; regionRef?: Ref<HTMLDivElement>;
 }) {
   const { t } = useTranslation();
+  const regionId = useId();
   const [showZh, setShowZh] = useState(true);
   const example = card.examples[0];
   const phonetics = ([["us", card.us], ["uk", card.uk]] as const).filter(([, v]) => v);
   const listenProps = { onListen, listening, canListen };
   return (
     <SurfaceCard data-testid="word-card" className={cn("px-4 pb-4 pt-5", className)}>
-      {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+      {eyebrow || badge ? (
+        <div className="flex min-h-[22px] items-center justify-between gap-2">
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : <span />}
+          {badge}
+        </div>
+      ) : null}
       <h2 lang="en" className="mt-1.5 break-words text-hero font-semibold tracking-[-0.02em]" style={{ lineHeight: 1.1 }}>{card.word}</h2>
       <div className="mt-2.5 flex flex-wrap gap-2">
         {phonetics.length ? phonetics.map(([accent, value]) => (
@@ -91,48 +103,57 @@ export function WordCardView({ card, eyebrow, onListen, listening, canListen = t
             className="h-tap w-tap justify-center bg-blue-tint text-blue" />
         )}
       </div>
-      {card.senses.length ? (
-        <ul className="mt-3.5 flex flex-col gap-1.5">
-          {card.senses.slice(0, MAX_SENSES).map((s, i) => (
-            <li key={i} className="text-body leading-dialogue">
-              {s.pos ? <em className="mr-1.5 font-mono text-meta font-semibold not-italic text-ink-2">{posLabel(s.pos)}</em> : null}
-              {s.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {example ? (
-        <div className="mt-3.5 rounded-badge bg-surface-2 p-3">
-          <p lang="en" className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
-          {showZh && example.zh ? <p className="mt-1 text-sub text-ink-2">{example.zh}</p> : null}
-          <div className="-mx-2 -mb-2 mt-1.5 flex gap-1">
-            <ListenButton id={`${card.key}:ex`} text={example.en} label={t("web.wordbook.word.listenExample")} {...listenProps}
-              className="px-2 text-meta font-medium text-ink-2">
-              <Volume2Icon aria-hidden className="h-[17px] w-[17px]" />{t("web.wordbook.word.listenExample")}
-            </ListenButton>
-            {example.zh ? (
-              <button type="button" aria-pressed={showZh} onClick={() => setShowZh((v) => !v)}
-                className="inline-flex min-h-tap items-center gap-1 rounded-button px-2 text-meta font-medium text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {showZh ? <EyeOffIcon aria-hidden className="h-[17px] w-[17px]" /> : <EyeIcon aria-hidden className="h-[17px] w-[17px]" />}
-                {t(showZh ? "web.wordbook.word.hideZh" : "web.wordbook.word.showZh")}
-              </button>
-            ) : null}
-          </div>
+      {covered ? (
+        <>
+          <RecallCover controls={regionId} onReveal={() => onReveal?.()} />
+          <div id={regionId} hidden />
+        </>
+      ) : (
+        <div id={regionId} ref={regionRef} tabIndex={-1} className="outline-none">
+          {card.senses.length ? (
+            <ul className="mt-3.5 flex flex-col gap-1.5">
+              {card.senses.slice(0, MAX_SENSES).map((s, i) => (
+                <li key={i} className="text-body leading-dialogue">
+                  {s.pos ? <em className="mr-1.5 font-mono text-meta font-semibold not-italic text-ink-2">{posLabel(s.pos)}</em> : null}
+                  {s.text}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {showExample && example ? (
+            <div className="mt-3.5 rounded-badge bg-surface-2 p-3">
+              <p lang="en" className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
+              {showZh && example.zh ? <p className="mt-1 text-sub text-ink-2">{example.zh}</p> : null}
+              <div className="-mx-2 -mb-2 mt-1.5 flex gap-1">
+                <ListenButton id={`${card.key}:ex`} text={example.en} label={t("web.wordbook.word.listenExample")} {...listenProps}
+                  className="px-2 text-meta font-medium text-ink-2">
+                  <Volume2Icon aria-hidden className="h-[17px] w-[17px]" />{t("web.wordbook.word.listenExample")}
+                </ListenButton>
+                {example.zh ? (
+                  <button type="button" aria-pressed={showZh} onClick={() => setShowZh((v) => !v)}
+                    className="inline-flex min-h-tap items-center gap-1 rounded-button px-2 text-meta font-medium text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    {showZh ? <EyeOffIcon aria-hidden className="h-[17px] w-[17px]" /> : <EyeIcon aria-hidden className="h-[17px] w-[17px]" />}
+                    {t(showZh ? "web.wordbook.word.hideZh" : "web.wordbook.word.showZh")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {card.phrases.length ? (
+            <details className="group mt-3 border-t-[0.5px] border-hair-2">
+              <summary className="flex min-h-tap cursor-pointer list-none items-center justify-between text-sub text-ink-2 [&::-webkit-details-marker]:hidden">
+                <span className="truncate">{t("web.wordbook.word.phrases")} · <span lang="en">{card.phrases[0].en}</span> {card.phrases[0].zh}</span>
+                <ChevronDownIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3 transition-transform duration-fast group-open:rotate-180" />
+              </summary>
+              <ul className="space-y-1 pb-1 text-sub">
+                {card.phrases.slice(0, MAX_PHRASES).map((p, i) => (
+                  <li key={i}><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
-      ) : null}
-      {card.phrases.length ? (
-        <details className="group mt-3 border-t-[0.5px] border-hair-2">
-          <summary className="flex min-h-tap cursor-pointer list-none items-center justify-between text-sub text-ink-2 [&::-webkit-details-marker]:hidden">
-            <span className="truncate">{t("web.wordbook.word.phrases")} · <span lang="en">{card.phrases[0].en}</span> {card.phrases[0].zh}</span>
-            <ChevronDownIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3 transition-transform duration-fast group-open:rotate-180" />
-          </summary>
-          <ul className="space-y-1 pb-1 text-sub">
-            {card.phrases.slice(0, MAX_PHRASES).map((p, i) => (
-              <li key={i}><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      )}
     </SurfaceCard>
   );
 }

@@ -94,12 +94,21 @@
       "learn": {
         "title": "学新词",
         "eyebrow": "新词 {{n}} / {{total}} · {{book}}",
-        "known": "我认识",
         "next": "下一个",
         "startQuiz": "开始小测",
         "quiz": "小测",
         "empty": "今天的新词学完了",
-        "emptyHint": "去复习或按句拼写巩固一下吧。"
+        "emptyHint": "去复习或按句拼写巩固一下吧。",
+        "reveal": "显示释义",
+        "revealHint": "先在心里想一想,再点开核对",
+        "peekedNote": "已看过释义:点「认识」会记为「模糊」",
+        "rate": { "group": "你认识这个词吗?", "know": "认识", "fuzzy": "模糊", "unknown": "不认识" },
+        "rated": { "know": "已记为认识", "fuzzy": "已记为模糊", "unknown": "已记为不认识", "streak": "连续两次模糊,按不认识记" },
+        "badge": { "know": "认识", "knowCheck": "认识 · 本轮抽查", "fuzzy": "模糊", "unknown": "不认识" },
+        "iWasWrong": "记错了",
+        "spotEyebrow": "抽查 · 你标了「认识」",
+        "spotHint": "答对升到第 3 级(4 天后复习),答错回到第 1 级",
+        "drillEyebrow": "再认一次"
       },
       "quiz": {
         "kind": {
@@ -123,6 +132,15 @@
         "wrong": "正确答案是 {{answer}}",
         "wrongPlain": "答错了,这个词会再出现一次",
         "continue": "继续"
+      },
+      "recall": {
+        "kind": "快速回忆",
+        "prompt": "想起它的意思了吗?",
+        "flipNote": "自评之后翻面核对释义与例句",
+        "checkTitle": "抽查:选出它的意思",
+        "checkHint": "你标了「认识」,答对才算数",
+        "summary": { "ratings": "认识 {{know}} · 模糊 {{fuzzy}} · 不认识 {{unknown}}", "checks": "抽查 {{total}} · 通过 {{passed}}" },
+        "errors": { "ratingRequired": "请选择认识、模糊或不认识" }
       },
       "outcome": {
         "correct": "正确",

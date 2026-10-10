@@ -6,7 +6,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { LetterDiff } from "./letter-diff";
 import { PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
-import type { AnswerResult, Outcome, Question } from "./wordbook-api";
+import { isOutcome, type AnswerResult, type Outcome, type Question } from "./wordbook-api";
 
 const OUTCOME_STYLE: Record<Outcome, { cls: string; Icon: typeof CheckIcon }> = {
   correct: { cls: "bg-green-tint text-green", Icon: CheckIcon },
@@ -106,7 +106,7 @@ export function TypingQuestion({ question, onSubmit, result, busy = false, onLis
         </button>
       ) : (
         <div className="mt-3 space-y-1.5">
-          {result.outcome !== "known" ? <OutcomeBadge outcome={result.outcome} /> : null}
+          {isOutcome(result.outcome) ? <OutcomeBadge outcome={result.outcome} /> : null}
           {result.diff && result.outcome !== "correct" ? (
             <p className="flex flex-wrap items-center gap-2 text-sub text-ink-2">
               {t("web.wordbook.quiz.yours")}<LetterDiff diff={result.diff} expected={result.expected} />

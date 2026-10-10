@@ -52,11 +52,27 @@ describe("wordbook api", () => {
     expect(res.cards["used to"].word).toBe("used to");
   });
 
+  it("asks for quick recall only when told to and sends ratings as snake_case", async () => {
+    const { mock, api: client } = api({
+      "POST /api/wordbook/review/batch": () => json({ book_id: "cet4", questions: [], cards: [] }),
+      "POST /api/wordbook/answers": () => json({ correct: true, outcome: "know", grade: "good", expected: "talk", correct_option: null, diff: null, item: { box: 2, due_at: "x" }, applied: true, rating: "know", spot_check: false, check: null }),
+    });
+    await reviewBatch(client, 20, { recall: true });
+    await reviewBatch(client);
+    const bodies = mock.calls.map((c) => JSON.parse(String(c.body)) as Record<string, unknown>);
+    expect(bodies[0]).toMatchObject({ size: 20, recall: true });
+    expect(bodies[1]).not.toHaveProperty("recall");
+    const res = await submitAnswer(client, { bookId: "cet4", key: "talk", mode: "learn", qtype: "recall", rating: "know", revealedBefore: false, elapsedMs: 2400 });
+    expect(JSON.parse(String(mock.calls[2].body))).toMatchObject({ qtype: "recall", rating: "know", revealed_before: false, elapsed_ms: 2400 });
+    expect(res.spotCheck).toBe(false);
+    expect(res.rating).toBe("know");
+  });
+
   it("maps every server error to an i18n key present in both languages", () => {
     expect(Object.keys(WORDBOOK_SERVER_ERRORS).sort()).toEqual([
       "AI explanation unavailable", "Book is not active", "Book not found", "Daily answer limit reached",
       "Daily new-word limit reached", "Daily report limit reached",
-      "No active book", "Question type mismatch", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
+      "No active book", "Question type mismatch", "Rating is required", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
     ]);
     for (const key of Object.values(WORDBOOK_SERVER_ERRORS)) {
       expect(typeof lookup(en, key), key).toBe("string");

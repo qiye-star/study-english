@@ -116,6 +116,7 @@ describe("WordbookReviewPage", () => {
     expect(summary).toHaveTextContent("复习 3");
     expect(summary).toHaveTextContent("一次答对 2");
     expect(summary).toHaveTextContent("1 个词进入「已掌握」");
+    expect(within(summary).queryByTestId("summary-ratings")).toBeNull(); // 没有快速回忆题
     expect(summary).toHaveTextContent("talk");
   });
 
@@ -214,5 +215,166 @@ describe("WordbookReviewPage", () => {
     expect(await screen.findByText("听写")).toBeTruthy();
     expect(screen.queryByText("talk")).toBeNull();
     await waitFor(() => expect(play).toHaveBeenCalledWith(expect.any(String), "talk", "openai/tts-1", "alloy"));
+  });
+});
+
+const RECALL_Q: Record<string, unknown> = { key: "talk", qtype: "recall", prompt: { word: "talk", us: "tɔk" }, options: null, length: null };
+const RECALL_BATCH = { book_id: "cet4", questions: [RECALL_Q], cards: [card("talk", { senses: [{ pos: "v", text: "说话；谈话" }] })] };
+const CHECK: Record<string, unknown> = { key: "talk", qtype: "meaning", prompt: { word: "talk", us: "tɔk" }, options: ["v. 说话；谈话", "n. 能力", "v. 携带", "n. 孩子"], length: null };
+const recallResult = (rating: "know" | "fuzzy" | "unknown", extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+  correct: rating === "know", outcome: rating, grade: { know: "good", fuzzy: "hard", unknown: "forgot" }[rating], expected: "talk", correct_option: null,
+  diff: null, item: { box: rating === "know" ? 3 : rating === "fuzzy" ? 1 : 0, due_at: "x" }, applied: true, rating, spot_check: false, check: null, ...extra,
+});
+const PENDING: Record<string, unknown> = { correct: false, outcome: "pending", grade: null, expected: "talk", correct_option: null, diff: null, item: { box: 2, due_at: "x" },
+  applied: false, rating: "know", spot_check: true, check: CHECK };
+
+describe("WordbookReviewPage · quick recall (spec recall §4)", () => {
+  it("declares quick-recall support when asking for the batch", async () => {
+    const user = userEvent.setup();
+    const mock = setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await screen.findByText("选择正确的释义");
+    expect(JSON.parse(String(mock.calls.find((c) => c.url.pathname === "/api/wordbook/review/batch")?.body))).toMatchObject({ size: 20, recall: true });
+  });
+
+  it("front shows only the word; 认识 may ask a spot check first, then flips", async () => {
+    const user = userEvent.setup();
+    let step = 0;
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(step++ === 0 ? PENDING : recallResult("know", { correct_option: "v. 说话；谈话" })),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    const front = await screen.findByTestId("recall-card");
+    expect(front).toHaveTextContent("talk");
+    expect(front).toHaveTextContent("tɔk");
+    expect(front).not.toHaveTextContent("说话；谈话");
+    expect(screen.queryByRole("button", { name: /显示释义/ })).toBeNull(); // 复习不能偷看
+    await user.click(screen.getByRole("button", { name: "认识" }));
+    expect(answers(mock)[0]).toMatchObject({ mode: "review", qtype: "recall", key: "talk", rating: "know", revealed_before: false });
+    expect(typeof answers(mock)[0].elapsed_ms).toBe("number");
+    expect(await screen.findByText("抽查:选出它的意思")).toBeTruthy();
+    expect(screen.getByText("你标了「认识」,答对才算数")).toBeTruthy();
+    expect(screen.queryByTestId("word-card")).toBeNull(); // 抽查时还不翻面
+    expect(screen.queryByRole("button", { name: "认识" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /说话；谈话/ }));
+    await waitFor(() => expect(screen.getByTestId("word-card")).toHaveTextContent("说话；谈话"));
+    expect(answers(mock)[1]).toMatchObject({ qtype: "recall", rating: "know", choice: "v. 说话；谈话" });
+    expect(screen.getByTestId("rating-badge")).toHaveTextContent("认识");
+    expect(screen.getByRole("status")).toHaveTextContent("已记为认识");
+    expect(screen.getByRole("button", { name: "记错了" })).toBeTruthy();
+    const next = screen.getByRole("button", { name: "继续" });
+    await waitFor(() => expect(document.activeElement).toBe(next));
+    await user.click(next);
+    const summary = await screen.findByTestId("session-summary");
+    expect(summary).toHaveTextContent("一次答对 1");
+  });
+
+  it("a failed spot check flips to unknown and says the right answer", async () => {
+    const user = userEvent.setup();
+    let step = 0;
+    setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(step++ === 0 ? PENDING : recallResult("unknown", { correct_option: "v. 说话；谈话" })),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await user.click(await screen.findByRole("button", { name: /能力/ }));
+    expect(await screen.findByTestId("rating-badge")).toHaveTextContent("不认识");
+    expect(screen.getByRole("status")).toHaveTextContent("正确答案是 v. 说话；谈话");
+    expect(screen.queryByRole("button", { name: "记错了" })).toBeNull();
+  });
+
+  it("模糊 flips straight away and the word comes back later", async () => {
+    const user = userEvent.setup();
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(recallResult("fuzzy")),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: "模糊" }));
+    expect(await screen.findByTestId("rating-badge")).toHaveTextContent("模糊");
+    expect(screen.getByTestId("word-card")).toHaveTextContent("说话；谈话");
+    expect(screen.queryByRole("button", { name: "记错了" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    expect(await screen.findByTestId("recall-card")).toHaveTextContent("talk"); // 回到队尾再来一次
+    expect(screen.queryByTestId("word-card")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "不认识" }));
+    expect(await screen.findByTestId("rating-badge")).toBeTruthy();
+    expect(answers(mock).map((a) => a.rating)).toEqual(["fuzzy", "unknown"]);
+  });
+
+  it("记错了 re-rates as unknown, counts as a miss and brings the word back", async () => {
+    const user = userEvent.setup();
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": (call) => {
+        const body = JSON.parse(String(call.body)) as { rating: "know" | "unknown" };
+        return json(recallResult(body.rating, body.rating === "unknown" ? { item: { box: 0, due_at: "x" } } : {}));
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await user.click(await screen.findByRole("button", { name: "记错了" }));
+    await waitFor(() => expect(answers(mock)[1]).toMatchObject({ mode: "review", qtype: "recall", key: "talk", rating: "unknown" }));
+    expect(await screen.findByTestId("rating-badge")).toHaveTextContent("不认识");
+    expect(screen.queryByRole("button", { name: "记错了" })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "继续" })));
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
+    const summary = await screen.findByTestId("session-summary");
+    expect(summary).toHaveTextContent("一次答对 0");
+    expect(within(summary).getByTestId("summary-ratings").textContent).toBe("认识 0 · 模糊 0 · 不认识 1");
+  });
+
+  it("reads the word once when the card flips (autoplay on)", async () => {
+    const user = userEvent.setup();
+    setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(recallResult("know")),
+    });
+    const start = await screen.findByRole("button", { name: "开始复习 3" });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await screen.findByTestId("rating-badge");
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    expect(play).toHaveBeenCalledWith(expect.any(String), "talk", "openai/tts-1", expect.any(String));
+  });
+
+  it("does not read on flip when autoplay is off", async () => {
+    const user = userEvent.setup();
+    setup({
+      "GET /api/wordbook/config": () => json({ ...CONFIG, learn: { autoplay: false, show_example: true } }),
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(recallResult("know")),
+    });
+    const start = await screen.findByRole("button", { name: "开始复习 3" });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await screen.findByTestId("rating-badge");
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("quick recall works under StrictMode: spot check, flip and one read-aloud", async () => {
+    const user = userEvent.setup();
+    let step = 0;
+    const mock = createFetchMock({
+      ...TTS(["openai/tts-1"]), "GET /api/wordbook/config": () => json(CONFIG), "GET /api/wordbook/today": () => json(ENROLLED_TODAY),
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(step++ === 0 ? PENDING : recallResult("know")),
+    });
+    renderWithProviders(<StrictMode><WordbookReviewPage /></StrictMode>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook/review" });
+    const start = await screen.findByRole("button", { name: /开始复习/ });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    await user.click(await screen.findByRole("button", { name: "认识" }));
+    await user.click(await screen.findByRole("button", { name: /说话；谈话/ }));
+    expect(await screen.findByTestId("rating-badge")).toHaveTextContent("认识");
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    expect(await screen.findByTestId("session-summary")).toHaveTextContent("一次答对 1");
   });
 });
