@@ -697,3 +697,77 @@ class WordbookHiddenSentence(Base):
     book_id: Mapped[str] = mapped_column(String(16))
     hidden_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- 学习联动(设计文档 2026-10-11-learning-links §10)----
+
+class UserLinkPref(Base):
+    """每用户联动开关;没有行 = 开。"""
+    __tablename__ = "user_link_prefs"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    link_key: Mapped[str] = mapped_column(String(24), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LinkMistakeWord(Base):
+    """易错词(虚拟视图的状态;不复制 vocabulary_items)。"""
+    __tablename__ = "link_mistake_words"
+    __table_args__ = (Index("ix_link_mistake_words_user_id_cleared_at", "user_id", "cleared_at"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    word: Mapped[str] = mapped_column(String(100), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(16))
+    wrong_count: Mapped[int] = mapped_column(Integer, default=0)
+    ok_streak: Mapped[int] = mapped_column(Integer, default=0)
+    last_event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_wrong_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LinkWeakWord(Base):
+    """发音弱词。"""
+    __tablename__ = "link_weak_words"
+    __table_args__ = (Index("ix_link_weak_words_user_id_cleared_at", "user_id", "cleared_at"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    word: Mapped[str] = mapped_column(String(100), primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer, default=0)
+    last_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ok_streak: Mapped[int] = mapped_column(Integer, default=0)
+    last_event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_weak_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LinkWordUse(Base):
+    """对话里用到今日词:每个 learn 事件只记第一次;不存消息正文。"""
+    __tablename__ = "link_word_uses"
+    __table_args__ = (
+        UniqueConstraint("user_id", "learn_event_id", name="uq_link_word_uses_user_learn"),
+        Index("ix_link_word_uses_user_id_created_at", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    word: Mapped[str] = mapped_column(String(100))
+    learn_event_id: Mapped[int] = mapped_column(Integer)
+    message_id: Mapped[str] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class LinkCredit(Base):
+    """联动登记的段位点来源事实;段位经本模型读取(不导入 app.links)。"""
+    __tablename__ = "link_credits"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "ref_id", name="uq_link_credits_user_kind_ref"),
+        Index("ix_link_credits_user_id_created_at", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    ref_id: Mapped[str] = mapped_column(String(80))
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

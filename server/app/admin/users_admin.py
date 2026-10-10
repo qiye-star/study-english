@@ -18,6 +18,7 @@ from app.models import (
     AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile,
     RankProfileSnapshot, Room, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User, UserAchievement,
     UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
+    LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, UserLinkPref,
 )
 from app.services import recordings
 
@@ -148,6 +149,8 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
         select(Assessment.id).where(Assessment.user_id == user_id))).values(assessment_id=None))
     for model in (Conversation, Assessment, PracticeItem, VocabularyItem, AccessToken, SpeechToken, RankProfile,
                   XpEvent, PromotionMatch, UserAchievement, UserQuotaOverride):
+        await session.execute(delete(model).where(model.user_id == user_id))
+    for model in (UserLinkPref, LinkMistakeWord, LinkWeakWord, LinkWordUse, LinkCredit):  # learning links (SQLite: no FK cascade)
         await session.execute(delete(model).where(model.user_id == user_id))
     await session.execute(delete(RoomMember).where(RoomMember.user_id == user_id))
     await session.execute(delete(RoomReport).where(RoomReport.reporter_id == user_id))

@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0012"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0013"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -422,3 +422,31 @@ def test_0012_wordbook_tables_round_trip(tmp_path, monkeypatch):
     assert not WORDBOOK_TABLES & _tables(db)
     command.upgrade(cfg, "head")
     assert WORDBOOK_TABLES <= _tables(db)
+
+
+LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link_word_uses", "link_credits"}
+
+
+def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0013"]
+    command.upgrade(cfg, "0012")
+    assert not LINK_TABLES & _tables(db)
+    command.upgrade(cfg, "0013")
+    assert LINK_TABLES <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        pk = [r[1] for r in sorted(con.execute("pragma table_info(link_mistake_words)"), key=lambda r: r[5]) if r[5]]
+        credit_idx = {r[1] for r in con.execute("pragma index_list(link_credits)")}
+        uses_idx = {r[1] for r in con.execute("pragma index_list(link_word_uses)")}
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-11')")
+        con.execute("insert into link_credits (user_id, kind, ref_id, created_at) values (12345678, 'word_in_chat', 'wic:1', '2026-10-11')")
+        con.commit()
+    finally:
+        con.close()
+    assert pk == ["user_id", "word"]
+    assert "ix_link_credits_user_id_created_at" in credit_idx and "ix_link_word_uses_user_id_created_at" in uses_idx
+    command.downgrade(cfg, "0012")
+    assert not LINK_TABLES & _tables(db)
+    command.upgrade(cfg, "head")
+    assert LINK_TABLES <= _tables(db)
