@@ -1,0 +1,36 @@
+{
+  "list": {
+    "items": [
+      {
+        "word": "three",
+        "hits": 1,
+        "last_score": 41,
+        "last_weak_at": "2026-10-11T08:00:00+00:00",
+        "example": "Three trees."
+      },
+      {
+        "word": "world",
+        "hits": 1,
+        "last_score": 55,
+        "last_weak_at": "2026-10-11T08:00:00+00:00",
+        "example": null
+      }
+    ],
+    "total": 2
+  },
+  "dismiss": {
+    "word": "world"
+  },
+  "today_words": {
+    "items": [
+      {
+        "key": "talk",
+        "word": "talk",
+        "example": {
+          "en": "I could hear Sarah and Andy talking in the next room.",
+          "zh": "我听到萨拉和安迪在隔壁讲话。"
+        }
+      }
+    ]
+  }
+}
