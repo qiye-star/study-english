@@ -37,5 +37,6 @@ export function useWordbookToday(enabled: boolean) {
     };
   }, [api, enabled, attempt]);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
-  return { today, error, reload };
+  // setToday:每日目标面板的乐观更新(goals 计划 GW2);服务端结果由 reload() 覆盖
+  return { today, error, reload, setToday };
 }

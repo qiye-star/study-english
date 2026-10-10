@@ -173,6 +173,16 @@
         "missedHint": "{{meaning}} · back tomorrow",
         "home": "Back to Wordbook",
         "again": "Another round"
+      },
+      "goals": {
+        "errors": {
+          "noChanges": "Nothing to change", "outOfRangeNew": "New words per day is outside the allowed range",
+          "outOfRangeReview": "Daily review limit is outside the allowed range", "unlimitedOff": "“No limit” is turned off by the admin",
+          "conflicting": "Choose a review limit or “No limit”, not both", "settingsLimit": "Too many settings changes today, try tomorrow",
+          "notEnrolled": "You have not picked this book yet", "goalNotDone": "Finish today's new words before adding more",
+          "backlog": "Clear the review backlog before adding more", "bookFinished": "No new words left in this book",
+          "bonusLimit": "Today's extra words are used up", "resetLimit": "No more resets today", "confirmMismatch": "The book name does not match"
+        }
       }
     }
   }

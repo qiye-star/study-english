@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import type {
-  AnswerResult, BlankResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, ItemState, Progress, Question, Segment, SpellResult,
-  SpellWordResult, Today, WordbookBook, WordbookConfig,
+  AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, GoalLimits, ItemState, Progress, Question,
+  ResetResult, Segment, SpellResult, SpellWordResult, Streak, Today, WordbookBook, WordbookConfig,
 } from "./wordbook-api";
 
 /**
@@ -17,14 +17,32 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../../server/tests/fixtures/wordbook_contract.json");
 const contract: Record<string, unknown> | null = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, "utf8")) : null;
 
-const keys = (r: Record<string, true>) => Object.keys(r).sort();
+/**
+ * Ruling GW2-a(goals 计划 GW2):服务端 GS5 用 goals 的键重录这份样例;它进本分支之前(样例里还没有
+ * `enrollment_patch`),旧形状去掉 goals 新增的键再比对,goals 的那个 `it` 跳过。GS5 合并后自动全量比对;
+ * Z1 删掉这个开关。
+ */
+const GOALS_RECORDED = contract !== null && "enrollment_patch" in contract;
+const keys = (r: Record<string, true>, goalsOnly: readonly string[] = []) =>
+  Object.keys(r).filter((k) => GOALS_RECORDED || !goalsOnly.includes(k)).sort();
 const cc = <T>(v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as T;
 const keysOf = (o: object) => Object.keys(o).sort();
 
-const TODAY: Record<keyof Today, true> = { enrollment: true, book: true, plan: true, progress: true, tomorrowDue: true };
-const PLAN: Record<keyof DayPlan, true> = { newTarget: true, newDone: true, newLeft: true, reviewDue: true, reviewDone: true, reviewLeft: true, backlogGuard: true };
+const TODAY: Record<keyof Today, true> = { enrollment: true, book: true, plan: true, progress: true, tomorrowDue: true, paused: true, streak: true };
+const PLAN: Record<keyof DayPlan, true> = {
+  newTarget: true, newDone: true, newLeft: true, reviewDue: true, reviewDone: true, reviewLeft: true, backlogGuard: true, bonus: true, goalMet: true,
+};
 const PROGRESS: Record<keyof Progress, true> = { words: true, learned: true, mastered: true, remaining: true };
-const ENROLLMENT: Record<keyof Enrollment, true> = { bookId: true, status: true, orderMode: true, dailyNew: true, reviewCap: true, startedAt: true };
+const ENROLLMENT: Record<keyof Enrollment, true> = {
+  bookId: true, status: true, orderMode: true, dailyNew: true, reviewCap: true, startedAt: true, reviewUnlimited: true,
+};
+const GOALS_TODAY_KEYS = ["paused", "streak"] as const;
+const GOALS_PLAN_KEYS = ["bonus", "goalMet"] as const;
+const GOALS_ENROLLMENT_KEYS = ["reviewUnlimited"] as const;
+const STREAK: Record<keyof Streak, true> = { current: true, todayMet: true };
+const LIMITS: Record<keyof GoalLimits, true> = { dailyNew: true, reviewCap: true, reviewUnlimited: true, bonusMax: true };
+const BONUS: Record<keyof BonusResult, true> = { plan: true, bonusLeft: true };
+const RESET: Record<keyof ResetResult, true> = { removed: true, enrollment: true };
 const BOOK: Record<keyof WordbookBook, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, available: true };
 const BOOK_PROGRESS: Record<keyof BookProgress, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, learned: true, mastered: true, enrolled: true, active: true };
 const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
@@ -49,10 +67,10 @@ describe("wordbook contract (server fixture)", () => {
 
   it("today/plan/books match the client types", () => {
     const today = cc<Today>(c.today);
-    expect(keysOf(today)).toEqual(keys(TODAY));
-    expect(keysOf(today.plan as DayPlan)).toEqual(keys(PLAN));
+    expect(keysOf(today)).toEqual(keys(TODAY, GOALS_TODAY_KEYS));
+    expect(keysOf(today.plan as DayPlan)).toEqual(keys(PLAN, GOALS_PLAN_KEYS));
     if (today.progress) expect(keysOf(today.progress)).toEqual(keys(PROGRESS));
-    if (today.enrollment) expect(keysOf(today.enrollment)).toEqual(keys(ENROLLMENT));
+    if (today.enrollment) expect(keysOf(today.enrollment)).toEqual(keys(ENROLLMENT, GOALS_ENROLLMENT_KEYS));
     if (today.book) expect(keysOf(today.book)).toEqual(keys(BOOK));
     if (c.books) expect(keysOf(cc<{ books: BookProgress[] }>(c.books).books[0])).toEqual(keys(BOOK_PROGRESS));
   });
@@ -113,6 +131,23 @@ describe("wordbook contract (server fixture)", () => {
     });
     const config = cc<Extract<WordbookConfig, { enabled: true }>>(c.config);
     expect(keysOf(config.learn)).toEqual(keys(LEARN_PREFS));
+  });
+
+  it.skipIf(!GOALS_RECORDED)("goals v2 payloads match (plan 2026-10-11 GW2; pending the GS5 re-recording)", () => {
+    expect(keysOf(cc<Extract<WordbookConfig, { enabled: true }>>(c.config).limits!)).toEqual(keys(LIMITS));
+    expect(keysOf(cc<Today>(c.today).streak)).toEqual(keys(STREAK));
+    expect(keysOf(cc<Enrollment>(c.enrollment_patch))).toEqual(keys(ENROLLMENT));
+    const bonus = cc<BonusResult>(c.bonus);
+    expect(keysOf(bonus)).toEqual(keys(BONUS));
+    expect(keysOf(bonus.plan)).toEqual(keys(PLAN));
+    expect(cc<Enrollment>(c.pause).status).toBe("paused");
+    const paused = cc<Today>(c.today_paused);
+    expect(paused.enrollment).toBeNull();
+    expect(keysOf(paused.paused as Enrollment)).toEqual(keys(ENROLLMENT));
+    expect(keysOf(cc<Enrollment>(c.resume))).toEqual(keys(ENROLLMENT));
+    const reset = cc<ResetResult>(c.reset);
+    expect(keysOf(reset)).toEqual(keys(RESET));
+    expect(keysOf(reset.enrollment)).toEqual(keys(ENROLLMENT));
   });
 
   it("never sends word-keyed maps the client would have to trust (F4-1)", () => {

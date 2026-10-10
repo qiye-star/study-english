@@ -10,13 +10,15 @@ export type WordbookConfig =
       enabled: true; aiAvailable: boolean; defaults: { dailyNew: number; reviewCap: number }; books: WordbookBook[];
       /** 背单词 v2(spec 2026-10-11-wordbook-recall §7):新词卡 / 翻面自动朗读、翻开后显示例句。 */
       learn: { autoplay: boolean; showExample: boolean };
+      /** 每日目标范围(spec 2026-10-11-wordbook-goals §9)。老版本服务端没有这个键:一律经 limitsOf 取值。 */
+      limits?: GoalLimits;
     };
 export interface BookProgress extends Omit<WordbookBook, "available"> { learned: number; mastered: number; enrolled: boolean; active: boolean }
 export type OrderMode = "shuffle" | "book";
-export interface Enrollment { bookId: BookId; status: "active" | "paused"; orderMode: OrderMode; dailyNew: number; reviewCap: number; startedAt: string }
-export interface DayPlan { newTarget: number; newDone: number; newLeft: number; reviewDue: number; reviewDone: number; reviewLeft: number; backlogGuard: boolean }
+export interface Enrollment { bookId: BookId; status: "active" | "paused"; orderMode: OrderMode; dailyNew: number; reviewCap: number; startedAt: string; reviewUnlimited: boolean }
+export interface DayPlan { newTarget: number; newDone: number; newLeft: number; reviewDue: number; reviewDone: number; reviewLeft: number; backlogGuard: boolean; bonus: number; goalMet: boolean }
 export interface Progress { words: number; learned: number; mastered: number; remaining: number }
-export interface Today { enrollment: Enrollment | null; book: WordbookBook | null; plan: DayPlan | null; progress: Progress | null; tomorrowDue: number }
+export interface Today { enrollment: Enrollment | null; book: WordbookBook | null; plan: DayPlan | null; progress: Progress | null; tomorrowDue: number; paused: Enrollment | null; streak: Streak }
 export interface Sense { pos: string; text: string }
 export interface Example { id: string; en: string; zh: string }
 export interface Card { key: string; word: string; us: string; uk: string; senses: Sense[]; phrases: { en: string; zh: string }[]; examples: Example[] }
@@ -70,6 +72,19 @@ export const WORDBOOK_SERVER_ERRORS: Record<string, string> = {
   "AI explanation unavailable": "web.wordbook.errors.aiUnavailable",
   "Word not found": "web.wordbook.errors.wordNotFound",
   "Rating is required": "web.wordbook.recall.errors.ratingRequired",
+  "No changes": "web.wordbook.goals.errors.noChanges",
+  "Daily new words out of range": "web.wordbook.goals.errors.outOfRangeNew",
+  "Review cap out of range": "web.wordbook.goals.errors.outOfRangeReview",
+  "Unlimited reviews are off": "web.wordbook.goals.errors.unlimitedOff",
+  "Conflicting review cap": "web.wordbook.goals.errors.conflicting",
+  "Too many settings changes today": "web.wordbook.goals.errors.settingsLimit",
+  "Book not enrolled": "web.wordbook.goals.errors.notEnrolled",
+  "Finish today's new words first": "web.wordbook.goals.errors.goalNotDone",
+  "Clear the review backlog first": "web.wordbook.goals.errors.backlog",
+  "No new words left in this book": "web.wordbook.goals.errors.bookFinished",
+  "Daily bonus limit reached": "web.wordbook.goals.errors.bonusLimit",
+  "Daily reset limit reached": "web.wordbook.goals.errors.resetLimit",
+  "Confirmation does not match": "web.wordbook.goals.errors.confirmMismatch",
 };
 
 const tz = () => ({ tzOffsetMinutes: localOffsetMinutes() });
@@ -82,7 +97,7 @@ export const fetchBooks = async (api: ApiClient, signal?: AbortSignal): Promise<
 
 export const saveEnrollment = (
   api: ApiClient,
-  input: { bookId: BookId; dailyNew?: number; reviewCap?: number; orderMode?: OrderMode },
+  input: { bookId: BookId; dailyNew?: number; reviewCap?: number; reviewUnlimited?: true; orderMode?: OrderMode },
 ) => api.request<Enrollment>("PUT", "/api/wordbook/enrollment", { json: input });
 
 export const fetchToday = (api: ApiClient, signal?: AbortSignal) =>
@@ -130,3 +145,32 @@ export const reportSentence = (
   api: ApiClient,
   input: { bookId: BookId; key: string; sentenceId: string; reason: "wrong" | "offensive" | "other" },
 ) => api.request<{ id: number }>("POST", "/api/wordbook/reports", { json: input });
+
+// ---- 每日目标(goals v2,spec 2026-10-11 §9;计划 2026-10-11 GW2 = P-W4 Addendum)----
+
+export interface GoalLimits { dailyNew: { min: number; max: number }; reviewCap: { min: number; max: number }; reviewUnlimited: boolean; bonusMax: number }
+export interface Streak { current: number; todayMet: boolean }
+export interface GoalsPatch { dailyNew?: number; reviewCap?: number; reviewUnlimited?: true; orderMode?: OrderMode }
+export interface BonusResult { plan: DayPlan; bonusLeft: number }
+export interface ResetResult { removed: number; enrollment: Enrollment }
+
+/** 服务端硬边界(老版本服务端的 config 没有 limits 时使用) */
+export const DEFAULT_LIMITS: GoalLimits = { dailyNew: { min: 1, max: 200 }, reviewCap: { min: 10, max: 1000 }, reviewUnlimited: true, bonusMax: 50 };
+
+export const limitsOf = (config: WordbookConfig | null): GoalLimits =>
+  (config?.enabled && config.limits ? config.limits : DEFAULT_LIMITS);
+
+export const patchEnrollment = (api: ApiClient, input: GoalsPatch) =>
+  api.request<Enrollment>("PATCH", "/api/wordbook/enrollment", { json: input });
+
+export const grantBonus = (api: ApiClient, size: number) =>
+  api.request<BonusResult>("POST", "/api/wordbook/bonus", { json: { size, ...tz() } });
+
+export const pauseEnrollment = (api: ApiClient) =>
+  api.request<Enrollment>("POST", "/api/wordbook/enrollment/pause", { json: {} });
+
+export const resumeEnrollment = (api: ApiClient, bookId: BookId) =>
+  api.request<Enrollment>("POST", "/api/wordbook/enrollment/resume", { json: { bookId } });
+
+export const resetProgress = (api: ApiClient, bookId: BookId, confirm: string) =>
+  api.request<ResetResult>("POST", "/api/wordbook/enrollment/reset", { json: { bookId, confirm, ...tz() } });

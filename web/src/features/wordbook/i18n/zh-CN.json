@@ -173,6 +173,15 @@
         "missedHint": "{{meaning}} · 明天再复习",
         "home": "回到首页",
         "again": "再来一轮"
+      },
+      "goals": {
+        "errors": {
+          "noChanges": "没有改动", "outOfRangeNew": "每日新词超出允许范围", "outOfRangeReview": "每日复习上限超出允许范围",
+          "unlimitedOff": "管理员关闭了「不限」", "conflicting": "复习上限和「不限」只能选一个", "settingsLimit": "今天改设置的次数太多了,明天再试",
+          "notEnrolled": "还没选过这本书", "goalNotDone": "先学完今天的新词再加练", "backlog": "先把复习积压清掉再加练",
+          "bookFinished": "这本书没有新词了", "bonusLimit": "今天的加练已达上限", "resetLimit": "今天重置次数已达上限",
+          "confirmMismatch": "输入的书名不一致"
+        }
       }
     }
   }
