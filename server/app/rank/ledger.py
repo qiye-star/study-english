@@ -190,7 +190,15 @@ async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minut
     return profile
 
 
-async def stage_progress_for(session: AsyncSession, profile: RankProfile, *, rules=None) -> list[TaskProgress]:
+async def stage_progress_for(session: AsyncSession, profile: RankProfile, *, rules=None,
+                             wordbook_enabled: bool = True) -> list[TaskProgress]:
+    """`wordbook_enabled=False` drops `words_learned` tasks: nobody can do them while the wordbook is off, so they
+    must not block promotion (review m10; publishing such rules is refused while it is off)."""
+    tasks = await _stage_progress(session, profile, rules=rules)
+    return tasks if wordbook_enabled else [t for t in tasks if t.kind != "words_learned"]
+
+
+async def _stage_progress(session: AsyncSession, profile: RankProfile, *, rules=None) -> list[TaskProgress]:
     # Spec §2.3 counts from tier_started_at: events are stamped with the tier at sync time, so activity done before a
     # promotion but synced after it would otherwise count for the new tier (review #17).
     rows = (await session.execute(select(XpEvent.kind, XpEvent.score, XpEvent.day, XpEvent.points).where(
@@ -241,8 +249,8 @@ async def daily_attempts(session: AsyncSession, user_id: int, now: datetime, set
 async def promotion_for(session: AsyncSession, profile: RankProfile, now: datetime, settings: Settings, *,
                         rules=None) -> Promotion:
     """Match attempts are counted per UTC day: a client-supplied offset could otherwise span 3 dates (review #8)."""
-    tasks = await stage_progress_for(session, profile, rules=rules)
-    limit = await daily_attempts(session, profile.user_id, now, settings, rules=rules)
+    tasks = await stage_progress_for(session, profile, rules=rules, wordbook_enabled=settings.wordbook_enabled)
+    limit =await daily_attempts(session, profile.user_id, now, settings, rules=rules)
     left = await usage.remaining(session, "rank_match", str(profile.user_id), usage.utc_day(now), limit)
     return promotion_status(state_of(profile), tasks, now=now, cooldown_until=profile.cooldown_until,
                             attempts_left=left, available=settings.rank_match_available, rules=rules)

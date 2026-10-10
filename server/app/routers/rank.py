@@ -125,7 +125,7 @@ async def rank_me(request: Request, tz_offset_minutes: int = TZ_OFFSET, user: Us
         profile = await session.get(RankProfile, user.id) or ledger.blank_profile(user.id, now)
     else:
         profile = await ledger.sync(session, user.id, now, tz_offset_minutes, settings.rank_daily_rp_cap, rules=rules)
-    tasks = await ledger.stage_progress_for(session, profile, rules=rules)
+    tasks = await ledger.stage_progress_for(session, profile, rules=rules, wordbook_enabled=settings.wordbook_enabled)
     promo = await ledger.promotion_for(session, profile, now, settings, rules=rules)
     season, season_json = _season(settings, rules, tz_offset_minutes)
     snap = await achievements.snapshot(session, user.id, profile.best_tier, season)

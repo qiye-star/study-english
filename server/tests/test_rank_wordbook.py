@@ -108,6 +108,25 @@ async def test_snapshot_counts_learn_events_and_box4_items(app):
     assert (snap.words_learned, snap.words_mastered) == (3, 2)
 
 
+async def test_words_learned_tasks_do_not_block_promotion_once_wordbook_is_off(app, monkeypatch):
+    """Review m10: rules with a words_learned task were published, then WORDBOOK_ENABLED was switched off."""
+    from app.models import RankProfile
+    from app.rank.points import StageTask
+
+    monkeypatch.setitem(points.STAGE_TASKS, 2, (StageTask("words", "words_learned", 50),))
+    async with app.state.sessionmaker() as s:
+        s.add(User(id=10000033, username="off", password_hash="x"))
+        s.add(RankProfile(user_id=10000033, tier=2, division=1, rp=120, stars=0, best_tier=2, tier_started_at=NOW,
+                          synced_at=NOW, updated_at=NOW))
+        await s.commit()
+        profile = await s.get(RankProfile, 10000033)
+        on = make_settings(rank_enabled=True, wordbook_enabled=True)
+        off = make_settings(rank_enabled=True, wordbook_enabled=False)
+        assert (await ledger.promotion_for(s, profile, NOW, on)).reason == "tasks"
+        assert (await ledger.promotion_for(s, profile, NOW, off)).reason != "tasks"
+        assert await ledger.stage_progress_for(s, profile, wordbook_enabled=False) == []
+
+
 # ---- R3: publish guard ----
 
 def _draft_with_words_learned():
