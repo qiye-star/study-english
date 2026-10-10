@@ -115,6 +115,10 @@ def runtime_problems(s: Settings) -> list[str]:
         problems.append("DEFAULT_LLM_MODEL must be one of LLM_MODELS")
     if s.admin_enabled and len(s.admin_password) < 12:
         problems.append("ADMIN_PASSWORD must be at least 12 characters")
+    if not s.wordbook_daily_new_min <= s.wordbook_daily_new <= s.wordbook_daily_new_max:
+        problems.append("WORDBOOK_DAILY_NEW must be within WORDBOOK_DAILY_NEW_MIN..WORDBOOK_DAILY_NEW_MAX")
+    if not s.wordbook_review_cap_min <= s.wordbook_review_cap <= s.wordbook_review_cap_max:
+        problems.append("WORDBOOK_REVIEW_CAP must be within WORDBOOK_REVIEW_CAP_MIN..WORDBOOK_REVIEW_CAP_MAX")
     return problems
 
 

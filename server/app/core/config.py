@@ -16,6 +16,8 @@ def _split(value: str) -> list[str]:
 
 # = app.wordbook.books.BOOK_IDS(core 不能导入 wordbook 层;tests/test_wordbook_books.py 断言两处一致)
 WORDBOOK_BOOK_IDS = ("junior", "senior", "cet4", "cet6", "kaoyan", "toefl", "sat")
+WORDBOOK_NEW_BOUNDS = (1, 200)  # 每日新词硬边界(spec 2026-10-11 §3.1);管理员只能在其中收窄
+WORDBOOK_REVIEW_BOUNDS = (10, 1000)  # 每日复习上限硬边界;「不限」在库里存 0
 
 THINKING_TRUE = {"true", "1", "yes", "on"}
 THINKING_FALSE = {"false", "0", "no", "off"}
@@ -183,8 +185,15 @@ class Settings(BaseSettings):
     wordbook_enabled: bool = False
     wordbook_ai_enabled: bool = False
     wordbook_books: str = ",".join(WORDBOOK_BOOK_IDS)
-    wordbook_daily_new: int = Field(20, ge=5, le=100)
-    wordbook_review_cap: int = Field(100, ge=20, le=500)
+    wordbook_daily_new: int = Field(20, ge=WORDBOOK_NEW_BOUNDS[0], le=WORDBOOK_NEW_BOUNDS[1])
+    wordbook_review_cap: int = Field(100, ge=WORDBOOK_REVIEW_BOUNDS[0], le=WORDBOOK_REVIEW_BOUNDS[1])
+    # 用户可选范围(spec 2026-10-11 §10;交叉校验在 runtime_settings.runtime_problems)
+    wordbook_daily_new_min: int = Field(1, ge=WORDBOOK_NEW_BOUNDS[0], le=WORDBOOK_NEW_BOUNDS[1])
+    wordbook_daily_new_max: int = Field(200, ge=WORDBOOK_NEW_BOUNDS[0], le=WORDBOOK_NEW_BOUNDS[1])
+    wordbook_review_cap_min: int = Field(10, ge=WORDBOOK_REVIEW_BOUNDS[0], le=WORDBOOK_REVIEW_BOUNDS[1])
+    wordbook_review_cap_max: int = Field(1000, ge=WORDBOOK_REVIEW_BOUNDS[0], le=WORDBOOK_REVIEW_BOUNDS[1])
+    wordbook_review_unlimited: bool = True
+    wordbook_bonus_max: int = Field(50, ge=0, le=200)
     wordbook_ai_model: str = ""
     wordbook_ai_global_daily: int = Field(200, ge=0, le=100000)
     wordbook_ai_daily_per_user: int = Field(20, ge=0, le=1000)
