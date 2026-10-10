@@ -1,0 +1,27 @@
+{
+  "web": {
+    "links": {
+      "pron": {
+        "weakChip": "Weak words {{total}}",
+        "todayChip": "Today's words {{count}}",
+        "todayTitle": "Example sentences for today's words",
+        "todayLede": "Tap a sentence to use it as the reference text.",
+        "noExample": "No example sentence for this word",
+        "title": "Weak pronunciation",
+        "count": "{{count}} words",
+        "lede": "Words you didn't pronounce well while shadowing. They leave the list after two good readings.",
+        "drillTop": "Read these {{count}} together",
+        "score": "Last {{score}}",
+        "unscored": "Not scored",
+        "hits": "seen {{hits}}×",
+        "shadow": "Shadow",
+        "shadowWord": "Shadow: {{word}}",
+        "dismiss": "Remove: {{word}}",
+        "dismissFailed": "Couldn't remove the word",
+        "empty": "No weak words right now.",
+        "row": "Weak pronunciation",
+        "none": "None"
+      }
+    }
+  }
+}
