@@ -44,7 +44,7 @@ async def collect(app, client, tmp_path) -> dict:
     for q in out["review_batch"]["questions"]:  # 题面字段随题型变(种子含随机的用户 id),契约只核对外层形状
         q["prompt"] = {}
     out["answer_typed"] = (await client.post(f"{URL}/answers", headers=h, json={
-        "book_id": "junior", "key": "talk", "mode": "review", "qtype": "spell", "typed": "talkk"})).json()
+        "book_id": "junior", "key": "ability", "mode": "review", "qtype": "spell", "typed": "abilityy"})).json()  # 未到期:题型不受限(review m2)
     out["spell_sets"] = (await client.post(f"{URL}/spell/sets", headers=h, json={"count": 1, "size": 3})).json()
     s0 = out["spell_sets"]["sets"][0]
     out["spell_submit"] = (await client.post(f"{URL}/spell/submit", headers=h, json={

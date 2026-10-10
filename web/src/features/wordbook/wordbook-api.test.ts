@@ -55,7 +55,7 @@ describe("wordbook api", () => {
     expect(Object.keys(WORDBOOK_SERVER_ERRORS).sort()).toEqual([
       "AI explanation unavailable", "Book is not active", "Book not found", "Daily answer limit reached",
       "Daily new-word limit reached", "Daily report limit reached",
-      "No active book", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
+      "No active book", "Question type mismatch", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
     ]);
     for (const key of Object.values(WORDBOOK_SERVER_ERRORS)) {
       expect(typeof lookup(en, key), key).toBe("string");

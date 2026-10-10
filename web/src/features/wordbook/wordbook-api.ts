@@ -48,6 +48,7 @@ export const WORDBOOK_SERVER_ERRORS: Record<string, string> = {
   "Daily new-word limit reached": "web.wordbook.errors.newLimit",
   "Daily report limit reached": "web.wordbook.errors.reportLimit",
   "Sentence changed": "web.wordbook.errors.sentenceChanged",
+  "Question type mismatch": "web.wordbook.errors.qtypeMismatch",
   "AI explanation unavailable": "web.wordbook.errors.aiUnavailable",
   "Word not found": "web.wordbook.errors.wordNotFound",
 };

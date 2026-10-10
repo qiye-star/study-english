@@ -102,7 +102,13 @@ async def test_learn_adopts_an_existing_vocabulary_word(app, client, tmp_path):
         assert (await s.scalars(select(VocabularyItem.source))).all() == ["lookup"]
 
 
-async def test_review_due_rules(app, client, tmp_path):
+def pin_qtypes(monkeypatch, by_key: dict[str, str]) -> None:
+    """到期复习必须用服务端选的题型(review m2);测试把选题固定下来。"""
+    from app.wordbook import service
+    monkeypatch.setattr(service, "pick_qtype", lambda box, card, rng, *, tts=True: by_key[card.key])
+
+
+async def test_review_due_rules(app, client, tmp_path, monkeypatch):
     h = await login(app, client, tmp_path)
     await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=TALK_MEANING)
     await ans(client, h, key="go", mode="learn", qtype="meaning", choice="x")
@@ -111,6 +117,7 @@ async def test_review_due_rules(app, client, tmp_path):
     assert [q["key"] for q in batch["questions"]] == ["talk"]
     assert [c["key"] for c in batch["cards"]] == ["talk"]  # 列表,不是以词为键的映射
     assert batch["questions"][0]["qtype"] in ("meaning", "word")  # 盒 0
+    pin_qtypes(monkeypatch, {"talk": "spell"})
     typo = (await ans(client, h, key="talk", mode="review", qtype="spell", typed="talkk")).json()
     assert (typo["outcome"], typo["grade"], typo["applied"], typo["item"]["box"]) == ("typo", "hard", True, 0)
     assert {"op": "ins", "a": "", "b": "k"} in typo["diff"]
@@ -126,8 +133,9 @@ async def test_review_due_rules(app, client, tmp_path):
         assert kinds == ["learn", "learn", "review", "practice", "practice"]
 
 
-async def test_review_good_moves_box_and_hint_makes_it_hard(app, client, tmp_path):
+async def test_review_good_moves_box_and_hint_makes_it_hard(app, client, tmp_path, monkeypatch):
     h = await login(app, client, tmp_path)
+    pin_qtypes(monkeypatch, {"talk": "word", "able": "dictation"})
     await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=TALK_MEANING)
     await ans(client, h, key="able", mode="learn", qtype="meaning", choice="x")
     await make_due(app, "talk")
@@ -157,6 +165,21 @@ async def test_answer_validation_limits_and_unknown_word(app, client, tmp_path, 
     await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=TALK_MEANING)
     r = await ans(client, h, key="able", mode="learn", qtype="meaning", choice="x")
     assert r.status_code == 429 and r.json() == {"error": "Daily answer limit reached"}
+
+
+async def test_a_due_review_must_use_the_question_type_the_server_picked(app, client, tmp_path):
+    """Review m2: the client cannot pick the easiest question type to climb boxes."""
+    h = await login(app, client, tmp_path)
+    await ans(client, h, key="talk", mode="learn", qtype="meaning", known=True)  # box 2
+    await make_due(app, "talk")
+    (q,) = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5})).json()["questions"]
+    other = next(t for t in ("word", "meaning", "dictation", "spell", "cloze") if t != q["qtype"]
+                 and not (q["qtype"] == "dictation" and t == "spell"))
+    body = {"choice": "talk"} if other in ("word", "meaning", "cloze") else {"typed": "talk"}
+    r = await ans(client, h, key="talk", mode="review", qtype=other, **body)
+    assert r.status_code == 422 and r.json() == {"error": "Question type mismatch"}
+    choice = {"choice": "talk"} if q["qtype"] in ("word", "meaning", "cloze") else {"typed": "talk"}
+    assert (await ans(client, h, key="talk", mode="review", qtype=q["qtype"], **choice)).status_code == 200
 
 
 async def test_answer_cap_is_per_utc_day_whatever_the_offset(app, client, tmp_path, monkeypatch):

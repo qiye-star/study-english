@@ -12,6 +12,7 @@
         "bookNotActive": "This is not the word book you are studying now.",
         "reportLimit": "You have reached today's report limit.",
         "sentenceChanged": "The sentences have been updated. Please restart this set.",
+        "qtypeMismatch": "This question is out of date. Please restart the review.",
         "aiUnavailable": "AI explanation is unavailable right now.",
         "wordNotFound": "This word is not in the word book."
       },

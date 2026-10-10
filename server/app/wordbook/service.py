@@ -37,6 +37,7 @@ SENTENCE_CHANGED = (422, "Sentence changed")
 ANSWER_LIMIT = (429, "Daily answer limit reached")
 NEW_LIMIT = (429, "Daily new-word limit reached")
 BOOK_NOT_ACTIVE = (409, "Book is not active")
+QTYPE_MISMATCH = (422, "Question type mismatch")
 REPORT_LIMIT = (429, "Daily report limit reached")
 
 
@@ -240,6 +241,13 @@ async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str
     return False, False
 
 
+def _allowed_qtypes(user_id: int, row: Known, card: WordCard) -> set[str]:
+    """review m2:到期复习(会改盒)的题型必须是 review_batch 按 (user_id, key, reps) 选的那个。TTS 设置可能在出题后
+    变化,两种都接受;网页没有 TTS 时把听写换成看释义拼写(spec §11.4),所以听写也接受 spell。"""
+    allowed = {pick_qtype(row.box, card, question_rng(user_id, card.key, row.reps), tts=tts) for tts in (True, False)}
+    return allowed | ({"spell"} if "dictation" in allowed else set())
+
+
 def _validate(p: AnswerInput) -> None:
     if p.known:
         if p.mode != "learn":
@@ -273,6 +281,8 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         known = await store.known_words(session, user_id)
         if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
             fail(NEW_LIMIT)
+    if p.mode == "review" and row is not None and row.due_at <= now and p.qtype not in _allowed_qtypes(user_id, row, card):
+        fail(QTYPE_MISMATCH)
     if not await store.consume_answer(session, user_id, utc_day(now)):
         fail(ANSWER_LIMIT)
     diff = None

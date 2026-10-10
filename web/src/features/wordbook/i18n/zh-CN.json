@@ -12,6 +12,7 @@
         "bookNotActive": "这本词书不是当前在学的书",
         "reportLimit": "今天举报次数已达上限",
         "sentenceChanged": "例句已更新,请重新开始这一组",
+        "qtypeMismatch": "题目已过期,请重新开始这一轮复习",
         "aiUnavailable": "AI 讲解暂不可用",
         "wordNotFound": "词书里没有这个词"
       },
