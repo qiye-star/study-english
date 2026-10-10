@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 背单词 v2 Recall mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+/* ------------------------------------------------------------------
+   Canvas + base tokens/components: copied verbatim from
+   docs/superpowers/design/wordbook-v1/mockup.html (lines 9–190),
+   itself copied from redesign-v3/mockup.html
+------------------------------------------------------------------ */
+/* ------------------------------------------------------------------
+   Canvas (the document around the phones; not part of the app UI)
+------------------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:72ch;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:28px;align-items:flex-start}
+.spec{width:375px}
+.spec > p.frame-cap{font-size:12px;color:#5b6170;margin:12px 2px 0;letter-spacing:.01em;line-height:1.5}
+.spec > p.frame-cap b{color:#1b1d22;font-weight:600}
+.swatches{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.sw{width:112px;height:56px;border-radius:8px;border:.5px solid rgba(0,0,0,.12);display:flex;align-items:flex-end;padding:6px 8px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#1b1d22}
+.sw.dk{color:#fff}
+
+/* ------------------------------------------------------------------
+   Design tokens (scoped to each phone so frames can be light or dark)
+------------------------------------------------------------------ */
+.phone{
+  --bg:#FFFFFF;
+  --ink:#111318;
+  --ink-2:#5B6170;
+  --ink-3:#8A90A0;             /* decorative only (chevrons), never for text */
+  --hair:rgba(17,19,24,.12);
+  --hair-2:rgba(17,19,24,.07);
+  --surface:#FFFFFF;
+  --surface-2:#F5F6F8;
+  --glass:rgba(255,255,255,.72);
+  --glass-solid:rgba(255,255,255,.94);
+  --glass-shadow:0 1px 0 rgba(17,19,24,.04);
+
+  --blue:#2456DB;  --blue-tint:#EAF0FF;  --blue-wash:rgba(36,86,219,.10);
+  --teal:#0E7067;  --teal-tint:#E3F5F2;
+  --amber:#9A4B00; --amber-tint:#FFF0DE;
+  --green:#157A3B; --green-tint:#E4F6EA;
+  --red:#D1242F;   --red-tint:#FFE8E9;
+  --red-solid:#E0313C;
+  --key:#FFFFFF;
+
+  --r-xs:6px;--r-sm:10px;--r-md:14px;--r-lg:20px;--r-dock:28px;
+  --f-11:11px;--f-12:12px;--f-13:13px;--f-15:15px;--f-17:17px;--f-22:22px;--f-28:28px;--f-34:34px;
+  color:var(--ink);background:var(--bg);
+}
+.phone.dark{
+  --bg:#0F1013;
+  --ink:#F3F4F6;
+  --ink-2:#A6ABB8;
+  --ink-3:#6E7482;
+  --hair:rgba(255,255,255,.14);
+  --hair-2:rgba(255,255,255,.08);
+  --surface:#17191E;
+  --surface-2:#1E2127;
+  --glass:rgba(23,25,30,.66);
+  --glass-solid:rgba(23,25,30,.94);
+  --glass-shadow:0 1px 0 rgba(255,255,255,.03);
+
+  --blue:#8FB0FF;  --blue-tint:rgba(143,176,255,.14);  --blue-wash:rgba(90,130,255,.16);
+  --teal:#5FD1C4;  --teal-tint:rgba(95,209,196,.14);
+  --amber:#F2B056; --amber-tint:rgba(242,176,86,.14);
+  --green:#6FD39A; --green-tint:rgba(111,211,154,.14);
+  --red:#FF7B7B;   --red-tint:rgba(255,123,123,.14);
+  --red-solid:#E0313C;
+  --key:rgba(255,255,255,.08);
+}
+
+/* ------------------------------------------------------------------
+   Phone frame
+------------------------------------------------------------------ */
+.phone{position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:var(--f-15);line-height:1.4}
+.phone.short{height:667px;border-radius:28px}
+.phone *{-webkit-tap-highlight-color:transparent}
+.phone i.ti{line-height:1;display:inline-block}
+
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;letter-spacing:-.01em;z-index:40;pointer-events:none}
+.phone.short .statusbar{height:20px;padding:0 10px 2px 12px;font-size:12px;align-items:center}
+.statusbar .sig{display:flex;gap:5px;align-items:center;font-size:14px}
+.phone.short .statusbar .sig{font-size:12px}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;z-index:40}
+
+/* glass: solid fallback first, blur only where supported, none for reduced transparency */
+.glass{background:var(--glass-solid);box-shadow:var(--glass-shadow)}
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+}
+@media (prefers-reduced-transparency:reduce){
+  .glass{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
+.topbar{position:absolute;top:0;left:0;right:0;z-index:30;padding-top:47px;box-shadow:inset 0 -.5px 0 var(--hair),var(--glass-shadow)}
+.topbar.rest{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+/* top bar: lower saturation + higher alpha so a primary button under it does not bloom into a blob */
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .topbar.glass{background:rgba(255,255,255,.80);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+  .phone.dark .topbar.glass{background:rgba(23,25,30,.74)}
+}
+.topbar .bar{height:52px;display:flex;align-items:center;padding:0 8px;gap:4px}
+.topbar .title{font-size:var(--f-17);font-weight:600;letter-spacing:-.015em;flex:1;min-width:0;padding:0 8px}
+.topbar .title small{display:block;font-size:var(--f-12);font-weight:500;color:var(--ink-2);letter-spacing:0;margin-top:1px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);font-size:22px;background:transparent;border:0;position:relative;flex:none}
+.iconbtn.accent{color:var(--blue)}
+.iconbtn .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 2px var(--bg)}
+
+.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding-bottom:22px}
+.tabbar ul{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);height:56px}
+.tabbar li{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--f-11);font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.tabbar li i{font-size:24px}
+.tabbar li.on{color:var(--blue);font-weight:600}
+
+.scroll{position:absolute;inset:0;overflow:hidden}
+.content{padding:99px 16px 110px}   /* clears bars; content slides under them */
+.content.scrolled{padding-top:0;margin-top:-118px}  /* simulates scrollTop ≈ 217px */
+.content.tobottom{position:absolute;left:0;right:0;bottom:0;padding-top:0}  /* simulates scrolled to the end */
+
+/* typography helpers */
+.eyebrow{font-size:var(--f-12);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.h-sec{font-size:var(--f-13);font-weight:600;color:var(--ink-2);letter-spacing:.01em;margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between;min-height:18px}
+.link{color:var(--blue);font-weight:500;display:inline-flex;align-items:center;gap:2px;font-size:var(--f-13);min-height:44px;padding:0 8px;margin:-13px -8px}  /* 44px hit, no layout change */
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.muted{color:var(--ink-2)}
+
+/* cards & lists */
+.card{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);box-shadow:0 1px 2px rgba(17,19,24,.03)}
+.phone.dark .card{box-shadow:none}
+.list{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 12px 10px 14px}
+.rowi + .rowi,.rowi + .subrow,.subrow + .rowi{border-top:.5px solid var(--hair-2)}
+.rowi .t{flex:1;min-width:0}
+.rowi .t b{display:block;font-weight:500;font-size:var(--f-15);letter-spacing:-.005em}
+.rowi .t span{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.rowi .v{font-size:var(--f-15);color:var(--ink-2);display:flex;align-items:center;gap:4px;flex:none}
+.rowi .v i{font-size:18px;color:var(--ink-3)}
+.chip{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.chip.blue{background:var(--blue-tint);color:var(--blue)}
+.chip.teal{background:var(--teal-tint);color:var(--teal)}
+.chip.amber{background:var(--amber-tint);color:var(--amber)}
+.chip.green{background:var(--green-tint);color:var(--green)}
+.chip.gray{background:var(--surface-2);color:var(--ink-2)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:7px;font-size:var(--f-12);font-weight:600;letter-spacing:.01em;white-space:nowrap;flex:none}
+.badge.blue{background:var(--blue-tint);color:var(--blue)}
+.badge.teal{background:var(--teal-tint);color:var(--teal)}
+.badge.green{background:var(--green-tint);color:var(--green)}
+.badge.amber{background:var(--amber-tint);color:var(--amber)}
+.badge.gray{background:var(--surface-2);color:var(--ink-2)}
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--blue);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:#fff}
+.toggle.off{background:var(--surface-2);box-shadow:inset 0 0 0 .5px var(--hair)}
+.toggle.off::after{right:auto;left:2px;background:var(--surface);box-shadow:0 1px 2px rgba(17,19,24,.2)}
+
+/* stat cards */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border-radius:var(--r-md);padding:12px 12px 11px;border:.5px solid var(--hair-2);min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
+.stat .l{font-size:var(--f-12);font-weight:500;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.stat .l i{font-size:15px}
+.stat .n{font-size:var(--f-28);font-weight:600;letter-spacing:-.03em;line-height:1;margin-top:10px}
+.stat .n small{font-size:var(--f-12);font-weight:500;letter-spacing:0;margin-left:2px;color:var(--ink-2)}
+.stat.blue{background:var(--blue-tint)}.stat.blue .l{color:var(--blue)}
+.stat.amber{background:var(--amber-tint)}.stat.amber .l{color:var(--amber)}
+.stat.green{background:var(--green-tint)}.stat.green .l{color:var(--green)}
+
+/* buttons */
+.btn{height:48px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:var(--f-15);font-weight:600;letter-spacing:-.005em;border:0;padding:0 18px}
+.btn.primary{background:var(--blue);color:#fff}
+.phone.dark .btn.primary{color:#0F1013}
+.btn.ghost{background:var(--surface);border:.5px solid var(--hair);color:var(--ink)}
+.btn i{font-size:20px}
+/* segmented: 32px visual pill, 44px hit row via ::before */
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px}
+.seg span{position:relative;height:32px;min-width:56px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--f-13);font-weight:500;color:var(--ink-2)}
+.seg span::before{content:"";position:absolute;inset:-6px 0}
+.seg span.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(17,19,24,.08);border:.5px solid var(--hair-2)}
+.phone.dark .seg span.on{background:#2A2E36}
+
+/* progress bar */
+.bar-track{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;background:var(--blue)}
+
+
+/* ------------------------------------------------------------------
+   Wordbook v2 additions (spec 2026-10-11-wordbook-recall §3, §4, §8)
+   teal = wordbook identity · blue = primary / 认识 · amber = 模糊 / hints
+   green = correct / 认识 badge · neutral = 不认识 and wrong (never red)
+------------------------------------------------------------------ */
+.hw{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.ph{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ph > span{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 12px 0 6px;border-radius:12px;background:var(--surface-2);font-size:var(--f-15);color:var(--ink)}
+.phone .ph > span i{width:32px;height:32px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--blue);box-shadow:0 0 0 .5px var(--hair)}
+.ph > span small{font-size:var(--f-11);color:var(--ink-2);font-weight:600;letter-spacing:.04em}
+.ph .ipa{font-family:"Charis SIL",ui-serif,Georgia,serif}
+.senses{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.senses div{font-size:var(--f-15);line-height:1.5}
+.senses div em{font-style:normal;font-size:var(--f-12);font-weight:600;color:var(--ink-2);margin-right:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.ex{margin-top:14px;padding:12px;border-radius:var(--r-sm);background:var(--surface-2)}
+.ex p{font-size:var(--f-15);line-height:1.5}
+.ex p mark{background:var(--amber-tint);color:var(--amber);border-radius:4px;padding:0 3px;font-weight:600}
+.ex .zh{font-size:var(--f-13);color:var(--ink-2);margin-top:4px}
+.ex .acts{display:flex;gap:4px;margin:6px -8px -8px}
+.ex .acts span{height:44px;padding:0 8px;display:inline-flex;align-items:center;gap:4px;font-size:var(--f-12);font-weight:500;color:var(--ink-2)}
+.ex .acts span i{font-size:17px}
+.phr{margin-top:12px;font-size:var(--f-13);color:var(--ink-2);display:flex;align-items:center;justify-content:space-between;min-height:44px;border-top:.5px solid var(--hair-2)}
+.step{display:flex;gap:4px}
+.step i{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
+.step i.on{background:var(--teal)}
+.step i.cur{background:var(--blue)}
+.wcard{padding:20px 16px 16px;margin-top:10px}
+.wcard .eyerow{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+
+/* the cover: a real button, ≥ 96px, no blur, meaning not rendered */
+.cover{margin-top:14px;min-height:120px;width:100%;border-radius:var(--r-sm);background:var(--surface-2);border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ink);font:inherit;position:relative}
+.cover b{display:inline-flex;align-items:center;gap:6px;font-size:var(--f-15);font-weight:600}
+.cover b i{font-size:20px}
+.cover span{font-size:var(--f-13);color:var(--ink-2)}
+.cover .lines{display:flex;flex-direction:column;gap:6px;width:62%;margin-bottom:10px}
+.cover .lines i{height:8px;border-radius:4px;background:var(--hair-2)}
+.cover .lines i:nth-child(2){width:72%}
+.focusring{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--blue)}
+
+/* rating dock: 3 buttons, 48px; peek note above */
+.rdock{position:absolute;left:0;right:0;bottom:0;z-index:30;padding:10px 16px 34px;box-shadow:inset 0 .5px 0 var(--hair)}
+.rdock .note{font-size:var(--f-12);color:var(--ink-2);padding:0 2px 8px;display:flex;align-items:center;gap:6px}
+.rdock .note i{font-size:15px;color:var(--amber)}
+.rdock .row3{display:flex;gap:8px}
+.rdock .btn{flex:1;height:48px;padding:0 8px;font-size:var(--f-15)}
+.btn .amb{color:var(--amber)}
+.btn .neu{color:var(--ink-2)}
+.dock2{position:absolute;left:0;right:0;bottom:0;z-index:30;padding:10px 16px 34px;display:flex;gap:8px;box-shadow:inset 0 .5px 0 var(--hair)}
+.dock2 .btn{flex:1}
+
+/* rating badges (text + tint, never colour alone) */
+.rb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:7px;font-size:var(--f-12);font-weight:600;white-space:nowrap}
+.rb.know{background:var(--green-tint);color:var(--green)}
+.rb.fuzzy{background:var(--amber-tint);color:var(--amber)}
+.rb.unknown{background:var(--surface-2);color:var(--ink-2)}
+.rb i{font-size:14px}
+.toast{margin-top:10px;font-size:var(--f-13);color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.toast i{font-size:16px}
+
+/* quiz */
+.q{padding:18px 16px}
+.q .kind{font-size:var(--f-12);font-weight:600;letter-spacing:.06em;color:var(--ink-2)}
+.q .big{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:8px;display:flex;align-items:center;gap:10px}
+.q .big .play{width:44px;height:44px}
+.play{width:44px;height:44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--blue-tint);color:var(--blue);font-size:20px;flex:none}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.opt{min-height:52px;border-radius:12px;border:.5px solid var(--hair);background:var(--surface);display:flex;align-items:center;gap:10px;padding:0 14px;font-size:var(--f-15)}
+.opt .k{width:24px;height:24px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:var(--f-12);font-weight:600;color:var(--ink-2);flex:none}
+.spotbar{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--r-md);background:var(--blue-tint);margin-top:10px}
+.spotbar i{font-size:20px;color:var(--blue);flex:none;margin-top:1px}
+.spotbar b{display:block;font-size:var(--f-15);font-weight:600;color:var(--ink)}
+.spotbar span{display:block;font-size:var(--f-13);color:var(--ink-2);margin-top:2px}
+.qmap{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.qmap span{height:26px;padding:0 8px;border-radius:7px;font-size:var(--f-12);font-weight:500;display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);color:var(--ink-2)}
+.qmap span.cur{background:var(--blue-tint);color:var(--blue);font-weight:600}
+
+/* quick recall front */
+.rfront{margin-top:10px;min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px 16px}
+.rfront .hw{font-size:40px;margin-top:12px}
+.rfront .ph{justify-content:center}
+.rfront .hint{margin-top:22px;font-size:var(--f-13);color:var(--ink-2)}
+.flipnote{font-size:var(--f-12);color:var(--ink-2);margin:10px 2px 0;display:flex;gap:6px;align-items:center}
+.flipnote i{font-size:15px}
+
+/* summary */
+.ring2{width:96px;height:96px;margin:0 auto;border-radius:50%;background:conic-gradient(var(--green) 0 80%,var(--green-tint) 80% 100%);display:flex;align-items:center;justify-content:center;position:relative}
+.ring2::after{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--surface)}
+.ring2 b{position:relative;z-index:1;font-size:28px;font-weight:600;letter-spacing:-.03em;color:var(--green)}
+.split{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:14px;gap:2px}
+.split i{display:block;height:100%}
+.legend{display:flex;justify-content:center;gap:12px;margin-top:8px;font-size:var(--f-12);color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend span::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c)}
+
+/* admin settings panel (desktop-only admin, R-7) */
+.admin{width:560px;background:#fff;border:.5px solid rgba(17,19,24,.18);border-radius:14px;box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);color:#111318;overflow:hidden}
+.admin .ah{padding:16px 20px;border-bottom:.5px solid rgba(17,19,24,.1);display:flex;align-items:center;justify-content:space-between}
+.admin .ah b{font-size:15px;font-weight:600}
+.admin .ah span{font-size:12px;color:#5B6170}
+.admin .ar{display:flex;align-items:center;gap:16px;padding:14px 20px;min-height:64px}
+.admin .ar + .ar{border-top:.5px solid rgba(17,19,24,.07)}
+.admin .ar .t{flex:1;min-width:0}
+.admin .ar .t b{display:block;font-size:14px;font-weight:500}
+.admin .ar .t span{display:block;font-size:12px;color:#5B6170;margin-top:2px;line-height:1.45}
+.admin .ar code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#5B6170}
+.admin .num{display:inline-flex;align-items:center;height:32px;border-radius:8px;border:.5px solid rgba(17,19,24,.18);padding:0 10px;font-size:14px;font-variant-numeric:tabular-nums;gap:6px;min-width:84px;justify-content:space-between}
+.admin .num small{color:#5B6170;font-size:12px}
+.admin .toggle{--blue:#2456DB;--surface:#fff;--surface-2:#F5F6F8;--hair:rgba(17,19,24,.12)}
+.admin .af{padding:12px 20px;background:#F5F6F8;font-size:12px;color:#5B6170;display:flex;justify-content:space-between;align-items:center}
+.admin .af .btn{height:36px;font-size:13px;padding:0 14px;background:#2456DB;color:#fff;border-radius:10px}
+
+@media (prefers-reduced-motion:no-preference){
+  .phone .flip-demo{transition:transform 180ms ease-out}
+}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>背单词 v2 · 认识 / 模糊 / 不认识 与「快速回忆」</h1>
+  <p class="lede">视觉稿 wordbook-recall-v1(spec <code>docs/superpowers/specs/2026-10-11-wordbook-recall-design.md</code>)。375×812 浅色玻璃(redesign-v3)+ 1 帧深色。一色一义:蓝 = 主操作与「认识」,琥珀 = 「模糊」与提示,绿 = 正确与「认识」徽标,中性 = 「不认识」与答错(不用红)。遮罩是真正的按钮,遮罩时释义不渲染(不是模糊处理)。会话页底部操作条沿用 wordbook-v1 的画法(实现时 Tab 栏照常,操作条贴在其上)。</p>
+
+  <div class="row">
+
+    <!-- 01 · New word: covered -->
+    <div class="spec">
+      <div class="phone" data-frame="01">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="cur"></i><i></i><i></i><i></i></div>
+            <div class="card wcard">
+              <div class="eyerow"><div class="eyebrow">新词 2 / 5 · 四级</div></div>
+              <div class="hw" style="margin-top:6px">abandon</div>
+              <div class="ph">
+                <span><i class="ti ti-volume"></i><small>美</small><span class="ipa">əˈbændən</span></span>
+                <span><i class="ti ti-volume"></i><small>英</small><span class="ipa">əˈbændən</span></span>
+              </div>
+              <button class="cover" aria-expanded="false">
+                <div class="lines" aria-hidden="true"><i></i><i></i></div>
+                <b><i class="ti ti-eye"></i>显示释义</b>
+                <span>先在心里想一想,再点开核对</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">学新词</div></div></header>
+        <div class="rdock glass">
+          <div class="row3">
+            <span class="btn ghost"><i class="ti ti-circle-x neu"></i>不认识</span>
+            <span class="btn ghost"><i class="ti ti-help-circle amb"></i>模糊</span>
+            <span class="btn primary"><i class="ti ti-circle-check"></i>认识</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>01 新词卡 · 遮罩</b> — 只有词头、美/英音标和 44px 朗读键;释义区是一块 120px 高的遮罩按钮(<code>aria-expanded="false"</code>),里面的灰条只是占位形状,释义、词性、例句此时不在 DOM。底部三个 48px 自评键:不认识(中性)/ 模糊(琥珀图标)/ 认识(蓝主按钮)。</p>
+    </div>
+
+    <!-- 02 · New word: peeked -->
+    <div class="spec">
+      <div class="phone" data-frame="02">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="cur"></i><i></i><i></i><i></i></div>
+            <div class="card wcard">
+              <div class="eyerow"><div class="eyebrow">新词 2 / 5 · 四级</div></div>
+              <div class="hw" style="margin-top:6px">abandon</div>
+              <div class="ph">
+                <span><i class="ti ti-volume"></i><small>美</small><span class="ipa">əˈbændən</span></span>
+                <span><i class="ti ti-volume"></i><small>英</small><span class="ipa">əˈbændən</span></span>
+              </div>
+              <div class="senses">
+                <div><em>vt.</em>放弃;抛弃</div>
+                <div><em>vt.</em>遗弃(人、动物等)</div>
+              </div>
+              <div class="ex">
+                <p>They had to <mark>abandon</mark> the car in the deep snow.</p>
+                <p class="zh">他们只好把车弃在深雪里。</p>
+                <div class="acts"><span><i class="ti ti-volume"></i>朗读例句</span><span><i class="ti ti-eye-off"></i>收起译文</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">学新词</div></div></header>
+        <div class="rdock glass">
+          <div class="note"><i class="ti ti-eye"></i>已看过释义:点「认识」会记为「模糊」</div>
+          <div class="row3">
+            <span class="btn ghost"><i class="ti ti-circle-x neu"></i>不认识</span>
+            <span class="btn ghost"><i class="ti ti-help-circle amb"></i>模糊</span>
+            <span class="btn primary"><i class="ti ti-circle-check"></i>认识</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>02 偷看后</b> — 点遮罩 = 偷看:释义、词性、例句展开,焦点移到释义区。三个键不变,条上方一行说明(<code>aria-describedby</code> 关联到「认识」),之后的「认识」由服务端按「模糊」记(<code>revealed_before: true</code>)。设置「翻开后显示例句」关时不显示例句块。</p>
+    </div>
+
+    <!-- 03 · After rating: fuzzy -->
+    <div class="spec">
+      <div class="phone" data-frame="03">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i></div>
+            <div class="card wcard">
+              <div class="eyerow"><div class="eyebrow">新词 3 / 5 · 四级</div><span class="rb fuzzy"><i class="ti ti-help-circle"></i>模糊</span></div>
+              <div class="hw" style="margin-top:6px">absorb</div>
+              <div class="ph">
+                <span><i class="ti ti-volume"></i><small>美</small><span class="ipa">əbˈsɔrb</span></span>
+                <span><i class="ti ti-volume"></i><small>英</small><span class="ipa">əbˈzɔːb</span></span>
+              </div>
+              <div class="senses">
+                <div><em>v.</em>吸收(液体、气体等)</div>
+                <div><em>v.</em>吸引…的注意,使全神贯注</div>
+              </div>
+              <div class="ex">
+                <p>Plants <mark>absorb</mark> carbon dioxide from the air.</p>
+                <p class="zh">植物从空气中吸收二氧化碳。</p>
+                <div class="acts"><span><i class="ti ti-volume"></i>朗读例句</span><span><i class="ti ti-eye-off"></i>收起译文</span></div>
+              </div>
+              <div class="phr"><span>短语 · be absorbed in 专心于…</span><i class="ti ti-chevron-down" style="font-size:18px;color:var(--ink-3)"></i></div>
+            </div>
+            <p class="toast"><i class="ti ti-info-circle"></i>本轮小测里会先考它 · 2 天后复习</p>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">学新词</div></div></header>
+        <div class="dock2 glass"><span class="btn primary focusring">下一个<i class="ti ti-arrow-right"></i></span></div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>03 自评之后(模糊)</b> — 释义 + 例句自动翻开,徽标「模糊」(文字 + 琥珀底),读屏播报一次「已记为模糊」;焦点在「下一个」。「不认识」同样翻开并总是朗读词头;「认识」翻开后左侧多一个「记错了」(当天只降不升)。盒子由服务端定:认识 2 / 模糊 1 / 不认识 0。</p>
+    </div>
+
+    <!-- 04 · Round quiz: spot check -->
+    <div class="spec">
+      <div class="phone" data-frame="04">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="on"></i><i class="cur"></i><i></i></div>
+            <div class="qmap" aria-label="本轮小测顺序">
+              <span>模糊 · absorb</span><span>模糊 · abandon</span><span>不认识 · accuse</span><span class="cur">抽查 · able</span><span>再认 · accuse</span>
+            </div>
+            <div class="spotbar"><i class="ti ti-zoom-check"></i><div><b>抽查 · 你标了「认识」</b><span>答对升到第 3 级(4 天后复习),答错回到第 1 级</span></div></div>
+            <div class="card q" style="margin-top:8px">
+              <div class="kind">选择正确的释义</div>
+              <div class="big">able <span class="play"><i class="ti ti-volume"></i></span></div>
+              <div class="opts">
+                <div class="opt"><span class="k">A</span>n. 事故;意外</div>
+                <div class="opt"><span class="k">B</span>adj. 能够的;有能力的</div>
+                <div class="opt"><span class="k">C</span>adj. 小心的;仔细的</div>
+                <div class="opt"><span class="k">D</span>v. 停止;阻止</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">小测<small>4 / 5</small></div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>04 本轮小测 · 抽查</b> — 排队(上方顺序条只为说明,实现里不显示):模糊在前 → 不认识(选释义)→ 抽中的认识 → 不认识第二次(看释义选词,眉题「再认一次」)。没抽中的认识不考。抽查比例默认 33%,点得太快(&lt; 1 秒)的「认识」必抽。</p>
+    </div>
+
+    <!-- 05 · Quick recall: front -->
+    <div class="spec">
+      <div class="phone" data-frame="05">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="card rfront">
+              <div class="eyebrow">快速回忆</div>
+              <div class="hw">significant</div>
+              <div class="ph"><span><i class="ti ti-volume"></i><span class="ipa">sɪgˈnɪfɪkənt</span></span></div>
+              <div class="hint">想起它的意思了吗?</div>
+            </div>
+            <p class="flipnote"><i class="ti ti-rotate-clockwise-2"></i>自评之后翻面核对释义与例句</p>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">复习<small>3 / 20</small></div></div></header>
+        <div class="rdock glass">
+          <div class="row3">
+            <span class="btn ghost"><i class="ti ti-circle-x neu"></i>不认识</span>
+            <span class="btn ghost"><i class="ti ti-help-circle amb"></i>模糊</span>
+            <span class="btn primary"><i class="ti ti-circle-check"></i>认识</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>05 快速回忆 · 正面</b> — 复习里的新题型:只显示词头与音标,没有遮罩可点(复习没有偷看路径)。只出现在盒 1、2、4、5 的到期词(约 40%);盒 3 升「已掌握」的那次必须是客观题。认识 = good、模糊 = hard、不认识 = forgot,与其它题型一样每次到期复习 1 个段位点。</p>
+    </div>
+
+    <!-- 06 · Quick recall: spot check (pending) -->
+    <div class="spec">
+      <div class="phone" data-frame="06">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="spotbar"><i class="ti ti-zoom-check"></i><div><b>抽查:选出它的意思</b><span>你标了「认识」,答对才算数</span></div></div>
+            <div class="card q" style="margin-top:8px">
+              <div class="kind">选择正确的释义</div>
+              <div class="big">significant <span class="play"><i class="ti ti-volume"></i></span></div>
+              <div class="opts">
+                <div class="opt"><span class="k">A</span>adj. 重要的;显著的</div>
+                <div class="opt"><span class="k">B</span>adj. 模糊的;不明确的</div>
+                <div class="opt"><span class="k">C</span>adj. 灵活的;可变通的</div>
+                <div class="opt"><span class="k">D</span>adj. 临时的;暂时的</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">复习<small>3 / 20</small></div></div></header>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>06 快速回忆 · 抽查</b> — 按「认识」后服务端按比例返回 <code>outcome:"pending"</code> + 一道选释义题:此时还没写盒子、没记事件。答对 = good,答错 = forgot,然后翻面。抽中与否用服务端私有的选书种子做哈希,客户端预测不了。</p>
+    </div>
+
+    <!-- 07 · Quick recall: back -->
+    <div class="spec">
+      <div class="phone" data-frame="07">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="card wcard">
+              <div class="eyerow"><div class="eyebrow">快速回忆</div><span class="rb know"><i class="ti ti-circle-check"></i>认识</span></div>
+              <div class="hw" style="margin-top:6px">significant</div>
+              <div class="ph"><span><i class="ti ti-volume"></i><small>美</small><span class="ipa">sɪgˈnɪfɪkənt</span></span></div>
+              <div class="senses">
+                <div><em>adj.</em>重要的;显著的</div>
+                <div><em>adj.</em>有意义的;意味深长的</div>
+              </div>
+              <div class="ex">
+                <p>There has been a <mark>significant</mark> increase in sales.</p>
+                <p class="zh">销售额有了显著增长。</p>
+                <div class="acts"><span><i class="ti ti-volume"></i>朗读例句</span><span><i class="ti ti-eye-off"></i>收起译文</span></div>
+              </div>
+            </div>
+            <p class="toast" style="color:var(--green);font-weight:600"><i class="ti ti-circle-check"></i>答对了 · 下次 7 天后</p>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">复习<small>3 / 20</small></div></div></header>
+        <div class="dock2 glass"><span class="btn ghost"><i class="ti ti-rotate"></i>记错了</span><span class="btn primary focusring">继续</span></div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>07 快速回忆 · 背面</b> — 翻面(<code>prefers-reduced-motion: no-preference</code> 下 180ms rotateY,否则直接切换)显示词卡与徽标。认识之后可点「记错了」:对已不到期的词再交一次「不认识」,走 <code>apply_lapse</code>(回第 1 级,不加 reps、不产生段位事件)。模糊 / 不认识的词回到队尾再出现一次。</p>
+    </div>
+
+    <!-- 08 · Session summary -->
+    <div class="spec">
+      <div class="phone" data-frame="08">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="card" style="padding:18px 16px;text-align:center">
+              <div class="ring2"><b class="num">80%</b></div>
+              <div style="font-size:22px;font-weight:600;letter-spacing:-.015em;margin-top:14px">这一轮学完了</div>
+              <div style="font-size:13px;color:var(--ink-2);margin-top:4px">学会 5 个新词 · 一次答对 4</div>
+              <div class="split" aria-hidden="true"><i style="flex:2;background:var(--green)"></i><i style="flex:2;background:var(--amber)"></i><i style="flex:1;background:var(--ink-3)"></i></div>
+              <div class="legend"><span style="--c:var(--green)">认识 2</span><span style="--c:var(--amber)">模糊 2</span><span style="--c:var(--ink-3)">不认识 1</span></div>
+              <div style="font-size:12px;color:var(--ink-2);margin-top:6px">抽查 1 · 通过 1</div>
+            </div>
+            <div class="stats" style="margin-top:8px">
+              <div class="stat blue"><div class="l"><i class="ti ti-cards"></i>新词</div><div class="n num">5</div></div>
+              <div class="stat green"><div class="l"><i class="ti ti-circle-check"></i>一次答对</div><div class="n num">4</div></div>
+              <div class="stat amber"><div class="l"><i class="ti ti-trending-up"></i>段位点</div><div class="n num">+5<small>估算</small></div></div>
+            </div>
+            <div class="h-sec">需要再看看</div>
+            <div class="list">
+              <div class="rowi"><span class="chip gray"><i class="ti ti-rotate"></i></span><div class="t"><b>abandon</b><span>vt. 放弃;抛弃 · 明天再复习</span></div><span class="play" style="background:transparent"><i class="ti ti-volume"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">小结</div></div></header>
+        <div class="dock2 glass"><span class="btn ghost">回到首页</span><span class="btn primary">再来一轮</span></div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>08 小结</b> — v1 小结加一行评级分布(条只是装饰,数字在文字里)与「抽查 1 · 通过 1」。「一次答对」= 没抽中的认识 + 小测题全部一次答对的词。段位点估算 = 本轮新学词数(每词 <code>word_learned</code> 1 点,计入每日 60 上限),段位关闭时不显示。</p>
+    </div>
+
+    <!-- 09 · Dark: new word covered -->
+    <div class="spec">
+      <div class="phone dark" data-frame="09">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content" style="padding-top:108px">
+            <div class="step"><i class="on"></i><i class="on"></i><i class="on"></i><i class="cur"></i><i></i></div>
+            <div class="card wcard">
+              <div class="eyerow"><div class="eyebrow">新词 4 / 5 · 四级</div></div>
+              <div class="hw" style="margin-top:6px">accuse</div>
+              <div class="ph">
+                <span><i class="ti ti-volume"></i><small>美</small><span class="ipa">əˈkjuz</span></span>
+                <span><i class="ti ti-volume"></i><small>英</small><span class="ipa">əˈkjuːz</span></span>
+              </div>
+              <button class="cover" aria-expanded="false">
+                <div class="lines" aria-hidden="true"><i></i><i></i></div>
+                <b><i class="ti ti-eye"></i>显示释义</b>
+                <span>先在心里想一想,再点开核对</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-x"></i></span><div class="title">学新词</div></div></header>
+        <div class="rdock glass">
+          <div class="row3">
+            <span class="btn ghost"><i class="ti ti-circle-x neu"></i>不认识</span>
+            <span class="btn ghost"><i class="ti ti-help-circle amb"></i>模糊</span>
+            <span class="btn primary"><i class="ti ti-circle-check"></i>认识</span>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>09 深色 · 新词卡遮罩</b> — 深色表(design-notes):卡 <code>#17191E</code>,遮罩 <code>surface-2 #1E2127</code>,说明文字 <code>ink-2 #A6ABB8</code>;主按钮文字 <code>#0F1013</code>;玻璃操作条 <code>rgba(23,25,30,.66)</code>。需要在两平台深色模式真机确认遮罩与卡片可区分。</p>
+    </div>
+
+    <!-- 10 · Admin settings (desktop) -->
+    <div class="spec" style="width:auto">
+      <div class="admin" data-frame="10">
+        <div class="ah"><b>设置 · 背单词</b><span>热生效 · 改动写入审计</span></div>
+        <div class="ar"><div class="t"><b>「认识」抽查比例(%)</b><span>学新词与快速回忆里按「认识」的词按此比例抽查一道选释义;0 = 不抽查(含太快必抽)</span><code>wordbook_spot_check_pct · 0–100</code></div><span class="num">33<small>%</small></span></div>
+        <div class="ar"><div class="t"><b>复习题型「快速回忆」</b><span>自评三档后翻面确认;进入已掌握的那次复习不出此题</span><code>wordbook_recall_enabled</code></div><span class="toggle"></span></div>
+        <div class="ar"><div class="t"><b>自动朗读词头</b><span>新词卡出现、快速回忆翻面时;「不认识」总是朗读</span><code>wordbook_autoplay</code></div><span class="toggle"></span></div>
+        <div class="ar"><div class="t"><b>翻开后显示例句</b><span>关闭后翻开只显示释义与词性</span><code>wordbook_show_example</code></div><span class="toggle"></span></div>
+        <div class="af"><span>管理端只做桌面(R-7);用户级开关留给目标 / 设置面板计划</span><span class="btn">保存</span></div>
+      </div>
+      <p class="frame-cap" style="max-width:560px"><b>10 设置项</b> — 四个新设置登记在设置注册表「背单词」分组(管理端,桌面);<code>/api/wordbook/config</code> 只下发 <code>learn.autoplay</code> 与 <code>learn.show_example</code>,抽查比例与快速回忆开关由服务端执行,不下发。</p>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
