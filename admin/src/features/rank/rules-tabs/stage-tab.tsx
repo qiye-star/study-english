@@ -1,8 +1,7 @@
 import type { StageKind, StageTaskRule } from "../api";
 import { NumField, Section, isChanged, type TabProps } from "../fields";
+import { STAGE_KIND_LIST as KINDS, hasMinScore } from "../rules-schema";
 import { STAGE_KINDS, S, tierName } from "../strings";
-
-const KINDS = Object.keys(STAGE_KINDS) as StageKind[];
 
 /** 种类改变时 key 跟着换(key 是完成记录 `{tier}:{key}` 的一部分,同段位内唯一) */
 function keyFor(kind: StageKind, others: StageTaskRule[]): string {
@@ -36,7 +35,7 @@ export function StageTab({ rules, base, edit, disabled }: TabProps) {
                           edit((d) => {
                             const list = d.stage_tasks[String(tier)];
                             const kind = e.target.value as StageKind;
-                            list[i] = { ...list[i], kind, key: keyFor(kind, list.filter((_, j) => j !== i)), min_score: kind === "assess" ? list[i].min_score : null };
+                            list[i] = { ...list[i], kind, key: keyFor(kind, list.filter((_, j) => j !== i)), min_score: hasMinScore(kind) ? list[i].min_score : null };
                           })
                         }
                       >
@@ -55,7 +54,7 @@ export function StageTab({ rules, base, edit, disabled }: TabProps) {
                         changed={isChanged(rules, base, `${path}.target`)}
                         onChange={(v) => edit((d) => void (d.stage_tasks[String(tier)][i].target = v))}
                       />
-                      {t.kind === "assess" ? (
+                      {hasMinScore(t.kind) ? (
                         <NumField
                           hideLabel
                           label={S.stageTab.minScore(name, i + 1)}

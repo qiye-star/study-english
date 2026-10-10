@@ -28,6 +28,7 @@ export const STAGE_KINDS: Record<string, string> = {
   voice_turns: "语音对话轮数",
   vocab_reviews: "复习单词",
   active_days: "活跃天数",
+  words_learned: "背单词新词",
 };
 
 export const EVENT_KINDS: Record<string, string> = {
@@ -38,6 +39,8 @@ export const EVENT_KINDS: Record<string, string> = {
   active_day: "今日活跃",
   streak_7: "连续 7 天",
   stage_task: "完成阶段练习",
+  word_learned: "学会新词",
+  spelling_set: "拼写练习",
   admin_adjust: "管理员调整",
 };
 
@@ -124,6 +127,7 @@ export function rulesError(code: string): { tab: RulesTab; text: string } {
     case "stage_tasks":
       if (arg === "master") return { tab: "stage", text: "王者没有阶段练习" };
       if (arg === "keys") return { tab: "stage", text: "阶段练习的段位编号不正确" };
+      if (arg === "wordbook_disabled") return { tab: "stage", text: "背单词未开启,不能使用『背单词新词』阶段练习" };
       return { tab: "stage", text: `${tierName(Number(arg))}的阶段练习需要 1–4 项且类型不重复` };
     case "weights_sum":
       return { tab: "match", text: "评分权重合计必须为 100%" };
@@ -194,6 +198,8 @@ export const S = {
     active_day: "每日活跃",
     streak_7: "连续 7 天",
     stage_task: "每项阶段练习",
+    word_learned: "每学会一个新词(背单词)",
+    spelling_set: "每完成一组拼写(背单词)",
     daily_cap: "每日上限(跟读/对话/复习合计)",
     note: "点数改动只影响之后入账的事件,不追溯;每小段点数调小后,超出的点数在用户下次同步时截到新上限。",
   },

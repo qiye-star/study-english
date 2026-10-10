@@ -161,9 +161,20 @@ async def draft_rules(session) -> RankRules:
     return rules_from_json(row.rules)
 
 
-async def validate_draft(session, cache: RulesCache, today: date) -> list[str]:
+def wordbook_errors(draft: RankRules, settings) -> list[str]:
+    """A `words_learned` stage task is publishable only while the wordbook is on (spec 2026-10-10-wordbook §8):
+    otherwise nobody could complete it and promotion would be blocked."""
+    uses = any(t.kind == "words_learned" for tasks in draft.stage_tasks.values() for t in tasks)
+    return ["stage_tasks:wordbook_disabled"] if uses and not getattr(settings, "wordbook_enabled", False) else []
+
+
+async def validate_draft(session, cache: RulesCache, today: date, settings=None) -> list[str]:
+    """`settings` (the app's live Settings) adds the feature-switch checks; None = rules-only validation."""
     draft = await draft_rules(session)
-    return validate_rules(draft, current=(await cache.current())[1], today=today)
+    errors = validate_rules(draft, current=(await cache.current())[1], today=today)
+    if settings is not None:
+        errors += wordbook_errors(draft, settings)
+    return errors
 
 
 async def publish(session, app, actor: Actor, *, reason: str, etag: str, now: datetime | None = None) -> int:
@@ -178,7 +189,8 @@ async def publish(session, app, actor: Actor, *, reason: str, etag: str, now: da
             raise RulesError(409, "Draft changed")
         current_version, current_data = await load_published(session)
         current = rules_from_json(current_data) if current_data is not None else cache.v0()
-        errors = validate_rules(rules_from_json(row.rules), current=current, today=now.date())
+        draft = rules_from_json(row.rules)
+        errors = validate_rules(draft, current=current, today=now.date()) + wordbook_errors(draft, app.state.settings)
         if errors:
             raise RulesError(422, "Invalid rules", {"errors": errors})
         version = int(await session.scalar(select(func.max(RankRuleSet.version))) or 0) + 1

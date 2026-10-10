@@ -15,10 +15,13 @@ export interface PointsRule {
   active_day: number;
   streak_7: number;
   stage_task: number;
+  /** 背单词(spec 2026-10-10-wordbook §8);旧版本的规则 JSON 里没有,服务端按默认值 1 / 2 解析 */
+  word_learned?: number;
+  spelling_set?: number;
   daily_cap: number;
 }
 
-export type StageKind = "assess" | "chat_turns" | "voice_turns" | "vocab_reviews" | "active_days";
+export type StageKind = "assess" | "chat_turns" | "voice_turns" | "vocab_reviews" | "active_days" | "words_learned";
 
 export interface StageTaskRule {
   key: string;

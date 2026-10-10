@@ -9,7 +9,8 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4. Off 
 - `ledger.py` – incremental RP sync into `xp_events`, profile state, promotion status; also reads `wordbook_events`
   through `app.models.WordbookEvent` (learn → `word_learned` ref `wl:<id>`, spell_set → `spelling_set` ref `ws:<id>`,
   both capped). Never import `app.wordbook` (architecture test)
-- `achievements.py` – catalogue, snapshot queries, unlocks
+- `achievements.py` – catalogue, snapshot queries, unlocks (wordbook ones count `wordbook_events` learn rows and
+  `vocabulary_items` with box ≥ 4)
 - `scenarios.json` + `scenarios.py` – promotion-match scenarios
 - `grading.py` – examiner/judge prompts, judge parsing, composite score, gates (pure)
 - `match.py` – promotion-match orchestration with injected transcribe/assess/LLM
@@ -17,6 +18,7 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4. Off 
   `tests/test_rank_rules.py`), `rules_from_settings` (v0), `validate_rules`, JSON round trip
 - `rules_store.py` – `rank_rules(app)` cache: `current()` (published version or v0), `for_version(n)` (LRU 8);
   invalidated through `on_revision(app, "rank_rules", ...)`. Draft/publish lives in `app/admin/rank_rules_admin.py`
+  (its `wordbook_errors` refuses a `words_learned` stage task while `WORDBOOK_ENABLED` is off)
 
 ## Rules threading (admin v2)
 - Every rank function takes keyword-only `rules=None`; `None` = the built-in constants + Settings (exactly v0).

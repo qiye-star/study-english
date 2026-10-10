@@ -40,6 +40,21 @@ describe("RankHomePage", () => {
     expect(row.textContent).toContain("3/20");
   });
 
+  it("names the wordbook stage task and RP events", async () => {
+    setup({
+      ...CONTRACT.me,
+      stage_tasks: [{ key: "words", kind: "words_learned", done: 12, target: 50, min_score: null, complete: false }],
+      recent_events: [
+        { kind: "spelling_set", points: 2, day: "2026-11-09", created_at: "2026-11-09T09:42:00+00:00" },
+        { kind: "word_learned", points: 1, day: "2026-11-09", created_at: "2026-11-09T09:41:00+00:00" },
+      ],
+    });
+    const row = (await screen.findAllByTestId("stage-task"))[0];
+    expect(row.textContent).toContain("背单词学会 50 个新词");
+    expect(row.querySelector("a")?.getAttribute("href")).toBe("/wordbook");
+    expect(screen.getAllByTestId("rank-event").map((e) => e.textContent)).toEqual(["拼写练习+2", "学会新词+1"]);
+  });
+
   it("starts a match and navigates to it", async () => {
     const mock = setup();
     fireEvent.click(await screen.findByTestId("rank-start"));

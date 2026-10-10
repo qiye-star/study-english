@@ -1,7 +1,6 @@
 import { NumField, Section, isChanged, type TabProps } from "../fields";
+import { POINT_KINDS, pointValue } from "../rules-schema";
 import { S } from "../strings";
-
-const SIMPLE = ["chat_turn", "vocab_review", "active_day", "streak_7", "stage_task"] as const;
 
 /** 跟读分档 + 其他固定点数 + 每日上限 */
 export function PointsTab({ rules, base, edit, disabled }: TabProps) {
@@ -60,11 +59,11 @@ export function PointsTab({ rules, base, edit, disabled }: TabProps) {
       </Section>
       <Section title={S.tiersTab.points}>
         <div className="grid grid-cols-2 gap-3">
-          {SIMPLE.map((k) => (
+          {POINT_KINDS.map((k) => (
             <NumField
               key={k}
               label={S.tiersTab[k]}
-              value={rules.points[k]}
+              value={pointValue(rules.points, k)}
               range="points"
               disabled={disabled}
               changed={isChanged(rules, base, `points.${k}`)}

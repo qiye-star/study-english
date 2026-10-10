@@ -1,4 +1,4 @@
-import type { RankRules } from "./api";
+import type { PointsRule, RankRules, StageKind } from "./api";
 
 /** 数字输入的范围,与服务端 app/rank/rules.py 的模型与 validate_rules 一致(百分比字段以 % 计)。 */
 export const RANGES = {
@@ -26,6 +26,16 @@ export const RANGES = {
 
 export type RangeKey = keyof typeof RANGES;
 
+/** 固定点数的种类(与服务端 PointsRule 同序);背单词两项在旧规则里可能缺省,按服务端默认值显示与校验 */
+export const POINT_KINDS = ["chat_turn", "vocab_review", "active_day", "streak_7", "stage_task", "word_learned", "spelling_set"] as const;
+export type PointKind = (typeof POINT_KINDS)[number];
+export const POINT_DEFAULTS: Partial<Record<PointKind, number>> = { word_learned: 1, spelling_set: 2 };
+export const pointValue = (p: PointsRule, k: PointKind): number => p[k] ?? POINT_DEFAULTS[k] ?? 0;
+
+/** 阶段练习的种类(与服务端 StageTaskRule.kind 同序);只有跟读有分数门槛 */
+export const STAGE_KIND_LIST: StageKind[] = ["assess", "chat_turns", "voice_turns", "vocab_reviews", "active_days", "words_learned"];
+export const hasMinScore = (kind: StageKind): boolean => kind === "assess";
+
 export const WEIGHT_KEYS = ["task", "accuracy", "range", "interaction"] as const;
 export const MATCH_TIERS = ["1", "2", "3", "4", "5", "6"] as const;
 export const EXAMINER_FIELDS = ["cefr", "role", "setting", "functions"];
@@ -50,7 +60,7 @@ export function outOfRange(r: RankRules): string[] {
     if (!inRange(key, v)) bad.push(path);
   };
   r.tiers.forEach((t, i) => check(`tiers.${i}.division_rp`, "division_rp", t.division_rp));
-  for (const k of ["chat_turn", "vocab_review", "active_day", "streak_7", "stage_task"] as const) check(`points.${k}`, "points", r.points[k]);
+  for (const k of POINT_KINDS) check(`points.${k}`, "points", pointValue(r.points, k));
   check("points.daily_cap", "daily_cap", r.points.daily_cap);
   r.points.assessment_bands.forEach(([f, p], i) => {
     check(`points.assessment_bands.${i}.0`, "band_floor", f);

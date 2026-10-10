@@ -8,7 +8,9 @@ from app.models import User, VocabularyItem, WordbookEvent, XpEvent
 from app.rank import achievements, ledger, points
 from app.rank.achievements import Snapshot, earned
 from app.rank.points import EventRow, StageTask, stage_progress
-from app.rank.rules import DEFAULT_RULES, rules_from_json, rules_json
+from app.admin.rank_rules_admin import wordbook_errors
+from app.rank.rules import DEFAULT_RULES, StageTaskRule, rules_from_json, rules_json
+from tests.conftest import make_settings
 
 NOW = datetime(2026, 11, 10, 9, 0, tzinfo=timezone.utc)
 
@@ -104,3 +106,41 @@ async def test_snapshot_counts_learn_events_and_box4_items(app):
         await s.commit()
         snap = await achievements.snapshot(s, 10000009, 0, None)
     assert (snap.words_learned, snap.words_mastered) == (3, 2)
+
+
+# ---- R3: publish guard ----
+
+def _draft_with_words_learned():
+    tasks = dict(DEFAULT_RULES.stage_tasks)
+    tasks[0] = tasks[0][:2] + (StageTaskRule(key="words", kind="words_learned", target=50),)
+    return DEFAULT_RULES.model_copy(update={"stage_tasks": tasks})
+
+
+def test_publishing_words_learned_requires_wordbook():
+    draft = _draft_with_words_learned()
+    assert wordbook_errors(draft, make_settings()) == ["stage_tasks:wordbook_disabled"]
+    assert wordbook_errors(draft, make_settings(wordbook_enabled=True)) == []
+    assert wordbook_errors(DEFAULT_RULES, make_settings()) == []
+
+
+async def test_validate_and_publish_reject_words_learned_while_wordbook_is_off(app):
+    from app.admin import rank_rules_admin as rra
+    from app.admin.audit import CLI_ACTOR as actor
+    from app.rank.rules_store import rank_rules
+
+    async with app.state.sessionmaker() as s:
+        await rra.create_draft(s, actor, from_version=None, cache=rank_rules(app))
+        row = await rra.save_draft(s, actor, rules_json(_draft_with_words_learned()), "")
+        assert await rra.validate_draft(s, rank_rules(app), NOW.date()) == []  # no settings: rules-only check
+        assert "stage_tasks:wordbook_disabled" in await rra.validate_draft(
+            s, rank_rules(app), NOW.date(), settings=app.state.settings)
+        try:
+            await rra.publish(s, app, actor, reason="r", etag=rra.draft_etag(row))
+        except rra.RulesError as e:
+            assert (e.status, e.details) == (422, {"errors": ["stage_tasks:wordbook_disabled"]})
+        else:
+            raise AssertionError("publish must refuse words_learned while wordbook is off")
+    app.state.settings = app.state.settings.model_copy(update={"wordbook_enabled": True})
+    async with app.state.sessionmaker() as s:
+        row = await rra._draft(s)
+        assert await rra.publish(s, app, actor, reason="r", etag=rra.draft_etag(row)) == 1

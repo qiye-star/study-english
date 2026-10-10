@@ -9,7 +9,7 @@ export function fetchRankConfig(api: ApiClient, signal?: AbortSignal): Promise<R
   return api.request<RankConfig>("GET", "/api/rank/config", { signal });
 }
 
-export type StageTaskKind = "assess" | "chat_turns" | "voice_turns" | "vocab_reviews" | "active_days";
+export type StageTaskKind = "assess" | "chat_turns" | "voice_turns" | "vocab_reviews" | "active_days" | "words_learned";
 export interface StageTask { key: string; kind: StageTaskKind; done: number; target: number; minScore: number | null; complete: boolean }
 export type PromotionState = "locked" | "eligible" | "cooldown" | "no_attempts" | "max_tier" | "unavailable";
 export interface PromotionStatus { state: PromotionState; reason: "rp" | "tasks" | null; cooldownUntil: string | null; attemptsLeft: number; targetTier: TierKey | null }

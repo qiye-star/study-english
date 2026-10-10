@@ -8,6 +8,7 @@ import { CARD } from "./ui";
 /** 未完成的任务点按跳到对应练习页(spec §10.2)。 */
 const ROUTES: Record<StageTaskKind, string> = {
   assess: "/practice", chat_turns: "/chat", voice_turns: "/chat", vocab_reviews: "/vocabulary", active_days: "/practice",
+  words_learned: "/wordbook",
 };
 
 export function StageTasks({ tasks }: { tasks: StageTask[] }) {
