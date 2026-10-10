@@ -3,7 +3,11 @@ from datetime import timedelta
 from sqlalchemy import select, update
 
 from app.models import VocabularyItem, WordbookEvent, utcnow
+from app.services.stats import as_utc
 from app.wordbook import store
+from app.wordbook.index import dictionary
+from app.wordbook.plan import Known
+from app.wordbook.service import _allowed_qtypes
 from tests.wordbook_helpers import enable_wordbook, make_data_dir
 
 URL = "/api/wordbook"
@@ -173,8 +177,14 @@ async def test_a_due_review_must_use_the_question_type_the_server_picked(app, cl
     await ans(client, h, key="talk", mode="learn", qtype="meaning", known=True)  # box 2
     await make_due(app, "talk")
     (q,) = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5})).json()["questions"]
-    other = next(t for t in ("word", "meaning", "dictation", "spell", "cloze") if t != q["qtype"]
-                 and not (q["qtype"] == "dictation" and t == "spell"))
+    # 集成 Z1:服务端接受「有 TTS / 没 TTS」两种出题结果;用户 id 每次不同,所以「另一种题型」必须避开整个允许集合
+    # (之前只避开 q 本身,约 1/4 的运行里挑中了另一个 TTS 变体 → 200,偶发失败)
+    async with app.state.sessionmaker() as s:
+        row = (await s.execute(select(VocabularyItem).where(VocabularyItem.word == "talk"))).scalar_one()
+        known = Known(row.id, row.box, as_utc(row.due_at), row.reps, row.source)
+    allowed = _allowed_qtypes(row.user_id, known, await dictionary(app).card("junior", "talk"), recall_on=False)
+    assert q["qtype"] in allowed
+    other = next(t for t in ("word", "meaning", "dictation", "spell", "cloze") if t not in allowed)
     body = {"choice": "talk"} if other in ("word", "meaning", "cloze") else {"typed": "talk"}
     r = await ans(client, h, key="talk", mode="review", qtype=other, **body)
     assert r.status_code == 422 and r.json() == {"error": "Question type mismatch"}
