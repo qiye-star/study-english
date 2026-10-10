@@ -14,7 +14,8 @@ iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabul
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
 `admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions via
 `rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
-hide/dismiss via `admin/wordbook_admin.py`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
+hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: learning-links view via
+`app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
 sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).

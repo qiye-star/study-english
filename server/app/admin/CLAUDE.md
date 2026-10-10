@@ -28,7 +28,8 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   and import/revert), `revert`, export/import; the six `managed_by="rank_rules"` keys are read-only (409
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
-  `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`)
+  `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`,
+  `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
   `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
   Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`
