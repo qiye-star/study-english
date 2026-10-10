@@ -62,6 +62,8 @@ def test_learn_quiz_target():
     assert learn_quiz_target(0, "unknown", False) is None
     assert learn_quiz_target(2, KNOW_CHECK, True) is None   # 已升过:不再升
     assert learn_quiz_target(0, KNOW_CHECK, True) is None   # 已降:答对也不回升
+    assert learn_quiz_target(1, KNOW_CHECK, True, passes_check=False) is None  # 不是抽查题 / 抽中后再评过
+    assert learn_quiz_target(1, KNOW_CHECK, False, passes_check=False) == 0
 
 
 def test_rerate_only_lowers():

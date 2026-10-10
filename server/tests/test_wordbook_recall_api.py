@@ -296,3 +296,40 @@ async def test_concurrent_v1_answers_for_a_new_word_create_one_row(app, client, 
         rows = await s.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.word == "talk"))
     assert rows == 1
     assert [e[0] for e in await events(app)].count("learn") == 1
+
+
+async def test_the_spot_check_is_passed_only_by_the_meaning_question(app, client, tmp_path):
+    """抽查是一道选释义(spec recall §3.3);「看释义选词」的答案就是词头本身,不能拿来通过抽查。"""
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    await rate(client, h, "talk", "know")
+    word = (await ans(client, h, key="talk", mode="learn", qtype="word", choice="talk")).json()
+    assert (word["correct"], word["applied"], word["item"]["box"]) == (True, False, 1)
+    passed = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=await meaning(app, "talk"))).json()
+    assert (passed["applied"], passed["item"]["box"]) == (True, 2)
+
+
+async def test_a_lower_rerating_after_a_spot_checked_know_blocks_the_upgrade(app, client, tmp_path):
+    """当天再评只降不升(R-R4):抽中的「认识」之后又标了「模糊」,之后答对抽查也不再升到盒 2。"""
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    await rate(client, h, "talk", "know")
+    await rate(client, h, "talk", "fuzzy")
+    passed = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=await meaning(app, "talk"))).json()
+    assert (passed["applied"], passed["item"]["box"]) == (False, 1)
+
+
+async def test_review_spot_check_uses_the_learning_books_seed_not_the_requested_book(app, client, tmp_path, monkeypatch):
+    """P-R1:种子是选书记录的私有 seed。复习时客户端把 book_id 换成一本没选过的书,不能让种子退回可预测的 0。"""
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path)
+    enable_wordbook(app, make_data_dir(tmp_path, ("junior", "senior")), wordbook_books="junior,senior",
+                    wordbook_spot_check_pct=50)
+    await rate(client, h, "talk", "fuzzy")
+    await make_due(app, "talk")
+    async with app.state.sessionmaker() as s:
+        uid = await s.scalar(select(User.id).where(User.username == "alice"))
+        seed = next(n for n in range(1, 1000) if recall.spot_hit(n, uid, "talk", 0, 50) != recall.spot_hit(0, uid, "talk", 0, 50))
+        await s.execute(update(WordbookEnrollment).values(seed=seed))
+        await s.commit()
+    r = await ans(client, h, book_id="senior", key="talk", mode="review", qtype="recall", rating="know", elapsed_ms=5000)
+    assert r.status_code == 200
+    assert (r.json()["outcome"] == "pending") is recall.spot_hit(seed, uid, "talk", 0, 50)

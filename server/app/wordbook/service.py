@@ -355,7 +355,8 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
         applied, due = await _write_srs(session, user_id, row, grade, now)
         kind = "review" if due and applied else "practice"
     elif p.mode == "learn" and row is not None and row.reps == 0 and p.qtype in CHOICE_QTYPES:
-        applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now)
+        applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now,
+                                        qtype=p.qtype)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
     await session.commit()
@@ -403,14 +404,30 @@ async def _create_learned(session: AsyncSession, user_id: int, book_id: str, car
 
 
 async def _learn_day_quiz(session: AsyncSession, user_id: int, row: Known, key: str, day: str, correct: bool,
-                          now) -> bool:
+                          now, *, qtype: str) -> bool:
     """spec recall §5.4:当天自评过的新词(reps = 0)在本轮小测里答错 → 盒 0;抽查(know_chk)答对 → 盒 2。
-    不是复习:不加 reps,不产生段位事件。当天没有自评(从生词本加入的词、昨天学的词)→ 不改。"""
+    不是复习:不加 reps,不产生段位事件。当天没有自评(从生词本加入的词、昨天学的词)→ 不改。
+    Z2:只有选释义题能通过抽查(看释义选词的答案就是词头),且抽中之后又再评过(只降不升)就不再升。"""
     first = await store.first_rating_on(session, user_id, key, day)
-    target = recall.learn_quiz_target(row.box, first, correct) if first else None
+    if not first:
+        return False
+    passes = qtype == "meaning" and await store.last_rating(session, user_id, key) == recall.KNOW_CHECK
+    target = recall.learn_quiz_target(row.box, first, correct, passes_check=passes)
     if target is None:
         return False
     return await store.set_learn_box(session, user_id, row.item_id, seen_box=row.box, to_box=target, now=now)
+
+
+async def _spot_seed(session: AsyncSession, user_id: int, book_id: str, row: Known | None) -> int:
+    """抽查种子(P-R1):学这个词的那本书的选书 seed(服务端私有)。复习请求里的 book_id 由客户端给,
+    换成一本没选过的书不能让种子退回可预测的 0(Z2);词不是从词书来的 → 请求的书 → 当前在学的书 → 0。"""
+    books = [row.source[len(store.SOURCE_PREFIX):]] if row is not None and row.source.startswith(store.SOURCE_PREFIX) else []
+    for b in [*books, book_id]:
+        e = await store.get_enrollment(session, user_id, b)
+        if e is not None:
+            return e.seed
+    e = await store.active_enrollment(session, user_id)
+    return e.seed if e is not None else 0
 
 
 async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings,
@@ -419,8 +436,7 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
     day = local_day(now, p.offset)
     rating = recall.effective_rating(p.rating, revealed_before=p.revealed_before,
                                      previous=await store.last_rating(session, user_id, card.key))
-    enrollment = await store.get_enrollment(session, user_id, p.book_id)
-    seed = enrollment.seed if enrollment is not None else 0  # 私有种子:客户端算不出哪些词会被抽查(P-R1)
+    seed = await _spot_seed(session, user_id, p.book_id, row)  # 私有种子:客户端算不出哪些词会被抽查(P-R1)
     pct = settings.wordbook_spot_check_pct
     applied, item_id, kind, outcome, spot = False, row.item_id if row else None, "practice", rating, False
     if ctx is not None:

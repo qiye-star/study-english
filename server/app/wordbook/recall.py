@@ -58,11 +58,12 @@ def learn_decision(rating: Rating, check: bool) -> LearnDecision:
     return LearnDecision(LEARN_BOX[rating], rating, False)
 
 
-def learn_quiz_target(box: int, today_outcome: str, correct: bool) -> int | None:
-    """当天新词(reps = 0)在本轮小测里作答后的目标盒;None = 不改。"""
+def learn_quiz_target(box: int, today_outcome: str, correct: bool, *, passes_check: bool = True) -> int | None:
+    """当天新词(reps = 0)在本轮小测里作答后的目标盒;None = 不改。
+    `passes_check` = 这次作答能算作抽查(选释义题,且抽中之后没有再评过);否则答对也不升盒(Z2)。"""
     if not correct:
         return 0 if box > 0 else None
-    if today_outcome == KNOW_CHECK and box == PENDING_BOX:
+    if passes_check and today_outcome == KNOW_CHECK and box == PENDING_BOX:
         return LEARN_BOX["know"]
     return None
 
