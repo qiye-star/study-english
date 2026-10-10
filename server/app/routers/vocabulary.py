@@ -18,7 +18,8 @@ router = APIRouter(prefix="/api")
 
 ItemId = Annotated[str, Path(max_length=64)]
 # 背单词建的行(source='wordbook:<book>')不进生词本默认列表,也不占 max_vocab_items(wordbook spec R-W4)。
-MINE = ~VocabularyItem.source.like("wordbook:%")
+WORDBOOK_PREFIX = "wordbook:"
+MINE = ~VocabularyItem.source.like(f"{WORDBOOK_PREFIX}%")
 NOT_FOUND = "Vocabulary item not found"
 NOT_DUE = "Vocabulary item is not due"
 ALREADY_REVIEWED = "Vocabulary item was already reviewed"
@@ -118,17 +119,30 @@ async def create_vocabulary_item(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    existing = (
+    rows = (
         await session.execute(
-            select(VocabularyItem).where(VocabularyItem.user_id == user.id, VocabularyItem.word == payload.word).limit(1)
+            select(VocabularyItem).where(VocabularyItem.user_id == user.id, VocabularyItem.word == payload.word)
+            .order_by(VocabularyItem.created_at, VocabularyItem.id)
         )
-    ).scalar_one_or_none()
+    ).scalars().all()
     # 已知竞态:不建唯一索引(R17),两个并发的相同 POST 可能都插入;无害(重复一行),接受。
-    if existing is not None:
-        return item_out(existing)
+    mine = next((r for r in rows if not r.source.startswith(WORDBOOK_PREFIX)), None)
+    if mine is not None:
+        return item_out(mine)
     count = await session.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.user_id == user.id, MINE))
     if count >= await effective(session, settings, user.id, "max_vocab_items"):
         raise HTTPException(429, "Vocabulary limit reached")
+    if rows:
+        # 背单词已有这个词(review M2):收进生词本(改 source,从此计入上限、出现在默认列表),保留盒子与复习进度;
+        # 与 R-W3「词书采纳已有词」相反方向。用户给了释义/例句就用用户的。
+        adopted = rows[0]
+        adopted.source = payload.source
+        if payload.meaning:
+            adopted.meaning = payload.meaning
+        if payload.example:
+            adopted.example = payload.example
+        await session.commit()
+        return item_out(adopted)
     now = utcnow()
     row = VocabularyItem(
         id=str(uuid.uuid4()), user_id=user.id, word=payload.word, meaning=payload.meaning, example=payload.example,

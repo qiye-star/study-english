@@ -31,6 +31,50 @@ async def test_scope_filters_wordbook_rows_and_due_count(client, app):
     assert (await client.get("/api/vocabulary?scope=bogus", headers=h)).status_code == 422
 
 
+async def test_adding_a_word_the_wordbook_has_adopts_it_into_the_notebook(client, app):
+    """Review M2: POST /api/vocabulary for a wordbook word must show up in the default (mine) list."""
+    uid, h = await register(client)
+    await seed(app, uid, n_wordbook=1)
+    async with app.state.sessionmaker() as s:
+        from sqlalchemy import update
+        await s.execute(update(VocabularyItem).values(box=3, reps=4))
+        await s.commit()
+    r = await client.post("/api/vocabulary", headers=h,
+                          json={"word": "W0", "meaning": "my meaning", "example": "An example.", "source": "lookup"})
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["word"], body["source"], body["box"], body["reps"]) == ("w0", "lookup", 3, 4)  # progress kept
+    assert (body["meaning"], body["example"]) == ("my meaning", "An example.")
+    mine = (await client.get("/api/vocabulary", headers=h)).json()["vocabulary_items"]
+    assert [i["id"] for i in mine] == [body["id"]]
+    every = (await client.get("/api/vocabulary?scope=all", headers=h)).json()["vocabulary_items"]
+    assert len(every) == 1  # adopted, not duplicated
+    again = (await client.post("/api/vocabulary", headers=h, json={"word": "w0", "meaning": "other"})).json()
+    assert (again["id"], again["meaning"], again["source"]) == (body["id"], "my meaning", "lookup")  # unchanged
+
+
+async def test_adopting_keeps_the_wordbook_meaning_when_none_is_given(client, app):
+    uid, h = await register(client)
+    await seed(app, uid, n_wordbook=1)
+    async with app.state.sessionmaker() as s:
+        from sqlalchemy import update
+        await s.execute(update(VocabularyItem).values(meaning="v. 说话", example="We talk."))
+        await s.commit()
+    body = (await client.post("/api/vocabulary", headers=h, json={"word": "w0", "source": "manual"})).json()
+    assert (body["source"], body["meaning"], body["example"]) == ("manual", "v. 说话", "We talk.")
+
+
+@pytest.mark.parametrize("settings_overrides", [{"max_vocab_items": 1}], indirect=True)
+async def test_adopting_a_wordbook_word_respects_the_limit(client, app):
+    uid, h = await register(client)
+    await seed(app, uid, n_wordbook=2)
+    assert (await client.post("/api/vocabulary", headers=h, json={"word": "w0"})).json()["source"] == "manual"
+    r = await client.post("/api/vocabulary", headers=h, json={"word": "w1"})
+    assert r.status_code == 429 and r.json() == {"error": "Vocabulary limit reached"}
+    every = (await client.get("/api/vocabulary?scope=all", headers=h)).json()["vocabulary_items"]
+    assert {i["word"]: i["source"] for i in every}["w1"] == "wordbook:cet4"
+
+
 @pytest.mark.parametrize("settings_overrides", [{"max_vocab_items": 1}], indirect=True)
 async def test_wordbook_rows_do_not_count_toward_the_limit(client, app):
     uid, h = await register(client)
