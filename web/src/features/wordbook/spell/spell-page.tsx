@@ -319,7 +319,7 @@ export function WordbookSpellPage() {
           <>
             <div className="mx-0.5 mb-2 mt-0.5 flex items-center justify-between gap-2">
               <b className="text-sub font-semibold text-ink-2">
-                {t("web.wordbookSpell.setHead", { n: index + 1, total: sets.length, words })}
+                {t("web.wordbookSpell.setHead", { n: index + 1, total: sets.length, words, count: words })}
               </b>
               <ToneBadge tone="gray">{t("web.wordbookSpell.fromDictionary")}</ToneBadge>
             </div>

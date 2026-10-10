@@ -123,7 +123,7 @@ export function WordbookReviewPage() {
             <span aria-hidden className="flex h-tap w-tap items-center justify-center rounded-button bg-blue-tint text-blue">
               <RefreshCwIcon className="h-6 w-6" />
             </span>
-            <p className="mt-3 text-title font-semibold">{today?.plan ? t("web.wordbook.review.due", { n: due }) : t("web.wordbook.review.title")}</p>
+            <p className="mt-3 text-title font-semibold">{today?.plan ? t("web.wordbook.review.due", { n: due, count: due }) : t("web.wordbook.review.title")}</p>
             <p className="mt-1 text-sub text-ink-2">{t("web.wordbook.review.intro")}</p>
           </SurfaceCard>
         </div>

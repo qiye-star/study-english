@@ -34,9 +34,9 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
   const { t } = useTranslation();
   const rate = stats.total > 0 ? Math.round((stats.firstTry / stats.total) * 100) : 0;
   const line = [
-    t(`web.wordbook.summary.${stats.kind}.count`, { n: stats.total }),
+    t(`web.wordbook.summary.${stats.kind}.count`, { n: stats.total, count: stats.total }),
     t("web.wordbook.summary.firstTry", { n: stats.firstTry }),
-    ...(stats.mastered ? [t("web.wordbook.summary.mastered", { n: stats.mastered })] : []),
+    ...(stats.mastered ? [t("web.wordbook.summary.mastered", { n: stats.mastered, count: stats.mastered })] : []),
   ].join(" · ");
   return (
     <>
