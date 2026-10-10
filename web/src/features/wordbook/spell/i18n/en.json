@@ -1,7 +1,15 @@
 {
   "web": {
     "wordbookSpell": {
-      "title": "Spell in context"
+      "title": "Spell in context",
+      "input": "Blank {{n}} of {{total}}",
+      "blank": "Blank {{n}} of {{total}}, tap to type",
+      "outcome": {
+        "correct": "Correct",
+        "typo": "Small typo",
+        "inflection": "Wrong form",
+        "wrong": "Wrong"
+      }
     }
   }
 }
