@@ -106,10 +106,33 @@
           "spell": "看释义拼写"
         },
         "blank": "空",
+        "dictationHint": "听读音,写出这个词",
+        "dictationInput": "听到的单词",
+        "dictationPlaceholder": "听到什么写什么",
+        "spellInput": "拼写这个词",
+        "hint": "首字母",
+        "length": "{{n}} 个字母",
+        "submit": "提交",
+        "yours": "你写的",
+        "expected": "正确拼写",
         "correct": "答对了",
         "wrong": "正确答案是 {{answer}}",
         "wrongPlain": "答错了,这个词会再出现一次",
         "continue": "继续"
+      },
+      "outcome": {
+        "correct": "正确",
+        "typo": "小笔误",
+        "inflection": "词形不对",
+        "wrong": "错误",
+        "known": "已认识"
+      },
+      "review": {
+        "title": "复习",
+        "due": "到期 {{n}} 个词",
+        "intro": "题型随熟练度变化:选释义、选词、例句选词、听写、拼写。答错或接近的词会在本轮末尾再出现一次。",
+        "start": "开始复习",
+        "empty": "今天没有要复习的词"
       },
       "summary": {
         "title": "小结",

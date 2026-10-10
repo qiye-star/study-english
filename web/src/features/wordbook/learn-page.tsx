@@ -6,7 +6,7 @@ import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PAGE_NOTE } from "~/components/list-card";
-import { ChoiceQuestion, type ChoiceResult } from "./choice-question";
+import { ChoiceQuestion, correctOptionOf, type ChoiceResult } from "./choice-question";
 import { PageError, PageLoading } from "./page-status";
 import { SessionHeader, StepBar } from "./session-header";
 import { answerCurrent, isFinished, progressOf, startSession, type SessionState } from "./session-machine";
@@ -20,18 +20,6 @@ import { WORDBOOK_SERVER_ERRORS, learnBatch, submitAnswer, type BookId, type Car
 
 type Batch = { bookId: BookId; cards: Card[]; quiz: Question[] };
 type Phase = "loading" | "error" | "empty" | "cards" | "quiz" | "summary";
-
-/** 选择题的正确项:先按服务端 `expected` 找(选词题即词头),释义题按与服务端相同的释义行找。 */
-export function correctOptionOf(question: Question, expected: string, card: Card | undefined): string | null {
-  const options = question.options ?? [];
-  const exact = options.find((o) => o === expected) ?? options.find((o) => o.toLowerCase() === expected.toLowerCase());
-  if (exact) return exact;
-  if (question.qtype === "meaning" && card) {
-    const line = meaningLine(card.senses);
-    return options.find((o) => o === line) ?? null;
-  }
-  return null;
-}
 
 /**
  * 学新词(spec §6.3,视觉稿 04/05/10):一轮 5 张词卡 → 对没点「我认识」的词做选释义小测 →

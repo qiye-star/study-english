@@ -106,10 +106,33 @@
           "spell": "Spell the word"
         },
         "blank": "blank",
+        "dictationHint": "Listen and write the word",
+        "dictationInput": "The word you heard",
+        "dictationPlaceholder": "Type what you hear",
+        "spellInput": "Spell the word",
+        "hint": "First letter",
+        "length": "{{n}} letters",
+        "submit": "Submit",
+        "yours": "You wrote",
+        "expected": "Correct spelling:",
         "correct": "Correct",
         "wrong": "The answer is {{answer}}",
         "wrongPlain": "Not quite — this word will come back once more",
         "continue": "Continue"
+      },
+      "outcome": {
+        "correct": "Correct",
+        "typo": "Small typo",
+        "inflection": "Wrong form",
+        "wrong": "Wrong",
+        "known": "Known"
+      },
+      "review": {
+        "title": "Review",
+        "due": "{{n}} words due",
+        "intro": "Question types follow how well you know each word: meaning, word, sentence, dictation and spelling. Misses and near misses come back once at the end of the round.",
+        "start": "Start review",
+        "empty": "Nothing to review today"
       },
       "summary": {
         "title": "Summary",
