@@ -405,6 +405,23 @@ async def card_detail(session: AsyncSession, ds: DictionaryStore, settings: Sett
     return card_out(card)
 
 
+async def find_card(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, key: str) -> WordCard:
+    """按词找词卡(AI 讲解用):先当前在学的书,再其他启用的书;数据缺失的书跳过。都没有 → 404。"""
+    await ensure_hidden(session, ds)
+    e = await store.active_enrollment(session, user_id)
+    enabled = enabled_books(settings.wordbook_books)
+    books = [e.book_id] if e is not None and e.book_id in enabled else []
+    books += [b for b in enabled if b not in books]
+    for book_id in books:
+        try:
+            card = await ds.card(book_id, key)
+        except DataUnavailable:
+            continue
+        if card is not None:
+            return card
+    fail(WORD_NOT_FOUND)
+
+
 async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, *, book_id: str,
                  key: str, sentence_id: str, reason: str, offset: int, now) -> dict:
     """例句举报(每人每日 REPORTS_DAILY_MAX 条);句子必须是该词卡当前的例句。"""

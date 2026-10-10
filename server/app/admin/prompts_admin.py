@@ -21,6 +21,7 @@ from app.providers import llm
 from app.rooms import assistant
 from app.services import grammar
 from app.services.prompts import PROMPTS, PromptSpec, apply_grammar, prompt_cache, validate_prompt
+from app.wordbook import explain as wordbook_explain
 
 TEST_MAX_TOKENS = 400
 MAX_SAMPLE_CHARS = 2000
@@ -59,6 +60,8 @@ def default_body(app, key: str) -> str | None:
         return assistant.DEFAULT_TRANSLATE_TEMPLATE
     if key == "rooms.summary":
         return assistant.DEFAULT_SUMMARY_TEMPLATE
+    if key == "wordbook.explain":
+        return wordbook_explain.DEFAULT_EXPLAIN_TEMPLATE
     return TEMPLATES_FILE.read_text(encoding="utf-8")
 
 
@@ -200,6 +203,9 @@ def test_messages(app, key: str, body: str, sample: dict[str, str]) -> tuple[lis
         base_url, api_key = settings.grammar_upstream
         upstream = settings.model_copy(update={"upstream_llm_base_url": base_url, "upstream_llm_key": api_key})
         return req["messages"], settings.resolved_grammar_model, upstream
+    if key.startswith("wordbook."):
+        return (wordbook_explain.render_test(grammar.clean_prompt(body), sample), settings.resolved_wordbook_ai_model,
+                settings)
     # same rendering as the live room socket (escaping, optional [[user]] split; G2)
     return assistant.render_test(key, grammar.clean_prompt(body), sample), settings.resolved_rooms_ai_model, settings
 

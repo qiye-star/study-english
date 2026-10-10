@@ -10,14 +10,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.deps import current_user, get_session, get_settings
+from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User, utcnow
+from app.services.prompts import prompt_cache
 from app.services.vocabulary import normalize_word
+from app.wordbook import explain as wb_explain
 from app.wordbook import service
 from app.wordbook.index import dictionary
 
 router = APIRouter(prefix="/api/wordbook")
 DISABLED = "Wordbook is disabled"
+AI_UNAVAILABLE = "AI explanation unavailable"
 TZ_MIN, TZ_MAX = -840, 840
 
 
@@ -209,3 +212,27 @@ async def wordbook_report(payload: ReportIn, request: Request, user: User = Depe
                                     reason=payload.reason, offset=payload.tz_offset_minutes, now=utcnow())
     except service.WordbookError as e:
         _raise(e)
+
+
+class ExplainIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/explain")
+async def wordbook_explain(payload: ExplainIn, request: Request, user: User = Depends(limited_user),
+                           session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    """AI「为什么」讲解(走 limited_user 的每分钟 AI 限流)。不可用(开关、未配置、额度、上游 402/5xx)一律 503。"""
+    key = normalize_word(payload.key)
+    try:
+        card = await service.find_card(session, dictionary(request.app), user.id, settings, key)
+    except service.WordbookError as e:
+        _raise(e)
+    version, body = await prompt_cache(request.app).get("wordbook.explain")
+    try:
+        text, cached = await wb_explain.explain(session, request.app.state.http, settings, card, user.id, utcnow(),
+                                                template=body or wb_explain.DEFAULT_EXPLAIN_TEMPLATE,
+                                                prompt_version=version if body else None)
+    except wb_explain.ExplainUnavailable:
+        raise HTTPException(503, AI_UNAVAILABLE) from None
+    return {"key": key, "text": text, "cached": cached}

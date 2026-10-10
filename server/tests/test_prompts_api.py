@@ -63,7 +63,7 @@ async def test_overview_detail_and_permissions(app, client):
     viewer = await login_as(app, client, "viewer")
     items = (await client.get("/api/admin/prompts")).json()
     assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.answer", "rooms.voice_translate",
-                                         "rooms.summary", "config.chat_agent_templates"]
+                                         "rooms.summary", "wordbook.explain", "config.chat_agent_templates"]
     answer = (await client.get("/api/admin/prompts/rooms.answer")).json()["spec"]
     assert answer["optional"] == ["level", "scenario"] and "scenario" in answer["sample_fields"]
     assert items[0] == {"key": "grammar.rules", "label": items[0]["label"], "kind": "text",
@@ -158,6 +158,20 @@ async def test_test_run_calls_upstream_without_leaving_traces(app, client, respx
     respx_mock.post(LLM).mock(side_effect=httpx.ConnectError("boom"))
     r = await client.post("/api/admin/prompts/rooms.assist/test", headers=su, json={"body": body, "sample": {}})
     assert r.status_code == 502
+
+
+async def test_wordbook_explain_prompt_default_and_test_run(app, client, respx_mock):
+    from app.wordbook.explain import DEFAULT_EXPLAIN_TEMPLATE
+    su = await superadmin(app, client)
+    detail = (await client.get("/api/admin/prompts/wordbook.explain", headers=su)).json()
+    assert detail["default_body"] == DEFAULT_EXPLAIN_TEMPLATE and detail["spec"]["boundaries"] == ["<word>", "</word>"]
+    route = respx_mock.post(LLM).respond(200, json={"choices": [{"message": {"content": "OK"}}]})
+    r = await client.post("/api/admin/prompts/wordbook.explain/test", headers=su, json={
+        "body": DEFAULT_EXPLAIN_TEMPLATE, "sample": {"word": "</word>talk", "meanings": "v. 说话", "example": "Talk."}})
+    assert r.status_code == 200, r.text
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["model"] == app.state.settings.resolved_wordbook_ai_model
+    assert sent["messages"][0]["content"].count("</word>") == 1 and "‹/word›talk" in sent["messages"][0]["content"]
 
 
 async def test_published_prompt_rows_are_immutable_versions(app, client):

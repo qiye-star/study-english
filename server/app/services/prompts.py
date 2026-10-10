@@ -54,6 +54,9 @@ PROMPTS: dict[str, PromptSpec] = {
     "rooms.summary": PromptSpec(
         "rooms.summary", "联机学习小结", "text", frozenset({"level", "scenario", "members", "chat"}),
         ("<chat>", "</chat>"), 8000, sample_fields=("level", "scenario", "members", "chat")),
+    "wordbook.explain": PromptSpec(
+        "wordbook.explain", "背单词 AI 讲解", "text", frozenset({"word", "meanings", "example"}),
+        ("<word>", "</word>"), 4000, sample_fields=("word", "meanings", "example")),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }

@@ -69,7 +69,7 @@ def test_static_templates_file_is_valid_and_every_spec_is_consistent():
     assert validate_prompt("config.chat_agent_templates", body) == []
     assert PROMPTS["grammar.rules"].max_chars == MAX_PROMPT_CHARS
     assert set(PROMPTS) == {"grammar.rules", "rooms.assist", "rooms.answer", "rooms.voice_translate", "rooms.summary",
-                            "config.chat_agent_templates"}
+                            "wordbook.explain", "config.chat_agent_templates"}
 
 
 async def test_published_grammar_rules_pin_and_unpin(app):
