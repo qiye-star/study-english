@@ -1274,19 +1274,23 @@ async def test_barge_in_while_the_previous_reply_is_being_saved_keeps_db_order()
 
 
 class SlowAssessor:
-    """讯飞评测的替身:`delay` 秒后返回;`delay=None` 永不返回(只能被取消)。"""
+    """讯飞评测的替身:`delay` 秒后返回;`delay=None` 永不返回(只能被取消);给了 `release` 就等它被 set 再返回。"""
 
-    def __init__(self, delay=None):
+    def __init__(self, delay=None, release: asyncio.Event | None = None):
         self.delay = delay
+        self.release = release
         self.calls = []
         self.cancelled = False
 
     async def assess(self, message_id, pcm, text):
         self.calls.append(message_id)
         try:
-            if self.delay is None:
+            if self.release is not None:
+                await self.release.wait()
+            elif self.delay is None:
                 await asyncio.Event().wait()
-            await asyncio.sleep(self.delay)
+            else:
+                await asyncio.sleep(self.delay)
         except asyncio.CancelledError:
             self.cancelled = True
             raise
@@ -1304,13 +1308,16 @@ def test_hangup_caps_fit_the_clients_three_second_wait():
 
 async def test_hangup_delivers_a_pending_assessment_before_run_returns():
     before = set(asyncio.all_tasks())
-    a = SlowAssessor(delay=0.15)
+    # 评测在挂断之后才完成:用事件放行,不用固定的 0.15 s(机器忙时回复比它慢,评测会先到,断言就失效)
+    release = asyncio.Event()
+    a = SlowAssessor(release=release)
     h = Harness(assessor=a)
     task = asyncio.create_task(h.run())
     await speak_once(h)
     await h.until(lambda: "reply_done" in h.types())
     assert "assessment" not in h.types()
     h.send({"type": "hangup"})
+    asyncio.get_running_loop().call_later(0.05, release.set)  # 在挂断宽限期内完成
     assert await asyncio.wait_for(task, 2) == 1000
     # run 返回之后路由才发关闭帧:评测结果已在关闭之前下发
     assert h.of("assessment") == [{"type": "assessment", "message_id": "m1", "status": "done",
