@@ -99,7 +99,17 @@
         "startQuiz": "开始小测",
         "quiz": "小测",
         "empty": "今天的新词学完了",
-        "emptyHint": "去复习或按句拼写巩固一下吧。"
+        "emptyHint": "去复习或按句拼写巩固一下吧。",
+        "reveal": "显示释义",
+        "revealHint": "先在心里想一想,再点开核对",
+        "peekedNote": "已看过释义:点「认识」会记为「模糊」",
+        "rate": { "group": "你认识这个词吗?", "know": "认识", "fuzzy": "模糊", "unknown": "不认识" },
+        "rated": { "know": "已记为认识", "fuzzy": "已记为模糊", "unknown": "已记为不认识", "streak": "连续两次模糊,按不认识记" },
+        "badge": { "know": "认识", "knowCheck": "认识 · 本轮抽查", "fuzzy": "模糊", "unknown": "不认识" },
+        "iWasWrong": "记错了",
+        "spotEyebrow": "抽查 · 你标了「认识」",
+        "spotHint": "答对升到第 3 级(4 天后复习),答错回到第 1 级",
+        "drillEyebrow": "再认一次"
       },
       "quiz": {
         "kind": {

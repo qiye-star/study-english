@@ -99,7 +99,17 @@
         "startQuiz": "Start quiz",
         "quiz": "Quick quiz",
         "empty": "Today's new words are done",
-        "emptyHint": "Review or spell in sentences to lock them in."
+        "emptyHint": "Review or spell in sentences to lock them in.",
+        "reveal": "Show meaning",
+        "revealHint": "Think of it first, then check",
+        "peekedNote": "You peeked: \"I know it\" will count as \"Not sure\"",
+        "rate": { "group": "Do you know this word?", "know": "I know it", "fuzzy": "Not sure", "unknown": "Don't know" },
+        "rated": { "know": "Marked as known", "fuzzy": "Marked as not sure", "unknown": "Marked as unknown", "streak": "Not sure twice in a row, counted as unknown" },
+        "badge": { "know": "Known", "knowCheck": "Known · checked this round", "fuzzy": "Not sure", "unknown": "Unknown" },
+        "iWasWrong": "I was wrong",
+        "spotEyebrow": "Spot check · you said you know it",
+        "spotHint": "Right moves it to level 3 (review in 4 days); wrong sends it back to level 1",
+        "drillEyebrow": "One more time"
       },
       "quiz": {
         "kind": {
