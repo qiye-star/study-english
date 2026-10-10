@@ -1,7 +1,69 @@
 {
   "web": {
     "wordbookSpell": {
-      "title": "Spell in context"
+      "title": "Spell in context",
+      "resultsTitle": "Set results",
+      "input": "Blank {{n}} of {{total}}",
+      "blank": "Blank {{n}} of {{total}}, tap to type",
+      "outcome": {
+        "correct": "Correct",
+        "typo": "Small typo",
+        "inflection": "Wrong form",
+        "wrong": "Wrong"
+      },
+      "hint": "First letter",
+      "listen": "Hear it",
+      "showZh": "Translation",
+      "lengthShort": "Letters",
+      "showLength": "Show letter count",
+      "showLengthNote": "Empty blanks show one cell per letter. Saved on this device only.",
+      "settings": "Spelling settings",
+      "tip": "Tap any blank to start · Space jumps to the next blank · Enter submits",
+      "submit": "Submit",
+      "submitting": "Checking…",
+      "score": "Set score {{n}}",
+      "counted": "counts as practice",
+      "counts": "Correct {{correct}} · Small typo {{typo}} · Wrong form {{inflection}} · Wrong {{wrong}}",
+      "why": {
+        "typo": "Close: check the marked letters",
+        "inflection": "Right word, wrong form: it should be {{expected}} here",
+        "wrong": "Take another look at the correct spelling"
+      },
+      "yours": "You wrote",
+      "notFilled": "(blank)",
+      "diffLabel": "Correct spelling {{word}}",
+      "listenWord": "Play {{word}}",
+      "ttsUnavailable": "Text-to-speech is not configured",
+      "whyButton": "Why?",
+      "explainTitle": "Why is {{word}} spelled this way?",
+      "aiSource": "AI explanation · shared site-wide · for reference only",
+      "aiUnavailable": "AI explanation unavailable",
+      "aiUnavailableNote": "Showing the dictionary explanation only (meanings and mistake type).",
+      "close": "Close",
+      "report": "Report sentence",
+      "reportTitle": "Report this sentence",
+      "reportNote": "An admin reviews reports and hides bad sentences.",
+      "reportReason": {
+        "wrong": "Sentence or translation is wrong",
+        "offensive": "Inappropriate content",
+        "other": "Something else"
+      },
+      "reported": "Reported, thanks",
+      "empty": "Learn a few new words first, then spell them",
+      "emptyNote": "Spelling practises today's new words and words due for review.",
+      "emptyAction": "Learn new words",
+      "fromDictionary": "Dictionary sentences",
+      "setProgress": "Set {{n}} of {{total}}",
+      "setHead": "Set {{n}} of {{total}} · {{words}} words",
+      "again": "Try again",
+      "next": "Next set",
+      "finish": "Done",
+      "summaryTitle": "Spelling round complete",
+      "summaryBody": "{{words}} words spelled · {{correct}} correct",
+      "playAgain": "Another round",
+      "home": "Back to Wordbook",
+      "loading": "Building sentences…",
+      "retry": "Retry"
     }
   }
 }
