@@ -106,7 +106,7 @@ describe("WordbookLearnPage", () => {
     expect(summary).toHaveTextContent("学会 2 个新词");
     expect(summary).toHaveTextContent("一次答对 1");
     expect(answers(mock)).toHaveLength(3);
-  });
+  }, 15_000); // ~0.7 s normally; one long userEvent flow hit the 5 s default twice in full runs on a loaded machine
 
   it("marks a known word without quizzing it", async () => {
     const user = userEvent.setup();
