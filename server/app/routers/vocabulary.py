@@ -17,6 +17,8 @@ from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, apply_re
 router = APIRouter(prefix="/api")
 
 ItemId = Annotated[str, Path(max_length=64)]
+# 背单词建的行(source='wordbook:<book>')不进生词本默认列表,也不占 max_vocab_items(wordbook spec R-W4)。
+MINE = ~VocabularyItem.source.like("wordbook:%")
 NOT_FOUND = "Vocabulary item not found"
 NOT_DUE = "Vocabulary item is not due"
 ALREADY_REVIEWED = "Vocabulary item was already reviewed"
@@ -86,18 +88,20 @@ async def list_vocabulary(
     page: int = Query(1, ge=1, le=10_000),
     per_page: int = Query(20, ge=1, le=50),
     due: bool = Query(False),
+    scope: Literal["mine", "all"] = Query("mine"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
     now = utcnow()
-    stmt = select(VocabularyItem).where(VocabularyItem.user_id == user.id)
+    owner = [VocabularyItem.user_id == user.id] + ([MINE] if scope == "mine" else [])
+    stmt = select(VocabularyItem).where(*owner)
     if due:
         stmt = stmt.where(VocabularyItem.due_at <= now).order_by(VocabularyItem.due_at.asc(), VocabularyItem.id.asc())
     else:
         stmt = stmt.order_by(VocabularyItem.created_at.desc(), VocabularyItem.id.desc())
     rows = (await session.execute(stmt.offset((page - 1) * per_page).limit(per_page + 1))).scalars().all()
     due_count = await session.scalar(
-        select(func.count()).select_from(VocabularyItem).where(VocabularyItem.user_id == user.id, VocabularyItem.due_at <= now)
+        select(func.count()).select_from(VocabularyItem).where(*owner, VocabularyItem.due_at <= now)
     )
     return {
         "vocabulary_items": [item_out(r) for r in rows[:per_page]],
@@ -122,7 +126,7 @@ async def create_vocabulary_item(
     # 已知竞态:不建唯一索引(R17),两个并发的相同 POST 可能都插入;无害(重复一行),接受。
     if existing is not None:
         return item_out(existing)
-    count = await session.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.user_id == user.id))
+    count = await session.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.user_id == user.id, MINE))
     if count >= await effective(session, settings, user.id, "max_vocab_items"):
         raise HTTPException(429, "Vocabulary limit reached")
     now = utcnow()
