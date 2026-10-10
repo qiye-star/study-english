@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **合并顺序(跨计划)**:A(回忆式学习流程,迁移 `0013`)→ **B(本计划)** → C(学习联动,迁移 `0015`)。本计划从 A 合并后的分支头 rebase;**不新增迁移**。若实施中证明必须加列:迁移文件 `server/alembic/versions/0014_wordbook_goals.py`,`revision = "0014"`,`down_revision = "0013"`,并在本计划加 Addendum。
+- **合并顺序(跨计划)**:A(回忆式学习流程,**不新增迁移**)→ **B(本计划)** → C(学习联动,迁移 `0013`,`down_revision = "0012"`)。本计划从 A 合并后的分支头 rebase;**不新增迁移**,`alembic heads` 保持 `0012`。若实施中证明必须加列:取「当时 head + 1」(即 `0013`,`down_revision = "0012"`),在本计划加 Addendum,并通知 C 把它的迁移顺延为 `0014`(C 的全部引用一起改;INDEX §5)。
 - **文件归属**:本计划独占 `server/app/wordbook/plan.py`、`server/app/core/{config,settings_registry,runtime_settings}.py` 中的背单词范围键、`web/src/features/wordbook/{home-page,books-page,use-today,use-wordbook-config}.tsx/ts`、新文件 `goals-*`、`use-goals.ts` 及其测试、文案 `web.wordbook.goals.*`。共享文件(`service.py`、`store.py`、`routers/wordbook.py`、`wordbook-api.ts`、契约测试与样例、两个 v1 测试文件)只在本计划列出的插入点做**追加或单点修改**(spec §14)。**不碰**学新词/复习页、会话机、题型(A)与跨模块挂点(C);`plan-ring.tsx` 本期不改。
 - 分层不变:`server/tests/test_architecture.py`、`web/src/architecture.test.ts` 不放宽;`wordbook` 层不导入 `rank`(段位同步只在 `routers/wordbook.py` 调用)。
 - 范围与默认(spec §3、§10):每日新词硬边界 1–200、复习上限 10–1000(`app.core.config.WORDBOOK_NEW_BOUNDS = (1, 200)`、`WORDBOOK_REVIEW_BOUNDS = (10, 1000)`);「不限」存 `review_cap = 0`;默认 20 / 100;加练每次 ≤ 20、每天 ≤ `wordbook_bonus_max`(50);积压保护 = 当天新词总数(含加练)最多 5 个,「不限」时阈值 `wordbook_review_cap_max`。
@@ -59,7 +59,7 @@ web/e2e/wordbook-goals.spec.ts
 
 两条车道没有共同文件:唯一的跨车道输入是只读的 `server/tests/fixtures/wordbook_plan_cases.json`(GS1 写)与 `server/tests/fixtures/wordbook_contract.json`(GS5 写)。
 
-**合并顺序**:GS1 → GS2 → GS3 → GS4 → GS5 → GW1 → GW2 → GW3 → GW4 → GW5 → GW6 → Z1。GW 车道在 GS5 合并后 rebase(GW1 只需 GS1)。若 A 在本计划开发期间才合并,GS3 rebase 时把 `answer()` / `learn_batch` / `review_batch` 的三处单点修改重新落到 A 的等价位置,行为测试不变。
+**合并顺序**:GS1 → GS2 → GS3 → GS4 → GS5 → GW1 → GW2 → GW3 → GW4 → GW5 → GW6 → Z1。GW 车道在 GS5 合并后 rebase(GW1 只需 GS1)。**跨计划等待**(INDEX §2):GS1、GW1 只碰本计划独占文件,可与 A 并行开发;GS2 等 A 的 S2(`config.py`/`settings_registry.py` 相邻插入)合并;GS3–GS5 等 A 的 S 车道全部合并(GS3 的 relearn 改的是 A 新增的 `_learn_kind`,GS5 的契约录制接在 A 的 S6 之后);GW2 等 A 的 W1 与 W7;GW3 等 A 的 W3、W5(两份 i18n JSON);GW6 等 A 的 Z1(合并后的 `wordbook.spec.ts` 与学新词流程)。
 
 **评审波**:每条车道合并前 `/code-review high`;GS 车道另跑 `security-review`(输入校验、限流、重置的删除范围、段位同步、日志卫生);GW 车道合并前在浏览器窗格 375×812 浅色 + 深色对照视觉稿 01–09 帧,并用键盘走一遍面板(Tab 顺序、Esc、焦点返回)。Z1 对整个分支跑 `security-review` 与全量测试。
 
@@ -704,7 +704,7 @@ def limits_out(limits: GoalLimits) -> dict:
             "review_unlimited": limits.unlimited, "bonus_max": limits.bonus_max}
 ```
 
-  - `config_out`:返回的 dict 在 `"defaults"` 之后加 `"limits": limits_out(limits_of(settings)),`。
+  - `config_out`:返回的 dict 在 A 加的 `"learn": {…},  # recall §7` 那一行之后(即 `"defaults"`、`"learn"` 之后、`"books"` 之前)加 `"limits": limits_out(limits_of(settings)),`(INDEX §4 的最终键序:`enabled, ai_available, defaults, learn, limits, books`)。
   - `enrollment_out` 替换为:
 
 ```python
@@ -755,7 +755,7 @@ async def _day_plan(session: AsyncSession, user_id: int, e: WordbookEnrollment, 
 ```
 
   - 三个调用点各加 `settings=settings`(单点修改,spec §14):`learn_batch` 中 `(await _day_plan(session, user_id, e, index, known, offset, now)).new_left` → `(await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)).new_left`;`review_batch` 中同样位置(`.review_left`);`answer()` 中 `(await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left` → 加 `settings=settings`。
-  - `answer()` 学新词分支:`kind = "practice" if await store.ever_learned(session, user_id, card.key) else "learn"` 改为 `kind = "relearn" if await store.ever_learned(session, user_id, card.key) else "learn"`,上一行注释改为「每个词只记一次 learn(以前学过的再学记 relearn:计入今日新词,不产生 word_learned;spec 2026-10-11 G-4)」。
+  - relearn(单点修改,INDEX R-A2):A 合并后,两条学新词路径(v1 选择题路径与 A 的 `_rating_answer` 三档自评路径)都调用 A 新增的 `_learn_kind(session, user_id, key)`。把它的返回语句 `return "practice" if await store.ever_learned(session, user_id, key) else "learn"` 改为 `return "relearn" if await store.ever_learned(session, user_id, key) else "learn"`,docstring 改为「每个词只记一次 learn(以前学过的再学记 relearn:计入今日新词,不产生 word_learned;spec 2026-10-11 G-4)」。**只改 v1 那一行是不够的**:本计划的 `test_relearn_counts_toward_the_daily_limit`、`test_reset_clears_only_this_books_rows_and_keeps_history` 与 v1 的 `test_delete_then_relearn_does_not_log_the_word_again` 都用 `known: true` 学词,A 之后它走 `_rating_answer`。当天再评、小测等「行已存在」的作答仍记 `practice`(不计今日新词)。
   - `today_out` 替换为:
 
 ```python
@@ -842,7 +842,7 @@ async def wordbook_patch_enrollment(payload: GoalsPatchIn, user: User = Depends(
         _raise(e)
 ```
 
-- [ ] **Step 6: 跑测试确认通过** — Run: `cd server && uv run pytest -q tests/test_wordbook_goals_api.py tests/test_wordbook_api.py tests/test_wordbook_learn.py tests/test_wordbook_learn_limits.py tests/test_wordbook_spell.py tests/test_wordbook_store.py tests/test_wordbook_plan.py tests/test_rank_wordbook.py tests/test_architecture.py` → PASS(契约测试在 GS5 重录前会因 `today`/`config`/`enrollment` 形状变化失败;本任务不跑它,GS5 修复——合并前 GS3–GS5 一起评审)
+- [ ] **Step 6: 跑测试确认通过** — Run: `cd server && uv run pytest -q tests/test_wordbook_goals_api.py tests/test_wordbook_recall_api.py tests/test_wordbook_api.py tests/test_wordbook_learn.py tests/test_wordbook_learn_limits.py tests/test_wordbook_spell.py tests/test_wordbook_store.py tests/test_wordbook_plan.py tests/test_rank_wordbook.py tests/test_architecture.py` → PASS(契约测试在 GS5 重录前会因 `today`/`config`/`enrollment` 形状变化失败;本任务不跑它,GS5 修复——合并前 GS3–GS5 一起评审)
 
 - [ ] **Step 7: 提交**
 
@@ -1633,7 +1633,7 @@ describe("optimistic (plan GP-4)", () => {
 - [ ] **Step 3: 跑测试确认失败** — Run: `cd web && yarn vitest run src/features/wordbook/goals-api.test.ts src/features/wordbook/use-goals.test.ts` → FAIL
 
 - [ ] **Step 4: 实现 `wordbook-api.ts`**(接口末尾追加字段;新导出追加到文件末尾)
-  - `WordbookConfig` 启用分支改为 `{ enabled: true; aiAvailable: boolean; defaults: { dailyNew: number; reviewCap: number }; books: WordbookBook[]; limits: GoalLimits }`。
+  - `WordbookConfig` 启用分支**末尾追加** `; limits: GoalLimits`(保留 A 已追加的 `learn: { autoplay: boolean; showExample: boolean }`;不要整体替换该分支——INDEX §4)。
   - `Enrollment` 末尾加 `; reviewUnlimited: boolean`;`DayPlan` 末尾加 `; bonus: number; goalMet: boolean`;`Today` 末尾加 `; paused: Enrollment | null; streak: Streak`。
   - `saveEnrollment` 的 input 类型加 `reviewUnlimited?: true`。
   - `WORDBOOK_SERVER_ERRORS` 末尾追加:
@@ -3071,7 +3071,7 @@ test("wordbook goals: change the goal in place, extra words, pause, resume, rese
 });
 ```
 
-`learnOneWord(page)` 在本文件里定义(不改 `wordbook.spec.ts`,它可能属于 A 计划):照抄合并后 `wordbook.spec.ts` 的学新词步骤,只学 1 个——点「学新词」→ 词卡 → 小测作答(答错时记下正确项再选)→ 小结「回到首页」。375×812 浅色与深色各截一张面板图存进 `docs/superpowers/plans/e2e-results.md` 的说明里(只写路径与是否一致,不提交截图文件)。
+`learnOneWord(page)` 在本文件里定义(不改 `wordbook.spec.ts`,它属于 A 的 Z1):A 合并后的学新词流程,只学 1 个——点「学新词」→ 遮罩词卡上点「模糊」(与 E2E 栈的 `WORDBOOK_SPOT_CHECK_PCT=100` 无关,结果确定)→「开始小测」→ 一道选释义(答错时记下正确项再选)→ 小结「回到首页」。375×812 浅色与深色各截一张面板图存进 `docs/superpowers/plans/e2e-results.md` 的说明里(只写路径与是否一致,不提交截图文件)。
 
 - [ ] **Step 3: 文档**
   - `web/src/features/wordbook/CLAUDE.md`「What lives here」追加一行:`goals-math.ts`(估算 D/S/R(t)、方案、`previewPlan` 镜像服务端 `compute_plan`,共用 `server/tests/fixtures/wordbook_plan_cases.json`)、`goals-stepper.tsx`、`goals-fields.tsx`(选书页与面板共用)、`goals-sheet.tsx`(每日目标面板)、`use-goals.ts`(只有 PATCH 乐观更新)、`goals-test-fixtures.ts`。Pitfalls 追加:「改计划规则必须同时改服务端 `plan.compute_plan`、`goals-math.previewPlan` 与共用样例表」「`review_cap` 为 0 表示不限,表单里用 `reviewCap: null`」「重置/暂停只在确认框里触发;红色只给重置」。
@@ -3132,3 +3132,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | §12 网页(状态、无障碍、深色、文案) | GW2–GW6 |
 | §13 测试与 E2E | 全部任务 + GW6 |
 | §14 协作与共享文件 | Global Constraints、各任务的单点修改说明、Z1 交接 |
+
+---
+
+## Addendum (2026-10-11) · Index reconciliation(`plans/2026-10-11-wordbook-links-INDEX.md`)
+
+本计划与 A(三档自评 / 快速回忆)、C(学习联动)对齐后的改动。任务 ID 不变;规则以 INDEX §3 为准。
+
+| # | 位置 | 改了什么 | 原因 |
+|---|---|---|---|
+| B-1 | Global Constraints「合并顺序」、spec 头部 | 「A 用 0013、本计划备用 0014、C 用 0015」改为「A、B 都不加迁移,C 用 0013(`down_revision = "0012"`)」;本计划若被迫加迁移取 head + 1 并让 C 顺延 | 实际 head 是 0012,A 不用 0013(INDEX §5) |
+| B-2 | GS3 Step 4「relearn」 | 不再改 v1 那一行,改 A 新增的 `_learn_kind` 的返回语句 | A 之后 `known:true` 与三档自评走 `_rating_answer`;只改 v1 行会让 `test_relearn_counts_toward_the_daily_limit`、`test_reset_clears_only_this_books_rows_and_keeps_history`、v1 `test_delete_then_relearn_does_not_log_the_word_again` 失败(INDEX R-A2) |
+| B-3 | GS3 Step 4 `config_out` | `limits` 放在 A 的 `learn` 之后;最终键序 `enabled, ai_available, defaults, learn, limits, books` | A 也在 `defaults` 后插了一行 |
+| B-4 | GS3 Step 6 | 运行列表加 `tests/test_wordbook_recall_api.py` | A 的自评规则(当天再评记 practice、每词一次 learn)必须在 relearn 改动后仍然成立 |
+| B-5 | GW2 Step 4 `WordbookConfig` | 「改为 {…}」整体替换改为「末尾追加 `limits`」 | 整体替换会删掉 A 追加的 `learn`(类型检查与 A 的契约测试会失败) |
+| B-6 | GW6 `learnOneWord` | 学 1 个词 = 遮罩词卡点「模糊」→ 开始小测 → 一道选释义 | A 改了学新词页;E2E 栈 `WORDBOOK_SPOT_CHECK_PCT=100`,只有「模糊」路径与抽查无关 |
+| B-7 | 合并顺序段 | 写明哪些任务可与 A 并行(GS1、GW1)、哪些必须等 A 的哪个任务 | INDEX §2 |
+| B-8 | spec §3.3、§4.3、§11、§14 | `new_done` 口径注明 A 的自评建行同样记 learn / relearn、当天再评与小测记 practice;估算模型在 A 之后偏保守(数字不改);共享文件表按 A 合并后的形状写 | INDEX R-D1、R-G2 |
+
+与 C 的交接(Z1 要求写明的内容):本计划新增事件 kind `relearn`(计今日新词、无段位点)、`bonus`、`goal`、`reset`(都不是作答,C **不发布** `WordAnswered`);`relearn` 由作答写入,C 发布,`kind="relearn"`;C 的易错词把 `relearn` + `unknown` 视为新词(不算错);C 的「对话用今日词」只认 `learn`;C 的今日任务「背单词」行完成 = `plan.goal_met ∨ (new_left = 0 ∧ review_left = 0)`。C 需要在其后 rebase 的共享文件:`service.py`、`store.py`、`routers/wordbook.py`(C 不改)、`wordbook-api.ts`(C 不改)、`config.py` / `settings_registry.py`(C 追加在 `wordbook_data_dir` 之后与 `_ALL` 末尾)。

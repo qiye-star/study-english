@@ -17,8 +17,8 @@
 - 当天新词的后续作答(抽查、小测、再评)只用 `store.set_learn_box`:条件 `reps = 0 且 box = 读到的值`,**不加 `reps`、不写 `last_reviewed_at`**,所以不产生 `vocab_review`(保持 v1 review B1)。未到期词仍走 `apply_lapse`(R-W5)。
 - 保留全部 v1 服务端上限:当前在学的书(409)、`new_left`(429)、每词每人一次 `learn`、作答 3,000/UTC 日(429)、段位点每日 60 共享上限、`known` 只用于 `mode=learn`(422)、到期复习题型校验(422)。
 - 判分与抽查确定性:同样的 `(seed, user_id, key, reps, pct, elapsed_ms)` 同样结果;不调用 LLM;不记录用户输入。
-- **迁移:不新增**。为本计划预留的 `0013` 不使用;`alembic heads` 仍为 `0012`。B 计划若写了 `down_revision = "0013"`,合并时改为 `"0012"`(在 B 的计划里加 Addendum)。
-- 本计划只改这些文件(与 B / C 计划不重叠):`server/app/wordbook/{recall.py(新),quiz.py,service.py(config_out 一行、学新词/复习/作答段落),store.py(末尾追加)}`、`server/app/routers/wordbook.py`(`ReviewIn`/`AnswerIn` 字段与两处调用)、`server/app/core/{config.py,settings_registry.py}`(各追加一段)、`server/tests/{wordbook_helpers.py(一处默认值),test_wordbook_learn.py(两处),test_wordbook_contract.py,test_wordbook_recall.py(新),test_wordbook_recall_api.py(新),fixtures/wordbook_contract.json(重录)}`、`web/src/features/wordbook/{wordbook-api.ts(追加),test-fixtures.ts(追加),session-machine.ts(追加),word-card.tsx,recall-cover.tsx(新),recall-rating-bar.tsx(新),recall-card.tsx(新),learn-page.tsx,review-page.tsx,session-summary.tsx,i18n/{zh-CN,en}.json(learn.*、recall.*),*.test.ts(x),wordbook-contract.test.ts}`、`web/e2e/wordbook-recall.spec.ts`(新)、两个 `CLAUDE.md` 与 `docs/superpowers/plans/e2e-results.md`(Z 车道)。**不碰** `home-page.tsx`、`books-page.tsx`、`plan.py`、跨模块挂钩点(rank / rooms / practice / me)。
+- **迁移:不新增**。`alembic heads` 仍为 `0012`;B 也不新增迁移,`0013` 由 C(学习联动)使用(`down_revision = "0012"`,INDEX §5)。若本计划实施中被迫加迁移,取 `0013` 并通知 C 顺延为 `0014`(改 C 的全部引用)。
+- 本计划只改这些文件(与 B / C 计划不重叠):`server/app/wordbook/{recall.py(新),quiz.py,service.py(config_out 一行、学新词/复习/作答段落),store.py(末尾追加)}`、`server/app/routers/wordbook.py`(`ReviewIn`/`AnswerIn` 字段与两处调用)、`server/app/core/{config.py,settings_registry.py}`(各追加一段)、`server/tests/{wordbook_helpers.py(一处默认值),test_wordbook_learn.py(两处),test_wordbook_contract.py,test_wordbook_recall.py(新),test_wordbook_recall_api.py(新),fixtures/wordbook_contract.json(重录)}`、`web/src/features/wordbook/{wordbook-api.ts(追加),test-fixtures.ts(追加),session-machine.ts(追加),word-card.tsx,recall-cover.tsx(新),recall-rating-bar.tsx(新),recall-card.tsx(新),learn-page.tsx,review-page.tsx,session-summary.tsx,i18n/{zh-CN,en}.json(learn.*、recall.*),*.test.ts(x),wordbook-contract.test.ts}`、`web/e2e/wordbook-recall.spec.ts`(新)、`web/e2e/wordbook.spec.ts`(学新词步骤改为遮罩词卡流程)、`docker-compose.e2e.yml`(一行 env)、两个 `CLAUDE.md` 与 `docs/superpowers/plans/e2e-results.md`(Z 车道)。**不碰** `home-page.tsx`、`books-page.tsx`、`plan.py`、跨模块挂钩点(rank / rooms / practice / me)。
 - 网页文案只在 `web.wordbook.learn.*` 与 `web.wordbook.recall.*` 下新增,中英齐全;页面测试断言中文。
 - 视觉:一色一义(认识 = 蓝主按钮,模糊 = 琥珀图标,不认识 = 中性;正确绿、错误中性,不用红);触控 ≥ 44px(自评键 48px、遮罩 ≥ 96px);深色;减少动态时不做变换;界面不用 emoji。
 - 每个任务结束:`cd server && uv run pytest -q <任务列出的测试> tests/test_architecture.py`;涉及网页:`yarn web:typecheck && cd web && yarn vitest run src/features/wordbook src/architecture.test.ts`。车道合并前全量 `uv run pytest -q` 与 `yarn web:typecheck && yarn web:test && yarn web:build`。提交 conventional(`feat(server): …`、`feat(web): …`、`test(e2e): …`、`docs: …`),一个任务一个提交,信息以 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` 结尾。
@@ -64,10 +64,10 @@ web/e2e/wordbook-recall.spec.ts          新
 |---|---|---|---|
 | **server S**(串行,一个执行者) | S1–S6 | 上表全部 `server/**` 文件 | — |
 | **web W**(串行,一个执行者) | W1–W7 | `web/src/features/wordbook/**`(本计划列出的文件) | W1–W6 按 spec §9 的形状写,可与 S 并行;W7 需 S6 已合并 |
-| **final Z** | Z1–Z2 | `web/e2e/wordbook-recall.spec.ts`、`server/app/wordbook/CLAUDE.md`、`web/src/features/wordbook/CLAUDE.md`、`web/README.md`(背单词段)、`docs/superpowers/plans/e2e-results.md` | S、W 全部合并 |
+| **final Z** | Z1–Z2 | `web/e2e/wordbook-recall.spec.ts`、`web/e2e/wordbook.spec.ts`、`docker-compose.e2e.yml`、`server/app/wordbook/CLAUDE.md`、`web/src/features/wordbook/CLAUDE.md`、`web/README.md`(背单词段)、`docs/superpowers/plans/e2e-results.md` | S、W 全部合并 |
 
 **合并顺序(本计划内)**:S1 → S2 → S3 → S4 → S5 → S6 → W1 → … → W6(rebase 到 S6)→ W7 → Z1 → Z2。
-**跨计划**:A(本计划)→ B(目标 / 设置面板)→ C(学习联动)。B、C 在 rebase 到 A 之后重录契约样例并处理 `config.py` / `settings_registry.py` 的相邻插入。
+**跨计划**:A(本计划)→ B(目标 / 设置面板)→ C(学习联动)。B 在 rebase 到 A 之后重录契约样例(C 不碰 `wordbook_contract.json`);B、C 处理 `config.py` / `settings_registry.py` 的相邻插入(最终形状见 INDEX §4)。
 
 **评审波**:S 车道合并前 `/code-review high` + `security-review`(输入校验、确定性、私有种子、作答上限、日志卫生);W 车道合并前 `/code-review high` + 视觉对照(视觉稿 vs 真实页面,浏览器窗格 375×812 浅色与深色);Z2 对整个分支 `security-review`,真机清单见 spec §8.4,未验证项在 `e2e-results.md` 标「未验证」。
 
@@ -527,7 +527,7 @@ class ReviewIn(LearnIn):
 
 **Interfaces:**
 - Produces(`store.py`):`last_rating(session, user_id, word) -> str | None`、`first_rating_on(session, user_id, word, day) -> str | None`、`set_learn_box(session, user_id, item_id, *, seen_box, to_box, now) -> bool`
-- Produces(`service.py`):`AnswerInput` 追加 `rating: str | None = None`、`revealed_before: bool = False`、`elapsed_ms: int | None = None`;`RATING_REQUIRED = (422, "Rating is required")`;`learn_batch` 响应追加 `drill`;`/answers` 响应追加 `rating`、`spot_check`、`check`(全部 answer 路径都带)
+- Produces(`service.py`):`_learn_kind(session, user_id, key) -> str`(新词建行的事件 kind,两条学新词路径共用;INDEX R-A2)、`AnswerInput` 追加 `rating: str | None = None`、`revealed_before: bool = False`、`elapsed_ms: int | None = None`;`RATING_REQUIRED = (422, "Rating is required")`;`learn_batch` 响应追加 `drill`;`/answers` 响应追加 `rating`、`spot_check`、`check`(全部 answer 路径都带)
 - Produces(HTTP):`POST /answers` 请求追加 `qtype:"recall"`、`rating`、`revealed_before`、`elapsed_ms (0–600000)`
 
 - [ ] **Step 1: 写失败测试** — 追加到 `server/tests/test_wordbook_recall_api.py`:
@@ -748,7 +748,8 @@ async def set_learn_box(session: AsyncSession, user_id: int, item_id: str, *, se
     applied, item_id, kind = False, row.item_id if row else None, "practice"
     if learning:
         box, due = 0, now + LEARN_DUE
-        # …(v1 建行、learn/practice、cursor 不变)…
+        # …(v1 建行、cursor 不变;原来的 `kind = "practice" if await store.ever_learned(...) else "learn"` 一行改为
+        #    `kind = await _learn_kind(session, user_id, card.key)`,行为不变 —— INDEX R-A2,B 只改这个辅助函数)…
     elif p.mode == "review" and row is not None:
         applied, due = await _write_srs(session, user_id, row, grade, now)
         kind = "review" if due and applied else "practice"
@@ -770,6 +771,12 @@ def _answer_out(correct: bool, outcome: str, grade: str | None, card: WordCard, 
     return {"correct": correct, "outcome": outcome, "grade": grade, "expected": card.word, "correct_option": option,
             "diff": diff, "item": item_out(known), "applied": applied, "rating": rating, "spot_check": spot_check,
             "check": check}
+
+
+async def _learn_kind(session: AsyncSession, user_id: int, key: str) -> str:
+    """新词建行时的事件 kind:该用户第一次学这个词 → learn(计今日新词、产生 word_learned),否则 practice。
+    v1 选择题路径与三档自评路径共用这一处(INDEX R-A2);B 计划把 practice 改成 relearn 只改这里。"""
+    return "practice" if await store.ever_learned(session, user_id, key) else "learn"
 
 
 async def _learn_day_quiz(session: AsyncSession, user_id: int, row: Known, key: str, day: str, correct: bool,
@@ -797,7 +804,7 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
         decision = recall.learn_decision(rating, recall.needs_check(
             rating, seed=seed, user_id=user_id, key=card.key, reps=0, pct=pct, elapsed_ms=p.elapsed_ms))
         item_id = await _create_learned(session, ds, user_id, p.book_id, card, decision.box, now)
-        kind = "practice" if await store.ever_learned(session, user_id, card.key) else "learn"
+        kind = await _learn_kind(session, user_id, card.key)
         applied, outcome, spot = True, decision.outcome, decision.spot_check
     elif p.mode == "learn" and row is not None:
         if row.reps == 0 and await store.first_rating_on(session, user_id, card.key, day):
@@ -1881,7 +1888,7 @@ it("recall payloads match (spec recall §9)", () => {
 
 **Files:**
 - Create: `web/e2e/wordbook-recall.spec.ts`
-- Modify: `server/app/wordbook/CLAUDE.md`(What lives here 加 `recall.py`;Pitfalls 加「当天新词只用 `set_learn_box`」「抽查种子是选书 seed,不要下发」「`enable_wordbook` 默认 `wordbook_spot_check_pct=0`」)、`web/src/features/wordbook/CLAUDE.md`(加 `recall-*.tsx`、会话机新导出、`reviewBatch(..., { recall: true })`)、`web/README.md`(背单词段:三档自评、快速回忆、真机未验证项)、`docs/superpowers/plans/e2e-results.md`
+- Modify: `web/e2e/wordbook.spec.ts`(v1 的学新词步骤「每张卡点下一个」在遮罩词卡上不再成立:改为每张卡先点「模糊」再点「下一个 / 开始小测」,小测照旧作答;其余断言不改)、`docker-compose.e2e.yml`(server 加 `WORDBOOK_SPOT_CHECK_PCT: "100"`;B、C 的 E2E 都按「模糊」学词,不受它影响,INDEX §8)、`server/app/wordbook/CLAUDE.md`(What lives here 加 `recall.py`;Pitfalls 加「当天新词只用 `set_learn_box`」「抽查种子是选书 seed,不要下发」「`enable_wordbook` 默认 `wordbook_spot_check_pct=0`」)、`web/src/features/wordbook/CLAUDE.md`(加 `recall-*.tsx`、会话机新导出、`reviewBatch(..., { recall: true })`)、`web/README.md`(背单词段:三档自评、快速回忆、真机未验证项)、`docs/superpowers/plans/e2e-results.md`
 
 - [ ] **Step 1: E2E 大纲(实现成 Playwright 用例,沿用 `web/e2e/wordbook.spec.ts` 的登录与开关夹具;E2E 栈 `docker-compose.e2e.yml`,零上游)**
 
@@ -1898,7 +1905,7 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
 });
 ```
 
-- [ ] **Step 2: 运行** — `yarn web:e2e --project=chromium-mobile wordbook-recall`(需 E2E 栈);结果写进 `e2e-results.md`,真机清单(spec §8.4)逐项标「已验证 / 未验证」。
+- [ ] **Step 2: 运行** — `yarn web:e2e --project=chromium-mobile wordbook-recall wordbook.spec.ts`(需 E2E 栈;改了 env 后 `docker compose -f docker-compose.e2e.yml up -d --build`);结果写进 `e2e-results.md`,真机清单(spec §8.4)逐项标「已验证 / 未验证」。
 - [ ] **Step 3: 提交** — `test(e2e): wordbook v2 learn and quick-recall flow` 与 `docs: wordbook v2 notes`。
 
 ### Task Z2: 评审波与合并验收
@@ -1938,3 +1945,19 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
 | §9 API 与契约 | S2–S6、W1、W7 |
 | §10 测试 | 各任务 |
 | §11 风险 | Global Constraints、Z2 |
+
+---
+
+## Addendum (2026-10-11) · Index reconciliation(`plans/2026-10-11-wordbook-links-INDEX.md`)
+
+本计划与 B(每日目标)、C(学习联动)对齐后的改动。任务 ID 不变;规则以 INDEX §3 为准。
+
+| # | 位置 | 改了什么 | 原因 |
+|---|---|---|---|
+| A-1 | Global Constraints「迁移」、spec §9.1、R-R8 | 「预留 0013 不使用」改为「0013 归 C(`down_revision = "0012"`)」;本计划若被迫加迁移取 0013 并让 C 顺延 | 统一迁移链(INDEX §5) |
+| A-2 | S4:`answer()` 的 v1 学新词分支与 `_rating_answer`,新增 `_learn_kind` | 「新词建行记 learn / practice」抽成一个辅助函数 `_learn_kind(session, user_id, key)`,两条路径共用;行为不变 | B 的 relearn 只需改这一处;否则 B 只改 v1 那一行,`known:true` / 三档自评路径会漏掉(B 的三个测试会失败)(INDEX R-A2) |
+| A-3 | Global Constraints 文件清单、Z 车道、Z1 | 加 `web/e2e/wordbook.spec.ts`(学新词步骤改为「模糊」→ 下一个)与 `docker-compose.e2e.yml`(`WORDBOOK_SPOT_CHECK_PCT: "100"`) | 遮罩词卡上 v1 的「直接点下一个」不再成立;原计划写了 E2E 栈用 100% 抽查却没把该文件列入 |
+| A-4 | (不改代码,记录给 C)`_rating_answer` 末尾 `await session.commit()` + `checked = …` 两行 | 这是 C 的第二个发布点锚点;pending 分支那次 `commit()` 不发布。改这两行时通知 C | C 每条作答记录恰好发布一次(INDEX R-E1) |
+| A-5 | (不改代码,记录给 C)`word-card.tsx` 的 `{covered ? … : <div id={regionId}>…</div>}` 块 | C 的 `wordDetailSections` 插槽插在这个块之后、`</SurfaceCard>` 之前,且 `covered` 时不渲染 | 原锚点 `) : null}` + `</SurfaceCard>` 被本计划的 W3 改没了 |
+
+本计划之后 B、C 依赖的锚点(合并后必须仍在):`config_out` 里的 `"learn": …  # recall §7` 一行(B 的 `limits` 放其后);`answer()` 里 `await session.commit()` + `# Ruling Z-e` 两行(C);三处 `_day_plan(...)` 调用原样保留(B 加 `settings=settings`);`_learn_kind`(B);`WordbookConfig` 启用分支里的 `learn`(B 追加 `limits`,不得整体替换);`server/app/core/config.py` 中 A 的 4 个字段位于 `wordbook_ai_daily_per_user` 之后、`wordbook_data_dir` 之前(C 的锚点是 `wordbook_data_dir`)。

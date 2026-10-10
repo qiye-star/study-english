@@ -4,7 +4,7 @@
 - 范围:`server/app/wordbook/`(`plan.py`、`store.py` 与 `service.py` 的选书/计划部分)、`server/app/routers/wordbook.py`(新增端点)、`server/app/core/{config,settings_registry,runtime_settings}.py`(范围设置)、`web/src/features/wordbook/`(首页、选书页、新的目标面板组件)
 - 实施计划:`docs/superpowers/plans/2026-10-11-wordbook-goals.md` · 视觉稿:`docs/superpowers/design/wordbook-goals-v1/mockup.html`
 - 前置:`docs/superpowers/specs/2026-10-10-wordbook-design.md`(下称「v1 spec」,含 §7 评审修订)、`docs/superpowers/plans/2026-10-10-wordbook.md`、`docs/superpowers/design/redesign-v3/design-notes.md`
-- 并行计划:A = 回忆式学习流程(迁移 `0013`)、C = 学习联动(迁移 `0015`);合并顺序 **A → B(本文)→ C**。本文**不需要迁移**;若实施中发现必须加列,保留 id `0014`,`down_revision = "0013"`。
+- 并行计划:A = 回忆式学习流程(不新增迁移)、C = 学习联动(迁移 `0013`,`down_revision = "0012"`);合并顺序 **A → B(本文)→ C**。本文**不需要迁移**;若实施中发现必须加列,取当时 head + 1(`0013`)并让 C 顺延(见 `plans/2026-10-11-wordbook-links-INDEX.md` §5)。
 
 ---
 
@@ -82,7 +82,7 @@
 
 ### 3.3 「今天已学」的口径(修订 v1)
 
-`new_done` = 今天本书 `kind ∈ {learn, relearn}` 事件的不同词数。新 kind `relearn`:一个词以前有过 `learn` 事件(别的书、删掉后重学、重置后重学)而现在再次作为新词学 → 记 `relearn`(v1 记的是 `practice`,不计入今日新词,等于绕过每日上限;重置让这个漏洞变大,所以一起修)。`relearn` 不产生 `word_learned` 段位点(段位只读 `learn`),成就「学会 N 词」仍按 `learn` 的不同词计。
+`new_done` = 今天本书 `kind ∈ {learn, relearn}` 事件的不同词数(A 的三档自评建行同样记 `learn`/`relearn`;当天再评、小测、抽查记 `practice`,不计入)。新 kind `relearn`:一个词以前有过 `learn` 事件(别的书、删掉后重学、重置后重学)而现在再次作为新词学 → 记 `relearn`(v1 记的是 `practice`,不计入今日新词,等于绕过每日上限;重置让这个漏洞变大,所以一起修)。`relearn` 不产生 `word_learned` 段位点(段位只读 `learn`),成就「学会 N 词」仍按 `learn` 的不同词计。
 
 ### 3.4 「不限」
 
@@ -135,6 +135,8 @@ O = {1, 3, 7, 14, 29} ∪ {59 + 30k | k ≥ 0}
 (N = 20:`O ∩ [1, 228]` 有 11 个值;`o = 1` 落在最后一天,只有 4 个词;`4 + 10 × 20 = 204`。)视觉稿用剩余 3,684 词:轻松 369 天 · 50,标准 185 天 · 100,冲刺 74 天 · 250。
 
 ### 4.3 诚实说明
+
+(与 A 的关系:A 合并后「认识」直接进盒 2、「模糊」进盒 1,本节的「学新词进盒 0」模型因此**偏保守**——高估复习量,不会低估;数字与测试值不改,INDEX R-G2。)
 
 估算行下方固定一行灰字:「按全部答对估算;答错的词会回到第一盒,实际复习更多。已掌握的词每 30 天复习一次,学到后期每天复习会逐渐增加(学到最后约 R(D) 个)。」不显示任何没有依据的「正确率」假设。
 
@@ -227,7 +229,7 @@ O = {1, 3, 7, 14, 29} ∪ {59 + 30k | k ≥ 0}
 
 - `plan.py`(纯):`REVIEW_UNLIMITED = 0`、`GoalLimits`、`effective_goals`、`goals_error`、`compute_plan`(新增 `bonus`、`guard_threshold`、`remaining`,修正积压)、`DayPlan` 增加 `bonus`、`goal_met`、`streak_of(days, today)`。
 - `store.py`:`today_counts` 与 `today_learned_keys` 的 learn 口径改为 `{learn, relearn}`;追加 `update_goals`、`pause_active`、`latest_paused`、`bonus_today`、`mark_goal`、`goal_days`、`reset_book`、`consume_settings`、`consume_reset`。
-- `service.py`:`limits_of(settings)`、`config_out` 加 `limits`、`enrollment_out(e, limits)` 返回有效值、`put_enrollment` 加校验、`_day_plan` 加 `settings` 关键字(夹值、加练、剩余词)、`today_out` 加 `paused`/`streak` 与写达标;`answer()` 学新词分支一行改为 `relearn`;追加 `patch_enrollment`、`grant_bonus`、`pause`、`resume`、`reset_progress`。
+- `service.py`:`limits_of(settings)`、`config_out` 加 `limits`、`enrollment_out(e, limits)` 返回有效值、`put_enrollment` 加校验、`_day_plan` 加 `settings` 关键字(夹值、加练、剩余词)、`today_out` 加 `paused`/`streak` 与写达标;A 新增的 `_learn_kind` 一行改为 `relearn`(两条学新词路径共用;INDEX R-A2);追加 `patch_enrollment`、`grant_bonus`、`pause`、`resume`、`reset_progress`。
 - `routers/wordbook.py`:放宽 `EnrollmentIn`;追加 5 个端点;重置前调用段位同步(路由层可以导入 `app.rank`;`wordbook` 层不导入段位,分层不变)。
 - 与 v1 评审修订的关系:作答时的新词检查、每词只记一次 `learn`、作答 3,000 次上限、UTC 日用量全部保留;`_day_plan` 是唯一的计划入口,加练与夹值在里面,所以 `learn_batch`、`answer` 的检查自动包含它们。
 
@@ -288,7 +290,7 @@ O = {1, 3, 7, 14, 29} ∪ {59 + 30k | k ≥ 0}
 
 | 共享文件 | 本计划的改动 | 插入点 |
 |---|---|---|
-| `server/app/wordbook/service.py` | 错误常量追加在 `REPORT_LIMIT` 之后;`config_out`、`enrollment_out`、`put_enrollment`、`_day_plan`、`today_out` 改写(选书/计划部分);`learn_batch`、`review_batch`、`answer` 里的 `_day_plan(...)` 调用各加 `settings=settings`;`answer()` 中 `kind = "practice" if ... else "learn"` 一行改为 `"relearn"`;新函数整体追加到文件末尾 `# ---- 每日目标(goals v2)----` 段 | 见计划 Task GS3 |
+| `server/app/wordbook/service.py` | 错误常量追加在 `REPORT_LIMIT` 之后;`config_out`、`enrollment_out`、`put_enrollment`、`_day_plan`、`today_out` 改写(选书/计划部分);`learn_batch`、`review_batch`、`answer` 里的 `_day_plan(...)` 调用各加 `settings=settings`(A 合并后这三行原样还在);A 新增的 `_learn_kind` 里 `"practice" if ... else "learn"` 改为 `"relearn"`;`config_out` 的 `limits` 放在 A 的 `learn` 之后;新函数整体追加到文件末尾 `# ---- 每日目标(goals v2)----` 段 | 见计划 Task GS3 |
 | `server/app/wordbook/store.py` | `today_counts`、`today_learned_keys` 的 `kind == "learn"` 改为 `kind.in_(LEARN_KINDS)`;新函数追加到文件末尾 | 同上 |
 | `server/app/routers/wordbook.py` | `EnrollmentIn` 两个字段放宽并加 `review_unlimited`;新端点追加到文件末尾 | Task GS4 |
 | `server/tests/test_wordbook_contract.py` + 样例 | `KEYS` 并上 `GOALS_KEYS`;`collect()` 末尾 `return` 前调用 `collect_goals` | Task GS5 |
@@ -298,7 +300,7 @@ O = {1, 3, 7, 14, 29} ∪ {59 + 30k | k ≥ 0}
 | `server/tests/test_wordbook_api.py`、`test_wordbook_learn_limits.py` | 单点改断言(`/today` 新键;1 现在合法;`practice` → `relearn`) | Task GS3 |
 | `server/app/wordbook/store.py` 的 `enroll()` | 新建行默认值 `or` → `is not None`(否则「不限」的 0 被吞掉) | Task GS3 |
 
-不碰:学新词/复习页、会话机、题型(A);跨模块联动的挂点(C)。若 A 先合并改动了 `answer()` / `learn_batch` 的结构,本计划在 rebase 时把上面三处单点修改重新落到等价位置,行为测试不变。
+不碰:学新词/复习页、会话机、题型(A);跨模块联动的挂点(C)。A 一定先合并(INDEX §2);上面的插入点已按 A 合并后的形状写好(`_learn_kind`、`config_out` 键序、`WordbookConfig` 追加),行为测试不变。
 
 ## 15. 风险
 

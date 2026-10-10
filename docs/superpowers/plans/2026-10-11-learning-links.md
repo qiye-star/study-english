@@ -4,7 +4,7 @@
 
 **Goal:** 用两个小机制把学习模块解耦并接上六个可插拔联动:服务端中性核心层里的进程内学习事件通道(模块只在提交后发布纯数据事件,联动逻辑在新的顶层 `app/links/`),网页里的类型化扩展点注册表(消费方只渲染插槽,提供方在 `register*.ts` 里登记、由 `web/src/plugins/index.ts` 一处列出);六个联动(单词操作位置、今日任务聚合卡、易错词、发音弱词 ↔ 跟读、对话用到今日词、段位点来源注册)各有管理端全局开关与每用户开关,全部关闭时 App 与今天完全一致。
 
-**Architecture:** 服务端:`app/core/learning_events.py`(事件数据类 + `LearningBus` 有界队列、单消费任务、超时、熔断、计数;`bind`/`publish` 走 contextvar,`current_user` 绑定)、`app/core/rank_sources.py`(段位来源注册表);新顶层 `app/links/`(`spec`、`gate`、`prefs`、`setup`、`registry`、`purge`、`admin_view` 与六个联动模块),只被 `routers/` 与 `main.py` 导入;段位经新文件 `app/rank/extra_sources.py` 读 `app.models.LinkCredit`,`ledger._sync` 只附加三行;迁移 `0015_learning_links` 建五张表。网页:`web/src/lib/extension-points.ts`(纯注册表 + 旗标)与 `extension-points-react.tsx`(`Slot`、`WordActions`、错误边界);`web/src/plugins/`(组合层:`core`、`links` 与五个联动插件);各 feature 的 `register*.ts(x)` 只被插件导入。管理端:`/api/admin/links` + `admin/src/features/links/`。
+**Architecture:** 服务端:`app/core/learning_events.py`(事件数据类 + `LearningBus` 有界队列、单消费任务、超时、熔断、计数;`bind`/`publish` 走 contextvar,`current_user` 绑定)、`app/core/rank_sources.py`(段位来源注册表);新顶层 `app/links/`(`spec`、`gate`、`prefs`、`setup`、`registry`、`purge`、`admin_view` 与六个联动模块),只被 `routers/` 与 `main.py` 导入;段位经新文件 `app/rank/extra_sources.py` 读 `app.models.LinkCredit`,`ledger._sync` 只附加一行导入 + 四行;迁移 `0013_learning_links` 建五张表。网页:`web/src/lib/extension-points.ts`(纯注册表 + 旗标)与 `extension-points-react.tsx`(`Slot`、`WordActions`、错误边界);`web/src/plugins/`(组合层:`core`、`links` 与五个联动插件);各 feature 的 `register*.ts(x)` 只被插件导入。管理端:`/api/admin/links` + `admin/src/features/links/`。
 
 **Tech Stack:** FastAPI + SQLAlchemy 2 async + Alembic + pydantic v2 + httpx/respx + pytest-asyncio(Python 3.12,uv);React 18 + react-router 7 + Tailwind 3 + vitest + Testing Library + lucide-react;admin:Vite 6 + React 18 + vitest;Playwright(E2E 大纲)。不新增依赖。
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **合并顺序与迁移号:** 本计划(C)在 A(背单词回忆流程)与 B(目标/设置面板)**之后**合并:A → B → C。迁移只新增 `server/alembic/versions/0015_learning_links.py`(`revision = "0015"`,`down_revision = "0014"`)。Task 0 的 `alembic heads` 必须输出 `0014`,否则停下等 A、B 合并,不得自行改号。
+- **合并顺序与迁移号:** 本计划(C)在 A(背单词回忆流程)与 B(目标/设置面板)**之后**合并:A → B → C。迁移只新增 `server/alembic/versions/0013_learning_links.py`(`revision = "0013"`,`down_revision = "0012"`)。A、B 都**不新增迁移**,所以 A、B 合并后 head 仍是 `0012`(INDEX 裁定 I-M1)。Task 0 的 `alembic heads` 必须输出 `0012`;若不是(A 或 B 在实施中被迫加了迁移),本计划的号顺延为「当时 head + 1」,并把本文与 spec 里所有 `0013` / `0012` 引用、文件名、测试名一起改掉(INDEX §5),再继续。
 - **分层:** 由 `server/tests/test_architecture.py` 与 `web/src/architecture.test.ts` 强制,不放宽任何既有规则。服务端新层 `links` 可导入 `links, core, models, providers, speech, services, rank, rooms, wordbook`;只有 `routers`、`main` 可导入 `links`。`core/learning_events.py`、`core/rank_sources.py` 只用标准库。段位不导入 `app.links`(读 `app.models.LinkCredit`)。网页:`plugins/` 只被 `main.tsx`(与 `test/setup.ts` 导入 `plugins/core`)导入;`features/<x>/register*.ts(x)` 只被 `plugins/**` 导入且不导入其他 feature;feature→feature 导入对冻结在基线;`AddVocabularyButton` 只在 `features/vocabulary/` 内部引用。
 - **全关等于今天:** `LINKS_ENABLED` 默认 `false`;关闭时 `publish` 立即返回 False、不入队;`/api/links/config` 返回 `{"enabled": false, "links": [...全部 effective=false]}`,其余 `/api/links/*` 404;网页插槽只渲染核心贡献(「加入生词本」),其 DOM 与直接渲染 `AddVocabularyButton` 逐字节相同。既有测试一个不改(Task L1 搬走的 `vocabularyFromLookup` 用例除外,原样搬到 lookup)。
 - **尽力而为:** 联动失败不让主请求失败;处理器有超时、熔断、队列上限,幂等;关键积分继续读源表;联动段位点只吃共享每日上限的剩余额度且有子上限(spec §5.4)。
@@ -32,7 +32,7 @@
 
 ```
 server/
-  alembic/versions/0015_learning_links.py
+  alembic/versions/0013_learning_links.py
   app/core/learning_events.py        事件数据类、LearningBus、bind/publish(标准库)
   app/core/rank_sources.py           段位来源注册表(标准库)
   app/rank/extra_sources.py          读 LinkCredit、按剩余额度封顶(段位包内新文件)
@@ -74,8 +74,8 @@ web/e2e/links.spec.ts(Z1)
 
 | 车道 | 任务 | 独占文件(本车道进行期间只有它改) | 依赖 |
 |---|---|---|---|
-| **foundation F**(串行) | F1–F7 | `server/app/core/{learning_events,rank_sources}.py`、`server/app/core/deps.py`(一行)、`server/app/core/{config,settings_registry}.py`(追加)、`server/.env.example`(追加)、`server/app/models.py`(追加)、`server/alembic/versions/0015_learning_links.py`、`server/tests/test_migrations.py`(追加)、`server/tests/test_settings_registry.py`(追加)、`server/app/admin/users_admin.py`(删除列表追加)、`server/app/links/{__init__,spec,gate,prefs,registry,setup,purge}.py`、`server/app/links/CLAUDE.md`、六个联动模块的 **F4 桩**、`server/app/routers/links.py`、`server/app/main.py`、`server/tests/test_architecture.py`、`server/app/CLAUDE.md`、`server/tests/links_helpers.py`、`server/tests/test_{learning_events,rank_sources,links_gate,links_api,links_publishers,links_matrix}.py`、`server/tests/fixtures/links_contract.json`、发布点 `server/app/wordbook/service.py` / `server/app/routers/{speech,conversations}.py` / `server/app/services/stats.py`(附加)、`web/src/lib/extension-points*`、`web/src/plugins/{index,core}.ts`、`web/src/plugins/CLAUDE.md`、`web/src/plugins/links/**`、五个联动插件的 **F7 桩** `web/src/plugins/<x>/index.ts`、`web/src/features/vocabulary/{register.ts,word-action.tsx}`、消费方插槽插入(`practice-page.tsx`、`me-page.tsx`、`vocabulary-page.tsx`、`wordbook/word-card.tsx`、`app.tsx`、`main.tsx`)、`web/src/test/setup.ts`、`web/src/architecture.test.ts` | Task 0 |
-| **L6 rank_sources** | L6-1, L6-2 | `server/app/links/rank_sources.py`、`server/app/rank/{extra_sources,ledger,rules}.py`(ledger 附加三行、rules 加两字段)、`server/app/rank/CLAUDE.md`、`server/tests/test_rank_extra_sources.py`、`admin/src/features/rank/{api.ts,rules-schema.ts,rules-schema.test.ts,strings.ts}` 与规则编辑器里点数分组所在文件、`web/src/features/rank/{rank-home-page.tsx,i18n/en.json,i18n/zh-CN.json}`(一个标签) | F |
+| **foundation F**(串行) | F1–F7 | `server/app/core/{learning_events,rank_sources}.py`、`server/app/core/deps.py`(一行)、`server/app/core/{config,settings_registry}.py`(追加)、`server/.env.example`(追加)、`server/app/models.py`(追加)、`server/alembic/versions/0013_learning_links.py`、`server/tests/test_migrations.py`(追加)、`server/tests/test_settings_registry.py`(追加)、`server/app/admin/users_admin.py`(删除列表追加)、`server/app/links/{__init__,spec,gate,prefs,registry,setup,purge}.py`、`server/app/links/CLAUDE.md`、六个联动模块的 **F4 桩**、`server/app/routers/links.py`、`server/app/main.py`、`server/tests/test_architecture.py`、`server/app/CLAUDE.md`、`server/tests/links_helpers.py`、`server/tests/test_{learning_events,rank_sources,links_gate,links_api,links_publishers,links_matrix}.py`、`server/tests/fixtures/links_contract.json`、发布点 `server/app/wordbook/service.py` / `server/app/routers/{speech,conversations}.py` / `server/app/services/stats.py`(附加)、`web/src/lib/extension-points*`、`web/src/plugins/{index,core}.ts`、`web/src/plugins/CLAUDE.md`、`web/src/plugins/links/**`、五个联动插件的 **F7 桩** `web/src/plugins/<x>/index.ts`、`web/src/features/vocabulary/{register.ts,word-action.tsx}`、消费方插槽插入(`practice-page.tsx`、`me-page.tsx`、`vocabulary-page.tsx`、`wordbook/word-card.tsx`、`app.tsx`、`main.tsx`)、`web/src/test/setup.ts`、`web/src/architecture.test.ts` | Task 0 |
+| **L6 rank_sources** | L6-1, L6-2 | `server/app/links/rank_sources.py`、`server/app/rank/{extra_sources,ledger,rules}.py`(ledger 一行导入 + 四行附加、rules 加两字段)、`server/app/rank/CLAUDE.md`、`server/tests/test_rank_extra_sources.py`、`admin/src/features/rank/{api.ts,rules-schema.ts,rules-schema.test.ts,strings.ts}` 与规则编辑器里点数分组所在文件、`web/src/features/rank/{rank-home-page.tsx,i18n/en.json,i18n/zh-CN.json}`(一个标签) | F |
 | **L1 word_actions** | L1-1…L1-3 | `server/app/links/word_actions.py`、`server/tests/test_links_word_actions.py`、`server/tests/fixtures/links_word_actions_contract.json`、`web/src/plugins/word-actions/**`、`web/src/features/vocabulary/{register-word-actions.tsx,index.ts,save-vocabulary-item.ts,save-vocabulary-item.test.ts,CLAUDE.md}`、`web/src/features/wordbook/{register-word-actions.tsx,link-actions.tsx}`、`web/src/features/practice/register-word-actions.tsx`、`web/src/features/lookup/{word-target.ts,word-target.test.ts,lookup-layer.tsx,index.ts}`、`web/src/features/chat/conversation-page.tsx`(两行)、`web/src/features/progress/progress-page.tsx`(两行)、`web/src/features/rooms/extras/summary-page.tsx`(两行)、`web/src/architecture.test.ts`(基线减边;L1 期间独占,F 之后) | F |
 | **L2 daily_tasks** | L2-1, L2-2 | `server/app/links/daily_tasks.py`、`server/tests/test_links_daily_tasks.py`、`server/tests/fixtures/links_daily_tasks_contract.json`、`web/src/plugins/daily-tasks/**`、`web/src/features/{wordbook,practice,chat,rank}/register-daily-tasks.tsx` | F |
 | **L3 mistakes** | L3-1, L3-2 | `server/app/links/mistakes.py`、`server/tests/test_links_mistakes.py`、`server/tests/fixtures/links_mistakes_contract.json`、`web/src/plugins/mistakes/**` | F |
@@ -92,12 +92,12 @@ web/e2e/links.spec.ts(Z1)
 
 | 文件(归属) | 插入点(以锚点文本为准,行号为写计划时) | 任务 |
 |---|---|---|
-| `server/app/wordbook/service.py`(A) | 文件头导入块末尾加 `from app.core import learning_events`;`answer()`:锚点 `await session.commit()` + 下一行注释 `# Ruling Z-e`(现 315 行)之间插入一条 `learning_events.publish(...)`;`spell_submit()`:锚点 `words, next_blank, seen = [], 0, set()`(现 401 行)之后插入 `answered: list = []`,锚点 `credit=credit, day=day, now=now)` 即循环内 `store.add_event(...)` 调用结束(现 415 行)之后插入一条 `answered.append(...)`,锚点 `await session.commit()`(现 429 行)之后插入两行发布循环 | F5 |
-| `web/src/features/wordbook/word-card.tsx`(A) | 文件头加 `import { Slot } from "~/lib/extension-points-react";`;`WordCardView` 中锚点 `) : null}` + `</SurfaceCard>`(短语 `<details>` 块之后、现 134 行)之间插入 `<Slot point="wordDetailSections" props={{ word: card.key }} />` | F7 |
-| `web/src/features/practice/practice-page.tsx`(B 可能改) | 文件头加 `import { Slot } from "~/lib/extension-points-react";`;锚点 `<WordbookCard className="mt-2" />`(现 173 行)之后插入 `<Slot point="practiceHome" props={{}} />`;锚点 `<SectionGroup title={t("web.practice.home.shadowing")} bare>`(现 174 行)改为在其**下一行** `<SurfaceCard className="p-3.5">` 之前插入 `<div id="shadowing" />`(不改 SectionGroup 本身);锚点 `<label htmlFor="reference"`(现 176 行)之前插入 `<Slot point="learningSources" props={{ pick: setReference }} />` | F7 |
-| `web/src/pages/me-page.tsx`(B 可能改) | 文件头加导入;锚点 `<WordbookMeRow />`(现 191 行)之后插入 `<Slot point="meRows" props={{}} />` | F7 |
-| `server/app/core/{config,settings_registry}.py`、`server/.env.example`、`server/app/models.py`、`server/app/main.py`、`server/tests/{test_migrations,test_settings_registry}.py`(A/B 可能追加) | 只在文件末尾或「学习联动」新分组内追加;`test_migrations.py` 的单 head 断言改为 `"0015"` | F2–F4 |
-| `web/src/app.tsx`、`web/src/main.tsx`(B 可能改) | `main.tsx`:`import { App } from "./app";` 之前插入 `import "./plugins";`;`app.tsx`:导入块加 `routesFor`/`useLinkFlags`/`Slot`;`<Route element={<AppShell />}>` 改为 `<Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>`,其内 `<Route path="/me" …/>` 之后插入 `{routes}`(`const routes = routesFor(useLinkFlags()).map(...)` 在 `AppRoutes` 顶部) | F7 |
+| `server/app/wordbook/service.py`(A、B) | 文件头导入块末尾加 `from app.core import learning_events`;`answer()` 客观题路径:锚点 `await session.commit()` + 下一行注释 `# Ruling Z-e`(A 合并后仍在,文字为「expected = 词头;correct_option = 选择题正确项原文(打字题为 null)」)之间插入一条 `learning_events.publish(...)`;A 的 `_rating_answer()`:锚点为函数末尾的 `await session.commit()` + 下一行 `checked = p.mode == "review" and p.choice is not None and rating == "know"` 之间插入第二条发布(INDEX R-E1;抽查 pending 分支那次带注释 `# 只扣了作答次数` 的 `commit()` 之后**不**发布);`spell_submit()`:锚点 `words, next_blank, seen = [], 0, set()`(现 401 行)之后插入 `answered: list = []`,锚点 `credit=credit, day=day, now=now)` 即循环内 `store.add_event(...)` 调用结束(现 415 行)之后插入一条 `answered.append(...)`,锚点 `await session.commit()`(现 429 行)之后插入两行发布循环 | F5 |
+| `web/src/features/wordbook/word-card.tsx`(A) | 文件头加 `import { Slot } from "~/lib/extension-points-react";`;A 的 W3 把释义 / 例句 / 短语包进了 `{covered ? (<>…<RecallCover …/>…</>) : (<div id={regionId} …>…</div>)}`,所以旧锚点 `) : null}` + `</SurfaceCard>` 已不存在。新锚点:`WordCardView` 里该 `covered` 三元块的结尾 `)}` + `</SurfaceCard>` 之间插入 `{covered ? null : <Slot point="wordDetailSections" props={{ word: card.key }} />}`(遮罩时不渲染联动区;A 的 `RecallCard` 背面复用 `WordCardView`,因此背面也有插槽,正面没有) | F7 |
+| `web/src/features/practice/practice-page.tsx`(仅 C;A、B 不改) | 文件头加 `import { Slot } from "~/lib/extension-points-react";`;锚点 `<WordbookCard className="mt-2" />`(现 173 行)之后插入 `<Slot point="practiceHome" props={{}} />`;锚点 `<SectionGroup title={t("web.practice.home.shadowing")} bare>`(现 174 行)改为在其**下一行** `<SurfaceCard className="p-3.5">` 之前插入 `<div id="shadowing" />`(不改 SectionGroup 本身);锚点 `<label htmlFor="reference"`(现 176 行)之前插入 `<Slot point="learningSources" props={{ pick: setReference }} />` | F7 |
+| `web/src/pages/me-page.tsx`(仅 C;A、B 不改) | 文件头加导入;锚点 `<WordbookMeRow />`(现 191 行)之后插入 `<Slot point="meRows" props={{}} />` | F7 |
+| `server/app/core/{config,settings_registry}.py`(A、B 都改背单词段)、`server/.env.example`、`server/app/models.py`、`server/app/main.py`、`server/tests/{test_migrations,test_settings_registry}.py`(这几个 A、B 不改) | `config.py`:锚点 `wordbook_data_dir: str = ""`(背单词段最后一行;A 的 4 个字段与 B 的 6 个字段都在它之前)之后追加;`settings_registry.py`:`GROUPS` 在 `("wordbook", "背单词")` 之后加一项,15 条追加在 `_ALL` 末尾(`# admin` 段之后);其余只在文件末尾或「学习联动」新分组内追加;`test_migrations.py` 的单 head 断言改为 `"0013"` | F2–F4 |
+| `web/src/app.tsx`、`web/src/main.tsx`(仅 C;A、B 不改) | `main.tsx`:`import { App } from "./app";` 之前插入 `import "./plugins";`;`app.tsx`:导入块加 `routesFor`/`useLinkFlags`/`Slot`;`<Route element={<AppShell />}>` 改为 `<Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>`,其内 `<Route path="/me" …/>` 之后插入 `{routes}`(`const routes = routesFor(useLinkFlags()).map(...)` 在 `AppRoutes` 顶部) | F7 |
 
 ## 本计划的裁定
 
@@ -117,7 +117,7 @@ web/e2e/links.spec.ts(Z1)
 ## Task 0: 开工检查(执行者第一步)
 
 - [ ] **Step 1** — 确认 A、B 已合并:`git fetch && git rebase origin/main`(或按团队流程把本分支 rebase 到含 A、B 的 main)。
-- [ ] **Step 2** — Run: `cd server && uv run alembic heads` → 输出必须是 `0014 (head)`。不是 → 停下,在本计划末尾写 Addendum 记录实际 head,等协调后再继续;**不得**把 0015 改成别的号。
+- [ ] **Step 2** — Run: `cd server && uv run alembic heads` → 输出必须是 `0012 (head)`(A、B 不新增迁移)。不是 → 在本计划末尾写 Addendum 记录实际 head,按 INDEX §5 把本计划的迁移号顺延为「head + 1」(`down_revision` = 实际 head,文件名、`revision`、测试名 `test_00NN_…`、单 head 断言、spec §10 一起改),不得与已有号重复。
 - [ ] **Step 3** — worktree 里按根 `CLAUDE.md` 把 `node_modules`(根与 `web/`、`admin/`)从主检出做 junction,不重新安装。
 - [ ] **Step 4** — 基线:`cd server && uv run pytest -q`、`yarn web:typecheck && yarn web:test`、`cd admin && yarn vitest run` 全绿;记下 `yarn web:build` 的主包体积(验收比较用)。
 
@@ -788,7 +788,7 @@ def clear_for_tests() -> None:
     _sources.clear()
 ```
 
-`server/app/core/config.py`,在 wordbook 字段块之后追加(沿用文件里 `Field(默认, ge=, le=)` 的写法):
+`server/app/core/config.py`,在 wordbook 字段块之后追加——锚点是背单词段最后一行 `wordbook_data_dir: str = ""`(A 的 4 个 `wordbook_*` 字段与 B 的 6 个范围字段都在它之前;沿用文件里 `Field(默认, ge=, le=)` 的写法):
 
 ```python
     # 学习联动(spec 2026-10-11-learning-links §7.1);总开关关 = 与未安装联动完全相同
@@ -843,15 +843,15 @@ git commit -m "feat(server): rank source registry and learning-link settings
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-### Task F3: 迁移 0015、模型、删除用户时清理
+### Task F3: 迁移 0013、模型、删除用户时清理
 
 **Files:**
-- Create: `server/alembic/versions/0015_learning_links.py`、`server/tests/test_links_models.py`
-- Modify: `server/app/models.py`(末尾追加五个模型)、`server/tests/test_migrations.py`(追加 0015 往返测试;单 head 断言改 `"0015"`)、`server/app/admin/users_admin.py`(删除循环之后追加一个循环与一行导入)
+- Create: `server/alembic/versions/0013_learning_links.py`、`server/tests/test_links_models.py`
+- Modify: `server/app/models.py`(末尾追加五个模型)、`server/tests/test_migrations.py`(追加 0013 往返测试;单 head 断言改 `"0013"`)、`server/app/admin/users_admin.py`(删除循环之后追加一个循环与一行导入)
 
 **Interfaces:**
 - Produces(`app.models`):`UserLinkPref`、`LinkMistakeWord`、`LinkWeakWord`、`LinkWordUse`、`LinkCredit`(字段见 spec §10)
-- Consumes:Task 0 确认的 head `0014`
+- Consumes:Task 0 确认的 head `0012`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -861,12 +861,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link_word_uses", "link_credits"}
 
 
-def test_0015_learning_links_tables_round_trip(tmp_path, monkeypatch):
+def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]
-    command.upgrade(cfg, "0014")
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0013"]
+    command.upgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
-    command.upgrade(cfg, "0015")
+    command.upgrade(cfg, "0013")
     assert LINK_TABLES <= _tables(db)
     con = sqlite3.connect(db)
     try:
@@ -880,13 +880,13 @@ def test_0015_learning_links_tables_round_trip(tmp_path, monkeypatch):
         con.close()
     assert pk == ["user_id", "word"]
     assert "ix_link_credits_user_id_created_at" in credit_idx and "ix_link_word_uses_user_id_created_at" in uses_idx
-    command.downgrade(cfg, "0014")
+    command.downgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "head")
     assert LINK_TABLES <= _tables(db)
 ```
 
-并把文件里已有的单 head 断言(写计划时在 `test_0011_…` 里,A/B 合并后为 `["0014"]`)改为 `["0015"]`。
+并把文件里已有的单 head 断言(在 `test_0011_…` 里,当前为 `["0012"]`;A、B 不新增迁移,不会改它)改为 `["0013"]`。
 
 `server/tests/test_links_models.py`:
 
@@ -1027,17 +1027,18 @@ class LinkCredit(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 ```
 
-`server/alembic/versions/0015_learning_links.py`:
+`server/alembic/versions/0013_learning_links.py`:
 
 ```python
 """learning links tables (spec 2026-10-11-learning-links §10)
 
-Revision ID: 0015
-Revises: 0014
+Revision ID: 0013
+Revises: 0012
 Create Date: 2026-10-11 10:00:00.000000
 
 New tables only (no ALTER on existing tables), so the same path is safe on SQLite and Postgres.
-`alembic heads` before this migration: 0014 (head) — merge order A (0013) -> B (0014) -> C (this).
+`alembic heads` before this migration: 0012 (head) — plans A (wordbook recall) and B (wordbook goals) add no migration;
+merge order A -> B -> C (this). If A or B ever adds one, renumber this file to head + 1 (INDEX 2026-10-11 §5).
 """
 from typing import Sequence, Union
 
@@ -1045,8 +1046,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '0015'
-down_revision: Union[str, Sequence[str], None] = '0014'
+revision: str = '0013'
+down_revision: Union[str, Sequence[str], None] = '0012'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -1137,8 +1138,8 @@ def downgrade() -> None:
 - [ ] **Step 5: 提交**
 
 ```bash
-git add server/alembic/versions/0015_learning_links.py server/app/models.py server/app/admin/users_admin.py server/tests/test_migrations.py server/tests/test_links_models.py
-git commit -m "feat(server): migration 0015 learning-link tables
+git add server/alembic/versions/0013_learning_links.py server/app/models.py server/app/admin/users_admin.py server/tests/test_migrations.py server/tests/test_links_models.py
+git commit -m "feat(server): migration 0013 learning-link tables
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1811,6 +1812,36 @@ async def test_user_messages_publish_message_sent_and_assistant_ones_do_not(app,
     assert (e.conversation_id, e.message_id, e.text) == (conv["id"], r.json()["messages"][0]["id"], "I talked a lot")
 
 
+async def test_rating_answers_publish_once_and_pending_checks_do_not(app, client, tmp_path, monkeypatch):
+    """INDEX R-E1:A 的三档自评每条作答记录发布一次;复习抽查第一步(pending,不写事件)不发布。"""
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.models import VocabularyItem, utcnow
+    from app.wordbook import service
+    enable_wordbook(app, make_data_dir(tmp_path), wordbook_spot_check_pct=100)
+    enable_links(app)
+    monkeypatch.setattr(service, "use_recall", lambda user_id, key, reps, box: box in (1, 2, 4, 5))
+    rec = Recorder(app, WordAnswered)
+    h = await login(client)
+    await client.put("/api/wordbook/enrollment", headers=h, json={"book_id": "junior", "order_mode": "book"})
+    base = {"book_id": "junior", "tz_offset_minutes": 480, "key": "talk", "qtype": "recall"}
+    r = await client.post("/api/wordbook/answers", headers=h, json={**base, "mode": "learn", "rating": "fuzzy"})
+    assert r.status_code == 200
+    async with app.state.sessionmaker() as s:
+        await s.execute(update(VocabularyItem).where(VocabularyItem.word == "talk")
+                        .values(due_at=utcnow() - timedelta(hours=1)))
+        await s.commit()
+    pending = (await client.post("/api/wordbook/answers", headers=h,
+                                 json={**base, "mode": "review", "rating": "know"})).json()
+    assert pending["outcome"] == "pending"
+    await client.post("/api/wordbook/answers", headers=h, json={**base, "mode": "review", "rating": "know", "choice": "x"})
+    await app.state.learning_bus.drain()
+    assert [(e.kind, e.qtype, e.outcome, e.credit) for e in rec.seen] == [
+        ("learn", "recall", "fuzzy", 0), ("review", "recall", "unknown", 0)]
+
+
 def test_word_buckets_agree_with_poor_words():
     fixture = Path(__file__).parent / "fixtures" / "ise_good.xml"
     from app.providers.xfyun_result import to_assessment
@@ -1919,15 +1950,21 @@ def word_buckets(result: object) -> tuple[list[tuple[str, int | None]], list[str
     return list(weak.items()), [w for w in good if w not in weak]
 ```
 
-`server/app/wordbook/service.py`(三处附加,锚点见「共享文件插入点」):
+`server/app/wordbook/service.py`(四处附加,锚点见「共享文件插入点」;以 A、B 合并后的文件为准):
 
 ```python
 from app.core import learning_events  # 导入块末尾
 
-# answer():await session.commit() 之后
+# answer() 客观题路径:await session.commit() 之后、# Ruling Z-e 之前
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=p.qtype, outcome=outcome, credit=credit,
         at=now))
+
+# _rating_answer()(A 的三档自评):末尾 await session.commit() 之后、checked = … 之前。
+# kind 可能是 learn / relearn(B)/ review / practice;pending 分支(只扣作答次数)已在前面 return,不会走到这里
+    learning_events.publish(learning_events.WordAnswered(
+        user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=recall.RECALL_QTYPE, outcome=outcome,
+        credit=100 if eff == "know" else 0, at=now))
 
 # spell_submit():words, next_blank, seen = [], 0, set() 之后
     answered: list = []
@@ -2595,7 +2632,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ## Lane L6 · 段位点来源注册(`rank_sources`)
 
-### Task L6-1: `rank/extra_sources.py`、`PointsRule` 两个新字段、`ledger._sync` 附加三行
+### Task L6-1: `rank/extra_sources.py`、`PointsRule` 两个新字段、`ledger._sync` 附加四行(另一行导入)
 
 **Files:**
 - Create: `server/app/rank/extra_sources.py`、`server/tests/test_rank_extra_sources.py`
@@ -3495,7 +3532,7 @@ describe("今日任务卡", () => {
 - `today-api.ts`:`fetchTodayCounts(api, offset = -new Date().getTimezoneOffset(), signal)` = `api.request<TodayCounts>("GET", "/api/links/today", { query: { offset }, signal })`。
 - `daily-tasks-card.tsx`:`DailyTasksCard` — `SurfaceCard data-testid="daily-tasks-card"` + 标题行「今日任务」与右侧 `n/m 完成`;拉取 `fetchTodayCounts` 一次(失败时 `today=null`,依赖它的行显示「—」);主体 `<Slot point="dailyTasks" props={{ today }} />`。**完成数的统计:** 提供方各自异步取数,不向卡片回报;卡片用一个挂在列表容器上的 `MutationObserver`(属性过滤 `data-state`、子节点增删)重新数 `[data-testid^=daily-task-]` 的 `data-state`,行数为 0 时整卡加 `hidden`(无行 = 不渲染,spec §6.2)。这样提供方既不导入插件,也不需要共享状态。
 - 四个提供方(每个 `contribute({ point: "dailyTasks", id, order, link: "daily_tasks", component })`):
-  - `wordbook.today`:`useWordbookEnabled()` 假 → `null`;`useWordbookToday(true)` 的 `plan`;完成 = `newLeft === 0 && reviewLeft === 0`;副标题「新词 {{newDone}}/{{newTarget}} · 复习 {{reviewDone}}/{{reviewDue}}」;`to="/wordbook"`;图标青色 `BookOpenIcon`。
+  - `wordbook.today`:`useWordbookEnabled()` 假 → `null`;`useWordbookToday(true)` 的 `plan`(`plan` 为 null,即 B 的暂停 / 未选书 → `null`);完成 = `plan.goalMet || (plan.newLeft === 0 && plan.reviewLeft === 0)`(B 的达标口径不含加练,所以加练后不会从「完成」退回「未完成」;INDEX R-T1;测试用 B 的 `goals-test-fixtures.ts` 里的 `GOAL_MET_TODAY`);副标题「新词 {{newDone}}/{{newTarget}} · 复习 {{reviewDone}}/{{reviewDue}}」;`to="/wordbook"`;图标青色 `BookOpenIcon`。
   - `practice.shadow`:完成 = `today.practiceToday >= 1`;标题「跟读一句」;点击 `navigate("/practice#shadowing")` 并 `document.getElementById("shadowing")?.scrollIntoView({ behavior: "smooth" })`;图标蓝色 `MicIcon`。
   - `chat.talk`:完成 = `today.chatMessagesToday >= 1`;标题「对话一次」;`to="/chat"`;图标蓝色 `MessagesSquareIcon`。
   - `rank.stage`:`fetchRankConfig` 关 → `null`;`fetchRankMe` 的 `stageTasks`,本模块内 `WeakMap<ApiClient, {at, promise}>` 30 秒复用;完成 = 全部 `complete`;副标题「阶段任务 {{done}}/{{total}}」;`to="/rank"`;图标琥珀 `TrophyIcon`。
@@ -3525,7 +3562,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `server/tests/test_links_mistakes.py`、`server/tests/fixtures/links_mistakes_contract.json`
 
 **Interfaces:**
-- Produces:`WRONG = {"wrong", "inflection"}`、`RIGHT = {"correct", "known"}`、`CLEAR_AFTER = 2`、`ACTIVE_MAX = 200`、`async handle(app, event: WordAnswered)`、`install(app, bus)`;`GET /api/links/mistakes?page=1..100` → `{"items": [{"word","wrong_count","last_wrong_at","meaning","box","due_at","book_id"}], "next", "total"}`(每页 20);`POST /api/links/mistakes/dismiss {"word"}` → `{"word"}`
+- Produces:`WRONG = {"wrong", "inflection"}`、`RIGHT = {"correct", "know", "known"}`、`LAPSE_KINDS = {"review", "practice"}`、`is_wrong(event) -> bool`(`outcome ∈ WRONG`,或 `outcome == "unknown"` 且 `kind ∈ LAPSE_KINDS`;INDEX R-E3)、`CLEAR_AFTER = 2`、`ACTIVE_MAX = 200`、`async handle(app, event: WordAnswered)`、`install(app, bus)`;`GET /api/links/mistakes?page=1..100` → `{"items": [{"word","wrong_count","last_wrong_at","meaning","box","due_at","book_id"}], "next", "total"}`(每页 20);`POST /api/links/mistakes/dismiss {"word"}` → `{"word"}`
 - Consumes:`WordAnswered`(F1)、`LinkMistakeWord`(F3)、`require_link`、`WordIn`
 
 - [ ] **Step 1: 写失败测试**
@@ -3577,6 +3614,25 @@ async def test_wrong_answers_enter_and_two_right_answers_clear(app, client):
     assert (r.wrong_count, r.cleared_at) == (3, None)
     await mistakes.handle(app, ev(uid, "ability", "correct", 6))  # a right answer alone creates nothing
     assert await row(app, uid, "ability") is None
+
+
+async def test_self_rating_outcomes_follow_the_index_rules(app, client):
+    """A 的三档自评(INDEX R-E3):新词标「不认识」不算错;复习 / 当天再评的「不认识」算错;fuzzy、know_chk 中性;know 算对。"""
+    uid, _ = await login(app, client)
+    await mistakes.handle(app, ev(uid, "talk", "unknown", 0, kind="learn"))
+    await mistakes.handle(app, ev(uid, "talk", "unknown", 1, kind="relearn"))
+    assert await row(app, uid, "talk") is None
+    await mistakes.handle(app, ev(uid, "talk", "unknown", 2, kind="review"))
+    assert (await row(app, uid, "talk")).wrong_count == 1
+    await mistakes.handle(app, ev(uid, "talk", "fuzzy", 3))
+    await mistakes.handle(app, ev(uid, "talk", "know_chk", 4, kind="practice"))
+    r = await row(app, uid, "talk")
+    assert (r.ok_streak, r.cleared_at) == (0, None)
+    await mistakes.handle(app, ev(uid, "talk", "know", 5))
+    await mistakes.handle(app, ev(uid, "talk", "correct", 6))
+    assert (await row(app, uid, "talk")).cleared_at is not None
+    await mistakes.handle(app, ev(uid, "talk", "unknown", 7, kind="practice"))  # 「记错了」重新打开
+    assert (await row(app, uid, "talk")).cleared_at is None
 
 
 async def test_replays_and_older_events_are_ignored(app, client):
@@ -3649,20 +3705,26 @@ from app.models import LinkMistakeWord, User, VocabularyItem, iso_utc, utcnow
 from app.services.stats import as_utc
 
 WRONG = frozenset({"wrong", "inflection"})
-RIGHT = frozenset({"correct", "known"})
+RIGHT = frozenset({"correct", "know", "known"})  # known = A 之前写的旧行;A 之后 known:true 记为 know
+LAPSE_KINDS = frozenset({"review", "practice"})  # 「不认识」只在已有词条上算错;新词第一次标不认识不算(INDEX R-E3)
 CLEAR_AFTER = 2
 ACTIVE_MAX = 200
 PAGE = 20
 M = LinkMistakeWord
 
 
+def is_wrong(event: WordAnswered) -> bool:
+    return event.outcome in WRONG or (event.outcome == "unknown" and event.kind in LAPSE_KINDS)
+
+
 async def handle(app, event: WordAnswered) -> None:
-    if event.outcome not in WRONG | RIGHT:
-        return
+    wrong = is_wrong(event)
+    if not wrong and event.outcome not in RIGHT:
+        return  # typo、fuzzy、know_chk、新词的 unknown:中性
     async with app.state.sessionmaker() as session:
         row = await session.get(M, (event.user_id, event.word))
         if row is None:
-            if event.outcome in RIGHT:
+            if not wrong:
                 return
             session.add(M(user_id=event.user_id, word=event.word, book_id=event.book_id, wrong_count=1, ok_streak=0,
                           last_event_at=event.at, last_wrong_at=event.at, cleared_at=None))
@@ -3676,7 +3738,7 @@ async def handle(app, event: WordAnswered) -> None:
                 return
         if as_utc(row.last_event_at) >= event.at:
             return  # replay or an older event
-        if event.outcome in WRONG:
+        if wrong:
             values = dict(wrong_count=M.wrong_count + 1, ok_streak=0, last_wrong_at=event.at, cleared_at=None,
                           book_id=event.book_id)
         elif row.cleared_at is not None:
@@ -3688,7 +3750,7 @@ async def handle(app, event: WordAnswered) -> None:
                                               M.last_event_at < event.at)
                               .values(last_event_at=event.at, **values).execution_options(synchronize_session=False))
         await session.commit()
-        if event.outcome in WRONG:
+        if wrong:
             await _cap(session, event.user_id, event.at)
 
 
@@ -4295,6 +4357,17 @@ async def test_end_to_end_api_and_no_text_stored_or_logged(app, client, caplog):
     check_contract("links_chat_words_contract", {"chat_words": body})
 
 
+async def test_relearned_words_are_not_todays_words(app, client):
+    """B 的 relearn(删掉 / 重置后重学)不是今日词:word_in_chat 每词每人最多一次(INDEX R-P4)。"""
+    uid, _ = await login(app, client)
+    async with app.state.sessionmaker() as s:
+        s.add(WordbookEvent(user_id=uid, book_id="junior", kind="relearn", word="talk", item_id=None, qtype="recall",
+                            outcome="know", credit=100, day="2026-10-11", created_at=T0 - timedelta(hours=1)))
+        await s.commit()
+    await chat_words.handle(app, msg(uid, "I talked."))
+    assert await counts(app, uid) == ([], [])
+
+
 def test_install_registers_the_rank_source(app):
     assert rank_sources.get("word_in_chat") == chat_words.SOURCE
 ```
@@ -4341,7 +4414,7 @@ def matches(text: str, keys: Iterable[str]) -> set[str]:
 
 
 async def todays_words(session: AsyncSession, user_id: int, at) -> dict[str, int]:
-    """过去 24 小时内的 learn 事件:词 → 事件 id(L-R4)。"""
+    """过去 24 小时内的 learn 事件:词 → 事件 id(L-R4)。只看 learn,不看 B 的 relearn(INDEX R-P4)。"""
     rows = (await session.execute(select(WordbookEvent.id, WordbookEvent.word).where(
         WordbookEvent.user_id == user_id, WordbookEvent.kind == "learn", WordbookEvent.created_at >= at - WINDOW,
         WordbookEvent.created_at <= at).order_by(WordbookEvent.id).limit(TODAY_MAX))).all()
@@ -4715,7 +4788,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `web/src/plugins/links-matrix.test.tsx`、`web/e2e/links.spec.ts`
-- Modify: `docker-compose.e2e.yml`(server 加 `LINKS_ENABLED: "true"`)、`server/README.md`(「学习联动」一节:开关、每用户开关、队列/超时/熔断、隐私与保留、多进程说明、大模型用法检查费用)、`web/README.md`(行为与未验证项)、`server/app/links/CLAUDE.md`、`web/src/plugins/CLAUDE.md`(按最终实现补充)
+- Modify: `docker-compose.e2e.yml`(server 加 `LINKS_ENABLED: "true"`;A 的 Z1 已加 `WORDBOOK_SPOT_CHECK_PCT: "100"`,保留)、`server/README.md`(「学习联动」一节:开关、每用户开关、队列/超时/熔断、隐私与保留、多进程说明、大模型用法检查费用)、`web/README.md`(行为与未验证项)、`server/app/links/CLAUDE.md`、`web/src/plugins/CLAUDE.md`(按最终实现补充)
 
 - [ ] **Step 1: 写矩阵测试** — `web/src/plugins/links-matrix.test.tsx`:
 
@@ -4760,8 +4833,8 @@ describe("all-off / all-on matrix", () => {
 
 (`architecture.test.ts` 的 `PENDING` 此时应为空集合:Z1 把它删掉并让「每个点都被渲染」用例无白名单运行。)
 
-- [ ] **Step 2: 写 E2E 大纲** — `web/e2e/links.spec.ts`(`chromium-mobile`,沿用其他 spec 的登录夹具;零上游——不评测、不调大模型):注册 → 练习页出现「今日任务」卡,「背单词」行未完成 → 选书「初中」→ 学新词一轮,在小测里故意选错 1 个 → 回「我的 → 词汇本」:出现「易错词 · 1」,进入能看到该词 → 查词浮层(在一段对话文字上长按选词)「加入生词本」旁有「更多」,面板四行 → 「我的 → 学习联动」关掉「易错词」→ 生词本入口消失 → 打开回来入口恢复。
-- [ ] **Step 3: 跑** — `docker compose -f docker-compose.e2e.yml up -d --build`;`yarn web:e2e --project=chromium-mobile web/e2e/links.spec.ts` → PASS;结果与日期写进 `docs/superpowers/plans/e2e-results.md`(未跑的写「未验证」与原因)。
+- [ ] **Step 2: 写 E2E 大纲** — `web/e2e/links.spec.ts`(`chromium-mobile`,沿用其他 spec 的登录夹具;零上游——不评测、不调大模型):注册 → 练习页出现「今日任务」卡,「背单词」行未完成 → 选书「初中」→ 学新词一轮(A 的流程:每张遮罩词卡都点「模糊」,这样每个词都进本轮小测,与抽查比例无关),在小测里故意选错 1 个 → 回「我的 → 词汇本」:出现「易错词 · 1」,进入能看到该词 → 查词浮层(在一段对话文字上长按选词)「加入生词本」旁有「更多」,面板四行 → 「我的 → 学习联动」关掉「易错词」→ 生词本入口消失 → 打开回来入口恢复。
+- [ ] **Step 3: 跑** — `docker compose -f docker-compose.e2e.yml up -d --build`;`yarn web:e2e --project=chromium-mobile web/e2e/links.spec.ts` → PASS;因为 E2E 栈现在 `LINKS_ENABLED=true`,再跑一次全部既有规格(`yarn web:e2e --project=chromium-mobile`):练习页多出的「今日任务」卡、生词本按钮旁的「更多」不得让既有规格失败(失败时修本计划的实现或该规格的选择器,不关联动);结果与日期写进 `docs/superpowers/plans/e2e-results.md`(未跑的写「未验证」与原因)。
 - [ ] **Step 4: 提交**
 
 ```bash
@@ -4788,7 +4861,29 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 4. 段位:`git diff` 显示既有 `server/tests/test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿;`ledger.py` 只有五行新增;`test_rank_extra_sources.py` 通过。
 5. 健壮性:通道测试覆盖丢弃、超时、熔断、gate 异常、发布永不抛错;每个处理器的重放幂等用例通过;日志卫生用例通过。
 6. 管理端:`/admin/links` 显示计数、熔断、关闭人数、段位来源、最近错误(无 PII);复位熔断有审计;诊断两条发现生效;设置页「学习联动」组可热改。
-7. 迁移 0015 往返通过,`down_revision="0014"`,单 head。
+7. 迁移 0013 往返通过,`down_revision="0012"`,单 head。
 8. `yarn web:build` 主包增长 ≤ 8 kB(与 Task 0 记录比较);新页面与面板懒加载。
 9. 视觉稿七帧逐一对照截图;真机清单逐项标注已验证 / 未验证。
 
+
+---
+
+## Addendum (2026-10-11) · Index reconciliation(`plans/2026-10-11-wordbook-links-INDEX.md`)
+
+本计划与 A(三档自评 / 快速回忆)、B(每日目标)对齐后的改动。任务 ID 不变;规则以 INDEX §3 为准。
+
+| # | 位置 | 改了什么 | 原因 |
+|---|---|---|---|
+| C-1 | 全文与 spec(Global Constraints、Task 0、F3、验收 7;spec 头部、§1、§10、§15、§17、L-R11) | 迁移 `0015_learning_links`(`down_revision = "0014"`)改为 `0013_learning_links`(`down_revision = "0012"`);测试名 `test_0013_…`;单 head 断言 `["0012"]` → `["0013"]`;Task 0 的 heads 检查改为 `0012`,不符时按 INDEX §5 顺延而不是停工 | A、B 都不加迁移,实际 head 是 0012(INDEX §5) |
+| C-2 | 共享文件插入点表、F5 实现、spec §4.2 / §16 | `WordAnswered` 发布点从两处变为三处(四个附加点):`answer()` 客观题路径、A 的 `_rating_answer()` 末尾提交之后、`spell_submit()`;抽查 pending 不发布;B 的 `bonus`/`goal`/`reset` 不发布;字段枚举加 `relearn`、`recall`、`know`/`know_chk`/`fuzzy`/`unknown` | A 之后三档自评走另一条提交路径,只插一处会漏掉全部自评作答(INDEX R-E1、R-E2) |
+| C-3 | F5 Step 1 | 新增 `test_rating_answers_publish_once_and_pending_checks_do_not` | 锁定「每条作答记录恰好一次」 |
+| C-4 | L3-1(接口、测试、实现)、spec §6.3 | 易错词规则:`RIGHT` 加 `know`;`unknown` 只在 `kind ∈ {review, practice}` 时算错(新词第一次标「不认识」不算);`fuzzy`、`know_chk` 中性;新增 `test_self_rating_outcomes_follow_the_index_rules` | A 新增的 outcome 原计划不认识:`known` 不再写入,「认识」答对不会移出(INDEX R-E3) |
+| C-5 | L5-1(docstring、测试)、spec §6.5 | 「今日词」只认 `learn`,B 的 `relearn` 不算;新增 `test_relearned_words_are_not_todays_words` | 防止「重置 → 重学 → 对话」重复拿 `word_in_chat`(INDEX R-P4) |
+| C-6 | spec §6.4 | 今日新词例句 = 本地日 `kind ∈ {learn, relearn}`(随 B 的 `store.LEARN_KINDS`,代码不改) | B 改了 `today_learned_keys` 的口径 |
+| C-7 | L2-2、spec §6.2 | 今日任务「背单词」行完成 = `plan.goalMet ∨ (newLeft = 0 ∧ reviewLeft = 0)`;`plan` 为 null(B 的暂停)时不出现 | B 的加练会让 `newLeft` 重新大于 0;用 B 的达标口径(INDEX R-T1) |
+| C-8 | 共享文件插入点表、spec §16 | `word-card.tsx` 锚点改为 A 的 `covered` 三元块之后,并且 `covered` 时不渲染插槽 | A 的 W3 删掉了原锚点 `) : null}` + `</SurfaceCard>` |
+| C-9 | F2、共享文件插入点表、spec §16 | `config.py` 锚点写明为 `wordbook_data_dir: str = ""` 之后;practice / me / app / main 标为「仅 C」 | A、B 实际不改这些页面;A、B 都改背单词设置段 |
+| C-10 | 架构说明、spec §3 / §5.3 | `ledger._sync` 的改动统一写为「一行导入 + 四行附加」 | 原 spec 写三行、L6-1 写五行(1 + 4),以 L6-1 为准 |
+| C-11 | Z1 | E2E 学词改为每张卡点「模糊」;`docker-compose.e2e.yml` 保留 A 的 `WORDBOOK_SPOT_CHECK_PCT`;`LINKS_ENABLED=true` 后跑全部既有 E2E 规格 | A 改了学新词流程;总开关在 E2E 栈打开会影响其他规格的页面 |
+
+开工前提(取代 Task 0 Step 1 的「等 A、B」):F1、F3、F4、F6 只碰本计划独占文件,可在 A、B 合并前开发;F2 等 B 的 GS2;F5 等 A 的 S4 与 B 的 GS3;F7 等 A 的 W3;L2-2 等 B 的 GW2;L3-1 等 A 的 S4;L4-1 等 B 的 GS3;**合并**一律在 A、B 全部合并之后(INDEX §2)。

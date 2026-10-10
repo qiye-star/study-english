@@ -248,7 +248,7 @@ needs_check = effective == know and pct > 0 and (spot_hit or (elapsed_ms is not 
 - **`POST /review/batch`** 请求追加 `recall?: bool = false`。`QuestionOut.qtype` 可为 `"recall"`(`prompt = {word, us}`,`options = null`,`length = null`)。
 - **`GET /config`** 追加 `learn: {autoplay: bool, show_example: bool}`。
 - 新错误:422 `Rating is required`。
-- **不新增迁移**:评级写在 `wordbook_events.outcome`(String(12),最长 `know_chk` 8 字符)与 `qtype = 'recall'`;抽查状态由当天的 `know_chk` 事件 + 盒子 + `reps = 0` 推出。为本功能预留的迁移号 0013 **不使用**(若 B 计划的 0014 写了 `down_revision = "0013"`,需改为当时的 head,即 `"0012"`)。
+- **不新增迁移**:评级写在 `wordbook_events.outcome`(String(12),最长 `know_chk` 8 字符)与 `qtype = 'recall'`;抽查状态由当天的 `know_chk` 事件 + 盒子 + `reps = 0` 推出。B 也不新增迁移,所以 `0013` 由 C(学习联动,`down_revision = "0012"`)使用(见 `plans/2026-10-11-wordbook-links-INDEX.md` §5)。
 
 ### 9.2 网页类型(`wordbook-api.ts`,与契约样例同步)
 
@@ -296,7 +296,7 @@ export type Rating = "know" | "fuzzy" | "unknown";
 - **R-R5** 快速回忆不出现在盒 0 与盒 3;需要客户端声明支持且设置开。
 - **R-R6** 复习抽查是两步(pending → 带 `choice` 再交),pending 不写盒、不记事件。
 - **R-R7** `known:true` 是 `rating:"know"` 的别名,同样抽查。
-- **R-R8** 不新增迁移;预留的 0013 不使用。
+- **R-R8** 不新增迁移;`0013` 归 C(INDEX §5)。
 - **R-R9** 新文案键只在 `web.wordbook.learn.*` 与 `web.wordbook.recall.*`。
 
 ## 13. 待定问题与默认裁定

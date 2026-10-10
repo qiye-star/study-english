@@ -6,7 +6,7 @@
 - 前置:`docs/superpowers/specs/2026-10-10-wordbook-design.md`、`docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md`、
   `docs/superpowers/specs/2026-10-09-admin-console-v2-design.md`、`docs/superpowers/design/redesign-v3/design-notes.md`。
 - 并行:A(背单词回忆流程,`E:\workspace\ece-plan-recall`)与 B(目标/设置面板,`E:\workspace\ece-plan-goals`)同时写计划。
-  本文只占用迁移号 **0015**(`down_revision = "0014"`),合并顺序 **A → B → C(本文)**。
+  本文只占用迁移号 **0013**(`down_revision = "0012"`;A、B 都不新增迁移),合并顺序 **A → B → C(本文)**。若 A 或 B 日后加了迁移,本文的号顺延为当时 head + 1(见 `plans/2026-10-11-wordbook-links-INDEX.md` §5)。
 
 ---
 
@@ -53,7 +53,7 @@
 | 服务端分层 | `server/tests/test_architecture.py` | `core→models`;`admin` 只被 `routers/main` 导入;`wordbook` 是叶层 |
 | 设置 | `app/core/settings_registry.py` + `runtime_settings.SettingsHub` | 每个字段一条 `SettingSpec`;热更新经 `app.state.settings` 替换;只有 `admin/settings_service.save` 能写 |
 | 计量 | `app/core/metering.py` | `feature_scope`、`bind_user` 都是 contextvar(本设计的发布绑定照抄这一做法) |
-| 迁移 | `server/alembic/versions/` | 本仓库当前 head `0012`;A 用 0013、B 用 0014,本文 0015 |
+| 迁移 | `server/alembic/versions/` | 本仓库当前 head `0012`;A、B 不新增迁移,本文 0013 |
 
 ---
 
@@ -93,7 +93,7 @@ routers/conversations    ─┘  publish(MessageSent) ─┘   (队列·超时·
                                                         └──────────────────┤ gate.py:总开关 ∧ 联动开关 ∧ 用户偏好
                                                                            └─ rank_sources.py(登记来源;无订阅)
 core/rank_sources.py(来源注册表) ◄── chat_words 登记 word_in_chat
-rank/extra_sources.py ── 读 app.models.LinkCredit(不导入 links)── ledger._sync 三行附加调用
+rank/extra_sources.py ── 读 app.models.LinkCredit(不导入 links)── ledger._sync 一行导入 + 四行附加
 
 网页:features/<x>/register*.ts ──contribute()──► lib/extension-points.ts(注册表 + 旗标)◄── plugins/links 拉取 /api/links/config
                                                            │
@@ -121,22 +121,26 @@ rank/extra_sources.py ── 读 app.models.LinkCredit(不导入 links)── le
 全部是 `@dataclass(frozen=True)`;时间一律 UTC 带时区;`event_id` 在构造时生成(`uuid4().hex`,32 位),只用于日志关联与去重。
 构造时截断超长字段(`__post_init__`),不会抛错。
 
-**`WordAnswered`** — 背单词每写一行 `wordbook_events`(`spell_set` 除外)就发布一条。
+**`WordAnswered`** — 背单词每写一条**作答记录**就发布一条:即 `answer()` 与 `spell_submit()` 写的 `wordbook_events` 行,每行恰好一次。
+`spell_set`(组完成)、B 计划的 `bonus` / `goal` / `reset`(不是作答)不发布;A 计划复习抽查的第一步(`outcome:"pending"`,不写事件)也不发布。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `user_id` | `int` | |
 | `book_id` | `str` | 词书 id(≤ 16) |
 | `word` | `str` | 规范化词键(与 `wordbook_events.word` 相同,截断 100) |
-| `kind` | `str` | `learn` \| `review` \| `practice` \| `blank`(= 本次写入的事件种类) |
-| `qtype` | `str \| None` | `meaning` / `listen` / … / `spell_ctx` |
-| `outcome` | `str` | `correct` \| `typo` \| `inflection` \| `wrong` \| `known` |
+| `kind` | `str` | `learn` \| `relearn`(B)\| `review` \| `practice` \| `blank`(= 本次写入的事件种类) |
+| `qtype` | `str \| None` | `meaning` / `word` / `cloze` / `dictation` / `spell` / `recall`(A)/ `spell_ctx` |
+| `outcome` | `str` | 客观题 `correct` \| `typo` \| `inflection` \| `wrong`;三档自评(A,`qtype=recall`)`know` \| `know_chk` \| `fuzzy` \| `unknown`;`known` 只出现在 A 之前写的旧行(A 之后 `known:true` 记为 `know`) |
 | `credit` | `int` | 0–100 |
 | `at` | `datetime` | 即 service 里的 `now` |
 | `event_id` | `str` | 自动 |
 
-发布点(A 的文件,纯附加):`server/app/wordbook/service.py` `answer()` 里 `await session.commit()` 之后、`return` 之前一处;
-`spell_submit()` 里 `await session.commit()` 之后一处(按 `words` 列表逐词发布,`kind` 取该词写入的 `review` 或 `blank`)。
+发布点(A/B 共享文件,纯附加,INDEX §3 R-E1):`server/app/wordbook/service.py` 共三处——
+(1) `answer()` 客观题路径的 `await session.commit()` 之后、`return` 之前;
+(2) A 新增的 `_rating_answer()` 末尾那次 `await session.commit()` 之后(`qtype=recall`,`outcome` = 写入的 outcome,`credit = 100 if eff == "know" else 0`);
+    同函数里抽查 pending 分支的那次 `commit()`(只扣作答次数、不写事件)**不发布**;
+(3) `spell_submit()` 里 `await session.commit()` 之后(按 `words` 列表逐词发布,`kind` 取该词写入的 `review` 或 `blank`)。
 
 **`AssessmentFinished`** — 一次**已保存**的发音评测(`save=true`,有 `assessment_id`)。
 
@@ -265,7 +269,7 @@ def clear_for_tests() -> None
     `Candidate(kind, ref_id, local_day(at), points, score, at)`,点数 = `rules.points.sources.get(kind, source.default_points)`
     (`rules is None` 时用 `default_points`);满上限时返回水位。
   - `capped(session, user_id, extra, batch, daily_cap, rules) -> list[Candidate]`:见 §5.4。
-- `app/rank/ledger.py::_sync` 在 `events = rules.cap_daily(fresh, used, daily_cap)` 之后**附加三行**(取来源、合并水位、追加封顶后的候选)。
+- `app/rank/ledger.py::_sync` 在 `events = rules.cap_daily(fresh, used, daily_cap)` 之后**附加四行**(取来源、合并水位、去重、追加封顶后的候选),外加一行导入(与计划 L6-1 一致)。
   既有四个来源的查询、`used` 查询、`cap_daily`、活跃日、连续、阶段任务代码一个字符不改。
 - `app/rank/rules.py::PointsRule` 加两个带默认值的字段:`sources: dict[str, int] = {}`(每项 0–100,键 ≤ 16 且匹配 `[a-z_]+`)、
   `sources_daily_cap: int = 5`(0–100)。旧的已发布规则 JSON 照常解析(默认值),`DEFAULT_RULES` 与常量的逐项相等测试不变。
@@ -322,7 +326,7 @@ chevron,整行 ≥ 56px 可点):
 
 | 行 | 提供方 | 数据 | 完成条件 | 点击 |
 |---|---|---|---|---|
-| 背单词 | wordbook | `GET /api/wordbook/today` 的 `plan` | `new_left == 0 ∧ review_left == 0` | `/wordbook` |
+| 背单词 | wordbook | `GET /api/wordbook/today` 的 `plan` | `plan.goal_met ∨ (new_left == 0 ∧ review_left == 0)`(B 的达标口径,不含加练;旧服务端无 `goal_met` 时只看后半;`plan` 为 null(暂停/未选书)时整行不出现) | `/wordbook` |
 | 跟读一句 | practice | `GET /api/links/today` 的 `practice_today` | ≥ 1 | 滚动到跟读区(`#shadowing`) |
 | 对话一次 | chat | 同上 `chat_messages_today` | ≥ 1 | `/chat` |
 | 段位阶段任务 | rank | `GET /api/rank/me` 的 `stage_tasks` | 全部 `complete` | `/rank` |
@@ -344,9 +348,11 @@ chevron,整行 ≥ 56px 可点):
 空态:「还没有易错词。」
 
 **规则。**
-- 进入:`WordAnswered.outcome ∈ {wrong, inflection}`(笔误 `typo` 不算)。`wrong_count += 1`,`ok_streak = 0`,`last_wrong_at = at`,
-  清除 `cleared_at`。
-- 移出:`outcome ∈ {correct, known}` 时 `ok_streak += 1`;达到 2 → `cleared_at = at`。用户「移出」同样设 `cleared_at`。
+- 进入(算错):`outcome ∈ {wrong, inflection}`(笔误 `typo` 不算),或 `outcome == unknown` 且 `kind ∈ {review, practice}`(A 的复习「不认识」、
+  抽查答错、「记错了」、当天再评降为不认识)。新词第一次自评为「不认识」(`kind ∈ {learn, relearn}`)**不算错**——那是新词,不是错题。
+  `wrong_count += 1`,`ok_streak = 0`,`last_wrong_at = at`,清除 `cleared_at`。
+- 移出(算对):`outcome ∈ {correct, know, known}` 时 `ok_streak += 1`;达到 2 → `cleared_at = at`。用户「移出」同样设 `cleared_at`。
+- 中性(不改任何字段、不推进 `last_event_at`):`fuzzy`、`know_chk`(待抽查,由随后的小测结果决定)、`typo`。
 - 幂等:每行带 `last_event_at`,更新条件 `last_event_at < :at`;同一事件重放不会再加一次。首次插入冲突(并发)→ 退回条件更新。
 - 上限:每用户活跃(`cleared_at IS NULL`)最多 200 个;超出时最旧 `last_wrong_at` 的那个被标记移出。
 - 虚拟视图:**不新增也不复制 `vocabulary_items`**;列表接口左连接 `vocabulary_items`(同用户同词最早一行)取释义与盒子。
@@ -372,7 +378,7 @@ chevron,整行 ≥ 56px 可点):
 
 **接口。** `GET /api/links/weak-words` → `{"items": [{"word","hits","last_score","last_weak_at","example"}], "total"}`(≤ 50;`example`
 取用户该词条的 `example`,可为 null);`POST /api/links/weak-words/dismiss {"word"}`;`GET /api/links/today-words?offset=` →
-`{"items": [{"key","word","example": {"en","zh"} | null}]}`(≤ 20;今日 = 用户本地日的 `learn` 事件,`wordbook.store.today_learned_keys`
+`{"items": [{"key","word","example": {"en","zh"} | null}]}`(≤ 20;今日 = 用户本地日本书 `kind ∈ {learn, relearn}` 的事件(随 B 的 `store.LEARN_KINDS`),`wordbook.store.today_learned_keys`
 + 词典卡片第一条例句;背单词未开或无在学书 → `items: []`)。
 
 ### 6.5 对话用到今日词(`chat_words`)
@@ -382,7 +388,8 @@ chevron,整行 ≥ 56px 可点):
 
 **检测(无大模型)。**
 - 今日词 = 该用户在**过去 24 小时**内的 `wordbook_events.kind = 'learn'` 行(≤ 200),键 → 事件 id。(消息请求不带时区,
-  用滚动 24 小时代替本地日;裁定 L-R4。)
+  用滚动 24 小时代替本地日;裁定 L-R4。)B 的 `relearn`(删掉 / 重置后重学)**不算**今日词:每个词每人一生只有一次 `learn`,
+  所以 `word_in_chat` 每词最多一次,重置不能刷联动段位点(INDEX R-P4)。
 - 文本 → `wordbook.textnorm.tokenize`;单词键:任一 token 的 `lemma_candidates(token)` 含该键(`textnorm` 已保证候选能变回原形,
   避免 bed→be);多词键:`textnorm.find_form(text, key)` 非空。
 - 每个命中且未记过的 `learn` 事件:写 `link_word_uses(user_id, word, learn_event_id, message_id, created_at)`(唯一
@@ -524,7 +531,7 @@ export function resetExtensionPointsForTests(): void
 
 ---
 
-## 10. 数据模型(迁移 `0015_learning_links`,`down_revision = "0014"`)
+## 10. 数据模型(迁移 `0013_learning_links`,`down_revision = "0012"`)
 
 ```
 user_link_prefs     user_id FK users ON DELETE CASCADE, link_key String(24), enabled Boolean NOT NULL, updated_at DateTime(tz)
@@ -543,8 +550,8 @@ link_credits        id Integer PK autoincrement, user_id FK CASCADE, kind String
                     UniqueConstraint uq_link_credits_user_kind_ref (user_id, kind, ref_id); Index ix_link_credits_user_id_created_at
 ```
 
-- SQLite batch + Postgres 安全;往返测试(升级、写一行、降级到 0014 删除这五张表、再升级)。
-- `test_migrations.py::test_models_match_migrations` 保持绿色;单 head 断言改为 `"0015"`(C 合并时改,A/B 各自改为自己的号)。
+- SQLite batch + Postgres 安全;往返测试(升级、写一行、降级到 0012 删除这五张表、再升级)。
+- `test_migrations.py::test_models_match_migrations` 保持绿色;单 head 断言由 `"0012"` 改为 `"0013"`(C 合并时改;A、B 不动它)。
 - 删除用户:`admin/users_admin.delete_user` 的显式删除列表加这五张表(SQLite 无 FK 级联)。
 
 ---
@@ -615,10 +622,10 @@ link_credits        id Integer PK autoincrement, user_id FK CASCADE, kind String
 | 段位接入 | `test_rank_extra_sources.py` | 注册表空 → 不查询且结果与基线一致;共享上限只吃剩余;子上限;0 分行保留;阶段任务不变;水位 |
 | 开关 | `test_links_gate.py`、`test_links_api.py` | 三级开关真值表;缓存与失效;config/prefs 形状与错误 |
 | 每个联动 | `test_links_mistakes.py`、`test_links_pron_shadow.py`、`test_links_chat_words.py`、`test_links_word_actions.py`、`test_links_daily_tasks.py` | 用真实 app + 内存 SQLite,发布真实事件后 `await bus.drain()`;幂等(同一事件两次);上限;开关关时无写入;接口形状;大模型 402 降级(respx) |
-| 发布点 | `test_links_publishers.py` | 背单词作答 / 拼写提交、评测保存、发消息各发布一次正确字段的事件;总开关关时不入队;发布失败不影响响应 |
+| 发布点 | `test_links_publishers.py` | 背单词作答(客观题与 A 的三档自评各一次;复习抽查 pending 不发布,第二步发布一次)/ 拼写提交、评测保存、发消息各发布一次正确字段的事件;B 的 `bonus`/`goal`/`reset` 不发布;总开关关时不入队;发布失败不影响响应 |
 | 全开 / 全关矩阵 | `test_links_matrix.py` | 参数化 `links_enabled ∈ {F,T}` × 每个联动开关:既有接口响应逐字节相同(背单词作答、评测、消息、生词本列表);只有开时才出现联动表行 |
 | 架构 | `test_architecture.py` | §13 |
-| 迁移 | `test_migrations.py` | 0015 往返 |
+| 迁移 | `test_migrations.py` | 0013 往返 |
 | 管理端 | `test_admin_links.py` | 角色、审计、无秘密、无 PII |
 | 网页注册表 | `lib/extension-points.test.ts(x)` | 登记、过滤、排序、重复 id、旗标订阅、错误边界 |
 | 网页矩阵 | `plugins/links-matrix.test.tsx` | 全关:四处 `<WordActions>` 的 `innerHTML` 与直接渲染 `AddVocabularyButton` 相同、无 `-more`、练习页无今日任务卡;全开:出现「更多」、今日任务卡、来源条、易错词入口 |
@@ -633,15 +640,15 @@ link_credits        id Integer PK autoincrement, user_id FK CASCADE, kind String
 
 | 文件 | 归属 | 本文改动(精确插入点) |
 |---|---|---|
-| `server/app/wordbook/service.py` | A | `answer()`:`await session.commit()`(现第 315 行)之后插入 `learning_events.publish(WordAnswered(...))` 一条语句;`spell_submit()`:`await session.commit()`(现第 429 行)之后插入一个 `for w in words:` 发布循环(3 行);文件头加一行 `from app.core import learning_events`。不改任何既有行 |
-| `web/src/features/wordbook/word-card.tsx` | A | `WordCardView` 返回的 `SurfaceCard` 内、最后一个子元素之后插入 `<Slot point="wordDetailSections" props={{ word: card.key }} />`;文件头加一行导入 |
-| `web/src/features/practice/practice-page.tsx` | B(可能放目标) | `<WordbookCard className="mt-2" />`(现第 173 行)之后插入 `<Slot point="practiceHome" props={{}} />`;跟读 `SectionGroup`(现第 174 行)加 `id="shadowing"`,其 `Textarea` 之前插入 `<Slot point="learningSources" props={{ pick: setReference }} />`(以实际 setter 名为准) |
-| `web/src/pages/me-page.tsx` | B(可能放设置入口) | 「学习」分组里 `<WordbookMeRow />`(现第 191 行)之后插入 `<Slot point="meRows" props={{}} />` |
-| `server/app/core/config.py`、`settings_registry.py`、`server/.env.example`、`server/app/models.py`、`server/app/main.py`、`server/tests/test_migrations.py`、`server/tests/test_settings_registry.py` | A/B 也可能附加 | 只在末尾或各自分组内追加;合并顺序 A → B → C,冲突全部是「两边都保留」 |
-| `web/src/app.tsx`、`web/src/main.tsx` | B 可能改 | `app.tsx`:`AppShell` 路由内追加 `routesFor(flags).map(...)`、`appEffects` 插槽;`main.tsx`:`import "./plugins";` 一行 |
+| `server/app/wordbook/service.py` | A、B | `answer()` 客观题路径:`await session.commit()` + 下一行 `# Ruling Z-e` 之间插入 `learning_events.publish(WordAnswered(...))`;A 的 `_rating_answer()`:末尾 `await session.commit()` + 下一行 `checked = p.mode == "review" …` 之间插入一条发布(pending 分支不发布);`spell_submit()`:`await session.commit()` 之后插入发布循环;文件头加一行 `from app.core import learning_events`。不改任何既有行(INDEX §4) |
+| `web/src/features/wordbook/word-card.tsx` | A | `WordCardView` 返回的 `SurfaceCard` 内、A 新增的 `{covered ? (…遮罩…) : (<div id={regionId}>…释义/例句/短语…</div>)}` 块之后、`</SurfaceCard>` 之前插入 `{covered ? null : <Slot point="wordDetailSections" props={{ word: card.key }} />}`(遮罩时不渲染联动区,不泄露任何释义相关信息);文件头加一行导入 |
+| `web/src/features/practice/practice-page.tsx` | 仅 C(A、B 实际不改) | `<WordbookCard className="mt-2" />`(现第 173 行)之后插入 `<Slot point="practiceHome" props={{}} />`;跟读 `SectionGroup`(现第 174 行)加 `id="shadowing"`,其 `Textarea` 之前插入 `<Slot point="learningSources" props={{ pick: setReference }} />`(以实际 setter 名为准) |
+| `web/src/pages/me-page.tsx` | 仅 C(A、B 实际不改) | 「学习」分组里 `<WordbookMeRow />`(现第 191 行)之后插入 `<Slot point="meRows" props={{}} />` |
+| `server/app/core/config.py`、`settings_registry.py`、`server/.env.example`、`server/app/models.py`、`server/app/main.py`、`server/tests/test_migrations.py`、`server/tests/test_settings_registry.py` | A、B 改 `config.py` / `settings_registry.py`(背单词段);其余仅 C | `config.py`:在 `wordbook_data_dir: str = ""` 之后追加(A 的 4 个字段在它之前、B 的 6 个字段紧跟 `wordbook_review_cap`);`settings_registry.py`:`GROUPS` 在 `("wordbook", "背单词")` 后加 `("links", "学习联动")`,15 条追加在 `_ALL` 末尾(A 的 4 条在 `# admin` 之前,B 替换两条为八条);合并顺序 A → B → C,冲突全部是「两边都保留」(INDEX §4) |
+| `web/src/app.tsx`、`web/src/main.tsx` | 仅 C(A、B 实际不改) | `app.tsx`:`AppShell` 路由内追加 `routesFor(flags).map(...)`、`appEffects` 插槽;`main.tsx`:`import "./plugins";` 一行 |
 
 C 独占(A/B 不碰):`server/app/links/**`、`server/app/core/{learning_events,rank_sources}.py`、`server/app/rank/extra_sources.py`、
-`server/app/routers/{links,admin_links}.py`、`server/alembic/versions/0015_learning_links.py`、`web/src/lib/extension-points*`、
+`server/app/routers/{links,admin_links}.py`、`server/alembic/versions/0013_learning_links.py`、`web/src/lib/extension-points*`、
 `web/src/plugins/**`、各 feature 的 `register*.ts(x)` 与 `wordbook/link-actions.tsx`、`admin/src/features/links/**`。
 
 ---
@@ -658,7 +665,7 @@ C 独占(A/B 不碰):`server/app/links/**`、`server/app/core/{learning_events,r
 | 插件注册副作用让首屏变大 | 注册文件只导入轻组件,重组件 `lazy()`;验收比较主包体积(增长 ≤ 8 kB gzip 前 30 kB) |
 | 测试里模块缓存与 `vi.mock` 冲突 | `test/setup.ts` 只导入 `plugins/core`;联动测试各自导入所需插件 |
 | 与 A/B 的文件冲突 | §16 精确插入点、合并顺序 A → B → C、C 最后 rebase |
-| 迁移号冲突 | 预留 0015;开工第一步 `alembic heads` 必须输出 `0014`,否则停下 |
+| 迁移号冲突 | 本文 0013;开工第一步 `alembic heads` 必须输出 `0012`,否则按 INDEX §5 顺延为 head + 1 并改全部引用 |
 | 上游 402 | 大模型用法检查默认关;开了也降级为确定性 |
 
 ---
@@ -675,7 +682,7 @@ C 独占(A/B 不碰):`server/app/links/**`、`server/app/core/{learning_events,r
 - **L-R8** 「加入词书学习」不写 `learn` 事件、不得段位点、不推进书序游标;只对当前在学书里的词生效。
 - **L-R9** 练习页的 `RankCard`/`WordbookCard` 直引不在本次搬动(列入跨 feature 基线)。
 - **L-R10** 管理端计数为进程内存、重启清零;不落库。
-- **L-R11** 迁移号 0015、`down_revision="0014"`,合并顺序 A → B → C;C 的实现分支在 A、B 合并后 rebase 到 main 再开工。
+- **L-R11** 迁移号 0013、`down_revision="0012"`,合并顺序 A → B → C;C 的实现分支在 A、B 合并后 rebase 到 main 再合并(只碰 C 独占文件的任务可提前开发,见 `plans/2026-10-11-wordbook-links-INDEX.md` §2)。
 
 ---
 
