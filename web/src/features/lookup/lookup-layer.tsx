@@ -1,7 +1,7 @@
 import { LanguagesIcon, LoaderIcon, MicIcon, SearchIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
@@ -89,6 +89,17 @@ export function LookupLayer() {
       clear();
     }
   };
+
+  // 「单词操作」面板(联动 word_actions)里的「跟读这个词」从查词面板之上跳到跟读页:前进导航(PUSH)时收起查词面板。
+  // 联动关闭时查词面板里的每个跳转都先自己关闭,前进导航不会在打开时发生,所以行为与今天相同;返回(POP)不处理。
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  const shownAt = useRef(pathname);
+  useEffect(() => {
+    if (pathname === shownAt.current) return;
+    shownAt.current = pathname;
+    if (open && navigationType === "PUSH") onOpenChange(false);
+  }); // 每次渲染比较路径:只在路径真的变了时动作
 
   const onTouchEnd = (e: TouchEvent) => {
     const start = touchStart.current;
