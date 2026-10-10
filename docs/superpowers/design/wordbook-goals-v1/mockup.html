@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 背单词每日目标 v1 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+/* Canvas, tokens and components copied verbatim from docs/superpowers/design/wordbook-v1/mockup.html (lines 9-256) */
+/* ------------------------------------------------------------------
+   Canvas + base tokens/components: copied verbatim from
+   docs/superpowers/design/redesign-v3/mockup.html (lines 9–185)
+------------------------------------------------------------------ */
+/* ------------------------------------------------------------------
+   Canvas (the document around the phones; not part of the app UI)
+------------------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:72ch;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:28px;align-items:flex-start}
+.spec{width:375px}
+.spec > p.frame-cap{font-size:12px;color:#5b6170;margin:12px 2px 0;letter-spacing:.01em;line-height:1.5}
+.spec > p.frame-cap b{color:#1b1d22;font-weight:600}
+.swatches{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.sw{width:112px;height:56px;border-radius:8px;border:.5px solid rgba(0,0,0,.12);display:flex;align-items:flex-end;padding:6px 8px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#1b1d22}
+.sw.dk{color:#fff}
+
+/* ------------------------------------------------------------------
+   Design tokens (scoped to each phone so frames can be light or dark)
+------------------------------------------------------------------ */
+.phone{
+  --bg:#FFFFFF;
+  --ink:#111318;
+  --ink-2:#5B6170;
+  --ink-3:#8A90A0;             /* decorative only (chevrons), never for text */
+  --hair:rgba(17,19,24,.12);
+  --hair-2:rgba(17,19,24,.07);
+  --surface:#FFFFFF;
+  --surface-2:#F5F6F8;
+  --glass:rgba(255,255,255,.72);
+  --glass-solid:rgba(255,255,255,.94);
+  --glass-shadow:0 1px 0 rgba(17,19,24,.04);
+
+  --blue:#2456DB;  --blue-tint:#EAF0FF;  --blue-wash:rgba(36,86,219,.10);
+  --teal:#0E7067;  --teal-tint:#E3F5F2;
+  --amber:#9A4B00; --amber-tint:#FFF0DE;
+  --green:#157A3B; --green-tint:#E4F6EA;
+  --red:#D1242F;   --red-tint:#FFE8E9;
+  --red-solid:#E0313C;
+  --key:#FFFFFF;
+
+  --r-xs:6px;--r-sm:10px;--r-md:14px;--r-lg:20px;--r-dock:28px;
+  --f-11:11px;--f-12:12px;--f-13:13px;--f-15:15px;--f-17:17px;--f-22:22px;--f-28:28px;--f-34:34px;
+  color:var(--ink);background:var(--bg);
+}
+.phone.dark{
+  --bg:#0F1013;
+  --ink:#F3F4F6;
+  --ink-2:#A6ABB8;
+  --ink-3:#6E7482;
+  --hair:rgba(255,255,255,.14);
+  --hair-2:rgba(255,255,255,.08);
+  --surface:#17191E;
+  --surface-2:#1E2127;
+  --glass:rgba(23,25,30,.66);
+  --glass-solid:rgba(23,25,30,.94);
+  --glass-shadow:0 1px 0 rgba(255,255,255,.03);
+
+  --blue:#8FB0FF;  --blue-tint:rgba(143,176,255,.14);  --blue-wash:rgba(90,130,255,.16);
+  --teal:#5FD1C4;  --teal-tint:rgba(95,209,196,.14);
+  --amber:#F2B056; --amber-tint:rgba(242,176,86,.14);
+  --green:#6FD39A; --green-tint:rgba(111,211,154,.14);
+  --red:#FF7B7B;   --red-tint:rgba(255,123,123,.14);
+  --red-solid:#E0313C;
+  --key:rgba(255,255,255,.08);
+}
+
+/* ------------------------------------------------------------------
+   Phone frame
+------------------------------------------------------------------ */
+.phone{position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:var(--f-15);line-height:1.4}
+.phone.short{height:667px;border-radius:28px}
+.phone *{-webkit-tap-highlight-color:transparent}
+.phone i.ti{line-height:1;display:inline-block}
+
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;letter-spacing:-.01em;z-index:40;pointer-events:none}
+.phone.short .statusbar{height:20px;padding:0 10px 2px 12px;font-size:12px;align-items:center}
+.statusbar .sig{display:flex;gap:5px;align-items:center;font-size:14px}
+.phone.short .statusbar .sig{font-size:12px}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;z-index:40}
+
+/* glass: solid fallback first, blur only where supported, none for reduced transparency */
+.glass{background:var(--glass-solid);box-shadow:var(--glass-shadow)}
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+}
+@media (prefers-reduced-transparency:reduce){
+  .glass{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
+.topbar{position:absolute;top:0;left:0;right:0;z-index:30;padding-top:47px;box-shadow:inset 0 -.5px 0 var(--hair),var(--glass-shadow)}
+.topbar.rest{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+/* top bar: lower saturation + higher alpha so a primary button under it does not bloom into a blob */
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .topbar.glass{background:rgba(255,255,255,.80);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+  .phone.dark .topbar.glass{background:rgba(23,25,30,.74)}
+}
+.topbar .bar{height:52px;display:flex;align-items:center;padding:0 8px;gap:4px}
+.topbar .title{font-size:var(--f-17);font-weight:600;letter-spacing:-.015em;flex:1;min-width:0;padding:0 8px}
+.topbar .title small{display:block;font-size:var(--f-12);font-weight:500;color:var(--ink-2);letter-spacing:0;margin-top:1px}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);font-size:22px;background:transparent;border:0;position:relative;flex:none}
+.iconbtn.accent{color:var(--blue)}
+.iconbtn .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 2px var(--bg)}
+
+.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;box-shadow:inset 0 .5px 0 var(--hair);padding-bottom:22px}
+.tabbar ul{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);height:56px}
+.tabbar li{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--f-11);font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.tabbar li i{font-size:24px}
+.tabbar li.on{color:var(--blue);font-weight:600}
+
+.scroll{position:absolute;inset:0;overflow:hidden}
+.content{padding:99px 16px 110px}   /* clears bars; content slides under them */
+.content.scrolled{padding-top:0;margin-top:-118px}  /* simulates scrollTop ≈ 217px */
+.content.tobottom{position:absolute;left:0;right:0;bottom:0;padding-top:0}  /* simulates scrolled to the end */
+
+/* typography helpers */
+.eyebrow{font-size:var(--f-12);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.h-sec{font-size:var(--f-13);font-weight:600;color:var(--ink-2);letter-spacing:.01em;margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between;min-height:18px}
+.link{color:var(--blue);font-weight:500;display:inline-flex;align-items:center;gap:2px;font-size:var(--f-13);min-height:44px;padding:0 8px;margin:-13px -8px}  /* 44px hit, no layout change */
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.muted{color:var(--ink-2)}
+
+/* cards & lists */
+.card{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);box-shadow:0 1px 2px rgba(17,19,24,.03)}
+.phone.dark .card{box-shadow:none}
+.list{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 12px 10px 14px}
+.rowi + .rowi,.rowi + .subrow,.subrow + .rowi{border-top:.5px solid var(--hair-2)}
+.rowi .t{flex:1;min-width:0}
+.rowi .t b{display:block;font-weight:500;font-size:var(--f-15);letter-spacing:-.005em}
+.rowi .t span{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.rowi .v{font-size:var(--f-15);color:var(--ink-2);display:flex;align-items:center;gap:4px;flex:none}
+.rowi .v i{font-size:18px;color:var(--ink-3)}
+.chip{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.chip.blue{background:var(--blue-tint);color:var(--blue)}
+.chip.teal{background:var(--teal-tint);color:var(--teal)}
+.chip.amber{background:var(--amber-tint);color:var(--amber)}
+.chip.green{background:var(--green-tint);color:var(--green)}
+.chip.gray{background:var(--surface-2);color:var(--ink-2)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:7px;font-size:var(--f-12);font-weight:600;letter-spacing:.01em;white-space:nowrap;flex:none}
+.badge.blue{background:var(--blue-tint);color:var(--blue)}
+.badge.teal{background:var(--teal-tint);color:var(--teal)}
+.badge.green{background:var(--green-tint);color:var(--green)}
+.badge.amber{background:var(--amber-tint);color:var(--amber)}
+.badge.gray{background:var(--surface-2);color:var(--ink-2)}
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--blue);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:#fff}
+.toggle.off{background:var(--surface-2);box-shadow:inset 0 0 0 .5px var(--hair)}
+.toggle.off::after{right:auto;left:2px;background:var(--surface);box-shadow:0 1px 2px rgba(17,19,24,.2)}
+
+/* stat cards */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border-radius:var(--r-md);padding:12px 12px 11px;border:.5px solid var(--hair-2);min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
+.stat .l{font-size:var(--f-12);font-weight:500;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.stat .l i{font-size:15px}
+.stat .n{font-size:var(--f-28);font-weight:600;letter-spacing:-.03em;line-height:1;margin-top:10px}
+.stat .n small{font-size:var(--f-12);font-weight:500;letter-spacing:0;margin-left:2px;color:var(--ink-2)}
+.stat.blue{background:var(--blue-tint)}.stat.blue .l{color:var(--blue)}
+.stat.amber{background:var(--amber-tint)}.stat.amber .l{color:var(--amber)}
+.stat.green{background:var(--green-tint)}.stat.green .l{color:var(--green)}
+
+/* buttons */
+.btn{height:48px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:var(--f-15);font-weight:600;letter-spacing:-.005em;border:0;padding:0 18px}
+.btn.primary{background:var(--blue);color:#fff}
+.phone.dark .btn.primary{color:#0F1013}
+.btn.ghost{background:var(--surface);border:.5px solid var(--hair);color:var(--ink)}
+.btn i{font-size:20px}
+/* segmented: 32px visual pill, 44px hit row via ::before */
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px}
+.seg span{position:relative;height:32px;min-width:56px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--f-13);font-weight:500;color:var(--ink-2)}
+.seg span::before{content:"";position:absolute;inset:-6px 0}
+.seg span.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(17,19,24,.08);border:.5px solid var(--hair-2)}
+.phone.dark .seg span.on{background:#2A2E36}
+
+/* progress bar */
+.bar-track{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;background:var(--blue)}
+
+
+/* ------------------------------------------------------------------
+   Wordbook additions (spec 2026-10-10-wordbook §11.3)
+   teal = wordbook identity · blue = primary action / active blank
+   amber = hints and "almost right" · green = correct · neutral = wrong
+------------------------------------------------------------------ */
+.back{font-size:24px}
+.play{width:44px;height:44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--blue-tint);color:var(--blue);font-size:20px;flex:none}
+.btnrow{display:flex;gap:8px;margin-top:12px}
+.btnrow .btn{flex:1;height:44px}
+.btn.teal{background:var(--teal);color:#fff}
+.phone.dark .btn.teal{color:#0F1013}
+.btn.lg{height:52px;font-size:var(--f-17)}
+.chip.lg{width:44px;height:44px;border-radius:12px;font-size:24px}
+
+/* entry card + plan ring (teal) */
+.wb{padding:14px}
+.wb .top{display:flex;align-items:center;gap:14px}
+.wring{width:60px;height:60px;border-radius:50%;flex:none;position:relative;display:flex;align-items:center;justify-content:center;background:conic-gradient(var(--teal) 0 var(--p,40%),var(--teal-tint) var(--p,40%) 100%)}
+.wring::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--surface)}
+.wring b{position:relative;z-index:1;font-size:15px;font-weight:600;color:var(--teal);letter-spacing:-.02em}
+.wring small{position:absolute;z-index:1;bottom:-17px;font-size:10px;color:var(--ink-2);white-space:nowrap}
+.wb .t{flex:1;min-width:0}
+.wb .t b{display:flex;align-items:center;gap:6px;font-size:var(--f-15);font-weight:600;letter-spacing:-.01em}
+.wb .t span{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:3px}
+.rankmini{display:flex;align-items:center;gap:12px;padding:12px 14px}
+.rankmini .t{flex:1}
+.rankmini .t b{display:block;font-size:var(--f-15);font-weight:600}
+.rankmini .t span{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.tier{width:40px;height:40px;border-radius:12px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink)}
+
+/* stacked progress: mastered / learned / remaining */
+.pbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-top:12px}
+.pbar i{display:block;height:100%}
+.pbar .m{background:var(--teal)}
+.pbar .l{background:var(--teal-tint);box-shadow:inset 0 0 0 .5px rgba(14,112,103,.25)}
+.legend{display:grid;grid-template-columns:repeat(3,1fr);margin-top:10px}
+.legend div{font-size:var(--f-12);color:var(--ink-2)}
+.legend div b{display:block;font-size:var(--f-22);font-weight:600;color:var(--ink);letter-spacing:-.02em;line-height:1.15}
+.legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:1px;border:0;padding:0}
+.plan{display:flex;gap:14px;align-items:center;padding:14px}
+.plan .cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.plan .cols div{font-size:var(--f-12);color:var(--ink-2)}
+.plan .cols div b{display:block;font-size:var(--f-17);font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.note{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);background:var(--amber-tint);color:var(--amber);font-size:var(--f-13);font-weight:500;margin-top:8px}
+.note i{font-size:17px;margin-top:1px}
+
+/* book picker */
+.books{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.book{padding:12px;border-radius:var(--r-md);background:var(--surface);border:.5px solid var(--hair);min-height:116px;display:flex;flex-direction:column;position:relative}
+.book.cur{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.book b{font-size:var(--f-17);font-weight:600;letter-spacing:-.01em}
+.book .lv{display:flex;gap:3px;margin-top:6px}
+.book .lv i{display:block;width:12px;height:4px;border-radius:2px;background:var(--surface-2)}
+.book .lv i.on{background:var(--teal)}
+.book span{font-size:var(--f-12);color:var(--ink-2);margin-top:auto}
+.book .badge{position:absolute;top:10px;right:10px}
+.scrim{position:absolute;inset:0;background:rgba(17,19,24,.32);z-index:35}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:36;background:var(--surface);border-radius:20px 20px 0 0;padding:8px 16px 34px;box-shadow:0 -8px 24px rgba(17,19,24,.12)}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:0 auto 10px}
+.sheet h3{font-size:var(--f-17);font-weight:600;letter-spacing:-.01em}
+.sheet .sub{font-size:var(--f-12);color:var(--ink-2);margin-top:2px}
+.field{margin-top:14px}
+.field label{display:block;font-size:var(--f-13);font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.field .seg{display:flex}
+.field .seg span{flex:1;min-width:0}
+.fine2{font-size:var(--f-12);color:var(--ink-2);margin-top:12px;line-height:1.5}
+
+/* ------------------------------------------------------------------
+   Daily goals additions (spec 2026-10-11-wordbook-goals §2, §12)
+   blue = primary / selected · teal = wordbook · amber = streak, backlog, over-cap · red = reset only
+------------------------------------------------------------------ */
+.plan{position:relative;padding-right:52px}
+.gearbtn{position:absolute;top:4px;right:4px;width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2);font-size:22px}
+.cols .streak b{display:flex;align-items:center;gap:3px}
+.cols .streak b i{color:var(--amber);font-size:16px}
+.sheet.tall{top:58px;bottom:0;overflow:hidden;padding-bottom:0}
+.sheet.kb{top:52px;bottom:262px;overflow:hidden;padding-bottom:0;box-shadow:none}
+.sheet .x{position:absolute;top:8px;right:8px;width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2);font-size:20px}
+.sheet .inner{position:relative}
+.sheet .inner.up{margin-top:-330px}
+.sec{font-size:var(--f-13);font-weight:600;color:var(--ink-2);margin:16px 0 6px;display:flex;align-items:center;justify-content:space-between}
+.presets{display:flex;flex-direction:column;gap:8px}
+.preset{border-radius:var(--r-md);border:.5px solid var(--hair);background:var(--surface);padding:8px 14px;min-height:56px;display:flex;align-items:center;gap:12px}
+.preset.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.preset .a{flex:1;min-width:0}
+.preset .z{flex:none;text-align:right}
+.preset b{display:block;font-size:var(--f-15);font-weight:600;letter-spacing:-.01em}
+.preset .v{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:1px}
+.preset .d{display:block;font-size:var(--f-13);font-weight:500}
+.preset .s{display:block;font-size:var(--f-12);color:var(--ink-2);margin-top:1px}
+.seg.full{display:flex}
+.seg.full span{flex:1;min-width:0;padding:0 4px}
+.stepper{display:flex;align-items:center;gap:8px;margin-top:8px}
+.stepper .k{width:44px;height:44px;border-radius:12px;border:.5px solid var(--hair);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink)}
+.stepper .in{width:76px;height:44px;border-radius:12px;border:.5px solid var(--hair);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:var(--f-17);font-weight:600}
+.stepper .in.focus{box-shadow:0 0 0 2px var(--blue)}
+.stepper .in .caret{display:inline-block;width:1.5px;height:20px;background:var(--blue);margin-left:2px}
+.stepper .r{font-size:var(--f-12);color:var(--ink-2);margin-left:4px}
+.todaybox{background:var(--surface-2);border-radius:var(--r-md);padding:10px 12px;font-size:var(--f-13);margin-top:14px}
+.todaybox .l{font-weight:600;color:var(--ink-2)}
+.todaybox p{margin-top:3px}
+.est{font-size:var(--f-13);margin-top:12px}
+.fine{font-size:var(--f-12);color:var(--ink-2);line-height:1.5;margin-top:6px}
+.note.in{margin-top:8px}
+.streakline{display:flex;align-items:center;gap:6px;font-size:var(--f-15)}
+.streakline i{color:var(--amber);font-size:18px}
+.rows{margin-top:16px}
+.rows .rowi{min-height:52px;padding-top:6px;padding-bottom:6px}
+.rows .rowi i.lead{font-size:20px;color:var(--ink-2)}
+.rows .rowi.danger,.rows .rowi.danger i.lead{color:var(--red)}
+.bonusrow{display:flex;gap:8px;align-items:center}
+.bonusrow .btn{flex:1;height:44px}
+.btn.dis{opacity:.4}
+.btn.red{background:var(--red-solid);color:#fff}
+.alert{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);z-index:38;background:var(--surface);border-radius:20px;padding:20px;border:.5px solid var(--hair);box-shadow:0 16px 40px -12px rgba(17,19,24,.35)}
+.alert h3{font-size:var(--f-17);font-weight:600;letter-spacing:-.01em}
+.alert p{font-size:var(--f-13);color:var(--ink-2);line-height:1.5;margin-top:8px}
+.alert p.ink{color:var(--ink)}
+.alert label{display:block;font-size:var(--f-13);font-weight:600;margin-top:14px}
+.alert .input{margin-top:6px;height:44px;border-radius:12px;background:var(--surface-2);border:.5px solid var(--hair);display:flex;align-items:center;padding:0 12px;font-size:var(--f-15)}
+.alert .input.focus{box-shadow:0 0 0 2px var(--blue)}
+.alert .acts{display:flex;gap:8px;margin-top:18px}
+.alert .acts .btn{flex:1;height:44px}
+.scrim.deep{background:rgba(17,19,24,.45);z-index:37}
+.keyboard{position:absolute;left:0;right:0;bottom:0;height:262px;background:#D1D4DB;z-index:39;padding:8px 6px 40px;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:6px}
+.keyboard span{background:#fff;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.28);color:#111318}
+.keyboard span small{font-size:9px;letter-spacing:.12em;color:#5B6170;margin-top:2px}
+.keyboard span.fn{background:transparent;box-shadow:none;font-size:20px}
+.banner{display:flex;align-items:center;gap:12px;padding:14px;margin-top:8px}
+.banner > i{font-size:24px;color:var(--amber)}
+.banner .t{flex:1;min-width:0}
+.banner .t b{display:block;font-size:var(--f-15);font-weight:600}
+.banner .t span{font-size:var(--f-12);color:var(--ink-2)}
+.banner .btn{height:44px}
+.paused{padding:14px;margin-top:8px}
+.paused .badges{display:flex;gap:8px;flex-wrap:wrap}
+.paused p{font-size:var(--f-13);color:var(--ink-2);line-height:1.5;margin-top:10px}
+.paused .btnrow .btn{height:44px}
+.phone.dark .preset.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.phone.dark .stepper .k{background:var(--surface-2)}
+.phone.dark .sheet{box-shadow:0 -0.5px 0 var(--hair)}
+.phone.dark .scrim{background:rgba(0,0,0,.55)}
+.phone.dark .badge.gray{background:var(--surface-2)}
+.toast{position:absolute;left:16px;right:16px;top:58px;z-index:41;background:var(--surface);border:.5px solid var(--hair);border-radius:14px;padding:12px 14px;font-size:var(--f-13);display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px -12px rgba(17,19,24,.3)}
+.toast i{color:var(--green);font-size:18px}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>Enjoy · 背单词 v2 每日目标面板 — 视觉稿</h1>
+  <p class="lede">沿用 redesign-v3 浅色玻璃与 wordbook-v1 组件。选书后,首页顶栏齿轮与今日计划卡齿轮打开同一个底部面板「每日目标」:方案(轻松 / 标准 / 冲刺,含学完天数与稳定复习量)、每日新词与复习上限(预设 + 自定义步进 + 不限)、今天预览与积压说明、顺序、今天加练、连续达标、换书 / 暂停 / 重置。<b>蓝</b> = 主操作与选中;<b>青</b> = 词书;<b>琥珀</b> = 连续天数、积压与超上限;<b>红</b>只给「重置进度」。规格:<code>docs/superpowers/specs/2026-10-11-wordbook-goals-design.md</code>。示例数字:四级,已学 860,剩余 3,684 词。</p>
+
+  <div class="row">
+
+    <!-- 01 · Home with gears and streak -->
+    <div class="spec">
+      <div class="phone" data-frame="01">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content">
+            <div class="card" style="padding:14px">
+              <div style="display:flex;align-items:center;gap:8px"><span class="badge teal"><i class="ti ti-books"></i>四级</span><span class="muted" style="font-size:12px">共 4,544 词 · 乱序</span></div>
+              <div class="pbar"><i class="m" style="width:6.9%"></i><i class="l" style="width:12%"></i></div>
+              <div class="legend">
+                <div><span class="sw" style="background:var(--teal)"></span>已掌握<b class="num">312</b></div>
+                <div><span class="sw" style="background:var(--teal-tint);box-shadow:inset 0 0 0 .5px rgba(14,112,103,.35)"></span>已学<b class="num">860</b></div>
+                <div><span class="sw" style="background:var(--surface-2)"></span>剩余<b class="num">3,684</b></div>
+              </div>
+            </div>
+            <div class="h-sec">今天</div>
+            <div class="card plan">
+              <span class="wring" style="--p:40%"><b class="num">8/20</b></span>
+              <div class="cols">
+                <div>新词<b class="num">8 / 20</b></div>
+                <div>复习<b class="num">0 / 34</b></div>
+                <div>明天预计复习<b class="num">41</b></div>
+                <div class="streak">连续<b class="num"><i class="ti ti-flame"></i>12 天</b></div>
+              </div>
+              <span class="gearbtn" title="调整今天的目标"><i class="ti ti-settings"></i></span>
+            </div>
+            <div class="list" style="margin-top:8px">
+              <div class="rowi"><span class="chip blue"><i class="ti ti-refresh"></i></span><div class="t"><b>复习</b><span>到期 34 个</span></div><span class="v"><span class="badge blue num">34</span><i class="ti ti-chevron-right"></i></span></div>
+              <div class="rowi"><span class="chip teal"><i class="ti ti-cards"></i></span><div class="t"><b>学新词</b><span>一轮 5 个:词卡 → 小测</span></div><span class="v"><span class="badge teal num">12</span><i class="ti ti-chevron-right"></i></span></div>
+              <div class="rowi"><span class="chip amber"><i class="ti ti-keyboard"></i></span><div class="t"><b>按句拼写</b><span>今天学过的词放回例句里拼</span></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left back"></i></span><div class="title">背单词</div><span class="iconbtn" title="每日目标设置"><i class="ti ti-settings"></i></span></div></header>
+        <nav class="tabbar glass"><ul><li class="on"><i class="ti ti-microphone"></i>练习</li><li><i class="ti ti-messages"></i>对话</li><li><i class="ti ti-user"></i>我的</li></ul></nav>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>01 首页 · 两个齿轮</b> — 顶栏右侧齿轮(「每日目标设置」)替换 v1 的调节链接;今日计划卡右上角齿轮(「调整今天的目标」)。第四格改为琥珀火焰的「连续 12 天」(0 天显示「—」),复习上限移到面板里。两个齿轮都是 44px,打开同一个面板。</p>
+    </div>
+
+    <!-- 02 · Sheet: presets + segments + preview -->
+    <div class="spec">
+      <div class="phone" data-frame="02">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content"><div class="card" style="height:160px"></div></div></div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left back"></i></span><div class="title">背单词</div><span class="iconbtn"><i class="ti ti-settings"></i></span></div></header>
+        <div class="scrim"></div>
+        <div class="sheet tall">
+          <div class="grab"></div>
+          <span class="x"><i class="ti ti-x"></i></span>
+          <h3>每日目标</h3>
+          <div class="sub">四级 · 剩余 3,684 词 · 改动立即生效</div>
+          <div class="sec">方案</div>
+          <div class="presets">
+            <div class="preset"><span class="a"><b>轻松</b><span class="v num">新词 10 · 复习 100</span></span><span class="z"><span class="d num">约 369 天学完</span><span class="s num">稳定后每天复习约 50</span></span></div>
+            <div class="preset on"><span class="a"><b>标准</b><span class="v num">新词 20 · 复习 200</span></span><span class="z"><span class="d num">约 185 天学完</span><span class="s num">稳定后每天复习约 100</span></span></div>
+            <div class="preset"><span class="a"><b>冲刺</b><span class="v num">新词 50 · 复习 不限</span></span><span class="z"><span class="d num">约 74 天学完</span><span class="s num">稳定后每天复习约 250</span></span></div>
+          </div>
+          <div class="sec">每日新词</div>
+          <div class="seg full"><span>10</span><span class="on">20</span><span>30</span><span>50</span><span>自定义</span></div>
+          <div class="sec">每日复习上限</div>
+          <div class="seg full"><span>50</span><span>100</span><span class="on">200</span><span>不限</span><span>自定义</span></div>
+          <div class="todaybox">
+            <div class="l">今天</div>
+            <p class="num">新词 8 / 20 · 还能学 12 个</p>
+            <p class="num">复习 0 / 34</p>
+          </div>
+          <p class="est num">按这个设置约 185 天学完 · 稳定后每天复习约 100 个</p>
+          <p class="fine">按全部答对估算;答错的词会回到第一盒,实际复习更多。已掌握的词每 30 天复习一次,学到后期每天复习会逐渐增加(学到最后约 184 个)。</p>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>02 面板 · 方案与预设</b> — 三行方案卡(单选,选中 1.5px 蓝色内描边;三列在 375 宽下会挤成多行,所以竖排),每张显示学完天数 D = ⌈W/N⌉ 与稳定复习 S = 5N。分段一点即保存(乐观更新,失败回退)。「今天」随改动实时预览,估算行下方写明全对模型与 R(D)。</p>
+    </div>
+
+    <!-- 03 · Sheet: custom input + backlog + over-cap, numeric keyboard -->
+    <div class="spec">
+      <div class="phone" data-frame="03">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scrim"></div>
+        <div class="sheet kb">
+          <div class="sec" style="margin-top:6px">方案 <span class="badge gray">自定义</span></div>
+          <div class="sec">每日新词</div>
+          <div class="seg full"><span>10</span><span>20</span><span>30</span><span>50</span><span class="on">自定义</span></div>
+          <div class="stepper"><span class="k"><i class="ti ti-minus"></i></span><span class="in focus num">35<i class="caret"></i></span><span class="k"><i class="ti ti-plus"></i></span><span class="r num">范围 1–200</span></div>
+          <div class="sec">每日复习上限</div>
+          <div class="seg full"><span>50</span><span class="on">100</span><span>200</span><span>不限</span><span>自定义</span></div>
+          <div class="todaybox">
+            <div class="l">今天</div>
+            <p class="num">新词 3 / 35 · 还能学 2 个</p>
+            <p class="num">复习 0 / 100</p>
+            <div class="note in"><i class="ti ti-alert-circle"></i><span>到期 240 个,超过复习上限 100:今天新词最多 5 个(复习降到上限以内后恢复)</span></div>
+          </div>
+        </div>
+        <div class="keyboard">
+          <span>1</span><span>2<small>ABC</small></span><span>3<small>DEF</small></span>
+          <span>4<small>GHI</small></span><span>5<small>JKL</small></span><span>6<small>MNO</small></span>
+          <span>7<small>PQRS</small></span><span>8<small>TUV</small></span><span>9<small>WXYZ</small></span>
+          <span class="fn"></span><span>0</span><span class="fn"><i class="ti ti-backspace"></i></span>
+        </div>
+        <div class="homebar" style="z-index:40;background:#111318"></div>
+      </div>
+      <p class="frame-cap"><b>03 自定义 · 数字键盘 · 积压</b> — 选「自定义」出现步进器:− / 输入 / +(各 44px),输入框 <code>inputmode="numeric"</code> 弹数字键盘,回车或失焦保存,点按 600 ms 后保存,越界夹到范围。到期 240 &gt; 上限 100 时琥珀条写明原因与恢复条件:当天新词总数最多 5 个。</p>
+    </div>
+
+    <!-- 04 · Sheet lower part: estimate over cap, order, bonus disabled, streak, rows -->
+    <div class="spec">
+      <div class="phone" data-frame="04">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scrim"></div>
+        <div class="sheet tall">
+          <div class="inner">
+            <p class="est num" style="margin-top:14px">按这个设置约 106 天学完 · 稳定后每天复习约 175 个</p>
+            <div class="note"><i class="ti ti-alert-circle"></i><span>高于复习上限 100,复习会积压</span></div>
+            <p class="fine">按全部答对估算;答错的词会回到第一盒,实际复习更多。已掌握的词每 30 天复习一次,学到后期每天复习会逐渐增加(学到最后约 219 个)。</p>
+            <div class="sec">顺序</div>
+            <div class="seg full"><span class="on">乱序</span><span>书序</span></div>
+            <p class="fine">改顺序后从新的顺序取词,已学的词不受影响</p>
+            <div class="sec">今天加练</div>
+            <div class="bonusrow"><div class="seg" style="opacity:.4"><span style="min-width:40px">5</span><span class="on" style="min-width:40px">10</span><span style="min-width:40px">20</span></div><span class="btn ghost dis">加练 10 个</span></div>
+            <p class="fine">先学完今天剩下的 12 个新词</p>
+            <div class="sec">连续达标</div>
+            <p class="streakline num"><i class="ti ti-flame"></i>连续达标 12 天 · 今天还差 12 个新词</p>
+            <p class="fine">达标 = 当天新词学满目标(不含加练)、到期复习清零;按你手机的日期算,中断一天就重新计。</p>
+            <div class="list rows">
+              <div class="rowi"><div class="t"><b>换书</b></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+              <div class="rowi"><i class="ti ti-player-pause lead"></i><div class="t"><b>暂停这本书</b></div></div>
+              <div class="rowi danger"><i class="ti ti-rotate lead"></i><div class="t"><b>重置进度</b></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>04 面板下半部</b> — 估算超过复习上限时琥珀提示。顺序分段。今天加练在新词没学完时禁用并写原因。连续达标一行 + 定义。列表:换书 ›、暂停这本书、重置进度(唯一的红色)。</p>
+    </div>
+
+    <!-- 05 · Goal met home with bonus banner -->
+    <div class="spec">
+      <div class="phone" data-frame="05">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content">
+            <div class="h-sec" style="margin-top:4px">今天</div>
+            <div class="card plan">
+              <span class="wring" style="--p:100%"><b class="num">20/20</b></span>
+              <div class="cols">
+                <div>新词<b class="num">20 / 20</b></div>
+                <div>复习<b class="num">34 / 34</b></div>
+                <div>明天预计复习<b class="num">41</b></div>
+                <div class="streak">连续<b class="num"><i class="ti ti-flame"></i>13 天</b></div>
+              </div>
+              <span class="gearbtn"><i class="ti ti-settings"></i></span>
+            </div>
+            <div class="card banner">
+              <i class="ti ti-flame"></i>
+              <div class="t"><b>今天的目标完成了</b><span>想多学一点?可以加练几个新词。</span></div>
+              <span class="btn ghost">今天加练</span>
+            </div>
+            <div class="list" style="margin-top:8px">
+              <div class="rowi"><span class="chip blue"><i class="ti ti-refresh"></i></span><div class="t"><b>复习</b><span>到期 0 个</span></div><span class="v">已完成</span></div>
+              <div class="rowi"><span class="chip teal"><i class="ti ti-cards"></i></span><div class="t"><b>学新词</b><span>一轮 5 个:词卡 → 小测</span></div><span class="v">已完成</span></div>
+              <div class="rowi"><span class="chip amber"><i class="ti ti-keyboard"></i></span><div class="t"><b>按句拼写</b><span>今天学过的词放回例句里拼</span></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left back"></i></span><div class="title">背单词</div><span class="iconbtn"><i class="ti ti-settings"></i></span></div></header>
+        <nav class="tabbar glass"><ul><li class="on"><i class="ti ti-microphone"></i>练习</li><li><i class="ti ti-messages"></i>对话</li><li><i class="ti ti-user"></i>我的</li></ul></nav>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>05 达标后的首页</b> — 新词学满、到期复习清零 → 当天记一次达标,连续 13 天。达标横幅的「今天加练」打开面板并滚动到加练区(管理员关闭加练时不显示横幅)。</p>
+    </div>
+
+    <!-- 06 · Bonus section enabled -->
+    <div class="spec">
+      <div class="phone" data-frame="06">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <span class="x"><i class="ti ti-x"></i></span>
+          <h3>每日目标</h3>
+          <div class="sub">四级 · 剩余 3,664 词 · 改动立即生效</div>
+          <div class="sec">今天加练</div>
+          <div class="bonusrow"><div class="seg"><span style="min-width:40px">5</span><span class="on" style="min-width:40px">10</span><span style="min-width:40px">20</span></div><span class="btn ghost">加练 10 个</span></div>
+          <p class="fine">今天还可加练 50 个</p>
+          <div class="sec">连续达标</div>
+          <p class="streakline num"><i class="ti ti-flame"></i>连续达标 13 天 · 今天已达标</p>
+          <p class="fine">加练的词与普通新词一样:词卡 → 小测 → 进入复习;加练不影响「达标」,当天有效。</p>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>06 今天加练</b> — 5 / 10 / 20,每次最多 20、每天不超过管理员上限(默认 50);服务端还要求今天新词已学完、没有积压、书里还有新词。成功后关闭面板进入学新词页,今日新词目标变为 20 + 10。</p>
+    </div>
+
+    <!-- 07 · Pause confirmation -->
+    <div class="spec">
+      <div class="phone" data-frame="07">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scrim"></div>
+        <div class="sheet" style="height:300px">
+          <div class="grab"></div>
+          <h3>每日目标</h3>
+          <div class="list rows">
+            <div class="rowi"><div class="t"><b>换书</b></div><span class="v"><i class="ti ti-chevron-right"></i></span></div>
+            <div class="rowi"><i class="ti ti-player-pause lead"></i><div class="t"><b>暂停这本书</b></div></div>
+            <div class="rowi danger"><i class="ti ti-rotate lead"></i><div class="t"><b>重置进度</b></div></div>
+          </div>
+        </div>
+        <div class="scrim deep"></div>
+        <div class="alert" role="alertdialog">
+          <h3>暂停四级?</h3>
+          <p>暂停后首页不再安排新词和复习,到期的词会累积;学习记录全部保留,随时可以继续。连续达标不会冻结。</p>
+          <div class="acts"><span class="btn ghost">取消</span><span class="btn primary">暂停</span></div>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>07 暂停确认</b> — 确认框(焦点困在框内,Esc 取消)。暂停不是危险操作,主按钮用蓝色;写明到期会累积、连续达标不冻结。</p>
+    </div>
+
+    <!-- 08 · Reset confirmation (typed) -->
+    <div class="spec">
+      <div class="phone" data-frame="08">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scrim"></div>
+        <div class="scrim deep"></div>
+        <div class="alert" role="alertdialog" style="top:44%">
+          <h3>重置四级的进度?</h3>
+          <p>会清除:这本书带来的词的学习状态(盒子、到期时间)和学习位置。</p>
+          <p>不会清除:答题记录、段位点与已获得的成就、连续达标、生词本和其他词书里的词(这些词仍算已学)。</p>
+          <p class="ink num">本书已学 860 词</p>
+          <label>输入「四级」确认</label>
+          <div class="input focus">四级</div>
+          <div class="acts"><span class="btn ghost">取消</span><span class="btn red">重置进度</span></div>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>08 重置确认</b> — 唯一的红色。输入书名(中文名、英文名或 id)前红色按钮禁用;服务端再校验,每天最多 2 次。重置只删本书来源的词的学习状态,今天已学数、段位与连续达标不变。</p>
+    </div>
+
+    <!-- 09 · Paused home -->
+    <div class="spec">
+      <div class="phone" data-frame="09">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll">
+          <div class="content">
+            <div class="card paused">
+              <div class="badges"><span class="badge teal"><i class="ti ti-books"></i>四级</span><span class="badge gray"><i class="ti ti-player-pause"></i>已暂停</span></div>
+              <p>暂停期间到期的词会累积,继续后按复习上限分几天复习完。</p>
+              <div class="btnrow"><span class="btn ghost">换一本</span><span class="btn primary">继续学习</span></div>
+            </div>
+          </div>
+        </div>
+        <header class="topbar rest"><div class="bar"><span class="iconbtn"><i class="ti ti-chevron-left back"></i></span><div class="title">背单词</div></div></header>
+        <nav class="tabbar glass"><ul><li class="on"><i class="ti ti-microphone"></i>练习</li><li><i class="ti ti-messages"></i>对话</li><li><i class="ti ti-user"></i>我的</li></ul></nav>
+        <div class="homebar"></div>
+      </div>
+      <p class="frame-cap"><b>09 暂停后的首页</b> — 不再跳到选书页;没有齿轮(没有在学的书)。「继续学习」恢复为在学,设置与进度不变;「换一本」去选书页。暂停时不计算计划,所以不显示到期数。</p>
+    </div>
+
+    <!-- 10 · Dark: sheet with sprint / unlimited -->
+    <div class="spec">
+      <div class="phone dark" data-frame="10">
+        <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="scroll"><div class="content"><div class="card" style="height:160px"></div></div></div>
+        <div class="scrim"></div>
+        <div class="sheet tall">
+          <div class="grab"></div>
+          <span class="x"><i class="ti ti-x"></i></span>
+          <h3>每日目标</h3>
+          <div class="sub">四级 · 剩余 3,684 词 · 改动立即生效</div>
+          <div class="sec">方案</div>
+          <div class="presets">
+            <div class="preset"><span class="a"><b>轻松</b><span class="v num">新词 10 · 复习 100</span></span><span class="z"><span class="d num">约 369 天学完</span><span class="s num">稳定后每天复习约 50</span></span></div>
+            <div class="preset"><span class="a"><b>标准</b><span class="v num">新词 20 · 复习 200</span></span><span class="z"><span class="d num">约 185 天学完</span><span class="s num">稳定后每天复习约 100</span></span></div>
+            <div class="preset on"><span class="a"><b>冲刺</b><span class="v num">新词 50 · 复习 不限</span></span><span class="z"><span class="d num">约 74 天学完</span><span class="s num">稳定后每天复习约 250</span></span></div>
+          </div>
+          <div class="sec">每日新词</div>
+          <div class="seg full"><span>10</span><span>20</span><span>30</span><span class="on">50</span><span>自定义</span></div>
+          <div class="sec">每日复习上限</div>
+          <div class="seg full"><span>50</span><span>100</span><span>200</span><span class="on">不限</span><span>自定义</span></div>
+          <div class="todaybox">
+            <div class="l">今天</div>
+            <p class="num">新词 8 / 50 · 还能学 42 个</p>
+            <p class="num">复习 0 · 到期 34(不限)</p>
+          </div>
+          <p class="est num">按这个设置约 74 天学完 · 稳定后每天复习约 250 个</p>
+          <p class="fine">按全部答对估算;答错的词会回到第一盒,实际复习更多。已掌握的词每 30 天复习一次,学到后期每天复习会逐渐增加(学到最后约 284 个)。</p>
+        </div>
+        <div class="homebar" style="z-index:40"></div>
+      </div>
+      <p class="frame-cap"><b>10 深色 · 冲刺(不限)</b> — 同一面板的深色令牌:surface #17191E、选中描边 #8FB0FF。「不限」时今天按全部到期计;积压阈值改为管理员的复习上限·上限(默认 1000)。</p>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
