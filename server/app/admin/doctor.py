@@ -10,6 +10,7 @@ from app.admin import sessions, usage
 from app.core.config import realtime_asr_configured
 from app.core.secretbox import box_for, fingerprint
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
+from app.wordbook.books import book_by_id, enabled_books
 
 Level = Literal["error", "warn", "info"]
 
@@ -17,7 +18,7 @@ CODES = (
     "realtime_unavailable", "rank_match_unavailable", "rooms_ai_unavailable", "grammar_upstream_missing",
     "registration_open", "no_encryption_key", "superadmin_without_totp", "insecure_cookie", "invalid_overrides",
     "env_drift", "pending_restart", "sqlite_without_backup", "missing_prices", "login_alarm", "safe_mode",
-    "retention_enabled", "invite_without_codes",
+    "retention_enabled", "invite_without_codes", "wordbook_data_missing", "wordbook_ai_unavailable",
 )
 
 
@@ -42,6 +43,7 @@ class Facts:
     missing_prices: tuple[str, ...]
     safe_mode: bool
     live_invites: int = 0  # admin-issued invite codes that can still be used
+    wordbook_missing: tuple[str, ...] = ()  # enabled word books whose data file is missing
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -100,12 +102,29 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if getattr(s, "room_message_retention_days", 0) > 0:
         out.append(Finding("info", "retention_enabled", ("room_message_retention_days",),
                            "房间消息会被定期删除(spec R-6 默认永久保留)"))
+    if getattr(s, "wordbook_enabled", False) and f.wordbook_missing:
+        out.append(Finding("error", "wordbook_data_missing", ("wordbook_data_dir", "wordbook_books"),
+                           "背单词已开启,但这些词书的数据文件缺失:" + "、".join(f.wordbook_missing)))
+    if getattr(s, "wordbook_enabled", False) and getattr(s, "wordbook_ai_enabled", False)             and not s.upstream_llm_base_url:
+        out.append(Finding("warn", "wordbook_ai_unavailable", ("upstream_llm_base_url",),
+                           "背单词 AI 讲解已打开,但没有配置 LLM"))
     rank = {"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
 
 def finding_out(f: Finding) -> dict:
     return {"level": f.level, "code": f.code, "keys": list(f.keys), "message": f.message_zh}
+
+
+def _wordbook_missing(s) -> tuple[str, ...]:
+    """启用的书里数据文件不存在的(只看存在性;逐字节校验在词书页,见 wordbook_admin.overview)。"""
+    if not getattr(s, "wordbook_enabled", False):
+        return ()
+    try:
+        folder = s.resolved_wordbook_data_dir
+        return tuple(b for b in enabled_books(s.wordbook_books) if not (folder / book_by_id(b).file).is_file())
+    except OSError:
+        return ()
 
 
 def _backups(base) -> int:
@@ -147,5 +166,5 @@ async def gather_facts(session, app) -> Facts:
         drift=tuple(sorted(drift)), pending_restart=tuple(sorted(hub.pending_restart)), login_alarm=alarm is not None,
         db_backend=backend, backups=_backups(base),
         missing_prices=await usage.missing_prices(session, app.state.settings, now), safe_mode=hub.safe_mode,
-        live_invites=int(live_invites),
+        live_invites=int(live_invites), wordbook_missing=_wordbook_missing(app.state.settings),
     )
