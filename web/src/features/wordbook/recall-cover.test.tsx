@@ -23,7 +23,8 @@ describe("covered word card (spec recall §3.1)", () => {
   it("keeps the meaning out of the DOM until the cover button is pressed", async () => {
     const onReveal = vi.fn();
     renderWithProviders(<WordCardView card={TALK} covered onReveal={onReveal} />);
-    const cover = screen.getByRole("button", { name: /显示释义/ });
+    const cover = screen.getByRole("button", { name: "显示释义" }); // 名称只有「显示释义」,副文字是描述(VoiceOver「显示释义,已折叠」)
+    expect(cover).toHaveAccessibleDescription("先在心里想一想,再点开核对");
     expect(cover).toHaveAttribute("aria-expanded", "false");
     expect(document.getElementById(cover.getAttribute("aria-controls") ?? "")).not.toBeNull();
     expect(screen.getByTestId("word-card")).not.toHaveTextContent("说话；谈话");
