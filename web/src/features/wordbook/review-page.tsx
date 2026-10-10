@@ -53,7 +53,10 @@ export function WordbookReviewPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true; // StrictMode 会先卸载再挂载一次
+    return () => { mounted.current = false; };
+  }, []);
   const errorText = (err: unknown) => translateServerError(t, err, WORDBOOK_SERVER_ERRORS);
 
   const start = async () => {
@@ -183,7 +186,9 @@ export function WordbookReviewPage() {
           <TypingQuestion key={`${question.key}:${attempt}`} question={question} result={answer?.result ?? null} busy={busy}
             onSubmit={(a) => void send(a)} {...listen} />
         ) : null}
-        <p role="status" aria-live="polite" className={cn("mt-3 text-sub font-semibold", answer?.result.correct ? "text-green" : "text-ink-2")}>
+        {/* 键入题的结果已有徽标,播报文字只给读屏;选择题沿用视觉稿 05 的结果行 */}
+        <p role="status" aria-live="polite"
+          className={cn("mt-3 text-sub font-semibold", answer?.result.correct ? "text-green" : "text-ink-2", question && !CHOICE.has(question.qtype) && "sr-only")}>
           {answer && question && CHOICE.has(question.qtype)
             ? answer.result.correct ? t("web.wordbook.quiz.correct")
               : choiceResult?.correctOption ? t("web.wordbook.quiz.wrong", { answer: choiceResult.correctOption }) : t("web.wordbook.quiz.wrongPlain")

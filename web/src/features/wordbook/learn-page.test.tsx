@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
@@ -130,6 +131,18 @@ describe("WordbookLearnPage", () => {
     await waitFor(() => expect(listen).toBeEnabled());
     await user.click(listen);
     expect(play).toHaveBeenCalledWith(expect.any(String), "talk", "openai/tts-1", "alloy");
+  });
+
+  it("still shows answer results under StrictMode (double-mounted effects)", async () => {
+    const user = userEvent.setup();
+    const mock = createFetchMock({ ...TTS_ROUTES, "GET /api/wordbook/config": () => json(CONFIG), "POST /api/wordbook/learn/batch": () => json(BATCH), "POST /api/wordbook/answers": answerRoute });
+    renderWithProviders(<StrictMode><WordbookLearnPage /></StrictMode>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook/learn" });
+    await screen.findByTestId("word-card");
+    await user.click(screen.getByRole("button", { name: "我认识" }));
+    expect(within(await screen.findByTestId("word-card")).getByRole("heading", { name: "accept" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "开始小测" }));
+    await user.click(await screen.findByRole("button", { name: /接受；承认/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("答对了"));
   });
 
   it("says when today's new words are done", async () => {

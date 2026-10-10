@@ -43,7 +43,10 @@ export function WordbookLearnPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true; // StrictMode 会先卸载再挂载一次
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
