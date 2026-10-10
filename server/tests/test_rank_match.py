@@ -276,8 +276,13 @@ async def test_parallel_finish_grades_once(file_app):
     deps = fakes.deps()
     real_judge = deps.judge
 
+    judging, release = asyncio.Event(), asyncio.Event()
+
     async def slow_judge(messages):
-        await asyncio.sleep(0.05)
+        # Hold the first grader inside the judge until the others have tried. A fixed sleep raced on a loaded
+        # machine: the other two could reach the claim only after the first had finished ("not_active").
+        judging.set()
+        await release.wait()
         return await real_judge(messages)
 
     deps.judge = slow_judge
@@ -291,7 +296,11 @@ async def test_parallel_finish_grades_once(file_app):
             except m.MatchError as e:
                 return e.code
 
-    results = await asyncio.gather(finish(), finish(), finish())
+    first = asyncio.create_task(finish())
+    await asyncio.wait_for(judging.wait(), 10)
+    others = await asyncio.gather(finish(), finish())
+    release.set()
+    results = [await first, *others]
     assert sorted(map(str, results)) == ["True", "busy", "busy"], results
     assert fakes.judge_calls == 1
     async with file_app.state.sessionmaker() as s:
@@ -306,8 +315,11 @@ async def test_parallel_turns_are_rejected(file_app):
     deps = fakes.deps()
     real_examiner = deps.examiner
 
+    examining, release = asyncio.Event(), asyncio.Event()
+
     async def slow_examiner(messages):
-        await asyncio.sleep(0.05)
+        examining.set()  # hold the first turn inside the upstream call until the others have tried (no fixed sleep)
+        await release.wait()
         return await real_examiner(messages)
 
     deps.examiner = slow_examiner
@@ -321,7 +333,11 @@ async def test_parallel_turns_are_rejected(file_app):
             except m.MatchError as e:
                 return e.code
 
-    assert sorted(map(str, await asyncio.gather(turn(), turn(), turn()))) == ["1", "busy", "busy"]
+    first = asyncio.create_task(turn())
+    await asyncio.wait_for(examining.wait(), 10)
+    others = await asyncio.gather(turn(), turn())
+    release.set()
+    assert sorted(map(str, [await first, *others])) == ["1", "busy", "busy"]
     assert fakes.examiner_calls == 1
     async with file_app.state.sessionmaker() as s:
         assert len((await s.get(PromotionMatch, match.id)).turns) == 3
