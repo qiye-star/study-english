@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from datetime import datetime
 
 from sqlalchemy import func, select
+from sqlalchemy import update as update_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookHiddenSentence, WordbookReport
@@ -69,13 +71,7 @@ async def enroll(session: AsyncSession, user_id: int, book_id: str, *, daily_new
     for row in rows:
         if row.book_id != book_id and row.status == "active":
             row.status, row.updated_at = "paused", now
-    found = next((r for r in rows if r.book_id == book_id), None)
-    if found is None:
-        found = WordbookEnrollment(user_id=user_id, book_id=book_id, status="active", order_mode=order_mode or "shuffle",
-                                   seed=seed, cursor=0, daily_new=daily_new or 20, review_cap=review_cap or 100,
-                                   started_at=now, updated_at=now)
-        session.add(found)
-    else:
+    def update(found: WordbookEnrollment) -> None:
         found.status = "active"
         if order_mode and order_mode != found.order_mode:
             found.order_mode, found.cursor = order_mode, 0
@@ -84,6 +80,27 @@ async def enroll(session: AsyncSession, user_id: int, book_id: str, *, daily_new
         if review_cap is not None:
             found.review_cap = review_cap
         found.updated_at = now
+
+    found = next((r for r in rows if r.book_id == book_id), None)
+    if found is None:
+        found = WordbookEnrollment(user_id=user_id, book_id=book_id, status="active", order_mode=order_mode or "shuffle",
+                                   seed=seed, cursor=0, daily_new=daily_new or 20, review_cap=review_cap or 100,
+                                   started_at=now, updated_at=now)
+        session.add(found)
+    else:
+        update(found)
+    try:
+        await session.commit()
+    except IntegrityError:  # 同一本书的并发首次选书先写入了(review m8):改为更新那一行
+        await session.rollback()
+        found = await session.get(WordbookEnrollment, (user_id, book_id), populate_existing=True)
+        update(found)
+        await session.commit()
+    # 并发选了另一本书的请求可能在我们读之后提交:提交后再暂停其它 active,保证最多一本 active(review m8)
+    await session.execute(update_(WordbookEnrollment).where(
+        WordbookEnrollment.user_id == user_id, WordbookEnrollment.book_id != book_id,
+        WordbookEnrollment.status == "active").values(status="paused", updated_at=now)
+        .execution_options(synchronize_session=False))
     await session.commit()
     return found
 

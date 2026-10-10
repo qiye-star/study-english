@@ -32,6 +32,41 @@ async def test_enroll_pauses_others_and_keeps_progress(app):
         assert (switched.order_mode, switched.cursor) == ("book", 0)  # 改顺序从头开始(跳过已学)
 
 
+async def test_enroll_after_a_stale_read_still_leaves_one_active_book(app, monkeypatch):
+    """Review m8: a concurrent PUT /enrollment for another book committed after our read."""
+    async with app.state.sessionmaker() as s:
+        await add_user(s)
+        await store.enroll(s, UID, "cet4", daily_new=20, review_cap=100, order_mode=None, now=NOW, seed=1)
+    real = store.enrollments
+
+    async def stale(session, user_id):
+        return [e for e in await real(session, user_id) if e.book_id != "cet4"]
+
+    monkeypatch.setattr(store, "enrollments", stale)
+    async with app.state.sessionmaker() as s:
+        await store.enroll(s, UID, "junior", daily_new=20, review_cap=100, order_mode=None, now=NOW, seed=2)
+    monkeypatch.setattr(store, "enrollments", real)
+    async with app.state.sessionmaker() as s:
+        rows = {e.book_id: e.status for e in await store.enrollments(s, UID)}
+    assert rows == {"cet4": "paused", "junior": "active"}
+
+
+async def test_concurrent_first_enrollment_in_the_same_book_is_not_an_error(app, monkeypatch):
+    async with app.state.sessionmaker() as s:
+        await add_user(s)
+        await store.enroll(s, UID, "junior", daily_new=20, review_cap=100, order_mode=None, now=NOW, seed=1)
+    real = store.enrollments
+
+    async def nothing_yet(session, user_id):
+        return []
+
+    monkeypatch.setattr(store, "enrollments", nothing_yet)
+    async with app.state.sessionmaker() as s:
+        e = await store.enroll(s, UID, "junior", daily_new=30, review_cap=None, order_mode=None, now=NOW, seed=2)
+        assert (e.book_id, e.status, e.seed, e.daily_new) == ("junior", "active", 1, 30)
+    monkeypatch.setattr(store, "enrollments", real)
+
+
 async def test_items_events_counts_and_answer_cap(app, tmp_path, monkeypatch):
     ds = DictionaryStore(make_data_dir(tmp_path))
     card = await ds.card("junior", "talk")
