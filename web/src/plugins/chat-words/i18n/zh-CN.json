@@ -1,0 +1,12 @@
+{
+  "web": {
+    "links": {
+      "chatWords": {
+        "task": "对话用今日词",
+        "taskDetail": "{{used}}/{{target}}",
+        "done": "已完成",
+        "badge": "今天在对话里用过"
+      }
+    }
+  }
+}

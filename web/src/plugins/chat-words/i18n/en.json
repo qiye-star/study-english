@@ -1,0 +1,12 @@
+{
+  "web": {
+    "links": {
+      "chatWords": {
+        "task": "Use today's words in chat",
+        "taskDetail": "{{used}}/{{target}}",
+        "done": "Done",
+        "badge": "Used in chat today"
+      }
+    }
+  }
+}
