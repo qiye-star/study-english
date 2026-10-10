@@ -5,9 +5,9 @@ DEFAULT_RULES 与 tiers/points/grading/scenarios 的常量逐项相等(tests/tes
 import json
 import string
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.rank import grading, points, scenarios, tiers
 
@@ -37,6 +37,10 @@ class PointsRule(BaseModel):
     # wordbook (spec 2026-10-10-wordbook §8): defaults keep older published rule JSON parseable
     word_learned: int = Field(1, ge=0, le=100)
     spelling_set: int = Field(2, ge=0, le=100)
+    # learning links (spec 2026-10-11-learning-links §5.3): defaults keep older published rule JSON parseable
+    sources: dict[Annotated[str, StringConstraints(pattern=r"^[a-z_]{1,16}$")], Annotated[int, Field(ge=0, le=100)]] = \
+        Field(default_factory=dict)
+    sources_daily_cap: int = Field(5, ge=0, le=100)
     daily_cap: int = Field(ge=0, le=1000)
 
 

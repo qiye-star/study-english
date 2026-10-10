@@ -18,6 +18,7 @@ from app.models import Assessment, Conversation, Message, RankProfile, Vocabular
 from app.rank import points as rules
 from app.rank.points import EventRow, TaskProgress, stage_progress
 from app.rank.tiers import MASTER, RankState, Season, add_rp, at_gate, clamp_rp
+from app.rank import extra_sources
 from app.services import usage
 from app.services.stats import as_utc
 
@@ -155,6 +156,10 @@ async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minut
                 XpEvent.user_id == user_id, XpEvent.day.in_(days), XpEvent.kind.in_(rules.CAPPED))
             .group_by(XpEvent.day))).all()}
     events = rules.cap_daily(fresh, used, daily_cap)
+    extra, extra_mark = await extra_sources.collect(session, user_id, since, now, offset_minutes, rank_rules)
+    watermark = watermark if extra_mark is None else min(watermark, extra_mark)
+    extra = [c for c in extra if (c.kind, c.ref_id) not in seen]
+    events += await extra_sources.capped(session, user_id, extra, events, daily_cap, rank_rules)
     known_active = set((await session.scalars(select(XpEvent.ref_id).where(
         XpEvent.user_id == user_id, XpEvent.kind == "active_day"))).all())
     for day in sorted(days - known_active):
