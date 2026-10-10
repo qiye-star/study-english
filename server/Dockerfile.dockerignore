@@ -27,5 +27,6 @@ admin/coverage
 !server/app
 !server/alembic
 !server/alembic.ini
+!server/dictionaries
 **/__pycache__
 **/*.pyc

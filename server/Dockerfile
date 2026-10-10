@@ -45,6 +45,7 @@ COPY server/alembic.ini ./
 FROM python:3.12-slim
 WORKDIR /app
 COPY --from=builder /app /app
+COPY server/dictionaries /app/dictionaries
 COPY --from=web /repo/web/dist /web/dist
 COPY --from=admin /repo/admin/dist /admin/dist
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1

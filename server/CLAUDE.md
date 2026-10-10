@@ -8,7 +8,8 @@ Python 3.12, uv-managed (`pyproject.toml`, `uv.lock`).
 - `app/` – the application package (layered; see `app/CLAUDE.md`)
 - `alembic/` + `alembic.ini` – database migrations
 - `tests/` – pytest suite (includes the layering test `tests/test_architecture.py`)
-- `scripts/` – manual smoke / latency / eval tools against a running server (not imported by app)
+- `scripts/` – manual smoke / latency / eval tools against a running server (not imported by app); `wordbook_data.py` downloads/verifies the dictionary files
+- `dictionaries/` – committed third-party word books read at runtime by `app/wordbook/` (byte-exact, checksummed; see `dictionaries/CLAUDE.md`, repo-root `NOTICE`)
 - `Dockerfile` – built from the repo root via `docker-compose.yml` (copied from the tracked `docker-compose.example.yml`); also builds `web/dist`
 - `.env.example` – documented settings; copy to `.env` locally
 
