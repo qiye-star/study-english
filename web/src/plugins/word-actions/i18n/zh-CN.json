@@ -1,0 +1,24 @@
+{
+  "web": {
+    "links": {
+      "wordActions": {
+        "more": "更多操作:{{word}}",
+        "title": "单词操作",
+        "add": "加入词汇本",
+        "addHint": "按间隔复习",
+        "inVocabulary": "已在词汇本中",
+        "adopt": "加入词书学习",
+        "adoptHint": "当前词书里有这个词时,下次复习出现",
+        "adopted": "已加入,下次复习出现",
+        "known": "已在学习中",
+        "notInBook": "当前词书里没有这个词",
+        "shadow": "跟读这个词",
+        "shadowHint": "有例句时跟读例句",
+        "card": "查看词卡",
+        "cardHint": "音标、释义、例句",
+        "noCard": "词书里没有这个词",
+        "loading": "正在加载"
+      }
+    }
+  }
+}
