@@ -133,7 +133,8 @@ export function WordbookBooksPage() {
 
   return (
     <div>
-      <PageHeader title={t("web.wordbook.books.title")} back="/wordbook" />
+      {/* 还没选书时 /wordbook 会立刻跳回本页(home-page 的 Navigate),返回就成了死循环:回练习页(review web M5) */}
+      <PageHeader title={t("web.wordbook.books.title")} back={enrollment ? "/wordbook" : "/practice"} />
       <div className="px-gutter pb-6">{body}</div>
       <BottomSheet open={picked !== null} onOpenChange={(o) => { if (!o && !saving) setPicked(null); }}>
         {picked ? (

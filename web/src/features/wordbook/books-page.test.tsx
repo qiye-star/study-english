@@ -66,6 +66,21 @@ describe("WordbookBooksPage", () => {
     expect(JSON.parse(String(put.body))).toEqual({ book_id: "cet6", daily_new: 30, review_cap: 200, order_mode: "book" });
   });
 
+  it("back goes to Practice for a user without a book (the home page would bounce straight back here)", async () => {
+    setup({}, NO_BOOK_TODAY);
+    await screen.findByRole("button", { name: /六级/ });
+    await userEvent.click(screen.getByRole("button", { name: "返回" }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/practice$/));
+  });
+
+  it("back goes to the wordbook home once a book is chosen", async () => {
+    setup();
+    await screen.findByRole("button", { name: /四级/ });
+    await waitFor(() => expect(screen.getByRole("button", { name: /四级/ })).toHaveTextContent("当前"));
+    await userEvent.click(screen.getByRole("button", { name: "返回" }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/wordbook$/));
+  });
+
   it("keeps the sheet open and shows the error when saving fails", async () => {
     setup({ "PUT /api/wordbook/enrollment": () => json({ error: "Book not found" }, 404) });
     await userEvent.click(await screen.findByRole("button", { name: /六级/ }));
