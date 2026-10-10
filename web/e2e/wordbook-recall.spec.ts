@@ -110,10 +110,24 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
     expect(upstreams.unmocked).toEqual([]);
     return;
   }
-  const { uid, rows } = await db.rowsOf(creds.username);
-  expect(rows.map((r) => r.box).sort()).toEqual([0, 1, 1, 2, 2]); // 不认识 0 · 模糊(含偷看)1 · 抽查通过 2
+  const first = await db.rowsOf(creds.username);
+  expect(first.rows.map((r) => r.box).sort()).toEqual([0, 1, 1, 2, 2]); // 不认识 0 · 模糊(含偷看)1 · 抽查通过 2
+  const { uid } = first;
+  let rows = first.rows;
+  let learned = 5;
+  // 四个盒 1 / 2 的词都不出快速回忆的概率约 13%:再用接口按「模糊」学几批,直到有一个会出(最多 3 批)
+  for (let extra = 0; extra < 3 && !rows.some((r) => r.box > 0 && useRecall(uid, r.word, r.reps, r.box)); extra++) {
+    const more = (await (await request.post("/api/wordbook/learn/batch", { headers: auth, data: { size: 5, tz_offset_minutes: offset } })).json()) as Batch;
+    for (const c of more.cards) {
+      const r = await request.post("/api/wordbook/answers", { headers: auth, data: {
+        book_id: more.book_id, key: c.key, mode: "learn", qtype: "recall", rating: "fuzzy", tz_offset_minutes: offset } });
+      expect(r.status()).toBe(200);
+      learned += 1;
+    }
+    rows = (await db.rowsOf(creds.username)).rows;
+  }
   const target = rows.find((r) => r.box > 0 && useRecall(uid, r.word, r.reps, r.box));
-  test.skip(!target, "none of the four box 1/2 words draws quick recall for this user id (about 13%)");
+  test.skip(!target, "no box 1/2 word draws quick recall for this user id (about 0.3%)");
   await db.makeDue(creds.username, [target!.word]);
 
   await page.goto("/wordbook/review");
@@ -144,7 +158,7 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
   await expect(summary).toBeVisible();
 
   const plan = await today();
-  expect([plan.new_done, plan.review_done]).toEqual([5, 1]);
+  expect([plan.new_done, plan.review_done]).toEqual([learned, 1]);
   const after = await db.rowsOf(creds.username);
   expect(after.rows.find((r) => r.word === target!.word)).toMatchObject({ box: 0, reps: target!.reps + 1 });
   expect(upstreams.unmocked).toEqual([]);
