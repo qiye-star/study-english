@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
-from app.models import WordbookEnrollment, WordbookReport, iso_utc
+from app.models import WordbookEnrollment, WordbookEvent, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
 from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review
 from app.wordbook import plan as planning
@@ -710,3 +710,84 @@ async def patch_enrollment(session: AsyncSession, user_id: int, settings: Settin
     cap = planning.REVIEW_UNLIMITED if review_unlimited else review_cap
     e = await store.update_goals(session, e, daily_new=daily_new, review_cap=cap, order_mode=order_mode, now=now)
     return enrollment_out(e, limits)
+
+
+BONUS_STEP_MAX = 20  # 每次最多加练 20 个(路由也校验)
+
+
+async def grant_bonus(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
+                      offset: int, now) -> dict:
+    """今天加练 size 个新词(spec §5):今天的新词学完、不在积压中、本书还有新词、不超过每日加练上限。
+    提交后重算:并发双击超出上限的那一次删掉自己那行并返回 429,总量永不超过上限。"""
+    e, index = await _active(session, ds, user_id, settings)
+    limits = limits_of(settings)
+    if limits.bonus_max <= 0:
+        fail(BONUS_LIMIT)
+    known = await store.known_words(session, user_id)
+    plan = await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)
+    if plan.backlog_guard:
+        fail(BACKLOG)
+    if plan.new_left > 0:
+        fail(GOAL_NOT_DONE)
+    if not any(k not in known for k in index.keys):
+        fail(BOOK_FINISHED)
+    if plan.bonus + size > limits.bonus_max:
+        fail(BONUS_LIMIT)
+    if not await store.consume_settings(session, user_id, utc_day(now)):
+        fail(SETTINGS_LIMIT)
+    day = local_day(now, offset)
+    event = WordbookEvent(user_id=user_id, book_id=e.book_id, kind="bonus", word="bonus", item_id=None, qtype=None,
+                          outcome="granted", credit=size, day=day, created_at=now)
+    session.add(event)
+    await session.commit()
+    if await store.bonus_today(session, user_id, e.book_id, day) > limits.bonus_max:
+        await session.delete(event)
+        await session.commit()
+        fail(BONUS_LIMIT)
+    plan = await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)
+    return {"plan": asdict(plan), "bonus_left": max(0, limits.bonus_max - plan.bonus)}
+
+
+async def pause(session: AsyncSession, user_id: int, settings: Settings, now) -> dict:
+    if await store.active_enrollment(session, user_id) is None:
+        fail(NO_ACTIVE)
+    if not await store.consume_settings(session, user_id, utc_day(now)):
+        fail(SETTINGS_LIMIT)
+    e = await store.pause_active(session, user_id, now)
+    if e is None:
+        fail(NO_ACTIVE)
+    return enrollment_out(e, limits_of(settings))
+
+
+async def resume(session: AsyncSession, user_id: int, settings: Settings, *, book_id: str, now, seed: int) -> dict:
+    """继续 = 设为 active 并暂停其它(同 PUT /enrollment 只传书 id);设置与进度不变。"""
+    book_or_fail(settings, book_id)
+    if await store.get_enrollment(session, user_id, book_id) is None:
+        fail(NOT_ENROLLED)
+    if not await store.consume_settings(session, user_id, utc_day(now)):
+        fail(SETTINGS_LIMIT)
+    return await put_enrollment(session, user_id, settings, book_id=book_id, daily_new=None, review_cap=None,
+                                order_mode=None, now=now, seed=seed)
+
+
+def confirm_matches(confirm: str, spec: BookSpec) -> bool:
+    typed = confirm.strip().casefold()
+    return bool(typed) and typed in {spec.id, spec.title_zh.casefold(), spec.title_en.casefold()}
+
+
+async def reset_progress(session: AsyncSession, user_id: int, settings: Settings, *, book_id: str, confirm: str,
+                         offset: int, now, seed: int) -> dict:
+    """重置进度(spec §8,G-7)。确认文本不记日志。"""
+    spec = book_or_fail(settings, book_id)
+    if await store.get_enrollment(session, user_id, book_id) is None:
+        fail(NOT_ENROLLED)
+    if not confirm_matches(confirm, spec):
+        fail(CONFIRM_MISMATCH)
+    if not await store.consume_reset(session, user_id, utc_day(now)):
+        fail(RESET_LIMIT)
+    removed = await store.reset_book(session, user_id, book_id, seed=seed, now=now)
+    await store.add_event(session, user_id=user_id, book_id=book_id, kind="reset", word=book_id, item_id=None,
+                          qtype=None, outcome="reset", credit=0, day=local_day(now, offset), now=now)
+    await session.commit()
+    e = await store.get_enrollment(session, user_id, book_id)
+    return {"removed": removed, "enrollment": enrollment_out(e, limits_of(settings))}

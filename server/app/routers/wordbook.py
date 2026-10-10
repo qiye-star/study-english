@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User, utcnow
+from app.rank import ledger
+from app.rank.rules_store import rank_rules
 from app.services.prompts import prompt_cache
 from app.services.vocabulary import normalize_word
 from app.wordbook import explain as wb_explain
@@ -267,5 +269,76 @@ async def wordbook_patch_enrollment(payload: GoalsPatchIn, user: User = Depends(
                                               review_cap=payload.review_cap,
                                               review_unlimited=bool(payload.review_unlimited),
                                               order_mode=payload.order_mode, now=utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+class BonusIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    size: int = Field(10, ge=1, le=service.BONUS_STEP_MAX)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class BookIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(max_length=16)
+
+
+class ResetIn(BookIn):
+    confirm: str = Field(min_length=1, max_length=40)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class EmptyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+async def _settle_rank(request: Request, session: AsyncSession, user_id: int, settings: Settings, offset: int) -> None:
+    """重置会删 vocabulary_items:先把还没入账的复习段位点入账(spec §8)。段位关闭或维护模式时跳过。
+    wordbook 层不导入 rank,所以在路由层做(分层规则允许 routers 导入 rank)。"""
+    if not settings.rank_enabled or settings.maintenance_mode != "off":
+        return
+    version, rules = await rank_rules(request.app).current()
+    await ledger.sync(session, user_id, utcnow(), offset, settings.rank_daily_rp_cap,
+                      rules=rules if version is not None else None)
+
+
+@router.post("/bonus")
+async def wordbook_bonus(payload: BonusIn, request: Request, user: User = Depends(current_user),
+                         session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.grant_bonus(session, dictionary(request.app), user.id, settings, payload.size,
+                                         payload.tz_offset_minutes, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/enrollment/pause")
+async def wordbook_pause(_: EmptyIn, user: User = Depends(current_user), session: AsyncSession = Depends(get_session),
+                         settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.pause(session, user.id, settings, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/enrollment/resume")
+async def wordbook_resume(payload: BookIn, user: User = Depends(current_user),
+                          session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.resume(session, user.id, settings, book_id=payload.book_id, now=utcnow(),
+                                    seed=secrets.randbelow(2**31))
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/enrollment/reset")
+async def wordbook_reset(payload: ResetIn, request: Request, user: User = Depends(current_user),
+                         session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    await _settle_rank(request, session, user.id, settings, payload.tz_offset_minutes)
+    try:
+        return await service.reset_progress(session, user.id, settings, book_id=payload.book_id,
+                                            confirm=payload.confirm, offset=payload.tz_offset_minutes, now=utcnow(),
+                                            seed=secrets.randbelow(2**31))
     except service.WordbookError as e:
         _raise(e)

@@ -280,3 +280,27 @@ async def goal_days(session: AsyncSession, user_id: int, since: str) -> list[str
 
 async def consume_settings(session: AsyncSession, user_id: int, day: str) -> bool:
     return await usage.consume(session, "wordbook_settings", str(user_id), day, SETTINGS_DAILY_MAX)
+
+
+async def pause_active(session: AsyncSession, user_id: int, now: datetime) -> WordbookEnrollment | None:
+    """把当前在学的书设为 paused 并提交;没有在学的书返回 None。"""
+    e = await active_enrollment(session, user_id)
+    if e is not None:
+        e.status, e.updated_at = "paused", now
+        await session.commit()
+    return e
+
+
+async def reset_book(session: AsyncSession, user_id: int, book_id: str, *, seed: int, now: datetime) -> int:
+    """重置进度(spec 2026-10-11 §8):删除本书来源(source='wordbook:<book>')的 vocabulary_items 行,
+    取词位置归零并换新种子。事件、段位、别的来源的词不动。不提交;返回删除的行数。"""
+    result = await session.execute(delete(VocabularyItem).where(
+        VocabularyItem.user_id == user_id, VocabularyItem.source == wordbook_source(book_id))
+        .execution_options(synchronize_session=False))
+    e = await get_enrollment(session, user_id, book_id)
+    e.cursor, e.seed, e.started_at, e.updated_at = 0, seed, now, now
+    return int(result.rowcount or 0)
+
+
+async def consume_reset(session: AsyncSession, user_id: int, day: str) -> bool:
+    return await usage.consume(session, "wordbook_resets", str(user_id), day, RESETS_DAILY_MAX)
