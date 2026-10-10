@@ -18,6 +18,10 @@ export interface PointsRule {
   /** 背单词(spec 2026-10-10-wordbook §8);旧版本的规则 JSON 里没有,服务端按默认值 1 / 2 解析 */
   word_learned?: number;
   spelling_set?: number;
+  /** 学习联动(spec 2026-10-11 §5.3);旧规则没有,服务端按 {} / 5 解析。kind -> 点数(0–100) */
+  sources?: Record<string, number>;
+  /** 联动来源每日子上限(0–100),只吃共享每日上限的剩余额度 */
+  sources_daily_cap?: number;
   daily_cap: number;
 }
 

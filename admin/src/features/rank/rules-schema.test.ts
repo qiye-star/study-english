@@ -58,3 +58,19 @@ it("offers the wordbook stage kind without a score threshold and accepts rules w
   expect(outOfRange(bad)).toEqual(["points.spelling_set"]);
   expect(rulesError("stage_tasks:wordbook_disabled")).toEqual({ tab: "stage", text: "背单词未开启,不能使用『背单词新词』阶段练习" });
 });
+
+it("keeps learning-link sources when other point fields are edited and range-checks them", () => {
+  const r = cloneRules(defaultRules());
+  r.points.sources = { word_in_chat: 2 };
+  r.points.sources_daily_cap = 5;
+  const edited = { ...r, points: { ...r.points, chat_turn: 3 } };
+  expect(edited.points.sources).toEqual({ word_in_chat: 2 });
+  expect(outOfRange(edited)).toEqual([]);
+  edited.points.sources = { word_in_chat: 101 };
+  edited.points.sources_daily_cap = 101;
+  expect(outOfRange(edited)).toEqual(["points.sources.word_in_chat", "points.sources_daily_cap"]);
+  expect(RANGES.sources_daily_cap).toEqual([0, 100]);
+  const old = cloneRules(defaultRules()); // older published rules carry neither field: the server defaults are {} / 5
+  expect(old.points.sources).toBeUndefined();
+  expect(outOfRange(old)).toEqual([]);
+});

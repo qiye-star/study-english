@@ -9,7 +9,7 @@
     "locked_rp": "攒满本段位的段位点后解锁", "locked_tasks": "完成全部阶段练习后解锁", "cooldown": "冷却中,{{time}} 后可再战",
     "no_attempts": "今天的次数已用完,明天再来", "max_tier": "你已经是王者", "unavailable": "服务器暂未开放晋级赛", "active": "有一场晋级赛还没打完" },
   "season": { "title": "S{{id}} 赛季", "left": "剩 {{days}} 天", "points": "赛季积分 {{points}}", "preseason": "季前赛" },
-  "recent": { "title": "最近获得", "assessment": "跟读", "voice_turn": "语音对话", "chat_turn": "对话", "vocab_review": "复习单词", "active_day": "今日活跃", "streak_7": "连续 7 天", "stage_task": "完成阶段练习", "word_learned": "学会新词", "spelling_set": "拼写练习", "other": "练习" },
+  "recent": { "title": "最近获得", "assessment": "跟读", "voice_turn": "语音对话", "chat_turn": "对话", "vocab_review": "复习单词", "active_day": "今日活跃", "streak_7": "连续 7 天", "stage_task": "完成阶段练习", "word_learned": "学会新词", "spelling_set": "拼写练习", "word_in_chat": "对话用到新词", "other": "练习" },
   "achievementsLink": "成就", "newAchievements": "解锁了 {{count}} 个新成就",
   "match": { "title": "晋级赛", "turn": "第 {{n}}/{{total}} 轮", "timeLeft": "剩 {{time}}", "briefTitle": "情景简报", "goals": "你要做到", "target": "目标 {{tier}}",
     "rules": "全程语音作答,不能打字。共 {{turns}} 轮,{{minutes}} 分钟内完成,每轮 1.5–30 秒。", "begin": "开始", "replay": "重听",

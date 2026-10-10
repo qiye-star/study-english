@@ -201,6 +201,11 @@ export const S = {
     word_learned: "每学会一个新词(背单词)",
     spelling_set: "每完成一组拼写(背单词)",
     daily_cap: "每日上限(跟读/对话/复习合计)",
+    sources: "联动来源",
+    sourcesDailyCap: "联动来源每日上限",
+    sourcePoints: (kind: string) => `${kind} 点数`,
+    sourcesEmpty: "还没有联动来源;启用学习联动后,来源列表见「学习联动」页",
+    sourcesNote: "联动来源只吃每日上限的剩余额度,另受「联动来源每日上限」限制;不计入阶段练习与活跃日,影响预演不模拟。",
     note: "点数改动只影响之后入账的事件,不追溯;每小段点数调小后,超出的点数在用户下次同步时截到新上限。",
   },
   stageTab: {

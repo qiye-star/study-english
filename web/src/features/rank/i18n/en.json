@@ -9,7 +9,7 @@
     "locked_rp": "Fill this tier's RP to unlock", "locked_tasks": "Finish all stage tasks to unlock", "cooldown": "Cooling down, try again in {{time}}",
     "no_attempts": "No attempts left today", "max_tier": "You are a Master", "unavailable": "Promotion matches are not available on this server", "active": "You have a promotion match in progress" },
   "season": { "title": "Season {{id}}", "left": "{{days}} days left", "points": "Season RP {{points}}", "preseason": "Preseason" },
-  "recent": { "title": "Recent RP", "assessment": "Read-aloud", "voice_turn": "Voice turn", "chat_turn": "Chat turn", "vocab_review": "Word review", "active_day": "Active day", "streak_7": "7-day streak", "stage_task": "Stage task done", "word_learned": "New word learned", "spelling_set": "Spelling set", "other": "Practice" },
+  "recent": { "title": "Recent RP", "assessment": "Read-aloud", "voice_turn": "Voice turn", "chat_turn": "Chat turn", "vocab_review": "Word review", "active_day": "Active day", "streak_7": "7-day streak", "stage_task": "Stage task done", "word_learned": "New word learned", "spelling_set": "Spelling set", "word_in_chat": "New word in chat", "other": "Practice" },
   "achievementsLink": "Achievements", "newAchievements": "{{count}} new achievements unlocked",
   "match": { "title": "Promotion match", "turn": "Turn {{n}}/{{total}}", "timeLeft": "{{time}} left", "briefTitle": "Scenario", "goals": "Your goals", "target": "Target {{tier}}",
     "rules": "Speak every answer, no typing: {{turns}} turns within {{minutes}} minutes, 1.5–30 seconds each.", "begin": "Begin", "replay": "Replay",

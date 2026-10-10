@@ -5,6 +5,7 @@ export const RANGES = {
   division_rp: [20, 2000],
   points: [0, 100],
   daily_cap: [0, 1000],
+  sources_daily_cap: [0, 100],
   band_floor: [0, 100],
   band_points: [0, 100],
   stage_target: [1, 1000],
@@ -31,6 +32,10 @@ export const POINT_KINDS = ["chat_turn", "vocab_review", "active_day", "streak_7
 export type PointKind = (typeof POINT_KINDS)[number];
 export const POINT_DEFAULTS: Partial<Record<PointKind, number>> = { word_learned: 1, spelling_set: 2 };
 export const pointValue = (p: PointsRule, k: PointKind): number => p[k] ?? POINT_DEFAULTS[k] ?? 0;
+
+/** 学习联动来源的每日子上限;旧规则缺省时按服务端默认值 5(spec 2026-10-11 §5.3) */
+export const SOURCES_DAILY_CAP_DEFAULT = 5;
+export const sourcesDailyCap = (p: PointsRule): number => p.sources_daily_cap ?? SOURCES_DAILY_CAP_DEFAULT;
 
 /** 阶段练习的种类(与服务端 StageTaskRule.kind 同序);只有跟读有分数门槛 */
 export const STAGE_KIND_LIST: StageKind[] = ["assess", "chat_turns", "voice_turns", "vocab_reviews", "active_days", "words_learned"];
@@ -61,6 +66,8 @@ export function outOfRange(r: RankRules): string[] {
   };
   r.tiers.forEach((t, i) => check(`tiers.${i}.division_rp`, "division_rp", t.division_rp));
   for (const k of POINT_KINDS) check(`points.${k}`, "points", pointValue(r.points, k));
+  for (const [k, v] of Object.entries(r.points.sources ?? {})) check(`points.sources.${k}`, "points", v);
+  check("points.sources_daily_cap", "sources_daily_cap", sourcesDailyCap(r.points));
   check("points.daily_cap", "daily_cap", r.points.daily_cap);
   r.points.assessment_bands.forEach(([f, p], i) => {
     check(`points.assessment_bands.${i}.0`, "band_floor", f);

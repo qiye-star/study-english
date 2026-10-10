@@ -17,7 +17,7 @@ import { ICON_LINK } from "./ui";
 
 const DAY = 86_400_000;
 const RECENT_KINDS = new Set(["assessment", "voice_turn", "chat_turn", "vocab_review", "active_day", "streak_7", "stage_task",
-  "word_learned", "spelling_set"]);
+  "word_learned", "spelling_set", "word_in_chat"]);
 
 export function RankHomePage() {
   const { api } = useAuth();
