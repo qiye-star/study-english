@@ -10,8 +10,8 @@ UID = 12345678
 def test_catalog_keys():
     assert [a.key for a in ach.CATALOG] == [
         "streak_3", "streak_7", "streak_30", "streak_100", "first_promotion", "first_try", "tier_gold",
-        "tier_diamond", "tier_master", "pron_90", "pron_85_x20", "chat_100", "vocab_100", "room_first",
-        "room_assisted_10", "season_climber"]
+        "tier_diamond", "tier_master", "pron_90", "pron_85_x20", "chat_100", "vocab_100", "words_learned_100",
+        "words_mastered_100", "words_mastered_500", "words_mastered_2000", "room_first", "room_assisted_10", "season_climber"]
 
 
 def test_earned_thresholds():
@@ -50,5 +50,5 @@ async def test_snapshot_unlock_and_season_badge(app):
         assert "season_1_gold" in new and "streak_3" in new
         assert await ach.unlock_new(s, UID, ach.earned(snap) | badges, NOW) == []
         listing = await ach.listing(s, UID)
-        assert len(listing) == 17 and listing[-1] == {"key": "season_1_gold", "group": "season", "icon": "shield-star",
+        assert len(listing) == 21 and listing[-1] == {"key": "season_1_gold", "group": "season", "icon": "shield-star",
                                                       "unlocked_at": listing[-1]["unlocked_at"]}

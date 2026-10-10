@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
-import { RANGES, cloneRules, diffPaths, inRange, outOfRange, templateFields, templateProblems, weightsTotal } from "./rules-schema";
+import {
+  POINT_KINDS, RANGES, STAGE_KIND_LIST, cloneRules, diffPaths, hasMinScore, inRange, outOfRange, templateFields, templateProblems, weightsTotal,
+} from "./rules-schema";
+import { STAGE_KINDS, rulesError } from "./strings";
 import { defaultRules } from "./test-fixtures";
 
 it("mirrors the server model bounds", () => {
@@ -37,4 +40,21 @@ it("reads template placeholders like str.format", () => {
   expect(templateFields('Hi {cefr} {{"task":0}} {role}')).toEqual(["cefr", "role"]);
   expect(templateFields("x {} y")).toEqual([""]);
   expect(templateProblems("Level {cefr} {oops}", ["cefr", "role"])).toEqual({ missing: ["role"], extra: ["oops"], learner: false });
+});
+
+it("offers the wordbook stage kind without a score threshold and accepts rules without wordbook points", () => {
+  expect(STAGE_KIND_LIST).toContain("words_learned");
+  expect(STAGE_KINDS.words_learned).toBe("背单词新词");
+  expect(hasMinScore("assess")).toBe(true);
+  expect(hasMinScore("words_learned")).toBe(false);
+  expect(hasMinScore("vocab_reviews")).toBe(false);
+  expect(POINT_KINDS).toEqual(["chat_turn", "vocab_review", "active_day", "streak_7", "stage_task", "word_learned", "spelling_set"]);
+  const old = cloneRules(defaultRules());
+  delete old.points.word_learned;
+  delete old.points.spelling_set;
+  expect(outOfRange(old)).toEqual([]);
+  const bad = cloneRules(defaultRules());
+  bad.points.spelling_set = 101;
+  expect(outOfRange(bad)).toEqual(["points.spelling_set"]);
+  expect(rulesError("stage_tasks:wordbook_disabled")).toEqual({ tab: "stage", text: "背单词未开启,不能使用『背单词新词』阶段练习" });
 });

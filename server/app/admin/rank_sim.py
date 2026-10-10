@@ -32,7 +32,7 @@ def recompute_points(kind: str, score: int | None, rules) -> int:
     """Points an event would earn under `rules` (before the daily cap)."""
     if kind in ("assessment", "voice_turn"):
         return assessment_points(score, rules=rules)
-    if kind in ("chat_turn", "vocab_review", "active_day", "streak_7", "stage_task"):
+    if kind in ("chat_turn", "vocab_review", "active_day", "streak_7", "stage_task", "word_learned", "spelling_set"):
         return points_for(kind, rules=rules)
     return 0
 

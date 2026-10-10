@@ -34,13 +34,16 @@ class PointsRule(BaseModel):
     active_day: int = Field(ge=0, le=100)
     streak_7: int = Field(ge=0, le=100)
     stage_task: int = Field(ge=0, le=100)
+    # wordbook (spec 2026-10-10-wordbook §8): defaults keep older published rule JSON parseable
+    word_learned: int = Field(1, ge=0, le=100)
+    spelling_set: int = Field(2, ge=0, le=100)
     daily_cap: int = Field(ge=0, le=1000)
 
 
 class StageTaskRule(BaseModel):
     model_config = _FROZEN
     key: str = Field(min_length=1, max_length=32)
-    kind: Literal["assess", "chat_turns", "voice_turns", "vocab_reviews", "active_days"]
+    kind: Literal["assess", "chat_turns", "voice_turns", "vocab_reviews", "active_days", "words_learned"]
     target: int = Field(ge=1, le=1000)
     min_score: int | None = Field(None, ge=0, le=100)
 

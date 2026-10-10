@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.quotas import quota_for
-from app.models import Assessment, Conversation, Message, RankProfile, VocabularyItem, XpEvent
+from app.models import Assessment, Conversation, Message, RankProfile, VocabularyItem, WordbookEvent, XpEvent
 from app.rank import points as rules
 from app.rank.points import EventRow, TaskProgress, stage_progress
 from app.rank.tiers import MASTER, RankState, Season, add_rp, at_gate, clamp_rp
@@ -91,9 +91,20 @@ async def _collect(session: AsyncSession, user_id: int, since: datetime, now: da
     for id_, reps, at in v_rows:
         out.append(rules.Candidate("vocab_review", f"{id_}:{reps}", usage.local_day(at, offset),
                                    rules.points_for("vocab_review", rules=rank_rules), None, as_utc(at)))
-    for rows in (a_rows, m_rows, v_rows):
-        if len(rows) >= MAX_SYNC_ROWS:
-            watermark = min(watermark, as_utc(rows[-1][-1] if rows is v_rows else rows[-1][1]))
+    # wordbook (spec 2026-10-10-wordbook §8): read the table through app.models only, never import app.wordbook
+    w_rows = (await session.execute(
+        select(WordbookEvent.id, WordbookEvent.kind, WordbookEvent.created_at)
+        .where(WordbookEvent.user_id == user_id, WordbookEvent.kind.in_(("learn", "spell_set")),
+               WordbookEvent.created_at >= since)
+        .order_by(WordbookEvent.created_at).limit(MAX_SYNC_ROWS))).all()
+    for id_, kind, at in w_rows:
+        name, prefix = ("word_learned", "wl") if kind == "learn" else ("spelling_set", "ws")
+        out.append(rules.Candidate(name, f"{prefix}:{id_}", usage.local_day(at, offset),
+                                   rules.points_for(name, rules=rank_rules), None, as_utc(at)))
+    for rows in (a_rows, m_rows, v_rows, w_rows):
+        if len(rows) >= MAX_SYNC_ROWS:  # the timestamp is the last column of v_rows / w_rows, the second elsewhere
+            last = rows[-1][-1] if (rows is v_rows or rows is w_rows) else rows[-1][1]
+            watermark = min(watermark, as_utc(last))
     return out, watermark
 
 

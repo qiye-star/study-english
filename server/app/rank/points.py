@@ -2,8 +2,10 @@
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
-CAPPED = frozenset({"assessment", "voice_turn", "chat_turn", "vocab_review"})
-POINTS = {"chat_turn": 1, "vocab_review": 1, "active_day": 5, "streak_7": 15, "stage_task": 10}
+# word_learned / spelling_set: wordbook (spec 2026-10-10-wordbook §8); they share the daily cap with the other kinds
+CAPPED = frozenset({"assessment", "voice_turn", "chat_turn", "vocab_review", "word_learned", "spelling_set"})
+POINTS = {"chat_turn": 1, "vocab_review": 1, "active_day": 5, "streak_7": 15, "stage_task": 10,
+          "word_learned": 1, "spelling_set": 2}
 STREAK_STEP = 7
 
 
@@ -86,7 +88,8 @@ STAGE_TASKS: dict[int, tuple[StageTask, ...]] = {
     5: _tasks((40, 85), ("voice_turns", 80), ("active_days", 15)),
     6: (),
 }
-_KIND_OF = {"chat_turns": "chat_turn", "voice_turns": "voice_turn", "vocab_reviews": "vocab_review"}
+_KIND_OF = {"chat_turns": "chat_turn", "voice_turns": "voice_turn", "vocab_reviews": "vocab_review",
+            "words_learned": "word_learned"}
 
 
 @dataclass(frozen=True)
@@ -116,7 +119,8 @@ def _done(task: StageTask, events: list[EventRow]) -> int:
 
 
 def points_for(kind: str, *, rules=None) -> int:
-    """Fixed points of a non-assessment kind (chat_turn, vocab_review, active_day, streak_7, stage_task)."""
+    """Fixed points of a non-assessment kind (chat_turn, vocab_review, active_day, streak_7, stage_task,
+    word_learned, spelling_set)."""
     return getattr(rules.points, kind) if rules is not None else POINTS[kind]
 
 

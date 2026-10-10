@@ -148,7 +148,8 @@ async def draft_delete(ctx: AdminContext = Depends(require("operator")), session
 async def draft_validate(request: Request, _: AdminContext = Depends(require("operator")),
                          session: AsyncSession = Depends(get_session)):
     try:
-        return {"errors": await rra.validate_draft(session, rank_rules(request.app), _now().date())}
+        return {"errors": await rra.validate_draft(session, rank_rules(request.app), _now().date(),
+                                                settings=request.app.state.settings)}
     except rra.RulesError as e:
         return _error(e)
 

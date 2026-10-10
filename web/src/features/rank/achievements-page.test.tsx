@@ -47,6 +47,21 @@ describe("AchievementsPage", () => {
     expect(cells[0].innerHTML).not.toMatch(/text-red|bg-red/);
   });
 
+  it("names the wordbook achievements and colours them teal with a book icon", async () => {
+    setup([
+      { key: "words_mastered_100", group: "vocab", icon: "book", unlocked_at: "2026-11-05T08:00:00+00:00" },
+      { key: "words_mastered_500", group: "vocab", icon: "book", unlocked_at: null },
+    ]);
+    const cells = await screen.findAllByTestId("achievement");
+    expect(screen.getByText("小有积累")).toBeTruthy();
+    expect(screen.getByText("词汇达人")).toBeTruthy();
+    expect(screen.getByText("掌握 500 个单词")).toBeTruthy();
+    const disc = (i: number) => cells[i].querySelector("[data-testid=achievement-icon]")!;
+    expect(disc(0).className).toContain("bg-teal-tint");
+    expect(disc(1).className).toContain("text-ink-3");
+    expect(disc(0).querySelector("svg")!.getAttribute("class")).toContain("lucide-library-big");
+  });
+
   it("shows the disabled note when rank is off", async () => {
     setup([], false);
     expect(await screen.findByText("段位赛未开启。")).toBeTruthy();

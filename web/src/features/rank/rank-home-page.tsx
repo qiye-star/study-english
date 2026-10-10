@@ -16,7 +16,8 @@ import { divisionLabel, pointsToGate, progressRatio } from "./tiers";
 import { ICON_LINK } from "./ui";
 
 const DAY = 86_400_000;
-const RECENT_KINDS = new Set(["assessment", "voice_turn", "chat_turn", "vocab_review", "active_day", "streak_7", "stage_task"]);
+const RECENT_KINDS = new Set(["assessment", "voice_turn", "chat_turn", "vocab_review", "active_day", "streak_7", "stage_task",
+  "word_learned", "spelling_set"]);
 
 export function RankHomePage() {
   const { api } = useAuth();
