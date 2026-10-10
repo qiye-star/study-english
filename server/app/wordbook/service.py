@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.models import WordbookEnrollment, WordbookReport, iso_utc
-from app.services.usage import local_day
+from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
 from app.services.vocabulary import apply_lapse, apply_review
 from app.wordbook import plan as planning
 from app.wordbook import store
@@ -272,7 +272,7 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         known = await store.known_words(session, user_id)
         if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
             fail(NEW_LIMIT)
-    if not await store.consume_answer(session, user_id, day):
+    if not await store.consume_answer(session, user_id, utc_day(now)):
         fail(ANSWER_LIMIT)
     diff = None
     if p.known:
@@ -384,7 +384,7 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
             fail(SENTENCE_CHANGED)
         graded.append((card, cloze, line))
     day = local_day(now, p.offset)
-    if not await store.consume_answer(session, user_id, day):
+    if not await store.consume_answer(session, user_id, utc_day(now)):
         fail(ANSWER_LIMIT)
     known = await store.known_words(session, user_id)
     words, next_blank, seen = [], 0, set()
@@ -458,7 +458,7 @@ async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         fail(WORD_NOT_FOUND)
     if all(e.id != sentence_id for e in card.examples):
         fail(SENTENCE_CHANGED)
-    if not await store.consume_report(session, user_id, local_day(now, offset)):
+    if not await store.consume_report(session, user_id, utc_day(now)):
         fail(REPORT_LIMIT)
     row = WordbookReport(user_id=user_id, book_id=book_id, word=key, sentence_id=sentence_id, kind="sentence",
                          reason=reason, status="open", created_at=now)

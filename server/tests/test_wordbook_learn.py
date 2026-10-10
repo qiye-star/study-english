@@ -159,6 +159,16 @@ async def test_answer_validation_limits_and_unknown_word(app, client, tmp_path, 
     assert r.status_code == 429 and r.json() == {"error": "Daily answer limit reached"}
 
 
+async def test_answer_cap_is_per_utc_day_whatever_the_offset(app, client, tmp_path, monkeypatch):
+    """Review m4: a client-chosen tz offset must not open a second (or third) daily answer budget."""
+    h = await login(app, client, tmp_path)
+    monkeypatch.setattr(store, "ANSWERS_DAILY_MAX", 1)
+    body = {"book_id": "junior", "key": "talk", "mode": "learn", "qtype": "meaning", "choice": TALK_MEANING}
+    assert (await client.post(f"{URL}/answers", headers=h, json={**body, "tz_offset_minutes": 840})).status_code == 200
+    r = await client.post(f"{URL}/answers", headers=h, json={**body, "tz_offset_minutes": -840})
+    assert r.status_code == 429 and r.json() == {"error": "Daily answer limit reached"}
+
+
 async def test_answers_are_not_logged(app, client, tmp_path, caplog):
     caplog.set_level("DEBUG")
     h = await login(app, client, tmp_path)
