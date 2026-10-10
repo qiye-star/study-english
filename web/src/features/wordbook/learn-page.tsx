@@ -43,6 +43,11 @@ export function WordbookLearnPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const mounted = useRef(true);
+  // 作答后选项都被禁用,焦点会掉到 <body>:移到「继续」(review m7)
+  const continueRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (result) continueRef.current?.focus({ preventScroll: true });
+  }, [result]);
   useEffect(() => {
     mounted.current = true; // StrictMode 会先卸载再挂载一次
     return () => { mounted.current = false; };
@@ -206,7 +211,7 @@ export function WordbookLearnPage() {
       </div>
       {result ? (
         <div className={DOCK}>
-          <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
+          <button ref={continueRef} type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
         </div>
       ) : null}
     </div>

@@ -53,6 +53,11 @@ export function WordbookReviewPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const mounted = useRef(true);
+  // 作答后选项被禁用、输入框只读:焦点移到「继续」,键盘与读屏不丢位置(review m7)
+  const continueRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (answer) continueRef.current?.focus({ preventScroll: true });
+  }, [answer]);
   useEffect(() => {
     mounted.current = true; // StrictMode 会先卸载再挂载一次
     return () => { mounted.current = false; };
@@ -198,7 +203,7 @@ export function WordbookReviewPage() {
       </div>
       {answer ? (
         <div className={DOCK}>
-          <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
+          <button ref={continueRef} type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
         </div>
       ) : null}
     </div>

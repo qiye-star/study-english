@@ -142,6 +142,15 @@ describe("WordbookReviewPage", () => {
     expect(mock.calls.filter((c) => c.url.pathname === "/api/rank/me")).toHaveLength(1);
   });
 
+  it("moves focus to 继续 once an answer is graded (review m7)", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt\. 接受；承认/ }));
+    const next = await screen.findByRole("button", { name: "继续" });
+    await waitFor(() => expect(document.activeElement).toBe(next));
+  });
+
   it("does not ask for achievements when rank is off", async () => {
     const user = userEvent.setup();
     const mock = setup({

@@ -108,6 +108,17 @@ describe("WordbookLearnPage", () => {
     expect(answers(mock)).toHaveLength(3);
   }, 15_000); // ~0.7 s normally; one long userEvent flow hit the 5 s default twice in full runs on a loaded machine
 
+  it("moves focus to 继续 once an answer is graded, so keyboard and screen-reader users keep their place (review m7)", async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByTestId("word-card");
+    await user.click(screen.getByRole("button", { name: "下一个" }));
+    await user.click(screen.getByRole("button", { name: "开始小测" }));
+    await user.click(await screen.findByRole("button", { name: /说话；谈话；n\. 交谈/ }));
+    const next = await screen.findByRole("button", { name: "继续" });
+    await waitFor(() => expect(document.activeElement).toBe(next));
+  });
+
   it("marks a known word without quizzing it", async () => {
     const user = userEvent.setup();
     const mock = setup();
