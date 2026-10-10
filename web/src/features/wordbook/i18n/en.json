@@ -134,6 +134,12 @@
         "continue": "Continue"
       },
       "recall": {
+        "kind": "Quick recall",
+        "prompt": "Can you recall what it means?",
+        "flipNote": "Rate yourself, then flip to check the meaning and example",
+        "checkTitle": "Spot check: pick its meaning",
+        "checkHint": "You said you know it; it counts only if you get this right",
+        "summary": { "ratings": "Known {{know}} · Not sure {{fuzzy}} · Unknown {{unknown}}", "checks": "Spot checks {{total}} · passed {{passed}}" },
         "errors": { "ratingRequired": "Choose I know it, Not sure or Don't know" }
       },
       "outcome": {

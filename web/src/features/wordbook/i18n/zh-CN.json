@@ -134,6 +134,12 @@
         "continue": "继续"
       },
       "recall": {
+        "kind": "快速回忆",
+        "prompt": "想起它的意思了吗?",
+        "flipNote": "自评之后翻面核对释义与例句",
+        "checkTitle": "抽查:选出它的意思",
+        "checkHint": "你标了「认识」,答对才算数",
+        "summary": { "ratings": "认识 {{know}} · 模糊 {{fuzzy}} · 不认识 {{unknown}}", "checks": "抽查 {{total}} · 通过 {{passed}}" },
         "errors": { "ratingRequired": "请选择认识、模糊或不认识" }
       },
       "outcome": {
