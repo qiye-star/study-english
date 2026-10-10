@@ -2,7 +2,7 @@
 
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models import WordbookEnrollment, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
-from app.services.vocabulary import apply_lapse, apply_review
+from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review
 from app.wordbook import plan as planning
-from app.wordbook import store
+from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard
@@ -39,6 +39,7 @@ NEW_LIMIT = (429, "Daily new-word limit reached")
 BOOK_NOT_ACTIVE = (409, "Book is not active")
 QTYPE_MISMATCH = (422, "Question type mismatch")
 REPORT_LIMIT = (429, "Daily report limit reached")
+RATING_REQUIRED = (422, "Rating is required")
 
 
 def fail(error: tuple[int, str]):
@@ -160,7 +161,6 @@ async def today_out(session: AsyncSession, ds: DictionaryStore, user_id: int, se
 # ---- 学新词、复习、作答(S3;盒子写入规则 spec §6.1 / R-W5)----
 
 LEARN_DUE = timedelta(days=1)
-KNOWN_BOX, KNOWN_DUE = 2, timedelta(days=4)
 
 
 @dataclass(frozen=True)
@@ -174,6 +174,9 @@ class AnswerInput:
     hinted: bool
     known: bool
     offset: int
+    rating: str | None = None          # 背单词 v2(spec recall §9.1):know | fuzzy | unknown
+    revealed_before: bool = False
+    elapsed_ms: int | None = None
 
 
 def question_out(q: Question) -> dict:
@@ -201,7 +204,7 @@ async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype
 
 async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
                       offset: int, now) -> dict:
-    """下一批新词(不建行):词卡 + 每词一道 meaning 小测。cursor 只在真正建行时前进。"""
+    """下一批新词(不建行):词卡 + 每词一道 meaning 小测 + 每词一道 word 再认(drill)。cursor 只在真正建行时前进。"""
     e, index = await _active(session, ds, user_id, settings)
     known = await store.known_words(session, user_id)
     left = (await _day_plan(session, user_id, e, index, known, offset, now)).new_left
@@ -209,7 +212,9 @@ async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, 
     keys, _ = planning.next_new(index.keys, order, e.cursor, known, min(size, left))
     cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
     quiz = [question_out(await _question(ds, index, c, "meaning", question_rng(user_id, c.key, 0))) for c in cards]
-    return {"book_id": e.book_id, "cards": [card_out(c) for c in cards], "quiz": quiz}
+    # spec recall §3.3:「不认识」的词在本轮小测里第二次出现时用看释义选词(随机源与 quiz 不同)
+    drill = [question_out(await _question(ds, index, c, "word", question_rng(user_id, c.key, 1))) for c in cards]
+    return {"book_id": e.book_id, "cards": [card_out(c) for c in cards], "quiz": quiz, "drill": drill}
 
 
 async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
@@ -259,6 +264,9 @@ def _validate(p: AnswerInput) -> None:
     if p.known:
         if p.mode != "learn":
             raise WordbookError(422, "Known is only for new words")
+    elif p.qtype == recall.RECALL_QTYPE:
+        if p.rating not in recall.RATINGS:
+            fail(RATING_REQUIRED)
     elif p.qtype in CHOICE_QTYPES:
         if p.choice is None:
             raise WordbookError(422, "Choice is required")
@@ -268,9 +276,12 @@ def _validate(p: AnswerInput) -> None:
 
 async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
                  now) -> dict:
-    """无状态判分(P-W2):只信任 (book_id, key, qtype),答案从词卡重新算。用户输入不记日志、不入库。"""
+    """无状态判分(P-W2):只信任 (book_id, key, qtype),答案从词卡重新算。用户输入不记日志、不入库。
+    qtype=recall 是三档自评(spec recall §5),盒子由服务端决定;其余是 v1 客观题。"""
     book_or_fail(settings, p.book_id)
     _validate(p)
+    if p.known:  # R-R7:v1 的「我认识」= 没偷看的「认识」,同样受抽查规则约束
+        p = replace(p, qtype=recall.RECALL_QTYPE, rating="know", revealed_before=False, elapsed_ms=None, known=False)
     await ensure_hidden(session, ds)  # review m5:create_item 会复制例句,先载入屏蔽集合
     card = (await cards_or_fail(ds, p.book_id, [p.key])).get(p.key)
     if card is None:
@@ -278,6 +289,7 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     day = local_day(now, p.offset)
     row = await store.known_one(session, user_id, card.key)
     learning = p.mode == "learn" and row is None
+    ctx: _LearnContext | None = None
     if learning:  # review M1:新词只在当前在学的书里学,且受每日新词数限制(服务器端)
         e = await store.active_enrollment(session, user_id)
         if e is None:
@@ -288,44 +300,133 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         known = await store.known_words(session, user_id)
         if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
             fail(NEW_LIMIT)
+        ctx = _LearnContext(e, index, known)
     if (p.mode == "review" and row is not None and row.due_at <= now
             and p.qtype not in _allowed_qtypes(user_id, row, card, recall_on=settings.wordbook_recall_enabled)):
         fail(QTYPE_MISMATCH)
     if not await store.consume_answer(session, user_id, utc_day(now)):
         fail(ANSWER_LIMIT)
+    if p.qtype == recall.RECALL_QTYPE:
+        return await _rating_answer(session, ds, user_id, settings, p, card, row, ctx, now)
     diff = None
-    if p.known:
-        outcome, credit = "known", 100
-    elif p.qtype in CHOICE_QTYPES:
+    if p.qtype in CHOICE_QTYPES:
         outcome = "correct" if check_choice(p.qtype, card, p.choice) else "wrong"
         credit = 100 if outcome == "correct" else 0
     else:
         result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
         outcome, credit = result.outcome, result.credit
         diff = [asdict(d) for d in result.diff] or None
-    grade = "good" if outcome == "known" else srs_grade(outcome, p.hinted)
+    grade = srs_grade(outcome, p.hinted)
     applied, item_id, kind = False, row.item_id if row else None, "practice"
-    if learning:
-        box, due = (KNOWN_BOX, now + KNOWN_DUE) if p.known else (0, now + LEARN_DUE)
-        # 每个词只记一次 learn(删掉后重学只记 practice):word_learned 段位点与「学会 n 词」按不同的词算
-        kind = "practice" if await store.ever_learned(session, user_id, card.key) else "learn"
-        item_id = await store.create_item(session, user_id, p.book_id, card, box=box, due_at=due, now=now)
+    if ctx is not None:
+        kind = await _learn_kind(session, user_id, card.key)
+        item_id = await _create_learned(session, user_id, p.book_id, card, 0, now, ctx)
         applied = True
-        known[card.key] = Known(item_id, box, due, 0, store.wordbook_source(p.book_id))
-        order = planning.permutation(len(index), e.seed, e.order_mode)
-        _, cursor = planning.next_new(index.keys, order, e.cursor, known, 0)
-        await store.set_cursor(session, user_id, p.book_id, cursor)
     elif p.mode == "review" and row is not None:
         applied, due = await _write_srs(session, user_id, row, grade, now)
         kind = "review" if due and applied else "practice"
+    elif p.mode == "learn" and row is not None and row.reps == 0 and p.qtype in CHOICE_QTYPES:
+        applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
     await session.commit()
-    # Ruling Z-e:expected = 词头;correct_option = 选择题正确项原文(打字题 / 「我认识」为 null)
-    option = correct_option(p.qtype, card) if p.qtype in CHOICE_QTYPES and not p.known else None
-    return {"correct": outcome in ("correct", "known"), "outcome": outcome, "grade": grade, "expected": card.word,
-            "correct_option": option, "diff": diff,
-            "item": item_out(await store.known_one(session, user_id, card.key)), "applied": applied}
+    # Ruling Z-e:expected = 词头;correct_option = 选择题正确项原文(打字题为 null)
+    option = correct_option(p.qtype, card) if p.qtype in CHOICE_QTYPES else None
+    return _answer_out(outcome == "correct", outcome, grade, card, option, diff,
+                       await store.known_one(session, user_id, card.key), applied)
+
+
+@dataclass(frozen=True)
+class _LearnContext:
+    """新词建行所需(answer() 的前置校验已经读过):当前在学的书、它的索引、用户全部词条。"""
+    enrollment: WordbookEnrollment
+    index: BookIndex
+    known: dict[str, Known]
+
+
+def _answer_out(correct: bool, outcome: str, grade: str | None, card: WordCard, option: str | None, diff,
+                known: Known | None, applied: bool, *, rating: str | None = None, spot_check: bool = False,
+                check: dict | None = None) -> dict:
+    """/answers 的响应。spec recall §9.1 追加 rating / spot_check / check(非自评题为 null / false / null)。"""
+    return {"correct": correct, "outcome": outcome, "grade": grade, "expected": card.word, "correct_option": option,
+            "diff": diff, "item": item_out(known), "applied": applied, "rating": rating, "spot_check": spot_check,
+            "check": check}
+
+
+async def _learn_kind(session: AsyncSession, user_id: int, key: str) -> str:
+    """新词建行时的事件 kind:该用户第一次学这个词 → learn(计今日新词、产生 word_learned),否则 practice
+    (每个词只记一次 learn:word_learned 段位点与「学会 n 词」按不同的词算)。
+    v1 选择题路径与三档自评路径共用这一处(INDEX R-A2);B 计划把 practice 改成 relearn 只改这里。"""
+    return "practice" if await store.ever_learned(session, user_id, key) else "learn"
+
+
+async def _create_learned(session: AsyncSession, user_id: int, book_id: str, card: WordCard, box: int, now,
+                          ctx: _LearnContext) -> str:
+    """新词建行并推进 cursor(两条学新词路径共用;cursor 只在真正建行时前进)。不提交。"""
+    due = now + timedelta(days=INTERVAL_DAYS[box])
+    item_id = await store.create_item(session, user_id, book_id, card, box=box, due_at=due, now=now)
+    ctx.known[card.key] = Known(item_id, box, due, 0, store.wordbook_source(book_id))
+    e = ctx.enrollment
+    order = planning.permutation(len(ctx.index), e.seed, e.order_mode)
+    _, cursor = planning.next_new(ctx.index.keys, order, e.cursor, ctx.known, 0)
+    await store.set_cursor(session, user_id, book_id, cursor)
+    return item_id
+
+
+async def _learn_day_quiz(session: AsyncSession, user_id: int, row: Known, key: str, day: str, correct: bool,
+                          now) -> bool:
+    """spec recall §5.4:当天自评过的新词(reps = 0)在本轮小测里答错 → 盒 0;抽查(know_chk)答对 → 盒 2。
+    不是复习:不加 reps,不产生段位事件。当天没有自评(从生词本加入的词、昨天学的词)→ 不改。"""
+    first = await store.first_rating_on(session, user_id, key, day)
+    target = recall.learn_quiz_target(row.box, first, correct) if first else None
+    if target is None:
+        return False
+    return await store.set_learn_box(session, user_id, row.item_id, seen_box=row.box, to_box=target, now=now)
+
+
+async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings,
+                         p: AnswerInput, card: WordCard, row: Known | None, ctx: _LearnContext | None, now) -> dict:
+    """三档自评(spec recall §5):有效评级 → 学新词建行 / 当天再评只降 / 复习 good·hard·forgot,抽查两步。"""
+    day = local_day(now, p.offset)
+    rating = recall.effective_rating(p.rating, revealed_before=p.revealed_before,
+                                     previous=await store.last_rating(session, user_id, card.key))
+    enrollment = await store.get_enrollment(session, user_id, p.book_id)
+    seed = enrollment.seed if enrollment is not None else 0  # 私有种子:客户端算不出哪些词会被抽查(P-R1)
+    pct = settings.wordbook_spot_check_pct
+    applied, item_id, kind, outcome, spot = False, row.item_id if row else None, "practice", rating, False
+    if ctx is not None:
+        decision = recall.learn_decision(rating, recall.needs_check(
+            rating, seed=seed, user_id=user_id, key=card.key, reps=0, pct=pct, elapsed_ms=p.elapsed_ms))
+        kind = await _learn_kind(session, user_id, card.key)
+        item_id = await _create_learned(session, user_id, p.book_id, card, decision.box, now, ctx)
+        applied, outcome, spot = True, decision.outcome, decision.spot_check
+    elif p.mode == "learn" and row is not None:
+        if row.reps == 0 and await store.first_rating_on(session, user_id, card.key, day):
+            target = recall.learn_rerate_target(row.box, rating)
+            if target is not None:
+                applied = await store.set_learn_box(session, user_id, row.item_id, seen_box=row.box, to_box=target,
+                                                    now=now)
+    elif p.mode == "review" and row is not None:
+        due = row.due_at <= now
+        if rating == "know" and p.choice is not None:  # 抽查的第二步:按选释义判
+            outcome = "know" if check_choice("meaning", card, p.choice) else "unknown"
+        elif due and recall.needs_check(rating, seed=seed, user_id=user_id, key=card.key, reps=row.reps, pct=pct,
+                                        elapsed_ms=p.elapsed_ms):
+            index = await index_or_fail(ds, p.book_id)
+            q = await _question(ds, index, card, "meaning", question_rng(user_id, card.key, row.reps))
+            await session.commit()  # 只扣了作答次数;不写盒、不记事件(R-R6)
+            return _answer_out(False, "pending", None, card, None, None, row, False, rating="know", spot_check=True,
+                               check=question_out(q))
+        applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now)
+        kind = "review" if due and applied else "practice"
+    eff = recall.as_rating(outcome)
+    await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
+                          qtype=recall.RECALL_QTYPE, outcome=outcome, credit=100 if eff == "know" else 0, day=day,
+                          now=now)
+    await session.commit()
+    checked = p.mode == "review" and p.choice is not None and rating == "know"
+    return _answer_out(eff == "know", eff, recall.GRADE[eff], card, correct_option("meaning", card) if checked else None,
+                       None, await store.known_one(session, user_id, card.key), applied, rating=eff, spot_check=spot)
 
 
 # ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----

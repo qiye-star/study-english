@@ -91,12 +91,15 @@ class AnswerIn(BaseModel):
     book_id: str = Field(max_length=16)
     key: str = Field(min_length=1, max_length=100)
     mode: Literal["learn", "review"]
-    qtype: Literal["meaning", "word", "cloze", "dictation", "spell"]
+    qtype: Literal["meaning", "word", "cloze", "dictation", "spell", "recall"]
     choice: str | None = Field(None, max_length=200)
     typed: str | None = Field(None, max_length=100)
     hinted: bool = False
     known: bool = False
     tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+    rating: Literal["know", "fuzzy", "unknown"] | None = None  # spec recall §9.1
+    revealed_before: bool = False
+    elapsed_ms: int | None = Field(None, ge=0, le=600_000)
 
 
 @router.post("/learn/batch")
@@ -124,7 +127,8 @@ async def wordbook_review(payload: ReviewIn, request: Request, user: User = Depe
 async def wordbook_answer(payload: AnswerIn, request: Request, user: User = Depends(current_user),
                           session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
     p = service.AnswerInput(payload.book_id, normalize_word(payload.key), payload.mode, payload.qtype, payload.choice,
-                            payload.typed, payload.hinted, payload.known, payload.tz_offset_minutes)
+                            payload.typed, payload.hinted, payload.known, payload.tz_offset_minutes, payload.rating,
+                            payload.revealed_before, payload.elapsed_ms)
     try:
         return await service.answer(session, dictionary(request.app), user.id, settings, p, utcnow())
     except service.WordbookError as e:

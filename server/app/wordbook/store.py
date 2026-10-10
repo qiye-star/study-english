@@ -1,7 +1,7 @@
 """背单词数据层(spec §5)。除 enroll 与 usage 计数(consume_*)外不提交;提交由 service 负责。"""
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy import update as update_
@@ -11,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookHiddenSentence, WordbookReport
 from app.services import usage
 from app.services.stats import as_utc
-from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING
+from app.services.vocabulary import INTERVAL_DAYS, MAX_EXAMPLE, MAX_MEANING
 from app.wordbook.entry import WordCard
 from app.wordbook.index import DictionaryStore
 from app.wordbook.plan import Known
+from app.wordbook.recall import RATING_OUTCOMES, RECALL_QTYPE
 
 ANSWERS_DAILY_MAX = 3000
 REPORTS_DAILY_MAX = 20
@@ -189,3 +190,36 @@ async def hidden_ids(session: AsyncSession) -> Iterable[str]:
 
 async def load_hidden(session: AsyncSession, ds: DictionaryStore) -> None:
     ds.set_hidden(await hidden_ids(session))
+
+
+# ---- 背单词 v2 · 三档自评(设计文档 2026-10-11-wordbook-recall §5)----
+
+_RATING_OUTCOMES = tuple(sorted(RATING_OUTCOMES))
+
+
+async def last_rating(session: AsyncSession, user_id: int, word: str) -> str | None:
+    """该用户该词最近一条自评事件的 outcome(任何书、任何一天);没有 → None。"""
+    return await session.scalar(select(WordbookEvent.outcome).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.word == word, WordbookEvent.qtype == RECALL_QTYPE,
+        WordbookEvent.outcome.in_(_RATING_OUTCOMES)).order_by(WordbookEvent.id.desc()).limit(1))
+
+
+async def first_rating_on(session: AsyncSession, user_id: int, word: str, day: str) -> str | None:
+    """该词在这个本地日的第一条自评事件的 outcome(决定当天小测的抽查规则);没有 → None。"""
+    return await session.scalar(select(WordbookEvent.outcome).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.word == word, WordbookEvent.qtype == RECALL_QTYPE,
+        WordbookEvent.day == day, WordbookEvent.outcome.in_(_RATING_OUTCOMES)).order_by(WordbookEvent.id).limit(1))
+
+
+async def set_learn_box(session: AsyncSession, user_id: int, item_id: str, *, seen_box: int, to_box: int,
+                        now: datetime) -> bool:
+    """当天新词的盒子调整(抽查通过 / 小测答错 / 当天再评):不是一次复习 —— 不加 reps、不写 last_reviewed_at,
+    所以不产生 vocab_review。乐观条件 reps = 0 且 box = 读到的值;降级时 lapses + 1。不提交。"""
+    result = await session.execute(
+        update_(VocabularyItem)
+        .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.reps == 0,
+               VocabularyItem.box == seen_box)
+        .values(box=to_box, due_at=now + timedelta(days=INTERVAL_DAYS[to_box]),
+                lapses=VocabularyItem.lapses + (1 if to_box < seen_box else 0))
+        .execution_options(synchronize_session=False))
+    return result.rowcount == 1

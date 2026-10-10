@@ -58,3 +58,146 @@ async def test_config_carries_the_learn_preferences(app, client, tmp_path):
     h = await login(app, client, tmp_path, wordbook_autoplay=False)
     cfg = (await client.get(f"{URL}/config", headers=h)).json()
     assert cfg["learn"] == {"autoplay": False, "show_example": True}
+
+
+async def test_due_quick_recall_grades_good_hard_forgot(app, client, tmp_path, monkeypatch):
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path)
+    for key in ("talk", "ability", "able"):
+        await rate(client, h, key, "fuzzy")  # 盒 1
+        await make_due(app, key)
+    batch = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "recall": True})).json()
+    assert {q["qtype"] for q in batch["questions"]} == {"recall"}
+    q = next(q for q in batch["questions"] if q["key"] == "talk")
+    assert q["prompt"] == {"word": "talk", "us": "tɔk"} and q["options"] is None and q["length"] is None
+    good = await rate(client, h, "talk", "know", mode="review")
+    assert (good["grade"], good["applied"], good["item"]["box"]) == ("good", True, 2)
+    hard = await rate(client, h, "ability", "unknown", mode="review")
+    assert (hard["grade"], hard["item"]["box"]) == ("forgot", 0)
+    assert [e[0] for e in await events(app)][-2:] == ["review", "review"]
+    assert (await row(app, "talk")).reps == 1  # 到期复习:与其它题型一样产生一次 vocab_review
+
+
+async def test_recall_is_offered_only_when_declared_and_enabled(app, client, tmp_path, monkeypatch):
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path)
+    await rate(client, h, "talk", "fuzzy")
+    await make_due(app, "talk")
+    legacy = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5})).json()
+    assert legacy["questions"][0]["qtype"] != "recall"
+    enable_wordbook(app, make_data_dir(tmp_path), wordbook_recall_enabled=False)
+    off = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "recall": True})).json()
+    assert off["questions"][0]["qtype"] != "recall"
+    r = await ans(client, h, key="talk", mode="review", qtype="recall", rating="know")
+    assert r.status_code == 422 and r.json() == {"error": "Question type mismatch"}
+
+
+async def test_new_word_ratings_set_boxes_and_each_word_counts_once(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    know = await rate(client, h, "talk", "know", elapsed_ms=4000)
+    assert (know["rating"], know["outcome"], know["spot_check"], know["item"]["box"], know["applied"]) == (
+        "know", "know", False, 2, True)
+    assert know["check"] is None and know["grade"] == "good" and know["correct"] is True
+    assert (await rate(client, h, "ability", "fuzzy"))["item"]["box"] == 1
+    assert (await rate(client, h, "able", "unknown"))["item"]["box"] == 0
+    peeked = await rate(client, h, "abandon", "know", revealed_before=True)
+    assert (peeked["rating"], peeked["item"]["box"], peeked["correct"]) == ("fuzzy", 1, False)
+    assert await events(app) == [("learn", "talk", "recall", "know"), ("learn", "ability", "recall", "fuzzy"),
+                                 ("learn", "able", "recall", "unknown"), ("learn", "abandon", "recall", "fuzzy")]
+    item = await row(app, "talk")
+    assert (item.reps, item.last_reviewed_at) == (0, None)  # 不是复习:不产生 vocab_review
+    today = (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": 480})).json()
+    assert today["plan"]["new_done"] == 4
+    nxt = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 1})).json()
+    assert [c["key"] for c in nxt["cards"]] == ["absorb"]  # cursor 前进
+
+
+async def test_rating_on_a_new_word_obeys_the_daily_new_limit(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "daily_new": 5})
+    for key in ("talk", "ability", "able", "abandon", "absorb"):
+        await rate(client, h, key, "know")
+    r = await ans(client, h, key="accept", mode="learn", qtype="recall", rating="know")
+    assert r.status_code == 429 and r.json() == {"error": "Daily new-word limit reached"}
+
+
+async def test_spot_checked_know_starts_at_box_1_and_the_round_quiz_decides(app, client, tmp_path):
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    talk = await rate(client, h, "talk", "know")
+    assert (talk["rating"], talk["spot_check"], talk["item"]["box"]) == ("know", True, 1)
+    passed = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=await meaning(app, "talk"))).json()
+    assert (passed["correct"], passed["applied"], passed["item"]["box"]) == (True, True, 2)
+    again = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=await meaning(app, "talk"))).json()
+    assert (again["applied"], again["item"]["box"]) == (False, 2)  # 只升一次
+    await rate(client, h, "ability", "know")
+    failed = (await ans(client, h, key="ability", mode="learn", qtype="meaning", choice="x")).json()
+    assert (failed["correct"], failed["applied"], failed["item"]["box"]) == (False, True, 0)
+    ability = await row(app, "ability")
+    assert (ability.reps, ability.lapses, ability.last_reviewed_at) == (0, 1, None)
+    assert [e[3] for e in await events(app)] == ["know_chk", "correct", "correct", "know_chk", "wrong"]
+    assert [e[0] for e in await events(app)] == ["learn", "practice", "practice", "learn", "practice"]
+
+
+async def test_fast_taps_are_always_checked(app, client, tmp_path):
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=1)
+    async with app.state.sessionmaker() as s:
+        uid = await s.scalar(select(User.id).where(User.username == "alice"))
+        await s.execute(update(WordbookEnrollment).values(seed=1))
+        await s.commit()
+    assert (await rate(client, h, "talk", "know", elapsed_ms=400))["spot_check"] is True
+    slow = await rate(client, h, "ability", "know", elapsed_ms=5000)
+    assert slow["spot_check"] is recall.spot_hit(1, uid, "ability", 0, 1)
+
+
+async def test_no_checks_at_all_when_the_ratio_is_zero(app, client, tmp_path):
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=0)
+    assert (await rate(client, h, "talk", "know", elapsed_ms=10))["spot_check"] is False
+
+
+async def test_a_round_quiz_miss_on_a_fuzzy_word_drops_it_without_a_review(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    await rate(client, h, "talk", "fuzzy")
+    miss = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice="x")).json()
+    assert (miss["applied"], miss["item"]["box"]) == (True, 0)
+    hit = (await ans(client, h, key="talk", mode="learn", qtype="word", choice="talk")).json()
+    assert (hit["correct"], hit["applied"], hit["item"]["box"]) == (True, False, 0)  # 答对也不回升
+    talk = await row(app, "talk")
+    assert (talk.reps, talk.last_reviewed_at) == (0, None)
+
+
+async def test_rerating_the_same_day_only_lowers(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    await rate(client, h, "talk", "know")
+    down = await rate(client, h, "talk", "unknown")
+    assert (down["rating"], down["applied"], down["item"]["box"]) == ("unknown", True, 0)
+    up = await rate(client, h, "talk", "know")
+    assert (up["applied"], up["item"]["box"]) == (False, 0)
+    assert [e[0] for e in await events(app)] == ["learn", "practice", "practice"]
+    today = (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": 480})).json()
+    assert today["plan"]["new_done"] == 1
+
+
+async def test_known_alias_goes_through_the_spot_check(app, client, tmp_path):
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    r = (await ans(client, h, key="talk", mode="learn", qtype="meaning", known=True)).json()
+    assert (r["outcome"], r["rating"], r["spot_check"], r["item"]["box"]) == ("know", "know", True, 1)
+    bad = await ans(client, h, key="talk", mode="review", qtype="meaning", known=True)
+    assert bad.status_code == 422
+
+
+async def test_recall_needs_a_rating(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    r = await ans(client, h, key="talk", mode="learn", qtype="recall")
+    assert r.status_code == 422 and r.json() == {"error": "Rating is required"}
+    r = await ans(client, h, key="talk", mode="learn", qtype="recall", rating="maybe")
+    assert r.status_code == 422
+    r = await ans(client, h, key="talk", mode="learn", qtype="recall", rating="know", elapsed_ms=-1)
+    assert r.status_code == 422
+
+
+async def test_learn_batch_carries_a_word_drill_per_card(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    batch = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 2})).json()
+    assert [q["qtype"] for q in batch["drill"]] == ["word", "word"]
+    assert [q["key"] for q in batch["drill"]] == [c["key"] for c in batch["cards"]]
+    assert "talk" in batch["drill"][0]["options"]

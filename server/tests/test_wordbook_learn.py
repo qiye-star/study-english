@@ -60,7 +60,7 @@ async def test_learn_answer_creates_item_once_and_advances_cursor(app, client, t
     again = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice="x")).json()
     assert (again["correct"], again["applied"]) == (False, False)
     known = (await ans(client, h, key="ability", mode="learn", qtype="meaning", known=True)).json()
-    assert known["outcome"] == "known" and known["item"]["box"] == 2
+    assert known["outcome"] == "know" and known["item"]["box"] == 2
     nxt = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 2})).json()
     assert [c["key"] for c in nxt["cards"]] == ["able", "abandon"]
     async with app.state.sessionmaker() as s:
