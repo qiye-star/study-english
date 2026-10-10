@@ -28,6 +28,50 @@
       "meRow": {
         "subtitle": "{{book}} · 已掌握 {{m}} 词",
         "pick": "还没选词书"
+      },
+      "home": {
+        "settings": "词书与每日设置",
+        "total": "共 {{n}} 词",
+        "progressLabel": "词书进度",
+        "mastered": "已掌握",
+        "learned": "已学",
+        "remaining": "剩余",
+        "today": "今天",
+        "newWords": "新词",
+        "reviews": "复习",
+        "tomorrow": "明天预计复习",
+        "reviewCap": "每日复习上限",
+        "review": "复习",
+        "reviewHint": "到期 {{n}} 个",
+        "learn": "学新词",
+        "learnHint": "一轮 5 个:词卡 → 小测",
+        "spell": "按句拼写",
+        "spellHint": "今天学过的词放回例句里拼",
+        "finished": "已完成",
+        "backlog": "复习积压,今天少学新词",
+        "switchBook": "换一本"
+      },
+      "books": {
+        "title": "选择词书",
+        "levelNote": "难度条按词书大致排序;数据里没有词频,只是参考。",
+        "level": "难度 {{n}}/{{max}}",
+        "words": "{{n}} 词",
+        "learned": "已学 {{n}}",
+        "mastered": "掌握 {{n}}",
+        "current": "当前",
+        "unavailable": "暂不可用",
+        "sheetTitle": "{{book}} · 每日设置",
+        "sheetLearned": "已学 {{n}} 个(其他词书里学过的词直接算已学)",
+        "sheetFresh": "共 {{n}} 词",
+        "dailyNew": "每天新词",
+        "reviewCap": "每天复习上限",
+        "orderLabel": "新词顺序",
+        "order": { "shuffle": "乱序", "book": "书序" },
+        "keepProgress": "换书不清进度,随时可以换回来。",
+        "start": "开始"
+      },
+      "diff": {
+        "label": "正确拼写 {{word}}"
       }
     }
   }
