@@ -1,0 +1,708 @@
+{
+  "config": {
+    "enabled": true,
+    "ai_available": false,
+    "defaults": {
+      "daily_new": 20,
+      "review_cap": 100
+    },
+    "books": [
+      {
+        "id": "junior",
+        "title_zh": "初中",
+        "title_en": "Junior high",
+        "level": 1,
+        "words": 1987,
+        "available": true
+      }
+    ]
+  },
+  "enrollment": {
+    "book_id": "junior",
+    "status": "active",
+    "order_mode": "book",
+    "daily_new": 20,
+    "review_cap": 100,
+    "started_at": "2026-10-10T10:49:00.982719+00:00"
+  },
+  "books": {
+    "books": [
+      {
+        "id": "junior",
+        "title_zh": "初中",
+        "title_en": "Junior high",
+        "level": 1,
+        "words": 14,
+        "learned": 0,
+        "mastered": 0,
+        "enrolled": true,
+        "active": true
+      }
+    ]
+  },
+  "learn_batch": {
+    "book_id": "junior",
+    "cards": [
+      {
+        "key": "talk",
+        "word": "talk",
+        "us": "tɔk",
+        "uk": "tɔːk",
+        "senses": [
+          {
+            "pos": "v",
+            "text": "说话；谈话"
+          },
+          {
+            "pos": "n",
+            "text": "交谈"
+          },
+          {
+            "pos": "n/v",
+            "text": "谈话，讲话"
+          }
+        ],
+        "phrases": [
+          {
+            "en": "talk about",
+            "zh": "谈论某事"
+          }
+        ],
+        "examples": [
+          {
+            "id": "7e85d989af375d39",
+            "en": "I could hear Sarah and Andy talking in the next room.",
+            "zh": "我听到萨拉和安迪在隔壁讲话。"
+          },
+          {
+            "id": "394aec411d520fe7",
+            "en": "After a long talk, we decided on divorce.",
+            "zh": "经过一次长谈后，我们决定离婚。"
+          },
+          {
+            "id": "e8fc5b6c9d8c1d35",
+            "en": "Sue and Bob still aren’t talking.",
+            "zh": "休和鲍勃仍然互不理睬。"
+          }
+        ]
+      },
+      {
+        "key": "ability",
+        "word": "ability",
+        "us": "əˈbɪləti",
+        "uk": "",
+        "senses": [
+          {
+            "pos": "n",
+            "text": "能力，能耐；才能"
+          }
+        ],
+        "phrases": [],
+        "examples": [
+          {
+            "id": "1b734423bc1ad291",
+            "en": "She has the ability to learn new languages quickly.",
+            "zh": "她有快速学习新语言的能力。"
+          }
+        ]
+      },
+      {
+        "key": "able",
+        "word": "able",
+        "us": "ˈebl",
+        "uk": "ˈeɪbl",
+        "senses": [
+          {
+            "pos": "adj",
+            "text": "能够的；有能力的"
+          }
+        ],
+        "phrases": [
+          {
+            "en": "be able to",
+            "zh": "能够"
+          }
+        ],
+        "examples": [
+          {
+            "id": "e1653dab859555f0",
+            "en": "Will you be able to come to the party tonight?",
+            "zh": "你今晚能来参加聚会吗？"
+          }
+        ]
+      },
+      {
+        "key": "abandon",
+        "word": "abandon",
+        "us": "əˈbændən",
+        "uk": "əˈbændən",
+        "senses": [
+          {
+            "pos": "v",
+            "text": "放弃；抛弃"
+          }
+        ],
+        "phrases": [],
+        "examples": [
+          {
+            "id": "4824cd531ce5ac2b",
+            "en": "They had to abandon the car in the deep snow.",
+            "zh": "他们只好把车弃在深雪里。"
+          }
+        ]
+      },
+      {
+        "key": "absorb",
+        "word": "absorb",
+        "us": "əbˈsɔrb",
+        "uk": "əbˈzɔːb",
+        "senses": [
+          {
+            "pos": "v",
+            "text": "吸收；使专心"
+          }
+        ],
+        "phrases": [],
+        "examples": [
+          {
+            "id": "aac501f98a9a99f1",
+            "en": "Plants absorb carbon dioxide from the air around them.",
+            "zh": "植物从周围的空气中吸收二氧化碳。"
+          }
+        ]
+      }
+    ],
+    "quiz": [
+      {
+        "key": "talk",
+        "qtype": "meaning",
+        "prompt": {
+          "word": "talk",
+          "us": "tɔk"
+        },
+        "options": [
+          "n. 事故；意外",
+          "v. 说话；谈话；n. 交谈",
+          "n. 能力，能耐；才能",
+          "v. 吸收；使专心"
+        ],
+        "length": null
+      },
+      {
+        "key": "ability",
+        "qtype": "meaning",
+        "prompt": {
+          "word": "ability",
+          "us": "əˈbɪləti"
+        },
+        "options": [
+          "n. 能力，能耐；才能",
+          "n. 事故；意外",
+          "n. 星期一",
+          "v. 停止；阻止；n. 车站"
+        ],
+        "length": null
+      },
+      {
+        "key": "able",
+        "qtype": "meaning",
+        "prompt": {
+          "word": "able",
+          "us": "ˈebl"
+        },
+        "options": [
+          "v. 过去常常",
+          "adj. 能够的；有能力的",
+          "v. 放弃；抛弃",
+          "v. 去；走"
+        ],
+        "length": null
+      },
+      {
+        "key": "abandon",
+        "qtype": "meaning",
+        "prompt": {
+          "word": "abandon",
+          "us": "əˈbændən"
+        },
+        "options": [
+          "v. 携带；搬运",
+          "v. 放弃；抛弃",
+          "v. 去；走",
+          "v. 吸收；使专心"
+        ],
+        "length": null
+      },
+      {
+        "key": "absorb",
+        "qtype": "meaning",
+        "prompt": {
+          "word": "absorb",
+          "us": "əbˈsɔrb"
+        },
+        "options": [
+          "v. 吸收；使专心",
+          "v. 携带；搬运",
+          "v. 说话；谈话；n. 交谈",
+          "v. 接受；承认"
+        ],
+        "length": null
+      }
+    ]
+  },
+  "answer_choice": {
+    "correct": false,
+    "outcome": "wrong",
+    "grade": "forgot",
+    "expected": "talk",
+    "diff": null,
+    "item": {
+      "box": 0,
+      "due_at": "2026-10-11T10:49:01.065665+00:00"
+    },
+    "applied": true
+  },
+  "today": {
+    "enrollment": {
+      "book_id": "junior",
+      "status": "active",
+      "order_mode": "book",
+      "daily_new": 20,
+      "review_cap": 100,
+      "started_at": "2026-10-10T10:49:00.982719+00:00"
+    },
+    "book": {
+      "id": "junior",
+      "title_zh": "初中",
+      "title_en": "Junior high",
+      "level": 1,
+      "words": 1987,
+      "available": true
+    },
+    "plan": {
+      "new_target": 20,
+      "new_done": 5,
+      "new_left": 15,
+      "review_due": 1,
+      "review_done": 0,
+      "review_left": 1,
+      "backlog_guard": false
+    },
+    "progress": {
+      "words": 14,
+      "learned": 5,
+      "mastered": 0,
+      "remaining": 9
+    },
+    "tomorrow_due": 1
+  },
+  "review_batch": {
+    "book_id": "junior",
+    "questions": [
+      {
+        "key": "talk",
+        "qtype": "word",
+        "prompt": {},
+        "options": [
+          "absorb",
+          "stop",
+          "child",
+          "talk"
+        ],
+        "length": null
+      }
+    ],
+    "cards": [
+      {
+        "key": "talk",
+        "word": "talk",
+        "us": "tɔk",
+        "uk": "tɔːk",
+        "senses": [
+          {
+            "pos": "v",
+            "text": "说话；谈话"
+          },
+          {
+            "pos": "n",
+            "text": "交谈"
+          },
+          {
+            "pos": "n/v",
+            "text": "谈话，讲话"
+          }
+        ],
+        "phrases": [
+          {
+            "en": "talk about",
+            "zh": "谈论某事"
+          }
+        ],
+        "examples": [
+          {
+            "id": "7e85d989af375d39",
+            "en": "I could hear Sarah and Andy talking in the next room.",
+            "zh": "我听到萨拉和安迪在隔壁讲话。"
+          },
+          {
+            "id": "394aec411d520fe7",
+            "en": "After a long talk, we decided on divorce.",
+            "zh": "经过一次长谈后，我们决定离婚。"
+          },
+          {
+            "id": "e8fc5b6c9d8c1d35",
+            "en": "Sue and Bob still aren’t talking.",
+            "zh": "休和鲍勃仍然互不理睬。"
+          }
+        ]
+      }
+    ]
+  },
+  "answer_typed": {
+    "correct": false,
+    "outcome": "typo",
+    "grade": "hard",
+    "expected": "talk",
+    "diff": [
+      {
+        "op": "eq",
+        "a": "t",
+        "b": "t"
+      },
+      {
+        "op": "eq",
+        "a": "a",
+        "b": "a"
+      },
+      {
+        "op": "eq",
+        "a": "l",
+        "b": "l"
+      },
+      {
+        "op": "ins",
+        "a": "",
+        "b": "k"
+      },
+      {
+        "op": "eq",
+        "a": "k",
+        "b": "k"
+      }
+    ],
+    "item": {
+      "box": 0,
+      "due_at": "2026-10-10T22:49:01.195789+00:00"
+    },
+    "applied": true
+  },
+  "spell_sets": {
+    "book_id": "junior",
+    "sets": [
+      {
+        "set_id": "c5c53ca2371b",
+        "lines": [
+          {
+            "key": "able",
+            "sentence_id": "e1653dab859555f0",
+            "segments": [
+              {
+                "t": "text",
+                "v": "Will you be "
+              },
+              {
+                "t": "blank",
+                "i": 0,
+                "len": 4
+              },
+              {
+                "t": "text",
+                "v": " to come to the party tonight?"
+              }
+            ],
+            "zh": "你今晚能来参加聚会吗？"
+          },
+          {
+            "key": "ability",
+            "sentence_id": "1b734423bc1ad291",
+            "segments": [
+              {
+                "t": "text",
+                "v": "She has the "
+              },
+              {
+                "t": "blank",
+                "i": 1,
+                "len": 7
+              },
+              {
+                "t": "text",
+                "v": " to learn new languages quickly."
+              }
+            ],
+            "zh": "她有快速学习新语言的能力。"
+          },
+          {
+            "key": "talk",
+            "sentence_id": "394aec411d520fe7",
+            "segments": [
+              {
+                "t": "text",
+                "v": "After a long "
+              },
+              {
+                "t": "blank",
+                "i": 2,
+                "len": 4
+              },
+              {
+                "t": "text",
+                "v": ", we decided on divorce."
+              }
+            ],
+            "zh": "经过一次长谈后，我们决定离婚。"
+          }
+        ]
+      }
+    ]
+  },
+  "spell_submit": {
+    "credit": 0,
+    "counted": false,
+    "words": [
+      {
+        "key": "able",
+        "outcome": "wrong",
+        "credit": 0,
+        "blanks": [
+          {
+            "i": 0,
+            "outcome": "wrong",
+            "credit": 0,
+            "typed": "x",
+            "expected": "able",
+            "diff": [
+              {
+                "op": "del",
+                "a": "a",
+                "b": ""
+              },
+              {
+                "op": "del",
+                "a": "b",
+                "b": ""
+              },
+              {
+                "op": "del",
+                "a": "l",
+                "b": ""
+              },
+              {
+                "op": "sub",
+                "a": "e",
+                "b": "x"
+              }
+            ]
+          }
+        ],
+        "card": {
+          "key": "able",
+          "word": "able",
+          "us": "ˈebl",
+          "uk": "ˈeɪbl",
+          "senses": [
+            {
+              "pos": "adj",
+              "text": "能够的；有能力的"
+            }
+          ],
+          "phrases": [
+            {
+              "en": "be able to",
+              "zh": "能够"
+            }
+          ],
+          "examples": [
+            {
+              "id": "e1653dab859555f0",
+              "en": "Will you be able to come to the party tonight?",
+              "zh": "你今晚能来参加聚会吗？"
+            }
+          ]
+        },
+        "item": {
+          "box": 0,
+          "due_at": "2026-10-11T10:49:01.228988+00:00"
+        }
+      },
+      {
+        "key": "ability",
+        "outcome": "wrong",
+        "credit": 0,
+        "blanks": [
+          {
+            "i": 1,
+            "outcome": "wrong",
+            "credit": 0,
+            "typed": "x",
+            "expected": "ability",
+            "diff": []
+          }
+        ],
+        "card": {
+          "key": "ability",
+          "word": "ability",
+          "us": "əˈbɪləti",
+          "uk": "",
+          "senses": [
+            {
+              "pos": "n",
+              "text": "能力，能耐；才能"
+            }
+          ],
+          "phrases": [],
+          "examples": [
+            {
+              "id": "1b734423bc1ad291",
+              "en": "She has the ability to learn new languages quickly.",
+              "zh": "她有快速学习新语言的能力。"
+            }
+          ]
+        },
+        "item": {
+          "box": 0,
+          "due_at": "2026-10-11T10:49:01.228988+00:00"
+        }
+      },
+      {
+        "key": "talk",
+        "outcome": "wrong",
+        "credit": 0,
+        "blanks": [
+          {
+            "i": 2,
+            "outcome": "wrong",
+            "credit": 0,
+            "typed": "x",
+            "expected": "talk",
+            "diff": [
+              {
+                "op": "del",
+                "a": "t",
+                "b": ""
+              },
+              {
+                "op": "del",
+                "a": "a",
+                "b": ""
+              },
+              {
+                "op": "del",
+                "a": "l",
+                "b": ""
+              },
+              {
+                "op": "sub",
+                "a": "k",
+                "b": "x"
+              }
+            ]
+          }
+        ],
+        "card": {
+          "key": "talk",
+          "word": "talk",
+          "us": "tɔk",
+          "uk": "tɔːk",
+          "senses": [
+            {
+              "pos": "v",
+              "text": "说话；谈话"
+            },
+            {
+              "pos": "n",
+              "text": "交谈"
+            },
+            {
+              "pos": "n/v",
+              "text": "谈话，讲话"
+            }
+          ],
+          "phrases": [
+            {
+              "en": "talk about",
+              "zh": "谈论某事"
+            }
+          ],
+          "examples": [
+            {
+              "id": "7e85d989af375d39",
+              "en": "I could hear Sarah and Andy talking in the next room.",
+              "zh": "我听到萨拉和安迪在隔壁讲话。"
+            },
+            {
+              "id": "394aec411d520fe7",
+              "en": "After a long talk, we decided on divorce.",
+              "zh": "经过一次长谈后，我们决定离婚。"
+            },
+            {
+              "id": "e8fc5b6c9d8c1d35",
+              "en": "Sue and Bob still aren’t talking.",
+              "zh": "休和鲍勃仍然互不理睬。"
+            }
+          ]
+        },
+        "item": {
+          "box": 0,
+          "due_at": "2026-10-11T10:49:01.228988+00:00"
+        }
+      }
+    ]
+  },
+  "card": {
+    "key": "talk",
+    "word": "talk",
+    "us": "tɔk",
+    "uk": "tɔːk",
+    "senses": [
+      {
+        "pos": "v",
+        "text": "说话；谈话"
+      },
+      {
+        "pos": "n",
+        "text": "交谈"
+      },
+      {
+        "pos": "n/v",
+        "text": "谈话，讲话"
+      }
+    ],
+    "phrases": [
+      {
+        "en": "talk about",
+        "zh": "谈论某事"
+      }
+    ],
+    "examples": [
+      {
+        "id": "7e85d989af375d39",
+        "en": "I could hear Sarah and Andy talking in the next room.",
+        "zh": "我听到萨拉和安迪在隔壁讲话。"
+      },
+      {
+        "id": "394aec411d520fe7",
+        "en": "After a long talk, we decided on divorce.",
+        "zh": "经过一次长谈后，我们决定离婚。"
+      },
+      {
+        "id": "e8fc5b6c9d8c1d35",
+        "en": "Sue and Bob still aren’t talking.",
+        "zh": "休和鲍勃仍然互不理睬。"
+      }
+    ]
+  },
+  "explain_unavailable": {
+    "error": "AI explanation unavailable"
+  }
+}
