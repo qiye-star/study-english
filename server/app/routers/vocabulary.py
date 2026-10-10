@@ -5,14 +5,14 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.models import User, VocabularyItem, iso_utc, utcnow
-from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, next_review, validate_word
+from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, apply_review, validate_word
 
 router = APIRouter(prefix="/api")
 
@@ -145,24 +145,6 @@ async def delete_vocabulary_item(
     await session.delete(row)
     await session.commit()
     return {"id": item_id}
-
-
-async def apply_review(
-    session: AsyncSession, user_id: int, item_id: str, *, seen_box: int, seen_reps: int, grade: str, now: datetime,
-) -> bool:
-    """按读到的快照写入一次复习;乐观条件 reps == seen_reps(reps 只增不减),
-    并发/连点的第二个请求在这里命中 0 行 → False(R18)。不提交。"""
-    outcome = next_review(seen_box, grade, now)
-    result = await session.execute(
-        update(VocabularyItem)
-        .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.reps == seen_reps)
-        .values(
-            box=outcome.box, due_at=outcome.due_at, reps=seen_reps + 1,
-            lapses=VocabularyItem.lapses + (1 if outcome.lapsed else 0), last_reviewed_at=now,
-        )
-        .execution_options(synchronize_session=False)
-    )
-    return result.rowcount == 1
 
 
 @router.post("/vocabulary/{item_id}/review")

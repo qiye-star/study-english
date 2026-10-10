@@ -624,3 +624,76 @@ class RoomSummary(Base):
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ---- 背单词(设计文档 2026-10-10-wordbook §5)----
+
+class WordbookEnrollment(Base):
+    __tablename__ = "wordbook_enrollments"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    status: Mapped[str] = mapped_column(String(8))  # active | paused(同一用户最多一本 active,应用层保证)
+    order_mode: Mapped[str] = mapped_column(String(8))  # shuffle | book
+    seed: Mapped[int] = mapped_column(Integer)
+    cursor: Mapped[int] = mapped_column(Integer, default=0)  # 在书序排列中的下一个位置;只有新词真正建行才前进
+    daily_new: Mapped[int] = mapped_column(Integer)
+    review_cap: Mapped[int] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WordbookEvent(Base):
+    __tablename__ = "wordbook_events"
+    __table_args__ = (
+        Index("ix_wordbook_events_user_id_created_at", "user_id", "created_at"),
+        Index("ix_wordbook_events_user_id_day", "user_id", "day"),
+        Index("ix_wordbook_events_book_id_kind", "book_id", "kind"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    book_id: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(12))  # learn | review | practice | blank | spell_set
+    word: Mapped[str] = mapped_column(String(100))  # 规范化键
+    item_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # vocabulary_items.id
+    qtype: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(12))
+    credit: Mapped[int] = mapped_column(Integer, default=0)  # 0–100
+    day: Mapped[str] = mapped_column(String(10))  # 用户本地日 YYYY-MM-DD
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WordbookExplanation(Base):
+    """AI「为什么」讲解的全站缓存:一个规范化词一条(不含用户输入)。"""
+    __tablename__ = "wordbook_explanations"
+
+    word: Mapped[str] = mapped_column(String(100), primary_key=True)
+    body: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WordbookReport(Base):
+    __tablename__ = "wordbook_reports"
+    __table_args__ = (Index("ix_wordbook_reports_status_created_at", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    book_id: Mapped[str] = mapped_column(String(16))
+    word: Mapped[str] = mapped_column(String(100))
+    sentence_id: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(12))  # sentence | passage (phase 2)
+    reason: Mapped[str] = mapped_column(String(16))  # wrong | offensive | other
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open | hidden | dismissed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WordbookHiddenSentence(Base):
+    __tablename__ = "wordbook_hidden_sentences"
+
+    sentence_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(16))
+    hidden_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

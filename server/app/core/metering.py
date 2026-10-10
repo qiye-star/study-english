@@ -40,6 +40,7 @@ FEATURE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/api/realtime", "realtime"),
     ("/api/rank", "rank"),
     ("/api/rooms", "rooms"),
+    ("/api/wordbook", "wordbook"),
     ("/api/admin", "admin"),
 )
 _PROVIDER_SUFFIXES = (

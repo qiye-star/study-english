@@ -7,6 +7,7 @@ EXPECTED_ENV_ONLY = {
     "database_url", "data_dir", "web_dist_dir", "admin_dist_dir", "backup_dir", "admin_username", "admin_password",
     "admin_totp_secret", "admin_session_secret", "settings_encryption_key", "admin_settings_safe_mode",
     "admin_ip_allowlist", "admin_cookie_secure", "trust_proxy_headers", "grammar_prompt_file", "build_sha",
+    "wordbook_data_dir",  # spec 2026-10-10-wordbook §10
 }
 EXPECTED_SECRETS = {
     "database_url", "invite_code", "upstream_llm_key", "upstream_tts_key", "upstream_whisper_key", "upstream_grammar_key",

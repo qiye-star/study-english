@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from app.core import config
 from app.wordbook.books import BOOK_IDS, BOOKS, book_by_id, default_data_dir, enabled_books
 from tests.wordbook_helpers import MINI, make_data_dir
 
@@ -14,6 +15,10 @@ def test_catalogue_matches_manifest():
         assert (spec.file, spec.entries, spec.unique) == (row["file"], row["entries"], row["unique"])
     assert [b.level for b in BOOKS] == [1, 2, 3, 4, 4, 5, 6]
     assert book_by_id("cet4").title_zh == "四级" and book_by_id("nope") is None
+
+
+def test_core_config_mirrors_the_catalogue_ids():
+    assert BOOK_IDS == config.WORDBOOK_BOOK_IDS  # core cannot import app.wordbook; keep the copy in sync
 
 
 def test_enabled_books_keeps_catalogue_order_and_drops_unknown():

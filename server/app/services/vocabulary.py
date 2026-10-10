@@ -1,8 +1,14 @@
-"""词汇本:词条规范化与盒子法(Leitner)排期(设计文档 §3.5,计划裁定 R17/R18)。纯函数,便于测试。"""
+"""词汇本:词条规范化与盒子法(Leitner)排期(设计文档 §3.5,计划裁定 R17/R18)。
+除 apply_review(唯一的复习写入点,不提交)外都是纯函数,便于测试。"""
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import VocabularyItem
 
 Grade = Literal["forgot", "hard", "good"]
 INTERVAL_DAYS = (1, 2, 4, 7, 15, 30)  # 下标 = 盒子号
@@ -61,3 +67,22 @@ def next_review(box: int, grade: str, now: datetime) -> ReviewOutcome:
         new_box = min(box + 1, MAX_BOX)
         return ReviewOutcome(new_box, now + timedelta(days=INTERVAL_DAYS[new_box]), False)
     raise ValueError(f"unknown grade: {grade!r}")
+
+
+async def apply_review(
+    session: AsyncSession, user_id: int, item_id: str, *, seen_box: int, seen_reps: int, grade: str, now: datetime,
+) -> bool:
+    """按读到的快照写入一次复习;乐观条件 reps == seen_reps(reps 只增不减),
+    并发/连点的第二个请求在这里命中 0 行 → False(R18)。不提交。
+    生词本路由与背单词(app/wordbook)共用这一个写入点(计划 2026-10-10-wordbook P-W3)。"""
+    outcome = next_review(seen_box, grade, now)
+    result = await session.execute(
+        update(VocabularyItem)
+        .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.reps == seen_reps)
+        .values(
+            box=outcome.box, due_at=outcome.due_at, reps=seen_reps + 1,
+            lapses=VocabularyItem.lapses + (1 if outcome.lapsed else 0), last_reviewed_at=now,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount == 1

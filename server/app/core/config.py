@@ -14,6 +14,9 @@ def _split(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+# = app.wordbook.books.BOOK_IDS(core 不能导入 wordbook 层;tests/test_wordbook_books.py 断言两处一致)
+WORDBOOK_BOOK_IDS = ("junior", "senior", "cet4", "cet6", "kaoyan", "toefl", "sat")
+
 THINKING_TRUE = {"true", "1", "yes", "on"}
 THINKING_FALSE = {"false", "0", "no", "off"}
 LLM_THINKING_HOST_SUFFIXES = ("deepseek.com", "volces.com")
@@ -176,6 +179,16 @@ class Settings(BaseSettings):
     rooms_translate_global_daily: int = Field(3000, ge=0, le=100000)
     rooms_summary_enabled: bool = False
     rooms_summary_global_daily: int = Field(200, ge=0, le=10000)
+    # ---- 背单词(设计文档 2026-10-10-wordbook §10)----
+    wordbook_enabled: bool = False
+    wordbook_ai_enabled: bool = False
+    wordbook_books: str = ",".join(WORDBOOK_BOOK_IDS)
+    wordbook_daily_new: int = Field(20, ge=5, le=100)
+    wordbook_review_cap: int = Field(100, ge=20, le=500)
+    wordbook_ai_model: str = ""
+    wordbook_ai_global_daily: int = Field(200, ge=0, le=100000)
+    wordbook_ai_daily_per_user: int = Field(20, ge=0, le=1000)
+    wordbook_data_dir: str = ""
 
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
@@ -225,6 +238,14 @@ class Settings(BaseSettings):
                 ipaddress.ip_network(item, strict=False)
             except ValueError:
                 raise ValueError("invalid CIDR") from None
+        return value
+
+    @field_validator("wordbook_books")
+    @classmethod
+    def _wordbook_books(cls, value: str) -> str:
+        unknown = set(_split(value)) - set(WORDBOOK_BOOK_IDS)
+        if unknown:
+            raise ValueError(f"unknown wordbook ids: {', '.join(sorted(unknown))}")
         return value
 
     @field_validator("settings_encryption_key")
@@ -319,6 +340,21 @@ class Settings(BaseSettings):
     @property
     def rooms_summary_available(self) -> bool:
         return self.rooms_enabled and self.rooms_summary_enabled and bool(self.upstream_llm_base_url)
+
+    @property
+    def resolved_wordbook_data_dir(self) -> Path:
+        """空 = server/dictionaries/kylebing-english-vocabulary(容器里 /app/dictionaries/...),与 app 包同级。"""
+        if self.wordbook_data_dir:
+            return Path(self.wordbook_data_dir)
+        return Path(__file__).resolve().parents[2] / "dictionaries" / "kylebing-english-vocabulary"
+
+    @property
+    def wordbook_ai_available(self) -> bool:
+        return self.wordbook_enabled and self.wordbook_ai_enabled and bool(self.upstream_llm_base_url)
+
+    @property
+    def resolved_wordbook_ai_model(self) -> str:
+        return self.wordbook_ai_model.strip() or self.default_llm_model
 
     @property
     def realtime_available(self) -> bool:

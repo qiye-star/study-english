@@ -13,7 +13,8 @@ Kind = Literal["str", "text", "int", "float", "bool", "enum", "csv", "url", "dat
 GROUPS: tuple[tuple[str, str], ...] = (
     ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
-    ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("admin", "管理端"),
+    ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
+    ("admin", "管理端"),
     ("ops", "运维与维护"), ("system", "系统(只读)"),
 )
 
@@ -69,6 +70,8 @@ _ALL: tuple[SettingSpec, ...] = (
     _env("admin_settings_safe_mode", "bool", "安全模式", group="admin"),
     _env("admin_ip_allowlist", "csv", "管理端 IP 白名单", group="admin"),
     _env("admin_cookie_secure", "bool", "仅 HTTPS Cookie", group="admin"),
+    _env("wordbook_data_dir", "str", "词典目录", group="wordbook",
+         help_zh="留空 = server/dictionaries/kylebing-english-vocabulary(容器 /app/dictionaries/...)"),
     # features
     _s("realtime_enabled", "features", "bool", "实时通话", apply="new_sessions", danger=_COST),
     _s("rank_enabled", "features", "bool", "段位赛", danger="关闭后段位接口返回 404"),
@@ -76,6 +79,9 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_voice_enabled", "features", "bool", "联机语音消息", help_zh="关闭后不能上传或重试;已有语音照常播放、翻译",
        danger=_COST),
     _s("rooms_summary_enabled", "features", "bool", "联机学习小结", help_zh="房间结束时生成一次 AI 学习小结", danger=_COST),
+    _s("wordbook_enabled", "features", "bool", "背单词", danger="关闭后背单词接口返回 404;学习记录保留"),
+    _s("wordbook_ai_enabled", "features", "bool", "背单词 AI 讲解", help_zh="按需、全站缓存、受每日额度限制",
+       danger=_COST),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
     _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册"),
@@ -170,6 +176,14 @@ _ALL: tuple[SettingSpec, ...] = (
        help_zh="mp3 = 24 kbps(约 WAV 的 1/10);wav 仅在 lameenc 不可用时使用"),
     _s("rooms_translate_global_daily", "rooms", "int", "全站每日语音翻译次数", danger=_COST),
     _s("rooms_summary_global_daily", "rooms", "int", "全站每日学习小结次数", danger=_COST),
+    # wordbook(设计文档 2026-10-10-wordbook §10)
+    _s("wordbook_books", "wordbook", "csv", "启用的词书",
+       help_zh="junior,senior,cet4,cet6,kaoyan,toefl,sat 的子集;停用不删学习记录"),
+    _s("wordbook_daily_new", "wordbook", "int", "默认每日新词", min=5, max=100),
+    _s("wordbook_review_cap", "wordbook", "int", "默认每日复习上限", min=20, max=500),
+    _s("wordbook_ai_model", "wordbook", "str", "AI 讲解模型", help_zh="留空 = 默认模型"),
+    _s("wordbook_ai_global_daily", "wordbook", "int", "全站每日 AI 讲解次数", help_zh="只计未命中缓存的调用", danger=_COST),
+    _s("wordbook_ai_daily_per_user", "wordbook", "int", "每人每日 AI 讲解次数", help_zh="可按用户覆盖"),
     # admin
     _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟", danger=_LONGER_SESSIONS),
     _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟", danger=_LONGER_SESSIONS),

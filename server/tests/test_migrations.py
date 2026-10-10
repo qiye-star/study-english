@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0011"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0012"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -395,3 +395,30 @@ def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypa
     finally:
         con.close()
     command.upgrade(cfg, "head")
+
+
+WORDBOOK_TABLES = {"wordbook_enrollments", "wordbook_events", "wordbook_explanations", "wordbook_reports",
+                   "wordbook_hidden_sentences"}
+
+
+def test_0012_wordbook_tables_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0011")
+    assert not WORDBOOK_TABLES & _tables(db)
+    command.upgrade(cfg, "0012")
+    assert WORDBOOK_TABLES <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        cols = {r[1] for r in con.execute("pragma table_info(wordbook_events)")}
+        pk = [r[1] for r in sorted(con.execute("pragma table_info(wordbook_enrollments)"), key=lambda r: r[5]) if r[5]]
+        indexes = {r[1] for r in con.execute("pragma index_list(wordbook_events)")}
+    finally:
+        con.close()
+    assert {"user_id", "book_id", "kind", "word", "item_id", "qtype", "outcome", "credit", "day", "created_at"} <= cols
+    assert pk == ["user_id", "book_id"]
+    assert {"ix_wordbook_events_user_id_created_at", "ix_wordbook_events_user_id_day",
+            "ix_wordbook_events_book_id_kind"} <= indexes
+    command.downgrade(cfg, "0011")
+    assert not WORDBOOK_TABLES & _tables(db)
+    command.upgrade(cfg, "head")
+    assert WORDBOOK_TABLES <= _tables(db)
