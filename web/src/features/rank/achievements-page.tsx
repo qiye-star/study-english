@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import {
-  AwardIcon, BookOpenIcon, CrownIcon, DiamondIcon, FlagIcon, FlameIcon, MessagesSquareIcon, MicIcon, ShieldCheckIcon, TargetIcon,
+  AwardIcon, BookOpenIcon, CrownIcon, DiamondIcon, FlagIcon, FlameIcon, LibraryBigIcon, MessagesSquareIcon, MicIcon, ShieldCheckIcon,
+  TargetIcon,
   TrendingUpIcon, UsersRoundIcon, WandSparklesIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,7 +19,7 @@ const GROUPS = ["streak", "rank", "speech", "chat", "vocab", "rooms", "season"] 
 const ICONS: Record<string, LucideIcon> = {
   flame: FlameIcon, "trending-up": TrendingUpIcon, target: TargetIcon, microphone: MicIcon, "chart-line": TrendingUpIcon,
   messages: MessagesSquareIcon, cards: BookOpenIcon, "users-group": UsersRoundIcon, wand: WandSparklesIcon, flag: FlagIcon,
-  "shield-star": ShieldCheckIcon, diamond: DiamondIcon, crown: CrownIcon,
+  "shield-star": ShieldCheckIcon, diamond: DiamondIcon, crown: CrownIcon, book: LibraryBigIcon,
 };
 /** 一色一义(设计稿 R5):连续 = amber、发音 = green、词汇 = teal、段位图形 = 墨色,其余(段位、对话、联机、赛季)= blue。 */
 const TONES: Record<string, string> = { streak: "bg-amber-tint text-amber", vocab: "bg-teal-tint text-teal", speech: "bg-green-tint text-green" };

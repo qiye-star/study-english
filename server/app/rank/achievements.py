@@ -7,7 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import insert_ignore
-from app.models import PromotionMatch, RoomMember, RoomMessage, UserAchievement, XpEvent, iso_utc
+from app.models import (
+    PromotionMatch, RoomMember, RoomMessage, UserAchievement, VocabularyItem, WordbookEvent, XpEvent, iso_utc,
+)
 from app.rank.tiers import TIERS, Season, season_of
 
 
@@ -31,6 +33,8 @@ class Snapshot:
     rooms_joined: int = 0
     assisted_sends: int = 0
     season_promotions: int = 0
+    words_learned: int = 0  # wordbook learn events (spec 2026-10-10-wordbook §8)
+    words_mastered: int = 0  # vocabulary_items with box >= 4, any source
 
 
 _RULES: tuple[tuple[Achievement, Callable[[Snapshot], bool]], ...] = (
@@ -47,6 +51,10 @@ _RULES: tuple[tuple[Achievement, Callable[[Snapshot], bool]], ...] = (
     (Achievement("pron_85_x20", "speech", "chart-line"), lambda s: s.pron85 >= 20),
     (Achievement("chat_100", "chat", "messages"), lambda s: s.chat_turns >= 100),
     (Achievement("vocab_100", "vocab", "cards"), lambda s: s.vocab_reviews >= 100),
+    (Achievement("words_learned_100", "vocab", "book"), lambda s: s.words_learned >= 100),
+    (Achievement("words_mastered_100", "vocab", "book"), lambda s: s.words_mastered >= 100),
+    (Achievement("words_mastered_500", "vocab", "book"), lambda s: s.words_mastered >= 500),
+    (Achievement("words_mastered_2000", "vocab", "book"), lambda s: s.words_mastered >= 2000),
     (Achievement("room_first", "rooms", "users-group"), lambda s: s.rooms_joined >= 1),
     (Achievement("room_assisted_10", "rooms", "wand"), lambda s: s.assisted_sends >= 10),
     (Achievement("season_climber", "season", "flag"), lambda s: s.season_promotions >= 1),
@@ -102,6 +110,11 @@ async def snapshot(session: AsyncSession, user_id: int, best_tier: int, season: 
         assisted_sends=await _count(session, select(func.count()).select_from(RoomMessage).where(
             RoomMessage.sender_id == user_id, RoomMessage.assisted.is_(True), RoomMessage.lane == "public")),
         season_promotions=season_promotions,
+        # wordbook: read the tables through app.models only (rank never imports app.wordbook)
+        words_learned=await _count(session, select(func.count()).select_from(WordbookEvent).where(
+            WordbookEvent.user_id == user_id, WordbookEvent.kind == "learn")),
+        words_mastered=await _count(session, select(func.count()).select_from(VocabularyItem).where(
+            VocabularyItem.user_id == user_id, VocabularyItem.box >= 4)),
     )
 
 

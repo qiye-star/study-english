@@ -1,10 +1,12 @@
 """Rank x wordbook (spec 2026-10-10-wordbook §8). Rank reads `wordbook_events` through app.models only."""
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import User, WordbookEvent, XpEvent
-from app.rank import ledger, points
+from app.models import User, VocabularyItem, WordbookEvent, XpEvent
+from app.rank import achievements, ledger, points
+from app.rank.achievements import Snapshot, earned
 from app.rank.points import EventRow, StageTask, stage_progress
 from app.rank.rules import DEFAULT_RULES, rules_from_json, rules_json
 
@@ -75,3 +77,30 @@ async def test_sync_is_idempotent_and_uses_published_rule_points(app):
             XpEvent.user_id == 10000008, XpEvent.kind.in_(("word_learned", "spelling_set")))
             .order_by(XpEvent.created_at))).all()
     assert [tuple(r) for r in rows] == [("word_learned", 3), ("spelling_set", 5)]
+
+
+# ---- R2: wordbook achievements ----
+
+def test_wordbook_achievement_thresholds():
+    assert {"words_learned_100", "words_mastered_100"} <= earned(Snapshot(words_learned=100, words_mastered=100))
+    assert "words_mastered_500" not in earned(Snapshot(words_mastered=499))
+    assert "words_mastered_2000" in earned(Snapshot(words_mastered=2000))
+    keys = {a.key: a for a in achievements.CATALOG}
+    assert keys["words_mastered_500"].group == "vocab" and keys["words_mastered_500"].icon == "book"
+    assert keys["words_learned_100"].group == "vocab" and keys["words_learned_100"].icon == "book"
+
+
+async def test_snapshot_counts_learn_events_and_box4_items(app):
+    async with app.state.sessionmaker() as s:
+        s.add(User(id=10000009, username="max", password_hash="x"))
+        for i in range(3):
+            s.add(WordbookEvent(user_id=10000009, book_id="cet4", kind="learn", word=f"w{i}", item_id=None, qtype=None,
+                                outcome="good", credit=100, day="2026-11-10", created_at=NOW))
+        s.add(WordbookEvent(user_id=10000009, book_id="cet4", kind="practice", word="w0", item_id=None, qtype="choice",
+                            outcome="good", credit=100, day="2026-11-10", created_at=NOW))
+        for box, source in ((3, "lookup"), (4, "lookup"), (5, "wordbook:cet4")):
+            s.add(VocabularyItem(id=str(uuid.uuid4()), user_id=10000009, word=f"v{box}", meaning="", example=None,
+                                 source=source, box=box, due_at=NOW, reps=1, lapses=0, created_at=NOW))
+        await s.commit()
+        snap = await achievements.snapshot(s, 10000009, 0, None)
+    assert (snap.words_learned, snap.words_mastered) == (3, 2)
