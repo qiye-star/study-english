@@ -1,0 +1,19 @@
+{
+  "web": {
+    "links": {
+      "mistakes": {
+        "title": "Mistakes",
+        "none": "None",
+        "total": "{{count}} words",
+        "lede": "Words you get wrong in the wordbook show up here. Two right answers in a row remove them.",
+        "count": "Wrong ×{{count}}",
+        "box": "Box {{value}}",
+        "dismiss": "Remove: {{word}}",
+        "dismissFailed": "Couldn't remove it, restored",
+        "empty": "No mistakes yet.",
+        "more": "Load more",
+        "spell": "Practise spelling"
+      }
+    }
+  }
+}

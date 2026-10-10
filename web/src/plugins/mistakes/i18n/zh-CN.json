@@ -1,0 +1,19 @@
+{
+  "web": {
+    "links": {
+      "mistakes": {
+        "title": "易错词",
+        "none": "暂无",
+        "total": "{{count}} 个",
+        "lede": "背单词里答错的词会自动出现在这里;连续答对 2 次后自动移出。",
+        "count": "错 {{count}} 次",
+        "box": "记忆盒 {{value}}",
+        "dismiss": "移出:{{word}}",
+        "dismissFailed": "移出失败,已恢复",
+        "empty": "还没有易错词。",
+        "more": "加载更多",
+        "spell": "去拼写练习"
+      }
+    }
+  }
+}
