@@ -1,0 +1,38 @@
+{
+  "web": {
+    "links": {
+      "names": {
+        "word_actions": "Word actions",
+        "daily_tasks": "Today's tasks card",
+        "mistakes": "Mistakes",
+        "pron_shadow": "Weak pronunciation & shadowing",
+        "chat_words": "New words in chat",
+        "rank_sources": "Rank points from links"
+      },
+      "desc": {
+        "word_actions": "A \"More\" button next to Add to vocabulary: study in the wordbook, shadow, see the word card",
+        "daily_tasks": "The practice page sums up what to do today",
+        "mistakes": "Words you get wrong in the wordbook go to the Mistakes view of your vocabulary",
+        "pron_shadow": "Words you pronounce poorly go to Weak words; shadow today's new example sentences in one tap",
+        "chat_words": "Using today's new words in a chat is noted",
+        "rank_sources": "Linked activity can add a few rank points"
+      },
+      "settings": {
+        "title": "Learning links",
+        "lede": "Let the wordbook, shadowing, chat and rank work together. Each one can be turned off on its own.",
+        "group": "Links",
+        "adminOff": "Turned off by the admin",
+        "rowSubtitle": "{{on}}/{{total}} on",
+        "saveFailed": "Could not save; restored"
+      },
+      "errors": {
+        "disabled": "Learning links are off",
+        "off": "This link is off",
+        "unknown": "Unknown link",
+        "wordNotFound": "This word is not in the book",
+        "wordbookOff": "The wordbook is off",
+        "wordbookData": "Wordbook data is unavailable right now"
+      }
+    }
+  }
+}

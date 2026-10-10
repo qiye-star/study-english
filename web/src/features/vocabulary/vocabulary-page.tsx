@@ -19,6 +19,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { PageHeader } from "~/layout/page-header";
+import { Slot } from "~/lib/extension-points-react";
 import { ReviewCard } from "./review-card";
 import {
   REVIEW_BATCH, VOCABULARY_SERVER_ERRORS, deleteVocabularyItem, listVocabulary, reviewVocabularyItem,
@@ -274,6 +275,7 @@ export function VocabularyPage() {
             {dueCount === 0 && (noneDue || (loaded && items.length > 0)) && <p role="status" data-testid="vocab-none-due" className="mx-0.5 text-meta text-ink-2">{t("web.vocabulary.noneDue")}</p>}
             {!loaded && <p className={PAGE_NOTE}>{t("web.common.loading")}</p>}
             {loaded && !items.length && !error && <p data-testid="vocab-empty" className={PAGE_NOTE}>{t("web.vocabulary.empty")}</p>}
+            <Slot point="notebookViews" props={{}} />
             {items.length > 0 && (
               <SectionGroup title={t("web.vocabulary.all")} bare>
                 <ul className={LIST_CARD}>

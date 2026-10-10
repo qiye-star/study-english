@@ -20,6 +20,7 @@ import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { RankCard } from "~/features/rank";
 import { WordbookCard } from "~/features/wordbook";
 import { PageHeader } from "~/layout/page-header";
+import { Slot } from "~/lib/extension-points-react";
 import { formatClock } from "~/lib/format-clock";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";
 import { PRACTICE_SERVER_ERRORS, assessPronunciation } from "./assessment-api";
@@ -171,8 +172,11 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
       <div className="px-gutter pb-6">
         <RankCard className="mt-2" />
         <WordbookCard className="mt-2" />
+        <Slot point="practiceHome" props={{}} />
         <SectionGroup title={t("web.practice.home.shadowing")} bare>
+          <div id="shadowing" />
           <SurfaceCard className="p-3.5">
+            <Slot point="learningSources" props={{ pick: setReference }} />
             <label htmlFor="reference" className="eyebrow">{t("web.practice.referenceLabel")}</label>
             <Textarea id="reference" data-testid="reference-input" rows={4} maxLength={2000}
               className="mt-1.5 min-h-[96px] resize-none rounded-button border-0 bg-surface-2 px-3 py-2.5 text-[17px] font-medium leading-dialogue tracking-[-0.01em] text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0"

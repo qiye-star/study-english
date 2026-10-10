@@ -6,6 +6,8 @@ import {
   visible, type LinkFlags,
 } from "./extension-points";
 import { LinkRoute, Slot, WordActions } from "./extension-points-react";
+import { AddVocabularyButton } from "~/features/vocabulary";
+import { TestProviders } from "~/test/render";
 
 const on = (...keys: string[]): LinkFlags => ({
   enabled: true, links: Object.fromEntries(LINK_KEYS.map((k) => [k, keys.includes(k)])) as LinkFlags["links"],
@@ -92,10 +94,16 @@ describe("<Slot>", () => {
     error.mockRestore();
   });
 
-  it("<WordActions> adds no wrapper elements", () => {
-    contribute({ point: "wordActions", id: "test.only", component: ({ testId }) => <i data-testid={testId} /> });
-    const { container } = render(<WordActions target={{ word: "talk", source: "manual" }} testId="w" variant="icon" />);
-    expect(container.innerHTML).toBe('<i data-testid="w"></i>');
+  it("<WordActions> adds no wrapper elements and the core contribution equals AddVocabularyButton", () => {
+    // test/setup.ts registers the core contribution (vocabulary.add, order 0) like plugins/core does in the app
+    contribute({ point: "wordActions", id: "test.only", order: 1, component: ({ testId }) => <i data-testid={testId} /> });
+    const target = { word: "talk", source: "manual" } as const;
+    const slot = render(<TestProviders><WordActions target={target} testId="w" label="Add talk" variant="labeled" /></TestProviders>);
+    const direct = render(
+      <TestProviders><AddVocabularyButton testId="w" input={target} label="Add talk" withLabel /><i data-testid="w" /></TestProviders>,
+    );
+    expect(slot.container.innerHTML).toBe(direct.container.innerHTML);
+    expect(slot.container.lastElementChild?.outerHTML).toBe('<i data-testid="w"></i>');
   });
 });
 

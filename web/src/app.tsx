@@ -17,6 +17,8 @@ import {
 } from "~/features/wordbook";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
+import { allRoutes } from "~/lib/extension-points";
+import { LinkRoute, Slot } from "~/lib/extension-points-react";
 import { InstallPage } from "~/pages/install-page";
 import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
@@ -44,13 +46,15 @@ export function AnnouncementFrame() {
 }
 
 export function AppRoutes() {
+  // 联动的路由贡献(plugins/):全部挂上,由 LinkRoute 按旗标渲染 / 等待旗标 / 跳回练习页(spec §8.3)
+  const routes = allRoutes().map((r) => <Route key={r.id} path={r.path} element={<LinkRoute route={r} />} />);
   return (
     <Routes>
       <Route element={<AnnouncementFrame />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/install" element={<InstallPage />} />
         <Route element={<RequireAuth />}>
-          <Route element={<AppShell />}>
+          <Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/practice/history" element={<HistoryPage />} />
             <Route path="/practice/list" element={<PracticeListPage />} />
@@ -72,6 +76,7 @@ export function AppRoutes() {
             <Route path="/wordbook/review" element={<WordbookReviewPage />} />
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/me" element={<MePage />} />
+            {routes}
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/practice" replace />} />

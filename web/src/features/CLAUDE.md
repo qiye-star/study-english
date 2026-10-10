@@ -8,6 +8,9 @@ One directory per product feature: chat, grammar, lookup, practice, progress, ra
 - Inside a feature use relative imports (`./x`).
 - Features may use `lib/`, `api/`, `audio/`, `components/`, `layout/`, `auth/`, `settings/`, `i18n/`, `@renderer/*`.
 - Do not use a cross-feature import at module top level (barrels form cycles; only call-time use is safe).
+- New cross-feature edges are forbidden (`CROSS_FEATURE_BASELINE` in `src/architecture.test.ts`). To link features, register an
+  extension-point contribution in `features/<x>/register*.ts(x)` (imported only by `src/plugins/`, never imports another feature)
+  and render a `<Slot>` on the consumer side.
 
 ## Adding to a public surface
 - Add the export to the feature's `index.ts`, then import it from `~/features/<name>`.

@@ -1,0 +1,38 @@
+{
+  "web": {
+    "links": {
+      "names": {
+        "word_actions": "单词操作位置",
+        "daily_tasks": "今日任务聚合卡",
+        "mistakes": "易错词",
+        "pron_shadow": "发音弱词与跟读",
+        "chat_words": "对话用到今日词",
+        "rank_sources": "联动加段位点"
+      },
+      "desc": {
+        "word_actions": "生词本按钮旁多一个「更多」:加入词书学习、跟读、看词卡",
+        "daily_tasks": "练习页汇总今天该做的几件事",
+        "mistakes": "背单词答错的词自动进生词本「易错词」",
+        "pron_shadow": "跟读低分的词进「发音弱词」;今日新词例句一键跟读",
+        "chat_words": "对话里用到今天学的新词会被记下来",
+        "rank_sources": "联动记录可以给段位加少量积分"
+      },
+      "settings": {
+        "title": "学习联动",
+        "lede": "让背单词、跟读、对话和段位互相配合。每一项都可以单独关闭。",
+        "group": "联动",
+        "adminOff": "管理员已关闭",
+        "rowSubtitle": "已开启 {{on}}/{{total}}",
+        "saveFailed": "保存失败,已恢复"
+      },
+      "errors": {
+        "disabled": "学习联动未开启",
+        "off": "这个联动已关闭",
+        "unknown": "未知的联动",
+        "wordNotFound": "词书里没有这个词",
+        "wordbookOff": "背单词未开启",
+        "wordbookData": "词书数据暂不可用"
+      }
+    }
+  }
+}

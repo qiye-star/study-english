@@ -24,6 +24,7 @@ import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
 import { PLAYBACK_RATES, formatPlaybackRate, setPlaybackRate, usePlaybackRate, type PlaybackRate } from "~/lib/playback-rate";
 import { PageHeader } from "~/layout/page-header";
+import { Slot } from "~/lib/extension-points-react";
 import { shouldShowIosInstallHint } from "~/pwa/ios";
 import { useSettings } from "~/settings/settings-context";
 
@@ -189,6 +190,7 @@ export function MePage() {
           {stats && stats.daily.length > 0 && <WeekStrip stats={stats} />}
           <ListRow icon={<IconChip tone="teal" icon={BookOpenIcon} />} title={t("web.me.vocabulary")} to="/vocabulary" testId="me-vocabulary" />
           <WordbookMeRow />
+          <Slot point="meRows" props={{}} />
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.voice")}>

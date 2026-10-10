@@ -1,0 +1,30 @@
+# web/src/plugins/
+
+组合层(spec `docs/superpowers/specs/2026-10-11-learning-links-design.md` §8):把各 feature 的 `register*.ts(x)` 与联动自己的界面
+登记进 `~/lib/extension-points`。`index.ts` 一行一个插件:删一行 = 删一个联动。
+
+## What lives here
+- `index.ts`(由 `main.tsx` 导入一次)、`core.ts`(核心贡献 `wordActions/vocabulary.add`;`test/setup.ts` 只导入它)
+- `links/`(旗标加载 `appEffects/links.config`、「我的」一行 `meRows/links.row`、设置页路由 `/me/links`、`LINKS_SERVER_ERRORS`)
+- 联动插件(F7 只放了 `index.ts` 桩,车道整体替换):`word-actions/`(L1)、`daily-tasks/`(L2)、`mistakes/`(L3)、
+  `pron-shadow/`(L4)、`chat-words/`(L5);段位点来源(L6)只在服务端
+
+## Allowed dependencies
+`lib/`、`api/`、`components/`、`layout/`、`auth/`、`settings/`、`i18n/`、`@renderer/*`;feature 只经 `~/features/<x>`(index)或
+`~/features/<x>/register*`。只有 `main.tsx` 导入本目录(`test/setup.ts` 可导入 `core`)——`src/architecture.test.ts` 强制。
+
+## Extension-point API(`~/lib/extension-points`)
+- `contribute({ point, id, order?, link?, requiresLinks?, component })`:`link` = 该联动有效才可见;`requiresLinks` = 总开关开才可见;
+  都不写 = 核心贡献(永远可见)。同一点 id 重复会抛错;按 `order` 再按 `id` 排序。
+- `contributeRoute({ id, path, link? | requiresLinks?, component })`:app.tsx 把全部路由挂在 AppShell 下,由 `LinkRoute`
+  按旗标渲染;旗标未到(仍是 `ALL_OFF` 本身)时什么都不渲染,到了但不可见则回 `/practice`。
+- 点与 props:`wordActions`(`WordActionProps`)、`wordActionsMenu`(+ `close`)、`dailyTasks`(`{ today }`)、`practiceHome`、
+  `learningSources`(`{ pick }`)、`wordDetailSections`(`{ word }`,词卡未遮罩时才渲染)、`notebookViews`、`meRows`、`appEffects`。
+
+## Test
+`cd web && yarn vitest run src/plugins`;联动测试自己导入所需插件并 `setLinkFlags(...)`;`test/setup.ts` 的 `afterEach` 已统一复位为全关。
+
+## Pitfalls
+- 注册文件在启动时执行:只导入轻组件,重组件 / 页面用 `lazy()` + `Suspense`(见 `links/index.ts`);主包增长有验收上限(≤ 8 kB gzip)。
+- 联动文案放各插件 `i18n/`(键 `web.links.<x>.*`),即使由 feature 的注册文件渲染;中英两份键一致。
+- 旗标未加载前全关;任何贡献都不能假设旗标已到。服务端错误用 `LINKS_SERVER_ERRORS` 翻译。

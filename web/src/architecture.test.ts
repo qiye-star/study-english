@@ -4,6 +4,8 @@
  * 1. audio/、api/、lib/、components/ 是底层:不引入 features/、pages/、layout/、auth/、settings/(React 业务代码)。
  * 2. features/<x> 之外的代码只能经由 features/<x>/index.ts 引入它(`~/features/<x>`),不得触达内部文件。
  * 3. pages/ 只组合 features 与共享层:不直接引入 audio/;除 app.tsx / main.tsx 外无人引入 pages/。
+ * 5. 组合层(spec 2026-10-11-learning-links §8.4):plugins/ 只被 main.tsx 导入(test/setup.ts 可导入 plugins/core);
+ *    features/<x>/register*.ts(x) 只被 plugins/ 导入,且不导入别的 feature;feature→feature 的导入边冻结在基线。
  * 4. enjoy/ 只能经由 src/shims 触达(`@/…` 或指向 enjoy/ 的相对路径只许出现在 shims/);
  *    `@renderer/…` 别名(vite.config.ts / tsconfig.json)例外。
  *
@@ -61,6 +63,14 @@ const UPPER_LAYERS = ["features", "pages", "layout", "auth", "settings"];
 const topOf = (rel: string) => rel.split("/")[0];
 const featureOf = (rel: string) => (rel.startsWith("features/") ? rel.split("/")[1] : null);
 const isTest = (rel: string) => /\.test\.tsx?$/.test(rel);
+const CROSS_FEATURE_BASELINE = new Set([
+  "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "chat->vocabulary", "lookup->practice",
+  "lookup->vocabulary", "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
+  "progress->vocabulary", "rank->chat", "rank->practice", "realtime->chat", "rooms->chat", "rooms->vocabulary",
+  "vocabulary->chat", "vocabulary->lookup", "wordbook->chat", "wordbook->rank",
+]); // L1 删去五条 ->vocabulary / vocabulary->lookup 边;新增任何一条即失败
+/** `to` 已去掉扩展名;`rel` 带扩展名。 */
+const isRegister = (rel: string) => /^features\/[^/]+\/register(-[a-z-]+)?(\.tsx?)?$/.test(rel);
 
 /** 返回一个文件违反的规则(空数组表示合规)。 */
 function violationsOf(rel: string, source: string): string[] {
@@ -77,7 +87,8 @@ function violationsOf(rel: string, source: string): string[] {
       out.push(`${rel}: "${spec}" — ${topOf(rel)}/ must not import ${topOf(to)}/`);
     }
     const feature = featureOf(to);
-    if (feature && featureOf(rel) !== feature && to !== `features/${feature}` && to !== `features/${feature}/index`) {
+    if (feature && featureOf(rel) !== feature && to !== `features/${feature}` && to !== `features/${feature}/index` &&
+        !(rel.startsWith("plugins/") && isRegister(to))) {
       out.push(`${rel}: "${spec}" — import features/${feature} only via its index ("~/features/${feature}")`);
     }
     if (topOf(rel) === "pages" && topOf(to) === "audio") {
@@ -85,6 +96,18 @@ function violationsOf(rel: string, source: string): string[] {
     }
     if (topOf(to) === "pages" && topOf(rel) !== "pages" && rel !== "app.tsx" && rel !== "main.tsx") {
       out.push(`${rel}: "${spec}" — only app.tsx/main.tsx compose pages/`);
+    }
+    if (topOf(to) === "plugins" && rel !== "main.tsx" && !rel.startsWith("plugins/")) {
+      if (!(rel === "test/setup.ts" && to === "plugins/core")) out.push(`${rel}: "${spec}" — only main.tsx composes plugins/`);
+    }
+    if (isRegister(to) && !rel.startsWith("plugins/")) {
+      out.push(`${rel}: "${spec}" — features/*/register* is imported only by plugins/`);
+    }
+    if (isRegister(rel) && feature && featureOf(rel) !== feature) {
+      out.push(`${rel}: "${spec}" — a register file must not import another feature`);
+    }
+    if (feature && featureOf(rel) && featureOf(rel) !== feature && !CROSS_FEATURE_BASELINE.has(`${featureOf(rel)}->${feature}`)) {
+      out.push(`${rel}: "${spec}" — new cross-feature edge ${featureOf(rel)}->${feature}; use an extension point`);
     }
   }
   return out;
@@ -125,5 +148,33 @@ describe("web architecture boundaries", () => {
     expect(violationsOf("shims/x.ts", 'export { L } from "@/constants";')).toEqual([]);
     expect(violationsOf("features/chat/x.tsx", 'import { Button } from "@renderer/components/ui/button";')).toEqual([]);
     expect(violationsOf("features/chat/x.test.ts", 'vi.mock("~/features/grammar/grammar-api");\nimport { a } from "~/features/grammar/grammar-api";')).toEqual([]);
+  });
+
+  it("guards plugins, register files and the cross-feature baseline", () => {
+    expect(violationsOf("features/chat/x.tsx", 'import "~/plugins";')).toHaveLength(1);
+    expect(violationsOf("lib/x.ts", 'import "~/plugins/core";')).toHaveLength(1);
+    expect(violationsOf("main.tsx", 'import "./plugins";')).toEqual([]);
+    expect(violationsOf("test/setup.ts", 'import "~/plugins/core";')).toEqual([]);
+    expect(violationsOf("test/setup.ts", 'import "~/plugins";')).toHaveLength(1);
+    expect(violationsOf("plugins/core.ts", 'import "~/features/vocabulary/register";')).toEqual([]);
+    expect(violationsOf("plugins/x/index.ts", 'import "~/features/wordbook/register-daily-tasks";')).toEqual([]);
+    expect(violationsOf("plugins/x/index.ts", 'import { a } from "~/features/wordbook/word-card";')).toHaveLength(1);
+    expect(violationsOf("pages/x.tsx", 'import "~/features/vocabulary/register";')).toHaveLength(2);
+    expect(violationsOf("features/wordbook/register-daily-tasks.tsx", 'import { goPractice } from "~/features/practice";')).toHaveLength(2);
+    expect(violationsOf("features/progress/x.tsx", 'import { RankCard } from "~/features/rank";')).toHaveLength(1);
+    expect(violationsOf("features/practice/x.tsx", 'import { RankCard } from "~/features/rank";')).toEqual([]);
+  });
+
+  // 这三个点的产品渲染点在 L1-2 / L1-3 / L2-2 才出现;为让车道文件不相交,只由 Z1 删掉整个集合
+  const PENDING = new Set(["wordActions", "wordActionsMenu", "dailyTasks"]);
+  it("every extension point is rendered by product code and every contribution names a real point", async () => {
+    const { POINT_NAMES } = await import("~/lib/extension-points");
+    const product = files.filter((f) => !isTest(f)).map((f) => readFileSync(path.join(srcRoot, f), "utf8")).join("\n");
+    for (const p of POINT_NAMES) {
+      if (PENDING.has(p)) continue;
+      const rendered = product.includes(`point="${p}"`) || (p === "wordActions" && product.includes("<WordActions"));
+      expect(rendered, `point ${p} is rendered somewhere`).toBe(true);
+    }
+    for (const m of product.matchAll(/point:\s*"([A-Za-z]+)"/g)) expect(POINT_NAMES).toContain(m[1]);
   });
 });

@@ -3,6 +3,7 @@ import { useId, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
+import { Slot } from "~/lib/extension-points-react";
 import { RecallCover } from "./recall-cover";
 import type { Card, Sense } from "./wordbook-api";
 
@@ -154,6 +155,7 @@ export function WordCardView({
           ) : null}
         </div>
       )}
+      {covered ? null : <Slot point="wordDetailSections" props={{ word: card.key }} />}
     </SurfaceCard>
   );
 }

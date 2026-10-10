@@ -5,6 +5,8 @@ Vocabulary book (`/vocabulary`) with spaced review (boxes 1/2/4/7/15/30 days) an
 ## What lives here
 - `vocabulary-page.tsx`, `review-card.tsx`, `add-vocabulary-button.tsx`, `vocabulary-api.ts`, `save-vocabulary-item.ts` (`vocabularyFromLookup`).
 - `i18n/{en,zh-CN}.json` — this feature's strings.
+- `register.ts` (imported only by `plugins/core.ts`): contributes `wordActions/vocabulary.add` (core, order 0) =
+  `word-action.tsx` `AddVocabularyAction`, a pass-through to `AddVocabularyButton` (same DOM as rendering it directly).
 
 ## Public surface
 Public (`index.ts`): `VocabularyPage`, `AddVocabularyButton`, `vocabularyFromLookup`. Other directories import only `~/features/vocabulary`; add exports there only when another directory needs them.
