@@ -14,10 +14,11 @@ from app.admin import audit
 from app.models import (DailyUsage, VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookExplanation,
                         WordbookHiddenSentence, WordbookReport, iso_utc, utcnow)
 from app.services.usage import utc_day
+from app.wordbook import store
 from app.wordbook.books import BOOKS, enabled_books
 from app.wordbook.index import DataUnavailable, dictionary
+from app.wordbook.plan import MASTERED_BOX
 
-MASTERED_BOX = 4  # spec:已掌握 = box ≥ 4
 REPORTS_LIMIT = 200
 
 
@@ -25,11 +26,6 @@ class WordbookAdminError(Exception):
     def __init__(self, status: int, message: str):
         super().__init__(message)
         self.status, self.message = status, message
-
-
-def _source(book_id: str) -> str:
-    # Ruling A1-1: 与 S1 的 store.wordbook_source 同值;store.py 属于 S 车道且不在本分支上,这里不导入它。
-    return f"wordbook:{book_id}"
 
 
 def _manifest(data_dir: Path) -> dict[str, dict]:
@@ -95,7 +91,7 @@ async def _book(session, app, ds, spec, manifest: dict, now) -> dict:
         "learned": await _count(session, select(func.count()).select_from(WordbookEvent).where(
             WordbookEvent.book_id == spec.id, WordbookEvent.kind == "learn")),
         "mastered": await _count(session, select(func.count()).select_from(VocabularyItem).where(
-            VocabularyItem.source == _source(spec.id), VocabularyItem.box >= MASTERED_BOX)),
+            VocabularyItem.source == store.wordbook_source(spec.id), VocabularyItem.box >= MASTERED_BOX)),
         "reports_open": await _count(session, select(func.count()).select_from(WordbookReport).where(
             WordbookReport.book_id == spec.id, WordbookReport.status == "open")),
     }
@@ -166,5 +162,5 @@ async def resolve(session, app, actor, report_id: int, *, action: Literal["hide"
                        target_type="wordbook_sentence", target_id=sentence_id, reason=reason)
     await session.commit()
     if action == "hide":
-        # = S1 的 store.load_hidden(Ruling A1-1):换屏蔽集并清空词卡缓存,学习端立即不再出这句
-        dictionary(app).set_hidden((await session.scalars(select(WordbookHiddenSentence.sentence_id))).all())
+        # 换屏蔽集并清空词卡缓存,学习端立即不再出这句(集成裁定 Z-d:用 S 车道的 store.load_hidden)
+        await store.load_hidden(session, dictionary(app))

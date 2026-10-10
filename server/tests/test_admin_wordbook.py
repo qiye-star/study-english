@@ -161,3 +161,29 @@ async def test_gather_facts_lists_missing_book_files(app, tmp_path):
     async with app.state.sessionmaker() as s:
         facts = await gather_facts(s, app)
     assert facts.wordbook_missing == ("toefl",)
+
+
+async def test_admin_uses_the_learner_store_helpers(app, client, tmp_path, monkeypatch):
+    """集成裁定 Z-d:来源串与刷新屏蔽集走 S 车道的 `store.wordbook_source` / `store.load_hidden`,不在管理端另写一份。"""
+    from app.wordbook import store
+    calls = {"source": [], "hidden": 0}
+    real_source, real_load = store.wordbook_source, store.load_hidden
+
+    def source(book_id):
+        calls["source"].append(book_id)
+        return real_source(book_id)
+
+    async def load_hidden(session, ds):
+        calls["hidden"] += 1
+        await real_load(session, ds)
+
+    monkeypatch.setattr(store, "wordbook_source", source)
+    monkeypatch.setattr(store, "load_hidden", load_hidden)
+    card = await learner(app, tmp_path)
+    h = await login_as(app, client, "operator")
+    junior = (await client.get(API, headers=h)).json()["books"][0]
+    assert junior["mastered"] == 1 and "junior" in calls["source"]
+    (row,) = (await client.get(f"{API}/reports", headers=h)).json()["reports"]
+    assert (await client.post(f"{API}/reports/{row['id']}/hide", headers=h, json={"reason": "x"})).status_code == 200
+    assert calls["hidden"] == 1
+    assert card.examples[0].id not in [e.id for e in (await dictionary(app).card("junior", "talk")).examples]
