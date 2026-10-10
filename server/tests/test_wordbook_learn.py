@@ -169,6 +169,24 @@ async def test_answer_cap_is_per_utc_day_whatever_the_offset(app, client, tmp_pa
     assert r.status_code == 429 and r.json() == {"error": "Daily answer limit reached"}
 
 
+async def test_a_learn_answer_first_in_a_fresh_process_never_copies_a_hidden_sentence(app, client, tmp_path):
+    """Review m5: /answers loads the hidden sentence set before it reads cards."""
+    from app.models import WordbookHiddenSentence
+    from app.wordbook.index import DictionaryStore
+
+    h = await login(app, client, tmp_path)
+    talk = await DictionaryStore(make_data_dir(tmp_path)).card("junior", "talk")
+    async with app.state.sessionmaker() as s:
+        s.add(WordbookHiddenSentence(sentence_id=talk.examples[0].id, book_id="junior", hidden_by="admin",
+                                     created_at=utcnow()))
+        await s.commit()
+    enable_wordbook(app, make_data_dir(tmp_path))  # a fresh dictionary: nothing loaded, hidden set not read
+    assert (await ans(client, h, key="talk", mode="learn", qtype="meaning", known=True)).status_code == 200
+    async with app.state.sessionmaker() as s:
+        example = await s.scalar(select(VocabularyItem.example).where(VocabularyItem.word == "talk"))
+    assert example == talk.examples[1].en
+
+
 async def test_answers_are_not_logged(app, client, tmp_path, caplog):
     caplog.set_level("DEBUG")
     h = await login(app, client, tmp_path)

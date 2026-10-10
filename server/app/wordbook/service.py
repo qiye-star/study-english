@@ -256,6 +256,7 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     """无状态判分(P-W2):只信任 (book_id, key, qtype),答案从词卡重新算。用户输入不记日志、不入库。"""
     book_or_fail(settings, p.book_id)
     _validate(p)
+    await ensure_hidden(session, ds)  # review m5:create_item 会复制例句,先载入屏蔽集合
     card = (await cards_or_fail(ds, p.book_id, [p.key])).get(p.key)
     if card is None:
         fail(WORD_NOT_FOUND)
