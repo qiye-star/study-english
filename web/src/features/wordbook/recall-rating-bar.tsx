@@ -1,4 +1,4 @@
-import { CircleCheckIcon, CircleHelpIcon, CircleXIcon, EyeIcon } from "lucide-react";
+import { CircleCheckIcon, CircleHelpIcon, CircleXIcon, EyeIcon, SearchCheckIcon } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
@@ -36,7 +36,20 @@ export function RecallRatingBar({ onRate, busy, peeked = false }: { onRate: (rat
   );
 }
 
-const BADGE = "inline-flex h-[22px] flex-none items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-meta font-semibold";
+/** 抽查说明条(视觉稿 04 / 06 .spotbar):蓝色浅底 + 图标、标题、一行说明。学新词的本轮抽查与复习抽查共用。 */
+export function SpotBar({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div data-testid="spot-bar" className="mb-2 flex items-start gap-2.5 rounded-card bg-blue-tint px-3.5 py-3">
+      <SearchCheckIcon aria-hidden className="mt-px h-5 w-5 flex-none text-blue" />
+      <div className="min-w-0">
+        <p className="text-body font-semibold text-ink">{title}</p>
+        <p className="mt-0.5 text-sub text-ink-2">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
+const BADGE ="inline-flex h-[22px] flex-none items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-meta font-semibold";
 const TONE: Record<Rating, string> = { know: "bg-green-tint text-green", fuzzy: "bg-amber-tint text-amber", unknown: "bg-surface-2 text-ink-2" };
 const ICON = { know: CircleCheckIcon, fuzzy: CircleHelpIcon, unknown: CircleXIcon } as const;
 

@@ -1,5 +1,5 @@
-import { ArrowRightIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRightIcon, RotateCcwIcon } from "lucide-react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
@@ -8,8 +8,12 @@ import { useAuth } from "~/auth/auth-context";
 import { PAGE_NOTE } from "~/components/list-card";
 import { ChoiceQuestion, correctOptionOf, type ChoiceResult } from "./choice-question";
 import { PageError, PageLoading } from "./page-status";
+import { RatingBadge, RecallRatingBar, SpotBar } from "./recall-rating-bar";
 import { SessionHeader, StepBar } from "./session-header";
-import { answerCurrent, isFinished, progressOf, startSession, type SessionState } from "./session-machine";
+import {
+  answerCurrent, cardReducer, isFinished, learnTally, planLearnQuiz, progressOf, ratingPayload, startCard, startSession,
+  type QuizSlot, type RatedWord, type Rating, type SessionState,
+} from "./session-machine";
 import { SessionSummary, type SessionStats } from "./session-summary";
 import { DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
 import { useRankEnabled } from "./use-rank-enabled";
@@ -18,12 +22,14 @@ import { useWordbookConfig } from "./use-wordbook-config";
 import { WordCardView, WordRecap, meaningLine } from "./word-card";
 import { WORDBOOK_SERVER_ERRORS, learnBatch, submitAnswer, type BookId, type Card, type Question } from "./wordbook-api";
 
-type Batch = { bookId: BookId; cards: Card[]; quiz: Question[] };
+type Batch = { bookId: BookId; cards: Card[]; quiz: Question[]; drill: Question[] };
 type Phase = "loading" | "error" | "empty" | "cards" | "quiz" | "summary";
 
+const now = () => performance.now();
+
 /**
- * 学新词(spec §6.3,视觉稿 04/05/10):一轮 5 张词卡 → 对没点「我认识」的词做选释义小测 →
- * 答错的词显示词卡摘要并回到队尾再测(最多两次)→ 小结,可再来一轮。
+ * 学新词(spec 2026-10-11-wordbook-recall §3,视觉稿 01–04 / 08):一轮 5 张遮罩词卡 → 认识 / 模糊 / 不认识(盒子由服务端定)
+ * → 翻开核对(认识可「记错了」)→ 本轮小测(模糊 → 不认识选释义 → 抽中的认识 → 不认识看释义选词;答错回到队尾,最多两次)→ 小结。
  */
 export function WordbookLearnPage() {
   const { t, i18n } = useTranslation();
@@ -32,17 +38,32 @@ export function WordbookLearnPage() {
   const config = useWordbookConfig();
   const speaker = useSpeaker();
   const rankEnabled = useRankEnabled();
+  // 旧服务端(还没有 learn 设置)按默认值处理
+  const prefs = config?.enabled ? config.learn : undefined;
+  const autoplay = prefs?.autoplay ?? true;
+  const showExample = prefs?.showExample ?? true;
   const [phase, setPhase] = useState<Phase>("loading");
   const [batch, setBatch] = useState<Batch | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [index, setIndex] = useState(0);
-  const [known, setKnown] = useState<string[]>([]);
+  const [card, dispatch] = useReducer(cardReducer, 0, startCard);
+  const [rated, setRated] = useState<RatedWord[]>([]);
+  const [slots, setSlots] = useState<QuizSlot[]>([]);
+  const [status, setStatus] = useState("");
   const [session, setSession] = useState<SessionState>(() => startSession([]));
   const [result, setResult] = useState<ChoiceResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const mounted = useRef(true);
+  // 同步的「请求进行中」:busy 是 state,连点两次时第二次点击还看不到它
+  const inflight = useRef(false);
+  // iOS:声音要在用户手势里解锁;第一次点击之前不自动朗读(spec recall §8.3)
+  const gestured = useRef(false);
+  // 已自动朗读过的卡(StrictMode 下 effect 会跑两次,同一 id 再 play 一次会变成「停止」)
+  const autoplayed = useRef<string | null>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
   // 作答后选项都被禁用,焦点会掉到 <body>:移到「继续」(review m7)
   const continueRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -59,9 +80,12 @@ export function WordbookLearnPage() {
     learnBatch(api).then(
       (b) => {
         if (!alive) return;
-        setBatch(b);
+        setBatch({ ...b, drill: b.drill ?? [] });
         setIndex(0);
-        setKnown([]);
+        dispatch({ type: "reset", at: now() });
+        setRated([]);
+        setSlots([]);
+        setStatus("");
         setResult(null);
         setActionError(null);
         setPhase(b.cards.length ? "cards" : "empty");
@@ -71,45 +95,102 @@ export function WordbookLearnPage() {
     return () => { alive = false; };
   }, [api, round]);
 
+  const current = phase === "cards" ? batch?.cards[index] : undefined;
+  const currentKey = current?.key;
+  const speakerRef = useRef(speaker);
+  speakerRef.current = speaker;
+
+  // 换卡后自动朗读一次(第一次点击之后;计时在换卡的点击里归零,见 nextCard)
+  useEffect(() => {
+    if (!current) return;
+    const sp = speakerRef.current;
+    if (autoplay && gestured.current && sp.available && autoplayed.current !== current.key) {
+      autoplayed.current = current.key;
+      sp.listen(`${current.key}:auto`, current.word, "us");
+    }
+    // 只在换卡(或一轮重新开始)时触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKey, round]);
+
+  // 自评之后焦点移到「下一个 / 开始小测」(spec recall §8.2)
+  useEffect(() => {
+    if (card.rating) nextRef.current?.focus({ preventScroll: true });
+  }, [card.rating]);
+
   const cardOf = useCallback((key: string) => batch?.cards.find((c) => c.key === key), [batch]);
   const errorText = (err: unknown) => translateServerError(t, err, WORDBOOK_SERVER_ERRORS);
 
-  const startQuiz = (knownKeys: string[]) => {
-    const keys = (batch?.quiz ?? []).map((q) => q.key).filter((k, i, all) => !knownKeys.includes(k) && all.indexOf(k) === i);
-    setSession(startSession(keys));
-    setResult(null);
-    setPhase(keys.length ? "quiz" : "summary");
+  const gesture = () => {
+    if (gestured.current) return;
+    gestured.current = true;
+    speaker.prime(); // 手势内解锁 iOS 音频(只第一次:prime 会打断正在读的词)
   };
 
-  const nextCard = (knownKeys = known) => {
-    if (!batch) return;
-    setActionError(null);
-    if (index + 1 < batch.cards.length) setIndex(index + 1);
-    else startQuiz(knownKeys);
+  const reveal = () => {
+    gesture();
+    dispatch({ type: "reveal" });
+    requestAnimationFrame(() => regionRef.current?.focus({ preventScroll: true }));
   };
 
-  const markKnown = async () => {
-    if (!batch || busy) return;
-    const card = batch.cards[index];
+  const sendRating = async (rating: Rating, corrected = false) => {
+    if (!batch || !current || inflight.current) return;
+    const word = current;
+    gesture();
+    // 「不认识」总是朗读(手势内,立即发声);认识 / 模糊在自动朗读开、且这张卡还没自动读过时读一次
+    if (!corrected && speaker.available && (rating === "unknown" || (autoplay && autoplayed.current !== word.key))) {
+      autoplayed.current = word.key;
+      speaker.listen(`${word.key}:rated`, word.word, "us");
+    }
+    inflight.current = true;
     setBusy(true);
     setActionError(null);
     try {
-      await submitAnswer(api, { bookId: batch.bookId, key: card.key, mode: "learn", qtype: "meaning", known: true });
+      const payload = corrected ? { rating, revealedBefore: true, elapsedMs: 0 } : ratingPayload(card, rating, now());
+      const res = await submitAnswer(api, { bookId: batch.bookId, key: word.key, mode: "learn", qtype: "recall", ...payload });
       if (!mounted.current) return;
-      const next = [...known, card.key];
-      setKnown(next);
-      nextCard(next);
+      const eff = res.rating ?? rating;
+      dispatch(corrected ? { type: "corrected" } : { type: "rated", rating: eff });
+      setRated((list) => [...list.filter((w) => w.key !== word.key), { key: word.key, rating: corrected ? "unknown" : eff, spotCheck: !corrected && res.spotCheck }]);
+      setStatus(t(rating === "fuzzy" && eff === "unknown" ? "web.wordbook.learn.rated.streak" : `web.wordbook.learn.rated.${corrected ? "unknown" : eff}`));
     } catch (err) {
       if (mounted.current) setActionError(errorText(err));
     } finally {
+      inflight.current = false;
       if (mounted.current) setBusy(false);
     }
   };
 
-  const question = batch?.quiz.find((q) => q.key === session.current) ?? null;
+  const questionFor = (slot: QuizSlot | undefined): Question | null =>
+    slot && batch ? (slot.qtype === "word" ? batch.drill : batch.quiz).find((q) => q.key === slot.key && q.qtype === slot.qtype) ?? null : null;
+
+  const startQuiz = () => {
+    // 题目缺失(例如旧服务端没有 drill)时跳过那一格
+    const planned = planLearnQuiz(rated).filter((s) => questionFor(s));
+    setSlots(planned);
+    setSession(startSession(planned.map((s) => s.id)));
+    setResult(null);
+    setPhase(planned.length ? "quiz" : "summary");
+  };
+
+  const nextCard = () => {
+    if (!batch) return;
+    gesture();
+    setActionError(null);
+    setStatus("");
+    if (index + 1 < batch.cards.length) {
+      // 在点击里同步重置卡片状态:放到 effect 里会先画一帧带着上一张卡评级的新卡
+      dispatch({ type: "reset", at: now() });
+      setIndex(index + 1);
+    }
+    else startQuiz();
+  };
+
+  const slot = slots.find((s) => s.id === session.current);
+  const question = questionFor(slot);
 
   const choose = async (choice: string) => {
-    if (!batch || !question || busy || result) return;
+    if (!batch || !question || inflight.current || result) return;
+    inflight.current = true;
     setBusy(true);
     setActionError(null);
     try {
@@ -119,6 +200,7 @@ export function WordbookLearnPage() {
     } catch (err) {
       if (mounted.current) setActionError(errorText(err));
     } finally {
+      inflight.current = false;
       if (mounted.current) setBusy(false);
     }
   };
@@ -129,6 +211,11 @@ export function WordbookLearnPage() {
     setSession(next);
     setResult(null);
     if (isFinished(next)) setPhase("summary");
+  };
+
+  const again = () => {
+    autoplayed.current = null;
+    setRound((n) => n + 1);
   };
 
   const book = config?.enabled && batch ? config.books.find((b) => b.id === batch.bookId) : undefined;
@@ -152,54 +239,68 @@ export function WordbookLearnPage() {
   }
 
   if (phase === "summary" && batch) {
-    // 「我认识」的词不进小测,但算一次答对:否则全部认识的一轮显示 0%(review web M6)
-    const firstTry = Object.values(session.firstTry).filter(Boolean).length + known.length;
-    const missed = Object.entries(session.firstTry).filter(([, ok]) => !ok).map(([key]) => {
-      const card = cardOf(key);
-      return { key, word: card?.word ?? key, meaning: card ? meaningLine(card.senses, 40) : "" };
+    const tally = learnTally(rated, session.firstTry);
+    const missed = tally.missed.map((key) => {
+      const c = cardOf(key);
+      return { key, word: c?.word ?? key, meaning: c ? meaningLine(c.senses, 40) : "" };
     });
-    const stats: SessionStats = { kind: "learn", total: batch.cards.length, firstTry, points: rankEnabled ? batch.cards.length : null, missed };
+    const stats: SessionStats = {
+      kind: "learn", total: rated.length, firstTry: tally.firstTry, points: rankEnabled ? rated.length : null, missed,
+    };
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={t("web.wordbook.summary.title")} />
-        <SessionSummary stats={stats} onHome={() => navigate("/wordbook")} onAgain={() => setRound((n) => n + 1)} {...listen} />
+        <SessionSummary stats={stats} onHome={() => navigate("/wordbook")} onAgain={again} {...listen} />
       </div>
     );
   }
 
-  if (phase === "cards" && batch) {
-    const card = batch.cards[index];
+  if (phase === "cards" && batch && current) {
     const last = index + 1 >= batch.cards.length;
+    const spot = rated.find((w) => w.key === current.key)?.spotCheck ?? false;
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={t("web.wordbook.learn.title")} />
         <div className="px-gutter pb-4">
           <StepBar done={index} total={batch.cards.length} />
-          <WordCardView key={card.key} card={card} {...listen}
+          <WordCardView key={current.key} card={current} {...listen} covered={!card.revealed} onReveal={reveal} regionRef={regionRef}
+            showExample={showExample} badge={card.rating ? <RatingBadge rating={card.rating} check={spot} /> : null}
             eyebrow={t("web.wordbook.learn.eyebrow", { n: index + 1, total: batch.cards.length, book: book ? bookTitle(book, i18n.language) : "" })} />
+          <p role="status" aria-live="polite" className="sr-only">{status}</p>
           {actionError ? <p role="alert" className="mt-3 text-sub text-ink">{actionError}</p> : null}
         </div>
-        <div className={DOCK}>
-          <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={busy} onClick={() => void markKnown()}>{t("web.wordbook.learn.known")}</button>
-          <button type="button" className={cn(PRIMARY, "h-12 flex-1")} disabled={busy} onClick={() => nextCard()}>
-            {last ? t("web.wordbook.learn.startQuiz") : t("web.wordbook.learn.next")}
-            <ArrowRightIcon aria-hidden />
-          </button>
-        </div>
+        {card.rating ? (
+          <div className={DOCK}>
+            {card.rating === "know" ? (
+              <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={busy} onClick={() => void sendRating("unknown", true)}>
+                <RotateCcwIcon aria-hidden />{t("web.wordbook.learn.iWasWrong")}
+              </button>
+            ) : null}
+            <button ref={nextRef} type="button" className={cn(PRIMARY, "h-12 flex-1")} disabled={busy} onClick={nextCard}>
+              {last ? t("web.wordbook.learn.startQuiz") : t("web.wordbook.learn.next")}
+              <ArrowRightIcon aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <RecallRatingBar busy={busy} peeked={card.peeked} onRate={(r) => void sendRating(r)} />
+        )}
       </div>
     );
   }
 
-  // 小测
+  // 本轮小测
   const progress = progressOf(session);
   const recap = result && !result.correct && question ? cardOf(question.key) : undefined;
+  const spotSlot = slot?.qtype === "meaning" && rated.some((w) => w.key === slot.key && w.rating === "know" && w.spotCheck);
   return (
     <div className="flex flex-1 flex-col">
       <SessionHeader title={t("web.wordbook.learn.quiz")} subtitle={t("web.wordbook.session.count", { n: Math.min(progress.done + 1, progress.total), total: progress.total })} />
       <div className="px-gutter pb-4">
         <StepBar done={progress.done} total={progress.total} />
-        {question ? (
-          <ChoiceQuestion key={`${question.key}:${session.requeued[question.key] ?? 0}`} question={question} result={result} busy={busy}
+        {spotSlot ? <SpotBar title={t("web.wordbook.learn.spotEyebrow")} hint={t("web.wordbook.learn.spotHint")} /> : null}
+        {slot?.qtype === "word" ? <p className="eyebrow mb-2 px-1">{t("web.wordbook.learn.drillEyebrow")}</p> : null}
+        {question && slot ? (
+          <ChoiceQuestion key={`${slot.id}:${session.requeued[slot.id] ?? 0}`} question={question} result={result} busy={busy}
             onAnswer={(c) => void choose(c)} {...listen} />
         ) : null}
         <p role="status" aria-live="polite" className={cn("mt-3 flex items-center gap-1.5 text-sub font-semibold", result?.correct ? "text-green" : "text-ink-2")}>

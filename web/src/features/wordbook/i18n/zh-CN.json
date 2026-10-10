@@ -94,7 +94,6 @@
       "learn": {
         "title": "学新词",
         "eyebrow": "新词 {{n}} / {{total}} · {{book}}",
-        "known": "我认识",
         "next": "下一个",
         "startQuiz": "开始小测",
         "quiz": "小测",

@@ -94,7 +94,6 @@
       "learn": {
         "title": "New words",
         "eyebrow": "New word {{n}} / {{total}} · {{book}}",
-        "known": "I know it",
         "next": "Next",
         "startQuiz": "Start quiz",
         "quiz": "Quick quiz",
