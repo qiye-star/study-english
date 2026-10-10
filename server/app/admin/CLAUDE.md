@@ -28,7 +28,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   and import/revert), `revert`, export/import; the six `managed_by="rank_rules"` keys are read-only (409
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
-  `missing_prices` from `usage.missing_prices` and `invite_without_codes`)
+  `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
   `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
   Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`
@@ -48,6 +48,11 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
 - `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
   `routers/admin_rooms.py`
+- `wordbook_admin.py` – word books (spec 2026-10-10-wordbook §9): `overview` (enabled books: file bytes + sha256 vs
+  `SOURCE.json`, cached by size/mtime; index state; learners / 7-day / learned / mastered / open reports; AI calls today),
+  `reload` (`wordbook.reload`), `reports` (open reports grouped per sentence, text read from the dictionary),
+  `resolve` hide/dismiss (`wordbook.sentence.hide` / `wordbook.report.dismiss`; hide refreshes the live hidden set).
+  Never returns user input, explanation bodies or absolute paths
 - `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
@@ -59,7 +64,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
 ## Allowed dependencies
-`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`.
+`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`, `app.wordbook`.
 Only `app/routers/` and `app/main.py` may import `app.admin` (enforced by `tests/test_architecture.py`).
 Never import routers from here (room runtime lives in `routers/admin_rooms.py` via `app.routers.rooms.runtime`).
 

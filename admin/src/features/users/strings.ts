@@ -73,6 +73,7 @@ export const S = {
       rooms_max_owned: "拥有房间上限",
       rooms_voice_quota_mb: "联机语音每日上传(MB)",
       rooms_voice_daily_per_user: "每日联机语音条数",
+      wordbook_ai_daily_per_user: "每人每日 AI 讲解次数",
     } as Record<string, string>,
   },
   list: {

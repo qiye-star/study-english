@@ -12,6 +12,7 @@ import { SecurityPage } from "./features/security";
 import { SettingsPage } from "./features/settings";
 import { UsagePage } from "./features/usage";
 import { InvitesPage } from "./features/users";
+import { WordbookPage } from "./features/wordbook";
 import { AssessmentDetailPage } from "./pages/assessment-detail-page";
 import { AssessmentsPage } from "./pages/assessments-page";
 import { ConversationPage } from "./pages/conversation-page";
@@ -75,6 +76,7 @@ export function AppRoutes() {
           <Route path="announcements" element={<AnnouncementsPage />} />
           <Route path="data" element={<DataPage />} />
           <Route path="prompts" element={<PromptsPage />} />
+          <Route path="wordbook" element={<WordbookPage />} />
           <Route path="prompts/:key" element={<PromptDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
