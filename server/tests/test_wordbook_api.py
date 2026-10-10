@@ -11,7 +11,8 @@ async def login(app, client, tmp_path, **overrides):
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
-DISABLED_PATHS = [("GET", "/books"), ("PUT", "/enrollment"), ("GET", "/today")]  # S3–S5 各自追加自己的路径
+DISABLED_PATHS = [("GET", "/books"), ("PUT", "/enrollment"), ("GET", "/today"),  # S3–S5 各自追加自己的路径
+                  ("POST", "/learn/batch"), ("POST", "/review/batch"), ("POST", "/answers")]
 
 
 @pytest.mark.parametrize("method,path", DISABLED_PATHS)

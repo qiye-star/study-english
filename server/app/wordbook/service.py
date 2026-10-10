@@ -1,19 +1,24 @@
 """背单词编排(spec §6、§7)。路由只做校验与错误映射;这里组合 index / store / 纯模块。
 
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.models import WordbookEnrollment, iso_utc
 from app.services.usage import local_day
+from app.services.vocabulary import apply_review
 from app.wordbook import plan as planning
 from app.wordbook import store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.entry import WordCard
+from app.wordbook.grading import grade_blank, srs_grade
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import Known
+from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, pick_distractors,
+                               pick_qtype, question_rng)
 
 
 class WordbookError(Exception):
@@ -144,3 +149,135 @@ async def today_out(session: AsyncSession, ds: DictionaryStore, user_id: int, se
     return {"enrollment": enrollment_out(e), "book": book_out(book_by_id(e.book_id), available=True),
             "plan": asdict(day_plan), "progress": asdict(planning.progress_of(index.keys, known)),
             "tomorrow_due": planning.count_due_before(index.keys, known, planning.day_end(now, offset, 1))}
+
+
+# ---- 学新词、复习、作答(S3;盒子写入规则 spec §6.1 / R-W5)----
+
+LEARN_DUE = timedelta(days=1)
+KNOWN_BOX, KNOWN_DUE = 2, timedelta(days=4)
+
+
+@dataclass(frozen=True)
+class AnswerInput:
+    book_id: str
+    key: str
+    mode: str
+    qtype: str
+    choice: str | None
+    typed: str | None
+    hinted: bool
+    known: bool
+    offset: int
+
+
+def question_out(q: Question) -> dict:
+    return {"key": q.key, "qtype": q.qtype, "prompt": dict(q.prompt),
+            "options": list(q.options) if q.options is not None else None, "length": q.length}
+
+
+async def _active(session: AsyncSession, ds: DictionaryStore, user_id: int,
+                  settings: Settings) -> tuple[WordbookEnrollment, BookIndex]:
+    e = await store.active_enrollment(session, user_id)
+    if e is None:
+        fail(NO_ACTIVE)
+    book_or_fail(settings, e.book_id)
+    await ensure_hidden(session, ds)
+    return e, await index_or_fail(ds, e.book_id)
+
+
+async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype: str, rng) -> Question:
+    distractors: list[WordCard] = []
+    if qtype in CHOICE_QTYPES:
+        pool = await cards_or_fail(ds, index.book_id, candidate_keys(index, card.key, rng))
+        distractors = pick_distractors(card, list(pool.values()), qtype, rng)
+    return build_question(qtype, card, distractors, rng)
+
+
+async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
+                      offset: int, now) -> dict:
+    """下一批新词(不建行):词卡 + 每词一道 meaning 小测。cursor 只在真正建行时前进。"""
+    e, index = await _active(session, ds, user_id, settings)
+    known = await store.known_words(session, user_id)
+    left = (await _day_plan(session, user_id, e, index, known, offset, now)).new_left
+    order = planning.permutation(len(index), e.seed, e.order_mode)
+    keys, _ = planning.next_new(index.keys, order, e.cursor, known, min(size, left))
+    cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
+    quiz = [question_out(await _question(ds, index, c, "meaning", question_rng(user_id, c.key, 0))) for c in cards]
+    return {"book_id": e.book_id, "cards": [card_out(c) for c in cards], "quiz": quiz}
+
+
+async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
+                       offset: int, now, *, tts: bool) -> dict:
+    """到期词(最久过期在前)各一道题;题型由 (user_id, key, reps) 决定,同一次复习结果稳定。
+    `cards` 是列表(每张卡带 key),不是以词为键的映射。"""
+    e, index = await _active(session, ds, user_id, settings)
+    known = await store.known_words(session, user_id)
+    left = (await _day_plan(session, user_id, e, index, known, offset, now)).review_left
+    keys = planning.due_keys(index.keys, known, now, min(size, left))
+    cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
+    questions = []
+    for card in cards:
+        row = known[card.key]
+        rng = question_rng(user_id, card.key, row.reps)
+        qtype = pick_qtype(row.box, card, rng, tts=tts)
+        questions.append(question_out(await _question(ds, index, card, qtype, rng)))
+    return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c) for c in cards]}
+
+
+def _validate(p: AnswerInput) -> None:
+    if p.known:
+        if p.mode != "learn":
+            raise WordbookError(422, "Known is only for new words")
+    elif p.qtype in CHOICE_QTYPES:
+        if p.choice is None:
+            raise WordbookError(422, "Choice is required")
+    elif p.typed is None:
+        raise WordbookError(422, "Answer is required")
+
+
+async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
+                 now) -> dict:
+    """无状态判分(P-W2):只信任 (book_id, key, qtype),答案从词卡重新算。用户输入不记日志、不入库。"""
+    book_or_fail(settings, p.book_id)
+    _validate(p)
+    card = (await cards_or_fail(ds, p.book_id, [p.key])).get(p.key)
+    if card is None:
+        fail(WORD_NOT_FOUND)
+    day = local_day(now, p.offset)
+    if not await store.consume_answer(session, user_id, day):
+        fail(ANSWER_LIMIT)
+    diff = None
+    if p.known:
+        outcome, credit = "known", 100
+    elif p.qtype in CHOICE_QTYPES:
+        outcome = "correct" if check_choice(p.qtype, card, p.choice) else "wrong"
+        credit = 100 if outcome == "correct" else 0
+    else:
+        result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
+        outcome, credit = result.outcome, result.credit
+        diff = [asdict(d) for d in result.diff] or None
+    grade = "good" if outcome == "known" else srs_grade(outcome, p.hinted)
+    row = await store.known_one(session, user_id, card.key)
+    applied, item_id, kind = False, row.item_id if row else None, "practice"
+    if p.mode == "learn" and row is None:
+        box, due = (KNOWN_BOX, now + KNOWN_DUE) if p.known else (0, now + LEARN_DUE)
+        item_id = await store.create_item(session, user_id, p.book_id, card, box=box, due_at=due, now=now)
+        applied, kind = True, "learn"
+        e = await store.get_enrollment(session, user_id, p.book_id)
+        if e is not None:
+            index = await index_or_fail(ds, p.book_id)
+            known = await store.known_words(session, user_id)
+            order = planning.permutation(len(index), e.seed, e.order_mode)
+            _, cursor = planning.next_new(index.keys, order, e.cursor, known, 0)
+            await store.set_cursor(session, user_id, p.book_id, cursor)
+    elif p.mode == "review" and row is not None:
+        due = row.due_at <= now
+        if due or grade == "forgot":  # R-W5:未到期只有答错才改盒
+            applied = await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
+                                         grade=grade, now=now)
+        kind = "review" if due and applied else "practice"
+    await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
+                          qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
+    await session.commit()
+    return {"correct": outcome in ("correct", "known"), "outcome": outcome, "grade": grade, "expected": card.word,
+            "diff": diff, "item": item_out(await store.known_one(session, user_id, card.key)), "applied": applied}

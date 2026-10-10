@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
 from app.models import User, utcnow
+from app.services.vocabulary import normalize_word
 from app.wordbook import service
 from app.wordbook.index import dictionary
 
@@ -67,5 +68,59 @@ async def wordbook_today(request: Request, tz_offset_minutes: int = Query(0, ge=
                          settings: Settings = Depends(require_wordbook)):
     try:
         return await service.today_out(session, dictionary(request.app), user.id, settings, tz_offset_minutes, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+class LearnIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    size: int = Field(5, ge=1, le=10)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class ReviewIn(LearnIn):
+    size: int = Field(20, ge=1, le=20)
+
+
+class AnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(max_length=16)
+    key: str = Field(min_length=1, max_length=100)
+    mode: Literal["learn", "review"]
+    qtype: Literal["meaning", "word", "cloze", "dictation", "spell"]
+    choice: str | None = Field(None, max_length=200)
+    typed: str | None = Field(None, max_length=100)
+    hinted: bool = False
+    known: bool = False
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+@router.post("/learn/batch")
+async def wordbook_learn(payload: LearnIn, request: Request, user: User = Depends(current_user),
+                         session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.learn_batch(session, dictionary(request.app), user.id, settings, payload.size,
+                                         payload.tz_offset_minutes, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/review/batch")
+async def wordbook_review(payload: ReviewIn, request: Request, user: User = Depends(current_user),
+                          session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.review_batch(session, dictionary(request.app), user.id, settings, payload.size,
+                                          payload.tz_offset_minutes, utcnow(), tts=bool(settings.tts_model_list))
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/answers")
+async def wordbook_answer(payload: AnswerIn, request: Request, user: User = Depends(current_user),
+                          session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    p = service.AnswerInput(payload.book_id, normalize_word(payload.key), payload.mode, payload.qtype, payload.choice,
+                            payload.typed, payload.hinted, payload.known, payload.tz_offset_minutes)
+    try:
+        return await service.answer(session, dictionary(request.app), user.id, settings, p, utcnow())
     except service.WordbookError as e:
         _raise(e)
