@@ -2,8 +2,5 @@
 export { useWordbookConfig, useWordbookEnabled } from "./use-wordbook-config";
 export { WordbookCard } from "./wordbook-card";
 export { WordbookMeRow } from "./me-row";
-export { WordbookHomePage } from "./home-page";
-export { WordbookBooksPage } from "./books-page";
-export { WordbookLearnPage } from "./learn-page";
-export { WordbookReviewPage } from "./review-page";
-export { WordbookSpellPage } from "./spell/spell-page";
+// 页面按路由懒加载(lazy-pages.tsx,集成裁定 Z-h);不要在这里静态导出页面模块
+export { WordbookBooksPage, WordbookHomePage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage } from "./lazy-pages";

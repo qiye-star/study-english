@@ -61,9 +61,11 @@ describe("useWordbookEnabled", () => {
   });
 });
 
-describe("WordbookSpellPage stub", () => {
-  it("renders the placeholder until WS3 replaces it", () => {
-    renderWithProviders(<WordbookSpellPage />);
-    expect(screen.getByTestId("wordbook-spell-page")).toBeTruthy();
+describe("wordbook pages from the feature index", () => {
+  it("are code-split: a loading state first, then the page (Ruling Z-h)", async () => {
+    const mock = createFetchMock({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [] }) });
+    renderWithProviders(<WordbookSpellPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    expect(screen.getByTestId("wordbook-loading")).toBeTruthy();
+    expect(await screen.findByTestId("wordbook-spell-page")).toBeTruthy();
   });
 });
