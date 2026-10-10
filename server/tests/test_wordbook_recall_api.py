@@ -201,3 +201,71 @@ async def test_learn_batch_carries_a_word_drill_per_card(app, client, tmp_path):
     assert [q["qtype"] for q in batch["drill"]] == ["word", "word"]
     assert [q["key"] for q in batch["drill"]] == [c["key"] for c in batch["cards"]]
     assert "talk" in batch["drill"][0]["options"]
+
+
+async def test_two_fuzzy_in_a_row_count_as_unknown(app, client, tmp_path, monkeypatch):
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path)
+    await rate(client, h, "talk", "fuzzy")
+    await make_due(app, "talk")
+    second = await rate(client, h, "talk", "fuzzy", mode="review")
+    assert (second["rating"], second["grade"], second["item"]["box"]) == ("unknown", "forgot", 0)
+    third = await rate(client, h, "talk", "fuzzy", mode="review")  # 未到期;上一条已记为 unknown,不再连续
+    assert (third["rating"], third["applied"]) == ("fuzzy", False)
+
+
+async def test_review_spot_check_is_two_steps(app, client, tmp_path, monkeypatch):
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    await rate(client, h, "talk", "fuzzy")
+    await rate(client, h, "ability", "fuzzy")
+    for key in ("talk", "ability"):
+        await make_due(app, key)
+    before = len(await events(app))
+    pending = await rate(client, h, "talk", "know", mode="review")
+    assert (pending["outcome"], pending["grade"], pending["applied"], pending["spot_check"]) == (
+        "pending", None, False, True)
+    assert pending["check"]["qtype"] == "meaning" and len(pending["check"]["options"]) == 4
+    assert await meaning(app, "talk") in pending["check"]["options"]
+    assert len(await events(app)) == before and (await row(app, "talk")).reps == 0  # 不写盒、不记事件
+    passed = await rate(client, h, "talk", "know", mode="review", choice=await meaning(app, "talk"))
+    assert (passed["outcome"], passed["grade"], passed["item"]["box"]) == ("know", "good", 2)
+    assert passed["correct_option"] == await meaning(app, "talk")
+    failed = await rate(client, h, "ability", "know", mode="review", choice="x")
+    assert (failed["outcome"], failed["rating"], failed["grade"], failed["item"]["box"]) == (
+        "unknown", "unknown", "forgot", 0)
+
+
+async def test_i_was_wrong_after_a_review_lapses_without_reps(app, client, tmp_path, monkeypatch):
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path)
+    await rate(client, h, "talk", "fuzzy")
+    await make_due(app, "talk")
+    await rate(client, h, "talk", "know", mode="review")  # good → 盒 2,reps 1
+    oops = await rate(client, h, "talk", "unknown", mode="review")  # 未到期的「不认识」= apply_lapse
+    assert (oops["applied"], oops["item"]["box"]) == (True, 0)
+    talk = await row(app, "talk")
+    assert (talk.reps, talk.lapses) == (1, 1)
+    assert [e[0] for e in await events(app)] == ["learn", "review", "practice"]
+
+
+async def test_rank_points_match_the_events(app, client, tmp_path, monkeypatch):
+    """spec recall §6 / INDEX R-P2:每个新词一个 word_learned;当天抽查、小测、再评与复习抽查待答不得分;
+    到期复习写入成功(含快速回忆)才有一次 vocab_review。"""
+    from app.models import XpEvent
+    from app.rank import ledger
+    always_recall(monkeypatch)
+    h = await login(app, client, tmp_path, wordbook_spot_check_pct=100)
+    await rate(client, h, "talk", "know")                                       # know_chk → 盒 1
+    await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=await meaning(app, "talk"))  # 抽查通过
+    await rate(client, h, "talk", "unknown")                                    # 记错了:当天只降
+    await rate(client, h, "ability", "fuzzy")
+    await make_due(app, "ability")
+    assert (await rate(client, h, "ability", "know", mode="review"))["outcome"] == "pending"
+    await rate(client, h, "ability", "know", mode="review", choice=await meaning(app, "ability"))
+    async with app.state.sessionmaker() as s:
+        uid = await s.scalar(select(User.id).where(User.username == "alice"))
+        await ledger.sync(s, uid, utcnow(), 480, daily_cap=60)
+        kinds = sorted((await s.scalars(select(XpEvent.kind).where(
+            XpEvent.user_id == uid, XpEvent.kind.in_(("word_learned", "vocab_review"))))).all())
+    assert kinds == ["vocab_review", "word_learned", "word_learned"]
