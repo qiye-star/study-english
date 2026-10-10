@@ -42,11 +42,14 @@ describe("WordbookBooksPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /六级/ }));
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByText("六级 · 每日设置")).toBeTruthy();
-    const daily = within(sheet).getByRole("radiogroup", { name: "每天新词" });
-    expect(within(daily).getAllByRole("radio").map((r) => r.textContent)).toEqual(["10", "20", "30", "50"]);
+    const daily = within(sheet).getByRole("radiogroup", { name: "每日新词" });
+    expect(within(daily).getAllByRole("radio").map((r) => r.textContent)).toEqual(["10", "20", "30", "50", "自定义"]);
     expect(within(daily).getByRole("radio", { name: "20" })).toHaveAttribute("aria-checked", "true");
-    expect(within(within(sheet).getByRole("radiogroup", { name: "每天复习上限" })).getAllByRole("radio").map((r) => r.textContent)).toEqual(["50", "100", "200"]);
-    expect(within(within(sheet).getByRole("radiogroup", { name: "新词顺序" })).getByRole("radio", { name: "乱序" })).toHaveAttribute("aria-checked", "true");
+    expect(within(within(sheet).getByRole("radiogroup", { name: "每日复习上限" })).getAllByRole("radio").map((r) => r.textContent))
+      .toEqual(["50", "100", "200", "不限", "自定义"]);
+    expect(within(within(sheet).getByRole("radiogroup", { name: "顺序" })).getByRole("radio", { name: "乱序" })).toHaveAttribute("aria-checked", "true");
+    // 草稿:选书页不预览「今天」(还没开始学这本书)
+    expect(within(sheet).queryByTestId("goals-today")).toBeNull();
     await userEvent.click(within(sheet).getByRole("button", { name: "开始" }));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/wordbook$/));
     const put = mock.calls.find((c) => c.method === "PUT")!;
@@ -88,5 +91,46 @@ describe("WordbookBooksPage", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "开始" }));
     expect(await within(sheet).findByText("这本词书不存在或已停用")).toBeTruthy();
     expect(screen.getByTestId("location")).toHaveTextContent("/wordbook/books");
+  });
+
+  it("offers plans with estimates and sends unlimited reviews", async () => {
+    const mock = setup({}, NO_BOOK_TODAY);
+    await userEvent.click(await screen.findByRole("button", { name: /六级/ }));
+    const sheet = await screen.findByRole("dialog");
+    const sprint = within(sheet).getByRole("radio", { name: /冲刺/ });
+    expect(sprint).toHaveTextContent("约 80 天学完"); // 3,991 词 / 50
+    await userEvent.click(sprint);
+    expect(sprint).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(within(sheet).getByRole("button", { name: "开始" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(JSON.parse(String(mock.calls.find((c) => c.method === "PUT")!.body)))
+      .toEqual({ book_id: "cet6", daily_new: 50, review_unlimited: true, order_mode: "shuffle" });
+  });
+
+  it("keeps a custom value instead of snapping to the nearest option", async () => {
+    const mock = setup({}, { ...ENROLLED_TODAY, enrollment: { ...ENROLLMENT, daily_new: 35, review_cap: 150 } });
+    await userEvent.click(await screen.findByRole("button", { name: /六级/ }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByRole("textbox", { name: "每日新词" })).toHaveValue("35");
+    expect(within(sheet).getByRole("textbox", { name: "每日复习上限" })).toHaveValue("150");
+    await userEvent.click(within(sheet).getByRole("button", { name: "开始" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(JSON.parse(String(mock.calls.find((c) => c.method === "PUT")!.body)))
+      .toEqual({ book_id: "cet6", daily_new: 35, review_cap: 150, order_mode: "shuffle" });
+  });
+
+  it("prefills an unlimited enrollment and respects the admin's limits", async () => {
+    const mock = setup({
+      "GET /api/wordbook/config": () => json({ ...CONFIG, limits: { daily_new: { min: 1, max: 30 }, review_cap: { min: 10, max: 500 }, review_unlimited: true, bonus_max: 50 } }),
+    }, { ...ENROLLED_TODAY, enrollment: { ...ENROLLMENT, review_cap: 0, review_unlimited: true } });
+    await userEvent.click(await screen.findByRole("button", { name: /六级/ }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(within(sheet).getByRole("radiogroup", { name: "每日复习上限" })).getByRole("radio", { name: "不限" }))
+      .toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(within(sheet).getByRole("radio", { name: /冲刺/ })).toBeDisabled());
+    await userEvent.click(within(sheet).getByRole("button", { name: "开始" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(JSON.parse(String(mock.calls.find((c) => c.method === "PUT")!.body)))
+      .toEqual({ book_id: "cet6", daily_new: 20, review_unlimited: true, order_mode: "shuffle" });
   });
 });
