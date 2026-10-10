@@ -1,13 +1,16 @@
 """对话用到今日词(spec 2026-10-11-learning-links §6.5;计划 L5)。"""
+import asyncio
 from datetime import datetime, timedelta, timezone
 
+import httpx
 import pytest
+import respx
 from sqlalchemy import func, select
 
-from app.core import rank_sources
+from app.core import metering, rank_sources
 from app.core.learning_events import MessageSent
 from app.links import chat_words
-from app.links.chat_words import matches
+from app.links.chat_words import matches, parse_judge, render_judge
 from app.models import LinkCredit, LinkWordUse, WordbookEvent
 from tests.links_helpers import check_contract, drain, enable_links, user_id_of
 
@@ -177,3 +180,150 @@ async def test_relearned_words_are_not_todays_words(app, client):
 def test_install_registers_the_rank_source(app):
     assert rank_sources.get("word_in_chat") == chat_words.SOURCE
     assert chat_words.SPEC.key == "chat_words" and chat_words.SPEC.router is chat_words.router
+
+
+# ---- L5-2:可选的大模型用法检查(默认关、限额、402 降级)----
+LLM_URL = "https://llm.test/v1/chat/completions"
+
+
+def ok_reply(content):
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}],
+                                     "usage": {"prompt_tokens": 5, "completion_tokens": 3}})
+
+
+def extra(app):
+    return app.state.learning_bus.stats()["chat_words"]["extra"]
+
+
+def test_parse_judge_is_strict_and_falls_back_to_all():
+    assert parse_judge('{"ok": ["talk"]}', ["talk", "carry"]) == {"talk"}
+    assert parse_judge('{"ok": ["zebra"]}', ["talk"]) == set()
+    assert parse_judge("not json", ["talk"]) == {"talk"}
+    assert parse_judge('{"ok": "talk"}', ["talk"]) == {"talk"}
+    assert parse_judge('{"ok": [1]}', ["talk"]) == {"talk"}
+    assert parse_judge('```json\n{"ok": []}\n```', ["talk"]) == set()
+
+
+def test_render_judge_wraps_and_truncates_the_learner_text():
+    messages = render_judge("<b>hi</b> " + "x" * 1000, ["talk", "carry"])
+    assert [m["role"] for m in messages] == ["system", "user"]
+    user = messages[1]["content"]
+    assert "talk, carry" in user and user.count("<learner>") == 1 and "<b>" not in user
+    assert len(user) < 760
+
+
+async def test_llm_is_off_by_default_and_never_called(app, client):
+    uid, _ = await login(app, client)
+    await learned(app, uid, "talk")
+    with respx.mock(assert_all_called=False) as mock:
+        route = mock.post(LLM_URL).mock(return_value=ok_reply('{"ok": []}'))
+        await chat_words.handle(app, msg(uid, "I talked"))
+        await app.state.links_judge.join()
+    assert route.call_count == 0 and (await counts(app, uid))[1]
+    assert "llm_calls" not in extra(app)
+
+
+@respx.mock
+async def test_llm_judge_credits_only_approved_words(app, client):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    ids = await learned(app, uid, "talk", "carry")
+    route = respx.post(LLM_URL).mock(return_value=ok_reply('{"ok": ["talk"]}'))
+    await chat_words.handle(app, msg(uid, "I talked and carried it."))
+    await app.state.links_judge.join()
+    uses, credits = await counts(app, uid)
+    assert uses == ["carry", "talk"] and credits == [f"wic:{ids['talk']}"]
+    assert extra(app)["llm_calls"] == 1 and extra(app)["llm_rejected"] == 1
+    assert route.call_count == 1
+    assert "I talked and carried it." in route.calls[0].request.content.decode()
+    records = [(r.feature, r.user_id) for r in metering.METER.drain() if r.kind == "llm"]
+    assert records[-1:] == [("links", uid)]
+
+
+@respx.mock
+async def test_out_of_balance_402_degrades_to_deterministic_credits(app, client, caplog):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk")
+    respx.post(LLM_URL).mock(return_value=httpx.Response(402, json={"error": "balance"}))
+    with caplog.at_level("INFO", logger="app"):
+        await chat_words.handle(app, msg(uid, "My private sentence: I talked"))
+        await app.state.links_judge.join()
+    assert (await counts(app, uid))[1]  # credited anyway
+    assert extra(app)["llm_degraded"] == 1
+    assert "private" not in caplog.text and "talk" not in caplog.text
+
+
+@respx.mock
+async def test_an_upstream_failure_backs_off_without_calling_again(app, client):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk", "carry")
+    route = respx.post(LLM_URL).mock(return_value=httpx.Response(402, json={"error": "balance"}))
+    await chat_words.handle(app, msg(uid, "I talked"))
+    await app.state.links_judge.join()
+    await chat_words.handle(app, msg(uid, "I carried it", 1, "m2"))
+    await app.state.links_judge.join()
+    assert route.call_count == 1
+    assert len((await counts(app, uid))[1]) == 2 and extra(app)["llm_degraded"] == 2
+
+
+@respx.mock
+async def test_unparsable_replies_degrade_to_all_words(app, client):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk")
+    respx.post(LLM_URL).mock(return_value=ok_reply("Sure! talk is fine."))
+    await chat_words.handle(app, msg(uid, "I talked"))
+    await app.state.links_judge.join()
+    assert (await counts(app, uid))[1] and extra(app)["llm_degraded"] == 1
+
+
+async def test_global_daily_cap_and_full_queue_degrade_without_calling_upstream(app, client, monkeypatch):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True, link_chat_words_llm_global_daily=0)
+    await learned(app, uid, "talk")
+    called = []
+    monkeypatch.setattr("app.providers.llm.complete", lambda *a, **k: called.append(1))
+    await chat_words.handle(app, msg(uid, "talked"))
+    await app.state.links_judge.join()
+    assert called == [] and (await counts(app, uid))[1]
+    assert extra(app)["llm_degraded"] == 1
+
+
+async def test_a_full_pending_queue_credits_deterministically(app, client, monkeypatch):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk")
+    monkeypatch.setattr(chat_words, "JUDGE_PENDING_MAX", 0)
+    called = []
+    monkeypatch.setattr("app.providers.llm.complete", lambda *a, **k: called.append(1))
+    await chat_words.handle(app, msg(uid, "talked"))
+    assert called == [] and (await counts(app, uid))[1]
+    assert extra(app)["llm_overflow"] == 1 and extra(app)["llm_degraded"] == 1
+
+
+async def test_a_slow_upstream_times_out_and_degrades(app, client, monkeypatch):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk")
+    never = asyncio.Event()
+
+    async def slow(*a, **k):
+        await never.wait()
+
+    monkeypatch.setattr("app.providers.llm.complete", slow)
+    monkeypatch.setattr(chat_words, "JUDGE_TIMEOUT", 0.05)
+    await chat_words.handle(app, msg(uid, "talked"))
+    await app.state.links_judge.join()
+    assert (await counts(app, uid))[1] and extra(app)["llm_degraded"] == 1
+
+
+async def test_the_judge_never_waits_inside_the_bus_handler(app, client, monkeypatch):
+    uid, _ = await login(app, client, link_chat_words_llm_enabled=True)
+    await learned(app, uid, "talk")
+    gate = asyncio.Event()
+
+    async def held(*a, **k):
+        await gate.wait()
+        return '{"ok": ["talk"]}'
+
+    monkeypatch.setattr("app.providers.llm.complete", held)
+    await chat_words.handle(app, msg(uid, "talked"))  # returns while the judge is still waiting
+    assert await counts(app, uid) == (["talk"], []) and len(app.state.links_judge.pending) == 1
+    gate.set()
+    await app.state.links_judge.join()
+    assert len((await counts(app, uid))[1]) == 1
