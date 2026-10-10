@@ -12,7 +12,9 @@ async def login(app, client, tmp_path, **overrides):
 
 
 DISABLED_PATHS = [("GET", "/books"), ("PUT", "/enrollment"), ("GET", "/today"),  # S3–S5 各自追加自己的路径
-                  ("POST", "/learn/batch"), ("POST", "/review/batch"), ("POST", "/answers")]
+                  ("POST", "/learn/batch"), ("POST", "/review/batch"), ("POST", "/answers"),
+                  ("POST", "/spell/sets"), ("POST", "/spell/submit"), ("POST", "/reports"),
+                  ("GET", "/cards/junior/talk")]
 
 
 @pytest.mark.parametrize("method,path", DISABLED_PATHS)

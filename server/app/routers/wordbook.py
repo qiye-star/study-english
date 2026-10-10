@@ -5,7 +5,7 @@ WORDBOOK_ENABLED=false 时只有 GET /config 回答 {"enabled": false},其余端
 import secrets
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,5 +122,90 @@ async def wordbook_answer(payload: AnswerIn, request: Request, user: User = Depe
                             payload.typed, payload.hinted, payload.known, payload.tz_offset_minutes)
     try:
         return await service.answer(session, dictionary(request.app), user.id, settings, p, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+SENTENCE_ID = r"^[0-9a-f]{16}$"
+
+
+class SpellSetsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: int = Field(2, ge=1, le=4)
+    size: int = Field(5, ge=3, le=6)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class SpellAnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    typed: str = Field(max_length=100)
+    hinted: bool = False
+
+
+class SpellLineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(min_length=1, max_length=100)
+    sentence_id: str = Field(pattern=SENTENCE_ID)
+    answers: list[SpellAnswerIn] = Field(min_length=1, max_length=6)
+
+
+class SpellSubmitIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(max_length=16)
+    set_id: str = Field(min_length=1, max_length=12)
+    lines: list[SpellLineIn] = Field(min_length=1, max_length=6)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class ReportIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(max_length=16)
+    key: str = Field(min_length=1, max_length=100)
+    sentence_id: str = Field(pattern=SENTENCE_ID)
+    reason: Literal["wrong", "offensive", "other"]
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+@router.post("/spell/sets")
+async def wordbook_spell_sets(payload: SpellSetsIn, request: Request, user: User = Depends(current_user),
+                              session: AsyncSession = Depends(get_session),
+                              settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.spell_sets(session, dictionary(request.app), user.id, settings, payload.count,
+                                        payload.size, payload.tz_offset_minutes, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/spell/submit")
+async def wordbook_spell_submit(payload: SpellSubmitIn, request: Request, user: User = Depends(current_user),
+                                session: AsyncSession = Depends(get_session),
+                                settings: Settings = Depends(require_wordbook)):
+    p = service.SpellInput(payload.book_id, payload.set_id, [
+        service.SpellLine(normalize_word(line.key), line.sentence_id, [(a.typed, a.hinted) for a in line.answers])
+        for line in payload.lines], payload.tz_offset_minutes)
+    try:
+        return await service.spell_submit(session, dictionary(request.app), user.id, settings, p, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.get("/cards/{book_id}/{key}")
+async def wordbook_card(request: Request, book_id: str = Path(max_length=16), key: str = Path(max_length=100),
+                        _: User = Depends(current_user), session: AsyncSession = Depends(get_session),
+                        settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.card_detail(session, dictionary(request.app), settings, book_id, normalize_word(key))
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/reports")
+async def wordbook_report(payload: ReportIn, request: Request, user: User = Depends(current_user),
+                          session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.report(session, dictionary(request.app), user.id, settings, book_id=payload.book_id,
+                                    key=normalize_word(payload.key), sentence_id=payload.sentence_id,
+                                    reason=payload.reason, offset=payload.tz_offset_minutes, now=utcnow())
     except service.WordbookError as e:
         _raise(e)

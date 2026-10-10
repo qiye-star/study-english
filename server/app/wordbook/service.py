@@ -1,20 +1,22 @@
 """背单词编排(spec §6、§7)。路由只做校验与错误映射;这里组合 index / store / 纯模块。
 
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
+import random
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.models import WordbookEnrollment, iso_utc
+from app.models import WordbookEnrollment, WordbookReport, iso_utc
 from app.services.usage import local_day
 from app.services.vocabulary import apply_review
 from app.wordbook import plan as planning
 from app.wordbook import store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
+from app.wordbook.cloze import ClozeSet, build_set, line_for
 from app.wordbook.entry import WordCard
-from app.wordbook.grading import grade_blank, srs_grade
+from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, pick_distractors,
@@ -281,3 +283,142 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     await session.commit()
     return {"correct": outcome in ("correct", "known"), "outcome": outcome, "grade": grade, "expected": card.word,
             "diff": diff, "item": item_out(await store.known_one(session, user_id, card.key)), "applied": applied}
+
+
+# ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----
+
+SPELL_PASS = 60
+SPELL_QTYPE = "spell_ctx"
+SPELL_DUE_POOL = 200
+
+
+@dataclass(frozen=True)
+class SpellLine:
+    key: str
+    sentence_id: str
+    answers: list[tuple[str, bool]]
+
+
+@dataclass(frozen=True)
+class SpellInput:
+    book_id: str
+    set_id: str
+    lines: list[SpellLine]
+    offset: int
+
+
+def set_out(s: ClozeSet) -> dict:
+    """答案不出现在响应里:空只给编号与长度。"""
+    def seg(x):
+        return {"t": "text", "v": x.v} if x.t == "text" else {"t": "blank", "i": x.i, "len": x.len}
+    return {"set_id": s.set_id, "lines": [{"key": l.key, "sentence_id": l.sentence_id,
+                                           "segments": [seg(x) for x in l.segments], "zh": l.zh} for l in s.lines]}
+
+
+async def spell_sets(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, count: int,
+                     size: int, offset: int, now, rng: random.Random | None = None) -> dict:
+    """目标词池 = 本书到期词 + 今日新学 + 盒 ≤ 3 的词;前 2×count×size 个打乱后组句;组与组之间不重复词。"""
+    e, index = await _active(session, ds, user_id, settings)
+    rng = rng or random.Random()
+    known = await store.known_words(session, user_id)
+    today = await store.today_learned_keys(session, user_id, e.book_id, local_day(now, offset))
+    due = planning.due_keys(index.keys, known, now, SPELL_DUE_POOL)
+    low = [k for k in index.keys if k in known and known[k].box <= 3]
+    ordered = [k for k in dict.fromkeys(due + today + low) if k in index]
+    head = ordered[: count * size * 2]
+    rng.shuffle(head)
+    cards = list((await cards_or_fail(ds, e.book_id, head + ordered[len(head): count * size * 3])).values())
+    sets: list[ClozeSet] = []
+    while len(sets) < count:
+        built = build_set(cards, size=size)
+        if built is None:
+            break
+        sets.append(built)
+        used = {line.key for line in built.lines}
+        cards = [c for c in cards if c.key not in used]
+    return {"book_id": e.book_id, "sets": [set_out(s) for s in sets]}
+
+
+async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: SpellInput,
+                       now) -> dict:
+    """无状态:按 (key, sentence_id) 从词卡重新定位句子与空;句子不在词卡里(数据更新/被屏蔽)或空数不对 → 422。"""
+    book_or_fail(settings, p.book_id)
+    await ensure_hidden(session, ds)
+    cards = await cards_or_fail(ds, p.book_id, [line.key for line in p.lines])
+    graded = []
+    for line in p.lines:
+        card = cards.get(line.key)
+        if card is None:
+            fail(WORD_NOT_FOUND)
+        cloze = line_for(card, line.sentence_id)
+        if cloze is None or len(cloze.expected) != len(line.answers):
+            fail(SENTENCE_CHANGED)
+        graded.append((card, cloze, line))
+    day = local_day(now, p.offset)
+    if not await store.consume_answer(session, user_id, day):
+        fail(ANSWER_LIMIT)
+    known = await store.known_words(session, user_id)
+    words, next_blank, seen = [], 0, set()
+    for card, cloze, line in graded:
+        results = [grade_blank(exp, lemma, typed, hinted=hinted)
+                   for exp, lemma, (typed, hinted) in zip(cloze.expected, cloze.lemmas, line.answers)]
+        outcome = worst(r.outcome for r in results)
+        hinted = any(h for _, h in line.answers)
+        credit = round(sum(r.credit for r in results) / len(results))
+        row, kind = known.get(card.key), "blank"
+        if row is not None and card.key not in seen:  # 同一词在一次提交里只写一次盒子
+            grade = srs_grade(outcome, hinted)
+            due = row.due_at <= now
+            applied = False
+            if due or grade == "forgot":  # R-W5
+                applied = await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
+                                             grade=grade, now=now)
+            kind = "review" if due and applied else "blank"
+        seen.add(card.key)
+        await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,
+                              item_id=row.item_id if row else None, qtype=SPELL_QTYPE, outcome=outcome,
+                              credit=credit, day=day, now=now)
+        blanks = []
+        for r in results:
+            blanks.append({"i": next_blank, "outcome": r.outcome, "credit": r.credit, "typed": r.typed,
+                           "expected": r.expected, "diff": [asdict(d) for d in r.diff]})
+            next_blank += 1
+        words.append({"key": card.key, "outcome": outcome, "credit": credit, "blanks": blanks, "card": card_out(card)})
+    set_credit = round(sum(w["credit"] for w in words) / len(words))
+    counted = set_credit >= SPELL_PASS
+    if counted:
+        await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="spell_set", word=p.set_id[:100],
+                              item_id=None, qtype=None, outcome="done", credit=set_credit, day=day, now=now)
+    await session.commit()
+    fresh = await store.known_words(session, user_id)
+    for w in words:
+        w["item"] = item_out(fresh.get(w["key"]))
+    return {"credit": set_credit, "counted": counted, "words": words}
+
+
+async def card_detail(session: AsyncSession, ds: DictionaryStore, settings: Settings, book_id: str, key: str) -> dict:
+    book_or_fail(settings, book_id)
+    await ensure_hidden(session, ds)
+    card = (await cards_or_fail(ds, book_id, [key])).get(key)
+    if card is None:
+        fail(WORD_NOT_FOUND)
+    return card_out(card)
+
+
+async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, *, book_id: str,
+                 key: str, sentence_id: str, reason: str, offset: int, now) -> dict:
+    """例句举报(每人每日 REPORTS_DAILY_MAX 条);句子必须是该词卡当前的例句。"""
+    book_or_fail(settings, book_id)
+    await ensure_hidden(session, ds)
+    card = (await cards_or_fail(ds, book_id, [key])).get(key)
+    if card is None:
+        fail(WORD_NOT_FOUND)
+    if all(e.id != sentence_id for e in card.examples):
+        fail(SENTENCE_CHANGED)
+    if not await store.consume_report(session, user_id, local_day(now, offset)):
+        fail(REPORT_LIMIT)
+    row = WordbookReport(user_id=user_id, book_id=book_id, word=key, sentence_id=sentence_id, kind="sentence",
+                         reason=reason, status="open", created_at=now)
+    session.add(row)
+    await session.commit()
+    return {"id": row.id}
