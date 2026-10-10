@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allFilled, clozeReducer, initCloze, interpretInput, SENTINEL } from "./cloze-engine";
+import { allFilled, clozeReducer, initCloze, interpretInput, MAX_BLANK, SENTINEL } from "./cloze-engine";
 
 const run = (count: number, actions: Parameters<typeof clozeReducer>[1][]) => actions.reduce(clozeReducer, initCloze(count));
 
@@ -32,6 +32,29 @@ describe("cloze engine", () => {
     expect(s.active).toBe(1);
     expect(run(1, [{ type: "focus", index: 5 }]).active).toBe(0);
     expect(run(1, [{ type: "hint", index: 3, letter: "x" }])).toEqual(initCloze(1));
+  });
+
+  it("pasting more words than blanks are left does not overwrite the last blank (review m1)", () => {
+    // on the last blank (0 blanks after it) "used to" keeps "used"
+    const last = interpretInput(SENTINEL, SENTINEL + "used to", 0);
+    expect(last).toEqual([{ type: "set", value: "used" }]);
+    expect(run(2, [{ type: "focus", index: 1 }, ...last]).values).toEqual(["", "used"]);
+    // one blank left after the active one: "a b c" fills two blanks and drops the rest
+    const two = interpretInput(SENTINEL, SENTINEL + "a b c", 1);
+    expect(run(2, two).values).toEqual(["a", "b"]);
+    // a trailing space on the last blank is harmless
+    expect(interpretInput(SENTINEL + "to", SENTINEL + "to ", 0)).toEqual([{ type: "set", value: "to" }]);
+  });
+
+  it("first-letter hint keeps what the user typed when it already starts with the letter (review m2)", () => {
+    const kept = run(1, [{ type: "set", value: "wen" }, { type: "hint", index: 0, letter: "w" }]);
+    expect(kept).toMatchObject({ values: ["wen"], hinted: [true] });
+    expect(run(1, [{ type: "set", value: "Wen" }, { type: "hint", index: 0, letter: "w" }]).values).toEqual(["Wen"]);
+    expect(run(1, [{ type: "set", value: "ent" }, { type: "hint", index: 0, letter: "w" }]).values).toEqual(["went"]);
+  });
+
+  it("caps a blank's length so a long paste cannot widen the page (review m3)", () => {
+    expect(run(1, [{ type: "set", value: "a".repeat(200) }]).values[0]).toHaveLength(MAX_BLANK);
   });
 
   it("reset starts a new set and an empty set never crashes", () => {

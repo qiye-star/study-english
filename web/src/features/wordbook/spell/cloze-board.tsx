@@ -50,6 +50,8 @@ export function ClozeBoard({
             "relative inline-block px-[3px] text-center font-semibold leading-[1.35]",
             // 滚到可见区时让出页头与底部 sticky 提交栏(~68px)+ 余量(review web M2)
             "scroll-mb-[88px] scroll-mt-16",
+            // 外层 nowrap 只为让结果徽标跟着空;空内的长输入可以折行,不撑宽卡片(review m3)
+            "max-w-full whitespace-normal break-all",
             // 视觉高 ~25px,命中区上下各扩 10px ≥ 44px
             "before:absolute before:inset-x-0 before:inset-y-[-10px] before:content-['']",
             !submitted && "cursor-text",

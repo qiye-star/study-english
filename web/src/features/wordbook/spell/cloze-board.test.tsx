@@ -35,6 +35,14 @@ describe("ClozeBoard", () => {
     expect(screen.queryByText("经过一次长谈后,我们决定离婚。")).toBeNull();
   });
 
+  it("a long value may wrap inside its blank instead of widening the card (review m3)", () => {
+    render(<ClozeBoard set={SET} state={state({ values: ["x".repeat(32), "", ""] })} showLength={false} showZh={false} onFocusBlank={vi.fn()} />);
+    const blank = screen.getAllByRole("textbox")[0];
+    expect(blank.className).toMatch(/\bmax-w-full\b/);
+    expect(blank.className).toMatch(/\bbreak-all\b/);
+    expect(blank.className).toMatch(/\bwhitespace-normal\b/);
+  });
+
   it("shows letter cells only when showLength is on, and only for empty blanks", () => {
     const { rerender } = render(<ClozeBoard set={SET} state={state()} showLength={false} showZh={false} onFocusBlank={vi.fn()} />);
     expect(screen.queryAllByTestId("letter-cell")).toHaveLength(0);

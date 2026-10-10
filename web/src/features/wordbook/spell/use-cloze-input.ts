@@ -29,9 +29,10 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
   const latest = useRef({ state, onSubmit, dispatch });
   latest.current = { state, onSubmit, dispatch };
 
+  const remaining = state.values.length - 1 - state.active;
   const apply = useCallback((next: string) => {
-    for (const action of interpretInput(committed, next)) dispatch(action);
-  }, [dispatch, committed]);
+    for (const action of interpretInput(committed, next, remaining)) dispatch(action);
+  }, [dispatch, committed, remaining]);
 
   const submit = useCallback(() => {
     if (!composing.current) latest.current.onSubmit();

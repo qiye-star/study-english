@@ -123,6 +123,13 @@ describe("useClozeInput", () => {
     expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 
+  it("a two-word paste (or iOS suggestion) on the last blank keeps the first word", () => {
+    const { input } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "go2" }));
+    fireEvent.change(input, { target: { value: SENTINEL + "used to" } });
+    expect(stateOf()).toMatchObject({ values: ["", "used"], active: 1 });
+  });
+
   it("focusBlank moves the active blank and focuses the hidden input with the caret at the end", () => {
     const { input } = setup();
     fireEvent.click(screen.getByRole("button", { name: "go2" }));
