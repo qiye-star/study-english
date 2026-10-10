@@ -75,7 +75,8 @@ def line_for(card: WordCard, sentence_id: str | None = None, *, start: int = 0) 
 
 
 def set_id_for(lines: list[ClozeLine] | tuple[ClozeLine, ...]) -> str:
-    raw = "|".join(f"{line.key}:{line.sentence_id}" for line in lines)
+    """与行序无关:提交时服务端按 (key, sentence_id) 重算,用于「每组每天只计一次」(review m1)。"""
+    raw = "|".join(sorted(f"{line.key}:{line.sentence_id}" for line in lines))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 

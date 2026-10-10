@@ -14,7 +14,7 @@ from app.services.vocabulary import apply_lapse, apply_review
 from app.wordbook import plan as planning
 from app.wordbook import store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
-from app.wordbook.cloze import ClozeSet, build_set, line_for
+from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard
 from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
@@ -409,9 +409,11 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
             next_blank += 1
         words.append({"key": card.key, "outcome": outcome, "credit": credit, "blanks": blanks, "card": card_out(card)})
     set_credit = round(sum(w["credit"] for w in words) / len(words))
-    counted = set_credit >= SPELL_PASS
+    # 同一组(服务端按 (key, sentence_id) 重算的 set_id,不用客户端传的)每个本地日只计一次:「再练一遍」不再得分
+    set_id = set_id_for([cloze for _, cloze, _ in graded])
+    counted = set_credit >= SPELL_PASS and not await store.spell_set_done(session, user_id, set_id, day)
     if counted:
-        await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="spell_set", word=p.set_id[:100],
+        await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="spell_set", word=set_id,
                               item_id=None, qtype=None, outcome="done", credit=set_credit, day=day, now=now)
     await session.commit()
     fresh = await store.known_words(session, user_id)

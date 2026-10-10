@@ -97,6 +97,24 @@ async def test_spell_submit_counts_a_passing_set(app, client, tmp_path):
         assert (await sess.scalars(select(WordbookEvent.kind).where(WordbookEvent.kind == "spell_set"))).all() == ["spell_set"]
 
 
+async def test_resubmitting_a_set_counts_it_once_per_day(app, client, tmp_path):
+    """Review server m1 / web M4: 再练一遍 re-sends the same lines; the server keys the set on its own
+    (key, sentence_id) list, not the client's set_id, and counts it once per local day."""
+    h = await ready(app, client, tmp_path)
+    s = (await client.post(f"{URL}/spell/sets", headers=h, json={"count": 1, "size": 5})).json()["sets"][0]
+    lines = [{"key": l["key"], "sentence_id": l["sentence_id"], "answers": [{"typed": l["key"], "hinted": False}]}
+             for l in s["lines"]]
+    results = []
+    for set_id in (s["set_id"], s["set_id"], "forged-id"):
+        r = await client.post(f"{URL}/spell/submit", headers=h, json={"book_id": "junior", "set_id": set_id,
+                                                                      "lines": lines, "tz_offset_minutes": 480})
+        results.append(r.json()["counted"])
+    assert results == [True, False, False]
+    async with app.state.sessionmaker() as sess:
+        rows = (await sess.scalars(select(WordbookEvent.word).where(WordbookEvent.kind == "spell_set"))).all()
+    assert rows == [s["set_id"]]
+
+
 async def test_spell_submit_rejects_changed_sentences(app, client, tmp_path):
     h = await ready(app, client, tmp_path)
     bad = {"book_id": "junior", "set_id": "x", "lines": [{"key": "talk", "sentence_id": "0" * 16,

@@ -130,6 +130,13 @@ async def ever_learned(session: AsyncSession, user_id: int, word: str) -> bool:
     return found is not None
 
 
+async def spell_set_done(session: AsyncSession, user_id: int, set_id: str, day: str) -> bool:
+    found = await session.scalar(select(WordbookEvent.id).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.kind == "spell_set", WordbookEvent.word == set_id,
+        WordbookEvent.day == day).limit(1))
+    return found is not None
+
+
 async def today_learned_keys(session: AsyncSession, user_id: int, book_id: str, day: str) -> list[str]:
     rows = await session.scalars(select(WordbookEvent.word).where(*_today(user_id, book_id, day),
                                                                   WordbookEvent.kind == "learn")
