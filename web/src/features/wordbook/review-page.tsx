@@ -32,6 +32,15 @@ type AnswerInputPart = { choice?: string; typed?: string; hinted?: boolean; rati
 /** 进入「已掌握」:第一次作答把盒子从 3 升到 4(good 且已写入)。 */
 const enteredMastered = (r: AnswerResult) => r.applied && r.grade === "good" && r.item?.box === 4;
 
+/** 快速回忆题的评级分布(按每个词第一次的结果;「记错了」已改写为不认识)。本轮没有快速回忆题时为 undefined(小结不显示评级行)。 */
+function recallRatings(results: AnswerResult[]): Record<Rating, number> | undefined {
+  const rated = results.filter((r) => r.rating);
+  if (!rated.length) return undefined;
+  const out: Record<Rating, number> = { know: 0, fuzzy: 0, unknown: 0 };
+  for (const r of rated) if (r.rating) out[r.rating] += 1;
+  return out;
+}
+
 /** TTS 未配置时听写换成看释义拼写(spec §11.4),题面从词卡补齐。 */
 function effectiveQuestion(q: Question, card: Card | undefined, tts: boolean): Question {
   if (q.qtype !== "dictation" || tts) return q;
@@ -223,6 +232,7 @@ export function WordbookReviewPage() {
     const stats: SessionStats = {
       kind: "review", total: keys.length, firstTry, mastered: keys.filter((k) => enteredMastered(first[k])).length,
       points: rankEnabled ? keys.filter((k) => first[k].applied).length : null, missed,
+      ratings: recallRatings(keys.map((k) => first[k])),
     };
     return (
       <div className="flex flex-1 flex-col">

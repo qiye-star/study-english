@@ -116,6 +116,7 @@ describe("WordbookReviewPage", () => {
     expect(summary).toHaveTextContent("复习 3");
     expect(summary).toHaveTextContent("一次答对 2");
     expect(summary).toHaveTextContent("1 个词进入「已掌握」");
+    expect(within(summary).queryByTestId("summary-ratings")).toBeNull(); // 没有快速回忆题
     expect(summary).toHaveTextContent("talk");
   });
 
@@ -324,6 +325,7 @@ describe("WordbookReviewPage · quick recall (spec recall §4)", () => {
     await user.click(await screen.findByRole("button", { name: "继续" }));
     const summary = await screen.findByTestId("session-summary");
     expect(summary).toHaveTextContent("一次答对 0");
+    expect(within(summary).getByTestId("summary-ratings").textContent).toBe("认识 0 · 模糊 0 · 不认识 1");
   });
 
   it("reads the word once when the card flips (autoplay on)", async () => {

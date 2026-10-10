@@ -7,6 +7,7 @@ import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import { NewAchievements } from "~/features/rank";
 import { PlanRing } from "./plan-ring";
+import type { Rating } from "./session-machine";
 import { DOCK, GHOST, PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
 
@@ -22,7 +23,13 @@ export interface SessionStats {
   points: number | null;
   /** 需要再看看的词 */
   missed: { key: string; word: string; meaning: string }[];
+  /** 三档自评的分布(学新词;复习里有快速回忆题时)。没有时不显示评级行 */
+  ratings?: Record<Rating, number>;
+  /** 本轮抽查数与通过数(学新词) */
+  checks?: { total: number; passed: number };
 }
+
+const SPLIT: [Rating, string][] = [["know", "bg-green"], ["fuzzy", "bg-amber"], ["unknown", "bg-ink-3"]];
 
 /**
  * 会话小结(spec §11.2,视觉稿 10):正确率环(绿)、三张统计卡(段位点只在段位开启时显示,标「估算」)、
@@ -32,6 +39,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
   stats: SessionStats; onAgain?: () => void; againLabel?: string; onHome: () => void;
 }) {
   const { t } = useTranslation();
+  const ratings = stats.ratings;
   const rate = stats.total > 0 ? Math.round((stats.firstTry / stats.total) * 100) : 0;
   const line = [
     t(`web.wordbook.summary.${stats.kind}.count`, { n: stats.total, count: stats.total }),
@@ -45,6 +53,18 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
           <PlanRing done={stats.firstTry} target={stats.total} size={96} tone="green" label={`${rate}%`} className="mx-auto" />
           <h2 className="mt-3.5 text-headline font-semibold">{t(`web.wordbook.summary.${stats.kind}.title`)}</h2>
           <p role="status" className="mt-1 text-sub text-ink-2">{line}</p>
+          {ratings ? (
+            <>
+              {/* 分布条只是装饰,数字在下面的文字里(视觉稿 08) */}
+              <div aria-hidden className="mt-3.5 flex h-2 gap-0.5 overflow-hidden rounded-[4px]">
+                {SPLIT.map(([r, tone]) => (ratings[r] > 0 ? <i key={r} className={cn("block h-full", tone)} style={{ flex: ratings[r] }} /> : null))}
+              </div>
+              <p data-testid="summary-ratings" className="mt-2 text-meta text-ink-2">
+                {t("web.wordbook.recall.summary.ratings", ratings)}
+                {stats.checks?.total ? ` · ${t("web.wordbook.recall.summary.checks", stats.checks)}` : ""}
+              </p>
+            </>
+          ) : null}
         </SurfaceCard>
         <div className={cn("mt-2 grid gap-2", stats.points === null ? "grid-cols-2" : "grid-cols-3")}>
           <StatTile tone="blue" icon={stats.kind === "learn" ? GalleryVerticalEndIcon : stats.kind === "spell" ? KeyboardIcon : RefreshCwIcon}

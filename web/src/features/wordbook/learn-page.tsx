@@ -246,6 +246,7 @@ export function WordbookLearnPage() {
     });
     const stats: SessionStats = {
       kind: "learn", total: rated.length, firstTry: tally.firstTry, points: rankEnabled ? rated.length : null, missed,
+      ratings: tally.ratings, checks: tally.checks,
     };
     return (
       <div className="flex flex-1 flex-col">

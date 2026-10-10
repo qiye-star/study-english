@@ -140,6 +140,7 @@ describe("WordbookLearnPage", () => {
     await user.click(await screen.findByRole("button", { name: "继续" }));
     const summary = await screen.findByTestId("session-summary");
     expect(within(summary).getByRole("status").textContent).toBe("学会 2 个新词 · 一次答对 2");
+    expect(within(summary).getByTestId("summary-ratings").textContent).toBe("认识 0 · 模糊 1 · 不认识 1");
     const quiz = answers(mock).filter((a) => a.qtype !== "recall");
     expect(quiz.map((a) => `${a.qtype}:${a.key}`)).toEqual(["meaning:talk", "meaning:accept", "word:accept"]);
     expect(quiz.every((a) => a.mode === "learn")).toBe(true);
@@ -197,6 +198,7 @@ describe("WordbookLearnPage", () => {
     await user.click(await screen.findByRole("button", { name: "继续" }));
     const summary = await screen.findByTestId("session-summary");
     expect(summary).toHaveTextContent("100%");
+    expect(within(summary).getByTestId("summary-ratings").textContent).toBe("认识 2 · 模糊 0 · 不认识 0 · 抽查 1 · 通过 1");
     expect(answers(mock).filter((a) => a.qtype !== "recall").map((a) => a.key)).toEqual(["accept"]);
   });
 
