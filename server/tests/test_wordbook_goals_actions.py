@@ -74,6 +74,24 @@ async def test_bonus_rules_and_daily_limit(app, client, tmp_path):
     assert (await bonus(client, h, 21)).status_code == 422  # 每次最多 20
 
 
+async def test_bonus_after_lowering_the_goal_still_gives_that_many_new_words(app, client, tmp_path):
+    """评审 Z1 R-1:今天已学 3 个后把每日新词调到 1,再加练 2 个 —— 必须真的还能学 2 个(之前 new_target = 1 + 2 = 3,
+    new_left = 0,加练白扣次数与额度)。加练记账含超出部分:credit = 2 + (3 − 1)。"""
+    h = await login(app, client, tmp_path, wordbook_bonus_max=10)
+    await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 3})
+    for key in ("talk", "ability", "able"):
+        assert (await learn(client, h, key)).status_code == 200
+    await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 1})
+    r = await bonus(client, h, 2)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert (body["plan"]["new_done"], body["plan"]["new_left"], body["plan"]["bonus"], body["bonus_left"]) == (3, 2, 4, 6)
+    for key in ("abandon", "absorb"):
+        assert (await learn(client, h, key)).status_code == 200
+    assert (await learn(client, h, "accept")).json() == {"error": "Daily new-word limit reached"}
+    assert (await bonus(client, h, 7)).json() == {"error": "Daily bonus limit reached"}  # 4 + 7 > 10
+
+
 async def test_bonus_is_refused_during_a_backlog_and_when_switched_off(app, client, tmp_path):
     h = await login(app, client, tmp_path)
     for key in ELEVEN:

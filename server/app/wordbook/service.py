@@ -731,13 +731,15 @@ async def grant_bonus(session: AsyncSession, ds: DictionaryStore, user_id: int, 
         fail(GOAL_NOT_DONE)
     if not any(k not in known for k in index.keys):
         fail(BOOK_FINISHED)
-    if plan.bonus + size > limits.bonus_max:
+    # 评审 Z1 R-1:今天已学超过目标(白天调低过每日新词)时,超出部分一起记进加练,保证加练 size 个真的能多学 size 个
+    credit = size + max(0, plan.new_done - plan.new_target)
+    if plan.bonus + credit > limits.bonus_max:
         fail(BONUS_LIMIT)
     if not await store.consume_settings(session, user_id, utc_day(now)):
         fail(SETTINGS_LIMIT)
     day = local_day(now, offset)
     event = WordbookEvent(user_id=user_id, book_id=e.book_id, kind="bonus", word="bonus", item_id=None, qtype=None,
-                          outcome="granted", credit=size, day=day, created_at=now)
+                          outcome="granted", credit=credit, day=day, created_at=now)
     session.add(event)
     await session.commit()
     if await store.bonus_today(session, user_id, e.book_id, day) > limits.bonus_max:
