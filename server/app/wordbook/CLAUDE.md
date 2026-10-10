@@ -48,5 +48,6 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   values outside the admin range are clamped on read, never rewritten. New event kinds `relearn` (counts toward
   today's new words, no rank points), `bonus` (credit = words), `goal` (one per local day), `reset`; rank reads only
   `learn`/`spell_set`. `plan.compute_plan` and web `goals-math.previewPlan` share `tests/fixtures/wordbook_plan_cases.json`.
-- Reset deletes only `vocabulary_items` with `source='wordbook:<book>'` and resets cursor/seed; the router syncs rank
-  first. Settings/pause/resume/bonus share 60/day (`wordbook_settings`), reset 2/day (`wordbook_resets`).
+- Reset deletes only `vocabulary_items` with `source='wordbook:<book>'` and resets cursor/seed; the router injects the rank
+  sync as `before_delete` so it runs only after the book, confirmation and daily-limit checks pass.
+  Settings/pause/resume/bonus share 60/day (`wordbook_settings`), reset 2/day (`wordbook_resets`).

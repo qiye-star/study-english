@@ -3151,3 +3151,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | B-8 | spec §3.3、§4.3、§11、§14 | `new_done` 口径注明 A 的自评建行同样记 learn / relearn、当天再评与小测记 practice;估算模型在 A 之后偏保守(数字不改);共享文件表按 A 合并后的形状写 | INDEX R-D1、R-G2 |
 
 与 C 的交接(Z1 要求写明的内容):本计划新增事件 kind `relearn`(计今日新词、无段位点)、`bonus`、`goal`、`reset`(都不是作答,C **不发布** `WordAnswered`);`relearn` 由作答写入,C 发布,`kind="relearn"`;C 的易错词把 `relearn` + `unknown` 视为新词(不算错);C 的「对话用今日词」只认 `learn`;C 的今日任务「背单词」行完成 = `plan.goal_met ∨ (new_left = 0 ∧ review_left = 0)`。C 需要在其后 rebase 的共享文件:`service.py`、`store.py`、`routers/wordbook.py`(C 不改)、`wordbook-api.ts`(C 不改)、`config.py` / `settings_registry.py`(C 追加在 `wordbook_data_dir` 之后与 `_ALL` 末尾)。
+
+
+---
+
+## Z1 结果(2026-10-11,集成执行者,分支 `b-lane-s`,GS 与 GW 已合并)
+
+### 集成裁定(Rulings)
+
+- **Z1-a 契约与样例表**:删除 GW2-a 的 `GOALS_RECORDED` 开关,`wordbook-contract.test.ts` 对 GS5 重录的样例逐键比对全部 goals 键(另加 `config.limits` 的 `min/max` 与 `PUT /enrollment` 响应);删除 GW1-a 的内嵌样例表,`goals-math.test.ts` 直接读 `server/tests/fixtures/wordbook_plan_cases.json`(不存在即失败)。逐条核对:12 个样例两边结果完全相同;`previewPlan` 与 `compute_plan` 公式逐行一致;网页乐观预览的输入与服务端 `_day_plan` 一致(`guardThreshold = limits.reviewCap.max`、`remaining = progress.remaining`、`bonus`)。估算公式只在网页端(G-8),它依赖的 `INTERVAL_DAYS` 与 `BACKLOG_NEW` 现在由测试直接从服务端源码读出比对。**没有发现不一致**。
+- **Z1-b 重置的段位同步顺序**:spec §8 只要求「重置前同步」,没有要求在校验之前。改为路由把同步作为 `before_delete` 注入 `service.reset_progress`,在书、选书记录、确认文本、每日次数全部通过且扣过次数之后、删除之前调用;被拒的重置不再触发同步(`test_a_rejected_reset_never_syncs_rank`)。`wordbook` 层仍不导入 `rank`。
+- **Z1-c 调低目标后加练**:今天已学超过目标时,超出部分并入本次加练的 `credit`(`size + max(0, new_done − new_target)`),加练上限按总 credit 计;保证「加练 N 个」真的能多学 N 个(评审 R-1)。`compute_plan` 与共用样例表不变。
+- **Z1-d E2E 守卫**:`upstream-guard.ts` 放行 `/bonus`、`/enrollment/{pause,resume,reset}`(只读写数据库),否则 `wordbook-goals.spec.ts` 无法通过。
+- **Z1-e 偶发失败**:`test_wordbook_learn.py::test_a_due_review_must_use_the_question_type_the_server_picked`(v1 测试)约 1/4 的运行失败:用户 id 随机,「另一种题型」可能正好是服务端也接受的无 TTS 变体。改为避开整个允许集合(连跑 20 次通过)。
+
+### 验收
+
+- 服务端 pytest 两半顺序跑,修复后连续两轮 1045 + 1886 = 2931 通过;网页 `tsc` 无错、vitest 两轮 188 文件 2472 通过、`vite build` 通过;管理端 typecheck、vitest 两轮 187 通过、build 通过;迁移无(`alembic heads` = `0012`)。一次未复现的 pytest 停顿(CPU 饱和时)记为未验证。
+- E2E:`wordbook-goals.spec.ts`、`wordbook.spec.ts`、`wordbook-recall.spec.ts` 本机(临时 SQLite uvicorn、零上游)通过;Docker E2E 栈未验证。
+- 视觉:无头 Chromium 375×812 浅色 + 深色对照 01–10 帧,一致;差异只记录(齿轮图标为应用统一的滑杆图标、叠加确认框的遮罩更浅、0 天连续格无火焰),详见 `e2e-results.md`。
+- 评审:`review-wordbook-goals.md`(未提交):major 3 条全部修复(R-1 加练、R-2 重置同步顺序、R-3 E2E 守卫),minor 10 条与 info 1 条记录。
+- 与 C 的交接:见上面 Addendum 末段(不变);另:`reset_progress` 多了关键字参数 `before_delete`,C 不改该函数。

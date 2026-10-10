@@ -56,7 +56,8 @@ Other directories import only `~/features/wordbook`.
   600000 (the server rejects it with 422): use `ratingPayload` / `clampElapsed`.
 - While covered, the meaning, examples and phrases are not in the DOM at all (no blur or opacity tricks).
 - Plan rules live in three places that must change together: server `plan.compute_plan`, `goals-math.previewPlan` and the shared
-  table `server/tests/fixtures/wordbook_plan_cases.json` (the test also embeds the plan's copy until the server file exists).
+  table `server/tests/fixtures/wordbook_plan_cases.json` (`goals-math.test.ts` reads it directly, never skips, and also checks the server's
+  `INTERVAL_DAYS` / `BACKLOG_NEW`). `wordbook-contract.test.ts` compares every goals key with no gate.
 - `review_cap` 0 means "no limit" on the wire (`reviewUnlimited: true`); forms use `reviewCap: null`. Always read limits via `limitsOf`.
 - Never nest enjoy's `AlertDialog` inside a `BottomSheet`: it bundles another `@radix-ui/react-focus-scope` copy and the two
   focus traps recurse forever. Use `goals-confirm.tsx` (same `@radix-ui/react-dialog`). Radix modals return focus only to a

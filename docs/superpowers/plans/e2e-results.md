@@ -402,3 +402,28 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | A5 | TalkBack(安卓) | 同 A4(`aria-expanded` 播报差异) | 未验证 |
 | A6 | 两平台深色模式 | 遮罩与卡片可区分;琥珀图标 / 徽标对比度 ≥ 4.5:1 | 未验证 |
 | A7 | Docker E2E 栈 | `docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait` 后 `E2E_COMPOSE_PROJECT=enjoy-e2e yarn web:e2e --project=chromium-mobile e2e/wordbook-recall.spec.ts e2e/wordbook.spec.ts` | 未验证 |
+
+
+## 背单词 v2:每日目标面板(计划 2026-10-11-wordbook-goals,GW6 + Z1)
+
+### 自动化结果
+
+| 项 | 结果 |
+|---|---|
+| `wordbook-goals.spec.ts`(chromium-mobile):在选书页选初中 → 齿轮打开「每日目标」→ 每日新词 30(面板「新词 0 / 30」,Esc 关闭后焦点回到齿轮,首页「学新词」计数 30)→ 计划卡齿轮 → 自定义 1(输入框 `inputmode="numeric"`,回车保存)→ 学 1 个(「模糊」→ 小测)→ 连续「1 天」→ 达标横幅「今天加练」→ 加练 5 → 进入学新词页 → 暂停确认 → 暂停卡 → 继续学习 → 重置确认(输入书名前按钮禁用,输入「初中」)→ 已学 0;`upstreams.unmocked` 为空 | 本机通过(2026-10-11,集成 Z1,连续 4 次,含与另两份背单词规格同跑 3 次)。**首跑失败**:`e2e/support/upstream-guard.ts` 没放行 `/bonus` 与 `/enrollment/{pause,resume,reset}`,守卫中止了加练请求;已修(`src/test/e2e-upstream-guard.test.ts` 先红后绿)。**未在 Docker E2E 栈运行** |
+| `wordbook.spec.ts`、`wordbook-recall.spec.ts`(合并 B 之后) | 本机通过(同上,3 次,无失败) |
+| 本机方式 | 临时 SQLite(便签目录)+ `alembic upgrade head`(仍是 `0012`);`REGISTRATION_MODE=invite`、随机 `INVITE_CODE`、`RATE_LIMIT_PER_MINUTE=1000`、`WORDBOOK_ENABLED=true`、`WORDBOOK_SPOT_CHECK_PCT=100`、`WEB_DIST_DIR=web/dist`,上游地址置空;uvicorn 于 8123,`E2E_BASE_URL=http://127.0.0.1:8123`、`E2E_SQLITE_PATH=<临时库>`;没有任何上游调用、没有密钥 |
+| 视觉对照(视觉稿 01–10 帧 vs 真实页面,375×812 浅色 + 深色) | 做了:浏览器窗格处于隐藏状态无法点击,改用无头 Chromium(Playwright,375×812,`locale=zh-CN`,浅色 / 深色)截真实页面(本机 SQLite 服务、种子用户学过 8 个四级词、每日新词 35)与视觉稿各帧,截图只放在便签目录。一致:01 首页(两个齿轮、连续格「—」)、02/03 面板方案卡 + 自定义步进器 + 超上限琥珀提示、04 下半部(加练禁用原因、连续达标、红色只有重置)、07 暂停确认、08 重置确认(书名前红钮淡化禁用)、09 暂停卡、10 深色面板。差异(只记录):齿轮用的是应用统一的 `Settings2Icon`(滑杆)而非齿轮;确认框叠在面板上时遮罩更浅(能看到面板);视觉稿的连续格带火焰,真实页面 0 天显示「—」不带火焰(spec §6 允许) |
+| webkit-mobile | 未运行 |
+| Docker E2E 栈 | 未验证(`docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait` 后 `yarn web:e2e --project=chromium-mobile e2e/wordbook-goals.spec.ts e2e/wordbook.spec.ts`) |
+
+### 真机设备清单(全部「未验证」,需要真机)
+
+| # | 设备 | 检查项 | 状态 |
+|---|---|---|---|
+| G1 | iPhone Safari + 主屏 PWA | 底部抽屉滑入、焦点困住、关闭后回到齿轮;VoiceOver 朗读顺序 | 未验证 |
+| G2 | iPhone Safari | 重置确认输入框弹出键盘后不遮住红色按钮 | 未验证 |
+| G3 | iOS / Android | 步进器 `inputmode="numeric"` 弹数字键盘、回车(完成)提交一次 | 未验证 |
+| G4 | 安卓 + 搜狗输入法 | 全角数字(`３５`)被接受;重置确认框拼音组字过程中按钮不提前可点 | 未验证 |
+| G5 | VoiceOver / TalkBack | 方案卡 `radiogroup` 读出天数与复习估算;「已保存」只播报一次;错误 `role="alert"` | 未验证 |
+| G6 | 两平台深色模式 | 面板、琥珀提示、红色重置的对比度 | 未验证(只在无头 Chromium 截图里看过) |
