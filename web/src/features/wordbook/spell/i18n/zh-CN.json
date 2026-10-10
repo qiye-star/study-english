@@ -2,6 +2,7 @@
   "web": {
     "wordbookSpell": {
       "title": "按句拼写",
+      "resultsTitle": "本组结果",
       "input": "第 {{n}} 空,共 {{total}} 空",
       "blank": "第 {{n}} 空,共 {{total}} 空,点按输入",
       "outcome": {
@@ -9,7 +10,60 @@
         "typo": "小笔误",
         "inflection": "词形不对",
         "wrong": "错误"
-      }
+      },
+      "hint": "首字母",
+      "listen": "听这句",
+      "showZh": "看译文",
+      "lengthShort": "字母数",
+      "showLength": "显示字母数",
+      "showLengthNote": "打开后,没填的空按字母数显示格子。只保存在本机。",
+      "settings": "拼写设置",
+      "tip": "点任意一条下划线开始输入 · 空格跳到下一个空 · 回车提交",
+      "submit": "提交",
+      "submitting": "正在判分…",
+      "score": "本组得分 {{n}}",
+      "counted": "计入练习",
+      "counts": "正确 {{correct}} · 小笔误 {{typo}} · 词形不对 {{inflection}} · 错误 {{wrong}}",
+      "why": {
+        "typo": "拼写接近,注意标出的字母",
+        "inflection": "词选对了,但词形不对:这里应为 {{expected}}",
+        "wrong": "再记一下正确拼写"
+      },
+      "yours": "你写的",
+      "notFilled": "(没填)",
+      "diffLabel": "正确拼写 {{word}}",
+      "listenWord": "朗读 {{word}}",
+      "ttsUnavailable": "朗读未配置",
+      "whyButton": "为什么?",
+      "explainTitle": "{{word}} 为什么这样拼?",
+      "aiSource": "AI 讲解 · 全站共享 · 内容仅供参考",
+      "aiUnavailable": "AI 讲解暂不可用",
+      "aiUnavailableNote": "这里只显示词典讲解(释义与错误类型)。",
+      "close": "关闭",
+      "report": "举报例句",
+      "reportTitle": "举报这条例句",
+      "reportNote": "管理员核实后会屏蔽有问题的例句。",
+      "reportReason": {
+        "wrong": "例句或译文有错",
+        "offensive": "内容不当",
+        "other": "其他问题"
+      },
+      "reported": "已举报,谢谢",
+      "empty": "先学几个新词再来拼写",
+      "emptyNote": "拼写练的是今天学过的新词和到期的词。",
+      "emptyAction": "去学新词",
+      "fromDictionary": "词典例句",
+      "setProgress": "第 {{n}} 组 / 共 {{total}} 组",
+      "setHead": "第 {{n}} 组 / 共 {{total}} 组 · {{words}} 个词",
+      "again": "再练一遍",
+      "next": "下一组",
+      "finish": "完成",
+      "summaryTitle": "本轮拼写完成",
+      "summaryBody": "拼写 {{words}} 个词 · 正确 {{correct}} 个",
+      "playAgain": "再来一轮",
+      "home": "回到首页",
+      "loading": "正在组题…",
+      "retry": "重试"
     }
   }
 }
