@@ -1,6 +1,7 @@
 // 测试共用的服务端响应样例(snake_case,与 spec §7 一致;ApiClient 会转成 camelCase)。只被 *.test.tsx 引用。
 export const CONFIG = {
   enabled: true, ai_available: false, defaults: { daily_new: 20, review_cap: 100 },
+  learn: { autoplay: true, show_example: true },
   books: [
     { id: "cet4", title_zh: "四级", title_en: "CET-4", level: 3, words: 4544, available: true },
     { id: "cet6", title_zh: "六级", title_en: "CET-6", level: 4, words: 3991, available: true },

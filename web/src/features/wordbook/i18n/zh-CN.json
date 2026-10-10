@@ -124,6 +124,9 @@
         "wrongPlain": "答错了,这个词会再出现一次",
         "continue": "继续"
       },
+      "recall": {
+        "errors": { "ratingRequired": "请选择认识、模糊或不认识" }
+      },
       "outcome": {
         "correct": "正确",
         "typo": "小笔误",

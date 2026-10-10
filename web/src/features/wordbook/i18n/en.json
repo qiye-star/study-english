@@ -124,6 +124,9 @@
         "wrongPlain": "Not quite — this word will come back once more",
         "continue": "Continue"
       },
+      "recall": {
+        "errors": { "ratingRequired": "Choose I know it, Not sure or Don't know" }
+      },
       "outcome": {
         "correct": "Correct",
         "typo": "Small typo",

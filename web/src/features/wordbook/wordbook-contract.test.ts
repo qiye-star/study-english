@@ -29,7 +29,9 @@ const BOOK: Record<keyof WordbookBook, true> = { id: true, titleZh: true, titleE
 const BOOK_PROGRESS: Record<keyof BookProgress, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, learned: true, mastered: true, enrolled: true, active: true };
 const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
 const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
-const ANSWER: Record<keyof AnswerResult, true> = { correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true };
+// Ruling (recall W1): the server fixture gains `rating` / `spot_check` / `check` only when the server lane's S6 re-records it;
+// until then these three keys are excluded here, and W7 restores the full `keyof AnswerResult`.
+const ANSWER: Record<Exclude<keyof AnswerResult, "rating" | "spotCheck" | "check">, true> = { correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true };
 const ITEM: Record<keyof ItemState, true> = { box: true, dueAt: true };
 const LINE: Record<keyof ClozeLine, true> = { key: true, sentenceId: true, segments: true, zh: true };
 const BLANK_SEGMENT: Record<keyof Extract<Segment, { t: "blank" }>, true> = { t: true, i: true, len: true, form: true };
