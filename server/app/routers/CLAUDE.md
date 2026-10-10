@@ -7,17 +7,19 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
-`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, WS /api/rooms/ws), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
+`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, WS /api/rooms/ws),
+`wordbook` (/api/wordbook/*: config, books, enrollment, today, learn/review batches, answers, spell, cards, reports, explain), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
 `announcements` (public `GET /api/announcements`: active banners + maintenance state),
 `admin_accounts` (accounts, sessions, `/me/security`, audit list/verify), `admin_settings` (settings CRUD, revisions/revert,
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
 `admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions via
-`rooms.runtime(app)`, reports), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
+`rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
+hide/dismiss via `admin/wordbook_admin.py`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
-Anything below: core, models, providers, speech, services, realtime, rank, rooms, admin, and other routers.
+Anything below: core, models, providers, speech, services, realtime, rank, rooms, wordbook, admin, and other routers.
 Nothing outside `routers/` and `main.py` may import a router (`tests/test_architecture.py`):
 logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 

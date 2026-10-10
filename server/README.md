@@ -367,6 +367,22 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **隐私**:音频只给本房成员(含已结束房间的成员);被移出的成员、非成员、被隐藏的消息得到 404。管理员在房间详情里播放语音需要 `operator` 及以上,**每次播放**都写审计 `room.audio.play`(只记房间与消息 id),只读 `room_audio/` 下的文件。日志与审计不记转写、译文、小结正文、邀请 token 或文件绝对路径。邀请 token 与房间票据同级保密:链接 `…/rooms/invite/<token>` 不要贴进公开渠道,房主可在邀请面板里重置(旧链接立即 404)。
 - **成本**:一条语音 = 发送时转写一次(全房共享,失败只有发送者能重试,最多 3 次)+ 第一次有人点「翻译」时翻译一次(全房共享);全站上限 `ROOMS_VOICE_GLOBAL_DAILY` / `ROOMS_TRANSLATE_GLOBAL_DAILY`。小结每个结束的房间最多一次 LLM 调用(失败可重试 1 次),全站 `ROOMS_SUMMARY_GLOBAL_DAILY`。用量页的 feature 为 `rooms_voice`(联机语音)与 `rooms_summary`(联机小结)。
 
+## 背单词(计划 2026-10-10)
+
+规格:[docs/superpowers/specs/2026-10-10-wordbook-design.md](../docs/superpowers/specs/2026-10-10-wordbook-design.md);迁移 `0012_wordbook`(`alembic upgrade head`)。
+
+- **开关,默认关**:`WORDBOOK_ENABLED=false` 时 `GET /api/wordbook/config` 返回 `{"enabled": false}`,其余 `/api/wordbook/*` 返回 404 `{"error":"Wordbook is disabled"}`,练习页大卡与「我的 → 学习」一行不显示;底部导航仍是 3 或 4 个标签(背单词没有自己的标签,停留在 `/wordbook/*` 时高亮「练习」)。打开后无需额外配置:选书、每日计划、学新词、五种复习题型、按句拼写都**零上游成本**(判分是确定性的,不调用 LLM)。关掉开关不删学习记录。
+- **AI「为什么」讲解**另有子开关 `WORDBOOK_AI_ENABLED`(默认关,需要 `UPSTREAM_LLM_BASE_URL`):一个词一条讲解、全站共享缓存(`wordbook_explanations`),命中缓存不调用上游也不计次;未命中先扣全站每日 `WORDBOOK_AI_GLOBAL_DAILY`(默认 200)与每人每日 `WORDBOOK_AI_DAILY_PER_USER`(默认 20,可在管理端按用户覆盖),上游失败退还。**费用**:每次一条 LLM 调用,`max_tokens` 400、温度 0.3,输入约 300–500 token(词、前几条释义、一条例句;估算)。全站最坏每天 200 次;用量页的 feature 为 `wordbook`。开关关、未配置 LLM 或上游 402/429/5xx/超时 → 503 `{"error":"AI explanation unavailable"}`,网页显示「AI 讲解暂不可用」,词典自带的讲解照常。
+- **全部变量**见 `server/.env.example`「背单词」一节(每个数字的含义都写在注释里):`WORDBOOK_ENABLED`、`WORDBOOK_AI_ENABLED`、`WORDBOOK_BOOKS`、`WORDBOOK_DAILY_NEW`、`WORDBOOK_REVIEW_CAP`、`WORDBOOK_AI_MODEL`、`WORDBOOK_AI_GLOBAL_DAILY`、`WORDBOOK_AI_DAILY_PER_USER`、`WORDBOOK_DATA_DIR`。除 `WORDBOOK_DATA_DIR`(只在启动时读)外都在设置注册表里,可在管理端「设置 → 背单词」热改(写审计)。
+- **数据**:七本书(初中、高中、四级、六级、考研、托福、SAT)来自 KyleBing/english-vocabulary 的 sentence 级 JSONL,**提交在仓库里**:`server/dictionaries/kylebing-english-vocabulary/{junior,senior,cet4,cet6,kaoyan,toefl,sat}.jsonl`(共 45,661,272 字节,固定上游提交 `c4c6c808…`,清单 `SOURCE.json` 带每个文件的字节数与 sha256;许可 `LICENSE`(BSD-3)与仓库根 `NOTICE` 随数据保留,应用内不设致谢页)。文件只读打开、运行时不修改、**不导入数据库**;服务端按书懒加载索引(只存键与行偏移,词卡按需读行 + LRU 1,024 张),七本全部加载约 7 MiB。
+- **校验与重新下载**:`cd server && uv run python scripts/wordbook_data.py verify` 逐个比对字节数与 sha256(不一致时列出文件,退出码非 0);`… download [--dest DIR]` 按清单的固定提交重新下载并校验。管理端「词书」页同样显示每本书的校验结果、索引状态、学习人数与例句举报;「重新加载词典」与「屏蔽例句」都写审计。诊断(doctor)在开关打开而书文件缺失时报 `wordbook_data_missing`。
+- **数据目录**:`WORDBOOK_DATA_DIR` 留空 = 仓库内目录;镜像里在 `/app/dictionaries/kylebing-english-vocabulary/`(`server/Dockerfile` 的 `COPY server/dictionaries /app/dictionaries`)。改用别处的目录时,该目录里必须有 `<书 id>.jsonl` 与 `SOURCE.json`。
+- **镜像体积**:词典层(`COPY server/dictionaries`)45.7 MB(未压缩,七个 JSONL + 清单 + 许可);2026-10-10 用 `docker compose -f docker-compose.example.yml build server` 构建的镜像共 415 MB,镜像内七个文件的 sha256 与 `SOURCE.json` 一致。`scripts/` 不在镜像里:校验在宿主机上跑上面的命令。仓库体积增加约 15 MiB(打包后)。
+- **学习记录**:复用 `vocabulary_items`(`source='wordbook:<书>'`,一个用户一个词一行;查词加入的词计为已学,不重复建行)与原有 6 盒间隔;词书行**不计入** `max_vocab_items`;`GET /api/vocabulary` 默认 `scope=mine`(不含词书行),`scope=all` 全部返回。新表:`wordbook_enrollments`、`wordbook_events`、`wordbook_explanations`、`wordbook_reports`、`wordbook_hidden_sentences`。
+- **固定上限**(代码常量):每人每天作答 3,000 次、举报例句 20 次(超出 429);判分无状态,只信任 `(book_id, key, qtype)` / `(key, sentence_id)`,答案从词卡重新算。
+- **段位联动**(`RANK_ENABLED`):学会新词 +1 段位点(`word_learned`)、拼写组均分 ≥ 60 +2(`spelling_set`),都计入每日上限;复习照常算 `vocab_review`;4 个新成就;含「背单词新词」阶段练习的段位规则在背单词关闭时不能发布。
+- **日志**:不记用户拼写输入、讲解正文、提示词正文与文件绝对路径,只记书 id、词长、状态码。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

@@ -22,3 +22,11 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - Grading is deterministic and stateless (P-W2); never call an LLM to grade.
 - Never log user answers, explanations or prompt bodies; log book id, word length, status codes.
 - `app.core.config.WORDBOOK_BOOK_IDS` duplicates `books.BOOK_IDS` (core cannot import this layer); `tests/test_wordbook_books.py` keeps them equal.
+- `admin/wordbook_admin.py` uses `store.wordbook_source` and `store.load_hidden`; never re-implement the `wordbook:<book>`
+  source string or the hidden-set refresh elsewhere.
+- `/answers` returns `expected` (headword) and `correct_option` (exact option text for choice questions, else null).
+  Spell blanks carry `form` (sentence surface form, e.g. go → went) for the hint and TTS only; grading never trusts it.
+- Contract fixture `tests/fixtures/wordbook_contract.json` is read by the web contract test (never skipped): re-record with
+  `CONTRACT_UPDATE=1` whenever a response shape changes.
+- Limits: answers 3,000 per user per local day (`store.ANSWERS_DAILY_MAX`), reports 20 (`REPORTS_DAILY_MAX`), card LRU 1,024
+  per process; all seven indexes ≈ 7 MiB traced.

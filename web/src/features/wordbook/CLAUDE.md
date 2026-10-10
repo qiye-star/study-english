@@ -14,7 +14,8 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
 - `spell/` – see `spell/CLAUDE.md`. `i18n/{en,zh-CN}.json`.
 
 ## Public surface
-`index.ts`: pages, `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`. Other directories import only `~/features/wordbook`.
+`index.ts`: pages (lazy, from `lazy-pages.tsx`), `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`.
+Other directories import only `~/features/wordbook`.
 
 ## Allowed dependencies
 `lib/`, `api/`, `audio/`, `components/`, `layout/`, `auth/`, `settings/`, `@renderer/*`, other features via `index.ts`
@@ -26,9 +27,15 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
 
 ## Pitfalls
 - Teal is the wordbook identity colour; blue only for primary actions and the active blank; wrong answers are neutral, never red.
-- `/answers` returns `expected` = the headword, not the correct option: `correctOptionOf` (learn-page) matches it for
-  word/cloze and rebuilds the server's `meaning_line` (`meaningLine` in word-card) for meaning questions.
+- `/answers` returns `expected` = the headword and `correctOption` = the exact correct option text (choice questions;
+  null for typed / known). `correctOptionOf` uses it verbatim; never rebuild the server's meaning line (Ruling Z-e).
 - Grading happens on the server; never grade or reveal answers client-side beyond what the response returns.
 - `wordbook-api.ts` types/signatures are shared by every lane (plan P-W4); changing them needs a plan Addendum.
 - Response keys are camelCased deeply by `ApiClient`: never rely on word-keyed maps from the server (`reviewBatch` re-keys
   `cards` by `card.key`); word text lives in values, which are never transformed.
+- Pages are code-split (`lazy-pages.tsx`, each with its own Suspense + `PageLoading`): never export a page module statically
+  from `index.ts`, or the main chunk grows again (base 1,537.8 kB; with eager pages 1,622.8 kB; lazy 1,562.2 kB).
+- `session-summary.tsx` serves learn, review and spell (`kind: "spell"`); `letter-diff.tsx` is shared with `spell/`.
+- Spell prefs use `WORDBOOK_PREFS_KEY` from `~/lib/storage` (one key; `auth/device-data.clearDeviceData()` clears it at logout).
+- The 练习 bottom tab stays highlighted on `/wordbook/*` (`layout/bottom-nav.tsx` `also`).
+- E2E: `web/e2e/wordbook.spec.ts` (zero upstream; the e2e guard lets `/api/wordbook/*` through except `/explain`).

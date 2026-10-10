@@ -344,3 +344,35 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | R11 | 审批加入:等待页、房主同意后自动进房、被拒提示 | 未验证 | 未验证 |
 | R12 | 引用回复、表情回应、正在输入/正在说话 | 未验证 | 未验证 |
 | R13 | 房间结束后的学习小结页、生词一键进词汇本 | 未验证 | 未验证 |
+
+## 背单词(计划 2026-10-10-wordbook,Task Z1)
+
+### 自动化结果
+
+| 项 | 结果 |
+|---|---|
+| `wordbook.spec.ts`(chromium-mobile):登录 → 练习页「背单词」大卡 → 「选择词书」→ 初中 → 「开始」→ 首页新词 0 / 20 → 学 5 个词(每张「下一个」,小测先选第一项,答错记下标绿的正确项再选)→ 小结「学会 5 个新词」→ 首页 5 / 20、大卡「新词还剩 15」→ 按句拼写(本次有句组:逐空输入并提交,出现 `role="status"` 得分)→ 「我的」有「背单词」行;`upstreams.unmocked` 为空 | 本机通过(chromium-mobile,2026-10-10,守卫修正后连续 3 次);**未在 Docker E2E 栈运行**(本环境不用 Docker 栈,重建/启动容器需用户要求)。webkit-mobile 未运行 |
+| 本机方式 | 临时 SQLite + `alembic upgrade head`(到 `0012`);环境变量 `REGISTRATION_MODE=invite`、随机 `INVITE_CODE`、`RATE_LIMIT_PER_MINUTE=1000`、`WORDBOOK_ENABLED=true`、`WEB_DIST_DIR=web/dist`,`UPSTREAM_LLM_BASE_URL` / `UPSTREAM_TTS_BASE_URL` 置空;没有任何上游调用、没有密钥。uvicorn 于 8123,`E2E_BASE_URL=http://127.0.0.1:8123`。服务端日志里只出现 `/api/wordbook/{config,books,enrollment,today,learn/batch,answers,spell/sets,spell/submit}`,没有 `/explain`。`docker-compose.e2e.yml` 已加 `WORDBOOK_ENABLED: "true"` |
+| 守卫修正 | 本机首跑发现 `e2e/support/upstream-guard.ts` 拦下了每页都会请求的 `GET /api/announcements`(管理端 v2 公告条,只读数据库),所有用守卫的用例都会因此失败;已放行(`src/test/e2e-upstream-guard.test.ts` 覆盖)。其他 spec 未重跑 |
+| AI 讲解(真实 LLM,`WORDBOOK_AI_ENABLED=true`)、讲解质量抽检 | 未验证(只有服务端单测:缓存、额度、402 → 503、计量) |
+| 「听这句」/ 单词朗读(真实 TTS) | 未验证(E2E 里朗读被模拟或未配置) |
+| 镜像:`docker compose -f docker-compose.example.yml build server` | 通过(2026-10-10,镜像 415 MB,词典层 45.7 MB);镜像内 `/app/dictionaries/kylebing-english-vocabulary/` 有 7 个 `.jsonl` + `SOURCE.json` + `LICENSE` + `CLAUDE.md`,7 个文件 sha256 与清单一致;`Settings().resolved_wordbook_data_dir` 指向该目录。容器未启动、未部署 |
+| 视觉对照(浅色 / 深色,375×812,与 `docs/superpowers/design/wordbook-v1/mockup.html` 并排) | 车道 WC、WS 各自做过(模拟 API);集成后的整站对照未做(属于 Z2) |
+
+### 真机设备清单(全部"未验证",需要真机)
+
+| # | 设备 / 输入法 | 检查项 | 状态 |
+|---|---|---|---|
+| W1 | iOS Safari(系统英文键盘) | 点空弹出键盘;小写(autocapitalize none);无自动纠错 / QuickType 替换;16px 输入不触发缩放 | 未验证 |
+| W2 | iOS Safari | 空格跳空;双空格不插入「. 」;空的空上退格回上一空且保留内容;完成 / 换行键提交 | 未验证 |
+| W3 | iOS Safari | 当前空滚到键盘上方;提交栏贴在键盘上沿(useAppHeight / visualViewport) | 未验证 |
+| W4 | iOS Safari + 简体拼音 | 组字预览;拼音里的空格不跳空;compositionend 顺序(Safari 在最后一次 input 之前触发) | 未验证 |
+| W5 | Android Chrome + Gboard | keyCode 229:组字时字母出现;点建议词插入「word 」后跳空;空的空上退格只回退一次(beforeinput 不可取消) | 未验证 |
+| W6 | Android Chrome + Gboard | 回车 / 完成只提交一次;跳空后程序重置值不留下 Gboard 的旧组字区 | 未验证 |
+| W7 | Android + 搜狗输入法 | 中英切换;组字拉丁字母;确认候选的回车不提交 | 未验证 |
+| W8 | 任意 | 组字中点另一个空(失焦结束组字后再移焦点) | 未验证 |
+| W9 | 读屏(VoiceOver / TalkBack) | 输入框读出「第 n 空,共 m 空」;空可激活;提交后得分只播报一次 | 未验证 |
+| W10 | iOS / Android | 学新词与复习的朗读(美音 / 英音)、听写题首次自动播放(点「开始复习」时解锁音频) | 未验证 |
+| W11 | iOS / Android | 不规则变形的首字母提示与「听这句」(go → went)用句中词形 | 未验证 |
+| W12 | Docker E2E 栈 | `docker compose -p enjoy-e2e -f docker-compose.example.yml -f docker-compose.e2e.yml up -d --build --wait` 后 `yarn web:e2e --project=chromium-mobile e2e/wordbook.spec.ts` | 未验证 |
+

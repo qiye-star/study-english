@@ -81,6 +81,17 @@
 - **联机练习 v2 未在真机验证**(iOS Safari 与 Android Chrome 各一台;结果记在 `docs/superpowers/plans/e2e-results.md`「Rooms v2」):按住说话录 10 秒并发送、上滑取消、上滑转文字;对方播放 MP3(iOS `<audio>` 播放 Blob)、语速跟随;键盘弹出时助手面板收成一行与恢复(`visualViewport`);拖动面板三档;切后台/锁屏再回来重连与补齐;二维码被另一台手机扫码打开;邀请链接从微信等应用内浏览器打开;Android 数字键盘粘贴房间号;自动转文字设置在真机上的表现。
 - **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。
 
+## 背单词(计划 2026-10-10)
+
+服务端开关 `WORDBOOK_ENABLED`(默认关,见 `server/README.md`「背单词」)。关闭时网页与原来一样:练习页没有「背单词」大卡,「我的 → 学习」没有「背单词」一行,页面加载时只多请求一次 `GET /api/wordbook/config`;直接打开 `/wordbook` 显示「背单词未开启」。
+
+- **入口与路由**(`src/features/wordbook`):练习页大卡(未选书 → 「选择词书」;已选书 → 今日计划环、待复习与新词剩余)、「我的」一行 → `/wordbook` 首页(今日计划、已掌握/已学/剩余、明天预计复习)、`/wordbook/books` 选书与每日设置、`/wordbook/learn` 学新词(5 张词卡 → 释义小测,答错回队尾 → 小结)、`/wordbook/review` 复习(释义选择、看释义选词、例句选词、听写、拼写五种题型)、`/wordbook/spell` 按句拼写。没有自己的底部标签,停留在这些页面时高亮「练习」。各页面按路由懒加载(主包只多了入口卡、「我的」一行与文案)。
+- **按句拼写**(`src/features/wordbook/spell`):3–6 句一组,只挖目标词(多词词头拆成连续空),一个隐藏输入框管理全部空(`autocomplete/autocorrect/autocapitalize/spellcheck` 关闭,16px 字号防缩放);空格跳到下一空、空的空上退格回到上一空、回车提交;默认不显示字母数(设置里可开,存在本机 `enjoy-web.wordbook.prefs`,退出登录时清除)。「首字母」提示(该空得分减半)与「听这句」使用句中的实际词形(go → went,服务端随空下发 `form`,提交前不显示)。结果分四种(正确 / 小笔误 / 词形不对 / 错误,图标 + 文字,错误用中性灰而不是红色),笔误逐字母标出差异,每个词有「为什么?」与「举报例句」。
+- **AI 讲解**:「为什么?」只在服务端 `WORDBOOK_AI_ENABLED` 打开且配置了 LLM 时请求;不可用时显示「AI 讲解暂不可用」,词典讲解照常。讲解按纯文本显示。
+- **判分全部在服务端**:网页从不自己判对错;选择题的正确项由 `/api/wordbook/answers` 的 `correct_option` 给出。
+- 契约:`src/features/wordbook/wordbook-contract.test.ts` 逐键核对 `server/tests/fixtures/wordbook_contract.json`(服务端测试对真实应用录制)。E2E:`e2e/wordbook.spec.ts`(选书 → 学 5 个词 → 小结 → 首页与大卡计数 → 按句拼写提交 → 「我的」一行;零上游:守卫只放行 `/api/wordbook/*` 的数据库路径,`/api/wordbook/explain` 不放行)。
+- **未在真机验证**(清单见 `docs/superpowers/plans/e2e-results.md`「背单词」):iOS Safari 系统键盘与简体拼音、Android Chrome + Gboard、搜狗输入法下的拼写输入(空格跳空、退格回跳、回车提交、输入法组字);读屏(VoiceOver / TalkBack);真实 TTS 的「听这句」;Docker E2E 栈上的 `wordbook.spec.ts`。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")
