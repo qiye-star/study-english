@@ -1,0 +1,16 @@
+{
+  "repo": "KyleBing/english-vocabulary",
+  "commit": "c4c6c80879ff17d7025c28fb853a4991c8e6be6a",
+  "committed_at": "2026-09-30T06:11:17Z",
+  "license": "BSD-3-Clause",
+  "level": "full_line_jsonl/sentence/正序",
+  "books": [
+    {"id": "junior", "file": "junior.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/初中.jsonl", "bytes": 4068095, "sha256": "85e9465686372bed1a322b40211dcc021433ac4f0669bd9b14a8d2e5d7d52b92", "entries": 3223, "unique": 1987},
+    {"id": "senior", "file": "senior.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/高中.jsonl", "bytes": 6428647, "sha256": "6941b02fb70b209c4f8162badeda9d439c7dae642d60385c6be4e0adf41245a8", "entries": 6008, "unique": 3743},
+    {"id": "cet4", "file": "cet4.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/四级.jsonl", "bytes": 7403986, "sha256": "e70511755f8da283ce25d37dd0662b0db35180aad0735c0767eedb37b8508e98", "entries": 7508, "unique": 4544},
+    {"id": "cet6", "file": "cet6.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/六级.jsonl", "bytes": 4340935, "sha256": "2c2f65773b7d272334efeb5ad302382b18f791c58bb238a6feb777a7c4b81f8b", "entries": 5651, "unique": 3991},
+    {"id": "kaoyan", "file": "kaoyan.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/考研.jsonl", "bytes": 8627487, "sha256": "a7160e81eb20f92a73382082fd40f2a1443f09b019a72ec4d5d88a44967d162c", "entries": 9602, "unique": 5047},
+    {"id": "toefl", "file": "toefl.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/托福.jsonl", "bytes": 9813811, "sha256": "a8bc63a7711faffd851c6b22c0ae499735f7cda2db7c5c81275a89ad51d8b8bd", "entries": 13477, "unique": 10367},
+    {"id": "sat", "file": "sat.jsonl", "upstream_path": "full_line_jsonl/sentence/正序/SAT.jsonl", "bytes": 4978311, "sha256": "19315f8bbfcd7ee67afb2db74cd1df878c0f7196eae579526baf7cbe50f7fb55", "entries": 8887, "unique": 4464}
+  ]
+}
