@@ -269,3 +269,30 @@ async def test_rank_points_match_the_events(app, client, tmp_path, monkeypatch):
         kinds = sorted((await s.scalars(select(XpEvent.kind).where(
             XpEvent.user_id == uid, XpEvent.kind.in_(("word_learned", "vocab_review"))))).all())
     assert kinds == ["vocab_review", "word_learned", "word_learned"]
+
+
+# ---- Z2 评审波(review-wordbook-recall.md)----
+
+async def test_concurrent_ratings_for_a_new_word_create_one_row_and_one_learn(app, client, tmp_path):
+    """连点 / 并发:同一个新词同时交几次自评,只建一行、只记一次 learn(否则每次多一个 word_learned 段位点)。"""
+    import asyncio
+    from sqlalchemy import func
+    h = await login(app, client, tmp_path)
+    rs = await asyncio.gather(*[ans(client, h, key="talk", mode="learn", qtype="recall", rating="know", elapsed_ms=4000)
+                                for _ in range(4)])
+    assert [r.status_code for r in rs] == [200] * 4
+    async with app.state.sessionmaker() as s:
+        rows = await s.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.word == "talk"))
+    assert rows == 1
+    assert [e[0] for e in await events(app)].count("learn") == 1
+
+
+async def test_concurrent_v1_answers_for_a_new_word_create_one_row(app, client, tmp_path):
+    import asyncio
+    from sqlalchemy import func
+    h = await login(app, client, tmp_path)
+    await asyncio.gather(*[ans(client, h, key="talk", mode="learn", qtype="meaning", choice="x") for _ in range(4)])
+    async with app.state.sessionmaker() as s:
+        rows = await s.scalar(select(func.count()).select_from(VocabularyItem).where(VocabularyItem.word == "talk"))
+    assert rows == 1
+    assert [e[0] for e in await events(app)].count("learn") == 1

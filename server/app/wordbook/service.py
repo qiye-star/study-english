@@ -1,7 +1,10 @@
 """背单词编排(spec §6、§7)。路由只做校验与错误映射;这里组合 index / store / 纯模块。
 
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
+import asyncio
 import random
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import timedelta
 
@@ -274,10 +277,36 @@ def _validate(p: AnswerInput) -> None:
         raise WordbookError(422, "Answer is required")
 
 
+_learn_locks: dict[int, list] = {}  # user_id -> [asyncio.Lock, holders + waiters]
+
+
+@asynccontextmanager
+async def _learn_lock(user_id: int) -> AsyncIterator[None]:
+    """同一用户的学新词作答串行(Z2):「读到没有这行 → 建行 → 记 learn」之间不能被同一用户的另一个请求插进来,
+    否则连点 / 并发会建出重复行、记几次 learn(每次一个 word_learned 段位点)。只在本进程内有效(部署是单 worker)。"""
+    entry = _learn_locks.setdefault(user_id, [asyncio.Lock(), 0])
+    entry[1] += 1
+    try:
+        async with entry[0]:
+            yield
+    finally:
+        entry[1] -= 1
+        if entry[1] == 0:
+            _learn_locks.pop(user_id, None)
+
+
 async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
                  now) -> dict:
     """无状态判分(P-W2):只信任 (book_id, key, qtype),答案从词卡重新算。用户输入不记日志、不入库。
-    qtype=recall 是三档自评(spec recall §5),盒子由服务端决定;其余是 v1 客观题。"""
+    qtype=recall 是三档自评(spec recall §5),盒子由服务端决定;其余是 v1 客观题。学新词模式按用户串行。"""
+    if p.mode != "learn":
+        return await _answer(session, ds, user_id, settings, p, now)
+    async with _learn_lock(user_id):
+        return await _answer(session, ds, user_id, settings, p, now)
+
+
+async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
+                  now) -> dict:
     book_or_fail(settings, p.book_id)
     _validate(p)
     if p.known:  # R-R7:v1 的「我认识」= 没偷看的「认识」,同样受抽查规则约束
