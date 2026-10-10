@@ -204,6 +204,23 @@ class Settings(BaseSettings):
     wordbook_show_example: bool = True
     wordbook_data_dir: str = ""
 
+    # 学习联动(spec 2026-10-11-learning-links §7.1);总开关关 = 与未安装联动完全相同
+    links_enabled: bool = False
+    link_word_actions_enabled: bool = True
+    link_daily_tasks_enabled: bool = True
+    link_mistakes_enabled: bool = True
+    link_pron_shadow_enabled: bool = True
+    link_chat_words_enabled: bool = True
+    link_rank_sources_enabled: bool = True
+    links_queue_max: int = Field(1000, ge=10, le=10000)
+    links_handler_timeout_ms: int = Field(2000, ge=100, le=10000)
+    links_breaker_failures: int = Field(5, ge=1, le=100)
+    links_breaker_cooldown_seconds: int = Field(60, ge=5, le=3600)
+    links_retention_days: int = Field(90, ge=7, le=365)
+    link_chat_words_daily_max: int = Field(10, ge=1, le=50)
+    link_chat_words_llm_enabled: bool = False
+    link_chat_words_llm_global_daily: int = Field(200, ge=0, le=10000)
+
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
     admin_password: str = ""

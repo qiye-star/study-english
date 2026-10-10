@@ -14,6 +14,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
     ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
+    ("links", "学习联动"),
     ("admin", "管理端"),
     ("ops", "运维与维护"), ("system", "系统(只读)"),
 )
@@ -217,6 +218,23 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("backup_keep", "ops", "int", "保留备份份数"),
     _s("backup_hour_utc", "ops", "int", "每日自动备份(UTC 小时,-1 关)"),
     _s("app_version", "ops", "str", "客户端看到的版本号"),
+    # 学习联动(设计文档 2026-10-11-learning-links §7.1)
+    _s("links_enabled", "links", "bool", "学习联动总开关", help_zh="关闭 = 与未安装联动完全相同;各联动另有开关"),
+    _s("link_word_actions_enabled", "links", "bool", "单词操作位置", help_zh="生词本按钮旁的「更多」菜单"),
+    _s("link_daily_tasks_enabled", "links", "bool", "今日任务聚合卡"),
+    _s("link_mistakes_enabled", "links", "bool", "易错词", help_zh="背单词答错的词进生词本「易错词」视图"),
+    _s("link_pron_shadow_enabled", "links", "bool", "发音弱词与跟读"),
+    _s("link_chat_words_enabled", "links", "bool", "对话用到今日词"),
+    _s("link_rank_sources_enabled", "links", "bool", "联动段位点",
+       danger="打开后联动可以给段位加点(每日最多段位规则里的 sources_daily_cap)"),
+    _s("links_queue_max", "links", "int", "事件队列上限", help_zh="满了丢弃并计数"),
+    _s("links_handler_timeout_ms", "links", "int", "单个处理器超时(毫秒)"),
+    _s("links_breaker_failures", "links", "int", "熔断连续失败次数"),
+    _s("links_breaker_cooldown_seconds", "links", "int", "熔断冷却(秒)"),
+    _s("links_retention_days", "links", "int", "联动记录保留天数"),
+    _s("link_chat_words_daily_max", "links", "int", "每人每日最多记录今日词"),
+    _s("link_chat_words_llm_enabled", "links", "bool", "今日词大模型用法检查", danger=_COST),
+    _s("link_chat_words_llm_global_daily", "links", "int", "用法检查全站每日次数", danger=_COST),
 )
 
 SPECS: dict[str, SettingSpec] = {s.key: s for s in _ALL}

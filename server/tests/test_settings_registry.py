@@ -66,3 +66,21 @@ def test_new_v2_defaults():
     s = Settings(_env_file=None)
     assert (s.maintenance_mode, s.admin_cookie_secure, s.admin_idle_minutes, s.backup_hour_utc) == ("off", True, 30, -1)
     assert Settings(_env_file=None, admin_ip_allowlist="10.0.0.0/8, 192.168.1.5").admin_ip_networks[1].num_addresses == 1
+
+
+def test_learning_links_settings():
+    s = Settings(_env_file=None)
+    assert s.links_enabled is False
+    flags = [k for k in Settings.model_fields if k.startswith("link_") and k.endswith("_enabled")]
+    assert sorted(flags) == sorted(["link_word_actions_enabled", "link_daily_tasks_enabled", "link_mistakes_enabled",
+                                    "link_pron_shadow_enabled", "link_chat_words_enabled", "link_rank_sources_enabled",
+                                    "link_chat_words_llm_enabled"])
+    assert all(getattr(s, k) is (k != "link_chat_words_llm_enabled") for k in flags)
+    links = {k for k, spec in SPECS.items() if spec.group == "links"}
+    assert links == {k for k in Settings.model_fields if k.startswith(("links_", "link_"))}
+    assert all(SPECS[k].apply == "hot" for k in links)
+    assert SPECS["link_chat_words_llm_enabled"].danger and SPECS["link_chat_words_llm_global_daily"].danger
+    assert ("links", "学习联动") in GROUPS
+    assert (s.links_queue_max, s.links_handler_timeout_ms, s.links_breaker_failures,
+            s.links_breaker_cooldown_seconds, s.links_retention_days, s.link_chat_words_daily_max,
+            s.link_chat_words_llm_global_daily) == (1000, 2000, 5, 60, 90, 10, 200)

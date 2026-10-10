@@ -106,7 +106,7 @@ def test_layering_rules_hold():
     assert violations() == []
 
 
-STDLIB_ONLY = ("core/learning_events.py",)  # neutral core modules of the learning-links spec (§4, §5.1)
+STDLIB_ONLY = ("core/learning_events.py", "core/rank_sources.py")  # neutral core modules of the learning-links spec (§4, §5.1)
 
 
 def test_neutral_core_modules_use_the_standard_library_only():

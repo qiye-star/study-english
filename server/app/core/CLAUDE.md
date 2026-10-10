@@ -33,6 +33,9 @@ Foundation layer used by every other package.
   dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent`, `LearningBus` (bounded deque,
   single consumer `run()`, per-handler timeout, circuit breaker, counters, `drain()` for tests/shutdown) and the
   contextvar `bind(bus)` (called by `current_user`) / `publish(event)` (never raises; only after `commit()`)
+- `rank_sources.py` – rank point source registry (learning-links spec §5.1; standard library only): `RankSource`,
+  `register` (idempotent for an equal source; refuses `RESERVED_KINDS`, bad kinds, points outside 0–100),
+  `registered`, `kinds`, `get`, `clear_for_tests`. Links register sources at startup; rank reads `LinkCredit`
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
