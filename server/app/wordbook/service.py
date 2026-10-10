@@ -20,7 +20,7 @@ from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
-                               pick_distractors, pick_qtype, question_rng)
+                               pick_distractors, pick_qtype, question_rng, use_recall)
 
 
 class WordbookError(Exception):
@@ -213,19 +213,22 @@ async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, 
 
 
 async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
-                       offset: int, now, *, tts: bool) -> dict:
+                       offset: int, now, *, tts: bool, recall_ok: bool = False) -> dict:
     """到期词(最久过期在前)各一道题;题型由 (user_id, key, reps) 决定,同一次复习结果稳定。
-    `cards` 是列表(每张卡带 key),不是以词为键的映射。"""
+    `cards` 是列表(每张卡带 key),不是以词为键的映射。spec recall §4.1:客户端声明 `recall_ok` 且设置开时,
+    按独立哈希把一部分题换成「快速回忆」(v1 的选题结果不变)。"""
     e, index = await _active(session, ds, user_id, settings)
     known = await store.known_words(session, user_id)
     left = (await _day_plan(session, user_id, e, index, known, offset, now)).review_left
     keys = planning.due_keys(index.keys, known, now, min(size, left))
     cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
+    recall_on = recall_ok and settings.wordbook_recall_enabled
     questions = []
     for card in cards:
         row = known[card.key]
         rng = question_rng(user_id, card.key, row.reps)
-        qtype = pick_qtype(row.box, card, rng, tts=tts)
+        qtype = "recall" if recall_on and use_recall(user_id, card.key, row.reps, row.box) else pick_qtype(
+            row.box, card, rng, tts=tts)
         questions.append(question_out(await _question(ds, index, card, qtype, rng)))
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c) for c in cards]}
 
@@ -242,10 +245,13 @@ async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str
     return False, False
 
 
-def _allowed_qtypes(user_id: int, row: Known, card: WordCard) -> set[str]:
+def _allowed_qtypes(user_id: int, row: Known, card: WordCard, *, recall_on: bool = False) -> set[str]:
     """review m2:到期复习(会改盒)的题型必须是 review_batch 按 (user_id, key, reps) 选的那个。TTS 设置可能在出题后
-    变化,两种都接受;网页没有 TTS 时把听写换成看释义拼写(spec §11.4),所以听写也接受 spell。"""
+    变化,两种都接受;网页没有 TTS 时把听写换成看释义拼写(spec §11.4),所以听写也接受 spell。
+    spec recall §4.1:快速回忆开着且这次复习选中了它时,另外接受 recall(旧客户端仍按 v1 题型作答)。"""
     allowed = {pick_qtype(row.box, card, question_rng(user_id, card.key, row.reps), tts=tts) for tts in (True, False)}
+    if recall_on and use_recall(user_id, card.key, row.reps, row.box):
+        allowed.add("recall")
     return allowed | ({"spell"} if "dictation" in allowed else set())
 
 
@@ -282,7 +288,8 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         known = await store.known_words(session, user_id)
         if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
             fail(NEW_LIMIT)
-    if p.mode == "review" and row is not None and row.due_at <= now and p.qtype not in _allowed_qtypes(user_id, row, card):
+    if (p.mode == "review" and row is not None and row.due_at <= now
+            and p.qtype not in _allowed_qtypes(user_id, row, card, recall_on=settings.wordbook_recall_enabled)):
         fail(QTYPE_MISMATCH)
     if not await store.consume_answer(session, user_id, utc_day(now)):
         fail(ANSWER_LIMIT)

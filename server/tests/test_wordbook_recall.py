@@ -70,3 +70,19 @@ def test_rerate_only_lowers():
     assert learn_rerate_target(1, "know") is None
     assert learn_rerate_target(0, "unknown") is None
     assert GRADE == {"know": "good", "fuzzy": "hard", "unknown": "forgot"}
+
+
+async def test_recall_is_never_offered_at_box_0_or_3_and_keeps_v1_picks(tmp_path):
+    from app.wordbook.index import DictionaryStore
+    from app.wordbook.quiz import RECALL_SHARE_PCT, build_question, pick_qtype, question_rng, use_recall
+    from tests.wordbook_helpers import make_data_dir
+    keys = [f"w{i}" for i in range(5000)]
+    assert not any(use_recall(7, k, 0, box) for k in keys[:500] for box in (0, 3))
+    share = sum(use_recall(7, k, 0, 1) for k in keys)
+    assert abs(share - 5000 * RECALL_SHARE_PCT / 100) <= 150, share
+    assert [use_recall(7, k, 2, 2) for k in keys[:100]] == [use_recall(7, k, 2, 2) for k in keys[:100]]
+    store = DictionaryStore(make_data_dir(tmp_path))
+    card = (await store.cards("junior", ["talk"]))["talk"]
+    q = build_question("recall", card, [], question_rng(7, "talk", 0))
+    assert (q.qtype, q.prompt, q.options, q.length) == ("recall", {"word": "talk", "us": "tɔk"}, None, None)
+    assert pick_qtype(2, card, question_rng(7, "talk", 3)) in ("word", "cloze", "dictation")  # v1 选题不变

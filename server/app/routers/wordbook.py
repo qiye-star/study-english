@@ -83,6 +83,7 @@ class LearnIn(BaseModel):
 
 class ReviewIn(LearnIn):
     size: int = Field(20, ge=1, le=20)
+    recall: bool = False  # spec recall §4.1:客户端声明能显示「快速回忆」(旧客户端不传 → 不出此题)
 
 
 class AnswerIn(BaseModel):
@@ -113,7 +114,8 @@ async def wordbook_review(payload: ReviewIn, request: Request, user: User = Depe
                           session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
     try:
         return await service.review_batch(session, dictionary(request.app), user.id, settings, payload.size,
-                                          payload.tz_offset_minutes, utcnow(), tts=bool(settings.tts_model_list))
+                                          payload.tz_offset_minutes, utcnow(), tts=bool(settings.tts_model_list),
+                                          recall_ok=payload.recall)
     except service.WordbookError as e:
         _raise(e)
 

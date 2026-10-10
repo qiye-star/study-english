@@ -9,9 +9,12 @@ from app.wordbook.entry import Example, WordCard, meaning_line
 from app.wordbook.index import BookIndex
 from app.wordbook.textnorm import find_form, fold, same_lemma
 
-QType = Literal["meaning", "word", "cloze", "dictation", "spell"]
-QTYPES: tuple[QType, ...] = ("meaning", "word", "cloze", "dictation", "spell")
+QType = Literal["meaning", "word", "cloze", "dictation", "spell", "recall"]
+QTYPES: tuple[QType, ...] = ("meaning", "word", "cloze", "dictation", "spell", "recall")
 CHOICE_QTYPES: tuple[QType, ...] = ("meaning", "word", "cloze")
+# 快速回忆(spec 2026-10-11-wordbook-recall §4.1):盒 0 刚忘、盒 3 → 4 是进入「已掌握」的那一步,都要客观题
+RECALL_BOXES = frozenset({1, 2, 4, 5})
+RECALL_SHARE_PCT = 40
 BLANK = "_____"
 _SPLIT = re.compile(r"[，；、,;]")
 _NOTE = re.compile(r"\[[^\]]*\]")
@@ -58,6 +61,15 @@ def eligible_qtypes(box: int, card: WordCard, *, tts: bool = True) -> tuple[QTyp
 
 def pick_qtype(box: int, card: WordCard, rng: random.Random, *, tts: bool = True) -> QType:
     return rng.choice(eligible_qtypes(box, card, tts=tts))
+
+
+def use_recall(user_id: int, key: str, reps: int, box: int) -> bool:
+    """这次复习是否出「快速回忆」:与 pick_qtype 用不同的哈希,所以 v1 的选题结果逐项不变;
+    客户端不声明支持或设置关闭时调用方不调用它。"""
+    if box not in RECALL_BOXES:
+        return False
+    digest = hashlib.sha256(f"recall:{user_id}:{key}:{reps}".encode()).digest()
+    return int.from_bytes(digest[:4], "big") % 100 < RECALL_SHARE_PCT
 
 
 def _related(a: str, b: str) -> bool:
@@ -115,6 +127,8 @@ def pick_distractors(target: WordCard, pool: list[WordCard], qtype: QType, rng: 
 
 
 def build_question(qtype: QType, card: WordCard, distractors: list[WordCard], rng: random.Random) -> Question:
+    if qtype == "recall":  # 只给词头与音标;释义在翻面后从词卡显示
+        return Question(card.key, qtype, {"word": card.word, "us": card.us or card.uk}, None, None)
     if qtype in ("dictation", "spell"):
         prompt = {"word": card.word} if qtype == "dictation" else {"meaning": meaning_line(card, 40), "us": card.us or card.uk}
         return Question(card.key, qtype, prompt, None, len(card.word))

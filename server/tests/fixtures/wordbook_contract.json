@@ -6,6 +6,10 @@
       "daily_new": 20,
       "review_cap": 100
     },
+    "learn": {
+      "autoplay": true,
+      "show_example": true
+    },
     "books": [
       {
         "id": "junior",
@@ -23,7 +27,7 @@
     "order_mode": "book",
     "daily_new": 20,
     "review_cap": 100,
-    "started_at": "2026-10-10T11:15:16.216494+00:00"
+    "started_at": "2026-10-10T17:07:45.822089+00:00"
   },
   "books": {
     "books": [
@@ -181,10 +185,10 @@
           "us": "tɔk"
         },
         "options": [
-          "n. 孩子；儿童",
+          "v. 说话；谈话；n. 交谈",
           "v. 停止；阻止；n. 车站",
-          "n. 事故；意外",
-          "v. 说话；谈话；n. 交谈"
+          "v. 吸收；使专心",
+          "n. 孩子；儿童"
         ],
         "length": null
       },
@@ -196,10 +200,10 @@
           "us": "əˈbɪləti"
         },
         "options": [
-          "n. 星期一",
+          "n. 孩子；儿童",
+          "v. 说话；谈话；n. 交谈",
           "n. 事故；意外",
-          "n. 能力，能耐；才能",
-          "v. 停止；阻止；n. 车站"
+          "n. 能力，能耐；才能"
         ],
         "length": null
       },
@@ -211,10 +215,10 @@
           "us": "ˈebl"
         },
         "options": [
-          "adj. 小心的，仔细的",
           "adj. 能够的；有能力的",
-          "v. 接受；承认",
-          "v. 携带；搬运"
+          "n. 孩子；儿童",
+          "v. 停止；阻止；n. 车站",
+          "v. 说话；谈话；n. 交谈"
         ],
         "length": null
       },
@@ -226,10 +230,10 @@
           "us": "əˈbændən"
         },
         "options": [
-          "v. 接受；承认",
+          "v. 携带；搬运",
           "v. 去；走",
-          "v. 过去常常",
-          "v. 放弃；抛弃"
+          "v. 放弃；抛弃",
+          "v. 说话；谈话；n. 交谈"
         ],
         "length": null
       },
@@ -241,25 +245,25 @@
           "us": "əbˈsɔrb"
         },
         "options": [
+          "v. 说话；谈话；n. 交谈",
+          "v. 接受；承认",
           "v. 携带；搬运",
-          "v. 去；走",
-          "v. 吸收；使专心",
-          "v. 停止；阻止；n. 车站"
+          "v. 吸收；使专心"
         ],
         "length": null
       }
     ]
   },
   "answer_choice": {
-    "correct": false,
-    "outcome": "wrong",
-    "grade": "forgot",
+    "correct": true,
+    "outcome": "correct",
+    "grade": "good",
     "expected": "talk",
     "correct_option": "v. 说话；谈话；n. 交谈",
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-11T11:15:16.270597+00:00"
+      "due_at": "2026-10-11T17:07:45.894301+00:00"
     },
     "applied": true
   },
@@ -270,7 +274,7 @@
       "order_mode": "book",
       "daily_new": 20,
       "review_cap": 100,
-      "started_at": "2026-10-10T11:15:16.216494+00:00"
+      "started_at": "2026-10-10T17:07:45.822089+00:00"
     },
     "book": {
       "id": "junior",
@@ -302,13 +306,13 @@
     "questions": [
       {
         "key": "talk",
-        "qtype": "meaning",
+        "qtype": "word",
         "prompt": {},
         "options": [
-          "v. 停止；阻止；n. 车站",
-          "n. 事故；意外",
-          "n. 星期一",
-          "v. 说话；谈话；n. 交谈"
+          "talk",
+          "accept",
+          "carry",
+          "go"
         ],
         "length": null
       }
@@ -363,14 +367,9 @@
     "correct": false,
     "outcome": "typo",
     "grade": "hard",
-    "expected": "talk",
+    "expected": "ability",
     "correct_option": null,
     "diff": [
-      {
-        "op": "eq",
-        "a": "t",
-        "b": "t"
-      },
       {
         "op": "eq",
         "a": "a",
@@ -378,31 +377,51 @@
       },
       {
         "op": "eq",
+        "a": "b",
+        "b": "b"
+      },
+      {
+        "op": "eq",
+        "a": "i",
+        "b": "i"
+      },
+      {
+        "op": "eq",
         "a": "l",
         "b": "l"
       },
       {
-        "op": "ins",
-        "a": "",
-        "b": "k"
+        "op": "eq",
+        "a": "i",
+        "b": "i"
       },
       {
         "op": "eq",
-        "a": "k",
-        "b": "k"
+        "a": "t",
+        "b": "t"
+      },
+      {
+        "op": "ins",
+        "a": "",
+        "b": "y"
+      },
+      {
+        "op": "eq",
+        "a": "y",
+        "b": "y"
       }
     ],
     "item": {
-      "box": 0,
-      "due_at": "2026-10-10T23:15:16.349011+00:00"
+      "box": 2,
+      "due_at": "2026-10-14T17:07:45.926178+00:00"
     },
-    "applied": true
+    "applied": false
   },
   "spell_sets": {
     "book_id": "junior",
     "sets": [
       {
-        "set_id": "c5c53ca2371b",
+        "set_id": "f7bdd2940dd9",
         "lines": [
           {
             "key": "able",
@@ -537,7 +556,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T11:15:16.368105+00:00"
+          "due_at": "2026-10-11T17:07:46.062679+00:00"
         }
       },
       {
@@ -576,7 +595,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T11:15:16.368105+00:00"
+          "due_at": "2026-10-11T17:07:46.062679+00:00"
         }
       },
       {
@@ -659,7 +678,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T11:15:16.368105+00:00"
+          "due_at": "2026-10-11T17:07:46.062679+00:00"
         }
       }
     ]
