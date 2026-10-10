@@ -21,7 +21,24 @@ export function WordbookCard({ className }: { className?: string }) {
   const { t, i18n } = useTranslation();
   const config = useWordbookConfig();
   const enabled = config?.enabled === true;
-  const { today } = useWordbookToday(enabled);
+  const { today, error, reload } = useWordbookToday(enabled);
+  if (config?.enabled && !today && error) {
+    // 今日数据拉取失败:保留卡片并给一个重试,不让入口整次访问都消失(review m13)
+    return (
+      <SurfaceCard data-testid="wordbook-card" className={cn("p-3.5", className)}>
+        <div className="flex items-center gap-3.5">
+          <span aria-hidden className="flex h-tap w-tap flex-none items-center justify-center rounded-button bg-teal-tint text-teal">
+            <LibraryBigIcon className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-body font-semibold tracking-[-0.01em]">{t("web.wordbook.card.title")}</p>
+            <p role="alert" className="mt-[3px] text-meta text-ink-2">{t("web.wordbook.card.loadFailed")}</p>
+          </div>
+          <button type="button" onClick={reload} className={cn(GHOST, "h-11 flex-none px-4")}>{t("web.common.retry")}</button>
+        </div>
+      </SurfaceCard>
+    );
+  }
   if (!config?.enabled || !today) return null;
   if (!today.plan || !today.book || !today.progress) {
     return (

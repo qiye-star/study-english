@@ -1,5 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
@@ -52,6 +52,39 @@ describe("WordbookCard", () => {
     const done = { ...ENROLLED_TODAY, plan: { ...PLAN, review_left: 0, new_left: 0, new_done: 20 } };
     renderWithProviders(<WordbookCard />, { api: client({ "GET /api/wordbook/config": () => json(CONFIG), "GET /api/wordbook/today": () => json(done) }) });
     expect(await screen.findByRole("link", { name: "今日完成" })).toHaveAttribute("href", "/wordbook");
+  });
+});
+
+describe("WordbookCard after a failed /today (review m13)", () => {
+  it("stays visible with a retry instead of disappearing for the visit", async () => {
+    let calls = 0;
+    const api = client({
+      "GET /api/wordbook/config": () => json(CONFIG),
+      "GET /api/wordbook/today": () => { calls += 1; return calls === 1 ? json({ error: "boom" }, 500) : json(ENROLLED_TODAY); },
+    });
+    renderWithProviders(<WordbookCard />, { api });
+    const retry = await screen.findByRole("button", { name: "重试" });
+    expect(screen.getByTestId("wordbook-card")).toHaveTextContent("背单词");
+    retry.click();
+    expect(await screen.findByText("待复习 34 · 新词还剩 12")).toBeTruthy();
+  });
+
+  it("retries once by itself after a few seconds (the Me row has no button)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let calls = 0;
+      const api = client({
+        "GET /api/wordbook/config": () => json(CONFIG),
+        "GET /api/wordbook/today": () => { calls += 1; return calls === 1 ? json({ error: "boom" }, 503) : json(ENROLLED_TODAY); },
+      });
+      renderWithProviders(<WordbookMeRow />, { api });
+      await waitFor(() => expect(calls).toBe(1));
+      await vi.advanceTimersByTimeAsync(3_000);
+      await waitFor(() => expect(screen.getByTestId("me-wordbook")).toHaveTextContent("四级 · 已掌握 312 词"));
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

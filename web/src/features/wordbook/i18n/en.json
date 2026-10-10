@@ -20,6 +20,7 @@
         "title": "Wordbook",
         "pitch": "Pick a book — {{n}} new words a day",
         "pick": "Choose a book",
+        "loadFailed": "Couldn't load today's plan.",
         "bookDisabled": "This book was turned off — pick another",
         "review": "Review {{n}}",
         "learn": "Learn {{n}} new",
