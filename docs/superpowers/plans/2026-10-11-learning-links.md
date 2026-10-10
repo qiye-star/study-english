@@ -4887,3 +4887,23 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | C-11 | Z1 | E2E 学词改为每张卡点「模糊」;`docker-compose.e2e.yml` 保留 A 的 `WORDBOOK_SPOT_CHECK_PCT`;`LINKS_ENABLED=true` 后跑全部既有 E2E 规格 | A 改了学新词流程;总开关在 E2E 栈打开会影响其他规格的页面 |
 
 开工前提(取代 Task 0 Step 1 的「等 A、B」):F1、F3、F4、F6 只碰本计划独占文件,可在 A、B 合并前开发;F2 等 B 的 GS2;F5 等 A 的 S4 与 B 的 GS3;F7 等 A 的 W3;L2-2 等 B 的 GW2;L3-1 等 A 的 S4;L4-1 等 B 的 GS3;**合并**一律在 A、B 全部合并之后(INDEX §2)。
+
+## Addendum (2026-10-11) · Foundation lane 执行记录(F1–F7)
+
+Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,`down_revision = "0012"`)。基线:服务端 2,931 通过;网页 188 文件 / 2,472 测试;管理端 43 / 187;主包 `index-*.js` 1,576,878 B(gzip 506.54 kB)。
+
+- Ruling: F1 追加 `test_run_loop_processes_published_events_and_stops_on_cancel`(后台 `run()` 循环);`tests/test_architecture.py` 追加 `test_neutral_core_modules_use_the_standard_library_only`(`core/learning_events.py`、`core/rank_sources.py` 只用标准库,原来只写在文字里)。
+- Ruling: F2 的 15 条设置追加在 `_ALL` 最末(ops 段之后);设置测试另断言 `("links", "学习联动") in GROUPS`。
+- Ruling: F3 删除用户测试同时断言另一个用户的联动行不受影响;F4 另加 `purge()` 测试(`test_links_models.py`)。
+- Ruling: F4 `tests/links_helpers.py` 自带 `shape()`(与 `test_web_contract.shape` 相同),不导入那个测试模块(它会连带导入 rooms WebSocket 测试依赖)。另加 `require_link` 端点守卫与「PUT prefs 立即失效本进程缓存」两条测试。
+- Ruling: F5 通道 gate 由 `setup.install` 包一层:只有 registry 里的联动键走三级判断,其他订阅名(测试记录器、诊断)只受总开关约束(publish 已判断)。原因:计划的发布点测试用 `rec_WordAnswered` 之类的名字订阅,而 `LinkGate` 对未知键返回 False(`test_unknown_link_is_off`),两者不改一处必有一处失败。新增 `test_the_bus_gate_applies_the_three_levels_to_registered_links_only`。
+- Ruling: F5 `test_spell_submit_publishes_one_event_per_word` 在 `rec.seen.clear()` 之前先 `drain()`(否则用 `known: true` 学词时排队的 6 条 learn 事件会在提交拼写后才被处理、混进断言);夹具组不出拼写组时改为断言失败而不是 `skip`。另加「处理器读库能看到已提交的事件行」与「处理器抛错不影响响应」两条。
+- Ruling: F5 矩阵测试加强为逐值比较:全开与六个「只开一个」各自在全新应用上跑同一场景(选择题答错、三档自评「不认识」、对话、生词本、`/today`),去掉 id 与时间后与全关结果完全相等;全关另断言队列为空、`published` 全 0、五张联动表零行。
+- Ruling: F6 注册表多一个 `allRoutes()`,`extension-points-react` 多一个 `<LinkRoute>`;`app.tsx` 把全部路由贡献挂在 AppShell 下、由 `LinkRoute` 决定:可见 → 渲染;旗标未到(仍是 `ALL_OFF` 本身)→ 不渲染;已到但不可见 → `<Navigate to="/practice">`。原因:按计划写 `routesFor(useLinkFlags())` 时,刷新或直达 `/me/links` 会在旗标到达前被 `*` 兜底送回练习页(spec §19「升级后可直达」)。代价:总开关关时访问 `/me/links` 先空白一瞬再回练习页(原来立即回)。
+- Ruling: F6 `<WordActions>` 测试改为「插槽输出与直接渲染 `AddVocabularyButton` + 测试贡献的 DOM 完全相同」(核心贡献在测试里也已登记,原断言会撞上它)。
+- Ruling: F7 `test/setup.ts` 不在文件顶部静态导入 `~/plugins/core`,改为全局 `beforeEach` 里 `await import("~/plugins/core")`:静态导入让 vocabulary 模块在各测试文件的 `vi.mock`(sonner、`~/features/chat` 等)登记之前求值,137 个既有测试失败。架构规则对动态导入同样适用。
+- Ruling: F7 `isRegister` 正则的扩展名改为可选(`to` 已去掉扩展名,计划的正则对 `~/features/vocabulary/register` 永远不命中,`pages/x.tsx` 用例会得到 1 条而不是 2 条)。
+- Ruling: F7 `vocabulary-page.tsx` 的 `notebookViews` 插槽放在 `{items.length > 0 && (` 之前(计划锚点落在该条件的 JSX 括号里,语法不成立;而且「易错词」等虚拟视图在生词本为空时也要能出现)。
+- Ruling: F7 设置页懒加载(`lazy` + `Suspense fallback={null}`,单独 chunk 约 1.3 kB gzip);列表分组标题新键 `web.links.settings.group`;保存失败 toast 标题 `saveFailed`、描述为服务端错误翻译。每个插件桩目录与 `plugins/links/` 各有 `CLAUDE.md`(车道替换时一并更新)。
+- 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
+- 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
