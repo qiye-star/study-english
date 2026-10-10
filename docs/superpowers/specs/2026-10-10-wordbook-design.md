@@ -325,6 +325,15 @@ NOTICE                                     ← 仓库根:第三方数据声明(�
 **无状态判分**:服务端不存题目。`/answers` 用 `(book_id, key, qtype)` 重新读词卡判分;`/spell/submit` 用 `(key, sentence_id)` 重新定位句子与空(词卡里没有该句 → 422 `Sentence changed`)。客户端能看到选项,作弊空间与现状相同;段位点有每日上限。
 **防滥用**:每人每日最多 3,000 次作答(`daily_usage` 范围 `wordbook_answers`,超出 429 `Daily answer limit reached`)。不走 `limited_user`(那是 AI 限流);`/explain` 走 `limited_user`。
 
+**评审修订(2026-10-10 review,服务端为准)**:
+- 用量上限(作答、举报)按 UTC 日计,计划与事件 `day` 仍按本地日。
+- 未到期词答错走 `apply_lapse`:回盒 0、明天、`lapses+1`,**不加 `reps`、不写 `last_reviewed_at`**,所以不产生 `vocab_review`;盒 0 的未到期词不写。被每日上限削成 0 点的计上限事件不计入阶段练习。
+- `/answers` 学新词(该词还没有行):必须是当前在学的书(409 `Book is not active`),且 `new_left > 0`(429 `Daily new-word limit reached`);每个词每人只记一次 `learn` 事件(删掉后重学记 `practice`);成就「学会 100 词」按不同的词算。
+- 到期复习的 `qtype` 必须是服务端按 `(user_id, key, reps)` 选的题型(两种 TTS 设置都接受;听写也接受 `spell`),否则 422 `Question type mismatch`。
+- `/spell/submit` 按提交的 `(key, sentence_id)` 重算 set_id(与行序无关),同组同本地日只计一次 `spell_set`(重复提交 `counted=false`)。
+- 同一人对同一句已有 open 举报时返回那条的 id,不新建、不占次数。
+- `POST /api/vocabulary` 遇到背单词的行:收进生词本(改 source,保留盒子;先检查 `max_vocab_items`)。
+
 ## 8. 段位联动(`app/rank/*`)
 
 - `points.POINTS` 增加 `word_learned: 1`、`spelling_set: 2`,两者加入 `CAPPED`(与 `vocab_review` 等共享每日 60 点上限,不能靠刷词冲段)。`PointsRule` 增加同名字段,带默认值(已发布的旧规则 JSON 仍能解析)。
