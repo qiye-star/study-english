@@ -1,0 +1,18 @@
+{
+  "web": {
+    "wordbook": {
+      "title": "背单词",
+      "errors": {
+        "disabled": "背单词未开启",
+        "bookNotFound": "这本词书不存在或已停用",
+        "dataUnavailable": "词书数据暂不可用,请稍后再试",
+        "noActiveBook": "先选一本词书",
+        "answerLimit": "今天作答次数已达上限,明天再来",
+        "reportLimit": "今天举报次数已达上限",
+        "sentenceChanged": "例句已更新,请重新开始这一组",
+        "aiUnavailable": "AI 讲解暂不可用",
+        "wordNotFound": "词书里没有这个词"
+      }
+    }
+  }
+}

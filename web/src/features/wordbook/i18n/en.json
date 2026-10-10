@@ -1,0 +1,18 @@
+{
+  "web": {
+    "wordbook": {
+      "title": "Word books",
+      "errors": {
+        "disabled": "Word books are not enabled on this server.",
+        "bookNotFound": "This word book does not exist or has been turned off.",
+        "dataUnavailable": "Word book data is unavailable right now. Please try again later.",
+        "noActiveBook": "Pick a word book first.",
+        "answerLimit": "You have reached today's answer limit. Come back tomorrow.",
+        "reportLimit": "You have reached today's report limit.",
+        "sentenceChanged": "The sentences have been updated. Please restart this set.",
+        "aiUnavailable": "AI explanation is unavailable right now.",
+        "wordNotFound": "This word is not in the word book."
+      }
+    }
+  }
+}
