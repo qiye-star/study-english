@@ -12,6 +12,11 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
 - `use-today.ts` (`useWordbookToday`), `page-status.tsx` (loading / translated error + retry / note), `ui.ts` (shared button / dock classes, `bookTitle`, `fmt`), `test-fixtures.ts` (snake_case server samples for tests only).
 - `session-machine.ts` (learn/review queue), `word-card.tsx`, `choice-question.tsx`, `typing-question.tsx`, `letter-diff.tsx`, `plan-ring.tsx`, `session-summary.tsx`.
 - `spell/` – see `spell/CLAUDE.md`. `i18n/{en,zh-CN}.json`.
+- Wordbook v2 (spec `2026-10-11-wordbook-recall-design.md`): `recall-cover.tsx` (meaning cover button), `recall-rating-bar.tsx`
+  (`RecallRatingBar` 不认识 / 模糊 / 认识, `SpotBar`, `RatingBadge`), `recall-card.tsx` (review quick-recall front / back).
+  `session-machine.ts` also exports `startCard` / `cardReducer` / `ratingPayload` (peek + clamped `elapsedMs`), `planLearnQuiz`,
+  `slotId` / `slotKey`, `learnTally`. The review page calls `reviewBatch(api, 20, { recall: true })`; `/config.learn` carries
+  `autoplay` / `showExample`.
 
 ## Public surface
 `index.ts`: pages (lazy, from `lazy-pages.tsx`), `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`.
@@ -38,4 +43,12 @@ Other directories import only `~/features/wordbook`.
 - `session-summary.tsx` serves learn, review and spell (`kind: "spell"`); `letter-diff.tsx` is shared with `spell/`.
 - Spell prefs use `WORDBOOK_PREFS_KEY` from `~/lib/storage` (one key; `auth/device-data.clearDeviceData()` clears it at logout).
 - The 练习 bottom tab stays highlighted on `/wordbook/*` (`layout/bottom-nav.tsx` `also`).
-- E2E: `web/e2e/wordbook.spec.ts` (zero upstream; the e2e guard lets `/api/wordbook/*` through except `/explain`).
+- E2E: `web/e2e/wordbook.spec.ts` (learns each card with 模糊) and `wordbook-recall.spec.ts` (needs `WORDBOOK_SPOT_CHECK_PCT=100`;
+  the review part makes a word due through `e2e/support/wordbook-db.ts`). Zero upstream; the e2e guard lets `/api/wordbook/*`
+  through except `/explain`.
+- Boxes, spot checks and the two-fuzzy rule are decided by the server: the client only reports `rating`, `revealedBefore`
+  and `elapsedMs`. Never show a box or spot-check result before the response, and never send an `elapsedMs` above
+  600000 (the server rejects it with 422): use `ratingPayload` / `clampElapsed`.
+- While covered, the meaning, examples and phrases are not in the DOM at all (no blur or opacity tricks).
+- Audio: no autoplay before the first tap (iOS); `speaker.prime()` only on the first gesture; read in click handlers, not
+  effects, so StrictMode cannot read twice (a second `play()` with the same id stops playback).

@@ -36,6 +36,10 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   not-due words still go through `apply_lapse`. The new-word event kind comes only from `service._learn_kind`.
 - The spot-check seed is the enrollment `seed`: never put it in a response. A review spot check is two steps
   (`pending` + `check`, then the same rating with `choice`); the pending step writes no box and no event.
+  `service._spot_seed` takes the seed of the book the word was learned in (not the client's `book_id`). Only a
+  `meaning` answer passes a new word's spot check, and only while the latest rating is still `know_chk`.
+- Learn-mode `/answers` run under `service._learn_lock` (per user, per process; the image runs one worker): without it,
+  concurrent answers for one new word create duplicate rows and several `learn` events (rank points).
 - `tests/wordbook_helpers.enable_wordbook` defaults `wordbook_spot_check_pct=0`; spot-check tests pass 0 / 1 / 100.
 - Limits: answers 3,000 per user per local day (`store.ANSWERS_DAILY_MAX`), reports 20 (`REPORTS_DAILY_MAX`), card LRU 1,024
   per process; all seven indexes ≈ 7 MiB traced.

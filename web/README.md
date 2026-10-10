@@ -90,6 +90,7 @@
 - **AI 讲解**:「为什么?」只在服务端 `WORDBOOK_AI_ENABLED` 打开且配置了 LLM 时请求;不可用时显示「AI 讲解暂不可用」,词典讲解照常。讲解按纯文本显示。
 - **判分全部在服务端**:网页从不自己判对错;选择题的正确项由 `/api/wordbook/answers` 的 `correct_option` 给出。
 - 契约:`src/features/wordbook/wordbook-contract.test.ts` 逐键核对 `server/tests/fixtures/wordbook_contract.json`(服务端测试对真实应用录制)。E2E:`e2e/wordbook.spec.ts`(选书 → 学 5 个词 → 小结 → 首页与大卡计数 → 按句拼写提交 → 「我的」一行;零上游:守卫只放行 `/api/wordbook/*` 的数据库路径,`/api/wordbook/explain` 不放行)。
+- **背单词 v2:认识 / 模糊 / 不认识 与「快速回忆」**(计划 2026-10-11-wordbook-recall):新词卡的释义先被遮罩盖住(遮罩时释义、例句不在页面里),下面三个键 认识 / 模糊 / 不认识;点遮罩算偷看,之后的「认识」按「模糊」记。盒子由服务端决定(认识 → 第 3 级,模糊 → 第 2 级,不认识 → 第 1 级;同一个词连续两次模糊按不认识记),「认识」按管理端比例(默认 33%,`WORDBOOK_SPOT_CHECK_PCT`)被抽查,点得太快(< 1 秒)必抽。一轮 5 张评完进入本轮小测:模糊的词、不认识的词(两次:选释义 + 看释义选词)、被抽查的认识词;小结多一行「认识 · 模糊 · 不认识」与「抽查 · 通过」。复习页声明支持后,盒 1/2/4/5 的到期词约 40% 出「快速回忆」:只看词头自评 → 翻面核对,认识按同一比例先答一道选释义,认识之后可点「记错了」。管理端设置:抽查比例、快速回忆开关、自动朗读(第一次点击之后才自动读,「不认识」总是读)、翻开后显示例句。E2E:`e2e/wordbook-recall.spec.ts`(栈要 `WORDBOOK_SPOT_CHECK_PCT=100`;复习段需要 `E2E_SQLITE_PATH`(本机临时 SQLite)或 `E2E_COMPOSE_PROJECT`(Docker 栈)把词改到期,否则那一段跳过并写注解)。未在真机验证:iPhone Safari / 主屏 PWA 的第一次点击后自动朗读、「不认识」立即发声与三键 dock 的安全区;中低端安卓的翻面动画与玻璃 dock;VoiceOver / TalkBack 读遮罩「已折叠」;两平台深色下遮罩与卡片的区分;360px 宽下英文「Don't know」等按钮标签。
 - **未在真机验证**(清单见 `docs/superpowers/plans/e2e-results.md`「背单词」):iOS Safari 系统键盘与简体拼音、Android Chrome + Gboard、搜狗输入法下的拼写输入(空格跳空、退格回跳、回车提交、输入法组字);读屏(VoiceOver / TalkBack);真实 TTS 的「听这句」;Docker E2E 栈上的 `wordbook.spec.ts`。
 
 ## E2E(Playwright,真实上游)

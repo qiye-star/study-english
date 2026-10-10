@@ -3,8 +3,8 @@
 Playwright specs against the dockerised E2E stack with real upstreams (costs money).
 
 ## What lives here
-- Specs: `login`, `practice`, `chat`, `lookup`, `grammar-prompt`, `progress`, `vocabulary`, `hold-to-talk`, `latency`, `scenario-spot-check`, `rank` (mocked `/api/rank/*`, zero upstream), `rooms` (two browser contexts, room AI off), `admin-v2` (admin console in a 1440 px desktop context + the mobile web page; needs `E2E_ADMIN_PASSWORD`, skipped otherwise; zero upstream; serial).
-- `support/` — `auth.ts` (invite registration), `fake-mic.ts`/`mic.ts`, `touch.ts`, `header.ts`, `upstream-guard.ts` + `mock-upstreams.ts` (blocks paths that could reach an upstream unless the spec opts in).
+- Specs: `login`, `practice`, `chat`, `lookup`, `grammar-prompt`, `progress`, `vocabulary`, `hold-to-talk`, `latency`, `scenario-spot-check`, `rank` (mocked `/api/rank/*`, zero upstream), `rooms` (two browser contexts, room AI off), `wordbook` / `wordbook-recall` (zero upstream; recall needs `WORDBOOK_SPOT_CHECK_PCT=100`), `admin-v2` (admin console in a 1440 px desktop context + the mobile web page; needs `E2E_ADMIN_PASSWORD`, skipped otherwise; zero upstream; serial).
+- `support/` — `auth.ts` (invite registration), `fake-mic.ts`/`mic.ts`, `touch.ts`, `header.ts`, `wordbook-db.ts` (makes a test user's words due: `E2E_SQLITE_PATH` or `E2E_COMPOSE_PROJECT`), `upstream-guard.ts` + `mock-upstreams.ts` (blocks paths that could reach an upstream unless the spec opts in).
 - `package.json` declares CommonJS (Playwright 1.51 + Node 24 cannot load ESM `.ts` config).
 
 ## Run
