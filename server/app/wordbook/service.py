@@ -458,6 +458,9 @@ async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         fail(WORD_NOT_FOUND)
     if all(e.id != sentence_id for e in card.examples):
         fail(SENTENCE_CHANGED)
+    existing = await store.open_report_id(session, user_id, sentence_id)
+    if existing is not None:  # review m11:同一人对同一句只有一条 open 举报,不再占用每日次数
+        return {"id": existing}
     if not await store.consume_report(session, user_id, utc_day(now)):
         fail(REPORT_LIMIT)
     row = WordbookReport(user_id=user_id, book_id=book_id, word=key, sentence_id=sentence_id, kind="sentence",

@@ -177,6 +177,20 @@ async def test_card_and_report(app, client, tmp_path, monkeypatch):
     assert (await client.post(f"{URL}/reports", headers=h, json={"book_id": "junior", "key": "talk", "sentence_id": sid,
                                                                  "reason": "spam"})).status_code == 422
     monkeypatch.setattr(store, "REPORTS_DAILY_MAX", 1)
-    r = await client.post(f"{URL}/reports", headers=h, json={"book_id": "junior", "key": "talk", "sentence_id": sid,
-                                                             "reason": "other"})
+    r = await client.post(f"{URL}/reports", headers=h, json={"book_id": "junior", "key": "talk",
+                                                             "sentence_id": card["examples"][1]["id"], "reason": "other"})
     assert r.status_code == 429 and r.json() == {"error": "Daily report limit reached"}
+
+
+async def test_reporting_the_same_sentence_again_reuses_the_open_report(app, client, tmp_path, monkeypatch):
+    """Review m11: one user cannot push a sentence up the admin queue by reporting it repeatedly."""
+    h = await ready(app, client, tmp_path)
+    sid = (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()["examples"][0]["id"]
+    monkeypatch.setattr(store, "REPORTS_DAILY_MAX", 2)
+    body = {"book_id": "junior", "key": "talk", "sentence_id": sid, "reason": "wrong"}
+    ids = [(await client.post(f"{URL}/reports", headers=h, json=body)).json()["id"] for _ in range(3)]
+    assert len(set(ids)) == 1
+    async with app.state.sessionmaker() as sess:
+        assert len((await sess.scalars(select(WordbookReport))).all()) == 1
+    other = (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()["examples"][1]["id"]
+    assert (await client.post(f"{URL}/reports", headers=h, json={**body, "sentence_id": other})).status_code == 200

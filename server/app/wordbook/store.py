@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookHiddenSentence
+from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookHiddenSentence, WordbookReport
 from app.services import usage
 from app.services.stats import as_utc
 from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING
@@ -128,6 +128,12 @@ async def ever_learned(session: AsyncSession, user_id: int, word: str) -> bool:
     found = await session.scalar(select(WordbookEvent.id).where(
         WordbookEvent.user_id == user_id, WordbookEvent.word == word, WordbookEvent.kind == "learn").limit(1))
     return found is not None
+
+
+async def open_report_id(session: AsyncSession, user_id: int, sentence_id: str) -> int | None:
+    return await session.scalar(select(WordbookReport.id).where(
+        WordbookReport.user_id == user_id, WordbookReport.sentence_id == sentence_id,
+        WordbookReport.status == "open").limit(1))
 
 
 async def spell_set_done(session: AsyncSession, user_id: int, set_id: str, day: str) -> bool:
