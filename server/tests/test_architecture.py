@@ -7,7 +7,8 @@
     realtime   -> core, providers, speech, services
     rank       -> core, providers, speech, services
     rooms      -> core, providers, speech, services (rank and rooms never import each other)
-    admin      -> core, providers, speech, services, realtime, rank, rooms (read-only admin console logic)
+    wordbook   -> core, providers, speech, services (a leaf: only admin, routers and main import it)
+    admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
                   (likewise only routers and main may import admin)
@@ -19,7 +20,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "admin", "routers")
+LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -31,9 +32,12 @@ ALLOWED: dict[str, set[str]] = {
     "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
     "rank": {"rank", "core", "models", "providers", "speech", "services"},
     "rooms": {"rooms", "core", "models", "providers", "speech", "services"},
-    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms"},
-    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "admin"},
-    "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "admin", "routers"},
+    "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
+    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook"},
+    "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
+                "admin"},
+    "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
+             "routers"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -142,3 +146,24 @@ def test_rank_and_rooms_are_isolated_siblings(tmp_path):
     assert any(p.startswith("app/rooms/b.py:1") for p in found)
     assert any(p.startswith("app/services/d.py:1") for p in found)
     assert not any(p.startswith("app/rooms/ok.py") for p in found)
+
+
+def test_wordbook_is_a_leaf_layer(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("wordbook", "rank", "rooms", "realtime", "admin", "routers", "services"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "wordbook" / "a.py").write_text("from app.rank import x\n", encoding="utf-8")
+    (app / "wordbook" / "b.py").write_text("from app.routers import y\n", encoding="utf-8")
+    (app / "rank" / "c.py").write_text("from app.wordbook import a\n", encoding="utf-8")
+    (app / "services" / "d.py").write_text("from app.wordbook import a\n", encoding="utf-8")
+    (app / "realtime" / "e.py").write_text("def f():\n    from app.wordbook import a\n", encoding="utf-8")
+    (app / "wordbook" / "ok.py").write_text("from app.services import d\nfrom app.models import User\n", encoding="utf-8")
+    (app / "admin" / "ok.py").write_text("from app.wordbook import a\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text("from app.wordbook import a\n", encoding="utf-8")
+    found = violations(app)
+    for bad in ("app/wordbook/a.py:1", "app/wordbook/b.py:1", "app/rank/c.py:1", "app/services/d.py:1",
+                "app/realtime/e.py:2"):
+        assert any(p.startswith(bad) for p in found), bad
+    assert not any(p.startswith(("app/wordbook/ok.py", "app/admin/ok.py", "app/routers/ok.py")) for p in found)

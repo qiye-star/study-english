@@ -4,3 +4,5 @@ web/src/features/chat/fixtures/*.json text eol=lf
 # Wordbook dictionaries: byte-exact (checksummed in SOURCE.json), never EOL-converted or diffed.
 server/dictionaries/**/*.jsonl binary
 server/dictionaries/**/*.jsonl linguist-vendored
+# Wordbook test fixture book: LF like the real data (line offsets are asserted).
+server/tests/fixtures/wordbook/*.jsonl text eol=lf

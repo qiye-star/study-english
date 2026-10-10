@@ -13,6 +13,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
 | `rooms/` | practice rooms: codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
+| `wordbook/` | 背单词:词典文件索引、题型与判分、学习编排、AI 讲解 (off unless `WORDBOOK_ENABLED`; see `wordbook/CLAUDE.md`) |
 | `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
@@ -24,8 +25,9 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - speech, services -> core, models, providers
 - realtime -> core, models, providers, speech, services
 - rank, rooms -> core, models, providers, speech, services; never each other or realtime
-- admin -> core, models, providers, speech, services, realtime, rank, rooms; only routers and `main.py` import admin
-- routers -> anything above (incl. rank, rooms); only `main.py` (and other routers) import routers
+- wordbook -> core, models, providers, speech, services; only admin, routers and `main.py` import it (rank reads `wordbook_events` via models)
+- admin -> core, models, providers, speech, services, realtime, rank, rooms, wordbook; only routers and `main.py` import admin
+- routers -> anything above (incl. rank, rooms, wordbook); only `main.py` (and other routers) import routers
 - Lazy/function-level imports count too. A new top-level module fails the test: pick a package.
 
 ## Runtime settings (admin v2)
