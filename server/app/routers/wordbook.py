@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings
+from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import User, utcnow
 from app.services.prompts import prompt_cache
@@ -22,6 +22,8 @@ router = APIRouter(prefix="/api/wordbook")
 DISABLED = "Wordbook is disabled"
 AI_UNAVAILABLE = "AI explanation unavailable"
 TZ_MIN, TZ_MAX = -840, 840
+NEW_MIN, NEW_MAX = WORDBOOK_NEW_BOUNDS
+REVIEW_MIN, REVIEW_MAX = WORDBOOK_REVIEW_BOUNDS
 
 
 def require_wordbook(settings: Settings = Depends(get_settings)) -> Settings:
@@ -37,9 +39,10 @@ def _raise(e: service.WordbookError):
 class EnrollmentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     book_id: str = Field(max_length=16)
-    daily_new: int | None = Field(None, ge=5, le=100)
-    review_cap: int | None = Field(None, ge=20, le=500)
+    daily_new: int | None = Field(None, ge=NEW_MIN, le=NEW_MAX)
+    review_cap: int | None = Field(None, ge=REVIEW_MIN, le=REVIEW_MAX)
     order_mode: Literal["shuffle", "book"] | None = None
+    review_unlimited: Literal[True] | None = None  # goals §9:「不限」只接受 true
 
 
 @router.get("/config")
@@ -60,7 +63,8 @@ async def wordbook_enroll(payload: EnrollmentIn, user: User = Depends(current_us
         return await service.put_enrollment(session, user.id, settings, book_id=payload.book_id,
                                             daily_new=payload.daily_new, review_cap=payload.review_cap,
                                             order_mode=payload.order_mode, now=utcnow(),
-                                            seed=secrets.randbelow(2**31))
+                                            seed=secrets.randbelow(2**31),
+                                            review_unlimited=bool(payload.review_unlimited))
     except service.WordbookError as e:
         _raise(e)
 
@@ -242,3 +246,26 @@ async def wordbook_explain(payload: ExplainIn, request: Request, user: User = De
     except wb_explain.ExplainUnavailable:
         raise HTTPException(503, AI_UNAVAILABLE) from None
     return {"key": key, "text": text, "cached": cached}
+
+
+# ---- 每日目标(goals v2,spec 2026-10-11 §9)----
+
+class GoalsPatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    daily_new: int | None = Field(None, ge=NEW_MIN, le=NEW_MAX)
+    review_cap: int | None = Field(None, ge=REVIEW_MIN, le=REVIEW_MAX)
+    review_unlimited: Literal[True] | None = None
+    order_mode: Literal["shuffle", "book"] | None = None
+
+
+@router.patch("/enrollment")
+async def wordbook_patch_enrollment(payload: GoalsPatchIn, user: User = Depends(current_user),
+                                    session: AsyncSession = Depends(get_session),
+                                    settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.patch_enrollment(session, user.id, settings, daily_new=payload.daily_new,
+                                              review_cap=payload.review_cap,
+                                              review_unlimited=bool(payload.review_unlimited),
+                                              order_mode=payload.order_mode, now=utcnow())
+    except service.WordbookError as e:
+        _raise(e)

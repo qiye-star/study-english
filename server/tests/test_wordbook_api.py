@@ -41,7 +41,8 @@ async def test_enroll_today_and_books(app, client, tmp_path):
     h = await login(app, client, tmp_path, wordbook_books="junior,senior")
     await client.post("/api/vocabulary", headers=h, json={"word": "accept", "source": "lookup"})
     empty = (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": 480})).json()
-    assert empty == {"enrollment": None, "book": None, "plan": None, "progress": None, "tomorrow_due": 0}
+    assert empty == {"enrollment": None, "book": None, "plan": None, "progress": None, "tomorrow_due": 0,
+                     "paused": None, "streak": {"current": 0, "today_met": False}}
     r = await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "order_mode": "book", "daily_new": 10})
     assert r.status_code == 200 and r.json()["status"] == "active" and r.json()["daily_new"] == 10
     assert r.json()["review_cap"] == 100 and r.json()["order_mode"] == "book" and "seed" not in r.json()
@@ -70,7 +71,7 @@ async def test_enrollment_errors(app, client, tmp_path):
     h = await login(app, client, tmp_path, wordbook_books="junior,senior")
     r = await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "toefl"})
     assert r.status_code == 404 and r.json() == {"error": "Book not found"}
-    assert (await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "daily_new": 1})).status_code == 422
+    assert (await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "daily_new": 0})).status_code == 422
     assert (await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "x": 1})).status_code == 422
     assert (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": 900})).status_code == 422
     await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "senior"})

@@ -60,7 +60,7 @@ async def test_delete_then_relearn_does_not_log_the_word_again(app, client, tmp_
     async with app.state.sessionmaker() as s:
         kinds = (await s.scalars(select(WordbookEvent.kind).where(WordbookEvent.word == "talk")
                                  .order_by(WordbookEvent.id))).all()
-    assert kinds == ["learn", "practice", "practice"]
+    assert kinds == ["learn", "relearn", "relearn"]
     today = (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": NOW_OFFSET})).json()
     assert today["plan"]["new_done"] == 1
     await me(client, h)  # runs the rank sync

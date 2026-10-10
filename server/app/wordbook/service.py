@@ -6,11 +6,11 @@ import random
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings
+from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.models import WordbookEnrollment, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
 from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review
@@ -21,7 +21,7 @@ from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard
 from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
-from app.wordbook.plan import Known
+from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
                                pick_distractors, pick_qtype, question_rng, use_recall)
 
@@ -43,6 +43,30 @@ BOOK_NOT_ACTIVE = (409, "Book is not active")
 QTYPE_MISMATCH = (422, "Question type mismatch")
 REPORT_LIMIT = (429, "Daily report limit reached")
 RATING_REQUIRED = (422, "Rating is required")
+NO_CHANGES = (422, "No changes")
+SETTINGS_LIMIT = (429, "Too many settings changes today")
+NOT_ENROLLED = (409, "Book not enrolled")
+GOAL_NOT_DONE = (409, "Finish today's new words first")
+BACKLOG = (409, "Clear the review backlog first")
+BOOK_FINISHED = (409, "No new words left in this book")
+BONUS_LIMIT = (429, "Daily bonus limit reached")
+RESET_LIMIT = (429, "Daily reset limit reached")
+CONFIRM_MISMATCH = (422, "Confirmation does not match")
+STREAK_LOOKBACK_DAYS = 400
+DEFAULT_LIMITS = GoalLimits(WORDBOOK_NEW_BOUNDS[0], WORDBOOK_NEW_BOUNDS[1], WORDBOOK_REVIEW_BOUNDS[0],
+                            WORDBOOK_REVIEW_BOUNDS[1], True, 50)  # 没传 settings 的调用点(GP-1)
+
+
+def limits_of(settings: Settings) -> GoalLimits:
+    return GoalLimits(settings.wordbook_daily_new_min, settings.wordbook_daily_new_max,
+                      settings.wordbook_review_cap_min, settings.wordbook_review_cap_max,
+                      settings.wordbook_review_unlimited, settings.wordbook_bonus_max)
+
+
+def limits_out(limits: GoalLimits) -> dict:
+    return {"daily_new": {"min": limits.new_min, "max": limits.new_max},
+            "review_cap": {"min": limits.review_min, "max": limits.review_max},
+            "review_unlimited": limits.unlimited, "bonus_max": limits.bonus_max}
 
 
 def fail(error: tuple[int, str]):
@@ -88,6 +112,7 @@ def config_out(settings: Settings) -> dict:
         "ai_available": settings.wordbook_ai_available,
         "defaults": {"daily_new": settings.wordbook_daily_new, "review_cap": settings.wordbook_review_cap},
         "learn": {"autoplay": settings.wordbook_autoplay, "show_example": settings.wordbook_show_example},  # recall §7
+        "limits": limits_out(limits_of(settings)),  # goals §9
         "books": [book_out(b, available=(data_dir / b.file).is_file()) for b in BOOKS if b.id in enabled],
     }
 
@@ -103,9 +128,12 @@ def item_out(known: Known | None) -> dict | None:
     return None if known is None else {"box": known.box, "due_at": iso_utc(known.due_at)}
 
 
-def enrollment_out(e: WordbookEnrollment) -> dict:
-    return {"book_id": e.book_id, "status": e.status, "order_mode": e.order_mode, "daily_new": e.daily_new,
-            "review_cap": e.review_cap, "started_at": iso_utc(e.started_at)}
+def enrollment_out(e: WordbookEnrollment, limits: GoalLimits = DEFAULT_LIMITS) -> dict:
+    """有效值(GP-2):超出当前范围的旧值夹到范围内;「不限」返回 review_cap 0 + review_unlimited true。"""
+    daily_new, cap = planning.effective_goals(e.daily_new, e.review_cap, limits)
+    return {"book_id": e.book_id, "status": e.status, "order_mode": e.order_mode, "daily_new": daily_new,
+            "review_cap": planning.REVIEW_UNLIMITED if cap is None else cap, "started_at": iso_utc(e.started_at),
+            "review_unlimited": cap is None}
 
 
 async def books_out(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings) -> dict:
@@ -128,37 +156,65 @@ async def books_out(session: AsyncSession, ds: DictionaryStore, user_id: int, se
 
 
 async def put_enrollment(session: AsyncSession, user_id: int, settings: Settings, *, book_id: str,
-                         daily_new: int | None, review_cap: int | None, order_mode: str | None, now, seed: int) -> dict:
+                         daily_new: int | None, review_cap: int | None, order_mode: str | None, now, seed: int,
+                         review_unlimited: bool = False) -> dict:
     book_or_fail(settings, book_id)
+    limits = limits_of(settings)
+    if error := planning.goals_error(limits, daily_new=daily_new, review_cap=review_cap, unlimited=review_unlimited):
+        raise WordbookError(422, error)
     fresh = await store.get_enrollment(session, user_id, book_id) is None
+    if review_unlimited:
+        review_cap = planning.REVIEW_UNLIMITED
     e = await store.enroll(
         session, user_id, book_id,
         daily_new=daily_new if daily_new is not None else (settings.wordbook_daily_new if fresh else None),
         review_cap=review_cap if review_cap is not None else (settings.wordbook_review_cap if fresh else None),
         order_mode=order_mode, now=now, seed=seed)
-    return enrollment_out(e)
+    return enrollment_out(e, limits)
 
 
 async def _day_plan(session: AsyncSession, user_id: int, e: WordbookEnrollment, index: BookIndex,
-                    known: dict[str, Known], offset: int, now) -> planning.DayPlan:
-    new_done, review_done = await store.today_counts(session, user_id, e.book_id, local_day(now, offset))
-    return planning.compute_plan(daily_new=e.daily_new, review_cap=e.review_cap, new_done=new_done,
-                                 review_done=review_done, review_due=planning.count_due(index.keys, known, now))
+                    known: dict[str, Known], offset: int, now, *, settings: Settings | None = None) -> planning.DayPlan:
+    """计划的唯一入口(GP-1):有效值、今日加练、本书剩余新词都在这里;作答与出题的检查因此自动包含它们。"""
+    limits = limits_of(settings) if settings is not None else DEFAULT_LIMITS
+    day = local_day(now, offset)
+    new_done, review_done = await store.today_counts(session, user_id, e.book_id, day)
+    daily_new, cap = planning.effective_goals(e.daily_new, e.review_cap, limits)
+    return planning.compute_plan(daily_new=daily_new, review_cap=cap, new_done=new_done, review_done=review_done,
+                                 review_due=planning.count_due(index.keys, known, now),
+                                 bonus=await store.bonus_today(session, user_id, e.book_id, day),
+                                 guard_threshold=limits.review_max,
+                                 remaining=sum(1 for k in index.keys if k not in known))
+
+
+async def _streak(session: AsyncSession, user_id: int, day: str) -> dict:
+    since = (date.fromisoformat(day) - timedelta(days=STREAK_LOOKBACK_DAYS)).isoformat()
+    days = await store.goal_days(session, user_id, since)
+    return {"current": planning.streak_of(days, day), "today_met": day in days}
 
 
 async def today_out(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, offset: int,
                     now) -> dict:
+    limits = limits_of(settings)
+    day = local_day(now, offset)
+    enabled = enabled_books(settings.wordbook_books)
     e = await store.active_enrollment(session, user_id)
-    empty = {"enrollment": enrollment_out(e) if e else None, "book": None, "plan": None, "progress": None,
-             "tomorrow_due": 0}
-    if e is None or e.book_id not in enabled_books(settings.wordbook_books):
-        return empty  # R-W12:停用的书保留选书记录与学习记录
+    if e is None or e.book_id not in enabled:  # R-W12:停用的书保留选书记录与学习记录
+        paused = await store.latest_paused(session, user_id, enabled) if e is None else None
+        return {"enrollment": enrollment_out(e, limits) if e else None, "book": None, "plan": None, "progress": None,
+                "tomorrow_due": 0, "paused": enrollment_out(paused, limits) if paused else None,
+                "streak": await _streak(session, user_id, day)}
     index = await index_or_fail(ds, e.book_id)
     known = await store.known_words(session, user_id)
-    day_plan = await _day_plan(session, user_id, e, index, known, offset, now)
-    return {"enrollment": enrollment_out(e), "book": book_out(book_by_id(e.book_id), available=True),
+    day_plan = await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)
+    # 达标一天写一行(G-6);维护模式(只读窗口)不写
+    if day_plan.goal_met and settings.maintenance_mode == "off" and await store.mark_goal(
+            session, user_id, e.book_id, day, now):
+        await session.commit()
+    return {"enrollment": enrollment_out(e, limits), "book": book_out(book_by_id(e.book_id), available=True),
             "plan": asdict(day_plan), "progress": asdict(planning.progress_of(index.keys, known)),
-            "tomorrow_due": planning.count_due_before(index.keys, known, planning.day_end(now, offset, 1))}
+            "tomorrow_due": planning.count_due_before(index.keys, known, planning.day_end(now, offset, 1)),
+            "paused": None, "streak": await _streak(session, user_id, day)}
 
 
 # ---- 学新词、复习、作答(S3;盒子写入规则 spec §6.1 / R-W5)----
@@ -210,7 +266,7 @@ async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, 
     """下一批新词(不建行):词卡 + 每词一道 meaning 小测 + 每词一道 word 再认(drill)。cursor 只在真正建行时前进。"""
     e, index = await _active(session, ds, user_id, settings)
     known = await store.known_words(session, user_id)
-    left = (await _day_plan(session, user_id, e, index, known, offset, now)).new_left
+    left = (await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)).new_left
     order = planning.permutation(len(index), e.seed, e.order_mode)
     keys, _ = planning.next_new(index.keys, order, e.cursor, known, min(size, left))
     cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
@@ -227,7 +283,7 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
     按独立哈希把一部分题换成「快速回忆」(v1 的选题结果不变)。"""
     e, index = await _active(session, ds, user_id, settings)
     known = await store.known_words(session, user_id)
-    left = (await _day_plan(session, user_id, e, index, known, offset, now)).review_left
+    left = (await _day_plan(session, user_id, e, index, known, offset, now, settings=settings)).review_left
     keys = planning.due_keys(index.keys, known, now, min(size, left))
     cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
     recall_on = recall_ok and settings.wordbook_recall_enabled
@@ -327,7 +383,7 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
             fail(BOOK_NOT_ACTIVE)
         index = await index_or_fail(ds, p.book_id)
         known = await store.known_words(session, user_id)
-        if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
+        if (await _day_plan(session, user_id, e, index, known, p.offset, now, settings=settings)).new_left <= 0:
             fail(NEW_LIMIT)
         ctx = _LearnContext(e, index, known)
     if (p.mode == "review" and row is not None and row.due_at <= now
@@ -384,10 +440,10 @@ def _answer_out(correct: bool, outcome: str, grade: str | None, card: WordCard, 
 
 
 async def _learn_kind(session: AsyncSession, user_id: int, key: str) -> str:
-    """新词建行时的事件 kind:该用户第一次学这个词 → learn(计今日新词、产生 word_learned),否则 practice
-    (每个词只记一次 learn:word_learned 段位点与「学会 n 词」按不同的词算)。
-    v1 选择题路径与三档自评路径共用这一处(INDEX R-A2);B 计划把 practice 改成 relearn 只改这里。"""
-    return "practice" if await store.ever_learned(session, user_id, key) else "learn"
+    """新词建行时的事件 kind:该用户第一次学这个词 → learn(计今日新词、产生 word_learned)。
+    每个词只记一次 learn(以前学过的再学记 relearn:计入今日新词,不产生 word_learned;spec 2026-10-11 G-4)。
+    v1 选择题路径与三档自评路径共用这一处(INDEX R-A2)。"""
+    return "relearn" if await store.ever_learned(session, user_id, key) else "learn"
 
 
 async def _create_learned(session: AsyncSession, user_id: int, book_id: str, card: WordCard, box: int, now,
@@ -633,3 +689,24 @@ async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     session.add(row)
     await session.commit()
     return {"id": row.id}
+
+
+# ---- 每日目标(goals v2,spec 2026-10-11 §3、§9)----
+
+async def patch_enrollment(session: AsyncSession, user_id: int, settings: Settings, *, daily_new: int | None,
+                           review_cap: int | None, review_unlimited: bool, order_mode: str | None, now) -> dict:
+    """改当前在学的书的每日设置,立即生效(今天的计数来自事件,不受影响)。先校验后扣次数。"""
+    if daily_new is None and review_cap is None and not review_unlimited and order_mode is None:
+        fail(NO_CHANGES)
+    e = await store.active_enrollment(session, user_id)
+    if e is None:
+        fail(NO_ACTIVE)
+    book_or_fail(settings, e.book_id)
+    limits = limits_of(settings)
+    if error := planning.goals_error(limits, daily_new=daily_new, review_cap=review_cap, unlimited=review_unlimited):
+        raise WordbookError(422, error)
+    if not await store.consume_settings(session, user_id, utc_day(now)):
+        fail(SETTINGS_LIMIT)
+    cap = planning.REVIEW_UNLIMITED if review_unlimited else review_cap
+    e = await store.update_goals(session, e, daily_new=daily_new, review_cap=cap, order_mode=order_mode, now=now)
+    return enrollment_out(e, limits)

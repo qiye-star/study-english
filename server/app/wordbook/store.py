@@ -3,7 +3,7 @@ import uuid
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy import update as update_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,7 +85,8 @@ async def enroll(session: AsyncSession, user_id: int, book_id: str, *, daily_new
     found = next((r for r in rows if r.book_id == book_id), None)
     if found is None:
         found = WordbookEnrollment(user_id=user_id, book_id=book_id, status="active", order_mode=order_mode or "shuffle",
-                                   seed=seed, cursor=0, daily_new=daily_new or 20, review_cap=review_cap or 100,
+                                   seed=seed, cursor=0, daily_new=daily_new if daily_new is not None else 20,
+                                   review_cap=review_cap if review_cap is not None else 100,
                                    started_at=now, updated_at=now)
         session.add(found)
     else:
@@ -135,7 +136,7 @@ def _today(user_id: int, book_id: str, day: str):
 async def today_counts(session: AsyncSession, user_id: int, book_id: str, day: str) -> tuple[int, int]:
     """(今日学过的新词数(按词去重), 今日 review 事件数)。"""
     learned = await session.scalar(select(func.count(func.distinct(WordbookEvent.word))).where(
-        *_today(user_id, book_id, day), WordbookEvent.kind == "learn"))
+        *_today(user_id, book_id, day), WordbookEvent.kind.in_(LEARN_KINDS)))
     reviews = await session.scalar(select(func.count()).select_from(WordbookEvent).where(
         *_today(user_id, book_id, day), WordbookEvent.kind == "review"))
     return int(learned or 0), int(reviews or 0)
@@ -163,7 +164,7 @@ async def spell_set_done(session: AsyncSession, user_id: int, set_id: str, day: 
 
 async def today_learned_keys(session: AsyncSession, user_id: int, book_id: str, day: str) -> list[str]:
     rows = await session.scalars(select(WordbookEvent.word).where(*_today(user_id, book_id, day),
-                                                                  WordbookEvent.kind == "learn")
+                                                                  WordbookEvent.kind.in_(LEARN_KINDS))
                                  .order_by(WordbookEvent.id))
     return list(dict.fromkeys(rows.all()))
 
@@ -223,3 +224,59 @@ async def set_learn_box(session: AsyncSession, user_id: int, item_id: str, *, se
                 lapses=VocabularyItem.lapses + (1 if to_box < seen_box else 0))
         .execution_options(synchronize_session=False))
     return result.rowcount == 1
+
+
+# ---- 每日目标(goals v2,spec 2026-10-11)----
+
+LEARN_KINDS = ("learn", "relearn")  # 计入「今天已学新词」(G-4);段位只读 learn
+SETTINGS_DAILY_MAX = 60  # PATCH /enrollment、pause、resume、bonus 共用,每人每 UTC 日
+RESETS_DAILY_MAX = 2
+
+
+async def update_goals(session: AsyncSession, e: WordbookEnrollment, *, daily_new: int | None, review_cap: int | None,
+                       order_mode: str | None, now: datetime) -> WordbookEnrollment:
+    """只改给出的字段;改顺序时 cursor 归零(已学的词被跳过,同 enroll)。提交。"""
+    if order_mode and order_mode != e.order_mode:
+        e.order_mode, e.cursor = order_mode, 0
+    if daily_new is not None:
+        e.daily_new = daily_new
+    if review_cap is not None:
+        e.review_cap = review_cap
+    e.updated_at = now
+    await session.commit()
+    return e
+
+
+async def latest_paused(session: AsyncSession, user_id: int, enabled: Iterable[str]) -> WordbookEnrollment | None:
+    """没有在学的书时,首页显示的那本已暂停的书(最近更新、仍启用)。"""
+    return await session.scalar(select(WordbookEnrollment).where(
+        WordbookEnrollment.user_id == user_id, WordbookEnrollment.status == "paused",
+        WordbookEnrollment.book_id.in_(tuple(enabled))).order_by(WordbookEnrollment.updated_at.desc()).limit(1))
+
+
+async def bonus_today(session: AsyncSession, user_id: int, book_id: str, day: str) -> int:
+    total = await session.scalar(select(func.coalesce(func.sum(WordbookEvent.credit), 0)).where(
+        *_today(user_id, book_id, day), WordbookEvent.kind == "bonus"))
+    return int(total or 0)
+
+
+async def mark_goal(session: AsyncSession, user_id: int, book_id: str, day: str, now: datetime) -> bool:
+    """当天第一次达标写一行 goal(跨书一天一行);flush 不提交。已有则返回 False。"""
+    found = await session.scalar(select(WordbookEvent.id).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.kind == "goal", WordbookEvent.day == day).limit(1))
+    if found is not None:
+        return False
+    await add_event(session, user_id=user_id, book_id=book_id, kind="goal", word="goal", item_id=None, qtype=None,
+                    outcome="met", credit=0, day=day, now=now)
+    await session.flush()
+    return True
+
+
+async def goal_days(session: AsyncSession, user_id: int, since: str) -> list[str]:
+    rows = await session.scalars(select(func.distinct(WordbookEvent.day)).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.kind == "goal", WordbookEvent.day >= since))
+    return list(rows.all())
+
+
+async def consume_settings(session: AsyncSession, user_id: int, day: str) -> bool:
+    return await usage.consume(session, "wordbook_settings", str(user_id), day, SETTINGS_DAILY_MAX)
