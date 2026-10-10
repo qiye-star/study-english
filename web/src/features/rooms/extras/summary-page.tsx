@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
-import { AddVocabularyButton } from "~/features/vocabulary";
+import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
 import type { RoomInfo } from "../protocol";
@@ -70,7 +70,7 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
                 </div>
                 {/* 青色 = 词汇(redesign-v3 一色一义);已加入后按钮自己变灰勾 */}
                 <span className="flex-none [&_button:not(:disabled)]:text-teal">
-                  <AddVocabularyButton testId={`summary-word-add-${i}`} input={{ word: w.en, meaning: w.zh, example: w.example, source: "recap" }} />
+                  <WordActions testId={`summary-word-add-${i}`} variant="icon" target={{ word: w.en, meaning: w.zh, example: w.example, source: "recap" }} />
                 </span>
               </li>
             ))}

@@ -4913,3 +4913,6 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L1-1 `GET /api/links/wordbook/card` 在**所有**启用的书都读不到数据(`DataUnavailable`)时返回 503 `Wordbook data unavailable`(接口说明里的「数据缺失 → 503」);计划代码一律 `continue` 后落到 404,会把数据故障说成「没有这个词」。部分书缺数据仍跳过(同 `service.find_card`)。
 - Ruling: L1-1 按 owner 裁定,「加入词书学习」不受 `daily_new` 限制(建的是立即到期的 box 0 复习词条,不是今日新词);新增 `test_adopted_words_come_up_in_review_and_ignore_the_daily_new_goal`(`daily_new: 1` 时连加三个都 `added`、`plan.new_done/new_left` 不变、三个词出现在复习批次、游标仍 0、`link_credits` 零行)。另加用户偏好关 / 总开关关两个接口都 404 且零写入、书数据缺失 503 + 日志不含词的用例。
 - Ruling: L1-1 日志卫生用例只检查 `app.*` 日志器:测试客户端 httpx 自己会把请求 URL(含 `?word=`)记进日志。观察(不在本车道范围):生产的 `uvicorn.access` 访问日志同样会带上 `?word=` 查询串(既有 `/api/wordbook/cards/{book}/{key}` 也把词放在路径里),接口形状按 spec §7.2 保留。
+- Ruling: L1-2 `parity.test.tsx` 另导入本插件(`import "./index"`)并多一组「除 word_actions 外全开」的逐字节对照(四种用法各一):证明其他联动打开时插槽仍只渲染核心按钮;L1-3 再加「word_actions 开」时首个子节点与旧按钮逐字节相同、只多一个 `-more` 兄弟按钮。`word-target.test.ts` 的截断用例另断言词头按 100 个码点截断,上限取 `MAX_WORD_TARGET` 而不是写死数字。
+- Ruling: L1-2 `architecture.test.ts` 除计划的「`AddVocabularyButton` 只在 vocabulary 内部引用」外,另加「基线里的每条边在源码中仍存在、基线共 16 条」:冻结集合只减不增,删了导入却没删基线会让以后的新边悄悄合法。其他车道若删掉某条跨 feature 导入,需同时删基线一行(Z1 合并时处理)。
+- Ruling: L1-2 `save-vocabulary-item.test.ts` 删去已搬走用例后,文件顶部只为它服务的 `lookup` 常量一并删除(否则 tsc 报未使用);其余用例逐字未动。

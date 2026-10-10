@@ -17,7 +17,7 @@ import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { goPractice, savePracticeItem } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
-import { AddVocabularyButton } from "~/features/vocabulary";
+import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
   CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME, createMessages, getConversation, isAmbiguousSaveError, listMessages, updateConversation,
@@ -1225,8 +1225,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         onSpeak={(key, text) => void tts.play(key, text, config.ttsModel, config.ttsVoice)}
         speakStates={tts.states}
         extraActions={{
-          expression: (text, zh) => <AddVocabularyButton testId="recap-expression-vocab" label={`${t("web.vocabulary.add")}: ${text}`} input={{ word: text, meaning: zh, source: "recap" }} />,
-          poorWord: (word) => <AddVocabularyButton testId="recap-poor-word-vocab" label={`${t("web.vocabulary.add")}: ${word}`} input={{ word, source: "recap" }} />,
+          expression: (text, zh) => <WordActions testId="recap-expression-vocab" label={`${t("web.vocabulary.add")}: ${text}`} variant="icon" target={{ word: text, meaning: zh, source: "recap" }} />,
+          poorWord: (word) => <WordActions testId="recap-poor-word-vocab" label={`${t("web.vocabulary.add")}: ${word}`} variant="icon" target={{ word, source: "recap" }} />,
         }} />
       <ConversationSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} config={config} ai={ai} onSave={saveSettings} />
       {/* 通话界面渲染到 body 下并把整页设为 inert:通话期间页面不可操作(按住说话、朗读、查词都不可用) */}
