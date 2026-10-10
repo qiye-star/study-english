@@ -49,7 +49,7 @@ async def test_enroll_today_and_books(app, client, tmp_path):
     assert today["book"]["id"] == "junior" and today["book"]["available"] is True
     assert today["progress"] == {"words": 14, "learned": 1, "mastered": 0, "remaining": 13}
     assert today["plan"] == {"new_target": 10, "new_done": 0, "new_left": 10, "review_due": 1, "review_done": 0,
-                             "review_left": 1, "backlog_guard": False}
+                             "review_left": 1, "backlog_guard": False, "bonus": 0, "goal_met": False}
     assert today["tomorrow_due"] == 1
     books = (await client.get(f"{URL}/books", headers=h)).json()["books"]
     assert [(b["id"], b["enrolled"], b["active"], b["learned"]) for b in books] == [

@@ -27,7 +27,7 @@
     "order_mode": "book",
     "daily_new": 20,
     "review_cap": 100,
-    "started_at": "2026-10-10T17:13:33.421365+00:00"
+    "started_at": "2026-10-10T18:21:31.854168+00:00"
   },
   "books": {
     "books": [
@@ -186,9 +186,9 @@
         },
         "options": [
           "v. 说话；谈话；n. 交谈",
-          "v. 停止；阻止；n. 车站",
-          "v. 吸收；使专心",
-          "n. 事故；意外"
+          "v. 去；走",
+          "v. 放弃；抛弃",
+          "v. 吸收；使专心"
         ],
         "length": null
       },
@@ -200,10 +200,10 @@
           "us": "əˈbɪləti"
         },
         "options": [
-          "v. 说话；谈话；n. 交谈",
+          "n. 星期一",
           "n. 能力，能耐；才能",
-          "n. 事故；意外",
-          "n. 星期一"
+          "n. 孩子；儿童",
+          "v. 停止；阻止；n. 车站"
         ],
         "length": null
       },
@@ -215,10 +215,10 @@
           "us": "ˈebl"
         },
         "options": [
-          "v. 去；走",
-          "n. 事故；意外",
           "adj. 能够的；有能力的",
-          "adj. 小心的，仔细的"
+          "v. 去；走",
+          "n. 星期一",
+          "n. 孩子；儿童"
         ],
         "length": null
       },
@@ -230,9 +230,9 @@
           "us": "əˈbændən"
         },
         "options": [
-          "v. 停止；阻止；n. 车站",
-          "v. 过去常常",
           "v. 接受；承认",
+          "v. 过去常常",
+          "v. 携带；搬运",
           "v. 放弃；抛弃"
         ],
         "length": null
@@ -245,10 +245,10 @@
           "us": "əbˈsɔrb"
         },
         "options": [
-          "v. 放弃；抛弃",
+          "v. 接受；承认",
+          "v. 携带；搬运",
           "v. 吸收；使专心",
-          "v. 说话；谈话；n. 交谈",
-          "v. 去；走"
+          "v. 放弃；抛弃"
         ],
         "length": null
       }
@@ -261,10 +261,10 @@
           "meaning": "v. 说话；谈话；n. 交谈"
         },
         "options": [
-          "absorb",
-          "go",
+          "stop",
+          "carry",
           "talk",
-          "stop"
+          "accept"
         ],
         "length": null
       },
@@ -275,9 +275,9 @@
           "meaning": "n. 能力，能耐；才能"
         },
         "options": [
-          "child",
-          "talk",
+          "accident",
           "Monday",
+          "child",
           "ability"
         ],
         "length": null
@@ -290,8 +290,8 @@
         },
         "options": [
           "stop",
-          "go",
           "carry",
+          "talk",
           "able"
         ],
         "length": null
@@ -303,10 +303,10 @@
           "meaning": "v. 放弃；抛弃"
         },
         "options": [
-          "accept",
-          "abandon",
-          "absorb",
-          "talk"
+          "carry",
+          "used to",
+          "talk",
+          "abandon"
         ],
         "length": null
       },
@@ -317,10 +317,10 @@
           "meaning": "v. 吸收；使专心"
         },
         "options": [
+          "carry",
           "stop",
-          "abandon",
           "absorb",
-          "carry"
+          "abandon"
         ],
         "length": null
       }
@@ -335,7 +335,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-11T17:13:33.484520+00:00"
+      "due_at": "2026-10-11T18:21:31.906775+00:00"
     },
     "applied": true,
     "rating": null,
@@ -349,7 +349,7 @@
       "order_mode": "book",
       "daily_new": 20,
       "review_cap": 100,
-      "started_at": "2026-10-10T17:13:33.421365+00:00"
+      "started_at": "2026-10-10T18:21:31.854168+00:00"
     },
     "book": {
       "id": "junior",
@@ -366,7 +366,9 @@
       "review_due": 1,
       "review_done": 0,
       "review_left": 1,
-      "backlog_guard": false
+      "backlog_guard": false,
+      "bonus": 0,
+      "goal_met": false
     },
     "progress": {
       "words": 14,
@@ -381,13 +383,13 @@
     "questions": [
       {
         "key": "talk",
-        "qtype": "meaning",
+        "qtype": "word",
         "prompt": {},
         "options": [
-          "v. 吸收；使专心",
-          "v. 说话；谈话；n. 交谈",
-          "n. 能力，能耐；才能",
-          "v. 停止；阻止；n. 车站"
+          "talk",
+          "absorb",
+          "go",
+          "child"
         ],
         "length": null
       }
@@ -488,7 +490,7 @@
     ],
     "item": {
       "box": 2,
-      "due_at": "2026-10-14T17:13:33.507866+00:00"
+      "due_at": "2026-10-14T18:21:31.923565+00:00"
     },
     "applied": false,
     "rating": null,
@@ -634,7 +636,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T17:13:33.605125+00:00"
+          "due_at": "2026-10-11T18:21:31.993383+00:00"
         }
       },
       {
@@ -673,7 +675,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T17:13:33.605125+00:00"
+          "due_at": "2026-10-11T18:21:31.993383+00:00"
         }
       },
       {
@@ -756,7 +758,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T17:13:33.605125+00:00"
+          "due_at": "2026-10-11T18:21:31.993383+00:00"
         }
       }
     ]
@@ -770,7 +772,7 @@
     "diff": null,
     "item": {
       "box": 1,
-      "due_at": "2026-10-12T17:13:33.618505+00:00"
+      "due_at": "2026-10-12T18:21:32.002898+00:00"
     },
     "applied": true,
     "rating": "fuzzy",
@@ -786,7 +788,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-10T16:13:33.628396+00:00"
+      "due_at": "2026-10-10T17:21:32.011913+00:00"
     },
     "applied": false,
     "rating": "know",
@@ -799,10 +801,10 @@
         "us": "əˈbɪləti"
       },
       "options": [
-        "v. 说话；谈话；n. 交谈",
+        "n. 星期一",
         "n. 能力，能耐；才能",
-        "n. 事故；意外",
-        "n. 星期一"
+        "n. 孩子；儿童",
+        "v. 停止；阻止；n. 车站"
       ],
       "length": null
     }

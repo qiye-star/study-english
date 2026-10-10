@@ -1,11 +1,12 @@
 """每日计划、进度、洗牌排列与下一批新词(spec §6.1–6.2)。纯函数。"""
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 MASTERED_BOX = 4
 BACKLOG_NEW = 5
+REVIEW_UNLIMITED = 0  # wordbook_enrollments.review_cap 的「不限」哨兵(合法上限 ≥ 10;spec 2026-10-11 §3.1)
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,8 @@ class DayPlan:
     review_done: int
     review_left: int
     backlog_guard: bool
+    bonus: int = 0
+    goal_met: bool = False
 
 
 @dataclass(frozen=True)
@@ -37,13 +40,70 @@ class Progress:
     remaining: int
 
 
-def compute_plan(*, daily_new: int, review_cap: int, new_done: int, review_done: int, review_due: int) -> DayPlan:
-    guard = review_due > review_cap
-    new_left = max(0, daily_new - new_done)
-    if guard:
-        new_left = min(new_left, BACKLOG_NEW)
-    review_left = min(review_due, max(0, review_cap - review_done))
-    return DayPlan(daily_new, new_done, new_left, review_due, review_done, review_left, guard)
+@dataclass(frozen=True)
+class GoalLimits:
+    """管理员允许的范围(设置注册表 wordbook_*_min/max 等,spec 2026-10-11 §10)。"""
+    new_min: int
+    new_max: int
+    review_min: int
+    review_max: int
+    unlimited: bool
+    bonus_max: int
+
+
+def compute_plan(*, daily_new: int, review_cap: int | None, new_done: int, review_done: int, review_due: int,
+                 bonus: int = 0, guard_threshold: int | None = None, remaining: int | None = None) -> DayPlan:
+    """review_cap=None 表示「不限」,积压阈值改用 guard_threshold。
+
+    积压保护(G-3):到期数超过阈值时,今天的新词总数(含加练)最多 BACKLOG_NEW 个 —— v1 写成
+    min(new_left, 5),每学完 5 个又给 5 个,保护不生效。remaining = 本书未学的词数(None = 不限制)。
+    达标(G-6)= 新词学满(不含加练;积压时 5 个;书快学完时按剩余)+ review_left 为 0 + 当天有活动。"""
+    threshold = review_cap if review_cap is not None else guard_threshold
+    guard = threshold is not None and review_due > threshold
+    target = daily_new + bonus
+    new_left = max(0, (min(target, BACKLOG_NEW) if guard else target) - new_done)
+    if remaining is not None:
+        new_left = min(new_left, max(0, remaining))
+    review_left = review_due if review_cap is None else min(review_due, max(0, review_cap - review_done))
+    goal_new = min(daily_new, BACKLOG_NEW) if guard else daily_new
+    if remaining is not None:
+        goal_new = min(goal_new, new_done + max(0, remaining))
+    met = new_done + review_done > 0 and new_done >= goal_new and review_left == 0
+    return DayPlan(target, new_done, new_left, review_due, review_done, review_left, guard, bonus, met)
+
+
+def effective_goals(daily_new: int, review_cap: int, limits: GoalLimits) -> tuple[int, int | None]:
+    """库里的值夹到当前范围(GP-2);(新词, 复习上限 | None=不限)。管理员关掉「不限」时按 review_max。"""
+    new = min(max(daily_new, limits.new_min), limits.new_max)
+    if review_cap == REVIEW_UNLIMITED:
+        return new, None if limits.unlimited else limits.review_max
+    return new, min(max(review_cap, limits.review_min), limits.review_max)
+
+
+def goals_error(limits: GoalLimits, *, daily_new: int | None, review_cap: int | None, unlimited: bool) -> str | None:
+    """用户提交的值在管理员范围内吗?返回错误原文(spec §9)或 None。"""
+    if unlimited and review_cap is not None:
+        return "Conflicting review cap"
+    if daily_new is not None and not limits.new_min <= daily_new <= limits.new_max:
+        return "Daily new words out of range"
+    if review_cap is not None and not limits.review_min <= review_cap <= limits.review_max:
+        return "Review cap out of range"
+    if unlimited and not limits.unlimited:
+        return "Unlimited reviews are off"
+    return None
+
+
+def streak_of(days: Iterable[str], today: str) -> int:
+    """连续达标天数:今天已达标从今天往回数,否则从昨天往回数(G-6,无冻结)。days 为 ISO 本地日。"""
+    have = {date.fromisoformat(d) for d in days}
+    cur = date.fromisoformat(today)
+    if cur not in have:
+        cur -= timedelta(days=1)
+    n = 0
+    while cur in have:
+        n += 1
+        cur -= timedelta(days=1)
+    return n
 
 
 def progress_of(keys: Sequence[str], known: Mapping[str, Known]) -> Progress:
