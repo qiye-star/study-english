@@ -196,6 +196,7 @@ class LearningBus:
     def queue(self) -> dict               # {"size", "max", "dropped"}
     def recent_errors(self) -> list[dict] # 最近 50 条 {"at","link","event","error"}
     def reset_breaker(self, link: str) -> bool
+    def count(self, link: str, name: str, n: int = 1) -> None  # 联动自定义计数(如 llm_degraded),出现在 stats()[link]["extra"]
 ```
 
 - `publish`:读 `settings()`(每次读,热更新);`links_enabled` 为假直接返回;没有任何订阅者直接返回;
@@ -391,7 +392,8 @@ chevron,整行 ≥ 56px 可点):
 - **不改盒子与到期**(裁定 L-R5);掌握度的记账体现在「用过」记录、展示与段位点上。
 
 **可选大模型用法检查(默认关)。** `link_chat_words_llm_enabled = true` 时,对命中的词再问一次大模型「这个词在这句里用法是否正确」,
-只有「是」才记段位点(「用过」照记)。约束:全站每日 `link_chat_words_llm_global_daily` 次(`services.usage.consume("links_llm", "global", utc_day, cap)`),
+只有「是」才记段位点(「用过」照记)。判定**不在通道处理器里等待**(8 秒会堵住单消费者):处理器把待判定的词交给
+`chat_words.JudgeRunner`(并发 2、待办 ≤ 50),由它异步写 `link_credits`;待办满则直接按确定性结果入账并计数。约束:全站每日 `link_chat_words_llm_global_daily` 次(`services.usage.consume("links_llm", "global", utc_day, cap)`),
 单次超时 8 秒;上游 402(余额不足)/429/5xx/超时/解析失败 → **降级为确定性结果**(照常记分)并计数 `llm_degraded`;
 `metering.record("llm", …)` 在 `feature_scope("links")` 下记录;提示词与回复不记日志。当前上游 402,所以默认关是正确的。
 
@@ -483,7 +485,7 @@ export function resetExtensionPointsForTests(): void
 
 ### 8.3 登记与组合
 
-- `web/src/plugins/index.ts`(由 `main.tsx` 导入一次):`import "./core"; import "./links"; import "./word-actions"; import "./daily-tasks"; import "./mistakes"; import "./pron-shadow"; import "./chat-words"; import "./rank-sources";`
+- `web/src/plugins/index.ts`(由 `main.tsx` 导入一次):`import "./core"; import "./links"; import "./word-actions"; import "./daily-tasks"; import "./mistakes"; import "./pron-shadow"; import "./chat-words";`(联动 6 只在服务端,没有网页插件)
 - `plugins/core.ts`:`import "~/features/vocabulary/register";`(加入生词本行内 + 面板行;无联动键)。测试 `test/setup.ts` 只导入 `~/plugins/core`,
   所以现有测试看到的正是「全关」状态。
 - `plugins/links/`:`appEffects` 贡献(登录后拉取 `/api/links/config` → `setLinkFlags`;卸载时 `ALL_OFF`)、`meRows` 贡献(「学习联动」行,
@@ -499,7 +501,7 @@ export function resetExtensionPointsForTests(): void
    components、api、audio 都不得导入 `plugins/`。
 2. `features/<x>/register*.ts(x)` 只能被 `plugins/**` 导入;`plugins/**` 只能以 `~/features/<x>`(index)或 `~/features/<x>/register*` 两种方式引用 feature。
 3. 注册文件不得导入其他 feature(贡献不能制造跨 feature 边)。
-4. **跨 feature 边冻结**:feature→feature 的导入对只许出现在基线表里(当前 21 条减去 §1 的四条 `→vocabulary`,即 17 条);新增一条即失败。
+4. **跨 feature 边冻结**:feature→feature 的导入对只许出现在基线表里(当前 21 条减去 §1 的四条 `→vocabulary` 与随 `vocabularyFromLookup` 搬家消失的 `vocabulary→lookup`,即 16 条);新增一条即失败。
 5. `AddVocabularyButton` 只许在 `features/vocabulary/` 内部被引用。
 6. 每个 `PointProps` 键至少被一个产品文件以 `point="<键>"`(或 `<WordActions`)渲染;每个 `contribute({ point })` 的点都存在(类型系统 + 测试)。
 
