@@ -184,6 +184,12 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("wordbook_ai_model", "wordbook", "str", "AI 讲解模型", help_zh="留空 = 默认模型"),
     _s("wordbook_ai_global_daily", "wordbook", "int", "全站每日 AI 讲解次数", help_zh="只计未命中缓存的调用", danger=_COST),
     _s("wordbook_ai_daily_per_user", "wordbook", "int", "每人每日 AI 讲解次数", help_zh="可按用户覆盖"),
+    # wordbook v2(设计文档 2026-10-11-wordbook-recall §7)
+    _s("wordbook_spot_check_pct", "wordbook", "int", "「认识」抽查比例(%)", min=0, max=100,
+       help_zh="学新词与快速回忆里按「认识」的词按此比例抽查一道选释义;0 = 不抽查(含太快必抽)"),
+    _s("wordbook_recall_enabled", "wordbook", "bool", "复习题型「快速回忆」", help_zh="自评三档后翻面确认;进入已掌握的那次复习不出此题"),
+    _s("wordbook_autoplay", "wordbook", "bool", "自动朗读词头", help_zh="新词卡出现、快速回忆翻面时;「不认识」总是朗读"),
+    _s("wordbook_show_example", "wordbook", "bool", "翻开后显示例句"),
     # admin
     _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟", danger=_LONGER_SESSIONS),
     _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟", danger=_LONGER_SESSIONS),

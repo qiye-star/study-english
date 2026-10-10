@@ -15,6 +15,6 @@ def make_data_dir(tmp_path: Path, books: tuple[str, ...] = ("junior",)) -> Path:
 
 def enable_wordbook(app, data_dir: Path, **overrides) -> None:
     app.state.settings = app.state.settings.model_copy(
-        update={"wordbook_enabled": True, "wordbook_data_dir": str(data_dir), **overrides})
+        update={"wordbook_enabled": True, "wordbook_data_dir": str(data_dir), "wordbook_spot_check_pct": 0, **overrides})
     if hasattr(app.state, "wordbook_dict"):
         del app.state.wordbook_dict

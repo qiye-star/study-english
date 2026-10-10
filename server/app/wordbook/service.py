@@ -83,6 +83,7 @@ def config_out(settings: Settings) -> dict:
         "enabled": True,
         "ai_available": settings.wordbook_ai_available,
         "defaults": {"daily_new": settings.wordbook_daily_new, "review_cap": settings.wordbook_review_cap},
+        "learn": {"autoplay": settings.wordbook_autoplay, "show_example": settings.wordbook_show_example},  # recall §7
         "books": [book_out(b, available=(data_dir / b.file).is_file()) for b in BOOKS if b.id in enabled],
     }
 

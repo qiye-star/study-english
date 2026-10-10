@@ -188,6 +188,11 @@ class Settings(BaseSettings):
     wordbook_ai_model: str = ""
     wordbook_ai_global_daily: int = Field(200, ge=0, le=100000)
     wordbook_ai_daily_per_user: int = Field(20, ge=0, le=1000)
+    # 背单词 v2 · 三档自评与快速回忆(设计文档 2026-10-11-wordbook-recall §7)
+    wordbook_spot_check_pct: int = Field(33, ge=0, le=100)
+    wordbook_recall_enabled: bool = True
+    wordbook_autoplay: bool = True
+    wordbook_show_example: bool = True
     wordbook_data_dir: str = ""
 
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
