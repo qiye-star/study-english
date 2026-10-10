@@ -51,6 +51,7 @@ export const S = {
     rooms: "联机",
     rooms_voice: "联机语音",
     rooms_summary: "联机小结",
+    wordbook: "背单词",
     admin: "管理端",
     other: "其他",
   } as Record<string, string>,

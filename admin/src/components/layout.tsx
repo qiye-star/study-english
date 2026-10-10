@@ -3,9 +3,12 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { setStepUpHandler } from "../api/client";
 import * as session from "../api/session";
 import { hasRole, type AdminSession, type Role } from "../api/session";
+// strings only (not the feature index): the wordbook page imports this file, so avoid an import cycle
+import { S as WORDBOOK_STRINGS } from "../features/wordbook/strings";
 import { S } from "../strings";
 import {
   BackIcon,
+  BookIcon,
   ChartIcon,
   ChatsIcon,
   DatabaseIcon,
@@ -57,6 +60,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: "/users", label: I.users, icon: UsersIcon, min: "viewer" },
       { to: "/assessments", label: I.recordings, icon: MicIcon, min: "viewer" },
       { to: "/invites", label: I.invites, icon: TicketIcon, min: "operator" },
+      { to: "/wordbook", label: WORDBOOK_STRINGS.title, icon: BookIcon, min: "viewer" },
     ],
   },
   {
