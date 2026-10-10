@@ -4907,3 +4907,14 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: F7 设置页懒加载(`lazy` + `Suspense fallback={null}`,单独 chunk 约 1.3 kB gzip);列表分组标题新键 `web.links.settings.group`;保存失败 toast 标题 `saveFailed`、描述为服务端错误翻译。每个插件桩目录与 `plugins/links/` 各有 `CLAUDE.md`(车道替换时一并更新)。
 - 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
+
+## Addendum (2026-10-11) · Lane L6 执行记录(L6-1、L6-2)
+
+- Ruling: L6-1 `ledger._sync` 的附加严格是「一行导入 + 四行」(计划代码块实际是五行:`if` 拆成两行、`capped` 调用折行);改为 `watermark = watermark if extra_mark is None else min(watermark, extra_mark)` 一行、`extra = [... not in seen]` 一行,语义不变。`git diff` 对 `ledger.py` 只有这 5 行新增、零删除;既有 `test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿。
+- Ruling: L6-1 测试用户名 `"a"` / `"b"` 低于注册的最短用户名长度(`/api/users` 不返回令牌),改为 `"alpha"` / `"bravo"`。`run_sync` 多一个 `now` 参数。
+- Ruling: L6-1 追加四条测试:注册表为空时 `_sync` 的 SQL 语句数与写入行与「去掉钩子」完全相同(spec §5.4 的证明,用 monkeypatch 把 `collect`/`capped` 换成空实现对照);较早同步入账的联动点计入之后同步的剩余额度(既有点数不减,当天最多超出子上限——spec 记录的上界);满 `MAX_ROWS` 时水位下移、下次同步补齐;`points_of`/`sub_cap` 跟随规则或默认值;另断言 `sources_daily_cap = 101` 被拒。
+- Ruling: L6-1 `extra_sources` 查询的 `in_()` 参数用排序后的列表(语句文本稳定),按 `(created_at, id)` 排序;其余与计划代码相同。
+- Ruling: L6-2 `rank_sources` 联动没有订阅、没有接口,因此没有 `links_rank_sources_contract.json`;`test_rank_extra_sources.py` 用 `enable_links` 断言 `/api/links/config` 里 `rank_sources` 跟随 `link_rank_sources_enabled`,并断言 `SPEC.install`/`SPEC.router` 为 `None`。
+- Ruling: L6-2 管理端测试的样例构造函数是 `test-fixtures.ts` 的 `defaultRules()`(计划写 `sampleRules()`);另加 `rules-tabs/points-tab.test.tsx`(规则页真实往返:改「每轮文字对话」后保存的草稿保留 `sources`、可改来源点数与子上限;旧规则显示默认 5 与空提示,保存时不凭空写入这两个字段;越界禁止保存)。`rules-schema.ts` 新增 `sourcesDailyCap()`(缺省 5)。
+- Ruling: L6-2 「影响预演不模拟联动来源」的说明放在点数页「联动来源」小节的提示里(预演页 `simulate-panel.tsx` 不在本车道独占文件内);来源列表 v1 取规则里的 `points.sources`(`GET /api/admin/links` 的 `rank_sources` 由 LA 提供,之后再接)。
+- Ruling: L6-2 网页只加 `RECENT_KINDS` 一项与两条文案,`rank-home-page.test.tsx` 不改(按计划);键对齐由 i18n 测试覆盖。
