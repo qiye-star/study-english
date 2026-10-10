@@ -1,0 +1,20 @@
+{
+  "web": {
+    "links": {
+      "dailyTasks": {
+        "title": "Today's tasks",
+        "done": "{{done}}/{{total}} done",
+        "wordbook": "Wordbook",
+        "wordbookDetail": "New {{newDone}}/{{newTarget}} · Review {{reviewDone}}/{{reviewDue}}",
+        "shadow": "Shadow a sentence",
+        "shadowDetail": "{{count}} read today",
+        "talk": "Have a conversation",
+        "talkDetail": "{{count}} said today",
+        "rank": "Rank stage tasks",
+        "rankDetail": "Stage tasks {{done}}/{{total}}",
+        "doneLabel": "{{title}}, done",
+        "todoLabel": "{{title}}, {{progress}}"
+      }
+    }
+  }
+}
