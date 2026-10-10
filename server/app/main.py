@@ -11,6 +11,7 @@ from app.core import log_buffer, metering
 from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
+from app.core.learning_events import LearningBus
 from app.services.grammar import load_grammar_rules
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
@@ -20,10 +21,12 @@ from app.core.settings_registry import SECRETS
 from app.core.runtime_settings import (
     SettingsHub, reload_from_db, run_startup_hooks, runtime_problems, watch_revisions,
 )
+from app.links import purge as links_purge
+from app.links.setup import install as install_links
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_auth, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -48,8 +51,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["watcher"] = asyncio.create_task(watch_revisions(app_))
         tasks["metering"] = asyncio.create_task(metering.flush_loop(app_))  # admin v2 §8.1
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
+        tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
+        tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
         yield
         await _stop_tasks(tasks, exclude="metering")
+        with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
+            await asyncio.wait_for(app_.state.learning_bus.drain(), 2.0)
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await _stop_tasks(tasks)  # metering last: its final flush keeps the calls made while shutting down
@@ -71,6 +78,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
     app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
+    app.state.learning_bus = LearningBus(lambda: app.state.settings)  # learning links §4 (reads settings per call)
+    install_links(app)  # gate + each link's subscriptions (app.links.registry)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
     app.state.settings_hub = hub = SettingsHub(app.state)
@@ -86,7 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for module in (
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
-        admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
+        links, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, stubs, admin_web, web,
     ):
         app.include_router(module.router)

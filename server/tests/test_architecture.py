@@ -8,6 +8,7 @@
     rank       -> core, providers, speech, services
     rooms      -> core, providers, speech, services (rank and rooms never import each other)
     wordbook   -> core, providers, speech, services (a leaf: only admin, routers and main import it)
+    links      -> core, providers, speech, services, rank, rooms, wordbook (top layer: only routers and main import it)
     admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
@@ -20,7 +21,8 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin", "routers")
+LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "links", "admin",
+          "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -33,11 +35,12 @@ ALLOWED: dict[str, set[str]] = {
     "rank": {"rank", "core", "models", "providers", "speech", "services"},
     "rooms": {"rooms", "core", "models", "providers", "speech", "services"},
     "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
+    "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin"},
+                "admin", "links"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers"},
+             "routers", "links"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -179,3 +182,26 @@ def test_wordbook_is_a_leaf_layer(tmp_path):
                 "app/realtime/e.py:2"):
         assert any(p.startswith(bad) for p in found), bad
     assert not any(p.startswith(("app/wordbook/ok.py", "app/admin/ok.py", "app/routers/ok.py")) for p in found)
+
+
+def test_links_is_a_top_layer(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("links", "rank", "admin", "wordbook", "services", "routers", "realtime", "core"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "rank" / "a.py").write_text("from app.links import mistakes\n", encoding="utf-8")
+    (app / "admin" / "b.py").write_text("def f():\n    from app.links import gate\n", encoding="utf-8")
+    (app / "wordbook" / "c.py").write_text("from app import links\n", encoding="utf-8")
+    (app / "services" / "d.py").write_text("import app.links.spec\n", encoding="utf-8")
+    (app / "core" / "e.py").write_text("from app.links.spec import LINK_KEYS\n", encoding="utf-8")
+    (app / "links" / "f.py").write_text("from app.routers import links\n", encoding="utf-8")
+    (app / "links" / "g.py").write_text("from app.realtime import x\n", encoding="utf-8")
+    (app / "links" / "ok.py").write_text("from app.wordbook import store\nfrom app.rank import points\n"
+                                         "from app.core import learning_events\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text("from app.links import registry\n", encoding="utf-8")
+    found = violations(app)
+    for bad in ("app/rank/a.py:1", "app/admin/b.py:2", "app/wordbook/c.py:1", "app/services/d.py:1", "app/core/e.py:1",
+                "app/links/f.py:1", "app/links/g.py:1"):
+        assert any(p.startswith(bad) for p in found), bad
+    assert not any(p.startswith(("app/links/ok.py", "app/routers/ok.py")) for p in found)

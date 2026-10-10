@@ -1,0 +1,87 @@
+{
+  "config": {
+    "enabled": true,
+    "links": [
+      {
+        "key": "word_actions",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "daily_tasks",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "mistakes",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "pron_shadow",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "chat_words",
+        "global": false,
+        "user": true,
+        "effective": false
+      },
+      {
+        "key": "rank_sources",
+        "global": true,
+        "user": true,
+        "effective": true
+      }
+    ]
+  },
+  "prefs": {
+    "enabled": true,
+    "links": [
+      {
+        "key": "word_actions",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "daily_tasks",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "mistakes",
+        "global": true,
+        "user": false,
+        "effective": false
+      },
+      {
+        "key": "pron_shadow",
+        "global": true,
+        "user": true,
+        "effective": true
+      },
+      {
+        "key": "chat_words",
+        "global": false,
+        "user": true,
+        "effective": false
+      },
+      {
+        "key": "rank_sources",
+        "global": true,
+        "user": true,
+        "effective": true
+      }
+    ]
+  },
+  "unknown": {
+    "error": "Unknown link"
+  }
+}

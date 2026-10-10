@@ -14,12 +14,13 @@ iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabul
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
 `admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions via
 `rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
-hide/dismiss via `admin/wordbook_admin.py`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
+hide/dismiss via `admin/wordbook_admin.py`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
+sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
-Anything below: core, models, providers, speech, services, realtime, rank, rooms, wordbook, admin, and other routers.
+Anything below: core, models, providers, speech, services, realtime, rank, rooms, wordbook, links, admin, and other routers.
 Nothing outside `routers/` and `main.py` may import a router (`tests/test_architecture.py`):
 logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 

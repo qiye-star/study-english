@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import metering
+from app.core import learning_events, metering
 from app.core.config import Settings
 from app.core.quotas import quota_cache
 from app.models import AccessToken, User
@@ -37,6 +37,7 @@ async def current_user(
     if user.disabled_at is not None:
         raise HTTPException(403, "Account disabled")
     metering.bind_user(user.id)
+    learning_events.bind(getattr(request.app.state, "learning_bus", None))  # learning-links spec §4.3
     return user
 
 
