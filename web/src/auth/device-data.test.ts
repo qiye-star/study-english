@@ -6,7 +6,7 @@ import { cachedHints, type HintsInput } from "~/features/chat/hints";
 import { GRAMMAR_REV_KEY, grammarRev } from "~/features/grammar/grammar-api";
 import { sharedTtsCache } from "~/features/chat/tts";
 import { COMPOSER_MODE_KEY } from "~/features/chat/composer-mode";
-import { PRACTICE_DRAFT_KEY, clearDeviceData } from "./device-data";
+import { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, clearDeviceData } from "./device-data";
 import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "~/lib/playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "~/lib/kv-cache";
 
@@ -53,6 +53,12 @@ describe("clearDeviceData", () => {
     clearDeviceData();
     await cachedHints(api, input);
     expect(mock.calls).toHaveLength(2);
+  });
+
+  it("forgets the wordbook preferences at logout", () => {
+    localStorage.setItem(WORDBOOK_PREFS_KEY, JSON.stringify({ showLetterCount: true }));
+    clearDeviceData();
+    expect(localStorage.getItem(WORDBOOK_PREFS_KEY)).toBeNull();
   });
 
   it("forgets the composer mode (text / hold to talk) at logout", () => {

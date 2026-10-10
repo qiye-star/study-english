@@ -5,12 +5,14 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
 
 ## What lives here
 - `wordbook-api.ts` (types + calls, `WORDBOOK_SERVER_ERRORS`), `use-wordbook-config.ts`.
-- Pages: `home-page.tsx` (/wordbook), `books-page.tsx` (/wordbook/books), `learn-page.tsx`, `review-page.tsx`; entry `wordbook-card.tsx`.
+- Pages: `home-page.tsx` (/wordbook), `books-page.tsx` (/wordbook/books), `learn-page.tsx`, `review-page.tsx`; entries
+  `wordbook-card.tsx` (practice page) and `me-row.tsx` (`WordbookMeRow`, 我的 → 学习). No bottom tab.
+- `use-today.ts` (`useWordbookToday`), `ui.ts` (shared button / dock classes, `bookTitle`, `fmt`), `test-fixtures.ts` (snake_case server samples for tests only).
 - `session-machine.ts` (learn/review queue), `word-card.tsx`, `choice-question.tsx`, `typing-question.tsx`, `letter-diff.tsx`, `plan-ring.tsx`, `session-summary.tsx`.
 - `spell/` – see `spell/CLAUDE.md`. `i18n/{en,zh-CN}.json`.
 
 ## Public surface
-`index.ts`: pages, `WordbookCard`, `useWordbookEnabled`, `useWordbookConfig`. Other directories import only `~/features/wordbook`.
+`index.ts`: pages, `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`. Other directories import only `~/features/wordbook`.
 
 ## Allowed dependencies
 `lib/`, `api/`, `audio/`, `components/`, `layout/`, `auth/`, `settings/`, `@renderer/*`, other features via `index.ts`

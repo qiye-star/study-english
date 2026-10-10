@@ -12,6 +12,22 @@
         "sentenceChanged": "例句已更新,请重新开始这一组",
         "aiUnavailable": "AI 讲解暂不可用",
         "wordNotFound": "词书里没有这个词"
+      },
+      "card": {
+        "title": "背单词",
+        "pitch": "选一本词书,每天 {{n}} 个新词",
+        "pick": "选择词书",
+        "bookDisabled": "这本词书已停用,换一本吧",
+        "review": "开始复习 {{n}}",
+        "learn": "学新词 {{n}}",
+        "done": "今日完成",
+        "spell": "拼写练习",
+        "counts": "待复习 {{due}} · 新词还剩 {{newLeft}}",
+        "mastered": "已掌握 {{m}} / {{total}}"
+      },
+      "meRow": {
+        "subtitle": "{{book}} · 已掌握 {{m}} 词",
+        "pick": "还没选词书"
       }
     }
   }

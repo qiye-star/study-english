@@ -12,8 +12,12 @@ import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
+import {
+  WordbookBooksPage, WordbookHomePage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
+} from "~/features/wordbook";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
+import { CreditsPage } from "~/pages/credits-page";
 import { InstallPage } from "~/pages/install-page";
 import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
@@ -63,7 +67,13 @@ export function AppRoutes() {
             <Route path="/rooms/r/:roomId" element={<RoomPage />} />
             <Route path="/rooms/r/:roomId/summary" element={<RoomSummaryPage />} />
             <Route path="/rooms/invite/:token" element={<RoomInvitePage />} />
+            <Route path="/wordbook" element={<WordbookHomePage />} />
+            <Route path="/wordbook/books" element={<WordbookBooksPage />} />
+            <Route path="/wordbook/learn" element={<WordbookLearnPage />} />
+            <Route path="/wordbook/review" element={<WordbookReviewPage />} />
+            <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/about/credits" element={<CreditsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/practice" replace />} />

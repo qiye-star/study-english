@@ -1,6 +1,6 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, SmartphoneIcon, type LucideIcon,
+  LanguagesIcon, LogOutIcon, ScrollTextIcon, SmartphoneIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,7 @@ import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
 import { useRoomsEnabled } from "~/features/rooms";
+import { WordbookMeRow } from "~/features/wordbook";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -187,6 +188,7 @@ export function MePage() {
             subtitle={stats ? t("web.me.progressSummary", { active: stats.activeDays, messages: stats.userMessages }) : undefined} />
           {stats && stats.daily.length > 0 && <WeekStrip stats={stats} />}
           <ListRow icon={<IconChip tone="teal" icon={BookOpenIcon} />} title={t("web.me.vocabulary")} to="/vocabulary" testId="me-vocabulary" />
+          <WordbookMeRow />
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.voice")}>
@@ -212,6 +214,8 @@ export function MePage() {
             {showInstall && (
               <ListRow icon={<IconChip tone="gray" icon={SmartphoneIcon} />} title={t("web.me.install")} to="/install" />
             )}
+            <ListRow icon={<IconChip tone="gray" icon={ScrollTextIcon} />} title={t("web.me.credits")} subtitle={t("web.me.creditsHint")}
+              to="/about/credits" testId="me-credits" />
           </div>
           {/* 提示词编辑器(grammar 目录)整块放进卡片;标题提到正文字号,与列表行标题一致 */}
           <SurfaceCard className="mt-2 p-3.5 [&_[data-testid=grammar-prompt]>h2]:text-body [&_[data-testid=grammar-prompt]>h2]:font-medium [&_[data-testid=grammar-prompt]>h2]:text-ink">

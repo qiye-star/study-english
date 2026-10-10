@@ -12,6 +12,22 @@
         "sentenceChanged": "The sentences have been updated. Please restart this set.",
         "aiUnavailable": "AI explanation is unavailable right now.",
         "wordNotFound": "This word is not in the word book."
+      },
+      "card": {
+        "title": "Wordbook",
+        "pitch": "Pick a book — {{n}} new words a day",
+        "pick": "Choose a book",
+        "bookDisabled": "This book was turned off — pick another",
+        "review": "Review {{n}}",
+        "learn": "Learn {{n}} new",
+        "done": "Done for today",
+        "spell": "Spelling",
+        "counts": "{{due}} to review · {{newLeft}} new left",
+        "mastered": "Mastered {{m}} / {{total}}"
+      },
+      "meRow": {
+        "subtitle": "{{book}} · {{m}} mastered",
+        "pick": "No book chosen yet"
       }
     }
   }
