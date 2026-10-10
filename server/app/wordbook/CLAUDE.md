@@ -8,6 +8,8 @@
 - `index.py` – `BookIndex` + `DictionaryStore` (`dictionary(app)`): lazy per-book index, line reads, LRU, hidden sentences
 - `grading.py` / `quiz.py` / `cloze.py` / `plan.py` – grading, question types and distractors, spelling sets, daily plan (pure)
 - `store.py` – enrollments, learned words, events, counters (DB); `service.py` – endpoint orchestration; `explain.py` – AI "why"
+- `recall.py` – v2 self-rating rules (spec `2026-10-11-wordbook-recall-design.md` §5): effective rating (peek → fuzzy,
+  two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`. Imported only by `app/admin`, `app/routers`,
@@ -28,5 +30,12 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   Spell blanks carry `form` (sentence surface form, e.g. go → went) for the hint and TTS only; grading never trusts it.
 - Contract fixture `tests/fixtures/wordbook_contract.json` is read by the web contract test (never skipped): re-record with
   `CONTRACT_UPDATE=1` whenever a response shape changes.
+- Self-rating (`qtype=recall`): boxes, spot checks and the fuzzy streak are decided here, never by the client.
+  `known:true` is an alias for an unpeeked `know`. Same-day follow-ups on a new word (round quiz, spot check,
+  re-rating) only move the box through `store.set_learn_box` (no reps, no `last_reviewed_at` → no `vocab_review`);
+  not-due words still go through `apply_lapse`. The new-word event kind comes only from `service._learn_kind`.
+- The spot-check seed is the enrollment `seed`: never put it in a response. A review spot check is two steps
+  (`pending` + `check`, then the same rating with `choice`); the pending step writes no box and no event.
+- `tests/wordbook_helpers.enable_wordbook` defaults `wordbook_spot_check_pct=0`; spot-check tests pass 0 / 1 / 100.
 - Limits: answers 3,000 per user per local day (`store.ANSWERS_DAILY_MAX`), reports 20 (`REPORTS_DAILY_MAX`), card LRU 1,024
   per process; all seven indexes ≈ 7 MiB traced.
