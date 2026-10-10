@@ -17,6 +17,8 @@ describe("e2e upstream guard classification", () => {
     "/api/wordbook/config", "/api/wordbook/today", "/api/wordbook/books", "/api/wordbook/enrollment",
     "/api/wordbook/learn/batch", "/api/wordbook/review/batch", "/api/wordbook/answers", "/api/wordbook/spell/sets",
     "/api/wordbook/spell/submit", "/api/wordbook/cards/junior/used%20to", "/api/wordbook/reports",
+    // 每日目标面板(goals 计划 GW6,集成 Z1 发现守卫漏放):加练、暂停、继续、重置只读写数据库
+    "/api/wordbook/bonus", "/api/wordbook/enrollment/pause", "/api/wordbook/enrollment/resume", "/api/wordbook/enrollment/reset",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -31,6 +33,7 @@ describe("e2e upstream guard classification", () => {
     "/api/rank/matches", "/api/rank/matches/m1/turns", "/api/rank/matches/m1/finish", "/api/rooms/ws", "/api/rooms", "/api/rooms/r1/ticket",
     // 背单词的 AI 讲解会触达上游(LLM)
     "/api/wordbook/explain", "/api/wordbook", "/api/wordbook/configx", "/api/wordbook/cards/junior",
+    "/api/wordbook/enrollment/delete", "/api/wordbook/bonusx",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });

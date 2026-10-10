@@ -15,7 +15,7 @@ const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "
   "/api/announcements"]);
 
 // 背单词(WORDBOOK_ENABLED):只读写数据库与本地词典文件;/api/wordbook/explain(AI 讲解,LLM)不放行。
-const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|learn\/batch|review\/batch|answers|spell\/sets|spell\/submit|reports|cards\/[^/]+\/[^/]+)$/;
+const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|enrollment\/(?:pause|resume|reset)|bonus|learn\/batch|review\/batch|answers|spell\/sets|spell\/submit|reports|cards\/[^/]+\/[^/]+)$/;
 
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname);
