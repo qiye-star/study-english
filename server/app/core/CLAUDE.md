@@ -29,10 +29,15 @@ Foundation layer used by every other package.
   (read_only) pass; new WebSockets get close 1013 before accept
 - `log_buffer.py` – in-memory ring buffer (2000) on the `app` and `uvicorn.error` loggers for the admin log viewer;
   `redact` (ticket/Bearer/key=…/JSON keys/current secret values via `set_secrets`); installed by `configure_logging`
+- `learning_events.py` – learning event channel (learning-links spec §4; standard library only): frozen event
+  dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent`, `LearningBus` (bounded deque,
+  single consumer `run()`, per-handler timeout, circuit breaker, counters, `drain()` for tests/shutdown) and the
+  contextvar `bind(bus)` (called by `current_user`) / `publish(event)` (never raises; only after `commit()`)
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
 Nothing from providers/speech/services/realtime/routers – not even lazily.
+`learning_events.py` and `rank_sources.py` use the standard library only (enforced in `tests/test_architecture.py`).
 
 ## Entry points
 `Settings`, `make_engine`, `install_error_handlers`, `configure_logging`, `get_*` deps,
@@ -51,3 +56,6 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 - Never log or print settings values that hold keys.
 - Every new upstream call needs a `metering.record(...)` at the call site (success and failure; status 0 = no
   response). Never pass text, prompts or URLs with query strings to it — `provider_of(base_url)` only.
+- `learning_events.publish(...)` goes strictly after the publisher's `await session.commit()`; publishers never
+  check switches or import `app.links`. The bus logs only link key, event class and exception class — never words,
+  message text, exception messages or user ids. `MessageSent.text` stays in memory (`repr=False`).

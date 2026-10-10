@@ -106,6 +106,18 @@ def test_layering_rules_hold():
     assert violations() == []
 
 
+STDLIB_ONLY = ("core/learning_events.py",)  # neutral core modules of the learning-links spec (§4, §5.1)
+
+
+def test_neutral_core_modules_use_the_standard_library_only():
+    import sys
+    for rel in STDLIB_ONLY:
+        path = APP / rel
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, module_name(path, APP), False):
+            assert target.split(".")[0] in sys.stdlib_module_names, f"app/{rel}:{lineno} imports {target}"
+
+
 def test_scanner_sees_lazy_relative_and_package_imports(tmp_path):
     app = tmp_path / "app"
     (app / "core").mkdir(parents=True)
