@@ -29,3 +29,6 @@ export function removeKey(key: string): void {
 
 /** 练习页草稿(参考文本)的存储键;登出时由 auth/device-data 清除。 */
 export const PRACTICE_DRAFT_KEY = "enjoy-web.practice.reference";
+
+/** 背单词的本机偏好(如拼写「显示字母数」,spec §11.5);登出时由 auth/device-data 清除。 */
+export const WORDBOOK_PREFS_KEY = "enjoy-web.wordbook.prefs";

@@ -12,6 +12,141 @@
         "sentenceChanged": "The sentences have been updated. Please restart this set.",
         "aiUnavailable": "AI explanation is unavailable right now.",
         "wordNotFound": "This word is not in the word book."
+      },
+      "card": {
+        "title": "Wordbook",
+        "pitch": "Pick a book — {{n}} new words a day",
+        "pick": "Choose a book",
+        "bookDisabled": "This book was turned off — pick another",
+        "review": "Review {{n}}",
+        "learn": "Learn {{n}} new",
+        "done": "Done for today",
+        "spell": "Spelling",
+        "counts": "{{due}} to review · {{newLeft}} new left",
+        "mastered": "Mastered {{m}} / {{total}}"
+      },
+      "meRow": {
+        "subtitle": "{{book}} · {{m}} mastered",
+        "pick": "No book chosen yet"
+      },
+      "home": {
+        "settings": "Books and daily settings",
+        "total": "{{n}} words",
+        "progressLabel": "Book progress",
+        "mastered": "Mastered",
+        "learned": "Learned",
+        "remaining": "Left",
+        "today": "Today",
+        "newWords": "New words",
+        "reviews": "Reviews",
+        "tomorrow": "Due tomorrow",
+        "reviewCap": "Daily review cap",
+        "review": "Review",
+        "reviewHint": "{{n}} due",
+        "learn": "Learn new words",
+        "learnHint": "5 per round: cards, then a quick quiz",
+        "spell": "Spell in sentences",
+        "spellHint": "Put today's words back into example sentences",
+        "finished": "Done",
+        "backlog": "Reviews are piling up — fewer new words today",
+        "switchBook": "Pick another"
+      },
+      "books": {
+        "title": "Choose a book",
+        "levelNote": "The level bar only orders the books roughly; the data has no word frequencies.",
+        "level": "Level {{n}}/{{max}}",
+        "words": "{{n}} words",
+        "learned": "{{n}} learned",
+        "mastered": "{{n}} mastered",
+        "current": "Current",
+        "unavailable": "Unavailable",
+        "sheetTitle": "{{book}} · daily settings",
+        "sheetLearned": "{{n}} learned (words learned in other books count as learned)",
+        "sheetFresh": "{{n}} words",
+        "dailyNew": "New words a day",
+        "reviewCap": "Daily review cap",
+        "orderLabel": "New-word order",
+        "order": { "shuffle": "Shuffled", "book": "Book order" },
+        "keepProgress": "Switching books keeps your progress; you can switch back any time.",
+        "start": "Start"
+      },
+      "diff": {
+        "label": "Correct spelling: {{word}}"
+      },
+      "session": {
+        "close": "End and back to Wordbook",
+        "progress": "Round progress",
+        "count": "{{n}} / {{total}}"
+      },
+      "word": {
+        "accent": { "us": "US", "uk": "UK" },
+        "listen": { "us": "Play US pronunciation", "uk": "Play UK pronunciation", "word": "Play pronunciation" },
+        "listenExample": "Read the example",
+        "showZh": "Show translation",
+        "hideZh": "Hide translation",
+        "phrases": "Phrases",
+        "ttsOff": "Read-aloud is not configured on this server"
+      },
+      "learn": {
+        "title": "New words",
+        "eyebrow": "New word {{n}} / {{total}} · {{book}}",
+        "known": "I know it",
+        "next": "Next",
+        "startQuiz": "Start quiz",
+        "quiz": "Quick quiz",
+        "empty": "Today's new words are done",
+        "emptyHint": "Review or spell in sentences to lock them in."
+      },
+      "quiz": {
+        "kind": {
+          "meaning": "Choose the meaning",
+          "word": "Choose the word",
+          "cloze": "Fill the sentence",
+          "dictation": "Dictation",
+          "spell": "Spell the word"
+        },
+        "blank": "blank",
+        "dictationHint": "Listen and write the word",
+        "dictationInput": "The word you heard",
+        "dictationPlaceholder": "Type what you hear",
+        "spellInput": "Spell the word",
+        "hint": "First letter",
+        "length": "{{n}} letters",
+        "submit": "Submit",
+        "yours": "You wrote",
+        "expected": "Correct spelling:",
+        "correct": "Correct",
+        "wrong": "The answer is {{answer}}",
+        "wrongPlain": "Not quite — this word will come back once more",
+        "continue": "Continue"
+      },
+      "outcome": {
+        "correct": "Correct",
+        "typo": "Small typo",
+        "inflection": "Wrong form",
+        "wrong": "Wrong",
+        "known": "Known"
+      },
+      "review": {
+        "title": "Review",
+        "due": "{{n}} words due",
+        "intro": "Question types follow how well you know each word: meaning, word, sentence, dictation and spelling. Misses and near misses come back once at the end of the round.",
+        "start": "Start review",
+        "empty": "Nothing to review today"
+      },
+      "summary": {
+        "title": "Summary",
+        "learn": { "title": "Round complete", "count": "{{n}} new words learned", "tile": "New words" },
+        "review": { "title": "Today's review is done", "count": "{{n}} reviewed", "tile": "Reviewed" },
+        "firstTry": "{{n}} right first time",
+        "mastered": "{{n}} words now mastered",
+        "correct": "Correct",
+        "points": "Rank points",
+        "estimate": "est.",
+        "missed": "Worth another look",
+        "missedHint": "{{meaning}} · back tomorrow",
+        "home": "Back to Wordbook",
+        "again": "Another round"
       }
     }
   }

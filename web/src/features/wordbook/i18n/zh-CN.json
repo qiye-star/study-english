@@ -12,6 +12,141 @@
         "sentenceChanged": "例句已更新,请重新开始这一组",
         "aiUnavailable": "AI 讲解暂不可用",
         "wordNotFound": "词书里没有这个词"
+      },
+      "card": {
+        "title": "背单词",
+        "pitch": "选一本词书,每天 {{n}} 个新词",
+        "pick": "选择词书",
+        "bookDisabled": "这本词书已停用,换一本吧",
+        "review": "开始复习 {{n}}",
+        "learn": "学新词 {{n}}",
+        "done": "今日完成",
+        "spell": "拼写练习",
+        "counts": "待复习 {{due}} · 新词还剩 {{newLeft}}",
+        "mastered": "已掌握 {{m}} / {{total}}"
+      },
+      "meRow": {
+        "subtitle": "{{book}} · 已掌握 {{m}} 词",
+        "pick": "还没选词书"
+      },
+      "home": {
+        "settings": "词书与每日设置",
+        "total": "共 {{n}} 词",
+        "progressLabel": "词书进度",
+        "mastered": "已掌握",
+        "learned": "已学",
+        "remaining": "剩余",
+        "today": "今天",
+        "newWords": "新词",
+        "reviews": "复习",
+        "tomorrow": "明天预计复习",
+        "reviewCap": "每日复习上限",
+        "review": "复习",
+        "reviewHint": "到期 {{n}} 个",
+        "learn": "学新词",
+        "learnHint": "一轮 5 个:词卡 → 小测",
+        "spell": "按句拼写",
+        "spellHint": "今天学过的词放回例句里拼",
+        "finished": "已完成",
+        "backlog": "复习积压,今天少学新词",
+        "switchBook": "换一本"
+      },
+      "books": {
+        "title": "选择词书",
+        "levelNote": "难度条按词书大致排序;数据里没有词频,只是参考。",
+        "level": "难度 {{n}}/{{max}}",
+        "words": "{{n}} 词",
+        "learned": "已学 {{n}}",
+        "mastered": "掌握 {{n}}",
+        "current": "当前",
+        "unavailable": "暂不可用",
+        "sheetTitle": "{{book}} · 每日设置",
+        "sheetLearned": "已学 {{n}} 个(其他词书里学过的词直接算已学)",
+        "sheetFresh": "共 {{n}} 词",
+        "dailyNew": "每天新词",
+        "reviewCap": "每天复习上限",
+        "orderLabel": "新词顺序",
+        "order": { "shuffle": "乱序", "book": "书序" },
+        "keepProgress": "换书不清进度,随时可以换回来。",
+        "start": "开始"
+      },
+      "diff": {
+        "label": "正确拼写 {{word}}"
+      },
+      "session": {
+        "close": "结束并回到背单词",
+        "progress": "本轮进度",
+        "count": "{{n}} / {{total}}"
+      },
+      "word": {
+        "accent": { "us": "美", "uk": "英" },
+        "listen": { "us": "朗读美音", "uk": "朗读英音", "word": "播放读音" },
+        "listenExample": "朗读例句",
+        "showZh": "看译文",
+        "hideZh": "收起译文",
+        "phrases": "短语",
+        "ttsOff": "服务器没有配置朗读"
+      },
+      "learn": {
+        "title": "学新词",
+        "eyebrow": "新词 {{n}} / {{total}} · {{book}}",
+        "known": "我认识",
+        "next": "下一个",
+        "startQuiz": "开始小测",
+        "quiz": "小测",
+        "empty": "今天的新词学完了",
+        "emptyHint": "去复习或按句拼写巩固一下吧。"
+      },
+      "quiz": {
+        "kind": {
+          "meaning": "选择正确的释义",
+          "word": "看释义选词",
+          "cloze": "例句选词",
+          "dictation": "听写",
+          "spell": "看释义拼写"
+        },
+        "blank": "空",
+        "dictationHint": "听读音,写出这个词",
+        "dictationInput": "听到的单词",
+        "dictationPlaceholder": "听到什么写什么",
+        "spellInput": "拼写这个词",
+        "hint": "首字母",
+        "length": "{{n}} 个字母",
+        "submit": "提交",
+        "yours": "你写的",
+        "expected": "正确拼写",
+        "correct": "答对了",
+        "wrong": "正确答案是 {{answer}}",
+        "wrongPlain": "答错了,这个词会再出现一次",
+        "continue": "继续"
+      },
+      "outcome": {
+        "correct": "正确",
+        "typo": "小笔误",
+        "inflection": "词形不对",
+        "wrong": "错误",
+        "known": "已认识"
+      },
+      "review": {
+        "title": "复习",
+        "due": "到期 {{n}} 个词",
+        "intro": "题型随熟练度变化:选释义、选词、例句选词、听写、拼写。答错或接近的词会在本轮末尾再出现一次。",
+        "start": "开始复习",
+        "empty": "今天没有要复习的词"
+      },
+      "summary": {
+        "title": "小结",
+        "learn": { "title": "这一轮学完了", "count": "学会 {{n}} 个新词", "tile": "新词" },
+        "review": { "title": "今天的复习完成了", "count": "复习 {{n}}", "tile": "复习" },
+        "firstTry": "一次答对 {{n}}",
+        "mastered": "{{n}} 个词进入「已掌握」",
+        "correct": "答对",
+        "points": "段位点",
+        "estimate": "估算",
+        "missed": "需要再看看",
+        "missedHint": "{{meaning}} · 明天再复习",
+        "home": "回到首页",
+        "again": "再来一轮"
       }
     }
   }

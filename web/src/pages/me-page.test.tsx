@@ -109,4 +109,28 @@ describe("MePage", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(screen.getByTestId("me-vocabulary")).toHaveAttribute("href", "/vocabulary");
   });
+  it("shows the wordbook row only when the wordbook is on", async () => {
+    localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+    await i18n.changeLanguage("zh-CN");
+    try {
+      const on = createFetchMock({
+        ...ROUTES,
+        "GET /api/wordbook/config": () => json({ enabled: true, ai_available: false, defaults: { daily_new: 20, review_cap: 100 }, books: [] }),
+        "GET /api/wordbook/today": () => json({ enrollment: null, book: null, plan: null, progress: null, tomorrow_due: 0 }),
+      });
+      const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: on.fetch }) });
+      const row = await screen.findByTestId("me-wordbook");
+      expect(row).toHaveAttribute("href", "/wordbook");
+      expect(row).toHaveTextContent("背单词");
+      unmount();
+      const off = createFetchMock({ ...ROUTES, "GET /api/wordbook/config": () => json({ enabled: false }) });
+      renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: off.fetch }) });
+      await waitFor(() => expect(off.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
+      await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+      expect(screen.queryByTestId("me-wordbook")).toBeNull();
+    } finally {
+      localStorage.removeItem("enjoy-web.settings");
+      await i18n.changeLanguage("en");
+    }
+  });
 });

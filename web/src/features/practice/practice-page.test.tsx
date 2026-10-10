@@ -31,6 +31,20 @@ const assessCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.fil
 describe("PracticePage", () => {
   beforeEach(() => localStorage.clear());
 
+  it("shows the wordbook card under the rank card when the wordbook is on", async () => {
+    setup({
+      "GET /api/wordbook/config": () => json({ enabled: true, ai_available: false, defaults: { daily_new: 20, review_cap: 100 }, books: [] }),
+      "GET /api/wordbook/today": () => json({ enrollment: null, book: null, plan: null, progress: null, tomorrow_due: 0 }),
+    });
+    expect(await screen.findByTestId("wordbook-card")).toBeInTheDocument();
+  });
+
+  it("has no wordbook card when the wordbook is off", async () => {
+    const { mock } = setup({ "GET /api/wordbook/config": () => json({ enabled: false }) });
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
+    expect(screen.queryByTestId("wordbook-card")).toBeNull();
+  });
+
   it("links to the progress page", () => {
     setup({});
     const link = screen.getByTestId("practice-progress");

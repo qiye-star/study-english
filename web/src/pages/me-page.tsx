@@ -17,6 +17,7 @@ import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
 import { useRoomsEnabled } from "~/features/rooms";
+import { WordbookMeRow } from "~/features/wordbook";
 import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
@@ -187,6 +188,7 @@ export function MePage() {
             subtitle={stats ? t("web.me.progressSummary", { active: stats.activeDays, messages: stats.userMessages }) : undefined} />
           {stats && stats.daily.length > 0 && <WeekStrip stats={stats} />}
           <ListRow icon={<IconChip tone="teal" icon={BookOpenIcon} />} title={t("web.me.vocabulary")} to="/vocabulary" testId="me-vocabulary" />
+          <WordbookMeRow />
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.voice")}>
