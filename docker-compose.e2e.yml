@@ -14,6 +14,7 @@ services:
       ROOMS_ENABLED: "true"
       ROOMS_AI_GLOBAL_DAILY: "0"   # E2E 不调用房间 AI(零成本);AI 路径由 server/tests/test_rooms_ws.py 覆盖
       ROOMS_VOICE_ENABLED: "true"  # rooms-v2.spec.ts 需要语音入口;上传被 page.route 拦截成契约样例,不产生上游调用
+      WORDBOOK_ENABLED: "true"     # wordbook.spec.ts;只读本地词典文件与数据库。AI 讲解(WORDBOOK_AI_ENABLED)保持关闭,零上游
       ADMIN_USERNAME: ${E2E_ADMIN_USERNAME:-root}
       ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-}   # 空 = 管理端关闭
       ADMIN_COOKIE_SECURE: "false"   # E2E 栈是 http://localhost:8100

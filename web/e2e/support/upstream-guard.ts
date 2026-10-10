@@ -10,8 +10,13 @@
 const OWN_BACKEND = /^\/api\/(users|me|conversations|messages|config|stats|vocabulary|practice-items|upload|sessions|assessments)(\/|$)/;
 // 段位/联机的配置与段位读数在练习页、「我的」和底部导航加载时就会请求(RANK_ENABLED / ROOMS_ENABLED),只读写数据库。
 // /api/rank/matches/*(考官、转写、评分)与 /api/rooms/ws(房间 AI)会触达上游,不放行。
-const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "/api/rank/me", "/api/rank/achievements", "/api/rooms/config"]);
+// /api/announcements:公告条(管理端 v2)每页加载时请求,只读数据库。
+const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "/api/rank/me", "/api/rank/achievements", "/api/rooms/config",
+  "/api/announcements"]);
+
+// 背单词(WORDBOOK_ENABLED):只读写数据库与本地词典文件;/api/wordbook/explain(AI 讲解,LLM)不放行。
+const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|learn\/batch|review\/batch|answers|spell\/sets|spell\/submit|reports|cards\/[^/]+\/[^/]+)$/;
 
 export function isOwnBackendPath(pathname: string): boolean {
-  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname);
+  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname);
 }

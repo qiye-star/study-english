@@ -11,6 +11,12 @@ describe("e2e upstream guard classification", () => {
     "/api/realtime/config",
     // 段位卡与底部导航加载时请求(RANK_ENABLED / ROOMS_ENABLED 开启的 E2E 栈)
     "/api/rank/config", "/api/rank/me", "/api/rank/achievements", "/api/rooms/config",
+    // 公告条(管理端 v2)每页加载时请求;只读数据库
+    "/api/announcements",
+    // 背单词(WORDBOOK_ENABLED):练习页大卡、「我的」一行与背单词各页只读写数据库与本地词典文件
+    "/api/wordbook/config", "/api/wordbook/today", "/api/wordbook/books", "/api/wordbook/enrollment",
+    "/api/wordbook/learn/batch", "/api/wordbook/review/batch", "/api/wordbook/answers", "/api/wordbook/spell/sets",
+    "/api/wordbook/spell/submit", "/api/wordbook/cards/junior/used%20to", "/api/wordbook/reports",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -23,6 +29,8 @@ describe("e2e upstream guard classification", () => {
     "/api/configuration", "/api/unknown",
     // 晋级赛(考官/转写/评分)与房间(AI)可能触达上游
     "/api/rank/matches", "/api/rank/matches/m1/turns", "/api/rank/matches/m1/finish", "/api/rooms/ws", "/api/rooms", "/api/rooms/r1/ticket",
+    // 背单词的 AI 讲解会触达上游(LLM)
+    "/api/wordbook/explain", "/api/wordbook", "/api/wordbook/configx", "/api/wordbook/cards/junior",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });
