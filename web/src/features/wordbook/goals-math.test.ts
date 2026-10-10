@@ -1,51 +1,28 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import {
-  PRESETS, clamp, daysToFinish, estimate, matchPreset, parseCount, previewPlan, reviewLoadOn, reviewOffsets, steadyReviews,
-  type PlanInput,
+  BACKLOG_NEW, INTERVAL_DAYS, PRESETS, clamp, daysToFinish, estimate, matchPreset, parseCount, previewPlan, reviewLoadOn, reviewOffsets,
+  steadyReviews, type PlanInput,
 } from "./goals-math";
 
 type PlanCase = { name: string; in: Record<string, unknown>; out: Record<string, unknown> };
 
 /**
- * 计划 GP-3:previewPlan 与服务端 compute_plan 共用 server/tests/fixtures/wordbook_plan_cases.json(GS1 写)。
- * Ruling GW1-a:服务端车道并行开发,样例表还没进本分支时用计划 GS1 Step 1 的同一份表(下方 PLAN_CASES,逐字照抄);
- * 样例文件一旦存在,下面的交叉核对自动生效,并要求两份表完全相同(任何一边改规则都必须改表)。
+ * 计划 GP-3:previewPlan 与服务端 compute_plan 共用 server/tests/fixtures/wordbook_plan_cases.json(GS1 写,
+ * 服务端 test_wordbook_goals_plan.py 读同一份)。goals 计划 Z1:GW1-a 的内嵌副本已删除,这里只读服务端的表;
+ * 表不存在就是失败(不跳过)。估算公式依赖的常量也直接核对服务端源码,任何一边改都会让这里变红。
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SERVER_CASES = path.resolve(here, "../../../../server/tests/fixtures/wordbook_plan_cases.json");
-const serverCases: PlanCase[] | null = existsSync(SERVER_CASES) ? JSON.parse(readFileSync(SERVER_CASES, "utf8")) : null;
-
-const plan = (o: Record<string, unknown>) => ({ review_done: 0, review_due: 0, review_left: 0, backlog_guard: false, bonus: 0, goal_met: false, ...o });
-const PLAN_CASES: PlanCase[] = [
-  { name: "basic", in: { daily_new: 20, review_cap: 100, new_done: 3, review_done: 10, review_due: 40 },
-    out: plan({ new_target: 20, new_done: 3, new_left: 17, review_due: 40, review_done: 10, review_left: 40 }) },
-  { name: "backlog_first_five", in: { daily_new: 20, review_cap: 100, new_done: 0, review_done: 95, review_due: 140 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 5, review_due: 140, review_done: 95, review_left: 5, backlog_guard: true }) },
-  { name: "backlog_total_is_five", in: { daily_new: 20, review_cap: 100, new_done: 5, review_done: 100, review_due: 140 },
-    out: plan({ new_target: 20, new_done: 5, new_left: 0, review_due: 140, review_done: 100, review_left: 0, backlog_guard: true, goal_met: true }) },
-  { name: "raised_mid_day", in: { daily_new: 35, review_cap: 100, new_done: 20, review_done: 0, review_due: 0 },
-    out: plan({ new_target: 35, new_done: 20, new_left: 15 }) },
-  { name: "lowered_below_done", in: { daily_new: 10, review_cap: 100, new_done: 20, review_done: 0, review_due: 0 },
-    out: plan({ new_target: 10, new_done: 20, new_left: 0, goal_met: true }) },
-  { name: "bonus_after_goal", in: { daily_new: 20, review_cap: 100, new_done: 20, review_done: 30, review_due: 0, bonus: 10 },
-    out: plan({ new_target: 30, new_done: 20, new_left: 10, review_done: 30, bonus: 10, goal_met: true }) },
-  { name: "unlimited_backlog", in: { daily_new: 20, review_cap: null, new_done: 0, review_done: 0, review_due: 1500, guard_threshold: 1000 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 5, review_due: 1500, review_left: 1500, backlog_guard: true }) },
-  { name: "unlimited_ok", in: { daily_new: 20, review_cap: null, new_done: 0, review_done: 0, review_due: 300, guard_threshold: 1000 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 20, review_due: 300, review_left: 300 }) },
-  { name: "few_words_left", in: { daily_new: 20, review_cap: 100, new_done: 0, review_done: 0, review_due: 0, remaining: 7 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 7 }) },
-  { name: "book_finished", in: { daily_new: 20, review_cap: 100, new_done: 3, review_done: 0, review_due: 0, remaining: 0 },
-    out: plan({ new_target: 20, new_done: 3, new_left: 0, goal_met: true }) },
-  { name: "cap_lowered_below_done", in: { daily_new: 20, review_cap: 50, new_done: 0, review_done: 80, review_due: 30 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 20, review_due: 30, review_done: 80, review_left: 0 }) },
-  { name: "no_activity", in: { daily_new: 20, review_cap: 100, new_done: 0, review_done: 0, review_due: 0 },
-    out: plan({ new_target: 20, new_done: 0, new_left: 20 }) },
-];
+const SERVER = path.resolve(here, "../../../../server");
+const PLAN_CASES: PlanCase[] = JSON.parse(readFileSync(path.join(SERVER, "tests/fixtures/wordbook_plan_cases.json"), "utf8"));
+const pyConst = (file: string, name: string) => {
+  const m = readFileSync(path.join(SERVER, file), "utf8").match(new RegExp(`^${name} = (.+?)(?:\\s+#.*)?$`, "m"));
+  if (!m) throw new Error(`${name} not found in ${file}`);
+  return JSON.parse(m[1].replace(/^\(/, "[").replace(/\)$/, "]"));
+};
 
 const runCases = (cases: PlanCase[]) => {
   for (const c of cases) {
@@ -88,14 +65,15 @@ describe("goals-math (spec 2026-10-11 §4)", () => {
     expect(matchPreset(20, 100)).toBeNull();
   });
 
-  it("mirrors compute_plan on the plan's shared table (GS1 Step 1)", () => {
+  it("mirrors the server's compute_plan on every case of server/tests/fixtures/wordbook_plan_cases.json", () => {
     expect(PLAN_CASES.length).toBeGreaterThanOrEqual(12);
+    expect(new Set(PLAN_CASES.map((c) => c.name)).size).toBe(PLAN_CASES.length);
     runCases(PLAN_CASES);
   });
 
-  it.skipIf(serverCases === null)("mirrors the server's compute_plan on server/tests/fixtures/wordbook_plan_cases.json (pending GS1 merge)", () => {
-    expect(serverCases).toEqual(PLAN_CASES);
-    runCases(serverCases!);
+  it("uses the server's box intervals and backlog limit (estimates and preview share them)", () => {
+    expect([...INTERVAL_DAYS]).toEqual(pyConst("app/services/vocabulary.py", "INTERVAL_DAYS"));
+    expect(BACKLOG_NEW).toBe(pyConst("app/wordbook/plan.py", "BACKLOG_NEW"));
   });
 
   it("parses counts from any keyboard and clamps", () => {

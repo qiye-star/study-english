@@ -17,14 +17,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../../server/tests/fixtures/wordbook_contract.json");
 const contract: Record<string, unknown> | null = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, "utf8")) : null;
 
-/**
- * Ruling GW2-a(goals 计划 GW2):服务端 GS5 用 goals 的键重录这份样例;它进本分支之前(样例里还没有
- * `enrollment_patch`),旧形状去掉 goals 新增的键再比对,goals 的那个 `it` 跳过。GS5 合并后自动全量比对;
- * Z1 删掉这个开关。
- */
-const GOALS_RECORDED = contract !== null && "enrollment_patch" in contract;
-const keys = (r: Record<string, true>, goalsOnly: readonly string[] = []) =>
-  Object.keys(r).filter((k) => GOALS_RECORDED || !goalsOnly.includes(k)).sort();
+/** goals 计划 Z1:GS5 已用 goals 的键重录样例,Ruling GW2-a 的临时开关已删除,全部键逐一比对。 */
+const keys = (r: Record<string, true>) => Object.keys(r).sort();
 const cc = <T>(v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as T;
 const keysOf = (o: object) => Object.keys(o).sort();
 
@@ -36,9 +30,6 @@ const PROGRESS: Record<keyof Progress, true> = { words: true, learned: true, mas
 const ENROLLMENT: Record<keyof Enrollment, true> = {
   bookId: true, status: true, orderMode: true, dailyNew: true, reviewCap: true, startedAt: true, reviewUnlimited: true,
 };
-const GOALS_TODAY_KEYS = ["paused", "streak"] as const;
-const GOALS_PLAN_KEYS = ["bonus", "goalMet"] as const;
-const GOALS_ENROLLMENT_KEYS = ["reviewUnlimited"] as const;
 const STREAK: Record<keyof Streak, true> = { current: true, todayMet: true };
 const LIMITS: Record<keyof GoalLimits, true> = { dailyNew: true, reviewCap: true, reviewUnlimited: true, bonusMax: true };
 const BONUS: Record<keyof BonusResult, true> = { plan: true, bonusLeft: true };
@@ -67,10 +58,10 @@ describe("wordbook contract (server fixture)", () => {
 
   it("today/plan/books match the client types", () => {
     const today = cc<Today>(c.today);
-    expect(keysOf(today)).toEqual(keys(TODAY, GOALS_TODAY_KEYS));
-    expect(keysOf(today.plan as DayPlan)).toEqual(keys(PLAN, GOALS_PLAN_KEYS));
+    expect(keysOf(today)).toEqual(keys(TODAY));
+    expect(keysOf(today.plan as DayPlan)).toEqual(keys(PLAN));
     if (today.progress) expect(keysOf(today.progress)).toEqual(keys(PROGRESS));
-    if (today.enrollment) expect(keysOf(today.enrollment)).toEqual(keys(ENROLLMENT, GOALS_ENROLLMENT_KEYS));
+    if (today.enrollment) expect(keysOf(today.enrollment)).toEqual(keys(ENROLLMENT));
     if (today.book) expect(keysOf(today.book)).toEqual(keys(BOOK));
     if (c.books) expect(keysOf(cc<{ books: BookProgress[] }>(c.books).books[0])).toEqual(keys(BOOK_PROGRESS));
   });
@@ -133,8 +124,12 @@ describe("wordbook contract (server fixture)", () => {
     expect(keysOf(config.learn)).toEqual(keys(LEARN_PREFS));
   });
 
-  it.skipIf(!GOALS_RECORDED)("goals v2 payloads match (plan 2026-10-11 GW2; pending the GS5 re-recording)", () => {
-    expect(keysOf(cc<Extract<WordbookConfig, { enabled: true }>>(c.config).limits!)).toEqual(keys(LIMITS));
+  it("goals v2 payloads match (plan 2026-10-11 GW2, recorded by GS5)", () => {
+    const limits = cc<Extract<WordbookConfig, { enabled: true }>>(c.config).limits!;
+    expect(keysOf(limits)).toEqual(keys(LIMITS));
+    expect(keysOf(limits.dailyNew)).toEqual(["max", "min"]);
+    expect(keysOf(limits.reviewCap)).toEqual(["max", "min"]);
+    expect(keysOf(cc<Enrollment>(c.enrollment))).toEqual(keys(ENROLLMENT));
     expect(keysOf(cc<Today>(c.today).streak)).toEqual(keys(STREAK));
     expect(keysOf(cc<Enrollment>(c.enrollment_patch))).toEqual(keys(ENROLLMENT));
     const bonus = cc<BonusResult>(c.bonus);
