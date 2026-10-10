@@ -213,6 +213,28 @@ describe("WordbookSpellPage", () => {
     await waitFor(() => expect(mock.calls.filter((c) => c.url.pathname.endsWith("/spell/sets"))).toHaveLength(2));
   });
 
+  it("再练一遍 does not count the set twice in the summary and keeps its reports", async () => {
+    let submits = 0;
+    page({
+      "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
+      "POST /api/wordbook/spell/submit": () => { submits += 1; return json({ ...RESULT, counted: submits === 1 }); },
+      "POST /api/wordbook/reports": () => json({ id: 7 }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "提交" }));
+    const talk = await screen.findByTestId("spell-result-talk");
+    fireEvent.click(within(talk).getByRole("button", { name: "举报例句" }));
+    fireEvent.click(await screen.findByRole("button", { name: "内容不当" }));
+    expect(await within(talk).findByText("已举报,谢谢")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "再练一遍" }));
+    fireEvent.click(await screen.findByRole("button", { name: "提交" }));
+    const again = await screen.findByTestId("spell-result-talk");
+    await waitFor(() => expect(submits).toBe(2));
+    expect(within(again).getByText("已举报,谢谢")).toBeTruthy(); // the retry cannot report the sentence again
+    fireEvent.click(screen.getByRole("button", { name: "完成" }));
+    const summary = await screen.findByTestId("session-summary");
+    expect(within(summary).getByRole("status").textContent).toBe("拼写 2 个词 · 一次答对 1");
+  });
+
   it("shows translated server errors instead of raw messages", async () => {
     page({
       "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),

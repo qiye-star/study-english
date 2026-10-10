@@ -137,11 +137,14 @@ export function WordbookSpellPage() {
 
   const set = sets[index] as ClozeSet | undefined;
 
-  const start = useCallback((next: ClozeSet) => {
+  // 已计入小结的组:「再练一遍」重交同一组不再累加(服务端同组同日也只计一次 spelling_set;review web M4)
+  const tallied = useRef(new Set<string>());
+
+  const start = useCallback((next: ClozeSet, { retry = false }: { retry?: boolean } = {}) => {
     dispatch({ type: "reset", count: blankCount(next) });
     setResult(null);
     setShowZh(false);
-    setReported(new Set());
+    if (!retry) setReported(new Set()); // 重练同一组时保留「已举报」,不能再举报一次
     setSubmitError("");
     setPhase("typing");
   }, []);
@@ -157,6 +160,7 @@ export function WordbookSpellPage() {
         setSets(res.sets);
         setIndex(0);
         setTally(EMPTY_TALLY);
+        tallied.current = new Set();
         if (res.sets.length === 0) setPhase("empty");
         else start(res.sets[0]);
       },
@@ -187,7 +191,10 @@ export function WordbookSpellPage() {
         })),
       });
       setResult(res);
-      setTally((prev) => addToTally(prev, res));
+      if (!tallied.current.has(set.setId)) {
+        tallied.current.add(set.setId);
+        setTally((prev) => addToTally(prev, res));
+      }
       setPhase("results");
       inputRef.current?.blur(); // 收起键盘,结果从顶部读起
     } catch (err) {
@@ -372,7 +379,7 @@ export function WordbookSpellPage() {
       ) : null}
       {phase === "results" ? (
         <div className="glass glass-edge-t sticky bottom-0 z-30 flex gap-2 px-gutter py-2.5">
-          <button type="button" className={GHOST} onClick={() => set && start(set)}>{t("web.wordbookSpell.again")}</button>
+          <button type="button" className={GHOST} onClick={() => set && start(set, { retry: true })}>{t("web.wordbookSpell.again")}</button>
           <button type="button" className={PRIMARY} onClick={next}>
             {index + 1 < sets.length ? t("web.wordbookSpell.next") : t("web.wordbookSpell.finish")}
           </button>
