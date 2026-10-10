@@ -119,8 +119,23 @@ describe("WordbookLearnPage", () => {
     expect(await screen.findByText("accept", { selector: "[data-testid=question-word]" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /接受；承认/ }));
     await user.click(await screen.findByRole("button", { name: "继续" }));
-    expect(await screen.findByTestId("session-summary")).toHaveTextContent("学会 2 个新词");
+    const summary = await screen.findByTestId("session-summary");
+    // 「我认识」算一次答对:2 个词,1 个认识 + 1 个一次答对 → 100%
+    expect(within(summary).getByRole("status").textContent).toBe("学会 2 个新词 · 一次答对 2");
+    expect(summary).toHaveTextContent("100%");
     expect(answers(mock).filter((a) => a.key === "talk")).toHaveLength(1);
+  });
+
+  it("a round where every word is known is not a 0% summary", async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByTestId("word-card");
+    await user.click(screen.getByRole("button", { name: "我认识" }));
+    expect(within(await screen.findByTestId("word-card")).getByRole("heading", { name: "accept" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "我认识" }));
+    const summary = await screen.findByTestId("session-summary");
+    expect(within(summary).getByRole("status").textContent).toBe("学会 2 个新词 · 一次答对 2");
+    expect(summary).toHaveTextContent("100%");
   });
 
   it("reads the word aloud with the default voice", async () => {

@@ -147,7 +147,8 @@ export function WordbookLearnPage() {
   }
 
   if (phase === "summary" && batch) {
-    const firstTry = Object.values(session.firstTry).filter(Boolean).length;
+    // 「我认识」的词不进小测,但算一次答对:否则全部认识的一轮显示 0%(review web M6)
+    const firstTry = Object.values(session.firstTry).filter(Boolean).length + known.length;
     const missed = Object.entries(session.firstTry).filter(([, ok]) => !ok).map(([key]) => {
       const card = cardOf(key);
       return { key, word: card?.word ?? key, meaning: card ? meaningLine(card.senses, 40) : "" };
