@@ -21,10 +21,14 @@ test("wordbook: pick a book -> learn 5 words -> spelling -> 我的 row", async (
   await expect(page.getByTestId("wordbook-action-learn")).toBeVisible();
   await expect(page.getByText("0 / 20")).toBeVisible(); // 今日新词 0 / 20
 
-  // 学新词:5 张词卡逐张「下一个」,最后一张「开始小测」
+  // 学新词(背单词 v2 遮罩词卡,计划 2026-10-11-wordbook-recall Z1):每张先点「模糊」(与抽查比例无关,INDEX §8)
+  // 再点「下一个」,最后一张「开始小测」;小测 = 5 道选释义
   await page.getByTestId("wordbook-action-learn").click();
   for (let i = 0; i < 5; i++) {
     await expect(page.getByTestId("word-card")).toBeVisible();
+    await expect(page.getByTestId("recall-cover")).toBeVisible();
+    await page.getByRole("button", { name: "模糊", exact: true }).click();
+    await expect(page.getByTestId("rating-badge")).toHaveText("模糊");
     await page.getByRole("button", { name: i < 4 ? "下一个" : "开始小测" }).click();
   }
   // 小测:先选第一个选项;答错时记下标绿的正确项,词回到队尾再出现时选它
