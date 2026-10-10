@@ -1961,3 +1961,15 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
 | A-5 | (不改代码,记录给 C)`word-card.tsx` 的 `{covered ? … : <div id={regionId}>…</div>}` 块 | C 的 `wordDetailSections` 插槽插在这个块之后、`</SurfaceCard>` 之前,且 `covered` 时不渲染 | 原锚点 `) : null}` + `</SurfaceCard>` 被本计划的 W3 改没了 |
 
 本计划之后 B、C 依赖的锚点(合并后必须仍在):`config_out` 里的 `"learn": …  # recall §7` 一行(B 的 `limits` 放其后);`answer()` 里 `await session.commit()` + `# Ruling Z-e` 两行(C);三处 `_day_plan(...)` 调用原样保留(B 加 `settings=settings`);`_learn_kind`(B);`WordbookConfig` 启用分支里的 `learn`(B 追加 `limits`,不得整体替换);`server/app/core/config.py` 中 A 的 4 个字段位于 `wordbook_ai_daily_per_user` 之后、`wordbook_data_dir` 之前(C 的锚点是 `wordbook_data_dir`)。
+
+## Addendum (2026-10-11) · Integration (W7, Z1, Z2)
+
+| # | Ruling |
+|---|---|
+| I-1 | W7: `wordbook-contract.test.ts` restores the full `keyof AnswerResult` (Ruling W1-a lifted) and adds `recall payloads match`: `answer_recall` (`rating = outcome = "fuzzy"`, `spot_check: false`, `check: null`), `answer_check` (`pending`, `grade: null`, `correct_option: null`, `check` keys = `Question`, `qtype = "meaning"`), objective samples carry `rating: null / spot_check: false / check: null`, `drill` is one `word` question per card in card order, and `config.learn` keys. The contract exposed no server/web mismatch. A recall `Question` sample in `review_batch` is not recorded (the recording stubs `use_recall` only after `review_batch`); its shape `{word, us}` / `options: null` is asserted by the server test `test_due_quick_recall_grades_good_hard_forgot`. |
+| I-2 | Z1: the review half of `wordbook-recall.spec.ts` needs a due word. There is no endpoint for that, so `web/e2e/support/wordbook-db.ts` edits `vocabulary_items.due_at` (`E2E_SQLITE_PATH` locally, `E2E_COMPOSE_PROJECT` on the Docker stack, skip + annotation otherwise). It picks a word whose `use_recall` hash hits (same formula in TS) and learns up to three more batches as 「模糊」 when none of the first four does. |
+| I-3 | Z2 R1: learn-mode `/answers` run under a per-user process-local lock (`service._learn_lock`); `answer()` is now a thin wrapper around `_answer()` (all INDEX anchors are unchanged inside `_answer`). B/C must keep their insertions inside `_answer`. |
+| I-4 | Z2 R3/R4: `recall.learn_quiz_target(..., passes_check=)`; only a `meaning` answer while the latest rating is still `know_chk` can raise a spot-checked new word to box 2. |
+| I-5 | Z2 R5: `service._spot_seed` — the seed of the book the word was learned in (`row.source`), then the requested book, then the active enrollment, then 0. |
+| I-6 | Z2 R2: the review page clamps `elapsed_ms` with `session-machine.clampElapsed` (shared with `ratingPayload`). |
+| I-7 | Review findings: `docs/superpowers/plans/review-wordbook-recall.md` (uncommitted, per the integration instructions). |

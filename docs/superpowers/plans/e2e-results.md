@@ -376,3 +376,29 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | W11 | iOS / Android | 不规则变形的首字母提示与「听这句」(go → went)用句中词形 | 未验证 |
 | W12 | Docker E2E 栈 | `docker compose -p enjoy-e2e -f docker-compose.example.yml -f docker-compose.e2e.yml up -d --build --wait` 后 `yarn web:e2e --project=chromium-mobile e2e/wordbook.spec.ts` | 未验证 |
 
+
+## 背单词 v2:认识 / 模糊 / 不认识 与「快速回忆」(计划 2026-10-11-wordbook-recall,Task Z1)
+
+### 自动化结果
+
+| 项 | 结果 |
+|---|---|
+| `wordbook-recall.spec.ts`(chromium-mobile):登录 → 接口选书初中 → 学新词 5 张:第 1 张遮罩时释义不在页面、`aria-expanded="false"`,「模糊」→ 徽标「模糊」;第 2 张点遮罩偷看 → 提示「已看过释义」→「认识」记为「模糊」;第 3 张「不认识」;第 4、5 张「认识」→「认识 · 本轮抽查」→ 本轮小测 6 题(模糊 2 + 不认识 2 + 抽查 2)全对 → 小结「认识 2 · 模糊 2 · 不认识 1 · 抽查 2 · 通过 2」→ 数据库夹具把一个会出快速回忆的盒 1 / 2 词改到期 → 复习:快速回忆正面 →「认识」→ 抽查题 → 选对 → 翻面徽标「认识」→「记错了」→ 徽标「不认识」→ 小结;`/today` 的 `new_done` 与 `review_done = 1`、该词盒 0 且 `reps + 1`;`upstreams.unmocked` 为空 | 本机通过(2026-10-11,连续 8 次;改为「不够就多学几批」之前有 3 次因四个词都不出快速回忆而跳过复习段,已修)。**未在 Docker E2E 栈运行** |
+| `wordbook.spec.ts`(学新词改为每张「模糊」→ 下一个) | 本机通过(同上,连续 8 次) |
+| 本机方式 | 临时 SQLite + `alembic upgrade head`;`REGISTRATION_MODE=invite`、随机 `INVITE_CODE`、`RATE_LIMIT_PER_MINUTE=1000`、`WORDBOOK_ENABLED=true`、`WORDBOOK_SPOT_CHECK_PCT=100`、`WEB_DIST_DIR=web/dist`,上游地址置空;uvicorn 于 8123,`E2E_BASE_URL=http://127.0.0.1:8123`、`E2E_SQLITE_PATH=<临时库>`。服务端日志只有自家 `/api/*`(背单词、配置、公告、段位 / 房间配置),没有 `/explain`、没有上游调用 |
+| Docker 栈的数据库夹具(`E2E_COMPOSE_PROJECT`,在 server 容器里用 python sqlite3 改 `/data/app.db`) | 未验证 |
+| `docker-compose.e2e.yml` 加 `WORDBOOK_SPOT_CHECK_PCT: "100"` | 已加;未在 Docker 栈跑过 |
+| webkit-mobile | 未运行 |
+| 视觉对照(视觉稿 01–08 vs 真实页面,375×812 浅色 + 深色) | 未做整套对照;浏览器窗格 360×780 深色抽看了学新词遮罩态、偷看后与三键 dock:遮罩可区分、提示与键可读;英文三键标签在 360 / 375px 下折成两行(评审 R7,待定文案) |
+
+### 真机设备清单(全部「未验证」,需要真机)
+
+| # | 设备 | 检查项 | 状态 |
+|---|---|---|---|
+| A1 | iPhone Safari + 主屏 PWA | 第一次点击之后自动朗读可用;「不认识」点击后立即发声 | 未验证 |
+| A2 | iPhone(有 Home 条) | 三键 dock 与底部安全区、Tab 栏不重叠 | 未验证 |
+| A3 | 中低端安卓 Chrome | 快速回忆翻面动画不卡、玻璃 dock 不闪;360px 宽下三个自评键各 ≥ 104px | 未验证 |
+| A4 | VoiceOver(iOS) | 遮罩读「显示释义,已折叠」并能展开;自评结果只播报一次 | 未验证 |
+| A5 | TalkBack(安卓) | 同 A4(`aria-expanded` 播报差异) | 未验证 |
+| A6 | 两平台深色模式 | 遮罩与卡片可区分;琥珀图标 / 徽标对比度 ≥ 4.5:1 | 未验证 |
+| A7 | Docker E2E 栈 | `docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait` 后 `E2E_COMPOSE_PROJECT=enjoy-e2e yarn web:e2e --project=chromium-mobile e2e/wordbook-recall.spec.ts e2e/wordbook.spec.ts` | 未验证 |
