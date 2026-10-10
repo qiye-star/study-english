@@ -64,7 +64,8 @@ export function TypingQuestion({ question, onSubmit, result, busy = false, onLis
     inputRef.current?.focus();
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+    // Safari 提交组合的 Enter 在 compositionend 之后到达:isComposing=false 但 keyCode=229(review m5)
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       submit();
     }

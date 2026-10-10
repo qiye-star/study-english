@@ -27,6 +27,17 @@ describe("TypingQuestion", () => {
     expect(onSubmit).toHaveBeenCalledWith({ typed: "acept", hinted: true });
   });
 
+  it("ignores the Enter that commits an IME composition on Safari (keyCode 229, isComposing false)", () => {
+    const onSubmit = vi.fn();
+    render(<TypingQuestion question={SPELL} onSubmit={onSubmit} result={null} onListen={vi.fn()} />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "acc" } });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 13 });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it("does not submit an empty answer, and the submit button sends without a hint", () => {
     const onSubmit = vi.fn();
     render(<TypingQuestion question={SPELL} onSubmit={onSubmit} result={null} onListen={vi.fn()} />);
