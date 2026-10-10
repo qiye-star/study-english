@@ -6,7 +6,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4. Off 
 ## What lives here
 - `tiers.py` – tier table, division math, seasons (pure)
 - `points.py` – RP rules, daily cap, stage tasks (pure)
-- `ledger.py` – incremental RP sync into `xp_events`, profile state, promotion status
+- `ledger.py` – incremental RP sync into `xp_events`, profile state, promotion status; also reads `wordbook_events`
+  through `app.models.WordbookEvent` (learn → `word_learned` ref `wl:<id>`, spell_set → `spelling_set` ref `ws:<id>`,
+  both capped). Never import `app.wordbook` (architecture test)
 - `achievements.py` – catalogue, snapshot queries, unlocks
 - `scenarios.json` + `scenarios.py` – promotion-match scenarios
 - `grading.py` – examiner/judge prompts, judge parsing, composite score, gates (pure)
