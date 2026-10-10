@@ -4907,3 +4907,9 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: F7 设置页懒加载(`lazy` + `Suspense fallback={null}`,单独 chunk 约 1.3 kB gzip);列表分组标题新键 `web.links.settings.group`;保存失败 toast 标题 `saveFailed`、描述为服务端错误翻译。每个插件桩目录与 `plugins/links/` 各有 `CLAUDE.md`(车道替换时一并更新)。
 - 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
+
+## Addendum (2026-10-11) · Lane L1 执行记录(word_actions)
+
+- Ruling: L1-1 `GET /api/links/wordbook/card` 在**所有**启用的书都读不到数据(`DataUnavailable`)时返回 503 `Wordbook data unavailable`(接口说明里的「数据缺失 → 503」);计划代码一律 `continue` 后落到 404,会把数据故障说成「没有这个词」。部分书缺数据仍跳过(同 `service.find_card`)。
+- Ruling: L1-1 按 owner 裁定,「加入词书学习」不受 `daily_new` 限制(建的是立即到期的 box 0 复习词条,不是今日新词);新增 `test_adopted_words_come_up_in_review_and_ignore_the_daily_new_goal`(`daily_new: 1` 时连加三个都 `added`、`plan.new_done/new_left` 不变、三个词出现在复习批次、游标仍 0、`link_credits` 零行)。另加用户偏好关 / 总开关关两个接口都 404 且零写入、书数据缺失 503 + 日志不含词的用例。
+- Ruling: L1-1 日志卫生用例只检查 `app.*` 日志器:测试客户端 httpx 自己会把请求 URL(含 `?word=`)记进日志。观察(不在本车道范围):生产的 `uvicorn.access` 访问日志同样会带上 `?word=` 查询串(既有 `/api/wordbook/cards/{book}/{key}` 也把词放在路径里),接口形状按 spec §7.2 保留。
