@@ -34,7 +34,7 @@
         "pick": "No book chosen yet"
       },
       "home": {
-        "settings": "Books and daily settings",
+        "settings": "Daily goal settings",
         "total": "{{n}} words",
         "progressLabel": "Book progress",
         "mastered": "Mastered",

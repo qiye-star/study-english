@@ -34,7 +34,7 @@
         "pick": "还没选词书"
       },
       "home": {
-        "settings": "词书与每日设置",
+        "settings": "每日目标设置",
         "total": "共 {{n}} 词",
         "progressLabel": "词书进度",
         "mastered": "已掌握",

@@ -1,5 +1,7 @@
-import { CircleAlertIcon, GalleryVerticalEndIcon, KeyboardIcon, LibraryBigIcon, RefreshCwIcon, SlidersHorizontalIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  CircleAlertIcon, FlameIcon, GalleryVerticalEndIcon, KeyboardIcon, LibraryBigIcon, PauseIcon, RefreshCwIcon, Settings2Icon,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
@@ -9,12 +11,16 @@ import { ListRow, SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { PageHeader } from "~/layout/page-header";
+import { GoalsSheet } from "./goals-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { PlanRing } from "./plan-ring";
-import { ICON_LINK, PRIMARY, bookTitle, fmt } from "./ui";
+import { GHOST, ICON_LINK, PRIMARY, bookTitle, fmt } from "./ui";
+import { useGoals } from "./use-goals";
 import { useWordbookToday } from "./use-today";
 import { useWordbookConfig } from "./use-wordbook-config";
-import { WORDBOOK_SERVER_ERRORS, type DayPlan, type Enrollment, type Progress, type WordbookBook } from "./wordbook-api";
+import {
+  WORDBOOK_SERVER_ERRORS, limitsOf, type DayPlan, type Enrollment, type Progress, type Streak, type WordbookBook,
+} from "./wordbook-api";
 
 const pct = (n: number, total: number) => (total > 0 ? Math.min(100, (n / total) * 100) : 0);
 
@@ -54,8 +60,8 @@ function BookCard({ book, progress, enrollment }: { book: WordbookBook; progress
   );
 }
 
-/** 今日计划:新词环、复习计数、明日预测(视觉稿 03「今天」)。 */
-function PlanCard({ plan, tomorrowDue, enrollment }: { plan: DayPlan; tomorrowDue: number; enrollment: Enrollment | null }) {
+/** 今日计划:新词环、复习、明日预测、连续达标;右上角齿轮打开目标面板(spec 2026-10-11 §2.1,视觉稿 01)。 */
+function PlanCard({ plan, tomorrowDue, streak, onSettings }: { plan: DayPlan; tomorrowDue: number; streak: Streak; onSettings: () => void }) {
   const { t } = useTranslation();
   const cell = (label: string, value: ReactNode, testId?: string) => (
     <div data-testid={testId} className="text-meta text-ink-2">
@@ -63,38 +69,75 @@ function PlanCard({ plan, tomorrowDue, enrollment }: { plan: DayPlan; tomorrowDu
       <b className="num block text-title font-semibold text-ink">{value}</b>
     </div>
   );
+  const streakValue = streak.current > 0 ? (
+    <span className="inline-flex items-center gap-1">
+      <FlameIcon aria-hidden className="h-4 w-4 text-amber" />
+      {t("web.wordbook.goals.streak.cellDays", { n: streak.current, count: streak.current })}
+    </span>
+  ) : t("web.wordbook.goals.streak.cellNone");
   return (
-    <SurfaceCard className="flex items-center gap-3.5 p-3.5">
+    <SurfaceCard className="relative flex items-center gap-3.5 p-3.5 pr-[52px]">
       <PlanRing done={plan.newDone} target={plan.newTarget} />
       <div className="grid flex-1 grid-cols-2 gap-2.5">
         {cell(t("web.wordbook.home.newWords"), `${plan.newDone} / ${plan.newTarget}`)}
         {cell(t("web.wordbook.home.reviews"), `${plan.reviewDone} / ${plan.reviewDone + plan.reviewLeft}`)}
         {cell(t("web.wordbook.home.tomorrow"), tomorrowDue, "wordbook-tomorrow")}
-        {enrollment ? cell(t("web.wordbook.home.reviewCap"), enrollment.reviewCap) : null}
+        {cell(t("web.wordbook.goals.streak.cell"), streakValue, "wordbook-streak")}
       </div>
+      <button type="button" onClick={onSettings} aria-label={t("web.wordbook.goals.openFromRing")}
+        className={cn(ICON_LINK, "absolute right-1 top-1 text-ink-2")}>
+        <Settings2Icon aria-hidden />
+      </button>
     </SurfaceCard>
   );
 }
 
-/** 背单词首页(spec §11.2,视觉稿 03)。没选书 → 选书页;书被停用 → 提示换一本。 */
+/** 背单词首页(spec §11.2 + goals §2、§7)。没选书 → 选书页;暂停 → 暂停卡;书被停用 → 提示换一本。 */
 export function WordbookHomePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const config = useWordbookConfig();
-  const { today, error, reload } = useWordbookToday(config?.enabled !== false);
+  const { today, error, reload, setToday } = useWordbookToday(config?.enabled !== false);
+  const limits = limitsOf(config);
+  const goals = useGoals({ today, setToday, reload, limits });
+  const [sheet, setSheet] = useState<null | "all" | "bonus">(null);
+  const editable = Boolean(config?.enabled !== false && !error && today?.enrollment && today.plan && today.book && today.progress);
   const header = (
     <PageHeader title={t("web.wordbook.title")} back="/practice"
-      actions={
-        <Link to="/wordbook/books" aria-label={t("web.wordbook.home.settings")} className={ICON_LINK}>
-          <SlidersHorizontalIcon aria-hidden />
-        </Link>
-      } />
+      actions={editable ? (
+        <button type="button" aria-label={t("web.wordbook.goals.open")} className={ICON_LINK} onClick={() => setSheet("all")}>
+          <Settings2Icon aria-hidden />
+        </button>
+      ) : undefined} />
   );
   let body: ReactNode;
   if (config?.enabled === false) body = <PageNote>{t("web.wordbook.errors.disabled")}</PageNote>;
   else if (error) body = <PageError message={translateServerError(t, error, WORDBOOK_SERVER_ERRORS)} onRetry={reload} />;
   else if (!today) body = <PageLoading />;
-  else if (!today.enrollment) return <Navigate to="/wordbook/books" replace />;
-  else if (!today.book || !today.plan || !today.progress) {
+  else if (!today.enrollment) {
+    // 老版本服务端没有 paused 键:undefined 视同没有暂停的书
+    const paused = today.paused;
+    if (!paused) return <Navigate to="/wordbook/books" replace />;
+    const pausedBook = config?.enabled ? config.books.find((b) => b.id === paused.bookId) : undefined;
+    body = (
+      <div data-testid="wordbook-paused" className="mt-2">
+        <SurfaceCard className="p-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <ToneBadge tone="teal"><LibraryBigIcon aria-hidden />{pausedBook ? bookTitle(pausedBook, i18n.language) : paused.bookId}</ToneBadge>
+            <ToneBadge tone="gray"><PauseIcon aria-hidden />{t("web.wordbook.goals.paused.badge")}</ToneBadge>
+          </div>
+          <p className="mt-2.5 text-sub leading-dialogue text-ink-2">{t("web.wordbook.goals.paused.note")}</p>
+          {goals.error ? <p role="alert" className="mt-2 text-sub text-ink">{goals.error}</p> : null}
+          <div className="mt-3 flex gap-2">
+            <Link to="/wordbook/books" className={cn(GHOST, "h-11 flex-1")}>{t("web.wordbook.goals.paused.switch")}</Link>
+            <button type="button" className={cn(PRIMARY, "h-11 flex-1")} disabled={goals.busy === "resume"}
+              onClick={() => void goals.resume(paused.bookId)}>
+              {t("web.wordbook.goals.paused.resume")}
+            </button>
+          </div>
+        </SurfaceCard>
+      </div>
+    );
+  } else if (!today.book || !today.plan || !today.progress) {
     body = (
       <SurfaceCard className="mt-2 p-3.5 text-center">
         <p className="text-body">{t("web.wordbook.card.bookDisabled")}</p>
@@ -103,12 +146,24 @@ export function WordbookHomePage() {
     );
   } else {
     const { plan, progress, book, enrollment } = today;
+    // 老版本服务端没有 streak:按 0 天显示
+    const streak = today.streak ?? { current: 0, todayMet: false };
     const done = <span className="text-meta text-ink-2">{t("web.wordbook.home.finished")}</span>;
     body = (
       <>
         <div className="mt-2"><BookCard book={book} progress={progress} enrollment={enrollment} /></div>
         <SectionGroup title={t("web.wordbook.home.today")} bare>
-          <PlanCard plan={plan} tomorrowDue={today.tomorrowDue} enrollment={enrollment} />
+          <PlanCard plan={plan} tomorrowDue={today.tomorrowDue} streak={streak} onSettings={() => setSheet("all")} />
+          {plan.goalMet && plan.newLeft === 0 && limits.bonusMax > 0 ? (
+            <SurfaceCard className="mt-2 flex items-center gap-3 p-3.5">
+              <FlameIcon aria-hidden className="h-6 w-6 flex-none text-amber" />
+              <div className="min-w-0 flex-1">
+                <b className="block text-body font-semibold">{t("web.wordbook.goals.goalMet.title")}</b>
+                <span className="text-meta text-ink-2">{t("web.wordbook.goals.goalMet.body")}</span>
+              </div>
+              <button type="button" className={cn(GHOST, "h-11")} onClick={() => setSheet("bonus")}>{t("web.wordbook.goals.goalMet.action")}</button>
+            </SurfaceCard>
+          ) : null}
           <div className="mt-2 divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface">
             <ListRow icon={<IconChip tone="blue" icon={RefreshCwIcon} />} title={t("web.wordbook.home.review")} testId="wordbook-action-review"
               subtitle={t("web.wordbook.home.reviewHint", { n: plan.reviewDue })}
@@ -135,6 +190,10 @@ export function WordbookHomePage() {
     <div>
       {header}
       <div className="px-gutter pb-6">{body}</div>
+      {editable && today ? (
+        <GoalsSheet open={sheet !== null} onOpenChange={(o) => { if (!o) setSheet(null); }} today={today} limits={limits} goals={goals}
+          focus={sheet === "bonus" ? "bonus" : undefined} />
+      ) : null}
     </div>
   );
 }
