@@ -35,6 +35,15 @@ describe("ClozeBoard", () => {
     expect(screen.queryByText("经过一次长谈后,我们决定离婚。")).toBeNull();
   });
 
+  it("draws the blinking caret only while the hidden input has focus (review m4)", () => {
+    const { rerender } = render(<ClozeBoard set={SET} state={state()} showLength={false} showZh={false} onFocusBlank={vi.fn()} />);
+    const current = () => screen.getAllByRole("textbox")[0];
+    expect(current().className).not.toMatch(/animate-caret/);
+    expect(current()).toHaveAttribute("aria-current", "true"); // still the current blank
+    rerender(<ClozeBoard set={SET} state={state()} showLength={false} showZh={false} onFocusBlank={vi.fn()} focused />);
+    expect(current().className).toMatch(/animate-caret/);
+  });
+
   it("a long value may wrap inside its blank instead of widening the card (review m3)", () => {
     render(<ClozeBoard set={SET} state={state({ values: ["x".repeat(32), "", ""] })} showLength={false} showZh={false} onFocusBlank={vi.fn()} />);
     const blank = screen.getAllByRole("textbox")[0];

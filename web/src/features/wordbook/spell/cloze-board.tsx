@@ -17,6 +17,7 @@ export function ClozeBoard({
   showZh,
   onFocusBlank,
   results,
+  focused = false,
 }: {
   set: ClozeSet;
   state: ClozeState;
@@ -24,6 +25,8 @@ export function ClozeBoard({
   showZh: boolean;
   onFocusBlank: (i: number) => void;
   results?: BlankResult[];
+  /** 隐藏输入框有焦点:只有这时才画闪烁光标 */
+  focused?: boolean;
 }) {
   const { t } = useTranslation();
   const total = state.values.length;
@@ -59,7 +62,7 @@ export function ClozeBoard({
             !cells && (text ? "border-ink text-ink" : "border-hair text-ink"),
             current && !cells && "rounded-t-[6px] border-blue bg-blue-tint text-blue",
             current && cells && "rounded-t-[6px] bg-blue-tint text-blue",
-            current && "after:ml-px after:inline-block after:h-[1.05em] after:w-[2px] after:bg-blue after:align-[-2px] after:content-[''] motion-safe:after:animate-caret",
+            current && focused && "after:ml-px after:inline-block after:h-[1.05em] after:w-[2px] after:bg-blue after:align-[-2px] after:content-[''] motion-safe:after:animate-caret",
             result && OUTCOME_TEXT[result.outcome],
             result && (result.outcome === "correct" ? "border-green" : result.outcome === "wrong" ? "border-hair line-through" : "border-amber"),
           )}

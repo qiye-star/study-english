@@ -205,7 +205,7 @@ export function WordbookSpellPage() {
     }
   };
 
-  const { inputRef, inputProps, formProps, focusBlank } = useClozeInput({ state: cloze, dispatch, onSubmit: () => void submit() });
+  const { inputRef, inputProps, formProps, focusBlank, focused } = useClozeInput({ state: cloze, dispatch, onSubmit: () => void submit() });
 
   // 当前空滚到可见区(键盘弹起时 AppShell 的高度跟随 visualViewport,见 useAppHeight;键盘动画后再滚一次)
   const reveal = useRevealBlank({ active: cloze.active, enabled: phase === "typing", input: () => inputRef.current });
@@ -318,7 +318,7 @@ export function WordbookSpellPage() {
               </b>
               <ToneBadge tone="gray">{t("web.wordbookSpell.fromDictionary")}</ToneBadge>
             </div>
-            <ClozeBoard set={set} state={cloze} showLength={prefs.showLength} showZh={showZh} onFocusBlank={onFocusBlank} />
+            <ClozeBoard set={set} state={cloze} showLength={prefs.showLength} showZh={showZh} onFocusBlank={onFocusBlank} focused={focused} />
             <div className="-mx-1 mt-1.5 flex flex-wrap gap-1">
               <button type="button" className={cn(TOOL, "bg-amber-tint text-amber")} onMouseDown={keepFocus} onClick={hint}>
                 <LightbulbIcon aria-hidden />{t("web.wordbookSpell.hint")}

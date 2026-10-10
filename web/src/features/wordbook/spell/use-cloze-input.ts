@@ -21,6 +21,8 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
     setInputEl(node);
   }, []);
   const composing = useRef(false);
+  // 隐藏输入框是否有焦点:没有焦点时不画闪烁光标(打字不会进来;review m4)
+  const [focused, setFocused] = useState(false);
   const [raw, setRaw] = useState<string | null>(null);
   const committed = SENTINEL + (state.values[state.active] ?? "");
   const value = raw ?? committed;
@@ -83,9 +85,16 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
     caretToEnd();
   }, [dispatch]);
 
+  // 桌面(精确指针)进入打字阶段就聚焦,能直接用键盘打字;触屏不自动聚焦(会不请自来地弹出键盘)
+  useEffect(() => {
+    if (!inputEl || typeof window === "undefined" || !window.matchMedia?.("(pointer: fine)").matches) return;
+    inputEl.focus({ preventScroll: true });
+  }, [inputEl]);
+
   return {
     inputRef,
     focusBlank,
+    focused,
     formProps: {
       noValidate: true,
       onSubmit: (e: FormEvent<HTMLFormElement>) => {
@@ -120,7 +129,9 @@ export function useClozeInput({ state, dispatch, onSubmit }: { state: ClozeState
         e.preventDefault(); // 也挡掉表单的隐式提交,避免提交两次
         submit();
       },
+      onFocus: () => setFocused(true),
       onBlur: () => {
+        setFocused(false);
         // 失焦时组合被浏览器结束;个别浏览器不发 compositionend,这里兜底
         if (composing.current) {
           composing.current = false;

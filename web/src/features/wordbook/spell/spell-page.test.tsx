@@ -144,6 +144,29 @@ describe("WordbookSpellPage", () => {
     });
   });
 
+  it("shows the caret only while typing is possible and autofocuses on a desktop pointer (review m4)", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: query === "(pointer: fine)", media: query,
+      addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    try {
+      page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+      const input = await screen.findByLabelText("第 1 空,共 3 空");
+      await waitFor(() => expect(document.activeElement).toBe(input));
+      expect(screen.getAllByRole("textbox")[0].className).toMatch(/animate-caret/);
+      fireEvent.blur(input);
+      expect(screen.getAllByRole("textbox")[0].className).not.toMatch(/animate-caret/);
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("does not autofocus on a touch screen (the keyboard would pop up unasked)", async () => {
+    page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }) });
+    const input = await screen.findByLabelText("第 1 空,共 3 空");
+    expect(document.activeElement).not.toBe(input);
+    expect(screen.getAllByRole("textbox")[0].className).not.toMatch(/animate-caret/);
+  });
+
   it("first-letter hint marks the blank as hinted", async () => {
     const mock = page({ "POST /api/wordbook/spell/sets": () => json({ book_id: "junior", sets: [SET] }),
       "POST /api/wordbook/spell/submit": () => json(RESULT) });
