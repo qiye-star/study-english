@@ -5,7 +5,7 @@ import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import type {
   AnswerResult, BlankResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, ItemState, Progress, Question, Segment, SpellResult,
-  SpellWordResult, Today, WordbookBook,
+  SpellWordResult, Today, WordbookBook, WordbookConfig,
 } from "./wordbook-api";
 
 /**
@@ -29,9 +29,11 @@ const BOOK: Record<keyof WordbookBook, true> = { id: true, titleZh: true, titleE
 const BOOK_PROGRESS: Record<keyof BookProgress, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, learned: true, mastered: true, enrolled: true, active: true };
 const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
 const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
-// Ruling (recall W1): the server fixture gains `rating` / `spot_check` / `check` only when the server lane's S6 re-records it;
-// until then these three keys are excluded here, and W7 restores the full `keyof AnswerResult`.
-const ANSWER: Record<Exclude<keyof AnswerResult, "rating" | "spotCheck" | "check">, true> = { correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true };
+const ANSWER: Record<keyof AnswerResult, true> = {
+  correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true,
+  rating: true, spotCheck: true, check: true,
+};
+const LEARN_PREFS: Record<keyof Extract<WordbookConfig, { enabled: true }>["learn"], true> = { autoplay: true, showExample: true };
 const ITEM: Record<keyof ItemState, true> = { box: true, dueAt: true };
 const LINE: Record<keyof ClozeLine, true> = { key: true, sentenceId: true, segments: true, zh: true };
 const BLANK_SEGMENT: Record<keyof Extract<Segment, { t: "blank" }>, true> = { t: true, i: true, len: true, form: true };
@@ -77,6 +79,40 @@ describe("wordbook contract (server fixture)", () => {
     expect(keysOf(result.words[0])).toEqual(keys(WORD));
     expect(keysOf(result.words[0].blanks[0])).toEqual(keys(BLANK));
     expect(c.explain_unavailable).toEqual({ error: "AI explanation unavailable" });
+  });
+
+  it("recall payloads match (spec recall §9)", () => {
+    const recall = cc<AnswerResult>(c.answer_recall);
+    expect(keysOf(recall)).toEqual(keys(ANSWER));
+    expect(recall.rating).toBe("fuzzy");
+    expect(recall.outcome).toBe("fuzzy");
+    expect(recall.spotCheck).toBe(false);
+    expect(recall.check).toBeNull();
+    if (recall.item) expect(keysOf(recall.item)).toEqual(keys(ITEM));
+    const pending = cc<AnswerResult>(c.answer_check);
+    expect(keysOf(pending)).toEqual(keys(ANSWER));
+    expect(pending.outcome).toBe("pending");
+    expect(pending.grade).toBeNull();
+    expect(pending.rating).toBe("know");
+    expect(pending.spotCheck).toBe(true);
+    expect(keysOf(pending.check as Question)).toEqual(keys(QUESTION));
+    expect(pending.check?.qtype).toBe("meaning");
+    // 抽查题不能提前泄露答案(spec recall §5.5)
+    expect(pending.correctOption).toBeNull();
+    // 客观题的 answer 样例也带三档自评的键,值为「非自评」
+    const typed = cc<AnswerResult>(c.answer_typed);
+    expect(typed.rating).toBeNull();
+    expect(typed.spotCheck).toBe(false);
+    expect(typed.check).toBeNull();
+    const batch = cc<{ cards: Card[]; quiz: Question[]; drill: Question[] }>(c.learn_batch);
+    expect(batch.drill.length).toBe(batch.cards.length);
+    batch.drill.forEach((q, i) => {
+      expect(keysOf(q)).toEqual(keys(QUESTION));
+      expect(q.qtype).toBe("word");
+      expect(q.key).toBe(batch.cards[i].key);
+    });
+    const config = cc<Extract<WordbookConfig, { enabled: true }>>(c.config);
+    expect(keysOf(config.learn)).toEqual(keys(LEARN_PREFS));
   });
 
   it("never sends word-keyed maps the client would have to trust (F4-1)", () => {
