@@ -104,6 +104,23 @@ async def test_reload_requires_operator_and_is_audited(app, client, tmp_path):
         assert (row.target_id, row.reason) == ("junior", "数据更新")
 
 
+async def test_reload_happens_only_after_its_audit_record_commits(app, tmp_path):
+    """Review m9: audit before effect, like the other admin actions."""
+    from app.admin import wordbook_admin
+    from app.admin.audit import CLI_ACTOR
+
+    enable_wordbook(app, make_data_dir(tmp_path))
+    await dictionary(app).index("junior")
+    async with app.state.sessionmaker() as s:
+        async def broken_commit():
+            raise RuntimeError("commit failed")
+
+        s.commit = broken_commit
+        with pytest.raises(RuntimeError):
+            await wordbook_admin.reload(s, app, CLI_ACTOR, book_id="junior", reason="r")
+    assert set(dictionary(app).loaded()) == {"junior"}
+
+
 async def test_hide_sentence_updates_reports_and_live_cards(app, client, tmp_path):
     card = await learner(app, tmp_path)
     viewer = await login_as(app, client, "viewer")

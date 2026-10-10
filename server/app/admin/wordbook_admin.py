@@ -114,10 +114,10 @@ async def overview(session, app, now) -> dict:
 
 
 async def reload(session, app, actor, *, book_id: str | None, reason: str) -> None:
-    dictionary(app).reload(book_id)
     await audit.record(session, actor, "wordbook.reload", target_type="wordbook", target_id=book_id or "all",
                        reason=reason)
     await session.commit()
+    dictionary(app).reload(book_id)  # review m9:审计提交后才生效
 
 
 async def reports(session, app) -> list[dict]:
