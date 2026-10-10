@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, XpEvent, utcnow
 from tests.wordbook_helpers import enable_wordbook, make_data_dir
@@ -146,6 +146,30 @@ async def test_reset_settles_unsynced_review_points_first(app, client, tmp_path)
     assert (await reset(client, h, "junior")).status_code == 200  # 中间没有调用 /rank/me
     async with app.state.sessionmaker() as s:
         assert len((await s.scalars(select(XpEvent).where(XpEvent.kind == "vocab_review"))).all()) == 1
+
+
+async def test_a_rejected_reset_never_syncs_rank(app, client, tmp_path, monkeypatch):
+    """集成裁定 Z1-b:确认文本、选书记录、每日次数都先校验;被拒的重置不触发段位同步,通过的才同步(且在删除前)。"""
+    from app.routers import wordbook as router
+    from app.wordbook import store
+    monkeypatch.setattr(store, "RESETS_DAILY_MAX", 1)
+    calls: list[int] = []
+
+    async def fake_sync(session, user_id, *args, **kwargs):
+        rows = await session.scalar(select(func.count()).select_from(VocabularyItem))
+        calls.append(rows)
+
+    monkeypatch.setattr(router.ledger, "sync", fake_sync)
+    h = await login(app, client, tmp_path, rank_enabled=True)
+    assert (await learn(client, h, "talk")).status_code == 200
+    assert (await reset(client, h, "四级")).json() == {"error": "Confirmation does not match"}
+    assert (await reset(client, h, "cet4", book_id="cet4")).json() == {"error": "Book not enrolled"}
+    assert (await reset(client, h, "初中", book_id="nope")).json() == {"error": "Book not found"}
+    assert calls == []
+    assert (await reset(client, h, "初中")).status_code == 200
+    assert calls == [1]  # 同步时本书的行还在
+    assert (await reset(client, h, "初中")).json() == {"error": "Daily reset limit reached"}
+    assert calls == [1]
 
 
 async def test_reset_limits_and_unknown_books(app, client, tmp_path, monkeypatch):

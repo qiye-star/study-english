@@ -335,10 +335,12 @@ async def wordbook_resume(payload: BookIn, user: User = Depends(current_user),
 @router.post("/enrollment/reset")
 async def wordbook_reset(payload: ResetIn, request: Request, user: User = Depends(current_user),
                          session: AsyncSession = Depends(get_session), settings: Settings = Depends(require_wordbook)):
-    await _settle_rank(request, session, user.id, settings, payload.tz_offset_minutes)
+    async def settle() -> None:  # 校验通过后、删除前才同步(集成裁定 Z1-b)
+        await _settle_rank(request, session, user.id, settings, payload.tz_offset_minutes)
+
     try:
         return await service.reset_progress(session, user.id, settings, book_id=payload.book_id,
                                             confirm=payload.confirm, offset=payload.tz_offset_minutes, now=utcnow(),
-                                            seed=secrets.randbelow(2**31))
+                                            seed=secrets.randbelow(2**31), before_delete=settle)
     except service.WordbookError as e:
         _raise(e)

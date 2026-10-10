@@ -3,7 +3,7 @@
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
 import asyncio
 import random
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import date, timedelta
@@ -776,8 +776,12 @@ def confirm_matches(confirm: str, spec: BookSpec) -> bool:
 
 
 async def reset_progress(session: AsyncSession, user_id: int, settings: Settings, *, book_id: str, confirm: str,
-                         offset: int, now, seed: int) -> dict:
-    """重置进度(spec §8,G-7)。确认文本不记日志。"""
+                         offset: int, now, seed: int,
+                         before_delete: Callable[[], Awaitable[None]] | None = None) -> dict:
+    """重置进度(spec §8,G-7)。确认文本不记日志。
+
+    before_delete:路由层注入的段位预同步(wordbook 层不导入 rank)。只在全部校验通过、扣过次数之后、
+    删除之前调用 —— 被拒的重置不触发同步(集成裁定 Z1-b)。"""
     spec = book_or_fail(settings, book_id)
     if await store.get_enrollment(session, user_id, book_id) is None:
         fail(NOT_ENROLLED)
@@ -785,6 +789,8 @@ async def reset_progress(session: AsyncSession, user_id: int, settings: Settings
         fail(CONFIRM_MISMATCH)
     if not await store.consume_reset(session, user_id, utc_day(now)):
         fail(RESET_LIMIT)
+    if before_delete is not None:
+        await before_delete()
     removed = await store.reset_book(session, user_id, book_id, seed=seed, now=now)
     await store.add_event(session, user_id=user_id, book_id=book_id, kind="reset", word=book_id, item_id=None,
                           qtype=None, outcome="reset", credit=0, day=local_day(now, offset), now=now)
