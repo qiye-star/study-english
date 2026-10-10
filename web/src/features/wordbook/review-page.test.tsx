@@ -43,12 +43,12 @@ const CORRECT: Record<string, string> = { accept: "vt. 接受；承认", carry: 
 function answerRoute(call: RecordedCall) {
   const body = JSON.parse(String(call.body)) as { key: string; choice?: string; typed?: string; qtype: string };
   if (body.typed !== undefined) {
-    if (body.typed === "talk") return json({ correct: true, outcome: "correct", grade: "good", expected: "talk", diff: null, item: { box: 4, due_at: "x" }, applied: false });
-    return json({ correct: false, outcome: "typo", grade: "hard", expected: "talk", applied: true, item: { box: 3, due_at: "x" },
+    if (body.typed === "talk") return json({ correct: true, outcome: "correct", grade: "good", expected: "talk", correct_option: null, diff: null, item: { box: 4, due_at: "x" }, applied: false });
+    return json({ correct: false, outcome: "typo", grade: "hard", expected: "talk", correct_option: null, applied: true, item: { box: 3, due_at: "x" },
       diff: [{ op: "eq", a: "t", b: "t" }, { op: "eq", a: "a", b: "a" }, { op: "eq", a: "l", b: "l" }, { op: "eq", a: "k", b: "k" }, { op: "ins", a: "", b: "k" }] });
   }
   const ok = body.choice === CORRECT[body.key];
-  return json({ correct: ok, outcome: ok ? "correct" : "wrong", grade: ok ? "good" : "forgot", expected: body.key, diff: null,
+  return json({ correct: ok, outcome: ok ? "correct" : "wrong", grade: ok ? "good" : "forgot", expected: body.key, correct_option: CORRECT[body.key] ?? null, diff: null,
     item: { box: body.key === "accept" ? 4 : 2, due_at: "x" }, applied: true });
 }
 

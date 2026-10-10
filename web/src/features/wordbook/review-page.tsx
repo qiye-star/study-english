@@ -171,7 +171,7 @@ export function WordbookReviewPage() {
   const progress = progressOf(session);
   const attempt = question ? session.requeued[question.key] ?? 0 : 0;
   const choiceResult: ChoiceResult | null = answer && question
-    ? { choice: answer.choice ?? "", correct: answer.result.correct, correctOption: correctOptionOf(question, answer.result.expected, batch?.cards[question.key]) }
+    ? { choice: answer.choice ?? "", correct: answer.result.correct, correctOption: correctOptionOf(question, answer.result) }
     : null;
   return (
     <div className="flex flex-1 flex-col">

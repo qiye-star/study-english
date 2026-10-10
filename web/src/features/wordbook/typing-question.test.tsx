@@ -53,7 +53,7 @@ describe("TypingQuestion", () => {
 
   it("shows the outcome badge, the letter diff and the correct spelling once graded", () => {
     render(<TypingQuestion question={SPELL} onSubmit={vi.fn()} onListen={vi.fn()} result={{
-      correct: false, outcome: "typo", grade: "hard", expected: "accept", applied: true, item: null,
+      correct: false, outcome: "typo", grade: "hard", expected: "accept", correctOption: null, applied: true, item: null,
       diff: [{ op: "eq", a: "a", b: "a" }, { op: "eq", a: "c", b: "c" }, { op: "del", a: "c", b: "" }, { op: "eq", a: "e", b: "e" }, { op: "eq", a: "p", b: "p" }, { op: "eq", a: "t", b: "t" }],
     }} />);
     expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
@@ -65,7 +65,7 @@ describe("TypingQuestion", () => {
 
   it("shows a neutral badge for a wrong answer", () => {
     render(<TypingQuestion question={SPELL} onSubmit={vi.fn()} onListen={vi.fn()} result={{
-      correct: false, outcome: "wrong", grade: "forgot", expected: "accept", applied: true, item: null, diff: null,
+      correct: false, outcome: "wrong", grade: "forgot", expected: "accept", correctOption: null, applied: true, item: null, diff: null,
     }} />);
     expect(screen.getByTestId("outcome-badge")).toHaveTextContent("错误");
     expect(screen.getByTestId("typing-expected")).toHaveTextContent("正确拼写 accept");

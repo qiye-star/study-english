@@ -19,8 +19,8 @@ from app.wordbook.entry import WordCard
 from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import Known
-from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, pick_distractors,
-                               pick_qtype, question_rng)
+from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
+                               pick_distractors, pick_qtype, question_rng)
 
 
 class WordbookError(Exception):
@@ -281,8 +281,11 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
     await session.commit()
+    # Ruling Z-e:expected = 词头;correct_option = 选择题正确项原文(打字题 / 「我认识」为 null)
+    option = correct_option(p.qtype, card) if p.qtype in CHOICE_QTYPES and not p.known else None
     return {"correct": outcome in ("correct", "known"), "outcome": outcome, "grade": grade, "expected": card.word,
-            "diff": diff, "item": item_out(await store.known_one(session, user_id, card.key)), "applied": applied}
+            "correct_option": option, "diff": diff,
+            "item": item_out(await store.known_one(session, user_id, card.key)), "applied": applied}
 
 
 # ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----

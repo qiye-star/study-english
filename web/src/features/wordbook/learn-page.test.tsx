@@ -39,9 +39,9 @@ const CORRECT: Record<string, string> = { talk: "v. 说话；谈话；n. 交谈"
 
 function answerRoute(call: RecordedCall) {
   const body = JSON.parse(String(call.body)) as { key: string; choice?: string; known?: boolean };
-  if (body.known) return json({ correct: true, outcome: "known", grade: "good", expected: body.key, diff: null, item: { box: 2, due_at: "x" }, applied: true });
+  if (body.known) return json({ correct: true, outcome: "known", grade: "good", expected: body.key, correct_option: null, diff: null, item: { box: 2, due_at: "x" }, applied: true });
   const ok = body.choice === CORRECT[body.key];
-  return json({ correct: ok, outcome: ok ? "correct" : "wrong", grade: ok ? "good" : "forgot", expected: body.key, diff: null, item: { box: 0, due_at: "x" }, applied: true });
+  return json({ correct: ok, outcome: ok ? "correct" : "wrong", grade: ok ? "good" : "forgot", expected: body.key, correct_option: CORRECT[body.key] ?? null, diff: null, item: { box: 0, due_at: "x" }, applied: true });
 }
 
 function setup(routes: Parameters<typeof createFetchMock>[0] = {}) {

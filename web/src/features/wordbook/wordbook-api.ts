@@ -23,7 +23,8 @@ export type Grade = "good" | "hard" | "forgot";
 export interface DiffOp { op: "eq" | "sub" | "ins" | "del"; a: string; b: string }
 export interface ItemState { box: number; dueAt: string }
 export interface AnswerInput { bookId: BookId; key: string; mode: "learn" | "review"; qtype: QType; choice?: string; typed?: string; hinted?: boolean; known?: boolean }
-export interface AnswerResult { correct: boolean; outcome: Outcome | "known"; grade: Grade; expected: string; diff: DiffOp[] | null; item: ItemState | null; applied: boolean }
+/** `expected` = 词头;`correctOption` = 选择题正确项原文(打字题 / 「我认识」为 null;Ruling Z-e)。 */
+export interface AnswerResult { correct: boolean; outcome: Outcome | "known"; grade: Grade; expected: string; correctOption: string | null; diff: DiffOp[] | null; item: ItemState | null; applied: boolean }
 /** 空的 `form` = 句中实际词形(go → went):只用于首字母提示与「听这句」,提交前不渲染进空里(Ruling Z-c)。 */
 export type Segment = { t: "text"; v: string } | { t: "blank"; i: number; len: number; form: string };
 export interface ClozeLine { key: string; sentenceId: string; segments: Segment[]; zh: string }

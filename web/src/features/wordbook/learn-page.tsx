@@ -110,7 +110,7 @@ export function WordbookLearnPage() {
     try {
       const res = await submitAnswer(api, { bookId: batch.bookId, key: question.key, mode: "learn", qtype: question.qtype, choice });
       if (!mounted.current) return;
-      setResult({ choice, correct: res.correct, correctOption: correctOptionOf(question, res.expected, cardOf(question.key)) });
+      setResult({ choice, correct: res.correct, correctOption: correctOptionOf(question, res) });
     } catch (err) {
       if (mounted.current) setActionError(errorText(err));
     } finally {

@@ -73,6 +73,24 @@ async def test_learn_answer_creates_item_once_and_advances_cursor(app, client, t
     assert today["plan"]["new_done"] == 2 and today["progress"]["learned"] == 2
 
 
+async def test_answers_name_the_correct_option_explicitly(app, client, tmp_path):
+    """`/answers` 的 `correct_option` = 正确选项的原文(选择题),客户端直接按它标绿,不用自己重建释义行;
+    `expected` 恒为词头(打字题与讲解用)。打字题与「我认识」没有选项 → null。"""
+    h = await login(app, client, tmp_path)
+    quiz = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 5})).json()["quiz"]
+    talk = next(q for q in quiz if q["key"] == "talk")
+    wrong = next(o for o in talk["options"] if o != TALK_MEANING)
+    r = (await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=wrong)).json()
+    assert (r["correct"], r["expected"], r["correct_option"]) == (False, "talk", TALK_MEANING)
+    assert r["correct_option"] in talk["options"]
+    word = (await ans(client, h, key="talk", mode="review", qtype="word", choice="stop")).json()
+    assert word["correct_option"] == "talk"
+    typed = (await ans(client, h, key="talk", mode="review", qtype="spell", typed="talk")).json()
+    assert typed["correct_option"] is None and typed["expected"] == "talk"
+    known = (await ans(client, h, key="able", mode="learn", qtype="meaning", known=True)).json()
+    assert known["correct_option"] is None
+
+
 async def test_learn_adopts_an_existing_vocabulary_word(app, client, tmp_path):
     h = await login(app, client, tmp_path)
     await client.post("/api/vocabulary", headers=h, json={"word": "talk", "source": "lookup"})

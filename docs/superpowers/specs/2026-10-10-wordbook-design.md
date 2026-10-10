@@ -313,7 +313,7 @@ NOTICE                                     ← 仓库根:第三方数据声明(�
 | `GET /today?tz_offset_minutes=` | — | `{enrollment, book, plan:{new_target,new_done,new_left,review_due,review_done,review_left,backlog_guard}, progress:{words,learned,mastered,remaining}, tomorrow_due}`;没选书时 `enrollment:null` |
 | `POST /learn/batch` | `{size?:1–10=5}` | `{book_id, cards:[CardOut], quiz:[QuestionOut]}`(不建行) |
 | `POST /review/batch` | `{size?:1–20=20}` | `{book_id, questions:[QuestionOut], cards:{key:CardOut}}`(到期词,最久过期在前) |
-| `POST /answers` | `{book_id, key, mode:"learn"|"review", qtype, choice?, typed?, hinted?, known?, tz_offset_minutes}` | `{correct, outcome, grade, expected, diff?, item:{box,due_at}|null, applied}` |
+| `POST /answers` | `{book_id, key, mode:"learn"|"review", qtype, choice?, typed?, hinted?, known?, tz_offset_minutes}` | `{correct, outcome, grade, expected, correct_option, diff?, item:{box,due_at}|null, applied}`(`expected` = 词头;`correct_option` = 选择题正确项原文,打字题 / known 为 null;集成裁定 Z-e) |
 | `POST /spell/sets` | `{count?:1–4=2, size?:3–6=5}` | `{book_id, sets:[{set_id, lines:[{key, sentence_id, segments:[{t:"text",v}|{t:"blank",i,len,form}], zh}]}]}`(`form` = 句中实际词形,只供首字母提示与「听这句」;集成裁定 Z-c) |
 | `POST /spell/submit` | `{book_id, set_id, lines:[{key, sentence_id, answers:[{typed, hinted}]}], tz_offset_minutes}` | `{credit, counted, words:[{key, outcome, credit, blanks:[BlankOut], card:CardOut, item}]}` |
 | `GET /cards/{book_id}/{key}` | — | `CardOut` |

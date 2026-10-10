@@ -11,7 +11,7 @@ import type {
 /**
  * 契约(计划 P-W5):`server/tests/fixtures/wordbook_contract.json` 由服务端 S6 对真实应用录制;这里逐键核对网页类型。
  * `Record<keyof T, true>` 在编译期把键表绑定到 wordbook-api.ts 的类型;样例文件存在时运行期再与它逐键比对。
- * 样例还没合并进来(服务端车道并行开发)时,对样例的用例跳过,键表与 spec §7 的核对照常运行。
+ * 各车道已合并,样例必须存在(集成裁定 Z-g:不再 skipIf)。
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../../server/tests/fixtures/wordbook_contract.json");
@@ -29,7 +29,7 @@ const BOOK: Record<keyof WordbookBook, true> = { id: true, titleZh: true, titleE
 const BOOK_PROGRESS: Record<keyof BookProgress, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, learned: true, mastered: true, enrolled: true, active: true };
 const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
 const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
-const ANSWER: Record<keyof AnswerResult, true> = { correct: true, outcome: true, grade: true, expected: true, diff: true, item: true, applied: true };
+const ANSWER: Record<keyof AnswerResult, true> = { correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true };
 const ITEM: Record<keyof ItemState, true> = { box: true, dueAt: true };
 const LINE: Record<keyof ClozeLine, true> = { key: true, sentenceId: true, segments: true, zh: true };
 const BLANK_SEGMENT: Record<keyof Extract<Segment, { t: "blank" }>, true> = { t: true, i: true, len: true, form: true };
@@ -43,15 +43,19 @@ describe("wordbook client types (spec §7)", () => {
     expect(keys(PLAN)).toEqual(["backlogGuard", "newDone", "newLeft", "newTarget", "reviewDone", "reviewDue", "reviewLeft"]);
     expect(keys(CARD)).toEqual(["examples", "key", "phrases", "senses", "uk", "us", "word"]);
     expect(keys(QUESTION)).toEqual(["key", "length", "options", "prompt", "qtype"]);
-    expect(keys(ANSWER)).toEqual(["applied", "correct", "diff", "expected", "grade", "item", "outcome"]);
+    expect(keys(ANSWER)).toEqual(["applied", "correct", "correctOption", "diff", "expected", "grade", "item", "outcome"]);
     expect(keys(LINE)).toEqual(["key", "segments", "sentenceId", "zh"]);
     expect(keys(WORD)).toEqual(["blanks", "card", "credit", "item", "key", "outcome"]);
     expect(keys(BLANK)).toEqual(["credit", "diff", "expected", "i", "outcome", "typed"]);
   });
 });
 
-describe.skipIf(contract === null)("wordbook contract (server fixture)", () => {
+describe("wordbook contract (server fixture)", () => {
   const c = contract ?? {};
+  it("has the server-recorded fixture (lanes merged; never skipped)", () => {
+    expect(contract).not.toBeNull();
+  });
+
   it("today/plan/books match the client types", () => {
     const today = cc<Today>(c.today);
     expect(keysOf(today)).toEqual(keys(TODAY));
@@ -68,6 +72,11 @@ describe.skipIf(contract === null)("wordbook contract (server fixture)", () => {
     expect(keysOf(q)).toEqual(keys(QUESTION));
     const answer = cc<AnswerResult>(c.answer_typed);
     expect(keysOf(answer)).toEqual(keys(ANSWER));
+    expect(answer.correctOption).toBeNull();
+    // 选择题:correct_option 是题目选项里的那一项原文(Ruling Z-e)
+    const choice = cc<AnswerResult>(c.answer_choice);
+    expect(keysOf(choice)).toEqual(keys(ANSWER));
+    expect(cc<{ quiz: Question[] }>(c.learn_batch).quiz.find((q) => q.key === "talk")?.options).toContain(choice.correctOption);
     if (answer.item) expect(keysOf(answer.item)).toEqual(keys(ITEM));
     const set = cc<{ sets: { lines: ClozeLine[] }[] }>(c.spell_sets).sets[0];
     expect(keysOf(set.lines[0])).toEqual(keys(LINE));

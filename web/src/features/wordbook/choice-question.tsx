@@ -2,8 +2,8 @@ import { CheckIcon, CircleCheckIcon, XIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
-import { ListenButton, meaningLine, type ListenProps } from "./word-card";
-import type { Card, Question } from "./wordbook-api";
+import { ListenButton, type ListenProps } from "./word-card";
+import type { AnswerResult, Question } from "./wordbook-api";
 
 /** 选择题作答结果:你选的项、是否正确、正确项文本(不知道时为 null)。 */
 export interface ChoiceResult { choice: string; correct: boolean; correctOption: string | null }
@@ -95,14 +95,11 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
   );
 }
 
-/** 选择题的正确项:先按服务端 `expected` 找(选词题即词头),释义题按与服务端相同的释义行找。 */
-export function correctOptionOf(question: Question, expected: string, card: Card | undefined): string | null {
-  const options = question.options ?? [];
-  const exact = options.find((o) => o === expected) ?? options.find((o) => o.toLowerCase() === expected.toLowerCase());
-  if (exact) return exact;
-  if (question.qtype === "meaning" && card) {
-    const line = meaningLine(card.senses);
-    return options.find((o) => o === line) ?? null;
-  }
-  return null;
+/**
+ * 选择题的正确项 = 服务端 `/answers` 的 `correct_option`(Ruling Z-e:与题目 options 里那一项逐字相同)。
+ * 不在选项里或为 null 时返回 null:只标出用户选错的那项,不在客户端猜。
+ */
+export function correctOptionOf(question: Question, result: Pick<AnswerResult, "correctOption">): string | null {
+  const option = result.correctOption;
+  return option !== null && (question.options ?? []).includes(option) ? option : null;
 }

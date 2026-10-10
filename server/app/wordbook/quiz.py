@@ -137,6 +137,15 @@ def build_question(qtype: QType, card: WordCard, distractors: list[WordCard], rn
     return Question(card.key, qtype, prompt, tuple(options), None)
 
 
+def correct_option(qtype: QType, card: WordCard) -> str:
+    """选择题正确项的原文,与 `build_question` 放进 options 的那一项逐字相同(网页按它标绿)。"""
+    if qtype == "meaning":
+        return meaning_line(card)
+    if qtype in ("word", "cloze"):
+        return card.word
+    raise ValueError(f"{qtype} is not a choice question")
+
+
 def check_choice(qtype: QType, card: WordCard, choice: str) -> bool:
     if qtype == "meaning":
         return choice == meaning_line(card)
