@@ -5,6 +5,7 @@ import { IconChip } from "~/components/icon-chip";
 import { SectionGroup } from "~/components/section-group";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
+import { NewAchievements } from "~/features/rank";
 import { PlanRing } from "./plan-ring";
 import { DOCK, GHOST, PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
@@ -54,6 +55,8 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
               unit={t("web.wordbook.summary.estimate")} />
           ) : null}
         </div>
+        {/* 新解锁成就(spec §11.2,视觉稿 10):段位开启时才拉 /api/rank/me */}
+        {stats.points !== null ? <NewAchievements title={t("web.wordbook.summary.newAchievements")} /> : null}
         {stats.missed.length ? (
           <SectionGroup title={t("web.wordbook.summary.missed")}>
             {stats.missed.map((m) => (

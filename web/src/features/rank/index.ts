@@ -4,3 +4,4 @@ export { MatchPage } from "./match-page";
 export { AchievementsPage } from "./achievements-page";
 export { fetchRankConfig, type RankConfig } from "./rank-api";
 export { RankCard } from "./rank-card";
+export { NewAchievements } from "./new-achievements";

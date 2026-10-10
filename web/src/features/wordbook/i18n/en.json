@@ -143,6 +143,7 @@
         "review": { "title": "Today's review is done", "count": "{{n}} reviewed", "tile": "Reviewed" },
         "spell": { "title": "Spelling round complete", "count": "{{n}} words spelled", "tile": "Spelled" },
         "firstTry": "{{n}} right first time",
+        "newAchievements": "Newly unlocked",
         "mastered": "{{n}} words now mastered",
         "correct": "Correct",
         "points": "Rank points",

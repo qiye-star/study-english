@@ -33,13 +33,17 @@ export function achievementTitle(t: TFunction, key: string): string {
   return t(`web.rank.achievements.items.${key}`);
 }
 
-function iconFor(item: AchievementItem): LucideIcon {
+export function achievementCondition(t: TFunction, key: string): string {
+  return SEASON.test(key) ? t("web.rank.achievements.conditions.season") : t(`web.rank.achievements.conditions.${key}`);
+}
+
+export function iconFor(item: AchievementItem): LucideIcon {
   const tier = SEASON.exec(item.key)?.[2] as TierKey | undefined;
   if (tier && tier in TIER_ICONS) return TIER_ICONS[tier];
   return ICONS[item.icon] ?? AwardIcon;
 }
 
-function toneFor(item: AchievementItem): string {
+export function toneFor(item: AchievementItem): string {
   if (SEASON.test(item.key) || TIER_ACHIEVEMENT.test(item.key)) return TIER_TONE;
   return TONES[item.group] ?? "bg-blue-tint text-blue";
 }
@@ -87,7 +91,7 @@ export function AchievementsPage() {
                 {items.filter((i) => i.group === group).map((item) => {
                   const Icon = iconFor(item);
                   const on = !!item.unlockedAt;
-                  const condition = SEASON.test(item.key) ? t("web.rank.achievements.conditions.season") : t(`web.rank.achievements.conditions.${item.key}`);
+                  const condition = achievementCondition(t, item.key);
                   return (
                     <li key={item.key} data-testid="achievement" data-unlocked={String(on)}
                       className="flex min-h-[112px] flex-col items-center rounded-card border-[0.5px] border-hair bg-surface px-1.5 pb-2.5 pt-3 text-center">

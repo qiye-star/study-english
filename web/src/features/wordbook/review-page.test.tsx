@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,6 +117,43 @@ describe("WordbookReviewPage", () => {
     expect(summary).toHaveTextContent("一次答对 2");
     expect(summary).toHaveTextContent("1 个词进入「已掌握」");
     expect(summary).toHaveTextContent("talk");
+  });
+
+  it("shows achievements this session unlocked in the summary (spec §11.2, mockup frame 10)", async () => {
+    const user = userEvent.setup();
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json({ ...BATCH, questions: [BATCH.questions[0]] }),
+      "GET /api/rank/config": () => json({ enabled: true, match_available: false, tiers: [], season: null }),
+      "GET /api/rank/me": () => json({ new_achievements: ["words_mastered_100"] }),
+      "GET /api/rank/achievements": () => json({ achievements: [
+        { key: "words_mastered_100", group: "vocab", icon: "book", unlocked_at: "2026-10-10T08:00:00+00:00" },
+        { key: "streak_3", group: "streak", icon: "flame", unlocked_at: null },
+      ] }),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt\. 接受；承认/ }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
+    const summary = await screen.findByTestId("session-summary");
+    const group = await within(summary).findByTestId("new-achievements");
+    expect(group).toHaveTextContent("新解锁");
+    expect(group).toHaveTextContent("小有积累");
+    expect(group).toHaveTextContent("掌握 100 个单词");
+    expect(group).not.toHaveTextContent("三日不辍");
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/rank/me")).toHaveLength(1);
+  });
+
+  it("does not ask for achievements when rank is off", async () => {
+    const user = userEvent.setup();
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json({ ...BATCH, questions: [BATCH.questions[0]] }),
+      "GET /api/rank/config": () => json({ enabled: false, match_available: false, tiers: [], season: null }),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt\. 接受；承认/ }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
+    await screen.findByTestId("session-summary");
+    expect(screen.queryByTestId("new-achievements")).toBeNull();
+    expect(mock.calls.some((c) => c.url.pathname === "/api/rank/me")).toBe(false);
   });
 
   it("still shows answer results under StrictMode (double-mounted effects)", async () => {
