@@ -78,6 +78,26 @@ async def test_require_link_guards_an_endpoint(app, client):
     assert (await client.get("/api/links/__probe", headers=h)).json() == {"ok": uid}
 
 
+async def test_the_bus_gate_applies_the_three_levels_to_registered_links_only(app, client):
+    from datetime import datetime, timezone
+
+    from app.core.learning_events import MessageSent
+    uid, _ = await make_user(client)
+    enable_links(app, link_chat_words_enabled=False)
+    seen = []
+
+    async def handler(event):
+        seen.append(event.user_id)
+    bus = app.state.learning_bus
+    bus.subscribe(MessageSent, "chat_words", handler)  # a registered link, globally off
+    bus.subscribe(MessageSent, "diagnostics", handler)  # not a link: only the master switch applies
+    bus.publish(MessageSent(user_id=uid, conversation_id="c", message_id="m", text="hi",
+                            at=datetime.now(timezone.utc)))
+    await bus.drain()
+    assert seen == [uid]
+    assert (bus.stats()["chat_words"]["skipped"], bus.stats()["diagnostics"]["handled"]) == (1, 1)
+
+
 def test_every_link_key_has_a_settings_flag():
     from app.core.config import Settings
     assert all(flag_of(k) in Settings.model_fields for k in LINK_KEYS)

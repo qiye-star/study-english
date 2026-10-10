@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import learning_events
 from app.core.config import Settings
 from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
@@ -359,6 +360,10 @@ async def create_messages(
         # an assessment was deleted between the ownership check and the insert (FK violation)
         await session.rollback()
         raise HTTPException(404, "Assessment not found")
+    for row in rows:  # after commit; the text stays in memory (learning-links spec §4.2)
+        if row.role == "user":
+            learning_events.publish(learning_events.MessageSent(
+                user_id=user.id, conversation_id=conversation.id, message_id=row.id, text=row.content, at=row.created_at))
     return {"messages": [message_out(r, linked.get(r.assessment_id)) for r in rows]}
 
 

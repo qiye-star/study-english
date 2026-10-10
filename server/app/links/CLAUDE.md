@@ -33,6 +33,8 @@ Off unless `LINKS_ENABLED`(每个联动另有 `LINK_<KEY>_ENABLED` 与每用户�
 ## Pitfalls
 - 发布语句只在发布方 `commit()` 之后;本包从不调用 `publish`。
 - `MessageSent.text` 只在内存;不要把它写进表、日志、异常或管理端错误。
+- 通道的 gate(`setup.install`)只对 registry 里的联动键做三级判断;其他订阅名(测试记录器)只受总开关约束。
+  订阅时的联动名必须与 `SPEC.key` 完全一致,否则开关不生效。
 - 偏好缓存每进程 30 秒;`PUT /api/links/prefs` 只失效本进程(多进程下其他进程最多 30 秒后生效)。
 - 事件通道每进程一条、进程重启丢未处理事件:处理器必须幂等,关键积分读源表。
 - 新联动:加模块 + registry 一行 + `Settings` 开关 + 注册表 spec + 网页插件;改 spec 先。

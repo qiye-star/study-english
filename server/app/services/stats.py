@@ -105,6 +105,36 @@ def poor_words(result: object) -> set[str]:
     return out
 
 
+GOOD_ACCURACY = 80
+
+
+def word_buckets(result: object) -> tuple[list[tuple[str, int | None]], list[str]]:
+    """(弱词 [(词, 最低准确度)], 好词 [词])(learning-links spec §4.2 AssessmentFinished)。弱词规则与 poor_words 相同
+    (Insertion 不算;Mispronunciation/Omission 或准确度 < 60);好词 = 无错误类型且准确度 ≥ 80,且同一评测里没有弱读。
+    同一评测里每个词只出现一次。"""
+    detail = result.get("detail_result") if isinstance(result, dict) else None
+    words = detail.get("words") if isinstance(detail, dict) else None
+    weak: dict[str, int | None] = {}
+    good: dict[str, None] = {}
+    for item in words if isinstance(words, list) else []:
+        if not isinstance(item, dict):
+            continue
+        pa = item.get("pronunciation_assessment")
+        pa = pa if isinstance(pa, dict) else {}
+        kind = pa.get("error_type")
+        score = _finite(pa.get("accuracy_score"))
+        text = _EDGES.sub("", str(item.get("word") or "").lower())
+        if not text or kind == "Insertion":
+            continue
+        if kind in ("Mispronunciation", "Omission") or (score is not None and score < POOR_ACCURACY):
+            value = None if score is None else round(score)
+            prev = weak.get(text)
+            weak[text] = value if prev is None else (prev if value is None else min(prev, value))
+        elif score is not None and score >= GOOD_ACCURACY and kind in (None, "None"):
+            good[text] = None
+    return list(weak.items()), [w for w in good if w not in weak]
+
+
 def _top(counter: Counter, limit: int, key: str) -> list[dict]:
     ranked = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))[:limit]
     return [{key: name, "count": count} for name, count in ranked]

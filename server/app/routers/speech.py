@@ -15,10 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.assessment_store import SCORE_KEYS, QuotaExceeded, check_quota, save_assessment  # noqa: F401
 from app.providers.azure import AzureError, AzureNotConfigured, AzureSpeech
 from app.services.provider_clients import get_azure, get_xfyun
+from app.core import learning_events
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
-from app.models import SpeechToken, User
+from app.models import SpeechToken, User, utcnow
 from app.services.chat_recordings import cleanup_orphan_chat_recordings, drop_assessments, remove_files  # noqa: F401
+from app.services.stats import word_buckets
 from app.services.pronunciation import MAX_REFERENCE_CHARS, TIMEOUT_BASE_SECONDS, TIMEOUT_CAP_SECONDS, _ise_entry
 from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured
 from app.providers.xfyun_result import to_assessment
@@ -221,4 +223,10 @@ async def create_assessment(
         )
     except OSError:
         raise HTTPException(500, "Could not save the recording")
+    weak, good = word_buckets(result)  # save_assessment has committed (learning-links spec §4.2)
+    score = result.get("pronunciation_score")
+    learning_events.publish(learning_events.AssessmentFinished(
+        user_id=user.id, assessment_id=assessment_id, source=source_value,
+        score=round(score) if isinstance(score, (int, float)) and not isinstance(score, bool) else None,
+        weak_words=tuple(learning_events.WeakWord(w, s) for w, s in weak), good_words=tuple(good), at=utcnow()))
     return {**result, "assessment_id": assessment_id}

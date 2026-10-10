@@ -24,6 +24,7 @@ from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
                                pick_distractors, pick_qtype, question_rng, use_recall)
+from app.core import learning_events
 
 
 class WordbookError(Exception):
@@ -416,6 +417,9 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
     await session.commit()
+    learning_events.publish(learning_events.WordAnswered(
+        user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=p.qtype, outcome=outcome, credit=credit,
+        at=now))
     # Ruling Z-e:expected = 词头;correct_option = 选择题正确项原文(打字题为 null)
     option = correct_option(p.qtype, card) if p.qtype in CHOICE_QTYPES else None
     return _answer_out(outcome == "correct", outcome, grade, card, option, diff,
@@ -525,6 +529,9 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
                           qtype=recall.RECALL_QTYPE, outcome=outcome, credit=100 if eff == "know" else 0, day=day,
                           now=now)
     await session.commit()
+    learning_events.publish(learning_events.WordAnswered(
+        user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=recall.RECALL_QTYPE, outcome=outcome,
+        credit=100 if eff == "know" else 0, at=now))
     checked = p.mode == "review" and p.choice is not None and rating == "know"
     return _answer_out(eff == "know", eff, recall.GRADE[eff], card, correct_option("meaning", card) if checked else None,
                        None, await store.known_one(session, user_id, card.key), applied, rating=eff, spot_check=spot)
@@ -609,6 +616,7 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         fail(ANSWER_LIMIT)
     known = await store.known_words(session, user_id)
     words, next_blank, seen = [], 0, set()
+    answered: list = []
     for card, cloze, line in graded:
         results = [grade_blank(exp, lemma, typed, hinted=hinted)
                    for exp, lemma, (typed, hinted) in zip(cloze.expected, cloze.lemmas, line.answers)]
@@ -623,6 +631,9 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,
                               item_id=row.item_id if row else None, qtype=SPELL_QTYPE, outcome=outcome,
                               credit=credit, day=day, now=now)
+        answered.append(learning_events.WordAnswered(
+            user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=SPELL_QTYPE, outcome=outcome,
+            credit=credit, at=now))
         blanks = []
         for r in results:
             blanks.append({"i": next_blank, "outcome": r.outcome, "credit": r.credit, "typed": r.typed,
@@ -637,6 +648,8 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="spell_set", word=set_id,
                               item_id=None, qtype=None, outcome="done", credit=set_credit, day=day, now=now)
     await session.commit()
+    for event in answered:
+        learning_events.publish(event)
     fresh = await store.known_words(session, user_id)
     for w in words:
         w["item"] = item_out(fresh.get(w["key"]))
