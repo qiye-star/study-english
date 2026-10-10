@@ -12,7 +12,7 @@ import { PageError, PageLoading } from "./page-status";
 import { RecallCard } from "./recall-card";
 import { RecallRatingBar, SpotBar } from "./recall-rating-bar";
 import { SessionHeader, StepBar } from "./session-header";
-import { answerCurrent, isFinished, progressOf, startSession, type Rating, type SessionState } from "./session-machine";
+import { answerCurrent, clampElapsed, isFinished, progressOf, startSession, type Rating, type SessionState } from "./session-machine";
 import { SessionSummary, type SessionStats } from "./session-summary";
 import { TypingQuestion } from "./typing-question";
 import { DOCK, GHOST, PRIMARY } from "./ui";
@@ -149,7 +149,7 @@ export function WordbookReviewPage() {
   };
 
   const rateRecall = (rating: Rating): void => {
-    void send({ rating, revealedBefore: false, elapsedMs: Math.max(0, Math.round(now() - shownAt.current)) });
+    void send({ rating, revealedBefore: false, elapsedMs: clampElapsed(now() - shownAt.current) });
   };
 
   // 「记错了」:对刚复习过(已不到期)的词再交一次 unknown;小结按改正后的结果算

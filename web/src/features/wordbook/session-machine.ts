@@ -65,10 +65,15 @@ export function cardReducer(s: CardState, a: CardAction): CardState {
   }
 }
 
+/** 自评用时(ms),夹到服务端接受的 0–600000(超出会 422,停很久之后的自评就再也交不上)。 */
+export function clampElapsed(ms: number): number {
+  const elapsed = Math.round(ms);
+  return Math.min(MAX_ELAPSED_MS, Math.max(0, Number.isFinite(elapsed) ? elapsed : 0));
+}
+
 /** 自评请求体:按下的键 + 自评前是否偷看 + 用时(夹到 0–600000 ms)。盒子由服务端决定。 */
 export function ratingPayload(s: CardState, rating: Rating, now: number) {
-  const elapsed = Math.round(now - s.shownAt);
-  return { rating, revealedBefore: s.peeked, elapsedMs: Math.min(MAX_ELAPSED_MS, Math.max(0, Number.isFinite(elapsed) ? elapsed : 0)) };
+  return { rating, revealedBefore: s.peeked, elapsedMs: clampElapsed(now - s.shownAt) };
 }
 
 export interface RatedWord { key: string; rating: Rating; spotCheck: boolean }

@@ -285,6 +285,25 @@ describe("WordbookReviewPage · quick recall (spec recall §4)", () => {
     expect(screen.queryByRole("button", { name: "记错了" })).toBeNull();
   });
 
+  it("caps elapsed_ms at the server's 600000 limit after a long pause (review Z2)", async () => {
+    const user = userEvent.setup();
+    const mock = setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(recallResult("fuzzy")),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await screen.findByTestId("recall-card");
+    const real = performance.now.bind(performance);
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => real() + 3_600_000); // 一小时后才自评
+    try {
+      await user.click(screen.getByRole("button", { name: "模糊" }));
+      await screen.findByTestId("rating-badge");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(answers(mock)[0].elapsed_ms).toBe(600_000);
+  });
+
   it("模糊 flips straight away and the word comes back later", async () => {
     const user = userEvent.setup();
     const mock = setup({
