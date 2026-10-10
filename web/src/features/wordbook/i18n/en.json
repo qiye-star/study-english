@@ -72,6 +72,58 @@
       },
       "diff": {
         "label": "Correct spelling: {{word}}"
+      },
+      "session": {
+        "close": "End and back to Wordbook",
+        "progress": "Round progress",
+        "count": "{{n}} / {{total}}"
+      },
+      "word": {
+        "accent": { "us": "US", "uk": "UK" },
+        "listen": { "us": "Play US pronunciation", "uk": "Play UK pronunciation", "word": "Play pronunciation" },
+        "listenExample": "Read the example",
+        "showZh": "Show translation",
+        "hideZh": "Hide translation",
+        "phrases": "Phrases",
+        "ttsOff": "Read-aloud is not configured on this server"
+      },
+      "learn": {
+        "title": "New words",
+        "eyebrow": "New word {{n}} / {{total}} · {{book}}",
+        "known": "I know it",
+        "next": "Next",
+        "startQuiz": "Start quiz",
+        "quiz": "Quick quiz",
+        "empty": "Today's new words are done",
+        "emptyHint": "Review or spell in sentences to lock them in."
+      },
+      "quiz": {
+        "kind": {
+          "meaning": "Choose the meaning",
+          "word": "Choose the word",
+          "cloze": "Fill the sentence",
+          "dictation": "Dictation",
+          "spell": "Spell the word"
+        },
+        "blank": "blank",
+        "correct": "Correct",
+        "wrong": "The answer is {{answer}}",
+        "wrongPlain": "Not quite — this word will come back once more",
+        "continue": "Continue"
+      },
+      "summary": {
+        "title": "Summary",
+        "learn": { "title": "Round complete", "count": "{{n}} new words learned", "tile": "New words" },
+        "review": { "title": "Today's review is done", "count": "{{n}} reviewed", "tile": "Reviewed" },
+        "firstTry": "{{n}} right first time",
+        "mastered": "{{n}} words now mastered",
+        "correct": "Correct",
+        "points": "Rank points",
+        "estimate": "est.",
+        "missed": "Worth another look",
+        "missedHint": "{{meaning}} · back tomorrow",
+        "home": "Back to Wordbook",
+        "again": "Another round"
       }
     }
   }

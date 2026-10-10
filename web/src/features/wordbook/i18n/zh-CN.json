@@ -72,6 +72,58 @@
       },
       "diff": {
         "label": "正确拼写 {{word}}"
+      },
+      "session": {
+        "close": "结束并回到背单词",
+        "progress": "本轮进度",
+        "count": "{{n}} / {{total}}"
+      },
+      "word": {
+        "accent": { "us": "美", "uk": "英" },
+        "listen": { "us": "朗读美音", "uk": "朗读英音", "word": "播放读音" },
+        "listenExample": "朗读例句",
+        "showZh": "看译文",
+        "hideZh": "收起译文",
+        "phrases": "短语",
+        "ttsOff": "服务器没有配置朗读"
+      },
+      "learn": {
+        "title": "学新词",
+        "eyebrow": "新词 {{n}} / {{total}} · {{book}}",
+        "known": "我认识",
+        "next": "下一个",
+        "startQuiz": "开始小测",
+        "quiz": "小测",
+        "empty": "今天的新词学完了",
+        "emptyHint": "去复习或按句拼写巩固一下吧。"
+      },
+      "quiz": {
+        "kind": {
+          "meaning": "选择正确的释义",
+          "word": "看释义选词",
+          "cloze": "例句选词",
+          "dictation": "听写",
+          "spell": "看释义拼写"
+        },
+        "blank": "空",
+        "correct": "答对了",
+        "wrong": "正确答案是 {{answer}}",
+        "wrongPlain": "答错了,这个词会再出现一次",
+        "continue": "继续"
+      },
+      "summary": {
+        "title": "小结",
+        "learn": { "title": "这一轮学完了", "count": "学会 {{n}} 个新词", "tile": "新词" },
+        "review": { "title": "今天的复习完成了", "count": "复习 {{n}}", "tile": "复习" },
+        "firstTry": "一次答对 {{n}}",
+        "mastered": "{{n}} 个词进入「已掌握」",
+        "correct": "答对",
+        "points": "段位点",
+        "estimate": "估算",
+        "missed": "需要再看看",
+        "missedHint": "{{meaning}} · 明天再复习",
+        "home": "回到首页",
+        "again": "再来一轮"
       }
     }
   }
