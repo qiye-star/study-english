@@ -47,7 +47,11 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
       {qtype === "meaning" ? (
         <>
           <div className="mt-2 flex items-center gap-2.5">
-            <span data-testid="question-word" lang="en" className="break-words text-[30px] font-semibold tracking-[-0.02em]">{prompt.word}</span>
+            {/* min-w-0 + overflow-wrap:anywhere:长词(SAT/TOEFL)能折行,不把 375px 屏撑出横向滚动(review m6) */}
+            <span data-testid="question-word" lang="en"
+              className={cn("min-w-0 font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]", (prompt.word ?? "").length > 14 ? "text-[26px]" : "text-[30px]")}>
+              {prompt.word}
+            </span>
             <ListenButton id={`${question.key}:q`} text={prompt.word ?? ""} label={t("web.wordbook.word.listen.word")}
               onListen={onListen} listening={listening} canListen={canListen}
               className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue" />
