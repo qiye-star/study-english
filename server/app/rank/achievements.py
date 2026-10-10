@@ -111,7 +111,7 @@ async def snapshot(session: AsyncSession, user_id: int, best_tier: int, season: 
             RoomMessage.sender_id == user_id, RoomMessage.assisted.is_(True), RoomMessage.lane == "public")),
         season_promotions=season_promotions,
         # wordbook: read the tables through app.models only (rank never imports app.wordbook)
-        words_learned=await _count(session, select(func.count()).select_from(WordbookEvent).where(
+        words_learned=await _count(session, select(func.count(func.distinct(WordbookEvent.word))).where(
             WordbookEvent.user_id == user_id, WordbookEvent.kind == "learn")),
         words_mastered=await _count(session, select(func.count()).select_from(VocabularyItem).where(
             VocabularyItem.user_id == user_id, VocabularyItem.box >= 4)),

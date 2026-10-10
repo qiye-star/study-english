@@ -35,6 +35,8 @@ NO_ACTIVE = (409, "No active book")
 WORD_NOT_FOUND = (404, "Word not found")
 SENTENCE_CHANGED = (422, "Sentence changed")
 ANSWER_LIMIT = (429, "Daily answer limit reached")
+NEW_LIMIT = (429, "Daily new-word limit reached")
+BOOK_NOT_ACTIVE = (409, "Book is not active")
 REPORT_LIMIT = (429, "Daily report limit reached")
 
 
@@ -258,6 +260,18 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
     if card is None:
         fail(WORD_NOT_FOUND)
     day = local_day(now, p.offset)
+    row = await store.known_one(session, user_id, card.key)
+    learning = p.mode == "learn" and row is None
+    if learning:  # review M1:新词只在当前在学的书里学,且受每日新词数限制(服务器端)
+        e = await store.active_enrollment(session, user_id)
+        if e is None:
+            fail(NO_ACTIVE)
+        if e.book_id != p.book_id:
+            fail(BOOK_NOT_ACTIVE)
+        index = await index_or_fail(ds, p.book_id)
+        known = await store.known_words(session, user_id)
+        if (await _day_plan(session, user_id, e, index, known, p.offset, now)).new_left <= 0:
+            fail(NEW_LIMIT)
     if not await store.consume_answer(session, user_id, day):
         fail(ANSWER_LIMIT)
     diff = None
@@ -271,19 +285,17 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
         outcome, credit = result.outcome, result.credit
         diff = [asdict(d) for d in result.diff] or None
     grade = "good" if outcome == "known" else srs_grade(outcome, p.hinted)
-    row = await store.known_one(session, user_id, card.key)
     applied, item_id, kind = False, row.item_id if row else None, "practice"
-    if p.mode == "learn" and row is None:
+    if learning:
         box, due = (KNOWN_BOX, now + KNOWN_DUE) if p.known else (0, now + LEARN_DUE)
+        # 每个词只记一次 learn(删掉后重学只记 practice):word_learned 段位点与「学会 n 词」按不同的词算
+        kind = "practice" if await store.ever_learned(session, user_id, card.key) else "learn"
         item_id = await store.create_item(session, user_id, p.book_id, card, box=box, due_at=due, now=now)
-        applied, kind = True, "learn"
-        e = await store.get_enrollment(session, user_id, p.book_id)
-        if e is not None:
-            index = await index_or_fail(ds, p.book_id)
-            known = await store.known_words(session, user_id)
-            order = planning.permutation(len(index), e.seed, e.order_mode)
-            _, cursor = planning.next_new(index.keys, order, e.cursor, known, 0)
-            await store.set_cursor(session, user_id, p.book_id, cursor)
+        applied = True
+        known[card.key] = Known(item_id, box, due, 0, store.wordbook_source(p.book_id))
+        order = planning.permutation(len(index), e.seed, e.order_mode)
+        _, cursor = planning.next_new(index.keys, order, e.cursor, known, 0)
+        await store.set_cursor(session, user_id, p.book_id, cursor)
     elif p.mode == "review" and row is not None:
         applied, due = await _write_srs(session, user_id, row, grade, now)
         kind = "review" if due and applied else "practice"

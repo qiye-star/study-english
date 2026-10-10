@@ -8,6 +8,8 @@
         "dataUnavailable": "Word book data is unavailable right now. Please try again later.",
         "noActiveBook": "Pick a word book first.",
         "answerLimit": "You have reached today's answer limit. Come back tomorrow.",
+        "newLimit": "You have learned today's new words. Come back tomorrow.",
+        "bookNotActive": "This is not the word book you are studying now.",
         "reportLimit": "You have reached today's report limit.",
         "sentenceChanged": "The sentences have been updated. Please restart this set.",
         "aiUnavailable": "AI explanation is unavailable right now.",

@@ -53,7 +53,8 @@ describe("wordbook api", () => {
 
   it("maps every server error to an i18n key present in both languages", () => {
     expect(Object.keys(WORDBOOK_SERVER_ERRORS).sort()).toEqual([
-      "AI explanation unavailable", "Book not found", "Daily answer limit reached", "Daily report limit reached",
+      "AI explanation unavailable", "Book is not active", "Book not found", "Daily answer limit reached",
+      "Daily new-word limit reached", "Daily report limit reached",
       "No active book", "Sentence changed", "Word not found", "Wordbook data unavailable", "Wordbook is disabled",
     ]);
     for (const key of Object.values(WORDBOOK_SERVER_ERRORS)) {

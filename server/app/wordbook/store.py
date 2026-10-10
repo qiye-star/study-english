@@ -123,6 +123,13 @@ async def today_counts(session: AsyncSession, user_id: int, book_id: str, day: s
     return int(learned or 0), int(reviews or 0)
 
 
+async def ever_learned(session: AsyncSession, user_id: int, word: str) -> bool:
+    """该用户是否已有这个词的 learn 事件(任何书、任何一天)。"""
+    found = await session.scalar(select(WordbookEvent.id).where(
+        WordbookEvent.user_id == user_id, WordbookEvent.word == word, WordbookEvent.kind == "learn").limit(1))
+    return found is not None
+
+
 async def today_learned_keys(session: AsyncSession, user_id: int, book_id: str, day: str) -> list[str]:
     rows = await session.scalars(select(WordbookEvent.word).where(*_today(user_id, book_id, day),
                                                                   WordbookEvent.kind == "learn")
