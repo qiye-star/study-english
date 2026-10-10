@@ -4907,3 +4907,13 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: F7 设置页懒加载(`lazy` + `Suspense fallback={null}`,单独 chunk 约 1.3 kB gzip);列表分组标题新键 `web.links.settings.group`;保存失败 toast 标题 `saveFailed`、描述为服务端错误翻译。每个插件桩目录与 `plugins/links/` 各有 `CLAUDE.md`(车道替换时一并更新)。
 - 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
+
+## Addendum (2026-10-11) · Lane L4 执行记录(pron_shadow)
+
+- Ruling: L4-1 `install` 订阅名用 `SPEC.key`(= `"pron_shadow"`,基础车道裁定 F5:只有 registry 键走三级开关);`handle` 遇到并发首插 `IntegrityError` 时先 `rollback()` 再重试一次;`good_words` 去重;`/weak-words` 在没有行时不查 `vocabulary_items`;`/today-words` 没有今日新词时不碰词典。
+- Ruling: L4-1 契约用例同时打开背单词并学一个词,让 `links_pron_shadow_contract.json` 的 `today_words.items` 不为空(否则网页契约测试无法核对 `TodayWord` 的键)。另加用例:弱读重置读准计数并复活已移出的词、活跃上限(`ACTIVE_MAX` monkeypatch 为 3)、排序与只看自己的词 / 不能移出他人的词、联动关 → 三个接口 404 且处理器 `skipped`、用户偏好关 → 处理器跳过、背单词关 → `today-words` 为空、`offset` 越界 422。
+- Ruling: 所有者裁定落地:聊天 / 语音对话(`source != "practice"`)的低分词不进发音弱词;本联动不发任何上游请求(「跟读」只把参考文本交给练习页,仍走现有 xfyun 评测与配额);今日新词例句一键跟读。
+- Ruling: L4-2 未做 spec §6.4 / 视觉稿帧 04 的「拼写」按钮:计划 L4 的接口不返回「词是否在当前词书」,词卡入口由 L1「单词操作」提供;帧 04 的「读准 1/2」同理(接口不含 `ok_streak`)。
+- Ruling: L4-2 弱词行的「跟读」「移出」用 44px `IconButton`(视觉稿帧 04 的话筒 / ×),无障碍名 `跟读:词` / `移出:词`(新键 `shadowWord`);顶栏副标题「n 个」(新键 `count`);面板说明 `todayLede`;移出失败回滚 + toast(`dismissFailed`,描述走 `LINKS_SERVER_ERRORS`);生词本入口为 0 / 失败时值显示「暂无」(`none`,与易错词一致)。
+- Ruling: L4-2 另加 `practice-integration.test.tsx`(经 `~/features/practice` 渲染真实练习页):打开时点例句填进参考文本;关闭时跟读区不出现来源片且不发 `/api/links/*` 请求。
+- 未做:L4-2 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
