@@ -39,7 +39,7 @@
     "order_mode": "book",
     "daily_new": 20,
     "review_cap": 100,
-    "started_at": "2026-10-10T18:29:17.815255+00:00",
+    "started_at": "2026-10-10T18:32:39.895491+00:00",
     "review_unlimited": false
   },
   "books": {
@@ -198,9 +198,9 @@
           "us": "tɔk"
         },
         "options": [
-          "v. 携带；搬运",
-          "n. 事故；意外",
           "n. 能力，能耐；才能",
+          "n. 星期一",
+          "v. 过去常常",
           "v. 说话；谈话；n. 交谈"
         ],
         "length": null
@@ -213,9 +213,9 @@
           "us": "əˈbɪləti"
         },
         "options": [
-          "v. 说话；谈话；n. 交谈",
           "n. 能力，能耐；才能",
-          "v. 停止；阻止；n. 车站",
+          "n. 事故；意外",
+          "v. 说话；谈话；n. 交谈",
           "n. 孩子；儿童"
         ],
         "length": null
@@ -229,9 +229,9 @@
         },
         "options": [
           "adj. 能够的；有能力的",
-          "adj. 小心的，仔细的",
-          "v. 携带；搬运",
-          "v. 过去常常"
+          "v. 吸收；使专心",
+          "n. 孩子；儿童",
+          "n. 事故；意外"
         ],
         "length": null
       },
@@ -243,10 +243,10 @@
           "us": "əˈbændən"
         },
         "options": [
-          "v. 过去常常",
+          "v. 吸收；使专心",
           "v. 携带；搬运",
           "v. 放弃；抛弃",
-          "v. 接受；承认"
+          "v. 说话；谈话；n. 交谈"
         ],
         "length": null
       },
@@ -259,9 +259,9 @@
         },
         "options": [
           "v. 吸收；使专心",
-          "v. 放弃；抛弃",
-          "v. 过去常常",
-          "v. 携带；搬运"
+          "v. 去；走",
+          "v. 携带；搬运",
+          "v. 停止；阻止；n. 车站"
         ],
         "length": null
       }
@@ -276,8 +276,8 @@
         "options": [
           "stop",
           "absorb",
-          "talk",
-          "carry"
+          "carry",
+          "talk"
         ],
         "length": null
       },
@@ -288,10 +288,10 @@
           "meaning": "n. 能力，能耐；才能"
         },
         "options": [
-          "stop",
-          "Monday",
           "ability",
-          "talk"
+          "talk",
+          "child",
+          "Monday"
         ],
         "length": null
       },
@@ -302,10 +302,10 @@
           "meaning": "adj. 能够的；有能力的"
         },
         "options": [
-          "talk",
-          "accept",
+          "Monday",
           "able",
-          "child"
+          "go",
+          "carry"
         ],
         "length": null
       },
@@ -316,10 +316,10 @@
           "meaning": "v. 放弃；抛弃"
         },
         "options": [
-          "used to",
-          "abandon",
+          "accept",
           "carry",
-          "talk"
+          "abandon",
+          "absorb"
         ],
         "length": null
       },
@@ -330,9 +330,9 @@
           "meaning": "v. 吸收；使专心"
         },
         "options": [
-          "talk",
-          "carry",
+          "stop",
           "accept",
+          "carry",
           "absorb"
         ],
         "length": null
@@ -348,7 +348,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-11T18:29:17.871068+00:00"
+      "due_at": "2026-10-11T18:32:39.954779+00:00"
     },
     "applied": true,
     "rating": null,
@@ -362,7 +362,7 @@
       "order_mode": "book",
       "daily_new": 20,
       "review_cap": 100,
-      "started_at": "2026-10-10T18:29:17.815255+00:00",
+      "started_at": "2026-10-10T18:32:39.895491+00:00",
       "review_unlimited": false
     },
     "book": {
@@ -405,10 +405,10 @@
         "qtype": "word",
         "prompt": {},
         "options": [
-          "talk",
+          "child",
           "stop",
-          "carry",
-          "accept"
+          "absorb",
+          "talk"
         ],
         "length": null
       }
@@ -509,7 +509,7 @@
     ],
     "item": {
       "box": 2,
-      "due_at": "2026-10-14T18:29:17.888001+00:00"
+      "due_at": "2026-10-14T18:32:39.971536+00:00"
     },
     "applied": false,
     "rating": null,
@@ -655,7 +655,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:29:17.964693+00:00"
+          "due_at": "2026-10-11T18:32:40.048991+00:00"
         }
       },
       {
@@ -694,7 +694,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:29:17.964693+00:00"
+          "due_at": "2026-10-11T18:32:40.048991+00:00"
         }
       },
       {
@@ -777,7 +777,7 @@
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:29:17.964693+00:00"
+          "due_at": "2026-10-11T18:32:40.048991+00:00"
         }
       }
     ]
@@ -791,7 +791,7 @@
     "diff": null,
     "item": {
       "box": 1,
-      "due_at": "2026-10-12T18:29:17.976364+00:00"
+      "due_at": "2026-10-12T18:32:40.059513+00:00"
     },
     "applied": true,
     "rating": "fuzzy",
@@ -807,7 +807,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-10T17:29:17.985438+00:00"
+      "due_at": "2026-10-10T17:32:40.068507+00:00"
     },
     "applied": false,
     "rating": "know",
@@ -820,9 +820,9 @@
         "us": "əˈbɪləti"
       },
       "options": [
-        "v. 说话；谈话；n. 交谈",
         "n. 能力，能耐；才能",
-        "v. 停止；阻止；n. 车站",
+        "n. 事故；意外",
+        "v. 说话；谈话；n. 交谈",
         "n. 孩子；儿童"
       ],
       "length": null
@@ -873,5 +873,78 @@
   },
   "explain_unavailable": {
     "error": "AI explanation unavailable"
+  },
+  "enrollment_patch": {
+    "book_id": "junior",
+    "status": "active",
+    "order_mode": "book",
+    "daily_new": 5,
+    "review_cap": 100,
+    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "review_unlimited": false
+  },
+  "bonus": {
+    "plan": {
+      "new_target": 10,
+      "new_done": 6,
+      "new_left": 4,
+      "review_due": 1,
+      "review_done": 1,
+      "review_left": 1,
+      "backlog_guard": false,
+      "bonus": 5,
+      "goal_met": false
+    },
+    "bonus_left": 45
+  },
+  "pause": {
+    "book_id": "junior",
+    "status": "paused",
+    "order_mode": "book",
+    "daily_new": 5,
+    "review_cap": 100,
+    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "review_unlimited": false
+  },
+  "today_paused": {
+    "enrollment": null,
+    "book": null,
+    "plan": null,
+    "progress": null,
+    "tomorrow_due": 0,
+    "paused": {
+      "book_id": "junior",
+      "status": "paused",
+      "order_mode": "book",
+      "daily_new": 5,
+      "review_cap": 100,
+      "started_at": "2026-10-10T18:32:39.895491+00:00",
+      "review_unlimited": false
+    },
+    "streak": {
+      "current": 0,
+      "today_met": false
+    }
+  },
+  "resume": {
+    "book_id": "junior",
+    "status": "active",
+    "order_mode": "book",
+    "daily_new": 5,
+    "review_cap": 100,
+    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "review_unlimited": false
+  },
+  "reset": {
+    "removed": 6,
+    "enrollment": {
+      "book_id": "junior",
+      "status": "active",
+      "order_mode": "book",
+      "daily_new": 5,
+      "review_cap": 100,
+      "started_at": "2026-10-10T18:32:40.127660+00:00",
+      "review_unlimited": false
+    }
   }
 }

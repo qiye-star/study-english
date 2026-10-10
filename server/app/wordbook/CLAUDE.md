@@ -43,3 +43,10 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - `tests/wordbook_helpers.enable_wordbook` defaults `wordbook_spot_check_pct=0`; spot-check tests pass 0 / 1 / 100.
 - Limits: answers 3,000 per user per local day (`store.ANSWERS_DAILY_MAX`), reports 20 (`REPORTS_DAILY_MAX`), card LRU 1,024
   per process; all seven indexes ≈ 7 MiB traced.
+- Goals v2 (spec `2026-10-11-wordbook-goals-design.md`): `_day_plan(..., settings=settings)` is the only plan entry
+  (effective limits, today's bonus, remaining words); `review_cap == 0` means 「不限」 (`plan.REVIEW_UNLIMITED`); stored
+  values outside the admin range are clamped on read, never rewritten. New event kinds `relearn` (counts toward
+  today's new words, no rank points), `bonus` (credit = words), `goal` (one per local day), `reset`; rank reads only
+  `learn`/`spell_set`. `plan.compute_plan` and web `goals-math.previewPlan` share `tests/fixtures/wordbook_plan_cases.json`.
+- Reset deletes only `vocabulary_items` with `source='wordbook:<book>'` and resets cursor/seed; the router syncs rank
+  first. Settings/pause/resume/bonus share 60/day (`wordbook_settings`), reset 2/day (`wordbook_resets`).

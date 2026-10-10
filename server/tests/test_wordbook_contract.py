@@ -19,6 +19,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "wordbook_contract.json"
 URL = "/api/wordbook"
 KEYS = {"config", "books", "enrollment", "today", "learn_batch", "answer_choice", "answer_typed", "review_batch",
         "spell_sets", "spell_submit", "card", "explain_unavailable", "answer_recall", "answer_check"}
+GOALS_KEYS = {"enrollment_patch", "bonus", "pause", "today_paused", "resume", "reset"}  # 计划 2026-10-11 GS5
 
 
 async def collect(app, client, tmp_path, monkeypatch) -> dict:
@@ -66,6 +67,22 @@ async def collect(app, client, tmp_path, monkeypatch) -> dict:
         "book_id": "junior", "key": "ability", "mode": "review", "qtype": "recall", "rating": "know"})).json()
     out["card"] = (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()
     out["explain_unavailable"] = (await client.post(f"{URL}/explain", headers=h, json={"key": "talk"})).json()
+    out |= await collect_goals(client, h)
+    return out
+
+
+async def collect_goals(client, h) -> dict:
+    """goals v2(spec 2026-10-11 §9):接在 collect() 的流程之后(今天已学 6 个);重置会删词书行,所以放最后。"""
+    async def ok(r):
+        assert r.status_code == 200, r.text
+        return r.json()
+    out = {"enrollment_patch": await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 5}))}
+    out["bonus"] = await ok(await client.post(f"{URL}/bonus", headers=h, json={"size": 5}))
+    out["pause"] = await ok(await client.post(f"{URL}/enrollment/pause", headers=h, json={}))
+    out["today_paused"] = await ok(await client.get(f"{URL}/today", headers=h))
+    out["resume"] = await ok(await client.post(f"{URL}/enrollment/resume", headers=h, json={"book_id": "junior"}))
+    out["reset"] = await ok(await client.post(f"{URL}/enrollment/reset", headers=h,
+                                              json={"book_id": "junior", "confirm": "初中"}))
     return out
 
 
@@ -73,7 +90,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     real = random.Random
     monkeypatch.setattr(random, "Random", lambda seed=0: real(seed))  # 句组抽词固定,样例稳定
     actual = await collect(app, client, tmp_path, monkeypatch)
-    assert set(actual) == KEYS
+    assert set(actual) == KEYS | GOALS_KEYS
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
                            newline="\n")
