@@ -1,4 +1,4 @@
-# 构建上下文是仓库根目录(见 docker-compose.yml);忽略规则在 server/Dockerfile.dockerignore。
+# 构建上下文是仓库根目录(见 docker-compose.example.yml;实际使用的 docker-compose.yml 不进 git);忽略规则在 server/Dockerfile.dockerignore。
 
 FROM node:22-bookworm-slim AS web
 WORKDIR /repo

@@ -1,7 +1,7 @@
 # E2E 专用覆盖文件,配合独立项目名使用(独立卷,不碰日常数据):
 #   export E2E_INVITE_CODE=<随机值>
 #   export E2E_ADMIN_PASSWORD=<随机值,≥ 12 位>   # 可选:启用管理端,web/e2e/admin-v2.spec.ts 需要;不设则该用例跳过
-#   docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+#   docker compose -p enjoy-e2e -f docker-compose.example.yml -f docker-compose.e2e.yml up -d --build --wait
 services:
   server:
     environment:

@@ -42,6 +42,7 @@ Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
 
 ```bash
 cp server/.env.example server/.env
+cp docker-compose.example.yml docker-compose.yml   # docker-compose.yml 不进 git(各环境自己维护:端口、1Panel 网络等)
 # 编辑 server/.env,填写上游地址与密钥
 # .env.example 默认 REGISTRATION_MODE=closed:创建第一批账号时,先临时改为 open(或 invite + 邀请码),
 # 注册完毕后改回 closed 并 `docker compose up -d` 重启。
@@ -145,7 +146,7 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 - SQLite(默认):`DATABASE_URL=sqlite+aiosqlite:////data/app.db`,数据在 compose 卷 `enjoy-data` 中。文件库以 WAL 模式打开(`app.db-wal`/`app.db-shm` 与库文件同目录,备份请用后台的「备份」或 `VACUUM INTO`,不要只复制 `app.db`)。若把 `/data` 改为宿主机目录(bind mount)而非该命名卷,须执行 `chown -R 10001:10001 <目录>`(容器以 uid 10001 运行),否则保存评测会返回 500。
 - Postgres:把 `DATABASE_URL` 改为 `postgresql+asyncpg://enjoy:<密码>@postgres:5432/enjoy`(密码与 `POSTGRES_PASSWORD` 一致),并用 `docker compose --profile postgres up -d --build` 启动。
 
-`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` 由 compose 自己读取,**不再**从 `server/.env` 传入(避免把上游密钥给数据库容器)。请复制根目录的 `.env.example` 为 `.env`(与 `docker-compose.yml` 同目录),或在 shell 中导出这些变量;未设置时默认值为 `enjoy` / `change-me` / `enjoy`。密码须与 `DATABASE_URL` 中的一致。
+`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` 由 compose 自己读取,**不再**从 `server/.env` 传入(避免把上游密钥给数据库容器)。请复制根目录的 `.env.example` 为 `.env`(与 `docker-compose.yml` 同目录;`docker-compose.yml` 由 `docker-compose.example.yml` 复制而来,不进 git),或在 shell 中导出这些变量;未设置时默认值为 `enjoy` / `change-me` / `enjoy`。密码须与 `DATABASE_URL` 中的一致。
 
 **注意:切换数据库不会迁移已有数据**,新库是空的。
 
@@ -387,7 +388,7 @@ your.domain {
 }
 ```
 
-`docker-compose.yml` 默认只把服务发布到 `127.0.0.1:8000:8000`,这是有意的安全默认:同一台主机上的反向代理转发到 `127.0.0.1:8000`(上面的示例即如此;Nginx 同理使用 `proxy_pass http://127.0.0.1:8000;`)。如需不经代理直接对外暴露(不推荐,密码将以明文传输),把端口映射改为 `0.0.0.0:8000:8000`。
+`docker-compose.example.yml`(复制为 `docker-compose.yml` 使用)默认只把服务发布到 `127.0.0.1:8000:8000`,这是有意的安全默认:同一台主机上的反向代理转发到 `127.0.0.1:8000`(上面的示例即如此;Nginx 同理使用 `proxy_pass http://127.0.0.1:8000;`)。如需不经代理直接对外暴露(不推荐,密码将以明文传输),把端口映射改为 `0.0.0.0:8000:8000`。
 
 并在 `server/.env` 中设置 `TRUST_PROXY_HEADERS=true`,让限流使用 `X-Forwarded-For` 中的真实客户端 IP。
 

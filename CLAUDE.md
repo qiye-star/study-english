@@ -17,7 +17,7 @@ Upstream Enjoy desktop app + our self-hosted backend (`server/`) + mobile-first 
 - Yarn 4 workspaces (`enjoy`, `1000-hours`, `1000h-portal`, `web`). In a git worktree, junction/symlink `node_modules` (root and `web/`) from the main checkout instead of reinstalling.
 
 ## Deploy
-- `docker compose up -d --build` builds web (`yarn workspace web build`) into the server image; the container runs `alembic upgrade head` then uvicorn on 127.0.0.1:8000. Put HTTPS + WebSocket-capable reverse proxy in front (see `server/README.md`).
+- `docker-compose.yml` is NOT tracked (per-deployment, git-ignored): first `cp docker-compose.example.yml docker-compose.yml`, then `docker compose up -d --build` builds web (`yarn workspace web build`) into the server image; the container runs `alembic upgrade head` then uvicorn on 127.0.0.1:8000. Put HTTPS + WebSocket-capable reverse proxy in front (see `server/README.md`).
 - Rebuild/restart containers only when the user asks.
 
 ## Security rules

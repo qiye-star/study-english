@@ -1,3 +1,12 @@
+# 示例 compose 文件。真正使用的 docker-compose.yml 不进 git(已在 .gitignore),
+# 每个部署环境各自维护:
+#   cp docker-compose.example.yml docker-compose.yml
+# 然后按需修改(端口、网络、卷)。数据库与密钥等配置在 server/.env(同样不进 git)。
+#
+# 部署在 1Panel 上、需要访问 1Panel 的 PostgreSQL/OpenResty 容器时:
+#   1) 取消下面 server 服务里 `networks:` 与文件末尾顶层 `networks:` 两段的注释;
+#   2) server/.env 里 DATABASE_URL 的主机名写 PostgreSQL 容器的真实名字(docker ps 可查);
+#   3) 1Panel 反向代理目标写 http://<server 容器名>:8000(例如 everyone-can-use-english-server-1)。
 services:
   server:
     build:
@@ -13,6 +22,10 @@ services:
         condition: service_healthy
         required: false
     restart: unless-stopped
+    # 1Panel:取消注释以加入 1Panel 的 Docker 网络(见文件头说明)
+    # networks:
+    #   - default
+    #   - 1panel-network
 
   postgres:
     image: postgres:16-alpine
@@ -33,6 +46,11 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
+# 1Panel:取消注释(该网络由 1Panel 创建;没有时先 docker network create 1panel-network)
+# networks:
+#   1panel-network:
+#     external: true
 
 volumes:
   enjoy-data:
