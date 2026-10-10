@@ -1,6 +1,6 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, ScrollTextIcon, SmartphoneIcon, type LucideIcon,
+  LanguagesIcon, LogOutIcon, SmartphoneIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -214,8 +214,6 @@ export function MePage() {
             {showInstall && (
               <ListRow icon={<IconChip tone="gray" icon={SmartphoneIcon} />} title={t("web.me.install")} to="/install" />
             )}
-            <ListRow icon={<IconChip tone="gray" icon={ScrollTextIcon} />} title={t("web.me.credits")} subtitle={t("web.me.creditsHint")}
-              to="/about/credits" testId="me-credits" />
           </div>
           {/* 提示词编辑器(grammar 目录)整块放进卡片;标题提到正文字号,与列表行标题一致 */}
           <SurfaceCard className="mt-2 p-3.5 [&_[data-testid=grammar-prompt]>h2]:text-body [&_[data-testid=grammar-prompt]>h2]:font-medium [&_[data-testid=grammar-prompt]>h2]:text-ink">

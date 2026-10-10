@@ -109,7 +109,7 @@ describe("MePage", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     expect(screen.getByTestId("me-vocabulary")).toHaveAttribute("href", "/vocabulary");
   });
-  it("shows the wordbook row only when the wordbook is on, and always links to credits", async () => {
+  it("shows the wordbook row only when the wordbook is on", async () => {
     localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
     await i18n.changeLanguage("zh-CN");
     try {
@@ -122,15 +122,12 @@ describe("MePage", () => {
       const row = await screen.findByTestId("me-wordbook");
       expect(row).toHaveAttribute("href", "/wordbook");
       expect(row).toHaveTextContent("背单词");
-      expect(screen.getByTestId("me-credits")).toHaveAttribute("href", "/about/credits");
-      expect(screen.getByTestId("me-credits")).toHaveTextContent("致谢与许可");
       unmount();
       const off = createFetchMock({ ...ROUTES, "GET /api/wordbook/config": () => json({ enabled: false }) });
       renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: off.fetch }) });
       await waitFor(() => expect(off.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
       await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
       expect(screen.queryByTestId("me-wordbook")).toBeNull();
-      expect(screen.getByTestId("me-credits")).toHaveAttribute("href", "/about/credits");
     } finally {
       localStorage.removeItem("enjoy-web.settings");
       await i18n.changeLanguage("en");

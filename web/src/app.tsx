@@ -17,7 +17,6 @@ import {
 } from "~/features/wordbook";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
-import { CreditsPage } from "~/pages/credits-page";
 import { InstallPage } from "~/pages/install-page";
 import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
@@ -73,7 +72,6 @@ export function AppRoutes() {
             <Route path="/wordbook/review" element={<WordbookReviewPage />} />
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/me" element={<MePage />} />
-            <Route path="/about/credits" element={<CreditsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/practice" replace />} />

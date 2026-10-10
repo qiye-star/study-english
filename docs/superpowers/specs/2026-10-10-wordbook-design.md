@@ -1,7 +1,7 @@
 # 背单词(Wordbook)— 设计文档
 
 - 日期:2026-10-10 · 状态:待产品负责人确认
-- 范围:`server/`(新包 `app/wordbook/`、迁移 `0012_wordbook`、词典数据文件)、`web/`(新 feature `features/wordbook/`、「致谢与许可」页)、`admin/`(词书管理页)
+- 范围:`server/`(新包 `app/wordbook/`、迁移 `0012_wordbook`、词典数据文件)、`web/`(新 feature `features/wordbook/`)、`admin/`(词书管理页)
 - 实施计划:`docs/superpowers/plans/2026-10-10-wordbook.md` · 视觉稿:`docs/superpowers/design/wordbook-v1/mockup.html`
 - 相关:`2026-10-04-mobile-web-practice-design.md` §3.5(词汇本、盒子法)、`2026-10-09-rank-and-rooms-design.md` §2–4(段位点、阶段练习、成就)、`2026-10-09-admin-console-v2-design.md`(设置注册表、提示词版本、计量、审计)、`docs/superpowers/design/redesign-v3/design-notes.md`(一色一义、玻璃)
 
@@ -365,7 +365,6 @@ NOTICE                                     ← 仓库根:第三方数据声明(�
 
 - **练习页**:段位卡下方一张「背单词」大卡(`WordbookCard`,`useWordbookEnabled()` 为假时不渲染)。未选书:青色书本图标 + 「选一本词书,每天 20 个新词」+ 主按钮「选择词书」。已选书:书名徽标、今日进度环(新词 x/20)、两行计数(待复习 n、已掌握 m / 总词数)、主按钮(「开始复习 n」或「学新词 k」或「今日完成」)与次按钮「拼写练习」。
 - **我的 → 学习**:「背单词」行(副标题:书名 · 已掌握 m 词),在「词汇本」行下方;开关关时不显示。
-- **我的 → 通用 → 致谢与许可**(新页 `/about/credits`,不受开关影响):列出第三方数据与许可原文(BSD-3 全文、来源仓库与提交)。
 
 ### 11.2 路由与页面(`features/wordbook/`)
 
@@ -486,3 +485,5 @@ NOTICE                                     ← 仓库根:第三方数据声明(�
 7. **AI 讲解是否第一阶段上线?** 默认上线但子开关默认关;当前上游 402,打开前先充值并在诊断里测试连接。
 8. **数据更新频率?** 默认不跟随上游;需要时按 §3 的流程单独提交。
 9. **是否给词书单独的每日段位点上限?** 默认不单独设,共享 60 点。
+
+**R-credits** 应用内不设「致谢与许可」页(个人使用部署);许可文件随数据保留(`server/dictionaries/` 下的 LICENSE 与仓库根 `NOTICE` 不动)。

@@ -9,18 +9,7 @@
       "progressSummary": "近 7 天 · 活跃 {{active}} 天 · 消息 {{messages}} 条",
       "week": "近 7 天的练习情况", "weekDay": "{{day}}:{{state}}", "active": "已练习", "inactive": "未练习",
       "today": "今天",
-      "roomVoiceAutoText": "联机语音自动转文字", "roomVoiceAutoTextHint": "收到语音消息时自动显示文字和翻译",
-      "credits": "致谢与许可", "creditsHint": "第三方数据与开源许可"
-    },
-    "credits": {
-      "title": "致谢与许可",
-      "dataGroup": "第三方数据",
-      "vocabTitle": "英文词汇数据",
-      "vocabUse": "背单词的词表、音标、释义、短语与例句来自:",
-      "version": "版本",
-      "versionValue": "提交 {{commit}}({{date}})",
-      "license": "许可",
-      "disclaimer": "作者不为本项目背书;词表、释义与例句由作者整理自公开词书,原始出处未注明。许可原文如下:"
+      "roomVoiceAutoText": "联机语音自动转文字", "roomVoiceAutoTextHint": "收到语音消息时自动显示文字和翻译"
     },
     "login": { "tagline": "每天开口说英语。" },
     "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }

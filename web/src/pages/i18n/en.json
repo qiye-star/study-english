@@ -9,18 +9,7 @@
       "progressSummary": "Last 7 days · {{active}} active days · {{messages}} messages",
       "week": "Activity in the last 7 days", "weekDay": "{{day}}: {{state}}", "active": "practiced", "inactive": "no practice",
       "today": "today",
-      "roomVoiceAutoText": "Auto-show room voice text", "roomVoiceAutoTextHint": "Show the text and translation of voice messages in rooms automatically",
-      "credits": "Credits & licenses", "creditsHint": "Third-party data and open-source licenses"
-    },
-    "credits": {
-      "title": "Credits & licenses",
-      "dataGroup": "Third-party data",
-      "vocabTitle": "English vocabulary data",
-      "vocabUse": "Word lists, phonetics, meanings, phrases and example sentences in Wordbook come from:",
-      "version": "Version",
-      "versionValue": "commit {{commit}} ({{date}})",
-      "license": "License",
-      "disclaimer": "The author does not endorse this project. The lists, meanings and examples were compiled by the author from public word books; original sources are not stated. Full license text:"
+      "roomVoiceAutoText": "Auto-show room voice text", "roomVoiceAutoTextHint": "Show the text and translation of voice messages in rooms automatically"
     },
     "login": { "tagline": "Speak English every day." },
     "install": { "lede": "Open Enjoy like an app, full screen and one tap away." }
