@@ -97,6 +97,7 @@ class EventRow:
     kind: str
     score: int | None
     day: str
+    points: int | None = None  # None = unknown (count it)
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,16 @@ class TaskProgress:
     target: int
     min_score: int | None
     complete: bool
+
+
+def trimmed(e: EventRow, *, rules=None) -> bool:
+    """A capped event the daily cap cut to 0 points. Its row stays (so it is never re-evaluated), but it must not
+    advance a stage task (review B1). A kind the rules themselves value at 0 points is not trimmed."""
+    if e.points is None or e.points > 0 or e.kind not in CAPPED:
+        return False
+    if e.kind in ("assessment", "voice_turn"):
+        return assessment_points(e.score, rules=rules) > 0
+    return points_for(e.kind, rules=rules) > 0
 
 
 def _done(task: StageTask, events: list[EventRow]) -> int:
@@ -130,6 +141,7 @@ def stage_tasks_for(tier: int, *, rules=None) -> tuple:
 
 def stage_progress(tier: int, events: list[EventRow], *, rules=None) -> list[TaskProgress]:
     out = []
+    events = [e for e in events if not trimmed(e, rules=rules)]
     for task in stage_tasks_for(tier, rules=rules):
         done = _done(task, events)
         out.append(TaskProgress(task.key, task.kind, min(done, task.target), task.target, task.min_score, done >= task.target))

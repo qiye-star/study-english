@@ -86,3 +86,24 @@ async def apply_review(
         .execution_options(synchronize_session=False)
     )
     return result.rowcount == 1
+
+
+async def apply_lapse(
+    session: AsyncSession, user_id: int, item_id: str, *, seen_box: int, seen_reps: int, now: datetime,
+) -> bool:
+    """A wrong answer on a word that is not due (wordbook R-W5): back to box 0, due tomorrow, lapses + 1.
+
+    It is not a review: `reps` and `last_reviewed_at` stay, so it never produces a `vocab_review` rank event
+    (review B1). A box-0 item is already "forgotten" and is left alone. Optimistic guard: box and reps as read.
+    Does not commit."""
+    if seen_box <= 0:
+        return False
+    outcome = next_review(seen_box, "forgot", now)
+    result = await session.execute(
+        update(VocabularyItem)
+        .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.reps == seen_reps,
+               VocabularyItem.box == seen_box)
+        .values(box=outcome.box, due_at=outcome.due_at, lapses=VocabularyItem.lapses + 1)
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount == 1

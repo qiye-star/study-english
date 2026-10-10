@@ -88,12 +88,12 @@ async def simulate(session, draft, current, now: datetime) -> dict:
 
     # stage tasks: events of the profile's tier since tier_started_at
     stage_rows = (await session.execute(
-        select(XpEvent.user_id, XpEvent.kind, XpEvent.score, XpEvent.day).join(
+        select(XpEvent.user_id, XpEvent.kind, XpEvent.score, XpEvent.day, XpEvent.points).join(
             RankProfile, and_(RankProfile.user_id == XpEvent.user_id, RankProfile.tier == XpEvent.tier,
                               XpEvent.created_at >= RankProfile.tier_started_at)))).all()
     by_user: dict[int, list[EventRow]] = defaultdict(list)
-    for uid, kind, score, day in stage_rows:
-        by_user[uid].append(EventRow(kind, score, day))
+    for uid, kind, score, day, pts in stage_rows:
+        by_user[uid].append(EventRow(kind, score, day, pts))
     stage_current = stage_draft = 0
     for p in profiles:
         if p.tier >= MASTER:

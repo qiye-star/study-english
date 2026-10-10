@@ -117,7 +117,8 @@ async def test_review_due_rules(app, client, tmp_path):
     practice = (await ans(client, h, key="talk", mode="review", qtype="spell", typed="talk")).json()
     assert practice["applied"] is False  # 不再到期:只记练习
     wrong = (await ans(client, h, key="go", mode="review", qtype="word", choice="stop")).json()
-    assert (wrong["grade"], wrong["applied"]) == ("forgot", True)  # 未到期但答错 → forgot(R-W5)
+    # 未到期但答错 → forgot(R-W5);盒 0 已是「忘了」,不写(review B1;盒 > 0 的情况见 test_wordbook_rank_abuse)
+    assert (wrong["grade"], wrong["applied"]) == ("forgot", False)
     today = (await client.get(f"{URL}/today", headers=h, params={"tz_offset_minutes": 480})).json()
     assert today["plan"]["review_done"] == 1
     async with app.state.sessionmaker() as s:

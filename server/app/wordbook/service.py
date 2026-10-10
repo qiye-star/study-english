@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models import WordbookEnrollment, WordbookReport, iso_utc
 from app.services.usage import local_day
-from app.services.vocabulary import apply_review
+from app.services.vocabulary import apply_lapse, apply_review
 from app.wordbook import plan as planning
 from app.wordbook import store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
@@ -226,6 +226,18 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c) for c in cards]}
 
 
+async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now) -> tuple[bool, bool]:
+    """(applied, due)。到期 → 一次复习(reps + 1,产生 vocab_review);未到期只有答错才改盒(R-W5),
+    且走 apply_lapse:不加 reps,不产生段位事件(review B1);盒 0 已是「忘了」,不写。"""
+    due = row.due_at <= now
+    if due:
+        return await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
+                                  grade=grade, now=now), True
+    if grade == "forgot":
+        return await apply_lapse(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps, now=now), False
+    return False, False
+
+
 def _validate(p: AnswerInput) -> None:
     if p.known:
         if p.mode != "learn":
@@ -273,10 +285,7 @@ async def answer(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
             _, cursor = planning.next_new(index.keys, order, e.cursor, known, 0)
             await store.set_cursor(session, user_id, p.book_id, cursor)
     elif p.mode == "review" and row is not None:
-        due = row.due_at <= now
-        if due or grade == "forgot":  # R-W5:未到期只有答错才改盒
-            applied = await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
-                                         grade=grade, now=now)
+        applied, due = await _write_srs(session, user_id, row, grade, now)
         kind = "review" if due and applied else "practice"
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
@@ -375,12 +384,7 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         credit = round(sum(r.credit for r in results) / len(results))
         row, kind = known.get(card.key), "blank"
         if row is not None and card.key not in seen:  # 同一词在一次提交里只写一次盒子
-            grade = srs_grade(outcome, hinted)
-            due = row.due_at <= now
-            applied = False
-            if due or grade == "forgot":  # R-W5
-                applied = await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
-                                             grade=grade, now=now)
+            applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now)
             kind = "review" if due and applied else "blank"
         seen.add(card.key)
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,

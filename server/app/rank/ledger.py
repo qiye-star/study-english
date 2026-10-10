@@ -193,10 +193,10 @@ async def _sync(session: AsyncSession, user_id: int, now: datetime, offset_minut
 async def stage_progress_for(session: AsyncSession, profile: RankProfile, *, rules=None) -> list[TaskProgress]:
     # Spec §2.3 counts from tier_started_at: events are stamped with the tier at sync time, so activity done before a
     # promotion but synced after it would otherwise count for the new tier (review #17).
-    rows = (await session.execute(select(XpEvent.kind, XpEvent.score, XpEvent.day).where(
+    rows = (await session.execute(select(XpEvent.kind, XpEvent.score, XpEvent.day, XpEvent.points).where(
         XpEvent.user_id == profile.user_id, XpEvent.tier == profile.tier,
         XpEvent.created_at >= profile.tier_started_at))).all()
-    return stage_progress(profile.tier, [EventRow(k, s, d) for k, s, d in rows], rules=rules)
+    return stage_progress(profile.tier, [EventRow(k, s, d, p) for k, s, d, p in rows], rules=rules)
 
 
 @dataclass(frozen=True)
