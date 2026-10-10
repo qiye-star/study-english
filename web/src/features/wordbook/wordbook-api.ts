@@ -74,15 +74,18 @@ export const learnBatch = (api: ApiClient, size = 5) =>
     json: { size, ...tz() },
   });
 
-/** `cards` 的键是词(如 "used to"、"well-known"):响应的 camelCase 转换会改写这些键,所以按每张卡自己的 `key` 重建。 */
+/**
+ * 服务端的 `cards` 是列表(每张卡带 key;以词为键的映射会被响应的 camelCase 转换改写,如 "used to"、"well-known")。
+ * 这里按每张卡自己的 `key` 建映射给页面用。
+ */
 export const reviewBatch = async (
   api: ApiClient,
   size = 20,
 ): Promise<{ bookId: BookId; questions: Question[]; cards: Record<string, Card> }> => {
-  const res = await api.request<{ bookId: BookId; questions: Question[]; cards: Record<string, Card> }>(
+  const res = await api.request<{ bookId: BookId; questions: Question[]; cards: Card[] }>(
     "POST", "/api/wordbook/review/batch", { json: { size, ...tz() } },
   );
-  return { ...res, cards: Object.fromEntries(Object.values(res.cards ?? {}).map((card) => [card.key, card])) };
+  return { ...res, cards: Object.fromEntries((res.cards ?? []).map((card) => [card.key, card])) };
 };
 
 export const submitAnswer = (api: ApiClient, input: AnswerInput) =>

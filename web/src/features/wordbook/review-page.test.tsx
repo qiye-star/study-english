@@ -24,18 +24,18 @@ const TTS = (models: string[]) => ({
   "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: models[0] ?? "", voice: "alloy" } } }),
 });
 
-const BATCH: { book_id: string; questions: unknown[]; cards: Record<string, ReturnType<typeof card>> } = {
+const BATCH: { book_id: string; questions: unknown[]; cards: ReturnType<typeof card>[] } = {
   book_id: "cet4",
   questions: [
     { key: "accept", qtype: "meaning", prompt: { word: "accept", us: "əkˈsɛpt" }, options: ["v. 放弃；抛弃", "vt. 接受；承认", "v. 携带；搬运", "v. 停止"], length: null },
     { key: "carry", qtype: "cloze", prompt: { sentence: "He _____ the heavy box up the stairs.", zh: "他把那个重箱子搬上了楼。" }, options: ["stop", "carry", "go", "child"], length: null },
     { key: "talk", qtype: "spell", prompt: { meaning: "v. 说话；谈话", us: "tɔk" }, options: null, length: 4 },
   ],
-  cards: {
-    accept: card("accept", { senses: [{ pos: "vt", text: "接受；承认" }] }),
-    carry: card("carry", { senses: [{ pos: "vt", text: "携带；搬运" }] }),
-    talk: card("talk", { senses: [{ pos: "v", text: "说话；谈话" }] }),
-  },
+  cards: [ // 列表,与服务端一致(review m11)
+    card("accept", { senses: [{ pos: "vt", text: "接受；承认" }] }),
+    card("carry", { senses: [{ pos: "vt", text: "携带；搬运" }] }),
+    card("talk", { senses: [{ pos: "v", text: "说话；谈话" }] }),
+  ],
 };
 
 const CORRECT: Record<string, string> = { accept: "vt. 接受；承认", carry: "carry" };
@@ -182,7 +182,7 @@ describe("WordbookReviewPage", () => {
   it("says when nothing is due and links to new words", async () => {
     setup({
       "GET /api/wordbook/today": () => json({ ...ENROLLED_TODAY, plan: { ...PLAN, review_due: 0, review_left: 0 } }),
-      "POST /api/wordbook/review/batch": () => json({ book_id: "cet4", questions: [], cards: {} }),
+      "POST /api/wordbook/review/batch": () => json({ book_id: "cet4", questions: [], cards: [] }),
     });
     await userEvent.click(await screen.findByRole("button", { name: "开始复习" }));
     expect(await screen.findByText("今天没有要复习的词")).toBeTruthy();
@@ -192,7 +192,7 @@ describe("WordbookReviewPage", () => {
   it("turns dictation into spelling when read-aloud is not configured", async () => {
     const mock = setup({
       "POST /api/wordbook/review/batch": () => json({ book_id: "cet4", questions: [
-        { key: "talk", qtype: "dictation", prompt: { word: "talk" }, options: null, length: 4 }], cards: { talk: BATCH.cards.talk } }),
+        { key: "talk", qtype: "dictation", prompt: { word: "talk" }, options: null, length: 4 }], cards: [BATCH.cards[2]] }),
     }, []);
     const start = await screen.findByRole("button", { name: /开始复习/ });
     await waitFor(() => expect(start).toBeEnabled());
@@ -206,7 +206,7 @@ describe("WordbookReviewPage", () => {
   it("plays dictation automatically once the review starts", async () => {
     setup({
       "POST /api/wordbook/review/batch": () => json({ book_id: "cet4", questions: [
-        { key: "talk", qtype: "dictation", prompt: { word: "talk" }, options: null, length: 4 }], cards: { talk: BATCH.cards.talk } }),
+        { key: "talk", qtype: "dictation", prompt: { word: "talk" }, options: null, length: 4 }], cards: [BATCH.cards[2]] }),
     });
     const start = await screen.findByRole("button", { name: /开始复习/ });
     await waitFor(() => expect(start).toBeEnabled());

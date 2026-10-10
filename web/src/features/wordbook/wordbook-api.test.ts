@@ -43,7 +43,8 @@ describe("wordbook api", () => {
   it("re-keys review cards by their own key (word keys survive the camelCase conversion)", async () => {
     const card = (key: string): Card => ({ key, word: key, us: "", uk: "", senses: [], phrases: [], examples: [] });
     const { api: client } = api({
-      "POST /api/wordbook/review/batch": () => json({ book_id: "junior", questions: [], cards: { "used to": card("used to"), "well-known": card("well-known") } }),
+      // 服务端发的是列表(review m11)
+      "POST /api/wordbook/review/batch": () => json({ book_id: "junior", questions: [], cards: [card("used to"), card("well-known")] }),
     });
     const res = await reviewBatch(client);
     expect(res.bookId).toBe("junior");

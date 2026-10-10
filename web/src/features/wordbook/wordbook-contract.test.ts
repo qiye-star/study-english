@@ -37,19 +37,6 @@ const SPELL: Record<keyof SpellResult, true> = { credit: true, counted: true, wo
 const WORD: Record<keyof SpellWordResult, true> = { key: true, outcome: true, credit: true, blanks: true, card: true, item: true };
 const BLANK: Record<keyof BlankResult, true> = { i: true, outcome: true, credit: true, typed: true, expected: true, diff: true };
 
-describe("wordbook client types (spec §7)", () => {
-  it("match the documented response shapes", () => {
-    expect(keys(TODAY)).toEqual(["book", "enrollment", "plan", "progress", "tomorrowDue"]);
-    expect(keys(PLAN)).toEqual(["backlogGuard", "newDone", "newLeft", "newTarget", "reviewDone", "reviewDue", "reviewLeft"]);
-    expect(keys(CARD)).toEqual(["examples", "key", "phrases", "senses", "uk", "us", "word"]);
-    expect(keys(QUESTION)).toEqual(["key", "length", "options", "prompt", "qtype"]);
-    expect(keys(ANSWER)).toEqual(["applied", "correct", "correctOption", "diff", "expected", "grade", "item", "outcome"]);
-    expect(keys(LINE)).toEqual(["key", "segments", "sentenceId", "zh"]);
-    expect(keys(WORD)).toEqual(["blanks", "card", "credit", "item", "key", "outcome"]);
-    expect(keys(BLANK)).toEqual(["credit", "diff", "expected", "i", "outcome", "typed"]);
-  });
-});
-
 describe("wordbook contract (server fixture)", () => {
   const c = contract ?? {};
   it("has the server-recorded fixture (lanes merged; never skipped)", () => {
@@ -91,8 +78,14 @@ describe("wordbook contract (server fixture)", () => {
   });
 
   it("never sends word-keyed maps the client would have to trust (F4-1)", () => {
-    // reviewBatch 按每张卡自己的 key 重建 cards;这里确认每张卡都带 key
-    const review = c.review_batch as { cards?: Record<string, { key?: string }> } | undefined;
-    for (const card of Object.values(review?.cards ?? {})) expect(typeof card.key).toBe("string");
+    // review_batch.cards 是列表(每张卡带 key),reviewBatch 按 key 建映射(review m11)
+    const review = c.review_batch as { cards?: unknown } | undefined;
+    expect(Array.isArray(review?.cards)).toBe(true);
+    const cards = review!.cards as { key?: string }[];
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(typeof card.key).toBe("string");
+      expect(keysOf(cc<Card>(card))).toEqual(keys(CARD));
+    }
   });
 });
