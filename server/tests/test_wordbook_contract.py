@@ -11,16 +11,17 @@ from pathlib import Path
 from sqlalchemy import update
 
 from app.models import VocabularyItem, utcnow
+from app.wordbook import service
 from tests.test_web_contract import shape
 from tests.wordbook_helpers import enable_wordbook, make_data_dir
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wordbook_contract.json"
 URL = "/api/wordbook"
 KEYS = {"config", "books", "enrollment", "today", "learn_batch", "answer_choice", "answer_typed", "review_batch",
-        "spell_sets", "spell_submit", "card", "explain_unavailable"}
+        "spell_sets", "spell_submit", "card", "explain_unavailable", "answer_recall", "answer_check"}
 
 
-async def collect(app, client, tmp_path) -> dict:
+async def collect(app, client, tmp_path, monkeypatch) -> dict:
     enable_wordbook(app, make_data_dir(tmp_path), wordbook_books="junior")
     r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -51,6 +52,18 @@ async def collect(app, client, tmp_path) -> dict:
         "book_id": "junior", "set_id": s0["set_id"],
         "lines": [{"key": l["key"], "sentence_id": l["sentence_id"], "answers": [{"typed": "x", "hinted": False}]}
                   for l in s0["lines"]]})).json()
+    # 背单词 v2(spec 2026-10-11-wordbook-recall §9):学新词自评;复习快速回忆的抽查待答(pending + check)
+    out["answer_recall"] = (await client.post(f"{URL}/answers", headers=h, json={
+        "book_id": "junior", "key": "accept", "mode": "learn", "qtype": "recall", "rating": "fuzzy",
+        "revealed_before": False, "elapsed_ms": 2400})).json()
+    monkeypatch.setattr(service, "use_recall", lambda user_id, key, reps, box: True)
+    app.state.settings = app.state.settings.model_copy(update={"wordbook_spot_check_pct": 100})
+    async with app.state.sessionmaker() as s:
+        await s.execute(update(VocabularyItem).where(VocabularyItem.word == "ability")
+                        .values(due_at=utcnow() - timedelta(hours=1)))
+        await s.commit()
+    out["answer_check"] = (await client.post(f"{URL}/answers", headers=h, json={
+        "book_id": "junior", "key": "ability", "mode": "review", "qtype": "recall", "rating": "know"})).json()
     out["card"] = (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()
     out["explain_unavailable"] = (await client.post(f"{URL}/explain", headers=h, json={"key": "talk"})).json()
     return out
@@ -59,7 +72,7 @@ async def collect(app, client, tmp_path) -> dict:
 async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, monkeypatch):
     real = random.Random
     monkeypatch.setattr(random, "Random", lambda seed=0: real(seed))  # 句组抽词固定,样例稳定
-    actual = await collect(app, client, tmp_path)
+    actual = await collect(app, client, tmp_path, monkeypatch)
     assert set(actual) == KEYS
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
@@ -70,7 +83,9 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     raw = FIXTURE.read_text(encoding="utf-8")
     assert "access_token" not in raw and "secret" not in raw and str(tmp_path.anchor) not in raw.replace("\\\\", "\\")
     # 列表非空(shape 只看第一个元素)、契约里没有以词为键的映射
-    for path in (("learn_batch", "cards"), ("learn_batch", "quiz"), ("review_batch", "questions"),
+    for path in (("learn_batch", "cards"), ("learn_batch", "quiz"), ("learn_batch", "drill"), ("review_batch", "questions"),
                  ("review_batch", "cards"), ("spell_sets", "sets"), ("spell_submit", "words"), ("books", "books")):
         assert isinstance(expected[path[0]][path[1]], list) and expected[path[0]][path[1]], path
     assert expected["explain_unavailable"] == {"error": "AI explanation unavailable"}
+    assert expected["answer_recall"]["rating"] == "fuzzy"
+    assert expected["answer_check"]["outcome"] == "pending" and expected["answer_check"]["check"]["options"]
