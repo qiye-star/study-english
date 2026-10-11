@@ -5,7 +5,7 @@
 `persona_id` 为空 = 共享)、用户档案(`agent_profiles`)、墓碑(`agent_memory_tombstones`,只存哈希)。
 
 ## What lives here
-- `tombstones.py` 规范化、哈希、敏感过滤(邮箱 / URL / 密钥 / 长数字 / 手机号)、脱敏、墓碑读写
+- `tombstones.py` 规范化、哈希、敏感过滤(邮箱含 at/dot 拼写、URL 含短链、密钥形态、pw: 口令、微信号、分隔或中文数字的长数字 / 手机号)、脱敏、墓碑读写
 - `profile.py` 档案六键(单词键,R-M7)、逐键校验、用户编辑 vs 智能体提议
 - `retrieve.py` 纯函数打分与 `<memory>` 组块(`build_block`)
 - `store.py` 全部数据库读写(`MemoryStore`)、`drop_conversation`、`memory_counts`
