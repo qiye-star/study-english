@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 智能体 v1 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+/* Canvas (document around the phones; not part of the app UI). Tokens copied from redesign-v3 / wordbook mockups. */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2{font-size:15px;font-weight:600;margin-top:32px}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:80ch;line-height:1.6}
+.canvas ul.notes{color:#5b6170;font-size:13px;line-height:1.7;margin:8px 0 0 18px;max-width:84ch}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:24px;align-items:flex-start}
+.spec{width:375px}
+.spec > p.frame-cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.55}
+.spec > p.frame-cap b{color:#1b1d22;font-weight:600}
+
+.phone{
+  --bg:#FFFFFF;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;
+  --hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);
+  --surface:#FFFFFF;--surface-2:#F5F6F8;
+  --glass:rgba(255,255,255,.72);--glass-solid:rgba(255,255,255,.94);
+  --blue:#2456DB;--blue-tint:#EAF0FF;--blue-wash:rgba(36,86,219,.10);
+  --teal:#0E7067;--teal-tint:#E3F5F2;
+  --amber:#9A4B00;--amber-tint:#FFF0DE;
+  --green:#157A3B;--green-tint:#E4F6EA;
+  --red:#D1242F;--red-tint:#FFE8E9;
+  --r-xs:6px;--r-sm:10px;--r-md:14px;--r-lg:20px;
+  color:var(--ink);background:var(--bg);
+  position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);
+  box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:15px;line-height:1.4;
+}
+.phone *{-webkit-tap-highlight-color:transparent}
+.phone i.ti{line-height:1;display:inline-block}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:40;pointer-events:none}
+.statusbar .sig{display:flex;gap:5px;font-size:14px}
+
+/* header */
+.hdr{position:absolute;top:47px;left:0;right:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--glass-solid);border-bottom:.5px solid var(--hair);z-index:20}
+.hdr .back{font-size:20px;width:28px}
+.hdr .ttl{flex:1;min-width:0}
+.hdr .ttl b{display:block;font-size:15px;font-weight:600}
+.hdr .ttl span{display:block;font-size:11px;color:var(--ink-2)}
+.hdr .act{font-size:20px;color:var(--ink-2)}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:600;flex:none}
+.av.b{background:var(--blue-tint);color:var(--blue)}.av.t{background:var(--teal-tint);color:var(--teal)}
+.av.a{background:var(--amber-tint);color:var(--amber)}.av.g{background:var(--green-tint);color:var(--green)}
+.av.sm{width:24px;height:24px;font-size:11px}
+
+/* messages */
+.msgs{position:absolute;top:99px;left:0;right:0;bottom:84px;padding:14px 14px 0;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+.u{align-self:flex-end;max-width:78%;background:var(--blue);color:#fff;padding:9px 13px;border-radius:18px 18px 6px 18px;font-size:15px}
+.ai{align-self:flex-start;max-width:92%;display:flex;flex-direction:column;gap:7px}
+.ai .who{font-size:11px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.ai .txt{background:var(--surface);border:.5px solid var(--hair);padding:10px 13px;border-radius:18px 18px 18px 6px;font-size:15px;line-height:1.5;box-shadow:0 1px 0 rgba(17,19,24,.04)}
+.ai .txt .hl{background:var(--amber-tint);color:var(--amber);border-radius:4px;padding:0 3px}
+.caret{display:inline-block;width:2px;height:15px;background:var(--blue);vertical-align:-2px;margin-left:1px;animation:bl 1s steps(2) infinite}
+@keyframes bl{50%{opacity:0}}
+.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+
+/* process capsule (collapsed) */
+.cap{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;background:var(--surface-2);border-radius:999px;padding:5px 10px 5px 8px;font-size:12px;color:var(--ink-2)}
+.cap i{font-size:14px}.cap .chev{font-size:12px;color:var(--ink-3)}
+.cap b{color:var(--ink);font-weight:500}
+.cap.run{background:var(--blue-tint);color:var(--blue)}
+.cap.lock i.lk{color:var(--amber)}
+
+/* process card (expanded) */
+.trace{background:var(--surface);border:.5px solid var(--hair);border-radius:var(--r-md);overflow:hidden;box-shadow:0 1px 0 rgba(17,19,24,.04)}
+.trace .th{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:12px;color:var(--ink-2);border-bottom:.5px solid var(--hair-2)}
+.trace .th b{color:var(--ink);font-weight:600;font-size:13px}
+.trace .th .r{margin-left:auto;font-variant-numeric:tabular-nums}
+.sec{padding:8px 12px 4px;font-size:11px;font-weight:600;color:var(--ink-2);letter-spacing:.04em}
+.step{display:flex;align-items:center;gap:9px;padding:6px 12px;font-size:13px}
+.step .ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none}
+.step.done .ic{background:var(--green-tint);color:var(--green)}
+.step.run .ic{background:var(--blue-tint);color:var(--blue)}
+.step.q .ic{background:var(--surface-2);color:var(--ink-3)}
+.step.fail .ic{background:var(--red-tint);color:var(--red)}
+.step.q{color:var(--ink-2)}
+.step .d{margin-left:auto;font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.step .sub{display:block;font-size:11px;color:var(--ink-2)}
+.step .tx{flex:1;min-width:0}
+.tool{display:flex;align-items:center;gap:9px;margin:4px 8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface-2);font-size:13px}
+.tool .tile{width:26px;height:26px;border-radius:8px;background:var(--teal-tint);color:var(--teal);display:grid;place-items:center;font-size:15px;flex:none}
+.tool .tile.am{background:var(--amber-tint);color:var(--amber)}
+.tool .tx{flex:1;min-width:0}.tool .tx b{font-weight:500}.tool .tx span{display:block;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:500;white-space:nowrap}
+.pill.ok{background:var(--green-tint);color:var(--green)}.pill.run{background:var(--blue-tint);color:var(--blue)}
+.pill.bad{background:var(--red-tint);color:var(--red)}.pill.mut{background:var(--surface);color:var(--ink-2);border:.5px solid var(--hair)}
+.think{margin:6px 8px 8px;padding:9px 11px;border-radius:var(--r-sm);background:var(--surface-2);font-size:12.5px;line-height:1.55;color:var(--ink)}
+.think .lab{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);margin-bottom:3px}
+.srcs{display:flex;flex-wrap:wrap;gap:6px}
+.src{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--teal-tint);color:var(--teal);padding:4px 9px;border-radius:999px}
+.src i{font-size:13px}
+.acts{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}.acts span{display:flex;gap:4px;align-items:center}
+.acts i{font-size:15px}
+
+/* composer */
+.comp{position:absolute;left:0;right:0;bottom:0;height:84px;padding:10px 12px 26px;background:var(--glass-solid);border-top:.5px solid var(--hair);display:flex;gap:8px;align-items:center;z-index:20}
+.comp .in{flex:1;height:42px;border-radius:21px;background:var(--surface-2);display:flex;align-items:center;padding:0 14px;color:var(--ink-2);font-size:14px}
+.comp .btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:19px;background:var(--surface-2);color:var(--ink-2)}
+.comp .btn.p{background:var(--blue);color:#fff}
+
+/* bottom sheet */
+.dim{position:absolute;inset:0;background:rgba(17,19,24,.32);z-index:30}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--glass-solid);backdrop-filter:blur(24px);border-radius:24px 24px 0 0;border-top:.5px solid var(--hair);z-index:35;padding:8px 16px 28px;box-shadow:0 -10px 40px rgba(17,19,24,.12)}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:0 auto 10px}
+.sheet h3{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sheet .sub{font-size:12px;color:var(--ink-2);margin-top:2px}
+.kv{margin-top:12px;border:.5px solid var(--hair);border-radius:var(--r-md);overflow:hidden}
+.kv > div{display:flex;gap:10px;padding:9px 12px;font-size:13px;border-bottom:.5px solid var(--hair-2)}
+.kv > div:last-child{border-bottom:0}
+.kv span{color:var(--ink-2);width:64px;flex:none;font-size:12px}
+.kv b{font-weight:500;flex:1;word-break:break-all}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.btnrow{display:flex;gap:10px;margin-top:14px}
+.bt{flex:1;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:15px;background:var(--surface-2);color:var(--ink)}
+.bt.p{background:var(--blue);color:#fff}
+.note{display:flex;gap:8px;padding:9px 11px;border-radius:var(--r-sm);font-size:12px;line-height:1.5;margin-top:10px}
+.note.am{background:var(--amber-tint);color:var(--amber)}.note.bl{background:var(--blue-tint);color:var(--blue)}
+.note i{font-size:15px;flex:none;margin-top:1px}
+
+/* room */
+.tagrole{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--teal-tint);color:var(--teal)}
+.tagrole.am{background:var(--amber-tint);color:var(--amber)}
+.mem{align-self:flex-start;max-width:80%}
+.mem .nm{font-size:11px;color:var(--ink-2);margin:0 0 3px 2px}
+.mem .txt{background:var(--surface-2);padding:9px 13px;border-radius:18px 18px 18px 6px;font-size:15px}
+.handoff{align-self:center;display:inline-flex;gap:6px;align-items:center;font-size:11px;color:var(--ink-2);background:var(--surface-2);padding:4px 10px;border-radius:999px}
+.priv{display:inline-flex;align-items:center;gap:6px;align-self:flex-end;font-size:12px;color:var(--amber);background:var(--amber-tint);padding:5px 10px;border-radius:999px}
+
+/* persona list / editor */
+.seg{display:flex;background:var(--surface-2);border-radius:11px;padding:3px;margin:12px 0 10px}
+.seg span{flex:1;text-align:center;padding:6px 0;font-size:13px;border-radius:9px;color:var(--ink-2)}
+.seg span.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(17,19,24,.1)}
+.pc{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:.5px solid var(--hair-2)}
+.pc .tx{flex:1;min-width:0}.pc .tx b{font-size:15px;font-weight:600;display:flex;gap:6px;align-items:center}
+.pc .tx span{font-size:12px;color:var(--ink-2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:10.5px;padding:1px 6px;border-radius:5px;background:var(--surface-2);color:var(--ink-2);font-weight:500}
+.badge.me{background:var(--blue-tint);color:var(--blue)}
+.pc .sel{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--hair);display:grid;place-items:center;color:#fff;font-size:13px}
+.pc .sel.on{background:var(--blue);border-color:var(--blue)}
+.add{display:flex;align-items:center;gap:10px;margin-top:10px;padding:12px;border:1px dashed var(--hair);border-radius:var(--r-md);color:var(--blue);font-weight:600;font-size:14px}
+.page{position:absolute;top:99px;left:0;right:0;bottom:0;overflow:hidden;padding:14px 16px}
+.fld{margin-bottom:14px}.fld label{font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;margin-bottom:5px}
+.inp{background:var(--surface-2);border-radius:12px;padding:10px 12px;font-size:14px}
+.inp.ta{min-height:92px;line-height:1.5;font-size:13.5px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.ch{font-size:13px;padding:6px 12px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.ch.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+.tg{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--hair-2);font-size:14px}
+.tg .tile{width:28px;height:28px;border-radius:9px;background:var(--teal-tint);color:var(--teal);display:grid;place-items:center;font-size:16px;flex:none}
+.tg .tile.am{background:var(--amber-tint);color:var(--amber)}
+.tg .tx{flex:1}.tg .tx span{display:block;font-size:11.5px;color:var(--ink-2)}
+.sw{width:42px;height:25px;border-radius:13px;background:var(--hair);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw.on{background:var(--blue)}.sw.on::after{left:19px}
+.savebar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px 28px;background:var(--glass-solid);border-top:.5px solid var(--hair)}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>智能体 v1:过程可见 + 用户自建角色(静态手机端设计稿)</h1>
+  <p class="lede">白色磨砂风格,沿用 redesign v3 令牌。每种色相只表达一种含义:蓝=操作/用户,青=词汇与工具,琥珀=提示/目标词/仅你可见,绿=完成,红=失败。
+  参考的是 React Bits Pro 的 AI Chat / Tool Calls / Agent Activity / Agent Plan 的<b>结构与状态</b>,视觉和代码全部重做,未使用其源码。</p>
+  <h2>设计要点(请确认)</h2>
+  <ul class="notes">
+    <li>过程胶囊:回复生成时自动展开,结束后折叠成一行;点开看「上下文 → 工具 → 思路」。默认折叠,避免把对话变成日志。</li>
+    <li>「思路」只显示两种来源:模型本身返回的推理文字,或模型写的一句思路摘要。界面上明确标「模型自述,非原始推理」,不冒充真实思考。</li>
+    <li>工具失败不阻断回复:显示红色失败行和「重试」,回复里说明哪项没用上。</li>
+    <li>联机里,读取你私人学习数据的过程<b>只有你自己能看到</b>(琥珀色「仅你可见」);其他人只看到智能体在回答。</li>
+    <li>创建角色:名称、简介、人设、水平、说话风格、可用工具开关(默认全开)、公开人设原文开关(默认开)。人设写在我们的安全规则之后,不能覆盖它。</li>
+  </ul>
+
+  <div class="row">
+
+  <!-- 1. running -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-chevron-left back"></i><div class="av t">E</div><div class="ttl"><b>Emma · 英语教练</b><span>B1 · 友好</span></div><i class="ti ti-dots act"></i></div>
+    <div class="msgs">
+      <div class="u">我昨天学了 abandon,今天怎么用在对话里?</div>
+      <div class="ai" style="margin-top:2px">
+        <div class="who"><div class="av t sm">E</div>Emma</div>
+        <div class="trace">
+          <div class="th"><i class="ti ti-loader-2 spin" style="color:var(--blue);font-size:15px"></i><b>正在准备回复</b><span class="r">2.1s</span></div>
+          <div class="sec">上下文</div>
+          <div class="step done"><span class="ic"><i class="ti ti-check"></i></span><span class="tx">角色设定<span class="sub">Emma · 英语教练</span></span><span class="d">0.0s</span></div>
+          <div class="step done"><span class="ic"><i class="ti ti-check"></i></span><span class="tx">你的已学词<span class="sub">昨天学了 18 个,带上 6 个</span></span><span class="d">0.1s</span></div>
+          <div class="step done"><span class="ic"><i class="ti ti-check"></i></span><span class="tx">最近对话<span class="sub">最近 8 条消息</span></span><span class="d">0.0s</span></div>
+          <div class="sec">工具</div>
+          <div class="tool"><div class="tile"><i class="ti ti-book-2"></i></div><div class="tx"><b>查词 · abandon</b><span>本地词典 · 四级</span></div><span class="pill run">进行中</span></div>
+        </div>
+        <div class="txt" style="opacity:.55">好的,我来帮你<span class="caret"></span></div>
+      </div>
+    </div>
+    <div class="comp"><div class="btn"><i class="ti ti-microphone"></i></div><div class="in">发消息…</div><div class="btn p"><i class="ti ti-player-stop-filled"></i></div></div>
+  </div><p class="frame-cap"><b>1 · 生成中</b>过程卡自动展开:上下文逐行打勾,工具一行一个,当前在跑的是蓝色「进行中」。右下角按钮变成停止。</p></div>
+
+  <!-- 2. done -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-chevron-left back"></i><div class="av t">E</div><div class="ttl"><b>Emma · 英语教练</b><span>B1 · 友好</span></div><i class="ti ti-dots act"></i></div>
+    <div class="msgs">
+      <div class="u">再给我一个更口语的</div>
+      <div class="ai">
+        <div class="who"><div class="av t sm">E</div>Emma</div>
+        <div class="trace">
+          <div class="th"><i class="ti ti-circle-check-filled" style="color:var(--green);font-size:15px"></i><b>已完成</b><span class="r">3.4s</span><i class="ti ti-chevron-down" style="font-size:13px;color:var(--ink-3)"></i></div>
+          <div class="sec">上下文 · 3 项</div>
+          <div class="step done"><span class="ic"><i class="ti ti-check"></i></span><span class="tx">角色设定 · 已学词 6 个 · 最近 8 条</span></div>
+          <div class="sec">工具 · 2 项</div>
+          <div class="tool"><div class="tile"><i class="ti ti-book-2"></i></div><div class="tx"><b>查词 · give up</b><span>近义表达</span></div><span class="pill ok">完成 90ms</span></div>
+          <div class="tool"><div class="tile am"><i class="ti ti-bookmark"></i></div><div class="tx"><b>读已学词</b><span>昨天 · 6 个</span></div><span class="pill ok">完成 40ms</span></div>
+          <div class="think"><div class="lab"><i class="ti ti-bulb"></i>思路 · 模型自述,非原始推理</div>你昨天学了 abandon,口语里更常用 give up,所以先给近义说法,再带上你的目标词。</div>
+        </div>
+        <div class="txt">口语里更自然的是 “I’m not going to <span class="hl">give up</span> on this.” 它和 abandon 意思接近,但更像日常聊天。</div>
+        <div class="srcs"><span class="src"><i class="ti ti-book-2"></i>词典 · give up</span><span class="src"><i class="ti ti-bookmark"></i>你的已学词</span></div>
+        <div class="acts"><span><i class="ti ti-player-play"></i>朗读</span><span><i class="ti ti-language"></i>翻译</span><span><i class="ti ti-microphone"></i>跟读</span></div>
+      </div>
+    </div>
+    <div class="comp"><div class="btn"><i class="ti ti-microphone"></i></div><div class="in">发消息…</div><div class="btn p"><i class="ti ti-arrow-up"></i></div></div>
+  </div><p class="frame-cap"><b>2 · 完成后(展开)</b>点开胶囊后的样子;折叠态见第 3 屏背景里的一行胶囊。「思路」单独一块并标明来源。回复下方是来源标签(青色=词汇),点开看原词条。</p></div>
+
+  <!-- 3. tool detail + failure -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-chevron-left back"></i><div class="av t">E</div><div class="ttl"><b>Emma · 英语教练</b><span>B1 · 友好</span></div><i class="ti ti-dots act"></i></div>
+    <div class="msgs"><div class="ai"><span class="cap"><i class="ti ti-sparkles"></i><b>思考 4 秒</b> · 用了 2 个工具<i class="ti ti-chevron-right chev"></i></span><div class="txt">我没能读到你的易错词,这次先按通用难度来。</div></div></div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3><span class="av t sm"><i class="ti ti-book-2" style="font-size:14px"></i></span>工具调用</h3>
+      <p class="sub">点任意一行看参数、结果和耗时</p>
+      <div class="kv">
+        <div><span>工具</span><b>查词</b></div>
+        <div><span>参数</span><b class="mono">词: abandon · 词书: 四级</b></div>
+        <div><span>结果</span><b>v. 放弃;遗弃 —— 例句 1 条</b></div>
+        <div><span>耗时</span><b>112 ms · 本地词典,未联网</b></div>
+      </div>
+      <div class="tool" style="margin:12px 0 0;background:var(--red-tint)"><div class="tile" style="background:#fff;color:var(--red)"><i class="ti ti-alert-triangle"></i></div><div class="tx"><b style="color:var(--red)">读易错词 失败</b><span style="color:var(--red)">超时 · 回复未使用这一项</span></div><span class="pill bad">重试</span></div>
+      <div class="note bl"><i class="ti ti-shield-check"></i>参数里只显示词本身,不会显示你的完整对话或账号信息。</div>
+      <div class="btnrow"><div class="bt">关闭</div><div class="bt p"><i class="ti ti-refresh"></i>重新生成</div></div>
+    </div>
+  </div><p class="frame-cap"><b>3 · 工具详情与失败</b>点开一行得到底部面板。失败用红色行,不阻断回复,回复里会如实说明没用上哪项。</p></div>
+
+  <!-- 4. room -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-chevron-left back"></i><div class="ttl"><b>面试练习</b><span><i class="ti ti-users" style="font-size:11px"></i> 3 人 · 1 个智能体 · 在线</span></div><div class="av t sm">E</div><i class="ti ti-dots act"></i></div>
+    <div class="msgs">
+      <div class="mem"><div class="nm">Sam</div><div class="txt">Hi, I’m ready for the interview.</div></div>
+      <div class="ai">
+        <div class="who"><div class="av t sm">E</div>Emma <span class="tagrole">面试官</span></div>
+        <div class="txt">Welcome, Sam. Tell me about a time you solved a hard problem.</div>
+      </div>
+      <div class="handoff"><i class="ti ti-arrows-exchange"></i>Emma → 点评官 Leo</div>
+      <div class="u">@Emma 我想用 abandon,可以吗?</div>
+      <div class="priv"><i class="ti ti-lock"></i>仅你可见 · 读了你的 6 个已学词<i class="ti ti-chevron-right" style="font-size:12px"></i></div>
+      <div class="ai">
+        <div class="who"><div class="av t sm">E</div>Emma <span class="tagrole">面试官</span></div>
+        <span class="cap"><i class="ti ti-sparkles"></i>Emma 已回答 · 对 Lin</span>
+        <div class="txt">Sure, try: “I never <span class="hl">abandon</span> a project halfway.”</div>
+      </div>
+    </div>
+    <div class="comp"><div class="btn"><i class="ti ti-microphone"></i></div><div class="in">发消息,@ 提到智能体…</div><div class="btn p"><i class="ti ti-arrow-up"></i></div></div>
+  </div><p class="frame-cap"><b>4 · 联机房间</b>多个智能体接力时有角色标签和接力提示。<b>读你私人学习数据的过程只给你看</b>(琥珀色「仅你可见」);对其他成员只显示「Emma 已回答 · 对 Lin」,不含你的词表。</p></div>
+
+  <!-- 5. persona picker -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-x back"></i><div class="ttl"><b>选择角色</b><span>对话和联机房间通用</span></div></div>
+    <div class="page">
+      <div class="seg"><span class="on">全部</span><span>内置</span><span>我的</span></div>
+      <div class="pc"><div class="av t">E</div><div class="tx"><b>Emma · 英语教练<span class="badge">内置</span></b><span>生成地道的美式英语,友好耐心</span></div><div class="sel on"><i class="ti ti-check"></i></div></div>
+      <div class="pc"><div class="av b">J</div><div class="tx"><b>Jack · 面试官<span class="badge">内置</span></b><span>英文面试模拟,会追问细节</span></div><div class="sel"></div></div>
+      <div class="pc"><div class="av a">M</div><div class="tx"><b>Mia · 点餐服务员<span class="badge">内置</span></b><span>餐厅场景,语速自然</span></div><div class="sel"></div></div>
+      <div class="pc"><div class="av g">L</div><div class="tx"><b>Leo · 点评官<span class="badge">内置</span></b><span>只点评语法和用词,不闲聊</span></div><div class="sel"></div></div>
+      <div class="pc"><div class="av b">周</div><div class="tx"><b>周五小测官<span class="badge me">我的</span></b><span>用我这周学的词出 5 道口语题</span></div><div class="sel"></div></div>
+      <div class="add"><i class="ti ti-plus" style="font-size:18px"></i>创建我的角色</div>
+      <div class="note am" style="margin-top:14px"><i class="ti ti-alert-triangle"></i>我的角色只有你自己能选;在联机房间里使用时,房间成员会看到角色名、简介和人设原文(你可以在角色里关闭「公开人设原文」)。</div>
+    </div>
+  </div><p class="frame-cap"><b>5 · 角色选择</b>内置 + 我的。头像用颜色加首字,不用图片,免审核。</p></div>
+
+  <!-- 6. persona editor -->
+  <div class="spec"><div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sig"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+    <div class="hdr"><i class="ti ti-chevron-left back"></i><div class="ttl"><b>创建角色</b></div></div>
+    <div class="page" style="padding-bottom:90px">
+      <div class="fld"><label>名称</label><div class="inp">周五小测官</div></div>
+      <div class="fld"><label>人设<span>186 / 800</span></label><div class="inp ta">你是严格但友好的口语考官。每次从我本周学过的词里挑 5 个,出 5 道口语题,每题等我回答后再点评,最后给一句总结。</div></div>
+      <div class="fld"><label>英文水平</label><div class="chips"><span class="ch">A2</span><span class="ch on">B1</span><span class="ch">B2</span><span class="ch">C1</span></div></div>
+      <div class="fld"><label>说话风格</label><div class="chips"><span class="ch">友好</span><span class="ch on">严格</span><span class="ch">幽默</span><span class="ch">简洁</span></div></div>
+      <div class="fld" style="margin-bottom:6px"><label>可用工具</label></div>
+      <div class="tg"><div class="tile"><i class="ti ti-book-2"></i></div><div class="tx">查词<span>只读本地词典</span></div><div class="sw on"></div></div>
+      <div class="tg"><div class="tile am"><i class="ti ti-bookmark"></i></div><div class="tx">读已学词<span>只读你自己的,联机里仅你可见</span></div><div class="sw on"></div></div>
+      <div class="tg"><div class="tile am"><i class="ti ti-flame"></i></div><div class="tx">读易错词<span>只读你自己的</span></div><div class="sw on"></div></div>
+      <div class="tg"><div class="tile"><i class="ti ti-eye"></i></div><div class="tx">公开人设原文<span>联机房间的成员可以看到;关闭后只显示名称和简介</span></div><div class="sw on"></div></div>
+      <div class="note am"><i class="ti ti-shield-check"></i>人设放在我们的安全规则之后,不能改变安全规则。违规角色会被管理员停用。</div>
+    </div>
+    <div class="savebar"><div class="btnrow" style="margin:0"><div class="bt">试聊一句</div><div class="bt p">保存</div></div></div>
+  </div><p class="frame-cap"><b>6 · 创建角色</b>人设有字数上限;工具默认全部开启,可逐个关闭(也可在「智能体设置」里全局关闭)。「公开人设原文」默认开,创建者可关。「试聊一句」不保存,先看效果。</p></div>
+
+  </div>
+</div>
+</body>
+</html>
