@@ -1,9 +1,10 @@
 import "fake-indexeddb/auto";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
+import { TUTOR_SLOTS } from "~/features/agents/chat-parts";
 import { resetAgentsCaches } from "~/features/agents/use-agents-data";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
@@ -171,5 +172,79 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
     await userEvent.click(screen.getByTestId("conversation-settings"));
     await screen.findByTestId("settings-save");
     expect(screen.queryByTestId("settings-persona-note")).toBeNull();
+  });
+
+  it("regenerates the latest reply from a failed tool row: deletes it, reruns the same line and saves only the new reply", async () => {
+    const { params: _params, ...noParams } = STEP;
+    const failed = { ...noParams, id: "s2", key: "weak_words", status: "fail" };
+    let n = 0;
+    const mock = setup(routes({
+      "POST /api/agents/turn": () => (++n === 1
+        ? sse([ev("step", failed), ev("delta", { text: "First." }), ev("done", { trace: { ...TRACE, steps: [failed] }, text_len: 6 })])
+        : sse(HAPPY)),
+      "POST /api/conversations/c1/messages": (call) => json({ messages: JSON.parse(String(call.body)).messages.length === 2 ? [{ id: "m1" }, { id: "m2" }] : [{ id: "m3" }] }),
+      "DELETE /api/messages/m2": () => json({ id: "m2" }),
+    }));
+    await screen.findByText("Earlier reply");
+    await say("Hi");
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+    await userEvent.click(await screen.findByTestId("agent-capsule"));
+    await userEvent.click(await screen.findByTestId("agent-tool-retry"));
+    await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hello there!"));
+    expect(callsTo(mock, "DELETE", "/api/messages/m2")).toHaveLength(1);
+    expect(bodyOf(callsTo(mock, "POST", "/api/agents/turn")[1])).toMatchObject({ text: "Hi", history: [{ role: "assistant", content: "Earlier reply" }] });
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(2));
+    expect(bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[1]).messages).toEqual([
+      { role: "assistant", content: "Hello there!", agent_trace: { v: 1, ms: 3200, steps: [STEP], thought: null } },
+    ]);
+    expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+  });
+
+  describe("teach-me slot (R-W18)", () => {
+    const META = ev("meta", { step_index: 1, steps_total: 5 });
+    beforeEach(() => {
+      TUTOR_SLOTS.StartSheet = ({ open, onStarted }) =>
+        open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1")}>start</button> : null;
+      TUTOR_SLOTS.Bar = ({ sessionId, meta, onContinue, onEnd }) => (
+        <div data-testid="fake-tutor-bar" data-session={sessionId} data-step={meta?.stepIndex ?? ""}>
+          <button type="button" data-testid="fake-tutor-continue" onClick={onContinue}>next</button>
+          <button type="button" data-testid="fake-tutor-end" onClick={onEnd}>end</button>
+        </div>
+      );
+    });
+    afterEach(() => { TUTOR_SLOTS.StartSheet = null; TUTOR_SLOTS.Bar = null; });
+
+    it("starts a tutor session: the agent speaks first (text null, mode tutor), meta reaches the bar, continue reruns, end returns to chat", async () => {
+      const mock = setup(routes({
+        "POST /api/agents/turn": () => sse([ev("start", { turn_id: "t1" }), META, ev("delta", { text: "Question one?" }), ev("done", { trace: TRACE, text_len: 13 })]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m5" }] }),
+      }));
+      await screen.findByText("Earlier reply");
+      await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+      await userEvent.click(await screen.findByTestId("fake-tutor-start"));
+      await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Question one?"));
+      expect(bodyOf(callsTo(mock, "POST", "/api/agents/turn")[0])).toMatchObject({ text: null, mode: "tutor", tutor_session_id: "ts1", persona_id: "builtin:coach" });
+      expect(screen.getByTestId("fake-tutor-bar")).toHaveAttribute("data-step", "1");
+      expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+      expect(bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[0]).messages).toEqual([
+        { role: "assistant", content: "Question one?", agent_trace: { v: 1, ms: 3200, steps: [STEP], thought: null } },
+      ]);
+      await userEvent.click(screen.getByTestId("fake-tutor-continue"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/agents/turn")).toHaveLength(2));
+      expect(bodyOf(callsTo(mock, "POST", "/api/agents/turn")[1])).toMatchObject({ text: null, mode: "tutor", tutor_session_id: "ts1" });
+      await userEvent.click(screen.getByTestId("fake-tutor-end"));
+      expect(screen.queryByTestId("fake-tutor-bar")).toBeNull();
+      await say("Back to chat");
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/agents/turn")).toHaveLength(3));
+      expect(bodyOf(callsTo(mock, "POST", "/api/agents/turn")[2])).toMatchObject({ text: "Back to chat", mode: "chat", tutor_session_id: null });
+    });
+
+    it("shows no teach-me entry for a conversation without a persona", async () => {
+      setup(routes({}, CONFIG));
+      await screen.findByText("Earlier reply");
+      await new Promise((r) => setTimeout(r, 30));
+      expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
+    });
   });
 });

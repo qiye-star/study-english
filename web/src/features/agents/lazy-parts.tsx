@@ -28,3 +28,5 @@ export const ReportPersonaSheet = part<import("./report-persona-sheet").ReportPe
 export const AgentSettingsPage = part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
 export const AgentsMeRow = part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
 export const ChatPersonaControl = part<import("./chat-parts").ChatPersonaControlProps>(() => import("./chat-parts").then((m) => m.ChatPersonaControl));
+export const TutorEntry = part<import("./chat-parts").TutorEntryProps>(() => import("./chat-parts").then((m) => m.TutorEntry));
+export const TutorBarSlot = part<import("./chat-parts").TutorBarSlotProps>(() => import("./chat-parts").then((m) => m.TutorBarSlot));

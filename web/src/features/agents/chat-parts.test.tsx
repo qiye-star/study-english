@@ -1,10 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
-import { ChatPersonaControl } from "./chat-parts";
+import { ChatPersonaControl, TUTOR_SLOTS, TutorEntry } from "./chat-parts";
 import { resetAgentsCaches } from "./use-agents-data";
 
 const persona = (id: string, name: string) => ({ id, builtin: true, mine: false, name, intro: "", prompt: null as string | null, level: "B1", style: "friendly", voice: null as string | null,
@@ -50,5 +50,44 @@ describe("ChatPersonaControl (spec §9.3, R-W15)", () => {
     await userEvent.click(chip);
     await userEvent.click(await screen.findByTestId("agent-persona-none"));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("TutorEntry (R-W18, INDEX X7: the tutor components are a slot, not an import)", () => {
+  beforeEach(() => {
+    resetAgentsCaches();
+    TUTOR_SLOTS.StartSheet = ({ open, onStarted }) =>
+      open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1")}>start</button> : null;
+  });
+  afterEach(() => { TUTOR_SLOTS.StartSheet = null; });
+  const render = (personaId: string | null, tutor = true) => {
+    const onStarted = vi.fn();
+    renderWithProviders(<TutorEntry personaId={personaId} conversationId="c1" disabled={false} onStarted={onStarted} />, { api: new ApiClient({
+      getToken: () => "t", fetchImpl: createFetchMock({ "GET /api/agents/config": () => json(config(true, tutor)) }).fetch,
+    }) });
+    return onStarted;
+  };
+
+  it("opens the slot's start sheet and hands over the session id", async () => {
+    const onStarted = render("builtin:coach");
+    await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+    await userEvent.click(await screen.findByTestId("fake-tutor-start"));
+    expect(onStarted).toHaveBeenCalledWith("ts1");
+    expect(screen.queryByTestId("fake-tutor-start")).toBeNull();
+  });
+
+  it("is hidden without a persona, when the tutor is off, or while the slot is empty", async () => {
+    render(null);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
+    cleanup();
+    render("builtin:coach", false);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
+    cleanup();
+    TUTOR_SLOTS.StartSheet = null;
+    render("builtin:coach");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
   });
 });

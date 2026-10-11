@@ -15,3 +15,5 @@ export { PersonaPicker } from "./lazy-parts";
 export { ReportPersonaSheet } from "./lazy-parts";
 export { AgentSettingsPage, AgentsMeRow } from "./lazy-parts";
 export { ChatPersonaControl } from "./lazy-parts";
+export { TutorBarSlot, TutorEntry } from "./lazy-parts";
+export type { TutorBarSlotProps, TutorEntryProps, TutorStartSheetProps } from "./chat-parts";
