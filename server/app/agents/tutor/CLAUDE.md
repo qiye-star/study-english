@@ -34,3 +34,4 @@
 - 进入提示词的字符串(学习者文本、词、记忆短语、听写句)一律先 `prompt.clean`(去控制字符 / 引号,`<` `>` 换形近字符)。
 - 日志与错误里不得出现用户回答、题目、提示、词;摘要与记忆候选只含题型、主题代码与数字。
 - `META` 过滤必须保持「任意拆分下输出等于 `parse_meta` 的可见部分」;改 `StreamFilter` 先跑 `test_fuzz_chunk_splits_*`。
+- 回合生成中 `hint / skip` 返回 409「Tutor is generating」:`handler.prepare` 调 `service.mark_generating`,`finish` 清除;orchestrator 没有中止钩子,所以带 30 s TTL(进程内)。`finish` 并发幂等:版本冲突时重读,已结束就返回同一份总结,`on_recap` 只由胜出者调用。

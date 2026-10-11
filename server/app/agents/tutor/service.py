@@ -4,6 +4,7 @@
 过期:闲置 IDLE 视为 expired(R-T10);乐观锁:state 只经 version 条件更新写入。
 日志只记种类与数字,永不记录词、题目、提示或回答。"""
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 
@@ -34,6 +35,30 @@ FALLBACK_HINT = {
     "roleplay": "想象你就在这个场景里:先打招呼,再说你的需要。",
     "dictate": "点「听一遍」再听一次,先写下听清的词。",
 }
+
+# 回合生成中的会话(每进程;handler.prepare 标记、finish 清除)。orchestrator 没有「回合中止」钩子,所以带 TTL:
+# 出错 / 断线的回合最多挡住提示与跳过这么久。生成中提示 / 跳过会让版本号前进、回合结果被丢弃,而模型已经把下一题说给用户听了。
+GENERATING_TTL = 30.0
+_GENERATING: dict[str, float] = {}
+
+
+def mark_generating(session_id: str, now: float | None = None) -> None:
+    _GENERATING[session_id] = (time.monotonic() if now is None else now) + GENERATING_TTL
+
+
+def clear_generating(session_id: str) -> None:
+    _GENERATING.pop(session_id, None)
+
+
+def is_generating(session_id: str, now: float | None = None) -> bool:
+    until = _GENERATING.get(session_id)
+    if until is None:
+        return False
+    if (time.monotonic() if now is None else now) >= until:
+        _GENERATING.pop(session_id, None)
+        return False
+    return True
+
 
 RecapHook = Callable[[AgentTutorSession, dict], Awaitable[None]]
 
@@ -180,8 +205,14 @@ async def _save(session: AsyncSession, row: AgentTutorSession, state: TutorState
     await session.refresh(row)
 
 
+def _reject_if_generating(session_id: str) -> None:
+    if is_generating(session_id):
+        raise TutorError(409, "Tutor is generating")
+
+
 async def hint(session: AsyncSession, user_id: int, session_id: str, now: datetime) -> tuple[AgentTutorSession, str]:
     row = await _owned_active(session, user_id, session_id, now)
+    _reject_if_generating(session_id)
     current = state_of(row)
     if current.phase != "await_answer":
         raise TutorError(409, "Tutor session is not waiting for an answer")
@@ -195,6 +226,7 @@ async def hint(session: AsyncSession, user_id: int, session_id: str, now: dateti
 
 async def skip(session: AsyncSession, user_id: int, session_id: str, now: datetime) -> AgentTutorSession:
     row = await _owned_active(session, user_id, session_id, now)
+    _reject_if_generating(session_id)
     try:
         state = next_state(state_of(row), Skipped())
     except InvalidTransition:
@@ -207,11 +239,18 @@ async def finish(session: AsyncSession, user_id: int, session_id: str, now: date
                  on_recap: RecapHook | None = None) -> dict:
     """幂等;过期的会话也能结束(按已答生成总结)。先算好响应再调 on_recap:记忆写入失败时的 rollback 不影响响应。"""
     row = await _owned(session, user_id, session_id)
-    if row.status == DONE:
-        return out(row, now)
-    state = next_state(state_of(row), Finished())
-    data = build_recap(state, Goal.from_dict(row.goal))
-    await _save(session, row, state, now, status=DONE, recap=data, finished_at=now)
+    for attempt in range(3):
+        if row.status == DONE:
+            return out(row, now)
+        state = next_state(state_of(row), Finished())
+        data = build_recap(state, Goal.from_dict(row.goal))
+        try:
+            await _save(session, row, state, now, status=DONE, recap=data, finished_at=now)
+            break
+        except TutorError:  # 并发的 finish(或回合)先提交:重读;已结束 → 返回同一份总结(幂等)
+            if attempt == 2:
+                raise
+            await session.refresh(row)
     result = out(row, now)
     logger.info("tutor finish answered=%d total=%d", data["answered"], data["total"])
     if on_recap is not None:

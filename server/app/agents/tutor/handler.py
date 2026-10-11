@@ -44,6 +44,7 @@ class TutorModeHandler:
         if state.phase not in (ANSWER_PHASES if answering else SPEAK_FIRST_PHASES):
             raise ModeError("bad_request")
         self._remember(req.client_turn_id, req.tutor_session_id, version, answering)
+        service.mark_generating(req.tutor_session_id)
         return ModeBlock(text=tutor_block(state, goal), max_tokens=MAX_TOKENS,
                          user_text=None if answering else OPENING_USER_TEXT)
 
@@ -55,6 +56,7 @@ class TutorModeHandler:
         if pending is None:
             return None
         session_id, version, answering = pending
+        service.clear_generating(session_id)
         _, meta = parse_meta(full_text)
         resolved, fell_back = resolve(meta, answering=answering)
         if fell_back:
