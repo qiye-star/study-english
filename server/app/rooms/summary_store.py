@@ -31,6 +31,20 @@ MODEL_MAX = 64
 class SummaryStore:
     def __init__(self, sessionmaker):
         self._sm = sessionmaker
+        self._reruns: set[str] = set()  # rooms whose in-flight run was marked stale by a later close (process-local)
+
+    def take_rerun(self, room_id: str) -> bool:
+        """True once when the run that just ended was marked `rerun` by a second close (R-O5); the caller regenerates."""
+        if room_id in self._reruns:
+            self._reruns.discard(room_id)
+            return True
+        return False
+
+    async def _new_messages(self, s, room_id: str, since: datetime) -> bool:
+        """Any public, non-system message written since the room was reopened (a regeneration needs new input)."""
+        return (await s.scalar(select(RoomMessage.id).where(
+            RoomMessage.room_id == room_id, RoomMessage.lane == "public", RoomMessage.sender_kind != "system",
+            RoomMessage.created_at >= since).limit(1))) is not None
 
     async def get(self, room_id: str) -> RoomSummary | None:
         async with self._sm() as s:
@@ -55,6 +69,15 @@ class SummaryStore:
                 except IntegrityError:  # someone else created it first
                     await s.rollback()
             if since is not None:
+                # a close+reopen+close while the first run is still `pending`: mark it so its result is re-run
+                marked = await s.execute(
+                    update(RoomSummary).where(RoomSummary.room_id == room_id, RoomSummary.status == "pending",
+                                              RoomSummary.created_at < since, RoomSummary.reason.is_(None))
+                    .values(reason="rerun"))
+                await s.commit()
+                if marked.rowcount == 1:
+                    return False
+            if since is not None and await self._new_messages(s, room_id, since):
                 result = await s.execute(
                     update(RoomSummary).where(RoomSummary.room_id == room_id,
                                               RoomSummary.status.in_(("done", "skipped", "failed")),
@@ -66,6 +89,9 @@ class SummaryStore:
             states = ("failed", "pending") if resume else ("failed",)
             claimable = or_(RoomSummary.status.in_(states),
                             and_(RoomSummary.status == "done", RoomSummary.reason == "stale"))
+            if since is not None and not await self._new_messages(s, room_id, since):
+                # reopened but nothing new was said: keep the previous summary, no LLM call, no daily-cap charge
+                claimable = and_(claimable, RoomSummary.data.is_(None))
             result = await s.execute(
                 update(RoomSummary).where(RoomSummary.room_id == room_id, claimable,
                                           RoomSummary.attempts < max_attempts)
@@ -78,7 +104,14 @@ class SummaryStore:
             await s.execute(update(RoomSummary).where(RoomSummary.room_id == room_id).values(**values))
             await s.commit()
 
+    async def _note_rerun(self, room_id: str) -> None:
+        async with self._sm() as s:
+            row = await s.get(RoomSummary, room_id)
+            if row is not None and row.reason == "rerun":
+                self._reruns.add(room_id)
+
     async def finish(self, room_id: str, data: dict, model: str, now: datetime) -> None:
+        await self._note_rerun(room_id)
         await self._set(room_id, status="done", reason=None, data=data, model=(model or "")[:MODEL_MAX] or None,
                         finished_at=now)
 
@@ -86,6 +119,7 @@ class SummaryStore:
         """`failed` / `skipped` for a first summary. A row that already holds a summary (`data` is set: a
         regeneration after a reopen) goes back to `done` with reason `stale`, so the previous summary stays
         readable (R-O5); `data` is never cleared."""
+        await self._note_rerun(room_id)
         async with self._sm() as s:
             row = await s.get(RoomSummary, room_id)
             if row is None:
@@ -189,14 +223,17 @@ class SummaryRunner:
     async def generate(self, room_id: str) -> str:
         """Generate for a row the caller already claimed with `store.start` (status `pending`)."""
         try:
-            return await self._generate(room_id)
+            status = await self._generate(room_id)
         except Exception as e:  # never leave a claimed row pending (DB hiccup, bad template, ...)
             logger.warning("rooms summary room=%s failed error=%s", room_id, type(e).__name__)
             try:
                 await self.store.fail(room_id, "error", self.clock())
             except Exception:
                 pass
-            return "failed"
+            status = "failed"
+        if self.store.take_rerun(room_id):  # a later close marked this run stale: regenerate with both sessions
+            return await self.run(room_id)
+        return status
 
     async def _generate(self, room_id: str) -> str:
         if not self.available():
