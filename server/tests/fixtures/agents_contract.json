@@ -1,0 +1,600 @@
+{
+  "config_off": {
+    "enabled": false
+  },
+  "config": {
+    "enabled": true,
+    "available": true,
+    "tutor": true,
+    "memory": true,
+    "rooms": false,
+    "tools_mode": "prefetch",
+    "limits": {
+      "personas_max": 10,
+      "prompt_max_chars": 800,
+      "history_max": 20,
+      "text_max_chars": 2000
+    },
+    "levels": [
+      "A2",
+      "B1",
+      "B2",
+      "C1"
+    ],
+    "styles": [
+      "friendly",
+      "strict",
+      "humor",
+      "concise"
+    ],
+    "tools": [
+      "lookup",
+      "learned_words",
+      "weak_words",
+      "due_words",
+      "memory"
+    ]
+  },
+  "personas": [
+    {
+      "id": "builtin:coach",
+      "builtin": true,
+      "mine": false,
+      "name": "英语教练",
+      "intro": "生成地道的美式英语，纽约腔调。",
+      "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容，而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语，纽约腔调。\n请尽量使用日常词汇，尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。",
+      "level": "B1",
+      "style": "concise",
+      "voice": null,
+      "tools": [
+        "lookup",
+        "learned_words",
+        "weak_words",
+        "due_words",
+        "memory"
+      ],
+      "prompt_public": true,
+      "deep_think": false,
+      "disabled": false,
+      "created_at": null,
+      "updated_at": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "builtin": false,
+      "mine": true,
+      "name": "Tom",
+      "intro": "A cat",
+      "prompt": "You are Tom the cat.",
+      "level": "B2",
+      "style": "humor",
+      "voice": null,
+      "tools": [
+        "lookup",
+        "learned_words",
+        "weak_words",
+        "due_words",
+        "memory"
+      ],
+      "prompt_public": true,
+      "deep_think": true,
+      "disabled": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "persona": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "builtin": false,
+    "mine": true,
+    "name": "Tom",
+    "intro": "A cat",
+    "prompt": "You are Tom the cat.",
+    "level": "B2",
+    "style": "humor",
+    "voice": null,
+    "tools": [
+      "lookup",
+      "learned_words",
+      "weak_words",
+      "due_words",
+      "memory"
+    ],
+    "prompt_public": true,
+    "deep_think": true,
+    "disabled": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "persona_created": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "builtin": false,
+    "mine": true,
+    "name": "Tom",
+    "intro": "A cat",
+    "prompt": "You are Tom the cat.",
+    "level": "B2",
+    "style": "humor",
+    "voice": null,
+    "tools": [
+      "lookup",
+      "learned_words",
+      "weak_words",
+      "due_words",
+      "memory"
+    ],
+    "prompt_public": true,
+    "deep_think": true,
+    "disabled": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "settings": {
+    "tools": {
+      "lookup": true,
+      "learned_words": true,
+      "weak_words": true,
+      "due_words": true,
+      "memory": true
+    },
+    "memory_enabled": true,
+    "share_in_rooms": true,
+    "show_process": true,
+    "default_persona_id": null,
+    "tutor": {
+      "length": 8,
+      "mix": [
+        "ask",
+        "words",
+        "repeat",
+        "retell",
+        "roleplay",
+        "dictate"
+      ]
+    },
+    "process_default": "collapsed"
+  },
+  "turn_sse": [
+    {
+      "event": "start",
+      "data": {
+        "turn_id": "00000000-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s1",
+        "group": "context",
+        "key": "persona",
+        "status": "done",
+        "label_key": "agents.step.persona",
+        "private": false,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s2",
+        "group": "tool",
+        "key": "learned_words",
+        "status": "run",
+        "label_key": "agents.step.learned_words",
+        "private": true
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s3",
+        "group": "tool",
+        "key": "weak_words",
+        "status": "run",
+        "label_key": "agents.step.weak_words",
+        "private": true
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s4",
+        "group": "tool",
+        "key": "due_words",
+        "status": "run",
+        "label_key": "agents.step.due_words",
+        "private": true
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s5",
+        "group": "tool",
+        "key": "word_lookup",
+        "status": "run",
+        "label_key": "agents.step.word_lookup",
+        "private": true
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s2",
+        "group": "tool",
+        "key": "learned_words",
+        "status": "done",
+        "label_key": "agents.step.learned_words",
+        "private": true,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s3",
+        "group": "tool",
+        "key": "weak_words",
+        "status": "done",
+        "label_key": "agents.step.weak_words",
+        "private": true,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s4",
+        "group": "tool",
+        "key": "due_words",
+        "status": "done",
+        "label_key": "agents.step.due_words",
+        "private": true,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s5",
+        "group": "tool",
+        "key": "word_lookup",
+        "status": "done",
+        "label_key": "agents.step.word_lookup",
+        "private": true,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s6",
+        "group": "context",
+        "key": "history",
+        "status": "done",
+        "label_key": "agents.step.history",
+        "private": false,
+        "params": {
+          "turns": 0
+        },
+        "ms": 0
+      }
+    },
+    {
+      "event": "thought",
+      "data": {
+        "source": "reasoning",
+        "text": "Thinking about tense."
+      }
+    },
+    {
+      "event": "delta",
+      "data": {
+        "text": "Hello"
+      }
+    },
+    {
+      "event": "delta",
+      "data": {
+        "text": " there."
+      }
+    },
+    {
+      "event": "done",
+      "data": {
+        "text_len": 12,
+        "trace": {
+          "v": 1,
+          "tools": "prefetch",
+          "steps": [
+            {
+              "key": "persona",
+              "group": "context",
+              "status": "done",
+              "ms": 0,
+              "private": false,
+              "label": "agents.step.persona"
+            },
+            {
+              "key": "learned_words",
+              "group": "tool",
+              "status": "done",
+              "ms": 0,
+              "private": true,
+              "label": "agents.step.learned_words"
+            },
+            {
+              "key": "weak_words",
+              "group": "tool",
+              "status": "done",
+              "ms": 0,
+              "private": true,
+              "label": "agents.step.weak_words"
+            },
+            {
+              "key": "due_words",
+              "group": "tool",
+              "status": "done",
+              "ms": 0,
+              "private": true,
+              "label": "agents.step.due_words"
+            },
+            {
+              "key": "word_lookup",
+              "group": "tool",
+              "status": "done",
+              "ms": 0,
+              "private": true,
+              "label": "agents.step.word_lookup"
+            },
+            {
+              "key": "history",
+              "group": "context",
+              "status": "done",
+              "ms": 0,
+              "private": false,
+              "label": "agents.step.history",
+              "params": {
+                "turns": 0
+              }
+            }
+          ],
+          "thought": {
+            "source": "reasoning",
+            "text": "Thinking about tense.",
+            "chars": 21
+          },
+          "ms": {
+            "ctx": 0,
+            "ttft": 0,
+            "total": 0
+          }
+        },
+        "usage": {
+          "in": 12,
+          "out": 5
+        }
+      }
+    }
+  ],
+  "turn_error_sse": [
+    {
+      "event": "start",
+      "data": {
+        "turn_id": "00000000-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "event": "error",
+      "data": {
+        "code": "limit"
+      }
+    }
+  ],
+  "events": {
+    "start": {
+      "turn_id": "00000000-0000-4000-8000-000000000000"
+    },
+    "step": {
+      "id": "s6",
+      "group": "context",
+      "key": "history",
+      "status": "done",
+      "label_key": "agents.step.history",
+      "private": false,
+      "params": {
+        "turns": 0
+      },
+      "ms": 0
+    },
+    "thought": {
+      "source": "reasoning",
+      "text": "Thinking about tense."
+    },
+    "delta": {
+      "text": "Hello"
+    },
+    "meta": {
+      "step_index": 1,
+      "steps_total": 8,
+      "verdict": "good",
+      "kind": "ask",
+      "done": false
+    },
+    "done": {
+      "text_len": 12,
+      "trace": {
+        "v": 1,
+        "tools": "prefetch",
+        "steps": [
+          {
+            "key": "persona",
+            "group": "context",
+            "status": "done",
+            "ms": 0,
+            "private": false,
+            "label": "agents.step.persona"
+          },
+          {
+            "key": "learned_words",
+            "group": "tool",
+            "status": "done",
+            "ms": 0,
+            "private": true,
+            "label": "agents.step.learned_words"
+          },
+          {
+            "key": "weak_words",
+            "group": "tool",
+            "status": "done",
+            "ms": 0,
+            "private": true,
+            "label": "agents.step.weak_words"
+          },
+          {
+            "key": "due_words",
+            "group": "tool",
+            "status": "done",
+            "ms": 0,
+            "private": true,
+            "label": "agents.step.due_words"
+          },
+          {
+            "key": "word_lookup",
+            "group": "tool",
+            "status": "done",
+            "ms": 0,
+            "private": true,
+            "label": "agents.step.word_lookup"
+          },
+          {
+            "key": "history",
+            "group": "context",
+            "status": "done",
+            "ms": 0,
+            "private": false,
+            "label": "agents.step.history",
+            "params": {
+              "turns": 0
+            }
+          }
+        ],
+        "thought": {
+          "source": "reasoning",
+          "text": "Thinking about tense.",
+          "chars": 21
+        },
+        "ms": {
+          "ctx": 0,
+          "ttft": 0,
+          "total": 0
+        }
+      },
+      "usage": {
+        "in": 12,
+        "out": 5
+      }
+    },
+    "error": {
+      "code": "limit"
+    }
+  },
+  "message_with_trace": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "conversation_id": "00000000-0000-4000-8000-000000000000",
+    "role": "assistant",
+    "content": "Hello there.",
+    "created_at": "2026-01-01T00:00:00Z",
+    "assessment_id": null,
+    "grammar": null,
+    "assessment": null,
+    "agent_trace": {
+      "v": 1,
+      "tools": "prefetch",
+      "steps": [
+        {
+          "key": "persona",
+          "group": "context",
+          "status": "done",
+          "ms": 0,
+          "private": false,
+          "label": "agents.step.persona"
+        },
+        {
+          "key": "learned_words",
+          "group": "tool",
+          "status": "done",
+          "ms": 0,
+          "private": true,
+          "label": "agents.step.learned_words"
+        },
+        {
+          "key": "weak_words",
+          "group": "tool",
+          "status": "done",
+          "ms": 0,
+          "private": true,
+          "label": "agents.step.weak_words"
+        },
+        {
+          "key": "due_words",
+          "group": "tool",
+          "status": "done",
+          "ms": 0,
+          "private": true,
+          "label": "agents.step.due_words"
+        },
+        {
+          "key": "word_lookup",
+          "group": "tool",
+          "status": "done",
+          "ms": 0,
+          "private": true,
+          "label": "agents.step.word_lookup"
+        },
+        {
+          "key": "history",
+          "group": "context",
+          "status": "done",
+          "ms": 0,
+          "private": false,
+          "label": "agents.step.history",
+          "params": {
+            "turns": 0
+          }
+        }
+      ],
+      "thought": {
+        "source": "reasoning",
+        "text": "Thinking about tense.",
+        "chars": 21
+      },
+      "ms": {
+        "ctx": 0,
+        "ttft": 0,
+        "total": 0
+      }
+    }
+  },
+  "persona_try": {
+    "text": "Hello there."
+  },
+  "persona_report": {
+    "ok": true
+  },
+  "errors": [
+    "Agents are disabled",
+    "Tutor is disabled",
+    "Persona not found",
+    "Built-in personas are read-only",
+    "Persona limit reached",
+    "Report limit reached",
+    "Unknown persona",
+    "Text is required",
+    "Turn is busy",
+    "Conversation not found",
+    "Only assistant messages can carry an agent trace",
+    "Agent trace is too large",
+    "Invalid agent trace"
+  ]
+}

@@ -1,6 +1,9 @@
 """智能体测试工具:假上游(httpx.MockTransport,从不访问真实厂商)、SSE 解析、开关。"""
 import asyncio
 import json
+import os
+import re
+from pathlib import Path
 
 import httpx
 
@@ -120,3 +123,58 @@ def make_request(user_id: int, persona=None, *, text="Hello", history=(), mode="
 async def run_events(deps, req) -> list:
     from app.agents.orchestrator import run_turn
     return [e async for e in run_turn(deps, req)]
+
+
+async def new_conversation(client, headers) -> str:
+    r = await client.post("/api/conversations", headers=headers, json={"name": "Agents"})
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
+
+
+def turn_body(conversation_id: str, **overrides) -> dict:
+    import uuid
+    body = {"persona_id": "builtin:partner", "conversation_id": conversation_id, "text": "Hello", "history": [],
+            "mode": "chat", "tutor_session_id": None, "client_turn_id": str(uuid.uuid4())}
+    body.update(overrides)
+    return body
+
+
+def shape(value):
+    """嵌套键集合(与 tests/links_helpers.shape 相同;复制一份,不导入别的测试模块)。"""
+    if isinstance(value, dict):
+        return {k: shape(v) for k, v in sorted(value.items())}
+    if isinstance(value, list):
+        return [shape(value[0])] if value and isinstance(value[0], (dict, list)) else []
+    return None
+
+
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+TIMING_KEYS = ("ms", "ctx", "ttft", "total")
+
+
+def stable(value):
+    """把随机 / 计时值换成固定值,重录夹具不会无谓抖动:uuid、ISO 时间、毫秒数。"""
+    if isinstance(value, dict):
+        return {k: (0 if k in TIMING_KEYS and isinstance(v, (int, float)) and not isinstance(v, bool) else stable(v))
+                for k, v in value.items()}
+    if isinstance(value, list):
+        return [stable(v) for v in value]
+    if isinstance(value, str):
+        if _UUID.match(value):
+            return "00000000-0000-4000-8000-000000000000"
+        if _ISO.match(value):
+            return "2026-01-01T00:00:00Z"
+    return value
+
+
+def check_contract(name: str, actual: dict) -> None:
+    """`CONTRACT_UPDATE=1` 重录 `fixtures/<name>.json`;否则按形状比较。样例里不能有令牌或密钥。"""
+    fixture = Path(__file__).parent / "fixtures" / f"{name}.json"
+    actual = stable(actual)
+    if os.environ.get("CONTRACT_UPDATE"):
+        fixture.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    expected = json.loads(fixture.read_text(encoding="utf-8"))
+    assert shape(actual) == shape(expected)
+    raw = fixture.read_text(encoding="utf-8")
+    assert "access_token" not in raw and "secret" not in raw.lower() and "Bearer" not in raw

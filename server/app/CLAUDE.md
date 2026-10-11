@@ -45,6 +45,9 @@ The FastAPI application package. Layered; each layer may only import the ones be
 `app.main:create_app` (factory). Router order in `create_app` matters: `stubs` (catch-all
 writes) must follow real APIs, `admin_web` (/admin) must precede `web`, and `web` (SPA fallback)
 must be last.
+Agents wiring in `create_app`: `agents_runtime(app)` builds the one `AgentsRuntime`, then `install_agent_sources(app)` registers the
+links-layer sources unconditionally (each turn checks the switches); A2/A3/A5 append at the labelled anchor comments after it
+and reach the runtime only through `runtime(app)` / `deps_for(app)`.
 
 ## Tests
 `cd server && uv run pytest -q`

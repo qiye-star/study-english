@@ -11,6 +11,7 @@ from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.memory.store import drop_conversation
+from app.agents import trace as agent_trace_rules
 from app.core import learning_events
 from app.core.config import Settings
 from app.core.quotas import effective
@@ -25,6 +26,7 @@ DEFAULT_NAME = "New conversation"
 MAX_CONFIG_BYTES = 16 * 1024
 MAX_SUMMARY_WORDS = 300
 RESULT_ROLE_ERROR = "Only user messages can carry assessment or grammar"
+TRACE_ROLE_ERROR = "Only assistant messages can carry an agent trace"
 logger = logging.getLogger(__name__)
 ItemId = Annotated[str, Path(max_length=64)]
 
@@ -63,6 +65,7 @@ class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     assessment_id: str | None = Field(default=None, min_length=1, max_length=64)
     grammar: dict | None = None
+    agent_trace: dict | None = None
 
 
 class MessagePatch(BaseModel):
@@ -124,6 +127,7 @@ def message_out(row: Message, assessment: Assessment | None = None) -> dict:
         "assessment_id": row.assessment_id if assessment is not None else None,
         "grammar": row.grammar,
         "assessment": assessment_summary(assessment),
+        "agent_trace": row.agent_trace,
     }
 
 
@@ -335,6 +339,13 @@ async def create_messages(
     for m in payload.messages:
         if (m.assessment_id or m.grammar is not None) and m.role != "user":
             raise HTTPException(422, RESULT_ROLE_ERROR)
+        if m.agent_trace is not None:
+            if m.role != "assistant":
+                raise HTTPException(422, TRACE_ROLE_ERROR)
+            try:
+                agent_trace_rules.check_stored(m.agent_trace)
+            except ValueError as e:
+                raise HTTPException(422, "Agent trace is too large" if str(e) == "too_large" else "Invalid agent trace")
     ids = [m.assessment_id for m in payload.messages if m.assessment_id]
     if len(ids) != len(set(ids)):
         raise HTTPException(409, "Assessment already linked to another message")
@@ -350,7 +361,7 @@ async def create_messages(
     rows = [
         Message(
             id=str(uuid.uuid4()), conversation_id=conversation.id, role=m.role, content=m.content,
-            assessment_id=m.assessment_id, grammar=grammars[i], created_at=base + timedelta(microseconds=i),
+            assessment_id=m.assessment_id, grammar=grammars[i], agent_trace=m.agent_trace, created_at=base + timedelta(microseconds=i),
         )
         for i, m in enumerate(payload.messages)
     ]

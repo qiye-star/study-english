@@ -20,6 +20,9 @@ hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: le
 sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `agents_memory` (/api/agents/memory/*: profile, items, pin, recaps, export, clear — own data only; must precede `agents` and `stubs`),
 `stubs` (catch-all writes),
+`app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
+sub-router from `app.links.registry`; must precede `stubs`), `agents` (/api/agents/*: config, personas CRUD + report, settings, `POST /turn` SSE via `AgentStream`; memory (A2) and tutor (A3) append below the anchor comments at the end of the file; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
+maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
@@ -44,3 +47,4 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
   call) into `ConnDeps.templates`.
 - Map vendor exceptions to HTTP here; errors render as `{"error": ...}`.
 - Never log request bodies, tickets, keys or user text. New strings exposed to the web UI need zh+en locales on the web side.
+- SSE agent turns must use `AgentStream` (closes the event iterator in `finally`); never a bare `StreamingResponse`.
