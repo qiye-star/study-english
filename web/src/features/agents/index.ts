@@ -8,3 +8,4 @@ export type {
 } from "./types";
 export { agentsApi } from "./agents-api";
 export { normalizeTrace } from "./trace";
+export { runAgentTurn, useAgentTurn } from "./use-agent-turn";
