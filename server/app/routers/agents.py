@@ -19,7 +19,7 @@ from app.agents.context import TOOL_KEYS
 from app.agents.orchestrator import TurnRequest, deps_for, run_turn, runtime
 from app.agents.personas import (
     BUILTIN_PREFIX, ID_PATTERN, ID_RE, LEVELS, REPORTS_DAILY_MAX, STYLES, Persona, PersonaInvalid, PersonaStore,
-    clean_persona,
+    clean_persona, create_lock,
 )
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
@@ -67,17 +67,20 @@ async def list_personas(user: User = Depends(current_user), _: Settings = Depend
 
 
 @router.post("/personas")
-async def create_persona(request: Request, payload: dict[str, Any] = Body(...), user: User = Depends(current_user),
+async def create_persona(request: Request, payload: dict[str, Any] = Body(...), user: User = Depends(limited_user),
                          settings: Settings = Depends(require_agents), session: AsyncSession = Depends(get_session)):
     store = PersonaStore(session)
-    if await store.count_owned(user.id) >= await limits.personas_cap(session, request.app, user.id):
-        raise HTTPException(429, "Persona limit reached")
+    cap = await limits.personas_cap(session, request.app, user.id)
     try:
         clean = clean_persona(payload, max_prompt_chars=settings.agents_prompt_max_chars)
     except PersonaInvalid as e:
         raise _invalid(e.field) from None
-    persona = await store.create(user.id, clean, utcnow())
-    await session.commit()
+    async with create_lock(user.id):  # 评审 #2:计数与插入在锁内一起完成并提交
+        persona = await store.create_capped(user.id, clean, utcnow(), cap)
+        if persona is None:
+            await session.rollback()
+            raise HTTPException(429, "Persona limit reached")
+        await session.commit()
     return persona.out(user.id)
 
 

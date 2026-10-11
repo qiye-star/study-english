@@ -1,9 +1,11 @@
 """角色(spec 2026-10-12-agents §4.2、§9.1):内置角色(静态,id 以 builtin: 开头,R-C1)、用户自建角色的存取
 (不提交;路由提交)、统一校验 clean_persona(用户与管理员编辑共用一条规则)。人设原文永不进日志、错误或审计。"""
+import asyncio
 import functools
 import json
 import re
 import unicodedata
+import weakref
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +14,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.context import TOOL_KEYS
-from app.models import AgentPersona, AgentPersonaReport, iso_utc, new_uuid
+from app.models import AgentPersona, AgentPersonaReport, User, iso_utc, new_uuid
 
 BUILTIN_PREFIX = "builtin:"
 LEVELS = ("A2", "B1", "B2", "C1")
@@ -33,6 +35,17 @@ TEMPLATES = Path(__file__).resolve().parents[1] / "static_config" / "chat_agent_
 
 # 控制字符(保留 \t \n 由各字段自己处理)、行 / 段分隔符、零宽与双向控制字符
 _INVISIBLE = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]")
+
+
+_CREATE_LOCKS: "weakref.WeakValueDictionary[int, asyncio.Lock]" = weakref.WeakValueDictionary()
+
+
+def create_lock(user_id: int) -> asyncio.Lock:
+    """评审 #2:每个用户一把进程内锁(无人持有时自动回收);跨进程 / Postgres 由 create_capped 里对用户行的 FOR UPDATE 补上。"""
+    lock = _CREATE_LOCKS.get(user_id)
+    if lock is None:
+        lock = _CREATE_LOCKS[user_id] = asyncio.Lock()
+    return lock
 
 
 class PersonaInvalid(ValueError):
@@ -270,6 +283,14 @@ class PersonaStore:
         self.s.add(row)
         await self.s.flush()
         return _of(row)
+
+    async def create_capped(self, user_id: int, clean: dict, now: datetime, cap: int) -> Persona | None:
+        """计数 + 插入不可拆分:调用方在 `create_lock(user_id)` 里调用并在锁内提交。None = 已到上限。
+        Postgres 上再锁住用户行(FOR UPDATE,SQLite 忽略),让多进程也串行。"""
+        await self.s.execute(select(User.id).where(User.id == user_id).with_for_update())
+        if await self.count_owned(user_id) >= cap:
+            return None
+        return await self.create(user_id, clean, now)
 
     async def update(self, user_id: int, persona_id: str, clean: dict, now: datetime) -> Persona | None:
         row = None if persona_id.startswith(BUILTIN_PREFIX) else await self.s.get(AgentPersona, persona_id)
