@@ -1,4 +1,4 @@
-import type { ActivityState, JoinRequestInfo, ReactionInfo, RoomEvent, RoomInfo, RoomMemberInfo, RoomMessage } from "./protocol";
+import type { ActivityState, AgentStepWire, AgentThoughtWire, JoinRequestInfo, ReactionInfo, RoomEvent, RoomInfo, RoomMemberInfo, RoomMessage, RoomTutorInfo } from "./protocol";
 
 /** 已发出、还没在列表里看到的消息。seq 来自 ack:消息本身(广播/补发)到达前气泡一直保留,断线重连时据 seq 为空判断要重发。
  *  replyTo:引用回复的 seq(v2;缺省 = null),重发时一并带上。 */
@@ -8,7 +8,9 @@ export const ACTIVITY_TTL_MS = 6000;
 /** welcome.reactions 覆盖的最近 seq 数(服务端 RoomStore.recent_reactions 默认 200)。 */
 export const WELCOME_REACTION_SPAN = 200;
 export interface AssistEntry { requestId: string | null; request: string; reply: RoomMessage | null; status: "waiting" | "done" | "failed"; error: string | null }
-export type RoomStatus = "connecting" | "live" | "reconnecting" | "closed";
+/** 一次智能体回合的私有过程(只有提问者收到;键是提问消息的 seq)。answerSeq:公共回复到达后填上。 */
+export interface AgentRun { turnId: string; steps: AgentStepWire[]; thought: AgentThoughtWire | null; answerSeq: number | null }
+export type RoomStatus ="connecting" | "live" | "reconnecting" | "closed";
 export interface RoomState {
   status: RoomStatus; closeReason: string | null; room: RoomInfo | null; me: { userId: number; role: "owner" | "member" } | null;
   members: RoomMemberInfo[]; messages: RoomMessage[]; lastSeq: number; truncated: boolean; pending: PendingSay[];
@@ -25,6 +27,11 @@ export interface RoomState {
   protocol: number;
   /** 收到 reopened 事件的次数:use-room 据此重置并重连(轮询或房主本人触发时也走这条) */
   reopenSignal: number;
+  /** 联机智能体(plan 2026-10-12-agents-rooms):私有过程(键 = 提问 seq)、压缩过程(键 = 回复 seq)、带练状态与收到它的本地时间 */
+  agentRuns: Record<number, AgentRun>;
+  agentTraces: Record<number, Record<string, unknown>>;
+  tutor: RoomTutorInfo | null;
+  tutorAt: number;
 }
 export type RoomAction =
   | { type: "status"; status: RoomStatus; reason?: string }
@@ -49,13 +56,29 @@ export type RoomAction =
 export const initialRoomState = (): RoomState => ({
   status: "connecting", closeReason: null, room: null, me: null, members: [], messages: [], lastSeq: 0, truncated: false,
   pending: [], aiTyping: [], assist: [], notice: null, error: null, liveFrom: 0, announce: null,
-  activity: {}, joinRequests: [], protocol: 1, reopenSignal: 0,
+  activity: {}, joinRequests: [], protocol: 1, reopenSignal: 0, agentRuns: {}, agentTraces: {}, tutor: null, tutorAt: 0,
 });
 
 /** v1 服务端(或旧样例)不带 v2 字段:补成 null / null / []。 */
 export function normalizeMessage(m: RoomMessage): RoomMessage {
   return m.quote !== undefined && m.voice !== undefined && Array.isArray(m.reactions)
     ? m : { ...m, quote: m.quote ?? null, voice: m.voice ?? null, reactions: Array.isArray(m.reactions) ? m.reactions : [] };
+}
+
+/** 私有 agent_trace 行(只属于本人):按它回复的公共消息 seq 存起来,刷新、重连、翻历史后过程胶囊仍可展开。 */
+function withTraces(traces: RoomState["agentTraces"], incoming: RoomMessage[]): RoomState["agentTraces"] {
+  let out = traces;
+  for (const m of incoming) {
+    if (m.lane !== "private" || m.kind !== "agent_trace" || m.replyTo === null) continue;
+    const trace = (m.meta as { trace?: Record<string, unknown> } | null)?.trace;
+    if (trace && out[m.replyTo] !== trace) out = { ...out, [m.replyTo]: trace };
+  }
+  return out;
+}
+
+function runFor(s: RoomState, replyTo: number, turnId: string): AgentRun {
+  const run = s.agentRuns[replyTo];
+  return run && run.turnId === turnId ? run : { turnId, steps: [], thought: null, answerSeq: null };
 }
 
 /** 公共消息按 seq 去重、升序;私聊消息(助手)从不进入公共列表。 */
@@ -115,19 +138,23 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       return { ...s, status: "live", room: e.room, me: e.me, members: e.members, truncated: e.truncated,
         messages, aiTyping: [], liveFrom: e.lastSeq,
         assist: s.assist.length ? s.assist : historyEntries(e.assistHistory),
-        protocol: e.protocol ?? 1, joinRequests: e.joinRequests ?? [], activity: {} };
+        protocol: e.protocol ?? 1, joinRequests: e.joinRequests ?? [], activity: {}, tutor: null };
     }
     case "message": {
       const m = e.message;
       let messages = merge(s.messages, [m]);
       let aiTyping = s.aiTyping;
+      let agentRuns = s.agentRuns;
       if (m.kind === "ai_answer" && m.replyTo !== null) {
         aiTyping = aiTyping.filter((x) => x !== m.replyTo);
         messages = messages.map((x) => (x.seq === m.replyTo ? { ...x, aiStatus: "done" as const } : x));
+        const run = agentRuns[m.replyTo];
+        if (run && run.answerSeq === null) agentRuns = { ...agentRuns, [m.replyTo]: { ...run, answerSeq: m.seq } };
       }
       const pending = s.pending.some((p) => p.seq === m.seq) ? s.pending.filter((p) => p.seq !== m.seq) : s.pending;
       const live = m.lane === "public" && m.seq > s.liveFrom && m.kind !== "system" && !(m.sender.kind === "user" && m.sender.id === s.me?.userId);
-      return { ...s, messages, aiTyping, pending, announce: live ? m : s.announce, assist: pairReplayedReply(s.assist, m), lastSeq: Math.max(s.lastSeq, m.seq) };
+      return { ...s, messages, aiTyping, pending, announce: live ? m : s.announce, assist: pairReplayedReply(s.assist, m), lastSeq: Math.max(s.lastSeq, m.seq),
+        agentRuns, agentTraces: withTraces(s.agentTraces, [m]) };
     }
     case "ack":
       // 不推进 lastSeq:ack 先于消息本身(以及别人更早的消息)到达,这时断线会让补发跳过它们
@@ -186,10 +213,16 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       return { ...s, joinRequests: s.joinRequests.filter((r) => r.id !== e.id) };
     case "reopened":
       return { ...s, room: { ...e.room, myRole: e.room.myRole ?? s.room?.myRole ?? null }, reopenSignal: s.reopenSignal + 1 };
-    case "agent_step":
-    case "agent_thought":
+    case "agent_step": {
+      const run = runFor(s, e.replyTo, e.turnId);
+      return { ...s, agentRuns: { ...s.agentRuns, [e.replyTo]: { ...run, steps: [...run.steps.filter((x) => x.id !== e.step.id), e.step] } } };
+    }
+    case "agent_thought": {
+      const run = runFor(s, e.replyTo, e.turnId);
+      return { ...s, agentRuns: { ...s.agentRuns, [e.replyTo]: { ...run, thought: e.thought } } };
+    }
     case "agent_tutor":
-      return s; // plan 2026-10-12-agents-rooms W1 folds these
+      return { ...s, tutor: e.tutor, tutorAt: at };
   }
 }
 
@@ -218,13 +251,14 @@ export function roomReducer(s: RoomState, a: RoomAction): RoomState {
     case "assist":
       return { ...s, assist: [...s.assist, { requestId: a.requestId, request: a.text, reply: null, status: "waiting", error: null }] };
     case "prepend":
-      return { ...s, messages: merge(s.messages, a.messages), truncated: a.more ?? s.truncated };
+      return { ...s, messages: merge(s.messages, a.messages), truncated: a.more ?? s.truncated, agentTraces: withTraces(s.agentTraces, a.messages) };
     case "history": {
       const mine = a.members.find((m) => m.userId === a.meId);
       const role = a.room.myRole ?? mine?.role ?? "member";
       return { ...s, status: "closed", closeReason: "ended", room: a.room, members: a.members,
         me: a.meId === null ? null : { userId: a.meId, role }, messages: merge(s.messages, a.messages),
-        lastSeq: maxSeq(s.lastSeq, a.messages), truncated: a.more, pending: [], aiTyping: [], activity: {} };
+        lastSeq: maxSeq(s.lastSeq, a.messages), truncated: a.more, pending: [], aiTyping: [], activity: {},
+        agentTraces: withTraces(s.agentTraces, a.messages), tutor: null };
     }
     case "reset":
       return { ...initialRoomState(), reopenSignal: s.reopenSignal };
