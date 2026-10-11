@@ -26,6 +26,7 @@ from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
+from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
@@ -91,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
     # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
     install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
-    # plan A3 (tutor): runtime(app).modes.register(TutorMode(...))
+    agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
