@@ -83,21 +83,44 @@ async def test_the_bus_gate_applies_the_three_levels_to_registered_links_only(ap
 
     from app.core.learning_events import MessageSent
     uid, _ = await make_user(client)
-    enable_links(app, link_chat_words_enabled=False)
-    seen = []
-
-    async def handler(event):
-        seen.append(event.user_id)
     bus = app.state.learning_bus
-    bus.subscribe(MessageSent, "chat_words", handler)  # a registered link, globally off
-    bus.subscribe(MessageSent, "diagnostics", handler)  # not a link: only the master switch applies
-    bus.publish(MessageSent(user_id=uid, conversation_id="c", message_id="m", text="hi",
-                            at=datetime.now(timezone.utc)))
-    await bus.drain()
-    assert seen == [uid]
-    # Ruling(L5):chat_words 自己的处理器也订阅了 MessageSent,所以这里每个订阅者各记一次 skipped,一个都没执行
-    assert bus.stats()["chat_words"]["handled"] == 0 and bus.stats()["chat_words"]["skipped"] >= 1
-    assert bus.stats()["diagnostics"]["handled"] == 1
+    # daily_tasks is a registered link with no event subscriber of its own, so every count below is ours alone
+    assert "daily_tasks" not in bus.links()
+    probe = "zz_gate_probe_not_a_link"  # unique, never a link key: only the master switch applies
+    seen: list[str] = []
+
+    def recorder(name):
+        async def handler(event):
+            seen.append(name)
+        return handler
+    bus.subscribe(MessageSent, "daily_tasks", recorder("daily_tasks"))
+    bus.subscribe(MessageSent, probe, recorder(probe))
+
+    async def send():
+        seen.clear()
+        bus.publish(MessageSent(user_id=uid, conversation_id="c", message_id="m", text="hi",
+                                at=datetime.now(timezone.utc)))
+        await bus.drain()
+        return sorted(seen)
+
+    enable_links(app, link_daily_tasks_enabled=False)  # registered link, globally off
+    assert await send() == [probe]
+    assert (bus.stats()["daily_tasks"]["handled"], bus.stats()["daily_tasks"]["skipped"]) == (0, 1)
+    assert (bus.stats()[probe]["handled"], bus.stats()[probe]["skipped"]) == (1, 0)
+    enable_links(app, link_daily_tasks_enabled=True)
+    await set_pref(app, uid, "daily_tasks", False)  # globally on, this user off
+    app.state.link_gate.invalidate(uid)
+    assert await send() == [probe]
+    assert (bus.stats()["daily_tasks"]["handled"], bus.stats()["daily_tasks"]["skipped"]) == (0, 2)
+    async with app.state.sessionmaker() as s:
+        row = await s.get(UserLinkPref, (uid, "daily_tasks"))
+        row.enabled = True
+        await s.commit()
+    app.state.link_gate.invalidate(uid)
+    assert await send() == ["daily_tasks", probe]  # every level on: the link handler runs
+    assert (bus.stats()["daily_tasks"]["handled"], bus.stats()["daily_tasks"]["skipped"]) == (1, 2)
+    enable_links(app, links_enabled=False)  # master off: nothing is even queued, for links and non-links alike
+    assert await send() == [] and bus.queue()["size"] == 0
 
 
 def test_every_link_key_has_a_settings_flag():
