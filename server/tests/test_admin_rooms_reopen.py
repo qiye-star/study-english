@@ -73,3 +73,35 @@ async def test_reopen_obeys_the_owner_quota_and_needs_an_owner(app, client):
     nobody = await client.post(f"/api/admin/rooms/{first['id']}/reopen", headers=ho, json={"reason": "x"})
     assert nobody.status_code == 409 and nobody.json() == {"error": "Room has no owner"}
     assert await _audits(app) == []
+
+
+async def test_a_failing_announcement_keeps_the_reopen_and_its_audit_row(app, client, monkeypatch, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    _, ha = await register(client, "alice")
+    room = await _closed(app, client, ha)
+    ho = await login_as(app, client, "operator")
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("broadcast down")
+
+    monkeypatch.setattr("app.routers.admin_rooms.announce_reopened", boom)
+    r = await client.post(f"/api/admin/rooms/{room['id']}/reopen", headers=ho, json={"reason": "再开"})
+    assert r.status_code == 200 and r.json() == {"ok": True, "reopen_count": 1}
+    assert len(await _audits(app)) == 1
+    async with app.state.sessionmaker() as s:
+        assert (await s.get(Room, room["id"])).status == "open"
+    assert "RuntimeError" in caplog.text and "broadcast down" not in caplog.text
+
+
+async def test_admin_reopen_refuses_a_room_whose_owner_left(app, client):
+    _, ha = await register(client, "alice")
+    room = await _closed(app, client, ha)
+    async with app.state.sessionmaker() as s:
+        from app.models import RoomMember
+        for m in (await s.scalars(select(RoomMember).where(RoomMember.room_id == room["id"]))).all():
+            await s.delete(m)  # what a retention purge leaves behind
+        await s.commit()
+    ho = await login_as(app, client, "operator")
+    r = await client.post(f"/api/admin/rooms/{room['id']}/reopen", headers=ho, json={"reason": "x"})
+    assert r.status_code == 409 and r.json() == {"error": "Room owner is gone"}
+    assert await _audits(app) == []

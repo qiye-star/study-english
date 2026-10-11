@@ -190,3 +190,40 @@ async def test_room_out_carries_the_close_reason(app, users):
     assert out["close_reason"] == "idle" and out["status"] == "closed" and out["code"] is None
     live = room_out(await store.create(B, "", NOW), my_role="owner", member_count=1, online_count=0)
     assert live["close_reason"] is None
+
+
+async def test_sweep_does_not_close_a_room_reopened_after_it_was_selected(app, users):
+    store = make_store(app, ["482913", "573920"], max_hours=24, idle_minutes=30)
+    room = await store.create(A, "", NOW)
+    real = store._sweep_candidates
+
+    async def racing(now, online):
+        found = await real(now, online)  # the sweeper has read the open room ...
+        await store.close(room.id, "owner", now)  # ... then the owner closes and reopens it
+        await store.reopen(room.id, A, now)
+        return found
+
+    store._sweep_candidates = racing
+    assert await store.sweep(NOW + timedelta(hours=1), set()) == []  # idle by the old read, but it is a new life now
+    async with app.state.sessionmaker() as s:
+        assert (await s.get(Room, room.id)).status == "open"
+
+
+async def test_admin_reopen_needs_an_active_owner_member_and_an_unpurged_room(app, users):
+    store = make_store(app, ["482913", "573920", "111111", "222222"], retention_days=1)
+    left = await closed_room(store, reason="admin")
+    async with app.state.sessionmaker() as s:
+        member = await s.scalar(select(RoomMember).where(RoomMember.room_id == left.id, RoomMember.user_id == A))
+        member.left_at = NOW
+        await s.commit()
+    with pytest.raises(RoomError) as e:
+        await store.reopen(left.id, None, NOW, admin=True)
+    assert e.value.code == "owner_gone"
+    purged = await closed_room(store, owner=B, reason="admin")
+    assert await store.purge(NOW + timedelta(days=2)) >= 0
+    with pytest.raises(RoomError) as e:
+        await store.reopen(purged.id, None, NOW + timedelta(days=2), admin=True)
+    assert e.value.code == "owner_gone"
+    with pytest.raises(RoomError) as e:  # the owner path refuses too (no active owner membership left)
+        await store.reopen(purged.id, B, NOW + timedelta(days=2))
+    assert e.value.code in {"forbidden", "owner_gone"}

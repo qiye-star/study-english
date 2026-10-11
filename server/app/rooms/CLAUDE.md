@@ -46,7 +46,16 @@ Contract fixtures (`CONTRACT_UPDATE=1` re-records): `tests/fixtures/rooms_contra
   `GET /api/rooms/{id}` (R-O3); a room closed by `admin` can only be reopened through `POST /api/admin/rooms/{id}/reopen`;
   reopening clears `invite_token` and draws a new code; logs and audit never carry the code or the room name.
 - Summary rows never lose `data`: a failed regeneration puts the row back to `done` + `stale` (old summary readable), and `stale`
-  can be retried within `summary_attempts` (R-O5).
+  can be retried within `summary_attempts` (R-O5). A reopen with no new public message since `opened_at` is NOT regenerated
+  (old summary kept, no LLM call, no cap spend); a second close while the first run is still `pending` marks the row
+  (`reason="rerun"`) and the finishing run regenerates once (process-local `take_rerun`).
+- `sweep` closes with a conditional UPDATE (status open + same `reopen_count`/`opened_at`), so a close+reopen between the
+  read and the write is never undone; it only reports rooms it really closed. Reopen needs an active owner membership on
+  both paths (admin: `owner_gone`, 409; covers an owner who left and a retention-purged room). The admin reopen audit row is
+  written right after the state change and before the announcement; announce/broadcast failures are logged (class only) and
+  never turn a successful reopen into a 500 (owner and admin paths).
+- Ruling R-O-ended (review finding 6): `ended` / `ended_count` stay unbounded in age on purpose (spec: all ended rooms the
+  user is an active member of; messages are kept forever, and a purge removes the memberships so those rooms drop out).
 - `RoomLimits.mine_closed_days` no longer affects any list (R-O4); only its default-value assertion remains.
 - The ticket is a bearer secret in the WS query string: never log it. Invite tokens are just as secret (R2-5):
   not in logs, errors, audit summaries, or any response to a non-member; rotating makes the old link 404.

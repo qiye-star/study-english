@@ -93,3 +93,14 @@ async def test_reopen_obeys_the_owner_room_cap_and_the_rate_limit(app, client, a
     assert (await client.post(f"/api/rooms/{first['id']}/reopen", headers=auth_headers)).status_code == 429  # 1st call counted above
     limited = await client.post(f"/api/rooms/{first['id']}/reopen", headers=auth_headers)
     assert limited.json() == {"error": "Too many requests, please try again later"}
+
+
+async def test_a_failing_announcement_does_not_turn_the_owner_reopen_into_a_500(client, auth_headers, monkeypatch):
+    ended = await _ended(client, auth_headers)
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("broadcast down")
+
+    monkeypatch.setattr("app.routers.rooms.announce_reopened", boom)
+    r = await client.post(f"/api/rooms/{ended['id']}/reopen", headers=auth_headers)
+    assert r.status_code == 200 and r.json()["room"]["status"] == "open"
