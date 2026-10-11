@@ -1,0 +1,27 @@
+{
+  "web": {
+    "links": {
+      "pron": {
+        "weakChip": "发音弱词 {{total}}",
+        "todayChip": "今日新词 {{count}}",
+        "todayTitle": "今日新词例句",
+        "todayLede": "点一句填进跟读参考文本。",
+        "noExample": "这个词没有例句",
+        "title": "发音弱词",
+        "count": "{{count}} 个",
+        "lede": "跟读里读得不准的词。读准两次后自动移出。",
+        "drillTop": "连读这 {{count}} 个",
+        "score": "最近 {{score}} 分",
+        "unscored": "未评分",
+        "hits": "出现 {{hits}} 次",
+        "shadow": "跟读",
+        "shadowWord": "跟读:{{word}}",
+        "dismiss": "移出:{{word}}",
+        "dismissFailed": "移出失败",
+        "empty": "暂时没有发音弱词。",
+        "row": "发音弱词",
+        "none": "暂无"
+      }
+    }
+  }
+}

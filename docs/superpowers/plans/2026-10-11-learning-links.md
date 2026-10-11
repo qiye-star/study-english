@@ -4909,6 +4909,7 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## Addendum (2026-10-11) · Lane L6 执行记录(L6-1、L6-2)
 
 - Ruling: L6-1 `ledger._sync` 的附加严格是「一行导入 + 四行」(计划代码块实际是五行:`if` 拆成两行、`capped` 调用折行);改为 `watermark = watermark if extra_mark is None else min(watermark, extra_mark)` 一行、`extra = [... not in seen]` 一行,语义不变。`git diff` 对 `ledger.py` 只有这 5 行新增、零删除;既有 `test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿。
@@ -4937,3 +4938,14 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - 未做:L1-3 Step 5 浏览器窗格视觉检查(需要本车道单独起服务端 + 开发服务器;与 F7 一样留给 Z2 的视觉对照)。主包 `index-*.js` 1,590,093 B(gzip 510.22 kB),比 foundation 结束时 +1.50 kB gzip,比 Task 0 基线累计 +3.68 kB(上限 8 kB)。
 - Ruling: L1-3 查词面板(`LookupLayer`,AppShell 常驻)之上打开「单词操作」点「跟读这个词」时,只关了单词操作面板,查词面板留在跟读页上方。`lookup-layer.tsx` 加一处:路径变化且是前进导航(`useNavigationType() === "PUSH"`)时收起查词面板。联动关闭时查词面板里的跳转(「跟读这段」)都先自己关闭、面板是模态的,打开期间不会发生前进导航,所以全关行为不变;返回导航(POP)不处理,与今天相同。新增 `plugins/word-actions/lookup-shadow.test.tsx`;`lookup-layer.test.tsx` 未改。对话回顾与房间小结的面板随页面卸载,不需要处理。
 >>>>>>> c-lane-l1
+=======
+## Addendum (2026-10-11) · Lane L4 执行记录(pron_shadow)
+
+- Ruling: L4-1 `install` 订阅名用 `SPEC.key`(= `"pron_shadow"`,基础车道裁定 F5:只有 registry 键走三级开关);`handle` 遇到并发首插 `IntegrityError` 时先 `rollback()` 再重试一次;`good_words` 去重;`/weak-words` 在没有行时不查 `vocabulary_items`;`/today-words` 没有今日新词时不碰词典。
+- Ruling: L4-1 契约用例同时打开背单词并学一个词,让 `links_pron_shadow_contract.json` 的 `today_words.items` 不为空(否则网页契约测试无法核对 `TodayWord` 的键)。另加用例:弱读重置读准计数并复活已移出的词、活跃上限(`ACTIVE_MAX` monkeypatch 为 3)、排序与只看自己的词 / 不能移出他人的词、联动关 → 三个接口 404 且处理器 `skipped`、用户偏好关 → 处理器跳过、背单词关 → `today-words` 为空、`offset` 越界 422。
+- Ruling: 所有者裁定落地:聊天 / 语音对话(`source != "practice"`)的低分词不进发音弱词;本联动不发任何上游请求(「跟读」只把参考文本交给练习页,仍走现有 xfyun 评测与配额);今日新词例句一键跟读。
+- Ruling: L4-2 未做 spec §6.4 / 视觉稿帧 04 的「拼写」按钮:计划 L4 的接口不返回「词是否在当前词书」,词卡入口由 L1「单词操作」提供;帧 04 的「读准 1/2」同理(接口不含 `ok_streak`)。
+- Ruling: L4-2 弱词行的「跟读」「移出」用 44px `IconButton`(视觉稿帧 04 的话筒 / ×),无障碍名 `跟读:词` / `移出:词`(新键 `shadowWord`);顶栏副标题「n 个」(新键 `count`);面板说明 `todayLede`;移出失败回滚 + toast(`dismissFailed`,描述走 `LINKS_SERVER_ERRORS`);生词本入口为 0 / 失败时值显示「暂无」(`none`,与易错词一致)。
+- Ruling: L4-2 另加 `practice-integration.test.tsx`(经 `~/features/practice` 渲染真实练习页):打开时点例句填进参考文本;关闭时跟读区不出现来源片且不发 `/api/links/*` 请求。
+- 未做:L4-2 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
+>>>>>>> c-lane-l4
