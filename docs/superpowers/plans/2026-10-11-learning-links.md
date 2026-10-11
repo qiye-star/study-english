@@ -4953,3 +4953,15 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: LA-1 诊断 `links_dropping` 读 `queue()["dropped"]`(本进程启动以来累计);两条发现不以 `links_enabled` 为前提(熔断与丢弃只可能在开着时发生,关掉后计数仍在,提醒仍有意义),`keys=("links_enabled",)`。`CODES` 追加两项。`app/admin/CLAUDE.md`、`app/routers/CLAUDE.md` 各补一句。
 - Ruling: LA-2 熔断「打开」显示为「打开 · N 秒」(视觉稿帧 07),不是 spec §9 的「打开至 HH:mm」(服务端给的是剩余秒数)。关闭人数格为「N 人关闭」(计划 LA-2 Step 1)。导航图标放在 `features/links/link-icon.tsx`(`components/icons.tsx` 不在本车道独占文件里);`features/links/CLAUDE.md` 按 Global Constraints 新增。admin 各 feature 不互相导入,`camel()` 在 `api.ts` 里复制一份。
 - 未做:浏览器 1440 视觉对照(留给 Z2)。
+## Addendum (2026-10-11) · 集成(Z1、Z2)执行记录
+
+车道 L2、L3、L5 的裁定只写在各自的 `.lane-report.md`(为避免并行改本文件);要点:L2 行外包 `div[data-testid=daily-task-<id>][data-state]`、背单词完成 = `goalMet ∨ (newLeft = 0 ∧ reviewLeft = 0)`、段位行用 `loadRankMe`;L3 相对时间两天起用数字、英文 `count` 无复数键;L5 `get_chat_words` 命名、每日上限按 `created_at > at − 24h`、全站额度主体 `"global"`、上游失败退避 60 秒、`parse_judge` 允许整段代码围栏。
+
+- Ruling: Z 集成修复跨车道破损:`test_rank_extra_sources.py` 的空注册表用例在应用建好之后再清空注册表(`create_app` 会由 chat_words 登记 `word_in_chat`);L5 的段位端到端用例去掉 `L6-ENABLE` 跳过并补「同一个学过的词不重复入账」「用户关掉联动段位点时不入账」;L5 放宽的 `test_links_gate` 断言改用没有自身订阅的 `daily_tasks` 与唯一的非联动名,计数恢复精确,并逐级验证全局 / 用户 / 总开关。
+- Ruling: 词卡接口由 `GET /api/links/wordbook/card?word=` 改为 `POST /api/links/wordbook/card` `{"word"}`(访问日志会记 URL);响应与契约样例不变;`tests/test_links_privacy.py` 断言每个 `/api/links` 路由没有路径参数、查询参数只有 `page` / `offset`,并在访问日志记录器下逐个调用,请求行与服务端日志里没有词、正文、用户 id。
+- Ruling: 删除用户改为显式列表 `users_admin.USER_ROWS` / `USER_REFS_NULLED`(补上 `wordbook_enrollments`、`wordbook_events`、`room_join_requests`,`wordbook_reports.user_id` 置空);测试遍历所有指向 `users.id` 的外键,迁移测试比对迁移后的 `ON DELETE` 与模型一致。
+- Ruling: `test/setup.ts` 只给依赖图里有 `extension-points-react` 的测试文件加载核心贡献(`markSlotRendererLoaded` / `slotRendererLoaded`),钩子超时单独 60 秒;架构测试在收集阶段读源码,`PENDING` 与 30 秒超时删除。
+- Ruling(Z2 评审,详见 `review-learning-links.md`):事件队列每个用户最多占 `max(10, links_queue_max // 10)` 条;gate 与处理器共用超时;「加入词书学习」每人每 UTC 日最多 200 个(429 `Daily adopt limit reached`);联动页包在错误边界里,`/api/links/config` 失败时旗标为「已加载的全关」;管理端段位规则点数页的来源列表读 `/api/admin/links`(`getLinkSources`),`admin_view` 用 `extra_sources.points_of`。
+- Ruling: e2e 守卫放行 11 条 `/api/links/*` 精确路径;`links.spec.ts` 的「更多」面板在易错词页打开(查词浮层要大模型)。
+- Ruling: `test_rooms_ws.py` 读帧加 30 秒期限,`faulthandler_timeout = 600`;卡住的根因未复现(见 `e2e-results.md`)。
+- 结果:服务端 3,080 通过;网页 210 文件 / 2,585;管理端 45 / 201;主包 gzip 514.33 kB(+7.79 kB)。未做:Docker E2E 栈、真机清单、Z2 Step 2 的「删一行」可插拔性实测。
