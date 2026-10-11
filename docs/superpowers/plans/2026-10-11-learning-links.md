@@ -4908,9 +4908,6 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 ## Addendum (2026-10-11) · Lane L6 执行记录(L6-1、L6-2)
 
 - Ruling: L6-1 `ledger._sync` 的附加严格是「一行导入 + 四行」(计划代码块实际是五行:`if` 拆成两行、`capped` 调用折行);改为 `watermark = watermark if extra_mark is None else min(watermark, extra_mark)` 一行、`extra = [... not in seen]` 一行,语义不变。`git diff` 对 `ledger.py` 只有这 5 行新增、零删除;既有 `test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿。
@@ -4921,7 +4918,6 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L6-2 管理端测试的样例构造函数是 `test-fixtures.ts` 的 `defaultRules()`(计划写 `sampleRules()`);另加 `rules-tabs/points-tab.test.tsx`(规则页真实往返:改「每轮文字对话」后保存的草稿保留 `sources`、可改来源点数与子上限;旧规则显示默认 5 与空提示,保存时不凭空写入这两个字段;越界禁止保存)。`rules-schema.ts` 新增 `sourcesDailyCap()`(缺省 5)。
 - Ruling: L6-2 「影响预演不模拟联动来源」的说明放在点数页「联动来源」小节的提示里(预演页 `simulate-panel.tsx` 不在本车道独占文件内);来源列表 v1 取规则里的 `points.sources`(`GET /api/admin/links` 的 `rank_sources` 由 LA 提供,之后再接)。
 - Ruling: L6-2 网页只加 `RECENT_KINDS` 一项与两条文案,`rank-home-page.test.tsx` 不改(按计划);键对齐由 i18n 测试覆盖。
-=======
 ## Addendum (2026-10-11) · Lane L1 执行记录(word_actions)
 
 - Ruling: L1-1 `GET /api/links/wordbook/card` 在**所有**启用的书都读不到数据(`DataUnavailable`)时返回 503 `Wordbook data unavailable`(接口说明里的「数据缺失 → 503」);计划代码一律 `continue` 后落到 404,会把数据故障说成「没有这个词」。部分书缺数据仍跳过(同 `service.find_card`)。
@@ -4938,8 +4934,6 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L1-3 `architecture.test.ts` 扫描整棵源码树的用例(含 L1-2 新增的两个)改为每个文件只读一次(`sourceOf` 缓存)并给 30 秒超时:全量并行运行时同步读几百个文件超过默认 5 秒。规则本身不变。
 - 未做:L1-3 Step 5 浏览器窗格视觉检查(需要本车道单独起服务端 + 开发服务器;与 F7 一样留给 Z2 的视觉对照)。主包 `index-*.js` 1,590,093 B(gzip 510.22 kB),比 foundation 结束时 +1.50 kB gzip,比 Task 0 基线累计 +3.68 kB(上限 8 kB)。
 - Ruling: L1-3 查词面板(`LookupLayer`,AppShell 常驻)之上打开「单词操作」点「跟读这个词」时,只关了单词操作面板,查词面板留在跟读页上方。`lookup-layer.tsx` 加一处:路径变化且是前进导航(`useNavigationType() === "PUSH"`)时收起查词面板。联动关闭时查词面板里的跳转(「跟读这段」)都先自己关闭、面板是模态的,打开期间不会发生前进导航,所以全关行为不变;返回导航(POP)不处理,与今天相同。新增 `plugins/word-actions/lookup-shadow.test.tsx`;`lookup-layer.test.tsx` 未改。对话回顾与房间小结的面板随页面卸载,不需要处理。
->>>>>>> c-lane-l1
-=======
 ## Addendum (2026-10-11) · Lane L4 执行记录(pron_shadow)
 
 - Ruling: L4-1 `install` 订阅名用 `SPEC.key`(= `"pron_shadow"`,基础车道裁定 F5:只有 registry 键走三级开关);`handle` 遇到并发首插 `IntegrityError` 时先 `rollback()` 再重试一次;`good_words` 去重;`/weak-words` 在没有行时不查 `vocabulary_items`;`/today-words` 没有今日新词时不碰词典。
@@ -4949,8 +4943,6 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L4-2 弱词行的「跟读」「移出」用 44px `IconButton`(视觉稿帧 04 的话筒 / ×),无障碍名 `跟读:词` / `移出:词`(新键 `shadowWord`);顶栏副标题「n 个」(新键 `count`);面板说明 `todayLede`;移出失败回滚 + toast(`dismissFailed`,描述走 `LINKS_SERVER_ERRORS`);生词本入口为 0 / 失败时值显示「暂无」(`none`,与易错词一致)。
 - Ruling: L4-2 另加 `practice-integration.test.tsx`(经 `~/features/practice` 渲染真实练习页):打开时点例句填进参考文本;关闭时跟读区不出现来源片且不发 `/api/links/*` 请求。
 - 未做:L4-2 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
->>>>>>> c-lane-l4
-=======
 ## Addendum (2026-10-11) · Lane LA 执行记录(LA-1、LA-2)
 
 - Ruling: LA-1 复位熔断按计划与 spec §9 只要 `require("operator")` + CSRF + 审计,**不加 step-up**、不要理由(计划 LA-2「复位不是危险操作」;管理端 CLAUDE.md 只要求危险操作 step-up)。若评审认为要 step-up,改成 `require_operator_step_up` 即可,前端客户端已自动处理 `Step-up required`。
@@ -4961,4 +4953,3 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: LA-1 诊断 `links_dropping` 读 `queue()["dropped"]`(本进程启动以来累计);两条发现不以 `links_enabled` 为前提(熔断与丢弃只可能在开着时发生,关掉后计数仍在,提醒仍有意义),`keys=("links_enabled",)`。`CODES` 追加两项。`app/admin/CLAUDE.md`、`app/routers/CLAUDE.md` 各补一句。
 - Ruling: LA-2 熔断「打开」显示为「打开 · N 秒」(视觉稿帧 07),不是 spec §9 的「打开至 HH:mm」(服务端给的是剩余秒数)。关闭人数格为「N 人关闭」(计划 LA-2 Step 1)。导航图标放在 `features/links/link-icon.tsx`(`components/icons.tsx` 不在本车道独占文件里);`features/links/CLAUDE.md` 按 Global Constraints 新增。admin 各 feature 不互相导入,`camel()` 在 `api.ts` 里复制一份。
 - 未做:浏览器 1440 视觉对照(留给 Z2)。
->>>>>>> c-lane-la
