@@ -7,6 +7,7 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
   `TEST_DATABASE_URL`), fixtures `app`, `client` (httpx ASGI), `auth_headers` (registers alice)
 - `test_<area>.py` – one file per module/endpoint area; `test_*_api.py` hit routers
 - `agents_helpers.py` – agents fakes: `FakeLLM` (httpx.MockTransport upstream), SSE parsing, `enable_agents`, `new_conversation`, `turn_body`, `check_contract`
+- `test_agents_privacy.py` – caplog (scoped to logger `app`) over every agents / memory / admin-agents endpoint, after-turn hooks, the memory worker and sources; also pins that agents routes carry no text in URLs (new routes must be added there)
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
 - `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
   `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` / `agents_contract.json` (shared with web contract tests; the agents one is recorded by `test_agents_contract.py`, uuids/times/ms are fixed by `agents_helpers.stable`);

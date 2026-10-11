@@ -54,3 +54,14 @@ links / admin / routers`(连函数内延迟导入也不行;`tests/test_architect
 - 来源在 `prefetch` 里会被取消(超时 / 总预算):来源自己开会话(`async with sessionmaker()`),不要在取消点之后写库。
 - `AGENTS_TOOLS_MODE=native` 在本版本与 `prefetch` 行为相同(R-C7);探测结果存 `app.state.agents_tools_probe`(每进程,重启丢)。
 - 编排不得导入 `app.agents.memory`;记忆只经 `SourceRegistry` 与 `TurnHooks.after_turn` 接入(`test_agents_memory_boundaries_hold`)。
+
+## Unverified
+真实上游从未被调用(本机上游返回 402,无密钥);下列项目只在假上游下测过,**未验证**(详见 `docs/superpowers/plans/2026-10-12-agents-latency.md`):
+- DeepSeek / 方舟流式响应的 `data:` 行格式与 `[DONE]` 结尾
+- `reasoning_content` 字段名与出现位置(深度思考角色)
+- `stream_options.include_usage` 的用量块(否则计量按字节)
+- `thinking: {"type": "disabled"}` 在流式请求上被接受
+- 原生函数调用(管理端探测结果码)
+- 真实首字时间(`ttft_ms`;假上游下的服务端开销数字见 latency 文档,只代表本机)
+- 0015 及之后的迁移在 Postgres 上
+- 反向代理下 SSE 不被缓冲(Nginx `X-Accel-Buffering: no`;Caddy `flush_interval -1`)

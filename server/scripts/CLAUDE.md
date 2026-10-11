@@ -7,6 +7,7 @@ Manual operator tools. Not imported by `app/` and not run by CI; some are covere
 - `smoke.py` – real-upstream smoke test against a running server (`--base-url`)
 - `realtime_smoke.py` – realtime-call scenarios against a server with `REALTIME_ENABLED`
 - `measure_latency.py`, `latency_samples.py` – server-side latency measurement + WAV samples
+- `agents_latency.py` – in-process agents-turn overhead benchmark with a fake upstream (no real vendor; Markdown to stdout; results in `docs/superpowers/plans/2026-10-12-agents-latency.md`)
 - `eval_free_speech.py` (+ `_cases.json`) – free-speech assessment / grammar evaluation via TTS
 - `fetch_config.py` – refreshes `app/static_config/*.json` snapshots from upstream
 - `spikes/` – one-off protocol experiments (ASR stream, STT params, TTS chunking); reference only
