@@ -34,8 +34,13 @@ ADMIN_ROUTES = {
     ("GET", "/api/admin/agents/reports"), ("POST", "/api/admin/agents/reports/{persona_id}/resolve"),
     ("POST", "/api/admin/agents/probe-tools"),
 }
-ALLOWED_PATH = {"persona_id", "item_id", "recap_id", "action"}
-ALLOWED_QUERY = {"kind", "persona_id", "cursor", "limit"}  # memory list filters: enums, ids, numbers
+TUTOR_ROUTES = {
+    ("POST", "/api/agents/tutor/start"), ("GET", "/api/agents/tutor/active"), ("GET", "/api/agents/tutor/{session_id}"),
+    ("POST", "/api/agents/tutor/{session_id}/hint"), ("POST", "/api/agents/tutor/{session_id}/skip"),
+    ("POST", "/api/agents/tutor/{session_id}/finish"),
+}
+ALLOWED_PATH = {"persona_id", "item_id", "recap_id", "action", "session_id"}
+ALLOWED_QUERY = {"kind", "persona_id", "cursor", "limit", "conversation_id"}  # memory filters + tutor active: enums, ids, numbers
 
 
 @pytest.fixture
@@ -208,10 +213,66 @@ async def test_learning_data_sources_and_failures_log_keys_and_classes_only(app,
     assert any("agents source failed key=boom_source error=RuntimeError" in r.getMessage() for r in caplog.records)
 
 
+def tutor_reply(verdict: str, *, done: bool = False) -> list[str]:
+    meta = {"verdict": verdict, "kind": "ask", "next_focus": "SECRET-MEMORY zebrafishword",
+            "hint": "SECRET-HINT zebrafishword", "say": "SECRET-REPLY", "done": done}
+    return ["SECRET-REPLY Question? ", "<<META>>" + json.dumps(meta)]
+
+
+async def test_tutor_endpoints_and_turns_never_log_answers_words_hints_recaps_or_goal_text(app, client, auth_headers,
+                                                                                         caplog):
+    """Start / active / get / hint / skip / finish and tutor turns (opening, answers, a 402 upstream failure) over
+    a plan full of secret words; the recap memory bridge and worker run for real (extraction on)."""
+    import uuid
+
+    from tests.agents_tutor_helpers import install_sources
+
+    caplog.set_level(logging.DEBUG, logger="app")
+    caplog.set_level(logging.INFO, logger="httpx")
+    app.state.settings = app.state.settings.model_copy(update={"agents_tutor_enabled": True})
+    install_sources(app, due_words=["zebrafishword", "SECRET-WORD-2", "SECRET-WORD-3"])
+    me = int((await client.get("/api/me", headers=auth_headers)).json()["id"])
+    conv = await new_conversation(client, auth_headers)
+    started = await client.post("/api/agents/tutor/start", headers=auth_headers, json={
+        "conversation_id": conv, "persona_id": "builtin:coach", "topic": "today_words", "length": 5, "input": "text",
+        "client_start_id": str(uuid.uuid4())})
+    assert started.status_code == 200, started.text
+    sid = started.json()["id"]
+    assert (await client.get("/api/agents/tutor/active", headers=auth_headers,
+                             params={"conversation_id": conv})).json()["session"]["id"] == sid
+    assert (await client.get(f"/api/agents/tutor/{sid}", headers=auth_headers)).status_code == 200
+
+    def tutor_turn(text):
+        return client.post("/api/agents/turn", headers=auth_headers, json=turn_body(
+            conv, persona_id="builtin:coach", mode="tutor", tutor_session_id=sid, text=text))
+
+    # upstream failure on the opening turn: logged as class only, body never echoed
+    await use_fake_llm(app, FakeLLM(status=402))
+    failed = await tutor_turn(None)
+    assert "upstream-secret-body" not in failed.text and parse_sse(failed.text)[-1][0] == "error"
+    await settle(app)
+    await use_fake_llm(app, FakeLLM(tutor_reply("weak")))
+    assert parse_sse((await tutor_turn(None)).text)[-1][0] == "done"
+    await settle(app)
+    for answer in ("SECRET-USER-TEXT one zebrafishword", "SECRET-USER-TEXT two"):
+        assert parse_sse((await tutor_turn(answer)).text)[-1][0] == "done"
+        await settle(app)
+    assert (await client.post(f"/api/agents/tutor/{sid}/hint", headers=auth_headers)).status_code == 200
+    assert (await client.post(f"/api/agents/tutor/{sid}/skip", headers=auth_headers)).status_code == 200
+    await use_fake_llm(app, FakeLLM(status=402))  # recap extraction by the worker fails with a secret body
+    finished = await client.post(f"/api/agents/tutor/{sid}/finish", headers=auth_headers)
+    assert finished.status_code == 200 and "upstream-secret-body" not in finished.text
+    await settle(app)
+    assert (await client.get("/api/agents/memory/recaps", headers=auth_headers)).status_code == 200
+    assert leaked(caplog, ("SECRET-WORD-2", "SECRET-WORD-3", "SECRET-HINT")) == []
+    assert not any(f"user_id={me}" in r.getMessage() or f"user={me}" in r.getMessage() for r in caplog.records)
+    assert any("tutor start" in r.getMessage() for r in caplog.records)
+
+
 def test_agent_routes_carry_no_text_in_urls(app):
     """Read from the OpenAPI schema (route objects differ between FastAPI versions): path / query parameter names."""
     seen = set()
-    expected = A1_ROUTES | MEMORY_ROUTES | ADMIN_ROUTES
+    expected = A1_ROUTES | MEMORY_ROUTES | ADMIN_ROUTES | TUTOR_ROUTES
     for path, item in app.openapi()["paths"].items():
         if not (path.startswith("/api/agents") or path.startswith("/api/admin/agents")):
             continue
