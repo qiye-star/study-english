@@ -20,6 +20,7 @@ MAX_TEXT = 4000
 MAX_WEAK = 32
 MAX_GOOD = 64
 MAX_ERRORS = 50
+USER_SHARE_MIN = 10  # 每个用户最多占队列 max(10, links_queue_max // 10) 条:一个人的突发不会挤掉别人的事件
 
 
 def _event_id() -> str:
@@ -129,6 +130,7 @@ class LearningBus:
         self._gate: Gate | None = None
         self._errors: deque = deque(maxlen=MAX_ERRORS)
         self._dropped = 0
+        self._per_user: dict[int, int] = {}  # user_id -> queued events
 
     # ---- wiring ----
     def subscribe(self, event_type: type, link: str, handler: Handler) -> None:
@@ -151,7 +153,9 @@ class LearningBus:
         subs = self._subs.get(type(event))
         if not subs:
             return False
-        if len(self._queue) >= max(1, _int(settings, "links_queue_max", 1000)):
+        limit = max(1, _int(settings, "links_queue_max", 1000))
+        user = getattr(event, "user_id", None)
+        if len(self._queue) >= limit or self._per_user.get(user, 0) >= max(USER_SHARE_MIN, limit // 10):
             self._dropped += 1
             for link, _ in subs:
                 self._stats[link].dropped += 1
@@ -159,14 +163,25 @@ class LearningBus:
         for link, _ in subs:
             self._stats[link].published += 1
         self._queue.append(event)
+        self._per_user[user] = self._per_user.get(user, 0) + 1
         self._wake.set()
         return True
+
+    def _take(self) -> Any:
+        event = self._queue.popleft()
+        user = getattr(event, "user_id", None)
+        left = self._per_user.get(user, 1) - 1
+        if left > 0:
+            self._per_user[user] = left
+        else:
+            self._per_user.pop(user, None)
+        return event
 
     # ---- consuming ----
     async def drain(self) -> int:
         done = 0
         while self._queue:
-            await self._dispatch(self._queue.popleft())
+            await self._dispatch(self._take())
             done += 1
         return done
 
@@ -188,11 +203,10 @@ class LearningBus:
                     continue
                 st.open_until, st.half_open = 0.0, True
             started = self._clock()
-            try:
-                if self._gate is not None and not await self._gate(link, event.user_id):
+            try:  # the gate (a cached DB read) shares the handler's timeout: nothing may stall the single consumer
+                if not await asyncio.wait_for(self._run_one(link, handler, event), timeout):
                     st.skipped += 1
                     continue
-                await asyncio.wait_for(handler(event), timeout)
             except TimeoutError:
                 st.timeouts += 1
                 self._failure(link, st, event, "TimeoutError", settings)
@@ -204,6 +218,13 @@ class LearningBus:
                 st.consecutive, st.half_open = 0, False
             finally:
                 st.last_ms = int((self._clock() - started) * 1000)
+
+    async def _run_one(self, link: str, handler: Handler, event: Any) -> bool:
+        """False = gated off (skipped); True = the handler ran."""
+        if self._gate is not None and not await self._gate(link, event.user_id):
+            return False
+        await handler(event)
+        return True
 
     def _failure(self, link: str, st: _Stats, event: Any, error: str, settings: Any) -> None:
         st.consecutive += 1

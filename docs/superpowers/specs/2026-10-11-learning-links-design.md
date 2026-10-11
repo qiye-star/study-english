@@ -204,9 +204,10 @@ class LearningBus:
 ```
 
 - `publish`:读 `settings()`(每次读,热更新);`links_enabled` 为假直接返回;没有任何订阅者直接返回;
-  `len(queue) >= links_queue_max` → 丢弃(该事件每个订阅联动 `dropped += 1`,全局 `dropped += 1`),返回 False。
+  `len(queue) >= links_queue_max`,或该用户已排队 `max(10, links_queue_max // 10)` 条(Z2 评审:一个人的突发不能挤掉别人的事件)
+  → 丢弃(该事件每个订阅联动 `dropped += 1`,全局 `dropped += 1`),返回 False。
 - 处理一条事件:对每个订阅 `(link, handler)` 依次:熔断打开 → `breaker_skipped += 1` 跳过;`gate(link, user_id)` 为假 →
-  `skipped += 1`;否则 `asyncio.wait_for(handler(event), links_handler_timeout_ms / 1000)`。
+  `skipped += 1`;否则执行 handler。gate 与 handler 共用一个 `links_handler_timeout_ms / 1000` 的超时(Z2 评审:gate 读库也不能卡住单消费者)。
 - 计数(每联动):`published`、`handled`、`skipped`、`failed`、`timeouts`、`dropped`、`breaker_skipped`、`breaker_opens`、`last_ms`。
 - 熔断:连续失败(异常或超时)达 `links_breaker_failures` → 打开 `links_breaker_cooldown_seconds`;到期后半开,下一条成功即关闭、
   失败立即再打开。管理员可手动复位(审计)。

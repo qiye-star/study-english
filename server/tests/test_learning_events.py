@@ -247,3 +247,40 @@ async def test_failures_never_log_text_words_or_messages(caplog):
         await bus.drain()
     assert "links failure link=c event=MessageSent error=RuntimeError" in caplog.text
     assert "secret" not in caplog.text and "bad" not in caplog.text
+
+
+async def test_one_user_cannot_crowd_other_users_out_of_the_queue():
+    """Review Z2: the queue is shared by everyone; a single user's burst (e.g. many chat messages) must not make
+    other users' events drop. Each user may hold at most max(10, queue_max // 10) queued events."""
+    bus, _, _ = make_bus(links_queue_max=100)
+    seen = []
+
+    async def handler(e):
+        seen.append(e.user_id)
+    bus.subscribe(WordAnswered, "m", handler)
+    flood = [bus.publish(answered(user_id=1)) for _ in range(50)]
+    assert flood.count(True) == 10 and bus.queue()["dropped"] == 40
+    assert bus.publish(answered(user_id=2)) is True
+    assert bus.stats()["m"]["dropped"] == 40
+    await bus.drain()
+    assert seen.count(1) == 10 and seen.count(2) == 1
+    assert bus.publish(answered(user_id=1)) is True  # the share frees up as the queue drains
+
+
+async def test_a_hanging_gate_times_out_instead_of_blocking_the_consumer():
+    bus, _, _ = make_bus(links_handler_timeout_ms=100)
+    seen = []
+
+    async def handler(e):
+        seen.append(e.user_id)
+
+    async def gate(link, user_id):
+        if link == "slow":
+            await asyncio.sleep(3600)
+        return True
+    bus.subscribe(WordAnswered, "slow", handler)
+    bus.subscribe(WordAnswered, "fast", handler)
+    bus.set_gate(gate)
+    bus.publish(answered())
+    await asyncio.wait_for(bus.drain(), 2)
+    assert seen == [1] and bus.stats()["slow"]["timeouts"] == 1 and bus.stats()["fast"]["handled"] == 1
