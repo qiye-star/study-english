@@ -12,6 +12,7 @@ import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
+import { AgentSettingsPage } from "~/features/agents";
 import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
@@ -78,6 +79,7 @@ export function AppRoutes() {
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/me/agents" element={<AgentSettingsPage />} />
             {routes}
           </Route>
         </Route>

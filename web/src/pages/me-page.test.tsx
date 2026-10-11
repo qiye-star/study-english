@@ -133,4 +133,10 @@ describe("MePage", () => {
       await i18n.changeLanguage("en");
     }
   });
+  it("shows the agents row when agents are on", async () => {
+    const mock = createFetchMock({ ...ROUTES,
+      "GET /api/agents/config": () => json({ enabled: true, tutor_enabled: true, memory_enabled: true, rooms_enabled: true, prompt_max_chars: 800, personas_max: 10 }) });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    expect(await screen.findByTestId("me-agents")).toHaveAttribute("href", "/me/agents");
+  });
 });
