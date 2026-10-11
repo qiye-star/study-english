@@ -93,7 +93,7 @@ class Persona:
 def _line(value, field: str, max_len: int, *, required: bool) -> str:
     if not isinstance(value, str):
         raise PersonaInvalid(field)
-    text = unicodedata.normalize("NFC", value).replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    text = unicodedata.normalize("NFKC", value).replace("\r", " ").replace("\n", " ").replace("\t", " ")
     text = re.sub(r"\s+", " ", _INVISIBLE.sub("", text)).strip()
     if (required and not text) or len(text) > max_len:
         raise PersonaInvalid(field)
@@ -103,7 +103,7 @@ def _line(value, field: str, max_len: int, *, required: bool) -> str:
 def _prompt(value, max_chars: int) -> str:
     if not isinstance(value, str):
         raise PersonaInvalid("prompt")
-    text = unicodedata.normalize("NFC", value).replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
+    text = unicodedata.normalize("NFKC", value).replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
     text = _INVISIBLE.sub("", text)
     text = re.sub(r"[ ]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)
