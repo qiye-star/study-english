@@ -197,4 +197,24 @@ describe("web architecture boundaries", () => {
     }
     for (const m of product.matchAll(/point:\s*"([A-Za-z]+)"/g)) expect(POINT_NAMES).toContain(m[1]);
   });
+
+  it("agents/memory is self-contained inside features/agents (plan A2 R-M12; INDEX X11 allows locales)", () => {
+    const targets = (rel: string) => importsOf(sourceOf(rel))
+      .map((spec) => resolveSpec(spec, path.join(srcRoot, rel)))
+      .flatMap((t) => (t.kind === "src" ? [t.rel.replace(/\.(ts|tsx)$/, "")] : []));
+    const product = files.filter((f) => !isTest(f) && f.startsWith("features/agents/"));
+    const memory = product.filter((f) => f.startsWith("features/agents/memory/"));
+    const shell = product.filter((f) => !f.startsWith("features/agents/memory/"));
+    // memory 只可借用 agents 的文案注册入口(registerAgentsLocales)。
+    const leaks = memory.flatMap((rel) => targets(rel)
+      .filter((to) => to.startsWith("features/agents/") && !to.startsWith("features/agents/memory/") && to !== "features/agents/locales")
+      .map((to) => `${rel} -> ${to}`));
+    const reach = shell.flatMap((rel) => targets(rel)
+      .filter((to) => to.startsWith("features/agents/memory/") && to !== "features/agents/memory/lazy"
+        && to !== "features/agents/memory/memory-api")
+      .map((to) => `${rel} -> ${to}`));
+    expect(memory.length).toBeGreaterThan(0);
+    expect(leaks).toEqual([]);
+    expect(reach).toEqual([]);
+  });
 });
