@@ -30,6 +30,10 @@ links / admin / routers`(连函数内延迟导入也不行;`tests/test_architect
   `persona` / `history` 是内置步骤,不能注册。记忆来源键 `memory`(A2)放进 system 的 `<memory>` 块,其余放 `<context>`。
 - 模式:`runtime(app).modes.register(handler)`(`name`、`prepare(req) -> ModeBlock`、`stream_filter()`、
   `finish(req, full_text) -> dict | None`,返回值经 `trace.Meta.from_dict` 发 `meta`)。`chat` 内置。
+  `ModeBlock(text, max_tokens, user_text)`:`user_text` 是 `text=None` 的回合(仅导师:开场 / 跳过后出下一题)的用户消息;
+  其他模式 `text=None` → `bad_request`。`finish` 收到含 `<<META>>` 的原始全文。`prepare` / `finish` 里抛
+  `ModeError(code)`(`code` ∈ `trace.ERROR_CODES`,否则 `bad_request`)→ SSE `error{code}`(HTTP 仍 200);`prepare` 失败退还额度,
+  `finish` 失败不退(文字已流出)且不触发 after_turn。
 - 回合后:`runtime(app).hooks.after_turn.append(async fn(record: TurnRecord))`;在 `done` 之前用 `deps.spawn` 后台启动,
   失败只记异常类名。`TurnRecord.text / reply` 只在内存。
 - 联机:`deps_for(app)` + `TurnRequest(in_room=True, room_id=…, conversation_id=None)`;`PersonaStore.get_shared`。

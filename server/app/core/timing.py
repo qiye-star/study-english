@@ -5,6 +5,8 @@
   stt_chat         ms audio_bytes status        (status = 上游 HTTP 状态,0 = 没有响应)
   stt_volc_stream  ms audio_bytes status        (status 同上:200 = 成功,0 = 失败)
   tts_volcengine   ms chars stream status       (status 200 = 成功,0 = 失败)
+  agent_turn       chars ctx_ms mode room src_count src_failed src_skipped status tools total_ms ttft_ms
+                   (status = ok / limit / disabled / bad_request / cancelled / llm_<kind>;spec 2026-10-12-agents §6.9)
 """
 import logging
 import math

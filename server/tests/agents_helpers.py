@@ -95,3 +95,28 @@ def parse_sse(text: str) -> list[tuple[str, dict]]:
         data = next(line[6:] for line in lines if line.startswith("data: "))
         out.append((event, json.loads(data)))
     return out
+
+
+def make_deps(app, *, registry=None, modes=None, hooks=None, probe=None):
+    """直接驱动 run_turn 的依赖(不经路由);设置每次读 app.state.settings。"""
+    from app.agents.orchestrator import AgentsRuntime, TurnDeps
+    rt = AgentsRuntime()
+    return TurnDeps(http=app.state.http, settings=lambda: app.state.settings, sessions=app.state.sessionmaker,
+                    registry=registry or rt.registry, modes=modes or rt.modes, hooks=hooks or rt.hooks, app=app,
+                    tools_probe=lambda: probe, spawn=rt.spawn), rt
+
+
+def make_request(user_id: int, persona=None, *, text="Hello", history=(), mode="chat", agent_settings=None,
+                 in_room=False, charge=True):
+    from app.agents.orchestrator import TurnRequest
+    from app.agents.personas import builtin_by_id
+    from app.agents.settings import DEFAULTS
+    return TurnRequest(user_id=user_id, persona=persona or builtin_by_id("builtin:partner"), conversation_id="c1",
+                       room_id=None, text=text, history=list(history), mode=mode, tutor_session_id=None,
+                       client_turn_id="11111111-1111-4111-8111-111111111111", in_room=in_room,
+                       agent_settings=agent_settings or DEFAULTS, charge=charge)
+
+
+async def run_events(deps, req) -> list:
+    from app.agents.orchestrator import run_turn
+    return [e async for e in run_turn(deps, req)]
