@@ -16,15 +16,34 @@ from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
     AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile,
-    RankProfileSnapshot, Room, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User, UserAchievement,
-    UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
+    RankProfileSnapshot, Room, RoomJoinRequest, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User,
+    UserAchievement, UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
     LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, UserLinkPref,
+    WordbookEnrollment, WordbookEvent, WordbookReport,
 )
 from app.services import recordings
 
 TEMP_PASSWORD_LEN = 16
 # Letters and digits without look-alikes (0/O/o, 1/l/I), so a password read out over the phone survives.
 _ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+# Every column that references users.id, handled explicitly because SQLite enforces no FK cascade; this mirrors
+# the models' / migrations' ON DELETE so SQLite and Postgres end in the same state (tests/test_admin_users.py
+# fails when a new table that references users is missing here). Rooms they own are released first (R-6).
+USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items includes source "wordbook:<book>")
+    (Conversation, "user_id"), (Assessment, "user_id"), (PracticeItem, "user_id"), (VocabularyItem, "user_id"),
+    (AccessToken, "user_id"), (SpeechToken, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
+    (PromotionMatch, "user_id"), (UserAchievement, "user_id"), (UserQuotaOverride, "user_id"),
+    (RoomMember, "user_id"), (RoomReport, "reporter_id"), (RoomJoinRequest, "user_id"),
+    (WordbookEnrollment, "user_id"), (WordbookEvent, "user_id"),
+    (UserLinkPref, "user_id"), (LinkMistakeWord, "user_id"), (LinkWeakWord, "user_id"), (LinkWordUse, "user_id"),
+    (LinkCredit, "user_id"),
+)
+USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
+    (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
+    (WordbookReport, "user_id"),  # a content report stays for moderation
+)
 
 
 class UserAdminError(Exception):
@@ -147,13 +166,10 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.execute(delete(Message).where(Message.conversation_id.in_(conversations)))
     await session.execute(update(Message).where(Message.assessment_id.in_(
         select(Assessment.id).where(Assessment.user_id == user_id))).values(assessment_id=None))
-    for model in (Conversation, Assessment, PracticeItem, VocabularyItem, AccessToken, SpeechToken, RankProfile,
-                  XpEvent, PromotionMatch, UserAchievement, UserQuotaOverride):
-        await session.execute(delete(model).where(model.user_id == user_id))
-    for model in (UserLinkPref, LinkMistakeWord, LinkWeakWord, LinkWordUse, LinkCredit):  # learning links (SQLite: no FK cascade)
-        await session.execute(delete(model).where(model.user_id == user_id))
-    await session.execute(delete(RoomMember).where(RoomMember.user_id == user_id))
-    await session.execute(delete(RoomReport).where(RoomReport.reporter_id == user_id))
+    for model, column in USER_ROWS:
+        await session.execute(delete(model).where(getattr(model, column) == user_id))
+    for model, column in USER_REFS_NULLED:
+        await session.execute(update(model).where(getattr(model, column) == user_id).values({column: None}))
     await session.execute(delete(DailyUsage).where(DailyUsage.subject == str(user_id)))
     await session.execute(delete(RankProfileSnapshot).where(RankProfileSnapshot.user_id == user_id))
     await _anonymise_metering(session, user_id)

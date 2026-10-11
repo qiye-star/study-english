@@ -450,3 +450,32 @@ def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "head")
     assert LINK_TABLES <= _tables(db)
+
+
+def test_user_foreign_keys_in_the_migrated_schema_carry_the_models_on_delete(tmp_path, monkeypatch):
+    """Postgres enforces ON DELETE from the migrations; delete_user mirrors the models' ondelete on SQLite
+    (tests/test_admin_users.py). Both must agree for every column that references users.id."""
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "head")
+    expected = set()
+    for table in Base.metadata.sorted_tables:
+        for fk in table.foreign_keys:
+            if fk.column.table.name == "users":
+                expected.add((table.name, fk.parent.name, (fk.ondelete or "NO ACTION").upper()))
+    con = sqlite3.connect(db)
+    try:
+        actual = set()
+        for (name,) in con.execute("select name from sqlite_master where type='table'"):
+            for row in con.execute(f"pragma foreign_key_list('{name}')"):
+                if row[2] == "users":  # (id, seq, table, from, to, on_update, on_delete, match)
+                    actual.add((name, row[3], row[6].upper()))
+    finally:
+        con.close()
+    assert actual == expected
+    wordbook_and_links = {(t, c, d) for t, c, d in actual if t.startswith(("wordbook_", "link_", "user_link_"))}
+    assert wordbook_and_links == {
+        ("wordbook_enrollments", "user_id", "CASCADE"), ("wordbook_events", "user_id", "CASCADE"),
+        ("wordbook_reports", "user_id", "SET NULL"), ("user_link_prefs", "user_id", "CASCADE"),
+        ("link_mistake_words", "user_id", "CASCADE"), ("link_weak_words", "user_id", "CASCADE"),
+        ("link_word_uses", "user_id", "CASCADE"), ("link_credits", "user_id", "CASCADE"),
+    }

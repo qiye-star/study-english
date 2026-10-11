@@ -172,3 +172,78 @@ async def test_delete_user_leaves_no_rows_with_their_id_but_keeps_usage_totals(a
         assert await s.scalar(select(func.count()).select_from(UpstreamCall)) == 1  # cost history stays, anonymised
         merged = (await s.scalars(select(UsageDaily))).all()
     assert [(u.user_id, u.calls, u.units_in) for u in merged] == [(0, 3, 7)]
+
+
+# ---- deleting a user removes every row that references them (SQLite enforces no FK cascade) ----
+
+def _user_foreign_keys():
+    """(table, column, ondelete) for every column of the models that references users.id."""
+    from app.core.db import Base
+    out = set()
+    for table in Base.metadata.sorted_tables:
+        for fk in table.foreign_keys:
+            if fk.column.table.name == "users" and fk.column.name == "id":
+                out.add((table.name, fk.parent.name, (fk.ondelete or "").upper()))
+    return out
+
+
+def test_delete_user_handles_every_table_that_references_users():
+    """A table with a CASCADE (or SET NULL) foreign key to users must be deleted (or nulled) explicitly by
+    delete_user, so SQLite ends where Postgres' ON DELETE semantics end. A new table cannot be forgotten."""
+    from app.admin import users_admin
+    handled_delete = {(m.__tablename__, col) for m, col in users_admin.USER_ROWS}
+    handled_null = {(m.__tablename__, col) for m, col in users_admin.USER_REFS_NULLED}
+    for table, column, ondelete in _user_foreign_keys():
+        if table == "users":
+            continue
+        if ondelete == "CASCADE":
+            assert (table, column) in handled_delete, f"{table}.{column} is not deleted with the user"
+        elif ondelete == "SET NULL":
+            assert (table, column) in handled_null, f"{table}.{column} is not cleared with the user"
+        else:
+            raise AssertionError(f"{table}.{column} references users without ON DELETE")
+
+
+async def test_delete_user_removes_wordbook_and_link_rows_but_not_other_users(app, client):
+    from app.models import (LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, RoomJoinRequest, UserLinkPref,
+                            VocabularyItem, WordbookEnrollment, WordbookEvent, WordbookReport, utcnow)
+
+    async def seed(uid, room_id):
+        now = utcnow()
+        async with app.state.sessionmaker() as s:
+            s.add(WordbookEnrollment(user_id=uid, book_id="junior", status="active", order_mode="shuffle", seed=1,
+                                     cursor=3, daily_new=10, review_cap=100, started_at=now, updated_at=now))
+            s.add(WordbookEvent(user_id=uid, book_id="junior", kind="learn", word="talk", item_id=None, qtype=None,
+                                outcome="know", credit=100, day="2026-10-11", created_at=now))
+            s.add(WordbookReport(user_id=uid, book_id="junior", word="talk", sentence_id="s1", kind="sentence",
+                                 reason="wrong", status="open", created_at=now))
+            s.add(VocabularyItem(user_id=uid, word="talk", source="wordbook:junior", box=0, due_at=now))
+            s.add(UserLinkPref(user_id=uid, link_key="mistakes", enabled=False, updated_at=now))
+            s.add(LinkMistakeWord(user_id=uid, word="talk", book_id="junior", wrong_count=1, ok_streak=0,
+                                  last_event_at=now, last_wrong_at=now, cleared_at=None))
+            s.add(LinkWeakWord(user_id=uid, word="three", hits=1, last_score=40, ok_streak=0, last_event_at=now,
+                               last_weak_at=now, cleared_at=None))
+            s.add(LinkWordUse(user_id=uid, word="talk", learn_event_id=1, message_id="m1", created_at=now))
+            s.add(LinkCredit(user_id=uid, kind="word_in_chat", ref_id="wic:1", score=None, created_at=now))
+            s.add(RoomJoinRequest(room_id=room_id, user_id=uid, status="pending", created_at=now))
+            await s.commit()
+
+    uid, ha = await register(client, "dora")
+    other, hb = await register(client, "erin")
+    room = (await client.post("/api/rooms", headers=hb, json={"topic": "美食"})).json()["room"]
+    await seed(uid, room["id"])
+    await seed(other, room["id"])
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "dora", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    owned = (WordbookEnrollment, WordbookEvent, VocabularyItem, UserLinkPref, LinkMistakeWord, LinkWeakWord,
+             LinkWordUse, LinkCredit, RoomJoinRequest)
+    async with app.state.sessionmaker() as s:
+        for model in owned:
+            assert await s.scalar(select(func.count()).select_from(model).where(model.user_id == uid)) == 0, model
+            assert await s.scalar(select(func.count()).select_from(model).where(model.user_id == other)) >= 1, model
+        reports = (await s.scalars(select(WordbookReport).order_by(WordbookReport.id))).all()
+    # the report about the book's content stays for moderation, without the deleted user's id (ON DELETE SET NULL)
+    assert [r.user_id for r in reports] == [None, other]
