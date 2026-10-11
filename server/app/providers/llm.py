@@ -168,3 +168,76 @@ async def complete_stream(http: httpx.AsyncClient, settings: Settings, messages:
                             unit="tokens")
         else:
             metering.record("llm", provider, model, status, timer.ms(), units_out=received, unit="bytes")
+
+
+PROBE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "lookup_word",
+        "description": "Look up an English word in the learner's dictionary.",
+        "parameters": {"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]},
+    },
+}
+PROBE_MESSAGES = [
+    {"role": "system", "content": "You can call tools. Call a tool whenever the user asks you to look something up."},
+    {"role": "user", "content": "Please look up the word 'apple' with the lookup_word tool."},
+]
+
+
+@dataclass(frozen=True)
+class ToolProbe:
+    ok: bool
+    code: str  # ok | no_tool_call | bad_arguments | http | network | format | config
+    status: int
+    ms: int
+
+    def out(self) -> dict:
+        return {"ok": self.ok, "code": self.code, "status": self.status, "ms": self.ms}
+
+
+def _tool_code(payload: object) -> str:
+    try:
+        message = payload["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError):
+        return "format"
+    calls = message.get("tool_calls") if isinstance(message, dict) else None
+    if not isinstance(calls, list) or not calls or not isinstance(calls[0], dict):
+        return "no_tool_call"
+    function = calls[0].get("function")
+    if not isinstance(function, dict) or function.get("name") != "lookup_word":
+        return "no_tool_call"
+    try:
+        args = json.loads(function.get("arguments") or "")
+    except (TypeError, ValueError):
+        return "bad_arguments"
+    return "ok" if isinstance(args, dict) and isinstance(args.get("word"), str) and args["word"].strip() else "bad_arguments"
+
+
+async def probe_tools(http: httpx.AsyncClient, settings: Settings, *, model: str, timeout: float = 20.0) -> ToolProbe:
+    """Native function calling probe (agents spec §6.2): one cheap non-streamed call offering `lookup_word`; ok when
+    the model calls it with JSON {"word": "..."}. Metered as kind "probe"; the reply body is never logged or returned."""
+    if not settings.upstream_llm_base_url:
+        return ToolProbe(False, "config", 0, 0)
+    url, headers = _endpoint(settings)
+    body = _body(settings, PROBE_MESSAGES, model=model, max_tokens=64, temperature=0, stream=False)
+    body["tools"] = [PROBE_TOOL]
+    body["tool_choice"] = "auto"
+    provider = metering.provider_of(settings.upstream_llm_base_url)
+    timer = metering.Timer()
+    try:
+        response = await http.post(url, json=body, headers=headers, timeout=httpx.Timeout(timeout, connect=10.0))
+    except httpx.HTTPError as e:
+        metering.record("probe", provider, model, 0, timer.ms())
+        logger.warning("llm tool probe failed error=%s", type(e).__name__)
+        return ToolProbe(False, "network", 0, timer.ms())
+    ms = timer.ms()
+    metering.record("probe", provider, model, response.status_code, ms)
+    if response.status_code != 200:
+        logger.warning("llm tool probe http status=%s", response.status_code)
+        return ToolProbe(False, "http", response.status_code, ms)
+    try:
+        payload = response.json()
+    except ValueError:
+        return ToolProbe(False, "format", 200, ms)
+    code = _tool_code(payload)
+    return ToolProbe(code == "ok", code, 200, ms)
