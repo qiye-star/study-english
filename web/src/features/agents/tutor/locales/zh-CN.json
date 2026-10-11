@@ -1,0 +1,34 @@
+{
+  "web": {
+    "agents": {
+      "tutor": {
+        "start": {
+          "title": "带我学", "description": "老师提问,你来回答;每题都有点评。", "topic": "主题", "scenario": "场景",
+          "length": "题数", "lengthOption": "{{count}} 题", "input": "回答方式", "typing": "打字", "voice": "语音",
+          "go": "开始", "note": "会用到你的到期词和易错词,可在智能体设置里关闭。"
+        },
+        "topic": { "free": "自由", "scenario": "场景", "today_words": "今日词", "weak_words": "易错词" },
+        "topicHint": { "free": "随便聊,老师出题", "scenario": "选一个生活场景", "today_words": "用今天该复习的词", "weak_words": "练你常错的词" },
+        "scenarioName": { "restaurant": "餐厅点餐", "travel": "旅行问路", "interview": "面试", "shopping": "购物", "small_talk": "闲聊" },
+        "kind": { "ask": "开放提问", "words": "用词造句", "repeat": "跟读", "retell": "复述", "roleplay": "情景对话", "dictate": "听写" },
+        "verdict": { "good": "很好", "ok": "还行", "weak": "要加强", "skip": "跳过" },
+        "focus": { "free": "日常话题", "today_words": "今日词", "weak_words": "易错词", "restaurant": "餐厅点餐", "travel": "旅行问路", "interview": "面试", "shopping": "购物", "small_talk": "闲聊" },
+        "bar": {
+          "region": "带学进度", "mode": "带学中", "progress": "第 {{n}} / {{m}} 题", "level": "难度 {{level}}",
+          "hint": "提示", "skip": "跳过", "listen": "听一遍", "translate": "翻译", "end": "结束", "confirmEnd": "再点结束",
+          "resume": "继续"
+        },
+        "recap": {
+          "title": "本次总结", "sheetTitle": "带学总结", "count": "答了 {{answered}} / {{total}} 题",
+          "level": "难度 {{from}} → {{to}}", "strengths": "做得好", "weaknesses": "要加强", "none": "暂无",
+          "words": "建议加入生词本"
+        },
+        "errors": {
+          "disabled": "带学功能未开启", "limit": "今天的带学次数用完了", "notWaiting": "请等老师出完题再操作",
+          "hintLimit": "这题的提示用完了", "expired": "这次带学已过期,请重新开始", "finished": "这次带学已经结束",
+          "changed": "进度已更新,请再试一次", "personaDisabled": "这个角色已停用"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "web": {
+    "agents": {
+      "tutor": {
+        "start": {
+          "title": "Teach me", "description": "The tutor asks, you answer, with feedback on every question.", "topic": "Topic",
+          "scenario": "Situation", "length": "Questions", "lengthOption": "{{count}} Qs", "input": "Answer by",
+          "typing": "Typing", "voice": "Voice", "go": "Start", "note": "Uses your due and tricky words; turn this off in agent settings."
+        },
+        "topic": { "free": "Free", "scenario": "Situation", "today_words": "Today's words", "weak_words": "Tricky words" },
+        "topicHint": { "free": "Any topic", "scenario": "Pick a situation", "today_words": "Words due today", "weak_words": "Words you often miss" },
+        "scenarioName": { "restaurant": "Restaurant", "travel": "Travel", "interview": "Interview", "shopping": "Shopping", "small_talk": "Small talk" },
+        "kind": { "ask": "Question", "words": "Use words", "repeat": "Repeat", "retell": "Retell", "roleplay": "Role-play", "dictate": "Dictation" },
+        "verdict": { "good": "Good", "ok": "OK", "weak": "Needs work", "skip": "Skipped" },
+        "focus": { "free": "Everyday topics", "today_words": "Today's words", "weak_words": "Tricky words", "restaurant": "Restaurant", "travel": "Travel", "interview": "Interview", "shopping": "Shopping", "small_talk": "Small talk" },
+        "bar": {
+          "region": "Lesson progress", "mode": "Lesson", "progress": "Q {{n}} / {{m}}", "level": "Level {{level}}",
+          "hint": "Hint", "skip": "Skip", "listen": "Listen", "translate": "Translate", "end": "End", "confirmEnd": "Tap to end",
+          "resume": "Continue"
+        },
+        "recap": {
+          "title": "Lesson recap", "sheetTitle": "Lesson recap", "count": "{{answered}} of {{total}} answered",
+          "level": "Level {{from}} → {{to}}", "strengths": "Went well", "weaknesses": "To practise", "none": "None yet",
+          "words": "Words to save"
+        },
+        "errors": {
+          "disabled": "Lessons are turned off", "limit": "Daily lesson limit reached", "notWaiting": "Wait for the next question",
+          "hintLimit": "No more hints for this question", "expired": "This lesson expired; start a new one",
+          "finished": "This lesson has ended", "changed": "The lesson changed; try again", "personaDisabled": "This persona is disabled"
+        }
+      }
+    }
+  }
+}
