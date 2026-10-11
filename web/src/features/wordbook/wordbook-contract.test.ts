@@ -5,7 +5,7 @@ import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import type {
   AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, GoalLimits, ItemState, Progress, Question,
-  ResetResult, Segment, SpellResult, SpellWordResult, Streak, Today, WordbookBook, WordbookConfig,
+  FreeItem, FreeSet, LearnedItem, LearnedPage, LearnedSummary, ResetResult, Segment, SpellResult, SpellWordResult, Streak, Today, WordbookBook, WordbookConfig,
 } from "./wordbook-api";
 
 /**
@@ -49,6 +49,11 @@ const BLANK_SEGMENT: Record<keyof Extract<Segment, { t: "blank" }>, true> = { t:
 const SPELL: Record<keyof SpellResult, true> = { credit: true, counted: true, words: true };
 const WORD: Record<keyof SpellWordResult, true> = { key: true, outcome: true, credit: true, blanks: true, card: true, item: true };
 const BLANK: Record<keyof BlankResult, true> = { i: true, outcome: true, credit: true, typed: true, expected: true, diff: true };
+const LEARNED_SUMMARY_KEYS: Record<keyof LearnedSummary, true> = { total: true, byBox: true, byTier: true, byBook: true, weak: true, yesterday: true, last7: true };
+const LEARNED_ITEM: Record<keyof LearnedItem, true> = { bookId: true, key: true, word: true, box: true, tier: true, learnedAt: true, dueAt: true, weak: true };
+const LEARNED_PAGE: Record<keyof LearnedPage, true> = { items: true, nextCursor: true };
+const FREE_SET_KEYS: Record<keyof FreeSet, true> = { setId: true, scope: true, mode: true, items: true };
+const FREE_ITEM: Record<keyof FreeItem, true> = { bookId: true, card: true, question: true };
 
 describe("wordbook contract (server fixture)", () => {
   const c = contract ?? {};
@@ -143,6 +148,27 @@ describe("wordbook contract (server fixture)", () => {
     const reset = cc<ResetResult>(c.reset);
     expect(keysOf(reset)).toEqual(keys(RESET));
     expect(keysOf(reset.enrollment)).toEqual(keys(ENROLLMENT));
+  });
+
+  it("learned words and free review payloads match", () => {
+    const summary = cc<LearnedSummary>(c.learned_summary);
+    expect(keysOf(summary)).toEqual(keys(LEARNED_SUMMARY_KEYS));
+    expect(summary.byBox).toHaveLength(6);
+    expect(Array.isArray(summary.byBook) && summary.byBook[0] && Object.keys(summary.byBook[0]).sort()).toEqual(["bookId", "count"]);
+    expect(Object.keys(summary.byTier).sort()).toEqual(["growing", "learning", "mastered"]);
+    const page = cc<LearnedPage>(c.learned_list);
+    expect(keysOf(page)).toEqual(keys(LEARNED_PAGE));
+    expect(typeof page.nextCursor).toBe("string");
+    expect(keysOf(page.items[0])).toEqual(keys(LEARNED_ITEM));
+    expect(keysOf(cc<Card>(c.learned_card))).toEqual(keys(CARD));
+    const free = cc<FreeSet>(c.free_start);
+    expect(keysOf(free)).toEqual(keys(FREE_SET_KEYS));
+    expect(keysOf(free.items[0])).toEqual(keys(FREE_ITEM));
+    expect(keysOf(free.items[0].card)).toEqual(keys(CARD));
+    expect(keysOf(free.items[0].question as Question)).toEqual(keys(QUESTION));
+    const answer = cc<AnswerResult>(c.answer_free);
+    expect(keysOf(answer)).toEqual(keys(ANSWER));
+    expect(answer.applied).toBe(true);
   });
 
   it("never sends word-keyed maps the client would have to trust (F4-1)", () => {
