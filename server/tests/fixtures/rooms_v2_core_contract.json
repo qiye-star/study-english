@@ -2,94 +2,96 @@
   "http": {
     "create": {
       "room": {
-        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
-        "code": "882319",
+        "id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
+        "code": "840342",
         "topic": "alice的房间",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 51122416,
+        "owner_id": 71499704,
         "my_role": "owner",
         "member_count": 1,
         "online_count": 0,
-        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "created_at": "2026-10-11T09:51:56.612450+00:00",
         "closed_at": null,
         "name": "alice的房间",
         "scenario": "cafe",
         "level": "A2",
         "join_mode": "approval",
         "max_members": 4,
-        "allow_voice": true
+        "allow_voice": true,
+        "close_reason": null
       }
     },
     "patch": {
       "room": {
-        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
-        "code": "882319",
+        "id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
+        "code": "840342",
         "topic": "alice的房间",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 51122416,
+        "owner_id": 71499704,
         "my_role": "owner",
         "member_count": 1,
         "online_count": 0,
-        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "created_at": "2026-10-11T09:51:56.612450+00:00",
         "closed_at": null,
         "name": "alice的房间",
         "scenario": "cafe",
         "level": "B1",
         "join_mode": "approval",
         "max_members": 4,
-        "allow_voice": true
+        "allow_voice": true,
+        "close_reason": null
       }
     },
     "join_pending": {
       "request": {
-        "id": "713a8214-775a-4321-9cdd-61934c28696c",
-        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "id": "1644970f-3b8d-4112-b614-36d229cab98f",
+        "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
         "room_name": "alice的房间",
-        "user_id": 57045254,
+        "user_id": 20399794,
         "name": "bob",
         "status": "pending",
-        "created_at": "2026-10-09T16:55:20.613203+00:00"
+        "created_at": "2026-10-11T09:51:56.693220+00:00"
       }
     },
     "request": {
       "request": {
-        "id": "713a8214-775a-4321-9cdd-61934c28696c",
-        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "id": "1644970f-3b8d-4112-b614-36d229cab98f",
+        "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
         "room_name": "alice的房间",
-        "user_id": 57045254,
+        "user_id": 20399794,
         "name": "bob",
         "status": "pending",
-        "created_at": "2026-10-09T16:55:20.613203+00:00"
+        "created_at": "2026-10-11T09:51:56.693220+00:00"
       }
     },
     "requests": {
       "requests": [
         {
-          "id": "713a8214-775a-4321-9cdd-61934c28696c",
-          "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+          "id": "1644970f-3b8d-4112-b614-36d229cab98f",
+          "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
           "room_name": "alice的房间",
-          "user_id": 57045254,
+          "user_id": 20399794,
           "name": "bob",
           "status": "pending",
-          "created_at": "2026-10-09T16:55:20.613203+00:00"
+          "created_at": "2026-10-11T09:51:56.693220+00:00"
         }
       ]
     },
     "approve": {
       "request": {
-        "id": "713a8214-775a-4321-9cdd-61934c28696c",
-        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "id": "1644970f-3b8d-4112-b614-36d229cab98f",
+        "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
         "room_name": "alice的房间",
-        "user_id": 57045254,
+        "user_id": 20399794,
         "name": "bob",
         "status": "approved",
-        "created_at": "2026-10-09T16:55:20.613203+00:00"
+        "created_at": "2026-10-11T09:51:56.693220+00:00"
       }
     },
     "invite": {
@@ -98,7 +100,7 @@
     },
     "invite_preview": {
       "invite": {
-        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
         "name": "alice的房间",
         "scenario": "cafe",
         "level": "B1",
@@ -109,25 +111,26 @@
     },
     "invite_join": {
       "room": {
-        "id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
-        "code": "882319",
+        "id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
+        "code": "840342",
         "topic": "alice的房间",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 51122416,
+        "owner_id": 71499704,
         "my_role": "member",
         "member_count": 3,
         "online_count": 1,
-        "created_at": "2026-10-09T16:55:20.447390+00:00",
+        "created_at": "2026-10-11T09:51:56.612450+00:00",
         "closed_at": null,
         "name": "alice的房间",
         "scenario": "cafe",
         "level": "B1",
         "join_mode": "approval",
         "max_members": 4,
-        "allow_voice": true
+        "allow_voice": true,
+        "close_reason": null
       }
     }
   },
@@ -135,30 +138,30 @@
     "join_request": {
       "type": "join_request",
       "request": {
-        "id": "713a8214-775a-4321-9cdd-61934c28696c",
-        "room_id": "bf3ae1c6-9252-40f6-9696-74299c98c652",
+        "id": "1644970f-3b8d-4112-b614-36d229cab98f",
+        "room_id": "1212b8c9-f8a8-4554-a9af-54e42c029126",
         "room_name": "alice的房间",
-        "user_id": 57045254,
+        "user_id": 20399794,
         "name": "bob",
         "status": "pending",
-        "created_at": "2026-10-09T16:55:20.613203+00:00"
+        "created_at": "2026-10-11T09:51:56.693220+00:00"
       }
     },
     "join_request_closed": {
       "type": "join_request_closed",
-      "id": "713a8214-775a-4321-9cdd-61934c28696c",
+      "id": "1644970f-3b8d-4112-b614-36d229cab98f",
       "status": "approved"
     },
     "message_quote": {
       "type": "message",
       "message": {
         "seq": 5,
-        "id": "a60e486e-b8ac-4806-af47-c643632aa671",
+        "id": "07c07439-4f5a-4663-9b24-ef42743be3b4",
         "lane": "public",
         "kind": "text",
         "sender": {
           "kind": "user",
-          "id": 51122416,
+          "id": 71499704,
           "name": "alice"
         },
         "text": "again",
@@ -173,7 +176,7 @@
             "text": "hello"
           }
         },
-        "created_at": "2026-10-09T16:55:20.855734+00:00",
+        "created_at": "2026-10-11T09:51:56.834755+00:00",
         "hidden": false,
         "quote": {
           "seq": 4,
@@ -190,7 +193,7 @@
       "seq": 4,
       "key": "like",
       "user_ids": [
-        51122416
+        71499704
       ]
     }
   }

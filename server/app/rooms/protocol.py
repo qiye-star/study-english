@@ -5,7 +5,8 @@ Validation is strict and bounded: unknown types/fields, wrong types and oversize
 
 Protocol v2 (spec 2026-10-10 §9, R2-16) only adds: `hello.v` (default 1), `say.reply_to`, the client messages
 `typing / react / voice_translate / voice_retry`, five server events and new codes. v1 and v2 clients get the same
-frames; `welcome.protocol` tells the web which version the server speaks."""
+frames; `welcome.protocol` tells the web which version the server speaks. v2.1 adds the server event `reopened`
+(an ended room was reopened; spec 2026-10-12)."""
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
@@ -37,7 +38,7 @@ ACTIVITY_STATES = ("typing", "recording", "idle")
 SERVER_EVENT_TYPES = (
     "welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed",
     "room_update", "notice", "error", "closed", "pong", "message_hidden",
-    "activity", "reaction", "voice_update", "join_request", "join_request_closed",
+    "activity", "reaction", "voice_update", "join_request", "join_request_closed", "reopened",
 )
 ERROR_CODES = ("rate_limited", "empty", "bad_assist", "bad_reply", "bad_seq")
 NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota", "voice_off", "voice_quota", "translate_quota", "retry_limit")

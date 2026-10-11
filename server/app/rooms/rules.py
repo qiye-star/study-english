@@ -104,7 +104,7 @@ class RoomLimits:
     idle_minutes: int = 30
     max_hours: int = 24
     retention_days: int = 0  # 0 = keep room messages forever; >0 = purge N days after close
-    mine_closed_days: int = 7  # how long closed rooms stay listed in GET /api/rooms/mine
+    mine_closed_days: int = 7  # DEPRECATED (R-O4): no longer used; GET /api/rooms/mine lists open rooms only
     assist_daily: int = 60
     assist_per_minute: int = 10
     ai_per_room_hour: int = 30
@@ -143,6 +143,7 @@ class RoomLimits:
     staging_keep_days: int = 7
     default_max_members: int = 4
     name_max: int = 30
+    reopen_per_minute: int = 5  # per user (R-O10), fixed value like react_per_minute
 
     @classmethod
     def from_settings(cls, s) -> "RoomLimits":

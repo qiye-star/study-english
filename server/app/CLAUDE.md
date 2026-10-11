@@ -12,7 +12,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
-| `rooms/` | practice rooms: codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
+| `rooms/` | practice rooms (create/join/close/reopen): codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
 | `wordbook/` | 背单词:词典文件索引、题型与判分、学习编排、AI 讲解 (off unless `WORDBOOK_ENABLED`; see `wordbook/CLAUDE.md`) |
 | `links/` | 学习联动(顶层):订阅核心学习事件(`core/learning_events.py`),实现六个联动;只有 routers 与 `main.py` 导入 (off unless `LINKS_ENABLED`; see `links/CLAUDE.md`) |
 | `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, backups, prompts; v1 cross-user queries |
@@ -52,7 +52,7 @@ must be last.
 - Logger names follow `__name__`, except the pinned `app.timing` and
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
-- Migrations: `alembic/versions/` is linear (head `0013`); `tests/test_migrations.py::test_models_match_migrations`
+- Migrations: `alembic/versions/` is linear (head `0014`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
   deleting a user never deletes rooms (`rooms.owner_id` nullable, `ON DELETE SET NULL`).

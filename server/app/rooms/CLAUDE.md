@@ -13,7 +13,7 @@ their own sub-switches (`ROOMS_VOICE_ENABLED`, `ROOMS_SUMMARY_ENABLED`, default 
 - `codes.py`, `rules.py` – codes, text cleaning, `@ai` parsing, limits (`RoomLimits`), `clean_settings` (one rule
   for owner and admin edits) (pure)
 - `scenarios.py` – static scenario pool; `brief` goes into prompts only, never to the web (pure)
-- `store.py` – all DB access for rooms/messages/members/join requests/invites/reactions (create/join/seq/replay/sweep/purge)
+- `store.py` – all DB access for rooms/messages/members/join requests/invites/reactions (create/join/seq/replay/sweep/purge; `reopen` / `ended` / `ended_count` / `opened_anchor`; `mine` lists open rooms only)
 - `hub.py`, `tickets.py` – connections + broadcast, one-time tickets (in-process, single worker)
 - `assistant.py` – assistant/`@ai`/summary/voice-translate prompts and parsing (pure). Prompts are templates (`DEFAULT_ASSIST_TEMPLATE`,
   `DEFAULT_ANSWER_TEMPLATE`, rendering exactly the M4 messages — pinned by `tests/fixtures/rooms_prompts_legacy.json`); a published
@@ -26,7 +26,8 @@ their own sub-switches (`ROOMS_VOICE_ENABLED`, `ROOMS_SUMMARY_ENABLED`, default 
 - `voice.py` – `VoiceService`: upload (validation, quotas, dedupe by `client_id`), background transcription and
   translation (metered `rooms_voice`), sender-only retries (max 3), staging sweep, resume after restart
 - `summary.py` (pure: eligibility, context, strict JSON parsing, per-person view), `summary_store.py` (`SummaryStore`,
-  `SummaryRunner`: one capped LLM call per ended room, metered `rooms_summary` with no user)
+  `SummaryRunner`: one capped LLM call per ended room, metered `rooms_summary` with no user; after a reopen the row is
+  re-claimed when `created_at < opened_at`; `fail/skip` on a row that already has a summary restore `done` + `stale`)
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`. Never `rank`, `realtime`,
@@ -39,6 +40,14 @@ Contract fixtures (`CONTRACT_UPDATE=1` re-records): `tests/fixtures/rooms_contra
 `rooms_v2_voice_contract.json`, `rooms_v2_summary_contract.json`; the web checks each key.
 
 ## Pitfalls
+- Reopen (spec 2026-10-12): `reopen` runs inside the `_admission` lock, so a second parallel request gets `not_closed`; the expiry
+  anchor is `opened_anchor(room)` (= `coalesce(opened_at, created_at)`, `opened_at` stays nullable for good, R-O1), never read
+  `created_at` directly; an ended room has no WebSocket, so the `reopened` event usually has no receiver and the web polls
+  `GET /api/rooms/{id}` (R-O3); a room closed by `admin` can only be reopened through `POST /api/admin/rooms/{id}/reopen`;
+  reopening clears `invite_token` and draws a new code; logs and audit never carry the code or the room name.
+- Summary rows never lose `data`: a failed regeneration puts the row back to `done` + `stale` (old summary readable), and `stale`
+  can be retried within `summary_attempts` (R-O5).
+- `RoomLimits.mine_closed_days` no longer affects any list (R-O4); only its default-value assertion remains.
 - The ticket is a bearer secret in the WS query string: never log it. Invite tokens are just as secret (R2-5):
   not in logs, errors, audit summaries, or any response to a non-member; rotating makes the old link 404.
 - Never log transcripts, translations, summary text, user text or absolute paths; voice logs carry only ids,

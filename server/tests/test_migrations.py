@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0013"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -429,7 +429,7 @@ LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link
 
 def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0013"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]
     command.upgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "0013")
@@ -450,6 +450,43 @@ def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "head")
     assert LINK_TABLES <= _tables(db)
+
+
+def test_0014_rooms_reopen_columns_backfill_and_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]
+    assert ScriptDirectory.from_config(cfg).get_revision("0014").down_revision == "0013"
+    command.upgrade(cfg, "0013")
+    con = sqlite3.connect(db)
+    con.execute("insert into users (id, username, password_hash, created_at) values (7, 'lily', 'x', '2026-10-09')")
+    con.execute("insert into rooms (id, code, last_code, owner_id, topic, status, locked, ai_public, last_seq, created_at,"
+                " last_active_at, ai_muted) values ('r1', '482913', '482913', 7, '', 'open', 0, 1, 0, '2026-10-09 08:00:00',"
+                " '2026-10-09 08:30:00', 0), ('r2', null, '573920', 7, '', 'closed', 0, 1, 0, '2026-10-08 08:00:00',"
+                " '2026-10-08 09:00:00', 0)")
+    con.commit()
+    con.close()
+    command.upgrade(cfg, "0014")
+    con = sqlite3.connect(db)
+    try:
+        # backfilled to created_at, and the column stays nullable (R-O1: code coalesces, no SET NOT NULL)
+        assert dict(con.execute("select id, opened_at from rooms")) == {"r1": "2026-10-09 08:00:00", "r2": "2026-10-08 08:00:00"}
+        assert {r[0] for r in con.execute("select reopen_count from rooms")} == {0}
+        cols = {r[1]: r for r in con.execute("pragma table_info(rooms)")}
+        assert cols["opened_at"][3] == 0  # notnull flag
+        assert cols["reopen_count"][3] == 1 and cols["reopen_count"][4] == "'0'"
+    finally:
+        con.close()
+    command.downgrade(cfg, "0013")
+    con = sqlite3.connect(db)
+    try:
+        cols = {r[1] for r in con.execute("pragma table_info(rooms)")}
+        assert "opened_at" not in cols and "reopen_count" not in cols
+        assert [(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(rooms)")] == [("users", "owner_id", "SET NULL")]
+        assert any(r[1] == "uq_rooms_invite_token" or r[2] for r in con.execute("pragma index_list(rooms)"))
+        assert con.execute("select count(*) from rooms").fetchone()[0] == 2  # rooms are never lost
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
 
 
 def test_user_foreign_keys_in_the_migrated_schema_carry_the_models_on_delete(tmp_path, monkeypatch):

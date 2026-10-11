@@ -35,7 +35,7 @@ from app.rooms.protocol import (
 from app.rooms.protocol import REACTION_KEYS
 from app.rooms.rules import LEVELS, MAX_TEXT, NAME_MAX, RoomLimits, clean_settings, clean_text
 from app.rooms.scenarios import SCENARIOS
-from app.rooms.store import RoomError, RoomStore, message_out, room_out
+from app.rooms.store import RoomError, RoomStore, decode_cursor, encode_cursor, message_out, room_out
 from app.rooms.tickets import RoomTicketStore
 from app.services import usage
 from app.services.prompts import prompt_cache
@@ -50,6 +50,8 @@ ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "forbidden": (403, "Only the owner can do that"), "bad_reason": (400, "Invalid reason"),
     "below_members": (409, "Below current members"), "cooldown": (429, "Try again later"),
     "too_many_requests": (429, "Too many requests for this room"), "no_request": (404, "Request not found"),
+    "not_closed": (409, "Room is not closed"), "admin_closed": (403, "Closed by an administrator"),
+    "no_owner": (409, "Room has no owner"),
 }
 
 
@@ -68,6 +70,7 @@ class RoomsRuntime:
     sweeper: asyncio.Task | None = None
     ai_concurrency: int = 0
     react_limiter: RateLimiter | None = None  # rooms v2: 30 reactions/minute per room:user
+    reopen_limiter: RateLimiter | None = None  # reopen: 5/minute per user (R-O10)
     # ---- rooms v2 extension points (plan P2-1); filled by app.state.rooms_extensions ----
     voice: object | None = None  # connection.VoiceHandler (lane SV)
     close_listeners: list["CloseListener"] = field(default_factory=list)
@@ -87,6 +90,8 @@ class RoomsRuntime:
         self.assist_limiter.limit = limits.assist_per_minute
         if self.react_limiter is not None:
             self.react_limiter.limit = limits.react_per_minute
+        if self.reopen_limiter is not None:
+            self.reopen_limiter.limit = limits.reopen_per_minute
         self.tickets.set_ttl(settings.rooms_ticket_ttl_seconds)
         if settings.rooms_ai_concurrency != self.ai_concurrency:  # calls already holding the old gate finish on it
             self.ai_gate = asyncio.Semaphore(settings.rooms_ai_concurrency)
@@ -126,7 +131,8 @@ def runtime(app) -> RoomsRuntime:
             ai_user_limiter=RateLimiter(limits.ai_per_user_10min, 600),
             join_limiter=RateLimiter(limits.join_per_minute, 60),
             assist_limiter=RateLimiter(limits.assist_per_minute, 60), ai_concurrency=s.rooms_ai_concurrency,
-            react_limiter=RateLimiter(limits.react_per_minute, 60))
+            react_limiter=RateLimiter(limits.react_per_minute, 60),
+            reopen_limiter=RateLimiter(limits.reopen_per_minute, 60))
         rt.app = app
         rt.sweep_listeners.append(_expire_requests)
         app.state.rooms = rt
@@ -408,13 +414,28 @@ async def invite_join(token: str, request: Request, user: User = Depends(current
 
 @router.get("/mine")
 async def my_rooms(request: Request, user: User = Depends(current_user), _: Settings = Depends(require_rooms)):
+    """Open rooms only (spec 2026-10-12 §2.2); `ended_count` feeds the lobby's "Ended rooms (N)" entry."""
     rt = runtime(request.app)
     rows = await rt.store.mine(user.id, utcnow())
-    # ended rows show the learning summary as a subtitle (spec 2026-10-10 §6.1): None while open, "none" = no row
-    summaries = await rt.store.summary_statuses([room.id for room, _ in rows if room.status != "open"])
-    return {"rooms": [{**await _room_json(rt, room, role),
-                       "summary_status": None if room.status == "open" else summaries.get(room.id, "none")}
-                      for room, role in rows]}
+    return {"rooms": [{**await _room_json(rt, room, role), "summary_status": None} for room, role in rows],
+            "ended_count": await rt.store.ended_count(user.id)}
+
+
+@router.get("/ended")
+async def ended_rooms(request: Request, cursor: str = Query("", max_length=160), limit: int = Query(20, ge=1, le=50),
+                      user: User = Depends(current_user), _: Settings = Depends(require_rooms)):
+    """Every ended room of the caller (active member), newest end first; keyset cursor (R-O12). Each row shows the
+    learning summary status as a subtitle (spec 2026-10-10 §6.1): "none" = no summary row."""
+    rt = runtime(request.app)
+    try:
+        after = decode_cursor(cursor) if cursor else None
+    except ValueError:
+        return JSONResponse({"error": "Invalid cursor"}, status_code=400)
+    rows, nxt = await rt.store.ended(user.id, after, limit)
+    summaries = await rt.store.summary_statuses([room.id for room, _ in rows])
+    return {"rooms": [{**await _room_json(rt, room, role), "summary_status": summaries.get(room.id, "none")}
+                      for room, role in rows],
+            "next_cursor": encode_cursor(*nxt) if nxt else None}
 
 
 @router.get("/{room_id}")
@@ -586,6 +607,31 @@ async def close_room(room_id: str, request: Request, user: User = Depends(curren
     await rt.hub.close_room(room.id, CLOSE_NOT_FOUND)
     rt.hub.forget(room.id)
     rt.hub.spawn(after_close(rt, room.id, "owner"))
+    return {"room": await _room_json(rt, room, "owner")}
+
+
+async def announce_reopened(rt: RoomsRuntime, room, key: str, meta: dict) -> None:
+    """Tell the room an ended room is open again: the `reopened` event to live connections (usually none, R-O3), then
+    one public system message (kept forever). Shared by the owner and the admin endpoint."""
+    await rt.hub.broadcast(room.id, event("reopened", room=await _room_json(rt, room, None)))
+    await system_message(rt, room.id, key, meta)
+
+
+@router.post("/{room_id}/reopen")
+async def reopen_room(room_id: str, request: Request, user: User = Depends(current_user),
+                      _: Settings = Depends(require_rooms)):
+    rt = runtime(request.app)
+    if rt.reopen_limiter is not None and not rt.reopen_limiter.allow(str(user.id)):
+        raise HTTPException(429, "Too many requests, please try again later")
+    room_id = room_id[:MAX_ID]
+    async with request.app.state.sessionmaker() as s:
+        max_owned = await effective(s, request.app, user.id, "rooms_max_owned")
+    try:
+        room = await rt.store.reopen(room_id, user.id, utcnow(), max_owned=max_owned)
+    except RoomError as e:
+        _raise(e)
+    await announce_reopened(rt, room, "reopened", {"name": user.username})
+    logger.info("rooms reopened room=%s count=%d", room.id, room.reopen_count)
     return {"room": await _room_json(rt, room, "owner")}
 
 

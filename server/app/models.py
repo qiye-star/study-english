@@ -252,6 +252,9 @@ class Room(Base):
     max_members: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
     allow_voice: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     invite_token: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+    # ---- reopen (spec 2026-10-12 part 2): the expiry clock starts at the last (re)opening ----
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # NULL = created_at
+    reopen_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class RoomMember(Base):

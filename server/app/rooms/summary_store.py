@@ -36,10 +36,14 @@ class SummaryStore:
         async with self._sm() as s:
             return await s.get(RoomSummary, room_id)
 
-    async def start(self, room_id: str, now: datetime, max_attempts: int, *, resume: bool = False) -> bool:
-        """Claim a generation: a new row becomes `pending` (attempts 1); a `failed` row with attempts left goes
-        back to `pending` (attempts + 1). With `resume` (startup only) a `pending` row left by a restart with
-        attempts left is claimed too. Atomic, so a close listener and a retry cannot both generate."""
+    async def start(self, room_id: str, now: datetime, max_attempts: int, *, resume: bool = False,
+                    since: datetime | None = None) -> bool:
+        """Claim a generation: a new row becomes `pending` (attempts 1); a `failed` row (or a `done` row marked
+        `stale`, see `fail`) with attempts left goes back to `pending` (attempts + 1). With `resume` (startup only) a
+        `pending` row left by a restart with attempts left is claimed too. With `since` (the room's reopen time, R-O5):
+        a row first claimed BEFORE it covers an earlier session, so a `done / skipped / failed` row is claimed for a
+        fresh generation (attempts 1, created_at now) and its old `data` stays in place until `finish` overwrites it.
+        Atomic, so a close listener and a retry cannot both generate."""
         if max_attempts <= 0:
             return False
         async with self._sm() as s:
@@ -50,9 +54,20 @@ class SummaryStore:
                     return True
                 except IntegrityError:  # someone else created it first
                     await s.rollback()
+            if since is not None:
+                result = await s.execute(
+                    update(RoomSummary).where(RoomSummary.room_id == room_id,
+                                              RoomSummary.status.in_(("done", "skipped", "failed")),
+                                              RoomSummary.created_at < since)
+                    .values(status="pending", reason=None, attempts=1, created_at=now, finished_at=None))
+                await s.commit()
+                if result.rowcount == 1:
+                    return True
             states = ("failed", "pending") if resume else ("failed",)
+            claimable = or_(RoomSummary.status.in_(states),
+                            and_(RoomSummary.status == "done", RoomSummary.reason == "stale"))
             result = await s.execute(
-                update(RoomSummary).where(RoomSummary.room_id == room_id, RoomSummary.status.in_(states),
+                update(RoomSummary).where(RoomSummary.room_id == room_id, claimable,
                                           RoomSummary.attempts < max_attempts)
                 .values(status="pending", reason=None, attempts=RoomSummary.attempts + 1, finished_at=None))
             await s.commit()
@@ -67,11 +82,26 @@ class SummaryStore:
         await self._set(room_id, status="done", reason=None, data=data, model=(model or "")[:MODEL_MAX] or None,
                         finished_at=now)
 
+    async def _end_row(self, room_id: str, status: str, reason: str, now: datetime) -> None:
+        """`failed` / `skipped` for a first summary. A row that already holds a summary (`data` is set: a
+        regeneration after a reopen) goes back to `done` with reason `stale`, so the previous summary stays
+        readable (R-O5); `data` is never cleared."""
+        async with self._sm() as s:
+            row = await s.get(RoomSummary, room_id)
+            if row is None:
+                return
+            if row.data is not None:
+                row.status, row.reason = "done", "stale"
+            else:
+                row.status, row.reason = status, reason
+            row.finished_at = now
+            await s.commit()
+
     async def fail(self, room_id: str, reason: str, now: datetime) -> None:
-        await self._set(room_id, status="failed", reason=reason, finished_at=now)
+        await self._end_row(room_id, "failed", reason, now)
 
     async def skip(self, room_id: str, reason: str, now: datetime) -> None:
-        await self._set(room_id, status="skipped", reason=reason, finished_at=now)
+        await self._end_row(room_id, "skipped", reason, now)
 
     async def pending(self, limit: int) -> list[str]:
         async with self._sm() as s:
@@ -115,6 +145,7 @@ class SummaryRunner:
     model: Callable[[], str]
     clock: Callable[[], datetime]
     owner_of: Callable[[str], Awaitable[int | None]] | None = None  # the room's owner, for the per-owner cap
+    opened_of: Callable[[str], Awaitable[datetime | None]] | None = None  # reopen time, only for reopened rooms
 
     async def _claim_budget(self, room_id: str, limits: RoomLimits) -> list[tuple[str, str]] | None:
         """Per-owner daily count first (review m9), then the global one. Returns what was taken, None when out."""
@@ -134,7 +165,9 @@ class SummaryRunner:
         """Claim and generate once; returns the final status. A room already done/skipped/pending (or out of
         attempts) is left as it is. `resume` re-claims a `pending` row left by a restart (startup only); one
         that has no attempts left is marked failed("restart") so it does not stay pending forever."""
-        if not await self.store.start(room_id, self.clock(), self.limits().summary_attempts, resume=resume):
+        since = await self.opened_of(room_id) if self.opened_of is not None else None
+        if not await self.store.start(room_id, self.clock(), self.limits().summary_attempts, resume=resume,
+                                      since=since):
             row = await self.store.get(room_id)
             if row is None:
                 return "none"

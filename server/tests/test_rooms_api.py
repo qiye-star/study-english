@@ -65,8 +65,8 @@ async def test_closed_room_history_stays_readable(client, auth_headers):
     assert [(m["text"], m["meta"]) for m in msgs["messages"]] == [
         ("settings", {"changes": [{"field": "name", "value": "美食"}]})]
     assert (await client.patch(f"/api/rooms/{room['id']}", json={"locked": True}, headers=auth_headers)).status_code == 404
-    mine = (await client.get("/api/rooms/mine", headers=auth_headers)).json()["rooms"]
-    assert [(r["id"], r["status"]) for r in mine] == [(room["id"], "closed")]
+    mine = (await client.get("/api/rooms/mine", headers=auth_headers)).json()
+    assert mine["rooms"] == [] and mine["ended_count"] == 1  # ended rooms moved to /ended (spec 2026-10-12 §2.2)
 
 
 async def test_ticket_report_and_limits(client, auth_headers):

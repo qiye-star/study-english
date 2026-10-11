@@ -161,8 +161,8 @@ async def test_closed_rooms_stay_readable_by_default(app):
     closed, member = await store.membership(room.id, A)  # history stays readable for members
     assert closed.status == "closed" and member.role == "owner"
     assert [m.text for m, _ in await store.history(room.id, A, 100, 50)] == ["kept"]
-    assert [r.id for r, _ in await store.mine(A, NOW + timedelta(days=6))] == [room.id]
-    assert await store.mine(A, NOW + timedelta(days=8)) == []  # only the /mine listing window is 7 days
+    assert await store.mine(A, NOW + timedelta(days=6)) == []  # ended rooms moved to `ended` (spec 2026-10-12 §2.2)
+    assert [r.id for r, _ in (await store.ended(A, None, 10))[0]] == [room.id]  # no age limit any more
 
 
 async def test_purge_is_off_by_default(app):

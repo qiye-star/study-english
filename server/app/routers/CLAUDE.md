@@ -7,13 +7,13 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
-`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, WS /api/rooms/ws),
+`realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, incl. `ended`, `{id}/reopen`; WS /api/rooms/ws),
 `wordbook` (/api/wordbook/*: config, books, enrollment, today, learn/review batches, answers (incl. `mode=free`), spell, cards, reports, explain, `learned/summary`, `learned/query`,
 `learned/card`, `free/start`: words and prefixes only in POST bodies, never in URLs), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
 `announcements` (public `GET /api/announcements`: active banners + maintenance state),
 `admin_accounts` (accounts, sessions, `/me/security`, audit list/verify), `admin_settings` (settings CRUD, revisions/revert,
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
-`admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions via
+`admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions incl. reopen via
 `rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
 hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: learning-links view via
 `app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
