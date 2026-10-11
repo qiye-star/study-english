@@ -22,6 +22,7 @@ from app.models import (
     WordbookEnrollment, WordbookEvent, WordbookReport,
     AgentPersona, AgentPersonaReport, AgentUserSettings,
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
+    AgentTutorSession,
 )
 from app.services import recordings
 
@@ -43,7 +44,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (LinkCredit, "user_id"),
     (AgentPersona, "owner_id"), (AgentUserSettings, "user_id"), (AgentPersonaReport, "reporter_id"),
     (AgentMemoryItem, "user_id"), (AgentProfile, "user_id"), (AgentThreadState, "user_id"), (AgentRecap, "user_id"),
-    (AgentMemoryTombstone, "user_id"),
+    (AgentMemoryTombstone, "user_id"), (AgentTutorSession, "user_id"),
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)

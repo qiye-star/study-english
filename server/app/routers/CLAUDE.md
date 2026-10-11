@@ -19,6 +19,7 @@ hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: le
 `app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `admin_agents` (/api/admin/agents: overview, persona query (POST) / disable / restore / edit / delete, reports, function calling probe via `app/admin/agents_admin.py`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
 sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `agents_memory` (/api/agents/memory/*: profile, items, pin, recaps, export, clear — own data only; must precede `agents` and `stubs`),
+`agents_tutor` (/api/agents/tutor/*: start, active, get, hint, skip, finish; the turn itself is `POST /api/agents/turn` with `mode=tutor`; logic in `app/agents/tutor/service.py`; must precede `stubs`),
 `stubs` (catch-all writes),
 `app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
 sub-router from `app.links.registry`; must precede `stubs`), `agents` (/api/agents/*: config, personas CRUD + report, settings, `POST /turn` SSE via `AgentStream`; memory (A2) and tutor (A3) append below the anchor comments at the end of the file; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,

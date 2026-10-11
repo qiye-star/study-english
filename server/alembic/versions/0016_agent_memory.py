@@ -100,10 +100,35 @@ def upgrade() -> None:
         sa.Column('created_at', TZ, nullable=False),
     )
     # ---- A3 (agents-tutor): append op.create_table('agent_tutor_sessions', ...) and its indexes below this line ----
+    op.create_table(
+        'agent_tutor_sessions',
+        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('conversation_id', sa.String(36), sa.ForeignKey('conversations.id', ondelete='CASCADE'),
+                  nullable=True),
+        sa.Column('room_id', sa.String(36), nullable=True),
+        sa.Column('persona_id', sa.String(64), nullable=False),
+        sa.Column('client_start_id', sa.String(36), nullable=False),
+        sa.Column('status', sa.String(8), nullable=False),
+        sa.Column('goal', sa.JSON(), nullable=False),
+        sa.Column('state', sa.JSON(), nullable=False),
+        sa.Column('version', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('recap', sa.JSON(), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
+        sa.UniqueConstraint('user_id', 'client_start_id', name='uq_agent_tutor_sessions_user_start'),
+    )
+    op.create_index('ix_agent_tutor_sessions_user_id_conversation_id_status', 'agent_tutor_sessions',
+                    ['user_id', 'conversation_id', 'status'])
+    op.create_index('ix_agent_tutor_sessions_user_id_created_at', 'agent_tutor_sessions', ['user_id', 'created_at'])
 
 
 def downgrade() -> None:
     # ---- A3 (agents-tutor): drop agent_tutor_sessions and its indexes above this line ----
+    op.drop_index('ix_agent_tutor_sessions_user_id_created_at', table_name='agent_tutor_sessions')
+    op.drop_index('ix_agent_tutor_sessions_user_id_conversation_id_status', table_name='agent_tutor_sessions')
+    op.drop_table('agent_tutor_sessions')
     op.drop_table('agent_memory_tombstones')
     op.drop_index('ix_agent_recaps_conversation_id', table_name='agent_recaps')
     op.drop_index('ix_agent_recaps_user_id_created_at', table_name='agent_recaps')

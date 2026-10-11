@@ -26,9 +26,10 @@ from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
+from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, admin_agents, agents, agents_memory, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -91,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
     # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
     install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
-    # plan A3 (tutor): runtime(app).modes.register(TutorMode(...))
+    agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
@@ -109,7 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
-        links, agents, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
+        links, agents, agents_tutor, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents, stubs, admin_web, web,
     ):
         app.include_router(module.router)

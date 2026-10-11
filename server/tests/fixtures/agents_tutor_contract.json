@@ -1,0 +1,287 @@
+{
+  "start": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "conversation_id": "00000000-0000-4000-8000-000000000000",
+    "persona_id": "builtin:coach",
+    "status": "active",
+    "phase": "opening",
+    "step_index": 1,
+    "steps_total": 3,
+    "level": "B1",
+    "kind": "words",
+    "hints_used": 0,
+    "hints_max": 2,
+    "goal": {
+      "topic": "today_words",
+      "scenario": null,
+      "length": 3,
+      "input": "text",
+      "mix": [
+        "ask",
+        "words",
+        "repeat",
+        "retell",
+        "roleplay",
+        "dictate"
+      ]
+    },
+    "answers": [],
+    "say": null,
+    "recap": null,
+    "resumed": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "active": {
+    "session": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "conversation_id": "00000000-0000-4000-8000-000000000000",
+      "persona_id": "builtin:coach",
+      "status": "active",
+      "phase": "await_answer",
+      "step_index": 1,
+      "steps_total": 3,
+      "level": "B1",
+      "kind": "words",
+      "hints_used": 0,
+      "hints_max": 2,
+      "goal": {
+        "topic": "today_words",
+        "scenario": null,
+        "length": 3,
+        "input": "text",
+        "mix": [
+          "ask",
+          "words",
+          "repeat",
+          "retell",
+          "roleplay",
+          "dictate"
+        ]
+      },
+      "answers": [],
+      "say": null,
+      "recap": null,
+      "resumed": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  "get": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "conversation_id": "00000000-0000-4000-8000-000000000000",
+    "persona_id": "builtin:coach",
+    "status": "active",
+    "phase": "ask",
+    "step_index": 3,
+    "steps_total": 3,
+    "level": "B1",
+    "kind": "words",
+    "hints_used": 0,
+    "hints_max": 2,
+    "goal": {
+      "topic": "today_words",
+      "scenario": null,
+      "length": 3,
+      "input": "text",
+      "mix": [
+        "ask",
+        "words",
+        "repeat",
+        "retell",
+        "roleplay",
+        "dictate"
+      ]
+    },
+    "answers": [
+      {
+        "index": 0,
+        "kind": "words",
+        "verdict": "good"
+      },
+      {
+        "index": 1,
+        "kind": "repeat",
+        "verdict": "skip"
+      }
+    ],
+    "say": null,
+    "recap": null,
+    "resumed": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "hint": {
+    "hint": "想一个周末的例子",
+    "session": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "conversation_id": "00000000-0000-4000-8000-000000000000",
+      "persona_id": "builtin:coach",
+      "status": "active",
+      "phase": "await_answer",
+      "step_index": 2,
+      "steps_total": 3,
+      "level": "B1",
+      "kind": "repeat",
+      "hints_used": 1,
+      "hints_max": 2,
+      "goal": {
+        "topic": "today_words",
+        "scenario": null,
+        "length": 3,
+        "input": "text",
+        "mix": [
+          "ask",
+          "words",
+          "repeat",
+          "retell",
+          "roleplay",
+          "dictate"
+        ]
+      },
+      "answers": [
+        {
+          "index": 0,
+          "kind": "words",
+          "verdict": "good"
+        }
+      ],
+      "say": null,
+      "recap": null,
+      "resumed": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  "skip": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "conversation_id": "00000000-0000-4000-8000-000000000000",
+    "persona_id": "builtin:coach",
+    "status": "active",
+    "phase": "ask",
+    "step_index": 3,
+    "steps_total": 3,
+    "level": "B1",
+    "kind": "words",
+    "hints_used": 0,
+    "hints_max": 2,
+    "goal": {
+      "topic": "today_words",
+      "scenario": null,
+      "length": 3,
+      "input": "text",
+      "mix": [
+        "ask",
+        "words",
+        "repeat",
+        "retell",
+        "roleplay",
+        "dictate"
+      ]
+    },
+    "answers": [
+      {
+        "index": 0,
+        "kind": "words",
+        "verdict": "good"
+      },
+      {
+        "index": 1,
+        "kind": "repeat",
+        "verdict": "skip"
+      }
+    ],
+    "say": null,
+    "recap": null,
+    "resumed": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "finish": {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "conversation_id": "00000000-0000-4000-8000-000000000000",
+    "persona_id": "builtin:coach",
+    "status": "done",
+    "phase": "done",
+    "step_index": 3,
+    "steps_total": 3,
+    "level": "B1",
+    "kind": null,
+    "hints_used": 0,
+    "hints_max": 2,
+    "goal": {
+      "topic": "today_words",
+      "scenario": null,
+      "length": 3,
+      "input": "text",
+      "mix": [
+        "ask",
+        "words",
+        "repeat",
+        "retell",
+        "roleplay",
+        "dictate"
+      ]
+    },
+    "answers": [
+      {
+        "index": 0,
+        "kind": "words",
+        "verdict": "good"
+      },
+      {
+        "index": 1,
+        "kind": "repeat",
+        "verdict": "skip"
+      }
+    ],
+    "say": null,
+    "recap": {
+      "total": 0,
+      "answered": 1,
+      "skipped": 1,
+      "scores": {
+        "good": 1,
+        "ok": 0,
+        "weak": 0,
+        "skip": 1
+      },
+      "strengths": [
+        {
+          "kind": "words",
+          "focus": "today_words"
+        }
+      ],
+      "weaknesses": [
+        {
+          "kind": "repeat",
+          "focus": "today_words"
+        }
+      ],
+      "words": [
+        "cherry"
+      ],
+      "level_start": "B1",
+      "level_end": "B1",
+      "topic": "today_words"
+    },
+    "resumed": false,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  "meta_opening": {
+    "step_index": 1,
+    "steps_total": 3,
+    "kind": "words",
+    "done": false,
+    "retry": false
+  },
+  "meta_answer": {
+    "step_index": 2,
+    "steps_total": 3,
+    "verdict": "good",
+    "kind": "repeat",
+    "done": false,
+    "retry": false
+  }
+}
