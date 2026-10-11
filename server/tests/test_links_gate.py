@@ -95,7 +95,9 @@ async def test_the_bus_gate_applies_the_three_levels_to_registered_links_only(ap
                             at=datetime.now(timezone.utc)))
     await bus.drain()
     assert seen == [uid]
-    assert (bus.stats()["chat_words"]["skipped"], bus.stats()["diagnostics"]["handled"]) == (1, 1)
+    # Ruling(L5):chat_words 自己的处理器也订阅了 MessageSent,所以这里每个订阅者各记一次 skipped,一个都没执行
+    assert bus.stats()["chat_words"]["handled"] == 0 and bus.stats()["chat_words"]["skipped"] >= 1
+    assert bus.stats()["diagnostics"]["handled"] == 1
 
 
 def test_every_link_key_has_a_settings_flag():

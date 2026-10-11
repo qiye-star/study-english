@@ -1,0 +1,15 @@
+{
+  "chat_words": {
+    "today": [
+      {
+        "word": "talk",
+        "used": true
+      },
+      {
+        "word": "carry",
+        "used": false
+      }
+    ],
+    "used_count": 1
+  }
+}
