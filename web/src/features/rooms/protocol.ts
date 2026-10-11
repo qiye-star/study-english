@@ -47,6 +47,8 @@ export interface RoomInfo {
   closeReason?: string | null;
   /** v2 的 7 项设置(topic 仍下发,= name) */
   name: string; scenario: string; level: string; joinMode: "code" | "approval"; maxMembers: number; allowVoice: boolean;
+  /** 房主选的智能体角色 id(最多 ROOM_AGENTS.max 个;名字等经 GET /api/rooms/{id}/agents 读取)。旧服务端没有时为 undefined */
+  agentIds?: string[];
 }
 export interface RoomMemberInfo { userId: number; name: string; role: "owner" | "member"; online: boolean }
 /** 智能体过程的一步(只发给提问者;spec §4.4 的 step 形状,camelCase)。private = 读了个人数据,界面标「仅你可见」。 */

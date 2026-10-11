@@ -6,6 +6,8 @@ export interface RoomsConfig {
   /** v2(spec §8):情景池(brief 不下发)、水平、表单默认人数与名称上限、语音与小结是否可用、表情回应 key */
   scenarios: { key: string; titleZh: string; titleEn: string }[]; levels: string[]; defaultMaxMembers: number; nameMax: number;
   voiceAvailable: boolean; maxVoiceMs: number; summaryAvailable: boolean; reactions: ReactionKey[];
+  /** 联机智能体(plan 2026-10-12-agents-rooms);旧服务端没有时为 undefined = 不可用 */
+  agentsAvailable?: boolean; agentTutorAvailable?: boolean; maxAgents?: number;
 }
 
 /** 服务端错误原文 → i18n key(translateServerError 的 extra 表)。 */

@@ -3,19 +3,19 @@
     "ended": {
       "rooms": [
         {
-          "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+          "id": "439478fe-45cd-491f-998c-b9cd79204d6e",
           "code": null,
           "topic": "美食角",
           "status": "closed",
           "locked": false,
           "ai_public": true,
           "ai_muted": false,
-          "owner_id": 59316400,
+          "owner_id": 20074040,
           "my_role": "owner",
           "member_count": 1,
           "online_count": 0,
-          "created_at": "2026-10-11T09:51:54.500479+00:00",
-          "closed_at": "2026-10-11T09:51:54.530166+00:00",
+          "created_at": "2026-10-11T12:26:12.804754+00:00",
+          "closed_at": "2026-10-11T12:26:12.917817+00:00",
           "name": "美食角",
           "scenario": "free",
           "level": "A2",
@@ -23,6 +23,7 @@
           "max_members": 4,
           "allow_voice": true,
           "close_reason": "owner",
+          "agent_ids": [],
           "summary_status": "skipped"
         }
       ],
@@ -30,18 +31,18 @@
     },
     "reopen": {
       "room": {
-        "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+        "id": "439478fe-45cd-491f-998c-b9cd79204d6e",
         "code": "<redacted>",
         "topic": "美食角",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 59316400,
+        "owner_id": 20074040,
         "my_role": "owner",
         "member_count": 1,
         "online_count": 1,
-        "created_at": "2026-10-11T09:51:54.500479+00:00",
+        "created_at": "2026-10-11T12:26:12.804754+00:00",
         "closed_at": null,
         "name": "美食角",
         "scenario": "free",
@@ -49,24 +50,25 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "mine": {
       "rooms": [
         {
-          "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
-          "code": "996176",
+          "id": "439478fe-45cd-491f-998c-b9cd79204d6e",
+          "code": "199552",
           "topic": "美食角",
           "status": "open",
           "locked": false,
           "ai_public": true,
           "ai_muted": false,
-          "owner_id": 59316400,
+          "owner_id": 20074040,
           "my_role": "owner",
           "member_count": 1,
           "online_count": 1,
-          "created_at": "2026-10-11T09:51:54.500479+00:00",
+          "created_at": "2026-10-11T12:26:12.804754+00:00",
           "closed_at": null,
           "name": "美食角",
           "scenario": "free",
@@ -75,6 +77,7 @@
           "max_members": 4,
           "allow_voice": true,
           "close_reason": null,
+          "agent_ids": [],
           "summary_status": null
         }
       ],
@@ -85,18 +88,18 @@
     "reopened": {
       "type": "reopened",
       "room": {
-        "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+        "id": "439478fe-45cd-491f-998c-b9cd79204d6e",
         "code": "<redacted>",
         "topic": "美食角",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 59316400,
+        "owner_id": 20074040,
         "my_role": null,
         "member_count": 1,
         "online_count": 1,
-        "created_at": "2026-10-11T09:51:54.500479+00:00",
+        "created_at": "2026-10-11T12:26:12.804754+00:00",
         "closed_at": null,
         "name": "美食角",
         "scenario": "free",
@@ -104,14 +107,15 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "message_system": {
       "type": "message",
       "message": {
         "seq": 1,
-        "id": "3f217cba-5d28-4ba0-9e08-0bfaf37e9db2",
+        "id": "0f6a3fca-6b5f-4b64-8f65-11bfc8bcd765",
         "lane": "public",
         "kind": "system",
         "sender": {
@@ -126,7 +130,7 @@
         "meta": {
           "name": "alice"
         },
-        "created_at": "2026-10-11T09:51:54.597582+00:00",
+        "created_at": "2026-10-11T12:26:12.957303+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,

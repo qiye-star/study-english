@@ -43,6 +43,20 @@ class MemberView:
     role: str
 
 
+def _agent_meta(m: RoomMessage) -> dict | None:
+    """`meta.agent` of a room agent's answer (plan 2026-10-12-agents-rooms R-RA2), else None."""
+    agent = m.meta.get("agent") if isinstance(m.meta, dict) else None
+    return agent if isinstance(agent, dict) and isinstance(agent.get("name"), str) else None
+
+
+def _ai_name(m: RoomMessage, name: str | None) -> str:
+    """Speaker label for AI context and quotes: the agent's name, the legacy assistant name, or the member."""
+    if m.sender_kind != "ai":
+        return name or ""
+    agent = _agent_meta(m)
+    return agent["name"] if agent else AI_NAME
+
+
 def voice_out(v: RoomVoice) -> dict:
     """The shared voice state of one message (spec 2026-10-10 §9). `audio` is False once an admin purged the file."""
     return {"duration_ms": v.duration_ms, "status": v.status, "transcript": v.transcript, "lang": v.lang,
@@ -74,7 +88,9 @@ def room_out(room: Room, *, my_role: str | None, member_count: int, online_count
             "created_at": iso_utc(room.created_at), "closed_at": iso_utc(room.closed_at) if room.closed_at else None,
             "name": room.name, "scenario": room.scenario, "level": room.level, "join_mode": room.join_mode,
             "max_members": room.max_members, "allow_voice": room.allow_voice,
-            "close_reason": room.close_reason}
+            "close_reason": room.close_reason,
+            "agent_ids": list((room.agent_config or {}).get("persona_ids") or [])
+            if isinstance(room.agent_config, dict) else []}
 
 
 def request_out(r: RoomJoinRequest, name: str, room_name: str) -> dict:
@@ -726,8 +742,7 @@ class RoomStore:
                                                       RoomMessage.kind.in_(QUOTABLE), RoomMessage.text != "",
                                                       RoomMessage.hidden_at.is_(None))
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
-        return [(AI_NAME if m.sender_kind == "ai" else (n or ""),
-                 f"(voice) {m.text}" if m.kind == "voice" else m.text) for m, n in reversed(rows)]
+        return [(_ai_name(m, n), f"(voice) {m.text}" if m.kind == "voice" else m.text) for m, n in reversed(rows)]
 
     async def quote_for(self, room_id: str, seq: int) -> dict | None:
         """Snapshot for `meta.quote` of a reply: public, not hidden, member text / voice / @ai answer only.
@@ -742,8 +757,7 @@ class RoomStore:
             text = m.text or ""
             if m.kind == "voice":
                 text = await s.scalar(select(RoomVoice.transcript).where(RoomVoice.message_id == m.id)) or ""
-        return {"seq": m.seq, "name": AI_NAME if m.sender_kind == "ai" else (name or ""), "kind": m.kind,
-                "text": text[:QUOTE_MAX]}
+        return {"seq": m.seq, "name": _ai_name(m, name), "kind": m.kind, "text": text[:QUOTE_MAX]}
 
     async def toggle_reaction(self, room_id: str, seq: int, user_id: int, key: str, on: bool,
                               now: datetime) -> list[int] | None:
@@ -816,7 +830,8 @@ class RoomStore:
 
     async def assist_history(self, room_id: str, user_id: int, limit: int):
         rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "private",
-                                                      RoomMessage.audience_id == user_id)
+                                                      RoomMessage.audience_id == user_id,
+                                                      RoomMessage.kind.in_(("assist_request", "assist_reply")))
                                  .order_by(RoomMessage.seq.desc()).limit(limit))
         return list(reversed(rows))
 
@@ -893,6 +908,50 @@ class RoomStore:
             await s.execute(update(Room).where(Room.id.in_(ids)).values(topic="", name="", invite_token=None))
             await s.commit()
             return result.rowcount or 0
+
+    # ---- agents in rooms (plan 2026-10-12-agents-rooms) ----
+
+    async def set_agents(self, room_id: str, owner_id: int, persona_ids: list[str]) -> tuple[Room, bool]:
+        """Owner picks (already validated) persona ids; `chosen_by` = this owner (R-RA3). [] clears. A running room
+        tutor blocks changes (`tutor_active`)."""
+        async with self._sm() as s:
+            room = await self._owned_room(s, room_id, owner_id)
+            current = list((room.agent_config or {}).get("persona_ids") or []) if isinstance(room.agent_config, dict) else []
+            if current == list(persona_ids):
+                return room, False
+            if isinstance(room.agent_tutor, dict):
+                raise RoomError("tutor_active")
+            room.agent_config = {"persona_ids": list(persona_ids), "chosen_by": owner_id} if persona_ids else None
+            await s.commit()
+            return room, True
+
+    async def set_tutor(self, room_id: str, snapshot: dict | None) -> None:
+        """The room tutor snapshot (agent_tutor.py); None = no tutor (SQL NULL)."""
+        async with self._sm() as s:
+            room = await s.get(Room, room_id)
+            if room is not None:
+                room.agent_tutor = dict(snapshot) if snapshot is not None else None
+                await s.commit()
+
+    async def tutor_rooms(self) -> list[tuple[str, dict]]:
+        """Open rooms that have a tutor snapshot (startup: pause them, R-RA8)."""
+        async with self._sm() as s:
+            rows = (await s.execute(select(Room.id, Room.agent_tutor).where(
+                Room.status == "open", Room.agent_tutor.is_not(None)))).all()
+        return [(room_id, snap) for room_id, snap in rows if isinstance(snap, dict)]
+
+    async def agent_context(self, room_id: str, limit: int, *, before_seq: int) -> list[tuple[str, str, str | None]]:
+        """Recent public text before `before_seq` for an agent turn: (speaker, text, persona id of an agent answer)."""
+        rows = await self._named(self._select().where(RoomMessage.room_id == room_id, RoomMessage.lane == "public",
+                                                      RoomMessage.kind.in_(QUOTABLE), RoomMessage.text != "",
+                                                      RoomMessage.hidden_at.is_(None), RoomMessage.seq < before_seq)
+                                 .order_by(RoomMessage.seq.desc()).limit(limit))
+        out: list[tuple[str, str, str | None]] = []
+        for m, n in reversed(rows):
+            agent = _agent_meta(m)
+            out.append((_ai_name(m, n), f"(voice) {m.text}" if m.kind == "voice" else m.text,
+                        agent.get("persona_id") if agent else None))
+        return out
 
     async def fail_pending_ai(self) -> int:
         async with self._sm() as s:

@@ -17,7 +17,7 @@ const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 
 const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
   myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true, closeReason: true,
-  name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
+  name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true, agentIds: true };
 const ENDED_PAGE: Record<keyof EndedPage, true> = { rooms: true, nextCursor: true };
 
 describe("reopen payloads (recorded from the real server) match the web types", () => {

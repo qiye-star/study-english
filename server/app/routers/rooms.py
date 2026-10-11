@@ -32,7 +32,7 @@ from app.rooms.protocol import (
     CLOSE_BUSY, CLOSE_DISABLED, CLOSE_KICKED, CLOSE_NORMAL, CLOSE_NOT_FOUND, CLOSE_PROTOCOL, CLOSE_RESTART,
     CLOSE_UNAUTHORIZED, HELLO_TIMEOUT, MAX_ID, HelloMsg, ProtocolError, event, parse_client_message,
 )
-from app.rooms.protocol import REACTION_KEYS
+from app.rooms.protocol import MAX_AGENTS, REACTION_KEYS
 from app.rooms.rules import LEVELS, MAX_TEXT, NAME_MAX, RoomLimits, clean_settings, clean_text
 from app.rooms.scenarios import SCENARIOS
 from app.rooms.store import RoomError, RoomStore, decode_cursor, encode_cursor, message_out, room_out
@@ -296,7 +296,12 @@ async def rooms_config(_: User = Depends(current_user), settings: Settings = Dep
             "levels": list(LEVELS), "default_max_members": min(RoomLimits.default_max_members, settings.rooms_max_members),
             "name_max": RoomLimits.name_max, "voice_available": settings.rooms_voice_available,
             "max_voice_ms": settings.rooms_voice_max_seconds * 1000,
-            "summary_available": settings.rooms_summary_available, "reactions": list(REACTION_KEYS)}
+            "summary_available": settings.rooms_summary_available, "reactions": list(REACTION_KEYS),
+            "agents_available": bool(settings.agents_enabled and settings.agents_rooms_enabled
+                                     and settings.rooms_ai_available),
+            "agent_tutor_available": bool(settings.agents_enabled and settings.agents_rooms_enabled
+                                          and settings.agents_tutor_enabled and settings.rooms_ai_available),
+            "max_agents": MAX_AGENTS}
 
 
 @router.post("")
