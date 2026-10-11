@@ -14,6 +14,7 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 - `voice/` 按住说话(复用对话页手势)、上传、语音气泡(播放、转文字、翻译、重试)、自动转文字设置(`auto-text.ts`)
 - `assist/` 助手停靠面板(三档 `dock-snap.ts`、软键盘收成一行 `use-soft-keyboard.ts`)、圆形入口按钮(琥珀未读点)、建议卡
 - `extras/` 引用、表情回应、消息操作菜单、文本「译」「朗读」、正在输入、邀请面板与二维码(本地生成)、邀请落地页、学习小结卡与小结页
+- `ended/` 已结束页(`ended-rooms-page.tsx`、数据 hook `use-ended-rooms.ts`、自带 i18n);`lazy-ended.tsx` 懒加载壳;`extras/reopen-bar.tsx` 房主重新开启入口
 - 各目录自带 `i18n/{zh-CN,en}.json`(`web/src/i18n/index.ts` 的 glob 自动深合并;可以往 `web.rooms.notice` / `web.rooms.errors` 里补键)
 - `ui.ts`(视觉稿 .btn / 输入框的类名)、`room-fixtures.ts`(测试用的线上 JSON 样例,不放进 *.test.ts 以免被重复执行)
 
@@ -26,7 +27,7 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 WR-1(2026-10-12):`room-page.tsx` 只增加 `ReopenBar` 一行接线,理由:重新开启入口只能出现在页面的结束态里;逻辑全在 `extras/reopen-bar.tsx` 与 `use-room.ts`。
 
 ## Public surface
-`RoomsLobbyPage`、`RoomPage`、`RoomInvitePage`(`/rooms/invite/:token`)、`RoomSummaryPage`(`/rooms/r/:roomId/summary`)、`fetchRoomsConfig`、`useRoomsEnabled`。
+`RoomsLobbyPage`、`RoomPage`、`RoomInvitePage`(`/rooms/invite/:token`)、`RoomSummaryPage`(`/rooms/r/:roomId/summary`)、`RoomsEndedPage`(`/rooms/ended`,懒加载)、`fetchRoomsConfig`、`useRoomsEnabled`。
 
 ## Allowed dependencies
 `lib/`、`api/`、`components/`、`layout/`、`auth/`、`settings/`、`@renderer/*`、其他 feature 的 `index.ts`(例如 `~/features/chat` 的朗读与翻译)。
@@ -39,7 +40,7 @@ WR-1(2026-10-12):`room-page.tsx` 只增加 `ReopenBar` 一行接线,理由:重�
 - 票据在 WS 地址里,邀请 token 在邀请链接里,两者都是机密:不记录、不放进错误信息(错误一律经 `translateServerError` 映射成固定文案)。
 - 契约测试逐键绑定服务端录制的样例(`server/tests/fixtures/`,`CONTRACT_UPDATE=1` 在服务端重录),改字段时两边一起改:
   `rooms-contract.test.ts`(`rooms_contract.json`)、`create/rooms-v2-contract.test.ts`(`rooms_v2_core_contract.json`)、
-  `extras/extras-contract.test.ts`(core + `rooms_v2_summary_contract.json`)、`voice/voice-contract.test.ts`(`rooms_v2_voice_contract.json`,
+  `extras/extras-contract.test.ts`(core + `rooms_v2_summary_contract.json`)、`rooms-reopen-contract.test.ts`(`rooms_reopen_contract.json`)、`voice/voice-contract.test.ts`(`rooms_v2_voice_contract.json`,
   还核对服务端的语音错误原文与每个 WS `notice`/`error` code 都有中英文案)。
 - `camelcase-keys` 会改写对象的键:表情回应在线上是 `[{key, user_ids}]` 列表,不是以表情 key 为键的对象。
 - 路由用房间 id,不用房间号(号码关闭后会复用)。
@@ -52,3 +53,7 @@ WR-1(2026-10-12):`room-page.tsx` 只增加 `ReopenBar` 一行接线,理由:重�
 - 管理员隐藏的消息(`hidden: true`,或收到 `message_hidden{seq}`)保留位置、正文为空,显示 `room.hidden` 占位,引用它的摘要也清空;管理员关闭房间 `closed{reason:"admin"}` → `errors.closed_admin`。
 - 房间消息永久保存:票据 404(房间已结束)时 `use-room` 改走 HTTP(`GET /api/rooms/{id}` + `/messages?before_seq=2147483647`)只读回看;`before_seq` 用 int32 上限,别用 MAX_SAFE_INTEGER。
 - 页面与对话页同构:顶栏、输入条 absolute 浮在自己滚动的列表上(不用 fixed,底部导航仍在)。v1 的底部弹层助手(`assist-tray.tsx`)已删除。
+- 已结束房间没有 WebSocket(票据 404):只读查看者靠 `use-room` 每 20 秒轮询 `GET /api/rooms/{id}` 感知重新开启(R-O3);
+  `reopened`(轮询、房主本人、将来的推送)都经 reducer 的 `reopenSignal` 触发 `reset` + 重连,别在别处直接 `connect()`。
+- 「已结束的房间」页是懒加载的(`lazy-ended.tsx`),不要从 `index.ts` 静态导出 `ended/ended-rooms-page`;大厅只列开放房间,`endedCount` 来自 `GET /mine`。
+- 重新开启入口由 `closeReason` 决定:`admin` 关闭的不显示(只有管理后台能开);409「Room is not closed」按成功处理并重读房间。

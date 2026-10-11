@@ -77,6 +77,7 @@ describe("rooms HTTP payloads (recorded from the real server) match the web type
     for (const name of ["create", "join", "patch", "detail", "close"]) expect(wireKeys(C.http[name].room), name).toEqual(keys(ROOM));
     // 「我的房间」rows add the learning-summary status (integration, spec §6.1 entry)
     for (const room of C.http.mine.rooms) expect(wireKeys(room)).toEqual([...keys(ROOM), "summaryStatus"].sort());
+    expect(wireKeys(C.http.mine)).toEqual(["endedCount", "rooms"]);
     for (const m of C.http.detail.members) expect(wireKeys(m)).toEqual(keys(MEMBER));
     for (const m of C.http.messages.messages) {
       expect(wireKeys(m)).toEqual(keys(MESSAGE));
