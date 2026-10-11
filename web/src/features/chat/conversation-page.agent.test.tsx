@@ -9,6 +9,7 @@ import { resetAgentsCaches } from "~/features/agents/use-agents-data";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { COMPOSER_MODE_KEY } from "./composer-mode";
+import { ConversationPage as RoutedConversationPage } from "~/features/chat";
 import { ConversationPage } from "./conversation-page";
 import { sharedTtsCache } from "./tts";
 
@@ -246,5 +247,14 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
       await new Promise((r) => setTimeout(r, 30));
       expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
     });
+  });
+});
+
+describe("routed ConversationPage (R-W2)", () => {
+  it("is a lazy route component that renders the real page", async () => {
+    const mock = createFetchMock(routes({}, CONFIG));
+    renderWithProviders(<RoutedConversationPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1", path: "/chat/:id" });
+    expect(await screen.findByText("Earlier reply")).toBeInTheDocument();
+    expect(RoutedConversationPage).not.toBe(ConversationPage);
   });
 });
