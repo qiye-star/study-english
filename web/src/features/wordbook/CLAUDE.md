@@ -22,6 +22,11 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
   `goals-fields.tsx` (shared by the goal sheet and the book picker), `goals-sheet.tsx` (每日目标 sheet: extra words, streak,
   change / pause / reset), `goals-confirm.tsx` (its pause / reset confirmations), `use-goals.ts` (only PATCH is optimistic),
   `use-return-focus.ts`, `goals-test-fixtures.ts` (snake_case goals samples, extends `test-fixtures.ts`).
+- Learned words & free review (spec `2026-10-12-wordbook-review-and-room-reopen-design.md` §1): `learned-page.tsx`
+  (`/wordbook/learned`, lazy; list, filters, word-card sheet), `box-bar.tsx` (distribution bar, press a segment to filter),
+  `use-learned.ts` (`useLearnedSummary`, `useLearnedList` cursor paging, `useDebounced`), `free-review-sheet.tsx` (scope x mode x
+  count), `free-batch.ts` (`FREE_PATH`, `toBatch`, `readFreeState`), `free-browse.tsx` (flip-card browse, sends no requests),
+  `learned-test-fixtures.ts` (snake_case samples for tests only).
 
 ## Public surface
 `index.ts`: pages (lazy, from `lazy-pages.tsx`), `WordbookCard`, `WordbookMeRow`, `useWordbookEnabled`, `useWordbookConfig`.
@@ -63,5 +68,15 @@ Other directories import only `~/features/wordbook`.
   focus traps recurse forever. Use `goals-confirm.tsx` (same `@radix-ui/react-dialog`). Radix modals return focus only to a
   `Trigger`; sheets opened by plain buttons spread `useReturnFocus()` on the content.
 - Pause / reset only from their confirmation dialogs; red is for reset only.
+- Learned page, free-review sheet and browse component are reached only through `lazy-pages.tsx` (or from inside the lazy page);
+  `learned-lazy.test.ts` guards it. The home page only gains one row and one summary request. Copy is merged eagerly into the
+  main bundle, so keep new keys few (budget: plan R-L13).
+- Words and the search prefix go only in POST bodies: `fetchLearned`, `fetchLearnedCard`, `startFree` must never become GET or put a
+  word in a path. `fetchCard` (GET `/cards/{book}/{key}`) is legacy; new pages do not use it.
+- A free batch travels as `navigate(FREE_PATH, { state: { free } })` to `/wordbook/review?source=free`. `ReviewSession` under `free`
+  sends `mode: "free"`, takes `bookId` per item, skips the today-plan request and shows no rank points; `applied` in free mode
+  means "added to today's review".
+- Mastery tiers are boxes 0-1 / 2-3 / 4-5 (not "1-6"); `LearnedSummary.byBook` is a list.
+- Contract: `wordbook-contract.test.ts` checks `learned_summary / learned_list / learned_card / free_start / answer_free` key by key.
 - Audio: no autoplay before the first tap (iOS); `speaker.prime()` only on the first gesture; read in click handlers, not
   effects, so StrictMode cannot read twice (a second `play()` with the same id stops playback).

@@ -7,10 +7,12 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { WordbookHomePage } from "./home-page";
 import { GOALS_CONFIG, GOALS_ENROLLMENT, GOALS_PLAN, GOALS_TODAY, PAUSED_TODAY } from "./goals-test-fixtures";
+import { LEARNED_SUMMARY } from "./learned-test-fixtures";
 import { NO_BOOK_TODAY } from "./test-fixtures";
 
 function setup(today: unknown, extra: Parameters<typeof createFetchMock>[0] = {}) {
-  const mock = createFetchMock({ "GET /api/wordbook/config": () => json(GOALS_CONFIG), "GET /api/wordbook/today": () => json(today), ...extra });
+  const mock = createFetchMock({ "GET /api/wordbook/config": () => json(GOALS_CONFIG), "GET /api/wordbook/today": () => json(today),
+    "GET /api/wordbook/learned/summary": () => json(LEARNED_SUMMARY), ...extra });
   renderWithProviders(<WordbookHomePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook" });
   return mock;
 }
@@ -51,6 +53,26 @@ describe("WordbookHomePage", () => {
   it("warns about a review backlog", async () => {
     setup({ ...GOALS_TODAY, plan: { ...GOALS_PLAN, review_due: 240, review_left: 100, new_left: 5, backlog_guard: true } });
     expect(await screen.findByText("复习积压,今天少学新词")).toBeTruthy();
+  });
+
+  it("links to the learned words with the total", async () => {
+    setup(GOALS_TODAY);
+    const row = await screen.findByTestId("wordbook-action-learned");
+    expect(row).toHaveAttribute("href", "/wordbook/learned");
+    await waitFor(() => expect(row).toHaveTextContent("已学 6 词"));
+  });
+
+  it("keeps the row (without a count) when the summary cannot be loaded", async () => {
+    setup(GOALS_TODAY, { "GET /api/wordbook/learned/summary": () => json({ error: "Wordbook data unavailable" }, 503) });
+    const row = await screen.findByTestId("wordbook-action-learned");
+    expect(row).toHaveAttribute("href", "/wordbook/learned");
+    expect(row).not.toHaveTextContent("已学 0");
+  });
+
+  it("does not ask for the summary before a book is chosen", async () => {
+    const mock = setup(NO_BOOK_TODAY);
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/wordbook/books"));
+    expect(mock.calls.some((c) => c.url.pathname.endsWith("/learned/summary"))).toBe(false);
   });
 
   it("sends readers without a book to the book picker", async () => {

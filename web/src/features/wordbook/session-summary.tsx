@@ -35,8 +35,8 @@ const SPLIT: [Rating, string][] = [["know", "bg-green"], ["fuzzy", "bg-amber"], 
  * 会话小结(spec §11.2,视觉稿 10):正确率环(绿)、三张统计卡(段位点只在段位开启时显示,标「估算」)、
  * 需要再看看的词(可朗读)、底部「回到首页」与下一步。
  */
-export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, listening, canListen }: ListenProps & {
-  stats: SessionStats; onAgain?: () => void; againLabel?: string; onHome: () => void;
+export function SessionSummary({ stats, onAgain, againLabel, onHome, note, homeLabel, onListen, listening, canListen }: ListenProps & {
+  stats: SessionStats; onAgain?: () => void; againLabel?: string; onHome: () => void; note?: string; homeLabel?: string;
 }) {
   const { t } = useTranslation();
   const ratings = stats.ratings;
@@ -53,6 +53,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
           <PlanRing done={stats.firstTry} target={stats.total} size={96} tone="green" label={`${rate}%`} className="mx-auto" />
           <h2 className="mt-3.5 text-headline font-semibold">{t(`web.wordbook.summary.${stats.kind}.title`)}</h2>
           <p role="status" className="mt-1 text-sub text-ink-2">{line}</p>
+          {note ? <p data-testid="summary-note" className="mt-1.5 text-meta text-ink-2">{note}</p> : null}
           {ratings ? (
             <>
               {/* 分布条只是装饰,数字在下面的文字里(视觉稿 08) */}
@@ -95,7 +96,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, onListen, l
         ) : null}
       </div>
       <div className={DOCK}>
-        <button type="button" className={cn(GHOST, "h-12 flex-1")} onClick={onHome}>{t("web.wordbook.summary.home")}</button>
+        <button type="button" className={cn(GHOST, "h-12 flex-1")} onClick={onHome}>{homeLabel ?? t("web.wordbook.summary.home")}</button>
         {onAgain ? <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={onAgain}>{againLabel ?? t("web.wordbook.summary.again")}</button> : null}
       </div>
     </>

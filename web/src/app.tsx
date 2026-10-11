@@ -13,7 +13,7 @@ import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
 import {
-  WordbookBooksPage, WordbookHomePage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
+  WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
 import { AppShell } from "~/layout/app-shell";
 import { useIsDark } from "~/layout/color-scheme";
@@ -76,6 +76,7 @@ export function AppRoutes() {
             <Route path="/wordbook/learn" element={<WordbookLearnPage />} />
             <Route path="/wordbook/review" element={<WordbookReviewPage />} />
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
+            <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/me" element={<MePage />} />
             {routes}
           </Route>

@@ -174,6 +174,28 @@
         "home": "Back to Wordbook",
         "again": "Another round"
       },
+      "learned": {
+        "title": "Learned words",
+        "row": { "count_one": "{{n}} word learned", "count_other": "{{n}} words learned", "hint": "Browse, filter and review any time" },
+        "box": { "label": "Mastery", "learning": "New", "growing": "Growing", "mastered": "Strong", "segment": "{{label}}, {{n}} words" },
+        "search": { "label": "Search by English prefix", "placeholder": "Start of a word, e.g. ab" },
+        "filters": { "book": "Book", "allBooks": "All books", "weak": "Weak", "since": "Learned from", "until": "Learned until", "clear": "Clear filters" },
+        "list": { "learnedOn": "Learned {{date}}", "weak": "Weak", "dueNow": "Due now", "dueOn": "Due {{date}}", "more": "Load more" },
+        "empty": { "title": "No learned words yet", "body": "Learn a few new words and they will show up here.", "cta": "Learn new words", "filtered": "No words match these filters" },
+        "card": { "unavailable": "The word card could not be opened" },
+        "free": {
+          "title": "Free review",
+          "note": "No rank points and no daily review limit; words you miss are added to today's review.",
+          "scope": { "label": "Range", "yesterday": "Yesterday", "last7": "Last 7 days", "book": "One book", "tier": "A mastery level", "weak": "Weak words", "all": "Random mix" },
+          "mode": { "label": "Mode", "browse": "Flip cards", "recall": "Recall", "choice": "Choice", "spell": "Spelling" },
+          "count": { "label": "How many", "n": "{{n}}" },
+          "start": "Start",
+          "starting": "Preparing",
+          "summary": { "note": "Free review earns no rank points and does not change your review plan.", "queued_one": "{{n}} missed word was added to today's review.", "queued_other": "{{n}} missed words were added to today's review.", "back": "Back to learned words" },
+          "browse": { "progress": "{{n}} / {{total}}", "flip": "Flip", "prev": "Previous", "next": "Next", "finish": "Done", "done": "You've seen this set", "again": "Go again" }
+        },
+        "errors": { "cursor": "The list expired, please refresh", "date": "That date is not valid", "scope": "That range is not valid", "nothing": "There are no words to review in this range yet", "freeLimit": "You have used today's free reviews" }
+      },
       "goals": {
         "title": "Daily goal",
         "open": "Daily goal settings",

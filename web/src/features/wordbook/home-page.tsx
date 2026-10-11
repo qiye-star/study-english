@@ -1,5 +1,5 @@
 import {
-  CircleAlertIcon, FlameIcon, GalleryVerticalEndIcon, KeyboardIcon, LibraryBigIcon, PauseIcon, RefreshCwIcon, Settings2Icon,
+  CircleAlertIcon, FlameIcon, GalleryVerticalEndIcon, KeyboardIcon, LibraryBigIcon, ListChecksIcon, PauseIcon, RefreshCwIcon, Settings2Icon,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import { PageError, PageLoading, PageNote } from "./page-status";
 import { PlanRing } from "./plan-ring";
 import { GHOST, ICON_LINK, PRIMARY, bookTitle, fmt } from "./ui";
 import { useGoals } from "./use-goals";
+import { useLearnedSummary } from "./use-learned";
 import { useWordbookToday } from "./use-today";
 import { useWordbookConfig } from "./use-wordbook-config";
 import {
@@ -99,6 +100,8 @@ export function WordbookHomePage() {
   const { today, error, reload, setToday } = useWordbookToday(config?.enabled !== false);
   const limits = limitsOf(config);
   const goals = useGoals({ today, setToday, reload, limits });
+  // 「已学 N 词」只在有选中的书时才问;失败时不显示数字,入口仍在
+  const learnedSummary = useLearnedSummary(Boolean(today?.enrollment)).summary;
   const [sheet, setSheet] = useState<null | "all" | "bonus">(null);
   const editable = Boolean(config?.enabled !== false && !error && today?.enrollment && today.plan && today.book && today.progress);
   const header = (
@@ -175,6 +178,10 @@ export function WordbookHomePage() {
               to={plan.newLeft > 0 ? "/wordbook/learn" : undefined} />
             <ListRow icon={<IconChip tone="amber" icon={KeyboardIcon} />} title={t("web.wordbook.home.spell")} testId="wordbook-action-spell"
               subtitle={t("web.wordbook.home.spellHint")} to="/wordbook/spell" />
+            <ListRow icon={<IconChip tone="gray" icon={ListChecksIcon} />} title={t("web.wordbook.learned.title")} testId="wordbook-action-learned"
+              subtitle={t("web.wordbook.learned.row.hint")}
+              value={learnedSummary ? <span className="num text-meta text-ink-2">{t("web.wordbook.learned.row.count", { n: learnedSummary.total, count: learnedSummary.total })}</span> : undefined}
+              to="/wordbook/learned" />
           </div>
           {plan.backlogGuard ? (
             <p role="note" className="mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber">

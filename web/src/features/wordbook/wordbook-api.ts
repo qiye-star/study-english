@@ -33,7 +33,7 @@ export type Grade = "good" | "hard" | "forgot";
 export interface DiffOp { op: "eq" | "sub" | "ins" | "del"; a: string; b: string }
 export interface ItemState { box: number; dueAt: string }
 export interface AnswerInput {
-  bookId: BookId; key: string; mode: "learn" | "review"; qtype: QType; choice?: string; typed?: string; hinted?: boolean; known?: boolean;
+  bookId: BookId; key: string; mode: "learn" | "review" | "free"; qtype: QType; choice?: string; typed?: string; hinted?: boolean; known?: boolean;
   rating?: Rating; revealedBefore?: boolean; elapsedMs?: number;
 }
 /**
@@ -85,6 +85,11 @@ export const WORDBOOK_SERVER_ERRORS: Record<string, string> = {
   "Daily bonus limit reached": "web.wordbook.goals.errors.bonusLimit",
   "Daily reset limit reached": "web.wordbook.goals.errors.resetLimit",
   "Confirmation does not match": "web.wordbook.goals.errors.confirmMismatch",
+  "Invalid cursor": "web.wordbook.learned.errors.cursor",
+  "Invalid date": "web.wordbook.learned.errors.date",
+  "Invalid scope": "web.wordbook.learned.errors.scope",
+  "No words to review": "web.wordbook.learned.errors.nothing",
+  "Daily free-review limit reached": "web.wordbook.learned.errors.freeLimit",
 };
 
 const tz = () => ({ tzOffsetMinutes: localOffsetMinutes() });
@@ -137,6 +142,35 @@ export const submitSpell = (api: ApiClient, input: { bookId: BookId; setId: stri
 
 export const fetchCard = (api: ApiClient, bookId: BookId, key: string, signal?: AbortSignal) =>
   api.request<Card>("GET", `/api/wordbook/cards/${encodeURIComponent(bookId)}/${encodeURIComponent(key)}`, { signal });
+
+// ---- 已学词与自由复习(计划 2026-10-12-wordbook-learned-review)。词与前缀只放在 POST 体里,不进 URL(R-L4)。----
+/** 熟练度三档:新学 = 盒 0–1,巩固中 = 盒 2–3,熟练 = 盒 4–5(R-L1)。 */
+export type Tier = "learning" | "growing" | "mastered";
+export interface LearnedItem { bookId: BookId; key: string; word: string; box: number; tier: Tier; learnedAt: string; dueAt: string; weak: boolean }
+export interface LearnedPage { items: LearnedItem[]; nextCursor: string | null }
+export interface LearnedSummary {
+  total: number; byBox: number[]; byTier: Record<Tier, number>; byBook: { bookId: BookId; count: number }[];
+  weak: number; yesterday: number; last7: number;
+}
+export interface LearnedQuery { book?: BookId; tier?: Tier; weak?: boolean; since?: string; until?: string; q?: string; cursor?: string; limit?: number }
+export type FreeScope = "yesterday" | "last7" | "book" | "tier" | "weak" | "all";
+export type FreeMode = "browse" | "recall" | "choice" | "spell";
+export type FreeCount = 10 | 20 | 50;
+export interface FreeRequest { scope: FreeScope; mode: FreeMode; count: FreeCount; book?: BookId; tier?: Tier }
+export interface FreeItem { bookId: BookId; card: Card; question: Question | null }
+export interface FreeSet { setId: string; scope: FreeScope; mode: FreeMode; items: FreeItem[] }
+
+export const fetchLearnedSummary = (api: ApiClient, signal?: AbortSignal) =>
+  api.request<LearnedSummary>("GET", "/api/wordbook/learned/summary", { query: { tz_offset_minutes: localOffsetMinutes() }, signal });
+
+export const fetchLearned = (api: ApiClient, query: LearnedQuery, signal?: AbortSignal) =>
+  api.request<LearnedPage>("POST", "/api/wordbook/learned/query", { json: { ...query, ...tz() }, signal });
+
+export const fetchLearnedCard = (api: ApiClient, bookId: BookId, key: string, signal?: AbortSignal) =>
+  api.request<Card>("POST", "/api/wordbook/learned/card", { json: { bookId, key }, signal });
+
+export const startFree = (api: ApiClient, req: FreeRequest) =>
+  api.request<FreeSet>("POST", "/api/wordbook/free/start", { json: { ...req, ...tz() } });
 
 export const explainWord = (api: ApiClient, key: string) =>
   api.request<{ key: string; text: string; cached: boolean }>("POST", "/api/wordbook/explain", { json: { key } });
