@@ -77,8 +77,8 @@ describe("room agents payloads (recorded from the real server)", () => {
     for (const verb of ["skip", "stop", "resume"]) expect(router).toContain(`"/{room_id}/agents/tutor/${verb}"`);
 
     const tutor = serverSrc("rooms/agent_tutor.py");
-    const reasons = new Set([...tutor.matchAll(/_pause\(room_id, snap, "(\w+)"\)/g)].map((m) => m[1]).concat("restart"));
-    expect([...reasons].sort()).toEqual(["agent_off", "ai_off", "quota", "restart", "state", "upstream"]);
+    const reasons = new Set([...tutor.matchAll(/_pause\(room_id, snap, "(\w+)"\)/g)].map((m) => m[1]).concat([...tutor.matchAll(/^PAUSE_\w+ = "(\w+)"$/gm)].map((m) => m[1]), "restart"));
+    expect([...reasons].sort()).toEqual(["agent_off", "ai_off", "empty", "quota", "restart", "state", "upstream"]);
     const systems = [...tutor.matchAll(/_system\(room_id, "(\w+)"/g)].map((m) => m[1]).sort();
     expect(systems).toEqual(["tutor_done", "tutor_started", "tutor_stopped"]);
     for (const lng of ["en", "zh-CN"]) {
