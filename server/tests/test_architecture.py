@@ -297,3 +297,22 @@ def test_memory_scanner_catches_both_directions(tmp_path):
     assert any(p.startswith("app/agents/orchestrator.py:1") for p in found)
     assert not any(p.startswith(("app/agents/memory/ok.py", "app/agents/tutor/ok.py", "app/routers/ok.py"))
                    for p in found)
+
+
+TUTOR_PURE = ("agents/tutor/machine.py", "agents/tutor/plan.py", "agents/tutor/parse.py", "agents/tutor/prompt.py",
+              "agents/tutor/recap.py")
+TUTOR_STATEFUL = {"app.agents.tutor.service", "app.agents.tutor.handler", "app.agents.tutor.memory_bridge"}
+
+
+def test_tutor_core_modules_are_pure():
+    """The five pure tutor modules (plan 2026-10-12-agents-tutor) use only the stdlib and each other, so rooms (A5)
+    can reuse them as they are."""
+    import sys
+    for rel in TUTOR_PURE:
+        path = APP / rel
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, module_name(path, APP), False):
+            top = target.split(".")[0]
+            ok = top in sys.stdlib_module_names or (
+                target.startswith("app.agents.tutor.") and target not in TUTOR_STATEFUL)
+            assert ok, f"app/{rel}:{lineno} imports {target}"
