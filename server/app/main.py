@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.admin import backups, usage
+from app.agents.orchestrator import runtime as agents_runtime
 from app.core import log_buffer, metering
 from app.core.config import Settings
 from app.core.db import make_engine
@@ -26,7 +27,7 @@ from app.links.setup import install as install_links
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, agents, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -55,6 +56,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
         yield
         await _stop_tasks(tasks, exclude="metering")
+        for task in list(agents_runtime(app_).tasks):  # after-turn hooks still running (memory extraction, plan A2)
+            task.cancel()
         with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
             await asyncio.wait_for(app_.state.learning_bus.drain(), 2.0)
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
@@ -80,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
     app.state.learning_bus = LearningBus(lambda: app.state.settings)  # learning links §4 (reads settings per call)
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
+    agents_runtime(app)  # agents spec §3.3: sources, modes, hooks, idempotency ledger (plan R-C2); the only access is runtime(app)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
     app.state.settings_hub = hub = SettingsHub(app.state)
@@ -95,7 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for module in (
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
-        links, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
+        links, agents, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, stubs, admin_web, web,
     ):
         app.include_router(module.router)
