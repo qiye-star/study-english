@@ -2,6 +2,7 @@
 不用框架。模式(导师,A3)经 ModeHandler 插入;回合后的工作(记忆整理,A2)经 TurnHooks.after_turn 在后台运行。
 用户文本、回复、人设只在内存;日志只有 `timing event=agent_turn` 的数字与固定字符串,以及模式名 / 异常类名。"""
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -212,6 +213,16 @@ def _spawn_default(coro) -> None:
     task.add_done_callback(_BACKGROUND.discard)
 
 
+def detach(deps: TurnDeps, coro) -> asyncio.Task:
+    """把一段必须做完的收尾(退额度)放进独立任务:调用方此刻即使有待处理的取消,数据库操作也不会被取消打断
+    (被打断会让连接被终止、退款丢失)。任务登记在 runtime(app).tasks(测试按它排空)。"""
+    task = asyncio.ensure_future(coro)
+    tasks = runtime(deps.app).tasks if deps.app is not None else _BACKGROUND
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+    return task
+
+
 async def _refund(deps: TurnDeps, user_id: int, now: datetime) -> None:
     try:
         async with deps.sessions() as session:
@@ -226,7 +237,7 @@ async def run_turn(deps: TurnDeps, req: TurnRequest) -> AsyncIterator[trace.Even
     settings = deps.settings()
     t0 = deps.clock()
     stats = {"status": "cancelled", "ctx_ms": 0, "ttft_ms": -1, "src_count": 0, "src_skipped": 0, "src_failed": 0,
-             "chars": 0, "tools": "off"}
+             "chars": 0, "tools": "off", "delivered": False}
     try:
         async with aclosing(_turn(deps, req, settings, t0, stats)) as events:
             async for event in events:
@@ -261,13 +272,41 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
             stats["status"] = "limit"
             yield trace.Error("limit")
             return
+    charged = [req.charge]
+
+    async def refund_once(*, unwinding: bool = False) -> None:
+        """退一次且只退一次;退款在独立任务里做完(取消不会打断它)。`unwinding`:正在因取消 / 异常退出,
+        等待时若又收到取消就不再等(任务照样跑完),原异常继续往外抛。"""
+        if charged[0]:
+            charged[0] = False
+            task = detach(deps, _refund(deps, req.user_id, now))
+            if unwinding:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.shield(task)
+            else:
+                await asyncio.shield(task)
+
+    try:
+        async with aclosing(_charged(deps, req, mode, settings, t0, stats, turn_id, now, refund_once)) as events:
+            async for event in events:
+                yield event
+    except BaseException:
+        # 评审 #4 #5:扣了额度之后,只要回复文字还没送到客户端(取消 / 断开 / 意外异常)就退还;
+        # 送出过文字就不退(Ruling:学习者已经看到内容、成本已经发生)。
+        if not stats["delivered"]:
+            await refund_once(unwinding=True)
+        raise
+
+
+async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings, t0: float, stats: dict, turn_id: str, now: datetime,
+                   refund_once) -> AsyncIterator[trace.Event]:
     agent = req.agent_settings
     if agent is None:
         async with deps.sessions() as session:
             agent = await agent_settings.load(session, req.user_id)
     tools_mode = limits.effective_tools_mode(settings, deps.tools_probe())
     stats["tools"] = tools_mode
-    history = prompt.clamp_history(req.history, settings.agents_history_max)
+    history = prompt.clamp_history(req.history, settings.agents_history_max, settings.agents_history_chars_max)
     ids: dict[str, str] = {}
 
     def step(key: str, status: str, *, private: bool = False, result: SourceResult | None = None,
@@ -300,8 +339,7 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
         block = await mode.prepare(req)
     except Exception as e:  # noqa: BLE001
         logger.warning("agents mode prepare failed mode=%s error=%s", mode.name, type(e).__name__)
-        if req.charge:
-            await _refund(deps, req.user_id, now)
+        await refund_once()
         error = _error(e.code) if isinstance(e, ModeError) else trace.Error("bad_request")
         stats["status"] = error.code
         yield error
@@ -336,17 +374,19 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
                             stats["ttft_ms"] = _ms(deps.clock, t0)
                         shown.append(visible)
                         yield trace.Delta(visible)
+                        stats["delivered"] = True
         tail = flt.flush()
         if tail:
             if not shown:
                 stats["ttft_ms"] = _ms(deps.clock, t0)
             shown.append(tail)
             yield trace.Delta(tail)
+            stats["delivered"] = True
         if not shown:
             raise llm.LlmUnavailable("empty", 200)
     except llm.LlmUnavailable as e:
-        if not shown and req.charge:
-            await _refund(deps, req.user_id, now)
+        if not shown:
+            await refund_once()
         stats["status"] = f"llm_{e.kind}"
         yield trace.Error("llm_unavailable")
         return

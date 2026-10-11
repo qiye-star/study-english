@@ -48,7 +48,15 @@ links / admin / routers`(连函数内延迟导入也不行;`tests/test_architect
 - 日志、异常消息、审计、URL、`error` 事件里永远没有用户文本、回复、人设、记忆、词或用户 id:只记来源键、模式名、
   异常类名、状态码与数字(`timing event=agent_turn ...`)。`step.params` 可以有词,但只进 SSE 与用户自己的 `agent_trace`。
 - 嵌套异步生成器必须用 `contextlib.aclosing`(否则外层被关时内层不关,上游流挂到 GC)。路由用 `AgentStream`。
-- 用户和工具来的文本进提示词前必须 `prompt.escape`(`<` `>` → `‹` `›`),人设永远排在安全前言之后。
+- 用户和工具来的文本进提示词前必须 `prompt.escape`(`<` `>` 与全角 `＜＞`、小写形式 `﹤﹥` → `‹` `›`),人设永远排在安全前言之后;
+  人设清洗(`clean_persona`)用 NFKC。提示词总长有上界:历史按 `AGENTS_HISTORY_CHARS_MAX`(默认 8000)从最新往前整条取、不截断单条,
+  人设名 / 正文、记忆块在 `prompt.system_message` 里有硬上限,来源块由 `prefetch` 截到 800 字。
+- 额度退还边界(评审 #4 #5):`consume_turn` 之后,只要回复文字还没送到客户端就退(取消 / 断开 / 任意异常 / 上游失败);
+  送出过文字就不退(学习者已看到内容)。`stats["delivered"]` 在 Delta 被消费后置位;`refund_once` 保证只退一次。
+  `personas/try` 同样:无回复即退,并占用与回合共享的「每人同时 2 个」名额。
+- 幂等账本(评审 #3 #9):条目带请求指纹(persona / conversation / text / mode / tutor_session 的 sha256);同一 `client_turn_id`
+  换了内容 → 409。`AgentStream` 在自己的 finally 里 `release`(生成器从未启动时也释放);running 条目 180 s 后失效。
+- 创建角色:`create_lock(user_id)` + `PersonaStore.create_capped`(锁内计数 + 插入 + 提交,Postgres 另锁用户行)。
 - 读设置每次 `deps.settings()`;不要在模块里缓存 `Settings`。
 - `TurnLedger`(幂等)与回合并发上限是**每进程**的;镜像只跑一个 worker。多 worker 时同一 `client_turn_id` 可能在两个进程各跑一次。
 - 来源在 `prefetch` 里会被取消(超时 / 总预算):来源自己开会话(`async with sessionmaker()`),不要在取消点之后写库。

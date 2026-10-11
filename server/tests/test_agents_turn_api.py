@@ -4,6 +4,7 @@ import contextlib
 import json
 import uuid
 
+from app.agents import limits
 from app.agents.orchestrator import runtime
 from app.core.quotas import quota_cache
 from app.models import AgentPersona, UserQuotaOverride, utcnow
@@ -77,7 +78,9 @@ async def test_same_client_turn_id_replays_and_running_is_409(app, client, auth_
     assert second[0][1] == first[0][1] and second[1][1] == {"text": "Hi there"} and second[-1][1] == first[-1][1]
     assert len(fake.requests) == 1
     other = turn_body(body["conversation_id"])
-    runtime(app).ledger.begin(await uid(client, auth_headers), other["client_turn_id"])
+    fp = limits.fingerprint(other["persona_id"], other["conversation_id"], other["text"], other["mode"],
+                            other["tutor_session_id"])
+    runtime(app).ledger.begin(await uid(client, auth_headers), other["client_turn_id"], fp)
     r = await post_turn(client, auth_headers, other)
     assert (r.status_code, r.json()) == (409, {"error": "Turn is busy"})
 

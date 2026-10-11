@@ -103,6 +103,7 @@ def test_agents_settings():
     assert SPECS["agents_enabled"].danger and SPECS["agents_turns_global_daily"].danger
     assert field_bounds("agents_source_timeout_ms") == (20, 250)
     assert field_bounds("agents_history_max") == (2, 50)
+    assert s.agents_history_chars_max == 8000 and field_bounds("agents_history_chars_max") == (500, 100000)
     custom = Settings(_env_file=None, default_llm_model="m1", agents_memory_model=" ")
     assert custom.resolved_agents_model == "m1" and custom.resolved_agents_memory_model == "m1"
     custom = Settings(_env_file=None, agents_model="fast", agents_memory_model="cheap")

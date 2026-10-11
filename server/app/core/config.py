@@ -239,6 +239,7 @@ class Settings(BaseSettings):
     agents_memory_tokens: int = Field(600, ge=0, le=2000)
     agents_source_timeout_ms: int = Field(150, ge=20, le=250)  # 总预算固定 250 ms(agents/context.PREFETCH_BUDGET_MS)
     agents_history_max: int = Field(20, ge=2, le=50)
+    agents_history_chars_max: int = Field(8000, ge=500, le=100000)  # 评审 #1:带入历史的总字数预算
     agents_chat_max_tokens: int = Field(300, ge=64, le=2000)  # 计划 R-C9
     agents_tutor_max_tokens: int = Field(350, ge=64, le=2000)
 

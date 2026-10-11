@@ -198,10 +198,95 @@ def fit(data: dict) -> dict:
     return {"v": TRACE_VERSION, "tools": t.get("tools", ""), "steps": [], "truncated": True}
 
 
+TRACE_KEYS = frozenset({"v", "tools", "steps", "thought", "ms", "truncated"})
+STORED_STEP_KEYS = frozenset({"id", "key", "group", "status", "ms", "private", "label", "label_key", "params"})
+STORED_STEPS_MAX = 32
+STORED_NAME_MAX = 64
+STORED_MS_KEYS_MAX = 8
+STORED_NUM_MAX = 10 ** 10
+
+
+def _num(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and -1 <= value <= STORED_NUM_MAX
+
+
+def _text(value, limit: int) -> bool:
+    return isinstance(value, str) and len(value) <= limit
+
+
+def _params_ok(params) -> bool:
+    """clean_params 产出的形状:≤ 5 个标识符键;值 = 布尔 / 整数 / ≤ 40 字符串 / ≤ 8 个 ≤ 40 字符串的列表。"""
+    if not isinstance(params, dict) or len(params) > PARAM_KEYS_MAX:
+        return False
+    for key, value in params.items():
+        if not isinstance(key, str) or not key.isidentifier() or len(key) > 24:
+            return False
+        if isinstance(value, (bool, int)):
+            continue
+        if isinstance(value, str) and len(value) <= PARAM_TEXT_MAX:
+            continue
+        if isinstance(value, list) and len(value) <= PARAM_LIST_MAX and all(_text(v, PARAM_TEXT_MAX) for v in value):
+            continue
+        return False
+    return True
+
+
+def _step_ok(step) -> bool:
+    if not isinstance(step, dict) or not set(step) <= STORED_STEP_KEYS:
+        return False
+    if step.get("group") not in STEP_GROUPS or step.get("status") not in STEP_STATUSES:
+        return False
+    if not _text(step.get("key"), STORED_NAME_MAX) or not step["key"]:
+        return False
+    for name in ("id", "label", "label_key"):
+        if name in step and not _text(step[name], STORED_NAME_MAX):
+            return False
+    if "ms" in step and not _num(step["ms"]):
+        return False
+    if "private" in step and not isinstance(step["private"], bool):
+        return False
+    return "params" not in step or _params_ok(step["params"])
+
+
+def _thought_ok(thought) -> bool:
+    if thought is None:
+        return True
+    if not isinstance(thought, dict) or not set(thought) <= {"source", "text", "chars"}:
+        return False
+    return (thought.get("source") in THOUGHT_SOURCES and _text(thought.get("text"), TRACE_MAX_BYTES)
+            and ("chars" not in thought or _num(thought["chars"])))
+
+
+def _stored_ok(raw: dict) -> bool:
+    """compact_trace 的输出(和网页保存的同一过程的界面形状:`id` / `label_key`、`ms` 为数字、`thought` 可为 null):
+    只认已知键,类型、列表长度、字符串长度都有上限。"""
+    if not set(raw) <= TRACE_KEYS:
+        return False
+    if not 1 <= raw["v"] <= 1000:
+        return False
+    if "tools" in raw and not _text(raw["tools"], 16):
+        return False
+    steps = raw.get("steps", [])
+    if not isinstance(steps, list) or len(steps) > STORED_STEPS_MAX or not all(_step_ok(x) for x in steps):
+        return False
+    if not _thought_ok(raw.get("thought")):
+        return False
+    ms = raw.get("ms")
+    if isinstance(ms, dict):
+        if len(ms) > STORED_MS_KEYS_MAX or not all(_text(k, 24) and _num(v) for k, v in ms.items()):
+            return False
+    elif ms is not None and not _num(ms):
+        return False
+    return "truncated" not in raw or isinstance(raw["truncated"], bool)
+
+
 def check_stored(raw: object) -> dict:
-    """客户端随 assistant 消息回存的 agent_trace:带整数 `v` 的对象,JSON ≤ 4 KB(R-C17)。"""
+    """客户端随 assistant 消息回存的 agent_trace:带整数 `v` 的对象,JSON ≤ 4 KB(R-C17),且只含 compact_trace
+    产出的已知结构(未知键 / 类型不对 / 列表或字符串过长 → invalid;评审 #11)。"""
     if not isinstance(raw, dict) or isinstance(raw.get("v"), bool) or not isinstance(raw.get("v"), int):
         raise ValueError("invalid")
     if size_of(raw) > TRACE_MAX_BYTES:
         raise ValueError("too_large")
+    if not _stored_ok(raw):
+        raise ValueError("invalid")
     return raw

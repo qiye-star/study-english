@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin import agents_admin
-from app.admin.perms import AdminContext, require
+from app.admin.perms import AdminContext, require, require_step_up
 from app.core.deps import get_session
 from app.models import utcnow
 
@@ -61,7 +61,7 @@ async def personas_query(body: QueryIn, _: AdminContext = Depends(require("viewe
 
 
 @router.post("/personas/{persona_id}/delete")  # registered before the {action} route below
-async def persona_delete(body: ReasonIn, persona_id: PersonaUuid, ctx: AdminContext = Depends(require("superadmin")),
+async def persona_delete(body: ReasonIn, persona_id: PersonaUuid, ctx: AdminContext = Depends(require_step_up),
                          session: AsyncSession = Depends(get_session)):
     try:
         return await agents_admin.remove(session, ctx.actor, persona_id, reason=body.reason)

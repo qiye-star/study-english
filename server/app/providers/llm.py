@@ -1,8 +1,11 @@
 """OpenAI-compatible chat completion for server-side features: non-streaming `complete` (rank judge/examiner,
 room assistant, summaries), streaming `complete_stream` (agents spec 2026-10-12 §3.3) and the native function
 calling probe `probe_tools` (§6.2). Never logs prompts, replies or keys: only the failure kind and HTTP status."""
+import asyncio
 import json
 import logging
+import time
+from contextlib import AsyncExitStack
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Literal
@@ -14,9 +17,11 @@ from app.core.config import LLM_THINKING_HOST_SUFFIXES, Settings, send_thinking_
 
 logger = logging.getLogger(__name__)
 
+STREAM_TOTAL_SECONDS = 120.0  # 评审 #6:一次流式调用的总期限(含等首包);60 s 读间隔只管「卡住」,管不了「一直滴答」
+
 
 class LlmUnavailable(Exception):
-    """kind: config | network | http | format | empty. `status` is the upstream HTTP status (0 = none)."""
+    """kind: config | network | http | format | empty | timeout (total deadline) | upstream (in-band error object). `status` is the upstream HTTP status (0 = none)."""
 
     def __init__(self, kind: str = "http", status: int = 0):
         super().__init__(kind)
@@ -118,11 +123,13 @@ def _pieces(chunk: object) -> list[tuple[str, str]]:
 
 async def complete_stream(http: httpx.AsyncClient, settings: Settings, messages: list[dict], *, model: str,
                           max_tokens: int, temperature: float, thinking: bool = False,
-                          timeout: float = 60.0) -> AsyncIterator[Delta]:
+                          timeout: float = 60.0, total_timeout: float | None = None) -> AsyncIterator[Delta]:
     """Streamed chat completion. Yields Delta in arrival order (reasoning, text, a final usage). Raises
     LlmUnavailable before the first delta (config / http / network) or later (network / empty). Closing the
     iterator (`aclose`, cancellation, a disconnected client) leaves the `async with` and closes the upstream
-    response at once. Metered once per call (tokens when the upstream sent usage, else bytes; status 0 = broken)."""
+    response at once. `total_timeout` (default STREAM_TOTAL_SECONDS) bounds the whole call: LlmUnavailable("timeout").
+    An in-band `{"error": ...}` chunk is a failure (LlmUnavailable("upstream"), body never logged or returned).
+    Metered once per call (tokens when the upstream sent usage, else bytes; status 0 = broken)."""
     if not settings.upstream_llm_base_url:
         raise LlmUnavailable("config")
     url, headers = _endpoint(settings)
@@ -131,14 +138,34 @@ async def complete_stream(http: httpx.AsyncClient, settings: Settings, messages:
     provider = metering.provider_of(settings.upstream_llm_base_url)
     timer = metering.Timer()
     status, received, tokens, produced = 0, 0, None, False
+    deadline = time.monotonic() + (STREAM_TOTAL_SECONDS if total_timeout is None else total_timeout)
+
+    def remaining() -> float:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise LlmUnavailable("timeout", status)
+        return left
+
     try:
-        async with http.stream("POST", url, json=body, headers=headers,
-                               timeout=httpx.Timeout(timeout, connect=10.0)) as response:
+        async with AsyncExitStack() as stack:
+            try:
+                response = await asyncio.wait_for(stack.enter_async_context(
+                    http.stream("POST", url, json=body, headers=headers,
+                                timeout=httpx.Timeout(timeout, connect=10.0))), remaining())
+            except TimeoutError:
+                raise LlmUnavailable("timeout") from None
             status = response.status_code
             if status != 200:
                 logger.warning("llm stream http status=%s", status)
                 raise LlmUnavailable("http", status)
-            async for line in response.aiter_lines():
+            lines = response.aiter_lines().__aiter__()
+            while True:
+                try:
+                    line = await asyncio.wait_for(lines.__anext__(), remaining())
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    raise LlmUnavailable("timeout", status) from None
                 received += len(line) + 1
                 data = _sse_data(line)
                 if data is None:
@@ -149,6 +176,9 @@ async def complete_stream(http: httpx.AsyncClient, settings: Settings, messages:
                     chunk = json.loads(data)
                 except ValueError:
                     continue
+                if isinstance(chunk, dict) and chunk.get("error"):
+                    logger.warning("llm stream in-band error")
+                    raise LlmUnavailable("upstream", status)
                 found = metering.tokens_of(chunk)
                 if found:
                     tokens = found
@@ -162,6 +192,10 @@ async def complete_stream(http: httpx.AsyncClient, settings: Settings, messages:
         status = 0
         logger.warning("llm stream failed error=%s", type(e).__name__)
         raise LlmUnavailable("network") from None
+    except LlmUnavailable as e:
+        if e.kind in ("timeout", "upstream"):
+            status = 0  # a broken stream is not a 200 success in the meter
+        raise
     finally:
         if tokens:
             metering.record("llm", provider, model, status, timer.ms(), units_in=tokens[0], units_out=tokens[1],
