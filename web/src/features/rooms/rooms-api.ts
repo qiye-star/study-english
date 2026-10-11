@@ -51,8 +51,25 @@ export async function joinRoom(api: ApiClient, code: string): Promise<RoomInfo> 
 /** 「我的房间」一行:已结束的房间带学习小结状态(spec §6.1 入口;open 为 null,没有小结记录为 "none")。 */
 export type MySummaryStatus = "none" | "pending" | "done" | "failed" | "skipped";
 export type MyRoom = RoomInfo & { summaryStatus?: MySummaryStatus | null };
+/** 已结束页每次取多少(服务端 limit 上限 50)。 */
+export const ENDED_PAGE = 20;
+export interface EndedPage { rooms: MyRoom[]; nextCursor: string | null }
+
+/** 大厅概览:进行中的房间 + 已结束房间总数(入口「已结束的房间(N)」)。 */
+export async function myRoomsOverview(api: ApiClient, signal?: AbortSignal): Promise<{ rooms: MyRoom[]; endedCount: number }> {
+  const res = await api.request<{ rooms: MyRoom[]; endedCount?: number }>("GET", "/api/rooms/mine", { signal });
+  return { rooms: res.rooms, endedCount: res.endedCount ?? 0 };
+}
 export async function myRooms(api: ApiClient, signal?: AbortSignal): Promise<MyRoom[]> {
-  return (await api.request<{ rooms: MyRoom[] }>("GET", "/api/rooms/mine", { signal })).rooms;
+  return (await myRoomsOverview(api, signal)).rooms;
+}
+/** 已结束的房间(全部,按结束时间倒序);cursor 是上一页的 nextCursor,首页传 null。 */
+export function endedRooms(api: ApiClient, cursor: string | null, signal?: AbortSignal): Promise<EndedPage> {
+  return api.request<EndedPage>("GET", "/api/rooms/ended", { query: cursor ? { limit: ENDED_PAGE, cursor } : { limit: ENDED_PAGE }, signal });
+}
+/** 房主重新开启已结束的房间:返回新的(开放)房间,带新房间号。 */
+export async function reopenRoom(api: ApiClient, id: string): Promise<RoomInfo> {
+  return (await api.request<{ room: RoomInfo }>("POST", `${rid(id)}/reopen`)).room;
 }
 export function getRoom(api: ApiClient, id: string, signal?: AbortSignal): Promise<{ room: RoomInfo; members: RoomMemberInfo[] }> {
   return api.request("GET", rid(id), { signal });
