@@ -22,8 +22,11 @@ NOW = DAY + timedelta(hours=1)
 
 
 @pytest.fixture(autouse=True)
-def registry():
+def registry(request):
     saved = rank_sources.registered()
+    if "app" in request.fixturenames:
+        # create_app installs the links, and chat_words registers word_in_chat: clear after the app exists
+        request.getfixturevalue("app")
     rank_sources.clear_for_tests()
     yield
     rank_sources.clear_for_tests()
