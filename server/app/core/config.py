@@ -221,6 +221,27 @@ class Settings(BaseSettings):
     link_chat_words_llm_enabled: bool = False
     link_chat_words_llm_global_daily: int = Field(200, ge=0, le=10000)
 
+    # 智能体(spec 2026-10-12-agents §10.1);总开关关 = /api/agents/* 除 config 外 404,对话与联机行为不变
+    agents_enabled: bool = False
+    agents_tutor_enabled: bool = True
+    agents_memory_enabled: bool = True
+    agents_rooms_enabled: bool = True
+    agents_tools_mode: Literal["prefetch", "native", "off"] = "prefetch"
+    agents_model: str = ""
+    agents_memory_model: str = ""
+    agents_turns_global_daily: int = Field(3000, ge=0, le=100000)
+    agents_turns_daily_per_user: int = Field(300, ge=0, le=10000)
+    agents_memory_extract_daily_per_user: int = Field(100, ge=0, le=1000)
+    agents_tutor_daily_per_user: int = Field(20, ge=0, le=200)
+    agents_personas_max: int = Field(10, ge=0, le=50)
+    agents_prompt_max_chars: int = Field(800, ge=100, le=4000)
+    agents_memory_items_max: int = Field(200, ge=10, le=2000)
+    agents_memory_tokens: int = Field(600, ge=0, le=2000)
+    agents_source_timeout_ms: int = Field(150, ge=20, le=250)  # 总预算固定 250 ms(agents/context.PREFETCH_BUDGET_MS)
+    agents_history_max: int = Field(20, ge=2, le=50)
+    agents_chat_max_tokens: int = Field(300, ge=64, le=2000)  # 计划 R-C9
+    agents_tutor_max_tokens: int = Field(350, ge=64, le=2000)
+
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
     admin_password: str = ""
@@ -386,6 +407,18 @@ class Settings(BaseSettings):
     @property
     def resolved_wordbook_ai_model(self) -> str:
         return self.wordbook_ai_model.strip() or self.default_llm_model
+
+    @property
+    def agents_available(self) -> bool:
+        return self.agents_enabled and bool(self.upstream_llm_base_url)
+
+    @property
+    def resolved_agents_model(self) -> str:
+        return self.agents_model.strip() or self.default_llm_model
+
+    @property
+    def resolved_agents_memory_model(self) -> str:
+        return self.agents_memory_model.strip() or self.resolved_agents_model
 
     @property
     def realtime_available(self) -> bool:

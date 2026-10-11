@@ -25,6 +25,10 @@ QUOTA_KEYS: dict[str, str] = {
     "rooms_voice_quota_mb": "rooms_voice_quota_mb",
     "rooms_voice_daily_per_user": "rooms_voice_daily_per_user",
     "wordbook_ai_daily_per_user": "wordbook_ai_daily_per_user",
+    "agents_turns_daily_per_user": "agents_turns_daily_per_user",
+    "agents_personas_max": "agents_personas_max",
+    "agents_tutor_daily_per_user": "agents_tutor_daily_per_user",
+    "agents_memory_extract_daily_per_user": "agents_memory_extract_daily_per_user",
 }
 
 

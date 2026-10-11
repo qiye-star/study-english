@@ -84,3 +84,36 @@ def test_learning_links_settings():
     assert (s.links_queue_max, s.links_handler_timeout_ms, s.links_breaker_failures,
             s.links_breaker_cooldown_seconds, s.links_retention_days, s.link_chat_words_daily_max,
             s.link_chat_words_llm_global_daily) == (1000, 2000, 5, 60, 90, 10, 200)
+
+
+def test_agents_settings():
+    s = Settings(_env_file=None)
+    assert (s.agents_enabled, s.agents_tutor_enabled, s.agents_memory_enabled, s.agents_rooms_enabled) == (
+        False, True, True, True)
+    assert (s.agents_tools_mode, s.agents_model, s.agents_memory_model) == ("prefetch", "", "")
+    assert (s.agents_turns_global_daily, s.agents_turns_daily_per_user, s.agents_memory_extract_daily_per_user,
+            s.agents_tutor_daily_per_user, s.agents_personas_max, s.agents_prompt_max_chars, s.agents_memory_items_max,
+            s.agents_memory_tokens, s.agents_source_timeout_ms, s.agents_history_max, s.agents_chat_max_tokens,
+            s.agents_tutor_max_tokens) == (3000, 300, 100, 20, 10, 800, 200, 600, 150, 20, 300, 350)
+    agents = {k for k, spec in SPECS.items() if spec.group == "agents"}
+    assert agents == {k for k in Settings.model_fields if k.startswith("agents_")}
+    assert all(SPECS[k].apply == "hot" for k in agents)
+    assert ("agents", "智能体") in GROUPS
+    assert choices_for("agents_tools_mode") == ("prefetch", "native", "off")
+    assert SPECS["agents_enabled"].danger and SPECS["agents_turns_global_daily"].danger
+    assert field_bounds("agents_source_timeout_ms") == (20, 250)
+    assert field_bounds("agents_history_max") == (2, 50)
+    custom = Settings(_env_file=None, default_llm_model="m1", agents_memory_model=" ")
+    assert custom.resolved_agents_model == "m1" and custom.resolved_agents_memory_model == "m1"
+    custom = Settings(_env_file=None, agents_model="fast", agents_memory_model="cheap")
+    assert custom.resolved_agents_model == "fast" and custom.resolved_agents_memory_model == "cheap"
+    assert Settings(_env_file=None, agents_enabled=True, upstream_llm_base_url="").agents_available is False
+    assert Settings(_env_file=None, agents_enabled=True, upstream_llm_base_url="https://x.test/v1").agents_available
+
+
+def test_agents_danger_only_in_the_costly_direction():
+    from app.admin.settings_service import danger_reasons
+    assert danger_reasons("agents_enabled", False, True)
+    assert not danger_reasons("agents_enabled", True, False)
+    assert danger_reasons("agents_turns_global_daily", 3000, 4000)
+    assert not danger_reasons("agents_turns_global_daily", 3000, 100)

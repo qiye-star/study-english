@@ -101,6 +101,8 @@ def danger_reasons(key: str, old, new) -> list[str]:
         "admin_require_totp": new is True,
         "rank_matches_global_daily": _up(old, new),
         "rooms_ai_global_daily": _up(old, new),
+        "agents_enabled": new is True,
+        "agents_turns_global_daily": _up(old, new),
         # security settings: only the weakening direction is dangerous (review security m1)
         "rate_limit_per_minute": _up(old, new),
         "admin_lockout_threshold": _up(old, new),

@@ -14,7 +14,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
     ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
-    ("links", "学习联动"),
+    ("links", "学习联动"), ("agents", "智能体"),
     ("admin", "管理端"),
     ("ops", "运维与维护"), ("system", "系统(只读)"),
 )
@@ -235,6 +235,28 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("link_chat_words_daily_max", "links", "int", "每人每日最多记录今日词"),
     _s("link_chat_words_llm_enabled", "links", "bool", "今日词大模型用法检查", danger=_COST),
     _s("link_chat_words_llm_global_daily", "links", "int", "用法检查全站每日次数", danger=_COST),
+    # 智能体(设计文档 2026-10-12-agents §10.1;计划 R-C9、R-C10)
+    _s("agents_enabled", "agents", "bool", "智能体总开关", help_zh="关闭 = /api/agents/* 除 config 外 404;对话与联机照旧",
+       danger=_COST),
+    _s("agents_tutor_enabled", "agents", "bool", "导师模式「带我学」"),
+    _s("agents_memory_enabled", "agents", "bool", "智能体记忆", help_zh="关闭后不读取也不整理记忆;已存记忆保留"),
+    _s("agents_rooms_enabled", "agents", "bool", "联机里的智能体角色"),
+    _s("agents_tools_mode", "agents", "enum", "工具方式",
+       help_zh="prefetch = 调模型前并行预取;native 需先通过「智能体」页的函数调用探测,否则按 prefetch;off = 不用学习数据工具"),
+    _s("agents_model", "agents", "str", "智能体模型", help_zh="留空 = 默认模型"),
+    _s("agents_memory_model", "agents", "str", "记忆整理模型", help_zh="留空 = 智能体模型"),
+    _s("agents_turns_global_daily", "agents", "int", "全站每日回合上限", danger=_COST),
+    _s("agents_turns_daily_per_user", "agents", "int", "每人每日回合上限", help_zh="可按用户覆盖"),
+    _s("agents_memory_extract_daily_per_user", "agents", "int", "每人每日记忆整理次数", help_zh="可按用户覆盖"),
+    _s("agents_tutor_daily_per_user", "agents", "int", "每人每日导师会话数", help_zh="按开始次数计;可按用户覆盖"),
+    _s("agents_personas_max", "agents", "int", "每人自建角色上限", help_zh="可按用户覆盖;0 = 不允许自建"),
+    _s("agents_prompt_max_chars", "agents", "int", "人设最长字数", help_zh="只约束新建与修改;已存的长人设照常使用"),
+    _s("agents_memory_items_max", "agents", "int", "每人长期记忆条数上限"),
+    _s("agents_memory_tokens", "agents", "int", "记忆块预算(token 估算)", help_zh="0 = 不放记忆"),
+    _s("agents_source_timeout_ms", "agents", "int", "单个上下文来源超时(毫秒)", help_zh="所有来源并行,总预算固定 250 毫秒;超时记为跳过"),
+    _s("agents_history_max", "agents", "int", "带入的历史消息条数"),
+    _s("agents_chat_max_tokens", "agents", "int", "聊天回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
+    _s("agents_tutor_max_tokens", "agents", "int", "导师回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
 )
 
 SPECS: dict[str, SettingSpec] = {s.key: s for s in _ALL}

@@ -34,3 +34,12 @@ async def test_unknown_quota_key_is_an_error(app):
     async with app.state.sessionmaker() as session:
         with pytest.raises(KeyError):
             await quota_for(session, app.state.settings, 1, "nope", NOW)
+
+
+def test_agents_quota_keys_and_metering_feature():
+    from app.core import metering
+    assert {"agents_turns_daily_per_user", "agents_personas_max", "agents_tutor_daily_per_user",
+            "agents_memory_extract_daily_per_user"} <= set(QUOTA_KEYS)
+    assert all(QUOTA_KEYS[k] == k for k in QUOTA_KEYS if k.startswith("agents_"))
+    assert metering.feature_for("/api/agents/turn") == "agents"
+    assert metering.feature_for("/api/admin/agents") == "admin"
