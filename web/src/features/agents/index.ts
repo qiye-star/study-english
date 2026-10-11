@@ -7,3 +7,4 @@ export type {
   Persona, PersonaDraft, ToolKey, TurnEvent, TurnMeta,
 } from "./types";
 export { agentsApi } from "./agents-api";
+export { normalizeTrace } from "./trace";
