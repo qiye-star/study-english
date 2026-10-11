@@ -58,6 +58,28 @@ describe("AgentSettingsPage (spec §4.3, D2)", () => {
     expect(JSON.parse(String(mock.calls.filter((c) => c.method === "PATCH")[1].body))).toEqual({ tools: { weak_words: false } });
   });
 
+  it("serializes quick toggles: a failed first save rolls back only its own key and the second keeps its value", async () => {
+    let n = 0;
+    let rejectFirst: (() => void) | undefined;
+    const mock = setup({
+      "PATCH /api/agents/settings": async (call) => {
+        const body = JSON.parse(String(call.body)) as Record<string, unknown> & { tools?: Record<string, boolean> };
+        if (++n === 1) { await new Promise<void>((resolve) => { rejectFirst = resolve; }); return json({ error: "x" }, 500); }
+        return json({ ...SETTINGS, tools: { ...SETTINGS.tools, ...body.tools } });
+      },
+    });
+    const show = await screen.findByTestId("agent-setting-show-process");
+    const weak = screen.getByTestId("agent-setting-tool-weak_words");
+    await userEvent.click(show);
+    await userEvent.click(weak);
+    expect(mock.calls.filter((c) => c.method === "PATCH")).toHaveLength(1); // second waits for the first
+    rejectFirst?.();
+    await waitFor(() => expect(mock.calls.filter((c) => c.method === "PATCH")).toHaveLength(2));
+    await waitFor(() => expect(show).toHaveAttribute("data-state", "checked"));
+    expect(weak).toHaveAttribute("data-state", "unchecked");
+    expect(JSON.parse(String(mock.calls.filter((c) => c.method === "PATCH")[1].body))).toEqual({ tools: { weak_words: false } });
+  });
+
   it("keeps at least one tutor question type", async () => {
     const mock = setup({ "PATCH /api/agents/settings": (call) => json({ ...SETTINGS, ...JSON.parse(String(call.body)) }) });
     await userEvent.click(await screen.findByTestId("agent-setting-kind-words"));
