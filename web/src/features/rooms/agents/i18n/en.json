@@ -2,7 +2,80 @@
   "web": {
     "rooms": {
       "notice": { "agent_off": "This agent is not available right now" },
-      "agents": { "errors": { "tutorActive": "The room tutor is running; change agents after it ends" } }
+      "room": {
+        "system": {
+          "agents": "The owner set the agents: {{names}}",
+          "agents_off": "The owner removed the agents",
+          "tutor_started": "{{name}} started a group practice",
+          "tutor_stopped": "Group practice ended",
+          "tutor_done": "{{name}} finished the group practice"
+        }
+      },
+      "agents": {
+        "tag": "Agent",
+        "answeredFor": "{{name}} answered {{asker}}",
+        "handoff": "{{from}} → {{to}}",
+        "typing": "{{name}} is answering…",
+        "privateOnly": "Only you can see this",
+        "processLabel": "How {{name}} worked",
+        "section": {
+          "title": "Agents",
+          "hint": "Pick up to 2 personas; members ask with @name. Members see the name, intro and any prompt its creator made public.",
+          "add": "Add persona",
+          "remove": "Remove",
+          "aiOff": "Agents stay quiet while \"Group @AI\" is off.",
+          "duplicate": "That persona is already picked"
+        },
+        "sheet": {
+          "prompt": "Prompt",
+          "promptHidden": "The creator keeps the prompt private",
+          "ask": "Ask @{{name}}",
+          "report": "Report this persona",
+          "reported": "Reported. An admin will review it",
+          "disabled": "Disabled",
+          "builtin": "Built-in",
+          "reportReasons": { "spam": "Spam", "abuse": "Inappropriate", "other": "Other" },
+          "style": { "friendly": "Friendly", "strict": "Strict", "humor": "Humorous", "concise": "Concise" }
+        },
+        "tutor": {
+          "title": "Practice",
+          "start": "Start",
+          "steps": "{{count}} Qs",
+          "fewer": "One fewer question",
+          "more": "One more question",
+          "persona": "Practice persona",
+          "hint": "The agent calls on online members in turn; no answer in 60 s skips. Anyone may chip in.",
+          "yourTurn": "Your turn",
+          "theirTurn": "{{name}}'s turn",
+          "progress": "Q {{step}}/{{total}}",
+          "generating": "{{name}} is asking…",
+          "skip": "Skip",
+          "stop": "End",
+          "resume": "Resume",
+          "secondsLeft": "{{count}} s left",
+          "paused": {
+            "restart": "Paused after a server restart",
+            "quota": "Paused: today's AI limit is used up",
+            "upstream": "Paused: AI is unavailable",
+            "ai_off": "Paused: AI is off in this room",
+            "agent_off": "Paused: this persona is disabled"
+          }
+        },
+        "errors": {
+          "tutorActive": "The room tutor is running; change agents after it ends",
+          "agentNotFound": "That persona is not in this room",
+          "tutorOff": "Group practice is turned off",
+          "notAgent": "Pick one of this room's agents",
+          "aiOff": "AI is off in this room",
+          "noParticipants": "Nobody is online to practise with",
+          "tutorQuota": "Today's practice limit is used up",
+          "notWaiting": "Nobody is being asked right now",
+          "notPaused": "The practice is not paused",
+          "tutorNotFound": "No practice is running",
+          "reportLimit": "Too many reports; try again later",
+          "badReason": "That report reason is not valid"
+        }
+      }
     }
   }
 }

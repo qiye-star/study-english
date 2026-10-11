@@ -14,6 +14,10 @@ import { PageHeader } from "~/layout/page-header";
 import { AssistDock, type DockSnap } from "./assist/assist-dock";
 import { AssistEntry } from "./assist/assist-entry";
 import { useSoftKeyboard } from "./assist/use-soft-keyboard";
+import { agentOf } from "./agents/agent-meta";
+import { PersonaSheet } from "./agents/persona-sheet";
+import { TutorBar } from "./agents/tutor-bar";
+import { useRoomAgents } from "./agents/use-room-agents";
 import { JoinRequestBanner } from "./create/join-requests";
 import { ActivityLine } from "./extras/activity-line";
 import { InviteSheet } from "./extras/invite-sheet";
@@ -154,6 +158,11 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const justClosed = closed && LIVE_CLOSE.has(state.closeReason ?? "") && !!config.summaryAvailable;
   const isOwner = state.me?.role === "owner" || info?.myRole === "owner";
   const voiceEnabled = !!config.voiceAvailable && !!info?.allowVoice && !closed;
+  // 联机智能体(plan 2026-10-12-agents-rooms Addendum AR-1):角色名单、角色信息面板;带练条在输入条上方
+  const agentIds = info?.agentIds ?? [];
+  const { info: agentsInfo } = useRoomAgents(api, roomId, agentIds, agentIds.length > 0 && !ended);
+  const agentNames = useMemo(() => (agentsInfo?.agents ?? []).map((a) => a.name), [agentsInfo]);
+  const [agentSheet, setAgentSheet] = useState<string | null>(null);
 
   const voice = useRoomVoice({
     roomId, enabled: voiceEnabled, maxMs: config.maxVoiceMs, target, replyTo: quote?.seq ?? null,
@@ -271,7 +280,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const announced = state.announce;
   const announceText = !announced ? "" : announced.kind === "voice" && !announced.text
     ? t("web.rooms.voice.announce", { name: announced.sender.name ?? "?", duration: formatVoiceDuration(announced.voice?.durationMs ?? 0) })
-    : `${announced.kind === "ai_answer" ? t("web.rooms.room.aiName") : announced.sender.name ?? "?"}: ${announced.text}`;
+    : `${announced.kind === "ai_answer" ? agentOf(announced)?.agent.name ?? t("web.rooms.room.aiName") : announced.sender.name ?? "?"}: ${announced.text}`;
   const listTop = "calc(52px + env(safe-area-inset-top) + 12px)";
   const listBottom = composerHeight + dockHeight + 14;
   const message = state.notice ? t(`web.rooms.notice.${state.notice}`) : state.error ? t(`web.rooms.errors.${state.error}`) : null;
@@ -319,7 +328,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
         )}
         <RoomMessageList state={state} roomId={roomId} reported={reported} autoText={autoText} onLoadEarlier={loadEarlier} onReport={setReporting}
           onReact={room.react} onQuote={(m) => { setQuote(m); setTarget("group"); }}
-          onTranslateVoice={room.translateVoice} onRetryVoice={room.retryVoice} />
+          onTranslateVoice={room.translateVoice} onRetryVoice={room.retryVoice} agentNames={agentNames} onOpenAgent={setAgentSheet} />
         </div>
       </div>
       <AssistDock open={dockOpen && aiAvailable} snap={dockSnap} keyboardOpen={keyboardOpen} entries={state.assist} disabled={closed} offline={offline}
@@ -340,11 +349,15 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
           <>
             {quote && <QuoteBar quote={quoteOf(quote)} onClear={() => setQuote(null)} />}
             <ActivityLine activity={state.activity} members={state.members} meId={state.me?.userId ?? null} />
+            <TutorBar tutor={state.tutor} receivedAt={state.tutorAt} meId={state.me?.userId ?? null} isOwner={isOwner} roomId={roomId} disabled={closed || offline} />
           </>
         )}
         banner={status ?? message ?? newVersion ?? (state.status === "connecting" ? t("web.rooms.room.connecting") : null)}
         onDismiss={!status && message ? dismiss : undefined} />
       <RoomSettingsSheet open={settings} onOpenChange={setSettings} state={state} onChanged={room.applyRoom} />
+      <PersonaSheet open={agentSheet !== null} onOpenChange={(v) => { if (!v) setAgentSheet(null); }} roomId={roomId}
+        agent={agentsInfo?.agents.find((a) => a.id === agentSheet) ?? null} canAsk={!closed}
+        onAsk={(name) => { setDraft(`@${name} `); setTarget("group"); setVoiceMode("text"); }} />
       <BottomSheet open={!!reporting} onOpenChange={(v) => { if (!v) setReporting(null); }}>
         <BottomSheetContent>
           <BottomSheetHeader title={t("web.rooms.room.reportTitle")} description={t("web.rooms.room.reportHint")} srOnlyDescription />

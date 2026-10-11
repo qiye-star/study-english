@@ -2,7 +2,80 @@
   "web": {
     "rooms": {
       "notice": { "agent_off": "这个智能体现在不可用" },
-      "agents": { "errors": { "tutorActive": "带练进行中,结束后再改智能体" } }
+      "room": {
+        "system": {
+          "agents": "房主设置了智能体:{{names}}",
+          "agents_off": "房主移除了智能体",
+          "tutor_started": "{{name}} 开始带练",
+          "tutor_stopped": "带练已结束",
+          "tutor_done": "{{name}} 的带练结束了"
+        }
+      },
+      "agents": {
+        "tag": "智能体",
+        "answeredFor": "{{name}} 已回答 · 对 {{asker}}",
+        "handoff": "{{from}} → {{to}}",
+        "typing": "{{name}} 正在回答…",
+        "privateOnly": "仅你可见",
+        "processLabel": "{{name}} 的思考过程",
+        "section": {
+          "title": "智能体",
+          "hint": "最多选 2 个角色,成员用 @名字 提问。成员能看到角色名、简介,以及创建者公开的人设原文。",
+          "add": "添加角色",
+          "remove": "移除",
+          "aiOff": "「群内 @AI」关闭时智能体也不会回答。",
+          "duplicate": "这个角色已经选过了"
+        },
+        "sheet": {
+          "prompt": "人设原文",
+          "promptHidden": "创建者没有公开人设原文",
+          "ask": "@{{name}} 提问",
+          "report": "举报这个角色",
+          "reported": "已举报,管理员会处理",
+          "disabled": "已停用",
+          "builtin": "内置",
+          "reportReasons": { "spam": "垃圾内容", "abuse": "不当内容", "other": "其他" },
+          "style": { "friendly": "友好", "strict": "严格", "humor": "幽默", "concise": "简洁" }
+        },
+        "tutor": {
+          "title": "带练",
+          "start": "开始带练",
+          "steps": "{{count}} 题",
+          "fewer": "少一题",
+          "more": "多一题",
+          "persona": "带练角色",
+          "hint": "智能体会依次点名在线成员;60 秒没回答自动跳过,其他人可以随时补充。",
+          "yourTurn": "轮到你了",
+          "theirTurn": "轮到 {{name}}",
+          "progress": "第 {{step}}/{{total}} 题",
+          "generating": "{{name}} 正在出题…",
+          "skip": "跳过",
+          "stop": "结束带练",
+          "resume": "继续",
+          "secondsLeft": "剩余 {{count}} 秒",
+          "paused": {
+            "restart": "服务重启,带练已暂停",
+            "quota": "今天的 AI 次数用完了,带练已暂停",
+            "upstream": "AI 暂时不可用,带练已暂停",
+            "ai_off": "本房 AI 已关闭,带练已暂停",
+            "agent_off": "这个角色已停用,带练已暂停"
+          }
+        },
+        "errors": {
+          "tutorActive": "带练进行中,结束后再改智能体",
+          "agentNotFound": "这个角色不在房间里",
+          "tutorOff": "带练功能未开启",
+          "notAgent": "请选择本房间的智能体",
+          "aiOff": "本房 AI 已关闭",
+          "noParticipants": "没有在线成员可以一起练",
+          "tutorQuota": "今天的带练次数用完了",
+          "notWaiting": "现在没有人在答题",
+          "notPaused": "带练没有暂停",
+          "tutorNotFound": "没有进行中的带练",
+          "reportLimit": "举报太频繁了,稍后再试",
+          "badReason": "举报原因无效"
+        }
+      }
     }
   }
 }
