@@ -25,3 +25,5 @@ export const PersonaChip = part<import("./persona-chip").PersonaChipProps>(() =>
 export const PersonaEditorSheet = part<import("./persona-editor-sheet").PersonaEditorSheetProps>(() => import("./persona-editor-sheet").then((m) => m.PersonaEditorSheet));
 export const PersonaPicker = part<import("./persona-picker").PersonaPickerProps>(() => import("./persona-picker").then((m) => m.PersonaPicker));
 export const ReportPersonaSheet = part<import("./report-persona-sheet").ReportPersonaSheetProps>(() => import("./report-persona-sheet").then((m) => m.ReportPersonaSheet));
+export const AgentSettingsPage = part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
+export const AgentsMeRow = part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
