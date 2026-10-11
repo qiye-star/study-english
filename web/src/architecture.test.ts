@@ -65,11 +65,13 @@ const topOf = (rel: string) => rel.split("/")[0];
 const featureOf = (rel: string) => (rel.startsWith("features/") ? rel.split("/")[1] : null);
 const isTest = (rel: string) => /\.test\.tsx?$/.test(rel);
 const CROSS_FEATURE_BASELINE = new Set([
-  "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "lookup->practice",
+  "chat->agents", "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "lookup->practice",
   "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
   "rank->chat", "rank->practice", "realtime->chat", "rooms->chat",
   "vocabulary->chat", "wordbook->chat", "wordbook->rank",
 ]); // L1 删去了五条 ->vocabulary / vocabulary->lookup 边(四处改用 <WordActions> 插槽);新增任何一条即失败
+// A4(agents-web R-W4):chat->agents —— 对话页用 agents 的过程胶囊、角色切换与回合客户端(spec 2026-10-12-agents §3.4、§9.3);
+// agents 是产品本身(不受 LINKS_ENABLED 控制),不能挂在扩展点上;agents 不导入任何 feature,所以没有桶循环。A5 再加 rooms->agents。
 /** `to` 已去掉扩展名;`rel` 带扩展名。 */
 const isRegister = (rel: string) => /^features\/[^/]+\/register(-[a-z-]+)?(\.tsx?)?$/.test(rel);
 
@@ -164,6 +166,8 @@ describe("web architecture boundaries", () => {
     expect(violationsOf("plugins/core.ts", 'import "~/features/vocabulary/register";')).toEqual([]);
     expect(violationsOf("plugins/x/index.ts", 'import "~/features/wordbook/register-daily-tasks";')).toEqual([]);
     expect(violationsOf("plugins/x/index.ts", 'import { a } from "~/features/wordbook/word-card";')).toHaveLength(1);
+    expect(violationsOf("features/chat/x.tsx", 'import { ProcessCapsule } from "~/features/agents";')).toEqual([]);
+    expect(violationsOf("features/agents/x.tsx", 'import { VoicePicker } from "~/features/chat";')).toHaveLength(1);
     expect(violationsOf("pages/x.tsx", 'import "~/features/vocabulary/register";')).toHaveLength(2);
     expect(violationsOf("features/wordbook/register-daily-tasks.tsx", 'import { goPractice } from "~/features/practice";')).toHaveLength(2);
     expect(violationsOf("features/progress/x.tsx", 'import { RankCard } from "~/features/rank";')).toHaveLength(1);
@@ -186,7 +190,7 @@ describe("web architecture boundaries", () => {
       }
     }
     expect([...CROSS_FEATURE_BASELINE].filter((e) => !edges.has(e))).toEqual([]);
-    expect(CROSS_FEATURE_BASELINE.size).toBe(16);
+    expect(CROSS_FEATURE_BASELINE.size).toBe(17);
   });
 
   it("every extension point is rendered by product code and every contribution names a real point", () => {
