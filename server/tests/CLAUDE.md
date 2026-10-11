@@ -8,7 +8,8 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
 - `test_<area>.py` – one file per module/endpoint area; `test_*_api.py` hit routers
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
 - `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
-  `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` (shared with web contract tests)
+  `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` (shared with web contract tests),
+  `agents_memory_contract.json` (web `memory-contract.test.ts`)
 - `test_web_contract.py` – drives a real room session and pins every rooms HTTP/WS payload shape in
   `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional
   change with `CONTRACT_UPDATE=1` (tickets are written redacted)

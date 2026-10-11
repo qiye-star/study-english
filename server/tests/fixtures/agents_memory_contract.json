@@ -1,0 +1,156 @@
+{
+  "profile": {
+    "profile": {
+      "level": "B1",
+      "goals": [
+        "雅思 7 分"
+      ]
+    },
+    "edited_keys": [
+      "level",
+      "goals"
+    ],
+    "proposals": {
+      "level": "B2"
+    },
+    "memory_enabled": true,
+    "memory_available": true
+  },
+  "items": {
+    "items": [
+      {
+        "id": "7ce21a83-e1c3-4314-a506-e95f034a2f17",
+        "kind": "preference",
+        "text": "喜欢先听再说",
+        "importance": 3,
+        "pinned": false,
+        "persona": {
+          "id": "builtin:coach",
+          "name": "英语教练"
+        },
+        "source": "tutor",
+        "created_at": "2026-10-11T10:56:13.563874+00:00",
+        "updated_at": "2026-10-11T10:56:13.563874+00:00"
+      },
+      {
+        "id": "afe6a528-0945-4979-be3a-4537ce12954f",
+        "kind": "goal",
+        "text": "准备雅思口语考试",
+        "importance": 4,
+        "pinned": false,
+        "persona": null,
+        "source": "chat",
+        "created_at": "2026-10-11T10:56:13.555032+00:00",
+        "updated_at": "2026-10-11T10:56:13.555032+00:00"
+      }
+    ],
+    "next_cursor": null,
+    "persona_counts": [
+      {
+        "persona": null,
+        "count": 1
+      },
+      {
+        "persona": {
+          "id": "builtin:coach",
+          "name": "英语教练"
+        },
+        "count": 1
+      }
+    ]
+  },
+  "pin": {
+    "id": "afe6a528-0945-4979-be3a-4537ce12954f",
+    "kind": "goal",
+    "text": "准备雅思口语考试",
+    "importance": 4,
+    "pinned": true,
+    "persona": null,
+    "source": "chat",
+    "created_at": "2026-10-11T10:56:13.555032+00:00",
+    "updated_at": "2026-10-11T10:56:13.555032+00:00"
+  },
+  "recaps": {
+    "recaps": [
+      {
+        "id": "090a68ee-a688-4e3d-8df7-a4a0378407ec",
+        "source": "tutor",
+        "persona": {
+          "id": "builtin:coach",
+          "name": "英语教练"
+        },
+        "conversation_id": null,
+        "text": "8 题答对 6 题",
+        "created_at": "2026-10-11T10:56:13.567188+00:00"
+      }
+    ],
+    "next_cursor": null
+  },
+  "export": {
+    "version": 1,
+    "exported_at": "2026-10-11T10:56:13.632942+00:00",
+    "profile": {
+      "data": {
+        "level": "B1",
+        "goals": [
+          "雅思 7 分"
+        ]
+      },
+      "edited_keys": [
+        "level",
+        "goals"
+      ],
+      "proposals": {
+        "level": "B2"
+      }
+    },
+    "items": [
+      {
+        "id": "afe6a528-0945-4979-be3a-4537ce12954f",
+        "kind": "goal",
+        "text": "准备雅思口语考试",
+        "importance": 4,
+        "pinned": true,
+        "persona_id": null,
+        "source": "chat",
+        "created_at": "2026-10-11T10:56:13.555032+00:00",
+        "updated_at": "2026-10-11T10:56:13.555032+00:00",
+        "last_used_at": null
+      },
+      {
+        "id": "7ce21a83-e1c3-4314-a506-e95f034a2f17",
+        "kind": "preference",
+        "text": "喜欢先听再说",
+        "importance": 3,
+        "pinned": false,
+        "persona_id": "builtin:coach",
+        "source": "tutor",
+        "created_at": "2026-10-11T10:56:13.563874+00:00",
+        "updated_at": "2026-10-11T10:56:13.563874+00:00",
+        "last_used_at": null
+      }
+    ],
+    "recaps": [
+      {
+        "id": "090a68ee-a688-4e3d-8df7-a4a0378407ec",
+        "source": "tutor",
+        "persona_id": "builtin:coach",
+        "conversation_id": null,
+        "tutor_session_id": "t-1",
+        "text": "8 题答对 6 题",
+        "created_at": "2026-10-11T10:56:13.567188+00:00"
+      }
+    ],
+    "threads": [],
+    "tombstones": 0
+  },
+  "clear": {
+    "scope": "all",
+    "deleted": {
+      "items": 2,
+      "recaps": 1,
+      "threads": 0,
+      "profile": true
+    }
+  }
+}

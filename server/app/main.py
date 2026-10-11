@@ -23,9 +23,11 @@ from app.core.runtime_settings import (
 )
 from app.links import purge as links_purge
 from app.links.setup import install as install_links
+from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
+from app.agents.orchestrator import runtime as agents_runtime
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin, admin_accounts, agents_memory, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -57,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await _stop_tasks(tasks, exclude="metering")
         with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
             await asyncio.wait_for(app_.state.learning_bus.drain(), 2.0)
+        with suppress(asyncio.TimeoutError, Exception):  # last memory jobs, give up after 2 s (plan A2)
+            await asyncio.wait_for(app_.state.agent_memory.worker.join(), 2.0)
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await _stop_tasks(tasks)  # metering last: its final flush keeps the calls made while shutting down
@@ -80,6 +84,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
     app.state.learning_bus = LearningBus(lambda: app.state.settings)  # learning links §4 (reads settings per call)
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
+    # A2 anchor: goes right after A1's install_agent_sources(app) once that exists in this file (INDEX X1 order A1 -> A2 -> A3 -> A5)
+    install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
     app.state.settings_hub = hub = SettingsHub(app.state)
@@ -93,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 顺序重要:stubs 含 /api/** 的兜底写入路由,真实 API 必须在它之前;
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
+        agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
         links, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,

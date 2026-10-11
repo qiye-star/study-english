@@ -56,5 +56,6 @@ must be last.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
 - Migrations: `alembic/versions/` is linear (head `0016`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
+  `0016_agent_memory` is shared with A3 (A3 appends `agent_tutor_sessions`).
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
   deleting a user never deletes rooms (`rooms.owner_id` nullable, `ON DELETE SET NULL`).
