@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0016"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -429,7 +429,7 @@ LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link
 
 def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0016"]
     command.upgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "0013")
@@ -494,7 +494,7 @@ AGENT_TABLES = {"agent_personas", "agent_user_settings", "agent_persona_reports"
 
 def test_0015_agents_tables_trace_column_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0016"]
     command.upgrade(cfg, "0014")
     assert not AGENT_TABLES & _tables(db)
     con = sqlite3.connect(db)
@@ -536,6 +536,58 @@ def test_0015_agents_tables_trace_column_and_round_trip(tmp_path, monkeypatch):
         con.close()
     command.upgrade(cfg, "head")
     assert AGENT_TABLES <= _tables(db)
+
+
+AGENT_MEMORY_TABLES = {"agent_memory_items", "agent_profiles", "agent_thread_states", "agent_recaps",
+                       "agent_memory_tombstones"}
+
+
+def test_0016_agent_memory_tables_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    script = ScriptDirectory.from_config(cfg)
+    assert script.get_heads() == ["0016"]
+    assert script.get_revision("0016").down_revision == "0015"
+    command.upgrade(cfg, "0015")
+    assert not AGENT_MEMORY_TABLES & _tables(db)
+    command.upgrade(cfg, "0016")
+    assert AGENT_MEMORY_TABLES <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert _columns(con, "agent_memory_items") == {
+            "id", "user_id", "persona_id", "kind", "text", "text_hash", "importance", "pinned", "source",
+            "created_at", "updated_at", "last_used_at"}
+        assert _columns(con, "agent_thread_states") == {
+            "id", "user_id", "conversation_id", "room_id", "summary", "summarized_count", "rolls_since_recap",
+            "turns_since_extract", "pending_texts", "segment_started_at", "last_turn_at", "updated_at"}
+        tomb_pk = [r[1] for r in sorted(con.execute("pragma table_info(agent_memory_tombstones)"), key=lambda r: r[5])
+                   if r[5]]
+        item_idx = {r[1] for r in con.execute("pragma index_list(agent_memory_items)")}
+        recap_idx = {r[1] for r in con.execute("pragma index_list(agent_recaps)")}
+        thread_fks = {(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(agent_thread_states)")}
+        recap_fks = {(r[2], r[3], r[6]) for r in con.execute("pragma foreign_key_list(agent_recaps)")}
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-12')")
+        insert = ("insert into agent_memory_items (id, user_id, persona_id, kind, text, text_hash, importance, pinned, "
+                  "source, created_at, updated_at) values (?, 12345678, ?, 'goal', 't', 'h', 3, 0, 'chat', "
+                  "'2026-10-12', '2026-10-12')")
+        con.execute(insert, ("m1", None))
+        con.commit()
+        try:
+            con.execute(insert, ("m2", "builtin:coach"))
+            raise AssertionError("a second item with the same text hash was accepted")
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        con.close()
+    assert tomb_pk == ["user_id", "text_hash"]
+    assert "ix_agent_memory_items_user_id_persona_id" in item_idx
+    assert {"ix_agent_recaps_user_id_created_at", "ix_agent_recaps_conversation_id"} <= recap_idx
+    assert thread_fks == {("users", "user_id", "CASCADE"), ("conversations", "conversation_id", "CASCADE"),
+                          ("rooms", "room_id", "CASCADE")}
+    assert recap_fks == {("users", "user_id", "CASCADE"), ("conversations", "conversation_id", "CASCADE")}
+    command.downgrade(cfg, "0015")
+    assert not AGENT_MEMORY_TABLES & _tables(db)
+    command.upgrade(cfg, "head")
+    assert AGENT_MEMORY_TABLES <= _tables(db)
 
 
 def test_user_foreign_keys_in_the_migrated_schema_carry_the_models_on_delete(tmp_path, monkeypatch):

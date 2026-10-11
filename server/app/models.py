@@ -826,3 +826,91 @@ class AgentPersonaReport(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     resolution: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+# ---- 智能体记忆(spec 2026-10-12-agents §8;计划 A2;迁移 0016)----
+
+class AgentMemoryItem(Base):
+    """长期 / 角色记忆。persona_id 为空 = 所有角色共享;不设外键(内置角色 id 以 builtin: 开头,不在表里)。
+    同一用户同一规范化文本只存一条(text_hash 唯一)。"""
+    __tablename__ = "agent_memory_items"
+    __table_args__ = (
+        UniqueConstraint("user_id", "text_hash", name="uq_agent_memory_items_user_hash"),
+        Index("ix_agent_memory_items_user_id_persona_id", "user_id", "persona_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    persona_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(String(200))
+    text_hash: Mapped[str] = mapped_column(String(64))
+    importance: Mapped[int] = mapped_column(Integer, default=3)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    source: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AgentProfile(Base):
+    """用户档案:一行 JSON,逐键校验(app/agents/memory/profile.py);edited_keys = 用户亲手改过的键。"""
+    __tablename__ = "agent_profiles"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    edited_keys: Mapped[list] = mapped_column(JSON, default=list)
+    proposals: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentThreadState(Base):
+    """短期记忆:每个用户在一个对话(或房间)里一行。summary ≤ 400 字;pending_texts ≤ 4 条待整理的用户原文。"""
+    __tablename__ = "agent_thread_states"
+    __table_args__ = (
+        UniqueConstraint("user_id", "conversation_id", name="uq_agent_thread_states_user_conversation"),
+        UniqueConstraint("user_id", "room_id", name="uq_agent_thread_states_user_room"),
+        Index("ix_agent_thread_states_conversation_id", "conversation_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True)
+    room_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    summarized_count: Mapped[int] = mapped_column(Integer, default=0)
+    rolls_since_recap: Mapped[int] = mapped_column(Integer, default=0)
+    turns_since_extract: Mapped[int] = mapped_column(Integer, default=0)
+    pending_texts: Mapped[list] = mapped_column(JSON, default=list)
+    segment_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_turn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentRecap(Base):
+    """会话回顾(情节记忆):source = conversation | tutor。tutor_session_id 不设外键(A3 的表追加在同一迁移之后)。"""
+    __tablename__ = "agent_recaps"
+    __table_args__ = (
+        Index("ix_agent_recaps_user_id_created_at", "user_id", "created_at"),
+        Index("ix_agent_recaps_conversation_id", "conversation_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    persona_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True)
+    tutor_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(String(400))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentMemoryTombstone(Base):
+    """用户删除过的记忆文本的哈希(不存文本):同样的文本不再被自动写入(spec §8.3)。"""
+    __tablename__ = "agent_memory_tombstones"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    text_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

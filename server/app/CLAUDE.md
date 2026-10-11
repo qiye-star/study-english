@@ -54,7 +54,7 @@ must be last.
 - Logger names follow `__name__`, except the pinned `app.timing` and
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
-- Migrations: `alembic/versions/` is linear (head `0015`); `tests/test_migrations.py::test_models_match_migrations`
+- Migrations: `alembic/versions/` is linear (head `0016`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
   deleting a user never deletes rooms (`rooms.owner_id` nullable, `ON DELETE SET NULL`).
