@@ -5,7 +5,7 @@
 `persona_id` 为空 = 共享)、用户档案(`agent_profiles`)、墓碑(`agent_memory_tombstones`,只存哈希)。
 
 ## What lives here
-- `tombstones.py` 规范化、哈希、敏感过滤(邮箱 / URL / 密钥 / 长数字 / 手机号)、脱敏、墓碑读写
+- `tombstones.py` 规范化、哈希、敏感过滤(邮箱含 at/dot 拼写、URL 含短链、密钥形态、pw: 口令、微信号、分隔或中文数字的长数字 / 手机号)、脱敏、墓碑读写
 - `profile.py` 档案六键(单词键,R-M7)、逐键校验、用户编辑 vs 智能体提议
 - `retrieve.py` 纯函数打分与 `<memory>` 组块(`build_block`)
 - `store.py` 全部数据库读写(`MemoryStore`)、`drop_conversation`、`memory_counts`
@@ -34,4 +34,7 @@
 - JSON 列要整体赋新值(`row.pending_texts = [...]`),原地修改不会被 SQLAlchemy 察觉。
 - 所有模型调用经 `MemoryWorker._call`:先扣 `agents_memory` 每日额度,失败退还;不要在别处直接调 `llm.complete`。
 - `touch_thread` 并发创建同一线程会抛 IntegrityError(任务失败、只计数):不要为此加重试循环。
+- 后台整理写库前必须 `MemoryWorker._live`:任务排队时记下用户的清空代(`store.epoch`,`clear` 与 `drop_conversation` 会 `bump_epoch`),写入前比对代、再查记忆开启 / 未暂停 / 对话仍存在,否则丢弃输出(计数 `discarded`)。新增写库点照做。
+- 容量:`add(max_items=…)` 在置顶已占满容量时抛 `MemoryFull`(worker 计数 `add_rejected_full`);`evict(protect=…)` 保护本次写入的条目,置顶 ≥ 容量时什么都不淘汰。
+- `clear`:线程状态没有角色标记,persona 与 all 都整体删除线程状态(派生数据,会由保留的消息重建);导师会话(`state` 含词与提示)persona 范围删该角色的、all 删全部。新增存敏感内容的表要并入 `clear`。
 - 0016 与 A3 共用:改表结构前看计划 R-M1。

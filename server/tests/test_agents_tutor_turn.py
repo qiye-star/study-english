@@ -166,6 +166,68 @@ async def test_a_stale_turn_result_does_not_move_the_lesson_twice(app, client):
     assert [a["verdict"] for a in got["answers"]] == ["skip"]
 
 
+async def test_hint_and_skip_are_rejected_as_busy_while_a_turn_is_generating(app, client, monkeypatch):
+    from app.providers import llm
+
+    h, cid, sid = await _session(app, client)
+    seen = []
+
+    async def watching(*args, **kwargs):
+        seen.append(service.is_generating(sid))
+        yield llm.Delta(kind="text", text="Hello.\n")
+        yield llm.Delta(kind="text", text='<<META>>{"verdict":null,"kind":"ask","done":false}')
+
+    monkeypatch.setattr("app.providers.llm.complete_stream", watching)
+    await turn(client, h, cid, sid, None)
+    await _settle(app)
+    assert seen == [True] and not service.is_generating(sid)
+    await set_state(app, sid, phase="await_answer")
+    service.mark_generating(sid)
+    for action in ("hint", "skip"):
+        r = await client.post(f"/api/agents/tutor/{sid}/{action}", headers=h)
+        assert r.status_code == 409 and r.json()["error"] == "Tutor is generating", action
+    service.clear_generating(sid)
+    assert (await client.post(f"/api/agents/tutor/{sid}/skip", headers=h)).status_code == 200
+
+
+async def test_a_stale_generating_mark_expires(app, client):
+    h, cid, sid = await _session(app, client)
+    service.mark_generating(sid, now=0.0)
+    assert service.is_generating(sid, now=service.GENERATING_TTL - 1)
+    assert not service.is_generating(sid, now=service.GENERATING_TTL + 1)
+
+
+async def test_two_finishes_racing_return_the_same_recap(app, client, monkeypatch):
+    h, cid, sid = await _session(app, client)
+    uid = int((await client.get("/api/me", headers=h)).json()["id"])
+    real, calls = service.build_recap, []
+
+    async def second_finish():
+        async with app.state.sessionmaker() as s2:
+            return await service.finish(s2, uid, sid, utcnow())
+
+    def racing(state, goal):
+        calls.append(1)
+        data = real(state, goal)
+        racing.pending = data
+        return data
+
+    racing.pending = None
+    monkeypatch.setattr(service, "build_recap", racing)
+    real_save, state = service._save, {"raced": False}
+
+    async def save(session, row, st, now, **extra):
+        if not state["raced"]:  # the other request commits first, between our read and our write
+            state["raced"] = True
+            state["other"] = await second_finish()
+        return await real_save(session, row, st, now, **extra)
+
+    monkeypatch.setattr(service, "_save", save)
+    async with app.state.sessionmaker() as s1:
+        first = await service.finish(s1, uid, sid, utcnow())
+    assert state["other"]["recap"] == first["recap"] and first["status"] == "done" and first["recap"] is not None
+
+
 async def test_turn_flow_logs_no_user_text_words_or_hints(app, client, monkeypatch, caplog):
     install_sources(app, due_words=["zephyrine", "quixotic", "laconic"])
     h, cid, sid = await _session(app, client, topic="today_words")

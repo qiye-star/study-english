@@ -28,6 +28,42 @@ def test_unsafe_content_is_rejected(text, reason):
     assert unsafe_reason(text) == reason
 
 
+@pytest.mark.parametrize("text, reason", [
+    ("short link bit.ly/x", "url"),
+    ("see t.co/AbC123", "url"),
+    ("go to tinyurl.com/yabc", "url"),
+    ("my key AKIAIOSFODNN7EXAMPLE", "secret"),
+    ("pw: hunter2", "secret"),
+    ("pwd = hunter2", "secret"),
+    ("密码:abc123", "secret"),
+    ("github_pat_11ABCDEFG0abcdefghijkl", "secret"),
+    ("138/1234/5678", "phone"),
+    ("138_1234_5678", "phone"),
+    ("１３８１２３４５６７８", "digits"),
+    ("tom at gmail dot com", "email"),
+    ("tom (at) gmail (dot) com", "email"),
+    ("tom 艾特 gmail 点 com", "email"),
+    ("我的微信号 abc_12345", "contact"),
+    ("wechat: lily2024x", "contact"),
+    ("vx lily_2024", "contact"),
+    ("手机 一三八一二三四五六七八", "digits"),
+    ("零〇一二三四五六", "digits"),
+    ("日期 10/12/20261234", "digits"),
+])
+def test_obfuscated_sensitive_content_is_rejected(text, reason):
+    assert unsafe_reason(text) == reason
+    assert REDACTED in redact(text)
+
+
+@pytest.mark.parametrize("text", [
+    "I'll meet you at the gym", "Please dot the i and cross the t", "pass the salt please", "I use WeChat every day",
+    "我喜欢用微信聊天", "wechat is popular in China", "Meet at 3/4 of the way", "on 10/12/2026 I start",
+    "我会数一二三", "Version 2.0 and 3.1", "and/or, he/she", "e.g. a.m. / p.m.", "I want to look at the dot plot",
+    "pass: I mean the exam", "Time: 7:30 to 8:30"])
+def test_normal_learning_text_is_not_flagged(text):
+    assert unsafe_reason(text) is None
+
+
 @pytest.mark.parametrize("text", ["我想在 2026-12-20 前考到 B2", "I like cats and jazz", "每天晚上学 20 分钟",
                                   "Goal: IELTS 7.0"])
 def test_ordinary_text_passes(text):

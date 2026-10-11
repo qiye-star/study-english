@@ -310,6 +310,126 @@ def test_the_room_level_maps_onto_the_tutor_levels():
     assert [_level(x) for x in ("A1", "A2", "B1", "B2", "C1", "?")] == ["A2", "A2", "B1", "B2", "C1", "B1"]
 
 
+async def _wait_for(predicate, tries=1000):
+    for _ in range(tries):  # the database runs in a thread: yielding once is not enough
+        if await predicate():
+            return
+        await asyncio.sleep(0.005)
+    raise AssertionError("condition not reached")
+
+
+async def _generating(tenv):
+    return len(tenv.script.calls) == 1
+
+
+async def test_stop_cancels_an_in_flight_turn_and_nothing_is_said_after_tutor_stopped(tenv):
+    tenv.script.block = asyncio.Event()
+    await tenv.tutor.start(tenv.room.id, A, EMMA.id, 3)
+    await _wait_for(lambda: _generating(tenv))  # the opening turn is generating
+    await tenv.tutor.stop(tenv.room.id, A)
+    tenv.script.block.set()
+    await tenv.hub.drain()
+    got = messages(tenv.bob)
+    assert [m["text"] for m in got if m["kind"] == "system"] == ["tutor_started", "tutor_stopped"]
+    assert got[-1]["text"] == "tutor_stopped" and all(m["kind"] != "ai_answer" for m in got)
+    assert (await snapshot(tenv)) is None and tutor_frames(tenv.bob)[-1] is None
+    assert tenv.tutor._timers == {} and tenv.refunds == ["room_ai_global"]  # the cancelled turn gives its quota back
+
+
+async def test_closing_the_room_cancels_an_in_flight_turn(tenv):
+    tenv.script.block = asyncio.Event()
+    await tenv.tutor.start(tenv.room.id, A, EMMA.id, 3)
+    await _wait_for(lambda: _generating(tenv))
+    await tenv.tutor.on_close(tenv.room.id)
+    tenv.script.block.set()
+    await tenv.hub.drain()
+    assert [m["kind"] for m in messages(tenv.bob)] == ["system"] and (await snapshot(tenv)) is None
+
+
+async def test_a_stale_turn_result_is_dropped_when_the_run_changed_before_it_is_stored(tenv, monkeypatch):
+    """Even without the cancellation: the append re-checks run id and phase under the lock."""
+    tenv.script.block = asyncio.Event()
+    monkeypatch.setattr(tenv.tutor, "_cancel_turn", lambda room_id: None)
+    await tenv.tutor.start(tenv.room.id, A, EMMA.id, 3)
+    await _wait_for(lambda: _generating(tenv))
+    snap = await snapshot(tenv)
+    await tenv.store.set_tutor(tenv.room.id, {**snap, "run_id": "someone-else"})  # restarted / replaced meanwhile
+    tenv.script.block.set()
+    await tenv.hub.drain()
+    assert all(m["kind"] != "ai_answer" for m in messages(tenv.bob))
+
+
+async def test_nobody_online_pauses_the_lesson_instead_of_skipping_through_it(tenv):
+    await start(tenv)
+    calls = len(tenv.script.calls)
+    tenv.hub.detach(tenv.room.id, tenv.alice)
+    tenv.hub.detach(tenv.room.id, tenv.bob)
+    await fire(tenv)  # the 60 s run out with the whole room gone
+    assert len(tenv.script.calls) == calls  # no LLM call is made for an empty room
+    snap = await snapshot(tenv)
+    assert (snap["phase"], snap["paused_reason"]) == ("paused", "empty")
+    assert machine.from_dict(snap["machine"]).answers == ()  # nothing was skipped
+    assert tenv.refunds == [] and tenv.room.id not in tenv.tutor._timers
+
+
+async def test_only_online_members_are_called_on(tenv):
+    await start(tenv, steps=4)
+    tenv.hub.detach(tenv.room.id, tenv.bob)  # bob left: he is next in the rotation but nobody calls on an absent member
+    await tenv.ca.handle(say("My answer.", "a1"))
+    await tenv.hub.drain()
+    tutor = messages(tenv.alice)[-1]["meta"]["tutor"]
+    assert tutor["to_user_id"] == A and tutor["final"] is False and tutor["verdict_for"] == A
+
+
+async def test_a_late_arm_cannot_replace_the_timer_of_a_newer_question(tenv):
+    await start(tenv, steps=4)
+    real, state = tenv.tutor._broadcast, {"hit": False}
+
+    async def at_step_three():
+        cur = await snapshot(tenv)
+        return bool(cur) and cur["step_index"] == 3 and cur["phase"] == "await_answer"
+
+    async def slow(room_id, snap):
+        if not state["hit"] and snap and snap.get("phase") == "await_answer" and snap["step_index"] == 2:
+            state["hit"] = True  # question 2 is committed; bob answers before its broadcast has finished
+            await tenv.cb.handle(say("Bob answers.", "b1"))
+            await _wait_for(at_step_three)
+        return await real(room_id, snap)
+
+    tenv.tutor._broadcast = slow
+    await tenv.ca.handle(say("Alice answers.", "a1"))
+    await tenv.hub.drain()
+    tenv.tutor._broadcast = real
+    await fire(tenv)  # the live timer must be question 3's: it skips alice and asks question 4
+    assert (await snapshot(tenv))["step_index"] == 4
+
+
+async def test_a_malformed_snapshot_pauses_with_state_instead_of_hanging_in_generating(tenv):
+    await start(tenv)
+    snap = await snapshot(tenv)
+    await tenv.store.set_tutor(tenv.room.id, {k: v for k, v in snap.items() if k != "order"})  # KeyError while planning
+    await tenv.ca.handle(say("My answer.", "a1"))
+    await tenv.hub.drain()
+    last = tutor_frames(tenv.bob)[-1]
+    assert (last["phase"], last["paused_reason"]) == ("paused", "state")
+    assert tenv.refunds == ["room_ai_global"]
+
+
+async def test_any_exception_in_a_turn_pauses_the_lesson(tenv, monkeypatch, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    await start(tenv)
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("SECRET-BOOM-77")
+
+    monkeypatch.setattr(tenv.store, "agent_context", boom)
+    await tenv.ca.handle(say("My answer.", "a1"))
+    await tenv.hub.drain()
+    snap = await snapshot(tenv)
+    assert (snap["phase"], snap["paused_reason"]) == ("paused", "upstream")
+    assert "RuntimeError" in caplog.text and "SECRET-BOOM-77" not in caplog.text
+
+
 async def test_tutor_logs_no_text(tenv, caplog):
     caplog.set_level(logging.DEBUG, logger="app")  # the app's own records; aiosqlite DEBUG logs SQL parameters
     tenv.script.tutor_reply = "SECRET-TUTOR-1"

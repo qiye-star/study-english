@@ -13,7 +13,8 @@ from app.agents.memory import profile as profile_rules
 from app.agents.memory.retrieve import ItemView, eviction_order
 from app.agents.memory.tombstones import TOMBSTONES_MAX, bury, buried, clean_text, redact, text_hash
 from app.models import (
-    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, Message, iso_utc, utcnow,
+    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, AgentTutorSession,
+    Conversation, Message, iso_utc, utcnow,
 )
 from app.services.stats import as_utc
 
@@ -32,6 +33,21 @@ LINE_ROLES = ("user", "assistant")
 
 class MemoryNotFound(Exception):
     pass
+
+
+_EPOCHS: dict[int, int] = {}  # 每进程、每用户的「清空代」:clear / 删除对话时 +1,整理任务启动时记下,写入前比对
+
+
+def epoch_of(user_id: int) -> int:
+    return _EPOCHS.get(user_id, 0)
+
+
+def bump_epoch(user_id: int) -> None:
+    _EPOCHS[user_id] = epoch_of(user_id) + 1
+
+
+class MemoryFull(Exception):
+    """置顶条目已占满容量,新条目无处可放(内部结果,不对外)。"""
 
 
 @dataclass(frozen=True)
@@ -146,8 +162,9 @@ class MemoryStore:
                                                             AgentMemoryItem.user_id == user_id))
 
     async def add(self, user_id: int, *, kind: str, text: str, importance: int, persona_id: str | None,
-                  source: str) -> AgentMemoryItem | None:
-        """None = 被拒绝(墓碑、空文本)。同一规范化文本已存在 → 不新建,刷新时间并取较高重要度。"""
+                  source: str, max_items: int | None = None) -> AgentMemoryItem | None:
+        """None = 被拒绝(墓碑、空文本)。同一规范化文本已存在 → 不新建,刷新时间并取较高重要度。
+        传 `max_items` 且置顶条目已占满全部容量 → 抛 MemoryFull(新条目无处可放;不会淘汰任何东西)。"""
         if kind not in ITEM_KINDS or source not in ITEM_SOURCES:
             raise ValueError("kind")
         text = clean_text(text)[:ITEM_TEXT_MAX]
@@ -163,6 +180,10 @@ class MemoryStore:
                 row.importance, row.updated_at = max(row.importance, importance), now
                 await s.commit()
                 return row
+            if max_items is not None and int(await s.scalar(
+                    select(func.count()).select_from(AgentMemoryItem).where(
+                        AgentMemoryItem.user_id == user_id, AgentMemoryItem.pinned.is_(True))) or 0) >= max_items:
+                raise MemoryFull()
             row = AgentMemoryItem(id=str(uuid.uuid4()), user_id=user_id, persona_id=persona_id, kind=kind, text=text,
                                   text_hash=digest, importance=importance, pinned=False, source=source,
                                   created_at=now, updated_at=now)
@@ -232,13 +253,17 @@ class MemoryStore:
                                                           AgentMemoryItem.id.in_(ids)).values(last_used_at=at))
             await s.commit()
 
-    async def evict(self, user_id: int, max_items: int) -> int:
+    async def evict(self, user_id: int, max_items: int, protect: Iterable[str] = ()) -> int:
+        """超出容量时淘汰排名最低的未置顶条目;`protect`(本次刚写入的条目)永不淘汰。
+        置顶数 ≥ 容量时容量无法达成:什么都不淘汰(新增在 `add(max_items=…)` 处被拒,见 MemoryFull)。"""
+        keep = set(protect)
         async with self._sm() as s:
             rows = (await s.scalars(select(AgentMemoryItem).where(AgentMemoryItem.user_id == user_id))).all()
             extra = len(rows) - max_items
-            if extra <= 0:
+            if extra <= 0 or sum(1 for r in rows if r.pinned) >= max_items:
                 return 0
-            victims = [v.id for v in eviction_order([to_view(r) for r in rows], self._clock())][:extra]
+            ordered = [v.id for v in eviction_order([to_view(r) for r in rows], self._clock()) if v.id not in keep]
+            victims = ordered[:extra]
             if victims:
                 await s.execute(delete(AgentMemoryItem).where(AgentMemoryItem.id.in_(victims)))
             await s.commit()
@@ -389,9 +414,11 @@ class MemoryStore:
     # ---- 管理 ----
 
     async def clear(self, user_id: int, scope: str, persona_id: str | None = None) -> dict:
-        """scope="persona":该角色的长期记忆与回顾;scope="all":长期、回顾、线程状态、档案。被删条目进墓碑(R-M9)。"""
+        """scope="persona":该角色的长期记忆、回顾、导师会话,外加全部线程状态(无角色标记,见下);scope="all":另加档案与全部导师会话。
+        被删条目进墓碑(R-M9)。"""
         if scope not in ("all", "persona") or (scope == "persona" and not persona_id):
             raise ValueError("scope")
+        bump_epoch(user_id)  # 进行中的整理任务在写入前发现代变了就丢弃输出
         item_where = [AgentMemoryItem.user_id == user_id]
         recap_where = [AgentRecap.user_id == user_id]
         if scope == "persona":
@@ -403,12 +430,26 @@ class MemoryStore:
             await bury(s, user_id, list(hashes)[:TOMBSTONES_MAX], self._clock())
             items = (await s.execute(delete(AgentMemoryItem).where(*item_where))).rowcount
             recaps = (await s.execute(delete(AgentRecap).where(*recap_where))).rowcount
-            threads, profile = 0, False
+            # 线程状态没有角色标记(摘要 / 待整理文本可能含任一角色的内容),所以两种范围都整体删除:
+            # 它们只是派生数据,留下的消息会让摘要自行重建。导师会话的 state 含词与提示,同样按范围删除。
+            threads = (await s.execute(delete(AgentThreadState).where(AgentThreadState.user_id == user_id))).rowcount
+            tutor_where = [AgentTutorSession.user_id == user_id]
+            if scope == "persona":
+                tutor_where.append(AgentTutorSession.persona_id == persona_id)
+            await s.execute(delete(AgentTutorSession).where(*tutor_where))
+            profile = False
             if scope == "all":
-                threads = (await s.execute(delete(AgentThreadState).where(AgentThreadState.user_id == user_id))).rowcount
                 profile = bool((await s.execute(delete(AgentProfile).where(AgentProfile.user_id == user_id))).rowcount)
             await s.commit()
+        bump_epoch(user_id)
         return {"items": int(items or 0), "recaps": int(recaps or 0), "threads": int(threads or 0), "profile": profile}
+
+    def epoch(self, user_id: int) -> int:
+        return epoch_of(user_id)
+
+    async def conversation_exists(self, conversation_id: str) -> bool:
+        async with self._sm() as s:
+            return await s.scalar(select(Conversation.id).where(Conversation.id == conversation_id)) is not None
 
     async def export(self, user_id: int) -> dict:
         async with self._sm() as s:
@@ -443,6 +484,9 @@ class MemoryStore:
 async def drop_conversation(session: AsyncSession, conversation_id: str) -> None:
     """删除对话时由 routers/conversations.py 在同一事务里调用(不提交):短期状态与回顾随对话删除,
     长期记忆与档案保留(spec §8.5)。Postgres 有 ON DELETE CASCADE 兜底;SQLite 不强制外键,所以显式删除(R-M15)。"""
+    owner = await session.scalar(select(Conversation.user_id).where(Conversation.id == conversation_id))
+    if owner is not None:
+        bump_epoch(owner)  # 该用户进行中的整理任务丢弃输出(不再从被删对话派生任何东西)
     await session.execute(delete(AgentRecap).where(AgentRecap.conversation_id == conversation_id))
     await session.execute(delete(AgentThreadState).where(AgentThreadState.conversation_id == conversation_id))
 

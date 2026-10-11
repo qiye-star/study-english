@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import func, select
 
 from app.agents.memory.profile import ProfileError
-from app.agents.memory.store import MemoryNotFound, MemoryStore, ThreadKey, memory_counts
+from app.agents.memory.store import MemoryFull, MemoryNotFound, MemoryStore, ThreadKey, memory_counts
 from app.agents.memory.tombstones import REDACTED
 from tests.agents_memory_helpers import add_conversation, user_id_of
 
@@ -151,9 +152,75 @@ async def test_clear_persona_then_all_and_export(store, uid):
         await store.clear(uid, "persona")
 
 
+async def _seed_short_term(app, store, uid):
+    from app.models import AgentTutorSession
+
+    await add_conversation(app, uid)
+    await store.touch_thread(uid, ThreadKey("conversation", "c1"), at=NOW, text="private chat text", count_turn=True,
+                             idle=IDLE)
+    await store.touch_thread(uid, ThreadKey("room", "r1"), at=NOW, text="private room text", count_turn=True, idle=IDLE)
+    async with app.state.sessionmaker() as s:
+        for pid, n in (("builtin:coach", 1), ("builtin:buddy", 2)):
+            s.add(AgentTutorSession(user_id=uid, persona_id=pid, client_start_id=f"start-{n}", status="active",
+                                    goal={}, state={"plan": [{"words": ["secretword"]}], "hint": "private hint"}))
+        await s.commit()
+
+
+async def _short_term_rows(app):
+    from app.models import AgentThreadState, AgentTutorSession
+
+    async with app.state.sessionmaker() as s:
+        threads = int((await s.scalar(select(func.count()).select_from(AgentThreadState))) or 0)
+        tutors = sorted((await s.scalars(select(AgentTutorSession.persona_id))).all())
+    return threads, tutors
+
+
+async def test_clear_persona_also_drops_thread_states_and_that_personas_tutor_sessions(app, store, uid):
+    await _seed_short_term(app, store, uid)
+    await store.clear(uid, "persona", "builtin:coach")
+    # thread states are not persona-tagged, so they are all dropped (derived data, rebuilt from the kept messages)
+    assert await _short_term_rows(app) == (0, ["builtin:buddy"])
+
+
+async def test_clear_all_scrubs_tutor_sessions_and_room_pending_texts(app, store, uid):
+    await _seed_short_term(app, store, uid)
+    await store.clear(uid, "all")
+    assert await _short_term_rows(app) == (0, [])
+
+
 async def test_memory_counts_are_numbers_only(app, store, uid):
     await add(store, uid, "one memory")
     async with app.state.sessionmaker() as s:
         counts = await memory_counts(s)
     assert counts == {"items": 1, "pinned_items": 0, "users_with_items": 1, "profiles": 0, "recaps": 0,
                       "thread_states": 0, "tombstones": 0}
+
+
+async def test_evict_keeps_the_just_added_item_when_pinned_fill_the_cap(app, uid):
+    clock = {"now": NOW - timedelta(days=90)}
+    store = MemoryStore(app.state.sessionmaker, clock=lambda: clock["now"])
+    for text in ("pinned one", "pinned two"):
+        await store.pin(uid, (await add(store, uid, text, importance=1)).id, True)
+    old = await add(store, uid, "old weak", importance=1)
+    clock["now"] = NOW
+    fresh = await add(store, uid, "fresh one", importance=5)
+    # cap 3 = 2 pinned + 1 free slot: the old weak one goes, the new item stays
+    assert await store.evict(uid, 3, protect=[fresh.id]) == 1
+    ids = {r.id for r in (await store.items(uid))[0]}
+    assert fresh.id in ids and old.id not in ids and len(ids) == 3
+
+
+async def test_add_is_rejected_when_every_slot_is_pinned_and_nothing_is_evicted(app, uid):
+    store = MemoryStore(app.state.sessionmaker, clock=lambda: NOW)
+    for text in ("pinned one", "pinned two"):
+        await store.pin(uid, (await add(store, uid, text)).id, True)
+    with pytest.raises(MemoryFull):
+        await store.add(uid, kind="fact", text="new text", importance=5, persona_id=None, source="chat", max_items=2)
+    assert len((await store.items(uid))[0]) == 2
+    # unpinned leftovers are not wiped out by an unreachable cap either
+    keep = await add(store, uid, "unpinned leftover")
+    assert await store.evict(uid, 2) == 0
+    assert keep.id in {r.id for r in (await store.items(uid))[0]}
+    # a duplicate of an existing item is still fine (no new slot needed)
+    assert await store.add(uid, kind="fact", text="pinned one", importance=5, persona_id=None, source="chat",
+                           max_items=2) is not None

@@ -20,18 +20,38 @@ REDACTED = "[略]"
 
 _SPACE = re.compile(r"\s+")
 _PUNCT = re.compile(r"[\W_]+")
-DATE = re.compile(r"\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b")
-EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-URL = re.compile(r"(?:https?://|www\.)\S+|\b[\w-]+\.(?:com|cn|net|org|io|me|app|dev|top|xyz|ai)\b(?:/\S*)?", re.I)
-SECRET = re.compile(
-    r"\b(?:sk|pk|ak|rk|ghp|gho|xox[abp])[-_][A-Za-z0-9_\-]{8,}"
-    r"|\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b"
-    r"|password|passwd|密码|口令|验证码|api[\s_-]?key|access[\s_-]?token",
+DATE = re.compile(r"\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{4}\b")
+# 邮箱含「at / dot」拼写(tom at gmail dot com、tom (at) gmail (dot) com、艾特 / 点)
+EMAIL = re.compile(
+    r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
+    r"|[\w.+-]+\s*(?:[(\[]\s*at\s*[)\]]|\bat\b|艾特)\s*[\w-]+\s*(?:[(\[]\s*dot\s*[)\]]|\bdot\b|点)\s*(?:com|cn|net|org|edu|gov|io|me|co|uk|ai)\b",
     re.I,
 )
-LONG_DIGITS = re.compile(r"\d{6,}")
-PHONE = re.compile(r"(?<!\w)\+?\d(?:[\s.\-]?\d){6,}(?!\w)")
-_RULES = (("email", EMAIL), ("url", URL), ("secret", SECRET), ("digits", LONG_DIGITS), ("phone", PHONE))
+# 带路径的任意域名(host.tld/path)与常见短链域名也算链接
+URL = re.compile(
+    r"(?:https?://|www\.)\S+|\b[\w-]+\.(?:com|cn|net|org|io|me|app|dev|top|xyz|ai)\b(?:/\S*)?"
+    r"|\b(?:bit\.ly|t\.co|t\.cn|url\.cn|dwz\.cn|tinyurl\.com|goo\.gl|is\.gd|ow\.ly|buff\.ly|rb\.gy|cutt\.ly|reurl\.cc)\b(?:/\S*)?"
+    r"|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/\S+",
+    re.I,
+)
+SECRET = re.compile(
+    r"\b(?:sk|pk|ak|rk|ghp|gho|xox[abp])[-_][A-Za-z0-9_\-]{8,}"
+    r"|\b(?:AKIA|ASIA|AGPA|AIDA|AROA)[A-Z0-9]{12,}\b|\bAIza[\w\-]{20,}|\b(?:github_pat|glpat)[-_][\w\-]{12,}"
+    r"|\beyJ[\w\-]{10,}\.[\w\-]{5,}|-----BEGIN [A-Z ]*PRIVATE KEY"
+    r"|\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b"
+    r"|password|passwd|密码|口令|验证码|api[\s_-]?key|access[\s_-]?token"
+    r"|\b(?:pw|pwd|pswd|passcode)\b\s*[:=：]?\s*\S",
+    re.I,
+)
+# 微信 / 微信号 / wechat / vx 后面跟含数字或下划线的账号
+CONTACT = re.compile(
+    r"(?:微信|v信|wechat|weixin|\bvx|\bwx)\s*(?:号|id)?\s*[:：=是为]?\s*(?=[A-Za-z0-9_\-]*[\d_])[A-Za-z][\w\-]{5,}",
+    re.I,
+)
+LONG_DIGITS = re.compile(r"\d{6,}|[零〇一二三四五六七八九幺壹贰叁肆伍陆柒捌玖]{7,}")
+PHONE = re.compile(r"(?<!\w)\+?\d(?:[\s.\-/_|·]?\d){6,}(?!\w)")
+_RULES = (("email", EMAIL), ("url", URL), ("secret", SECRET), ("contact", CONTACT), ("digits", LONG_DIGITS),
+          ("phone", PHONE))
 _HOLD = re.compile(r"⟦(\d+)⟧")
 
 
