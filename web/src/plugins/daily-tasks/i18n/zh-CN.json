@@ -1,0 +1,20 @@
+{
+  "web": {
+    "links": {
+      "dailyTasks": {
+        "title": "今日任务",
+        "done": "{{done}}/{{total}} 完成",
+        "wordbook": "背单词",
+        "wordbookDetail": "新词 {{newDone}}/{{newTarget}} · 复习 {{reviewDone}}/{{reviewDue}}",
+        "shadow": "跟读一句",
+        "shadowDetail": "今天读了 {{count}} 句",
+        "talk": "对话一次",
+        "talkDetail": "今天说了 {{count}} 句",
+        "rank": "段位阶段任务",
+        "rankDetail": "阶段任务 {{done}}/{{total}}",
+        "doneLabel": "{{title}},已完成",
+        "todoLabel": "{{title}},{{progress}}"
+      }
+    }
+  }
+}
