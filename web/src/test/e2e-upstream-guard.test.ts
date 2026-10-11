@@ -23,6 +23,9 @@ describe("e2e upstream guard classification", () => {
     "/api/links/config", "/api/links/prefs", "/api/links/today", "/api/links/mistakes", "/api/links/mistakes/dismiss",
     "/api/links/weak-words", "/api/links/weak-words/dismiss", "/api/links/today-words", "/api/links/chat-words",
     "/api/links/wordbook/adopt", "/api/links/wordbook/card",
+    // 智能体(AGENTS_ENABLED 的 E2E 栈,agents-web N2):对话页加载时请求 /config;设置与角色只读写数据库
+    "/api/agents/config", "/api/agents/settings", "/api/agents/personas", "/api/agents/personas/p1", "/api/agents/personas/builtin%3Acoach",
+    "/api/agents/personas/p1/report",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -39,6 +42,8 @@ describe("e2e upstream guard classification", () => {
     "/api/wordbook/explain", "/api/wordbook", "/api/wordbook/configx", "/api/wordbook/cards/junior",
     "/api/wordbook/enrollment/delete", "/api/wordbook/bonusx",
     "/api/links", "/api/links/configx", "/api/links/wordbook/cards", "/api/links/mistakes/x",
+    // 回合、试聊、导师开始会触达 LLM:不放行(E2E 里用 page.route 模拟)
+    "/api/agents/turn", "/api/agents/personas/try", "/api/agents/tutor/start", "/api/agents", "/api/agents/configx",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });
