@@ -126,3 +126,12 @@ async def test_the_bus_gate_applies_the_three_levels_to_registered_links_only(ap
 def test_every_link_key_has_a_settings_flag():
     from app.core.config import Settings
     assert all(flag_of(k) in Settings.model_fields for k in LINK_KEYS)
+
+
+def test_every_installed_subscription_uses_its_registered_link_key(app):
+    """Review Z2: the bus gate applies the three switches only to registered keys; a handler subscribed under
+    any other name would ignore the global and per-user switches."""
+    from app.links.registry import keys
+    subscribed = set(app.state.learning_bus.links())
+    assert subscribed <= set(keys())
+    assert subscribed == {"mistakes", "pron_shadow", "chat_words"}

@@ -48,7 +48,7 @@ export function LinkRoute({ route, fallback = "/practice" }: { route: RouteContr
   const flags = useLinkFlags();
   if (visible(route, flags)) {
     const C = route.component;
-    return <C />;
+    return <SlotBoundary name={`route/${route.id}`}><C /></SlotBoundary>;
   }
   return flags === ALL_OFF ? null : <Navigate to={fallback} replace />;
 }

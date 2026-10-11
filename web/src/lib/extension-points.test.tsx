@@ -126,6 +126,22 @@ describe("<LinkRoute>", () => {
     expect(screen.getByText("page")).toBeInTheDocument();
   });
 
+  it("a failing link page renders nothing instead of taking the app down", () => {
+    const broken = { ...route, component: () => { throw new Error("boom"); } };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <MemoryRouter initialEntries={["/t"]}>
+        <p>shell</p>
+        <Routes><Route path="/t" element={<LinkRoute route={broken} />} /></Routes>
+      </MemoryRouter>,
+    );
+    act(() => setLinkFlags(on()));
+    expect(screen.getByText("shell")).toBeInTheDocument();
+    expect(warn).toHaveBeenCalledWith("[slot] route/t.page failed");
+    error.mockRestore();
+  });
+
   it("goes back to practice once loaded flags say no", () => {
     view();
     act(() => setLinkFlags({ ...on(), enabled: false }));
