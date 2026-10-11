@@ -1,4 +1,5 @@
 import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice";
+import { normalizeTrace, type AgentView } from "~/features/agents";
 import type { GrammarResult } from "~/features/grammar";
 import type { ChatMessage } from "./chat-api";
 
@@ -42,11 +43,18 @@ export interface UiMessage {
   assessmentId?: string | null;
   assessment?: AssessmentView;
   grammar?: GrammarView;
+  /** 智能体回复:生成中 live、完成后 trace、失败后的 retryId(R-W10) */
+  agent?: AgentView;
 }
 
 export function fromServerMessage(m: ChatMessage): UiMessage {
   const ui: UiMessage = { key: m.id, id: m.id, role: m.role as "user" | "assistant", content: m.content, status: "done" };
-  if (m.role !== "user") return ui;
+  if (m.role !== "user") {
+    // 存储的过程是服务端的压缩形状:归一成界面形状(normalizeTrace),读不出来就当没有
+    const trace = m.role === "assistant" && m.agentTrace ? normalizeTrace(m.agentTrace) : null;
+    if (trace) ui.agent = { trace };
+    return ui;
+  }
   if (m.assessmentId) ui.assessmentId = m.assessmentId;
   if (m.assessment) ui.assessment = { status: "done", scores: m.assessment.scores, words: m.assessment.words };
   if (m.grammar) ui.grammar = { status: "done", result: m.grammar };

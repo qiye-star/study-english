@@ -1,6 +1,7 @@
 import type { ApiClient } from "~/api/client";
 import { ApiError } from "~/api/client";
 import type { Paged } from "~/api/types";
+import type { AgentTrace } from "~/features/agents";
 import type { GrammarResult } from "~/features/grammar";
 import type { AssessmentScores, AssessmentWordBrief } from "~/features/practice";
 import type { Level } from "./levels";
@@ -46,6 +47,8 @@ export interface ConversationConfig {
   scenario?: ScenarioRef;
   /** 复盘结果 */
   recap?: StoredRecap;
+  /** 智能体角色(spec §9.3):有值时回复走 /api/agents/turn;缺省 = 旧路径完全不变(R-W12) */
+  agentPersonaId?: string;
 }
 
 export interface Conversation {
@@ -72,6 +75,8 @@ export interface ChatMessage {
   grammar?: GrammarResult | null;
   /** 服务端只读摘要(R9) */
   assessment?: MessageAssessment | null;
+  /** 智能体回复的压缩过程(messages.agent_trace,≤ 4 KB);旧消息没有 */
+  agentTrace?: AgentTrace | null;
 }
 
 export interface MessageResultFields {
@@ -79,7 +84,7 @@ export interface MessageResultFields {
   grammar?: GrammarResult;
 }
 
-export type NewMessage = Pick<ChatMessage, "role" | "content"> & MessageResultFields;
+export type NewMessage = Pick<ChatMessage, "role" | "content"> & MessageResultFields & { agentTrace?: AgentTrace };
 
 export const DEFAULT_CONVERSATION_NAME = "New conversation";
 

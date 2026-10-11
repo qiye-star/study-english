@@ -21,6 +21,11 @@ const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|enrollmen
 // (LINK_CHAT_WORDS_LLM_ENABLED)在服务端处理器里异步进行、默认关闭,E2E 栈不开。
 const OWN_LINKS = /^\/api\/links\/(config|prefs|today|mistakes|mistakes\/dismiss|weak-words|weak-words\/dismiss|today-words|chat-words|wordbook\/adopt|wordbook\/card)$/;
 
+// 智能体(AGENTS_ENABLED):对话页每次加载请求 /config;设置、角色增删改与举报只读写数据库。
+// /turn、/personas/try(LLM)与 /tutor/*(可能出题调用 LLM)不放行;记忆端点由 agents-memory 计划追加。
+const OWN_AGENTS = /^\/api\/agents\/(config|settings|personas|personas\/(?!try$)[^/]+|personas\/[^/]+\/report)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
-  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname);
+  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname)
+    || OWN_AGENTS.test(pathname);
 }

@@ -27,3 +27,6 @@ export const PersonaPicker = /* @__PURE__ */ part<import("./persona-picker").Per
 export const ReportPersonaSheet = /* @__PURE__ */ part<import("./report-persona-sheet").ReportPersonaSheetProps>(() => import("./report-persona-sheet").then((m) => m.ReportPersonaSheet));
 export const AgentSettingsPage = /* @__PURE__ */ part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
 export const AgentsMeRow = /* @__PURE__ */ part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
+export const ChatPersonaControl = /* @__PURE__ */ part<import("./chat-parts").ChatPersonaControlProps>(() => import("./chat-parts").then((m) => m.ChatPersonaControl));
+export const TutorEntry = /* @__PURE__ */ part<import("./chat-parts").TutorEntryProps>(() => import("./chat-parts").then((m) => m.TutorEntry));
+export const TutorBarSlot = /* @__PURE__ */ part<import("./chat-parts").TutorBarSlotProps>(() => import("./chat-parts").then((m) => m.TutorBarSlot));

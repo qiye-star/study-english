@@ -8,11 +8,11 @@ import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
 import { ConversationPage, ConversationsPage } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
-import { MemoryPage } from "~/features/agents";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
+import { AgentSettingsPage, MemoryPage } from "~/features/agents";
 import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
@@ -79,6 +79,7 @@ export function AppRoutes() {
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
             {routes}
           </Route>
