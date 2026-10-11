@@ -22,7 +22,7 @@ function setup(props: Partial<Parameters<typeof RoomAgentsSection>[0]> = {}) {
     "PATCH /api/rooms/r1": (call) => json({ room: { ...ROOM_WIRE, agent_ids: JSON.parse(String(call.body)).agents } }),
   });
   const onChanged = vi.fn();
-  renderWithProviders(<RoomAgentsSection room={ROOM_INFO} owner live onChanged={onChanged} {...props} />,
+  renderWithProviders(<RoomAgentsSection room={ROOM_INFO} owner live tutorAvailable={false} onChanged={onChanged} {...props} />,
     { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
   return { mock, onChanged };
 }
@@ -47,6 +47,17 @@ it("members only read the list and open the persona sheet", async () => {
   expect(screen.queryByTestId("room-agent-add-1")).toBeNull();
   expect(screen.queryByTestId("room-agent-remove-0")).toBeNull();
   expect(screen.getByText(/「群内 @AI」关闭时智能体也不会回答/)).toBeInTheDocument();
+});
+
+it("offers the room tutor to the owner only when the server allows it and none is running", async () => {
+  setup({ tutorAvailable: true });
+  expect(await screen.findByTestId("room-tutor-start")).toBeInTheDocument();
+});
+
+it("hides the tutor start from members and when unavailable", async () => {
+  setup({ owner: false });
+  await screen.findByText("Emma");
+  expect(screen.queryByTestId("room-tutor-start")).toBeNull();
 });
 
 it("members of a room without agents see nothing", () => {

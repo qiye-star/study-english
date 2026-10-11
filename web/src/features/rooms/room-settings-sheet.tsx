@@ -129,7 +129,7 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
             </Group>
           )}
           {config?.agentsAvailable !== false && (
-            <RoomAgentsSection room={room} owner={owner} live={live} onChanged={onChanged} />
+            <RoomAgentsSection room={room} owner={owner} live={live} tutorAvailable={!!config?.agentTutorAvailable} onChanged={onChanged} />
           )}
           {owner && (
             <div className="mt-2 divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">

@@ -8,14 +8,15 @@ import { PersonaPicker, type Persona } from "~/features/agents";
 import { ROOM_AGENTS, type RoomInfo } from "../protocol";
 import { PersonaSheet } from "./persona-sheet";
 import { ROOM_AGENTS_ALL_ERRORS, updateRoomAgents, type RoomAgent } from "./room-agents-api";
+import { TutorStart } from "./tutor-start";
 import { useRoomAgents } from "./use-room-agents";
 
 /**
  * 房间设置里的「智能体」(spec §9.2):房主最多选 ROOM_AGENTS.max 个角色(PersonaPicker 来自 ~/features/agents,只能选内置与自己的),
  * 每次改动即时保存(PATCH agents),失败 toast;成员只看名单,点名字看角色信息。没有角色的房间对成员不显示本区。
  */
-export function RoomAgentsSection({ room, owner, live, onChanged }: {
-  room: RoomInfo; owner: boolean; live: boolean; onChanged(room: RoomInfo): void;
+export function RoomAgentsSection({ room, owner, live, tutorAvailable, onChanged }: {
+  room: RoomInfo; owner: boolean; live: boolean; tutorAvailable: boolean; onChanged(room: RoomInfo): void;
 }) {
   const { api } = useAuth();
   const { t } = useTranslation();
@@ -90,6 +91,9 @@ export function RoomAgentsSection({ room, owner, live, onChanged }: {
       <p className="mx-0.5 mt-1.5 text-meta text-ink-2">
         {t("web.rooms.agents.section.hint")}{!room.aiPublic && ` ${t("web.rooms.agents.section.aiOff")}`}
       </p>
+      {editable && tutorAvailable && !info?.tutor && (info?.agents.length ?? 0) > 0 && (
+        <TutorStart roomId={room.id} agents={info!.agents} onStarted={refresh} />
+      )}
       {editable && (
         <PersonaPicker open={picking !== null} onOpenChange={(v: boolean) => { if (!v) setPicking(null); }}
           selectedId={picking !== null ? ids[picking] ?? null : null} onSelect={(p: Persona | null) => { if (p && picking !== null) pick(picking, p); }} />
