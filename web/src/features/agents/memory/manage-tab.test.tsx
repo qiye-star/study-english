@@ -4,12 +4,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { json } from "~/test/fetch-mock";
 import { STATE } from "./test-fixtures";
+import { REVOKE_DELAY_MS, saveBlob } from "./manage-tab";
 import { setupMemory } from "./test-setup";
 
 const ROUTE = "/me/agents/memory?tab=manage";
 
 beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); void i18n.changeLanguage("zh-CN"); });
 afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); vi.restoreAllMocks(); });
+
+describe("saveBlob", () => {
+  it("revokes the object URL only well after the click so iOS Safari can start the download", () => {
+    vi.useFakeTimers();
+    try {
+      const revoke = vi.fn();
+      Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: revoke });
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      saveBlob(new Blob(["{}"]), "memory.json");
+      vi.advanceTimersByTime(1000);
+      expect(revoke).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(REVOKE_DELAY_MS);
+      expect(revoke).toHaveBeenCalledWith("blob:x");
+      expect(REVOKE_DELAY_MS).toBeGreaterThanOrEqual(30_000);
+    } finally { vi.useRealTimers(); }
+  });
+});
 
 describe("ManageTab", () => {
   it("pauses memory and exports JSON", async () => {
@@ -47,6 +65,26 @@ describe("ManageTab", () => {
     await waitFor(() => expect(mock.calls.some((c) => c.method === "DELETE")).toBe(true));
     expect(JSON.parse(String(mock.calls.find((c) => c.method === "DELETE")!.body))).toEqual({ confirm: true, scope: "all" });
     expect(await screen.findByText("已清空 2 条记忆。")).toBeTruthy();
+  });
+
+  it("keeps the status line and the tab content while the profile reloads after clearing everything", async () => {
+    const user = userEvent.setup();
+    let profileCalls = 0;
+    let releaseReload: (() => void) | undefined;
+    setupMemory({
+      "GET /api/agents/memory/profile": async () => {
+        if (++profileCalls > 1) await new Promise<void>((resolve) => { releaseReload = resolve; });
+        return json(STATE);
+      },
+      "DELETE /api/agents/memory": () => json({ scope: "all", deleted: { items: 2, recaps: 1, threads: 0, profile: true } }),
+    }, ROUTE);
+    await user.click(await screen.findByRole("button", { name: "清空全部记忆" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "确认清空" }));
+    expect(await screen.findByText("已清空 2 条记忆。")).toBeTruthy();
+    await waitFor(() => expect(profileCalls).toBe(2));
+    expect(screen.queryByTestId("memory-loading")).toBeNull();
+    expect(screen.getByText("已清空 2 条记忆。")).toBeTruthy();
+    releaseReload?.();
   });
 
   it("cancelling the sheet sends nothing", async () => {

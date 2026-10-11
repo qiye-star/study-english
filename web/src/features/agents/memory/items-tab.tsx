@@ -1,5 +1,5 @@
 import { PinIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
@@ -33,16 +33,28 @@ export function ItemsTab() {
   const [busy, setBusy] = useState(false);
   const fail = (err: unknown) => setStatus(translateServerError(t, err, MEMORY_SERVER_ERRORS));
 
+  // 翻页请求属于发出时的筛选:换筛选就中止它,晚到的一页不得追加到新列表
+  const moreCtl = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setLoadingMore(false);
+    return () => { moreCtl.current?.abort(); moreCtl.current = null; };
+  }, [filter]);
   const loadMore = async () => {
-    if (!data?.nextCursor) return;
+    if (!data?.nextCursor || moreCtl.current) return;
+    const controller = new AbortController();
+    moreCtl.current = controller;
     setLoadingMore(true);
     try {
-      const next = await fetchItems(api, { kind, cursor: data.nextCursor });
+      const next = await fetchItems(api, { kind, cursor: data.nextCursor }, controller.signal);
+      if (controller.signal.aborted) return;
       setData((d) => (d ? { ...next, items: [...d.items, ...next.items] } : next));
     } catch (err) {
-      fail(err);
+      if (!controller.signal.aborted) fail(err);
     } finally {
-      setLoadingMore(false);
+      if (moreCtl.current === controller) {
+        moreCtl.current = null;
+        setLoadingMore(false);
+      }
     }
   };
   const pin = async (item: MemoryItem) => {

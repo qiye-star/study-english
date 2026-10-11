@@ -28,6 +28,29 @@ describe("ItemsTab", () => {
     expect(screen.getAllByTestId(/^memory-item-/)[0]).toHaveAttribute("data-testid", "memory-item-b");
   });
 
+  it("ignores a late load-more page after the filter changed", async () => {
+    const user = userEvent.setup();
+    let releaseLate: (() => void) | undefined;
+    setupMemory({
+      "GET /api/agents/memory/items": async (call) => {
+        const q = call.url.searchParams;
+        if (q.get("cursor")) {
+          await new Promise<void>((resolve) => { releaseLate = resolve; });
+          return json({ ...PAGE, items: [{ ...ITEM_A, id: "late", text: "迟到的一页" }], next_cursor: null });
+        }
+        if (q.get("kind") === "weakness") return json({ ...PAGE, items: [ITEM_B], next_cursor: null });
+        return json({ ...PAGE, next_cursor: "c1" });
+      },
+    }, "/me/agents/memory?tab=items");
+    await user.click(await screen.findByRole("button", { name: "加载更多" }));
+    await user.click(screen.getByRole("button", { name: "弱点" }));
+    await screen.findByTestId("memory-item-b");
+    releaseLate?.();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("memory-item-late")).toBeNull();
+    expect(screen.queryByTestId("memory-item-a")).toBeNull();
+  });
+
   it("deletes only after the second step, and says it is permanent", async () => {
     const user = userEvent.setup();
     const mock = setupMemory({ "DELETE /api/agents/memory/items/a": () => json({ id: "a" }) }, "/me/agents/memory?tab=items");

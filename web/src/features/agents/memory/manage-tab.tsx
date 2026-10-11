@@ -17,6 +17,8 @@ import { useLoad } from "./use-load";
 type Confirm = { scope: "all" } | { scope: "persona"; personaId: string; name: string };
 const M = "web.agents.memory.manage";
 
+export const REVOKE_DELAY_MS = 30_000;
+
 /** 用临时链接下载一个文件(不经服务端第二次请求)。 */
 export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -27,7 +29,8 @@ export function saveBlob(blob: Blob, filename: string): void {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // 马上回收会在 iOS Safari 上取消下载:等下载开始之后再回收
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
 }
 
 export function ManageTab() {
@@ -75,8 +78,8 @@ export function ManageTab() {
     try {
       const result = await clearMemory(api, confirm.scope, confirm.scope === "persona" ? confirm.personaId : undefined);
       setPersonaId("");
-      items.retry();
-      if (confirm.scope === "all") profile.retry();
+      items.refresh();
+      if (confirm.scope === "all") profile.refresh(); // 保留当前内容重新取:标签页不闪成加载中,状态行不丢
       setStatus(t(`${M}.cleared`, { count: result.deleted.items, n: result.deleted.items }));
     } finally {
       setConfirm(null);
