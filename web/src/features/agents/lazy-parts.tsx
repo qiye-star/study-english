@@ -19,3 +19,5 @@ export function part<P extends object>(load: () => Promise<ComponentType<P>>, fa
 export const pageFallback = <div aria-busy="true" className="min-h-40" />;
 
 // ---- parts ----
+export const ProcessCapsule = part<import("./process-capsule").ProcessCapsuleProps>(() => import("./process-capsule").then((m) => m.ProcessCapsule));
+export const SourceChips = part<import("./source-chips").SourceChipsProps>(() => import("./source-chips").then((m) => m.SourceChips));
