@@ -5,19 +5,11 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { VOCABULARY_SERVER_ERRORS, deleteVocabularyItem, reviewVocabularyItem } from "./vocabulary-api";
 import { translateServerError } from "~/api/error-messages";
-import { saveVocabularyItem, vocabularyFromLookup } from "./save-vocabulary-item";
+import { saveVocabularyItem } from "./save-vocabulary-item";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
-const lookup = { word: "country", lemma: "country", pronunciation: "ˈkʌntri", pos: "noun", definition: "a nation", translation: "国家", contextTranslation: "" };
 
 describe("save to vocabulary", () => {
-  it("maps a lookup result (R19)", () => {
-    expect(vocabularyFromLookup(lookup, { text: "Country", context: "ask not what your  country can do" }))
-      .toEqual({ word: "country", meaning: "noun · 国家 · a nation", example: "ask not what your country can do", source: "lookup" });
-    expect(vocabularyFromLookup({ ...lookup, word: "", pos: "", definition: "" }, { text: " Hello ", context: "hello" }))
-      .toEqual({ word: "Hello", meaning: "国家", example: undefined, source: "lookup" });
-  });
-
   it("toasts success and translated failures", async () => {
     const ok = createFetchMock({ "POST /api/vocabulary": () => json({ id: "v1" }) });
     expect(await saveVocabularyItem(new ApiClient({ getToken: () => "t", fetchImpl: ok.fetch }), i18n.t, { word: "a", source: "manual" })).toBe(true);

@@ -1,0 +1,24 @@
+{
+  "web": {
+    "links": {
+      "wordActions": {
+        "more": "More actions: {{word}}",
+        "title": "Word actions",
+        "add": "Add to vocabulary",
+        "addHint": "Spaced review",
+        "inVocabulary": "In your vocabulary",
+        "adopt": "Study in word book",
+        "adoptHint": "If the current book has it, it shows up in the next review",
+        "adopted": "Added. It shows up in the next review",
+        "known": "Already studying",
+        "notInBook": "Not in the current word book",
+        "shadow": "Shadow this word",
+        "shadowHint": "Shadows the example when there is one",
+        "card": "View card",
+        "cardHint": "Phonetics, meanings, example",
+        "noCard": "This word is not in any word book",
+        "loading": "Loading"
+      }
+    }
+  }
+}

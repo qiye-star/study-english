@@ -4908,6 +4908,7 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - 未做:F7 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 - 发现(不在本计划范围):`admin/users_admin.delete_user` 不删除背单词表(`wordbook_enrollments`、`wordbook_events` 等)的行。
 
+<<<<<<< HEAD
 ## Addendum (2026-10-11) · Lane L6 执行记录(L6-1、L6-2)
 
 - Ruling: L6-1 `ledger._sync` 的附加严格是「一行导入 + 四行」(计划代码块实际是五行:`if` 拆成两行、`capped` 调用折行);改为 `watermark = watermark if extra_mark is None else min(watermark, extra_mark)` 一行、`extra = [... not in seen]` 一行,语义不变。`git diff` 对 `ledger.py` 只有这 5 行新增、零删除;既有 `test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿。
@@ -4918,3 +4919,21 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L6-2 管理端测试的样例构造函数是 `test-fixtures.ts` 的 `defaultRules()`(计划写 `sampleRules()`);另加 `rules-tabs/points-tab.test.tsx`(规则页真实往返:改「每轮文字对话」后保存的草稿保留 `sources`、可改来源点数与子上限;旧规则显示默认 5 与空提示,保存时不凭空写入这两个字段;越界禁止保存)。`rules-schema.ts` 新增 `sourcesDailyCap()`(缺省 5)。
 - Ruling: L6-2 「影响预演不模拟联动来源」的说明放在点数页「联动来源」小节的提示里(预演页 `simulate-panel.tsx` 不在本车道独占文件内);来源列表 v1 取规则里的 `points.sources`(`GET /api/admin/links` 的 `rank_sources` 由 LA 提供,之后再接)。
 - Ruling: L6-2 网页只加 `RECENT_KINDS` 一项与两条文案,`rank-home-page.test.tsx` 不改(按计划);键对齐由 i18n 测试覆盖。
+=======
+## Addendum (2026-10-11) · Lane L1 执行记录(word_actions)
+
+- Ruling: L1-1 `GET /api/links/wordbook/card` 在**所有**启用的书都读不到数据(`DataUnavailable`)时返回 503 `Wordbook data unavailable`(接口说明里的「数据缺失 → 503」);计划代码一律 `continue` 后落到 404,会把数据故障说成「没有这个词」。部分书缺数据仍跳过(同 `service.find_card`)。
+- Ruling: L1-1 按 owner 裁定,「加入词书学习」不受 `daily_new` 限制(建的是立即到期的 box 0 复习词条,不是今日新词);新增 `test_adopted_words_come_up_in_review_and_ignore_the_daily_new_goal`(`daily_new: 1` 时连加三个都 `added`、`plan.new_done/new_left` 不变、三个词出现在复习批次、游标仍 0、`link_credits` 零行)。另加用户偏好关 / 总开关关两个接口都 404 且零写入、书数据缺失 503 + 日志不含词的用例。
+- Ruling: L1-1 日志卫生用例只检查 `app.*` 日志器:测试客户端 httpx 自己会把请求 URL(含 `?word=`)记进日志。观察(不在本车道范围):生产的 `uvicorn.access` 访问日志同样会带上 `?word=` 查询串(既有 `/api/wordbook/cards/{book}/{key}` 也把词放在路径里),接口形状按 spec §7.2 保留。
+- Ruling: L1-2 `parity.test.tsx` 另导入本插件(`import "./index"`)并多一组「除 word_actions 外全开」的逐字节对照(四种用法各一):证明其他联动打开时插槽仍只渲染核心按钮;L1-3 再加「word_actions 开」时首个子节点与旧按钮逐字节相同、只多一个 `-more` 兄弟按钮。`word-target.test.ts` 的截断用例另断言词头按 100 个码点截断,上限取 `MAX_WORD_TARGET` 而不是写死数字。
+- Ruling: L1-2 `architecture.test.ts` 除计划的「`AddVocabularyButton` 只在 vocabulary 内部引用」外,另加「基线里的每条边在源码中仍存在、基线共 16 条」:冻结集合只减不增,删了导入却没删基线会让以后的新边悄悄合法。其他车道若删掉某条跨 feature 导入,需同时删基线一行(Z1 合并时处理)。
+- Ruling: L1-2 `save-vocabulary-item.test.ts` 删去已搬走用例后,文件顶部只为它服务的 `lookup` 常量一并删除(否则 tsc 报未使用);其余用例逐字未动。
+- Ruling: L1-3 面板「加入生词本」一行与英文的文案用 App 里主按钮的现行说法「加入词汇本 / 已在词汇本中」(`web.vocabulary.add` / `inVocabulary` 的中英原文),不用计划与视觉稿的「生词本」:spec 要求这一行「同主按钮」,两个叫法并存会让用户以为是两个本子。`more-button.test.tsx` 的行序正则相应改为 `/加入词汇本.*加入词书学习.*跟读这个词.*查看词卡/`。每行按视觉稿帧 02 加一行副标题(`addHint`/`adoptHint`/`shadowHint`/`cardHint`),另加 `loading`(词卡加载图标的无障碍名)。
+- Ruling: L1-3 「背单词关闭时两行词书动作不出现」放在 `features/wordbook/register-word-actions.tsx` 的包装组件里判断(`useWordbookEnabled()`),`AdoptRow` / `CardRow` 本身不判断:计划的 `link-actions.test.tsx` 直接渲染 `CardRow` 且不 mock `/api/wordbook/config`,判断放在行里时该用例永远看不到按钮。
+- Ruling: L1-3 面板本身也懒加载(`more-button.tsx` 第一次点开才 `import("./word-actions-sheet")`,0.43 kB gzip);词卡懒加载时连同 `use-speaker` 一起加载(`Promise.all`),词卡上的朗读键可用,而不是计划写法里永远禁用的朗读键;`link-actions.test.tsx` 的 `useTtsPlayer` mock 补 `prime`,词卡常量标注 `Card` 类型(计划原样写 tsc 报 TS7018)。`adoptWord` 返回值经 ApiClient 自动 camelCase,类型为 `{status, bookId}`。
+- Ruling: L1-3 「加入词书学习」有结果后整行变为不可点的说明行(`added` / `known` / `not_in_book` 三种文案;`not_in_book` 图标变灰),错误走 toast(本文件内与 `LINKS_SERVER_ERRORS` 同键的小表);「查看词卡」再次点击收起,非 404 错误 toast、404 显示「词书里没有这个词」(`role="status"`)。
+- Ruling: L1-3 新增 `plugins/word-actions/word-actions-contract.test.ts`(P-L6:逐键对照 `links_word_actions_contract.json` 与 `AdoptResult` / `LinkCard` / `Card` / `ItemState`)。该文件静态导入本插件:没有 vi.mock 的小测试文件里,`test/setup.ts` 的 `beforeEach(import("~/plugins/core"))` 会在第一个用例里冷编译整条依赖链,机器繁忙时超过 10 秒钩子超时(`links-contract.test.ts` 等同类文件在并行车道同时跑 pytest 时也会这样超时,`--hookTimeout=60000` 下全绿;`test/setup.ts` 不在本车道范围,留给 Z1)。
+- Ruling: L1-3 `architecture.test.ts` 扫描整棵源码树的用例(含 L1-2 新增的两个)改为每个文件只读一次(`sourceOf` 缓存)并给 30 秒超时:全量并行运行时同步读几百个文件超过默认 5 秒。规则本身不变。
+- 未做:L1-3 Step 5 浏览器窗格视觉检查(需要本车道单独起服务端 + 开发服务器;与 F7 一样留给 Z2 的视觉对照)。主包 `index-*.js` 1,590,093 B(gzip 510.22 kB),比 foundation 结束时 +1.50 kB gzip,比 Task 0 基线累计 +3.68 kB(上限 8 kB)。
+- Ruling: L1-3 查词面板(`LookupLayer`,AppShell 常驻)之上打开「单词操作」点「跟读这个词」时,只关了单词操作面板,查词面板留在跟读页上方。`lookup-layer.tsx` 加一处:路径变化且是前进导航(`useNavigationType() === "PUSH"`)时收起查词面板。联动关闭时查词面板里的跳转(「跟读这段」)都先自己关闭、面板是模态的,打开期间不会发生前进导航,所以全关行为不变;返回导航(POP)不处理,与今天相同。新增 `plugins/word-actions/lookup-shadow.test.tsx`;`lookup-layer.test.tsx` 未改。对话回顾与房间小结的面板随页面卸载,不需要处理。
+>>>>>>> c-lane-l1

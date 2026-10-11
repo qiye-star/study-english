@@ -1,0 +1,59 @@
+{
+  "adopt": {
+    "status": "added",
+    "book_id": "junior"
+  },
+  "card": {
+    "book_id": "junior",
+    "card": {
+      "key": "talk",
+      "word": "talk",
+      "us": "tɔk",
+      "uk": "tɔːk",
+      "senses": [
+        {
+          "pos": "v",
+          "text": "说话；谈话"
+        },
+        {
+          "pos": "n",
+          "text": "交谈"
+        },
+        {
+          "pos": "n/v",
+          "text": "谈话，讲话"
+        }
+      ],
+      "phrases": [
+        {
+          "en": "talk about",
+          "zh": "谈论某事"
+        }
+      ],
+      "examples": [
+        {
+          "id": "7e85d989af375d39",
+          "en": "I could hear Sarah and Andy talking in the next room.",
+          "zh": "我听到萨拉和安迪在隔壁讲话。"
+        },
+        {
+          "id": "394aec411d520fe7",
+          "en": "After a long talk, we decided on divorce.",
+          "zh": "经过一次长谈后，我们决定离婚。"
+        },
+        {
+          "id": "e8fc5b6c9d8c1d35",
+          "en": "Sue and Bob still aren’t talking.",
+          "zh": "休和鲍勃仍然互不理睬。"
+        }
+      ]
+    },
+    "item": {
+      "box": 0,
+      "due_at": "2026-10-10T20:26:17.659955+00:00"
+    }
+  },
+  "missing": {
+    "error": "Word not found"
+  }
+}

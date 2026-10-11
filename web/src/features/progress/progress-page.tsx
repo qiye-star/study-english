@@ -13,7 +13,7 @@ import { ListRow, SectionGroup } from "~/components/section-group";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import { goPractice, savePracticeItem } from "~/features/practice";
-import { AddVocabularyButton } from "~/features/vocabulary";
+import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
 import { ScoreChart } from "./score-chart";
 import { STATS_PERIODS, getStats, type Stats, type StatsPeriod } from "./stats-api";
@@ -141,7 +141,7 @@ export function ProgressPage() {
                           onClick={() => goPractice(navigate, w.word)}><MicIcon /></IconButton>
                         <IconButton label={`${t("web.progress.save")}: ${w.word}`} data-testid="progress-word-save" className="text-ink-2"
                           onClick={() => void savePracticeItem(api, t, w.word, "chat")}><StarIcon /></IconButton>
-                        <AddVocabularyButton testId="progress-word-vocab" label={`${t("web.vocabulary.add")}: ${w.word}`} input={{ word: w.word, source: "progress" }} />
+                        <WordActions testId="progress-word-vocab" label={`${t("web.vocabulary.add")}: ${w.word}`} variant="icon" target={{ word: w.word, source: "progress" }} />
                       </div>
                     ))}
                   </SectionGroup>

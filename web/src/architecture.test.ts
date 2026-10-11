@@ -64,11 +64,11 @@ const topOf = (rel: string) => rel.split("/")[0];
 const featureOf = (rel: string) => (rel.startsWith("features/") ? rel.split("/")[1] : null);
 const isTest = (rel: string) => /\.test\.tsx?$/.test(rel);
 const CROSS_FEATURE_BASELINE = new Set([
-  "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "chat->vocabulary", "lookup->practice",
-  "lookup->vocabulary", "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
-  "progress->vocabulary", "rank->chat", "rank->practice", "realtime->chat", "rooms->chat", "rooms->vocabulary",
-  "vocabulary->chat", "vocabulary->lookup", "wordbook->chat", "wordbook->rank",
-]); // L1 删去五条 ->vocabulary / vocabulary->lookup 边;新增任何一条即失败
+  "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "lookup->practice",
+  "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
+  "rank->chat", "rank->practice", "realtime->chat", "rooms->chat",
+  "vocabulary->chat", "wordbook->chat", "wordbook->rank",
+]); // L1 删去了五条 ->vocabulary / vocabulary->lookup 边(四处改用 <WordActions> 插槽);新增任何一条即失败
 /** `to` 已去掉扩展名;`rel` 带扩展名。 */
 const isRegister = (rel: string) => /^features\/[^/]+\/register(-[a-z-]+)?(\.tsx?)?$/.test(rel);
 
@@ -114,6 +114,14 @@ function violationsOf(rel: string, source: string): string[] {
 }
 
 const files = walk(srcRoot).map((f) => posix(path.relative(srcRoot, f)));
+// 扫描整棵源码树的用例在全量并行运行时会超过默认 5 秒(同步读几百个文件);源码只读一次
+const SCAN_TIMEOUT = 30_000;
+const sourceCache = new Map<string, string>();
+const sourceOf = (rel: string): string => {
+  let text = sourceCache.get(rel);
+  if (text === undefined) sourceCache.set(rel, (text = readFileSync(path.join(srcRoot, rel), "utf8")));
+  return text;
+};
 
 describe("web architecture boundaries", () => {
   it("finds the source tree", () => {
@@ -130,9 +138,9 @@ describe("web architecture boundaries", () => {
   });
 
   it("no module crosses a layer boundary", () => {
-    const violations = files.flatMap((rel) => violationsOf(rel, readFileSync(path.join(srcRoot, rel), "utf8")));
+    const violations = files.flatMap((rel) => violationsOf(rel, sourceOf(rel)));
     expect(violations).toEqual([]);
-  });
+  }, SCAN_TIMEOUT);
 
   it("the scanner catches each kind of forbidden import", () => {
     expect(violationsOf("lib/x.ts", 'import { a } from "~/features/chat";')).toHaveLength(1);
@@ -164,6 +172,25 @@ describe("web architecture boundaries", () => {
     expect(violationsOf("features/progress/x.tsx", 'import { RankCard } from "~/features/rank";')).toHaveLength(1);
     expect(violationsOf("features/practice/x.tsx", 'import { RankCard } from "~/features/rank";')).toEqual([]);
   });
+
+  it("AddVocabularyButton is used only inside features/vocabulary", () => {
+    const users = files.filter((f) => !isTest(f) && !f.startsWith("features/vocabulary/")
+      && sourceOf(f).includes("AddVocabularyButton"));
+    expect(users).toEqual([]);
+  }, SCAN_TIMEOUT);
+
+  it("the cross-feature baseline lists only edges that still exist", () => {
+    const edges = new Set<string>();
+    for (const rel of files.filter((f) => !isTest(f) && featureOf(f))) {
+      for (const spec of importsOf(sourceOf(rel))) {
+        const target = resolveSpec(spec, path.join(srcRoot, rel));
+        const to = target.kind === "src" ? featureOf(target.rel) : null;
+        if (to && to !== featureOf(rel)) edges.add(`${featureOf(rel)}->${to}`);
+      }
+    }
+    expect([...CROSS_FEATURE_BASELINE].filter((e) => !edges.has(e))).toEqual([]);
+    expect(CROSS_FEATURE_BASELINE.size).toBe(16);
+  }, SCAN_TIMEOUT);
 
   // 这三个点的产品渲染点在 L1-2 / L1-3 / L2-2 才出现;为让车道文件不相交,只由 Z1 删掉整个集合
   const PENDING = new Set(["wordActions", "wordActionsMenu", "dailyTasks"]);

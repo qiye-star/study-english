@@ -1,17 +1,18 @@
 import { LanguagesIcon, LoaderIcon, MicIcon, SearchIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
-import { AddVocabularyButton, vocabularyFromLookup } from "~/features/vocabulary";
+import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
+import { wordTargetFromLookup } from "./word-target";
 
 type LookupState =
   | { status: "loading" }
@@ -89,6 +90,17 @@ export function LookupLayer() {
     }
   };
 
+  // 「单词操作」面板(联动 word_actions)里的「跟读这个词」从查词面板之上跳到跟读页:前进导航(PUSH)时收起查词面板。
+  // 联动关闭时查词面板里的每个跳转都先自己关闭,前进导航不会在打开时发生,所以行为与今天相同;返回(POP)不处理。
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  const shownAt = useRef(pathname);
+  useEffect(() => {
+    if (pathname === shownAt.current) return;
+    shownAt.current = pathname;
+    if (open && navigationType === "PUSH") onOpenChange(false);
+  }); // 每次渲染比较路径:只在路径真的变了时动作
+
   const onTouchEnd = (e: TouchEvent) => {
     const start = touchStart.current;
     touchStart.current = null;
@@ -153,8 +165,8 @@ export function LookupLayer() {
           </div>
           {state.status === "done" && state.lookup && isWordOrPhrase && target && (
             <div className="mt-2 flex">
-              <AddVocabularyButton key={`${target.text}
-${target.context}`} testId="lookup-vocab" input={vocabularyFromLookup(state.lookup, target)} withLabel />
+              <WordActions key={`${target.text}
+${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFromLookup(state.lookup, target)} />
             </div>
           )}
           {isPassage && (
