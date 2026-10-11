@@ -1,0 +1,8 @@
+{
+  "web": {
+    "rooms": {
+      "notice": { "agent_off": "这个智能体现在不可用" },
+      "agents": { "errors": { "tutorActive": "带练进行中,结束后再改智能体" } }
+    }
+  }
+}

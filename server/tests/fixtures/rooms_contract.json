@@ -71,22 +71,25 @@
         "wow",
         "clap",
         "thanks"
-      ]
+      ],
+      "agents_available": false,
+      "agent_tutor_available": false,
+      "max_agents": 2
     },
     "create": {
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "owner",
         "member_count": 1,
         "online_count": 0,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -94,23 +97,24 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "join": {
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "member",
         "member_count": 2,
         "online_count": 0,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -118,7 +122,8 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "ticket": {
@@ -127,18 +132,18 @@
     },
     "patch": {
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": false,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "owner",
         "member_count": 2,
         "online_count": 2,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -146,23 +151,24 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "detail": {
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": false,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "owner",
         "member_count": 2,
         "online_count": 2,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -170,17 +176,18 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       },
       "members": [
         {
-          "user_id": 60873911,
+          "user_id": 25230011,
           "name": "alice",
           "role": "owner",
           "online": true
         },
         {
-          "user_id": 38039737,
+          "user_id": 81139506,
           "name": "bob",
           "role": "member",
           "online": true
@@ -191,7 +198,7 @@
       "messages": [
         {
           "seq": 1,
-          "id": "ad550e5a-745c-449a-b2af-3567096417e6",
+          "id": "a88e715b-d454-49aa-8cdc-846e259d1741",
           "lane": "public",
           "kind": "system",
           "sender": {
@@ -206,7 +213,7 @@
           "meta": {
             "name": "bob"
           },
-          "created_at": "2026-10-11T09:51:55.304045+00:00",
+          "created_at": "2026-10-11T12:26:14.669608+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -214,12 +221,12 @@
         },
         {
           "seq": 2,
-          "id": "38575570-8194-4718-9adf-b4448019e0b7",
+          "id": "6c6907e4-0896-4e09-956b-6ef4c9e148e2",
           "lane": "private",
           "kind": "assist_request",
           "sender": {
             "kind": "user",
-            "id": 60873911,
+            "id": 25230011,
             "name": "alice"
           },
           "text": "I like 巧克力",
@@ -227,7 +234,7 @@
           "reply_to": null,
           "ai_status": null,
           "meta": null,
-          "created_at": "2026-10-11T09:51:55.379361+00:00",
+          "created_at": "2026-10-11T12:26:14.751716+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -235,7 +242,7 @@
         },
         {
           "seq": 3,
-          "id": "39b03b1f-2f99-4082-a310-174ddd177e3b",
+          "id": "a83b2bc9-133d-4820-ad07-48c5e57c3277",
           "lane": "private",
           "kind": "assist_reply",
           "sender": {
@@ -257,7 +264,7 @@
             ],
             "glossary": []
           },
-          "created_at": "2026-10-11T09:51:55.391941+00:00",
+          "created_at": "2026-10-11T12:26:14.765917+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -265,12 +272,12 @@
         },
         {
           "seq": 4,
-          "id": "b9ce40bd-2c87-4ffb-b370-62fb25767338",
+          "id": "13492c9e-4970-47f3-a834-ae38c639625f",
           "lane": "public",
           "kind": "text",
           "sender": {
             "kind": "user",
-            "id": 60873911,
+            "id": 25230011,
             "name": "alice"
           },
           "text": "I like chocolate.",
@@ -278,7 +285,7 @@
           "reply_to": null,
           "ai_status": null,
           "meta": null,
-          "created_at": "2026-10-11T09:51:55.395913+00:00",
+          "created_at": "2026-10-11T12:26:14.770553+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -286,12 +293,12 @@
         },
         {
           "seq": 5,
-          "id": "f920047c-6d18-48dd-afdc-d3e177ed9cba",
+          "id": "6c25f506-d3f9-419a-a5fb-85e66976ed54",
           "lane": "public",
           "kind": "text",
           "sender": {
             "kind": "user",
-            "id": 38039737,
+            "id": 81139506,
             "name": "bob"
           },
           "text": "@ai what does break the ice mean?",
@@ -299,7 +306,7 @@
           "reply_to": null,
           "ai_status": "done",
           "meta": null,
-          "created_at": "2026-10-11T09:51:55.405675+00:00",
+          "created_at": "2026-10-11T12:26:14.784799+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -307,7 +314,7 @@
         },
         {
           "seq": 6,
-          "id": "c34b57ec-6ea5-46e9-a974-b9ecde95375c",
+          "id": "9e28a9e2-d8a4-42ea-b306-88d0542968d8",
           "lane": "public",
           "kind": "ai_answer",
           "sender": {
@@ -320,7 +327,7 @@
           "reply_to": 5,
           "ai_status": null,
           "meta": null,
-          "created_at": "2026-10-11T09:51:55.421424+00:00",
+          "created_at": "2026-10-11T12:26:14.801545+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -328,7 +335,7 @@
         },
         {
           "seq": 7,
-          "id": "2ecaf328-0d73-4aeb-986a-7ade0ba3732f",
+          "id": "18dd20c9-7889-4094-8cfd-a99468c40444",
           "lane": "public",
           "kind": "system",
           "sender": {
@@ -348,7 +355,7 @@
               }
             ]
           },
-          "created_at": "2026-10-11T09:51:55.437584+00:00",
+          "created_at": "2026-10-11T12:26:14.820296+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -356,12 +363,12 @@
         },
         {
           "seq": 8,
-          "id": "0246d6a5-f866-4522-9a30-d7c79992a738",
+          "id": "bcd8858c-f894-4460-b322-97f7a0a53927",
           "lane": "public",
           "kind": "text",
           "sender": {
             "kind": "user",
-            "id": 60873911,
+            "id": 25230011,
             "name": "alice"
           },
           "text": "@ai hello?",
@@ -369,7 +376,7 @@
           "reply_to": null,
           "ai_status": null,
           "meta": null,
-          "created_at": "2026-10-11T09:51:55.445447+00:00",
+          "created_at": "2026-10-11T12:26:14.828396+00:00",
           "hidden": false,
           "quote": null,
           "voice": null,
@@ -380,18 +387,18 @@
     "mine": {
       "rooms": [
         {
-          "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-          "code": "942739",
+          "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+          "code": "713201",
           "topic": "美食",
           "status": "open",
           "locked": false,
           "ai_public": false,
           "ai_muted": false,
-          "owner_id": 60873911,
+          "owner_id": 25230011,
           "my_role": "owner",
           "member_count": 2,
           "online_count": 2,
-          "created_at": "2026-10-11T09:51:55.279737+00:00",
+          "created_at": "2026-10-11T12:26:14.640215+00:00",
           "closed_at": null,
           "name": "美食",
           "scenario": "free",
@@ -400,6 +407,7 @@
           "max_members": 4,
           "allow_voice": true,
           "close_reason": null,
+          "agent_ids": [],
           "summary_status": null
         }
       ],
@@ -416,26 +424,27 @@
     },
     "close": {
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
         "code": null,
         "topic": "美食",
         "status": "closed",
         "locked": false,
         "ai_public": false,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "owner",
         "member_count": 1,
         "online_count": 0,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
-        "closed_at": "2026-10-11T09:51:55.610581+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
+        "closed_at": "2026-10-11T12:26:14.957740+00:00",
         "name": "美食",
         "scenario": "free",
         "level": "A2",
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": "owner"
+        "close_reason": "owner",
+        "agent_ids": []
       }
     }
   },
@@ -443,18 +452,18 @@
     "welcome": {
       "type": "welcome",
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": "owner",
         "member_count": 2,
         "online_count": 2,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -462,21 +471,22 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       },
       "me": {
-        "user_id": 60873911,
+        "user_id": 25230011,
         "role": "owner"
       },
       "members": [
         {
-          "user_id": 60873911,
+          "user_id": 25230011,
           "name": "alice",
           "role": "owner",
           "online": true
         },
         {
-          "user_id": 38039737,
+          "user_id": 81139506,
           "name": "bob",
           "role": "member",
           "online": true
@@ -493,12 +503,12 @@
       "type": "message",
       "message": {
         "seq": 4,
-        "id": "b9ce40bd-2c87-4ffb-b370-62fb25767338",
+        "id": "13492c9e-4970-47f3-a834-ae38c639625f",
         "lane": "public",
         "kind": "text",
         "sender": {
           "kind": "user",
-          "id": 60873911,
+          "id": 25230011,
           "name": "alice"
         },
         "text": "I like chocolate.",
@@ -506,7 +516,7 @@
         "reply_to": null,
         "ai_status": null,
         "meta": null,
-        "created_at": "2026-10-11T09:51:55.395913+00:00",
+        "created_at": "2026-10-11T12:26:14.770553+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -517,7 +527,7 @@
       "type": "message",
       "message": {
         "seq": 1,
-        "id": "ad550e5a-745c-449a-b2af-3567096417e6",
+        "id": "a88e715b-d454-49aa-8cdc-846e259d1741",
         "lane": "public",
         "kind": "system",
         "sender": {
@@ -532,7 +542,7 @@
         "meta": {
           "name": "bob"
         },
-        "created_at": "2026-10-11T09:51:55.304045+00:00",
+        "created_at": "2026-10-11T12:26:14.669608+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -543,7 +553,7 @@
       "type": "message",
       "message": {
         "seq": 6,
-        "id": "c34b57ec-6ea5-46e9-a974-b9ecde95375c",
+        "id": "9e28a9e2-d8a4-42ea-b306-88d0542968d8",
         "lane": "public",
         "kind": "ai_answer",
         "sender": {
@@ -556,7 +566,7 @@
         "reply_to": 5,
         "ai_status": null,
         "meta": null,
-        "created_at": "2026-10-11T09:51:55.421424+00:00",
+        "created_at": "2026-10-11T12:26:14.801545+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -572,13 +582,13 @@
       "type": "presence",
       "members": [
         {
-          "user_id": 60873911,
+          "user_id": 25230011,
           "name": "alice",
           "role": "owner",
           "online": true
         },
         {
-          "user_id": 38039737,
+          "user_id": 81139506,
           "name": "bob",
           "role": "member",
           "online": true
@@ -594,7 +604,7 @@
       "request_id": "r1",
       "message": {
         "seq": 3,
-        "id": "39b03b1f-2f99-4082-a310-174ddd177e3b",
+        "id": "a83b2bc9-133d-4820-ad07-48c5e57c3277",
         "lane": "private",
         "kind": "assist_reply",
         "sender": {
@@ -616,7 +626,7 @@
           ],
           "glossary": []
         },
-        "created_at": "2026-10-11T09:51:55.391941+00:00",
+        "created_at": "2026-10-11T12:26:14.765917+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -634,18 +644,18 @@
     "room_update": {
       "type": "room_update",
       "room": {
-        "id": "11c093fa-ae4b-4d13-942e-5eae48c509f9",
-        "code": "942739",
+        "id": "401cb33c-b6d6-4fc1-890d-818573e54194",
+        "code": "713201",
         "topic": "美食",
         "status": "open",
         "locked": false,
         "ai_public": false,
         "ai_muted": false,
-        "owner_id": 60873911,
+        "owner_id": 25230011,
         "my_role": null,
         "member_count": 2,
         "online_count": 2,
-        "created_at": "2026-10-11T09:51:55.279737+00:00",
+        "created_at": "2026-10-11T12:26:14.640215+00:00",
         "closed_at": null,
         "name": "美食",
         "scenario": "free",
@@ -653,7 +663,8 @@
         "join_mode": "code",
         "max_members": 4,
         "allow_voice": true,
-        "close_reason": null
+        "close_reason": null,
+        "agent_ids": []
       }
     },
     "pong": {

@@ -35,6 +35,21 @@ class VoiceHandler(Protocol):
     async def on_retry(self, conn: "RoomConnection", seq: int) -> None: ...
 
 
+class AgentsHandler(Protocol):
+    """Room agents (plan 2026-10-12-agents-rooms): `rooms.agent_lane.AgentLane`, installed on `RoomsRuntime.agents`
+    by `routers/rooms_agents.install`. None = no agent code at all (rooms behave exactly as before)."""
+
+    async def admit(self, conn: "RoomConnection", text: str) -> object | None: ...
+
+    async def release(self, route: object) -> None: ...
+
+    async def answer(self, route: object, seq: int, message_id: str) -> None: ...
+
+    async def on_member_message(self, conn: "RoomConnection", message) -> None: ...
+
+    async def on_welcome(self, conn: "RoomConnection") -> None: ...
+
+
 @dataclass
 class ConnDeps:
     store: RoomStore
@@ -58,6 +73,8 @@ class ConnDeps:
     voice: VoiceHandler | None = None
     react_limiter: RateLimiter | None = None  # SC4: 30/minute per room:user
     clock_mono: Callable[[], float] = time.monotonic  # SC4: typing/activity throttling
+    # ---- agents in rooms (plan 2026-10-12-agents-rooms) ----
+    agents: AgentsHandler | None = None
 
     @property
     def limits(self) -> RoomLimits:
@@ -110,6 +127,8 @@ class RoomConnection:
             join_requests=await d.store.pending_requests(self.room_id) if role == "owner" else []))
         for message in rows:
             await self._send(event("message", message=message))
+        if d.agents is not None:  # a running room tutor re-sends its state after the replay (R-RA8)
+            await d.agents.on_welcome(self)
 
     async def handle(self, raw: str) -> None:
         if self.conn.dropped:  # the hub gave up on this socket (it stopped reading): end its receive loop
@@ -193,21 +212,31 @@ class RoomConnection:
                 return
         is_ai, question = mention(text)
         ask = await self._admit_ai() if is_ai else False
+        route = None
+        if not is_ai and d.agents is not None and text.startswith("@"):  # `@ai` always wins (R-RA4)
+            route = await d.agents.admit(self, text)
         try:
             async with d.hub.lock(self.room_id):
                 m = await d.store.append(self.room_id, lane="public", sender_kind="user", sender_id=self.user_id,
                                          kind="text", text=text, now=now, assisted=msg.assist_id is not None,
-                                         ai_status="pending" if ask else None, client_id=msg.client_id,
-                                         reply_to=msg.reply_to, meta={"quote": quote} if quote else None)
+                                         ai_status="pending" if ask or route is not None else None,
+                                         client_id=msg.client_id, reply_to=msg.reply_to,
+                                         meta={"quote": quote} if quote else None)
         except BaseException:
             if ask:  # the question was never stored: release its queue slot and quota
                 d.hub.ai_leave(self.room_id)
                 await d.refund("room_ai_global", GLOBAL)
+            if route is not None:
+                await d.agents.release(route)
             raise
         await self._send(event("ack", client_id=msg.client_id, seq=m.seq))
         await d.hub.broadcast(self.room_id, event("message", message=await d.store.out_one(m.id)))
         if ask:
             d.hub.spawn(self._answer(m.seq, m.id, question))
+        elif route is not None:
+            d.hub.spawn(d.agents.answer(route, m.seq, m.id))
+        elif d.agents is not None:  # a room tutor may be waiting for this member's answer (R-RA8)
+            await d.agents.on_member_message(self, m)
 
     async def _admit_ai(self) -> bool:
         d = self.deps

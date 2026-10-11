@@ -2,6 +2,7 @@
 import re
 from dataclasses import dataclass
 
+from app.rooms.protocol import MAX_AGENTS
 from app.rooms.scenarios import SCENARIOS
 
 MAX_TEXT = 500
@@ -24,6 +25,10 @@ SETTING_FIELDS = ("name", "scenario", "level", "join_mode", "max_members", "ai_p
 NAME_MAX = 30
 MIN_MEMBERS = 2
 MAX_MEMBERS_CAP = 8  # spec 2026-10-10 §3.1: 2–8 and never above the site ROOMS_MAX_MEMBERS
+# A persona id: a builtin key or a lowercase uuid4 (agents spec §4.2). Shape only; existence is checked by
+# agent_config.validate against the owner (plan 2026-10-12-agents-rooms R-RA3).
+_PERSONA_ID = re.compile(
+    r"^(?:builtin:[a-z][a-z0-9_]{0,31}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 # Tier index -> default room level (spec R2-20: B1+ -> B1, C1+ -> C1); mirrors CEFR_BY_TIER without the "+".
 _LEVEL_BY_TIER = ("A1", "A2", "B1", "B1", "B2", "C1", "C1")
 
@@ -83,6 +88,16 @@ def clean_settings(raw: dict, *, site_max_members: int, partial: bool) -> tuple[
     for key in ("ai_public", "allow_voice"):
         if raw.get(key) is not None:
             values[key] = bool(raw[key])
+    if raw.get("agents") is not None:  # owner only: ADMIN_SETTING_FIELDS never passes it (R-RA3)
+        ids = raw["agents"]
+        if not isinstance(ids, list) or not all(isinstance(i, str) and _PERSONA_ID.match(i) for i in ids):
+            errors["agents"] = "invalid"
+        elif len(ids) > MAX_AGENTS:
+            errors["agents"] = "too_many"
+        elif len(set(ids)) != len(ids):
+            errors["agents"] = "duplicate"
+        else:
+            values["agents"] = list(ids)
     return values, errors
 
 

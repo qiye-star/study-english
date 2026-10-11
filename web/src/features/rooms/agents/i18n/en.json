@@ -1,0 +1,8 @@
+{
+  "web": {
+    "rooms": {
+      "notice": { "agent_off": "This agent is not available right now" },
+      "agents": { "errors": { "tutorActive": "The room tutor is running; change agents after it ends" } }
+    }
+  }
+}

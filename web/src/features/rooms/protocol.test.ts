@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   encodeAssist, encodeHello, encodePing, encodeReact, encodeSay, encodeTyping, encodeVoiceRetry, encodeVoiceTranslate, isTerminalClose,
-  mentionsAi, parseRoomEvent, REACTION_GLYPHS, REACTION_KEYS, ROOM_CLOSE, ROOM_LIMITS, ROOM_PROTOCOL_VERSION, ROOM_SERVER_EVENT_TYPES, roomWsUrl,
+  mentionsAi, parseRoomEvent, REACTION_GLYPHS, REACTION_KEYS, ROOM_AGENTS, ROOM_CLOSE, ROOM_LIMITS, ROOM_PROTOCOL_VERSION, ROOM_SERVER_EVENT_TYPES, roomWsUrl,
 } from "./protocol";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -79,5 +79,20 @@ describe("protocol v2", () => {
     expect(parseRoomEvent('{"type":"reaction","seq":4,"key":"haha","user_ids":[1,2]}')).toEqual({ type: "reaction", seq: 4, key: "haha", userIds: [1, 2] });
     expect(parseRoomEvent('{"type":"voice_update","seq":4,"voice":{"duration_ms":6400,"status":"done","transcript":"Hi","lang":"en","translation":null,"translation_status":null,"attempts":1,"audio":true}}'))
       .toMatchObject({ type: "voice_update", voice: { durationMs: 6400, translationStatus: null } });
+  });
+});
+
+describe("agents in rooms (plan 2026-10-12-agents-rooms)", () => {
+  it("mirrors the server constants", () => {
+    expect(pyInt("MAX_AGENTS")).toBe(ROOM_AGENTS.max);
+    expect(pyInt("TUTOR_TURN_SECONDS")).toBe(ROOM_AGENTS.tutorTurnSeconds);
+    expect(ROOM_SERVER_EVENT_TYPES.slice(-3)).toEqual(["agent_step", "agent_thought", "agent_tutor"]);
+  });
+  it("parses the private process frames with camelCased keys", () => {
+    const ev = parseRoomEvent(JSON.stringify({ type: "agent_step", turn_id: "t1", reply_to: 4,
+      step: { id: "s1", group: "context", key: "learned_words", status: "done", label_key: "agents.step.learned_words", params: { count: 6 }, ms: 12, private: true } }));
+    expect(ev).toEqual({ type: "agent_step", turnId: "t1", replyTo: 4,
+      step: { id: "s1", group: "context", key: "learned_words", status: "done", labelKey: "agents.step.learned_words", params: { count: 6 }, ms: 12, private: true } });
+    expect(parseRoomEvent('{"type":"agent_tutor","tutor":null}')).toEqual({ type: "agent_tutor", tutor: null });
   });
 });

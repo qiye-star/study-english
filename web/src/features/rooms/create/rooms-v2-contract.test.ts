@@ -105,7 +105,7 @@ describe("rooms v2 core contract", () => {
 
   it("maps every v2 server error to a key", () => {
     expect(Object.keys(ROOMS_V2_SERVER_ERRORS).sort()).toEqual(
-      ["Below current members", "Invalid settings", "Request not found", "Too many requests for this room", "Try again later"]);
+      ["Below current members", "Invalid settings", "Request not found", "Room tutor is running", "Too many requests for this room", "Try again later"]);
     for (const key of Object.values(ROOMS_V2_SERVER_ERRORS)) {
       for (const lng of ["en", "zh-CN"]) expect(i18n.exists(key, { lng }), `${lng} ${key}`).toBe(true);
     }

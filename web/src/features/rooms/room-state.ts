@@ -186,6 +186,10 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       return { ...s, joinRequests: s.joinRequests.filter((r) => r.id !== e.id) };
     case "reopened":
       return { ...s, room: { ...e.room, myRole: e.room.myRole ?? s.room?.myRole ?? null }, reopenSignal: s.reopenSignal + 1 };
+    case "agent_step":
+    case "agent_thought":
+    case "agent_tutor":
+      return s; // plan 2026-10-12-agents-rooms W1 folds these
   }
 }
 

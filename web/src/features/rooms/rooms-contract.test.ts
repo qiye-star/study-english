@@ -31,13 +31,14 @@ const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 
 const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
   myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true, closeReason: true,
-  name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
+  name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true, agentIds: true };
 const MEMBER: Record<keyof RoomMemberInfo, true> = { userId: true, name: true, role: true, online: true };
 const MESSAGE: Record<keyof RoomMessage, true> = { seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true,
   replyTo: true, aiStatus: true, meta: true, createdAt: true, hidden: true, quote: true, voice: true, reactions: true };
 const SENDER: Record<keyof RoomSender, true> = { kind: true, id: true, name: true };
 const CONFIG: Record<keyof RoomsConfig, true> = { enabled: true, aiAvailable: true, maxMembers: true, maxText: true,
-  scenarios: true, levels: true, defaultMaxMembers: true, nameMax: true, voiceAvailable: true, maxVoiceMs: true, summaryAvailable: true, reactions: true };
+  scenarios: true, levels: true, defaultMaxMembers: true, nameMax: true, voiceAvailable: true, maxVoiceMs: true, summaryAvailable: true, reactions: true,
+  agentsAvailable: true, agentTutorAvailable: true, maxAgents: true };
 type Ev<T extends RoomEvent["type"]> = Record<keyof Extract<RoomEvent, { type: T }>, true>;
 const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
   welcome: { type: true, room: true, me: true, members: true, lastSeq: true, truncated: true, assistHistory: true, protocol: true, reactions: true, joinRequests: true },
@@ -61,11 +62,15 @@ const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
   join_request: { type: true, request: true },
   join_request_closed: { type: true, id: true, status: true },
   reopened: { type: true, room: true },
+  // agents in rooms: recorded in server/tests/fixtures/rooms_agents_contract.json (agents/room-agents-contract.test.ts)
+  agent_step: { type: true, turnId: true, replyTo: true, step: true },
+  agent_thought: { type: true, turnId: true, replyTo: true, thought: true },
+  agent_tutor: { type: true, tutor: true },
 };
 type Code<T extends RoomEvent["type"]> = Extract<RoomEvent, { type: T }> extends { code: infer C } ? C & string : never;
 const CODES: { [K in "error" | "notice" | "ai_failed" | "assist_failed"]: Record<Code<K>, true> } = {
   error: { rate_limited: true, empty: true, bad_assist: true, bad_reply: true, bad_seq: true },
-  notice: { ai_off: true, ai_busy: true, ai_quota: true, voice_off: true, voice_quota: true, translate_quota: true, retry_limit: true },
+  notice: { ai_off: true, ai_busy: true, ai_quota: true, voice_off: true, voice_quota: true, translate_quota: true, retry_limit: true, agent_off: true },
   ai_failed: { upstream: true, quota: true, restart: true },
   assist_failed: { upstream: true, quota: true, format: true },
 };
