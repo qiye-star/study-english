@@ -110,6 +110,13 @@ describe("WordbookLearnedPage", () => {
     expect(await screen.findByText("没有符合条件的词")).toBeTruthy();
   });
 
+  it("opens the free review sheet from the bottom button", async () => {
+    setup();
+    await userEvent.click(await screen.findByRole("button", { name: "自由复习" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/不计段位点/)).toBeTruthy();
+  });
+
   it("shows a translated error with a retry", async () => {
     setup({ "POST /api/wordbook/learned/query": () => json({ error: "Invalid cursor" }, 422) });
     expect(await screen.findByText("列表已过期,请刷新")).toBeTruthy();

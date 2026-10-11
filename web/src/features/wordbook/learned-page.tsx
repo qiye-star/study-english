@@ -10,6 +10,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { PageHeader } from "~/layout/page-header";
 import { BoxBar } from "./box-bar";
+import { FreeReviewSheet } from "./free-review-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
 import { useDebounced, useLearnedList, useLearnedSummary } from "./use-learned";
@@ -99,6 +100,7 @@ export function WordbookLearnedPage() {
   }), [book, tier, weak, since, until, q]);
   const list = useLearnedList(query);
   const [opened, setOpened] = useState<LearnedItem | null>(null);
+  const [freeOpen, setFreeOpen] = useState(false);
   const filtered = Object.keys(query).length > 0 || text.trim() !== "";
   const clear = () => { setTier(null); setBook(""); setWeak(false); setSince(""); setUntil(""); setText(""); };
   const books = config?.enabled ? config.books.filter((b) => summary?.byBook.some((x) => x.bookId === b.id)) : [];
@@ -172,11 +174,11 @@ export function WordbookLearnedPage() {
       </div>
       {library ? (
         <div className={DOCK}>
-          {/* W4 wires this button to FreeReviewSheet */}
-          <button type="button" disabled className={cn(PRIMARY, "h-12 flex-1")}><PlayIcon aria-hidden />{t("web.wordbook.learned.free.open")}</button>
+          <button type="button" onClick={() => setFreeOpen(true)} className={cn(PRIMARY, "h-12 flex-1")}><PlayIcon aria-hidden />{t("web.wordbook.learned.free.open")}</button>
         </div>
       ) : null}
       <CardSheet item={opened} onClose={() => setOpened(null)} />
+      {library ? <FreeReviewSheet open={freeOpen} onOpenChange={setFreeOpen} summary={summary} /> : null}
     </div>
   );
 }
