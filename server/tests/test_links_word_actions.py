@@ -48,13 +48,15 @@ async def test_adopt_without_an_active_book_and_when_switched_off(app, client, t
 
 async def test_card_lookup_prefers_the_active_book_and_records_the_contract(app, client, tmp_path):
     h = await login(app, client, tmp_path)
-    body = (await client.get(f"{URL}/card", headers=h, params={"word": "Talk"})).json()
+    body = (await client.post(f"{URL}/card", headers=h, json={"word": "Talk"})).json()
     assert body["book_id"] == "junior" and body["card"]["key"] == "talk" and body["item"] is None
-    missing = await client.get(f"{URL}/card", headers=h, params={"word": "zebra"})
+    missing = await client.post(f"{URL}/card", headers=h, json={"word": "zebra"})
     assert (missing.status_code, missing.json()) == (404, {"error": "Word not found"})
-    assert (await client.get(f"{URL}/card", headers=h, params={"word": "a\x00b"})).status_code == 422
+    assert (await client.post(f"{URL}/card", headers=h, json={"word": "a\x00b"})).status_code == 422
+    assert (await client.post(f"{URL}/card", headers=h, json={"word": "talk", "user_id": 1})).status_code == 422
+    assert "card" not in (await client.get(f"{URL}/card", headers=h, params={"word": "talk"})).json()  # no GET route
     added = (await client.post(f"{URL}/adopt", headers=h, json={"word": "talk"})).json()
-    after = (await client.get(f"{URL}/card", headers=h, params={"word": "talk"})).json()
+    after = (await client.post(f"{URL}/card", headers=h, json={"word": "talk"})).json()
     assert after["item"]["box"] == 0
     check_contract("links_word_actions_contract", {"adopt": added, "card": after, "missing": missing.json()})
 
@@ -80,11 +82,11 @@ async def test_user_pref_off_and_master_off_hide_both_endpoints(app, client, tmp
     r = await client.put("/api/links/prefs", headers=h, json={"key": "word_actions", "enabled": False})
     assert r.status_code == 200
     for r in (await client.post(f"{URL}/adopt", headers=h, json={"word": "talk"}),
-              await client.get(f"{URL}/card", headers=h, params={"word": "talk"})):
+              await client.post(f"{URL}/card", headers=h, json={"word": "talk"})):
         assert (r.status_code, r.json()) == (404, {"error": "Link is off"})
     await client.put("/api/links/prefs", headers=h, json={"key": "word_actions", "enabled": True})
     app.state.settings = app.state.settings.model_copy(update={"links_enabled": False})
-    r = await client.get(f"{URL}/card", headers=h, params={"word": "talk"})
+    r = await client.post(f"{URL}/card", headers=h, json={"word": "talk"})
     assert (r.status_code, r.json()) == (404, {"error": "Link is off"})
     async with app.state.sessionmaker() as s:
         assert await s.scalar(select(func.count()).select_from(VocabularyItem)) == 0
@@ -98,7 +100,7 @@ async def test_missing_book_data_is_503_and_logs_carry_no_words(app, client, tmp
     caplog.set_level(logging.DEBUG)
     r = await client.post(f"{URL}/adopt", headers=h, json={"word": "talk"})
     assert (r.status_code, r.json()) == (503, {"error": "Wordbook data unavailable"})
-    r = await client.get(f"{URL}/card", headers=h, params={"word": "talk"})
+    r = await client.post(f"{URL}/card", headers=h, json={"word": "talk"})
     assert (r.status_code, r.json()) == (503, {"error": "Wordbook data unavailable"})
     # 只看服务端日志(测试客户端 httpx 自己会记录请求 URL)
     assert not [r for r in caplog.records if r.name.startswith("app") and "talk" in r.getMessage()]

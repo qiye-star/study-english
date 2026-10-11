@@ -309,7 +309,7 @@ def clear_for_tests() -> None
 | 加入生词本 | vocabulary(`wordActionsMenu`) | 总是 | 同主按钮 |
 | 加入词书学习 | wordbook | 背单词已开启 | `POST /api/links/wordbook/adopt`:当前在学的书里有这个词且用户还没有该词条 → 建一条 `box 0`、立即到期的词条(`source="wordbook:<book>"`,**不写 learn 事件、不得段位点**),下一次复习出现;已有词条 → 「已在学习中」;书里没有 → 行禁用并显示「当前词书里没有这个词」 |
 | 跟读这个词 | practice | 总是 | `goPractice(navigate, example ?? word)` |
-| 查看词卡 | wordbook | 背单词已开启 | `GET /api/links/wordbook/card?word=` → 面板内显示词卡(复用 `WordCardView`,懒加载);找不到 → 「词书里没有这个词」 |
+| 查看词卡 | wordbook | 背单词已开启 | `POST /api/links/wordbook/card`(body `{"word"}`;词不进 URL / 访问日志)→ 面板内显示词卡(复用 `WordCardView`,懒加载);找不到 → 「词书里没有这个词」 |
 
 **插槽。** `wordActions`(行内,props `WordActionProps`)与 `wordActionsMenu`(面板里的行)。vocabulary 的行内贡献**不带联动键**
 (核心贡献,任何开关下都在),「更多」按钮由 `plugins/word-actions` 以 `link: "word_actions"` 贡献。全关时插槽只渲染核心贡献,
@@ -564,7 +564,7 @@ link_credits        id Integer PK autoincrement, user_id FK CASCADE, kind String
 | `PUT /api/links/prefs` | — | 用户 | §7.2 |
 | `GET /api/links/today?offset=` | daily_tasks | 用户 | §6.2 |
 | `POST /api/links/wordbook/adopt` | word_actions | 用户 | `{"status": "added"\|"known"\|"not_in_book", "book_id": str\|null}` |
-| `GET /api/links/wordbook/card?word=` | word_actions | 用户 | `{"book_id", "card": <wordbook card_out>, "item": {"box","due_at"}\|null}`;404 `Word not found` |
+| `POST /api/links/wordbook/card` `{"word"}`(只读;POST 让词不进 URL 与访问日志) | word_actions | 用户 | `{"book_id", "card": <wordbook card_out>, "item": {"box","due_at"}\|null}`;404 `Word not found` |
 | `GET /api/links/mistakes?page=` / `POST /api/links/mistakes/dismiss` | mistakes | 用户 | §6.3 |
 | `GET /api/links/weak-words` / `POST /api/links/weak-words/dismiss` | pron_shadow | 用户 | §6.4 |
 | `GET /api/links/today-words?offset=` | pron_shadow | 用户 | §6.4 |

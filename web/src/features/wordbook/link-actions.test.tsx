@@ -12,7 +12,7 @@ const card: Card = { key: "talk", word: "talk", us: "tɔk", uk: "", senses: [{ p
 
 it("shows the card in place and says when the word is not in any book", async () => {
   const mock = createFetchMock({
-    "GET /api/links/wordbook/card": (c) => c.url.searchParams.get("word") === "talk"
+    "POST /api/links/wordbook/card": (c) => JSON.parse(String(c.body)).word === "talk"
       ? json({ book_id: "junior", card, item: null }) : json({ error: "Word not found" }, 404),
   });
   const client = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
@@ -28,11 +28,13 @@ it("shows the card in place and says when the word is not in any book", async ()
 it("calls the two link endpoints with the word", async () => {
   const mock = createFetchMock({
     "POST /api/links/wordbook/adopt": () => json({ status: "known", book_id: "junior" }),
-    "GET /api/links/wordbook/card": () => json({ book_id: "junior", card, item: { box: 0, due_at: "2026-10-11T00:00:00Z" } }),
+    "POST /api/links/wordbook/card": () => json({ book_id: "junior", card, item: { box: 0, due_at: "2026-10-11T00:00:00Z" } }),
   });
   const client = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
   expect(await adoptWord(client, "talk")).toEqual({ status: "known", bookId: "junior" });
   expect((await fetchLinkCard(client, "a b")).item?.box).toBe(0);
   expect(JSON.parse(String(mock.calls[0].body))).toEqual({ word: "talk" });
-  expect(mock.calls[1].url.searchParams.get("word")).toBe("a b");
+  // the word travels in the body, never in the URL (it would land in the server's access log)
+  expect(JSON.parse(String(mock.calls[1].body))).toEqual({ word: "a b" });
+  expect(mock.calls[1].url.search).toBe("");
 });

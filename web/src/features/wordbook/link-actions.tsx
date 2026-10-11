@@ -29,7 +29,7 @@ const LINK_ERRORS: Record<string, string> = {
 export const adoptWord = (api: ApiClient, word: string) =>
   api.request<AdoptResult>("POST", "/api/links/wordbook/adopt", { json: { word } });
 export const fetchLinkCard = (api: ApiClient, word: string) =>
-  api.request<LinkCard>("GET", "/api/links/wordbook/card", { query: { word } });
+  api.request<LinkCard>("POST", "/api/links/wordbook/card", { json: { word } }); // body, not URL: keeps words out of access logs
 
 function useMounted() {
   const mounted = useRef(true);

@@ -16,7 +16,7 @@
 
 ## Allowed dependencies
 同 `../CLAUDE.md`;feature 只经 `~/features/<x>` 或 `~/features/<x>/register*`。服务端接口:`POST /api/links/wordbook/adopt`、
-`GET /api/links/wordbook/card`(由 `features/wordbook/link-actions.tsx` 调用)。
+`POST /api/links/wordbook/card`(body `{"word"}`,词不进 URL;由 `features/wordbook/link-actions.tsx` 调用)。
 
 ## Test
 `cd web && yarn vitest run src/plugins/word-actions src/features/wordbook/link-actions.test.tsx`;测试自己 `import "./index"` 并

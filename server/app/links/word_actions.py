@@ -3,14 +3,13 @@
 不写 learn 事件、不得段位点、不推进书序游标(L-R8);也不受每日新词目标 daily_new 限制(owner ruling:加入的是
 立即到期的 box 0 复习词条,不是今天的新词)。只读写本请求自己的会话;不打日志。
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_session
 from app.links.gate import require_link
 from app.links.spec import LinkSpec, WordIn
 from app.models import User, utcnow
-from app.services.vocabulary import validate_word
 from app.wordbook import service, store
 from app.wordbook.books import enabled_books
 from app.wordbook.index import DataUnavailable, dictionary
@@ -53,14 +52,12 @@ async def adopt(payload: WordIn, request: Request, user: User = Depends(require_
     return {"status": "added", "book_id": e.book_id}
 
 
-@router.get("/card")
-async def card(request: Request, word: str = Query(min_length=1, max_length=200),
-               user: User = Depends(require_link(KEY)), session: AsyncSession = Depends(get_session)):
+@router.post("/card")
+async def card(payload: WordIn, request: Request, user: User = Depends(require_link(KEY)),
+               session: AsyncSession = Depends(get_session)):
+    """Read-only, but POST: the word travels in the body so it never reaches URLs or the access log."""
     settings = _wordbook_on(request)
-    try:
-        key = validate_word(word)
-    except ValueError:
-        raise HTTPException(422, "Invalid word") from None
+    key = payload.word
     ds = dictionary(request.app)
     await service.ensure_hidden(session, ds)
     e = await store.active_enrollment(session, user.id)
