@@ -16,6 +16,7 @@ export const ROOMS_V2_SERVER_ERRORS: Record<string, string> = {
   "Try again later": "web.rooms.v2.errors.tryLater",
   "Too many requests for this room": "web.rooms.v2.errors.tooManyRequests",
   "Request not found": "web.rooms.v2.errors.requestNotFound",
+  "Room tutor is running": "web.rooms.agents.errors.tutorActive",
 };
 /** v1 + v2 的房间错误表(translateServerError 的 extra)。邀请链接的接口只在 `extras/invite-api.ts`(review m11)。 */
 export const ROOMS_ALL_SERVER_ERRORS: Record<string, string> = { ...ROOMS_SERVER_ERRORS, ...ROOMS_V2_SERVER_ERRORS };

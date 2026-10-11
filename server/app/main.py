@@ -30,7 +30,7 @@ from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -95,7 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
-    app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
+    app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install, rooms_agents.install)  # + agents (plan A5)
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     _log_secrets(None, settings)
@@ -109,7 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for module in (
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
-        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
+        practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         links, agents, agents_tutor, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents, stubs, admin_web, web,
     ):

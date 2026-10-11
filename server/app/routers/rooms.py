@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import JSONResponse
@@ -51,7 +52,7 @@ ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "below_members": (409, "Below current members"), "cooldown": (429, "Try again later"),
     "too_many_requests": (429, "Too many requests for this room"), "no_request": (404, "Request not found"),
     "not_closed": (409, "Room is not closed"), "admin_closed": (403, "Closed by an administrator"),
-    "no_owner": (409, "Room has no owner"),
+    "no_owner": (409, "Room has no owner"), "tutor_active": (409, "Room tutor is running"),
 }
 
 
@@ -77,6 +78,10 @@ class RoomsRuntime:
     sweep_listeners: list["SweepListener"] = field(default_factory=list)
     startup_listeners: list["StartupListener"] = field(default_factory=list)
     app: object | None = None
+    # ---- agents in rooms (plan 2026-10-12-agents-rooms); filled by routers/rooms_agents.install ----
+    agents: object | None = None  # connection.AgentsHandler (rooms.agent_lane.AgentLane)
+    agent_checker: "AgentChecker | None" = None
+    shutdown_listeners: list["ShutdownListener"] = field(default_factory=list)
 
     def reconfigure(self, settings: Settings, old: Settings | None = None) -> None:
         """Hot reload (admin v2 §3.6, §10): new limits for later requests/messages; live sockets close when rooms
@@ -114,6 +119,8 @@ class RoomsRuntime:
 CloseListener = Callable[[RoomsRuntime, str, str], Awaitable[None]]  # (rt, room_id, reason)
 SweepListener = Callable[[RoomsRuntime, datetime], Awaitable[None]]  # (rt, now), after each sweep
 StartupListener = Callable[[RoomsRuntime], Awaitable[None]]  # after fail_pending_ai at startup
+ShutdownListener = Callable[[RoomsRuntime], Awaitable[None]]  # before sockets close at shutdown (room tutor timers)
+AgentChecker = Callable[[int, list[str]], Awaitable[tuple[str | None, list[str]]]]  # (owner, ids) -> (error, names)
 
 RUNTIME_KEYS = frozenset({k for k in SPECS if k.startswith(("rooms_", "room_"))} | {"maintenance_mode"})
 
@@ -173,7 +180,7 @@ def deps_for(app, rt: RoomsRuntime, settings: Settings) -> ConnDeps:
     return ConnDeps(rt.store, rt.hub, lambda: rt.limits, complete, consume, refund, utcnow, rt.ai_gate,
                     rt.say_limiter, rt.ai_room_limiter, rt.ai_user_limiter,
                     lambda: app.state.settings.rooms_ai_available, rt.assist_limiter, assist_daily_for, templates,
-                    voice=rt.voice, react_limiter=rt.react_limiter)
+                    voice=rt.voice, react_limiter=rt.react_limiter, agents=rt.agents)
 
 
 async def after_close(rt: RoomsRuntime, room_id: str, reason: str) -> None:
@@ -218,6 +225,8 @@ class JoinIn(BaseModel):
 class PatchIn(SettingsIn):
     topic: str | None = Field(None, max_length=200)  # v1 clients: written to `name`, cut to 30 (R2-1)
     locked: bool | None = None
+    # Owner only, up to MAX_AGENTS persona ids (plan 2026-10-12-agents-rooms R-RA3); the list bound only caps the body
+    agents: list[Annotated[str, Field(max_length=64)]] | None = Field(None, max_length=8)
 
 
 def _invalid_settings(errors: dict[str, str]) -> JSONResponse:
@@ -540,24 +549,39 @@ async def room_ticket(room_id: str, request: Request, user: User = Depends(limit
 @router.patch("/{room_id}")
 async def update_room(room_id: str, payload: PatchIn, request: Request, user: User = Depends(current_user),
                       settings: Settings = Depends(require_rooms)):
-    """Owner edit of any subset of the seven settings plus `locked` (spec 2026-10-10 §3.2). One `settings` system
-    message lists every field that really changed; the v1 `topic` message is no longer produced."""
+    """Owner edit of any subset of the seven settings plus `locked` and `agents` (spec 2026-10-10 §3.2; agents plan
+    A5). One `settings` system message lists every field that really changed; agents get their own message."""
     rt = runtime(request.app)
     raw = payload.model_dump(exclude_none=True, exclude={"topic", "locked"})
     if payload.topic is not None and payload.name is None:
         raw["name"] = clean_text(payload.topic, NAME_MAX) or ""
     values, errors = clean_settings(raw, site_max_members=settings.rooms_max_members, partial=True)
+    agents = values.pop("agents", None)
+    names: list[str] = []
+    if agents and not errors:  # clearing ([]) is always allowed, even while the feature is off
+        if rt.agent_checker is None:
+            errors["agents"] = "disabled"
+        else:
+            problem, names = await rt.agent_checker(user.id, agents)
+            if problem is not None:
+                errors["agents"] = problem
     if errors:
         return _invalid_settings(errors)
     room_id = room_id[:MAX_ID]
+    agents_changed = False
     try:
         before = await rt.store.room(room_id)
         _room, changes = await rt.store.update_settings(room_id, user.id, values)
+        if agents is not None:
+            _room, agents_changed = await rt.store.set_agents(room_id, user.id, agents)
         room = await rt.store.update(room_id, user.id, locked=payload.locked)
     except RoomError as e:
         _raise(e)
     if changes:
         await system_message(rt, room.id, "settings", {"changes": changes})
+    if agents_changed:  # names are stored for the web template only; never logged
+        await system_message(rt, room.id, "agents" if agents else "agents_off",
+                             {"names": ", ".join(names)} if agents else {})
     if before is not None and before.join_mode == "approval" and room.join_mode == "code":
         await settle_requests(rt, room.id)
     await rt.hub.broadcast(room.id, event("room_update", room=await _room_json(rt, room, None)))
@@ -819,5 +843,10 @@ async def rooms_shutdown(app) -> None:
         with suppress(asyncio.CancelledError):
             await rt.sweeper
         rt.sweeper = None
+    for listener in list(rt.shutdown_listeners):
+        try:
+            await listener(rt)
+        except Exception as e:
+            logger.warning("rooms shutdown listener failed error=%s", type(e).__name__)
     await rt.hub.close_all(CLOSE_RESTART)
     await rt.hub.cancel_tasks()
