@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.memory.store import drop_conversation
 from app.core import learning_events
 from app.core.config import Settings
 from app.core.quotas import effective
@@ -292,6 +293,7 @@ async def delete_conversation(
     # SQLite 默认不开外键级联,显式删除消息
     await session.execute(delete(Message).where(Message.conversation_id == row.id))
     paths = await drop_assessments(session, chat)
+    await drop_conversation(session, row.id)  # agents memory: thread state + recaps go with the chat (plan A2 R-M15)
     await session.delete(row)
     await session.commit()
     remove_files(settings, paths)

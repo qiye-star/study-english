@@ -27,7 +27,7 @@ from app.agents.memory.setup import install as install_memory  # agents memory (
 from app.agents.orchestrator import runtime as agents_runtime
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin, admin_accounts, agents_memory, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -99,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 顺序重要:stubs 含 /api/** 的兜底写入路由,真实 API 必须在它之前;
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
+        agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
         links, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
