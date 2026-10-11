@@ -1,6 +1,7 @@
 """/api/agents/*(spec 2026-10-12-agents §4.4、§4.5;计划 R-C5、R-C16、R-C24、R-C25):配置、角色 CRUD 与举报、用户设置、
 回合 SSE。业务在 app/agents/。总开关关:除 GET /config 外一律 404 `Agents are disabled`。错误 `{"error": ...}`。
 URL 里没有词或文本(角色 id 是 uuid / builtin: 键;没有查询参数);请求体与回复从不进日志。"""
+import functools
 import uuid
 from contextlib import aclosing
 from typing import Annotated, Any, Literal
@@ -157,18 +158,37 @@ async def try_persona(body: TryIn, request: Request, user: User = Depends(limite
         clean = clean_persona(body.persona, max_prompt_chars=settings.agents_prompt_max_chars)
     except PersonaInvalid as e:
         raise _invalid(e.field) from None
-    now = utcnow()
-    if await limits.consume_turn(session, request.app, settings, user.id, now) is not None:
-        raise HTTPException(429, "Turn limit reached")
-    draft = Persona(id="draft", owner_id=user.id, **{**clean, "tools": tuple(clean["tools"])})
-    messages = prompt.build_messages(draft, memory_block=None, blocks=[], history=[], text=body.text)
+    rt = runtime(request.app)
+    slot = f"try-{uuid.uuid4()}"
+    if rt.ledger.begin(user.id, slot)[0] != "new":  # 评审 #10:与回合共用「每人同时 2 个」
+        raise HTTPException(429, "Too many turns in progress")
     try:
-        reply = await llm.complete(request.app.state.http, settings, messages, model=settings.resolved_agents_model,
-                                   max_tokens=settings.agents_chat_max_tokens, temperature=limits.CHAT_TEMPERATURE)
-    except llm.LlmUnavailable:
-        await limits.refund_turn(session, user.id, now)
-        raise HTTPException(502, "Upstream unavailable") from None
-    return {"text": reply}
+        now = utcnow()
+        if await limits.consume_turn(session, request.app, settings, user.id, now) is not None:
+            raise HTTPException(429, "Turn limit reached")
+        try:
+            draft = Persona(id="draft", owner_id=user.id, **{**clean, "tools": tuple(clean["tools"])})
+            messages = prompt.build_messages(draft, memory_block=None, blocks=[], history=[], text=body.text)
+            reply = await llm.complete(request.app.state.http, settings, messages,
+                                       model=settings.resolved_agents_model,
+                                       max_tokens=settings.agents_chat_max_tokens, temperature=limits.CHAT_TEMPERATURE)
+        except BaseException as e:  # 评审 #10:没有回复就退额度(上游失败、意外异常、客户端取消)
+            with anyio.CancelScope(shield=True):
+                await _refund_try(request.app, user.id, now)
+            if isinstance(e, llm.LlmUnavailable):
+                raise HTTPException(502, "Upstream unavailable") from None
+            raise
+        return {"text": reply}
+    finally:
+        rt.ledger.drop(user.id, slot)
+
+
+async def _refund_try(app, user_id: int, now) -> None:
+    try:
+        async with app.state.sessionmaker() as fresh:
+            await limits.refund_turn(fresh, user_id, now)
+    except Exception:  # noqa: BLE001 - never mask the original failure
+        pass
 
 
 # ---- 用户设置 ----
@@ -219,10 +239,11 @@ class AgentStream(StreamingResponse):
     """SSE 响应:无论正常结束、客户端断开(ASGI < 2.4 取消作用域;≥ 2.4 send 抛 OSError)还是被取消,都在 finally 里
     关闭事件迭代器,上游模型流随之立即关闭(R-C14)。"""
 
-    def __init__(self, events):
+    def __init__(self, events, release=None):
         super().__init__(events, media_type="text/event-stream",
                          headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         self._events = events
+        self._release = release  # 评审 #3:账本条目的收尾;生成器从未启动(其 finally 不会跑)时也要释放
 
     async def __call__(self, scope, receive, send) -> None:
         try:
@@ -230,6 +251,8 @@ class AgentStream(StreamingResponse):
         finally:
             with anyio.CancelScope(shield=True):
                 await self._events.aclose()
+                if self._release is not None:
+                    self._release()
 
 
 async def _replay(events: list):
@@ -237,7 +260,7 @@ async def _replay(events: list):
         yield event.to_sse()
 
 
-async def _recorded(ledger: limits.TurnLedger, user_id: int, client_turn_id: str, events):
+async def _recorded(ledger: limits.TurnLedger, user_id: int, client_turn_id: str, events, entry=None):
     """把事件转成 SSE,并记下重放所需(start、全文、meta、done);没走到 done 就从账本删掉(R-C6)。"""
     start = meta = done = None
     texts: list[str] = []
@@ -258,7 +281,7 @@ async def _recorded(ledger: limits.TurnLedger, user_id: int, client_turn_id: str
             replay = [start, *([trace.Delta("".join(texts))] if texts else []), *([meta] if meta else []), done]
             ledger.finish(user_id, client_turn_id, replay)
         else:
-            ledger.drop(user_id, client_turn_id)
+            ledger.release(user_id, client_turn_id, entry)
 
 
 @router.post("/turn")
@@ -275,18 +298,27 @@ async def turn(body: TurnIn, request: Request, user: User = Depends(limited_user
     agent = await agent_settings.load(session, user.id)
     await session.close()  # the stream opens its own short sessions; do not hold a connection for its duration
     rt = runtime(request.app)
-    state, entry = rt.ledger.begin(user.id, body.client_turn_id)
+    fp = limits.fingerprint(body.persona_id, body.conversation_id, body.text, body.mode, body.tutor_session_id)
+    state, entry = rt.ledger.begin(user.id, body.client_turn_id, fp)
+    if state == "mismatch":  # 评审 #9:同一个 id 换了内容,既不重放旧回复(不扣额度)也不当新回合
+        raise HTTPException(409, "Client turn id already used for a different request")
     if state == "running":
         raise HTTPException(409, "Turn is busy")
     if state == "done":
         return AgentStream(_replay(entry.replay))
     if state == "busy":
         return AgentStream(_replay([trace.Start(str(uuid.uuid4())), trace.Error("busy")]))
-    req = TurnRequest(user_id=user.id, persona=persona, conversation_id=body.conversation_id, room_id=None,
-                      text=body.text, history=[h.model_dump() for h in body.history], mode=body.mode,
-                      tutor_session_id=body.tutor_session_id, client_turn_id=body.client_turn_id, in_room=False,
-                      agent_settings=agent)
-    return AgentStream(_recorded(rt.ledger, user.id, body.client_turn_id, run_turn(deps_for(request.app), req)))
+    release = functools.partial(rt.ledger.release, user.id, body.client_turn_id, entry)
+    try:
+        req = TurnRequest(user_id=user.id, persona=persona, conversation_id=body.conversation_id, room_id=None,
+                          text=body.text, history=[h.model_dump() for h in body.history], mode=body.mode,
+                          tutor_session_id=body.tutor_session_id, client_turn_id=body.client_turn_id, in_room=False,
+                          agent_settings=agent)
+        events = run_turn(deps_for(request.app), req)
+        return AgentStream(_recorded(rt.ledger, user.id, body.client_turn_id, events, entry), release)
+    except BaseException:
+        release()
+        raise
 
 
 # ---- memory endpoints (plan A2) below ----

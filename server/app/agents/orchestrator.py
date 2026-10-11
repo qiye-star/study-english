@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
+import anyio
+
 from app.agents import limits, prompt, trace
 from app.agents import settings as agent_settings
 from app.agents.context import PREFETCH_BUDGET_MS, SourceCtx, SourceOutcome, SourceRegistry, SourceResult, prefetch
@@ -226,7 +228,7 @@ async def run_turn(deps: TurnDeps, req: TurnRequest) -> AsyncIterator[trace.Even
     settings = deps.settings()
     t0 = deps.clock()
     stats = {"status": "cancelled", "ctx_ms": 0, "ttft_ms": -1, "src_count": 0, "src_skipped": 0, "src_failed": 0,
-             "chars": 0, "tools": "off"}
+             "chars": 0, "tools": "off", "delivered": False}
     try:
         async with aclosing(_turn(deps, req, settings, t0, stats)) as events:
             async for event in events:
@@ -261,6 +263,29 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
             stats["status"] = "limit"
             yield trace.Error("limit")
             return
+    charged = [req.charge]
+
+    async def refund_once() -> None:
+        """退一次且只退一次;取消时也要退成(shield)。"""
+        if charged[0]:
+            charged[0] = False
+            with anyio.CancelScope(shield=True):
+                await _refund(deps, req.user_id, now)
+
+    try:
+        async with aclosing(_charged(deps, req, mode, settings, t0, stats, turn_id, now, refund_once)) as events:
+            async for event in events:
+                yield event
+    except BaseException:
+        # 评审 #4 #5:扣了额度之后,只要回复文字还没送到客户端(取消 / 断开 / 意外异常)就退还;
+        # 送出过文字就不退(Ruling:学习者已经看到内容、成本已经发生)。
+        if not stats["delivered"]:
+            await refund_once()
+        raise
+
+
+async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings, t0: float, stats: dict, turn_id: str, now: datetime,
+                   refund_once) -> AsyncIterator[trace.Event]:
     agent = req.agent_settings
     if agent is None:
         async with deps.sessions() as session:
@@ -300,8 +325,7 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
         block = await mode.prepare(req)
     except Exception as e:  # noqa: BLE001
         logger.warning("agents mode prepare failed mode=%s error=%s", mode.name, type(e).__name__)
-        if req.charge:
-            await _refund(deps, req.user_id, now)
+        await refund_once()
         error = _error(e.code) if isinstance(e, ModeError) else trace.Error("bad_request")
         stats["status"] = error.code
         yield error
@@ -336,17 +360,19 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
                             stats["ttft_ms"] = _ms(deps.clock, t0)
                         shown.append(visible)
                         yield trace.Delta(visible)
+                        stats["delivered"] = True
         tail = flt.flush()
         if tail:
             if not shown:
                 stats["ttft_ms"] = _ms(deps.clock, t0)
             shown.append(tail)
             yield trace.Delta(tail)
+            stats["delivered"] = True
         if not shown:
             raise llm.LlmUnavailable("empty", 200)
     except llm.LlmUnavailable as e:
-        if not shown and req.charge:
-            await _refund(deps, req.user_id, now)
+        if not shown:
+            await refund_once()
         stats["status"] = f"llm_{e.kind}"
         yield trace.Error("llm_unavailable")
         return
