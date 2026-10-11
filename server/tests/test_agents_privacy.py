@@ -1,7 +1,6 @@
 """隐私(spec §8.5、§11.5):每个智能体端点、失败路径、后台任务(回合后钩子、记忆整理)与学习数据来源的日志里没有
 用户文本、人设、历史、回复、推理、记忆、词、用户 id 或上游错误原文;路由 URL 不带词(路径参数只有 id,查询参数只有
 枚举 / 数字 / id)。caplog 只收 `app` 日志:根 logger 的 DEBUG 会带上 aiosqlite 绑定的 SQL 参数(测试环境的假象,生产不跑)。"""
-import asyncio
 import json
 import logging
 
@@ -9,6 +8,7 @@ import pytest
 
 from app.agents.orchestrator import runtime
 from app.models import LinkMistakeWord, VocabularyItem, WordbookEvent, utcnow
+from tests.background import drain_background
 from tests.admin_helpers import ADMIN_ENABLED, login_as
 from tests.agents_helpers import FakeLLM, new_conversation, parse_sse, turn_body, use_fake_llm
 
@@ -65,8 +65,7 @@ def leaked(caplog, extra: tuple[str, ...] = ()) -> list[str]:
 
 async def settle(app) -> None:
     """In-memory SQLite shares one connection: let after-turn hooks and memory jobs finish before the next request."""
-    await asyncio.gather(*list(runtime(app).tasks), return_exceptions=True)
-    await app.state.agent_memory.worker.join()
+    await drain_background(app)
 
 
 MEMORY_OPS = json.dumps({"ops": [{"op": "add", "kind": "fact", "text": "likes SECRET-MEMORY and zebrafishword"}]})

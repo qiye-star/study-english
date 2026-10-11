@@ -1,13 +1,12 @@
 """Tutor turns (through A1 POST /api/agents/turn, mode=tutor; plan A3 S8): META stripping, meta event, fallback, retry,
 finish + memory, concurrency, log hygiene."""
-import asyncio
 import json
 
-from app.agents.orchestrator import runtime
 from app.agents.tutor import service
 from app.agents.tutor.machine import LEVELS
 from app.agents.tutor.parse import Meta
 from app.models import AgentTutorSession, utcnow
+from tests.background import drain_background
 from tests.agents_tutor_helpers import (conversation, enable_agents, fake_stream, install_sources, login, set_state,
                                         start_body, turn)
 
@@ -31,7 +30,7 @@ def metas(events) -> list[dict]:
 
 async def _settle(app) -> None:
     """After-turn hooks share the in-memory SQLite connection with the request: wait for them before the next call."""
-    await asyncio.gather(*list(runtime(app).tasks), return_exceptions=True)
+    await drain_background(app)
 
 
 async def _session(app, client, *, length: int = 3, **kw):
