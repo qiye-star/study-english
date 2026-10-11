@@ -73,3 +73,11 @@ class FakeDeps:
 
     def count(self, name: str, n: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + n
+
+
+def ctx(uid: int, *, text: str = "Let's practise IELTS", thread: str | None = "c1", in_room: bool = False,
+        persona: str = "builtin:coach", **prefs):
+    """A1 的 SourceCtx;persona 只需要 .id,settings 是用户级 AgentSettings 的替身。"""
+    from app.agents.context import SourceCtx
+    return SourceCtx(user_id=uid, persona=SimpleNamespace(id=persona), settings=user_prefs(**prefs), text=text,
+                     thread_id=thread, in_room=in_room)
