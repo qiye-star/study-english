@@ -1,9 +1,11 @@
 import { Component, type ComponentType, type ReactNode, useSyncExternalStore } from "react";
 import { Navigate } from "react-router-dom";
 import {
-  ALL_OFF, contributionsFor, getLinkFlags, subscribeLinkFlags, visible, type Contribution, type LinkFlags, type PointName,
-  type PointProps, type RouteContribution, type WordActionProps,
+  ALL_OFF, contributionsFor, getLinkFlags, markSlotRendererLoaded, subscribeLinkFlags, visible, type Contribution,
+  type LinkFlags, type PointName, type PointProps, type RouteContribution, type WordActionProps,
 } from "./extension-points";
+
+markSlotRendererLoaded();
 
 export function useLinkFlags(): LinkFlags {
   return useSyncExternalStore(subscribeLinkFlags, getLinkFlags, getLinkFlags);

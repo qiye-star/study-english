@@ -15,6 +15,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { POINT_NAMES } from "~/lib/extension-points";
 
 const srcRoot = path.dirname(fileURLToPath(import.meta.url));
 const enjoyRoot = path.resolve(srcRoot, "..", "..", "enjoy");
@@ -114,14 +115,10 @@ function violationsOf(rel: string, source: string): string[] {
 }
 
 const files = walk(srcRoot).map((f) => posix(path.relative(srcRoot, f)));
-// 扫描整棵源码树的用例在全量并行运行时会超过默认 5 秒(同步读几百个文件);源码只读一次
-const SCAN_TIMEOUT = 30_000;
-const sourceCache = new Map<string, string>();
-const sourceOf = (rel: string): string => {
-  let text = sourceCache.get(rel);
-  if (text === undefined) sourceCache.set(rel, (text = readFileSync(path.join(srcRoot, rel), "utf8")));
-  return text;
-};
+// 整棵源码树在收集阶段读一次(不计入用例超时):用例只做正则检查。原先每个扫描用例在自己的 5 秒里同步读几百个文件,
+// 全量并行运行时会超时(L1-3 曾给它们 30 秒;Z1 改成在收集阶段读)。
+const sources = new Map(files.map((rel) => [rel, readFileSync(path.join(srcRoot, rel), "utf8")]));
+const sourceOf = (rel: string): string => sources.get(rel) ?? "";
 
 describe("web architecture boundaries", () => {
   it("finds the source tree", () => {
@@ -140,7 +137,7 @@ describe("web architecture boundaries", () => {
   it("no module crosses a layer boundary", () => {
     const violations = files.flatMap((rel) => violationsOf(rel, sourceOf(rel)));
     expect(violations).toEqual([]);
-  }, SCAN_TIMEOUT);
+  });
 
   it("the scanner catches each kind of forbidden import", () => {
     expect(violationsOf("lib/x.ts", 'import { a } from "~/features/chat";')).toHaveLength(1);
@@ -177,7 +174,7 @@ describe("web architecture boundaries", () => {
     const users = files.filter((f) => !isTest(f) && !f.startsWith("features/vocabulary/")
       && sourceOf(f).includes("AddVocabularyButton"));
     expect(users).toEqual([]);
-  }, SCAN_TIMEOUT);
+  });
 
   it("the cross-feature baseline lists only edges that still exist", () => {
     const edges = new Set<string>();
@@ -190,15 +187,11 @@ describe("web architecture boundaries", () => {
     }
     expect([...CROSS_FEATURE_BASELINE].filter((e) => !edges.has(e))).toEqual([]);
     expect(CROSS_FEATURE_BASELINE.size).toBe(16);
-  }, SCAN_TIMEOUT);
+  });
 
-  // 这三个点的产品渲染点在 L1-2 / L1-3 / L2-2 才出现;为让车道文件不相交,只由 Z1 删掉整个集合
-  const PENDING = new Set(["wordActions", "wordActionsMenu", "dailyTasks"]);
-  it("every extension point is rendered by product code and every contribution names a real point", async () => {
-    const { POINT_NAMES } = await import("~/lib/extension-points");
-    const product = files.filter((f) => !isTest(f)).map((f) => readFileSync(path.join(srcRoot, f), "utf8")).join("\n");
+  it("every extension point is rendered by product code and every contribution names a real point", () => {
+    const product = files.filter((f) => !isTest(f)).map(sourceOf).join("\n");
     for (const p of POINT_NAMES) {
-      if (PENDING.has(p)) continue;
       const rendered = product.includes(`point="${p}"`) || (p === "wordActions" && product.includes("<WordActions"));
       expect(rendered, `point ${p} is rendered somewhere`).toBe(true);
     }

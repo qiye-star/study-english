@@ -96,3 +96,10 @@ const registry = createExtensionRegistry();
 export const {
   contribute, contributeRoute, contributionsFor, routesFor, allRoutes, getLinkFlags, setLinkFlags, subscribeLinkFlags,
 } = registry;
+
+let slotRenderer = false;
+/** extension-points-react 求值时调用。test/setup.ts 据此只给「能渲染插槽」的测试文件加载核心贡献。 */
+export function markSlotRendererLoaded(): void {
+  slotRenderer = true;
+}
+export const slotRendererLoaded = (): boolean => slotRenderer;
