@@ -15,7 +15,7 @@ from app.providers import llm
 from app.rooms.protocol import MAX_ID
 from app.rooms.rules import RoomLimits
 from app.rooms.scenarios import brief
-from app.rooms.store import RoomError
+from app.rooms.store import RoomError, opened_anchor
 from app.rooms.summary import view_for
 from app.rooms.summary_store import SummaryRunner, SummaryStore
 from app.routers.rooms import RoomsRuntime, _raise, require_rooms, runtime
@@ -72,10 +72,15 @@ def _runner(app, rt: RoomsRuntime) -> SummaryRunner:
         room = await rt.store.room(room_id)
         return None if room is None else room.owner_id
 
+    async def opened_of(room_id: str):
+        room = await rt.store.room(room_id)
+        return None if room is None or not room.reopen_count else opened_anchor(room)
+
     return SummaryRunner(store=SummaryStore(sm), complete=complete, consume=consume, refund=refund,
                          template=template, room_info=room_info, limits=limits,
                          available=lambda: settings().rooms_summary_available,
-                         model=lambda: settings().resolved_rooms_ai_model, clock=utcnow, owner_of=owner_of)
+                         model=lambda: settings().resolved_rooms_ai_model, clock=utcnow, owner_of=owner_of,
+                         opened_of=opened_of)
 
 
 def install(app, rt) -> None:
@@ -123,7 +128,8 @@ async def retry_summary(room_id: str, request: Request, user: User = Depends(cur
         _raise(e)
     runner: SummaryRunner = rt.summary_runner
     row = await runner.store.get(room.id)
-    if room.status == "open" or row is None or row.status != "failed" \
+    retryable = row is not None and (row.status == "failed" or (row.status == "done" and row.reason == "stale"))
+    if room.status == "open" or not retryable \
             or not await runner.store.start(room.id, utcnow(), rt.limits.summary_attempts):
         raise HTTPException(409, "Cannot retry")
     rt.hub.spawn(runner.generate(room.id))
