@@ -8,6 +8,9 @@ import { Avatar } from "~/components/avatar";
 import { ttsErrorMessage, useMessageTranslations, useTtsPlayer } from "~/features/chat";
 import { cn } from "~/lib/cn";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
+import { AgentName, AnsweredFor, HandoffLine, PrivateProcess } from "./agents/agent-answer";
+import { agentOf } from "./agents/agent-meta";
+import { mentionsAgent } from "./agents/mentions";
 import { MessageActions } from "./extras/message-actions";
 import { QuoteBlock } from "./extras/quote-block";
 import { ReactionBar } from "./extras/reaction-bar";
@@ -62,6 +65,9 @@ export interface RoomMessageListProps {
   onReact(seq: number, key: ReactionKey, on: boolean): void; onQuote(message: RoomMessage): void;
   /** 返回 false = 没有连接,没发出去 */
   onTranslateVoice(seq: number): boolean; onRetryVoice(seq: number): void;
+  /** 联机智能体(plan 2026-10-12-agents-rooms):本房角色名(推出「Emma 正在回答…」)与点角色名打开角色信息 */
+  agentNames?: string[];
+  onOpenAgent?(personaId: string): void;
 }
 
 /**
@@ -71,7 +77,7 @@ export interface RoomMessageListProps {
  * 系统消息按 i18n 模板渲染(服务端只存 key + 参数)。
  */
 export const RoomMessageList = memo(function RoomMessageList({
-  state, roomId, reported, autoText, onLoadEarlier, onReport, onReact, onQuote, onTranslateVoice, onRetryVoice,
+  state, roomId, reported, autoText, onLoadEarlier, onReport, onReact, onQuote, onTranslateVoice, onRetryVoice, agentNames, onOpenAgent,
 }: RoomMessageListProps) {
   const { t } = useTranslation();
   const tRef = useRef(t);
@@ -122,6 +128,13 @@ export const RoomMessageList = memo(function RoomMessageList({
   translateRef.current = onTranslateVoice;
   const translateQueue = useMemo(() => new TranslateQueue((seq) => translateRef.current(seq)), []);
   const bySeq = useMemo(() => new Map(state.messages.map((m) => [m.seq, m])), [state.messages]);
+  const names = agentNames ?? [];
+  /** 「正在输入」:被回复的是 @角色 的提问时显示角色名(ai_typing 不带角色字段,R-RA9) */
+  const typingLabel = () => {
+    const q = bySeq.get(state.aiTyping[state.aiTyping.length - 1]);
+    const index = q && q.kind === "text" ? mentionsAgent(q.text, names).index : null;
+    return index !== null ? t("web.rooms.agents.typing", { name: names[index] }) : t("web.rooms.room.aiTyping");
+  };
   const jump = useCallback((seq: number) => {
     const el = rootRef.current?.querySelector<HTMLElement>(`[data-seq="${seq}"]`);
     el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
@@ -221,12 +234,20 @@ export const RoomMessageList = memo(function RoomMessageList({
     }
     if (m.kind === "ai_answer") {
       const question = m.replyTo !== null ? bySeq.get(m.replyTo) : undefined;
+      const agent = agentOf(m);
+      // 过程只属于提问者:别人只看到「已回答 · 对 X」(数据本来就不会发给他们,这里不依赖它)
+      const askedByMe = !!agent?.asker && agent.asker.id === meId;
+      const trace = askedByMe ? state.agentTraces[m.seq] : undefined;
+      const run = askedByMe && m.replyTo !== null ? state.agentRuns[m.replyTo] : undefined;
       return (
         <div key={m.id} data-seq={m.seq} data-message-id={m.id} className="flex w-full flex-col items-start">
+          {agent?.handoffFrom && <HandoffLine from={agent.handoffFrom.name} to={agent.agent.name} />}
           <div className="flex max-w-[92%] gap-1">
           <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
             className="min-w-0 rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
-            <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>
+            {agent ? <AgentName agent={agent.agent} onOpen={onOpenAgent} />
+              : <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>}
+            {agent?.asker && !askedByMe && <AnsweredFor name={agent.agent.name} asker={agent.asker.name} />}
             {question && (
               <p className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
             )}
@@ -234,6 +255,7 @@ export const RoomMessageList = memo(function RoomMessageList({
           </div>
           {moreButton(m)}
           </div>
+          {askedByMe && (trace || run) && <PrivateProcess name={agent!.agent.name} run={run} trace={trace} generating={false} align="start" />}
           {under(m, false, "start", false)}
         </div>
       );
@@ -268,6 +290,9 @@ export const RoomMessageList = memo(function RoomMessageList({
           </div>
           {moreButton(m)}
         </div>
+        {mine && m.aiStatus === "pending" && state.agentRuns[m.seq]?.answerSeq === null && (
+          <PrivateProcess name={names[mentionsAgent(m.text, names).index ?? -1] ?? ""} run={state.agentRuns[m.seq]} generating align="end" />
+        )}
         {under(m, mine, mine ? "end" : "start", !mine)}
       </div>
     );
@@ -293,7 +318,7 @@ export const RoomMessageList = memo(function RoomMessageList({
         </div>
       ))}
       {state.aiTyping.length > 0 && (
-        <p role="status" className="self-start text-meta text-ink-2">{t("web.rooms.room.aiTyping")}</p>
+        <p role="status" className="self-start text-meta text-ink-2">{typingLabel()}</p>
       )}
     </div>
   );
