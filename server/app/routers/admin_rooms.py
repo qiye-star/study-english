@@ -6,6 +6,7 @@ kick → system message `kicked` + 4010; hide → `message_hidden{seq}` (the row
 Reading private assistant lanes is audited as `room.view_private`. Never logs message text."""
 import asyncio
 import contextlib
+import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
@@ -25,6 +26,7 @@ from app.rooms.store import RoomError
 from app.routers.rooms import (RoomsRuntime, after_close, announce_reopened, presence, runtime, settle_requests,
                                system_message, _room_json)
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin")
 
 RoomId = Annotated[str, Path(max_length=MAX_ID)]
@@ -131,7 +133,7 @@ async def close_room(room_id: RoomId, payload: ReasonIn, request: Request,
 
 
 REOPEN_ERRORS = {"not_found": (404, "Room not found"), "not_closed": (409, "Room is not closed"),
-                 "no_owner": (409, "Room has no owner"), "too_many": (409, "Owner has too many open rooms"),
+                 "no_owner": (409, "Room has no owner"), "owner_gone": (409, "Room owner is gone"), "too_many": (409, "Owner has too many open rooms"),
                  "capacity": (409, "Room capacity reached")}
 
 
@@ -139,7 +141,7 @@ REOPEN_ERRORS = {"not_found": (404, "Room not found"), "not_closed": (409, "Room
 async def reopen_room(room_id: RoomId, payload: ReasonIn, request: Request,
                       ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
     """Reopens an ended room, including one an operator closed (R-O9). Same caps as the owner path, using the owner's
-    effective quota (R-O7). Audited after the store applied it (`room.reopen`, count only)."""
+    effective quota (R-O7). Audited right after the store applied it and before the announcement, which is best effort (`room.reopen`, count only)."""
     rt = runtime(request.app)
     before = await rt.store.room(room_id)
     if before is None:
@@ -151,9 +153,12 @@ async def reopen_room(room_id: RoomId, payload: ReasonIn, request: Request,
     except RoomError as e:
         status, message = REOPEN_ERRORS.get(e.code, (409, "Cannot reopen"))
         raise HTTPException(status, message) from None
-    await announce_reopened(rt, room, "reopened_admin", {})
     await rooms_admin.record(session, ctx.actor, "room.reopen", room_id, after={"reopen_count": room.reopen_count},
-                             reason=payload.reason)
+                             reason=payload.reason)  # audit first: side effects below must not lose it
+    try:
+        await announce_reopened(rt, room, "reopened_admin", {})
+    except Exception as e:  # already reopened and audited; the announcement is best effort
+        logger.warning("admin rooms reopen announce failed room=%s error=%s", room_id, type(e).__name__)
     return {"ok": True, "reopen_count": room.reopen_count}
 
 

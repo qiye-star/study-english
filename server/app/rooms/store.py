@@ -643,6 +643,10 @@ class RoomStore:
                     raise RoomError("not_found")
                 if room.owner_id is None:
                     raise RoomError("no_owner")
+                if await s.scalar(select(RoomMember.id).where(  # owner left, or the room was retention-purged (members gone)
+                        RoomMember.room_id == room_id, RoomMember.user_id == room.owner_id,
+                        RoomMember.role == "owner", *_ACTIVE)) is None:
+                    raise RoomError("owner_gone")
             else:
                 room = await self._owned_room(s, room_id, user_id, closed=True)
             if room.status != "closed":
@@ -874,9 +878,9 @@ class RoomStore:
                                     .where(RoomSummary.room_id.in_(room_ids)))).all()
         return {room_id: status for room_id, status in rows}
 
-    async def sweep(self, now: datetime, online: set[str]) -> list[tuple[str, str]]:
-        """Close idle/expired rooms. Never deletes messages (that is `purge`, off by default)."""
-        closed: list[tuple[str, str]] = []
+    async def _sweep_candidates(self, now: datetime, online: set[str]) -> list[tuple[str, str, int, datetime | None]]:
+        """(id, reason, reopen_count, opened_at) of the open rooms that are idle or past their age limit."""
+        found = []
         async with self._sm() as s:
             for room in (await s.scalars(select(Room).where(Room.status == "open"))).all():
                 reason = None
@@ -885,9 +889,24 @@ class RoomStore:
                 elif room.id not in online and as_utc(room.last_active_at) <= now - timedelta(minutes=self.limits.idle_minutes):
                     reason = "idle"
                 if reason:
-                    room.status, room.code, room.closed_at, room.close_reason = "closed", None, now, reason
-                    closed.append((room.id, reason))
-            await s.commit()
+                    found.append((room.id, reason, room.reopen_count or 0, room.opened_at))
+        return found
+
+    async def sweep(self, now: datetime, online: set[str]) -> list[tuple[str, str]]:
+        """Close idle/expired rooms. Never deletes messages (that is `purge`, off by default). Each close is a
+        conditional UPDATE on the same life (status open, same reopen_count / opened_at), so a room closed and
+        reopened between the read and the write is left open; only rooms actually closed are reported."""
+        closed: list[tuple[str, str]] = []
+        for room_id, reason, count, opened_at in await self._sweep_candidates(now, online):
+            same_life = (Room.opened_at.is_(None) if opened_at is None else Room.opened_at == opened_at)
+            async with self._sm() as s:
+                result = await s.execute(
+                    update(Room).where(Room.id == room_id, Room.status == "open", func.coalesce(Room.reopen_count, 0) == count,
+                                       same_life)
+                    .values(status="closed", code=None, closed_at=now, close_reason=reason))
+                await s.commit()
+            if result.rowcount == 1:
+                closed.append((room_id, reason))
         return closed
 
     async def purge(self, now: datetime) -> int:

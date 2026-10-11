@@ -52,7 +52,8 @@ ROOM_ERRORS: dict[str, tuple[int, str]] = {
     "below_members": (409, "Below current members"), "cooldown": (429, "Try again later"),
     "too_many_requests": (429, "Too many requests for this room"), "no_request": (404, "Request not found"),
     "not_closed": (409, "Room is not closed"), "admin_closed": (403, "Closed by an administrator"),
-    "no_owner": (409, "Room has no owner"), "tutor_active": (409, "Room tutor is running"),
+    "no_owner": (409, "Room has no owner"), "owner_gone": (409, "Room owner is gone"),
+    "tutor_active": (409, "Room tutor is running"),
 }
 
 
@@ -659,8 +660,11 @@ async def reopen_room(room_id: str, request: Request, user: User = Depends(curre
         room = await rt.store.reopen(room_id, user.id, utcnow(), max_owned=max_owned)
     except RoomError as e:
         _raise(e)
-    await announce_reopened(rt, room, "reopened", {"name": user.username})
     logger.info("rooms reopened room=%s count=%d", room.id, room.reopen_count)
+    try:  # the room is already open: a failed announcement must not turn the reopen into a 500
+        await announce_reopened(rt, room, "reopened", {"name": user.username})
+    except Exception as e:
+        logger.warning("rooms reopen announce failed room=%s error=%s", room.id, type(e).__name__)
     return {"room": await _room_json(rt, room, "owner")}
 
 

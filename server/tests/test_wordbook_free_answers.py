@@ -15,7 +15,7 @@ from tests.wordbook_helpers import enable_wordbook, make_data_dir
 URL = "/api/wordbook"
 
 
-async def login(app, client, tmp_path, **overrides):
+async def login(app, client, tmp_path, backdate=True, **overrides):
     enable_wordbook(app, make_data_dir(tmp_path, ("junior", "senior")), wordbook_books="junior,senior", **overrides)
     r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -23,6 +23,10 @@ async def login(app, client, tmp_path, **overrides):
     for key in ("talk", "ability", "able"):  # 都是「认识」:盒 2,明天之后到期
         await client.post(f"{URL}/answers", headers=h, json={
             "book_id": "junior", "key": key, "mode": "learn", "qtype": "recall", "rating": "know", "tz_offset_minutes": 480})
+    if backdate:  # learned days ago: a just-learned word is not pullable (R-L6)
+        async with app.state.sessionmaker() as s:
+            await s.execute(update(VocabularyItem).values(created_at=utcnow() - timedelta(days=3)))
+            await s.commit()
     return h
 
 
@@ -120,6 +124,14 @@ async def test_a_word_reviewed_within_24_hours_is_not_pulled(app, client, tmp_pa
     before = await row(app, "talk")
     r = (await choice(client, h, "talk", right=False)).json()
     assert r["applied"] is False and (await row(app, "talk")).due_at == before.due_at
+
+
+async def test_a_word_learned_minutes_ago_is_not_pulled_even_if_never_reviewed(app, client, tmp_path):
+    h = await login(app, client, tmp_path, backdate=False)
+    before = await row(app, "talk")
+    r = (await choice(client, h, "talk", right=False)).json()
+    assert r["outcome"] == "wrong" and r["applied"] is False
+    assert (await row(app, "talk")).due_at == before.due_at
 
 
 async def test_daily_pull_cap_still_grades_but_stops_queueing(app, client, tmp_path, monkeypatch):

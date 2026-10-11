@@ -90,6 +90,7 @@ async def test_regeneration_failure_keeps_the_old_summary_readable(env, caplog):
     await runner.run(room.id)
     old = (await store.get(room.id)).data
     await end_and_reopen(rooms, room, st, 1)
+    await say(rooms, room, 1, st["now"], prefix="New")  # a regeneration needs something said after the reopen
     await rooms.close(room.id, "idle", st["now"])
     st["fail"] = True
     assert await runner.run(room.id) == "failed"  # the run reports what happened ...
@@ -103,6 +104,7 @@ async def test_stale_summary_can_be_retried_while_attempts_remain(env):
     await say(rooms, room, 3, T0)
     await runner.run(room.id)
     await end_and_reopen(rooms, room, st, 1)
+    await say(rooms, room, 1, st["now"], prefix="New")  # a regeneration needs something said after the reopen
     await rooms.close(room.id, "owner", st["now"])
     st["fail"] = True
     await runner.run(room.id)
@@ -143,8 +145,58 @@ async def test_regeneration_still_spends_the_daily_budget(env):
     await runner.run(room.id)
     spent = 99 - st["quota"]
     await end_and_reopen(rooms, room, st, 1)
+    await say(rooms, room, 1, st["now"], prefix="New")  # a regeneration needs something said after the reopen
     await rooms.close(room.id, "owner", st["now"])
     st["quota"] = 0
     await runner.run(room.id)
     row = await store.get(room.id)
     assert (row.status, row.reason) == ("done", "stale") and spent == 1  # the fixture runner has no owner_of: one global count; quota out -> old kept
+
+
+async def test_reopen_without_new_messages_keeps_the_summary_and_spends_nothing(env):
+    rooms, room, store, runner, st = env
+    await say(rooms, room, 3, T0)
+    assert await runner.run(room.id) == "done"
+    first = await store.get(room.id)
+    used = 99 - st["quota"]
+    await end_and_reopen(rooms, room, st, 1)
+    await rooms.close(room.id, "owner", st["now"] + timedelta(minutes=5))
+    st["now"] += timedelta(minutes=5)
+    st["raw"] = good("coffee")
+    assert await runner.run(room.id) == "done"
+    row = await store.get(room.id)
+    assert row.status == "done" and row.data == first.data and row.created_at == first.created_at
+    assert 99 - st["quota"] == used  # no second daily-cap charge, no second LLM call
+
+
+async def test_close_reopen_close_while_first_run_is_pending_reruns_with_both_sessions(env):
+    import asyncio
+    rooms, room, store, runner, st = env
+    gate, calls = asyncio.Event(), []
+
+    async def complete(messages, max_tokens, temperature):
+        calls.append(1)
+        if len(calls) == 1:
+            await gate.wait()
+            return good("noodles")
+        return good("coffee")
+
+    runner.complete = complete
+    await say(rooms, room, 3, T0)
+    await rooms.close(room.id, "owner", T0)
+    first = asyncio.create_task(runner.run(room.id))
+    for _ in range(500):
+        if calls:
+            break
+        await asyncio.sleep(0.01)
+    assert calls and (await store.get(room.id)).status == "pending"
+    st["now"] = T0 + timedelta(hours=1)
+    await rooms.reopen(room.id, A, st["now"])
+    await say(rooms, room, 3, st["now"], prefix="Then")
+    await rooms.close(room.id, "owner", st["now"] + timedelta(minutes=5))
+    st["now"] += timedelta(minutes=5)
+    assert await runner.run(room.id) == "pending"  # the in-flight run owns the row; it is marked for a re-run
+    gate.set()
+    await first
+    row = await store.get(room.id)
+    assert len(calls) == 2 and row.status == "done" and row.data["words"][0]["en"] == "coffee"

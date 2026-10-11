@@ -61,6 +61,9 @@ def _local_midnight(day: str, offset: int) -> datetime:
 
 def date_bounds(since: str | None, until: str | None, offset: int) -> tuple[datetime | None, datetime | None]:
     """学习日期范围(本地日,首尾都含)→ UTC 半开区间 [起, 止)。"""
-    start = _local_midnight(since, offset) if since else None
-    end = _local_midnight(until, offset) + timedelta(days=1) if until else None
+    try:
+        start = _local_midnight(since, offset) if since else None
+        end = _local_midnight(until, offset) + timedelta(days=1) if until else None
+    except OverflowError as e:  # 0001-01-01 / 9999-12-31 加时区偏移越界:与坏日期同为 ValueError(→ 422 INVALID_DATE)
+        raise ValueError("date out of range") from e
     return start, end

@@ -390,12 +390,15 @@ async def free_pool(session: AsyncSession, user_id: int, sources: Sequence[str],
 
 
 async def pull_eligible(session: AsyncSession, user_id: int, item_id: str, now: datetime) -> bool:
-    """这个词能不能被自由答错拉到今天到期:存在,且 24 小时内没有正式复习过(R-L6)。"""
-    found = (await session.execute(select(VocabularyItem.id, VocabularyItem.last_reviewed_at).where(
+    """这个词能不能被自由答错拉到今天到期:存在,且 24 小时内既没有正式复习过、也不是刚学的(R-L6)。
+    没复习过的词以学习时间(`created_at`)计:刚学的词不能「学 → 自由答错 → 当天正式复习」刷一点。"""
+    found = (await session.execute(select(VocabularyItem.id, VocabularyItem.last_reviewed_at,
+                                          VocabularyItem.created_at).where(
         VocabularyItem.id == item_id, VocabularyItem.user_id == user_id))).first()
     if found is None:
         return False
-    return found.last_reviewed_at is None or as_utc(found.last_reviewed_at) <= now - FREE_PULL_QUIET
+    last = found.last_reviewed_at or found.created_at
+    return last is None or as_utc(last) <= now - FREE_PULL_QUIET
 
 
 async def pull_due(session: AsyncSession, user_id: int, item_id: str, now: datetime) -> bool:
