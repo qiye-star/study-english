@@ -257,6 +257,9 @@ class Room(Base):
     # ---- reopen (spec 2026-10-12 part 2): the expiry clock starts at the last (re)opening ----
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # NULL = created_at
     reopen_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # ---- agents in rooms (plan 2026-10-12-agents-rooms R-RA1, migration 0017); none_as_null: None is SQL NULL ----
+    agent_config: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    agent_tutor: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
 
 
 class RoomMember(Base):

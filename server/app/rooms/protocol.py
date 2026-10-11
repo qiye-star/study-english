@@ -34,6 +34,7 @@ PROTOCOL_VERSION = 2
 # Lowercase, no underscores: the web camelcases object keys, so reactions travel as [{key, user_ids}] (R2-15).
 REACTION_KEYS = ("like", "love", "haha", "wow", "clap", "thanks")
 ACTIVITY_STATES = ("typing", "recording", "idle")
+MAX_AGENTS = 2  # personas a room owner can pick (spec 2026-10-12-agents §9.2)
 
 SERVER_EVENT_TYPES = (
     "welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed",
