@@ -174,6 +174,28 @@
         "home": "回到首页",
         "again": "再来一轮"
       },
+      "learned": {
+        "title": "已学词",
+        "row": { "title": "已学词", "count_one": "已学 {{n}} 词", "count_other": "已学 {{n}} 词", "hint": "回顾、筛选、随时复习" },
+        "box": { "label": "熟练度", "learning": "新学", "growing": "巩固中", "mastered": "熟练", "segment": "{{label}} {{n}} 词" },
+        "search": { "label": "按英文前缀搜索", "placeholder": "单词开头,如 ab" },
+        "filters": { "book": "词书", "allBooks": "全部词书", "weak": "易错", "since": "学于此日起", "until": "学于此日止", "clear": "清除筛选" },
+        "list": { "label": "已学词", "learnedOn": "{{date}} 学", "weak": "易错", "dueNow": "已到期", "dueOn": "{{date}} 复习", "more": "加载更多", "end": "已显示全部" },
+        "empty": { "title": "还没有已学的词", "body": "学几个新词,它们会出现在这里。", "cta": "去学新词", "filtered": "没有符合条件的词", "clear": "清除筛选" },
+        "card": { "unavailable": "词卡暂时打不开" },
+        "free": {
+          "open": "自由复习", "title": "自由复习",
+          "note": "不计段位点,不占每日复习上限;答错的词会加入今天的复习。",
+          "scope": { "label": "范围", "yesterday": "昨天学的", "last7": "最近 7 天", "book": "某一本书", "tier": "某个熟练度", "weak": "易错词", "all": "随机抽取" },
+          "pickBook": "词书", "pickTier": "熟练度",
+          "mode": { "label": "方式", "browse": "翻卡浏览", "recall": "快速回忆", "choice": "选择题", "spell": "拼写" },
+          "count": { "label": "数量", "n": "{{n}} 个" },
+          "start": "开始", "starting": "准备中",
+          "summary": { "note": "自由复习不计段位点,也不改变复习计划。", "queued_one": "{{n}} 个答错的词已加入今天的复习。", "queued_other": "{{n}} 个答错的词已加入今天的复习。", "back": "回到已学词" },
+          "browse": { "title": "翻卡浏览", "progress": "{{n}} / {{total}}", "flip": "翻面", "prev": "上一个", "next": "下一个", "finish": "看完了", "done": "这一组看完了", "again": "再看一遍" }
+        },
+        "errors": { "cursor": "列表已过期,请刷新", "date": "日期不正确", "scope": "复习范围不正确", "nothing": "这个范围里还没有可复习的词", "freeLimit": "今天开始自由复习的次数已用完" }
+      },
       "goals": {
         "title": "每日目标",
         "open": "每日目标设置",

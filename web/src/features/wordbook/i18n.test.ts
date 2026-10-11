@@ -36,6 +36,9 @@ describe("English counts are pluralised (review m10)", () => {
     expect(t("web.wordbook.goals.streak.cellDays", { n: 1, count: 1 })).toBe("1 day");
     expect(t("web.wordbook.goals.streak.cellDays", { n: 2, count: 2 })).toBe("2 days");
     expect(t("web.wordbook.goals.reset.learned", { n: 2, count: 2 })).toBe("2 words learned in this book");
+    expect(t("web.wordbook.learned.row.count", { count: 1, n: 1 })).toBe("1 word learned");
+    expect(t("web.wordbook.learned.row.count", { count: 5, n: 5 })).toBe("5 words learned");
+    expect(t("web.wordbook.learned.free.summary.queued", { count: 1, n: 1 })).toBe("1 missed word was added to today's review.");
   });
 
   it("keeps the Chinese copy unchanged", async () => {
@@ -45,6 +48,7 @@ describe("English counts are pluralised (review m10)", () => {
     expect(i18n.t("web.wordbookSpell.setHead", { n: 1, total: 2, words: 1, count: 1 })).toBe("第 1 组 / 共 2 组 · 1 个词");
     expect(i18n.t("web.wordbook.goals.presets.days", { days: 1, count: 1 })).toBe("约 1 天学完");
     expect(i18n.t("web.wordbook.goals.streak.cellDays", { n: 12, count: 12 })).toBe("12 天");
+    expect(i18n.t("web.wordbook.learned.row.count", { count: 3, n: 3 })).toBe("已学 3 词");
   });
 });
 

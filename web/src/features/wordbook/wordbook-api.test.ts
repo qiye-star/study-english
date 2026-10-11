@@ -3,7 +3,7 @@ import { ApiClient } from "~/api/client";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh-CN.json";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { type Card, fetchToday, reviewBatch, submitAnswer, submitSpell, WORDBOOK_SERVER_ERRORS } from "./wordbook-api";
+import { type Card, fetchLearned, fetchLearnedCard, fetchLearnedSummary, fetchToday, startFree, reviewBatch, submitAnswer, submitSpell, WORDBOOK_SERVER_ERRORS } from "./wordbook-api";
 
 const api = (routes: Parameters<typeof createFetchMock>[0]) => {
   const mock = createFetchMock(routes);
@@ -77,10 +77,54 @@ describe("wordbook api", () => {
       "Book not enrolled", "Clear the review backlog first", "Confirmation does not match", "Conflicting review cap",
       "Daily bonus limit reached", "Daily new words out of range", "Daily reset limit reached", "Finish today's new words first",
       "No changes", "No new words left in this book", "Review cap out of range", "Too many settings changes today", "Unlimited reviews are off",
+      // learned words and free review
+      "Invalid cursor", "Invalid date", "Invalid scope", "No words to review", "Daily free-review limit reached",
     ].sort());
     for (const key of Object.values(WORDBOOK_SERVER_ERRORS)) {
       expect(typeof lookup(en, key), key).toBe("string");
       expect(typeof lookup(zh, key), key).toBe("string");
     }
+  });
+});
+
+describe("learned words and free review api", () => {
+  it("sends the prefix and every filter in the POST body, never in the URL", async () => {
+    const { mock, api: client } = api({ "POST /api/wordbook/learned/query": () => json({ items: [], next_cursor: null }) });
+    await fetchLearned(client, { q: "ab", tier: "growing", weak: true, since: "2026-10-01" });
+    const call = mock.calls[0];
+    expect(call.url.search).toBe("");
+    expect(call.url.pathname).toBe("/api/wordbook/learned/query");
+    expect(JSON.parse(String(call.body))).toEqual({ q: "ab", tier: "growing", weak: true, since: "2026-10-01", tz_offset_minutes: expect.any(Number) });
+  });
+
+  it("camelCases the summary and keeps by_book a list", async () => {
+    const { api: client } = api({
+      "GET /api/wordbook/learned/summary": () => json({
+        total: 3, by_box: [1, 1, 1, 0, 0, 0], by_tier: { learning: 2, growing: 1, mastered: 0 }, by_book: [{ book_id: "junior", count: 3 }],
+        weak: 1, yesterday: 0, last7: 3,
+      }),
+    });
+    expect(await fetchLearnedSummary(client)).toEqual({
+      total: 3, byBox: [1, 1, 1, 0, 0, 0], byTier: { learning: 2, growing: 1, mastered: 0 }, byBook: [{ bookId: "junior", count: 3 }],
+      weak: 1, yesterday: 0, last7: 3,
+    });
+  });
+
+  it("posts the card lookup and the free draw with snake_case bodies and no word in the URL", async () => {
+    const { mock, api: client } = api({
+      "POST /api/wordbook/learned/card": () => json({ key: "talk" }),
+      "POST /api/wordbook/free/start": () => json({ set_id: "abc", scope: "all", mode: "browse", items: [] }),
+    });
+    await fetchLearnedCard(client, "junior", "talk");
+    await startFree(client, { scope: "book", mode: "choice", count: 20, book: "junior" });
+    expect(mock.calls.map((c) => c.url.search)).toEqual(["", ""]);
+    expect(JSON.parse(String(mock.calls[0].body))).toEqual({ book_id: "junior", key: "talk" });
+    expect(JSON.parse(String(mock.calls[1].body))).toMatchObject({ scope: "book", mode: "choice", count: 20, book: "junior" });
+  });
+
+  it("answers can be sent in free mode", async () => {
+    const { mock, api: client } = api({ "POST /api/wordbook/answers": () => json({ correct: true, outcome: "correct", grade: "good", expected: "talk", diff: null, item: null, applied: false }) });
+    await submitAnswer(client, { bookId: "junior", key: "talk", mode: "free", qtype: "word", choice: "talk" });
+    expect(JSON.parse(String(mock.calls[0].body)).mode).toBe("free");
   });
 });
