@@ -10,7 +10,8 @@ from sqlalchemy.orm import aliased
 from app.admin import audit
 from app.admin.audit import Actor
 from app.admin.service import _escape_like, paginate
-from app.models import Room, RoomMember, RoomMessage, RoomReport, RoomVoice, User, iso_utc
+from app.agents.personas import builtin_personas
+from app.models import AgentPersona, Room, RoomMember, RoomMessage, RoomReport, RoomVoice, User, iso_utc
 from app.rooms.rules import clean_settings
 
 Resolution = Literal["dismissed", "removed_message", "kicked", "closed_room"]
@@ -79,6 +80,32 @@ async def list_rooms(session, *, status: Literal["open", "closed", "all"], q: st
             "page": page, "next": nxt, "total": int(await session.scalar(count) or 0)}
 
 
+async def _agents_out(session, room: Room) -> list[dict]:
+    """The room's agents for moderators: names and status only (prompts are reviewed on the admin agents page)."""
+    raw = room.agent_config if isinstance(room.agent_config, dict) else {}
+    builtin = {p.id: p for p in builtin_personas()}
+    out = []
+    for persona_id in raw.get("persona_ids") or []:
+        if persona_id in builtin:
+            out.append({"id": persona_id, "name": builtin[persona_id].name, "builtin": True, "disabled": False,
+                        "owner_id": None})
+            continue
+        row = await session.get(AgentPersona, persona_id)
+        if row is not None:
+            out.append({"id": persona_id, "name": row.name, "builtin": False, "disabled": row.disabled_at is not None,
+                        "owner_id": row.owner_id})
+    return out
+
+
+def _tutor_out(room: Room) -> dict | None:
+    """Phase and progress only: the tutor snapshot's machine state and run id never leave the server."""
+    snap = room.agent_tutor if isinstance(room.agent_tutor, dict) else None
+    if snap is None:
+        return None
+    return {"phase": snap.get("phase"), "step_index": snap.get("step_index"), "steps_total": snap.get("steps_total"),
+            "persona_id": snap.get("persona_id")}
+
+
 async def room_detail(session, room_id: str, online: set[int]) -> dict | None:
     members, messages, reports = _counts()
     row = (await session.execute(select(Room, User.username, members, messages, reports)
@@ -93,6 +120,7 @@ async def room_detail(session, room_id: str, online: set[int]) -> dict | None:
                                          .where(RoomReport.room_id == room_id))
     return {**_room_row(room, owner, m, n, rep, len(online)),
             "settings": settings_out(room),
+            "agents": await _agents_out(session, room), "tutor": _tutor_out(room),
             "report_count": int(total_reports or 0),
             "members": [{"user_id": mm.user_id, "name": name, "role": mm.role, "joined_at": iso_utc(mm.joined_at),
                          "left_at": _iso(mm.left_at), "kicked": bool(mm.kicked), "online": mm.user_id in online}
@@ -118,7 +146,8 @@ def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None, 
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
             "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": sender},
             "audience": None if m.audience_id is None else {"id": m.audience_id, "name": audience},
-            "text": m.text, "meta": m.meta, "assisted": bool(m.assisted), "reply_to": m.reply_to,
+            "text": m.text, "meta": None if m.kind == "agent_trace" else m.meta,  # traces stay private (R-RA6)
+             "assisted": bool(m.assisted), "reply_to": m.reply_to,
             "ai_status": m.ai_status, "created_at": iso_utc(m.created_at), "hidden": m.hidden_at is not None,
             "hidden_at": _iso(m.hidden_at), "voice": None if voice is None else admin_voice_out(voice)}
 
