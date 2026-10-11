@@ -13,8 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.models import WordbookEnrollment, WordbookEvent, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
-from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review
+from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review, normalize_word
 from app.wordbook import plan as planning
+from app.wordbook import learned
 from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
@@ -53,6 +54,11 @@ BOOK_FINISHED = (409, "No new words left in this book")
 BONUS_LIMIT = (429, "Daily bonus limit reached")
 RESET_LIMIT = (429, "Daily reset limit reached")
 CONFIRM_MISMATCH = (422, "Confirmation does not match")
+INVALID_CURSOR = (422, "Invalid cursor")
+INVALID_DATE = (422, "Invalid date")
+INVALID_SCOPE = (422, "Invalid scope")
+NOTHING_TO_REVIEW = (409, "No words to review")
+FREE_LIMIT = (429, "Daily free-review limit reached")
 STREAK_LOOKBACK_DAYS = 400
 DEFAULT_LIMITS = GoalLimits(WORDBOOK_NEW_BOUNDS[0], WORDBOOK_NEW_BOUNDS[1], WORDBOOK_REVIEW_BOUNDS[0],
                             WORDBOOK_REVIEW_BOUNDS[1], True, 50)  # 没传 settings 的调用点(GP-1)
@@ -812,3 +818,84 @@ async def reset_progress(session: AsyncSession, user_id: int, settings: Settings
     await session.commit()
     e = await store.get_enrollment(session, user_id, book_id)
     return {"removed": removed, "enrollment": enrollment_out(e, limits_of(settings))}
+
+
+# ---- 已学词与自由复习(spec 2026-10-12 wordbook-review §1;计划 2026-10-12-wordbook-learned-review)----
+
+@dataclass(frozen=True)
+class LearnedQuery:
+    book: str | None
+    tier: str | None
+    weak: bool
+    since: str | None
+    until: str | None
+    q: str | None
+    cursor: str | None
+    limit: int
+    offset: int
+
+
+def _learned_sources(settings: Settings, book: str | None) -> list[str]:
+    enabled = enabled_books(settings.wordbook_books)  # R-L2:停用的书保留记录但不列出
+    if book is not None:
+        if book not in enabled:
+            fail(BOOK_NOT_FOUND)
+        enabled = (book,)
+    return store.learned_sources(enabled)
+
+
+async def learned_summary(session: AsyncSession, user_id: int, settings: Settings, offset: int, now) -> dict:
+    enabled = enabled_books(settings.wordbook_books)
+    grouped, weak, y_count, w_count = await store.learned_counts(
+        session, user_id, store.learned_sources(enabled),
+        yesterday=(planning.day_end(now, offset, -2), planning.day_end(now, offset, -1)),
+        last7_start=planning.day_end(now, offset, -7))
+    by_box, by_book = [0] * 6, {}
+    for source, box, n in grouped:
+        by_box[min(max(box, 0), 5)] += n
+        book_id = source[len(store.SOURCE_PREFIX):]
+        by_book[book_id] = by_book.get(book_id, 0) + n
+    return {"total": sum(by_box), "by_box": by_box,
+            "by_tier": {name: sum(by_box[lo:hi + 1]) for name, (lo, hi) in learned.TIERS.items()},
+            "by_book": [{"book_id": b, "count": by_book[b]} for b in enabled if b in by_book],  # 列表,不是映射(R-L16)
+            "weak": weak, "yesterday": y_count, "last7": w_count}
+
+
+async def learned_list(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: LearnedQuery,
+                       now) -> dict:
+    sources = _learned_sources(settings, p.book)
+    try:
+        since, until = learned.date_bounds(p.since, p.until, p.offset)
+    except ValueError:
+        fail(INVALID_DATE)
+    after = None
+    if p.cursor is not None:
+        after = learned.decode_cursor(p.cursor)
+        if after is None:
+            fail(INVALID_CURSOR)
+    prefix = normalize_word(p.q) if p.q else None
+    rows, more = await store.learned_page(session, user_id, sources, tier=p.tier, weak=p.weak, since=since, until=until,
+                                          prefix=prefix, after=after, limit=p.limit)
+    await ensure_hidden(session, ds)
+    heads: dict[tuple[str, str], str] = {}
+    for book_id in dict.fromkeys(r.book_id for r in rows):  # R-L12:词典不可用的书退回规范化键
+        try:
+            found = await ds.cards(book_id, [r.word for r in rows if r.book_id == book_id])
+        except DataUnavailable:
+            continue
+        heads.update({(book_id, k): c.word for k, c in found.items()})
+    items = [{"book_id": r.book_id, "key": r.word, "word": heads.get((r.book_id, r.word), r.word), "box": r.box,
+              "tier": learned.tier_of(r.box), "learned_at": iso_utc(r.created_at), "due_at": iso_utc(r.due_at),
+              "weak": learned.is_weak(r.box, r.lapses)} for r in rows]
+    return {"items": items,
+            "next_cursor": learned.encode_cursor(rows[-1].created_at, rows[-1].id) if more and rows else None}
+
+
+async def learned_card(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, book_id: str,
+                       key: str) -> dict:
+    """已学词的词卡(POST 体里带词,不进 URL;R-L4)。不是这个用户这本书里的已学词 → 404。"""
+    book_or_fail(settings, book_id)
+    row = await store.known_one(session, user_id, key)
+    if row is None or row.source != store.wordbook_source(book_id):
+        fail(WORD_NOT_FOUND)
+    return await card_detail(session, ds, settings, book_id, key)

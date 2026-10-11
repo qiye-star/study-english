@@ -17,6 +17,7 @@ from app.rank.rules_store import rank_rules
 from app.services.prompts import prompt_cache
 from app.services.vocabulary import normalize_word
 from app.wordbook import explain as wb_explain
+from app.wordbook import learned
 from app.wordbook import service
 from app.wordbook.index import dictionary
 
@@ -342,5 +343,59 @@ async def wordbook_reset(payload: ResetIn, request: Request, user: User = Depend
         return await service.reset_progress(session, user.id, settings, book_id=payload.book_id,
                                             confirm=payload.confirm, offset=payload.tz_offset_minutes, now=utcnow(),
                                             seed=secrets.randbelow(2**31), before_delete=settle)
+    except service.WordbookError as e:
+        _raise(e)
+
+
+# ---- 已学词(计划 2026-10-12-wordbook-learned-review;词与前缀只在 POST 体里,R-L4)----
+
+DAY = r"^\d{4}-\d{2}-\d{2}$"
+
+
+class LearnedQueryIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book: str | None = Field(None, max_length=16)
+    tier: Literal["learning", "growing", "mastered"] | None = None
+    weak: bool = False
+    since: str | None = Field(None, pattern=DAY)
+    until: str | None = Field(None, pattern=DAY)
+    q: str | None = Field(None, max_length=learned.PREFIX_MAX)
+    cursor: str | None = Field(None, max_length=200)
+    limit: int = Field(learned.PAGE_MAX, ge=1, le=learned.PAGE_MAX)
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+class LearnedCardIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(max_length=16)
+    key: str = Field(min_length=1, max_length=100)
+
+
+@router.get("/learned/summary")
+async def wordbook_learned_summary(request: Request, tz_offset_minutes: int = Query(0, ge=TZ_MIN, le=TZ_MAX),
+                                   user: User = Depends(current_user), session: AsyncSession = Depends(get_session),
+                                   settings: Settings = Depends(require_wordbook)):
+    return await service.learned_summary(session, user.id, settings, tz_offset_minutes, utcnow())
+
+
+@router.post("/learned/query")
+async def wordbook_learned_query(payload: LearnedQueryIn, request: Request, user: User = Depends(current_user),
+                                 session: AsyncSession = Depends(get_session),
+                                 settings: Settings = Depends(require_wordbook)):
+    p = service.LearnedQuery(payload.book, payload.tier, payload.weak, payload.since, payload.until, payload.q,
+                             payload.cursor, payload.limit, payload.tz_offset_minutes)
+    try:
+        return await service.learned_list(session, dictionary(request.app), user.id, settings, p, utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
+@router.post("/learned/card")
+async def wordbook_learned_card(payload: LearnedCardIn, request: Request, user: User = Depends(current_user),
+                                session: AsyncSession = Depends(get_session),
+                                settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.learned_card(session, dictionary(request.app), user.id, settings, payload.book_id,
+                                          normalize_word(payload.key))
     except service.WordbookError as e:
         _raise(e)
