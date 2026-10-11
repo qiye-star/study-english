@@ -179,7 +179,8 @@ class AgentLane:
             await self._handoff(route, *done)
 
     async def _turn(self, r: "ConnDeps", route: AgentRoute, seq: int, message_id: str) -> tuple[int, str, str] | None:
-        await r.hub.broadcast(route.room_id, event("ai_typing", reply_to=seq))
+        if route.depth == 0:  # a hand-off continues a delivered answer: no typing / failure frames under it
+            await r.hub.broadcast(route.room_id, event("ai_typing", reply_to=seq))
         turn_id = self.deps.new_id()
         parts: list[str] = []
         trace = None
@@ -193,8 +194,11 @@ class AgentLane:
             req = TurnRequest(user_id=route.asker_id, persona=route.persona, conversation_id=None,
                               room_id=route.room_id, text=self._input(route), history=_history(rows, route.persona.id),
                               mode="chat", tutor_session_id=None, client_turn_id=turn_id, in_room=True)
-            deps = self.deps.turn_deps(allow_private=prefs.share_in_rooms,
-                                       memory=prefs.memory_enabled and route.depth == 0,
+            # The persona is its OWNER's text: another member's persona (and any hand-off target) must never receive
+            # the asker's private sources or memory, whatever its prompt says (ROOM_RULES is only a prompt).
+            mine = route.depth == 0 and (route.persona.builtin or route.persona.owner_id == route.asker_id)
+            deps = self.deps.turn_deps(allow_private=prefs.share_in_rooms and mine,
+                                       memory=prefs.memory_enabled and mine,
                                        modes={"chat": RoomChatMode(route.asker_name, others)})
             metering.bind_user(route.asker_id)  # the asker pays (admin usage), like @ai
             with metering.feature_scope("rooms"):
@@ -220,8 +224,11 @@ class AgentLane:
         if failure is not None or not text:
             code = FAIL_CODES.get(failure or "", "upstream")
             logger.info("room agent turn failed code=%s kind=%s depth=%d", code, failure or "empty", route.depth)
-            await r.store.set_ai_status(message_id, "failed")
             await r.refund("room_ai_global", GLOBAL)
+            if route.depth > 0:  # `message_id` is the first agent's already delivered answer: it stays "done"
+                await r.store.set_ai_status(message_id, "done")
+                return None
+            await r.store.set_ai_status(message_id, "failed")
             await r.hub.broadcast(route.room_id, event("ai_failed", reply_to=seq, code=code))
             return None
         meta = {"agent": agent_config.agent_meta(route.persona), "asker": {"id": route.asker_id, "name": route.asker_name}}

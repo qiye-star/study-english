@@ -79,3 +79,4 @@ Contract fixtures (`CONTRACT_UPDATE=1` re-records): `tests/fixtures/rooms_contra
 - `RoomsRuntime.reconfigure` (hub listener `rooms_runtime`) applies hot-reloaded limits; switching rooms off closes
   sockets with 4003, maintenance with 1012. `rt.voice` is always installed (translation keeps working when the voice
   switch is off); `ROOMS_VOICE_CONCURRENCY` is read once at startup.
+- Room agents (`agent_lane.py`): a persona is its owner's text. `allow_private` / `memory` are on only when the asker's `share_in_rooms` / `memory_enabled` allow it AND the persona is built-in or owned by the asker AND the turn is not a hand-off; never rely on `ROOM_RULES` alone. A failed hand-off turn only refunds and restores the first answer's `ai_status` to `done` (no `ai_typing` / `ai_failed` for hand-offs, because `ai_failed.reply_to` would mark the delivered answer failed on clients).

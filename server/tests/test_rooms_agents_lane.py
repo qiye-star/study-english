@@ -32,6 +32,7 @@ class Script:
         self.replies = {EMMA.id: "Sure, try: I never abandon a project halfway.", LEO.id: "The grammar is right."}
         self.calls = []
         self.error = None
+        self.fail_for: set[str] = set()
         self.block: asyncio.Event | None = None
 
     async def run_turn(self, deps, req):
@@ -40,8 +41,8 @@ class Script:
         yield Thought(source="summary", text="look up abandon")
         if self.block is not None:
             await self.block.wait()
-        if self.error is not None:
-            yield Error(code=self.error)
+        if self.error is not None or req.persona.id in self.fail_for:
+            yield Error(code=self.error or "upstream")
             return
         text = self.replies[req.persona.id]
         yield Delta(text=text)
@@ -233,6 +234,22 @@ async def test_hand_off_runs_once_with_depth_one(env):
     assert req.history[-1] == {"role": "user", "content": "Emma: Good question. @Leo can check the grammar."}
 
 
+async def test_a_failed_hand_off_fails_only_the_hand_off_turn(env):
+    env.script.replies[EMMA.id] = "Good question. @Leo can check the grammar."
+    env.script.fail_for = {LEO.id}
+    await env.cb.handle(say("@Emma is this sentence right?"))
+    await env.hub.drain()
+    assert [req.persona.id for _, req in env.script.calls] == [EMMA.id, LEO.id]
+    # Emma's delivered answer and the question stay "done"; no frame tells the room that answer failed
+    rows, _ = await env.store.replay(env.room.id, A, 0, 10)
+    statuses = {m.kind: m.ai_status for m, _ in rows}
+    assert statuses["ai_answer"] == "done" and statuses["text"] == "done"
+    assert "ai_failed" not in types(env.alice) and "ai_failed" not in types(env.bob)
+    assert types(env.alice).count("ai_typing") == 1  # the hand-off turn shows no typing under the finished answer
+    assert env.refunds == ["room_ai_global"]
+    assert env.hub.ai_pending(env.room.id) == 0
+
+
 async def test_share_in_rooms_memory_and_show_process_preferences(env):
     env.prefs[B] = AgentPrefs(share_in_rooms=False, memory_enabled=False, show_process=False)
     await env.cb.handle(say("@Emma hi"))
@@ -241,6 +258,30 @@ async def test_share_in_rooms_memory_and_show_process_preferences(env):
     assert deps["allow_private"] is False and deps["memory"] is False
     assert "agent_step" not in types(env.bob) and "agent_thought" not in types(env.bob)
     assert env.bob.sender.sent[-1]["message"]["kind"] == "agent_trace"  # the trace is still kept
+
+
+async def test_a_persona_owned_by_someone_else_never_sees_the_askers_private_data(env):
+    # Leo is Alice's persona (its prompt could say "quote the asker's memories"); Bob asks him
+    await env.cb.handle(say("@Leo is my grammar fine?"))
+    await env.hub.drain()
+    deps, req = env.script.calls[0]
+    assert req.persona.id == LEO.id and deps["allow_private"] is False and deps["memory"] is False
+    # the owner asking his own persona keeps his data; built-in personas stay allowed for everyone
+    await env.ca.handle(say("@Leo and mine?", "q2"))
+    await env.hub.drain()
+    deps, req = env.script.calls[1]
+    assert req.persona.id == LEO.id and deps["allow_private"] is True and deps["memory"] is True
+
+
+async def test_handoff_turns_get_no_private_sources_even_for_builtin_targets(env):
+    env.lookup = FakeLookup(EMMA, LEO)
+    await env.store.set_agents(env.room.id, A, [LEO.id, EMMA.id])
+    env.script.replies[LEO.id] = "Fine. @Emma can add more."
+    await env.ca.handle(say("@Leo check this"))  # Alice owns Leo: first turn may use her data
+    await env.hub.drain()
+    first, second = env.script.calls[0][0], env.script.calls[1][0]
+    assert first["allow_private"] is True
+    assert second["allow_private"] is False and second["memory"] is False
 
 
 async def test_logs_never_carry_text_names_or_words(env, caplog):
