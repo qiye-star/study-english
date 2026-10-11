@@ -23,3 +23,4 @@ export const ProcessCapsule = part<import("./process-capsule").ProcessCapsulePro
 export const SourceChips = part<import("./source-chips").SourceChipsProps>(() => import("./source-chips").then((m) => m.SourceChips));
 export const PersonaChip = part<import("./persona-chip").PersonaChipProps>(() => import("./persona-chip").then((m) => m.PersonaChip));
 export const PersonaEditorSheet = part<import("./persona-editor-sheet").PersonaEditorSheetProps>(() => import("./persona-editor-sheet").then((m) => m.PersonaEditorSheet));
+export const PersonaPicker = part<import("./persona-picker").PersonaPickerProps>(() => import("./persona-picker").then((m) => m.PersonaPicker));
