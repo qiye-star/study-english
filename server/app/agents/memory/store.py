@@ -13,8 +13,8 @@ from app.agents.memory import profile as profile_rules
 from app.agents.memory.retrieve import ItemView, eviction_order
 from app.agents.memory.tombstones import TOMBSTONES_MAX, bury, buried, clean_text, redact, text_hash
 from app.models import (
-    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, Conversation, Message, iso_utc,
-    utcnow,
+    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, AgentTutorSession,
+    Conversation, Message, iso_utc, utcnow,
 )
 from app.services.stats import as_utc
 
@@ -414,7 +414,8 @@ class MemoryStore:
     # ---- 管理 ----
 
     async def clear(self, user_id: int, scope: str, persona_id: str | None = None) -> dict:
-        """scope="persona":该角色的长期记忆与回顾;scope="all":长期、回顾、线程状态、档案。被删条目进墓碑(R-M9)。"""
+        """scope="persona":该角色的长期记忆、回顾、导师会话,外加全部线程状态(无角色标记,见下);scope="all":另加档案与全部导师会话。
+        被删条目进墓碑(R-M9)。"""
         if scope not in ("all", "persona") or (scope == "persona" and not persona_id):
             raise ValueError("scope")
         bump_epoch(user_id)  # 进行中的整理任务在写入前发现代变了就丢弃输出
@@ -429,9 +430,15 @@ class MemoryStore:
             await bury(s, user_id, list(hashes)[:TOMBSTONES_MAX], self._clock())
             items = (await s.execute(delete(AgentMemoryItem).where(*item_where))).rowcount
             recaps = (await s.execute(delete(AgentRecap).where(*recap_where))).rowcount
-            threads, profile = 0, False
+            # 线程状态没有角色标记(摘要 / 待整理文本可能含任一角色的内容),所以两种范围都整体删除:
+            # 它们只是派生数据,留下的消息会让摘要自行重建。导师会话的 state 含词与提示,同样按范围删除。
+            threads = (await s.execute(delete(AgentThreadState).where(AgentThreadState.user_id == user_id))).rowcount
+            tutor_where = [AgentTutorSession.user_id == user_id]
+            if scope == "persona":
+                tutor_where.append(AgentTutorSession.persona_id == persona_id)
+            await s.execute(delete(AgentTutorSession).where(*tutor_where))
+            profile = False
             if scope == "all":
-                threads = (await s.execute(delete(AgentThreadState).where(AgentThreadState.user_id == user_id))).rowcount
                 profile = bool((await s.execute(delete(AgentProfile).where(AgentProfile.user_id == user_id))).rowcount)
             await s.commit()
         bump_epoch(user_id)

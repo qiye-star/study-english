@@ -36,4 +36,5 @@
 - `touch_thread` 并发创建同一线程会抛 IntegrityError(任务失败、只计数):不要为此加重试循环。
 - 后台整理写库前必须 `MemoryWorker._live`:任务排队时记下用户的清空代(`store.epoch`,`clear` 与 `drop_conversation` 会 `bump_epoch`),写入前比对代、再查记忆开启 / 未暂停 / 对话仍存在,否则丢弃输出(计数 `discarded`)。新增写库点照做。
 - 容量:`add(max_items=…)` 在置顶已占满容量时抛 `MemoryFull`(worker 计数 `add_rejected_full`);`evict(protect=…)` 保护本次写入的条目,置顶 ≥ 容量时什么都不淘汰。
+- `clear`:线程状态没有角色标记,persona 与 all 都整体删除线程状态(派生数据,会由保留的消息重建);导师会话(`state` 含词与提示)persona 范围删该角色的、all 删全部。新增存敏感内容的表要并入 `clear`。
 - 0016 与 A3 共用:改表结构前看计划 R-M1。
