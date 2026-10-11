@@ -24,6 +24,7 @@ const LINK_ERRORS: Record<string, string> = {
   "Word not found": "web.links.errors.wordNotFound",
   "Wordbook is disabled": "web.links.errors.wordbookOff",
   "Wordbook data unavailable": "web.links.errors.wordbookData",
+  "Daily adopt limit reached": "web.links.errors.adoptLimit",
 };
 
 export const adoptWord = (api: ApiClient, word: string) =>

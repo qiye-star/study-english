@@ -31,7 +31,8 @@
         "unknown": "Unknown link",
         "wordNotFound": "This word is not in the book",
         "wordbookOff": "The wordbook is off",
-        "wordbookData": "Wordbook data is unavailable right now"
+        "wordbookData": "Wordbook data is unavailable right now",
+        "adoptLimit": "You have added the most words for today; try again tomorrow"
       }
     }
   }

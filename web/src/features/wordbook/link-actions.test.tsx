@@ -3,7 +3,7 @@ import { expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
-import { CardRow, adoptWord, fetchLinkCard } from "./link-actions";
+import { AdoptRow, CardRow, adoptWord, fetchLinkCard } from "./link-actions";
 import type { Card } from "./wordbook-api";
 
 vi.mock("~/features/chat/use-tts-player", () => ({ useTtsPlayer: () => ({ states: {}, play: vi.fn(), stop: vi.fn(), prime: vi.fn() }) }));
@@ -37,4 +37,15 @@ it("calls the two link endpoints with the word", async () => {
   // the word travels in the body, never in the URL (it would land in the server's access log)
   expect(JSON.parse(String(mock.calls[1].body))).toEqual({ word: "a b" });
   expect(mock.calls[1].url.search).toBe("");
+});
+
+it("explains the daily adopt cap instead of a generic error", async () => {
+  const { toast } = await import("sonner");
+  const error = vi.spyOn(toast, "error");
+  const mock = createFetchMock({ "POST /api/links/wordbook/adopt": () => json({ error: "Daily adopt limit reached" }, 429) });
+  const client = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+  renderWithProviders(<AdoptRow target={{ word: "talk", source: "manual" }} testId="x" variant="icon" close={() => {}} />, { api: client });
+  fireEvent.click(screen.getByText(/加入词书学习|Study in word book/));
+  await vi.waitFor(() => expect(error).toHaveBeenCalled());
+  expect(String(error.mock.calls[0][0])).toMatch(/今天加入词书学习的词已达上限|You have added the most words for today/);
 });

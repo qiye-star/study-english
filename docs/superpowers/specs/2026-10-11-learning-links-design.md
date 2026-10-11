@@ -564,7 +564,7 @@ link_credits        id Integer PK autoincrement, user_id FK CASCADE, kind String
 | `GET /api/links/config` | — | 用户 | §7.2 |
 | `PUT /api/links/prefs` | — | 用户 | §7.2 |
 | `GET /api/links/today?offset=` | daily_tasks | 用户 | §6.2 |
-| `POST /api/links/wordbook/adopt` | word_actions | 用户 | `{"status": "added"\|"known"\|"not_in_book", "book_id": str\|null}` |
+| `POST /api/links/wordbook/adopt` | word_actions | 用户 | `{"status": "added"\|"known"\|"not_in_book", "book_id": str\|null}`;每人每 UTC 日最多新加入 200 个(Z2 评审;只有 `added` 计数)→ 429 `Daily adopt limit reached` |
 | `POST /api/links/wordbook/card` `{"word"}`(只读;POST 让词不进 URL 与访问日志) | word_actions | 用户 | `{"book_id", "card": <wordbook card_out>, "item": {"box","due_at"}\|null}`;404 `Word not found` |
 | `GET /api/links/mistakes?page=` / `POST /api/links/mistakes/dismiss` | mistakes | 用户 | §6.3 |
 | `GET /api/links/weak-words` / `POST /api/links/weak-words/dismiss` | pron_shadow | 用户 | §6.4 |

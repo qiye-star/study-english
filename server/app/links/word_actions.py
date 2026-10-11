@@ -10,6 +10,7 @@ from app.core.deps import get_session
 from app.links.gate import require_link
 from app.links.spec import LinkSpec, WordIn
 from app.models import User, utcnow
+from app.services import usage
 from app.wordbook import service, store
 from app.wordbook.books import enabled_books
 from app.wordbook.index import DataUnavailable, dictionary
@@ -18,6 +19,9 @@ KEY = "word_actions"
 DISABLED = "Wordbook is disabled"
 UNAVAILABLE = "Wordbook data unavailable"
 NOT_FOUND = "Word not found"
+ADOPT_LIMIT = "Daily adopt limit reached"
+ADOPT_DAILY_MAX = 200  # 每人每 UTC 日最多新加入的词(Z2 评审:词书行不计入 max_vocab_items,也不受 daily_new 限制)
+ADOPT_SCOPE = "links_adopt"
 
 router = APIRouter(prefix="/wordbook")
 
@@ -47,6 +51,8 @@ async def adopt(payload: WordIn, request: Request, user: User = Depends(require_
     if await store.known_one(session, user.id, card.key) is not None:  # 任何来源的词条都算(R-W3)
         return {"status": "known", "book_id": e.book_id}
     now = utcnow()
+    if not await usage.consume(session, ADOPT_SCOPE, str(user.id), usage.utc_day(now), ADOPT_DAILY_MAX):
+        raise HTTPException(429, ADOPT_LIMIT)
     await store.create_item(session, user.id, e.book_id, card, box=0, due_at=now, now=now)
     await session.commit()
     return {"status": "added", "book_id": e.book_id}

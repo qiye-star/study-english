@@ -11,6 +11,7 @@ export const LINKS_SERVER_ERRORS: Record<string, string> = {
   "Word not found": "web.links.errors.wordNotFound",
   "Wordbook is disabled": "web.links.errors.wordbookOff",
   "Wordbook data unavailable": "web.links.errors.wordbookData",
+  "Daily adopt limit reached": "web.links.errors.adoptLimit",
 };
 export const fetchLinksConfig = (api: ApiClient, signal?: AbortSignal) => api.request<LinksConfig>("GET", "/api/links/config", { signal });
 export const putLinkPref = (api: ApiClient, key: LinkKey, enabled: boolean) =>

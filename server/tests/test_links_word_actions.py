@@ -104,3 +104,19 @@ async def test_missing_book_data_is_503_and_logs_carry_no_words(app, client, tmp
     assert (r.status_code, r.json()) == (503, {"error": "Wordbook data unavailable"})
     # 只看服务端日志(测试客户端 httpx 自己会记录请求 URL)
     assert not [r for r in caplog.records if r.name.startswith("app") and "talk" in r.getMessage()]
+
+
+async def test_adoption_has_a_daily_cap_and_only_new_rows_count(app, client, tmp_path, monkeypatch):
+    """Review Z2: adopt creates wordbook rows (not counted in max_vocab_items) without the daily-new goal, so a
+    script could pour a whole book into one account; it has its own per-user daily cap."""
+    from app.links import word_actions
+    monkeypatch.setattr(word_actions, "ADOPT_DAILY_MAX", 2)
+    h = await login(app, client, tmp_path)
+    for word in ("talk", "carry"):
+        assert (await client.post(f"{URL}/adopt", headers=h, json={"word": word})).json()["status"] == "added"
+    assert (await client.post(f"{URL}/adopt", headers=h, json={"word": "talk"})).json()["status"] == "known"  # free
+    assert (await client.post(f"{URL}/adopt", headers=h, json={"word": "zebra"})).json()["status"] == "not_in_book"
+    r = await client.post(f"{URL}/adopt", headers=h, json={"word": "child"})
+    assert (r.status_code, r.json()) == (429, {"error": "Daily adopt limit reached"})
+    async with app.state.sessionmaker() as s:
+        assert sorted((await s.scalars(select(VocabularyItem.word))).all()) == ["carry", "talk"]

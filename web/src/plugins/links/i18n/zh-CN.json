@@ -31,7 +31,8 @@
         "unknown": "未知的联动",
         "wordNotFound": "词书里没有这个词",
         "wordbookOff": "背单词未开启",
-        "wordbookData": "词书数据暂不可用"
+        "wordbookData": "词书数据暂不可用",
+        "adoptLimit": "今天加入词书学习的词已达上限,明天再来"
       }
     }
   }
