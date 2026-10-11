@@ -214,3 +214,23 @@ describe("roomReducer v2", () => {
     expect(s.room?.myRole).toBe("owner");
   });
 });
+
+describe("reopened rooms (R-O3)", () => {
+  const closed = roomReducer(initialRoomState(), { type: "event", event: { type: "closed", reason: "owner" } });
+  it("a reopened event updates the room and raises the reconnect signal once per event", () => {
+    const room = { ...ROOM_INFO, status: "open" as const, code: "573920", closeReason: null as string | null };
+    const next = roomReducer(closed, { type: "event", event: { type: "reopened", room } });
+    expect(next.room?.code).toBe("573920");
+    expect(next.reopenSignal).toBe(closed.reopenSignal + 1);
+    expect(next.status).toBe("closed"); // the hook resets and reconnects; the reducer does not pretend to be live
+  });
+  it("reset returns to a fresh connecting state but keeps the signal counter (no reconnect loop)", () => {
+    const signalled = roomReducer(closed, { type: "event", event: { type: "reopened", room: { ...ROOM_INFO, status: "open" } } });
+    const reset = roomReducer(signalled, { type: "reset" });
+    expect(reset.status).toBe("connecting");
+    expect(reset.closeReason).toBeNull();
+    expect(reset.messages).toEqual([]);
+    expect(reset.lastSeq).toBe(0);
+    expect(reset.reopenSignal).toBe(signalled.reopenSignal);
+  });
+});

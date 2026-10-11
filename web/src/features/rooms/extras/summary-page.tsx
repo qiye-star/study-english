@@ -111,7 +111,14 @@ export function RoomSummaryPage() {
   let body: ReactNode;
   if (error) body = status(error);
   else if (!summary) body = status(t("web.common.loading"), true);
-  else if (summary.status === "done") body = <Done summary={summary} room={room} config={config} />;
+  else if (summary.status === "done") {
+    body = (
+      <>
+        {summary.reason === "stale" && <p role="note" className="mb-3 text-sub text-ink-2">{t("web.rooms.extras.summary.stale")}</p>}
+        <Done summary={summary} room={room} config={config} />
+      </>
+    );
+  }
   else if (summary.status === "pending") body = status(timedOut ? t("web.rooms.extras.summary.later") : t("web.rooms.extras.summary.pending"), !timedOut);
   else if (summary.status === "failed") {
     body = (

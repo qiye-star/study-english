@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import {
@@ -17,6 +17,8 @@ function waitingVoiceSeqs(messages: RoomMessage[]): number[] {
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).slice(0, 64);
 /** 多久清一次过期的「正在输入」(ACTIVITY_TTL_MS 之前的)。 */
 const ACTIVITY_SWEEP_MS = 2000;
+/** 只读查看者多久读一次房间状态,看有没有被重新开启(R-O3)。 */
+export const REOPEN_POLL_MS = 20_000;
 
 /**
  * 一个房间的连接与状态:票据 → WebSocket(重连、补发、心跳由 RoomSocket 负责)。
@@ -29,6 +31,7 @@ export function useRoom(roomId: string) {
   stateRef.current = state;
   const socketRef = useRef<RoomSocket | null>(null);
   const meId = user ? Number(user.id) : null;
+  const [epoch, setEpoch] = useState(0);
 
   useEffect(() => {
     // 卸载(含 StrictMode 的试卸载)后旧连接的回调一律忽略:否则 close() 发出的「closed」会把新连接的状态锁死在终态
@@ -72,7 +75,7 @@ export function useRoom(roomId: string) {
       socket.close();
       socketRef.current = null;
     };
-  }, [api, roomId]);
+  }, [api, roomId, epoch]);
 
   // 房间已结束(票据 404)且还没有任何内容:读历史只读展示;不是成员(或被移出)时保持「不存在或已结束」。
   const needsHistory = state.status === "closed" && state.closeReason === "not_found" && !state.room;
@@ -91,6 +94,23 @@ export function useRoom(roomId: string) {
     })();
     return () => ctrl.abort();
   }, [needsHistory, api, roomId, meId]);
+
+  const restart = useCallback(() => { dispatch({ type: "reset" }); setEpoch((n) => n + 1); }, []);
+  // 收到 reopened(轮询、房主本人或将来的推送)→ 重置状态并重新取票连接
+  useEffect(() => { if (state.reopenSignal > 0) restart(); }, [state.reopenSignal, restart]);
+  // 只读查看者没有 socket:每 20 秒(页面可见时)读一次房间,开放了就合成 reopened(R-O3)
+  const watching = state.status === "closed" && state.room !== null && state.closeReason !== "kicked";
+  useEffect(() => {
+    if (!watching) return;
+    const ctrl = new AbortController();
+    const check = () => {
+      getRoom(api, roomId, ctrl.signal).then(({ room }) => {
+        if (room.status === "open") dispatch({ type: "event", event: { type: "reopened", room } });
+      }, (): void => undefined); // 取不到就等下一轮
+    };
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") check(); }, REOPEN_POLL_MS);
+    return () => { window.clearInterval(timer); ctrl.abort(); };
+  }, [watching, api, roomId]);
 
   const say = useCallback((text: string, assistId: string | null = null, replyTo: number | null = null) => {
     const clientId = newId();
@@ -126,7 +146,8 @@ export function useRoom(roomId: string) {
 
   /** HTTP 操作(设置)返回的房间:立即生效,不必等 room_update 广播。 */
   const applyRoom = useCallback((room: RoomInfo) => dispatch({ type: "event", event: { type: "room_update", room } }), []);
+  const reopened = useCallback((room: RoomInfo) => dispatch({ type: "event", event: { type: "reopened", room } }), []);
   const dismiss = useCallback(() => dispatch({ type: "dismiss" }), []);
 
-  return { state, say, ask, loadEarlier, applyRoom, dismiss, typing, react, translateVoice, retryVoice, addMessage };
+  return { state, say, ask, loadEarlier, applyRoom, dismiss, typing, react, translateVoice, retryVoice, addMessage, reopened };
 }

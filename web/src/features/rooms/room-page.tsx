@@ -18,6 +18,7 @@ import { JoinRequestBanner } from "./create/join-requests";
 import { ActivityLine } from "./extras/activity-line";
 import { InviteSheet } from "./extras/invite-sheet";
 import { QuoteBar } from "./extras/quote-block";
+import { canReopen, ReopenBar } from "./extras/reopen-bar";
 import { SummaryCard } from "./extras/summary-card";
 import { useTypingEmitter } from "./extras/use-typing-emitter";
 import { ROOM_PROTOCOL_VERSION, type QuoteInfo, type RoomMessage } from "./protocol";
@@ -312,6 +313,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
         <div aria-hidden className="mt-auto" />
         <div ref={contentRef} className="flex flex-col">
         {ended && info && <SummaryCard roomId={roomId} justClosed={justClosed} />}
+        {ended && canReopen(info, state.closeReason, isOwner) && <ReopenBar roomId={roomId} onReopened={room.reopened} />}
         {closed && state.room && state.messages.length === 0 && (
           <p className="py-8 text-center text-sub text-ink-2">{t("web.rooms.room.historyEmpty")}</p>
         )}

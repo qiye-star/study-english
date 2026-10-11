@@ -1,0 +1,36 @@
+{
+  "web": {
+    "rooms": {
+      "ended": {
+        "title": "已结束的房间",
+        "entry": "已结束的房间({{count}})",
+        "empty": "还没有已结束的房间。",
+        "loadMore": "加载更多",
+        "loading": "加载中…",
+        "closedOn": "{{date}} 结束",
+        "reasons": { "owner": "房主结束", "idle": "空闲结束", "expired": "到时结束", "admin": "管理员关闭", "disabled": "功能关闭" },
+        "reopen": "重新开启",
+        "reopening": "开启中…"
+      },
+      "reopen": {
+        "title": "房间已结束",
+        "hint": "重新开启会生成新的房间号,成员保持不变。",
+        "action": "重新开启房间"
+      },
+      "errors": {
+        "notClosed": "房间已经在进行中。",
+        "adminClosed": "这个房间被管理员关闭,不能重新开启。",
+        "generic": "操作没有成功,请稍后再试。"
+      },
+      "room": {
+        "system": {
+          "reopened": "{{name}} 重新开启了房间",
+          "reopened_admin": "管理员重新开启了房间"
+        }
+      },
+      "extras": {
+        "summary": { "stale": "这是上一次的小结;新的小结暂时没能生成。" }
+      }
+    }
+  }
+}

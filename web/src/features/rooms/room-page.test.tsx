@@ -170,6 +170,51 @@ describe("RoomPage", () => {
     expect(FakeWebSocket.count).toBe(0);
   });
 
+  it("a read-only member goes live by itself when the room is reopened (polls the room, R-O3)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let opened = false;
+      setup({
+        "POST /api/rooms/r1/ticket": () => (opened ? json({ ticket: "t2", expires_in: 60 }) : json({ error: "Room not found" }, 404)),
+        "GET /api/rooms/r1": () => json({ room: { ...ROOM, my_role: "member", ...(opened ? {} : { status: "closed", code: null, close_reason: "owner" }) }, members: MEMBERS }),
+        "GET /api/rooms/r1/messages": () => json({ messages: [user(7, "See you!")] }),
+      });
+      expect(await screen.findByText("See you!")).toBeTruthy();
+      expect(FakeWebSocket.count).toBe(0);
+      opened = true;
+      await act(async () => { await vi.advanceTimersByTimeAsync(21_000); });
+      await waitFor(() => expect(FakeWebSocket.count).toBe(1));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets the owner reopen an ended room and reconnects (spec 2026-10-12)", async () => {
+    let reopened = false;
+    setup({
+      "POST /api/rooms/r1/ticket": () => (reopened ? json({ ticket: "t2", expires_in: 60 }) : json({ error: "Room not found" }, 404)),
+      "GET /api/rooms/r1": () => json({ room: { ...ROOM, status: "closed", code: null, my_role: "owner", close_reason: "owner" }, members: MEMBERS }),
+      "GET /api/rooms/r1/messages": () => json({ messages: [user(7, "See you!")] }),
+      "POST /api/rooms/r1/reopen": () => { reopened = true; return json({ room: { ...ROOM, code: "573920", my_role: "owner" } }); },
+    });
+    expect(await screen.findByText("See you!")).toBeTruthy();
+    fireEvent.click(await screen.findByTestId("room-reopen"));
+    await waitFor(() => expect(FakeWebSocket.count).toBe(1));
+    await live({ ...ROOM, code: "573920" });
+    expect(await screen.findByTestId("room-code")).toBeTruthy();
+    expect(screen.queryByTestId("room-reopen")).toBeNull();
+  });
+
+  it("does not offer reopen for an admin-closed room or to a member", async () => {
+    setup({
+      "POST /api/rooms/r1/ticket": () => json({ error: "Room not found" }, 404),
+      "GET /api/rooms/r1": () => json({ room: { ...ROOM, status: "closed", code: null, my_role: "owner", close_reason: "admin" }, members: MEMBERS }),
+      "GET /api/rooms/r1/messages": () => json({ messages: [user(7, "See you!")] }),
+    });
+    expect(await screen.findByText("See you!")).toBeTruthy();
+    expect(screen.queryByTestId("room-reopen")).toBeNull();
+  });
+
   it("reports another member's message with a reason", async () => {
     const mock = setup({ "POST /api/rooms/r1/messages/m2/report": () => json({ ok: true }) });
     await live();

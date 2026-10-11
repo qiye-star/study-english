@@ -67,4 +67,16 @@ describe("RoomSummaryPage", () => {
     setup({ "GET /api/rooms/r1/summary": () => json({ error: "Room is still open" }, 409) });
     expect(await screen.findByText("房间还没结束,结束后才有小结")).toBeTruthy();
   });
+
+  it("notes that a done summary is the previous one when a new one could not be generated (stale)", async () => {
+    setup({ "GET /api/rooms/r1/summary": () => json({ summary: { ...DONE, reason: "stale" } }) });
+    expect(await screen.findByText("这是上一次的小结;新的小结暂时没能生成。")).toBeTruthy();
+    expect(screen.getByText("大家聊了周末吃什么,你点单的句子很自然。")).toBeTruthy();
+  });
+
+  it("has no stale note on a fresh summary", async () => {
+    setup();
+    expect(await screen.findByText("大家聊了周末吃什么,你点单的句子很自然。")).toBeTruthy();
+    expect(screen.queryByText("这是上一次的小结;新的小结暂时没能生成。")).toBeNull();
+  });
 });

@@ -4,7 +4,7 @@ import camelcaseKeys from "camelcase-keys";
 export const ROOM_CLOSE = { NORMAL: 1000, RESTART: 1012, UNAUTHORIZED: 4001, DISABLED: 4003, NOT_FOUND: 4004, KICKED: 4010, BUSY: 4029, PROTOCOL: 4400 } as const;
 export const ROOM_LIMITS = { clientText: 8192, sayRaw: 2000, assistText: 500, id: 64, text: 500 } as const;
 export const ROOM_SERVER_EVENT_TYPES = ["welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed", "room_update", "notice", "error", "closed", "pong", "message_hidden",
-  "activity", "reaction", "voice_update", "join_request", "join_request_closed"] as const;
+  "activity", "reaction", "voice_update", "join_request", "join_request_closed", "reopened"] as const;
 /** 协议 v2(spec 2026-10-10 §9,R2-16):只做加法;hello 带 v,welcome.protocol 给出服务端版本。 */
 export const ROOM_PROTOCOL_VERSION = 2;
 /** 表情回应 key:小写、无下划线(camelcase-keys 会改写对象键,所以线上用 [{key, user_ids}] 列表,R2-15)。与服务端同序。 */
@@ -40,6 +40,8 @@ export interface RoomMessage {
 export interface RoomInfo {
   id: string; code: string | null; topic: string; status: "open" | "closed"; locked: boolean; aiPublic: boolean; /** 管理员禁用了本房 AI */ aiMuted?: boolean; /** null = 房主已删除(房间只读保留) */ ownerId: number | null;
   myRole: "owner" | "member" | null; memberCount: number; onlineCount: number; createdAt: string; closedAt: string | null;
+  /** 结束原因(owner / idle / expired / admin);开放房间为 null。管理员关闭的房间房主不能自己重新开启 */
+  closeReason?: string | null;
   /** v2 的 7 项设置(topic 仍下发,= name) */
   name: string; scenario: string; level: string; joinMode: "code" | "approval"; maxMembers: number; allowVoice: boolean;
 }
@@ -64,7 +66,8 @@ export type RoomEvent =
   | { type: "reaction"; seq: number; key: ReactionKey; userIds: number[] }
   | { type: "voice_update"; seq: number; voice: VoiceInfo }
   | { type: "join_request"; request: JoinRequestInfo }
-  | { type: "join_request_closed"; id: string; status: JoinRequestInfo["status"] };
+  | { type: "join_request_closed"; id: string; status: JoinRequestInfo["status"] }
+  | { type: "reopened"; room: RoomInfo };
 
 const TYPES = new Set<string>(ROOM_SERVER_EVENT_TYPES);
 

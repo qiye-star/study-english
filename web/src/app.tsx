@@ -10,7 +10,7 @@ import { ConversationPage, ConversationsPage } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
-import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsLobbyPage } from "~/features/rooms";
+import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
 import { VocabularyPage } from "~/features/vocabulary";
 import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
@@ -67,6 +67,7 @@ export function AppRoutes() {
             <Route path="/rank/match/:id" element={<MatchPage />} />
             <Route path="/rank/achievements" element={<AchievementsPage />} />
             <Route path="/rooms" element={<RoomsLobbyPage />} />
+            <Route path="/rooms/ended" element={<RoomsEndedPage />} />
             <Route path="/rooms/r/:roomId" element={<RoomPage />} />
             <Route path="/rooms/r/:roomId/summary" element={<RoomSummaryPage />} />
             <Route path="/rooms/invite/:token" element={<RoomInvitePage />} />
