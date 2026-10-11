@@ -108,12 +108,16 @@ async def test_pull_due_moves_only_a_future_due_date_and_nothing_else(app, clien
 
 async def test_pull_is_blocked_for_24_hours_after_a_real_review(app, client):
     uid = await user_id(app, client)
-    await seed(app, row(uid, "fresh", reviewed_hours_ago=2), row(uid, "stale", reviewed_hours_ago=72), row(uid, "never"))
+    await seed(app, row(uid, "fresh", reviewed_hours_ago=2), row(uid, "stale", reviewed_hours_ago=72),
+                   row(uid, "never", hours_ago=72), row(uid, "justlearned", hours_ago=0.1),
+                   row(uid, "learnedlongago", hours_ago=30, reviewed_hours_ago=None))
     now = utcnow()
     async with app.state.sessionmaker() as s:
         assert await store.pull_eligible(s, uid, "id-fresh", now) is False
         assert await store.pull_eligible(s, uid, "id-stale", now) is True
-        assert await store.pull_eligible(s, uid, "id-never", now) is True
+        assert await store.pull_eligible(s, uid, "id-never", now) is True  # learned 3 days ago, never reviewed
+        assert await store.pull_eligible(s, uid, "id-learnedlongago", now) is True
+        assert await store.pull_eligible(s, uid, "id-justlearned", now) is False  # learned minutes ago: no pull (R-L6)
         assert await store.pull_eligible(s, uid, "id-missing", now) is False
 
 

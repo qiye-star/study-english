@@ -56,7 +56,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - 词、前缀、游标永远不进 URL:`/learned/query`、`/learned/card`、`/free/start` 都是 POST 体;
   `test_wordbook_learned_api.py::test_new_routes_carry_no_word_in_the_url` 守着。`GET /cards/{book}/{key}` 是遗留写法,别再让新页面用。
 - `mode="free"`(`service._free_answer`):永不调用 `apply_review` / `apply_lapse` / `set_learn_box`;事件固定 `practice`;
-  答错只可能 `pull_due`(`due_at = now`),受「24 小时内正式复习过不拉」与每日 20 次(`store.FREE_PULLS_DAILY_MAX`)约束。
+  答错只可能 `pull_due`(`due_at = now`),受「24 小时内正式复习过、或 24 小时内刚学(没复习过的词看 `created_at`)的不拉」与每日 20 次(`store.FREE_PULLS_DAILY_MAX`)约束。
   改这几条前先读计划 R-L6:`due_at = now` 会通向 `vocab_review`。
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
