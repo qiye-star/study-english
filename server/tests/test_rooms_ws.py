@@ -222,7 +222,8 @@ def test_sweep_closes_idle_rooms_and_notifies(rooms_client):
     rt = rooms_router.runtime(app)
     closed = client.portal.call(rooms_router.sweep_once, rt, utcnow() + timedelta(minutes=31))
     assert closed == [(room["id"], "idle")]
-    assert client.get("/api/rooms/mine", headers=alice).json()["rooms"][0]["status"] == "closed"
+    assert client.get("/api/rooms/mine", headers=alice).json()["rooms"] == []
+    assert [r["status"] for r in client.get("/api/rooms/ended", headers=alice).json()["rooms"]] == ["closed"]
     msgs = client.get(f"/api/rooms/{room['id']}/messages", params={"before_seq": 100}, headers=alice).json()["messages"]
     assert [m["text"] for m in msgs] == ["joined"]  # the sweeper never deletes messages by default
 

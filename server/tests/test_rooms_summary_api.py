@@ -177,9 +177,11 @@ def test_my_rooms_carry_the_summary_status(tmp_path, monkeypatch):
         client.post(f"/api/rooms/{quiet['id']}/close", headers=alice)
         client.portal.call(rt.hub.drain)
         live = client.post("/api/rooms", json={}, headers=alice).json()["room"]
-        rows = {r["id"]: r for r in client.get("/api/rooms/mine", headers=alice).json()["rooms"]}
+        rows = {r["id"]: r for r in client.get("/api/rooms/ended", headers=alice).json()["rooms"]}
         assert rows[talked["id"]]["summary_status"] == "done"
         assert rows[quiet["id"]]["summary_status"] == "skipped"
-        assert rows[live["id"]]["summary_status"] is None  # open rooms have no summary yet
+        assert live["id"] not in rows  # open rooms are listed by /mine, without a summary yet
+        mine = {r["id"]: r for r in client.get("/api/rooms/mine", headers=alice).json()["rooms"]}
+        assert mine[live["id"]]["summary_status"] is None
     finally:
         client.__exit__(None, None, None)

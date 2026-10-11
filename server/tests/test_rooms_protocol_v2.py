@@ -45,6 +45,6 @@ def test_constants():
     assert REACTION_KEYS == ("like", "love", "haha", "wow", "clap", "thanks")
     assert all("_" not in k for k in REACTION_KEYS)  # camelcase-keys safety (spec R2-15)
     assert ACTIVITY_STATES == ("typing", "recording", "idle")
-    assert {"activity", "reaction", "voice_update", "join_request", "join_request_closed"} <= set(SERVER_EVENT_TYPES)
+    assert {"activity", "reaction", "voice_update", "join_request", "join_request_closed", "reopened"} <= set(SERVER_EVENT_TYPES)
     assert {"voice_off", "voice_quota", "translate_quota", "retry_limit"} <= set(NOTICE_CODES)
     assert {"bad_reply", "bad_seq"} <= set(ERROR_CODES)
