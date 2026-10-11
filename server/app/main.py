@@ -27,7 +27,7 @@ from app.agents.memory.setup import install as install_memory  # agents memory (
 from app.agents.orchestrator import runtime as agents_runtime
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, agents_memory, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin, admin_accounts, admin_agents, agents_memory, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -103,7 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_voice, rooms_summary, wordbook,
         links, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
-        admin_prompts, admin_wordbook, admin_links, stubs, admin_web, web,
+        admin_prompts, admin_wordbook, admin_links, admin_agents, stubs, admin_web, web,
     ):
         app.include_router(module.router)
     return app

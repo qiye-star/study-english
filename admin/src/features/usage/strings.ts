@@ -53,6 +53,7 @@ export const S = {
     rooms_summary: "联机小结",
     wordbook: "背单词",
     links: "学习联动",
+    agents: "智能体",
     admin: "管理端",
     other: "其他",
   } as Record<string, string>,

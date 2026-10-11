@@ -16,7 +16,7 @@ export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publ
 `admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions incl. reopen via
 `rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
 hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: learning-links view via
-`app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
+`app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `admin_agents` (/api/admin/agents: overview, persona query (POST) / disable / restore / edit / delete, reports, function calling probe via `app/admin/agents_admin.py`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
 sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
 maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `agents_memory` (/api/agents/memory/*: profile, items, pin, recaps, export, clear — own data only; must precede `agents` and `stubs`),
 `stubs` (catch-all writes),
