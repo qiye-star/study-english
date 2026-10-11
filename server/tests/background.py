@@ -33,6 +33,13 @@ def _task_sets(app) -> list:
     return out
 
 
+def timer_tasks(app) -> list[asyncio.Task]:
+    """Room tutor 60 s timers: they sleep by design, so `drain_background` must not wait for them (they are only
+    cancelled, here and by `RoomTutor.shutdown`)."""
+    tutor = getattr(getattr(getattr(app.state, "rooms", None), "agents", None), "tutor", None)
+    return tutor.timers() if tutor is not None else []
+
+
 def live_tasks(app) -> list[asyncio.Task]:
     current = asyncio.current_task()
     return [t for tasks in _task_sets(app) for t in list(tasks) if t is not current and not t.done()]
@@ -47,7 +54,7 @@ async def drain_background(app, *, timeout: float = 5.0) -> None:
 
 
 async def cancel_background(app) -> None:
-    pending = live_tasks(app)
+    pending = live_tasks(app) + timer_tasks(app)
     for task in pending:
         task.cancel()
     await asyncio.gather(*pending, return_exceptions=True)
