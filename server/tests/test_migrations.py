@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -429,7 +429,7 @@ LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link
 
 def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]
     command.upgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "0013")
@@ -454,7 +454,7 @@ def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
 
 def test_0014_rooms_reopen_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0014"]
+    assert ScriptDirectory.from_config(cfg).get_revision("0015").down_revision == "0014"
     assert ScriptDirectory.from_config(cfg).get_revision("0014").down_revision == "0013"
     command.upgrade(cfg, "0013")
     con = sqlite3.connect(db)
@@ -487,6 +487,55 @@ def test_0014_rooms_reopen_columns_backfill_and_round_trip(tmp_path, monkeypatch
     finally:
         con.close()
     command.upgrade(cfg, "head")
+
+
+AGENT_TABLES = {"agent_personas", "agent_user_settings", "agent_persona_reports"}
+
+
+def test_0015_agents_tables_trace_column_and_round_trip(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0015"]
+    command.upgrade(cfg, "0014")
+    assert not AGENT_TABLES & _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-12')")
+        con.execute("insert into conversations (id, user_id, name, config, created_at, updated_at) "
+                    "values ('c1', 12345678, 'n', '{}', '2026-10-12', '2026-10-12')")
+        con.execute("insert into messages (id, conversation_id, role, content, created_at) "
+                    "values ('m1', 'c1', 'assistant', 'hi', '2026-10-12')")
+        con.commit()
+    finally:
+        con.close()
+    command.upgrade(cfg, "0015")
+    assert AGENT_TABLES <= _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert "agent_trace" in _columns(con, "messages")
+        assert con.execute("select content, agent_trace from messages where id = 'm1'").fetchone() == ("hi", None)
+        con.execute("update messages set agent_trace = ? where id = 'm1'", ('{"v": 1}',))
+        con.execute("insert into agent_personas (id, owner_id, name, intro, prompt, level, style, tools, prompt_public, "
+                    "deep_think, created_at, updated_at) values ('p1', 12345678, 'Tom', '', 'x', 'B1', 'friendly', '[]', "
+                    "1, 0, '2026-10-12', '2026-10-12')")
+        con.execute("insert into agent_persona_reports (persona_id, reporter_id, reason, created_at) "
+                    "values ('p1', 12345678, 'spam', '2026-10-12')")
+        con.commit()
+        persona_idx = {r[1] for r in con.execute("pragma index_list(agent_personas)")}
+        report_idx = {r[1] for r in con.execute("pragma index_list(agent_persona_reports)")}
+    finally:
+        con.close()
+    assert "ix_agent_personas_owner_id_created_at" in persona_idx
+    assert {"ix_agent_persona_reports_persona_id", "ix_agent_persona_reports_resolved_at_created_at"} <= report_idx
+    command.downgrade(cfg, "0014")
+    assert not AGENT_TABLES & _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        assert "agent_trace" not in _columns(con, "messages")
+        assert con.execute("select content from messages where id = 'm1'").fetchone() == ("hi",)
+    finally:
+        con.close()
+    command.upgrade(cfg, "head")
+    assert AGENT_TABLES <= _tables(db)
 
 
 def test_user_foreign_keys_in_the_migrated_schema_carry_the_models_on_delete(tmp_path, monkeypatch):

@@ -83,6 +83,8 @@ class Message(Base):
         index=True,
     )
     grammar: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 智能体回合的压缩过程(spec 2026-10-12-agents §4.4;只在 assistant 消息上,≤ 4 KB,旧消息为 NULL)
+    agent_trace: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -774,3 +776,53 @@ class LinkCredit(Base):
     ref_id: Mapped[str] = mapped_column(String(80))
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# ---- 智能体(设计文档 2026-10-12-agents §4.2、§4.3;计划 R-C3)----
+
+class AgentPersona(Base):
+    """用户自建角色;内置角色是代码里的静态数据(app/agents/personas.py),不进表。"""
+    __tablename__ = "agent_personas"
+    __table_args__ = (Index("ix_agent_personas_owner_id_created_at", "owner_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(20))
+    intro: Mapped[str] = mapped_column(String(60), default="", server_default="")
+    prompt: Mapped[str] = mapped_column(Text)
+    level: Mapped[str] = mapped_column(String(2), default="B1", server_default="B1")
+    style: Mapped[str] = mapped_column(String(12), default="friendly", server_default="friendly")
+    voice: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tools: Mapped[list] = mapped_column(JSON, default=list)
+    prompt_public: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    deep_think: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentUserSettings(Base):
+    """用户级智能体设置(一行 JSON,逐键校验在 app/agents/settings.py)。没有行 = 全部默认值。"""
+    __tablename__ = "agent_user_settings"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentPersonaReport(Base):
+    """角色举报(计划 R-C3):每人每个角色一条;处理后写 resolved_*。不存举报理由之外的任何文本。"""
+    __tablename__ = "agent_persona_reports"
+    __table_args__ = (
+        UniqueConstraint("persona_id", "reporter_id", name="uq_agent_persona_reports_persona_reporter"),
+        Index("ix_agent_persona_reports_resolved_at_created_at", "resolved_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    persona_id: Mapped[str] = mapped_column(ForeignKey("agent_personas.id", ondelete="CASCADE"), index=True)
+    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(16), nullable=True)
