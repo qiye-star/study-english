@@ -43,6 +43,9 @@ TUTOR_SCOPE = limits.SCOPE_TUTOR_USER  # daily starts per user, the same counter
 # Room lessons are text-only and use no personal word lists: no `words` (needs a word pool) and no `dictate`
 # (needs audio playback) questions.
 ROOM_MIX = ("ask", "repeat", "retell", "roleplay")
+# Pause reason when nobody is online. Referenced through a constant on purpose: web's contract test scans this file for
+# `_pause(room_id, snap, "<reason>")` literals and has copy for those only; unknown reasons fall back to the generic text.
+PAUSE_EMPTY = "empty"
 
 
 class TutorError(Exception):
@@ -139,6 +142,7 @@ class RoomTutor:
         self.turn_seconds = turn_seconds
         self._locks: dict[str, asyncio.Lock] = {}
         self._timers: dict[str, asyncio.Task] = {}
+        self._turns: dict[str, asyncio.Task] = {}  # the in-flight `_turn` per room (hub tasks; kept only to cancel)
         self._active: set[str] = set()  # rooms whose tutor this process started or resumed (cheap say filter)
 
     def timers(self) -> list[asyncio.Task]:
@@ -188,6 +192,17 @@ class RoomTutor:
     def _arm(self, room_id: str, question_seq: int) -> None:
         self._disarm(room_id)
         self._timers[room_id] = asyncio.get_running_loop().create_task(self._expire(room_id, question_seq))
+
+    def _spawn_turn(self, room_id: str, outcome: str, answer: tuple[int, str] | None) -> None:
+        task = self.lane.rooms().hub.spawn(self._turn(room_id, outcome, answer))
+        self._turns[room_id] = task
+        task.add_done_callback(lambda t: self._turns.get(room_id) is t and self._turns.pop(room_id, None))
+
+    def _cancel_turn(self, room_id: str) -> None:
+        """stop / close: an in-flight turn must not speak after `tutor_stopped` (it re-checks the run too)."""
+        task = self._turns.pop(room_id, None)
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
 
     def _disarm(self, room_id: str) -> None:
         task = self._timers.pop(room_id, None)
@@ -242,7 +257,7 @@ class RoomTutor:
             self._active.add(room_id)
         await self._system(room_id, "tutor_started", {"name": persona.name})
         await self._broadcast(room_id, snap)
-        r.hub.spawn(self._turn(room_id, "open", None))
+        self._spawn_turn(room_id, "open", None)
         return tutor_view(snap, r.clock())
 
     async def skip(self, room_id: str, user_id: int) -> None:
@@ -261,6 +276,7 @@ class RoomTutor:
             if await self._load(room_id) is None:
                 raise TutorError("not_found")
             self._disarm(room_id)
+            self._cancel_turn(room_id)
             self._active.discard(room_id)
             await self._save(room_id, None)
         await self._broadcast(room_id, None)
@@ -280,7 +296,7 @@ class RoomTutor:
             await self._save(room_id, snap)
             self._active.add(room_id)
         await self._broadcast(room_id, snap)
-        r.hub.spawn(self._turn(room_id, "resume", None))
+        self._spawn_turn(room_id, "resume", None)
         return tutor_view(snap, r.clock())
 
     # ---- hooks from AgentLane / the rooms runtime ----
@@ -312,6 +328,7 @@ class RoomTutor:
 
     async def on_close(self, room_id: str) -> None:
         self._disarm(room_id)
+        self._cancel_turn(room_id)
         self._active.discard(room_id)
         await self._save(room_id, None)
 
@@ -338,7 +355,7 @@ class RoomTutor:
             snap.update(phase="generating", deadline_at=None)
             await self._save(room_id, snap)
         await self._broadcast(room_id, snap)
-        self.lane.rooms().hub.spawn(self._turn(room_id, outcome, answer))
+        self._spawn_turn(room_id, outcome, answer)
         return True
 
     async def _pause(self, room_id: str, snap: dict, reason: str) -> None:
@@ -347,18 +364,28 @@ class RoomTutor:
             logger.info("room tutor paused reason=%s", reason)
             await self._broadcast(room_id, paused)
 
-    async def _finish(self, room_id: str, snap: dict, final: TutorState, goal: Goal) -> None:
+    async def _recover(self, room_id: str, run_id: str, reason: str) -> None:
+        """A turn died with an exception: the lesson must not stay in "generating" without a timer."""
         async with self._lock(room_id):
             current = await self._load(room_id)
-            if current is None or current.get("run_id") != snap["run_id"]:
+            if current is None or current.get("run_id") != run_id or current.get("phase") != "generating":
                 return
-            self._disarm(room_id)
-            self._active.discard(room_id)
-            await self._save(room_id, None)
-        await self._broadcast(room_id, None)
-        await self._system(room_id, "tutor_done", {"name": snap["persona_name"], "recap": build_recap(final, goal)})
+        await self._pause(room_id, current, reason)
 
     async def _turn(self, room_id: str, outcome: str, answer: tuple[int, str] | None) -> None:
+        snap = await self._load(room_id)
+        run_id = snap.get("run_id") if snap is not None else None
+        try:
+            await self._run_turn(room_id, outcome, answer)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # nothing may leave the lesson in "generating" with no timer (class name only)
+            logger.warning("room tutor turn crashed error=%s", type(e).__name__)
+            if run_id is not None:
+                await self._recover(room_id, run_id, "state" if isinstance(e, (KeyError, TypeError, ValueError))
+                                    else "upstream")
+
+    async def _run_turn(self, room_id: str, outcome: str, answer: tuple[int, str] | None) -> None:
         r = self.lane.rooms()
         async with r.hub.ai_lock(room_id):  # one AI speaker per room, shared with @ai and @persona (R-RA5)
             snap = await self._load(room_id)
@@ -373,14 +400,18 @@ class RoomTutor:
             persona = next((p for p in personas if p.id == snap["persona_id"]), None)
             if persona is None or getattr(persona, "disabled", False):
                 return await self._pause(room_id, snap, "agent_off")
+            members = await r.store.members(room_id)
+            online = r.hub.online(room_id) & {m.user_id for m in members}
+            if not online:  # nobody to call on: wait for the owner instead of skipping through the lesson
+                return await self._pause(room_id, snap, PAUSE_EMPTY)
             if not r.ai_room_limiter.allow(room_id) or not await r.consume("room_ai_global", GLOBAL,
                                                                             r.limits.ai_global_daily):
                 return await self._pause(room_id, snap, "quota")
             try:
                 state = machine.from_dict(snap["machine"])
                 goal = Goal.from_dict(snap["goal"])
-                plan = self._plan_turn(snap, state, goal, outcome, await r.store.members(room_id))
-            except ValueError:  # a broken snapshot: the owner can stop it
+                plan = self._plan_turn(snap, state, goal, outcome, members, online)
+            except (ValueError, KeyError, TypeError):  # a broken snapshot: the owner can stop it
                 await r.refund("room_ai_global", GLOBAL)
                 return await self._pause(room_id, snap, "state")
             names, prev, target, wrap = plan["names"], plan["prev"], plan["target"], plan["wrap"]
@@ -411,6 +442,7 @@ class RoomTutor:
                                         failure = ev.code
                                         break
             except asyncio.CancelledError:
+                await r.refund("room_ai_global", GLOBAL)  # stop / close cancelled the turn: the room's slot is free
                 raise
             except Exception as e:
                 failure = "timeout" if isinstance(e, TimeoutError) else type(e).__name__
@@ -440,27 +472,43 @@ class RoomTutor:
                           "steps_total": len(after.plan), "to_user_id": None if final else target,
                           "to_name": None if final else names.get(target), "final": final,
                           "verdict_for": prev, "verdict": verdict if prev is not None else None}
-            async with r.hub.lock(room_id):
-                msg = await r.store.append(room_id, lane="public", sender_kind="ai", sender_id=None, kind="ai_answer",
-                                           text=text, now=r.clock(),
-                                           reply_to=answer[0] if outcome == "answer" and answer else None,
-                                           meta={"agent": agent_config.agent_meta(persona), "tutor": tutor_meta})
-            await r.hub.broadcast(room_id, event("message", message=message_out(msg, None)))
-            if final:
-                return await self._finish(room_id, snap, after, goal)
             deadline = r.clock() + timedelta(seconds=self.turn_seconds)
-            done = {**snap, "phase": "await_answer", "step_index": step_number(after), "order": plan["order"],
-                    "current_user_id": target, "current_name": names.get(target), "question_seq": msg.seq,
-                    "deadline_at": iso_utc(deadline), "machine": machine.to_dict(after), "paused_reason": None}
-            if not await self._commit(room_id, done):
-                return
-        await self._broadcast(room_id, done)
-        self._arm(room_id, msg.seq)
+            async with self._lock(room_id):
+                # stop / close / restart may have happened while the model was talking: re-check the run and the phase
+                # under the lock so nothing is said after `tutor_stopped` and a stale turn never overwrites a newer run
+                current = await self._load(room_id)
+                if current is None or current.get("run_id") != snap["run_id"] or current.get("phase") != "generating":
+                    await r.refund("room_ai_global", GLOBAL)
+                    return
+                async with r.hub.lock(room_id):
+                    msg = await r.store.append(room_id, lane="public", sender_kind="ai", sender_id=None,
+                                               kind="ai_answer", text=text, now=r.clock(),
+                                               reply_to=answer[0] if outcome == "answer" and answer else None,
+                                               meta={"agent": agent_config.agent_meta(persona), "tutor": tutor_meta})
+                done = None
+                if final:
+                    self._disarm(room_id)
+                    self._active.discard(room_id)
+                    await self._save(room_id, None)
+                else:
+                    done = {**snap, "phase": "await_answer", "step_index": step_number(after), "order": plan["order"],
+                            "current_user_id": target, "current_name": names.get(target), "question_seq": msg.seq,
+                            "deadline_at": iso_utc(deadline), "machine": machine.to_dict(after), "paused_reason": None}
+                    await self._save(room_id, done)
+                    self._arm(room_id, msg.seq)  # armed in the same critical section as the state it belongs to
+        await r.hub.broadcast(room_id, event("message", message=message_out(msg, None)))
+        if final:
+            await self._broadcast(room_id, None)
+            await self._system(room_id, "tutor_done", {"name": snap["persona_name"], "recap": build_recap(after, goal)})
+        else:
+            await self._broadcast(room_id, done)
 
     @staticmethod
-    def _plan_turn(snap: dict, state: TutorState, goal: Goal, outcome: str, members) -> dict:
-        """Who is addressed and which prompt: pure given the snapshot and the member list."""
+    def _plan_turn(snap: dict, state: TutorState, goal: Goal, outcome: str, members, online: set[int]) -> dict:
+        """Who is addressed and which prompt: pure given the snapshot, the member list and who is online.
+        Every member has a name (feedback may be for someone who left); only online members are called on."""
         names = {m.user_id: m.name for m in members}
+        active = [u for u in names if u in online]
         prev = snap["current_user_id"] if outcome in ("answer", "skip") else None
         resume = outcome == "resume"
         if resume and state.phase == "opening":  # the very first question never went out
@@ -474,10 +522,10 @@ class RoomTutor:
         order, target = snap["order"], None
         if not wrap:
             last = snap["current_user_id"] if outcome != "open" else None
-            if resume and snap["current_user_id"] in names:
+            if resume and snap["current_user_id"] in active:
                 target = snap["current_user_id"]
             else:
-                order, target = next_participant(order, last, list(names))
+                order, target = next_participant(order, last, active)
             wrap = target is None  # everyone left: wrap up now
         block = room_block(prompt_state, goal, prev_name=names.get(prev) if prev is not None else None,
                            next_name=names.get(target), retry_name=names.get(prev) if outcome == "answer" else None,
