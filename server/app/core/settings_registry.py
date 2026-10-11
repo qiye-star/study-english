@@ -255,6 +255,7 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("agents_memory_tokens", "agents", "int", "记忆块预算(token 估算)", help_zh="0 = 不放记忆"),
     _s("agents_source_timeout_ms", "agents", "int", "单个上下文来源超时(毫秒)", help_zh="所有来源并行,总预算固定 250 毫秒;超时记为跳过"),
     _s("agents_history_max", "agents", "int", "带入的历史消息条数"),
+    _s("agents_history_chars_max", "agents", "int", "带入历史的总字数上限", help_zh="从最新一条往前取,整条放得下才带入,不截断单条"),
     _s("agents_chat_max_tokens", "agents", "int", "聊天回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
     _s("agents_tutor_max_tokens", "agents", "int", "导师回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
 )

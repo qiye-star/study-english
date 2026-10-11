@@ -267,7 +267,7 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
             agent = await agent_settings.load(session, req.user_id)
     tools_mode = limits.effective_tools_mode(settings, deps.tools_probe())
     stats["tools"] = tools_mode
-    history = prompt.clamp_history(req.history, settings.agents_history_max)
+    history = prompt.clamp_history(req.history, settings.agents_history_max, settings.agents_history_chars_max)
     ids: dict[str, str] = {}
 
     def step(key: str, status: str, *, private: bool = False, result: SourceResult | None = None,
