@@ -383,6 +383,19 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **段位联动**(`RANK_ENABLED`):学会新词 +1 段位点(`word_learned`)、拼写组均分 ≥ 60 +2(`spelling_set`),都计入每日上限;复习照常算 `vocab_review`;4 个新成就;含「背单词新词」阶段练习的段位规则在背单词关闭时不能发布。
 - **日志**:不记用户拼写输入、讲解正文、提示词正文与文件绝对路径,只记书 id、词长、状态码。
 
+## 学习联动(计划 2026-10-11)
+
+规格:[docs/superpowers/specs/2026-10-11-learning-links-design.md](../docs/superpowers/specs/2026-10-11-learning-links-design.md);迁移 `0013_learning_links`(五张表:`user_link_prefs`、`link_mistake_words`、`link_weak_words`、`link_word_uses`、`link_credits`)。代码在 `app/links/`(顶层,只被 `routers/` 与 `main.py` 导入)与核心层 `app/core/learning_events.py`(事件通道)、`app/core/rank_sources.py`(段位来源注册表)。
+
+- **开关,默认关**:`LINKS_ENABLED=false` 时与没有联动完全相同:发布方不入队、`GET /api/links/config` 返回 `{"enabled": false, …全部 effective=false}`、其余 `/api/links/*` 404、网页只剩核心「加入词汇本」按钮(`tests/test_links_matrix.py` 逐值对照全关与全开 / 只开一个的既有响应,并断言联动表零写入)。打开后六个联动(单词操作位置、今日任务聚合卡、易错词、发音弱词 ↔ 跟读、对话用到今日词、联动加段位点)默认全开:每个有全局开关 `LINK_<KEY>_ENABLED`,每个用户还能在「我的 → 学习联动」里关(`PUT /api/links/prefs`)。关掉后接口 404 `{"error":"Link is off"}`、处理器跳过(计 `skipped`)、网页入口消失;关掉不删数据。全部变量与范围见 `server/.env.example`「学习联动」一节;都在设置注册表里,可在管理端「设置 → 学习联动」热改(写审计)。
+- **事件通道**:学习模块只在 `commit()` 之后发布纯数据事件(背单词作答 `WordAnswered`、已保存的评测 `AssessmentFinished`、对话里的用户消息 `MessageSent`)。进程内有界队列(`LINKS_QUEUE_MAX`,满了丢弃并计 `dropped`)+ 单消费任务,每个处理器有超时(`LINKS_HANDLER_TIMEOUT_MS`)与熔断(连续失败 `LINKS_BREAKER_FAILURES` 次后冷却 `LINKS_BREAKER_COOLDOWN_SECONDS` 秒,之后半开试一次)。**尽力而为**:联动失败从不让主请求失败;进程重启丢掉尚未处理的事件;处理器都是幂等的(重放不产生重复行),关键积分(段位、背单词)仍读源表。
+- **多进程**:通道、计数、熔断与每用户开关缓存(30 秒)都是每进程一份;`PUT /api/links/prefs` 只立即失效本进程的缓存,其他进程最多 30 秒后生效。管理端「学习联动」页的计数是本进程、重启清零。和房间一样,推荐单 worker。
+- **隐私与保留**:`MessageSent.text` 只在内存里交给处理器,不入库、不进日志 / 异常 / 管理端错误;联动表只存词、计数与 id。日志、审计与管理端错误列表只有联动键、事件类名、异常类名、毫秒与计数。词只放在 JSON 请求体里,不放进 URL(访问日志会记 URL;`tests/test_links_privacy.py` 检查每个 `/api/links` 路由)。保留:对话用词记录 `LINKS_RETENTION_DAYS`(默认 90)天后清理,易错词 / 发音弱词移出 30 天后清理(后台任务每 6 小时)。删除用户时联动表与背单词表的行一并删除。
+- **段位**:「联动加段位点」只在 `RANK_ENABLED` 与 `LINK_RANK_SOURCES_ENABLED` 都开、用户没关时入账(`link_credits`);只吃当天共享上限的剩余额度、另有子上限(段位规则 `points.sources_daily_cap`,默认 5),不计活跃日、不计阶段任务;既有种类的点数永远不因联动变少。当前唯一来源 `word_in_chat`(对话里用到 24 小时内学的新词,默认 1 点,每人每 24 小时最多 `LINK_CHAT_WORDS_DAILY_MAX` 个)。
+- **大模型用法检查(可选,有费用)**:`LINK_CHAT_WORDS_LLM_ENABLED`(默认关)打开后,对话里用到今日词时请 LLM 判断用法是否正确(在通道之外异步,并发 2、待办 ≤ 50、单次 8 秒;`max_tokens` 60、温度 0,输入为学习者原文前 600 字符与词表)。全站每日 `LINK_CHAT_WORDS_LLM_GLOBAL_DAILY`(默认 200)次;每人每天最多 `LINK_CHAT_WORDS_DAILY_MAX` 次(只有含新用到的今日词的消息才会检查)。上游 402/429/5xx/网络错误后 60 秒内不再调用;任何失败、超时、额度用完、回复格式不对都降级为确定性结果(照常入账)并计 `llm_degraded`。用量页的 feature 为 `links`。
+- **管理端**:「学习联动」页(`GET /api/admin/links`,viewer):队列、每个联动的计数 / 熔断 / 关闭人数、段位来源、最近 50 条错误(无 PII);「复位熔断」(operator,写审计 `links.breaker.reset`)。诊断两条:`links_breaker_open`、`links_dropping`。
+- **接口**:`GET /api/links/config`、`PUT /api/links/prefs`、`POST /api/links/wordbook/{adopt,card}`(加入词书学习每人每 UTC 日最多 200 个,超出 429 `Daily adopt limit reached`)、`GET /api/links/today`、`GET /api/links/mistakes` + `POST …/mistakes/dismiss`、`GET /api/links/weak-words` + `POST …/weak-words/dismiss`、`GET /api/links/today-words`、`GET /api/links/chat-words`。契约样例 `server/tests/fixtures/links_*_contract.json`。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

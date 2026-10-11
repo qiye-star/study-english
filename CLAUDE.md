@@ -29,3 +29,6 @@ Upstream Enjoy desktop app + our self-hosted backend (`server/`) + mobile-first 
 ## Conventions
 - Commits: conventional style (`feat(web): …`, `fix(server): …`), one logical change per commit, tests green after each.
 - Plans in `docs/superpowers/plans/` are the source of truth for in-flight work; follow their rulings.
+- Learning links (`LINKS_ENABLED`, default off): server `app/links/` is a top layer fed by post-commit events from
+  `app/core/learning_events.py`; web contributes through `web/src/plugins/` + `~/lib/extension-points`. Never put words,
+  message text or user ids in URLs or logs (see `server/app/links/CLAUDE.md`).

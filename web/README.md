@@ -94,6 +94,16 @@
 - **每日目标面板**(计划 2026-10-11-wordbook-goals):首页顶栏齿轮(「每日目标设置」)与今日计划卡齿轮(「调整今天的目标」)打开同一个底部面板,改动即存、首页计数立刻变化(失败退回并说明原因):方案 轻松 / 标准 / 冲刺(「约 N 天学完 · 稳定后每天复习约 5N」,按全对模型在网页端估算,学到最后的复习量写在说明行)、每日新词(10/20/30/50 + 自定义 1–200)、每日复习上限(50/100/200 + 自定义 10–1000 +「不限」)、今天预览与积压说明(积压时今天新词总数最多 5 个)、顺序、今天加练(5/10/20,今天新词学完且没有积压才可用)、连续达标(第四格「连续 N 天」)、换书 / 暂停 / 重置进度(输入书名确认,唯一的红色)。暂停后首页显示暂停卡(继续学习 / 换一本),不再跳选书页;选书页用同一组设置字段。管理员可在设置注册表收窄范围、关闭「不限」与加练,面板相应禁用并写原因。E2E:`e2e/wordbook-goals.spec.ts`(零上游;本机临时 SQLite 服务通过,未在 Docker E2E 栈运行)。未在真机验证:iOS / 安卓数字键盘(`inputmode="numeric"`)与 Gboard 回车提交、搜狗全角数字与重置框中文组字、面板内焦点困住与关闭后回到齿轮、VoiceOver / TalkBack 读方案卡(天数与复习估算)与步进器、两平台深色下选中描边。
 - **未在真机验证**(清单见 `docs/superpowers/plans/e2e-results.md`「背单词」):iOS Safari 系统键盘与简体拼音、Android Chrome + Gboard、搜狗输入法下的拼写输入(空格跳空、退格回跳、回车提交、输入法组字);读屏(VoiceOver / TalkBack);真实 TTS 的「听这句」;Docker E2E 栈上的 `wordbook.spec.ts`。
 
+## 学习联动(计划 2026-10-11)
+
+服务端开关 `LINKS_ENABLED`(默认关,见 `server/README.md`「学习联动」)。关闭时网页与原来一样:页面加载只多请求一次 `GET /api/links/config`,所有插槽只渲染核心贡献(「加入词汇本」按钮,DOM 与直接渲染完全相同,`src/plugins/word-actions/parity.test.tsx`),联动路由不可达(直达 `/me/links` 等先空白一瞬再回练习页)。
+
+- **组合方式**:`src/lib/extension-points.ts`(类型化扩展点注册表 + 旗标)与 `extension-points-react.tsx`(`<Slot>`、`<WordActions>`、每个贡献一个错误边界);`src/plugins/index.ts` 一行一个插件(`core`、`links`、`word-actions`、`daily-tasks`、`mistakes`、`pron-shadow`、`chat-words`),feature 的 `register*.ts(x)` 只被插件导入(`src/architecture.test.ts`)。删掉一行 = 删掉一个联动。
+- **入口**:生词本按钮旁的「更多」→「单词操作」面板(加入词汇本 / 加入词书学习 / 跟读这个词 / 查看词卡);练习页「今日任务」卡(背单词、跟读一句、对话一次、段位阶段任务、对话用今日词);跟读区的「发音弱词」「今日新词例句」来源条;生词本「易错词」「发音弱词」入口与页面;词卡上的「对话里用过」小标;「我的 → 学习联动」六个开关(管理员关掉的置灰并说明,乐观更新、失败回滚)。页面与面板懒加载。
+- **测试**:`src/plugins/links-matrix.test.tsx`(全关只剩核心贡献;全开每个点的贡献;只开一个不带出别的联动);各插件的契约测试逐键核对服务端录制的 `links_*_contract.json`。`src/test/setup.ts` 只给「依赖图里有 `extension-points-react`」的测试文件加载核心贡献。E2E:`e2e/links.spec.ts`(零上游;栈要 `LINKS_ENABLED=true`)。
+- **主包**:联动合计 +7.79 kB gzip(506.54 → 514.33 kB;验收上限 +8 kB,余量很小)。
+- **未验证**(见 `docs/superpowers/plans/e2e-results.md`「学习联动」):Docker E2E 栈上的 `links.spec.ts`;真机(iOS Safari / 安卓 Chrome)上的「更多」面板、今日任务卡、开关页;VoiceOver / TalkBack 读开关与今日任务行;真实评测产生的发音弱词;大模型用法检查的真实上游。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

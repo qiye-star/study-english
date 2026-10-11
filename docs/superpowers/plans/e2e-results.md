@@ -427,3 +427,29 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 | G4 | 安卓 + 搜狗输入法 | 全角数字(`３５`)被接受;重置确认框拼音组字过程中按钮不提前可点 | 未验证 |
 | G5 | VoiceOver / TalkBack | 方案卡 `radiogroup` 读出天数与复习估算;「已保存」只播报一次;错误 `role="alert"` | 未验证 |
 | G6 | 两平台深色模式 | 面板、琥珀提示、红色重置的对比度 | 未验证(只在无头 Chromium 截图里看过) |
+
+## 学习联动(计划 2026-10-11-learning-links,Z1 + Z2 集成)
+
+日期:2026-10-11 · 分支 `c-lane-f`(F、L6、L1–L5、LA 全部合并)· 评审记录 `docs/superpowers/plans/review-learning-links.md`(不提交)。
+
+| 项 | 结果 |
+|---|---|
+| `links.spec.ts`(chromium-mobile):登录 → 练习页「今日任务」卡(未选书:无「背单词」行,「跟读一句」未完成)→ 接口选书初中 → 刷新后「背单词」行未完成 → 学新词一轮(每张「模糊」,小测第一题故意选错)→「我的 → 词汇本」出现「易错词 · 1」→ 进入看到该词 → 词行「更多」→「单词操作」面板四行 →「我的 → 学习联动」关「易错词」→ `/api/links/mistakes` 404、生词本入口消失 → 打开回来入口恢复;`upstreams.unmocked` 为空 | 本机通过(2026-10-11,连续 3 次)。**未在 Docker E2E 栈运行**。与计划 Step 2 的差异:「更多」面板在易错词页的词行上打开(同一个 `wordActions` 插槽);查词浮层要大模型查词,零上游下不走 |
+| `wordbook.spec.ts`、`wordbook-goals.spec.ts`、`wordbook-recall.spec.ts`(`LINKS_ENABLED=true` 的栈上) | 本机通过(连续 2 次,与 `links.spec.ts` 同跑):今日任务卡、「更多」按钮没有让既有规格失败。其他既有规格(对话、查词、跟读、段位、房间、管理端…)**未重跑**(多数需要真实上游) |
+| 守卫修正 | 打开 `LINKS_ENABLED` 后每页都会请求 `GET /api/links/config`,`e2e/support/upstream-guard.ts` 原本会中止它(所有用守卫的规格都会失败);已放行 11 条精确的 `/api/links/*` 路径(`src/test/e2e-upstream-guard.test.ts` 先红后绿) |
+| 本机方式 | 临时 SQLite(便签目录)+ `alembic upgrade head`(到 `0013`);`REGISTRATION_MODE=invite`、随机 `INVITE_CODE`、`RATE_LIMIT_PER_MINUTE=1000`、`WORDBOOK_ENABLED=true`、`WORDBOOK_SPOT_CHECK_PCT=100`、`LINKS_ENABLED=true`、`RANK_ENABLED`/`ROOMS_ENABLED=true`、`ROOMS_AI_GLOBAL_DAILY=0`、`WEB_DIST_DIR=web/dist`,上游地址置空;uvicorn 于 8123,`E2E_BASE_URL=http://127.0.0.1:8123`、`E2E_SQLITE_PATH=<临时库>`。访问日志里的 `/api/links/*` 请求行只有 `offset` / `page` 查询串,没有词;没有上游调用、没有密钥。`docker-compose.e2e.yml` 已加 `LINKS_ENABLED: "true"` |
+| 视觉对照(视觉稿 7 帧 vs 真实页面;手机 375×812 浅色 + 深色,管理端 1440×900) | 做了:无头 Chromium(Playwright,`locale=zh-CN`)截真实页面(本机 SQLite 服务、种子用户学过 10 个初中词、答错 4 个、对话里用过 1 个今日词,发音弱词 3 条直接写进临时库——真实弱词来自讯飞评测),截图只放在便签目录。一致:帧 01/06 今日任务卡(行结构、完成行绿勾 + 次级文字、深色令牌)、帧 02 单词操作面板四行与副标题、帧 03 易错词行(错 n 次 · 今天、盒子点、更多、移出)、帧 04 发音弱词行(话筒 / ×、「连读这 n 个」主按钮)、帧 05 六个开关与说明、帧 07 管理端(总开关、四个 KPI、六行表、「—」无事件订阅、段位来源、最近错误)。差异(只记录):① 今日任务里「对话用今日词」排在最后(order 50,视觉稿第 4 行),且进度「1/3」显示在副标题而不是右侧数字;② 跟读区来源片与「参考文本」标签在同一行(视觉稿来源片单独一行);③ 面板标题「单词操作」下另起一行显示词,没有视觉稿的「来自 …」来源说明;④ 发音弱词没有「拼写」键与「读准 1/2」(L4 裁定)、分数没有按色阶上色;⑤ 生词本为空时「易错词 / 发音弱词」入口排在空状态文字之下(视觉稿在「全部」之上);⑥ 设置页没有「已开启 n/6」以外的分组说明。都不影响功能,未修 |
+| 主包 | `index-*.js` gzip 506.54 kB(Task 0 基线)→ 514.33 kB(Z 结束),**+7.79 kB**(上限 +8 kB,余量很小;联动页面、面板、设置页、词卡都已懒加载) |
+
+### `server/tests/test_rooms_ws.py` 卡住(各车道报告的「第一条用例不动」)
+
+- 现场:L4 车道的半程 pytest 进程从 04:58 起卡住 3 个多小时,6 个线程中 1 个持续运行(累计 1 小时 CPU),其余在等待;没有 faulthandler,拿不到 Python 栈。
+- 复现尝试:16 个忙循环进程压 CPU 时单独跑该文件 30 次全过(每次 26–30 s,空闲时 7 s);同样负载下整个后半程(1,934 条)连跑 3 次全过(6–19 分钟)。**根因未确认**。
+- 已加固:所有 WebSocket 读帧走带 30 s 期限的 `receive()`(Starlette 的 `WebSocketTestSession.receive()` 没有超时,少一帧就永远等下去),少帧时用例失败并写明原因;`pyproject.toml` 设 `faulthandler_timeout = 600`,以后任何用例跑超 10 分钟都会打出全部线程的栈(不杀进程),留下证据。
+
+### 未验证
+
+- Docker E2E 栈上的 `links.spec.ts` 与全部既有规格(栈现在 `LINKS_ENABLED=true`)。
+- 真机:iOS Safari / 主屏 PWA 与安卓 Chrome 上的「更多」面板(底部安全区、焦点回到「更多」)、今日任务卡、来源片 44px 命中区、开关页;VoiceOver / TalkBack 读开关(`role="switch"`)、今日任务行的「已完成」与面板四行;两平台深色模式。
+- 真实讯飞评测产生的发音弱词与「读准两次移出」;大模型用法检查(`LINK_CHAT_WORDS_LLM_ENABLED`)对真实上游的调用、402 降级与费用;多 worker 部署下的偏好缓存延迟。
+- Postgres 上的整套测试(本环境没有 Docker);外键 `ON DELETE` 只由迁移测试在 SQLite 上比对。
