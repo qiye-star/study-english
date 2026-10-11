@@ -34,6 +34,10 @@ class MemoryNotFound(Exception):
     pass
 
 
+class MemoryFull(Exception):
+    """置顶条目已占满容量,新条目无处可放(内部结果,不对外)。"""
+
+
 @dataclass(frozen=True)
 class ThreadKey:
     kind: str  # "conversation" | "room"
@@ -146,8 +150,9 @@ class MemoryStore:
                                                             AgentMemoryItem.user_id == user_id))
 
     async def add(self, user_id: int, *, kind: str, text: str, importance: int, persona_id: str | None,
-                  source: str) -> AgentMemoryItem | None:
-        """None = 被拒绝(墓碑、空文本)。同一规范化文本已存在 → 不新建,刷新时间并取较高重要度。"""
+                  source: str, max_items: int | None = None) -> AgentMemoryItem | None:
+        """None = 被拒绝(墓碑、空文本)。同一规范化文本已存在 → 不新建,刷新时间并取较高重要度。
+        传 `max_items` 且置顶条目已占满全部容量 → 抛 MemoryFull(新条目无处可放;不会淘汰任何东西)。"""
         if kind not in ITEM_KINDS or source not in ITEM_SOURCES:
             raise ValueError("kind")
         text = clean_text(text)[:ITEM_TEXT_MAX]
@@ -163,6 +168,10 @@ class MemoryStore:
                 row.importance, row.updated_at = max(row.importance, importance), now
                 await s.commit()
                 return row
+            if max_items is not None and int(await s.scalar(
+                    select(func.count()).select_from(AgentMemoryItem).where(
+                        AgentMemoryItem.user_id == user_id, AgentMemoryItem.pinned.is_(True))) or 0) >= max_items:
+                raise MemoryFull()
             row = AgentMemoryItem(id=str(uuid.uuid4()), user_id=user_id, persona_id=persona_id, kind=kind, text=text,
                                   text_hash=digest, importance=importance, pinned=False, source=source,
                                   created_at=now, updated_at=now)
@@ -232,13 +241,17 @@ class MemoryStore:
                                                           AgentMemoryItem.id.in_(ids)).values(last_used_at=at))
             await s.commit()
 
-    async def evict(self, user_id: int, max_items: int) -> int:
+    async def evict(self, user_id: int, max_items: int, protect: Iterable[str] = ()) -> int:
+        """超出容量时淘汰排名最低的未置顶条目;`protect`(本次刚写入的条目)永不淘汰。
+        置顶数 ≥ 容量时容量无法达成:什么都不淘汰(新增在 `add(max_items=…)` 处被拒,见 MemoryFull)。"""
+        keep = set(protect)
         async with self._sm() as s:
             rows = (await s.scalars(select(AgentMemoryItem).where(AgentMemoryItem.user_id == user_id))).all()
             extra = len(rows) - max_items
-            if extra <= 0:
+            if extra <= 0 or sum(1 for r in rows if r.pinned) >= max_items:
                 return 0
-            victims = [v.id for v in eviction_order([to_view(r) for r in rows], self._clock())][:extra]
+            ordered = [v.id for v in eviction_order([to_view(r) for r in rows], self._clock()) if v.id not in keep]
+            victims = ordered[:extra]
             if victims:
                 await s.execute(delete(AgentMemoryItem).where(AgentMemoryItem.id.in_(victims)))
             await s.commit()

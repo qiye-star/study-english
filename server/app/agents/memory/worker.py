@@ -20,7 +20,7 @@ from app.agents.memory.cache import SnapshotCache
 from app.agents.memory.extract import EXISTING_MAX, INPUT_TEXT_MAX, ExtractInput, Op, extract
 from app.agents.memory.retrieve import ranked
 from app.agents.memory.source import snapshot_key
-from app.agents.memory.store import MemoryStore, ThreadKey, ThreadTouch
+from app.agents.memory.store import MemoryFull, MemoryStore, ThreadKey, ThreadTouch
 from app.agents.memory.summarize import (
     DROPPED_MAX, RECAP_LINES_MAX, RECAP_MIN_LINES, SUMMARY_BATCH, recap, roll_summary,
 )
@@ -85,12 +85,23 @@ def thread_key(record: TurnRecordLike) -> ThreadKey | None:
     return ThreadKey("conversation", record.conversation_id) if record.conversation_id else None
 
 
-async def apply_ops(store: MemoryStore, user_id: int, persona_id: str | None, ops: list[Op], source: str) -> int:
+async def apply_ops(store: MemoryStore, user_id: int, persona_id: str | None, ops: list[Op], source: str, *,
+                    max_items: int | None = None, kept: set[str] | None = None,
+                    deps: "MemoryDeps | None" = None) -> int:
+    """`kept` 收集本次写入 / 刷新的条目 id(淘汰时受保护);`max_items` 让置顶占满容量时的新增被拒(计数 add_rejected_full)。"""
     applied = 0
     for op in ops:
         if op.action == "add":
-            row = await store.add(user_id, kind=op.kind, text=op.text, importance=op.importance,
-                                  persona_id=None if op.shared else persona_id, source=source)
+            try:
+                row = await store.add(user_id, kind=op.kind, text=op.text, importance=op.importance,
+                                      persona_id=None if op.shared else persona_id, source=source,
+                                      max_items=max_items)
+            except MemoryFull:
+                if deps is not None:
+                    deps.count("add_rejected_full")
+                continue
+            if row is not None and kept is not None:
+                kept.add(row.id)
             applied += row is not None
         elif op.action == "update":
             applied += await store.update(user_id, op.item_id, text=op.text, kind=op.kind, importance=op.importance)
@@ -221,8 +232,9 @@ class MemoryWorker:
                                lambda deps: extract(deps, ExtractInput(user_id, persona_id, texts, existing)))
         if ops is None:
             return
-        applied = await apply_ops(d.store, user_id, persona_id, ops, source)
-        evicted = await d.store.evict(user_id, d.settings().agents_memory_items_max)
+        cap, kept = d.settings().agents_memory_items_max, set()
+        applied = await apply_ops(d.store, user_id, persona_id, ops, source, max_items=cap, kept=kept, deps=d)
+        evicted = await d.store.evict(user_id, cap, protect=kept)
         d.count("ops_applied", applied)
         d.count("evicted", evicted)
         logger.info("agents memory extract ops=%d applied=%d evicted=%d", len(ops), applied, evicted)

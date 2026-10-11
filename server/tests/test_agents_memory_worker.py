@@ -233,5 +233,31 @@ async def test_a_failing_job_logs_only_the_exception_class(app, uid, caplog):
     assert "RuntimeError" in caplog.text and "MAGENTA" not in caplog.text and deps.counters["jobs_failed"] == 1
 
 
+async def test_extraction_keeps_the_new_item_when_pinned_items_fill_most_of_the_cap(app, uid):
+    enable_agents(app, agents_memory_items_max=2)
+    await add_conversation(app, uid)
+    store = app.state.agent_memory.store
+    pinned = await store.add(uid, kind="fact", text="pinned fact", importance=1, persona_id=None, source="chat")
+    await store.pin(uid, pinned.id, True)
+    await store.add(uid, kind="fact", text="old unpinned", importance=1, persona_id=None, source="chat")
+    worker, deps, *_ = make_worker(app, FakeLLM(ADD))
+    await turns(worker, uid, NOW, 4)
+    texts = {r.text for r in (await store.items(uid))[0]}
+    assert texts == {"pinned fact", "准备雅思口语考试"} and deps.counters["evicted"] == 1
+
+
+async def test_extraction_with_every_slot_pinned_rejects_the_add_and_evicts_nothing(app, uid):
+    enable_agents(app, agents_memory_items_max=2)
+    await add_conversation(app, uid)
+    store = app.state.agent_memory.store
+    for text in ("pinned one", "pinned two"):
+        await store.pin(uid, (await store.add(uid, kind="fact", text=text, importance=1, persona_id=None,
+                                              source="chat")).id, True)
+    worker, deps, *_ = make_worker(app, FakeLLM(ADD))
+    await turns(worker, uid, NOW, 4)
+    assert {r.text for r in (await store.items(uid))[0]} == {"pinned one", "pinned two"}
+    assert deps.counters.get("evicted", 0) == 0 and deps.counters["add_rejected_full"] == 1
+
+
 def test_the_cap_scope_is_the_shared_agents_memory_extract_scope():
     assert CAP_SCOPE == limits.SCOPE_MEMORY_USER

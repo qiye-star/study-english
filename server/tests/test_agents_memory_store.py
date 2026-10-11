@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.agents.memory.profile import ProfileError
-from app.agents.memory.store import MemoryNotFound, MemoryStore, ThreadKey, memory_counts
+from app.agents.memory.store import MemoryFull, MemoryNotFound, MemoryStore, ThreadKey, memory_counts
 from app.agents.memory.tombstones import REDACTED
 from tests.agents_memory_helpers import add_conversation, user_id_of
 
@@ -157,3 +157,33 @@ async def test_memory_counts_are_numbers_only(app, store, uid):
         counts = await memory_counts(s)
     assert counts == {"items": 1, "pinned_items": 0, "users_with_items": 1, "profiles": 0, "recaps": 0,
                       "thread_states": 0, "tombstones": 0}
+
+
+async def test_evict_keeps_the_just_added_item_when_pinned_fill_the_cap(app, uid):
+    clock = {"now": NOW - timedelta(days=90)}
+    store = MemoryStore(app.state.sessionmaker, clock=lambda: clock["now"])
+    for text in ("pinned one", "pinned two"):
+        await store.pin(uid, (await add(store, uid, text, importance=1)).id, True)
+    old = await add(store, uid, "old weak", importance=1)
+    clock["now"] = NOW
+    fresh = await add(store, uid, "fresh one", importance=5)
+    # cap 3 = 2 pinned + 1 free slot: the old weak one goes, the new item stays
+    assert await store.evict(uid, 3, protect=[fresh.id]) == 1
+    ids = {r.id for r in (await store.items(uid))[0]}
+    assert fresh.id in ids and old.id not in ids and len(ids) == 3
+
+
+async def test_add_is_rejected_when_every_slot_is_pinned_and_nothing_is_evicted(app, uid):
+    store = MemoryStore(app.state.sessionmaker, clock=lambda: NOW)
+    for text in ("pinned one", "pinned two"):
+        await store.pin(uid, (await add(store, uid, text)).id, True)
+    with pytest.raises(MemoryFull):
+        await store.add(uid, kind="fact", text="new text", importance=5, persona_id=None, source="chat", max_items=2)
+    assert len((await store.items(uid))[0]) == 2
+    # unpinned leftovers are not wiped out by an unreachable cap either
+    keep = await add(store, uid, "unpinned leftover")
+    assert await store.evict(uid, 2) == 0
+    assert keep.id in {r.id for r in (await store.items(uid))[0]}
+    # a duplicate of an existing item is still fine (no new slot needed)
+    assert await store.add(uid, kind="fact", text="pinned one", importance=5, persona_id=None, source="chat",
+                           max_items=2) is not None
