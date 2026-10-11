@@ -9,7 +9,7 @@
   主题 / 场景是固定键,目标里没有自由文本
 - `machine.py` – 不可变 `TutorState` + `next_state(state, event)`;事件 `Asked / Answered / HintUsed / Skipped / Finished`;
   `new_state`(别名 `initial_state`)、`difficulty`、`to_dict / from_dict`(读取时夹取、容错)、`InvalidTransition`
-- `parse.py` – `<<META>>` 协议:`parse_meta`、`StreamFilter`(跨增量剥离标记)、`resolve`(缺失 / 无效的回落规则)
+- `parse.py` – `<<META>>` 协议(标记容忍大小写、空白与 «META» 等括号变体):`parse_meta`、`StreamFilter`(跨增量剥离标记)、`resolve`(缺失 / 无效的回落规则)
 - `prompt.py` – `tutor_block`(每回合都变的模式块,放在历史之后)、`question_line`、`clean`、`MAX_TOKENS = 350`、`OPENING_USER_TEXT`
 - `recap.py` – `build_recap`、`memory_candidates`(≤ 3 条,不含词与回答)、`summary_text`
 - `service.py` – 会话存取:`start`(幂等、每日上限 `limits.SCOPE_TUTOR_USER`、并发唯一约束兜底)、`hint / skip / finish`、

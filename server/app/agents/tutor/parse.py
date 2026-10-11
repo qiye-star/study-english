@@ -12,7 +12,11 @@ META_MARKER = "<<META>>"
 VERDICTS: tuple[str, ...] = ("good", "ok", "weak", "skip")
 MAX_FOCUS, MAX_HINT, MAX_SAY = 60, 120, 160
 _WS = " \t\r\n"
-_MARK = re.compile(re.escape(META_MARKER), re.IGNORECASE)
+_OPEN, _CLOSE = "<«‹＜〈《", ">»›＞〉》"
+# 标记容忍大小写、括号内外的空白、全角 / 法文引号(`<< META >>`、`«META»`);只匹配「括号 + META + 括号」
+_MARK = re.compile(rf"[{_OPEN}]+\s{{0,8}}META\s{{0,8}}[{_CLOSE}]+", re.IGNORECASE)
+# 缓冲区末尾「可能是标记开头」的部分(含前导空白由 _hold 另行处理)
+_PARTIAL = re.compile(rf"[{_OPEN}]+(?:\s{{0,8}}(?:M(?:E(?:T(?:A\s{{0,8}})?)?)?)?)?$", re.IGNORECASE)
 _CTRL = re.compile("[\\x00-\\x1f\\x7f-\\x9f   ]+")
 
 
@@ -61,12 +65,8 @@ def parse_meta(text: str) -> tuple[str, Meta | None]:
 
 def _hold(buf: str) -> int:
     """缓冲区末尾需要暂扣的字符数:可能是标记开头的后缀,以及它前面的空白。"""
-    keep = 0
-    for n in range(min(len(buf), len(META_MARKER) - 1), 0, -1):
-        if buf[-n:].upper() == META_MARKER[:n]:
-            keep = n
-            break
-    j = len(buf) - keep
+    found = _PARTIAL.search(buf)
+    j = found.start() if found is not None else len(buf)
     while j > 0 and buf[j - 1] in _WS:
         j -= 1
     return len(buf) - j

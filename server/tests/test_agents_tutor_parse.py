@@ -2,7 +2,7 @@
 import json
 import random
 
-from app.agents.tutor.parse import META_MARKER, Meta, StreamFilter, parse_meta, resolve
+from app.agents.tutor.parse import _MARK, META_MARKER, Meta, StreamFilter, parse_meta, resolve
 
 
 def run(parts: list[str]) -> tuple[str, StreamFilter]:
@@ -36,6 +36,21 @@ def test_filter_lowercase_marker_and_lookalikes():
     assert run(["ends with <<ME"])[0] == "ends with <<ME"
 
 
+VARIANTS = ["<< META >>", "<<META >>", "<< meta>>", "«META»", "‹‹ Meta ››", "＜＜META＞＞", "<<\tMETA\n>>", "<META>"]
+
+
+def test_marker_variants_are_parsed_and_hidden():
+    for marker in VARIANTS:
+        full = "Nice.\n" + marker + '{"verdict":"good","hint":"h"}'
+        visible, meta = parse_meta(full)
+        assert visible == "Nice." and meta is not None and meta.verdict == "good", marker
+        for size in (1, 2, 3, 100):
+            out, f = run([full[i:i + size] for i in range(0, len(full), size)])
+            assert out == "Nice." and f.seen, (marker, size)
+    assert run(["a << META list >> b"])[0] == "a << META list >> b"
+    assert run(["x <<", " ME", "TA >", ">{}"])[0] == "x"
+
+
 def test_resolve_fallback_rules():
     assert resolve(None, answering=True) == (Meta(verdict="ok"), True)
     assert resolve(None, answering=False) == (Meta(verdict=None), True)
@@ -44,14 +59,14 @@ def test_resolve_fallback_rules():
     assert resolve(Meta(verdict="weak"), answering=True) == (Meta(verdict="weak"), False)
 
 
-ALPHABET = ["a", "b", " ", "\n", "\t", "<", ">", "<<", "<<M", "<<ME", "<<MET", "<<META", "META", ">>", "你好",
+ALPHABET = ["«", "»", "< ", " >", "‹", "＞","a", "b", " ", "\n", "\t", "<", ">", "<<", "<<M", "<<ME", "<<MET", "<<META", "META", ">>", "你好",
             "简评:", "{", "}", "e", "T", "m"]
 
 
 def _visible(rng: random.Random) -> str:
     while True:
         text = "".join(rng.choice(ALPHABET) for _ in range(rng.randint(0, 40)))
-        if "<<meta>>" not in text.lower():
+        if _MARK.search(text) is None:
             return text
 
 
@@ -66,7 +81,7 @@ def test_fuzz_chunk_splits_never_leak_meta_and_match_parse():
     rng = random.Random(20261012)
     for i in range(3000):
         visible = _visible(rng)
-        marker = rng.choice([META_MARKER, "<<meta>>", "<<Meta>>"])
+        marker = rng.choice([META_MARKER, "<<meta>>", "<<Meta>>", *VARIANTS])
         tail = rng.choice([json.dumps({"verdict": "good", "next_focus": f"HIDDEN{i}", "done": False}),
                            f"{{broken HIDDEN{i}", f"HIDDEN{i}"])
         has_meta = rng.random() < 0.8
