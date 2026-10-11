@@ -137,4 +137,39 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
     expect(bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[0])).toEqual({ messages: [{ role: "user", content: "Hi" }, { role: "assistant", content: "OK" }] });
     expect(screen.queryByTestId("agent-capsule")).toBeNull();
   });
+
+  it("picks a persona for an old conversation by writing only agent_persona_id", async () => {
+    const mock = setup(routes({}, CONFIG));
+    await userEvent.click(await screen.findByTestId("agent-persona-chip"));
+    await userEvent.click(await screen.findByTestId("agent-persona-builtin:coach"));
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(1));
+    expect(bodyOf(callsTo(mock, "PATCH", "/api/conversations/c1")[0]).config).toEqual({ ...CONFIG, agent_persona_id: "builtin:coach" });
+  });
+
+  it("removing the persona deletes only the agent_persona_id key", async () => {
+    const mock = setup(routes());
+    await waitFor(() => expect(screen.getByTestId("agent-persona-chip")).toHaveTextContent("Emma"));
+    await userEvent.click(screen.getByTestId("agent-persona-chip"));
+    await userEvent.click(await screen.findByTestId("agent-persona-none"));
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(1));
+    expect(bodyOf(callsTo(mock, "PATCH", "/api/conversations/c1")[0]).config).toEqual(CONFIG);
+  });
+
+  it("explains in the settings sheet that the persona decides prompt, scenario and level", async () => {
+    setup(routes());
+    await waitFor(() => expect(screen.getAllByTestId("message-assistant")[0]).toHaveTextContent("Earlier reply"));
+    await waitFor(() => expect(screen.getByTestId("agent-persona-chip")).toHaveTextContent("Emma"));
+    await userEvent.click(screen.getByTestId("conversation-options"));
+    await userEvent.click(screen.getByTestId("conversation-settings"));
+    expect(await screen.findByTestId("settings-persona-note")).toBeInTheDocument();
+  });
+
+  it("old conversations show no persona note in the settings sheet", async () => {
+    setup(routes({}, CONFIG));
+    await screen.findByText("Earlier reply");
+    await userEvent.click(screen.getByTestId("conversation-options"));
+    await userEvent.click(screen.getByTestId("conversation-settings"));
+    await screen.findByTestId("settings-save");
+    expect(screen.queryByTestId("settings-persona-note")).toBeNull();
+  });
 });

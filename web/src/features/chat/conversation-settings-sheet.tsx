@@ -78,6 +78,9 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
       <BottomSheetContent className="max-h-[85dvh] overflow-y-auto">
         <BottomSheetHeader title={t("web.chat.settings")} />
         <div className="space-y-section pb-1">
+          {config.agentPersonaId && (
+            <p data-testid="settings-persona-note" className="rounded-[10px] bg-surface-2 px-3 py-2 text-meta text-ink-2">{t("web.chat.settingsForm.personaNote")}</p>
+          )}
           <Group title={t("web.chat.settingsForm.groupConversation")}>
             <label className={fieldClass}>
               <span className={labelClass}>{t("web.chat.settingsForm.scenario")}</span>

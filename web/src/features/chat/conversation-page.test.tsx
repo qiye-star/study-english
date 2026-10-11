@@ -771,14 +771,16 @@ describe("ConversationPage", () => {
       const fake = createFakeRecorderEnv();
       const { mock } = setup(routes(), fake.env);
       await screen.findByText("reply");
-      const before = mock.calls.length;
+      // 懒加载的角色控件会在任意时刻请求一次 /api/agents/config:不计入
+      const own = () => mock.calls.filter((c) => !c.url.pathname.startsWith("/api/agents/")).length;
+      const before = own();
       await startRecording();
       expect(screen.getByTestId("voice-timer")).toHaveTextContent("00:00 / 01:00");
       expect(screen.queryByTestId("chat-input")).toBeNull(); // 录音时输入框让位给计时条
       await userEvent.click(screen.getByTestId("chat-mic-cancel"));
       await waitFor(() => expect(screen.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle"));
       expect(fake.track.stop).toHaveBeenCalled();
-      expect(mock.calls.length).toBe(before);
+      expect(own()).toBe(before);
       expect(screen.queryAllByTestId("message-user")).toHaveLength(0);
     });
 

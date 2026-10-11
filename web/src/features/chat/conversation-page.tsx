@@ -15,7 +15,7 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { ProcessCapsule, SourceChips, runAgentTurn, type AgentTrace } from "~/features/agents";
+import { ChatPersonaControl, ProcessCapsule, SourceChips, runAgentTurn, type AgentTrace, type Persona } from "~/features/agents";
 import { goPractice, savePracticeItem } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
 import { WordActions } from "~/lib/extension-points-react";
@@ -192,6 +192,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const resetHints = hints.reset;
   const [hintsOpen, setHintsOpen] = useState(false);
   const [recapOpen, setRecapOpen] = useState(false);
+  /** 当前角色名(ChatPersonaControl 解析后回传,R-W15):助手头像取它的首字 */
+  const [personaName, setPersonaName] = useState<string | null>(null);
   const tts = useTtsPlayer(api, {
     createAudio: sharedAutoplayAudio,
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
@@ -907,6 +909,12 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     return run;
   }, [api]);
 
+  /** 选择 / 更换 / 取消角色(spec §9.3):只写 agentPersonaId(与角色音色,R-W17);取消时删掉这个键 */
+  const choosePersona = (persona: Persona | null) => {
+    const voice = persona?.voice && ai ? { ttsModel: ai.defaultTts.model, ttsVoice: persona.voice } : {};
+    void saveSettings({ agentPersonaId: persona?.id, ...voice }).catch((): void => undefined);
+  };
+
   const [bilingualSaving, setBilingualSaving] = useState(false);
   const bilingualBusyRef = useRef(false);
   const toggleBilingual = () => {
@@ -1110,9 +1118,15 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")}
         subtitle={subtitle}
         leading={(
-          <IconButton label={t("web.common.back")} onClick={() => navigate("/chat")}>
-            <ChevronLeftIcon />
-          </IconButton>
+          <>
+            <IconButton label={t("web.common.back")} onClick={() => navigate("/chat")}>
+              <ChevronLeftIcon />
+            </IconButton>
+            {conversation && (
+              <ChatPersonaControl personaId={conversation.config.agentPersonaId ?? null} disabled={sending || voiceBusy || !!call || settling}
+                onChange={choosePersona} onResolved={(p) => setPersonaName(p?.name ?? null)} />
+            )}
+          </>
         )}
         actions={
           <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
@@ -1134,7 +1148,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           const speakState = tts.states[m.key] ?? "idle";
           const translated = !!translations.open[m.key];
           return (
-            <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy} partnerName={partnerVoice}
+            <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy} partnerName={personaName ?? partnerVoice}
               before={m.agent ? <ProcessCapsule live={m.agent.live} trace={m.agent.trace} generating={m.status === "streaming"} /> : null}
               after={m.agent?.trace ? <SourceChips trace={m.agent.trace} /> : null}
               footer={hasResultFooter(m) ? (

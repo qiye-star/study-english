@@ -14,3 +14,4 @@ export { PersonaChip, PersonaEditorSheet } from "./lazy-parts";
 export { PersonaPicker } from "./lazy-parts";
 export { ReportPersonaSheet } from "./lazy-parts";
 export { AgentSettingsPage, AgentsMeRow } from "./lazy-parts";
+export { ChatPersonaControl } from "./lazy-parts";

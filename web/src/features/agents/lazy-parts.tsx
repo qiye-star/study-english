@@ -27,3 +27,4 @@ export const PersonaPicker = part<import("./persona-picker").PersonaPickerProps>
 export const ReportPersonaSheet = part<import("./report-persona-sheet").ReportPersonaSheetProps>(() => import("./report-persona-sheet").then((m) => m.ReportPersonaSheet));
 export const AgentSettingsPage = part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
 export const AgentsMeRow = part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
+export const ChatPersonaControl = part<import("./chat-parts").ChatPersonaControlProps>(() => import("./chat-parts").then((m) => m.ChatPersonaControl));
