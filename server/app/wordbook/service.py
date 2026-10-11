@@ -3,6 +3,7 @@
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
 import asyncio
 import random
+import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
@@ -24,7 +25,7 @@ from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
-                               pick_distractors, pick_qtype, question_rng, use_recall)
+                               pick_distractors, pick_qtype, question_rng, use_recall, free_choice_qtype, free_spellable)
 from app.core import learning_events
 
 
@@ -899,3 +900,48 @@ async def learned_card(session: AsyncSession, ds: DictionaryStore, user_id: int,
     if row is None or row.source != store.wordbook_source(book_id):
         fail(WORD_NOT_FOUND)
     return await card_detail(session, ds, settings, book_id, key)
+
+
+FREE_OVERSAMPLE = 3  # 拼写题多抽 3 倍再筛掉不可拼写的词
+
+
+async def free_start(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, *, scope: str,
+                     mode: str, count: int, book: str | None, tier: str | None, offset: int, now,
+                     rng: random.Random | None = None) -> dict:
+    """自由复习开始:服务端按范围抽词、出题(R-L9 / R-L10)。客户端不能指定词。先校验、再取池(空池不扣次数)、再扣次数。"""
+    enabled = enabled_books(settings.wordbook_books)
+    if scope == "book" and (book is None or book not in enabled):
+        fail(INVALID_SCOPE)
+    if scope == "tier" and tier is None:
+        fail(INVALID_SCOPE)
+    since, until = learned.scope_window(scope, now, offset)
+    pool = await store.free_pool(session, user_id, store.learned_sources((book,) if scope == "book" else enabled),
+                                 tier=tier if scope == "tier" else None, weak=scope == "weak", since=since, until=until)
+    if not pool:
+        fail(NOTHING_TO_REVIEW)
+    if not await store.consume_free_start(session, user_id, utc_day(now)):
+        fail(FREE_LIMIT)
+    rng = rng or random.Random()
+    pool.sort()
+    picked = rng.sample(pool, min(len(pool), count * FREE_OVERSAMPLE if mode == "spell" else count))
+    await ensure_hidden(session, ds)
+    cards: dict[tuple[str, str], WordCard] = {}
+    for book_id in dict.fromkeys(b for _, b in picked):
+        found = await cards_or_fail(ds, book_id, [w for w, b in picked if b == book_id])
+        cards.update({(book_id, k): c for k, c in found.items()})
+    qrng = random.Random(rng.getrandbits(64))
+    items: list[dict] = []
+    for word, book_id in picked:
+        card = cards.get((book_id, word))
+        if card is None or (mode == "spell" and not free_spellable(card)):
+            continue
+        question = None
+        if mode != "browse":
+            qtype = "recall" if mode == "recall" else "spell" if mode == "spell" else free_choice_qtype(card, qrng)
+            question = question_out(await _question(ds, await index_or_fail(ds, book_id), card, qtype, qrng))
+        items.append({"book_id": book_id, "card": card_out(card), "question": question})
+        if len(items) == count:
+            break
+    if not items:
+        fail(NOTHING_TO_REVIEW)
+    return {"set_id": secrets.token_hex(6), "scope": scope, "mode": mode, "items": items}

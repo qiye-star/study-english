@@ -399,3 +399,25 @@ async def wordbook_learned_card(payload: LearnedCardIn, request: Request, user: 
                                           normalize_word(payload.key))
     except service.WordbookError as e:
         _raise(e)
+
+
+class FreeStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope: Literal["yesterday", "last7", "book", "tier", "weak", "all"]
+    mode: Literal["browse", "recall", "choice", "spell"]
+    count: Literal[10, 20, 50]
+    book: str | None = Field(None, max_length=16)
+    tier: Literal["learning", "growing", "mastered"] | None = None
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+@router.post("/free/start")
+async def wordbook_free_start(payload: FreeStartIn, request: Request, user: User = Depends(current_user),
+                              session: AsyncSession = Depends(get_session),
+                              settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.free_start(session, dictionary(request.app), user.id, settings, scope=payload.scope,
+                                        mode=payload.mode, count=payload.count, book=payload.book, tier=payload.tier,
+                                        offset=payload.tz_offset_minutes, now=utcnow())
+    except service.WordbookError as e:
+        _raise(e)

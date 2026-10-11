@@ -166,3 +166,16 @@ def check_choice(qtype: QType, card: WordCard, choice: str) -> bool:
     if qtype in ("word", "cloze"):
         return fold(choice) == card.key
     raise ValueError(f"{qtype} is not a choice question")
+
+
+def free_choice_qtype(card: WordCard, rng: random.Random) -> QType:
+    """自由复习的选择题题型(R-L11):与盒子无关;释义选词、看释义选词,有可挖空例句时再加例句选词。"""
+    options: list[QType] = ["meaning", "word"]
+    if cloze_example(card):
+        options.append("cloze")
+    return rng.choice(options)
+
+
+def free_spellable(card: WordCard) -> bool:
+    """自由复习的拼写题只抽可拼写的单词(与 eligible_qtypes 的 spell 条件一致)。"""
+    return bool(card.spellable) and " " not in card.key
