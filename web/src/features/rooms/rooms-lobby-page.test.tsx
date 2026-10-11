@@ -16,7 +16,7 @@ const V2_CONFIG = { enabled: true, ai_available: true, max_members: 8, max_text:
 function setup(join: Handler = () => json({ room: ROOM }), enabled = true, routes: Record<string, Handler> = {}) {
   const mock = createFetchMock({
     "GET /api/rooms/config": () => json({ ...V2_CONFIG, enabled }),
-    "GET /api/rooms/mine": () => json({ rooms: [ROOM, { ...ROOM, id: "r2", code: null, topic: "", status: "closed" }] }),
+    "GET /api/rooms/mine": () => json({ rooms: [ROOM], ended_count: 2 }),
     "POST /api/rooms/join": join,
     "POST /api/rooms": () => json({ room: { ...ROOM, id: "r9" } }),
     ...routes,
@@ -76,12 +76,12 @@ describe("RoomsLobbyPage", () => {
     expect(await screen.findByText("房间已锁定")).toBeTruthy();
   });
 
-  it("lists my open and ended rooms and creates a room with the seven settings", async () => {
+  it("lists my open rooms, offers the ended-rooms entry and creates a room with the seven settings", async () => {
     const mock = setup();
     const rows = await screen.findAllByTestId("my-room");
-    expect(rows.map((r) => r.dataset.status)).toEqual(["open", "closed"]);
-    expect(rows[1].getAttribute("href")).toBe("/rooms/r/r2");
-    expect(rows[1].textContent).toContain("已结束");
+    expect(rows.map((r) => r.dataset.status)).toEqual(["open"]);
+    expect(screen.getByTestId("rooms-ended-link").getAttribute("href")).toBe("/rooms/ended");
+    expect(screen.getByTestId("rooms-ended-link").textContent).toContain("已结束的房间(2)");
     fireEvent.click(screen.getByTestId("room-create"));
     expect(await screen.findByPlaceholderText("alice的房间")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "咖啡店点单" }));
@@ -92,22 +92,10 @@ describe("RoomsLobbyPage", () => {
       .toEqual({ scenario: "cafe", join_mode: "code", max_members: 4, ai_public: true, allow_voice: true });
   });
 
-  it("ended rows with a learning summary show it as the subtitle and open the summary", async () => {
-    setup(undefined, true, {
-      "GET /api/rooms/mine": () => json({ rooms: [
-        { ...ROOM, summary_status: null },
-        { ...ROOM, id: "r2", code: null, name: "咖啡角", status: "closed", summary_status: "done" },
-        { ...ROOM, id: "r3", code: null, name: "面馆", status: "closed", summary_status: "pending" },
-        { ...ROOM, id: "r4", code: null, name: "书店", status: "closed", summary_status: "skipped" },
-      ] }),
-    });
-    const rows = await screen.findAllByTestId("my-room");
-    expect(rows[1].textContent).toContain("已结束 · 学习小结");
-    expect(rows[1].getAttribute("href")).toBe("/rooms/r/r2/summary");
-    expect(rows[2].textContent).toContain("已结束 · 小结生成中");
-    expect(rows[2].getAttribute("href")).toBe("/rooms/r/r3/summary");
-    expect(rows[3].textContent).not.toContain("小结");
-    expect(rows[3].getAttribute("href")).toBe("/rooms/r/r4");
+  it("hides the ended-rooms entry when there are none", async () => {
+    setup(undefined, true, { "GET /api/rooms/mine": () => json({ rooms: [ROOM], ended_count: 0 }) });
+    await screen.findAllByTestId("my-room");
+    expect(screen.queryByTestId("rooms-ended-link")).toBeNull();
   });
 
   it("explains when rooms are off", async () => {

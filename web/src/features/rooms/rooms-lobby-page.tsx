@@ -1,4 +1,4 @@
-import { ChevronRightIcon, HourglassIcon, PlusIcon, UsersRoundIcon } from "lucide-react";
+import { ArchiveIcon, ChevronRightIcon, HourglassIcon, PlusIcon, UsersRoundIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
@@ -14,13 +14,13 @@ import { joinRoomV2, ROOMS_ALL_SERVER_ERRORS } from "./create/rooms-v2-api";
 import { useJoinRequest } from "./create/use-join-request";
 import { CreateRoomSheet } from "./create-room-sheet";
 import type { RoomInfo } from "./protocol";
-import { fetchRoomsConfig, myRooms, normalizeCode, type MyRoom, type RoomsConfig } from "./rooms-api";
+import { fetchRoomsConfig, myRoomsOverview, normalizeCode, type MyRoom, type RoomsConfig } from "./rooms-api";
 import { ghostButton, primaryButton, smallGhostButton } from "./ui";
 
 const formatCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
 /**
- * 联机大厅(视觉稿 M1):6 格房间号 + 加入、创建房间、我的房间(进行中 / 7 天内已结束,只读)。
+ * 联机大厅(视觉稿 M1):6 格房间号 + 加入、创建房间、我的房间(进行中的房间;已结束的在 /rooms/ended)。
  * 需房主同意的房间:加入返回待审批请求,房间号下方显示等待卡片(可撤回),同意后自动进入(spec §3.4)。
  */
 export function RoomsLobbyPage() {
@@ -29,6 +29,7 @@ export function RoomsLobbyPage() {
   const navigate = useNavigate();
   const [state, setState] = useState<GateState>("loading");
   const [rooms, setRooms] = useState<MyRoom[]>([]);
+  const [endedCount, setEndedCount] = useState(0);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +45,9 @@ export function RoomsLobbyPage() {
       .then(async (c) => {
         setConfig(c);
         if (!c.enabled) return setState("disabled");
-        setRooms(await myRooms(api, ctrl.signal));
+        const overview = await myRoomsOverview(api, ctrl.signal);
+        setRooms(overview.rooms);
+        setEndedCount(overview.endedCount);
         setState("ready");
       })
       .catch(() => { if (!ctrl.signal.aborted) setState("error"); });
@@ -110,15 +113,10 @@ export function RoomsLobbyPage() {
           <SectionGroup title={t("web.rooms.lobby.mine")}>
             {rooms.length === 0 && <p className="px-3.5 py-4 text-sub text-ink-2">{t("web.rooms.lobby.empty")}</p>}
             {rooms.map((room) => {
-              const open = room.status === "open";
-              // 已结束且有小结(生成中 / 已生成 / 失败可重试):副标题标明,点进小结页(spec §6.1 入口)
-              const summary = !open && (room.summaryStatus === "done" || room.summaryStatus === "pending" || room.summaryStatus === "failed")
-                ? room.summaryStatus : null;
               return (
-                <Link key={room.id} to={`/rooms/r/${encodeURIComponent(room.id)}${summary ? "/summary" : ""}`} data-testid="my-room" data-status={room.status}
+                <Link key={room.id} to={`/rooms/r/${encodeURIComponent(room.id)}`} data-testid="my-room" data-status={room.status}
                   className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                  <span aria-hidden className={cn("inline-flex size-[34px] flex-none items-center justify-center rounded-badge",
-                    open ? "bg-blue-tint text-blue" : "bg-surface-2 text-ink-2")}>
+                  <span aria-hidden className="inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue">
                     <UsersRoundIcon className="size-[19px]" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -126,8 +124,7 @@ export function RoomsLobbyPage() {
                       {room.name || room.topic || (room.code ? t("web.rooms.room.code", { code: formatCode(room.code) }) : t("web.rooms.room.title"))}
                     </span>
                     <span className="mt-0.5 block text-meta tabular-nums text-ink-2">
-                      {open ? t("web.rooms.lobby.open", { count: room.onlineCount })
-                        : summary ? t(`web.rooms.lobby.summary.${summary}`) : t("web.rooms.lobby.closed")}
+                      {t("web.rooms.lobby.open", { count: room.onlineCount })}
                     </span>
                   </span>
                   <ChevronRightIcon aria-hidden className="size-[18px] flex-none text-ink-3" />
@@ -135,6 +132,14 @@ export function RoomsLobbyPage() {
               );
             })}
           </SectionGroup>
+          {endedCount > 0 && (
+            <Link to="/rooms/ended" data-testid="rooms-ended-link"
+              className="mt-3 flex min-h-row items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5 pr-3 shadow-hair transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+              <ArchiveIcon aria-hidden className="size-[19px] flex-none text-ink-2" />
+              <span className="min-w-0 flex-1 truncate text-body text-ink">{t("web.rooms.ended.entry", { count: endedCount })}</span>
+              <ChevronRightIcon aria-hidden className="size-[18px] flex-none text-ink-3" />
+            </Link>
+          )}
         </div>
       </FeatureGate>
       <CreateRoomSheet open={creating} onOpenChange={setCreating} config={config} onCreated={(room) => navigate(`/rooms/r/${encodeURIComponent(room.id)}`)} />
