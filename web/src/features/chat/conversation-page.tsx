@@ -15,7 +15,7 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, type AgentTrace, type Persona, type TurnMeta } from "~/features/agents";
+import { ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
 import { goPractice, savePracticeItem } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
 import { WordActions } from "~/lib/extension-points-react";
@@ -847,10 +847,11 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     void send("", kept, { solo: "opening" });
   };
   /** 导师开始面板的回调:进入导师模式,智能体先开口(spec §7.1)。 */
-  const startTutor = (sessionId: string) => {
+  const startTutor = (sessionId: string, info: TutorStartInfo) => {
     tutorRef.current = { sessionId };
     setTutor({ sessionId, meta: null });
-    continueTutor();
+    if (info.input === "voice") switchComposer("voice"); // 语音回答:输入栏切到按住说话(R-T16),转写文字就是回合文本
+    if (info.speakFirst) continueTutor();
   };
   const endTutor = () => {
     tutorRef.current = null;
@@ -1259,7 +1260,13 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           </div>
         )}
         {tutor && conversation && (
-          <TutorBarSlot sessionId={tutor.sessionId} meta={tutor.meta} busy={sending} onContinue={continueTutor} onEnd={endTutor} />
+          <TutorBarSlot sessionId={tutor.sessionId} meta={tutor.meta} busy={sending} onContinue={continueTutor} onEnd={endTutor}
+            lastReply={lastAssistantText(messages)}
+            onSpeak={(text) => void tts.play(`tutor-${tutor.sessionId}`, text, config.ttsModel, config.ttsVoice)}
+            onTranslateLast={() => {
+              const last = [...messages].reverse().find((m) => m.role === "assistant" && m.status === "done");
+              if (last && canTranslate) translations.toggle(last.key, last.content);
+            }} />
         )}
         <div aria-hidden={hintsUnavailable || undefined}
           className={cn("flex items-center px-2 transition-[height,opacity,margin] duration-fast ease-standard motion-reduce:transition-none",

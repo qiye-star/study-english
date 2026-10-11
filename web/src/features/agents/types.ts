@@ -113,6 +113,10 @@ export interface TurnMeta {
   verdict?: "good" | "ok" | "weak" | "skip";
   kind?: TutorKind;
   done?: boolean;
+  /** 同一题再试一次(跟读 / 听写第一次答得弱);服务端省略 null / false 以外的键,缺省 = 不是重试 */
+  retry?: boolean;
+  /** 下一题是听写时要朗读的句子(只在 meta 里,不在可见文本里) */
+  say?: string;
 }
 /** 界面用的压缩过程(done.trace / messages.agent_trace 经 normalizeTrace 归一;ms = 总耗时毫秒)。 */
 export interface AgentTrace {

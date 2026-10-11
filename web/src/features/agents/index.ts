@@ -16,7 +16,7 @@ export { ReportPersonaSheet } from "./lazy-parts";
 export { AgentSettingsPage, AgentsMeRow } from "./lazy-parts";
 export { ChatPersonaControl } from "./lazy-parts";
 export { TutorBarSlot, TutorEntry } from "./lazy-parts";
-export type { TutorBarSlotProps, TutorEntryProps, TutorStartSheetProps } from "./chat-parts";
+export type { TutorBarSlotProps, TutorEntryProps, TutorStartInfo, TutorStartSheetProps } from "./chat-parts";
 // ---- A2 agents-memory(自包含子目录;页面经 memory/lazy 懒加载,INDEX X10)----
 export { MemoryPage } from "./memory/lazy";
 export type { MemoryItem, ProfileState } from "./memory/memory-api";

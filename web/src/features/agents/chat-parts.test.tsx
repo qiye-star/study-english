@@ -57,7 +57,7 @@ describe("TutorEntry (R-W18, INDEX X7: the tutor components are a slot, not an i
   beforeEach(() => {
     resetAgentsCaches();
     TUTOR_SLOTS.StartSheet = ({ open, onStarted }) =>
-      open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1")}>start</button> : null;
+      open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1", { input: "text", speakFirst: true })}>start</button> : null;
   });
   afterEach(() => { TUTOR_SLOTS.StartSheet = null; });
   const render = (personaId: string | null, tutor = true) => {
@@ -72,7 +72,7 @@ describe("TutorEntry (R-W18, INDEX X7: the tutor components are a slot, not an i
     const onStarted = render("builtin:coach");
     await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
     await userEvent.click(await screen.findByTestId("fake-tutor-start"));
-    expect(onStarted).toHaveBeenCalledWith("ts1");
+    expect(onStarted).toHaveBeenCalledWith("ts1", { input: "text", speakFirst: true });
     expect(screen.queryByTestId("fake-tutor-start")).toBeNull();
   });
 

@@ -32,6 +32,11 @@ describe("agent SSE parser (spec §4.4, R-W11)", () => {
     expect(parseTurnEvent({ event: "delta", data: '{"text":"Hi"}' })).toEqual({ type: "delta", text: "Hi" });
     expect(parseTurnEvent({ event: "meta", data: '{"step_index":2,"steps_total":8,"verdict":"good","kind":"ask","done":false}' }))
       .toEqual({ type: "meta", meta: { stepIndex: 2, stepsTotal: 8, verdict: "good", kind: "ask", done: false } });
+    // tutor extras (retry, dictation sentence); null / empty keys stay absent
+    expect(parseTurnEvent({ event: "meta", data: '{"step_index":3,"steps_total":8,"kind":"dictate","done":false,"retry":true,"say":"I left early."}' }))
+      .toEqual({ type: "meta", meta: { stepIndex: 3, stepsTotal: 8, kind: "dictate", done: false, retry: true, say: "I left early." } });
+    expect(parseTurnEvent({ event: "meta", data: '{"step_index":3,"steps_total":8,"say":null}' }))
+      .toEqual({ type: "meta", meta: { stepIndex: 3, stepsTotal: 8 } });
     // server done.trace: steps carry `label` (no id), ms is {ctx,ttft,total}, thought has `chars`
     const trace = {
       v: 1, tools: "prefetch", ms: { ctx: 10, ttft: 200, total: 3400 },

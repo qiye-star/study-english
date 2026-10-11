@@ -221,4 +221,28 @@ describe("web architecture boundaries", () => {
     expect(leaks).toEqual([]);
     expect(reach).toEqual([]);
   });
+
+  it("agents tutor UI stays lazy: the rest of agents reaches ./tutor/* only through import() (plan A3 W7)", () => {
+    const shell = files.filter((f) => !isTest(f) && f.startsWith("features/agents/") && !f.startsWith("features/agents/tutor/"));
+    const statics = shell.flatMap((rel) => [...sourceOf(rel).matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?\sfrom\s*["'](\.\/tutor\/[^"']+)["']/g)]
+      .map((m) => `${rel} -> ${m[1]}`));
+    expect(statics).toEqual([]);
+    const parts = sourceOf("features/agents/chat-parts.tsx");
+    expect(parts).toContain('import("./tutor/tutor-start-sheet")');
+    expect(parts).toContain('import("./tutor/tutor-bar-panel")');
+  });
+
+  it("agents tutor is self-contained and never reaches wordbook or vocabulary (words are saved through <WordActions>)", () => {
+    const targets = (rel: string) => importsOf(sourceOf(rel))
+      .map((spec) => resolveSpec(spec, path.join(srcRoot, rel)))
+      .flatMap((t) => (t.kind === "src" ? [t.rel.replace(/\.(ts|tsx)$/, "")] : []));
+    const tutor = files.filter((f) => !isTest(f) && f.startsWith("features/agents/tutor/"));
+    // 只可借用 agents 的文案注册入口(INDEX X11);不导入任何别的 feature 或 agents 的其他文件。
+    const leaks = tutor.flatMap((rel) => targets(rel)
+      .filter((to) => to.startsWith("features/") && !to.startsWith("features/agents/tutor/") && to !== "features/agents/locales")
+      .map((to) => `${rel} -> ${to}`));
+    expect(tutor.length).toBeGreaterThan(5);
+    expect(leaks).toEqual([]);
+    for (const f of tutor) expect(sourceOf(f), f).not.toMatch(/features\/(wordbook|vocabulary)/);
+  });
 });

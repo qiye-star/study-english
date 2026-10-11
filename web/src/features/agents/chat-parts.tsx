@@ -1,6 +1,6 @@
 import "./locales";
 import { GraduationCapIcon } from "lucide-react";
-import { Suspense, useEffect, useState, type ComponentType } from "react";
+import { Suspense, lazy, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { PersonaChip } from "./persona-chip";
 import { PersonaPicker } from "./persona-picker";
@@ -41,18 +41,23 @@ export function ChatPersonaControl({ personaId, disabled, onChange, onResolved }
 }
 
 // ---- 「带我学」插槽(R-W18、INDEX X7) ----
-// 导师组件属于 A3-W(agents/tutor/*),A4 不导入它们。A3-W 只需要把下面两个槽填上(各一行,懒加载):
-//   TUTOR_SLOTS.StartSheet = lazy(() => import("./tutor/tutor-start-sheet").then((m) => ({ default: m.TutorStartSheet })));
-//   TUTOR_SLOTS.Bar = lazy(() => import("./tutor/tutor-bar").then((m) => ({ default: m.TutorBar })));
-// 槽为空时入口与导师条都不渲染(不会出现点了没反应的按钮)。测试可直接给槽赋值。
+// 导师组件属于 A3-W(agents/tutor/*),这里只经 import() 懒加载填槽(各一行);槽为空时入口与导师条都不渲染。测试可直接给槽赋值。
+// A3-W 对 A4 原契约的追加(Ruling R-T19):onStarted 多一个参数(回答方式、是否让智能体先开口);
+// Bar 多 lastReply / onSpeak / onTranslateLast(「听一遍」「翻译」要用对话页的朗读和翻译)。
 
+export interface TutorStartInfo {
+  /** 开始面板选的回答方式(续上的会话取原来的):语音 → 对话页把输入栏切到「按住说话」 */
+  input: "text" | "voice";
+  /** 智能体要先开口:对话页随即发一个 text = null 的回合;续上等待回答的会话为 false */
+  speakFirst: boolean;
+}
 export interface TutorStartSheetProps {
   open: boolean;
   onOpenChange(open: boolean): void;
   personaId: string;
   conversationId: string;
-  /** 开始成功:交出导师会话 id,对话页进入导师模式并让智能体先开口 */
-  onStarted(sessionId: string): void;
+  /** 开始成功:交出导师会话 id,对话页进入导师模式(并按 info 让智能体先开口) */
+  onStarted(sessionId: string, info: TutorStartInfo): void;
 }
 export interface TutorBarSlotProps {
   sessionId: string;
@@ -61,18 +66,26 @@ export interface TutorBarSlotProps {
   busy: boolean;
   /** 再跑一个 text = null 的回合 */
   onContinue(): void;
+  /** 带学结束(总结抽屉关闭后 / 过期):对话页退出导师模式 */
   onEnd(): void;
+  /** 最后一条完成的助手消息(「听一遍」) */
+  lastReply: string;
+  onSpeak(text: string): void;
+  onTranslateLast(): void;
 }
 export const TUTOR_SLOTS: {
   StartSheet: ComponentType<TutorStartSheetProps> | null;
   Bar: ComponentType<TutorBarSlotProps> | null;
-} = { StartSheet: null, Bar: null };
+} = {
+  StartSheet: lazy(() => import("./tutor/tutor-start-sheet").then((m) => ({ default: m.TutorStartSheet }))),
+  Bar: lazy(() => import("./tutor/tutor-bar-panel").then((m) => ({ default: m.TutorBarPanel }))),
+};
 
 export interface TutorEntryProps {
   personaId: string | null;
   conversationId: string;
   disabled: boolean;
-  onStarted(sessionId: string): void;
+  onStarted(sessionId: string, info: TutorStartInfo): void;
 }
 
 /** 输入条提示行右侧的「带我学」入口(R-W18):有角色、导师开启且槽已填时才出现。 */
@@ -91,7 +104,7 @@ export function TutorEntry({ personaId, conversationId, disabled, onStarted }: T
       {open && (
         <Suspense fallback={null}>
           <StartSheet open onOpenChange={setOpen} personaId={personaId} conversationId={conversationId}
-            onStarted={(sessionId) => { setOpen(false); onStarted(sessionId); }} />
+            onStarted={(sessionId, info) => { setOpen(false); onStarted(sessionId, info); }} />
         </Suspense>
       )}
     </>

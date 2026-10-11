@@ -73,8 +73,14 @@ export function parseTurnEvent(raw: RawSseEvent): TurnEvent | null {
       return typeof d.text === "string" ? { type: "delta", text: d.text } : null;
     case "meta": {
       if (typeof d.stepIndex !== "number" || typeof d.stepsTotal !== "number") return null;
-      const { stepIndex, stepsTotal, verdict, kind, done } = d as unknown as TurnMeta;
-      return { type: "meta", meta: { stepIndex, stepsTotal, ...(verdict ? { verdict } : {}), ...(kind ? { kind } : {}), ...(typeof done === "boolean" ? { done } : {}) } };
+      const { stepIndex, stepsTotal, verdict, kind, done, retry, say } = d as unknown as TurnMeta;
+      return {
+        type: "meta",
+        meta: {
+          stepIndex, stepsTotal, ...(verdict ? { verdict } : {}), ...(kind ? { kind } : {}), ...(typeof done === "boolean" ? { done } : {}),
+          ...(typeof retry === "boolean" ? { retry } : {}), ...(typeof say === "string" && say ? { say } : {}),
+        },
+      };
     }
     case "done": {
       const usage = isObj(d.usage) && typeof d.usage.in === "number" && typeof d.usage.out === "number" ? { in: d.usage.in, out: d.usage.out } : null;

@@ -204,16 +204,40 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
   describe("teach-me slot (R-W18)", () => {
     const META = ev("meta", { step_index: 1, steps_total: 5 });
     beforeEach(() => {
-      TUTOR_SLOTS.StartSheet = ({ open, onStarted }) =>
-        open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1")}>start</button> : null;
-      TUTOR_SLOTS.Bar = ({ sessionId, meta, onContinue, onEnd }) => (
-        <div data-testid="fake-tutor-bar" data-session={sessionId} data-step={meta?.stepIndex ?? ""}>
+      TUTOR_SLOTS.StartSheet = ({ open, onStarted }) => open ? (
+        <>
+          <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1", { input: "text", speakFirst: true })}>start</button>
+          <button type="button" data-testid="fake-tutor-start-voice" onClick={() => onStarted("ts1", { input: "voice", speakFirst: true })}>voice</button>
+          <button type="button" data-testid="fake-tutor-resume" onClick={() => onStarted("ts1", { input: "text", speakFirst: false })}>resume</button>
+        </>
+      ) : null;
+      TUTOR_SLOTS.Bar = ({ sessionId, meta, onContinue, onEnd, lastReply }) => (
+        <div data-testid="fake-tutor-bar" data-session={sessionId} data-step={meta?.stepIndex ?? ""} data-last-reply={lastReply}>
           <button type="button" data-testid="fake-tutor-continue" onClick={onContinue}>next</button>
           <button type="button" data-testid="fake-tutor-end" onClick={onEnd}>end</button>
         </div>
       );
     });
     afterEach(() => { TUTOR_SLOTS.StartSheet = null; TUTOR_SLOTS.Bar = null; });
+
+    it("a voice lesson switches the composer to hold-to-talk; a resumed lesson waiting for the answer sends nothing", async () => {
+      const mock = setup(routes({
+        "POST /api/agents/turn": () => sse([ev("start", { turn_id: "t1" }), META, ev("delta", { text: "Question one?" }), ev("done", { trace: TRACE, text_len: 13 })]),
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m5" }] }),
+      }));
+      await screen.findByText("Earlier reply");
+      await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+      await userEvent.click(await screen.findByTestId("fake-tutor-resume"));
+      expect(await screen.findByTestId("fake-tutor-bar")).toHaveAttribute("data-session", "ts1");
+      await new Promise((r) => setTimeout(r, 30));
+      expect(callsTo(mock, "POST", "/api/agents/turn")).toHaveLength(0);
+      await userEvent.click(screen.getByTestId("fake-tutor-end"));
+      await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+      await userEvent.click(await screen.findByTestId("fake-tutor-start-voice"));
+      await waitFor(() => expect(screen.getByTestId("chat-mode-toggle")).toHaveAttribute("data-mode", "voice"));
+      await waitFor(() => expect(callsTo(mock, "POST", "/api/agents/turn")).toHaveLength(1));
+      await waitFor(() => expect(screen.getByTestId("fake-tutor-bar")).toHaveAttribute("data-last-reply", "Question one?"));
+    });
 
     it("starts a tutor session: the agent speaks first (text null, mode tutor), meta reaches the bar, continue reruns, end returns to chat", async () => {
       const mock = setup(routes({
