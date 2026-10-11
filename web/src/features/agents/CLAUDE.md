@@ -24,6 +24,9 @@ Spec: `docs/superpowers/specs/2026-10-12-agents-design.md`;计划 `docs/superpow
 ## Bundle
 agents 全部懒加载;主包净增量预算 ≤ 0.2 kB gzip(`yarn web:build && cd web && node scripts/check-main-bundle.mjs`,基线 `scripts/main-bundle-baseline.json`)。
 
+`lazy-parts.tsx` 的每个 `part(...)` 调用必须带 `/* @__PURE__ */`:否则任何 `~/features/agents` 的导入者(如 `app.tsx` 的记忆页路由)都会把全部懒包装拉进主包(实测约 +0.9 kB)。
+实测:记忆页路由 + `memory/lazy` 包装使主包 +0.14 kB(vs 基线 517.05 kB)。
+
 ## Test
 `cd web && yarn vitest run src/features/agents src/architecture.test.ts`
 

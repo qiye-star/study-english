@@ -453,3 +453,11 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 - 真机:iOS Safari / 主屏 PWA 与安卓 Chrome 上的「更多」面板(底部安全区、焦点回到「更多」)、今日任务卡、来源片 44px 命中区、开关页;VoiceOver / TalkBack 读开关(`role="switch"`)、今日任务行的「已完成」与面板四行;两平台深色模式。
 - 真实讯飞评测产生的发音弱词与「读准两次移出」;大模型用法检查(`LINK_CHAT_WORDS_LLM_ENABLED`)对真实上游的调用、402 降级与费用;多 worker 部署下的偏好缓存延迟。
 - Postgres 上的整套测试(本环境没有 Docker);外键 `ON DELETE` 只由迁移测试在 SQLite 上比对。
+
+### 智能体记忆页(计划 A2 网页车道)未验证
+
+- 真机(iOS Safari / 安卓 Chrome)上的记忆页四个标签、清空确认抽屉、暂停开关与 JSON 导出下载(`a[download]` 在 iOS 上的行为);深色模式截图。
+- 真实上游:记忆整理(抽取 / 摘要 / 回顾)用的便宜模型从未与网页端联调,页面只用假响应的单元测试验证。
+- Postgres 上的记忆接口(本环境无 Docker);多进程部署下记忆快照最长 5 分钟的不一致(计划 R-M5)。
+- 360 px 不溢出只由结构性测试守着(`layout-360.test.tsx`),没有在真实布局引擎里量过;计划要求的 375×812 浅色 / 深色截图没有做。
+- 主包增量:记忆页在主包里只加一个路由与一个 `React.lazy` 包装;`features/agents/lazy-parts.tsx` 的 `part()` 调用加了 `/* @__PURE__ */`,否则 `app.tsx` 经 `~/features/agents` 导入会把九个懒包装一并拉进主包(约 +0.9 kB)。

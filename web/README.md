@@ -104,6 +104,10 @@
 - **主包**:联动合计 +7.79 kB gzip(506.54 → 514.33 kB;验收上限 +8 kB,余量很小)。
 - **未验证**(见 `docs/superpowers/plans/e2e-results.md`「学习联动」):Docker E2E 栈上的 `links.spec.ts`;真机(iOS Safari / 安卓 Chrome)上的「更多」面板、今日任务卡、开关页;VoiceOver / TalkBack 读开关与今日任务行;真实评测产生的发音弱词;大模型用法检查的真实上游。
 
+## 智能体记忆页
+
+`/me/agents/memory`(`src/features/agents/memory/`):档案 / 长期 / 回顾 / 管理四个标签;单条删除、按角色清空、清空全部都经抽屉二次确认,文案写明永久。**未验证**:智能体记忆页未在真机、真实上游(记忆整理模型)、Postgres 上验证;360 px 宽度只有结构性测试(英文标签长度、无固定像素宽度、只有筛选条横向滚动),jsdom 没有布局,没有在真实浏览器里量过。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

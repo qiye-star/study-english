@@ -19,11 +19,11 @@ export function part<P extends object>(load: () => Promise<ComponentType<P>>, fa
 export const pageFallback = <div aria-busy="true" className="min-h-40" />;
 
 // ---- parts ----
-export const ProcessCapsule = part<import("./process-capsule").ProcessCapsuleProps>(() => import("./process-capsule").then((m) => m.ProcessCapsule));
-export const SourceChips = part<import("./source-chips").SourceChipsProps>(() => import("./source-chips").then((m) => m.SourceChips));
-export const PersonaChip = part<import("./persona-chip").PersonaChipProps>(() => import("./persona-chip").then((m) => m.PersonaChip));
-export const PersonaEditorSheet = part<import("./persona-editor-sheet").PersonaEditorSheetProps>(() => import("./persona-editor-sheet").then((m) => m.PersonaEditorSheet));
-export const PersonaPicker = part<import("./persona-picker").PersonaPickerProps>(() => import("./persona-picker").then((m) => m.PersonaPicker));
-export const ReportPersonaSheet = part<import("./report-persona-sheet").ReportPersonaSheetProps>(() => import("./report-persona-sheet").then((m) => m.ReportPersonaSheet));
-export const AgentSettingsPage = part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
-export const AgentsMeRow = part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
+export const ProcessCapsule = /* @__PURE__ */ part<import("./process-capsule").ProcessCapsuleProps>(() => import("./process-capsule").then((m) => m.ProcessCapsule));
+export const SourceChips = /* @__PURE__ */ part<import("./source-chips").SourceChipsProps>(() => import("./source-chips").then((m) => m.SourceChips));
+export const PersonaChip = /* @__PURE__ */ part<import("./persona-chip").PersonaChipProps>(() => import("./persona-chip").then((m) => m.PersonaChip));
+export const PersonaEditorSheet = /* @__PURE__ */ part<import("./persona-editor-sheet").PersonaEditorSheetProps>(() => import("./persona-editor-sheet").then((m) => m.PersonaEditorSheet));
+export const PersonaPicker = /* @__PURE__ */ part<import("./persona-picker").PersonaPickerProps>(() => import("./persona-picker").then((m) => m.PersonaPicker));
+export const ReportPersonaSheet = /* @__PURE__ */ part<import("./report-persona-sheet").ReportPersonaSheetProps>(() => import("./report-persona-sheet").then((m) => m.ReportPersonaSheet));
+export const AgentSettingsPage = /* @__PURE__ */ part<object>(() => import("./agent-settings-page").then((m) => m.AgentSettingsPage), pageFallback);
+export const AgentsMeRow = /* @__PURE__ */ part<object>(() => import("./me-row").then((m) => m.AgentsMeRow));
