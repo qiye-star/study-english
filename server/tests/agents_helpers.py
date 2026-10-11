@@ -120,3 +120,17 @@ def make_request(user_id: int, persona=None, *, text="Hello", history=(), mode="
 async def run_events(deps, req) -> list:
     from app.agents.orchestrator import run_turn
     return [e async for e in run_turn(deps, req)]
+
+
+async def new_conversation(client, headers) -> str:
+    r = await client.post("/api/conversations", headers=headers, json={"name": "Agents"})
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
+
+
+def turn_body(conversation_id: str, **overrides) -> dict:
+    import uuid
+    body = {"persona_id": "builtin:partner", "conversation_id": conversation_id, "text": "Hello", "history": [],
+            "mode": "chat", "tutor_session_id": None, "client_turn_id": str(uuid.uuid4())}
+    body.update(overrides)
+    return body
