@@ -5,6 +5,7 @@
         "title": "记忆",
         "tabsLabel": "记忆分区",
         "tabs": { "profile": "档案", "items": "长期", "recaps": "回顾", "manage": "管理" },
+        "confirmDelete": "确认删除", "deleteBody": "删除是永久的,不能撤销。",
         "kinds": { "all": "全部", "fact": "事实", "preference": "偏好", "goal": "目标", "weakness": "弱点", "progress": "进步" },
         "profile": {
           "level": "水平", "goals": "目标", "interests": "兴趣", "native": "母语", "correction": "纠错方式", "schedule": "可学习时间",
@@ -20,12 +21,13 @@
           "empty": "还没有长期记忆。和智能体多聊几次,它会记住对你有用的事。",
           "shared": "所有角色共享", "deletedPersona": "已删除的角色",
           "pin": "置顶", "unpin": "取消置顶", "delete": "删除",
+          "confirmTitle": "删除这条记忆?",
           "deleted": "已永久删除,之后不会再自动记住这条。"
         },
         "recaps": {
           "empty": "还没有回顾。对话告一段落或完成一次「带我学」后会出现在这里。",
           "source": { "conversation": "对话回顾", "tutor": "带我学回顾" },
-          "delete": "删除回顾", "deleted": "已永久删除这条回顾。"
+          "delete": "删除回顾", "confirmTitle": "删除这条回顾?", "deleted": "已永久删除这条回顾。"
         },
         "manage": {
           "unavailable": "管理员暂时关闭了记忆功能:已有记忆仍可查看、导出和删除。",

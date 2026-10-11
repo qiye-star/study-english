@@ -5,6 +5,7 @@
         "title": "Memory",
         "tabsLabel": "Memory sections",
         "tabs": { "profile": "Profile", "items": "Items", "recaps": "Recaps", "manage": "Manage" },
+        "confirmDelete": "Delete", "deleteBody": "Deleting is permanent and cannot be undone.",
         "kinds": { "all": "All", "fact": "Facts", "preference": "Likes", "goal": "Goals", "weakness": "Weak spots", "progress": "Progress" },
         "profile": {
           "level": "Level", "goals": "Goals", "interests": "Interests", "native": "Native language", "correction": "Corrections", "schedule": "Study time",
@@ -20,12 +21,13 @@
           "empty": "No memories yet. Chat with an agent a few times and it will remember what helps you.",
           "shared": "All agents", "deletedPersona": "Deleted agent",
           "pin": "Pin", "unpin": "Unpin", "delete": "Delete",
+          "confirmTitle": "Delete this memory?",
           "deleted": "Deleted permanently. It will not be remembered automatically again."
         },
         "recaps": {
           "empty": "No recaps yet. They appear after a chat pauses or a Teach me session ends.",
           "source": { "conversation": "Chat recap", "tutor": "Teach me recap" },
-          "delete": "Delete recap", "deleted": "Recap deleted permanently."
+          "delete": "Delete recap", "confirmTitle": "Delete this recap?", "deleted": "Recap deleted permanently."
         },
         "manage": {
           "unavailable": "Memory is turned off by the administrator. You can still view, export and delete what is stored.",
