@@ -1,11 +1,33 @@
+import { useEffect, useState } from "react";
+import { getLinkSources, type LinkSource } from "../api";
 import { NumField, Section, isChanged, type TabProps } from "../fields";
 import { POINT_KINDS, pointValue, sourcesDailyCap } from "../rules-schema";
 import { S } from "../strings";
 
-/** 跟读分档 + 其他固定点数 + 每日上限 + 学习联动来源(spec 2026-10-11 §5.3) */
+/** 登记过的联动来源(服务端注册表);读不到时为空,只显示规则里已有的来源。 */
+function useLinkSources(): LinkSource[] {
+  const [sources, setSources] = useState<LinkSource[]>([]);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(getLinkSources())
+      .then((r) => live && Array.isArray(r) && setSources(r))
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  return sources;
+}
+
+/** 跟读分档 + 其他固定点数 + 每日上限 + 学习联动来源(spec 2026-10-11 §5.3)。来源行 = 服务端登记的来源
+ * (`/api/admin/links`,未写进规则时显示默认点数、不写回)∪ 规则里已有的种类。 */
 export function PointsTab({ rules, base, edit, disabled }: TabProps) {
   const bands = rules.points.assessment_bands;
-  const sources = Object.entries(rules.points.sources ?? {});
+  const registered = useLinkSources();
+  const inRules = rules.points.sources ?? {};
+  const labels = new Map(registered.map((s) => [s.kind, s.labelZh]));
+  const sources: [string, number][] = [
+    ...registered.map((s): [string, number] => [s.kind, inRules[s.kind] ?? s.defaultPoints]),
+    ...Object.entries(inRules).filter(([kind]) => !labels.has(kind)),
+  ];
   return (
     <div className="grid grid-cols-2 gap-6">
       <Section title={S.tiersTab.bands}>
@@ -100,7 +122,10 @@ export function PointsTab({ rules, base, edit, disabled }: TabProps) {
               <tbody>
                 {sources.map(([kind, pts]) => (
                   <tr key={kind}>
-                    <td className="num py-1 pr-2 text-xs">{kind}</td>
+                    <td className="py-1 pr-2 text-xs">
+                      {labels.has(kind) && <span className="mr-2">{labels.get(kind)}</span>}
+                      <span className="num text-fg-2">{kind}</span>
+                    </td>
                     <td className="py-1 pr-2">
                       <NumField
                         hideLabel

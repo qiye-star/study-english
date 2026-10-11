@@ -6,15 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import rank_sources
 from app.links.registry import LINKS
 from app.models import UserLinkPref
+from app.rank.extra_sources import points_of
 from app.rank.rules_store import rank_rules
 
 COUNTERS = ("published", "handled", "skipped", "failed", "timeouts", "dropped", "breaker_skipped")
-
-
-def _points(source: rank_sources.RankSource, rules) -> int:
-    """当前规则里的点数(与 L6 的 `app.rank.extra_sources.points_of` 同一口径;`PointsRule.sources` 由 L6 加入,
-    之前一律是默认点数)。"""
-    return int(getattr(rules.points, "sources", {}).get(source.kind, source.default_points))
 
 
 async def view(app, session: AsyncSession) -> dict:
@@ -38,7 +33,7 @@ async def view(app, session: AsyncSession) -> dict:
             "breaker": s.get("breaker", "closed"), "open_seconds": int(s.get("open_seconds", 0)),
             "users_off": int(off.get(spec.key, 0)),
         })
-    sources = [{"kind": src.kind, "default_points": src.default_points, "points": _points(src, rules),
+    sources = [{"kind": src.kind, "default_points": src.default_points, "points": points_of(src, rules),
                 "label_zh": src.label_zh, "label_en": src.label_en} for src in rank_sources.registered()]
     return {"enabled": master, "queue": bus.queue(), "links": links, "rank_sources": sources,
             "errors": bus.recent_errors(), "process_local": True}

@@ -295,6 +295,17 @@ async function post<T>(path: string, json: unknown = {}): Promise<T> {
 
 /* ---- 规则 ---- */
 export const getRules = () => get<RulesOverview>("/api/admin/rank/rules");
+
+/** 学习联动登记的段位来源(GET /api/admin/links 的 rank_sources;features 之间不互相导入,这里单独读一次)。 */
+export interface LinkSource {
+  kind: string;
+  defaultPoints: number;
+  points: number;
+  labelZh: string;
+  labelEn: string;
+}
+export const getLinkSources = async () =>
+  (await get<{ rankSources?: LinkSource[] }>("/api/admin/links")).rankSources ?? [];
 export const getVersion = (v: number) => get<VersionDetail>(`/api/admin/rank/rules/versions/${v}`);
 export const createDraft = (fromVersion?: number | null) =>
   post<{ rules: RankRules; note: string; etag: string }>("/api/admin/rank/rules/draft", { from_version: fromVersion ?? null });

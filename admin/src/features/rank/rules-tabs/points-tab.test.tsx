@@ -32,6 +32,35 @@ beforeEach(() => {
   });
   vi.mocked(api.validateDraft).mockResolvedValue({ errors: [] });
   vi.mocked(api.saveDraft).mockResolvedValue({ rules: withSources(), note: "", etag: "e1" });
+  vi.mocked(api.getLinkSources).mockResolvedValue([]);
+});
+
+const WORD_IN_CHAT = { kind: "word_in_chat", defaultPoints: 1, points: 1, labelZh: "对话用到新词", labelEn: "New word used in chat" };
+
+it("lists the registered link sources from /api/admin/links with their default points", async () => {
+  vi.mocked(api.getLinkSources).mockResolvedValue([WORD_IN_CHAT]);
+  mockRules(defaultRules());
+  render(<MemoryRouter><RulesPage /></MemoryRouter>);
+  const source = await screen.findByLabelText("word_in_chat 点数");
+  expect(source).toHaveValue(1); // not in the rules yet: the source's default
+  expect(screen.getByText("对话用到新词")).toBeInTheDocument();
+  expect(screen.queryByText("还没有联动来源;启用学习联动后,来源列表见「学习联动」页")).toBeNull();
+  const chat = screen.getByLabelText("每轮文字对话");
+  await userEvent.clear(chat);
+  await userEvent.type(chat, "2");
+  await userEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+  expect("sources" in vi.mocked(api.saveDraft).mock.calls.at(-1)![0].points).toBe(false); // shown, not invented
+  await userEvent.clear(source);
+  await userEvent.type(source, "3");
+  await userEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+  expect(vi.mocked(api.saveDraft).mock.calls.at(-1)![0].points.sources).toEqual({ word_in_chat: 3 });
+});
+
+it("still shows rule sources when the link list cannot be loaded", async () => {
+  vi.mocked(api.getLinkSources).mockRejectedValue(new Error("offline"));
+  mockRules(withSources());
+  render(<MemoryRouter><RulesPage /></MemoryRouter>);
+  expect(await screen.findByLabelText("word_in_chat 点数")).toHaveValue(2);
 });
 
 it("keeps link sources when another point value is saved, and edits them", async () => {
