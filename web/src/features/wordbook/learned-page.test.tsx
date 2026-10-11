@@ -86,6 +86,22 @@ describe("WordbookLearnedPage", () => {
     expect(screen.queryByRole("button", { name: "加载更多" })).toBeNull();
   });
 
+  it("keeps loaded words and shows an inline retry when load more fails", async () => {
+    let n = 0;
+    setup({ "POST /api/wordbook/learned/query": () => {
+      n += 1;
+      if (n === 1) return json({ items: LEARNED_ITEMS.slice(0, 2), next_cursor: "c1" });
+      if (n === 2) return json({ error: "x" }, 500);
+      return json({ items: LEARNED_ITEMS.slice(2), next_cursor: null });
+    } });
+    await screen.findByRole("list", { name: "已学词" });
+    await userEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3));
+  });
+
   it("opens the word card in a sheet through the POST lookup", async () => {
     const mock = setup();
     await userEvent.click((await screen.findAllByRole("button", { name: /accept/ }))[0]);

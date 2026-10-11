@@ -153,9 +153,12 @@ export function WordbookLearnedPage() {
                 {list.items.map((item) => <Row key={`${item.bookId}:${item.key}`} item={item} language={i18n.language} onOpen={() => setOpened(item)} />)}
               </ul>
             </SurfaceCard>
+            {list.moreError ? (
+              <p role="alert" className="mt-3 text-center text-sub text-red">{translateServerError(t, list.moreError, WORDBOOK_SERVER_ERRORS)}</p>
+            ) : null}
             {list.hasMore ? (
               <button type="button" disabled={list.status !== "idle"} onClick={() => void list.loadMore()} className={cn(GHOST, "mt-3 h-11 w-full")}>
-                {t("web.wordbook.learned.list.more")}
+                {list.moreError ? t("web.common.retry") : t("web.wordbook.learned.list.more")}
               </button>
             ) : null}
           </>

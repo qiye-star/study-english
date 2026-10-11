@@ -38,6 +38,29 @@ describe("useLearnedList", () => {
     expect(bodies(mock)[1].cursor).toBe("c1");
   });
 
+  it("keeps the rows already loaded when load more fails and retries from the same cursor", async () => {
+    let n = 0;
+    const mock = createFetchMock({
+      "POST /api/wordbook/learned/query": () => {
+        n += 1;
+        if (n === 1) return json({ items: LEARNED_ITEMS.slice(0, 2), next_cursor: "c1" });
+        if (n === 2) return json({ error: "x" }, 500);
+        return json({ items: LEARNED_ITEMS.slice(2), next_cursor: null });
+      },
+    });
+    const { result } = renderHook(() => useLearnedList({}), { wrapper: wrapper(mock) });
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    await act(async () => { await result.current.loadMore(); });
+    expect(result.current.items).toHaveLength(2);
+    expect(result.current.status).toBe("idle");
+    expect(result.current.moreError).not.toBeNull();
+    expect(result.current.hasMore).toBe(true);
+    await act(async () => { await result.current.loadMore(); });
+    expect(result.current.items).toHaveLength(LEARNED_ITEMS.length);
+    expect(result.current.moreError).toBeNull();
+    expect(bodies(mock)[2].cursor).toBe("c1");
+  });
+
   it("starts over when the query changes and ignores the stale response", async () => {
     let release: (() => void) | undefined;
     const mock = createFetchMock({

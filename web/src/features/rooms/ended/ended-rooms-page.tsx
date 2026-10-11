@@ -25,7 +25,7 @@ export function RoomsEndedPage() {
   const { api } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { rooms, state, hasMore, loadingMore, loadMore, reload } = useEndedRooms(api);
+  const { rooms, state, hasMore, loadingMore, moreFailed, loadMore, reload } = useEndedRooms(api);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   async function reopen(room: MyRoom) {
@@ -79,10 +79,11 @@ export function RoomsEndedPage() {
               })}
             </SectionGroup>
           )}
+          {moreFailed && <p role="alert" data-testid="ended-more-error" className="mt-4 text-center text-sub text-ink-2">{t("web.rooms.errors.generic")}</p>}
           {hasMore && (
             <button type="button" data-testid="ended-more" disabled={loadingMore} onClick={() => void loadMore()}
               className={cn(smallGhostButton, "mx-auto mt-4 flex")}>
-              {loadingMore ? t("web.rooms.ended.loading") : t("web.rooms.ended.loadMore")}
+              {loadingMore ? t("web.rooms.ended.loading") : moreFailed ? t("web.common.retry") : t("web.rooms.ended.loadMore")}
             </button>
           )}
         </div>

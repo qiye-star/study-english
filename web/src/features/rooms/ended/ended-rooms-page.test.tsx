@@ -42,6 +42,23 @@ describe("RoomsEndedPage", () => {
     expect(screen.queryByTestId("ended-more")).toBeNull();
   });
 
+  it("keeps the loaded rooms and shows an inline retry when paging fails", async () => {
+    let fail = true;
+    setup({ "GET /api/rooms/ended": (req) => {
+      if (!req.url.searchParams.get("cursor")) return json({ rooms: [row("r2"), row("r3")], next_cursor: "c1" });
+      return fail ? json({ error: "x" }, 500) : json({ rooms: [row("r4")], next_cursor: null });
+    } });
+    await screen.findAllByTestId("ended-room");
+    fireEvent.click(screen.getByTestId("ended-more"));
+    expect(await screen.findByTestId("ended-more-error")).toBeInTheDocument();
+    expect(screen.getAllByTestId("ended-room")).toHaveLength(2);
+    expect(screen.getByTestId("ended-more")).toHaveTextContent("重试");
+    fail = false;
+    fireEvent.click(screen.getByTestId("ended-more"));
+    await waitFor(() => expect(screen.getAllByTestId("ended-room")).toHaveLength(3));
+    expect(screen.queryByTestId("ended-more-error")).toBeNull();
+  });
+
   it("an owner reopens a room from the list and lands in it", async () => {
     setup({
       "GET /api/rooms/ended": () => json({ rooms: [row("r2")], next_cursor: null }),

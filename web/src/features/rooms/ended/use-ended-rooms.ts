@@ -9,10 +9,13 @@ export function useEndedRooms(api: ApiClient) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<GateState>("loading");
   const [loadingMore, setLoadingMore] = useState(false);
+  /** 翻页失败:已加载的行保留,页面给内联重试(不换成整页错误) */
+  const [moreFailed, setMoreFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const ctrl = new AbortController();
     setState("loading");
+    setMoreFailed(false);
     endedRooms(api, null, ctrl.signal)
       .then((page) => { setRooms(page.rooms); setCursor(page.nextCursor); setState("ready"); })
       .catch(() => { if (!ctrl.signal.aborted) setState("error"); });
@@ -21,15 +24,16 @@ export function useEndedRooms(api: ApiClient) {
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
+    setMoreFailed(false);
     try {
       const page = await endedRooms(api, cursor);
       setRooms((cur) => { const seen = new Set(cur.map((r) => r.id)); return [...cur, ...page.rooms.filter((r) => !seen.has(r.id))]; });
       setCursor(page.nextCursor);
     } catch {
-      setState("error");
+      setMoreFailed(true);
     } finally {
       setLoadingMore(false);
     }
   }, [api, cursor, loadingMore]);
-  return { rooms, state, hasMore: cursor !== null, loadingMore, loadMore, reload: () => setAttempt((n) => n + 1) };
+  return { rooms, state, hasMore: cursor !== null, loadingMore, moreFailed, loadMore, reload: () => setAttempt((n) => n + 1) };
 }

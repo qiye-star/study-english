@@ -43,6 +43,8 @@ export function useLearnedList(query: Omit<LearnedQuery, "cursor" | "limit">) {
   const [next, setNext] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<unknown>(null);
+  /** 翻页失败:已加载的行保留,状态回到 idle,界面在列表下方给内联重试 */
+  const [moreError, setMoreError] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
   const run = useRef(0);
   const key = JSON.stringify(query);
@@ -51,6 +53,7 @@ export function useLearnedList(query: Omit<LearnedQuery, "cursor" | "limit">) {
     const controller = new AbortController();
     setStatus("loading");
     setError(null);
+    setMoreError(null);
     fetchLearned(api, JSON.parse(key) as LearnedQuery, controller.signal).then(
       (page) => {
         if (run.current !== id) return;
@@ -70,6 +73,7 @@ export function useLearnedList(query: Omit<LearnedQuery, "cursor" | "limit">) {
     if (!next || status !== "idle") return;
     const id = run.current;
     setStatus("more");
+    setMoreError(null);
     try {
       const page = await fetchLearned(api, { ...(JSON.parse(key) as LearnedQuery), cursor: next });
       if (run.current !== id) return;
@@ -78,9 +82,9 @@ export function useLearnedList(query: Omit<LearnedQuery, "cursor" | "limit">) {
       setStatus("idle");
     } catch (err) {
       if (run.current !== id) return;
-      setError(err);
-      setStatus("error");
+      setMoreError(err);
+      setStatus("idle");
     }
   }, [api, key, next, status]);
-  return { items, status, error, hasMore: next !== null, loadMore, reload: useCallback(() => setAttempt((n) => n + 1), []) };
+  return { items, status, error, moreError, hasMore: next !== null, loadMore, reload: useCallback(() => setAttempt((n) => n + 1), []) };
 }
