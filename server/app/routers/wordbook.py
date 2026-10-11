@@ -97,7 +97,7 @@ class AnswerIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     book_id: str = Field(max_length=16)
     key: str = Field(min_length=1, max_length=100)
-    mode: Literal["learn", "review"]
+    mode: Literal["learn", "review", "free"]
     qtype: Literal["meaning", "word", "cloze", "dictation", "spell", "recall"]
     choice: str | None = Field(None, max_length=200)
     typed: str | None = Field(None, max_length=100)

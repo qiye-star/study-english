@@ -373,6 +373,8 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
                   now) -> dict:
     book_or_fail(settings, p.book_id)
     _validate(p)
+    if p.mode == "free":  # 随时自由复习:与学新词 / 复习的写盒子路径完全隔离(R-L6、R-L8)
+        return await _free_answer(session, ds, user_id, settings, p, now)
     if p.known:  # R-R7:v1 的「我认识」= 没偷看的「认识」,同样受抽查规则约束
         p = replace(p, qtype=recall.RECALL_QTYPE, rating="know", revealed_before=False, elapsed_ms=None, known=False)
     await ensure_hidden(session, ds)  # review m5:create_item 会复制例句,先载入屏蔽集合
@@ -542,6 +544,50 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
     checked = p.mode == "review" and p.choice is not None and rating == "know"
     return _answer_out(eff == "know", eff, recall.GRADE[eff], card, correct_option("meaning", card) if checked else None,
                        None, await store.known_one(session, user_id, card.key), applied, rating=eff, spot_check=spot)
+
+
+# ---- 自由复习作答(spec 2026-10-12 §1.3;计划 2026-10-12-wordbook-learned-review S5)----
+
+async def _free_answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
+                       now) -> dict:
+    """永不改盒子 / reps / last_reviewed_at,事件 kind 固定 practice。答错且(未到期、24h 内没复习、今日拉取未满)时
+    只把 due_at 改为现在(R-L6);其余一律不动。答对与到期的词原样不变。"""
+    await ensure_hidden(session, ds)
+    card = (await cards_or_fail(ds, p.book_id, [p.key])).get(p.key)
+    if card is None:
+        fail(WORD_NOT_FOUND)
+    row = await store.known_one(session, user_id, card.key)
+    if row is None or row.source != store.wordbook_source(p.book_id):
+        fail(WORD_NOT_FOUND)
+    if not await store.consume_answer(session, user_id, utc_day(now)):
+        fail(ANSWER_LIMIT)
+    diff = option = rating = None
+    if p.qtype == recall.RECALL_QTYPE:  # R-L7:有效评级只看这一次,不看历史
+        rating = recall.effective_rating(p.rating, revealed_before=p.revealed_before, previous=None)
+        outcome, credit, correct, wrong, grade = rating, 100 if rating == "know" else 0, rating == "know", \
+            rating == "unknown", recall.GRADE[rating]
+    elif p.qtype in CHOICE_QTYPES:
+        correct = check_choice(p.qtype, card, p.choice)
+        outcome, credit, wrong = ("correct", 100, False) if correct else ("wrong", 0, True)
+        grade, option = srs_grade(outcome, p.hinted), correct_option(p.qtype, card)
+    else:
+        result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
+        outcome, credit, diff = result.outcome, result.credit, [asdict(d) for d in result.diff] or None
+        grade = srs_grade(outcome, p.hinted)
+        correct, wrong = outcome == "correct", grade == "forgot"
+    queued = False
+    if wrong and row.due_at > now and await store.pull_eligible(session, user_id, row.item_id, now) \
+            and await store.consume_free_pull(session, user_id, utc_day(now)):
+        queued = await store.pull_due(session, user_id, row.item_id, now)
+    await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="practice", word=card.key,
+                          item_id=row.item_id, qtype=p.qtype, outcome=outcome, credit=credit,
+                          day=local_day(now, p.offset), now=now)
+    await session.commit()
+    learning_events.publish(learning_events.WordAnswered(
+        user_id=user_id, book_id=p.book_id, word=card.key, kind="practice", qtype=p.qtype, outcome=outcome,
+        credit=credit, at=now))
+    return _answer_out(correct, outcome, grade, card, option, diff, await store.known_one(session, user_id, card.key),
+                       queued, rating=rating)
 
 
 # ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----
