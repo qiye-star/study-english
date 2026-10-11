@@ -4,12 +4,12 @@
       "seq": 2,
       "message": {
         "seq": 2,
-        "id": "e589f3bc-8818-4d85-8016-266718b9f21b",
+        "id": "b4985fa1-b95f-4386-9740-14033bee62c8",
         "lane": "public",
         "kind": "voice",
         "sender": {
           "kind": "user",
-          "id": 47149284,
+          "id": 60496590,
           "name": "alice"
         },
         "text": "",
@@ -17,7 +17,7 @@
         "reply_to": null,
         "ai_status": null,
         "meta": null,
-        "created_at": "2026-10-09T17:14:00.118660+00:00",
+        "created_at": "2026-10-11T09:51:57.516936+00:00",
         "hidden": false,
         "quote": null,
         "voice": {
@@ -39,12 +39,12 @@
       "type": "message",
       "message": {
         "seq": 2,
-        "id": "e589f3bc-8818-4d85-8016-266718b9f21b",
+        "id": "b4985fa1-b95f-4386-9740-14033bee62c8",
         "lane": "public",
         "kind": "voice",
         "sender": {
           "kind": "user",
-          "id": 47149284,
+          "id": 60496590,
           "name": "alice"
         },
         "text": "",
@@ -52,7 +52,7 @@
         "reply_to": null,
         "ai_status": null,
         "meta": null,
-        "created_at": "2026-10-09T17:14:00.118660+00:00",
+        "created_at": "2026-10-11T09:51:57.516936+00:00",
         "hidden": false,
         "quote": null,
         "voice": {

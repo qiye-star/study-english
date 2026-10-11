@@ -1,0 +1,137 @@
+{
+  "http": {
+    "ended": {
+      "rooms": [
+        {
+          "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+          "code": null,
+          "topic": "美食角",
+          "status": "closed",
+          "locked": false,
+          "ai_public": true,
+          "ai_muted": false,
+          "owner_id": 59316400,
+          "my_role": "owner",
+          "member_count": 1,
+          "online_count": 0,
+          "created_at": "2026-10-11T09:51:54.500479+00:00",
+          "closed_at": "2026-10-11T09:51:54.530166+00:00",
+          "name": "美食角",
+          "scenario": "free",
+          "level": "A2",
+          "join_mode": "code",
+          "max_members": 4,
+          "allow_voice": true,
+          "close_reason": "owner",
+          "summary_status": "skipped"
+        }
+      ],
+      "next_cursor": null
+    },
+    "reopen": {
+      "room": {
+        "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+        "code": "<redacted>",
+        "topic": "美食角",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 59316400,
+        "my_role": "owner",
+        "member_count": 1,
+        "online_count": 1,
+        "created_at": "2026-10-11T09:51:54.500479+00:00",
+        "closed_at": null,
+        "name": "美食角",
+        "scenario": "free",
+        "level": "A2",
+        "join_mode": "code",
+        "max_members": 4,
+        "allow_voice": true,
+        "close_reason": null
+      }
+    },
+    "mine": {
+      "rooms": [
+        {
+          "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+          "code": "996176",
+          "topic": "美食角",
+          "status": "open",
+          "locked": false,
+          "ai_public": true,
+          "ai_muted": false,
+          "owner_id": 59316400,
+          "my_role": "owner",
+          "member_count": 1,
+          "online_count": 1,
+          "created_at": "2026-10-11T09:51:54.500479+00:00",
+          "closed_at": null,
+          "name": "美食角",
+          "scenario": "free",
+          "level": "A2",
+          "join_mode": "code",
+          "max_members": 4,
+          "allow_voice": true,
+          "close_reason": null,
+          "summary_status": null
+        }
+      ],
+      "ended_count": 0
+    }
+  },
+  "ws": {
+    "reopened": {
+      "type": "reopened",
+      "room": {
+        "id": "a70d76b4-54f9-46b4-9258-57ec45bf2e50",
+        "code": "<redacted>",
+        "topic": "美食角",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 59316400,
+        "my_role": null,
+        "member_count": 1,
+        "online_count": 1,
+        "created_at": "2026-10-11T09:51:54.500479+00:00",
+        "closed_at": null,
+        "name": "美食角",
+        "scenario": "free",
+        "level": "A2",
+        "join_mode": "code",
+        "max_members": 4,
+        "allow_voice": true,
+        "close_reason": null
+      }
+    },
+    "message_system": {
+      "type": "message",
+      "message": {
+        "seq": 1,
+        "id": "3f217cba-5d28-4ba0-9e08-0bfaf37e9db2",
+        "lane": "public",
+        "kind": "system",
+        "sender": {
+          "kind": "system",
+          "id": null,
+          "name": null
+        },
+        "text": "reopened",
+        "assisted": false,
+        "reply_to": null,
+        "ai_status": null,
+        "meta": {
+          "name": "alice"
+        },
+        "created_at": "2026-10-11T09:51:54.597582+00:00",
+        "hidden": false,
+        "quote": null,
+        "voice": null,
+        "reactions": []
+      }
+    }
+  }
+}

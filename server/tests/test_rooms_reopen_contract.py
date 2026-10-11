@@ -37,5 +37,9 @@ def test_reopen_payloads_match_the_web_contract(tmp_path, monkeypatch):
     finally:
         client.__exit__(None, None, None)
     if os.environ.get("CONTRACT_UPDATE"):
-        FIXTURE.write_text(json.dumps(shape(actual), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    assert shape(actual) == json.loads(FIXTURE.read_text(encoding="utf-8"))
+        FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    contract = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    for group in ("http", "ws"):
+        assert sorted(actual[group]) == sorted(contract[group])
+        for name, body in actual[group].items():
+            assert shape(body) == shape(contract[group][name]), f"{group}.{name} changed shape"
