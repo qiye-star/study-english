@@ -21,3 +21,5 @@ export const pageFallback = <div aria-busy="true" className="min-h-40" />;
 // ---- parts ----
 export const ProcessCapsule = part<import("./process-capsule").ProcessCapsuleProps>(() => import("./process-capsule").then((m) => m.ProcessCapsule));
 export const SourceChips = part<import("./source-chips").SourceChipsProps>(() => import("./source-chips").then((m) => m.SourceChips));
+export const PersonaChip = part<import("./persona-chip").PersonaChipProps>(() => import("./persona-chip").then((m) => m.PersonaChip));
+export const PersonaEditorSheet = part<import("./persona-editor-sheet").PersonaEditorSheetProps>(() => import("./persona-editor-sheet").then((m) => m.PersonaEditorSheet));

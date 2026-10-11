@@ -10,3 +10,4 @@ export { agentsApi } from "./agents-api";
 export { normalizeTrace } from "./trace";
 export { runAgentTurn, useAgentTurn } from "./use-agent-turn";
 export { ProcessCapsule, SourceChips } from "./lazy-parts";
+export { PersonaChip, PersonaEditorSheet } from "./lazy-parts";
