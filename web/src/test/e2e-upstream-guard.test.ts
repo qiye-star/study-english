@@ -19,6 +19,10 @@ describe("e2e upstream guard classification", () => {
     "/api/wordbook/spell/submit", "/api/wordbook/cards/junior/used%20to", "/api/wordbook/reports",
     // 每日目标面板(goals 计划 GW6,集成 Z1 发现守卫漏放):加练、暂停、继续、重置只读写数据库
     "/api/wordbook/bonus", "/api/wordbook/enrollment/pause", "/api/wordbook/enrollment/resume", "/api/wordbook/enrollment/reset",
+    // 学习联动(LINKS_ENABLED 的 E2E 栈,learning links Z1):每页加载 /config;各联动只读写数据库与本地词典文件
+    "/api/links/config", "/api/links/prefs", "/api/links/today", "/api/links/mistakes", "/api/links/mistakes/dismiss",
+    "/api/links/weak-words", "/api/links/weak-words/dismiss", "/api/links/today-words", "/api/links/chat-words",
+    "/api/links/wordbook/adopt", "/api/links/wordbook/card",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -34,6 +38,7 @@ describe("e2e upstream guard classification", () => {
     // 背单词的 AI 讲解会触达上游(LLM)
     "/api/wordbook/explain", "/api/wordbook", "/api/wordbook/configx", "/api/wordbook/cards/junior",
     "/api/wordbook/enrollment/delete", "/api/wordbook/bonusx",
+    "/api/links", "/api/links/configx", "/api/links/wordbook/cards", "/api/links/mistakes/x",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });

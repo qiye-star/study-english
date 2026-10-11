@@ -17,6 +17,10 @@ const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "
 // 背单词(WORDBOOK_ENABLED):只读写数据库与本地词典文件;/api/wordbook/explain(AI 讲解,LLM)不放行。
 const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|enrollment\/(?:pause|resume|reset)|bonus|learn\/batch|review\/batch|answers|spell\/sets|spell\/submit|reports|cards\/[^/]+\/[^/]+)$/;
 
+// 学习联动(LINKS_ENABLED):每页加载 /config;各联动接口只读写数据库与本地词典文件。对话用词的大模型检查
+// (LINK_CHAT_WORDS_LLM_ENABLED)在服务端处理器里异步进行、默认关闭,E2E 栈不开。
+const OWN_LINKS = /^\/api\/links\/(config|prefs|today|mistakes|mistakes\/dismiss|weak-words|weak-words\/dismiss|today-words|chat-words|wordbook\/adopt|wordbook\/card)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
-  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname);
+  return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname);
 }
