@@ -149,7 +149,7 @@ export function WordbookLearnedPage() {
         ) : list.status === "loading" ? <PageLoading /> : list.items.length > 0 ? (
           <>
             <SurfaceCard className="mt-3 overflow-hidden p-0">
-              <ul aria-label={t("web.wordbook.learned.list.label")} className="divide-y-[0.5px] divide-hair-2">
+              <ul aria-label={t("web.wordbook.learned.title")} className="divide-y-[0.5px] divide-hair-2">
                 {list.items.map((item) => <Row key={`${item.bookId}:${item.key}`} item={item} language={i18n.language} onOpen={() => setOpened(item)} />)}
               </ul>
             </SurfaceCard>
@@ -157,12 +157,12 @@ export function WordbookLearnedPage() {
               <button type="button" disabled={list.status !== "idle"} onClick={() => void list.loadMore()} className={cn(GHOST, "mt-3 h-11 w-full")}>
                 {t("web.wordbook.learned.list.more")}
               </button>
-            ) : <p className="mt-3 text-center text-meta text-ink-2">{t("web.wordbook.learned.list.end")}</p>}
+            ) : null}
           </>
         ) : library ? (
           <div className="mt-6 text-center">
             <PageNote>{t("web.wordbook.learned.empty.filtered")}</PageNote>
-            <button type="button" onClick={clear} className={cn(GHOST, "mt-3 h-11")}>{t("web.wordbook.learned.empty.clear")}</button>
+            <button type="button" onClick={clear} className={cn(GHOST, "mt-3 h-11")}>{t("web.wordbook.learned.filters.clear")}</button>
           </div>
         ) : (
           <div className="mt-6 text-center">
@@ -174,7 +174,7 @@ export function WordbookLearnedPage() {
       </div>
       {library ? (
         <div className={DOCK}>
-          <button type="button" onClick={() => setFreeOpen(true)} className={cn(PRIMARY, "h-12 flex-1")}><PlayIcon aria-hidden />{t("web.wordbook.learned.free.open")}</button>
+          <button type="button" onClick={() => setFreeOpen(true)} className={cn(PRIMARY, "h-12 flex-1")}><PlayIcon aria-hidden />{t("web.wordbook.learned.free.title")}</button>
         </div>
       ) : null}
       <CardSheet item={opened} onClose={() => setOpened(null)} />

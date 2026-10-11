@@ -87,13 +87,13 @@ export function FreeReviewSheet({ open, onOpenChange, summary }: { open: boolean
           ))}
         </div>
         {scope === "book" ? (
-          <select aria-label={t("web.wordbook.learned.free.pickBook")} value={effectiveBook ?? ""} onChange={(e) => setBook(e.target.value as BookId)}
+          <select aria-label={t("web.wordbook.learned.filters.book")} value={effectiveBook ?? ""} onChange={(e) => setBook(e.target.value as BookId)}
             className="mt-2 h-11 w-full rounded-button border-[0.5px] border-hair bg-surface px-3 text-body">
             {bookChoices.map((id) => <option key={id} value={id}>{bookName(id)}</option>)}
           </select>
         ) : null}
         {scope === "tier" ? (
-          <SegmentedControl<Tier> className="mt-2" label={t("web.wordbook.learned.free.pickTier")} value={(effectiveTier ?? "learning") as Tier} onChange={setTier}
+          <SegmentedControl<Tier> className="mt-2" label={t("web.wordbook.learned.box.label")} value={(effectiveTier ?? "learning") as Tier} onChange={setTier}
             options={TIERS.filter((x) => summary.byTier[x] > 0).map((x) => ({ value: x, label: t(`web.wordbook.learned.box.${x}`) }))} />
         ) : null}
         <p className="mt-4 text-meta font-semibold text-ink-2">{t("web.wordbook.learned.free.mode.label")}</p>

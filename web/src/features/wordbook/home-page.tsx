@@ -178,7 +178,7 @@ export function WordbookHomePage() {
               to={plan.newLeft > 0 ? "/wordbook/learn" : undefined} />
             <ListRow icon={<IconChip tone="amber" icon={KeyboardIcon} />} title={t("web.wordbook.home.spell")} testId="wordbook-action-spell"
               subtitle={t("web.wordbook.home.spellHint")} to="/wordbook/spell" />
-            <ListRow icon={<IconChip tone="gray" icon={ListChecksIcon} />} title={t("web.wordbook.learned.row.title")} testId="wordbook-action-learned"
+            <ListRow icon={<IconChip tone="gray" icon={ListChecksIcon} />} title={t("web.wordbook.learned.title")} testId="wordbook-action-learned"
               subtitle={t("web.wordbook.learned.row.hint")}
               value={learnedSummary ? <span className="num text-meta text-ink-2">{t("web.wordbook.learned.row.count", { n: learnedSummary.total, count: learnedSummary.total })}</span> : undefined}
               to="/wordbook/learned" />

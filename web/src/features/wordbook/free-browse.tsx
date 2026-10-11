@@ -27,7 +27,7 @@ export function FreeBrowse({ set }: { set: FreeSet }) {
   const item = items[index];
   const last = index === items.length - 1;
   const listen = { onListen: speaker.listen, listening: speaker.active, canListen: speaker.available };
-  const title = t("web.wordbook.learned.free.browse.title");
+  const title = t("web.wordbook.learned.free.title");
 
   if (finished) {
     return (
