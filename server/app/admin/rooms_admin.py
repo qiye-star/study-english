@@ -55,7 +55,8 @@ def _room_row(room: Room, owner: str | None, members: int, messages: int, report
             "message_count": int(messages or 0), "open_reports": int(reports or 0),
             "locked": room.locked, "ai_public": room.ai_public, "ai_muted": bool(room.ai_muted),
             "created_at": iso_utc(room.created_at), "last_active_at": iso_utc(room.last_active_at),
-            "closed_at": _iso(room.closed_at), "close_reason": room.close_reason}
+            "closed_at": _iso(room.closed_at), "close_reason": room.close_reason,
+            "opened_at": _iso(room.opened_at or room.created_at), "reopen_count": int(room.reopen_count or 0)}
 
 
 async def list_rooms(session, *, status: Literal["open", "closed", "all"], q: str, page: int, per_page: int,

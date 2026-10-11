@@ -38,7 +38,7 @@ async def test_operator_reopens_an_admin_closed_room_with_an_audit_row(app, clie
     assert row.status == "open" and len(row.code) == 6 and row.close_reason is None and row.reopen_count == 1
     audits = await _audits(app)
     assert len(audits) == 1 and audits[0].target_id == room["id"] and audits[0].reason == "误关闭,已和房主确认"
-    assert json.loads(audits[0].after) == {"reopen_count": 1} if isinstance(audits[0].after, str) else audits[0].after == {"reopen_count": 1}
+    assert audits[0].after == {"reopen_count": 1}  # JSON column
     assert row.code not in json.dumps(r.json()) and row.code not in caplog.text
     detail = (await client.get(f"/api/admin/rooms/{room['id']}", headers=h)).json()
     assert detail["reopen_count"] == 1 and detail["opened_at"] is not None and detail["status"] == "open"

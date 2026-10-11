@@ -16,13 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin import audit, rooms_admin
 from app.admin.perms import AdminContext, require
 from app.core.deps import get_session
+from app.core.quotas import effective
 from app.models import utcnow
 from app.services.recordings import absolute_path
 from app.rooms import audio
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, MAX_ID, event
 from app.rooms.store import RoomError
-from app.routers.rooms import (RoomsRuntime, after_close, presence, runtime, settle_requests, system_message,
-                               _room_json)
+from app.routers.rooms import (RoomsRuntime, after_close, announce_reopened, presence, runtime, settle_requests,
+                               system_message, _room_json)
 
 router = APIRouter(prefix="/api/admin")
 
@@ -127,6 +128,33 @@ async def close_room(room_id: RoomId, payload: ReasonIn, request: Request,
         raise HTTPException(404, "Room not found")
     await rooms_admin.record(session, ctx.actor, "room.close", room_id, reason=payload.reason)
     return {"ok": True}
+
+
+REOPEN_ERRORS = {"not_found": (404, "Room not found"), "not_closed": (409, "Room is not closed"),
+                 "no_owner": (409, "Room has no owner"), "too_many": (409, "Owner has too many open rooms"),
+                 "capacity": (409, "Room capacity reached")}
+
+
+@router.post("/rooms/{room_id}/reopen")
+async def reopen_room(room_id: RoomId, payload: ReasonIn, request: Request,
+                      ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    """Reopens an ended room, including one an operator closed (R-O9). Same caps as the owner path, using the owner's
+    effective quota (R-O7). Audited after the store applied it (`room.reopen`, count only)."""
+    rt = runtime(request.app)
+    before = await rt.store.room(room_id)
+    if before is None:
+        raise HTTPException(404, "Room not found")
+    max_owned = None if before.owner_id is None else await effective(session, request.app, before.owner_id,
+                                                                     "rooms_max_owned")
+    try:
+        room = await rt.store.reopen(room_id, None, utcnow(), max_owned=max_owned, admin=True)
+    except RoomError as e:
+        status, message = REOPEN_ERRORS.get(e.code, (409, "Cannot reopen"))
+        raise HTTPException(status, message) from None
+    await announce_reopened(rt, room, "reopened_admin", {})
+    await rooms_admin.record(session, ctx.actor, "room.reopen", room_id, after={"reopen_count": room.reopen_count},
+                             reason=payload.reason)
+    return {"ok": True, "reopen_count": room.reopen_count}
 
 
 @router.post("/rooms/{room_id}/kick")
