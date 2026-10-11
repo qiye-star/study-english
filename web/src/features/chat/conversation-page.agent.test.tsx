@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
@@ -271,6 +272,114 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
       await new Promise((r) => setTimeout(r, 30));
       expect(screen.queryByTestId("agent-tutor-entry")).toBeNull();
     });
+  });
+});
+
+describe("review fixes: tutor, regenerate, agents off", () => {
+  beforeEach(() => { sharedTtsCache.clear(); resetServerAiConfigCache(); resetAgentsCaches(); localStorage.removeItem(COMPOSER_MODE_KEY); vi.restoreAllMocks(); });
+  const FAILED = { ...STEP, id: "s2", key: "weak_words", status: "fail", params: undefined as unknown };
+  const failedTurn = () => sse([ev("step", FAILED), ev("delta", { text: "First." }), ev("done", { trace: { ...TRACE, steps: [FAILED] }, text_len: 6 })]);
+
+  it("does not offer Regenerate while a tutor session is active (it would advance the session twice)", async () => {
+    TUTOR_SLOTS.StartSheet = ({ open, onStarted }) => open ? <button type="button" data-testid="fake-tutor-start" onClick={() => onStarted("ts1", { input: "text", speakFirst: true })}>start</button> : null;
+    TUTOR_SLOTS.Bar = () => <div data-testid="fake-tutor-bar" />;
+    try {
+      setup(routes({
+        "POST /api/agents/turn": failedTurn,
+        "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m5" }] }),
+      }));
+      await screen.findByText("Earlier reply");
+      await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+      await userEvent.click(await screen.findByTestId("fake-tutor-start"));
+      await userEvent.click(await screen.findByTestId("agent-capsule"));
+      expect(await screen.findByTestId("agent-process-card")).toBeInTheDocument();
+      expect(screen.queryByTestId("agent-tool-retry")).toBeNull();
+    } finally { TUTOR_SLOTS.StartSheet = null; TUTOR_SLOTS.Bar = null; }
+  });
+
+  it("locks the persona chip while a tutor session is active and never continues without a persona", async () => {
+    TUTOR_SLOTS.StartSheet = ({ open, onStarted }) => open ? <button type="button" data-testid="fake-tutor-resume" onClick={() => onStarted("ts1", { input: "text", speakFirst: false })}>resume</button> : null;
+    TUTOR_SLOTS.Bar = ({ onContinue }) => <button type="button" data-testid="fake-tutor-continue" onClick={onContinue}>next</button>;
+    try {
+      let personaPatched = false;
+      const mock = setup(routes({ "PATCH /api/conversations/c1": () => { personaPatched = true; return json({ id: "c1", name: "Hi", config: CONFIG }); } }));
+      await screen.findByText("Earlier reply");
+      await userEvent.click(await screen.findByTestId("agent-tutor-entry"));
+      await userEvent.click(await screen.findByTestId("fake-tutor-resume"));
+      await screen.findByTestId("fake-tutor-continue");
+      expect(screen.getByTestId("agent-persona-chip")).toBeDisabled();
+      expect(personaPatched).toBe(false);
+      expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(0);
+    } finally { TUTOR_SLOTS.StartSheet = null; TUTOR_SLOTS.Bar = null; }
+  });
+
+  it("keeps the old reply and does not delete it when a regenerate fails, offering Retry", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "t");
+    let n = 0;
+    const mock = setup(routes({
+      "POST /api/agents/turn": () => (++n === 1 ? failedTurn() : sse([ev("error", { code: "limit" })])),
+      "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
+      "DELETE /api/messages/m2": () => json({ id: "m2" }),
+    }));
+    await screen.findByText("Earlier reply");
+    await say("Hi");
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+    await userEvent.click(await screen.findByTestId("agent-capsule"));
+    await userEvent.click(await screen.findByTestId("agent-tool-retry"));
+    await waitFor(() => expect(error).toHaveBeenCalled());
+    expect(callsTo(mock, "DELETE", "/api/messages/m2")).toHaveLength(0);
+    expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("First.");
+    expect(screen.getAllByTestId("message-user")).toHaveLength(1);
+    expect(error.mock.calls[0][1]).toMatchObject({ action: { label: "Retry" } });
+  });
+
+  it("saves the regenerated reply before deleting the old one", async () => {
+    let n = 0;
+    const mock = setup(routes({
+      "POST /api/agents/turn": () => (++n === 1 ? failedTurn() : sse(HAPPY)),
+      "POST /api/conversations/c1/messages": (call) => json({ messages: JSON.parse(String(call.body)).messages.length === 2 ? [{ id: "m1" }, { id: "m2" }] : [{ id: "m3" }] }),
+      "DELETE /api/messages/m2": () => json({ id: "m2" }),
+    }));
+    await screen.findByText("Earlier reply");
+    await say("Hi");
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+    await userEvent.click(await screen.findByTestId("agent-capsule"));
+    await userEvent.click(await screen.findByTestId("agent-tool-retry"));
+    await waitFor(() => expect(callsTo(mock, "DELETE", "/api/messages/m2")).toHaveLength(1));
+    const order = mock.calls.filter((c) => c.url.pathname === "/api/conversations/c1/messages" && c.method === "POST" || c.method === "DELETE");
+    expect(order.map((c) => c.method)).toEqual(["POST", "POST", "DELETE"]);
+  });
+
+  it("offers a way back to normal chat when agents are turned off, and clears only agent_persona_id", async () => {
+    const mock = setup(routes({ "GET /api/agents/config": () => json({ enabled: false }) }));
+    const notice = await screen.findByTestId("agent-off-notice");
+    await userEvent.click(within(notice).getByRole("button", { name: "Switch to normal chat" }));
+    await waitFor(() => expect(callsTo(mock, "PATCH", "/api/conversations/c1")).toHaveLength(1));
+    expect(bodyOf(callsTo(mock, "PATCH", "/api/conversations/c1")[0]).config).toEqual(CONFIG);
+    await waitFor(() => expect(screen.queryByTestId("agent-off-notice")).toBeNull());
+  });
+
+  it("shows the same recovery when the turn endpoint answers disabled", async () => {
+    setup(routes({ "POST /api/agents/turn": () => json({ error: "Forbidden" }, 403) }));
+    await screen.findByText("Earlier reply");
+    await say("Hi");
+    expect(await screen.findByTestId("agent-off-notice")).toBeInTheDocument();
+  });
+
+  it("an old conversation makes at most one agents request", async () => {
+    const mock = setup(routes({}, CONFIG));
+    await screen.findByText("Earlier reply");
+    await screen.findByTestId("agent-persona-chip");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mock.calls.filter((c) => c.url.pathname.startsWith("/api/agents/"))).toHaveLength(1);
+  });
+
+  it("keeps the hints row free of a fixed height next to the no-wrap teach-me button", async () => {
+    setup(routes());
+    await screen.findByText("Earlier reply");
+    const row = (await screen.findByTestId("chat-hints")).parentElement as HTMLElement;
+    expect(row.className).not.toMatch(/(^|\s)h-8(\s|$)/);
+    expect(row.className).toMatch(/flex-wrap|min-h-8/);
   });
 });
 

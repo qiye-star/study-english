@@ -14,19 +14,27 @@ export interface ChatPersonaControlProps {
   onChange(persona: Persona | null): void;
   /** 解析出的当前角色(助手头像用) */
   onResolved?(persona: Persona | null): void;
+  /** 会话记着角色、但智能体在服务端已关闭(config 说关闭):对话页据此给出「切回普通对话」 */
+  onUnavailable?(unavailable: boolean): void;
 }
 
 /** 对话顶栏的角色控件(懒加载块):智能体关闭时什么都不渲染,旧会话因此完全不变。 */
-export function ChatPersonaControl({ personaId, disabled, onChange, onResolved }: ChatPersonaControlProps) {
+export function ChatPersonaControl({ personaId, disabled, onChange, onResolved, onUnavailable }: ChatPersonaControlProps) {
   const { config } = useAgentsConfig();
   const enabled = !!config?.enabled;
-  const { personas } = usePersonas(enabled);
+  // 没有角色的旧会话不取角色列表(选择器打开时自己取):旧会话最多一次 /api/agents/ 请求
+  const { personas } = usePersonas(enabled && !!personaId);
   const [open, setOpen] = useState(false);
   const persona = personaId ? personas?.find((p) => p.id === personaId) ?? null : null;
   useEffect(() => {
     onResolved?.(persona);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persona?.id, persona?.name]);
+  const unavailable = !!config && !config.enabled && !!personaId;
+  useEffect(() => {
+    onUnavailable?.(unavailable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unavailable]);
   if (!enabled) return null;
   return (
     <>

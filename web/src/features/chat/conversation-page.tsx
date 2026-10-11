@@ -74,6 +74,8 @@ interface TurnExtras {
   agentTurnId?: string;
   /** 只有助手一条的回合:导师开场 / 继续(没有用户消息)或重新生成(用户消息已保存),R-W13 */
   solo?: "opening" | "regenerate";
+  /** solo = regenerate:被替换的旧回复。新回复保存成功后才删除它;失败时把它放回界面,服务端从未动过 */
+  restore?: UiMessage;
 }
 
 /** 一轮已出回复、等待(或重试)保存的消息对。队列保证服务端消息顺序与界面一致。 */
@@ -196,6 +198,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const [personaName, setPersonaName] = useState<string | null>(null);
   /** 导师模式(带我学,A3,R-W18):进行中的会话;meta 来自回合的 meta 事件 */
   const [tutor, setTutor] = useState<{ sessionId: string; meta: TurnMeta | null } | null>(null);
+  /** 智能体已关闭(config 说关闭,或回合接口答 disabled)而会话仍记着角色:给「切回普通对话」 */
+  const [agentsOff, setAgentsOff] = useState(false);
+  const [turnDisabled, setTurnDisabled] = useState(false);
   const tutorRef = useRef<{ sessionId: string } | null>(null);
   const tts = useTtsPlayer(api, {
     createAudio: sharedAutoplayAudio,
@@ -369,6 +374,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     setRecapOpen(false);
     setTutor(null);
     tutorRef.current = null;
+    setTurnDisabled(false);
     resetHints(); // 切换会话:中止进行中的提示请求
     resetTranslations();
     nearBottomRef.current = true; // 新会话加载完成后滚到底
@@ -660,9 +666,11 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     const content = text.trim();
     const results = resultsRef.current;
     if ((!content && turn.solo !== "opening") || !conversation || !results || busyRef.current) return;
-    busyRef.current = true;
     // R-W12:唯一的分岔点。没有角色的会话走原路径,请求与保存体不变
     const agentId = conversation.config.agentPersonaId;
+    // 只有助手一条的回合(导师开场 / 继续、重新生成)只存在于智能体路径:没有角色绝不能落到普通补全(会把空的用户文本发出去)
+    if (turn.solo && !agentId) return;
+    busyRef.current = true;
     const gen = genRef.current;
     const history = base.filter((m) => m.status === "done").map(({ role, content: c }) => ({ role, content: c }));
     const userKey = turn.userKey ?? nextKey("u");
@@ -729,11 +737,14 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       // 流式失败:部分回复被错误气泡取代,且不保存;这一轮保持 open,等待重试或被丢弃
       const agentErr = err as { agentText?: string; retryId?: string } | null;
       const message = agentErr?.agentText ?? translateServerError(tRef.current, err, CHAT_SERVER_ERRORS);
+      if ((err as { code?: string } | null)?.code === "disabled" && live()) setTurnDisabled(true);
       if (turn.solo) {
         // R-W13:只有助手一条的回合失败不留错误气泡(dropFailedTail 会连带丢掉前一条已保存的消息),只提示
         if (live()) {
-          setMessages((prev) => prev.filter((m) => m.key !== botKey));
-          toast.error(message);
+          setMessages((prev) => (turn.restore ? [...prev.filter((m) => m.key !== botKey), turn.restore] : prev.filter((m) => m.key !== botKey)));
+          // 重新生成失败:旧回复原样留在界面与服务端,给一个重试入口
+          toast.error(message, turn.solo === "regenerate"
+            ? { action: { label: tRef.current("web.common.retry"), onClick: () => void regenerateRef.current() } } : undefined);
         }
       } else {
         patch(botKey, { status: "error", content: message, ...(agentId ? { agent: agentErr?.retryId ? { retryId: agentErr.retryId } : undefined } : {}) });
@@ -748,11 +759,27 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       // R-W13:排在已排队的保存之后,单独保存助手消息;失败只提示,不进带核对的重试队列
       await flushSaves();
       const savedTrace = traceForSave(trace);
+      const restoreOld = () => {
+        if (live() && turn.restore) setMessages((prev) => prev.map((m) => (m.key === botKey ? turn.restore! : m)));
+      };
       try {
         const { messages: saved } = await createMessages(api, conversation.id, [{ role: "assistant", content: reply, ...(savedTrace ? { agentTrace: savedTrace } : {}) }]);
-        patchByKey(botKey, { id: saved[0]?.id });
-        if (genRef.current === gen) knownTailRef.current = saved[0]?.id;
+        const newId = saved[0]?.id;
+        if (turn.restore?.id) {
+          // 重新生成:新回复已在服务端,才删旧的;删不掉就撤回新的,界面与服务端都回到旧回复
+          try {
+            await deleteMessage(api, turn.restore.id);
+          } catch (err) {
+            if (newId) await deleteMessage(api, newId).catch((): void => undefined);
+            restoreOld();
+            if (live()) toast.error(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS));
+            return;
+          }
+        }
+        patchByKey(botKey, { id: newId });
+        if (genRef.current === gen) knownTailRef.current = newId;
       } catch {
+        restoreOld();
         if (live()) toast.error(tRef.current("web.chat.notSaved"));
       }
       return;
@@ -821,26 +848,24 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
    * R-W13:重新生成最新一条智能体回复(过程卡失败行的「重试」、工具详情的「重新生成」)。
    * 先删服务端那条助手消息,再用同一句重跑,只保存新的助手消息。prime 在点击的同步阶段。
    */
-  const regenerate = async () => {
+  const regenerate = () => {
     const list = messagesRef.current;
     const last = list[list.length - 1];
     const user = list[list.length - 2];
-    if (!last?.id || last.role !== "assistant" || user?.role !== "user" || !user.id || busyRef.current
+    // 导师会话里每个回合都会推进会话:重新生成会让它前进两次(或报 Tutor session changed),所以导师模式不提供
+    if (!last?.id || last.role !== "assistant" || user?.role !== "user" || !user.id || busyRef.current || tutorRef.current
       || voiceStateRef.current !== "idle" || pendingSavesRef.current.length > 0 || !conversationRef.current?.config.agentPersonaId) return;
     autoSpeak.prime();
-    try {
-      await deleteMessage(api, last.id);
-    } catch (err) {
-      toast.error(translateServerError(tRef.current, err, CHAT_SERVER_ERRORS));
-      return;
-    }
-    knownTailRef.current = user.id;
-    void send(user.content, messagesRef.current.slice(0, -2), { userKey: user.key, solo: "regenerate" });
+    // 不先删旧回复:新回复到达并保存后才替换(send 里的 solo=regenerate 分支),失败时旧回复原封不动
+    void send(user.content, list.slice(0, -2), { userKey: user.key, solo: "regenerate", restore: last });
   };
+  const regenerateRef = useRef(regenerate);
+  regenerateRef.current = regenerate;
 
   /** 导师模式:继续(智能体出下一题 / 开场),text = null 的回合;失败的尾部先丢弃(与发送同一规则)。 */
   const continueTutor = () => {
-    if (!tutorRef.current || busyRef.current || voiceStateRef.current !== "idle") return;
+    // 没有角色就没有导师会话:绝不发出(send 也会拒绝)
+    if (!tutorRef.current || !conversationRef.current?.config.agentPersonaId || busyRef.current || voiceStateRef.current !== "idle") return;
     autoSpeak.prime();
     const { kept, dropped } = dropFailedTails(messagesRef.current);
     abandonDropped(dropped);
@@ -962,8 +987,15 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
 
   /** 选择 / 更换 / 取消角色(spec §9.3):只写 agentPersonaId(与角色音色,R-W17);取消时删掉这个键 */
   const choosePersona = (persona: Persona | null) => {
+    if (tutorRef.current) return; // 带学进行中不换角色(导师会话属于这个角色);芯片同时是禁用的
     const voice = persona?.voice && ai ? { ttsModel: ai.defaultTts.model, ttsVoice: persona.voice } : {};
     void saveSettings({ agentPersonaId: persona?.id, ...voice }).catch((): void => undefined);
+  };
+
+  /** 智能体不可用时的出口:删掉 agentPersonaId(与取消角色同一写法),之后走普通对话路径 */
+  const switchToNormalChat = () => {
+    endTutor();
+    void saveSettings({ agentPersonaId: undefined }).then(() => { setTurnDisabled(false); setAgentsOff(false); }).catch((): void => undefined);
   };
 
   const [bilingualSaving, setBilingualSaving] = useState(false);
@@ -1174,8 +1206,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
               <ChevronLeftIcon />
             </IconButton>
             {conversation && (
-              <ChatPersonaControl personaId={conversation.config.agentPersonaId ?? null} disabled={sending || voiceBusy || !!call || settling}
-                onChange={choosePersona} onResolved={(p) => setPersonaName(p?.name ?? null)} />
+              <ChatPersonaControl personaId={conversation.config.agentPersonaId ?? null} disabled={sending || voiceBusy || !!call || settling || !!tutor}
+                onChange={choosePersona} onResolved={(p) => setPersonaName(p?.name ?? null)} onUnavailable={setAgentsOff} />
             )}
           </>
         )}
@@ -1202,7 +1234,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy} partnerName={personaName ?? partnerVoice}
               before={m.agent ? (
                 <ProcessCapsule live={m.agent.live} trace={m.agent.trace} generating={m.status === "streaming"}
-                  onRegenerate={m.key === lastKey && m.id && !sending ? () => void regenerate() : undefined} />
+                  onRegenerate={m.key === lastKey && m.id && !sending && !tutor ? () => regenerate() : undefined} />
               ) : null}
               after={m.agent?.trace ? <SourceChips trace={m.agent.trace} /> : null}
               footer={hasResultFooter(m) ? (
@@ -1259,6 +1291,15 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             </IconButton>
           </div>
         )}
+        {conversation?.config.agentPersonaId && (agentsOff || turnDisabled) && (
+          <div data-testid="agent-off-notice" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink">
+            <span className="min-w-0 flex-1">{t("web.chat.agentOff.message")}</span>
+            <button type="button" disabled={sending || !!call || settling} onClick={switchToNormalChat}
+              className="inline-flex min-h-tap flex-none items-center rounded-button px-2 font-semibold text-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {t("web.chat.agentOff.switch")}
+            </button>
+          </div>
+        )}
         {tutor && conversation && (
           <TutorBarSlot sessionId={tutor.sessionId} meta={tutor.meta} busy={sending} onContinue={continueTutor} onEnd={endTutor}
             lastReply={lastAssistantText(messages)}
@@ -1269,8 +1310,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             }} />
         )}
         <div aria-hidden={hintsUnavailable || undefined}
-          className={cn("flex items-center px-2 transition-[height,opacity,margin] duration-fast ease-standard motion-reduce:transition-none",
-            hintsUnavailable ? "mt-0 h-0 overflow-hidden opacity-0" : "mt-1.5 h-8 opacity-100")}>
+          className={cn("flex flex-wrap items-center px-2 transition-[height,opacity,margin] duration-fast ease-standard motion-reduce:transition-none",
+            hintsUnavailable ? "mt-0 h-0 overflow-hidden opacity-0" : "mt-1.5 min-h-8 opacity-100")}>
           <button type="button" data-testid="chat-hints" disabled={hintsUnavailable} onClick={openHints}
             title={t("web.chat.hints.button")}
             className="hit-expand flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-inline text-sub font-semibold text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
