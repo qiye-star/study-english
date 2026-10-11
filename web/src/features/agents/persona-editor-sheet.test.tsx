@@ -1,10 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
-import { renderWithProviders } from "~/test/render";
+import { TestProviders, renderWithProviders } from "~/test/render";
 import { PersonaEditorSheet } from "./persona-editor-sheet";
 import { resetAgentsCaches } from "./use-agents-data";
 import type { Persona } from "./types";
@@ -74,6 +74,20 @@ describe("PersonaEditorSheet (mockup 6, D2, D3)", () => {
     expect(screen.getByTestId("agent-editor-delete")).toHaveTextContent("Tap again to delete");
     await userEvent.click(screen.getByTestId("agent-editor-delete"));
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("p1"));
+  });
+
+  it("keeps the draft when the personas list revalidates and hands a new object for the same persona", async () => {
+    const mock = createFetchMock({ "GET /api/agents/config": () => json(CONFIG) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const view = rtlRender(<PersonaEditorSheet open onOpenChange={() => undefined} persona={MINE} onSaved={vi.fn()} onDeleted={vi.fn()} />,
+      { wrapper: ({ children }) => <TestProviders api={api}>{children}</TestProviders> });
+    const name = screen.getByTestId("agent-editor-name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Edited");
+    view.rerender(<PersonaEditorSheet open onOpenChange={() => undefined} persona={{ ...MINE }} onSaved={vi.fn()} onDeleted={vi.fn()} />);
+    expect(screen.getByTestId("agent-editor-name")).toHaveValue("Edited");
+    view.rerender(<PersonaEditorSheet open onOpenChange={() => undefined} persona={{ ...MINE, id: "p2", name: "Other" }} onSaved={vi.fn()} onDeleted={vi.fn()} />);
+    expect(screen.getByTestId("agent-editor-name")).toHaveValue("Other");
   });
 
   it("shows the limit message on 429/409 and keeps the sheet open", async () => {

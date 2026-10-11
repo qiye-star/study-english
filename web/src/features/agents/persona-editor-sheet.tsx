@@ -71,7 +71,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
     setConfirmDelete(false);
     setTrial((prev) => ({ text: t("web.agents.editor.tryDefault"), state: prev.state === "unavailable" ? "unavailable" : "idle" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, persona]);
+  }, [open, persona?.id ?? null]);
   useEffect(() => {
     if (!open) return;
     let alive = true;

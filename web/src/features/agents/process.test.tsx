@@ -95,7 +95,9 @@ describe("ProcessCapsule (spec §5, D1)", () => {
 
   it("uses a caller label for the collapsed line (rooms)", async () => {
     render(<ProcessCapsule trace={TRACE} generating={false} showProcess label="Emma answered · for Lin" />);
-    expect(await screen.findByTestId("agent-capsule")).toHaveTextContent("Emma answered · for Lin");
+    const capsule = await screen.findByTestId("agent-capsule");
+    expect(capsule).toHaveTextContent("Emma answered · for Lin");
+    expect(capsule).toHaveAccessibleName("Emma answered · for Lin. Show steps");
   });
 });
 

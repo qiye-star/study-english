@@ -71,7 +71,7 @@ export function ProcessCapsule({ live = null, trace = null, generating, showProc
   }
   const { seconds, tools } = summarize(view);
   return (
-    <button type="button" data-testid={testId} aria-expanded={false} aria-label={label ?? t("web.agents.process.expand")}
+    <button type="button" data-testid={testId} aria-expanded={false} aria-label={label ? `${label}. ${t("web.agents.process.expand")}` : t("web.agents.process.expand")}
       onClick={() => setOpen(true)}
       className="inline-flex min-h-tap items-center self-start rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-2 pr-2.5 text-meta text-ink-2">
