@@ -18,6 +18,7 @@
 - `orchestrator.py` – `run_turn(deps, req)`(异步生成器)、`TurnDeps` / `deps_for(app)`、`TurnRequest`、`ModeHandler` /
   `ModeBlock` / `StreamFilter` / `ChatMode` / `ModeRegistry`、`TurnHooks` / `TurnRecord`、`AgentsRuntime` / `runtime(app)`
 - `memory/`(计划 A2)、`tutor/`(计划 A3):各自的 CLAUDE.md
+- `memory/` 记忆五层、来源 `memory`、回合后整理(计划 A2;见 `memory/CLAUDE.md`)。`install` 在 `main.py` 里紧跟本层安装。
 
 ## Allowed dependencies
 `app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。**不能**导入 `rank / rooms / realtime / wordbook /
@@ -52,3 +53,4 @@ links / admin / routers`(连函数内延迟导入也不行;`tests/test_architect
 - `TurnLedger`(幂等)与回合并发上限是**每进程**的;镜像只跑一个 worker。多 worker 时同一 `client_turn_id` 可能在两个进程各跑一次。
 - 来源在 `prefetch` 里会被取消(超时 / 总预算):来源自己开会话(`async with sessionmaker()`),不要在取消点之后写库。
 - `AGENTS_TOOLS_MODE=native` 在本版本与 `prefetch` 行为相同(R-C7);探测结果存 `app.state.agents_tools_probe`(每进程,重启丢)。
+- 编排不得导入 `app.agents.memory`;记忆只经 `SourceRegistry` 与 `TurnHooks.after_turn` 接入(`test_agents_memory_boundaries_hold`)。

@@ -249,3 +249,51 @@ def test_agents_layer_rules(tmp_path):
     for rel, (_, line) in bad.items():
         assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
     assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
+
+
+AGENTS_MEMORY_MAY_IMPORT = ("app.agents.memory", "app.agents.context", "app.agents.settings")
+AGENTS_MEMORY_IMPORTERS = ("app.agents.memory", "app.agents.tutor", "app.routers", "app.admin", "app.main")
+
+
+def _within(target: str, prefixes: tuple[str, ...]) -> bool:
+    return any(target == p or target.startswith(p + ".") for p in prefixes)
+
+
+def memory_violations(root: Path = APP) -> list[str]:
+    """计划 A2 R-M12:agents/memory 在 agents 内只依赖 context 与 settings;只有 memory、tutor、routers、admin、main 导入它。"""
+    problems: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        current = module_name(path, root)
+        where = path.relative_to(root.parent).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, current, path.name == "__init__.py"):
+            inside = _within(current, ("app.agents.memory",))
+            if inside and target.startswith("app.agents") and not _within(target, AGENTS_MEMORY_MAY_IMPORT):
+                problems.append(f"{where}:{lineno}: agents/memory must not import {target}")
+            if not inside and _within(target, ("app.agents.memory",)) and not _within(current, AGENTS_MEMORY_IMPORTERS):
+                problems.append(f"{where}:{lineno}: {current} must not import {target}")
+    return problems
+
+
+def test_agents_memory_boundaries_hold():
+    assert memory_violations() == []
+
+
+def test_memory_scanner_catches_both_directions(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("agents", "agents/memory", "agents/tutor", "routers", "rooms"):
+        (app / pkg).mkdir(parents=True, exist_ok=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "agents" / "memory" / "bad.py").write_text("from app.agents import orchestrator\n", encoding="utf-8")
+    (app / "agents" / "memory" / "ok.py").write_text("from app.agents.context import SourceResult\n"
+                                                     "from app.agents.memory import store\n", encoding="utf-8")
+    (app / "agents" / "orchestrator.py").write_text("from app.agents.memory import store\n", encoding="utf-8")
+    (app / "agents" / "tutor" / "ok.py").write_text("from app.agents.memory.worker import TutorFinished\n",
+                                                    encoding="utf-8")
+    (app / "routers" / "ok.py").write_text("from app.agents.memory.store import drop_conversation\n", encoding="utf-8")
+    found = memory_violations(app)
+    assert any(p.startswith("app/agents/memory/bad.py:1") for p in found)
+    assert any(p.startswith("app/agents/orchestrator.py:1") for p in found)
+    assert not any(p.startswith(("app/agents/memory/ok.py", "app/agents/tutor/ok.py", "app/routers/ok.py"))
+                   for p in found)

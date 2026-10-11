@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 
-from app.agents import settings as agent_settings
+from app.agents.settings import load as load_agent_settings
 from app.agents.memory.cache import SnapshotCache
 from app.agents.memory.source import MemorySource
 from app.agents.memory.store import MemoryStore
@@ -29,7 +29,7 @@ def memory_model(settings) -> str:
 
 async def _user_settings(app, user_id: int):
     async with app.state.sessionmaker() as session:
-        return await agent_settings.load(session, user_id)
+        return await load_agent_settings(session, user_id)
 
 
 async def _complete(app, messages: list[dict], max_tokens: int) -> str:

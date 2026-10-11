@@ -18,7 +18,8 @@ export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publ
 hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: learning-links view via
 `app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
 sub-router from `app.links.registry`; must precede `stubs`), `admin_usage` (summary, top users, health), `admin_ops` (system, logs, announcements,
-maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `stubs` (catch-all writes),
+maintenance, backups, housekeeping), `admin_prompts` (prompt versions, test run), `agents_memory` (/api/agents/memory/*: profile, items, pin, recaps, export, clear — own data only; must precede `agents` and `stubs`),
+`stubs` (catch-all writes),
 `admin_web` (static admin/dist at /admin), `web` (static web/dist + SPA fallback).
 
 ## Allowed dependencies
