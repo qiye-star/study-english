@@ -617,3 +617,35 @@ def test_user_foreign_keys_in_the_migrated_schema_carry_the_models_on_delete(tmp
         ("link_mistake_words", "user_id", "CASCADE"), ("link_weak_words", "user_id", "CASCADE"),
         ("link_word_uses", "user_id", "CASCADE"), ("link_credits", "user_id", "CASCADE"),
     }
+
+
+TUTOR_TABLE = "agent_tutor_sessions"
+
+
+def test_0016_agent_tutor_sessions_round_trip(tmp_path, monkeypatch):
+    """A3 appends the tutor session table to A2's 0016 (plan 2026-10-12-agents-tutor R-T7)."""
+    cfg, db = _config(tmp_path, monkeypatch)
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0016"]
+    command.upgrade(cfg, "0015")
+    assert TUTOR_TABLE not in _tables(db)
+    command.upgrade(cfg, "0016")
+    assert TUTOR_TABLE in _tables(db)
+    con = sqlite3.connect(db)
+    try:
+        idx = {r[1] for r in con.execute(f"pragma index_list({TUTOR_TABLE})")}
+        fks = {(r[2], r[3], r[6]) for r in con.execute(f"pragma foreign_key_list({TUTOR_TABLE})")}
+        con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-12')")
+        con.execute("insert into agent_tutor_sessions (id, user_id, persona_id, client_start_id, status, goal, state, "
+                    "created_at, updated_at) values ('s1', 12345678, 'builtin:coach', 'c1', 'active', '{}', '{}', "
+                    "'2026-10-12', '2026-10-12')")
+        version = con.execute("select version from agent_tutor_sessions").fetchone()[0]
+        con.commit()
+    finally:
+        con.close()
+    assert {"ix_agent_tutor_sessions_user_id_conversation_id_status", "ix_agent_tutor_sessions_user_id_created_at"} <= idx
+    assert ("users", "user_id", "CASCADE") in fks and ("conversations", "conversation_id", "CASCADE") in fks
+    assert version == 0
+    command.downgrade(cfg, "0015")
+    assert TUTOR_TABLE not in _tables(db)
+    command.upgrade(cfg, "head")
+    assert TUTOR_TABLE in _tables(db)

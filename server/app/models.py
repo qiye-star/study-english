@@ -914,3 +914,32 @@ class AgentMemoryTombstone(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     text_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- 智能体 · 导师模式(设计文档 2026-10-12-agents §7;计划 A3 R-T7)----
+
+class AgentTutorSession(Base):
+    """一次「带我学」会话。state = machine.to_dict(TutorState):计划(题型、主题代码、词)、进度、难度、评级;
+    不存用户回答。room_id 留给联机导师(A5),无外键。"""
+    __tablename__ = "agent_tutor_sessions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_start_id", name="uq_agent_tutor_sessions_user_start"),
+        Index("ix_agent_tutor_sessions_user_id_conversation_id_status", "user_id", "conversation_id", "status"),
+        Index("ix_agent_tutor_sessions_user_id_created_at", "user_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    conversation_id: Mapped[str | None] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"),
+                                                        nullable=True)
+    room_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    persona_id: Mapped[str] = mapped_column(String(64))
+    client_start_id: Mapped[str] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(8))  # active / done / expired
+    goal: Mapped[dict] = mapped_column(JSON)
+    state: Mapped[dict] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    recap: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

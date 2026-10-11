@@ -17,7 +17,7 @@ from app.core.config import Settings
 from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.services.grammar import normalize_grammar
-from app.models import Assessment, Conversation, Message, User, iso_utc, utcnow
+from app.models import AgentTutorSession, Assessment, Conversation, Message, User, iso_utc, utcnow
 from app.services.chat_recordings import IN_CHUNK, _chunks, drop_assessments, remove_files  # noqa: F401
 
 router = APIRouter(prefix="/api")
@@ -296,6 +296,7 @@ async def delete_conversation(
     chat = await chat_assessments(session, user, list(linked), other_refs=Message.conversation_id != row.id)
     # SQLite 默认不开外键级联,显式删除消息
     await session.execute(delete(Message).where(Message.conversation_id == row.id))
+    await session.execute(delete(AgentTutorSession).where(AgentTutorSession.conversation_id == row.id))  # A3 R-T7
     paths = await drop_assessments(session, chat)
     await drop_conversation(session, row.id)  # agents memory: thread state + recaps go with the chat (plan A2 R-M15)
     await session.delete(row)
