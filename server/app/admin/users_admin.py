@@ -20,6 +20,7 @@ from app.models import (
     UserAchievement, UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
     LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, UserLinkPref,
     WordbookEnrollment, WordbookEvent, WordbookReport,
+    AgentPersona, AgentPersonaReport, AgentUserSettings,
 )
 from app.services import recordings
 
@@ -39,6 +40,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (WordbookEnrollment, "user_id"), (WordbookEvent, "user_id"),
     (UserLinkPref, "user_id"), (LinkMistakeWord, "user_id"), (LinkWeakWord, "user_id"), (LinkWordUse, "user_id"),
     (LinkCredit, "user_id"),
+    (AgentPersona, "owner_id"), (AgentUserSettings, "user_id"), (AgentPersonaReport, "reporter_id"),
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
@@ -166,6 +168,9 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.execute(delete(Message).where(Message.conversation_id.in_(conversations)))
     await session.execute(update(Message).where(Message.assessment_id.in_(
         select(Assessment.id).where(Assessment.user_id == user_id))).values(assessment_id=None))
+    # reports other users filed against this user's personas (SQLite has no FK cascade from agent_personas)
+    await session.execute(delete(AgentPersonaReport).where(AgentPersonaReport.persona_id.in_(
+        select(AgentPersona.id).where(AgentPersona.owner_id == user_id))))
     for model, column in USER_ROWS:
         await session.execute(delete(model).where(getattr(model, column) == user_id))
     for model, column in USER_REFS_NULLED:
