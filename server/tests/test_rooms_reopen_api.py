@@ -28,7 +28,7 @@ async def test_mine_hides_ended_rooms_and_counts_them(client, auth_headers):
     page = (await client.get("/api/rooms/ended", headers=auth_headers)).json()
     assert [r["id"] for r in page["rooms"]] == [ended["id"]] and page["next_cursor"] is None
     row = page["rooms"][0]
-    assert row["status"] == "closed" and row["close_reason"] == "owner" and row["summary_status"] == "none"
+    assert row["status"] == "closed" and row["close_reason"] == "owner" and row["summary_status"] == "skipped"  # summaries are off here: the runner records skipped("disabled")
     assert row["code"] is None and row["my_role"] == "owner"
 
 
