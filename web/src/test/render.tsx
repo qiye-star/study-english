@@ -14,7 +14,7 @@ function LocationProbe() {
 export interface RenderOptions {
   api?: ApiClient;
   user?: AuthContextValue["user"];
-  route?: string | { pathname: string; state?: unknown };
+  route?: string | { pathname: string; search?: string; state?: unknown };
   path?: string;
   logout?: () => void;
 }

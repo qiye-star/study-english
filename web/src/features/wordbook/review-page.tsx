@@ -1,13 +1,15 @@
 import { RefreshCwIcon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PAGE_NOTE } from "~/components/list-card";
 import { SurfaceCard } from "~/components/surface-card";
 import { ChoiceQuestion, correctOptionOf, type ChoiceResult } from "./choice-question";
+import { FreeBrowse } from "./free-browse";
+import { readFreeState, toBatch, uniqueKeys } from "./free-batch";
 import { PageError, PageLoading } from "./page-status";
 import { RecallCard } from "./recall-card";
 import { RecallRatingBar, SpotBar } from "./recall-rating-bar";
@@ -21,9 +23,11 @@ import { useSpeaker } from "./use-speaker";
 import { useWordbookToday } from "./use-today";
 import { useWordbookConfig } from "./use-wordbook-config";
 import { meaningLine } from "./word-card";
-import { WORDBOOK_SERVER_ERRORS, reviewBatch, submitAnswer, type AnswerResult, type BookId, type Card, type Question } from "./wordbook-api";
+import { WORDBOOK_SERVER_ERRORS, reviewBatch, submitAnswer, type AnswerResult, type BookId, type Card, type FreeSet, type Question } from "./wordbook-api";
 
-type Batch = { bookId: BookId; questions: Question[]; cards: Record<string, Card> };
+type Batch = { bookId: BookId; questions: Question[]; cards: Record<string, Card>; bookOf?: Record<string, BookId> };
+/** 自由复习的批次跨书,每个词自带 book_id;正式复习只有一本书。 */
+const bookOf = (b: Batch, key: string) => b.bookOf?.[key] ?? b.bookId;
 type Phase = "intro" | "loading" | "error" | "empty" | "quiz" | "summary";
 
 const CHOICE = new Set(["meaning", "word", "cloze"]);
@@ -53,22 +57,22 @@ function effectiveQuestion(q: Question, card: Card | undefined, tts: boolean): Q
  * 快速回忆(spec 2026-10-11-wordbook-recall §4,视觉稿 05–07):正面三档自评 → 「认识」可能先出一道抽查题(`outcome:"pending"`)
  * → 翻面(词卡 + 徽标);认识之后可「记错了」(再交一次 unknown,服务端走 apply_lapse)。
  */
-export function WordbookReviewPage() {
+function ReviewSession({ free }: { free: FreeSet | null }) {
   const { t } = useTranslation();
   const { api } = useAuth();
   const navigate = useNavigate();
   const speaker = useSpeaker();
   const rankEnabled = useRankEnabled();
-  const { today } = useWordbookToday(true);
+  const { today } = useWordbookToday(free === null);
   const config = useWordbookConfig();
   // 旧服务端(还没有 learn 设置)按默认值处理
   const prefs = config?.enabled ? config.learn : undefined;
   const autoplay = prefs?.autoplay ?? true;
   const showExample = prefs?.showExample ?? true;
-  const [phase, setPhase] = useState<Phase>("intro");
-  const [batch, setBatch] = useState<Batch | null>(null);
+  const [phase, setPhase] = useState<Phase>(free ? "quiz" : "intro");
+  const [batch, setBatch] = useState<Batch | null>(() => (free ? toBatch(free) : null));
   const [error, setError] = useState<unknown>(null);
-  const [session, setSession] = useState<SessionState>(() => startSession([]));
+  const [session, setSession] = useState<SessionState>(() => startSession(free ? uniqueKeys(toBatch(free).questions) : []));
   const [answer, setAnswer] = useState<{ result: AnswerResult; choice?: string; check?: Question } | null>(null);
   // 快速回忆「认识」被抽中时服务端给的选释义题(先答它才写盒子)
   const [check, setCheck] = useState<Question | null>(null);
@@ -131,7 +135,7 @@ export function WordbookReviewPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const result = await submitAnswer(api, { bookId: batch.bookId, key: question.key, mode: "review", qtype: question.qtype, ...input });
+      const result = await submitAnswer(api, { bookId: bookOf(batch, question.key), key: question.key, mode: free ? "free" : "review", qtype: question.qtype, ...input });
       if (!mounted.current) return;
       // 抽查:先答这道题,还没写盒子(plan P-R3)
       if (result.outcome === "pending" && result.check) { setCheck(result.check); return; }
@@ -159,7 +163,7 @@ export function WordbookReviewPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const result = await submitAnswer(api, { bookId: batch.bookId, key: question.key, mode: "review", qtype: "recall", rating: "unknown" });
+      const result = await submitAnswer(api, { bookId: bookOf(batch, question.key), key: question.key, mode: free ? "free" : "review", qtype: "recall", rating: "unknown" });
       if (!mounted.current) return;
       setAnswer({ result });
       setFirst((f) => ({ ...f, [question.key]: result }));
@@ -231,15 +235,22 @@ export function WordbookReviewPage() {
     });
     const stats: SessionStats = {
       kind: "review", total: keys.length, firstTry, mastered: keys.filter((k) => enteredMastered(first[k])).length,
-      points: rankEnabled ? keys.filter((k) => first[k].applied).length : null, missed,
+      points: rankEnabled && !free ? keys.filter((k) => first[k].applied).length : null, missed,
       ratings: recallRatings(keys.map((k) => first[k])),
     };
+    // 自由复习:一句话说明不计点,答错且已加入今天复习的词数(服务端 applied = 已入队)
+    const freeNote = (queued: number) => [
+      t("web.wordbook.learned.free.summary.note"),
+      queued > 0 ? t("web.wordbook.learned.free.summary.queued", { n: queued, count: queued }) : "",
+    ].filter(Boolean).join(" ");
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={t("web.wordbook.summary.title")} />
-        <SessionSummary stats={stats} onHome={() => navigate("/wordbook")} {...listen}
-          onAgain={newLeft > 0 ? () => navigate("/wordbook/learn") : undefined}
-          againLabel={t("web.wordbook.card.learn", { n: newLeft })} />
+        <SessionSummary stats={stats} onHome={() => navigate(free ? "/wordbook/learned" : "/wordbook")} {...listen}
+          onAgain={!free && newLeft > 0 ? () => navigate("/wordbook/learn") : undefined}
+          againLabel={t("web.wordbook.card.learn", { n: newLeft })}
+          note={free ? freeNote(keys.filter((k) => first[k].applied).length) : undefined}
+          homeLabel={free ? t("web.wordbook.learned.free.summary.back") : undefined} />
       </div>
     );
   }
@@ -256,7 +267,7 @@ export function WordbookReviewPage() {
     : null;
   return (
     <div className="flex flex-1 flex-col">
-      <SessionHeader title={t("web.wordbook.review.title")}
+      <SessionHeader title={free ? t("web.wordbook.learned.free.title") : t("web.wordbook.review.title")}
         subtitle={t("web.wordbook.session.count", { n: Math.min(progress.done + 1, progress.total), total: progress.total })} />
       <div className="px-gutter pb-4">
         <StepBar done={progress.done} total={progress.total} />
@@ -303,4 +314,14 @@ export function WordbookReviewPage() {
       ) : null}
     </div>
   );
+}
+
+/** 复习页入口:`?source=free` 时批次来自路由 state(自由复习,R-L14);翻卡浏览是同一块里的轻量组件;没有 state → 回已学词。 */
+export function WordbookReviewPage() {
+  const [params] = useSearchParams();
+  const { state } = useLocation();
+  if (params.get("source") !== "free") return <ReviewSession free={null} />;
+  const set = readFreeState(state);
+  if (!set) return <Navigate to="/wordbook/learned" replace />;
+  return set.mode === "browse" ? <FreeBrowse set={set} /> : <ReviewSession free={set} />;
 }
