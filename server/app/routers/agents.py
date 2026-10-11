@@ -1,6 +1,8 @@
 """/api/agents/*(spec 2026-10-12-agents §4.4、§4.5;计划 R-C5、R-C16、R-C24、R-C25):配置、角色 CRUD 与举报、用户设置、
 回合 SSE。业务在 app/agents/。总开关关:除 GET /config 外一律 404 `Agents are disabled`。错误 `{"error": ...}`。
 URL 里没有词或文本(角色 id 是 uuid / builtin: 键;没有查询参数);请求体与回复从不进日志。"""
+import asyncio
+import contextlib
 import functools
 import uuid
 from contextlib import aclosing
@@ -176,8 +178,9 @@ async def try_persona(body: TryIn, request: Request, user: User = Depends(limite
                                        model=settings.resolved_agents_model,
                                        max_tokens=settings.agents_chat_max_tokens, temperature=limits.CHAT_TEMPERATURE)
         except BaseException as e:  # 评审 #10:没有回复就退额度(上游失败、意外异常、客户端取消)
-            with anyio.CancelScope(shield=True):
-                await _refund_try(request.app, user.id, now)
+            refund = rt.spawn(_refund_try(request.app, user.id, now))  # 独立任务:待处理的取消打断不了它
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.shield(refund)
             if isinstance(e, llm.LlmUnavailable):
                 raise HTTPException(502, "Upstream unavailable") from None
             raise

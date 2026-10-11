@@ -2,6 +2,7 @@
 不用框架。模式(导师,A3)经 ModeHandler 插入;回合后的工作(记忆整理,A2)经 TurnHooks.after_turn 在后台运行。
 用户文本、回复、人设只在内存;日志只有 `timing event=agent_turn` 的数字与固定字符串,以及模式名 / 异常类名。"""
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -10,8 +11,6 @@ from contextlib import aclosing
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
-
-import anyio
 
 from app.agents import limits, prompt, trace
 from app.agents import settings as agent_settings
@@ -214,6 +213,16 @@ def _spawn_default(coro) -> None:
     task.add_done_callback(_BACKGROUND.discard)
 
 
+def detach(deps: TurnDeps, coro) -> asyncio.Task:
+    """把一段必须做完的收尾(退额度)放进独立任务:调用方此刻即使有待处理的取消,数据库操作也不会被取消打断
+    (被打断会让连接被终止、退款丢失)。任务登记在 runtime(app).tasks(测试按它排空)。"""
+    task = asyncio.ensure_future(coro)
+    tasks = runtime(deps.app).tasks if deps.app is not None else _BACKGROUND
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+    return task
+
+
 async def _refund(deps: TurnDeps, user_id: int, now: datetime) -> None:
     try:
         async with deps.sessions() as session:
@@ -265,12 +274,17 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
             return
     charged = [req.charge]
 
-    async def refund_once() -> None:
-        """退一次且只退一次;取消时也要退成(shield)。"""
+    async def refund_once(*, unwinding: bool = False) -> None:
+        """退一次且只退一次;退款在独立任务里做完(取消不会打断它)。`unwinding`:正在因取消 / 异常退出,
+        等待时若又收到取消就不再等(任务照样跑完),原异常继续往外抛。"""
         if charged[0]:
             charged[0] = False
-            with anyio.CancelScope(shield=True):
-                await _refund(deps, req.user_id, now)
+            task = detach(deps, _refund(deps, req.user_id, now))
+            if unwinding:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.shield(task)
+            else:
+                await asyncio.shield(task)
 
     try:
         async with aclosing(_charged(deps, req, mode, settings, t0, stats, turn_id, now, refund_once)) as events:
@@ -280,7 +294,7 @@ async def _turn(deps: TurnDeps, req: TurnRequest, settings, t0: float, stats: di
         # 评审 #4 #5:扣了额度之后,只要回复文字还没送到客户端(取消 / 断开 / 意外异常)就退还;
         # 送出过文字就不退(Ruling:学习者已经看到内容、成本已经发生)。
         if not stats["delivered"]:
-            await refund_once()
+            await refund_once(unwinding=True)
         raise
 
 
