@@ -1,0 +1,36 @@
+{
+  "web": {
+    "rooms": {
+      "ended": {
+        "title": "Ended rooms",
+        "entry": "Ended rooms ({{count}})",
+        "empty": "No ended rooms yet.",
+        "loadMore": "Load more",
+        "loading": "Loading…",
+        "closedOn": "Ended {{date}}",
+        "reasons": { "owner": "Ended by the owner", "idle": "Ended: idle", "expired": "Ended: time limit", "admin": "Closed by an admin", "disabled": "Feature off" },
+        "reopen": "Reopen",
+        "reopening": "Reopening…"
+      },
+      "reopen": {
+        "title": "This room has ended",
+        "hint": "Reopening gives it a new room code; the members stay the same.",
+        "action": "Reopen room"
+      },
+      "errors": {
+        "notClosed": "The room is already live.",
+        "adminClosed": "An admin closed this room, so it can't be reopened.",
+        "generic": "That didn't work. Try again in a moment."
+      },
+      "room": {
+        "system": {
+          "reopened": "{{name}} reopened the room",
+          "reopened_admin": "An admin reopened the room"
+        }
+      },
+      "extras": {
+        "summary": { "stale": "This is the previous recap; a new one couldn't be generated yet." }
+      }
+    }
+  }
+}

@@ -23,6 +23,8 @@ export interface RoomState {
   joinRequests: JoinRequestInfo[];
   /** 服务端协议版本(welcome.protocol;v1 服务端没有时为 1) */
   protocol: number;
+  /** 收到 reopened 事件的次数:use-room 据此重置并重连(轮询或房主本人触发时也走这条) */
+  reopenSignal: number;
 }
 export type RoomAction =
   | { type: "status"; status: RoomStatus; reason?: string }
@@ -40,12 +42,14 @@ export type RoomAction =
   | { type: "prepend"; messages: RoomMessage[]; more?: boolean }
   /** 已结束的房间:不连 WebSocket,用 HTTP 读到的房间、成员与最新一页历史只读展示。 */
   | { type: "history"; room: RoomInfo; members: RoomMemberInfo[]; meId: number | null; messages: RoomMessage[]; more: boolean }
+  /** 重新开启后重连:回到初始状态(保留 reopenSignal,否则会再次触发) */
+  | { type: "reset" }
   | { type: "dismiss" };
 
 export const initialRoomState = (): RoomState => ({
   status: "connecting", closeReason: null, room: null, me: null, members: [], messages: [], lastSeq: 0, truncated: false,
   pending: [], aiTyping: [], assist: [], notice: null, error: null, liveFrom: 0, announce: null,
-  activity: {}, joinRequests: [], protocol: 1,
+  activity: {}, joinRequests: [], protocol: 1, reopenSignal: 0,
 });
 
 /** v1 服务端(或旧样例)不带 v2 字段:补成 null / null / []。 */
@@ -180,6 +184,8 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       return { ...s, joinRequests: [...s.joinRequests.filter((r) => r.id !== e.request.id), e.request] };
     case "join_request_closed":
       return { ...s, joinRequests: s.joinRequests.filter((r) => r.id !== e.id) };
+    case "reopened":
+      return { ...s, room: { ...e.room, myRole: e.room.myRole ?? s.room?.myRole ?? null }, reopenSignal: s.reopenSignal + 1 };
   }
 }
 
@@ -216,6 +222,8 @@ export function roomReducer(s: RoomState, a: RoomAction): RoomState {
         me: a.meId === null ? null : { userId: a.meId, role }, messages: merge(s.messages, a.messages),
         lastSeq: maxSeq(s.lastSeq, a.messages), truncated: a.more, pending: [], aiTyping: [], activity: {} };
     }
+    case "reset":
+      return { ...initialRoomState(), reopenSignal: s.reopenSignal };
     case "dismiss":
       return { ...s, notice: null, error: null };
   }

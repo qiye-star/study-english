@@ -170,6 +170,25 @@ describe("RoomPage", () => {
     expect(FakeWebSocket.count).toBe(0);
   });
 
+  it("a read-only member goes live by itself when the room is reopened (polls the room, R-O3)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let opened = false;
+      setup({
+        "POST /api/rooms/r1/ticket": () => (opened ? json({ ticket: "t2", expires_in: 60 }) : json({ error: "Room not found" }, 404)),
+        "GET /api/rooms/r1": () => json({ room: { ...ROOM, my_role: "member", ...(opened ? {} : { status: "closed", code: null, close_reason: "owner" }) }, members: MEMBERS }),
+        "GET /api/rooms/r1/messages": () => json({ messages: [user(7, "See you!")] }),
+      });
+      expect(await screen.findByText("See you!")).toBeTruthy();
+      expect(FakeWebSocket.count).toBe(0);
+      opened = true;
+      await act(async () => { await vi.advanceTimersByTimeAsync(21_000); });
+      await waitFor(() => expect(FakeWebSocket.count).toBe(1));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reports another member's message with a reason", async () => {
     const mock = setup({ "POST /api/rooms/r1/messages/m2/report": () => json({ ok: true }) });
     await live();

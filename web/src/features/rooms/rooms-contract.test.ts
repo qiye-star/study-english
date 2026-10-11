@@ -30,7 +30,7 @@ const camel = (v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep
 const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 
 const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
-  myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true,
+  myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true, closeReason: true,
   name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
 const MEMBER: Record<keyof RoomMemberInfo, true> = { userId: true, name: true, role: true, online: true };
 const MESSAGE: Record<keyof RoomMessage, true> = { seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true,
@@ -60,6 +60,7 @@ const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
   voice_update: { type: true, seq: true, voice: true },
   join_request: { type: true, request: true },
   join_request_closed: { type: true, id: true, status: true },
+  reopened: { type: true, room: true },
 };
 type Code<T extends RoomEvent["type"]> = Extract<RoomEvent, { type: T }> extends { code: infer C } ? C & string : never;
 const CODES: { [K in "error" | "notice" | "ai_failed" | "assist_failed"]: Record<Code<K>, true> } = {

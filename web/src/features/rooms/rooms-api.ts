@@ -18,6 +18,11 @@ export const ROOMS_SERVER_ERRORS: Record<string, string> = {
   "Room capacity reached": "web.rooms.errors.capacity",
   "Only the owner can do that": "web.rooms.errors.ownerOnly",
   "Rooms are disabled": "web.rooms.disabled",
+  "Room is not closed": "web.rooms.errors.notClosed",
+  "Closed by an administrator": "web.rooms.errors.adminClosed",
+  // admin-only / unreachable-from-the-UI errors fall back to the generic text
+  "Room has no owner": "web.rooms.errors.generic",
+  "Invalid cursor": "web.rooms.errors.generic",
 };
 
 /** 历史页大小(与服务端 GET /messages 的默认 limit 一致)。 */
