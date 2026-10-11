@@ -6,6 +6,8 @@ Build-time Node scripts.
 - `copy-vad-assets.mjs` — copies 4 VAD/ONNX files from `node_modules` into `public/vad/<vad-web>-ort<onnxruntime-web>/`, deleting other version dirs. Runs before `yarn dev` and `yarn build`.
 - `vad-assets.mjs` (+ `.d.mts`) — shared version/path logic used by the script and by `vite.config.ts` (`__VAD_ASSET_BASE__`).
 
+- `main-bundle.mjs` (+ `.d.mts`) / `check-main-bundle.mjs` — main-chunk gzip size (entry + modulepreload) vs `main-bundle-baseline.json`; budget per plan (agents: +0.2 kB). Run after `yarn web:build`.
+
 ## Test
 - `cd web && yarn test` (`src/audio/vad-assets.test.ts`, `src/build/vite-config.test.ts`).
 
