@@ -1,0 +1,18 @@
+{
+  "names": ["Emma", "Emma Lee", "点评官 Leo"],
+  "cases": [
+    {"text": "@Emma what does abandon mean?", "index": 0, "question": "what does abandon mean?"},
+    {"text": "@emma: hi", "index": 0, "question": "hi"},
+    {"text": "@Emma Lee can you help", "index": 1, "question": "can you help"},
+    {"text": "@Emma Leeds is a city", "index": 0, "question": "Leeds is a city"},
+    {"text": "@点评官 Leo 帮我看看这句", "index": 2, "question": "帮我看看这句"},
+    {"text": "@Emma,你好", "index": 0, "question": "你好"},
+    {"text": "  @Emma   spaced  ", "index": 0, "question": "spaced"},
+    {"text": "@Emma", "index": null, "question": ""},
+    {"text": "@Emma   ", "index": null, "question": ""},
+    {"text": "@Emmanuel hi", "index": null, "question": ""},
+    {"text": "hey @Emma hi", "index": null, "question": ""},
+    {"text": "@ai what is this", "index": null, "question": ""},
+    {"text": "Emma hi", "index": null, "question": ""}
+  ]
+}
