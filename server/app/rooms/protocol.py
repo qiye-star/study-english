@@ -6,7 +6,11 @@ Validation is strict and bounded: unknown types/fields, wrong types and oversize
 Protocol v2 (spec 2026-10-10 §9, R2-16) only adds: `hello.v` (default 1), `say.reply_to`, the client messages
 `typing / react / voice_translate / voice_retry`, five server events and new codes. v1 and v2 clients get the same
 frames; `welcome.protocol` tells the web which version the server speaks. v2.1 adds the server event `reopened`
-(an ended room was reopened; spec 2026-10-12)."""
+(an ended room was reopened; spec 2026-10-12).
+
+Agents in rooms (plan 2026-10-12-agents-rooms R-RA9) only add: the private events `agent_step` / `agent_thought`
+(sent to the asker only), the public `agent_tutor`, the notice `agent_off` and MAX_AGENTS / TUTOR_TURN_SECONDS.
+No new client frames: tutor controls are HTTP, answers are ordinary `say`."""
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
@@ -35,14 +39,16 @@ PROTOCOL_VERSION = 2
 REACTION_KEYS = ("like", "love", "haha", "wow", "clap", "thanks")
 ACTIVITY_STATES = ("typing", "recording", "idle")
 MAX_AGENTS = 2  # personas a room owner can pick (spec 2026-10-12-agents §9.2)
+TUTOR_TURN_SECONDS = 60  # room tutor: a called-on member's time to answer before it is skipped (spec §7.5)
 
 SERVER_EVENT_TYPES = (
     "welcome", "message", "ack", "presence", "ai_typing", "ai_failed", "assist_reply", "assist_failed",
     "room_update", "notice", "error", "closed", "pong", "message_hidden",
     "activity", "reaction", "voice_update", "join_request", "join_request_closed", "reopened",
+    "agent_step", "agent_thought", "agent_tutor",
 )
 ERROR_CODES = ("rate_limited", "empty", "bad_assist", "bad_reply", "bad_seq")
-NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota", "voice_off", "voice_quota", "translate_quota", "retry_limit")
+NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota", "voice_off", "voice_quota", "translate_quota", "retry_limit", "agent_off")
 AI_FAILED_CODES = ("upstream", "quota", "restart")
 ASSIST_FAILED_CODES = ("upstream", "quota", "format")
 

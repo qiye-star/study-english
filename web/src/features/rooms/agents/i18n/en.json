@@ -1,0 +1,7 @@
+{
+  "web": {
+    "rooms": {
+      "notice": { "agent_off": "This agent is not available right now" }
+    }
+  }
+}
