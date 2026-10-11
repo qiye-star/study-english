@@ -4,11 +4,12 @@ so the per-room `seq` stays gapless in the single worker. Never logs message tex
 Retention: room messages are kept forever by default (`RoomLimits.retention_days == 0`); closed rooms stay
 readable as history for their members. `purge` only deletes when ROOM_MESSAGE_RETENTION_DAYS > 0."""
 import asyncio
+import base64
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.models import (
@@ -72,12 +73,39 @@ def room_out(room: Room, *, my_role: str | None, member_count: int, online_count
             "owner_id": room.owner_id, "my_role": my_role, "member_count": member_count, "online_count": online_count,
             "created_at": iso_utc(room.created_at), "closed_at": iso_utc(room.closed_at) if room.closed_at else None,
             "name": room.name, "scenario": room.scenario, "level": room.level, "join_mode": room.join_mode,
-            "max_members": room.max_members, "allow_voice": room.allow_voice}
+            "max_members": room.max_members, "allow_voice": room.allow_voice,
+            "close_reason": room.close_reason}
 
 
 def request_out(r: RoomJoinRequest, name: str, room_name: str) -> dict:
     return {"id": r.id, "room_id": r.room_id, "room_name": room_name, "user_id": r.user_id, "name": name,
             "status": r.status, "created_at": iso_utc(r.created_at)}
+
+
+REOPEN_ADMIN_ONLY = ("admin",)  # R-O9: a room an operator closed can only be reopened by an operator
+
+
+def opened_anchor(room: Room) -> datetime:
+    """The start of the room's current life: `opened_at`, or `created_at` for rows from before migration 0014 and for
+    rows an old process inserted during a rolling deploy (R-O1). Always UTC-aware."""
+    return as_utc(room.opened_at or room.created_at)
+
+
+def encode_cursor(ended_at: datetime, room_id: str) -> str:
+    """Opaque keyset cursor of the ended list: the sort key and the room id, nothing user-written."""
+    return base64.urlsafe_b64encode(f"{as_utc(ended_at).isoformat()}|{room_id}".encode()).decode().rstrip("=")
+
+
+def decode_cursor(raw: str) -> tuple[datetime, str]:
+    try:
+        text = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode()
+        stamp, room_id = text.split("|", 1)
+        at = datetime.fromisoformat(stamp)
+    except (ValueError, UnicodeDecodeError) as e:  # binascii.Error is a ValueError
+        raise ValueError("bad cursor") from e
+    if at.tzinfo is None or not room_id or len(room_id) > 64:
+        raise ValueError("bad cursor")
+    return at, room_id
 
 
 def _chunks(items: list):
@@ -111,6 +139,15 @@ class RoomStore:
         """The admission lock, for writers outside the store (admin setting edits) that change a cap."""
         return self._admission
 
+    async def _check_slots(self, s, owner_id: int, max_owned: int | None) -> None:
+        """Site-wide and per-owner open-room caps; shared by create and reopen. Callers hold `_admission`."""
+        if await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open")) >= self.limits.max_active:
+            raise RoomError("capacity")
+        owned = await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open",
+                                                                            Room.owner_id == owner_id))
+        if owned >= (self.limits.max_owned if max_owned is None else max_owned):
+            raise RoomError("too_many")
+
     async def create(self, owner_id: int, topic: str, now: datetime, *, max_owned: int | None = None,
                      settings: dict | None = None) -> Room:
         """`max_owned` is the owner's own cap (admin per-user quota override); default: the site limit.
@@ -118,12 +155,7 @@ class RoomStore:
         `topic` only seeds the name; the `topic` column is no longer written (R2-1)."""
         settings = settings or {}
         async with self._admission, self._sm() as s:
-            if await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open")) >= self.limits.max_active:
-                raise RoomError("capacity")
-            owned = await s.scalar(select(func.count()).select_from(Room).where(Room.status == "open",
-                                                                                Room.owner_id == owner_id))
-            if owned >= (self.limits.max_owned if max_owned is None else max_owned):
-                raise RoomError("too_many")
+            await self._check_slots(s, owner_id, max_owned)
             name = settings.get("name") or clean_text(topic or "", NAME_MAX)
             if not name:
                 username = await s.scalar(select(User.username).where(User.id == owner_id)) or ""
@@ -137,7 +169,7 @@ class RoomStore:
                     continue
                 room = Room(id=new_uuid(), code=code, last_code=code, owner_id=owner_id, topic="", status="open",
                             locked=False, ai_public=settings.get("ai_public", True), last_seq=0, created_at=now,
-                            last_active_at=now, name=name, scenario=settings.get("scenario", "free"), level=level,
+                            opened_at=now, last_active_at=now, name=name, scenario=settings.get("scenario", "free"), level=level,
                             join_mode=settings.get("join_mode", "code"),
                             max_members=settings.get("max_members", min(self.limits.default_max_members,
                                                                         self.limits.max_members)),
@@ -450,9 +482,9 @@ class RoomStore:
             await s.commit()
             return new_owner
 
-    async def _owned_room(self, s, room_id: str, owner_id: int) -> Room:
+    async def _owned_room(self, s, room_id: str, owner_id: int, *, closed: bool = False) -> Room:
         room = await s.get(Room, room_id)
-        if room is None or room.status != "open":
+        if room is None or (room.status != "open" and not closed):
             raise RoomError("not_found")
         if room.owner_id != owner_id:
             raise RoomError("forbidden")
@@ -581,6 +613,45 @@ class RoomStore:
         if room is None:  # closed concurrently (sweeper)
             raise RoomError("not_found")
         return room
+
+    async def reopen(self, room_id: str, user_id: int | None, now: datetime, *, max_owned: int | None = None,
+                     admin: bool = False) -> Room:
+        """closed -> open (spec 2026-10-12 part 2). Owner path: the caller must be the room's active owner and the
+        room must not have been closed by an operator; admin path (`user_id=None`): needs an owner_id. Both obey the
+        site and per-owner caps (R-O7). Members are untouched, the invite link is dropped, a fresh code is drawn.
+        Runs under the admission lock, so two parallel requests count once (the loser gets `not_closed`, R-O6)."""
+        async with self._admission, self._sm() as s:
+            if admin:
+                room = await s.get(Room, room_id)
+                if room is None:
+                    raise RoomError("not_found")
+                if room.owner_id is None:
+                    raise RoomError("no_owner")
+            else:
+                room = await self._owned_room(s, room_id, user_id, closed=True)
+            if room.status != "closed":
+                raise RoomError("not_closed")
+            if room.close_reason in REOPEN_ADMIN_ONLY and not admin:
+                raise RoomError("admin_closed")
+            await self._check_slots(s, room.owner_id, max_owned)
+            for _ in range(CODE_ATTEMPTS):
+                code = self._code_gen()
+                if await s.scalar(select(Room.id).where(Room.code == code)):
+                    continue
+                room.status, room.code, room.last_code = "open", code, code
+                room.closed_at = room.close_reason = None
+                room.opened_at = room.last_active_at = now
+                room.reopen_count = (room.reopen_count or 0) + 1
+                room.invite_token = None
+                try:
+                    await s.commit()
+                    return room
+                except IntegrityError:  # the same code was taken between the check and the commit
+                    await s.rollback()
+                    room = await s.get(Room, room_id, populate_existing=True)
+                    if room is None or room.status != "closed":
+                        raise RoomError("not_closed") from None
+            raise RoomError("capacity")
 
     async def append(self, room_id: str, *, lane: str, sender_kind: str, sender_id: int | None, kind: str, text: str,
                      now: datetime, audience_id: int | None = None, assisted: bool = False, reply_to: int | None = None,
@@ -750,12 +821,34 @@ class RoomStore:
         return list(reversed(rows))
 
     async def mine(self, user_id: int, now: datetime) -> list[tuple[Room, str]]:
-        since = now - timedelta(days=self.limits.mine_closed_days)
+        """Open rooms only (spec 2026-10-12 §2.2); ended rooms are in `ended`. `now` is kept for callers."""
         async with self._sm() as s:
             rows = (await s.execute(select(Room, RoomMember.role).join(RoomMember, RoomMember.room_id == Room.id).where(
-                RoomMember.user_id == user_id, *_ACTIVE, or_(Room.status == "open", Room.closed_at >= since))
-                .order_by(Room.status.desc(), Room.last_active_at.desc()))).all()
+                RoomMember.user_id == user_id, *_ACTIVE, Room.status == "open")
+                .order_by(Room.last_active_at.desc(), Room.id))).all()
         return [(r, role) for r, role in rows]
+
+    async def ended_count(self, user_id: int) -> int:
+        async with self._sm() as s:
+            return int(await s.scalar(select(func.count()).select_from(Room).join(
+                RoomMember, RoomMember.room_id == Room.id).where(RoomMember.user_id == user_id, *_ACTIVE,
+                                                                 Room.status == "closed")) or 0)
+
+    async def ended(self, user_id: int, after: tuple[datetime, str] | None, limit: int):
+        """The user's ended rooms (active member, any age), newest end first, keyset-paged on
+        (coalesce(closed_at, last_active_at), id). Returns (rows, next cursor key or None)."""
+        ended_at = func.coalesce(Room.closed_at, Room.last_active_at)
+        stmt = (select(Room, RoomMember.role, ended_at).join(RoomMember, RoomMember.room_id == Room.id)
+                .where(RoomMember.user_id == user_id, *_ACTIVE, Room.status == "closed"))
+        if after is not None:
+            at, room_id = after
+            stmt = stmt.where(or_(ended_at < at, and_(ended_at == at, Room.id < room_id)))
+        async with self._sm() as s:
+            rows = (await s.execute(stmt.order_by(ended_at.desc(), Room.id.desc()).limit(limit + 1))).all()
+        more = len(rows) > limit
+        rows = rows[:limit]
+        nxt = (as_utc(rows[-1][2]), rows[-1][0].id) if more and rows else None
+        return [(r, role) for r, role, _ in rows], nxt
 
     async def summary_statuses(self, room_ids: list[str]) -> dict[str, str]:
         """{room_id: learning-summary status} for rooms that have a summary row (spec 2026-10-10 §6.1)."""
@@ -772,7 +865,7 @@ class RoomStore:
         async with self._sm() as s:
             for room in (await s.scalars(select(Room).where(Room.status == "open"))).all():
                 reason = None
-                if as_utc(room.created_at) <= now - timedelta(hours=self.limits.max_hours):
+                if opened_anchor(room) <= now - timedelta(hours=self.limits.max_hours):
                     reason = "expired"
                 elif room.id not in online and as_utc(room.last_active_at) <= now - timedelta(minutes=self.limits.idle_minutes):
                     reason = "idle"
