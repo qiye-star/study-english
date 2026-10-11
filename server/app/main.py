@@ -23,6 +23,8 @@ from app.core.runtime_settings import (
 )
 from app.links import purge as links_purge
 from app.links.setup import install as install_links
+from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
+from app.agents.orchestrator import runtime as agents_runtime
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
@@ -57,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await _stop_tasks(tasks, exclude="metering")
         with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
             await asyncio.wait_for(app_.state.learning_bus.drain(), 2.0)
+        with suppress(asyncio.TimeoutError, Exception):  # last memory jobs, give up after 2 s (plan A2)
+            await asyncio.wait_for(app_.state.agent_memory.worker.join(), 2.0)
         await rooms.rooms_shutdown(app_)  # sockets close with 1012 so clients reconnect at once (spec §5.8)
         await realtime.cancel_drains(app_)  # late assessments of closed calls (before the engine goes)
         await _stop_tasks(tasks)  # metering last: its final flush keeps the calls made while shutting down
@@ -80,6 +84,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.background_tasks = {}  # name -> asyncio.Task, reported by GET /api/admin/system
     app.state.learning_bus = LearningBus(lambda: app.state.settings)  # learning links §4 (reads settings per call)
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
+    # A2 anchor: goes right after A1's install_agent_sources(app) once that exists in this file (INDEX X1 order A1 -> A2 -> A3 -> A5)
+    install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
     app.state.settings_hub = hub = SettingsHub(app.state)
