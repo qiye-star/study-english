@@ -184,3 +184,33 @@ it("titles a v2 room by its name", async () => {
   renderPage();
   expect(await screen.findByRole("heading", { name: "咖啡角" })).toBeInTheDocument();
 });
+
+const closedRoom = (over = {}) =>
+  roomFixture({ status: "closed", code: null, closedAt: "2026-10-09T10:00:00Z", closeReason: "admin", ...over });
+
+it("offers no reopen button on an open room", async () => {
+  renderPage();
+  await screen.findByRole("button", { name: "关闭房间" });
+  expect(screen.queryByRole("button", { name: "重新开启" })).toBeNull();
+});
+
+it("reopens a closed room with a required reason", async () => {
+  vi.mocked(api.getRoom).mockResolvedValue(closedRoom({ reopenCount: 2 }));
+  vi.mocked(api.reopenRoom).mockResolvedValue({ reopenCount: 3 });
+  renderPage();
+  expect(await screen.findByText("已重新开启 2 次")).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "重新开启" }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByRole("button", { name: "确认" })).toBeDisabled();
+  await userEvent.type(within(dialog).getByLabelText("理由"), "误关闭,已和房主确认");
+  await userEvent.click(within(dialog).getByRole("button", { name: "确认" }));
+  expect(api.reopenRoom).toHaveBeenCalledWith("r1", "误关闭,已和房主确认");
+});
+
+it("a viewer cannot reopen", async () => {
+  asRole("viewer");
+  vi.mocked(api.getRoom).mockResolvedValue(closedRoom({ closeReason: "owner" }));
+  renderPage();
+  await screen.findByText("结束于", { exact: false });
+  expect(screen.queryByRole("button", { name: "重新开启" })).toBeNull();
+});

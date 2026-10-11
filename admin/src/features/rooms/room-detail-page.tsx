@@ -11,6 +11,7 @@ import { errorText, useAsync } from "../../hooks/use-async";
 import { formatDateTime } from "../../lib/format";
 import {
   closeRoom,
+  reopenRoom,
   getRoom,
   getRoomMessages,
   hideMessage,
@@ -32,6 +33,7 @@ const T = S.timeline;
 
 type Pending =
   | { kind: "close" }
+  | { kind: "reopen" }
   | { kind: "ai"; muted: boolean }
   | { kind: "kick"; member: RoomMember }
   | { kind: "hide"; message: AdminMessage }
@@ -275,6 +277,8 @@ export function RoomDetailPage() {
     switch (pending.kind) {
       case "close":
         return { title: D.closeTitle, body: D.closeBody, danger: true, run: (reason: string) => closeRoom(id, reason) };
+      case "reopen":
+        return { title: D.reopenTitle, body: D.reopenBody, danger: false, run: (reason: string) => reopenRoom(id, reason) };
       case "ai":
         return pending.muted
           ? { title: D.muteTitle, body: D.muteBody, danger: true, run: (reason: string) => setRoomAi(id, true, reason) }
@@ -298,6 +302,11 @@ export function RoomDetailPage() {
             {r.status === "open" && (
               <button type="button" className="btn-danger btn-sm" onClick={() => setPending({ kind: "close" })}>
                 {D.close}
+              </button>
+            )}
+            {r.status === "closed" && (
+              <button type="button" className="btn-primary btn-sm" onClick={() => setPending({ kind: "reopen" })}>
+                {D.reopen}
               </button>
             )}
           </>
@@ -330,6 +339,7 @@ export function RoomDetailPage() {
                 {D.closed} {formatDateTime(r.closedAt)}
               </span>
             )}
+            {r.reopenCount > 0 && <span className="num text-fg-2">{D.reopenedTimes(r.reopenCount)}</span>}
             {r.aiMuted && <span className="badge bg-warn-soft text-warn">{D.aiMuted}</span>}
             <span className="text-fg-2">{D.reportCount(r.reportCount)}</span>
           </section>

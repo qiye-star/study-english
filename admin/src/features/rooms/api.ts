@@ -30,6 +30,9 @@ export interface RoomRow {
   lastActiveAt: string;
   closedAt: string | null;
   closeReason: string | null;
+  openedAt: string;
+  /** 管理员或房主重新开启的次数 */
+  reopenCount: number;
 }
 
 export interface RoomMember {
@@ -145,6 +148,10 @@ export async function getRoomMessages(id: string, p: { lane: Lane; beforeSeq: nu
 
 export async function closeRoom(id: string, reason: string): Promise<void> {
   await request(`/api/admin/rooms/${enc(id)}/close`, { method: "POST", json: { reason } });
+}
+
+export async function reopenRoom(id: string, reason: string): Promise<{ reopenCount: number }> {
+  return request(`/api/admin/rooms/${enc(id)}/reopen`, { method: "POST", json: { reason } });
 }
 
 export async function kickMember(id: string, userId: number, reason: string): Promise<void> {

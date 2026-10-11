@@ -4,7 +4,7 @@ import type { AdminMessage, AdminVoice, Report, RoomDetail, RoomRow, RoomSetting
 export const roomRow = (over: Partial<RoomRow> = {}): RoomRow => ({
   id: "r1", code: "482913", lastCode: "482913", name: "美食", topic: "美食", status: "open", owner: { id: 11111111, name: "alice" },
   memberCount: 2, onlineCount: 1, messageCount: 3, openReports: 0, locked: false, aiPublic: true, aiMuted: false,
-  createdAt: "2026-10-09T09:00:00Z", lastActiveAt: "2026-10-09T09:05:00Z", closedAt: null, closeReason: null, ...over,
+  createdAt: "2026-10-09T09:00:00Z", lastActiveAt: "2026-10-09T09:05:00Z", closedAt: null, closeReason: null, openedAt: "2026-10-09T09:00:00Z", reopenCount: 0, ...over,
 });
 
 export const settingsFixture = (over: Partial<RoomSettings> = {}): RoomSettings => ({
