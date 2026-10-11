@@ -5,6 +5,8 @@ import * as session from "../api/session";
 import { hasRole, type AdminSession, type Role } from "../api/session";
 // strings only (not the feature index): the wordbook page imports this file, so avoid an import cycle
 import { S as WORDBOOK_STRINGS } from "../features/wordbook/strings";
+import { LinkIcon } from "../features/links/link-icon";
+import { S as LINKS_STRINGS } from "../features/links/strings";
 import { S } from "../strings";
 import {
   BackIcon,
@@ -83,6 +85,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: "/settings", label: I.settings, icon: GearIcon, min: "viewer" },
       { to: "/prompts", label: I.prompts, icon: TextIcon, min: "viewer" },
+      { to: "/links", label: LINKS_STRINGS.title, icon: LinkIcon, min: "viewer" },
       { to: "/announcements", label: I.announcements, icon: MegaphoneIcon, min: "operator" },
     ],
   },

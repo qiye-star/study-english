@@ -4,6 +4,7 @@ import { loadSession, useAdminSession, useSessionStatus } from "./api/session";
 import { AppShell } from "./components/layout";
 import { Skeleton } from "./components/states";
 import { AuditPage } from "./features/audit";
+import { LinksPage } from "./features/links";
 import { AnnouncementsPage, DataPage, LogsPage, SystemPage } from "./features/ops";
 import { PromptDetailPage, PromptsPage } from "./features/prompts";
 import { MatchPage, RankPage, RankRulesPage } from "./features/rank";
@@ -77,6 +78,7 @@ export function AppRoutes() {
           <Route path="data" element={<DataPage />} />
           <Route path="prompts" element={<PromptsPage />} />
           <Route path="wordbook" element={<WordbookPage />} />
+          <Route path="links" element={<LinksPage />} />
           <Route path="prompts/:key" element={<PromptDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

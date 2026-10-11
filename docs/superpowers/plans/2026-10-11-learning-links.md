@@ -4910,6 +4910,7 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## Addendum (2026-10-11) · Lane L6 执行记录(L6-1、L6-2)
 
 - Ruling: L6-1 `ledger._sync` 的附加严格是「一行导入 + 四行」(计划代码块实际是五行:`if` 拆成两行、`capped` 调用折行);改为 `watermark = watermark if extra_mark is None else min(watermark, extra_mark)` 一行、`extra = [... not in seen]` 一行,语义不变。`git diff` 对 `ledger.py` 只有这 5 行新增、零删除;既有 `test_rank_*.py` / `test_admin_rank*.py` 零改动且全绿。
@@ -4949,3 +4950,15 @@ Task 0:`alembic heads` = `0012 (head)`,迁移号不顺延(`0013_learning_links`,
 - Ruling: L4-2 另加 `practice-integration.test.tsx`(经 `~/features/practice` 渲染真实练习页):打开时点例句填进参考文本;关闭时跟读区不出现来源片且不发 `/api/links/*` 请求。
 - 未做:L4-2 Step 5 浏览器视觉检查(留给 Z2 的视觉对照)。
 >>>>>>> c-lane-l4
+=======
+## Addendum (2026-10-11) · Lane LA 执行记录(LA-1、LA-2)
+
+- Ruling: LA-1 复位熔断按计划与 spec §9 只要 `require("operator")` + CSRF + 审计,**不加 step-up**、不要理由(计划 LA-2「复位不是危险操作」;管理端 CLAUDE.md 只要求危险操作 step-up)。若评审认为要 step-up,改成 `require_operator_step_up` 即可,前端客户端已自动处理 `Step-up required`。
+- Ruling: LA-1 `admin_view` 不导入 `app.rank.extra_sources`(L6 才创建,LA 并行开发时不存在):当前规则点数用同一口径的私有 `_points`(`rules.points.sources.get(kind, default_points)`,L6 前 `PointsRule` 没有 `sources` 字段 → 默认点数)。L6 合并后可换成 `extra_sources.points_of`,结果相同。
+- Ruling: LA-1 视图每个联动多一个 `subscribed`(该键在 `bus.links()` 里),页面对没有事件订阅的联动(word_actions、daily_tasks、rank_sources)显示「—」而不是 0(视觉稿帧 07「无事件订阅」)。
+- Ruling: LA-1 测试里 `str(uid) not in text` 改为「响应里没有 user / user_id / username / word / text 等键」:用户 id 是小整数,必然与计数里的数字撞上。`word_in_chat` 由 L5 登记,LA 测试用夹具自行登记同一个 `RankSource`(字段与 L5 逐字相同,合并后重复登记幂等),结束时恢复注册表。
+- Ruling: LA-1 未知键 404 `Unknown link` 对没有订阅的已登记键(如 `daily_tasks`)也返回 `{"key","state":"closed"}` 并写审计(`reset_breaker` 返回 False 时无事可做)。另加测试:全局 / 总开关反映在 `global` / `effective`、未登录 401、CSRF 缺失 403、诊断两条的纯函数与「没有通道对象」路径。
+- Ruling: LA-1 诊断 `links_dropping` 读 `queue()["dropped"]`(本进程启动以来累计);两条发现不以 `links_enabled` 为前提(熔断与丢弃只可能在开着时发生,关掉后计数仍在,提醒仍有意义),`keys=("links_enabled",)`。`CODES` 追加两项。`app/admin/CLAUDE.md`、`app/routers/CLAUDE.md` 各补一句。
+- Ruling: LA-2 熔断「打开」显示为「打开 · N 秒」(视觉稿帧 07),不是 spec §9 的「打开至 HH:mm」(服务端给的是剩余秒数)。关闭人数格为「N 人关闭」(计划 LA-2 Step 1)。导航图标放在 `features/links/link-icon.tsx`(`components/icons.tsx` 不在本车道独占文件里);`features/links/CLAUDE.md` 按 Global Constraints 新增。admin 各 feature 不互相导入,`camel()` 在 `api.ts` 里复制一份。
+- 未做:浏览器 1440 视觉对照(留给 Z2)。
+>>>>>>> c-lane-la
