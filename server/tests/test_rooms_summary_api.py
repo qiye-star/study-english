@@ -148,8 +148,8 @@ def test_none_and_startup_requeue(tmp_path, monkeypatch):
                 await s.commit()
 
         client.portal.call(interrupted)
-        # SV adds its own `_voice_resume` startup listener; run every one, as the lifespan does
-        assert len(rt.startup_listeners) == 2
+        # voice resume, the summary requeue and the room tutor pause (lane T) are startup listeners; run every one, as the lifespan does
+        assert len(rt.startup_listeners) == 3
         for listener in list(rt.startup_listeners):
             client.portal.call(listener, rt)
         client.portal.call(rt.hub.drain)

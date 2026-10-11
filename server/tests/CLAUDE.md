@@ -37,5 +37,7 @@ Anything in `app`, plus other test modules' helpers (`from tests.test_x import h
   closed database` / `KeyError: 'connection'`. Rule: the `app` fixture drains (then cancels) them on teardown via
   `tests/background.py`; a test that fires another request right after a spawning one calls
   `await drain_background(app)` (never sleeps, never a hand-picked task set such as `runtime(app).tasks` alone).
-  A new fire-and-forget task set in `app/` must be added to `_task_sets` there.
+  A new fire-and-forget task set in `app/` must be added to `_task_sets` there. Tasks that sleep by design (the room tutor's 60 s
+  timers, `RoomTutor.timers()`) are cancel-only (`timer_tasks`): `drain_background` never waits for them; tests that need them to
+  fire inject `sleep` into `RoomTutor` (see `test_rooms_agent_tutor.py::Clockwork`).
 - Log-hygiene tests assert keys/transcripts/tickets never appear in records: keep them.

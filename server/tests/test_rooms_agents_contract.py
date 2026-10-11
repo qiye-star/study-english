@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from tests.test_rooms_agents_api import agents_client, room_of  # noqa: F401 (fixture)
+from tests.test_rooms_agent_tutor_api import until_waiting
 from tests.test_rooms_agents_ws import until_answer
 from tests.test_rooms_ws import until
 
@@ -32,10 +33,13 @@ def record(client) -> dict:
         wb.send_text(json.dumps({"type": "say", "client_id": "q", "text": f"@{name} can I use abandon here?"}))
         events = until_answer(wb)
         trace = until(wb, "message")[-1]
+        start = client.post(f"/api/rooms/{room['id']}/agents/tutor/start",
+                            json={"persona_id": "builtin:coach", "steps": 3}, headers=alice).json()
+        waiting = until_waiting(wb)[-1]
     first = {e["type"]: e for e in reversed(events)}
-    return {"http": {"patch": patch, "agents": agents},
+    return {"http": {"patch": patch, "agents": agents, "tutor_start": start},
             "ws": {"agent_step": first["agent_step"], "agent_thought": first["agent_thought"],
-                   "message_agent_answer": events[-1], "message_agent_trace": trace}}
+                   "message_agent_answer": events[-1], "message_agent_trace": trace, "agent_tutor": waiting}}
 
 
 def test_room_agents_payloads_match_the_web_contract(agents_client):
