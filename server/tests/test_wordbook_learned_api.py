@@ -163,3 +163,12 @@ async def test_new_routes_carry_no_word_in_the_url(app):
             assert "{" not in path, path  # 没有路径参数
             assert {p.name for p in route.dependant.query_params} <= {"tz_offset_minutes"}, path
     assert seen >= 3
+
+
+async def test_out_of_range_dates_are_422_not_500(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    for body in ({"until": "9999-12-31"}, {"until": "9999-12-31", "tz_offset_minutes": -840},
+                 {"since": "0001-01-01", "tz_offset_minutes": 840}, {"since": "0001-01-01"},
+                 {"until": "0001-01-01", "tz_offset_minutes": 840}):
+        r = await client.post(f"{URL}/learned/query", headers=h, json={"tz_offset_minutes": OFFSET, **body})
+        assert r.status_code == 422 and r.json() == {"error": "Invalid date"}, body
