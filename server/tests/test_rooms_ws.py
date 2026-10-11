@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import anyio
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -54,10 +55,31 @@ def login(client, name):
     return {"Authorization": f"Bearer {r.json()['access_token']}"}, int(r.json()["id"])
 
 
+RECEIVE_TIMEOUT = 30.0  # generous for a loaded machine; a missing frame fails the test instead of hanging the run
+
+
+def receive(ws, timeout: float = RECEIVE_TIMEOUT):
+    """`ws.receive()` with a deadline. Starlette's test session blocks forever on its in-memory stream, so one
+    frame that never comes (a lost race under CPU load) used to stall the whole suite with no output."""
+    async def get():
+        with anyio.fail_after(timeout):
+            return await ws._send_rx.receive()
+    try:
+        return ws.portal.call(get)
+    except TimeoutError:
+        raise AssertionError(f"no WebSocket frame within {timeout:.0f} s") from None
+
+
+def receive_json(ws):
+    message = receive(ws)
+    assert message["type"] == "websocket.send", message
+    return json.loads(message["text"])
+
+
 def until(ws, kind):
     events = []
     while True:
-        message = ws.receive()
+        message = receive(ws)
         if message["type"] == "websocket.close":
             raise AssertionError(f"closed {message.get('code')} before {kind}: {events}")
         events.append(json.loads(message["text"]))
@@ -67,7 +89,7 @@ def until(ws, kind):
 
 def closed_code(ws):
     while True:
-        message = ws.receive()
+        message = receive(ws)
         if message["type"] == "websocket.close":
             return message.get("code", 1000)
 
@@ -124,7 +146,7 @@ def test_reconnect_replays_only_missing_messages(rooms_client):
         wb.send_text(json.dumps({"type": "hello", "last_seq": last_seq}))
         welcome = until(wb, "welcome")[-1]
         assert welcome["last_seq"] == last_seq + 2 and welcome["truncated"] is False
-        replay = [wb.receive_json(), wb.receive_json()]
+        replay = [receive_json(wb), receive_json(wb)]
         assert [e["message"]["text"] for e in replay] == ["m0", "m1"]
 
 

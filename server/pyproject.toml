@@ -33,3 +33,5 @@ package = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+# a test still running after 10 minutes dumps every thread's stack (it is not killed): a hang leaves evidence
+faulthandler_timeout = 600
