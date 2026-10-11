@@ -1,0 +1,57 @@
+{
+  "web": {
+    "agents": {
+      "memory": {
+        "title": "Memory",
+        "tabsLabel": "Memory sections",
+        "tabs": { "profile": "Profile", "items": "Items", "recaps": "Recaps", "manage": "Manage" },
+        "kinds": { "all": "All", "fact": "Facts", "preference": "Likes", "goal": "Goals", "weakness": "Weak spots", "progress": "Progress" },
+        "profile": {
+          "level": "Level", "goals": "Goals", "interests": "Interests", "native": "Native language", "correction": "Corrections", "schedule": "Study time",
+          "unset": "Not set", "listHint": "Separate with commas, e.g. IELTS 7, fluent speaking",
+          "corrections": { "gentle": "Gently", "direct": "Point them out", "asked": "Only when I ask" },
+          "edited": "Edited by you",
+          "proposal": "The agent suggests changing “{{field}}” to {{value}}",
+          "accept": "Accept", "dismiss": "Dismiss", "save": "Save", "saved": "Saved", "dismissed": "Suggestion dismissed",
+          "help": "Agents use this profile. For fields you edited, they only suggest changes and never overwrite them."
+        },
+        "items": {
+          "filterLabel": "Filter by type",
+          "empty": "No memories yet. Chat with an agent a few times and it will remember what helps you.",
+          "shared": "All agents", "deletedPersona": "Deleted agent",
+          "pin": "Pin", "unpin": "Unpin", "delete": "Delete",
+          "deleted": "Deleted permanently. It will not be remembered automatically again."
+        },
+        "recaps": {
+          "empty": "No recaps yet. They appear after a chat pauses or a Teach me session ends.",
+          "source": { "conversation": "Chat recap", "tutor": "Teach me recap" },
+          "delete": "Delete recap", "deleted": "Recap deleted permanently."
+        },
+        "manage": {
+          "unavailable": "Memory is turned off by the administrator. You can still view, export and delete what is stored.",
+          "remember": "Remember new things",
+          "rememberOn": "On: agents tidy up memory after chats and use it in replies.",
+          "rememberOff": "Paused: nothing new is remembered and replies do not use memory.",
+          "paused": "Memory paused.", "resumed": "Memory resumed.",
+          "exportTitle": "Export", "exportHelp": "Download a JSON file with your profile, memories, recaps and chat summaries.",
+          "export": "Export JSON", "exported": "Download started.",
+          "clearPersonaTitle": "Clear one agent's memory", "noPersonaMemory": "No memories belong to a single agent yet.",
+          "choosePersona": "Choose an agent",
+          "personaOption_one": "{{name}} ({{n}} item)", "personaOption_other": "{{name}} ({{n}} items)",
+          "clearPersona": "Clear this agent's memory",
+          "clearAllTitle": "All memory",
+          "clearAllHelp": "Deletes your profile, memories, recaps and chat summaries. Agents will not remember these again automatically.",
+          "clearAll": "Clear all memory",
+          "confirmAllTitle": "Clear all memory?", "confirmPersonaTitle": "Clear the memory of “{{name}}”?",
+          "confirmBody": "This cannot be undone.",
+          "confirm": "Clear",
+          "cleared_one": "Cleared {{n}} memory.", "cleared_other": "Cleared {{n}} memories."
+        },
+        "errors": {
+          "disabled": "Agents are not turned on.", "notFound": "This item no longer exists.", "confirm": "Please confirm again.",
+          "invalidProfile": "One of the fields is not valid. Please check and save again.", "generic": "Something went wrong. Please try again later."
+        }
+      }
+    }
+  }
+}

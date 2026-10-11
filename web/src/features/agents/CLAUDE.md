@@ -11,6 +11,9 @@ Spec: `docs/superpowers/specs/2026-10-12-agents-design.md`;计划 `docs/superpow
 - `locales.ts` + `locales/{en,zh-CN}.json`(懒加载文案,不在主包的 `**/i18n/*.json` glob 里)
 - `lazy-parts.tsx`(`part()` 懒加载包装;每个组件一行 `export const X = part(...)`)
 
+- `memory/` 记忆页(档案 / 长期 / 回顾 / 管理,`/me/agents/memory`;见 `memory/CLAUDE.md`)。**自包含**:只可导入本 feature 的 `locales.ts`
+  (注册 `web.agents.memory.*` 文案);本 feature 的其他文件只可导入 `memory/lazy` 与 `memory/memory-api`(`src/architecture.test.ts`)。
+
 ## Public surface
 见 `index.ts`:类型、`agentsApi`、`runAgentTurn`、`useAgentTurn`、`normalizeTrace`,组件一律是 `lazy-parts` 的懒包装。
 文案注册入口:`registerAgentsLocales({ en, "zh-CN" })`(`locales.ts`,供 memory/、tutor/ 在自己的懒加载块里并入 `web.agents.*`)。

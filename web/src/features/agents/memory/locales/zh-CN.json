@@ -1,0 +1,57 @@
+{
+  "web": {
+    "agents": {
+      "memory": {
+        "title": "记忆",
+        "tabsLabel": "记忆分区",
+        "tabs": { "profile": "档案", "items": "长期", "recaps": "回顾", "manage": "管理" },
+        "kinds": { "all": "全部", "fact": "事实", "preference": "偏好", "goal": "目标", "weakness": "弱点", "progress": "进步" },
+        "profile": {
+          "level": "水平", "goals": "目标", "interests": "兴趣", "native": "母语", "correction": "纠错方式", "schedule": "可学习时间",
+          "unset": "未设置", "listHint": "用逗号分隔,例如:雅思 7 分, 口语流利",
+          "corrections": { "gentle": "温和提醒", "direct": "直接指出", "asked": "我问了再说" },
+          "edited": "你改过",
+          "proposal": "智能体建议把「{{field}}」改成 {{value}}",
+          "accept": "采纳", "dismiss": "忽略", "save": "保存", "saved": "已保存", "dismissed": "已忽略这条建议",
+          "help": "智能体会参考这些信息;你改过的项,它只会提建议,不会直接改。"
+        },
+        "items": {
+          "filterLabel": "按类型筛选",
+          "empty": "还没有长期记忆。和智能体多聊几次,它会记住对你有用的事。",
+          "shared": "所有角色共享", "deletedPersona": "已删除的角色",
+          "pin": "置顶", "unpin": "取消置顶", "delete": "删除",
+          "deleted": "已永久删除,之后不会再自动记住这条。"
+        },
+        "recaps": {
+          "empty": "还没有回顾。对话告一段落或完成一次「带我学」后会出现在这里。",
+          "source": { "conversation": "对话回顾", "tutor": "带我学回顾" },
+          "delete": "删除回顾", "deleted": "已永久删除这条回顾。"
+        },
+        "manage": {
+          "unavailable": "管理员暂时关闭了记忆功能:已有记忆仍可查看、导出和删除。",
+          "remember": "记住新内容",
+          "rememberOn": "开启:智能体会在对话后整理记忆,并在回复时参考。",
+          "rememberOff": "已暂停:不会记住新内容,回复时也不使用记忆。",
+          "paused": "已暂停记忆。", "resumed": "已恢复记忆。",
+          "exportTitle": "导出", "exportHelp": "下载一份 JSON,包含档案、长期记忆、回顾和对话摘要。",
+          "export": "导出 JSON", "exported": "已开始下载。",
+          "clearPersonaTitle": "清空某个角色的记忆", "noPersonaMemory": "目前没有只属于某个角色的记忆。",
+          "choosePersona": "选择角色",
+          "personaOption_one": "{{name}}({{n}} 条)", "personaOption_other": "{{name}}({{n}} 条)",
+          "clearPersona": "清空这个角色的记忆",
+          "clearAllTitle": "全部记忆",
+          "clearAllHelp": "删除档案、长期记忆、回顾和对话摘要。删除后智能体不会再自动记住这些内容。",
+          "clearAll": "清空全部记忆",
+          "confirmAllTitle": "确定清空全部记忆?", "confirmPersonaTitle": "确定清空「{{name}}」的记忆?",
+          "confirmBody": "此操作不能撤销。",
+          "confirm": "确认清空",
+          "cleared_one": "已清空 {{n}} 条记忆。", "cleared_other": "已清空 {{n}} 条记忆。"
+        },
+        "errors": {
+          "disabled": "智能体功能未开启。", "notFound": "这条记录已经不存在了。", "confirm": "需要再次确认。",
+          "invalidProfile": "有一项填写不符合要求,请检查后再保存。", "generic": "出了点问题,请稍后再试。"
+        }
+      }
+    }
+  }
+}
