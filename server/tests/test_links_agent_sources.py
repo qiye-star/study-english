@@ -1,5 +1,4 @@
 """智能体的学习数据来源(spec §3.3、§4.6;裁定 R-A1;计划 R-C19、R-C20)。"""
-import asyncio
 import dataclasses
 import logging
 from datetime import timedelta
@@ -12,6 +11,7 @@ from app.links import agent_sources as A
 from app.models import (
     LinkMistakeWord, LinkWeakWord, User, VocabularyItem, WordbookEnrollment, WordbookEvent, utcnow,
 )
+from tests.background import drain_background
 from tests.agents_helpers import FakeLLM, enable_agents, new_conversation, parse_sse, turn_body, use_fake_llm
 from tests.wordbook_helpers import enable_wordbook, make_data_dir
 
@@ -98,7 +98,7 @@ async def test_sources_follow_user_and_persona_tool_switches_in_a_turn(app, clie
     keys = {d["key"] for e, d in events if e == "step"}
     assert {"learned_words", "weak_words", "due_words", "word_lookup"} <= keys
     # the memory after_turn task shares the one in-memory SQLite connection (StaticPool) with the next request: let it finish first
-    await asyncio.gather(*list(runtime(app).tasks), return_exceptions=True)
+    await drain_background(app)
     await client.patch("/api/agents/settings", headers=auth_headers,
                        json={"tools": {"lookup": False, "due_words": False}})
     events = parse_sse((await client.post("/api/agents/turn", headers=auth_headers, json=turn_body(conv))).text)

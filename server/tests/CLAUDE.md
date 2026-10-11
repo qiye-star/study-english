@@ -6,6 +6,7 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
 - `conftest.py` – `make_settings(**overrides)` (fake upstream URLs/keys, in-memory SQLite or
   `TEST_DATABASE_URL`), fixtures `app`, `client` (httpx ASGI), `auth_headers` (registers alice)
 - `test_<area>.py` – one file per module/endpoint area; `test_*_api.py` hit routers
+- `background.py` – `drain_background(app)` / `cancel_background(app)`: await every app background task (see Conventions)
 - `agents_helpers.py` – agents fakes: `FakeLLM` (httpx.MockTransport upstream), SSE parsing, `enable_agents`, `new_conversation`, `turn_body`, `check_contract`
 - `test_agents_privacy.py` – caplog (scoped to logger `app`) over every agents / memory / admin-agents endpoint, after-turn hooks, the memory worker and sources; also pins that agents routes carry no text in URLs (new routes must be added there)
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
@@ -30,4 +31,11 @@ Anything in `app`, plus other test modules' helpers (`from tests.test_x import h
 - Monkeypatch targets are dotted strings (`"app.speech.asr.transcribe_pcm"`): patch where the
   name is looked up, and update the string when a module moves.
 - Never call real vendors or put real keys in tests; use respx / fake sockets and dummy keys.
+- Background tasks vs the shared SQLite connection: tests use one in-memory connection (StaticPool), so any task that
+  outlives its response (agents after_turn hooks, memory worker, rooms summary/presence tasks, links judge, realtime
+  drains) interleaves with the next request or, after teardown disposed the engine, fails with `Cannot operate on a
+  closed database` / `KeyError: 'connection'`. Rule: the `app` fixture drains (then cancels) them on teardown via
+  `tests/background.py`; a test that fires another request right after a spawning one calls
+  `await drain_background(app)` (never sleeps, never a hand-picked task set such as `runtime(app).tasks` alone).
+  A new fire-and-forget task set in `app/` must be added to `_task_sets` there.
 - Log-hygiene tests assert keys/transcripts/tickets never appear in records: keep them.
