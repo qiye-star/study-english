@@ -6,10 +6,12 @@
     services   -> core, providers
     realtime   -> core, providers, speech, services
     rank       -> core, providers, speech, services
-    rooms      -> core, providers, speech, services (rank and rooms never import each other)
+    rooms      -> core, providers, speech, services, agents (rank and rooms never import each other)
     wordbook   -> core, providers, speech, services (a leaf: only admin, routers and main import it)
-    links      -> core, providers, speech, services, rank, rooms, wordbook (top layer: only routers and main import it)
-    admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook (admin console logic)
+    agents     -> core, providers, speech, services (shared agent core: rooms, links, admin, routers and main import it;
+                  never rank, rooms, realtime, wordbook, links, admin or routers)
+    links      -> core, providers, speech, services, rank, rooms, wordbook, agents (top layer: only routers and main)
+    admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
                   (likewise only routers and main may import admin)
@@ -21,8 +23,8 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "links", "admin",
-          "routers")
+LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
+          "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -33,14 +35,16 @@ ALLOWED: dict[str, set[str]] = {
     "services": {"services", "core", "models", "providers"},
     "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
     "rank": {"rank", "core", "models", "providers", "speech", "services"},
-    "rooms": {"rooms", "core", "models", "providers", "speech", "services"},
+    "rooms": {"rooms", "core", "models", "providers", "speech", "services", "agents"},
     "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
-    "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook"},
-    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook"},
+    "agents": {"agents", "core", "models", "providers", "speech", "services"},
+    "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
+    "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
+              "agents"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links"},
+                "admin", "links", "agents"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links"},
+             "routers", "links", "agents"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -205,3 +209,43 @@ def test_links_is_a_top_layer(tmp_path):
                 "app/links/f.py:1", "app/links/g.py:1"):
         assert any(p.startswith(bad) for p in found), bad
     assert not any(p.startswith(("app/links/ok.py", "app/routers/ok.py")) for p in found)
+
+
+def test_agents_layer_rules(tmp_path):
+    """spec 2026-10-12-agents §3.3: agents imports only core/models/providers/speech/services; rooms, links, admin,
+    routers and main may import agents; rank, realtime, wordbook, services and core may not."""
+    app = tmp_path / "app"
+    for pkg in ("agents", "rooms", "links", "admin", "routers", "rank", "realtime", "wordbook", "services", "core"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {  # file -> (source, line of the bad import)
+        "agents/a.py": ("from app.rooms import hub\n", 1),
+        "agents/b.py": ("from app.wordbook import store\n", 1),
+        "agents/c.py": ("def f():\n    from app.links import gate\n", 2),
+        "agents/d.py": ("from app.rank import points\n", 1),
+        "agents/e.py": ("from app.realtime import x\n", 1),
+        "agents/f.py": ("from app.admin import audit\n", 1),
+        "agents/g.py": ("from app.routers import agents\n", 1),
+        "rank/h.py": ("from app.agents import orchestrator\n", 1),
+        "realtime/i.py": ("from app.agents import prompt\n", 1),
+        "wordbook/j.py": ("from app.agents import context\n", 1),
+        "services/k.py": ("from app.agents import trace\n", 1),
+        "core/l.py": ("from app.agents.trace import Start\n", 1),
+    }
+    ok = {
+        "agents/ok.py": "from app.services import usage\nfrom app.providers import llm\nfrom app.core import timing\n"
+                        "from app.models import Message\n",
+        "rooms/ok.py": "from app.agents import orchestrator\n",
+        "links/ok.py": "from app.agents.context import SourceResult\nfrom app.wordbook import store\n",
+        "admin/ok.py": "from app.agents import personas\n",
+        "routers/ok.py": "from app.agents import orchestrator\n",
+    }
+    for rel, (src, _) in bad.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    for rel, src in ok.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel, (_, line) in bad.items():
+        assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
