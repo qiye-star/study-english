@@ -222,7 +222,7 @@ function onEvent(s: RoomState, e: RoomEvent, at: number): RoomState {
       return { ...s, agentRuns: { ...s.agentRuns, [e.replyTo]: { ...run, thought: e.thought } } };
     }
     case "agent_tutor":
-      return { ...s, tutor: e.tutor, tutorAt: at };
+      return { ...s, tutor: e.tutor ?? null, tutorAt: at };
   }
 }
 

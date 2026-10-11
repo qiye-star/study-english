@@ -6,9 +6,10 @@ import { describe, expect, it } from "vitest";
 import { parseRoomEvent, type AgentStepWire, type RoomEvent, type RoomMessage, type RoomTutorInfo } from "../protocol";
 import { initialRoomState, roomReducer } from "../room-state";
 import { agentOf } from "./agent-meta";
-import type { RoomAgent } from "./room-agents-api";
+import { secondsLeft } from "./countdown";
+import { ROOM_AGENTS_ALL_ERRORS, type RoomAgent } from "./room-agents-api";
 
-/** server/tests/fixtures/rooms_agents_contract.json is recorded by server/tests/test_rooms_agents_contract.py (tutor parts: lane T re-records). */
+/** server/tests/fixtures/rooms_agents_contract.json is recorded by server/tests/test_rooms_agents_contract.py (incl. the room tutor start response and the `agent_tutor` frame). */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../../../../../server/tests/fixtures");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,9 +23,7 @@ const STEP: Record<keyof AgentStepWire, true> = { id: true, group: true, key: tr
 const TUTOR: Record<keyof RoomTutorInfo, true> = { personaId: true, personaName: true, phase: true, stepIndex: true, stepsTotal: true,
   currentUserId: true, currentName: true, deadlineAt: true, remainingMs: true, startedBy: true, pausedReason: true };
 const ev = (raw: unknown) => parseRoomEvent(JSON.stringify(raw))!;
-// The tutor frames/endpoints are recorded by lane T; until that lands in the fixture these checks are skipped, not weakened.
-const hasTutorWs = !!C.ws.agent_tutor;
-const hasTutorHttp = !!C.http.tutor_start;
+const serverSrc = (rel: string) => readFileSync(path.resolve(here, "../../../../../server/app", rel), "utf8");
 
 describe("room agents payloads (recorded from the real server)", () => {
   it("HTTP", () => {
@@ -33,7 +32,7 @@ describe("room agents payloads (recorded from the real server)", () => {
     expect(C.http.patch.room.agent_ids).toEqual(["builtin:coach"]);
   });
 
-  it.skipIf(!hasTutorHttp)("HTTP tutor start", () => {
+  it("HTTP tutor start", () => {
     expect(wireKeys(C.http.tutor_start.tutor)).toEqual(keys(TUTOR));
   });
 
@@ -49,21 +48,67 @@ describe("room agents payloads (recorded from the real server)", () => {
     expect([trace.lane, trace.kind, trace.replyTo]).toEqual(["private", "agent_trace", answer.seq]);
   });
 
-  it.skipIf(!hasTutorWs)("WebSocket tutor frame", () => {
+  it("WebSocket tutor frame", () => {
     const tutor = ev(C.ws.agent_tutor) as Extract<RoomEvent, { type: "agent_tutor" }>;
     expect(Object.keys(tutor.tutor!).sort()).toEqual(keys(TUTOR));
   });
 
   it("the reducer folds them; welcome clears the tutor until the server re-sends it", () => {
     let s = initialRoomState();
-    for (const name of ["agent_step", "agent_thought", "message_agent_answer", "message_agent_trace", ...(hasTutorWs ? ["agent_tutor"] : [])]) {
+    for (const name of ["agent_step", "agent_thought", "message_agent_answer", "message_agent_trace", "agent_tutor"]) {
       s = roomReducer(s, { type: "event", event: ev(C.ws[name]), at: 5 });
     }
     const answer = (ev(C.ws.message_agent_answer) as { message: RoomMessage }).message;
     expect(s.agentRuns[answer.replyTo!].answerSeq).toBe(answer.seq);
     expect(s.agentTraces[answer.seq]).toBeTruthy();
-    if (hasTutorWs) expect([s.tutor?.phase, s.tutorAt]).toEqual(["await_answer", 5]);
+    expect([s.tutor?.phase, s.tutorAt]).toEqual(["await_answer", 5]);
     s = roomReducer(s, { type: "event", event: ev(R.ws.welcome) });
     expect(s.tutor).toBeNull();
+  });
+
+  it("every tutor error text the server sends is mapped; every pause reason and system text has copy", () => {
+    const router = serverSrc("routers/rooms_agents.py");
+    const block = router.slice(router.indexOf("TUTOR_ERRORS"), router.indexOf("class TutorStartIn"));
+    const messages = [...block.matchAll(/\(\d{3}, "([^"]+)"\)/g)].map((m) => m[1]);
+    messages.push(...[...router.matchAll(/HTTPException\(\d{3}, "(Room tutor[^"]*)"\)/g)].map((m) => m[1]));
+    expect(messages.length).toBeGreaterThanOrEqual(10);
+    for (const text of new Set(messages)) expect(ROOM_AGENTS_ALL_ERRORS, text).toHaveProperty([text]);
+    expect(router).toContain('"/{room_id}/agents/tutor/start"');
+    for (const verb of ["skip", "stop", "resume"]) expect(router).toContain(`"/{room_id}/agents/tutor/${verb}"`);
+
+    const tutor = serverSrc("rooms/agent_tutor.py");
+    const reasons = new Set([...tutor.matchAll(/_pause\(room_id, snap, "(\w+)"\)/g)].map((m) => m[1]).concat("restart"));
+    expect([...reasons].sort()).toEqual(["agent_off", "ai_off", "quota", "restart", "state", "upstream"]);
+    const systems = [...tutor.matchAll(/_system\(room_id, "(\w+)"/g)].map((m) => m[1]).sort();
+    expect(systems).toEqual(["tutor_done", "tutor_started", "tutor_stopped"]);
+    for (const lng of ["en", "zh-CN"]) {
+      const dict = JSON.parse(readFileSync(path.join(here, "i18n", `${lng}.json`), "utf8"));
+      for (const r of reasons) expect(dict.web.rooms.agents.tutor.paused[r], `${lng} ${r}`).toEqual(expect.any(String));
+      for (const k of systems) expect(dict.web.rooms.room.system[k], `${lng} ${k}`).toEqual(expect.any(String));
+    }
+  });
+
+  it("tolerates null-omitted keys and unknown server events without throwing", () => {
+    // `meta` style: a key that is null on the server may simply be absent on the wire
+    const bare = { type: "agent_tutor", tutor: { persona_id: "p", persona_name: "n", phase: "generating", step_index: 0, steps_total: 3, started_by: 1 } };
+    const s = roomReducer(initialRoomState(), { type: "event", event: ev(bare), at: 1 });
+    expect(s.tutor).toMatchObject({ phase: "generating", personaId: "p" });
+    expect(s.tutor!.currentUserId ?? null).toBeNull();
+    expect(secondsLeft(s.tutor, 1, 2)).toBeNull();
+    expect(roomReducer(s, { type: "event", event: ev({ type: "agent_tutor", tutor: null }), at: 3 }).tutor).toBeNull();
+    // answers without asker / handoff / tutor info, and a tutor meta without optional keys
+    const base = (ev(C.ws.message_agent_answer) as { message: RoomMessage }).message;
+    const msg = (meta: unknown) => ({ ...base, meta }) as RoomMessage;
+    expect(agentOf(msg({ agent: { personaId: "builtin:coach", name: "c" } }))).toMatchObject({ asker: null, handoffFrom: null, tutor: null });
+    expect(agentOf(msg({ agent: { personaId: "x", name: "c" }, tutor: { stepIndex: 2, stepsTotal: 3 } }))?.tutor?.stepIndex).toBe(2);
+    expect(agentOf(msg({}))).toBeNull();
+    expect(agentOf(msg(null))).toBeNull();
+    // unknown event types and garbage are dropped, never thrown
+    for (const raw of ['{"type":"agent_future","x":1}', "not json", "[]", "null", '{"type":"agent_tutor"}']) {
+      expect(() => parseRoomEvent(raw)).not.toThrow();
+    }
+    expect(parseRoomEvent('{"type":"agent_future"}')).toBeNull();
+    const odd = parseRoomEvent('{"type":"agent_tutor"}')!;
+    expect(() => roomReducer(initialRoomState(), { type: "event", event: odd, at: 1 })).not.toThrow();
   });
 });

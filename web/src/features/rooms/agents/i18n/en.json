@@ -58,7 +58,8 @@
             "quota": "Paused: today's AI limit is used up",
             "upstream": "Paused: AI is unavailable",
             "ai_off": "Paused: AI is off in this room",
-            "agent_off": "Paused: this persona is disabled"
+            "agent_off": "Paused: this persona is disabled",
+            "state": "Paused: the practice state is broken; the owner can end it"
           }
         },
         "errors": {

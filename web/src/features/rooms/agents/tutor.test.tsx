@@ -1,5 +1,5 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
-import { existsSync, readFileSync } from "node:fs";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -65,11 +65,26 @@ it("renders nothing without a tutor", () => {
   expect(container.querySelector("[data-testid=room-tutor-bar]")).toBeNull();
 });
 
-it("the step range matches the server's tutor_rotation (checked once lane T's file exists)", () => {
+it("the step range matches the server (tutor_rotation re-exports agents/tutor/plan LENGTH_*)", () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const file = path.resolve(here, "../../../../../server/app/rooms/tutor_rotation.py");
-  if (!existsSync(file)) return; // lane T not merged yet: reported as unverified
-  expect(readFileSync(file, "utf8")).toContain(`MIN_STEPS, MAX_STEPS, DEFAULT_STEPS = ${TUTOR_STEPS.min}, ${TUTOR_STEPS.max}, ${TUTOR_STEPS.initial}`);
+  const server = path.resolve(here, "../../../../../server/app");
+  expect(readFileSync(path.join(server, "agents/tutor/plan.py"), "utf8"))
+    .toContain(`LENGTH_MIN, LENGTH_MAX, LENGTH_DEFAULT = ${TUTOR_STEPS.min}, ${TUTOR_STEPS.max}, ${TUTOR_STEPS.initial}`);
+  const rotation = readFileSync(path.join(server, "rooms/tutor_rotation.py"), "utf8");
+  expect(rotation).toContain("LENGTH_DEFAULT as DEFAULT_STEPS");
+  expect(rotation).toContain("LENGTH_MAX as MAX_STEPS");
+  expect(rotation).toContain("LENGTH_MIN as MIN_STEPS");
+  expect(readFileSync(path.join(server, "routers/rooms_agents.py"), "utf8")).toContain(`ge=${TUTOR_STEPS.min}, le=${TUTOR_STEPS.max}`);
+});
+
+it("a paused reason the web has no copy for (or a future one) still shows a message", () => {
+  renderWithProviders(<TutorBar tutor={{ ...TUTOR, phase: "paused", pausedReason: "state", remainingMs: null }} receivedAt={0}
+    meId={ME} isOwner roomId="r1" disabled={false} />);
+  expect(screen.getByRole("status")).toHaveTextContent("带练状态异常");
+  cleanup();
+  renderWithProviders(<TutorBar tutor={{ ...TUTOR, phase: "paused", pausedReason: "from_the_future" as never, remainingMs: null }} receivedAt={0}
+    meId={ME} isOwner roomId="r1" disabled={false} />);
+  expect(screen.getByRole("status")).toHaveTextContent("AI 暂时不可用");
 });
 
 it("the owner starts a round with a persona and a question count within the range", async () => {

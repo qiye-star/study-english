@@ -62,7 +62,7 @@ export interface AgentThoughtWire { source: "summary" | "reasoning"; text: strin
 export interface RoomTutorInfo {
   personaId: string; personaName: string; phase: "generating" | "await_answer" | "paused"; stepIndex: number; stepsTotal: number;
   currentUserId: number | null; currentName: string | null; deadlineAt: string | null; remainingMs: number | null; startedBy: number;
-  pausedReason: "restart" | "quota" | "upstream" | "ai_off" | "agent_off" | null;
+  pausedReason: "restart" | "quota" | "upstream" | "ai_off" | "agent_off" | "state" | null;
 }
 export type RoomEvent =
   | { type: "welcome"; room: RoomInfo; me: { userId: number; role: "owner" | "member" }; members: RoomMemberInfo[]; lastSeq: number; truncated: boolean; assistHistory: RoomMessage[];

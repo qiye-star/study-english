@@ -60,7 +60,7 @@ export function TutorBar({ tutor, receivedAt, meId, isOwner, roomId, disabled }:
   if (!tutor) return null;
   const left = secondsLeft(tutor, receivedAt, now);
   const mine = waiting && tutor.currentUserId === meId;
-  const label = tutor.phase === "paused" ? t(`web.rooms.agents.tutor.paused.${tutor.pausedReason ?? "upstream"}`)
+  const label = tutor.phase === "paused" ? t(`web.rooms.agents.tutor.paused.${tutor.pausedReason ?? "upstream"}`, { defaultValue: t("web.rooms.agents.tutor.paused.upstream") })
     : tutor.phase === "generating" ? t("web.rooms.agents.tutor.generating", { name: tutor.personaName })
     : mine ? t("web.rooms.agents.tutor.yourTurn") : t("web.rooms.agents.tutor.theirTurn", { name: tutor.currentName ?? "?" });
   async function act(fn: () => Promise<unknown>) {
