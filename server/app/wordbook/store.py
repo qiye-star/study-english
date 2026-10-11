@@ -1,9 +1,10 @@
 """背单词数据层(spec §5)。除 enroll 与 usage 计数(consume_*)外不提交;提交由 service 负责。"""
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy import update as update_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from app.models import VocabularyItem, WordbookEnrollment, WordbookEvent, Wordbo
 from app.services import usage
 from app.services.stats import as_utc
 from app.services.vocabulary import INTERVAL_DAYS, MAX_EXAMPLE, MAX_MEANING
+from app.wordbook import learned
 from app.wordbook.entry import WordCard
 from app.wordbook.index import DictionaryStore
 from app.wordbook.plan import Known
@@ -304,3 +306,111 @@ async def reset_book(session: AsyncSession, user_id: int, book_id: str, *, seed:
 
 async def consume_reset(session: AsyncSession, user_id: int, day: str) -> bool:
     return await usage.consume(session, "wordbook_resets", str(user_id), day, RESETS_DAILY_MAX)
+
+
+# ---- 已学词与自由复习(spec 2026-10-12 wordbook-review §1;计划 2026-10-12-wordbook-learned-review)----
+
+FREE_STARTS_DAILY_MAX = 200           # 每人每 UTC 日开始自由复习的次数(挡住反复读词典;不是设置项)
+FREE_PULLS_DAILY_MAX = 20             # 每人每 UTC 日最多把 20 个词「拉到今天到期」(R-L6 刷分防护 ③)
+FREE_PULL_QUIET = timedelta(hours=24)  # 24 小时内正式复习过的词不能被拉(R-L6 防护 ②)
+
+
+@dataclass(frozen=True)
+class LearnedRow:
+    id: str
+    word: str
+    book_id: str
+    box: int
+    lapses: int
+    due_at: datetime
+    created_at: datetime
+
+
+def learned_sources(book_ids: Iterable[str]) -> list[str]:
+    return [wordbook_source(b) for b in book_ids]
+
+
+def _learned_where(user_id: int, sources: Sequence[str], *, tier: str | None, weak: bool, since: datetime | None,
+                   until: datetime | None, prefix: str | None) -> list:
+    conds = [VocabularyItem.user_id == user_id, VocabularyItem.source.in_(list(sources))]
+    if tier is not None:
+        low, high = learned.TIERS[tier]
+        conds.append(VocabularyItem.box.between(low, high))
+    if weak:
+        conds += [VocabularyItem.lapses >= learned.WEAK_MIN_LAPSES, VocabularyItem.box <= learned.WEAK_MAX_BOX]
+    if since is not None:
+        conds.append(VocabularyItem.created_at >= since)
+    if until is not None:
+        conds.append(VocabularyItem.created_at < until)
+    if prefix:  # R-L5:用户自己的行上的前缀匹配,% 与 _ 转义
+        conds.append(VocabularyItem.word.startswith(prefix, autoescape=True))
+    return conds
+
+
+async def learned_page(session: AsyncSession, user_id: int, sources: Sequence[str], *, tier: str | None, weak: bool,
+                       since: datetime | None, until: datetime | None, prefix: str | None,
+                       after: tuple[datetime, str] | None, limit: int) -> tuple[list[LearnedRow], bool]:
+    """已学词,新学的在前;游标 = (created_at, id)。多取一行判断还有没有下一页。"""
+    stmt = select(VocabularyItem.id, VocabularyItem.word, VocabularyItem.source, VocabularyItem.box,
+                  VocabularyItem.lapses, VocabularyItem.due_at, VocabularyItem.created_at).where(
+        *_learned_where(user_id, sources, tier=tier, weak=weak, since=since, until=until, prefix=prefix))
+    if after is not None:
+        at, item_id = after
+        stmt = stmt.where(or_(VocabularyItem.created_at < at,
+                              and_(VocabularyItem.created_at == at, VocabularyItem.id < item_id)))
+    found = (await session.execute(stmt.order_by(VocabularyItem.created_at.desc(), VocabularyItem.id.desc())
+                                   .limit(limit + 1))).all()
+    rows = [LearnedRow(r.id, r.word, r.source[len(SOURCE_PREFIX):], r.box, r.lapses, as_utc(r.due_at),
+                       as_utc(r.created_at)) for r in found[:limit]]
+    return rows, len(found) > limit
+
+
+async def learned_counts(session: AsyncSession, user_id: int, sources: Sequence[str], *,
+                         yesterday: tuple[datetime, datetime], last7_start: datetime
+                         ) -> tuple[list[tuple[str, int, int]], int, int, int]:
+    base = _learned_where(user_id, sources, tier=None, weak=False, since=None, until=None, prefix=None)
+    grouped = (await session.execute(select(VocabularyItem.source, VocabularyItem.box, func.count())
+                                     .where(*base).group_by(VocabularyItem.source, VocabularyItem.box))).all()
+
+    async def count(*extra) -> int:
+        return int(await session.scalar(select(func.count()).select_from(VocabularyItem).where(*base, *extra)) or 0)
+
+    weak = await count(VocabularyItem.lapses >= learned.WEAK_MIN_LAPSES, VocabularyItem.box <= learned.WEAK_MAX_BOX)
+    y = await count(VocabularyItem.created_at >= yesterday[0], VocabularyItem.created_at < yesterday[1])
+    w = await count(VocabularyItem.created_at >= last7_start)
+    return [(source, int(box), int(n)) for source, box, n in grouped], weak, y, w
+
+
+async def free_pool(session: AsyncSession, user_id: int, sources: Sequence[str], *, tier: str | None, weak: bool,
+                    since: datetime | None, until: datetime | None) -> list[tuple[str, str]]:
+    """自由复习可抽的 (词, 书)。只有这个用户自己的已学词。"""
+    rows = (await session.execute(select(VocabularyItem.word, VocabularyItem.source).where(
+        *_learned_where(user_id, sources, tier=tier, weak=weak, since=since, until=until, prefix=None)))).all()
+    return [(word, source[len(SOURCE_PREFIX):]) for word, source in rows]
+
+
+async def pull_eligible(session: AsyncSession, user_id: int, item_id: str, now: datetime) -> bool:
+    """这个词能不能被自由答错拉到今天到期:存在,且 24 小时内没有正式复习过(R-L6)。"""
+    found = (await session.execute(select(VocabularyItem.id, VocabularyItem.last_reviewed_at).where(
+        VocabularyItem.id == item_id, VocabularyItem.user_id == user_id))).first()
+    if found is None:
+        return False
+    return found.last_reviewed_at is None or as_utc(found.last_reviewed_at) <= now - FREE_PULL_QUIET
+
+
+async def pull_due(session: AsyncSession, user_id: int, item_id: str, now: datetime) -> bool:
+    """自由复习答错:把还没到期的词改为「现在到期」(进入正式复习队列)。只动 due_at —— 盒子、reps、lapses、
+    last_reviewed_at 都不变,所以不产生 vocab_review。已到期的词不动(返回 False)。不提交。"""
+    result = await session.execute(
+        update_(VocabularyItem)
+        .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.due_at > now)
+        .values(due_at=now).execution_options(synchronize_session=False))
+    return result.rowcount == 1
+
+
+async def consume_free_start(session: AsyncSession, user_id: int, day: str) -> bool:
+    return await usage.consume(session, "wordbook_free_starts", str(user_id), day, FREE_STARTS_DAILY_MAX)
+
+
+async def consume_free_pull(session: AsyncSession, user_id: int, day: str) -> bool:
+    return await usage.consume(session, "wordbook_free_pulls", str(user_id), day, FREE_PULLS_DAILY_MAX)

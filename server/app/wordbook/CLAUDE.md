@@ -8,6 +8,7 @@
 - `index.py` – `BookIndex` + `DictionaryStore` (`dictionary(app)`): lazy per-book index, line reads, LRU, hidden sentences
 - `grading.py` / `quiz.py` / `cloze.py` / `plan.py` – grading, question types and distractors, spelling sets, daily plan (pure)
 - `store.py` – enrollments, learned words, events, counters (DB); `service.py` – endpoint orchestration; `explain.py` – AI "why"
+- `learned.py` – 已学词熟练度分档(存储盒 0–5)、易错判定、游标、本地日窗口(纯;只导入 `plan`)
 - `recall.py` – v2 self-rating rules (spec `2026-10-11-wordbook-recall-design.md` §5): effective rating (peek → fuzzy,
   two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
 
@@ -51,3 +52,11 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - Reset deletes only `vocabulary_items` with `source='wordbook:<book>'` and resets cursor/seed; the router injects the rank
   sync as `before_delete` so it runs only after the book, confirmation and daily-limit checks pass.
   Settings/pause/resume/bonus share 60/day (`wordbook_settings`), reset 2/day (`wordbook_resets`).
+- 已学词 = `source='wordbook:<启用书>'`;盒子 0–5 分三档(`learned.TIERS`,熟练下界 = `plan.MASTERED_BOX`);响应没有映射(`by_book` 是列表)。
+- 词、前缀、游标永远不进 URL:`/learned/query`、`/learned/card`、`/free/start` 都是 POST 体;
+  `test_wordbook_learned_api.py::test_new_routes_carry_no_word_in_the_url` 守着。`GET /cards/{book}/{key}` 是遗留写法,别再让新页面用。
+- `mode="free"`(`service._free_answer`):永不调用 `apply_review` / `apply_lapse` / `set_learn_box`;事件固定 `practice`;
+  答错只可能 `pull_due`(`due_at = now`),受「24 小时内正式复习过不拉」与每日 20 次(`store.FREE_PULLS_DAILY_MAX`)约束。
+  改这几条前先读计划 R-L6:`due_at = now` 会通向 `vocab_review`。
+- `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
+- 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。

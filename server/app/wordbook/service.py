@@ -3,6 +3,7 @@
 响应里不出现以词为键的映射(网页客户端会把对象键 camelCase 化):列表里每项都带自己的 `key`。"""
 import asyncio
 import random
+import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, replace
@@ -13,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.models import WordbookEnrollment, WordbookEvent, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
-from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review
+from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review, normalize_word
 from app.wordbook import plan as planning
+from app.wordbook import learned
 from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
@@ -23,7 +25,7 @@ from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
-                               pick_distractors, pick_qtype, question_rng, use_recall)
+                               pick_distractors, pick_qtype, question_rng, use_recall, free_choice_qtype, free_spellable)
 from app.core import learning_events
 
 
@@ -53,6 +55,11 @@ BOOK_FINISHED = (409, "No new words left in this book")
 BONUS_LIMIT = (429, "Daily bonus limit reached")
 RESET_LIMIT = (429, "Daily reset limit reached")
 CONFIRM_MISMATCH = (422, "Confirmation does not match")
+INVALID_CURSOR = (422, "Invalid cursor")
+INVALID_DATE = (422, "Invalid date")
+INVALID_SCOPE = (422, "Invalid scope")
+NOTHING_TO_REVIEW = (409, "No words to review")
+FREE_LIMIT = (429, "Daily free-review limit reached")
 STREAK_LOOKBACK_DAYS = 400
 DEFAULT_LIMITS = GoalLimits(WORDBOOK_NEW_BOUNDS[0], WORDBOOK_NEW_BOUNDS[1], WORDBOOK_REVIEW_BOUNDS[0],
                             WORDBOOK_REVIEW_BOUNDS[1], True, 50)  # 没传 settings 的调用点(GP-1)
@@ -366,6 +373,8 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
                   now) -> dict:
     book_or_fail(settings, p.book_id)
     _validate(p)
+    if p.mode == "free":  # 随时自由复习:与学新词 / 复习的写盒子路径完全隔离(R-L6、R-L8)
+        return await _free_answer(session, ds, user_id, settings, p, now)
     if p.known:  # R-R7:v1 的「我认识」= 没偷看的「认识」,同样受抽查规则约束
         p = replace(p, qtype=recall.RECALL_QTYPE, rating="know", revealed_before=False, elapsed_ms=None, known=False)
     await ensure_hidden(session, ds)  # review m5:create_item 会复制例句,先载入屏蔽集合
@@ -535,6 +544,50 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
     checked = p.mode == "review" and p.choice is not None and rating == "know"
     return _answer_out(eff == "know", eff, recall.GRADE[eff], card, correct_option("meaning", card) if checked else None,
                        None, await store.known_one(session, user_id, card.key), applied, rating=eff, spot_check=spot)
+
+
+# ---- 自由复习作答(spec 2026-10-12 §1.3;计划 2026-10-12-wordbook-learned-review S5)----
+
+async def _free_answer(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: AnswerInput,
+                       now) -> dict:
+    """永不改盒子 / reps / last_reviewed_at,事件 kind 固定 practice。答错且(未到期、24h 内没复习、今日拉取未满)时
+    只把 due_at 改为现在(R-L6);其余一律不动。答对与到期的词原样不变。"""
+    await ensure_hidden(session, ds)
+    card = (await cards_or_fail(ds, p.book_id, [p.key])).get(p.key)
+    if card is None:
+        fail(WORD_NOT_FOUND)
+    row = await store.known_one(session, user_id, card.key)
+    if row is None or row.source != store.wordbook_source(p.book_id):
+        fail(WORD_NOT_FOUND)
+    if not await store.consume_answer(session, user_id, utc_day(now)):
+        fail(ANSWER_LIMIT)
+    diff = option = rating = None
+    if p.qtype == recall.RECALL_QTYPE:  # R-L7:有效评级只看这一次,不看历史
+        rating = recall.effective_rating(p.rating, revealed_before=p.revealed_before, previous=None)
+        outcome, credit, correct, wrong, grade = rating, 100 if rating == "know" else 0, rating == "know", \
+            rating == "unknown", recall.GRADE[rating]
+    elif p.qtype in CHOICE_QTYPES:
+        correct = check_choice(p.qtype, card, p.choice)
+        outcome, credit, wrong = ("correct", 100, False) if correct else ("wrong", 0, True)
+        grade, option = srs_grade(outcome, p.hinted), correct_option(p.qtype, card)
+    else:
+        result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
+        outcome, credit, diff = result.outcome, result.credit, [asdict(d) for d in result.diff] or None
+        grade = srs_grade(outcome, p.hinted)
+        correct, wrong = outcome == "correct", grade == "forgot"
+    queued = False
+    if wrong and row.due_at > now and await store.pull_eligible(session, user_id, row.item_id, now) \
+            and await store.consume_free_pull(session, user_id, utc_day(now)):
+        queued = await store.pull_due(session, user_id, row.item_id, now)
+    await store.add_event(session, user_id=user_id, book_id=p.book_id, kind="practice", word=card.key,
+                          item_id=row.item_id, qtype=p.qtype, outcome=outcome, credit=credit,
+                          day=local_day(now, p.offset), now=now)
+    await session.commit()
+    learning_events.publish(learning_events.WordAnswered(
+        user_id=user_id, book_id=p.book_id, word=card.key, kind="practice", qtype=p.qtype, outcome=outcome,
+        credit=credit, at=now))
+    return _answer_out(correct, outcome, grade, card, option, diff, await store.known_one(session, user_id, card.key),
+                       queued, rating=rating)
 
 
 # ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----
@@ -812,3 +865,129 @@ async def reset_progress(session: AsyncSession, user_id: int, settings: Settings
     await session.commit()
     e = await store.get_enrollment(session, user_id, book_id)
     return {"removed": removed, "enrollment": enrollment_out(e, limits_of(settings))}
+
+
+# ---- 已学词与自由复习(spec 2026-10-12 wordbook-review §1;计划 2026-10-12-wordbook-learned-review)----
+
+@dataclass(frozen=True)
+class LearnedQuery:
+    book: str | None
+    tier: str | None
+    weak: bool
+    since: str | None
+    until: str | None
+    q: str | None
+    cursor: str | None
+    limit: int
+    offset: int
+
+
+def _learned_sources(settings: Settings, book: str | None) -> list[str]:
+    enabled = enabled_books(settings.wordbook_books)  # R-L2:停用的书保留记录但不列出
+    if book is not None:
+        if book not in enabled:
+            fail(BOOK_NOT_FOUND)
+        enabled = (book,)
+    return store.learned_sources(enabled)
+
+
+async def learned_summary(session: AsyncSession, user_id: int, settings: Settings, offset: int, now) -> dict:
+    enabled = enabled_books(settings.wordbook_books)
+    grouped, weak, y_count, w_count = await store.learned_counts(
+        session, user_id, store.learned_sources(enabled),
+        yesterday=(planning.day_end(now, offset, -2), planning.day_end(now, offset, -1)),
+        last7_start=planning.day_end(now, offset, -7))
+    by_box, by_book = [0] * 6, {}
+    for source, box, n in grouped:
+        by_box[min(max(box, 0), 5)] += n
+        book_id = source[len(store.SOURCE_PREFIX):]
+        by_book[book_id] = by_book.get(book_id, 0) + n
+    return {"total": sum(by_box), "by_box": by_box,
+            "by_tier": {name: sum(by_box[lo:hi + 1]) for name, (lo, hi) in learned.TIERS.items()},
+            "by_book": [{"book_id": b, "count": by_book[b]} for b in enabled if b in by_book],  # 列表,不是映射(R-L16)
+            "weak": weak, "yesterday": y_count, "last7": w_count}
+
+
+async def learned_list(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, p: LearnedQuery,
+                       now) -> dict:
+    sources = _learned_sources(settings, p.book)
+    try:
+        since, until = learned.date_bounds(p.since, p.until, p.offset)
+    except ValueError:
+        fail(INVALID_DATE)
+    after = None
+    if p.cursor is not None:
+        after = learned.decode_cursor(p.cursor)
+        if after is None:
+            fail(INVALID_CURSOR)
+    prefix = normalize_word(p.q) if p.q else None
+    rows, more = await store.learned_page(session, user_id, sources, tier=p.tier, weak=p.weak, since=since, until=until,
+                                          prefix=prefix, after=after, limit=p.limit)
+    await ensure_hidden(session, ds)
+    heads: dict[tuple[str, str], str] = {}
+    for book_id in dict.fromkeys(r.book_id for r in rows):  # R-L12:词典不可用的书退回规范化键
+        try:
+            found = await ds.cards(book_id, [r.word for r in rows if r.book_id == book_id])
+        except DataUnavailable:
+            continue
+        heads.update({(book_id, k): c.word for k, c in found.items()})
+    items = [{"book_id": r.book_id, "key": r.word, "word": heads.get((r.book_id, r.word), r.word), "box": r.box,
+              "tier": learned.tier_of(r.box), "learned_at": iso_utc(r.created_at), "due_at": iso_utc(r.due_at),
+              "weak": learned.is_weak(r.box, r.lapses)} for r in rows]
+    return {"items": items,
+            "next_cursor": learned.encode_cursor(rows[-1].created_at, rows[-1].id) if more and rows else None}
+
+
+async def learned_card(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, book_id: str,
+                       key: str) -> dict:
+    """已学词的词卡(POST 体里带词,不进 URL;R-L4)。不是这个用户这本书里的已学词 → 404。"""
+    book_or_fail(settings, book_id)
+    row = await store.known_one(session, user_id, key)
+    if row is None or row.source != store.wordbook_source(book_id):
+        fail(WORD_NOT_FOUND)
+    return await card_detail(session, ds, settings, book_id, key)
+
+
+FREE_OVERSAMPLE = 3  # 拼写题多抽 3 倍再筛掉不可拼写的词
+
+
+async def free_start(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, *, scope: str,
+                     mode: str, count: int, book: str | None, tier: str | None, offset: int, now,
+                     rng: random.Random | None = None) -> dict:
+    """自由复习开始:服务端按范围抽词、出题(R-L9 / R-L10)。客户端不能指定词。先校验、再取池(空池不扣次数)、再扣次数。"""
+    enabled = enabled_books(settings.wordbook_books)
+    if scope == "book" and (book is None or book not in enabled):
+        fail(INVALID_SCOPE)
+    if scope == "tier" and tier is None:
+        fail(INVALID_SCOPE)
+    since, until = learned.scope_window(scope, now, offset)
+    pool = await store.free_pool(session, user_id, store.learned_sources((book,) if scope == "book" else enabled),
+                                 tier=tier if scope == "tier" else None, weak=scope == "weak", since=since, until=until)
+    if not pool:
+        fail(NOTHING_TO_REVIEW)
+    if not await store.consume_free_start(session, user_id, utc_day(now)):
+        fail(FREE_LIMIT)
+    rng = rng or random.Random()
+    pool.sort()
+    picked = rng.sample(pool, min(len(pool), count * FREE_OVERSAMPLE if mode == "spell" else count))
+    await ensure_hidden(session, ds)
+    cards: dict[tuple[str, str], WordCard] = {}
+    for book_id in dict.fromkeys(b for _, b in picked):
+        found = await cards_or_fail(ds, book_id, [w for w, b in picked if b == book_id])
+        cards.update({(book_id, k): c for k, c in found.items()})
+    qrng = random.Random(rng.getrandbits(64))
+    items: list[dict] = []
+    for word, book_id in picked:
+        card = cards.get((book_id, word))
+        if card is None or (mode == "spell" and not free_spellable(card)):
+            continue
+        question = None
+        if mode != "browse":
+            qtype = "recall" if mode == "recall" else "spell" if mode == "spell" else free_choice_qtype(card, qrng)
+            question = question_out(await _question(ds, await index_or_fail(ds, book_id), card, qtype, qrng))
+        items.append({"book_id": book_id, "card": card_out(card), "question": question})
+        if len(items) == count:
+            break
+    if not items:
+        fail(NOTHING_TO_REVIEW)
+    return {"set_id": secrets.token_hex(6), "scope": scope, "mode": mode, "items": items}
