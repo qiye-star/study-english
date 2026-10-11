@@ -10,7 +10,7 @@ from app.admin import doctor
 from app.agents import limits
 from app.agents.personas import PersonaStore, clean_persona
 from app.models import AdminAudit, AgentPersona, AgentPersonaReport, utcnow
-from tests.admin_helpers import ADMIN_ENABLED, assert_no_secrets, login_as
+from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, assert_no_secrets, login_as
 from tests.agents_helpers import FakeLLM, make_deps, make_request, run_events, use_fake_llm
 from tests.test_admin_doctor import OK
 from tests.test_admin_api import register
@@ -104,6 +104,12 @@ async def test_delete_is_superadmin_only(app, client):
     h = await login_as(app, client, "operator")
     assert (await client.post(f"{API}/personas/{tom['id']}/delete", headers=h, json={"reason": "remove"})).status_code == 403
     h = await login_as(app, client, "superadmin")
+    # review #7: a destructive route needs step-up like the other admin deletes
+    denied = await client.post(f"{API}/personas/{tom['id']}/delete", headers=h, json={"reason": "remove it"})
+    assert (denied.status_code, denied.json()) == (403, {"error": "Step-up required"})
+    async with app.state.sessionmaker() as s:
+        assert await s.get(AgentPersona, tom["id"]) is not None
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
     assert (await client.post(f"{API}/personas/{tom['id']}/delete", headers=h,
                               json={"reason": "remove it"})).json() == {"id": tom["id"]}
     async with app.state.sessionmaker() as s:
