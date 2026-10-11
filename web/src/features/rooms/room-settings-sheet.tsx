@@ -10,6 +10,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { RoomAgentsSection } from "./agents/agents-section";
 import { JoinRequestRows } from "./create/join-requests";
 import { listJoinRequests, ROOMS_ALL_SERVER_ERRORS, updateRoomSettings, type RoomSettingsInput } from "./create/rooms-v2-api";
 import { SettingsFields } from "./create/settings-fields";
@@ -126,6 +127,9 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
             <Group title={t("web.rooms.v2.settings.group")} bare>
               <SettingsFields value={value} onChange={save} config={config} mode="edit" namePlaceholder="" minMembers={memberCount} />
             </Group>
+          )}
+          {config?.agentsAvailable !== false && (
+            <RoomAgentsSection room={room} owner={owner} live={live} onChanged={onChanged} />
           )}
           {owner && (
             <div className="mt-2 divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">
