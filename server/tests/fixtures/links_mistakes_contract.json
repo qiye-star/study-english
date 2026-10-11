@@ -1,0 +1,20 @@
+{
+  "list": {
+    "items": [
+      {
+        "word": "talk",
+        "wrong_count": 1,
+        "last_wrong_at": "2026-10-10T20:25:36.170720+00:00",
+        "meaning": "v. 说话；谈话；n. 交谈；n/v. 谈话，讲话",
+        "box": 0,
+        "due_at": "2026-10-11T20:25:36.170720+00:00",
+        "book_id": "junior"
+      }
+    ],
+    "next": null,
+    "total": 1
+  },
+  "dismiss": {
+    "word": "talk"
+  }
+}
