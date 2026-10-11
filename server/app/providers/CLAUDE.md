@@ -8,7 +8,8 @@ Clients for external vendors. Pure I/O + protocol code; no web framework.
 - `xfyun.py` – iFlytek ISE pronunciation assessment over WebSocket (signed URL)
 - `xfyun_result.py` – converts ISE XML into the assessment JSON the clients expect
 - `llm.py` – chat completion: `complete` (non-streaming, rank and rooms), `complete_stream` (async iterator of
-  `Delta` text / reasoning / usage, for agents; closing the iterator closes the upstream response), `probe_tools`
+  `Delta` text / reasoning / usage, for agents; closing the iterator closes the upstream response; total deadline
+  `STREAM_TOTAL_SECONDS` = 120 s -> `LlmUnavailable("timeout")`; an in-band `{"error": ...}` chunk -> `LlmUnavailable("upstream")`, body never logged), `probe_tools`
   (native function calling probe), `LlmUnavailable(kind, status)`
 
 ## Allowed dependencies
