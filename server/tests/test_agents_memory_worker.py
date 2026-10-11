@@ -259,5 +259,99 @@ async def test_extraction_with_every_slot_pinned_rejects_the_add_and_evicts_noth
     assert deps.counters.get("evicted", 0) == 0 and deps.counters["add_rejected_full"] == 1
 
 
+class Gate:
+    """A model call that parks until released: lets a test change the world while the job is mid-flight."""
+
+    def __init__(self, reply):
+        self.reply, self.entered, self.release = reply, asyncio.Event(), asyncio.Event()
+
+    async def __call__(self, messages, max_tokens):
+        self.entered.set()
+        await self.release.wait()
+        return self.reply
+
+
+async def parked_extraction(app, uid, gate, **kw):
+    """Three turns finish, the fourth parks inside the extraction call. Returns (worker, deps, prefs)."""
+    prefs = user_prefs()
+    worker, deps, *_ = make_worker(app, gate, prefs=prefs, **kw)
+    await turns(worker, uid, NOW, 3)
+    await worker.after_turn(FakeRecord(uid, NOW + timedelta(minutes=3), text="turn 3 about IELTS"))
+    await asyncio.wait_for(gate.entered.wait(), 5)
+    return worker, deps, prefs
+
+
+async def rows_left(app, model):
+    async with app.state.sessionmaker() as s:
+        return int((await s.scalar(select(func.count()).select_from(model))) or 0)
+
+
+async def test_clearing_all_memory_mid_extraction_discards_the_in_flight_output(app, uid):
+    enable_agents(app)
+    await add_conversation(app, uid)
+    gate = Gate(ADD)
+    worker, deps, _ = await parked_extraction(app, uid, gate)
+    store = app.state.agent_memory.store
+    await store.clear(uid, "all")
+    gate.release.set()
+    await worker.join()
+    assert await rows_left(app, AgentMemoryItem) == 0 and deps.counters.get("ops_applied", 0) == 0
+    assert deps.counters["discarded"] == 1
+
+
+async def test_pausing_memory_mid_extraction_discards_the_in_flight_output(app, uid):
+    enable_agents(app)
+    await add_conversation(app, uid)
+    gate = Gate(ADD)
+    worker, deps, prefs = await parked_extraction(app, uid, gate)
+    prefs.memory_enabled = False
+    gate.release.set()
+    await worker.join()
+    assert await rows_left(app, AgentMemoryItem) == 0 and deps.counters["discarded"] == 1
+
+
+async def test_deleting_the_conversation_mid_job_leaves_no_orphan_rows(app, uid):
+    from sqlalchemy import delete as sql_delete
+
+    from app.agents.memory.store import drop_conversation
+    from app.models import AgentRecap, Conversation
+
+    enable_agents(app, agents_history_max=2)
+    await add_conversation(app, uid)
+    await add_messages(app, "c1", [("user" if i % 2 == 0 else "assistant", f"line {i}") for i in range(8)],
+                       NOW - timedelta(hours=1))
+    gate = Gate("摘要一")
+    worker, deps, *_ = make_worker(app, gate)
+    await worker.after_turn(FakeRecord(uid, NOW, text=None, mode="tutor"))  # parks in the summary call
+    await asyncio.wait_for(gate.entered.wait(), 5)
+    async with app.state.sessionmaker() as s:
+        await drop_conversation(s, "c1")
+        await s.execute(sql_delete(Conversation).where(Conversation.id == "c1"))
+        await s.commit()
+    gate.release.set()
+    await worker.join()
+    assert await rows_left(app, AgentThreadState) == 0 and await rows_left(app, AgentRecap) == 0
+
+
+async def test_a_turn_for_a_deleted_conversation_creates_no_thread_state(app, uid):
+    enable_agents(app)
+    worker, deps, _, _ = make_worker(app, FakeLLM())
+    await worker.after_turn(FakeRecord(uid, NOW, conversation_id="gone"))
+    await worker.join()
+    assert await rows_left(app, AgentThreadState) == 0
+
+
+async def test_a_job_queued_before_a_clear_but_started_after_it_is_discarded_too(app, uid):
+    enable_agents(app)
+    await add_conversation(app, uid)
+    worker, deps, *_ = make_worker(app, FakeLLM(ADD))
+    await turns(worker, uid, NOW, 3)
+    store = app.state.agent_memory.store
+    await worker.after_turn(FakeRecord(uid, NOW + timedelta(minutes=3), text="turn 3 about IELTS"))
+    await store.clear(uid, "all")  # before the queued task got its first turn on the loop
+    await worker.join()
+    assert await rows_left(app, AgentMemoryItem) == 0
+
+
 def test_the_cap_scope_is_the_shared_agents_memory_extract_scope():
     assert CAP_SCOPE == limits.SCOPE_MEMORY_USER

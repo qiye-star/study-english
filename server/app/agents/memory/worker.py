@@ -125,11 +125,11 @@ class MemoryWorker:
 
     async def after_turn(self, record: TurnRecordLike) -> None:
         """TurnHooks.after_turn 回调:只排队,立刻返回。"""
-        self._submit(self._turn(record))
+        self._submit(self._turn(record, self._deps.store.epoch(record.user_id)))
 
     def submit_tutor(self, event: TutorFinished) -> bool:
         """A3 在导师会话结束时调用;待办满了返回 False(回顾丢失,只计数)。"""
-        return self._submit(self._tutor(event))
+        return self._submit(self._tutor(event, self._deps.store.epoch(event.user_id)))
 
     async def join(self) -> None:
         while self.pending:
@@ -160,10 +160,23 @@ class MemoryWorker:
         prefs = await self._deps.user_settings(user_id)
         return bool(prefs.memory_enabled)
 
-    async def _turn(self, record: TurnRecordLike) -> None:
+    async def _live(self, user_id: int, epoch: int, conversation_id: str | None = None, *,
+                    quiet: bool = False) -> bool:
+        """写库前的再确认:清空 / 删除对话没有发生(代未变)、记忆仍开启且未暂停、对话仍存在。
+        任务排队时记下代;模型调用最长 15 s,期间用户可能清空、暂停或删除对话(此时丢弃输出,只计数)。"""
+        d = self._deps
+        if (d.store.epoch(user_id) == epoch and await self._allowed(user_id)
+                and (conversation_id is None or await d.store.conversation_exists(conversation_id))):
+            return True
+        if not quiet:
+            d.count("discarded")
+        return False
+
+    async def _turn(self, record: TurnRecordLike, epoch: int) -> None:
         d = self._deps
         key = thread_key(record)
-        if key is None or not await self._allowed(record.user_id):
+        if key is None or not await self._live(record.user_id, epoch, key.id if key.kind == "conversation" else None,
+                                                          quiet=True):
             return
         d.count("turns")
         used = d.cache.get(snapshot_key(record.user_id, key, record.persona_id or ""))
@@ -174,18 +187,19 @@ class MemoryWorker:
                                            count_turn=chat, idle=IDLE_GAP)
         source = "room" if key.kind == "room" else "chat"
         if touch.gap and touch.gap_pending:
-            await self._extract(record.user_id, record.persona_id, touch.gap_pending, source, record.at)
+            await self._extract(record.user_id, record.persona_id, touch.gap_pending, source, record.at, epoch)
         if touch.gap and touch.gap_segment is not None and key.kind == "conversation":
-            await self._recap_segment(record.user_id, record.persona_id, key.id, touch.gap_segment, record.at)
+            await self._recap_segment(record.user_id, record.persona_id, key.id, touch.gap_segment, record.at,
+                                      epoch)
         if chat and touch.turns >= EXTRACT_EVERY:
             await d.store.clear_pending(record.user_id, key)
-            await self._extract(record.user_id, record.persona_id, touch.pending, source, record.at)
+            await self._extract(record.user_id, record.persona_id, touch.pending, source, record.at, epoch)
         if key.kind == "conversation":
-            await self._roll(record.user_id, record.persona_id, key, touch, record.at)
+            await self._roll(record.user_id, record.persona_id, key, touch, record.at, epoch)
 
-    async def _tutor(self, event: TutorFinished) -> None:
+    async def _tutor(self, event: TutorFinished, epoch: int) -> None:
         d = self._deps
-        if not await self._allowed(event.user_id):
+        if not await self._live(event.user_id, epoch, event.conversation_id, quiet=True):
             return
         row = await d.store.add_recap(event.user_id, source="tutor", text=event.recap_text, persona_id=event.persona_id,
                                       conversation_id=event.conversation_id, tutor_session_id=event.tutor_session_id)
@@ -193,7 +207,7 @@ class MemoryWorker:
             d.count("recaps")
         text = clean_text(event.recap_text)[:INPUT_TEXT_MAX]
         if text:
-            await self._extract(event.user_id, event.persona_id, (text,), "tutor", event.at)
+            await self._extract(event.user_id, event.persona_id, (text,), "tutor", event.at, epoch)
 
     async def _call(self, user_id: int, at: datetime, job: str, fn: Callable[[MemoryDeps], Awaitable[Any]]) -> Any:
         d = self._deps
@@ -221,7 +235,7 @@ class MemoryWorker:
         return None
 
     async def _extract(self, user_id: int, persona_id: str | None, texts: tuple[str, ...], source: str,
-                       at: datetime) -> None:
+                       at: datetime, epoch: int) -> None:
         d = self._deps
         texts = tuple(t for t in texts if t)
         if not texts:
@@ -230,7 +244,7 @@ class MemoryWorker:
         existing = tuple(ranked(views, " ".join(texts), at)[:EXISTING_MAX])
         ops = await self._call(user_id, at, "extract",
                                lambda deps: extract(deps, ExtractInput(user_id, persona_id, texts, existing)))
-        if ops is None:
+        if ops is None or not await self._live(user_id, epoch):
             return
         cap, kept = d.settings().agents_memory_items_max, set()
         applied = await apply_ops(d.store, user_id, persona_id, ops, source, max_items=cap, kept=kept, deps=d)
@@ -240,27 +254,27 @@ class MemoryWorker:
         logger.info("agents memory extract ops=%d applied=%d evicted=%d", len(ops), applied, evicted)
 
     async def _recap_segment(self, user_id: int, persona_id: str | None, conversation_id: str,
-                             segment: tuple[datetime, datetime], at: datetime) -> None:
+                             segment: tuple[datetime, datetime], at: datetime, epoch: int) -> None:
         d = self._deps
         lines = await d.store.lines_between(conversation_id, segment[0], segment[1], RECAP_LINES_MAX)
         if len(lines) < RECAP_MIN_LINES:
             return
         text = await self._call(user_id, at, "recap", lambda deps: recap(deps, lines))
-        if text:
+        if text and await self._live(user_id, epoch, conversation_id):
             await d.store.add_recap(user_id, source="conversation", text=text, persona_id=persona_id,
                                     conversation_id=conversation_id)
             d.count("recaps")
             logger.info("agents memory recap written source=conversation")
 
     async def _roll(self, user_id: int, persona_id: str | None, key: ThreadKey, touch: ThreadTouch,
-                    at: datetime) -> None:
+                    at: datetime, epoch: int) -> None:
         d = self._deps
         backlog = await d.store.message_count(key.id) - d.settings().agents_history_max - touch.summarized_count
         if backlog < SUMMARY_BATCH:
             return
         dropped = await d.store.lines(key.id, offset=touch.summarized_count, limit=min(backlog, DROPPED_MAX))
         summary = await self._call(user_id, at, "summary", lambda deps: roll_summary(deps, touch, dropped))
-        if summary is None:
+        if summary is None or not await self._live(user_id, epoch, key.id):
             return
         rolls = touch.rolls_since_recap + (1 if summary != touch.summary else 0)
         if rolls >= RECAP_EVERY_ROLLS and summary:

@@ -13,7 +13,8 @@ from app.agents.memory import profile as profile_rules
 from app.agents.memory.retrieve import ItemView, eviction_order
 from app.agents.memory.tombstones import TOMBSTONES_MAX, bury, buried, clean_text, redact, text_hash
 from app.models import (
-    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, Message, iso_utc, utcnow,
+    AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState, Conversation, Message, iso_utc,
+    utcnow,
 )
 from app.services.stats import as_utc
 
@@ -32,6 +33,17 @@ LINE_ROLES = ("user", "assistant")
 
 class MemoryNotFound(Exception):
     pass
+
+
+_EPOCHS: dict[int, int] = {}  # 每进程、每用户的「清空代」:clear / 删除对话时 +1,整理任务启动时记下,写入前比对
+
+
+def epoch_of(user_id: int) -> int:
+    return _EPOCHS.get(user_id, 0)
+
+
+def bump_epoch(user_id: int) -> None:
+    _EPOCHS[user_id] = epoch_of(user_id) + 1
 
 
 class MemoryFull(Exception):
@@ -405,6 +417,7 @@ class MemoryStore:
         """scope="persona":该角色的长期记忆与回顾;scope="all":长期、回顾、线程状态、档案。被删条目进墓碑(R-M9)。"""
         if scope not in ("all", "persona") or (scope == "persona" and not persona_id):
             raise ValueError("scope")
+        bump_epoch(user_id)  # 进行中的整理任务在写入前发现代变了就丢弃输出
         item_where = [AgentMemoryItem.user_id == user_id]
         recap_where = [AgentRecap.user_id == user_id]
         if scope == "persona":
@@ -421,7 +434,15 @@ class MemoryStore:
                 threads = (await s.execute(delete(AgentThreadState).where(AgentThreadState.user_id == user_id))).rowcount
                 profile = bool((await s.execute(delete(AgentProfile).where(AgentProfile.user_id == user_id))).rowcount)
             await s.commit()
+        bump_epoch(user_id)
         return {"items": int(items or 0), "recaps": int(recaps or 0), "threads": int(threads or 0), "profile": profile}
+
+    def epoch(self, user_id: int) -> int:
+        return epoch_of(user_id)
+
+    async def conversation_exists(self, conversation_id: str) -> bool:
+        async with self._sm() as s:
+            return await s.scalar(select(Conversation.id).where(Conversation.id == conversation_id)) is not None
 
     async def export(self, user_id: int) -> dict:
         async with self._sm() as s:
@@ -456,6 +477,9 @@ class MemoryStore:
 async def drop_conversation(session: AsyncSession, conversation_id: str) -> None:
     """删除对话时由 routers/conversations.py 在同一事务里调用(不提交):短期状态与回顾随对话删除,
     长期记忆与档案保留(spec §8.5)。Postgres 有 ON DELETE CASCADE 兜底;SQLite 不强制外键,所以显式删除(R-M15)。"""
+    owner = await session.scalar(select(Conversation.user_id).where(Conversation.id == conversation_id))
+    if owner is not None:
+        bump_epoch(owner)  # 该用户进行中的整理任务丢弃输出(不再从被删对话派生任何东西)
     await session.execute(delete(AgentRecap).where(AgentRecap.conversation_id == conversation_id))
     await session.execute(delete(AgentThreadState).where(AgentThreadState.conversation_id == conversation_id))
 
