@@ -11,9 +11,10 @@ Off unless `LINKS_ENABLED`(每个联动另有 `LINK_<KEY>_ENABLED` 与每用户�
   `mistakes.py`(`WordAnswered`;`GET /mistakes`、`POST /mistakes/dismiss`)、`pron_shadow.py`(`AssessmentFinished`;
   `GET /weak-words`、`POST /weak-words/dismiss`、`GET /today-words`)、`chat_words.py`(`MessageSent`、段位来源 `word_in_chat`、
   可选 `JudgeRunner`;`GET /chat-words`)、`rank_sources.py`(只是 gate 键,无订阅无接口)
+- `agent_sources.py` – 智能体上下文来源(spec 2026-10-12-agents §3.3):`learned_words`、`weak_words`、`due_words`、`word_lookup`,`install(app)` 由 `create_app` 调用,注册进 `app.agents.orchestrator.runtime(app).registry`
 
 ## Allowed dependencies
-`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`、`app.rank`、`app.rooms`、`app.wordbook`。
+`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`、`app.rank`、`app.rooms`、`app.wordbook`、`app.agents`。
 只有 `app/routers/` 与 `app/main.py` 可以导入本包(`tests/test_architecture.py::test_links_is_a_top_layer`)。
 段位经 `app.models.LinkCredit` 读来源,不导入本包。
 
@@ -45,3 +46,7 @@ Off unless `LINKS_ENABLED`(每个联动另有 `LINK_<KEY>_ENABLED` 与每用户�
   查询参数只允许 `page`、`offset`,路径参数不允许(`test_links_privacy.py`)。
 - 段位来源注册表是进程级的:`chat_words.install` 在每次 `create_app` 时登记 `word_in_chat`;要空注册表的测试在应用建好之后再清空。
 - 删除用户:新表若有指向 `users.id` 的外键,把它加进 `app/admin/users_admin.USER_ROWS`(或 `USER_REFS_NULLED`),否则测试失败。
+- **R-A1(spec 2026-10-12-agents §3.3):** `agent_sources.py` 的来源**不受 `LINKS_ENABLED` 总开关和各联动开关控制**,
+  只受 `AGENTS_ENABLED`(路由 404)与用户 / 角色的智能体工具开关控制;它们只读、不发布事件、不写联动表。
+  `weak_words` 读 `link_mistake_words` / `link_weak_words`,联动从未开过时为空(来源返回 None)。
+- 来源会被 `agents.context.prefetch` 按超时取消:只读、自己开会话,取消后不能留下半写的状态;查词不为非当前书建索引。

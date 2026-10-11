@@ -23,6 +23,7 @@ from app.core.runtime_settings import (
     SettingsHub, reload_from_db, run_startup_hooks, runtime_problems, watch_revisions,
 )
 from app.links import purge as links_purge
+from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
@@ -84,6 +85,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.learning_bus = LearningBus(lambda: app.state.settings)  # learning links §4 (reads settings per call)
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
     agents_runtime(app)  # agents spec §3.3: sources, modes, hooks, idempotency ledger (plan R-C2); the only access is runtime(app)
+    install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
+    # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
+    # plan A2 (memory): runtime(app).registry.register(MemorySource(app)); runtime(app).hooks.after_turn.append(...)
+    # plan A3 (tutor): runtime(app).modes.register(TutorMode(...))
+    # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install)
     app.state.settings_hub = hub = SettingsHub(app.state)
