@@ -15,10 +15,11 @@ from app.agents.orchestrator import ModeRegistry, TurnHooks, run_turn
 from app.agents.orchestrator import deps_for as agents_deps_for
 from app.agents.personas import REPORT_REASONS, REPORTS_DAILY_MAX, Persona, PersonaStore
 from app.core.config import Settings
-from app.core.deps import current_user
+from app.core.deps import current_user, limited_user
 from app.models import User, utcnow
 from app.rooms import agent_config
 from app.rooms.agent_lane import AgentLane, AgentLaneDeps, AgentPrefs
+from app.rooms.agent_tutor import RoomTutor, TutorError
 from app.rooms.protocol import MAX_ID
 from app.rooms.store import RoomError
 from app.routers.rooms import RoomsRuntime, _raise, deps_for, require_rooms, runtime
@@ -121,6 +122,22 @@ def install(app, rt: RoomsRuntime) -> None:
 
     rt.agent_checker = check
 
+    tutor = RoomTutor(rt.agents)  # lane T: the room tutor "带练" (rooms/agent_tutor.py)
+    rt.agents.tutor = tutor
+
+    async def pause_running(_rt) -> None:
+        await tutor.pause_all()
+
+    async def forget_closed(_rt, room_id: str, _reason: str) -> None:
+        await tutor.on_close(room_id)
+
+    async def stop_timers(_rt) -> None:
+        await tutor.shutdown()
+
+    rt.startup_listeners.append(pause_running)
+    rt.close_listeners.append(forget_closed)
+    rt.shutdown_listeners.append(stop_timers)
+
 
 class AgentReportIn(BaseModel):
     reason: str = Field(max_length=32)
@@ -164,3 +181,71 @@ async def report_agent(room_id: str, persona_id: str, payload: AgentReportIn, re
     if result == "not_found":  # built-in or your own persona: nothing to report
         raise HTTPException(404, "Agent not found")
     return {"ok": True}
+
+
+TUTOR_ERRORS: dict[str, tuple[int, str]] = {
+    "disabled": (404, "Room tutor is off"), "forbidden": (403, "Only the owner can do that"),
+    "not_agent": (400, "Not an agent of this room"), "active": (409, "Room tutor is running"),
+    "ai_off": (409, "AI is off in this room"), "no_participants": (409, "Nobody online to practise with"),
+    "quota": (429, "Room tutor limit reached"), "not_waiting": (409, "Nobody is being asked"),
+    "not_paused": (409, "Room tutor is not paused"), "not_found": (404, "Room tutor not found"),
+}
+
+
+class TutorStartIn(BaseModel):
+    persona_id: str = Field(min_length=1, max_length=64)
+    steps: int | None = Field(None, ge=3, le=12)
+
+
+def _tutor_fail(e: TutorError):
+    status, message = TUTOR_ERRORS[e.code]
+    raise HTTPException(status, message) from None
+
+
+async def _tutor_of(request: Request, room_id: str, user: User):
+    rt, room, _member = await _member_room(request, room_id, user)
+    if rt.agents is None or rt.agents.tutor is None:
+        raise HTTPException(404, "Room tutor is off")
+    return rt.agents.tutor, room
+
+
+@router.post("/{room_id}/agents/tutor/start")
+async def tutor_start(room_id: str, payload: TutorStartIn, request: Request, user: User = Depends(limited_user),
+                      _: Settings = Depends(require_rooms)):
+    tutor, room = await _tutor_of(request, room_id, user)
+    try:
+        return {"tutor": await tutor.start(room.id, user.id, payload.persona_id[:MAX_ID], payload.steps)}
+    except TutorError as e:
+        _tutor_fail(e)
+
+
+@router.post("/{room_id}/agents/tutor/skip")
+async def tutor_skip(room_id: str, request: Request, user: User = Depends(current_user),
+                     _: Settings = Depends(require_rooms)):
+    tutor, room = await _tutor_of(request, room_id, user)
+    try:
+        await tutor.skip(room.id, user.id)
+    except TutorError as e:
+        _tutor_fail(e)
+    return {"ok": True}
+
+
+@router.post("/{room_id}/agents/tutor/stop")
+async def tutor_stop(room_id: str, request: Request, user: User = Depends(current_user),
+                     _: Settings = Depends(require_rooms)):
+    tutor, room = await _tutor_of(request, room_id, user)
+    try:
+        await tutor.stop(room.id, user.id)
+    except TutorError as e:
+        _tutor_fail(e)
+    return {"ok": True}
+
+
+@router.post("/{room_id}/agents/tutor/resume")
+async def tutor_resume(room_id: str, request: Request, user: User = Depends(limited_user),
+                       _: Settings = Depends(require_rooms)):
+    tutor, room = await _tutor_of(request, room_id, user)
+    try:
+        return {"tutor": await tutor.resume(room.id, user.id)}
+    except TutorError as e:
+        _tutor_fail(e)

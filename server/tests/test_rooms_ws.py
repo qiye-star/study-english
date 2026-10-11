@@ -377,10 +377,10 @@ def test_welcome_v2_and_new_frames_are_accepted(rooms_client):
 
 def test_runtime_extensions_and_after_close_listeners(rooms_client):
     """Plan P2-1: main installs the voice/summary extensions; a failing close listener never breaks closing."""
-    from app.routers import rooms_summary, rooms_voice
+    from app.routers import rooms_agents, rooms_summary, rooms_voice
 
     app, client = rooms_client
-    assert app.state.rooms_extensions == (rooms_voice.install, rooms_summary.install)
+    assert app.state.rooms_extensions == (rooms_voice.install, rooms_summary.install, rooms_agents.install)
     rt = rooms_router.runtime(app)
     assert rt.app is app and isinstance(rt.voice, rooms_voice.VoiceService)  # SV4 installs it
     calls = []

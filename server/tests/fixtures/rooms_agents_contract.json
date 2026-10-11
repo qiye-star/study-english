@@ -2,18 +2,18 @@
   "http": {
     "patch": {
       "room": {
-        "id": "46768d4c-7d97-4e4f-bdf4-4f3fce9a3fda",
-        "code": "490244",
+        "id": "d9bcfefd-dbe2-489d-871c-312f967da9b5",
+        "code": "842121",
         "topic": "面试",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 41810958,
+        "owner_id": 78838945,
         "my_role": "owner",
         "member_count": 2,
         "online_count": 0,
-        "created_at": "2026-10-11T12:40:03.642308+00:00",
+        "created_at": "2026-10-11T12:49:58.531636+00:00",
         "closed_at": null,
         "name": "面试",
         "scenario": "free",
@@ -43,12 +43,27 @@
         }
       ],
       "tutor": null
+    },
+    "tutor_start": {
+      "tutor": {
+        "persona_id": "builtin:coach",
+        "persona_name": "英语教练",
+        "phase": "generating",
+        "step_index": 0,
+        "steps_total": 3,
+        "current_user_id": null,
+        "current_name": null,
+        "deadline_at": null,
+        "remaining_ms": null,
+        "started_by": 78838945,
+        "paused_reason": null
+      }
     }
   },
   "ws": {
     "agent_step": {
       "type": "agent_step",
-      "turn_id": "045fa21b92354da1bfcf268966404244",
+      "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
       "reply_to": 3,
       "step": {
         "id": "s1",
@@ -65,7 +80,7 @@
     },
     "agent_thought": {
       "type": "agent_thought",
-      "turn_id": "045fa21b92354da1bfcf268966404244",
+      "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
       "reply_to": 3,
       "thought": {
         "source": "summary",
@@ -76,7 +91,7 @@
       "type": "message",
       "message": {
         "seq": 4,
-        "id": "42079c5b-e235-4dac-9f46-f465b56f744c",
+        "id": "561acdf0-a439-4988-b927-7dfbe4ba2fe9",
         "lane": "public",
         "kind": "ai_answer",
         "sender": {
@@ -94,11 +109,11 @@
             "name": "英语教练"
           },
           "asker": {
-            "id": 97266644,
+            "id": 74449995,
             "name": "bob"
           }
         },
-        "created_at": "2026-10-11T12:40:03.856028+00:00",
+        "created_at": "2026-10-11T12:49:58.751247+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -109,7 +124,7 @@
       "type": "message",
       "message": {
         "seq": 5,
-        "id": "381562e0-2f52-48fb-b215-29baa5d9ba7e",
+        "id": "4b1a0fc7-cf3d-47ba-a533-314035a99575",
         "lane": "private",
         "kind": "agent_trace",
         "sender": {
@@ -122,7 +137,7 @@
         "reply_to": 4,
         "ai_status": null,
         "meta": {
-          "turn_id": "045fa21b92354da1bfcf268966404244",
+          "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
           "trace": {
             "steps": [
               {
@@ -132,11 +147,27 @@
             ]
           }
         },
-        "created_at": "2026-10-11T12:40:03.860333+00:00",
+        "created_at": "2026-10-11T12:49:58.754286+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
         "reactions": []
+      }
+    },
+    "agent_tutor": {
+      "type": "agent_tutor",
+      "tutor": {
+        "persona_id": "builtin:coach",
+        "persona_name": "英语教练",
+        "phase": "await_answer",
+        "step_index": 1,
+        "steps_total": 3,
+        "current_user_id": 74449995,
+        "current_name": "bob",
+        "deadline_at": "2026-10-11T12:50:58.794385+00:00",
+        "remaining_ms": 59994,
+        "started_by": 78838945,
+        "paused_reason": null
       }
     }
   }
