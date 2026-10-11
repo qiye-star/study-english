@@ -29,7 +29,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
   `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`,
-  `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`)
+  `agents_unavailable` / `agents_native_unverified`, `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
   `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
   Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`
@@ -54,6 +54,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `reload` (`wordbook.reload`), `reports` (open reports grouped per sentence, text read from the dictionary),
   `resolve` hide/dismiss (`wordbook.sentence.hide` / `wordbook.report.dismiss`; hide refreshes the live hidden set).
   Never returns user input, explanation bodies or absolute paths
+- `agents_admin.py` – 智能体(spec 2026-10-12-agents §10.2):`overview`(数字)、`personas`(查询,含人设原文仅供审核)、`set_disabled` / `edit` / `remove` / `resolve`(审计 `agents.*`,只记 id、字段名与计数)、`probe_tools`(先调上游再审计;结果存 `app.state.agents_tools_probe`)。管理员不能读任何记忆内容
 - `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
@@ -65,7 +66,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
 ## Allowed dependencies
-`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`, `app.wordbook`.
+`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`, `app.wordbook`, `app.agents`.
 Only `app/routers/` and `app/main.py` may import `app.admin` (enforced by `tests/test_architecture.py`).
 Never import routers from here (room runtime lives in `routers/admin_rooms.py` via `app.routers.rooms.runtime`).
 

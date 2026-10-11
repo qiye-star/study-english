@@ -19,7 +19,7 @@ CODES = (
     "registration_open", "no_encryption_key", "superadmin_without_totp", "insecure_cookie", "invalid_overrides",
     "env_drift", "pending_restart", "sqlite_without_backup", "missing_prices", "login_alarm", "safe_mode",
     "retention_enabled", "invite_without_codes", "wordbook_data_missing", "wordbook_ai_unavailable",
-    "links_breaker_open", "links_dropping",
+    "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
 )
 
 
@@ -47,6 +47,7 @@ class Facts:
     wordbook_missing: tuple[str, ...] = ()  # enabled word books whose data file is missing
     links_breakers_open: int = 0  # learning links whose circuit breaker is open (this process)
     links_dropped: int = 0  # learning events dropped because the queue was full (this process, since start)
+    agents_probe_ok: bool = False  # last native function calling probe passed (this process; plan R-C7)
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -117,6 +118,11 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if f.links_dropped:
         out.append(Finding("warn", "links_dropping", ("links_enabled",),
                            "学习联动:事件队列有丢弃,考虑调大 LINKS_QUEUE_MAX"))
+    if getattr(s, "agents_enabled", False) and not s.upstream_llm_base_url:
+        out.append(Finding("warn", "agents_unavailable", ("upstream_llm_base_url",), "智能体已开启,但没有配置 LLM"))
+    if getattr(s, "agents_enabled", False) and getattr(s, "agents_tools_mode", "prefetch") == "native"             and not f.agents_probe_ok:
+        out.append(Finding("info", "agents_native_unverified", ("agents_tools_mode",),
+                           "AGENTS_TOOLS_MODE=native,但函数调用探测未通过或未运行:按 prefetch 运行(在「智能体」页运行探测)"))
     rank = {"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
@@ -187,4 +193,5 @@ async def gather_facts(session, app) -> Facts:
         missing_prices=await usage.missing_prices(session, app.state.settings, now), safe_mode=hub.safe_mode,
         live_invites=int(live_invites), wordbook_missing=_wordbook_missing(app.state.settings),
         links_breakers_open=links_open, links_dropped=links_dropped,
+        agents_probe_ok=bool((getattr(app.state, "agents_tools_probe", None) or {}).get("ok")),
     )
