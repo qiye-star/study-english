@@ -1,0 +1,143 @@
+{
+  "http": {
+    "patch": {
+      "room": {
+        "id": "46768d4c-7d97-4e4f-bdf4-4f3fce9a3fda",
+        "code": "490244",
+        "topic": "面试",
+        "status": "open",
+        "locked": false,
+        "ai_public": true,
+        "ai_muted": false,
+        "owner_id": 41810958,
+        "my_role": "owner",
+        "member_count": 2,
+        "online_count": 0,
+        "created_at": "2026-10-11T12:40:03.642308+00:00",
+        "closed_at": null,
+        "name": "面试",
+        "scenario": "free",
+        "level": "A2",
+        "join_mode": "code",
+        "max_members": 4,
+        "allow_voice": true,
+        "close_reason": null,
+        "agent_ids": [
+          "builtin:coach"
+        ]
+      }
+    },
+    "agents": {
+      "available": true,
+      "agents": [
+        {
+          "id": "builtin:coach",
+          "name": "英语教练",
+          "intro": "生成地道的美式英语，纽约腔调。",
+          "level": "B1",
+          "style": "concise",
+          "builtin": true,
+          "prompt_public": true,
+          "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容，而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语，纽约腔调。\n请尽量使用日常词汇，尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。",
+          "disabled": false
+        }
+      ],
+      "tutor": null
+    }
+  },
+  "ws": {
+    "agent_step": {
+      "type": "agent_step",
+      "turn_id": "045fa21b92354da1bfcf268966404244",
+      "reply_to": 3,
+      "step": {
+        "id": "s1",
+        "group": "context",
+        "key": "learned_words",
+        "status": "done",
+        "label_key": "agents.step.learned_words",
+        "private": true,
+        "params": {
+          "count": 6
+        },
+        "ms": 12
+      }
+    },
+    "agent_thought": {
+      "type": "agent_thought",
+      "turn_id": "045fa21b92354da1bfcf268966404244",
+      "reply_to": 3,
+      "thought": {
+        "source": "summary",
+        "text": "look up abandon"
+      }
+    },
+    "message_agent_answer": {
+      "type": "message",
+      "message": {
+        "seq": 4,
+        "id": "42079c5b-e235-4dac-9f46-f465b56f744c",
+        "lane": "public",
+        "kind": "ai_answer",
+        "sender": {
+          "kind": "ai",
+          "id": null,
+          "name": null
+        },
+        "text": "Sure, try: I never abandon a project halfway.",
+        "assisted": false,
+        "reply_to": 3,
+        "ai_status": null,
+        "meta": {
+          "agent": {
+            "persona_id": "builtin:coach",
+            "name": "英语教练"
+          },
+          "asker": {
+            "id": 97266644,
+            "name": "bob"
+          }
+        },
+        "created_at": "2026-10-11T12:40:03.856028+00:00",
+        "hidden": false,
+        "quote": null,
+        "voice": null,
+        "reactions": []
+      }
+    },
+    "message_agent_trace": {
+      "type": "message",
+      "message": {
+        "seq": 5,
+        "id": "381562e0-2f52-48fb-b215-29baa5d9ba7e",
+        "lane": "private",
+        "kind": "agent_trace",
+        "sender": {
+          "kind": "ai",
+          "id": null,
+          "name": null
+        },
+        "text": "",
+        "assisted": false,
+        "reply_to": 4,
+        "ai_status": null,
+        "meta": {
+          "turn_id": "045fa21b92354da1bfcf268966404244",
+          "trace": {
+            "steps": [
+              {
+                "key": "learned_words",
+                "status": "done"
+              }
+            ]
+          }
+        },
+        "created_at": "2026-10-11T12:40:03.860333+00:00",
+        "hidden": false,
+        "quote": null,
+        "voice": null,
+        "reactions": []
+      }
+    }
+  }
+}
