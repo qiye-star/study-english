@@ -20,9 +20,10 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 ## Slots(插槽)与 room-page 冻结
 `room-page.tsx` 在 F5 之后冻结:只接线,不放功能逻辑。各子目录通过固定签名的插槽接入——
 `AssistDock` / `AssistEntry`(composer 的 `leading`)、`VoiceInput`(composer 的语音输入)、`QuoteBar` + `ActivityLine`(输入条上方)、
-`JoinRequestBanner`、`SummaryCard`(已结束房间)、`InviteSheet`;消息列表里是 `VoiceBubble`、`QuoteBlock`、`ReactionBar`、`MessageActions`、`TextTranslation`。
+`JoinRequestBanner`、`SummaryCard`(已结束房间)、`ReopenBar`(已结束房间,房主)、`InviteSheet`;消息列表里是 `VoiceBubble`、`QuoteBlock`、`ReactionBar`、`MessageActions`、`TextTranslation`。
 冻结的理由:四条并行车道(create / voice / assist / extras)都要接进同一页面,只改插槽实现、不改页面,才能互不冲突、单独测试。
 确实要改页面时在计划里写 Addendum 说明理由(参见计划的 WA-1、WE-1、WV-1)。
+WR-1(2026-10-12):`room-page.tsx` 只增加 `ReopenBar` 一行接线,理由:重新开启入口只能出现在页面的结束态里;逻辑全在 `extras/reopen-bar.tsx` 与 `use-room.ts`。
 
 ## Public surface
 `RoomsLobbyPage`、`RoomPage`、`RoomInvitePage`(`/rooms/invite/:token`)、`RoomSummaryPage`(`/rooms/r/:roomId/summary`)、`fetchRoomsConfig`、`useRoomsEnabled`。
