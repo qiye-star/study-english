@@ -63,8 +63,15 @@ export interface RoomSettings {
 /** operator 可改的 5 项(服务端 PATCH /api/admin/rooms/{id}/settings)。 */
 export type RoomSettingsChanges = Partial<Pick<RoomSettings, "name" | "joinMode" | "maxMembers" | "aiPublic" | "allowVoice">>;
 
+/** 房间里的智能体(plan 2026-10-12-agents-rooms A1):只读,人设原文在「智能体」页审核。 */
+export interface RoomAgent { id: string; name: string; builtin: boolean; disabled: boolean; ownerId: number | null }
+export interface RoomTutorState { phase: "generating" | "await_answer" | "paused" | null; stepIndex: number | null; stepsTotal: number | null; personaId: string | null }
+
 export interface RoomDetail extends RoomRow {
   settings: RoomSettings;
+  /** 旧服务端没有时为 undefined */
+  agents?: RoomAgent[];
+  tutor?: RoomTutorState | null;
   reportCount: number;
   members: RoomMember[];
 }

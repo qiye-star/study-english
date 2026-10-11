@@ -214,3 +214,20 @@ it("a viewer cannot reopen", async () => {
   await screen.findByText("结束于", { exact: false });
   expect(screen.queryByRole("button", { name: "重新开启" })).toBeNull();
 });
+
+it("shows the room's agents and tutor read-only", async () => {
+  vi.mocked(api.getRoom).mockResolvedValue(roomFixture({
+    aiMuted: true,
+    agents: [{ id: "builtin:coach", name: "Emma", builtin: true, disabled: false, ownerId: null },
+      { id: "u1", name: "Leo", builtin: false, disabled: true, ownerId: 11111111 }],
+    tutor: { phase: "await_answer", stepIndex: 2, stepsTotal: 8, personaId: "builtin:coach" },
+  }));
+  renderPage();
+  const card = await screen.findByRole("region", { name: "智能体" });
+  expect(within(card).getByText("Emma")).toBeInTheDocument();
+  expect(within(card).getByText("内置")).toBeInTheDocument();
+  expect(within(card).getByText("已停用")).toBeInTheDocument();
+  expect(within(card).getByText("带练中 · 第 2/8 题")).toBeInTheDocument();
+  expect(within(card).getByText("本房 AI 已禁用:智能体与带练也不会回答")).toBeInTheDocument();
+  expect(within(card).queryByRole("button")).toBeNull();
+});

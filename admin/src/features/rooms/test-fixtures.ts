@@ -21,6 +21,8 @@ export const roomFixture = (over: Partial<RoomDetail> = {}): RoomDetail => ({
   ...roomRow(),
   settings: settingsFixture(),
   reportCount: 1,
+  agents: [],
+  tutor: null,
   members: [
     { userId: 11111111, name: "alice", role: "owner", joinedAt: "2026-10-09T09:00:00Z", leftAt: null, kicked: false, online: true },
     { userId: 22222222, name: "bob", role: "member", joinedAt: "2026-10-09T09:01:00Z", leftAt: null, kicked: false, online: false },

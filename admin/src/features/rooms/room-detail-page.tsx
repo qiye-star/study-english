@@ -86,6 +86,32 @@ function SettingRow({ id, label, value }: { id: string; label: string; value: st
   );
 }
 
+const AG = S.agents;
+
+/** 房间里的智能体与带练状态(只读;「禁用本房 AI」同时禁用它们,R-RA5)。 */
+function AgentsCard({ room }: { room: RoomDetail }) {
+  const agents = room.agents ?? [];
+  const tutor = room.tutor ?? null;
+  return (
+    <section className="panel" aria-label={AG.title}>
+      <div className="panel-head">
+        <h2 className="text-sm font-semibold">{AG.title}</h2>
+      </div>
+      <div className="space-y-1.5 px-4 pb-3 text-sm">
+        {agents.length === 0 ? <p className="text-fg-2">{AG.empty}</p> : agents.map((a) => (
+          <div key={a.id} className="flex items-center gap-2">
+            <span className="min-w-0 truncate font-medium">{a.name}</span>
+            {a.builtin && <span className="badge">{AG.builtin}</span>}
+            {a.disabled && <span className="badge bg-warn-soft text-warn">{AG.disabled}</span>}
+          </div>
+        ))}
+        {tutor && <p className="text-fg-2">{tutor.phase === "paused" ? AG.tutorPaused : AG.tutor(tutor.stepIndex, tutor.stepsTotal)}</p>}
+        {room.aiMuted && agents.length > 0 && <p className="text-warn">{AG.muted}</p>}
+      </div>
+    </section>
+  );
+}
+
 /** 7 项设置 + 锁定 + 邀请链接是否已生成(不显示 token);operator 可改 5 项,保存需填理由。 */
 function SettingsCard({ room, canEdit, onEdit }: { room: RoomDetail; canEdit: boolean; onEdit: () => void }) {
   const s = room.settings;
@@ -383,6 +409,7 @@ export function RoomDetailPage() {
             </section>
             <div className="space-y-4">
               <SettingsCard room={r} canEdit={canModerate && r.status === "open"} onEdit={() => setEditing(true)} />
+              <AgentsCard room={r} />
               <aside className="panel" aria-label={D.members}>
                 <div className="panel-head">
                   <h2 className="text-sm font-semibold">{D.members}</h2>
