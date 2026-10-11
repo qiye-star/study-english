@@ -81,3 +81,44 @@ async def test_exercising_every_link_endpoint_logs_no_word_text_or_user_id(app, 
     server_logs = [r.getMessage() for r in caplog.records
                    if not r.name.startswith(("httpx", "httpcore", "aiosqlite", "sqlalchemy"))]
     assert not [m for m in server_logs if WORD in m.lower() or "quokka" in m.lower() or TEXT in m]
+
+
+ROUTE_LINK = {  # every /api/links route except config / prefs belongs to exactly one link
+    "/api/links/wordbook/adopt": "word_actions", "/api/links/wordbook/card": "word_actions",
+    "/api/links/today": "daily_tasks", "/api/links/mistakes": "mistakes", "/api/links/mistakes/dismiss": "mistakes",
+    "/api/links/weak-words": "pron_shadow", "/api/links/weak-words/dismiss": "pron_shadow",
+    "/api/links/today-words": "pron_shadow", "/api/links/chat-words": "chat_words",
+}
+
+
+async def test_every_link_route_honours_master_global_and_user_switches(app, client, tmp_path):
+    """Review Z2 (toggle bypass): each link endpoint is 404 `Link is off` with the master switch off, with its own
+    global flag off and with the user's own switch off — and never 404 for another link's switch."""
+    from app.links.spec import flag_of
+    routes = {p: r for p, r in _link_routes(app) if p.startswith("/api/links")}
+    assert set(routes) - {"/api/links/config", "/api/links/prefs"} == set(ROUTE_LINK)
+    enable_wordbook(app, make_data_dir(tmp_path))
+    r = await client.post("/api/users", json={"username": "gina", "password": "password123"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+    async def call(path):
+        method = sorted(routes[path].methods)[0]
+        body = {"word": WORD} if method == "POST" else None
+        return await client.request(method, path, headers=h, json=body)
+
+    off = (404, {"error": "Link is off"})
+    enable_links(app, links_enabled=False)
+    for path in ROUTE_LINK:
+        resp = await call(path)
+        assert (resp.status_code, resp.json()) == off, path
+    for path, key in ROUTE_LINK.items():
+        enable_links(app, **{flag_of(k): k != key for k in set(ROUTE_LINK.values())})
+        resp = await call(path)
+        assert (resp.status_code, resp.json()) == off, (path, "global")
+        enable_links(app, **{flag_of(k): True for k in set(ROUTE_LINK.values())})
+        assert (await client.put("/api/links/prefs", headers=h, json={"key": key, "enabled": False})).status_code == 200
+        resp = await call(path)
+        assert (resp.status_code, resp.json()) == off, (path, "user")
+        assert (await client.put("/api/links/prefs", headers=h, json={"key": key, "enabled": True})).status_code == 200
+        resp = await call(path)
+        assert (resp.status_code, resp.json()) != off, (path, "on")
