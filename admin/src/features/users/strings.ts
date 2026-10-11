@@ -74,6 +74,10 @@ export const S = {
       rooms_voice_quota_mb: "联机语音每日上传(MB)",
       rooms_voice_daily_per_user: "每日联机语音条数",
       wordbook_ai_daily_per_user: "每人每日 AI 讲解次数",
+      agents_turns_daily_per_user: "每人每日智能体回合",
+      agents_personas_max: "自建角色上限",
+      agents_tutor_daily_per_user: "每人每日导师会话",
+      agents_memory_extract_daily_per_user: "每人每日记忆整理",
     } as Record<string, string>,
   },
   list: {

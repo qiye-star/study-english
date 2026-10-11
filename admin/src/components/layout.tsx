@@ -7,6 +7,8 @@ import { hasRole, type AdminSession, type Role } from "../api/session";
 import { S as WORDBOOK_STRINGS } from "../features/wordbook/strings";
 import { LinkIcon } from "../features/links/link-icon";
 import { S as LINKS_STRINGS } from "../features/links/strings";
+import { AgentIcon } from "../features/agents/agent-icon";
+import { S as AGENTS_STRINGS } from "../features/agents/strings";
 import { S } from "../strings";
 import {
   BackIcon,
@@ -86,6 +88,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: "/settings", label: I.settings, icon: GearIcon, min: "viewer" },
       { to: "/prompts", label: I.prompts, icon: TextIcon, min: "viewer" },
       { to: "/links", label: LINKS_STRINGS.title, icon: LinkIcon, min: "viewer" },
+      { to: "/agents", label: AGENTS_STRINGS.title, icon: AgentIcon, min: "viewer" },
       { to: "/announcements", label: I.announcements, icon: MegaphoneIcon, min: "operator" },
     ],
   },
