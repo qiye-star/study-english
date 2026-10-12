@@ -617,3 +617,140 @@ def definitions_problems(path: Path) -> list[str]:
         if any(n > MAX_PER_POS for n in per_pos.values()):
             problems.append(f"line {number}: more than {MAX_PER_POS} per POS ({word})")
     return problems
+
+
+# ---------------------------------------------------------------- llm-fill
+
+class LlmClient(Protocol):
+    async def complete(self, messages: list[dict]) -> str: ...
+
+
+class LlmStopped(Exception):
+    """The upstream refused (balance / config / network): stop at once, keep the progress."""
+
+    def __init__(self, status: int = 0, kind: str = ""):
+        super().__init__(f"{kind or 'http'} {status}")
+        self.status, self.kind = status, kind
+
+
+SYSTEM_PROMPT = (
+    "You write short English dictionary definitions for a learner's word list (CEFR A2-B1 vocabulary). "
+    "For each word and each part of speech listed, write exactly one definition of at most 12 words that uses "
+    "simple common words and does not repeat the headword. Part-of-speech codes: n noun, v verb, a adjective, "
+    "r adverb, prep preposition, pron pronoun or determiner, conj conjunction, art article, num numeral, "
+    "aux auxiliary or modal verb, int interjection. Reply with JSON only, no prose and no code fences: "
+    '[{"word": "...", "defs": [{"pos": "...", "text": "..."}]}]. Keep the word and pos values exactly as given.')
+
+
+def llm_candidates(gaps: list[Gap], done: set[str]) -> list[Gap]:
+    """Gaps worth a model call: everything except proper nouns and abbreviations, not yet filled, with a known POS."""
+    return [g for g in gaps if g.category not in ("proper", "abbr") and g.word not in done and "-" not in g.pos]
+
+
+def make_batches(gaps: list[Gap], size: int = LLM_BATCH) -> list[list[Gap]]:
+    return [gaps[i:i + size] for i in range(0, len(gaps), size)]
+
+
+def build_messages(batch: list[Gap]) -> list[dict]:
+    payload = json.dumps([{"word": g.word, "pos": list(g.pos)} for g in batch], ensure_ascii=False)
+    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": payload}]
+
+
+_FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.S)
+
+
+def parse_reply(text: str, batch: list[Gap]) -> dict[str, list[dict]]:
+    """Strict: a JSON array (one optional fenced block tolerated). Returns only fully valid words: requested word,
+    exactly one def per requested POS, no extra POS, valid text. Anything else is dropped (it stays in the queue)."""
+    body = (text or "").strip()
+    fenced = _FENCE.match(body)
+    try:
+        rows = json.loads(fenced.group(1) if fenced else body)
+    except ValueError:
+        return {}
+    if not isinstance(rows, list):
+        return {}
+    asked = {g.word: g.pos for g in batch}
+    out: dict[str, list[dict]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("word") not in asked or row["word"] in out:
+            continue
+        defs = row.get("defs")
+        if not isinstance(defs, list) or len(defs) != len(asked[row["word"]]):
+            continue
+        good, seen = [], set()
+        for d in defs:
+            if not isinstance(d, dict) or d.get("pos") not in asked[row["word"]] or d["pos"] in seen:
+                break
+            if validate_def(d["pos"], d.get("text"), "llm"):
+                break
+            seen.add(d["pos"])
+            good.append({"pos": d["pos"], "text": d["text"], "src": "llm"})
+        else:
+            out[row["word"]] = sorted(good, key=lambda d: asked[row["word"]].index(d["pos"]))
+    return out
+
+
+def read_llm_rows(path: Path) -> dict[str, list[dict]]:
+    rows: dict[str, list[dict]] = {}
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").split("\n"):
+            if line.strip():
+                row = json.loads(line)
+                rows[row["word"]] = row["defs"]
+    return rows
+
+
+def write_llm_rows(path: Path, rows: dict[str, list[dict]]) -> None:
+    write_bytes(path, "".join(dump_line({"word": w, "defs": rows[w]}) + "\n" for w in sorted(rows)).encode("utf-8"))
+
+
+async def run_fill(client: LlmClient, gaps: list[Gap], out_path: Path, *, size: int = LLM_BATCH,
+                   max_batches: int | None = None) -> dict:
+    """Resumable: words already in `out_path` are skipped, the file is rewritten (sorted) after every batch.
+    LlmStopped propagates after the progress is saved. A batch whose reply is unusable is counted and skipped."""
+    rows = read_llm_rows(out_path)
+    todo = llm_candidates(gaps, set(rows))
+    report = {"candidates": len(todo), "batches": 0, "filled": 0, "rejected_words": 0, "bad_batches": 0}
+    for batch in make_batches(todo, size):
+        if max_batches is not None and report["batches"] >= max_batches:
+            break
+        report["batches"] += 1
+        reply = await client.complete(build_messages(batch))  # may raise LlmStopped
+        good = parse_reply(reply, batch)
+        if not good:
+            report["bad_batches"] += 1
+        report["filled"] += len(good)
+        report["rejected_words"] += len(batch) - len(good)
+        rows.update(good)
+        write_llm_rows(out_path, rows)
+    return report
+
+
+def spot_check(llm_path: Path, pct: int = SPOT_CHECK_PCT, seed: int = 20261012) -> list[tuple[str, str, str]]:
+    """Deterministic ~pct% sample of (word, pos, text) for the human review."""
+    flat = [(w, d["pos"], d["text"]) for w, defs in sorted(read_llm_rows(llm_path).items()) for d in defs]
+    if not flat:
+        return []
+    return sorted(random.Random(seed).sample(flat, max(1, round(len(flat) * pct / 100))))
+
+
+class RealLlm:
+    """Dev-machine client through the server's own LLM provider settings (server/.env)."""
+
+    def __init__(self):
+        import httpx
+        from app.core.config import Settings
+        self._http = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
+        self._settings = Settings()
+
+    async def complete(self, messages: list[dict]) -> str:
+        from app.providers import llm
+        try:
+            return await llm.complete(self._http, self._settings, messages, model=self._settings.default_llm_model,
+                                      max_tokens=4000, temperature=0.2, timeout=120.0)
+        except llm.LlmUnavailable as e:
+            raise LlmStopped(e.status, e.kind) from None
+
+    async def aclose(self) -> None:
+        await self._http.aclose()

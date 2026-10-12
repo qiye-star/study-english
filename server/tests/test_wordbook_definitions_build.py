@@ -385,3 +385,158 @@ def test_verify_reports_missing_wrong_size_and_wrong_hash(tmp_path, monkeypatch)
     assert wd.verify(sources)[0].endswith("sha256 mismatch")
     monkeypatch.setitem(wd.INPUTS, "oewn", {**pinned, "sha256": wd.sha256_of(zip_path)})
     assert wd.verify(sources) == ["ecdict-sqlite-28.zip: missing"]
+
+
+# ---- llm-fill with a fake model ----
+
+class FakeLlm:
+    def __init__(self, replies=None, stop_after=None):
+        self.calls, self.replies, self.stop_after = [], replies or {}, stop_after
+
+    async def complete(self, messages):
+        self.calls.append(messages)
+        if self.stop_after is not None and len(self.calls) > self.stop_after:
+            raise wd.LlmStopped(402, "http")
+        asked = json.loads(messages[-1]["content"])
+        reply = self.replies.get(len(self.calls))
+        if reply is not None:
+            return reply
+        return json.dumps([{"word": a["word"], "defs": [{"pos": p, "text": f"meaning of {a['word']} as {p}"} for p in a["pos"]]}
+                           for a in asked])
+
+
+def gap(word, pos=("n",), category="other", frq=0):
+    return wd.Gap(word, pos, category, frq)
+
+
+def test_candidates_skip_proper_nouns_abbreviations_unknown_pos_and_done_words():
+    gaps = [gap("a1"), gap("a2", category="proper"), gap("a3", category="abbr"), gap("a4", ("-",)), gap("a5"),
+            gap("a6", ("prep",), "function")]
+    assert [g.word for g in wd.llm_candidates(gaps, {"a5"})] == ["a1", "a6"]
+
+
+def test_batches_are_forty_words():
+    batches = wd.make_batches([gap(f"w{i:03d}") for i in range(85)])
+    assert [len(b) for b in batches] == [40, 40, 5] and wd.LLM_BATCH == 40
+
+
+def test_prompt_is_json_only_and_carries_word_and_pos_only():
+    messages = wd.build_messages([gap("sweaty", ("a",)), gap("for", ("prep", "conj"), "function")])
+    assert messages[0]["role"] == "system" and "at most 12 words" in messages[0]["content"] and "JSON only" in messages[0]["content"]
+    assert json.loads(messages[1]["content"]) == [{"word": "sweaty", "pos": ["a"]}, {"word": "for", "pos": ["prep", "conj"]}]
+
+
+def test_parse_reply_is_strict():
+    batch = [gap("sweaty", ("a",)), gap("for", ("prep", "conj"), "function"), gap("eke", ("v",))]
+    good = [{"word": "sweaty", "defs": [{"pos": "a", "text": "wet with sweat"}]}]
+    assert wd.parse_reply(json.dumps(good), batch)["sweaty"] == [{"pos": "a", "text": "wet with sweat", "src": "llm"}]
+    assert wd.parse_reply("```json\n" + json.dumps(good) + "\n```", batch).keys() == {"sweaty"}
+    assert wd.parse_reply("Sure! " + json.dumps(good), batch) == {}                       # prose around the JSON
+    assert wd.parse_reply('{"word": "sweaty"}', batch) == {} and wd.parse_reply("", batch) == {}
+    reject = [
+        {"word": "other", "defs": [{"pos": "a", "text": "x"}]},                              # not asked
+        {"word": "for", "defs": [{"pos": "prep", "text": "x"}]},                              # a POS missing
+        {"word": "for", "defs": [{"pos": "prep", "text": "x"}, {"pos": "prep", "text": "y"}]},  # a POS twice
+        {"word": "for", "defs": [{"pos": "prep", "text": "x"}, {"pos": "n", "text": "y"}]},     # a POS not asked
+        {"word": "eke", "defs": [{"pos": "v", "text": " ".join(["w"] * 13)}]},                 # 13 words
+        {"word": "eke", "defs": [{"pos": "v", "text": "中文"}]},
+        {"word": "eke", "defs": [{"pos": "v"}]}, {"word": "eke", "defs": "x"}, "junk", None]
+    assert wd.parse_reply(json.dumps(reject), batch) == {}
+    both = wd.parse_reply(json.dumps([{"word": "for", "defs": [{"pos": "conj", "text": "because"}, {"pos": "prep", "text": "to help"}]}]), batch)
+    assert [d["pos"] for d in both["for"]] == ["prep", "conj"]  # asked order
+
+
+def test_run_fill_writes_sorted_rows_and_reports(tmp_path):
+    out = tmp_path / "definitions-llm.jsonl"
+    gaps = [gap(f"w{i:03d}") for i in range(85)]
+    llm = FakeLlm()
+    report = asyncio.run(wd.run_fill(llm, gaps, out))
+    assert report == {"candidates": 85, "batches": 3, "filled": 85, "rejected_words": 0, "bad_batches": 0}
+    rows = [json.loads(l) for l in out.read_text(encoding="utf-8").splitlines()]
+    assert [r["word"] for r in rows] == sorted(r["word"] for r in rows) and len(rows) == 85
+    assert all(d["src"] == "llm" for r in rows for d in r["defs"])
+    assert b"\r" not in out.read_bytes()
+
+
+def test_run_fill_resumes_after_a_402_and_never_repeats_a_word(tmp_path):
+    out = tmp_path / "definitions-llm.jsonl"
+    gaps = [gap(f"w{i:03d}") for i in range(85)]
+    first = FakeLlm(stop_after=1)  # the second call answers 402
+    with pytest.raises(wd.LlmStopped) as caught:
+        asyncio.run(wd.run_fill(first, gaps, out))
+    assert caught.value.status == 402 and len(first.calls) == 2
+    assert len(out.read_text(encoding="utf-8").splitlines()) == 40  # progress kept
+    second = FakeLlm()
+    report = asyncio.run(wd.run_fill(second, gaps, out))
+    assert report["candidates"] == 45 and report["filled"] == 45 and len(second.calls) == 2
+    asked = {a["word"] for call in first.calls[:1] + second.calls for a in json.loads(call[-1]["content"])}
+    assert len(asked) == 85 and len(out.read_text(encoding="utf-8").splitlines()) == 85
+
+
+def test_run_fill_counts_bad_replies_and_keeps_those_words_queued(tmp_path):
+    out = tmp_path / "definitions-llm.jsonl"
+    gaps = [gap("aaa"), gap("bbb")]
+    report = asyncio.run(wd.run_fill(FakeLlm({1: "not json"}), gaps, out))
+    assert report["bad_batches"] == 1 and report["filled"] == 0 and not out.exists() or out.read_text(encoding="utf-8") == ""
+    report = asyncio.run(wd.run_fill(FakeLlm(), gaps, out))
+    assert report["filled"] == 2
+
+
+def test_run_fill_max_batches(tmp_path):
+    out = tmp_path / "definitions-llm.jsonl"
+    llm = FakeLlm()
+    report = asyncio.run(wd.run_fill(llm, [gap(f"w{i:03d}") for i in range(85)], out, max_batches=1))
+    assert report["batches"] == 1 and len(llm.calls) == 1 and len(out.read_text(encoding="utf-8").splitlines()) == 40
+
+
+def test_spot_check_is_a_stable_five_percent_sample(tmp_path):
+    out = tmp_path / "definitions-llm.jsonl"
+    asyncio.run(wd.run_fill(FakeLlm(), [gap(f"w{i:03d}") for i in range(100)], out))
+    sample = wd.spot_check(out)
+    assert len(sample) == 5 and sample == wd.spot_check(out) and sample == sorted(sample)
+    assert wd.spot_check(tmp_path / "none.jsonl") == []
+
+
+def test_fill_then_build_merges_the_filled_words(env):
+    run_build(env)
+    gaps = wd.read_missing(env["out"] / "missing.txt")
+    asyncio.run(wd.run_fill(FakeLlm(), gaps, env["out"] / "definitions-llm.jsonl"))
+    result = run_build(env)
+    rows = rows_of(env)
+    assert rows["sweaty"] == [("a", "meaning of sweaty as a", "llm")] and rows["the"][0][2] == "llm"
+    assert "america" not in rows and "tv" not in rows  # proper nouns / abbreviations are never sent
+    assert result.stats["gap_categories"]["function"] == 0 and result.stats["gap_categories"]["other"] == 1  # only the word with no POS
+    assert wd.check(env["out"]) == []
+
+
+# ---- the real client (only the mapping; nothing is ever sent for real) ----
+
+async def test_real_client_maps_an_upstream_refusal_to_a_clean_stop(monkeypatch):
+    """No http, no .env: `Settings` and `llm.complete` are replaced, so nothing is ever sent."""
+    from app.providers import llm
+    import app.core.config as config
+
+    class StubSettings:
+        default_llm_model = "stub-model"
+
+    seen = {}
+
+    async def refuse(http, settings, messages, **kw):
+        seen["model"] = kw["model"]
+        raise llm.LlmUnavailable("http", 402)
+
+    monkeypatch.setattr(config, "Settings", StubSettings)
+    monkeypatch.setattr(llm, "complete", refuse)
+    client = wd.RealLlm()
+    try:
+        with pytest.raises(wd.LlmStopped) as caught:
+            await client.complete([{"role": "user", "content": "[]"}])
+        assert caught.value.status == 402 and caught.value.kind == "http" and seen["model"] == "stub-model"
+
+        async def answer(http, settings, messages, **kw):
+            return "[]"
+
+        monkeypatch.setattr(llm, "complete", answer)
+        assert await client.complete([{"role": "user", "content": "[]"}]) == "[]"
+    finally:
+        await client.aclose()
