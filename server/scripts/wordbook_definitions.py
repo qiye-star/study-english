@@ -754,3 +754,73 @@ class RealLlm:
 
     async def aclose(self) -> None:
         await self._http.aclose()
+
+
+# ---------------------------------------------------------------- cli
+
+def _sources_arg(value: str | None) -> Path | None:
+    raw = value or os.environ.get("WORDBOOK_DEFS_SOURCES")
+    return Path(raw) if raw else None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("command", choices=("verify", "build", "check", "llm-fill"))
+    parser.add_argument("--sources", help="dir holding the two input zips (default: env WORDBOOK_DEFS_SOURCES)")
+    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
+    parser.add_argument("--books-dir", type=Path, default=BOOKS_DIR)
+    parser.add_argument("--work", type=Path, help="scratch dir for the extracted stardict.db")
+    parser.add_argument("--built", help="YYYY-MM-DD written to SOURCE.json (default: kept when the output is unchanged)")
+    parser.add_argument("--max-batches", type=int, help="llm-fill: stop after N batches")
+    parser.add_argument("--report", type=Path, help="llm-fill: spot-check report path")
+    args = parser.parse_args(argv)
+    sources = _sources_arg(args.sources)
+    if args.command == "check":
+        problems = check(args.data_dir)
+    elif args.command == "verify":
+        if sources is None:
+            raise SystemExit("pass --sources or set WORDBOOK_DEFS_SOURCES")
+        problems = verify(sources)
+    elif args.command == "build":
+        if sources is None:
+            raise SystemExit("pass --sources or set WORDBOOK_DEFS_SOURCES")
+        if problems := verify(sources):
+            print("\n".join(problems))
+            return 1
+        stats = build(sources, args.data_dir, args.books_dir, built=args.built, work=args.work).stats
+        print(json.dumps(stats, indent=2))
+        return 0
+    else:
+        return _llm_fill_cli(args)
+    print("\n".join(problems) if problems else "ok")
+    return 1 if problems else 0
+
+
+def _llm_fill_cli(args) -> int:
+    missing = args.data_dir / FILES["missing"]
+    if not missing.is_file():
+        raise SystemExit("run `build` first: missing.txt not found")
+    out = args.data_dir / FILES["llm"]
+    client = RealLlm()
+
+    async def go() -> dict:
+        try:
+            return await run_fill(client, read_missing(missing), out, max_batches=args.max_batches)
+        finally:
+            await client.aclose()
+
+    try:
+        report = asyncio.run(go())
+    except LlmStopped as e:
+        print(f"llm-fill stopped: upstream answered {e.kind or 'http'} {e.status}; progress kept, run again later")
+        return 3
+    print(json.dumps(report))
+    sample = spot_check(out)
+    path = args.report or Path(tempfile.gettempdir()) / "wordbook-defs-llm-spotcheck.txt"
+    write_bytes(path, "".join(f"{w}\t{p}\t{t}\n" for w, p, t in sample).encode("utf-8"))
+    print(f"spot-check sample ({len(sample)} defs): {path}; review it, then run `build` to merge")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

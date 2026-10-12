@@ -540,3 +540,41 @@ async def test_real_client_maps_an_upstream_refusal_to_a_clean_stop(monkeypatch)
         assert await client.complete([{"role": "user", "content": "[]"}]) == "[]"
     finally:
         await client.aclose()
+
+
+def test_cli_check_and_missing_sources_message(env, capsys, monkeypatch):
+    run_build(env)
+    assert wd.main(["check", "--data-dir", str(env["out"])]) == 0 and capsys.readouterr().out.strip() == "ok"
+    monkeypatch.delenv("WORDBOOK_DEFS_SOURCES", raising=False)
+    with pytest.raises(SystemExit, match="WORDBOOK_DEFS_SOURCES"):
+        wd.main(["verify"])
+    monkeypatch.setenv("WORDBOOK_DEFS_SOURCES", str(env["out"]))
+    assert wd.main(["verify"]) == 1 and "missing" in capsys.readouterr().out
+
+
+def test_the_script_is_not_imported_by_the_app():
+    for path in (SERVER / "app").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert "import wordbook_definitions" not in text and "scripts.wordbook_definitions" not in text, path
+
+
+def test_cli_llm_fill_runs_through_a_fake_client_and_exits_3_when_the_upstream_stops(env, capsys, monkeypatch, tmp_path):
+    run_build(env)
+
+    class Wrapped(FakeLlm):
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr(wd, "RealLlm", lambda: Wrapped())
+    report = tmp_path / "spot.txt"
+    args = ["llm-fill", "--data-dir", str(env["out"]), "--report", str(report)]
+    assert wd.main(args) == 0 and (env["out"] / "definitions-llm.jsonl").is_file() and report.is_file()
+    assert "spot-check" in capsys.readouterr().out
+    (env["out"] / "definitions-llm.jsonl").unlink()
+    monkeypatch.setattr(wd, "RealLlm", lambda: Wrapped(stop_after=0))
+    assert wd.main(args) == 3 and "stopped" in capsys.readouterr().out
+
+
+def test_cli_llm_fill_needs_a_built_missing_list(tmp_path):
+    with pytest.raises(SystemExit, match="build"):
+        wd.main(["llm-fill", "--data-dir", str(tmp_path)])
