@@ -1,7 +1,8 @@
 """导师模式块(spec §7.2–7.3、§6.3;计划 A3 S4)。"""
 from app.agents.tutor.machine import Answered, Asked, Skipped, new_state, next_state
 from app.agents.tutor.plan import Goal, PlanItem
-from app.agents.tutor.prompt import MAX_TOKENS, OPENING_USER_TEXT, clean, question_line, tutor_block
+from app.agents.tutor.prompt import (FEEDBACK_RULES, FORMAT_RULES, MAX_TOKENS, OPENING_USER_TEXT, clean, format_rules,
+                                    question_line, tutor_block)
 
 GOAL = Goal(topic="today_words", length=4)
 PLAN = (PlanItem("words", "today_words", ("abandon", "give up")), PlanItem("repeat", "today_words", ("abandon",)),
@@ -20,7 +21,7 @@ def test_opening_asks_question_one_with_level_and_meta_line():
 def test_answer_block_judges_then_asks_the_next_planned_question():
     block = tutor_block(next_state(new_state(PLAN, "B2"), Asked()), GOAL)
     assert "answer to question 1 of 4 (words)" in block and "Judge it" in block
-    assert "简评:" in block and "More natural:" in block
+    assert "note_zh" not in block and "More natural:" in block
     assert "Then ask question 2 of 4 (repeat)" in block and "that uses 'abandon'" in block
     assert "Learner level right now: B2" in block
 
@@ -65,3 +66,15 @@ def test_data_is_escaped():
 
 def test_constants():
     assert MAX_TOKENS == 350 and OPENING_USER_TEXT.startswith("(")
+
+
+def test_zh_note_switches_the_chinese_fields_on_and_the_english_rule_stays():
+    s = next_state(new_state(PLAN, "B1"), Asked())
+    plain, zh = tutor_block(s, GOAL), tutor_block(s, GOAL, zh_note=True)
+    for block in (plain, zh):
+        assert "simple English" in block and "简评" not in block
+    assert "hint_zh" not in plain and "note_zh" not in plain and "Do not write any Chinese" in plain
+    assert '"hint_zh"' in zh and '"note_zh"' in zh and "only place where Chinese may appear" in zh
+    assert format_rules(False) == FORMAT_RULES and format_rules(True) != FORMAT_RULES
+    # the rules we write are English; Chinese may only be requested, never written into the prompt
+    assert not any(ord(ch) > 0x2E80 for ch in "".join(FEEDBACK_RULES + FORMAT_RULES + format_rules(True)))

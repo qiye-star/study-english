@@ -35,6 +35,14 @@ FALLBACK_HINT = {
     "roleplay": "想象你就在这个场景里:先打招呼,再说你的需要。",
     "dictate": "点「听一遍」再听一次,先写下听清的词。",
 }
+FALLBACK_HINT_EN = {
+    "ask": "Answer in one simple sentence first, then add a reason or an example.",
+    "words": "Try to use these words in one sentence: {words}.",
+    "repeat": "Slow down and say it word by word.",
+    "retell": "Retell it in three steps: who, what happened, and the result.",
+    "roleplay": "Imagine you are in the scene: greet first, then say what you need.",
+    "dictate": "Play it again and write down the words you can hear first.",
+}
 
 # 回合生成中的会话(每进程;handler.prepare 标记、finish 清除)。orchestrator 没有「回合中止」钩子,所以带 TTL:
 # 出错 / 断线的回合最多挡住提示与跳过这么久。生成中提示 / 跳过会让版本号前进、回合结果被丢弃,而模型已经把下一题说给用户听了。
@@ -103,12 +111,16 @@ def meta_out(state: TutorState, verdict: str | None, *, retry: bool) -> dict:
             "retry": retry, "say": state.say or None}
 
 
-def hint_text(state: TutorState) -> str:
-    """第一次提示优先用模型给的(META hint),否则 / 第二次用按题型的固定提示。"""
-    if state.hints <= 1 and state.hint_text:
-        return state.hint_text
+def hint_text(state: TutorState) -> tuple[str, str]:
+    """(English hint, Chinese hint). The first request prefers the model's own (META hint / hint_zh); the second one
+    and any missing half come from the fixed per-kind tables (R-AS13)."""
     item = current_item(state)
-    return FALLBACK_HINT.get(item.kind, FALLBACK_HINT["ask"]).format(words="、".join(item.words))
+    kind = item.kind if item.kind in FALLBACK_HINT else "ask"
+    fixed_en = FALLBACK_HINT_EN[kind].format(words=", ".join(item.words))
+    fixed_zh = FALLBACK_HINT[kind].format(words="、".join(item.words))
+    if state.hints <= 1 and (state.hint_text or state.hint_zh):
+        return state.hint_text or fixed_en, state.hint_zh or fixed_zh
+    return fixed_en, fixed_zh
 
 
 async def load_owned(session: AsyncSession, user_id: int, session_id: str) -> AgentTutorSession | None:
@@ -210,7 +222,8 @@ def _reject_if_generating(session_id: str) -> None:
         raise TutorError(409, "Tutor is generating")
 
 
-async def hint(session: AsyncSession, user_id: int, session_id: str, now: datetime) -> tuple[AgentTutorSession, str]:
+async def hint(session: AsyncSession, user_id: int, session_id: str,
+               now: datetime) -> tuple[AgentTutorSession, str, str]:
     row = await _owned_active(session, user_id, session_id, now)
     _reject_if_generating(session_id)
     current = state_of(row)
@@ -221,7 +234,8 @@ async def hint(session: AsyncSession, user_id: int, session_id: str, now: dateti
     except InvalidTransition:
         raise TutorError(409, "Hint limit reached") from None
     await _save(session, row, state, now)
-    return row, hint_text(state)
+    english, chinese = hint_text(state)
+    return row, english, chinese
 
 
 async def skip(session: AsyncSession, user_id: int, session_id: str, now: datetime) -> AgentTutorSession:
@@ -268,8 +282,8 @@ async def apply_turn(session: AsyncSession, user_id: int, session_id: str, versi
     if row.version != version or row.status != ACTIVE:
         logger.info("tutor turn conflict")
         return meta_out(current, None, retry=False)
-    event = (Answered(meta.verdict or "ok", hint=meta.hint, say=meta.say) if answering
-             else Asked(hint=meta.hint, say=meta.say))
+    event = (Answered(meta.verdict or "ok", hint=meta.hint, say=meta.say, hint_zh=meta.hint_zh) if answering
+             else Asked(hint=meta.hint, say=meta.say, hint_zh=meta.hint_zh))
     try:
         state = next_state(current, event)
         await _save(session, row, state, now)

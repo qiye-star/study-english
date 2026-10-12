@@ -125,10 +125,14 @@ async def hint(session_id: SessionId, request: Request, user: User = Depends(cur
     _require(request)
     now = utcnow()
     try:
-        row, text = await service.hint(session, user.id, session_id, now)
+        row, english, chinese = await service.hint(session, user.id, session_id, now)
     except service.TutorError as e:
         raise _http(e) from None
-    return {"hint": text, "session": service.out(row, now)}
+    prefs = await agent_settings.load(session, user.id)
+    body = {"hint": english, "session": service.out(row, now)}
+    if chinese and prefs.zh_note != "never":  # R-AS13: `never` = no Chinese is ever sent back
+        body["hint_zh"] = chinese
+    return body
 
 
 @router.post("/{session_id}/skip")

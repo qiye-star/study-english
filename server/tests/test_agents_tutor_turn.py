@@ -11,13 +11,15 @@ from tests.agents_tutor_helpers import (conversation, enable_agents, fake_stream
                                         start_body, turn)
 
 OPENING = ["Hi! Let's start.\nQuestion 1: tell me ", "about your day.\n<<ME",
-           'TA>>{"verdict":null,"kind":"ask","next_focus":"daily routine","hint":"从早上起床说起","say":"","done":false}']
+           'TA>>{"verdict":null,"kind":"ask","next_focus":"daily routine","hint":"Start with when you get up.",'
+           '"hint_zh":"从早上起床说起","say":"","done":false}']
 
 
-def reply(verdict: str = "good", *, done: bool = False, hint: str = "想一个周末的例子") -> list[str]:
-    return ["Nice answer!\n简评:表达清楚。\nMore natural: I usually get up at seven.\n", "Question 2: and at weekends?\n<<META>>",
-            json.dumps({"verdict": verdict, "kind": "ask", "next_focus": "weekend", "hint": hint, "say": "", "done": done},
-                       ensure_ascii=False)]
+def reply(verdict: str = "good", *, done: bool = False, hint: str = "Think of a weekend example.",
+          hint_zh: str = "想一个周末的例子", note_zh: str = "表达清楚。") -> list[str]:
+    return ["Nice answer!\nMore natural: I usually get up at seven.\n", "Question 2: and at weekends?\n<<META>>",
+            json.dumps({"verdict": verdict, "kind": "ask", "next_focus": "weekend", "hint": hint, "hint_zh": hint_zh,
+                        "note_zh": note_zh, "say": "", "done": done}, ensure_ascii=False)]
 
 
 def deltas(events) -> str:
@@ -59,7 +61,8 @@ async def test_opening_streams_without_meta_and_emits_meta_before_done(app, clie
     await _settle(app)
     got = (await client.get(f"/api/agents/tutor/{sid}", headers=h)).json()
     assert got["phase"] == "await_answer"
-    assert (await client.post(f"/api/agents/tutor/{sid}/hint", headers=h)).json()["hint"] == "从早上起床说起"
+    hint = (await client.post(f"/api/agents/tutor/{sid}/hint", headers=h)).json()
+    assert (hint["hint"], hint["hint_zh"]) == ("Start with when you get up.", "从早上起床说起")
 
 
 async def test_answer_turn_advances_with_the_model_verdict(app, client, monkeypatch):
@@ -231,7 +234,8 @@ async def test_two_finishes_racing_return_the_same_recap(app, client, monkeypatc
 async def test_turn_flow_logs_no_user_text_words_or_hints(app, client, monkeypatch, caplog):
     install_sources(app, due_words=["zephyrine", "quixotic", "laconic"])
     h, cid, sid = await _session(app, client, topic="today_words")
-    fake_stream(monkeypatch, OPENING, reply("good", hint="HINT_PRIVATE"), reply("good"))
+    fake_stream(monkeypatch, OPENING, reply("good", hint="HINT_PRIVATE", hint_zh="HINTZH_PRIVATE", note_zh="NOTEZH_PRIVATE"),
+                reply("good"))
     with caplog.at_level("DEBUG", logger="app"):
         await turn(client, h, cid, sid, None)
         await _settle(app)
@@ -242,5 +246,48 @@ async def test_turn_flow_logs_no_user_text_words_or_hints(app, client, monkeypat
         await client.post(f"/api/agents/tutor/{sid}/finish", headers=h)
         await app.state.agent_memory.worker.join()
     for private in ("MY_PRIVATE_ANSWER", "zephyrine", "quixotic", "laconic", "HINT_PRIVATE", "从早上起床说起",
-                    "daily routine", "简评"):
+                    "HINTZH_PRIVATE", "NOTEZH_PRIVATE", "Start with when you get up.", "daily routine", "表达清楚"):
         assert private not in caplog.text
+
+
+async def test_the_zh_note_and_hint_zh_never_reach_the_visible_text(app, client, monkeypatch):
+    h, cid, sid = await _session(app, client)
+    assert (await client.patch("/api/agents/settings", json={"zh_note": "always"}, headers=h)).status_code == 200
+    calls = fake_stream(monkeypatch, OPENING, reply("good"))
+    opening = await turn(client, h, cid, sid, None)
+    assert "hint_zh" in json.dumps(calls[0], default=str, ensure_ascii=False)
+    await _settle(app)
+    answer = await turn(client, h, cid, sid, "I get up at seven and go to work.")
+    for events in (opening, answer):
+        assert not any(ord(ch) > 0x2E80 for ch in deltas(events))  # nothing Chinese in the streamed text
+    [meta] = metas(answer)
+    assert "note_zh" not in meta and "hint_zh" not in meta  # R-AS11: the note is not a meta field
+    done = next(d for k, d in answer if k == "done")
+    assert done["note_zh"] == "表达清楚。" and done["trace"]["note_zh"] == "表达清楚。"
+    await _settle(app)
+    hint = (await client.post(f"/api/agents/tutor/{sid}/hint", headers=h)).json()
+    assert (hint["hint"], hint["hint_zh"]) == ("Think of a weekend example.", "想一个周末的例子")
+
+
+async def test_zh_note_never_removes_the_chinese_rules_the_note_and_the_hint_zh(app, client, monkeypatch):
+    h, cid, sid = await _session(app, client)
+    assert (await client.patch("/api/agents/settings", json={"zh_note": "never"}, headers=h)).status_code == 200
+    calls = fake_stream(monkeypatch, OPENING, reply("good"))
+    await turn(client, h, cid, sid, None)
+    prompt = json.dumps(calls[0], default=str, ensure_ascii=False)
+    assert "Do not write any Chinese" in prompt and "hint_zh" not in prompt and "note_zh" not in prompt
+    await _settle(app)
+    answer = await turn(client, h, cid, sid, "I get up at seven.")  # the model wrote a note anyway: dropped
+    done = next(d for k, d in answer if k == "done")
+    assert "note_zh" not in done and "note_zh" not in done["trace"]
+    await _settle(app)
+    hint = (await client.post(f"/api/agents/tutor/{sid}/hint", headers=h)).json()
+    assert "hint_zh" not in hint and hint["hint"]
+
+
+async def test_auto_note_follows_the_current_level(app, client, monkeypatch):
+    h, cid, sid = await _session(app, client)
+    await set_state(app, sid, level=LEVELS.index("B2"))
+    calls = fake_stream(monkeypatch, OPENING)
+    await turn(client, h, cid, sid, None)
+    assert "hint_zh" not in json.dumps(calls[0], default=str)  # B2 and up: no Chinese note by default

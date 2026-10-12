@@ -18,6 +18,13 @@
   `finish` 用原始全文解析 META、回落、推进状态机,返回 `meta` 事件数据(A1 的 `Event.to_dict` 不发值为 null 的键:缺键 = null)
 - `memory_bridge.py` – 唯一调用 A2 记忆接口处:`worker.submit_tutor(TutorFinished)` 写回顾,`MemoryStore.add` 写 ≤ 3 条确定性候选
 
+## 回复语言(计划 addressing T1–T3)
+- 导师回复只用英文;中文只允许出现在 META 的 `note_zh`(对回答的点评)与 `hint_zh`(当前题中文提示),且只在 `zh_note` 开启时才向模型要求
+  (`prompt.format_rules(zh_note)`;`handler.prepare` 用 `lang.want_note(设置.zh_note, 状态机当前水平)` 算出布尔值传入,纯模块不导入 `lang`)。
+- `parse.Meta.note_zh / hint_zh`(≤ 80 字,缺失 → 空串);`machine` 的 `hint_zh` 随 `Asked / Answered` 进状态(旧快照缺键 = 空串)。
+- `service.hint_text(state) -> (英文, 中文)`:第一次优先用模型给的,第二次与缺失的一半用固定表(`FALLBACK_HINT_EN` / `FALLBACK_HINT`);
+  `POST /hint` 返回 `{hint, hint_zh?, session}`,`zh_note=never` 时不带 `hint_zh`。`handler.finish` 的返回字典有 `note_zh` 时由编排器取走,进 `done.note_zh`。
+
 ## Allowed dependencies
 五个纯模块:标准库 + 彼此(`machine → plan`、`parse → plan`、`prompt → machine, plan`、`recap → machine, plan`)。
 词汇数据只经上下文来源结果(`SourceResult.params`)进入 `plan.sources_from`;**不要**导入 `wordbook`。

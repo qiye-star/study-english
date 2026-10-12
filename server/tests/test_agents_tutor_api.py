@@ -116,12 +116,13 @@ async def test_hint_skip_and_finish(app, client):
     sid = (await _start(client, h, cid, length=3)).json()["id"]
     r = await client.post(f"{BASE}/{sid}/skip", headers=h)
     assert r.status_code == 409 and r.json()["error"] == "Tutor session is not waiting for an answer"
-    await set_state(app, sid, phase="await_answer", hint_text="想想你昨天做了什么")
+    await set_state(app, sid, phase="await_answer", hint_text="Think about yesterday.", hint_zh="想想你昨天做了什么")
     first = (await client.post(f"{BASE}/{sid}/hint", headers=h)).json()
-    assert first["hint"] == "想想你昨天做了什么"
+    assert (first["hint"], first["hint_zh"]) == ("Think about yesterday.", "想想你昨天做了什么")
     assert (first["session"]["hints_used"], first["session"]["step_index"]) == (1, 1)
     second = (await client.post(f"{BASE}/{sid}/hint", headers=h)).json()
-    assert second["hint"] and second["hint"] != first["hint"] and second["session"]["hints_used"] == 2
+    assert second["hint"] != first["hint"] and second["hint"].isascii() and second["hint_zh"] != first["hint_zh"]
+    assert second["session"]["hints_used"] == 2
     third = await client.post(f"{BASE}/{sid}/hint", headers=h)
     assert third.status_code == 409 and third.json()["error"] == "Hint limit reached"
     skipped = (await client.post(f"{BASE}/{sid}/skip", headers=h)).json()
@@ -192,12 +193,38 @@ async def test_logs_never_carry_words_or_hints(app, client, caplog):
     cid = await conversation(client, h)
     with caplog.at_level("DEBUG", logger="app"):
         sid = (await _start(client, h, cid, topic="today_words", length=8)).json()["id"]
-        await set_state(app, sid, phase="await_answer", hint_text="HINT_PRIVATE")
+        await set_state(app, sid, phase="await_answer", hint_text="HINT_PRIVATE", hint_zh="HINTZH_PRIVATE")
         hint = (await client.post(f"{BASE}/{sid}/hint", headers=h)).json()
         await client.post(f"{BASE}/{sid}/skip", headers=h)
         await client.post(f"{BASE}/{sid}/finish", headers=h)
     assert hint["hint"] == "HINT_PRIVATE"
-    for private in ("zephyrine", "quixotic", "HINT_PRIVATE"):
+    assert hint["hint_zh"] == "HINTZH_PRIVATE"
+    for private in ("zephyrine", "quixotic", "HINT_PRIVATE", "HINTZH_PRIVATE"):
         assert private not in caplog.text
     assert "tutor start topic=today_words length=8" in caplog.text
     assert "tutor finish answered=0 total=8" in caplog.text
+
+
+def test_hint_text_prefers_the_models_hints_then_the_fixed_ones():
+    from app.agents.tutor import service
+    from app.agents.tutor.machine import Asked, HintUsed, new_state, next_state
+    from app.agents.tutor.plan import PlanItem
+
+    state = next_state(new_state((PlanItem("ask", "free", ()),), "B1"), Asked("Mention a reason.", hint_zh="说一个原因"))
+    assert service.hint_text(next_state(state, HintUsed())) == ("Mention a reason.", "说一个原因")
+    second = service.hint_text(next_state(next_state(state, HintUsed()), HintUsed()))
+    assert second == (service.FALLBACK_HINT_EN["ask"], service.FALLBACK_HINT["ask"])
+    bare = next_state(new_state((PlanItem("words", "free", ("abandon", "give up")),), "B1"), Asked())
+    en, zh = service.hint_text(next_state(bare, HintUsed()))
+    assert "abandon, give up" in en and "abandon、give up" in zh and en.isascii()
+
+
+async def test_zh_note_never_hides_the_chinese_hint(app, client):
+    enable_agents(app)
+    h = await login(client)
+    cid = await conversation(client, h)
+    sid = (await _start(client, h, cid, length=3)).json()["id"]
+    assert (await client.patch("/api/agents/settings", json={"zh_note": "never"}, headers=h)).status_code == 200
+    await set_state(app, sid, phase="await_answer", hint_text="Think about yesterday.", hint_zh="想想你昨天做了什么")
+    body = (await client.post(f"{BASE}/{sid}/hint", headers=h)).json()
+    assert body["hint"] == "Think about yesterday." and "hint_zh" not in body

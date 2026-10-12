@@ -8,7 +8,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 
 from app.agents.orchestrator import ModeBlock, ModeError
-from app.agents.tutor import service
+from app.agents import lang
+from app.agents.tutor import machine, service
 from app.agents.tutor.parse import StreamFilter, parse_meta, resolve
 from app.agents.tutor.plan import Goal
 from app.agents.tutor.prompt import MAX_TOKENS, OPENING_USER_TEXT, tutor_block
@@ -45,7 +46,8 @@ class TutorModeHandler:
             raise ModeError("bad_request")
         self._remember(req.client_turn_id, req.tutor_session_id, version, answering)
         service.mark_generating(req.tutor_session_id)
-        return ModeBlock(text=tutor_block(state, goal), max_tokens=MAX_TOKENS,
+        zh_note = lang.want_note(getattr(req.agent_settings, "zh_note", "auto"), machine.LEVELS[state.level])
+        return ModeBlock(text=tutor_block(state, goal, zh_note=zh_note), max_tokens=MAX_TOKENS,
                          user_text=None if answering else OPENING_USER_TEXT)
 
     def stream_filter(self) -> StreamFilter:
@@ -62,7 +64,10 @@ class TutorModeHandler:
         if fell_back:
             logger.info("tutor meta fallback answering=%s", answering)
         async with self._sessionmaker() as session:
-            return await service.apply_turn(session, req.user_id, session_id, version, resolved, answering, utcnow())
+            data = await service.apply_turn(session, req.user_id, session_id, version, resolved, answering, utcnow())
+        if data is not None and resolved.note_zh:  # R-AS11: the orchestrator takes it before the meta event is built
+            data = {**data, "note_zh": resolved.note_zh}
+        return data
 
     def _remember(self, turn_id: str, session_id: str, version: int, answering: bool) -> None:
         self._pending[turn_id] = (session_id, version, answering)
