@@ -27,6 +27,18 @@ it("shows progress, kind and level; actions call back", () => {
   expect([p.onHint, p.onSkip, p.onListen, p.onTranslate].map((f) => (f as ReturnType<typeof vi.fn>).mock.calls.length)).toEqual([1, 1, 1, 1]);
 });
 
+it("folds the Chinese hint under the English hint; nothing without it", () => {
+  const { unmount } = renderWithProviders(<TutorBar {...props({ hint: "Think about yesterday.", hintZh: "想想昨天" })} />);
+  expect(screen.getByTestId("tutor-hint")).toHaveTextContent("Think about yesterday.");
+  const toggle = screen.getByTestId("tutor-hint-zh-toggle");
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(toggle);
+  expect(screen.getByTestId("tutor-hint-zh-text")).toHaveTextContent("想想昨天");
+  unmount();
+  renderWithProviders(<TutorBar {...props({ hint: "Think about yesterday." })} />);
+  expect(screen.queryByTestId("tutor-hint-zh")).toBeNull();
+});
+
 it("ending needs a second tap", () => {
   const p = props();
   renderWithProviders(<TutorBar {...p} />);

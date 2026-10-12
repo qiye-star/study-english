@@ -50,6 +50,17 @@ it("listen reads the last reply for other question kinds", async () => {
   expect(props.onSpeak).toHaveBeenCalledWith("What did you do yesterday?");
 });
 
+it("keeps hint_zh out of 听一遍: listen speaks the last reply only", async () => {
+  const { props } = renderPanel({
+    [`POST /api/agents/tutor/${SID}/hint`]: () => json({ hint: "Talk about Saturday.", hint_zh: "说说周末", session: rawSession({ hints_used: 1 }) }),
+  });
+  fireEvent.click(await screen.findByTestId("tutor-hint-btn"));
+  expect(await screen.findByTestId("tutor-hint-zh")).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId("tutor-listen"));
+  expect(props.onSpeak).toHaveBeenCalledWith("What did you do yesterday?");
+  expect(JSON.stringify((props.onSpeak as ReturnType<typeof vi.fn>).mock.calls)).not.toContain("周末");
+});
+
 it("skip asks the agent for the next question through onContinue", async () => {
   const { props } = renderPanel({ [`POST /api/agents/tutor/${SID}/skip`]: () => json(rawSession({ phase: "ask", step_index: 3 })) });
   fireEvent.click(await screen.findByTestId("tutor-skip"));

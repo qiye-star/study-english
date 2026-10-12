@@ -4,11 +4,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { ToneBadge } from "~/components/tone-badge";
+import { ZhNoteFold } from "~/components/zh-note-fold";
 import type { TutorSession } from "./tutor-api";
 
 export interface TutorBarProps {
   session: TutorSession;
   hint: string | null;
+  hintZh?: string | null;
   busy: boolean;
   onHint(): void;
   onSkip(): void;
@@ -32,7 +34,7 @@ function Action({ testId, label, icon, onClick, disabled }: { testId: string; la
 }
 
 /** 输入栏上方的带学条:进度、题型、难度;提示 / 跳过 / 听一遍 / 翻译;结束(两次点击)。 */
-export function TutorBar({ session, hint, busy, onHint, onSkip, onListen, onTranslate, onEnd, onResume }: TutorBarProps) {
+export function TutorBar({ session, hint, hintZh, busy, onHint, onSkip, onListen, onTranslate, onEnd, onResume }: TutorBarProps) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   useEffect(() => {
@@ -72,6 +74,9 @@ export function TutorBar({ session, hint, busy, onHint, onSkip, onListen, onTran
         <div className="h-1 rounded-full bg-blue transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${pct}%` }} />
       </div>
       {hint ? <p data-testid="tutor-hint" role="status" className="mt-2 rounded-[10px] bg-amber-tint px-2.5 py-1.5 text-sub text-amber">{hint}</p> : null}
+      {hint && hintZh ? (
+        <ZhNoteFold text={hintZh} showLabel={t("web.agents.tutor.bar.zhShow")} hideLabel={t("web.agents.tutor.bar.zhHide")} testId="tutor-hint-zh" className="mt-1" />
+      ) : null}
       {speakFirst ? (
         <div className="mt-1 flex">
           <Action testId="tutor-resume" label={t("web.agents.tutor.bar.resume")} icon={<PlayIcon className="h-4 w-4" />} onClick={onResume} disabled={busy} />
