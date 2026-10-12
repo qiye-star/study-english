@@ -79,9 +79,6 @@ export const S = {
     level: "等级(如 B1)",
     chat: "最近聊天(每行 名字: 内容)",
     draft: "学习者草稿",
-    topic: "房间话题",
-    asker: "提问者",
-    question: "问题",
   } as Record<string, string>,
   // templates editor
   templatesTitle: "情景模板",

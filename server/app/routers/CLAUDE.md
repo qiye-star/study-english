@@ -44,7 +44,7 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 - Every `/api/admin/*` route declares a role: `Depends(app.admin.perms.require("viewer"|"operator"|"superadmin"))`
   or a step-up dependency (`tests/test_admin_routes_guarded.py` walks FastAPI's included routers and also rejects
   duplicate method+path); writes audit in the same transaction. Keep admin routers thin: logic in `app/admin/`.
-- `rooms.deps_for` injects the published `rooms.assist` / `rooms.answer` templates (`prompt_cache`, no DB read per
+- `rooms.deps_for` injects the published `rooms.assist` / `rooms.voice_translate` / `rooms.summary` templates (`prompt_cache`, no DB read per
   call) into `ConnDeps.templates`.
 - Map vendor exceptions to HTTP here; errors render as `{"error": ...}`.
 - Never log request bodies, tickets, keys or user text. New strings exposed to the web UI need zh+en locales on the web side.

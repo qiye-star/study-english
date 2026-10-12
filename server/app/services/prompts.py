@@ -43,11 +43,6 @@ PROMPTS: dict[str, PromptSpec] = {
         "rooms.assist", "联机助手组句", "text", frozenset({"level", "chat", "draft"}),
         ("<chat>", "</chat>", "<draft>", "</draft>"), 8000, sample_fields=("level", "scenario", "chat", "draft"),
         optional=frozenset({"scenario"})),
-    "rooms.answer": PromptSpec(
-        "rooms.answer", "@ai 公开回答", "text", frozenset({"topic", "asker", "chat", "question"}),
-        ("<chat>", "</chat>", "<question>", "</question>"), 8000,
-        sample_fields=("topic", "level", "scenario", "asker", "chat", "question"),
-        optional=frozenset({"level", "scenario"})),
     "rooms.voice_translate": PromptSpec(
         "rooms.voice_translate", "联机语音翻译", "text", frozenset({"source", "target", "text"}),
         ("<text>", "</text>"), 4000, sample_fields=("source", "target", "text")),

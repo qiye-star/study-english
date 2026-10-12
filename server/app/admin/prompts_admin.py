@@ -54,8 +54,6 @@ def default_body(app, key: str) -> str | None:
         return grammar.resolve_rules(app.state.settings, None)
     if key == "rooms.assist":
         return assistant.DEFAULT_ASSIST_TEMPLATE  # template form of M4's prompt (G2)
-    if key == "rooms.answer":
-        return assistant.DEFAULT_ANSWER_TEMPLATE
     if key == "rooms.voice_translate":
         return assistant.DEFAULT_TRANSLATE_TEMPLATE
     if key == "rooms.summary":
