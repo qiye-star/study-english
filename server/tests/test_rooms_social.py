@@ -103,15 +103,22 @@ def test_quotes_of_ai_answers_and_long_texts(tmp_path, monkeypatch):
             hello(wa)
             wa.send_text(json.dumps({"type": "say", "client_id": "a1", "text": "长" * 100}))
             long = last_message(wa)
-            wa.send_text(json.dumps({"type": "say", "client_id": "a2", "text": "@ai what is a latte?"}))
-            while True:
-                answer = last_message(wa)
-                if answer["kind"] == "ai_answer":
-                    break
         rt = rooms_router.runtime(app)
+
+        async def seed():
+            now = datetime.now(timezone.utc)
+            legacy = await rt.store.append(room["id"], lane="public", sender_kind="ai", sender_id=None,
+                                           kind="ai_answer", text="It means starting a conversation.", now=now)
+            agent = await rt.store.append(room["id"], lane="public", sender_kind="ai", sender_id=None, kind="ai_answer",
+                                          text="Try it.", now=now,
+                                          meta={"agent": {"persona_id": "builtin:coach", "name": "Emma"}})
+            return legacy, agent
+
+        legacy, agent = client.portal.call(seed)
         assert client.portal.call(rt.store.quote_for, room["id"], long["seq"])["text"] == "长" * 80
-        assert client.portal.call(rt.store.quote_for, room["id"], answer["seq"]) == {
-            "seq": answer["seq"], "name": "AI 助手", "kind": "ai_answer", "text": "It means starting a conversation."}
+        assert client.portal.call(rt.store.quote_for, room["id"], legacy.seq) == {
+            "seq": legacy.seq, "name": "AI 助手", "kind": "ai_answer", "text": "It means starting a conversation."}
+        assert client.portal.call(rt.store.quote_for, room["id"], agent.seq)["name"] == "Emma"
     finally:
         client.__exit__(None, None, None)
 

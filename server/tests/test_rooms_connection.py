@@ -24,7 +24,7 @@ class Env:
     def __init__(self, app):
         self.hub = RoomHub()
         self.store = RoomStore(app.state.sessionmaker, RoomLimits(say_per_minute=3))
-        self.replies = {"answer": "It means starting a conversation.", "assist": ASSIST}
+        self.replies = {"assist": ASSIST}
         self.fail = False
         self.quota = {"room_assist": 99, "room_ai_global": 99}
         self.refunds = []
@@ -33,7 +33,7 @@ class Env:
         async def complete(messages, max_tokens, temperature):
             if self.fail:
                 raise LlmUnavailable("http")
-            return self.replies["assist"] if "<draft>" in messages[-1]["content"] else self.replies["answer"]
+            return self.replies["assist"]
 
         async def consume(scope, subject, limit):
             self.quota[scope] -= 1
@@ -87,79 +87,21 @@ async def test_rate_limit_and_empty(env):
     assert env.bob.sender.sent[-1] == {"type": "error", "code": "empty"}
 
 
-async def test_at_ai_answers_publicly(env):
+async def test_at_ai_without_agents_is_a_plain_message_with_agent_off(env):
     await env.cb.handle('{"type":"say","client_id":"q","text":"@ai what does break the ice mean?"}')
     await env.hub.drain()
-    assert types(env.alice) == ["message", "ai_typing", "message"]
-    question, answer = env.alice.sender.sent[0]["message"], env.alice.sender.sent[2]["message"]
-    assert question["ai_status"] == "pending"
-    assert (answer["kind"], answer["sender"]["kind"], answer["reply_to"]) == ("ai_answer", "ai", question["seq"])
-    rows, _ = await env.store.replay(env.room.id, A, 0, 10)
-    assert rows[0][0].ai_status == "done"
-    assert env.hub.ai_pending(env.room.id) == 0
+    assert {"type": "notice", "code": "agent_off"} in env.bob.sender.sent
+    assert {"type": "notice", "code": "agent_off"} not in env.alice.sender.sent
+    assert types(env.alice) == ["message"] and env.alice.sender.sent[0]["message"]["ai_status"] is None
+    assert env.hub.ai_pending(env.room.id) == 0 and env.refunds == [] and env.quota["room_ai_global"] == 99
 
 
-async def test_at_ai_respects_owner_switch_and_failures(env):
-    await env.store.update(env.room.id, A, ai_public=False)
-    await env.cb.handle('{"type":"say","client_id":"q","text":"@ai hi there"}')
-    assert {"type": "notice", "code": "ai_off"} in env.bob.sender.sent
-    assert {"type": "notice", "code": "ai_off"} not in env.alice.sender.sent
-    assert env.bob.sender.sent[-1]["message"]["ai_status"] is None
-    await env.store.update(env.room.id, A, ai_public=True)
-    env.fail = True
-    await env.cb.handle('{"type":"say","client_id":"q2","text":"@ai hi again"}')
-    await env.hub.drain()
-    assert env.alice.sender.sent[-1]["type"] == "ai_failed" and env.alice.sender.sent[-1]["code"] == "upstream"
-    assert env.refunds == ["room_ai_global"]
-    rows, _ = await env.store.replay(env.room.id, A, 0, 10)
-    assert rows[-1][0].ai_status == "failed"
-
-
-async def test_at_ai_queue_is_bounded(env):
-    for _ in range(env.store.limits.ai_queue):
-        env.hub.ai_enter(env.room.id)
-    await env.cb.handle('{"type":"say","client_id":"q","text":"@ai one more"}')
-    assert {"type": "notice", "code": "ai_busy"} in env.bob.sender.sent
-    env.quota["room_ai_global"] = 0
-    for _ in range(env.store.limits.ai_queue):
-        env.hub.ai_leave(env.room.id)
-    await env.cb.handle('{"type":"say","client_id":"q2","text":"@ai and another"}')
-    assert {"type": "notice", "code": "ai_quota"} in env.bob.sender.sent
-
-
-async def test_at_ai_admission_reserves_the_queue_slot_before_awaiting(env):
-    """Review #11: concurrent @ai sends all passed the queue check before any of them entered the queue."""
-    release = asyncio.Event()
-
-    async def blocked(messages, max_tokens, temperature):
-        await release.wait()
-        return "ok"
-
-    real_consume = env.cb.deps.consume
-
-    async def slow_consume(scope, subject, limit):
-        await asyncio.sleep(0.2)
-        return await real_consume(scope, subject, limit)
-
-    env.cb.deps.complete, env.cb.deps.consume = blocked, slow_consume
-    for _ in range(env.store.limits.ai_queue - 1):
-        env.hub.ai_enter(env.room.id)
-    await asyncio.gather(*(env.cb.handle(json.dumps({"type": "say", "client_id": f"q{i}", "text": "@ai hi"}))
-                           for i in range(2)))
-    assert env.hub.ai_pending(env.room.id) == env.store.limits.ai_queue
-    assert {"type": "notice", "code": "ai_busy"} in env.bob.sender.sent
-    release.set()
-    await env.hub.drain()
-
-
-async def test_at_ai_append_failure_releases_queue_and_quota(env, monkeypatch):
-    async def broken_append(*args, **kwargs):
-        raise RuntimeError("db down")
-
-    monkeypatch.setattr(env.store, "append", broken_append)
-    with pytest.raises(RuntimeError):
-        await env.cb.handle('{"type":"say","client_id":"q","text":"@ai hi"}')
-    assert env.hub.ai_pending(env.room.id) == 0 and env.refunds == ["room_ai_global"]
+async def test_say_to_without_agents_is_agent_off_and_the_message_is_still_published(env):
+    await env.cb.handle('{"type":"say","client_id":"q","text":"hello","to":"builtin:coach"}')
+    assert {"type": "notice", "code": "agent_off"} in env.bob.sender.sent
+    assert env.alice.sender.sent[0]["message"]["text"] == "hello"
+    await env.cb.handle('{"type":"say","client_id":"q2","text":"plain","to":""}')  # an empty target is no target
+    assert env.bob.sender.sent[-1]["type"] == "message" and env.bob.sender.sent.count({"type": "notice", "code": "agent_off"}) == 1
 
 
 async def test_assist_is_private_and_send_is_marked_assisted(env):

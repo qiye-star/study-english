@@ -36,14 +36,7 @@ def test_room_level_and_scenario_reach_prompts_and_metering(tmp_path, monkeypatc
             rw.until(ws, "assist_reply")
             text = seen[-1][0]["content"] + seen[-1][-1]["content"]
             assert "level B2" in text and "coffee shop" in text
-            ws.send_text(json.dumps({"type": "say", "client_id": "q", "text": "@ai what is a latte?"}))
-            while True:
-                events = rw.until(ws, "message")
-                if events[-1]["message"]["kind"] == "ai_answer":
-                    break
-            prompt = seen[-1][0]["content"] + seen[-1][-1]["content"]
-            assert "CEFR level B2" in prompt and "coffee shop" in prompt and "Latte club" in prompt
-        assert meters == [(alice_id, "rooms"), (alice_id, "rooms")]
+        assert meters == [(alice_id, "rooms")]  # the old `@ai` answer carried level and scenario (R-AS23): gone
     finally:
         client.__exit__(None, None, None)
 

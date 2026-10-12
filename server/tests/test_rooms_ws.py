@@ -124,10 +124,10 @@ def test_two_members_chat_ai_and_private_assist(rooms_client):
             public = more[-1]["message"]
         assert public["assisted"] is True and not any(e["type"] == "assist_reply" for e in got)
         wb.send_text('{"type":"say","client_id":"q","text":"@ai what does break the ice mean?"}')
+        assert until(wb, "notice")[-1] == {"type": "notice", "code": "agent_off"}  # agents are off: no public AI answer
         events = until(wa, "message")
-        while not (events[-1]["type"] == "message" and events[-1]["message"]["kind"] == "ai_answer"):
+        while not events[-1]["message"]["text"].startswith("@ai"):  # the question is still a plain message
             events = until(wa, "message")
-        assert events[-1]["message"]["sender"]["kind"] == "ai"
 
 
 def test_reconnect_replays_only_missing_messages(rooms_client):
@@ -327,7 +327,8 @@ def test_admin_kick_disconnects_with_4010(tmp_path, monkeypatch):
 
 
 def test_admin_hide_and_ai_mute_reach_members(tmp_path, monkeypatch):
-    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED)
+    # R-AS24: agents-off answers `agent_off` before the mute is looked at, so the mute is tested with agents on.
+    app, client = make_client(tmp_path, monkeypatch, **ADMIN_ENABLED, agents_enabled=True, agents_rooms_enabled=True)
     try:
         room, alice, bob, bob_id, ticket = setup_room(client)
         with client.websocket_connect(f"/api/rooms/ws?ticket={ticket(alice)}") as wa:

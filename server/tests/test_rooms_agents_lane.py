@@ -34,6 +34,7 @@ class Script:
         self.error = None
         self.fail_for: set[str] = set()
         self.block: asyncio.Event | None = None
+        self.note = None
 
     async def run_turn(self, deps, req):
         self.calls.append((deps, req))
@@ -46,7 +47,8 @@ class Script:
             return
         text = self.replies[req.persona.id]
         yield Delta(text=text)
-        yield Done(usage=None, trace={"steps": [{"key": "learned_words", "status": "done"}]}, text_len=len(text))
+        yield Done(usage=None, trace={"steps": [{"key": "learned_words", "status": "done"}]}, text_len=len(text),
+                   note_zh=self.note)
 
 
 class Env:
@@ -130,16 +132,18 @@ async def test_mention_runs_one_turn_and_keeps_the_process_private(env):
     assert env.hub.ai_pending(env.room.id) == 0
 
 
-async def test_rooms_without_agents_and_at_ai_keep_the_old_frames(env):
+async def test_at_ai_goes_to_the_default_agent_and_an_unconfigured_name_is_just_text(env):
     await env.cb.handle(say("@ai what does break the ice mean?"))
     await env.hub.drain()
     assert types(env.alice) == ["message", "ai_typing", "message"]
-    assert env.alice.sender.sent[2]["message"]["meta"] is None and env.script.calls == []
+    meta = env.alice.sender.sent[2]["message"]["meta"]
+    assert meta["agent"] == {"persona_id": EMMA.id, "name": "Emma"}  # the room's first agent answers `@ai`
+    assert [req.persona.id for _, req in env.script.calls] == [EMMA.id]
     await env.store.set_agents(env.room.id, A, [])
     await env.cb.handle(say("@Emma hi there", "q2"))
     await env.hub.drain()
     assert types(env.bob)[-2:] == ["ack", "message"] and env.bob.sender.sent[-1]["message"]["ai_status"] is None
-    assert env.script.calls == []
+    assert len(env.script.calls) == 1  # no configuration: `@Emma` names nobody
 
 
 async def test_unknown_names_are_plain_messages(env):

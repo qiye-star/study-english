@@ -1,14 +1,12 @@
-"""G2: a published rooms.assist / rooms.answer version is used by live room sockets (no restart)."""
-from sqlalchemy import create_engine
+"""G2: a published rooms.assist version is used by live room sockets (no restart). `@ai` no longer has a template of
+its own (plan addressing-server A1): it is the default agent."""
 from sqlalchemy.orm import Session
 
 from app.models import PromptVersion, utcnow
 from app.routers import rooms as rooms_router
-from app.services.prompts import prompt_cache
 from tests import test_rooms_ws as rw
 
 ASSIST_TPL = "NEW ASSIST for {level}. <chat>{chat}</chat> <draft>{draft}</draft>"
-ANSWER_TPL = "NEW ANSWER. <topic>{topic}</topic> <asker>{asker}</asker> <chat>{chat}</chat> <question>{question}</question>"
 
 
 def publish(s: Session, key: str, body: str, version: int) -> None:
@@ -16,7 +14,7 @@ def publish(s: Session, key: str, body: str, version: int) -> None:
                         published_by="root", published_at=utcnow()))
 
 
-def test_published_templates_reach_assist_and_ai_answer(tmp_path, monkeypatch):
+def test_published_assist_template_reaches_the_assistant(tmp_path, monkeypatch):
     seen: list[list[dict]] = []
     real = rooms_router.deps_for
 
@@ -25,7 +23,7 @@ def test_published_templates_reach_assist_and_ai_answer(tmp_path, monkeypatch):
 
         async def complete(messages, max_tokens, temperature):
             seen.append(messages)
-            return rw.ASSIST if "<draft>" in messages[-1]["content"] else "It means starting a conversation."
+            return rw.ASSIST
 
         deps.complete = complete
         return deps
@@ -41,25 +39,8 @@ def test_published_templates_reach_assist_and_ai_answer(tmp_path, monkeypatch):
             rw.until(wa, "assist_reply")
             system = seen[-1][0]["content"]
             assert system.startswith("NEW ASSIST for ") and system.count("</draft>") == 1
-
-            # nothing published for rooms.answer yet: legacy prompt
             wa.send_text('{"type":"say","client_id":"q1","text":"@ai what does break the ice mean?"}')
-            events = rw.until(wa, "message")
-            while not (events[-1]["type"] == "message" and events[-1]["message"]["kind"] == "ai_answer"):
-                events = rw.until(wa, "message")
-            assert seen[-1][0]["content"].startswith('You are "AI 助手"')
-
-            # publish rooms.answer while the socket is open; the revision callback invalidates the cache
-            engine = create_engine(str(app.state.engine.url).replace("+aiosqlite", ""))
-            with Session(engine) as s:
-                publish(s, "rooms.answer", ANSWER_TPL, 1)
-                s.commit()
-            engine.dispose()
-            prompt_cache(app).invalidate()
-            wa.send_text('{"type":"say","client_id":"q2","text":"@ai and spill the beans?"}')
-            events = rw.until(wa, "message")
-            while not (events[-1]["type"] == "message" and events[-1]["message"]["kind"] == "ai_answer"):
-                events = rw.until(wa, "message")
-            assert seen[-1][0]["content"].startswith("NEW ANSWER. <topic>美食</topic>")
+            assert rw.until(wa, "notice")[-1] == {"type": "notice", "code": "agent_off"}  # agents off in this app
+            assert len(seen) == 1  # and nothing else called the model
     finally:
         client.__exit__(None, None, None)

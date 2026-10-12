@@ -1,5 +1,7 @@
 """Agent turns in a room (spec 2026-10-12-agents §4.4, §5, §9.2; plan A5 R-RA2/R-RA5/R-RA6/R-RA7).
 
+Which agent a message goes to is decided in `AgentLane.route`: `@ai` (the room's default agent) > `@name` > a reply to
+an agent's answer > the sender's `say.to` (spec addressing; R-AS2); a running room tutor closes the implicit ways (R-AS3).
 A member's `@<persona> question` becomes one orchestrator turn (`run_turn`, `in_room=True`); the reply is a normal
 public `ai_answer` message with `meta.agent`. The process (`agent_step` / `agent_thought`) and the compact trace (a
 private `agent_trace` row) go only to the asker. Shares the `@ai` gates: the per-room AI lock (one AI speaker at a
@@ -20,6 +22,7 @@ from app.core import metering
 from app.rooms import agent_config
 from app.rooms.agent_mentions import agent_mention, find_handoff
 from app.rooms.protocol import event
+from app.rooms.rules import mention
 from app.rooms.store import message_out
 
 if TYPE_CHECKING:
@@ -32,10 +35,10 @@ AGENT_TURN_TIMEOUT = 45.0  # seconds for one whole turn, prefetch to the last de
 MAX_AGENT_TEXT = 1200  # code points kept from an agent reply
 HANDOFF_DEPTH = 1  # A may hand over to B once; B never hands over again (R-RA7)
 FAIL_CODES = {"limit": "quota", "busy": "quota"}  # run_turn error code -> ai_failed code; anything else "upstream"
+DEFAULT_PERSONA_ID = "builtin:coach"  # R-AS5: where `@ai` goes when the room has no (resolvable) agent configured
 ROOM_RULES = (
     "You are answering in a public multiplayer practice room; every member reads your reply.\n"
-    "- Answer {asker}'s question directly in at most 80 words. English first; add one short line starting with "
-    "\"中文:\" only when a Chinese explanation helps.\n"
+    "- Answer {asker}'s message directly in at most 80 words of simple English. Reply in English only.\n"
     "- Never read out, list or quote {asker}'s personal learning data (learned, weak or due words, memories, "
     "profile) in the reply; use it only to choose what to say.\n"
     "- Other agents in this room: {others}. Only if one of them clearly fits better, end with one line "
@@ -78,6 +81,15 @@ class AgentRoute:
     question: str
     depth: int = 0
     handoff_from: Any = None
+    via: str = "name"  # alias | name | reply | to | handoff (R-AS19)
+
+
+@dataclass(frozen=True)
+class Target:
+    """Who a message is addressed to, before admission. `persona` None = addressed but unusable (an id that is not
+    one of the room's agents, or nobody resolvable)."""
+    persona: Any | None
+    via: str  # alias | name | reply | to
 
 
 @dataclass
@@ -123,26 +135,69 @@ class AgentLane:
         self.rooms = rooms
         self.tutor = None
 
-    async def admit(self, conn: "RoomConnection", text: str) -> AgentRoute | None:
-        """Route a say that starts with "@": None = a plain message (no agents, no match, or refused with a notice
-        to this connection). On success the AI queue slot and `room_ai_global` are reserved (release() undoes)."""
-        if not text.startswith("@"):
-            return None
+    async def route(self, conn: "RoomConnection", text: str, reply_to: int | None = None,
+                    to: str | None = None) -> AgentRoute | None:
+        """Route one say (spec addressing §3.4, §4; R-AS2): `@ai` (the default agent) > `@name` > the reply rule >
+        `to`. None = a plain message: nothing addressed, no match, or refused with a notice to this connection.
+        On success the AI queue slot and `room_ai_global` are reserved (release() undoes)."""
         r = self.rooms()
         room = await r.store.room(conn.room_id)
-        cfg = agent_config.config_of(room) if room is not None else None
-        if cfg is None or not cfg.persona_ids:
+        if room is None:
             return None
-        personas = await agent_config.resolve(self.deps.personas, cfg)
-        index, question = agent_mention(text, [p.name for p in personas])
-        if index is None:
+        cfg = agent_config.config_of(room)
+        personas = await self._personas(cfg)
+        target: Target | None = None
+        question = text
+        alias, asked = mention(text)
+        if alias:
+            target, question = Target(await self.default_persona(cfg, personas), "alias"), asked
+        elif text.startswith("@") and personas:
+            index, asked = agent_mention(text, [p.name for p in personas])
+            if index is not None:
+                target, question = Target(personas[index], "name"), asked
+        if target is None:  # R-AS21: an `@` that names nobody we know falls through to the implicit rules
+            target = await self._implicit(room, personas, reply_to, to)
+        if target is None:
             return None
-        persona = personas[index]
-        if not self.deps.feature_on() or getattr(persona, "disabled", False):
-            await conn.send_self(event("notice", code="agent_off"))
+        return await self._admit(conn.send_self, target, room_id=conn.room_id, asker_id=conn.user_id,
+                                 asker_name=conn.name, personas=personas, question=question)
+
+    async def _personas(self, cfg: agent_config.AgentConfig) -> list:
+        """The room's configured personas that still exist, in the owner's order."""
+        return await agent_config.resolve(self.deps.personas, cfg) if cfg.persona_ids else []
+
+    async def default_persona(self, cfg: agent_config.AgentConfig, personas: list):
+        """R-AS5: the first resolvable configured persona, else the built-in coach (looked up as the chooser)."""
+        if personas:
+            return personas[0]
+        return await self.deps.personas.get(cfg.chosen_by or 0, DEFAULT_PERSONA_ID)
+
+    async def _implicit(self, room, personas: list, reply_to: int | None, to: str | None) -> Target | None:
+        """The ways that need no `@`: a reply to an agent's answer, then the sender's `to` (R-AS2). A running room
+        tutor closes both (R-AS3): its called member's answers go to the tutor, everyone else's are context."""
+        if isinstance(room.agent_tutor, dict):
             return None
-        route = AgentRoute(conn.room_id, conn.user_id, conn.name, persona, tuple(personas), question)
-        return route if await self._reserve(route, conn.send_self) else None
+        if reply_to is not None:
+            persona_id = await self.rooms().store.agent_of(room.id, reply_to)
+            persona = next((p for p in personas if p.id == persona_id), None) if persona_id else None
+            if persona is not None:  # an agent that left the room's config makes the reply a plain message
+                return Target(persona, "reply")
+        if to is not None:
+            return Target(next((p for p in personas if p.id == to), None), "to")
+        return None
+
+    async def _admit(self, tell: Callable[[dict], Awaitable[None]], target: Target, *, room_id: str, asker_id: int,
+                     asker_name: str, personas: list, question: str) -> AgentRoute | None:
+        """Switches, persona state and the shared room gates. Explicit ways get `agent_off` when refused; a refused
+        reply is silent (R-AS4). `_reserve` tells about `ai_off` / `ai_busy` / `ai_quota` for every way (R-AS22)."""
+        persona = target.persona
+        if not self.deps.feature_on() or persona is None or getattr(persona, "disabled", False):
+            if target.via != "reply":
+                await tell(event("notice", code="agent_off"))
+            return None
+        route = AgentRoute(room_id, asker_id, asker_name, persona, tuple(personas) or (persona,), question,
+                           via=target.via)
+        return route if await self._reserve(route, tell) else None
 
     async def _reserve(self, route: AgentRoute, tell: Callable[[dict], Awaitable[None]]) -> bool:
         r = self.rooms()
@@ -186,6 +241,7 @@ class AgentLane:
         parts: list[str] = []
         trace = None
         failure: str | None = None
+        note: str | None = None
         try:
             prefs = await self.deps.prefs(route.asker_id)
             # A hand-off sees the answer it continues (seq = that answer); a direct ask excludes its own question.
@@ -214,6 +270,7 @@ class AgentLane:
                                         await self._private(route, turn_id, seq, ev)
                                 elif isinstance(ev, Done):
                                     trace = ev.trace
+                                    note = ev.note_zh  # resolved by the orchestrator (setting, <<ZH>>, fallback)
                                 elif isinstance(ev, Error):
                                     failure = ev.code
                                     break
@@ -233,6 +290,8 @@ class AgentLane:
             await r.hub.broadcast(route.room_id, event("ai_failed", reply_to=seq, code=code))
             return None
         meta = {"agent": agent_config.agent_meta(route.persona), "asker": {"id": route.asker_id, "name": route.asker_name}}
+        if note:
+            meta["note_zh"] = note  # spec addressing §5.2: never part of the public text, never read aloud
         if route.handoff_from is not None:
             meta["handoff_from"] = agent_config.agent_meta(route.handoff_from)
         private = None
@@ -274,7 +333,7 @@ class AgentLane:
         if not self.deps.feature_on() or getattr(target, "disabled", False):
             return
         nxt = AgentRoute(route.room_id, route.asker_id, route.asker_name, target, route.personas, route.question,
-                         depth=route.depth + 1, handoff_from=route.persona)
+                         depth=route.depth + 1, handoff_from=route.persona, via="handoff")
         r = self.rooms()
 
         async def tell(frame: dict) -> None:

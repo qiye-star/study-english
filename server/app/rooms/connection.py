@@ -6,11 +6,10 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.core import metering
 from app.core.ratelimit import RateLimiter
-from app.providers.llm import LlmUnavailable
 from app.rooms import assistant
 from app.rooms.hub import Conn, Dropped, RoomHub
 from app.rooms.protocol import (
@@ -36,14 +35,15 @@ class VoiceHandler(Protocol):
 
 
 class AgentsHandler(Protocol):
-    """Room agents (plan 2026-10-12-agents-rooms): `rooms.agent_lane.AgentLane`, installed on `RoomsRuntime.agents`
-    by `routers/rooms_agents.install`. None = no agent code at all (rooms behave exactly as before)."""
+    """Room agents (plan 2026-10-12-agents-rooms, addressing): `rooms.agent_lane.AgentLane`, installed on
+    `RoomsRuntime.agents` by `routers/rooms_agents.install`. None = no agent code at all (rooms behave as plain chat;
+    `@ai` and `say.to` then only give `notice agent_off`)."""
 
-    async def admit(self, conn: "RoomConnection", text: str) -> object | None: ...
+    async def route(self, conn: "RoomConnection", text: str, reply_to: int | None, to: str | None) -> Any | None: ...
 
-    async def release(self, route: object) -> None: ...
+    async def release(self, route: Any) -> None: ...
 
-    async def answer(self, route: object, seq: int, message_id: str) -> None: ...
+    async def answer(self, route: Any, seq: int, message_id: str) -> None: ...
 
     async def on_member_message(self, conn: "RoomConnection", message) -> None: ...
 
@@ -210,84 +210,32 @@ class RoomConnection:
             if not claimed:
                 await self._send(event("error", code="bad_assist"))
                 return
-        is_ai, question = mention(text)
-        ask = await self._admit_ai() if is_ai else False
         route = None
-        if not is_ai and d.agents is not None and text.startswith("@"):  # `@ai` always wins (R-RA4)
-            route = await d.agents.admit(self, text)
+        if d.agents is not None:  # `@ai` / `@name` / a reply to an agent / `to`: at most one turn per message (R-AS2)
+            route = await d.agents.route(self, text, msg.reply_to, msg.to or None)
+        elif msg.to or mention(text)[0]:  # no agent code at all: the message stays a plain one
+            await self._send(event("notice", code="agent_off"))
+        meta: dict = {}
+        if quote:
+            meta["quote"] = quote
+        if route is not None and route.via == "to":  # R-AS19: only a `to` that actually routed leaves a trace
+            meta["to_agent"] = route.persona.id
         try:
             async with d.hub.lock(self.room_id):
                 m = await d.store.append(self.room_id, lane="public", sender_kind="user", sender_id=self.user_id,
                                          kind="text", text=text, now=now, assisted=msg.assist_id is not None,
-                                         ai_status="pending" if ask or route is not None else None,
-                                         client_id=msg.client_id, reply_to=msg.reply_to,
-                                         meta={"quote": quote} if quote else None)
+                                         ai_status="pending" if route is not None else None,
+                                         client_id=msg.client_id, reply_to=msg.reply_to, meta=meta or None)
         except BaseException:
-            if ask:  # the question was never stored: release its queue slot and quota
-                d.hub.ai_leave(self.room_id)
-                await d.refund("room_ai_global", GLOBAL)
-            if route is not None:
+            if route is not None:  # the question was never stored: release its queue slot and quota
                 await d.agents.release(route)
             raise
         await self._send(event("ack", client_id=msg.client_id, seq=m.seq))
         await d.hub.broadcast(self.room_id, event("message", message=await d.store.out_one(m.id)))
-        if ask:
-            d.hub.spawn(self._answer(m.seq, m.id, question))
-        elif route is not None:
+        if route is not None:
             d.hub.spawn(d.agents.answer(route, m.seq, m.id))
         elif d.agents is not None:  # a room tutor may be waiting for this member's answer (R-RA8)
             await d.agents.on_member_message(self, m)
-
-    async def _admit_ai(self) -> bool:
-        d = self.deps
-        room = await d.store.room(self.room_id)
-        if not d.ai_available or room is None or not room.ai_public or room.ai_muted:
-            await self._send(event("notice", code="ai_off"))
-            return False
-        if d.hub.ai_pending(self.room_id) >= d.limits.ai_queue:
-            await self._send(event("notice", code="ai_busy"))
-            return False
-        d.hub.ai_enter(self.room_id)  # reserve the slot before any await (review #11)
-        if (not d.ai_room_limiter.allow(self.room_id) or not d.ai_user_limiter.allow(str(self.user_id))
-                or not await d.consume("room_ai_global", GLOBAL, d.limits.ai_global_daily)):
-            d.hub.ai_leave(self.room_id)
-            await self._send(event("notice", code="ai_quota"))
-            return False
-        return True
-
-    async def _answer(self, seq: int, message_id: str, question: str) -> None:
-        d = self.deps
-        try:
-            async with d.hub.ai_lock(self.room_id):
-                await d.hub.broadcast(self.room_id, event("ai_typing", reply_to=seq))
-                room = await d.store.room(self.room_id)
-                recent = await d.store.recent_public(self.room_id, assistant.ANSWER_CONTEXT)
-                try:
-                    template = await d.template("rooms.answer")
-                    messages = assistant.answer_messages(room.name or room.topic, recent, self.name, question,
-                                                         template=template, level=room.level,
-                                                         scenario=brief(room.scenario))
-                    metering.bind_user(self.user_id)  # the asker pays (admin usage), feature "rooms"
-                    with metering.feature_scope("rooms"):
-                        async with d.ai_gate:
-                            raw = await d.complete(messages, assistant.ANSWER_MAX_TOKENS,
-                                                   assistant.ANSWER_TEMPERATURE)
-                    text = assistant.clean_answer(raw)
-                    if not text:
-                        raise LlmUnavailable("empty")
-                except Exception as e:  # LlmUnavailable, or anything unexpected: the question must not stay pending
-                    logger.info("room ai answer failed kind=%s", getattr(e, "kind", type(e).__name__))
-                    await d.store.set_ai_status(message_id, "failed")
-                    await d.refund("room_ai_global", GLOBAL)
-                    await d.hub.broadcast(self.room_id, event("ai_failed", reply_to=seq, code="upstream"))
-                    return
-                async with d.hub.lock(self.room_id):
-                    answer = await d.store.append(self.room_id, lane="public", sender_kind="ai", sender_id=None,
-                                                  kind="ai_answer", text=text, now=d.clock(), reply_to=seq)
-                await d.store.set_ai_status(message_id, "done")
-                await d.hub.broadcast(self.room_id, event("message", message=message_out(answer, None)))
-        finally:
-            d.hub.ai_leave(self.room_id)
 
     async def on_assist(self, msg: AssistMsg) -> None:
         d = self.deps

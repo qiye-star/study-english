@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_rooms_agents_api import AGENTS_ON, fake_run_turn
 from tests.test_rooms_ws import login, make_client, until
 
 FIXTURE = Path(__file__).parent / "fixtures" / "rooms_contract.json"
@@ -99,7 +100,8 @@ def collect(client) -> dict:
 
 
 def test_rooms_payloads_match_the_web_contract(tmp_path, monkeypatch):
-    app, client = make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.routers.rooms_agents.run_turn", fake_run_turn)  # `@ai` is the default agent now (D3)
+    app, client = make_client(tmp_path, monkeypatch, **AGENTS_ON)
     try:
         actual = collect(client)
     finally:
@@ -116,6 +118,8 @@ def test_rooms_payloads_match_the_web_contract(tmp_path, monkeypatch):
     # Pinned values the web client branches on
     ws = contract["ws"]
     assert ws["message_ai_answer"]["message"]["sender"] == {"kind": "ai", "id": None, "name": None}
+    agent_meta = ws["message_ai_answer"]["message"]["meta"]
+    assert agent_meta["agent"]["persona_id"] == "builtin:coach" and set(agent_meta) >= {"agent", "asker"}
     assert ws["room_update"]["room"]["my_role"] is None and contract["http"]["create"]["room"]["my_role"] == "owner"
     assert ws["notice"]["code"] == "ai_off" and ws["error"]["code"] == "empty" and ws["closed"]["reason"] == "owner"
     assert ws["assist_reply"]["message"]["lane"] == "private"
