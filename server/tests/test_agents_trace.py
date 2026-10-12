@@ -87,3 +87,27 @@ def test_check_stored():
     with pytest.raises(ValueError, match="too_large"):
         trace.check_stored({"v": 1, "pad": "x" * 5000})
     assert json.loads(trace.dumps({"a": "中"})) == {"a": "中"}
+
+
+def test_done_carries_an_optional_note_and_the_compact_trace_keeps_it():
+    from app.agents import trace as T
+
+    assert "note_zh" not in T.Done(text_len=3, trace={"v": 1}).to_dict()
+    assert T.Done(text_len=3, trace={"v": 1}, note_zh="意思是放弃").to_dict()["note_zh"] == "意思是放弃"
+    assert T.compact_trace([], "prefetch", None, note_zh="很好" * 50)["note_zh"] == ("很好" * 50)[:80]
+    assert "note_zh" not in T.compact_trace([], "prefetch", None)
+    huge = {"v": 1, "tools": "prefetch", "note_zh": "很好", "steps": [
+        {"key": "k" * 400, "group": "tool", "status": "done", "ms": 1, "private": False, "label": "l"}
+        for _ in range(20)]}
+    assert T.fit(huge) == {"v": 1, "tools": "prefetch", "steps": [], "truncated": True, "note_zh": "很好"}
+
+
+def test_stored_trace_accepts_a_short_note_only():
+    from app.agents import trace as T
+
+    base = {"v": 1, "tools": "prefetch", "steps": []}
+    assert T.check_stored({**base, "note_zh": "很好"})["note_zh"] == "很好"
+    assert T.check_stored({**base, "note_zh": None})["note_zh"] is None
+    for bad in ("很" * 81, 3, ["x"]):
+        with pytest.raises(ValueError):
+            T.check_stored({**base, "note_zh": bad})
