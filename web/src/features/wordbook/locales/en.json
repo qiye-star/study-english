@@ -1,0 +1,12 @@
+{
+  "web": {
+    "wordbookDefs": {
+      "label": "English definitions (reference)",
+      "setting": {
+        "label": "Definitions",
+        "help": "Shown once a card is open. Quizzes stay in Chinese. English definitions come from an open dictionary and are a reference only.",
+        "options": { "both": "Both", "zh": "Chinese only", "en": "English only" }
+      }
+    }
+  }
+}

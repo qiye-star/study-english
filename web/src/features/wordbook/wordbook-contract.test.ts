@@ -3,8 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
+import { DEF_POS_CODES, isDefLang } from "./def-lang";
 import type {
-  AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DayPlan, Enrollment, GoalLimits, ItemState, Progress, Question,
+  AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DefEn, DayPlan, Enrollment, GoalLimits, ItemState, Progress, Question,
   FreeItem, FreeSet, LearnedItem, LearnedPage, LearnedSummary, ResetResult, Segment, SpellResult, SpellWordResult, Streak, Today, WordbookBook, WordbookConfig,
 } from "./wordbook-api";
 
@@ -36,7 +37,36 @@ const BONUS: Record<keyof BonusResult, true> = { plan: true, bonusLeft: true };
 const RESET: Record<keyof ResetResult, true> = { removed: true, enrollment: true };
 const BOOK: Record<keyof WordbookBook, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, available: true };
 const BOOK_PROGRESS: Record<keyof BookProgress, true> = { id: true, titleZh: true, titleEn: true, level: true, words: true, learned: true, mastered: true, enrolled: true, active: true };
-const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
+// defsEn 是可选键(缺省 = 没有英文释义):键表不含它,由 expectCard 单独核对(R-DW11)
+const CARD: Record<Exclude<keyof Card, "defsEn">, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
+const DEF_EN: Record<keyof DefEn, true> = { pos: true, text: true };
+
+/** 卡片形状:基础键相等;若有 defsEn,逐项核对键、词性码、非空文本与每词性 ≤ 2 条。 */
+function expectCard(card: Card) {
+  expect(keysOf(card).filter((k) => k !== "defsEn")).toEqual(keys(CARD));
+  const perPos = new Map<string, number>();
+  for (const d of card.defsEn ?? []) {
+    expect(keysOf(d)).toEqual(keys(DEF_EN));
+    expect(DEF_POS_CODES).toContain(d.pos);
+    expect(d.text.trim().length).toBeGreaterThan(0);
+    perPos.set(d.pos, (perPos.get(d.pos) ?? 0) + 1);
+  }
+  for (const n of perPos.values()) expect(n).toBeLessThanOrEqual(2);
+}
+
+/**
+ * 守卫:这些断言需要服务端按「英英释义」计划重录的夹具(config.def_lang、cards[].defs_en、def_lang_patch)。
+ * 服务端合并并重录后 `fixtureHas` 自动变真,断言自动开启(无需再改本文件);此前它们显示为 skipped。
+ */
+const fixtureHas = (...p: string[]) => {
+  let cur: unknown = contract;
+  for (const k of p) {
+    if (cur === null || typeof cur !== "object" || !(k in (cur as object))) return false;
+    cur = (cur as Record<string, unknown>)[k];
+  }
+  return cur !== undefined;
+};
+const serverHasDefs = fixtureHas("config", "def_lang");
 const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
 const ANSWER: Record<keyof AnswerResult, true> = {
   correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true,
@@ -72,7 +102,7 @@ describe("wordbook contract (server fixture)", () => {
   });
 
   it("cards, questions, answers and spelling payloads match", () => {
-    expect(keysOf(cc<Card>(c.card))).toEqual(keys(CARD));
+    expectCard(cc<Card>(c.card));
     const q = cc<{ quiz: Question[] }>(c.learn_batch).quiz[0];
     expect(keysOf(q)).toEqual(keys(QUESTION));
     const answer = cc<AnswerResult>(c.answer_typed);
@@ -160,11 +190,11 @@ describe("wordbook contract (server fixture)", () => {
     expect(keysOf(page)).toEqual(keys(LEARNED_PAGE));
     expect(typeof page.nextCursor).toBe("string");
     expect(keysOf(page.items[0])).toEqual(keys(LEARNED_ITEM));
-    expect(keysOf(cc<Card>(c.learned_card))).toEqual(keys(CARD));
+    expectCard(cc<Card>(c.learned_card));
     const free = cc<FreeSet>(c.free_start);
     expect(keysOf(free)).toEqual(keys(FREE_SET_KEYS));
     expect(keysOf(free.items[0])).toEqual(keys(FREE_ITEM));
-    expect(keysOf(free.items[0].card)).toEqual(keys(CARD));
+    expectCard(free.items[0].card);
     expect(keysOf(free.items[0].question as Question)).toEqual(keys(QUESTION));
     const answer = cc<AnswerResult>(c.answer_free);
     expect(keysOf(answer)).toEqual(keys(ANSWER));
@@ -179,7 +209,23 @@ describe("wordbook contract (server fixture)", () => {
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) {
       expect(typeof card.key).toBe("string");
-      expect(keysOf(cc<Card>(card))).toEqual(keys(CARD));
+      expectCard(cc<Card>(card));
     }
+  });
+
+  // GUARDED (needs the re-recorded server fixture): turns on by itself once config.def_lang exists in the fixture.
+  it.skipIf(!serverHasDefs)("definitions: defsEn on cards and defLang in the config (spec 2026-10-12-wordbook-definitions §4)", () => {
+    const batch = cc<{ cards: Card[] }>(c.learn_batch);
+    for (const card of batch.cards) expectCard(card);
+    expect(batch.cards.some((card) => (card.defsEn?.length ?? 0) > 0)).toBe(true);
+    const config = cc<Extract<WordbookConfig, { enabled: true }>>(c.config);
+    expect(isDefLang(config.defLang)).toBe(true);
+    expect(config.defLang).toBe("both");
+  });
+
+  // GUARDED (needs the re-recorded server fixture): the PATCH /enrollment {def_lang} response recorded by the server (AD-1).
+  it.skipIf(!fixtureHas("def_lang_patch"))("definitions: PATCH enrollment with def_lang echoes def_lang (AD-1)", () => {
+    const patch = c.def_lang_patch as Record<string, unknown>;
+    expect(isDefLang(patch.def_lang)).toBe(true);
   });
 });

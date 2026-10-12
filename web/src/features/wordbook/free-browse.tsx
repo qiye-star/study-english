@@ -6,6 +6,7 @@ import { PageNote } from "./page-status";
 import { RecallCard } from "./recall-card";
 import { SessionHeader, StepBar } from "./session-header";
 import { DOCK, GHOST, PRIMARY } from "./ui";
+import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
 import { useWordbookConfig } from "./use-wordbook-config";
 import type { FreeSet, Question } from "./wordbook-api";
@@ -20,6 +21,7 @@ export function FreeBrowse({ set }: { set: FreeSet }) {
   const speaker = useSpeaker();
   const config = useWordbookConfig();
   const showExample = config?.enabled ? config.learn.showExample : true;
+  const defLang = useDefLangValue();
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -50,7 +52,7 @@ export function FreeBrowse({ set }: { set: FreeSet }) {
       <SessionHeader title={title} subtitle={t("web.wordbook.learned.free.browse.progress", { n: index + 1, total: items.length })} />
       <div className="px-gutter pb-4">
         <StepBar done={index} total={items.length} />
-        <RecallCard key={item.card.key} question={question} card={item.card} face={flipped ? "back" : "front"} rating={null} showExample={showExample} {...listen} />
+        <RecallCard key={item.card.key} question={question} card={item.card} defLang={defLang} face={flipped ? "back" : "front"} rating={null} showExample={showExample} {...listen} />
       </div>
       <div className={DOCK}>
         <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={index === 0} onClick={() => go(index - 1)}>{t("web.wordbook.learned.free.browse.prev")}</button>

@@ -12,6 +12,8 @@ export type WordbookConfig =
       learn: { autoplay: boolean; showExample: boolean };
       /** 每日目标范围(spec 2026-10-11-wordbook-goals §9)。老版本服务端没有这个键:一律经 limitsOf 取值。 */
       limits?: GoalLimits;
+      /** 释义显示偏好(spec 2026-10-12-wordbook-definitions §4)。老版本服务端没有这个键:一律经 `defLangOf`(def-lang.ts)取值。 */
+      defLang?: DefLang;
     };
 export interface BookProgress extends Omit<WordbookBook, "available"> { learned: number; mastered: number; enrolled: boolean; active: boolean }
 export type OrderMode = "shuffle" | "book";
@@ -20,8 +22,12 @@ export interface DayPlan { newTarget: number; newDone: number; newLeft: number; 
 export interface Progress { words: number; learned: number; mastered: number; remaining: number }
 export interface Today { enrollment: Enrollment | null; book: WordbookBook | null; plan: DayPlan | null; progress: Progress | null; tomorrowDue: number; paused: Enrollment | null; streak: Streak }
 export interface Sense { pos: string; text: string }
+/** 英英释义(spec 2026-10-12-wordbook-definitions §4):`pos` 是服务端词性码,每个词性最多 2 条;缺口词 / 老服务端没有 `defsEn`。 */
+export interface DefEn { pos: string; text: string }
+/** 释义显示:中英(默认)/ 仅中文 / 仅英文。 */
+export type DefLang = "both" | "zh" | "en";
 export interface Example { id: string; en: string; zh: string }
-export interface Card { key: string; word: string; us: string; uk: string; senses: Sense[]; phrases: { en: string; zh: string }[]; examples: Example[] }
+export interface Card { key: string; word: string; us: string; uk: string; senses: Sense[]; phrases: { en: string; zh: string }[]; examples: Example[]; defsEn?: DefEn[] }
 export type QType = "meaning" | "word" | "cloze" | "dictation" | "spell" | "recall";
 export interface Question { key: string; qtype: QType; prompt: { word?: string; us?: string; meaning?: string; sentence?: string; zh?: string }; options: string[] | null; length: number | null }
 /** 三档自评(spec 2026-10-11-wordbook-recall):盒子由服务端决定。 */

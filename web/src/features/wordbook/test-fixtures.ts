@@ -38,3 +38,17 @@ export const card = (key: string, extra: Record<string, unknown> = {}) => ({
   examples: [{ id: `ex-${key}`, en: `They ${key} a lot.`, zh: `他们常常${key}。` }],
   ...extra,
 });
+
+/** useId 生成的 id(":r0:" 之类)随渲染顺序变化,换成固定占位再比较 DOM 字符串。 */
+export const normalizeIds = (html: string) => html.replace(/:r[0-9a-z]+:/g, ":rN:");
+
+/** 英英释义样例(键 pos / text 在 snake_case 与 camelCase 下相同)。第三条 v 是故意超限的,用来测客户端截到每词性 2 条。 */
+export const DEFS_EN = [
+  { pos: "v", text: "exchange thoughts or ideas by speaking" },
+  { pos: "v", text: "use language to express something" },
+  { pos: "v", text: "a third verb definition that must not be shown" },
+  { pos: "n", text: "an exchange of ideas by speaking" },
+];
+
+/** 带英文释义的服务端样例卡(snake_case:键 `defs_en`)。 */
+export const defsCard = (key: string, extra: Record<string, unknown> = {}) => card(key, { defs_en: DEFS_EN, ...extra });
