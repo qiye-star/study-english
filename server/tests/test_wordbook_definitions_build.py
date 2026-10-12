@@ -46,6 +46,13 @@ go%2:38:00:: 02000003 1 0
 dog%1:05:00:: 05000008 1 0
 fast%3:00:00:: 01000003 1 0
 sketch%1:06:00:: 05000009 1 0
+grass%1:20:00:: 05000010 1 0
+grass%1:18:01:: 05000011 2 0
+grass%1:13:00:: 05000012 3 0
+snitch%1:18:00:: 05000013 1 0
+hush%1:10:00:: 05000014 1 0
+hush%1:10:01:: 05000015 2 0
+hush%1:10:02:: 05000016 3 0
 """
 DATA = {
     "data.noun": [
@@ -58,6 +65,13 @@ DATA = {
         "05000007 04 n 01 ice_cream 0 000 | a frozen dessert made from cream; \"he ate ice cream\"",
         "05000008 04 n 01 dog 0 000 | a domesticated canine",
         "05000009 04 n 01 sketch 0 000 | a quick drawing",
+        "05000010 04 n 01 grass 0 000 | narrow-leaved green herbage",
+        "05000011 04 n 01 grass 0 000 | (slang) a police informer who implicates many people",
+        "05000012 04 n 01 grass 0 000 | the lawn of a house",
+        "05000013 04 n 01 snitch 0 000 | (slang) an informer",
+        "05000014 04 n 01 hush 0 000 | (British informal) a quiet spell",
+        "05000015 04 n 01 hush 0 000 | informal British term for silence",
+        "05000016 04 n 01 hush 0 000 | (archaic) a calm",
     ],
     "data.verb": [
         "02000001 40 v 01 abandon 0 000 | forsake, leave behind; \"abandon your children\"; \"abandon your car\"",
@@ -119,6 +133,33 @@ def test_pick_texts_moves_long_glosses_back_stably_and_keeps_two():
     assert wd.pick_texts(['"only an example"', "ok"]) == ["ok"] and wd.pick_texts([]) == []
 
 
+@pytest.mark.parametrize("gloss, labelled", [
+    ("(slang) a police informer who implicates many people", True),
+    ("(British informal) cuddle and kiss", True), ("(informal British usage) aggravation", True),
+    ("(vulgar, colloquial) something", True), ("(dated slang) a remarkable thing", True),
+    ("(ethnic slur) an offensive name", True), ("(Archaic) lame persons", True), ("(obsolete) a combination", True),
+    ("British slang for a swindle", True), ("slang for sexual intercourse", True), ("informal British term for a cafe", True),
+    ("an archaic term for a parrot", True), ("derogatory term for a variation", True), ("vulgar expression for a bout", True),
+    ("offensive terms for the practices of a church", True), ("informal words for any attempt", True),
+    # not labels
+    ("persuaded of; very sure", False), ("a police informer who implicates many people", False),
+    ("(usually informal) especially a young rabbit", False), ("(sometimes offensive) an act of swindling", False),
+    ("(military) an offensive against an enemy", False), ("(of speech or dialect) pleasing in sound", False),
+    ("an obsolete firearm with a long barrel", False), ("a small informal restaurant", False),
+    ("rare North American crane", False), ("(Southern or Midland) considerable", False),
+    ("(British) a prison", False), ("(euphemism) the removal of a threat", False), ("", False)])
+def test_usage_label_detects_only_explicit_register_markers(gloss, labelled):
+    assert wd.is_usage_labelled(gloss) is labelled
+
+
+def test_pick_texts_drops_labelled_senses_only_when_another_sense_remains():
+    assert wd.pick_texts(["a plant", "(slang) an informer", "a lawn"]) == ["a plant", "a lawn"]
+    assert wd.pick_texts(["(slang) an informer", "a plant"]) == ["a plant"]
+    assert wd.pick_texts(["(slang) an informer"]) == ["(slang) an informer"]  # never drop the only sense
+    assert wd.pick_texts(["(slang) one", "(archaic) two", "(rare) three"]) == ["(slang) one", "(archaic) two"]  # all labelled: order kept
+    assert wd.pick_texts(['(slang) "x"', "ok"]) == ["ok"]
+
+
 def make_wordnet_zip(path: Path) -> Path:
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("oewn2025/", "")
@@ -149,7 +190,8 @@ def book_row(word: str, *types: str) -> dict:
 ROWS = {
     "junior": [book_row("abandon", "vt", "n"), book_row("stamp", "n"), book_row("Child", "n"), book_row("big", "adj"),
                book_row("quick", "a"), book_row("quickly", "ad"), book_row("in", "prep", "n"), book_row("the", "art"),
-               book_row("dogs", "n"), book_row("went", "v"), book_row("ice cream", "n"), book_row("a.", "n")],
+               book_row("dogs", "n"), book_row("went", "v"), book_row("ice cream", "n"), book_row("a.", "n"),
+               book_row("grass", "n"), book_row("snitch", "n"), book_row("hush", "n")],
     "senior": [book_row("America", "n"), book_row("TV", "n"), book_row("sweaty", "a"), book_row("fast", "a&ad"),
                book_row("sketch", "v"), book_row("mr.", "n"), book_row("hard-working", "a"), book_row("children", "n"),
                book_row("abandon", "vi"), book_row("untyped")],
@@ -249,6 +291,15 @@ def test_build_never_uses_wordnet_for_closed_class_pos(env):
     assert gaps["the"].pos == ("art",) and gaps["the"].category == "function"
 
 
+def test_build_drops_usage_labelled_senses_but_never_the_only_one(env):
+    result = run_build(env)
+    rows = rows_of(env)
+    assert rows["grass"] == [("n", "narrow-leaved green herbage", "oewn"), ("n", "the lawn of a house", "oewn")]
+    assert rows["snitch"] == [("n", "(slang) an informer", "oewn")]
+    assert [t for _, t, _ in rows["hush"]] == ["(British informal) a quiet spell", "informal British term for silence"]
+    assert result.stats["usage_filtered_pairs"] == 1
+
+
 def test_build_lists_gaps_with_categories_and_counts(env):
     result = run_build(env)
     gaps = {g.word: (g.pos, g.category) for g in wd.read_missing(env["out"] / "missing.txt")}
@@ -259,7 +310,7 @@ def test_build_lists_gaps_with_categories_and_counts(env):
     assert "fast" not in gaps  # a found, r missing: a partial open-POS gap is counted, not listed
     assert result.stats["partial_open_pos"] == 1
     assert result.stats["gap_categories"] == {"function": 2, "proper": 1, "abbr": 2, "compound": 1, "pos_mismatch": 1, "other": 2}
-    assert result.stats["words_wanted"] == 20 and result.stats["gaps"] == 9
+    assert result.stats["words_wanted"] == 23 and result.stats["gaps"] == 9
 
 
 def test_missing_txt_is_sorted_by_category_then_frequency(env):
@@ -333,7 +384,7 @@ def test_hand_entries_fill_closed_class_gaps_and_win_over_everything(env):
                     ("the", [("art", "used before a noun")])])
     result = run_build(env)
     rows = rows_of(env)
-    assert rows["in"] == [("prep", "inside or within a place", "hand"), ("n", "a metallic element", "oewn")]  # book POS order
+    assert rows["in"] == [("prep", "inside or within a place", "hand")]  # a hand entry wins entirely: no indium
     assert rows["stamp"] == [("n", "a mark made by pressing", "hand")]  # hand beats oewn
     assert rows["the"] == [("art", "used before a noun", "hand")]
     assert result.stats["pairs"]["hand"] == 3 and result.stats["gap_categories"]["function"] == 0
