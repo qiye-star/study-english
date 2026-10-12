@@ -19,4 +19,9 @@ describe("fromServerMessage with agent traces (spec §4.4)", () => {
     const ui = fromServerMessage({ id: "m4", conversationId: "c1", role: "assistant", content: "Hi", createdAt: "", agentTrace: stored });
     expect(ui.agent?.trace?.steps[0]).toMatchObject({ key: "word_lookup", status: "done", labelKey: "agents.step.word_lookup", private: true });
   });
+
+  it("fromServerMessage keeps agent_trace.note_zh on the trace", () => {
+    const ui = fromServerMessage({ id: "m1", conversationId: "c1", role: "assistant", content: "Hi", agentTrace: { v: 1, steps: [], noteZh: "说明" } } as never);
+    expect(ui.agent?.trace?.noteZh).toBe("说明");
+  });
 });

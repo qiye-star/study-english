@@ -17,6 +17,8 @@ export function part<P extends object>(load: () => Promise<ComponentType<P>>, fa
 }
 
 export const pageFallback = <div aria-busy="true" className="min-h-40" />;
+/** 「中文」折叠的占位:与按钮同高(44 px),文案块到达时不跳动 */
+const noteFallback = <span aria-hidden className="mt-1 block h-tap" />;
 
 // ---- parts ----
 export const ProcessCapsule = /* @__PURE__ */ part<import("./process-capsule").ProcessCapsuleProps>(() => import("./process-capsule").then((m) => m.ProcessCapsule));
@@ -30,3 +32,4 @@ export const AgentsMeRow = /* @__PURE__ */ part<object>(() => import("./me-row")
 export const ChatPersonaControl = /* @__PURE__ */ part<import("./chat-parts").ChatPersonaControlProps>(() => import("./chat-parts").then((m) => m.ChatPersonaControl));
 export const TutorEntry = /* @__PURE__ */ part<import("./chat-parts").TutorEntryProps>(() => import("./chat-parts").then((m) => m.TutorEntry));
 export const TutorBarSlot = /* @__PURE__ */ part<import("./chat-parts").TutorBarSlotProps>(() => import("./chat-parts").then((m) => m.TutorBarSlot));
+export const AgentNote = /* @__PURE__ */ part<import("./agent-note").AgentNoteProps>(() => import("./agent-note").then((m) => m.AgentNote), noteFallback);

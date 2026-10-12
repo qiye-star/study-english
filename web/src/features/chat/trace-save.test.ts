@@ -24,3 +24,10 @@ describe("traceForSave (server limit 4 KB, spec §4.4)", () => {
     expect(out === null || new TextEncoder().encode(JSON.stringify(out)).length <= 3800).toBe(true);
   });
 });
+
+it("keeps the Chinese note through every shrink step that still saves a trace (R-AW11)", () => {
+  const big = { v: 1, ms: 1, noteZh: "说明", thought: { source: "summary" as const, text: "x".repeat(5000) },
+    steps: [{ id: "s", group: "tool" as const, key: "word_lookup", status: "done" as const, labelKey: "agents.step.word_lookup", private: false }] };
+  expect(traceForSave(big)!.noteZh).toBe("说明");
+  expect(traceForSave({ v: 1, ms: 1, steps: [], thought: null, noteZh: "说明" })!.noteZh).toBe("说明");
+});

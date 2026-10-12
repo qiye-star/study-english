@@ -37,7 +37,7 @@ export function BubbleActions({ children }: { children: ReactNode }) {
   return <div className="-mx-2 -mb-1.5 mt-1 flex flex-wrap gap-1">{children}</div>;
 }
 
-export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled, partnerName, before, after }: {
+export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled, partnerName, before, after, note }: {
   message: UiMessage;
   onRetry?: () => void;
   actions?: ReactNode;
@@ -51,6 +51,8 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
   /** 助手气泡上方(过程胶囊)与下方(来源标签)的插槽;不传时 DOM 与原来相同 */
   before?: ReactNode;
   after?: ReactNode;
+  /** 助手气泡正文下方的「中文」折叠(智能体回复的 note_zh;只在完成后显示,不朗读) */
+  note?: ReactNode;
 }) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
@@ -113,6 +115,7 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
         </div>
       )}
       {isUser && message.status === "done" && footer}
+      {!isUser && message.status === "done" && note}
       {!isUser && message.status === "done" && translation}
       {!isUser && message.status === "done" && actions}
       {error && onRetry && (

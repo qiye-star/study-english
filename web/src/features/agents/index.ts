@@ -22,3 +22,5 @@ export { MemoryPage } from "./memory/lazy";
 export type { MemoryItem, ProfileState } from "./memory/memory-api";
 // ---- addressing (plan 2026-10-12-agents-addressing-web) ----
 export { withNote } from "./trace";
+export { AgentNote } from "./lazy-parts";
+export type { AgentNoteProps } from "./agent-note";

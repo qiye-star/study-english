@@ -89,6 +89,35 @@ describe("ConversationPage with a persona (spec §9.3, R-W12)", () => {
     expect(await screen.findByTestId("agent-source")).toHaveTextContent("Dictionary · give up");
   });
 
+  it("shows done.note_zh folded under the reply, saves it in agent_trace and never sends it to TTS (spec addressing §5)", async () => {
+    const NOTE = "give up 是放弃";
+    const mock = setup(routes({ "POST /api/agents/turn": () => sse([...HAPPY.slice(0, -1), ev("done", { trace: TRACE, text_len: 12, note_zh: NOTE })]) }));
+    await screen.findByText("Earlier reply");
+    await say("Hi");
+    await waitFor(() => expect(screen.getAllByTestId("message-assistant").at(-1)).toHaveTextContent("Hello there!"));
+    const bubble = screen.getAllByTestId("message-assistant").at(-1)!;
+    const toggle = await within(bubble).findByRole("button", { name: "Chinese" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(bubble).getByTestId("agent-note-text")).not.toBeVisible();
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/conversations/c1/messages")).toHaveLength(1));
+    const saved = bodyOf(callsTo(mock, "POST", "/api/conversations/c1/messages")[0]).messages.at(-1);
+    expect(saved.content).toBe("Hello there!");
+    expect(saved.agent_trace.note_zh).toBe(NOTE);
+    await userEvent.click(within(bubble).getByTestId("message-tts"));
+    await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/audio/speech").length).toBeGreaterThan(0));
+    for (const c of callsTo(mock, "POST", "/api/ai/audio/speech")) expect(String(c.body)).not.toContain("放弃");
+  });
+
+  it("renders the stored note after a reload and nothing for replies without one", async () => {
+    setup(routes({
+      "GET /api/conversations/c1/messages": () => json({ messages: [
+        { id: "m8", conversation_id: "c1", role: "assistant", content: "Old", agent_trace: TRACE },
+        { id: "m9", conversation_id: "c1", role: "assistant", content: "Stored", agent_trace: { ...TRACE, note_zh: "存下的说明" } }] }),
+    }));
+    await screen.findByText("Stored");
+    expect(screen.getAllByRole("button", { name: "Chinese" })).toHaveLength(1);
+  });
+
   it("feeds the same deltas into auto-speak: the finished sentence is spoken", async () => {
     const mock = setup(routes({ "POST /api/agents/turn": () => sse(HAPPY) }));
     await screen.findByText("Earlier reply");

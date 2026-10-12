@@ -15,7 +15,7 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
+import { AgentNote, ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
 import { goPractice, savePracticeItem } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
 import { WordActions } from "~/lib/extension-points-react";
@@ -722,7 +722,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           onMeta: (meta) => { if (live() && tutorNow && tutorRef.current === tutorNow) setTutor({ sessionId: tutorNow.sessionId, meta }); },
         }, controller.signal);
         reply = result.text;
-        trace = result.trace;
+        trace = withNote(result.trace, result.noteZh);
       } else {
         reply = await streamChatCompletion(api,
           { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, coach), model: config.model, temperature: config.temperature },
@@ -1237,6 +1237,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
                   onRegenerate={m.key === lastKey && m.id && !sending && !tutor ? () => regenerate() : undefined} />
               ) : null}
               after={m.agent?.trace ? <SourceChips trace={m.agent.trace} /> : null}
+              note={m.agent?.trace?.noteZh ? <AgentNote text={m.agent.trace.noteZh} /> : null}
               footer={hasResultFooter(m) ? (
                 <div data-testid="message-footer" className="mt-2 flex flex-wrap items-center gap-1.5">
                   <PronunciationBadge view={m.assessment} transcript={m.content} onOpen={() => setDetailKey(m.key)} />
