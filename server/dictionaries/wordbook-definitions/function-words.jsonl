@@ -1,0 +1,104 @@
+{"word":"a","defs":[{"pos":"art","text":"used before a singular noun to mean one, not a particular one","src":"hand"}]}
+{"word":"about","defs":[{"pos":"prep","text":"on the subject of someone or something","src":"hand"}]}
+{"word":"after","defs":[{"pos":"prep","text":"later than a time or event","src":"hand"},{"pos":"conj","text":"at a time later than when something happens","src":"hand"}]}
+{"word":"against","defs":[{"pos":"prep","text":"opposing someone or something; not in favor of","src":"hand"}]}
+{"word":"all","defs":[{"pos":"pron","text":"the whole number or amount of people or things","src":"hand"}]}
+{"word":"also","defs":[{"pos":"conj","text":"in addition to what has been said","src":"hand"}]}
+{"word":"although","defs":[{"pos":"conj","text":"in spite of the fact that; even though","src":"hand"}]}
+{"word":"and","defs":[{"pos":"conj","text":"used to join words or parts of a sentence","src":"hand"}]}
+{"word":"any","defs":[{"pos":"pron","text":"one or some, no matter which","src":"hand"}]}
+{"word":"as","defs":[{"pos":"conj","text":"while; at the time that; or in the same way that","src":"hand"},{"pos":"prep","text":"in the role or form of something","src":"hand"}]}
+{"word":"at","defs":[{"pos":"prep","text":"in or near a particular place or time","src":"hand"}]}
+{"word":"be","defs":[{"pos":"aux","text":"used with another verb to form tenses and the passive","src":"hand"}]}
+{"word":"because","defs":[{"pos":"conj","text":"for the reason that","src":"hand"}]}
+{"word":"before","defs":[{"pos":"prep","text":"earlier than a time or event","src":"hand"},{"pos":"conj","text":"earlier than the time when","src":"hand"}]}
+{"word":"between","defs":[{"pos":"prep","text":"in the space or time separating two things","src":"hand"}]}
+{"word":"but","defs":[{"pos":"conj","text":"used to introduce an opposite or surprising idea","src":"hand"},{"pos":"prep","text":"except; apart from","src":"hand"}]}
+{"word":"by","defs":[{"pos":"prep","text":"next to, or done by a person or thing","src":"hand"}]}
+{"word":"can","defs":[{"pos":"aux","text":"used to say that someone is able to or may do something","src":"hand"}]}
+{"word":"come","defs":[{"pos":"int","text":"used to encourage someone or to show you are annoyed","src":"hand"}]}
+{"word":"could","defs":[{"pos":"aux","text":"used to talk about what was possible or might happen","src":"hand"}]}
+{"word":"do","defs":[{"pos":"aux","text":"used to make questions and negative sentences","src":"hand"}]}
+{"word":"down","defs":[{"pos":"prep","text":"from a higher to a lower place","src":"hand"}]}
+{"word":"during","defs":[{"pos":"prep","text":"throughout a period of time","src":"hand"}]}
+{"word":"each","defs":[{"pos":"pron","text":"every one of two or more, taken separately","src":"hand"}]}
+{"word":"few","defs":[{"pos":"pron","text":"a small number of people or things","src":"hand"}]}
+{"word":"first","defs":[{"pos":"num","text":"coming before all others in order or time","src":"hand"}]}
+{"word":"for","defs":[{"pos":"prep","text":"intended to be given to or used by someone or something","src":"hand"},{"pos":"conj","text":"because; used to give a reason, in formal writing","src":"hand"}]}
+{"word":"from","defs":[{"pos":"prep","text":"showing the starting point of a place, time, or range","src":"hand"}]}
+{"word":"have","defs":[{"pos":"aux","text":"used with a past participle to form perfect tenses","src":"hand"}]}
+{"word":"he","defs":[{"pos":"pron","text":"used for a man or boy already mentioned","src":"hand"}]}
+{"word":"her","defs":[{"pos":"pron","text":"used for a woman or girl, as object or as owner","src":"hand"}]}
+{"word":"here","defs":[{"pos":"int","text":"used when you give something to someone","src":"hand"}]}
+{"word":"him","defs":[{"pos":"pron","text":"used for a man or boy already mentioned, as the object","src":"hand"}]}
+{"word":"his","defs":[{"pos":"pron","text":"belonging to a man or boy already mentioned","src":"hand"}]}
+{"word":"how","defs":[{"pos":"conj","text":"the way in which","src":"hand"}]}
+{"word":"i","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself","src":"hand"}]}
+{"word":"if","defs":[{"pos":"conj","text":"used to talk about something that depends on something else","src":"hand"}]}
+{"word":"in","defs":[{"pos":"prep","text":"inside or within a place, time, or state","src":"hand"}]}
+{"word":"into","defs":[{"pos":"prep","text":"to the inside of a place or thing","src":"hand"}]}
+{"word":"it","defs":[{"pos":"pron","text":"used for a thing, animal, or situation already mentioned","src":"hand"}]}
+{"word":"its","defs":[{"pos":"pron","text":"belonging to a thing or animal already mentioned","src":"hand"}]}
+{"word":"like","defs":[{"pos":"prep","text":"similar to someone or something","src":"hand"},{"pos":"conj","text":"in the way that; as if","src":"hand"}]}
+{"word":"man","defs":[{"pos":"int","text":"informal word used to show surprise or strong feeling","src":"hand"}]}
+{"word":"many","defs":[{"pos":"pron","text":"a large number of people or things","src":"hand"}]}
+{"word":"may","defs":[{"pos":"aux","text":"used to say that something is possible or allowed","src":"hand"}]}
+{"word":"me","defs":[{"pos":"pron","text":"used by a speaker for himself or herself as the object","src":"hand"}]}
+{"word":"might","defs":[{"pos":"aux","text":"used to say that something is possibly true or may happen","src":"hand"}]}
+{"word":"more","defs":[{"pos":"pron","text":"a greater amount or number of something","src":"hand"}]}
+{"word":"much","defs":[{"pos":"pron","text":"a large amount of something","src":"hand"}]}
+{"word":"must","defs":[{"pos":"aux","text":"used to say that something is necessary or very likely","src":"hand"}]}
+{"word":"my","defs":[{"pos":"pron","text":"belonging to the speaker","src":"hand"},{"pos":"int","text":"used to show surprise","src":"hand"}]}
+{"word":"now","defs":[{"pos":"conj","text":"since; because something has just happened","src":"hand"}]}
+{"word":"of","defs":[{"pos":"prep","text":"used to show belonging, contents, or a part of something","src":"hand"}]}
+{"word":"off","defs":[{"pos":"prep","text":"away from or no longer on something","src":"hand"}]}
+{"word":"on","defs":[{"pos":"prep","text":"touching and supported by the top of a surface","src":"hand"}]}
+{"word":"one","defs":[{"pos":"pron","text":"a single person or thing; any person in general","src":"hand"},{"pos":"num","text":"the number 1","src":"hand"}]}
+{"word":"only","defs":[{"pos":"conj","text":"but; except that","src":"hand"}]}
+{"word":"or","defs":[{"pos":"conj","text":"used to show a choice between things","src":"hand"}]}
+{"word":"other","defs":[{"pos":"pron","text":"the ones that remain, or another person or thing","src":"hand"}]}
+{"word":"our","defs":[{"pos":"pron","text":"belonging to the speaker and one or more other people","src":"hand"}]}
+{"word":"out","defs":[{"pos":"prep","text":"away from the inside of a place","src":"hand"}]}
+{"word":"over","defs":[{"pos":"prep","text":"above, across, or on the other side of something","src":"hand"}]}
+{"word":"same","defs":[{"pos":"pron","text":"exactly like another; not different","src":"hand"}]}
+{"word":"say","defs":[{"pos":"int","text":"used to get attention or show surprise","src":"hand"}]}
+{"word":"she","defs":[{"pos":"pron","text":"used for a woman or girl already mentioned","src":"hand"}]}
+{"word":"should","defs":[{"pos":"aux","text":"used to say what is right or the best thing to do","src":"hand"}]}
+{"word":"so","defs":[{"pos":"conj","text":"for that reason; with the result that","src":"hand"},{"pos":"pron","text":"used to avoid repeating something already said","src":"hand"}]}
+{"word":"some","defs":[{"pos":"pron","text":"an amount or number of people or things that is not stated","src":"hand"}]}
+{"word":"something","defs":[{"pos":"pron","text":"a thing that is not named or known","src":"hand"}]}
+{"word":"still","defs":[{"pos":"conj","text":"even so; despite that","src":"hand"}]}
+{"word":"such","defs":[{"pos":"pron","text":"of the kind already mentioned","src":"hand"}]}
+{"word":"than","defs":[{"pos":"conj","text":"used to compare two things or people","src":"hand"},{"pos":"prep","text":"used to compare with something else","src":"hand"}]}
+{"word":"that","defs":[{"pos":"pron","text":"used to point to a thing or person that is farther away","src":"hand"},{"pos":"conj","text":"used to introduce a clause that gives more information","src":"hand"}]}
+{"word":"the","defs":[{"pos":"art","text":"used before a noun to show a particular thing or person","src":"hand"}]}
+{"word":"their","defs":[{"pos":"pron","text":"belonging to them; of more than one person or thing","src":"hand"}]}
+{"word":"them","defs":[{"pos":"pron","text":"used for people or things already mentioned, as the object","src":"hand"}]}
+{"word":"then","defs":[{"pos":"conj","text":"after that; and as a result","src":"hand"}]}
+{"word":"there","defs":[{"pos":"int","text":"used to show you are pleased, or to comfort someone","src":"hand"}]}
+{"word":"these","defs":[{"pos":"pron","text":"used for the people or things that are near you","src":"hand"}]}
+{"word":"they","defs":[{"pos":"pron","text":"used for people or things already mentioned, more than one","src":"hand"}]}
+{"word":"this","defs":[{"pos":"pron","text":"used for the person or thing near you or just mentioned","src":"hand"}]}
+{"word":"those","defs":[{"pos":"pron","text":"used for people or things that are farther away","src":"hand"}]}
+{"word":"three","defs":[{"pos":"num","text":"the number 3","src":"hand"}]}
+{"word":"through","defs":[{"pos":"prep","text":"from one end or side to the other","src":"hand"}]}
+{"word":"to","defs":[{"pos":"prep","text":"showing the place, person, or thing that something moves toward","src":"hand"}]}
+{"word":"two","defs":[{"pos":"num","text":"the number 2","src":"hand"}]}
+{"word":"under","defs":[{"pos":"prep","text":"below or lower than something","src":"hand"}]}
+{"word":"up","defs":[{"pos":"prep","text":"toward or at a higher place","src":"hand"}]}
+{"word":"us","defs":[{"pos":"pron","text":"used for the speaker and other people, as the object","src":"hand"}]}
+{"word":"we","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself and others","src":"hand"}]}
+{"word":"well","defs":[{"pos":"int","text":"used to start speaking or to show surprise","src":"hand"}]}
+{"word":"what","defs":[{"pos":"pron","text":"used to ask for information about a thing","src":"hand"}]}
+{"word":"when","defs":[{"pos":"conj","text":"at the time that; while","src":"hand"},{"pos":"pron","text":"used to ask at what time","src":"hand"}]}
+{"word":"where","defs":[{"pos":"pron","text":"used to ask which place","src":"hand"},{"pos":"conj","text":"in or at the place that","src":"hand"}]}
+{"word":"which","defs":[{"pos":"pron","text":"used to ask or show one thing out of a group","src":"hand"}]}
+{"word":"while","defs":[{"pos":"conj","text":"during the time that; although","src":"hand"}]}
+{"word":"who","defs":[{"pos":"pron","text":"used to ask or say which person or people","src":"hand"}]}
+{"word":"why","defs":[{"pos":"int","text":"used to show surprise or to begin an answer","src":"hand"}]}
+{"word":"will","defs":[{"pos":"aux","text":"used to talk about things that are going to happen","src":"hand"}]}
+{"word":"with","defs":[{"pos":"prep","text":"in the company of, or having, someone or something","src":"hand"}]}
+{"word":"without","defs":[{"pos":"prep","text":"not having or not with someone or something","src":"hand"}]}
+{"word":"would","defs":[{"pos":"aux","text":"used to talk about what might happen or what someone planned","src":"hand"}]}
+{"word":"you","defs":[{"pos":"pron","text":"used to talk to the person or people you are speaking to","src":"hand"}]}
+{"word":"your","defs":[{"pos":"pron","text":"belonging to the person you are speaking to","src":"hand"}]}

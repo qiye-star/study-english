@@ -5,6 +5,9 @@ Third-party dictionary data read at runtime by `app/wordbook/` (spec 2026-10-10-
 ## What lives here
 - `kylebing-english-vocabulary/` – seven sentence-level JSONL word books + `SOURCE.json` manifest + upstream `LICENSE`.
 
+- `wordbook-definitions/` – English definitions (hand-written `function-words.jsonl`, licence texts `LICENSE-OEWN` / `LICENSE-ECDICT`;
+  generated files arrive with the build lane). See its own `CLAUDE.md`; attribution is in the repo-root `NOTICE`.
+
 ## Rules
 - Files are byte-identical to the pinned upstream commit; never edit them by hand. Update = change `SOURCE.json`,
   run `uv run python scripts/wordbook_data.py download`, commit alone (`chore(server): update wordbook data to <sha>`).
