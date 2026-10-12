@@ -18,12 +18,12 @@ function starter(cancel: () => void = vi.fn()) {
   };
 }
 
-function setup(target: "group" | "assist", routes: Parameters<typeof createFetchMock>[0], over: { enabled?: boolean; cancel?: () => void } = {}) {
+function setup(target: "group" | "assist", routes: Parameters<typeof createFetchMock>[0], over: { enabled?: boolean; cancel?: () => void; toAgent?: string | null } = {}) {
   const mock = createFetchMock(routes);
   const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
   const cb = { onFill: vi.fn(), onAssistDraft: vi.fn(), onSent: vi.fn(), onActivity: vi.fn() };
   const hook = renderHook(() => useRoomVoice({ roomId: "r1", enabled: over.enabled ?? true, maxMs: 60000, target, replyTo: 4,
-    starter: starter(over.cancel ?? vi.fn()), newId: () => "c1", ...cb }),
+    starter: starter(over.cancel ?? vi.fn()), newId: () => "c1", ...(over.toAgent !== undefined ? { toAgent: over.toAgent } : {}), ...cb }),
   { wrapper: ({ children }) => <TestProviders api={api}>{children}</TestProviders> });
   return { hook, mock, cb };
 }
@@ -47,6 +47,38 @@ describe("useRoomVoice", () => {
     expect((form.get("file") as File).name).toBe("voice.wav");
     expect(cb.onActivity).toHaveBeenLastCalledWith("idle");
     await waitFor(() => expect(hook.result.current.state).toBe("idle"));
+  });
+
+  it("adds to_agent while an agent is addressed and keeps it on a resend", async () => {
+    let fail = true;
+    const { hook, mock } = setup("group", {
+      "POST /api/rooms/r1/voice": () => (fail ? json({ detail: "boom" }, 503) : json({ seq: 5, message: { seq: 5, id: "m5", kind: "voice" } })),
+    }, { toAgent: "builtin:coach" });
+    await act(async () => { await hook.result.current.start(); });
+    act(() => hook.result.current.finish("send"));
+    await waitFor(() => expect(hook.result.current.failed).toBe(true));
+    expect((mock.calls[0].body as FormData).get("to_agent")).toBe("builtin:coach");
+    fail = false;
+    act(() => hook.result.current.retryUpload?.());
+    await waitFor(() => expect(mock.calls).toHaveLength(2));
+    expect((mock.calls[1].body as FormData).get("to_agent")).toBe("builtin:coach");
+    expect((mock.calls[1].body as FormData).get("client_id")).toBe("c1");
+  });
+
+  it("sends no to_agent when nothing is addressed", async () => {
+    const { hook, mock } = setup("group", { "POST /api/rooms/r1/voice": () => json({ seq: 5, message: { seq: 5, id: "m5", kind: "voice" } }) }, { toAgent: null });
+    await act(async () => { await hook.result.current.start(); });
+    act(() => hook.result.current.finish("send"));
+    await waitFor(() => expect(mock.calls).toHaveLength(1));
+    expect([...(mock.calls[0].body as FormData).keys()].sort()).toEqual(["client_id", "file", "reply_to"]);
+  });
+
+  it("never adds to_agent to assistant drafts (nothing is uploaded to the room)", async () => {
+    const { hook, mock } = setup("assist", { "POST /api/ai/audio/transcriptions": () => json({ text: "hello" }) }, { toAgent: "builtin:coach" });
+    await act(async () => { await hook.result.current.start(); });
+    act(() => hook.result.current.finish("send"));
+    await waitFor(() => expect(mock.calls.length).toBeGreaterThan(0));
+    expect(mock.calls.some((c) => c.url.pathname.endsWith("/voice"))).toBe(false);
   });
 
   it("slide-to-text fills the composer without uploading", async () => {

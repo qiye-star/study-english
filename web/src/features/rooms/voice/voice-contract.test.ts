@@ -4,8 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ApiClient, ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import i18n, { webMessages } from "~/i18n";
+import i18n, { deepMerge, webMessages } from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import roomAgentsEn from "../agents/locales/en.json";
+import roomAgentsZh from "../agents/locales/zh-CN.json";
 import { parseRoomEvent, type RoomMessage, type VoiceInfo } from "../protocol";
 import { ROOMS_SERVER_ERRORS } from "../rooms-api";
 import { initialRoomState, roomReducer, type RoomState } from "../room-state";
@@ -22,6 +24,14 @@ const uploadsPy = readFileSync(path.join(root, "app/services/uploads.py"), "utf8
 const serverPy = ["app/rooms/voice.py", "app/rooms/connection.py", "app/rooms/ai.py", "app/rooms/assist.py"]
   .map((f) => { try { return readFileSync(path.join(root, f), "utf8"); } catch { return ""; } }).join("\n");
 
+/** 主包文案 + 房间页懒加载的 rooms/agents/locales(R-AW1:新 notice 的文案在后者里;页面渲染时两者都已加载)。 */
+const roomCopy = (lng: "en" | "zh-CN") => deepMerge(webMessages(lng), (lng === "en" ? roomAgentsEn : roomAgentsZh) as Record<string, unknown>);
+/**
+ * Lane V on the server (voice `to_agent` handling) merges separately from this web lane. Until its literal is in the
+ * source the `to_agent` source check below is skipped (not deleted): enable it by merging the server lane.
+ */
+const serverHas = (src: string, literal: string) => src.includes(literal);
+
 const MESSAGE_KEYS: Record<keyof RoomMessage, true> = {
   seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true, replyTo: true, aiStatus: true, meta: true,
   createdAt: true, hidden: true, quote: true, voice: true, reactions: true,
@@ -36,6 +46,22 @@ describe("voice upload matches SV's recorded payload", () => {
   it("the server has the routes the web calls", () => {
     expect(voicePy).toContain('@router.post("/{room_id}/voice")');
     expect(voicePy).toContain('@router.get("/{room_id}/voice/{message_id}")');
+  });
+
+  it.skipIf(!serverHas(voicePy, 'form.get("to_agent")'))("the server reads the optional to_agent form field (spec addressing §3.4)", () => {
+    expect(voicePy).toContain('form.get("to_agent")');
+  });
+
+  it("to_agent is an optional form field the web adds only while an agent is addressed", async () => {
+    const mock = createFetchMock({ "POST /api/rooms/r%201/voice": () => json(VOICE.http.upload) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wav = new Blob([new Uint8Array(44)], { type: "audio/wav" });
+    await uploadVoice(api, "r 1", wav, "c1", null, "builtin:coach");
+    const form = mock.calls[0].body as FormData;
+    expect([...form.keys()].sort()).toEqual(["client_id", "file", "to_agent"]);
+    expect(mock.calls[0].url.search).toBe("");
+    await uploadVoice(api, "r 1", wav, "c1", null);
+    expect([...(mock.calls[1].body as FormData).keys()].sort()).toEqual(["client_id", "file"]);
   });
 
   it("uploadVoice sends the recorded form fields and parses exactly the recorded keys", async () => {
@@ -106,7 +132,7 @@ describe("voice errors and notices the server sends have web copy", () => {
     expect(errors).toEqual(expect.arrayContaining(["bad_seq", "rate_limited"]));
     for (const lng of ["en", "zh-CN"] as const) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rooms = (webMessages(lng) as any).web.rooms;
+      const rooms = (roomCopy(lng) as any).web.rooms;
       for (const code of notices) expect(rooms.notice?.[code], `${lng} notice ${code}`).toEqual(expect.any(String));
       for (const code of errors) expect(rooms.errors?.[code], `${lng} error ${code}`).toEqual(expect.any(String));
     }

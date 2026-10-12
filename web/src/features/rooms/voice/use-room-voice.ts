@@ -31,6 +31,8 @@ export interface RoomVoiceController {
 export interface UseRoomVoiceOptions {
   roomId: string; enabled: boolean; maxMs: number; target: "group" | "assist"; replyTo: number | null;
   onFill(text: string): void; onAssistDraft(text: string): void; onSent(message: RoomMessage): void; onActivity(state: ActivityState): void;
+  /** 「对象」生效时的角色 id(R-AW3:轮到自己答带练时页面传 null);只用于发往群聊的语音 */
+  toAgent?: string | null;
   /** 测试注入:录音启动器(透传给 useRecorder) */
   starter?: RecordingStarter;
   /** 测试注入:上传去重用的 client_id(默认 crypto.randomUUID) */
@@ -48,7 +50,7 @@ function retryable(err: unknown): boolean {
   if (!(err instanceof ApiError)) return true;
   return err.status >= 500 || err.status === 408 || (err.status === 429 && /too many requests/i.test(err.message));
 }
-interface FailedUpload { wav: Blob; clientId: string; replyTo: number | null }
+interface FailedUpload { wav: Blob; clientId: string; replyTo: number | null; toAgent: string | null }
 /** 录音期间不得有别的播放;别处开始播放时录音不受影响 */
 const micFocus = (): void => undefined;
 
@@ -84,6 +86,7 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
     const o = opts.current;
     const toText = mode === "fill" || o.target === "assist";
     const { roomId, replyTo } = o;
+    const toAgent = o.target === "group" ? o.toAgent ?? null : null;
     const controller = new AbortController();
     inflight.current = controller;
     const stale = () => !mounted.current || gen !== generation.current || controller.signal.aborted;
@@ -105,12 +108,12 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
       }
       const clientId = (o.newId ?? defaultId)();
       try {
-        const { message } = await uploadVoice(api, roomId, wav, clientId, replyTo);
+        const { message } = await uploadVoice(api, roomId, wav, clientId, replyTo, toAgent);
         if (stale()) return;
         opts.current.onSent(message);
       } catch (err) {
         if (!stale() && retryable(err)) {
-          failedUpload.current = { wav, clientId, replyTo };
+          failedUpload.current = { wav, clientId, replyTo, toAgent };
           setFailed(true);
         }
         throw err;
@@ -192,7 +195,7 @@ export function useRoomVoice(options: UseRoomVoiceOptions): RoomVoiceController 
     inflight.current = controller;
     const gen = generation.current;
     const stale = () => !mounted.current || gen !== generation.current || controller.signal.aborted;
-    void uploadVoice(api, opts.current.roomId, item.wav, item.clientId, item.replyTo).then(({ message }) => {
+    void uploadVoice(api, opts.current.roomId, item.wav, item.clientId, item.replyTo, item.toAgent).then(({ message }) => {
       if (stale()) return;
       forgetFailed();
       opts.current.onSent(message);
