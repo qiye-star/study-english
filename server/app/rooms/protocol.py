@@ -10,7 +10,12 @@ frames; `welcome.protocol` tells the web which version the server speaks. v2.1 a
 
 Agents in rooms (plan 2026-10-12-agents-rooms R-RA9) only add: the private events `agent_step` / `agent_thought`
 (sent to the asker only), the public `agent_tutor`, the notice `agent_off` and MAX_AGENTS / TUTOR_TURN_SECONDS.
-No new client frames: tutor controls are HTTP, answers are ordinary `say`."""
+No new client frames: tutor controls are HTTP, answers are ordinary `say`.
+
+Addressing (plan 2026-10-12-agents-addressing-server R1) only adds: the optional `say.to` (a persona id of this room's
+agents; the server routes the message to that agent, or answers `notice agent_off`), the notice `voice_unclear` (a
+transcript that was empty / failed while the voice was addressed to an agent or was a tutor answer) and the optional
+public-message `meta` keys `to_agent` and `note_zh`. `PROTOCOL_VERSION` stays 2."""
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
@@ -48,7 +53,8 @@ SERVER_EVENT_TYPES = (
     "agent_step", "agent_thought", "agent_tutor",
 )
 ERROR_CODES = ("rate_limited", "empty", "bad_assist", "bad_reply", "bad_seq")
-NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota", "voice_off", "voice_quota", "translate_quota", "retry_limit", "agent_off")
+NOTICE_CODES = ("ai_off", "ai_busy", "ai_quota", "voice_off", "voice_quota", "translate_quota", "retry_limit", "agent_off",
+                "voice_unclear")
 AI_FAILED_CODES = ("upstream", "quota", "restart")
 ASSIST_FAILED_CODES = ("upstream", "quota", "format")
 
@@ -73,6 +79,7 @@ class SayMsg(_Msg):
     text: str = Field(min_length=1, max_length=MAX_SAY_RAW)
     assist_id: str | None = Field(None, max_length=MAX_ID)
     reply_to: int | None = Field(None, ge=1, le=MAX_SEQ)
+    to: str | None = Field(None, max_length=MAX_ID)  # persona id the sender addresses (addressing §3.4)
 
 
 class AssistMsg(_Msg):

@@ -972,6 +972,23 @@ class RoomStore:
                         agent.get("persona_id") if agent else None))
         return out
 
+    async def agent_of(self, room_id: str, seq: int) -> str | None:
+        """Persona id of the public, visible agent answer at `seq` (the reply rule, spec addressing §3.2); None for
+        everything else: members' messages, old `@ai` answers (no `meta.agent`), hidden or private rows, other rooms."""
+        async with self._sm() as s:
+            row = await s.scalar(select(RoomMessage).where(
+                RoomMessage.room_id == room_id, RoomMessage.seq == seq, RoomMessage.lane == "public",
+                RoomMessage.kind == "ai_answer", RoomMessage.hidden_at.is_(None)))
+        agent = _agent_meta(row) if row is not None else None
+        persona_id = agent.get("persona_id") if agent else None
+        return persona_id if isinstance(persona_id, str) else None
+
+    async def message_named(self, message_id: str) -> tuple[RoomMessage, str | None] | None:
+        """One message with its sender's name (None for AI / system rows); the voice hook re-reads the stored row so
+        the transcript never travels through arguments (addressing R-AS20)."""
+        rows = await self._named(self._select().where(RoomMessage.id == message_id))
+        return rows[0] if rows else None
+
     async def fail_pending_ai(self) -> int:
         async with self._sm() as s:
             result = await s.execute(update(RoomMessage).where(RoomMessage.ai_status == "pending")

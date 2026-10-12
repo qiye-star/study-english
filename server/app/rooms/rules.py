@@ -33,6 +33,12 @@ _PERSONA_ID = re.compile(
 _LEVEL_BY_TIER = ("A1", "A2", "B1", "B1", "B2", "C1", "C1")
 
 
+def is_persona_id(value: object) -> bool:
+    """The shape of a persona id (a builtin key or a lowercase uuid4). Membership in a room's agents is checked by the
+    caller against the room's config (addressing R-AS7)."""
+    return isinstance(value, str) and _PERSONA_ID.fullmatch(value) is not None
+
+
 @dataclass(frozen=True)
 class RoomSettings:
     """The seven creation settings (spec 2026-10-10 §3.1)."""
