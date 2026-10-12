@@ -42,3 +42,12 @@
 ## 6. 下一步(等你决定)
 
 按本索引的顺序开始实现(服务端车道先、网页车道后,并行派发 Sonnet 5.5,最后由 Sonnet 5.5 评审)。
+
+## 7. 执行状态(实施结束时)
+
+- 服务端车道 L、R1、T、R2/R3、V、A/M 与网页任务 P0–P3、S1、N1–N3、V1、T1–T2、M1–M2、C1–C3 已按 §2 的顺序合并到 `feat/self-hosted-backend`;两个「读服务端源码」的网页契约检查(`form.get("to_agent")`、`code="voice_unclear"`)在服务端语音车道合并后已自动生效并通过。
+- **实施中顺带修好的问题**:SQLite 连接在查询中途被取消时 SQLAlchemy / aiosqlite 关闭顺序的竞态(会让 `TestClient` 退出时挂死,约三分之二的运行会卡在 `test_rooms_ws.py`;修在 `server/app/core/db.py`,有回归测试);重开房间的「房主已不在」错误补了前端文案。
+- **没有做**:收尾车道 Z(Playwright 端到端、体积报告、各层文档的最终核对)、合并后的整体全量测试(服务端、网页、管理端)、对路由车道 R2 的 `/code-review high` 与语音 / 带练的 `security-review`;按用户安排留到下次。
+- **已知偶发失败(单独运行多数通过)**:`test_agents_tutor_turn.py` 里依赖记忆后台任务时序的两个测试、`test_agents_turn_review.py` 的 `client_turn_id` 冲突测试、`test_rooms_agent_tutor.py` 的 late-arm 测试。下次全量测试时优先处理。
+- **主包体积**:网页主包 gzip ≈ 397.18 kB,比基线文件(396.86 kB)多 0.32 kB,超过计划的 0.2 kB 预算;下次重录基线前需决定是否压回。
+- 仍然**未验证**:真实模型是否遵守「只用英文」和 `<<ZH>>` 格式、真实 ASR 时序对 60 秒自动跳过的影响、输入法与 iOS 音频的真机行为、Postgres。
