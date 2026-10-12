@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "script": "scripts/wordbook_definitions.py",
+  "script_version": 1,
+  "built": "2026-10-12",
+  "inputs": [
+    {
+      "id": "oewn",
+      "name": "Open English WordNet",
+      "version": "2025",
+      "license": "CC BY 4.0",
+      "homepage": "https://en-word.net/",
+      "file": "english-wordnet-2025-index.sense-fixed.zip",
+      "bytes": 9616299,
+      "sha256": "38b16326159f51853626b7d24a44c453fa88ab33f06fce5ec8fc5996d1c2be93"
+    },
+    {
+      "id": "ecdict",
+      "name": "ECDICT",
+      "version": "1.0.28",
+      "license": "MIT",
+      "homepage": "https://github.com/skywind3000/ECDICT",
+      "file": "ecdict-sqlite-28.zip",
+      "bytes": 216765132,
+      "sha256": "ea01f76a3b3351021ce47077e89234465cc9441c8793054495320d06c0c3f3f6"
+    },
+    {
+      "id": "books",
+      "name": "kylebing-english-vocabulary",
+      "manifest_sha256": "4b80d2bc53745ddf8279c950d61f880eef340f57d9fd17cd9b27c6c0f10ba589"
+    }
+  ],
+  "rules": {
+    "max_per_pos": 2,
+    "long_gloss_words": 14,
+    "max_paren_words": 4,
+    "sense_order": "sense_number",
+    "closed_pos_from_wordnet": false
+  },
+  "files": [
+    {
+      "file": "definitions.jsonl",
+      "bytes": 2653260,
+      "sha256": "9243de93479f06ddac1071696591956553f27bbb1d71be123f515cef690dca75",
+      "entries": 14021
+    },
+    {
+      "file": "missing.txt",
+      "bytes": 17404,
+      "sha256": "146c142c521cdc1d74266ce3279a848fa9a93cb2d31d0e1ae17d86b9f0232294",
+      "entries": 755
+    },
+    {
+      "file": "function-words.jsonl",
+      "bytes": 11871,
+      "sha256": "3d5010c928ae84a9af2c384272d28845e603901775a40b726b5ef6d96d1d8bfc",
+      "entries": 105
+    }
+  ],
+  "stats": {
+    "words_wanted": 14615,
+    "words_with_defs": 14021,
+    "words_with_oewn": 13979,
+    "defs": 29160,
+    "pairs": {
+      "oewn": 17837,
+      "hand": 118,
+      "llm": 0
+    },
+    "partial_open_pos": 1320,
+    "gaps": 755,
+    "gap_categories": {
+      "function": 227,
+      "proper": 105,
+      "abbr": 14,
+      "compound": 23,
+      "pos_mismatch": 45,
+      "other": 341
+    }
+  }
+}
