@@ -57,6 +57,6 @@ it("wires agent names, the persona sheet's @ask and the tutor bar into the room 
   expect(screen.getByTestId("room-tutor-bar")).toHaveTextContent("轮到你了");
   fireEvent.click(screen.getByTestId("room-agent-name"));
   fireEvent.click(await screen.findByRole("button", { name: "@Emma 提问" }));
-  expect(screen.getByRole("textbox")).toHaveValue("@Emma ");
+  expect(screen.getByTestId("room-input")).toHaveValue("@Emma ");
   expect(document.body.textContent).not.toContain("secret-ticket");
 });

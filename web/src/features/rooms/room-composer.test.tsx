@@ -1,4 +1,6 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { renderWithProviders } from "~/test/render";
@@ -106,5 +108,92 @@ describe("RoomComposer", () => {
     setup({ value: "", target: "assist", voice: { available: true, mode: "text", onToggle: vi.fn(), input: null } });
     for (const id of ["room-voice-toggle", "room-send"]) expect(screen.getByTestId(id).className).toContain("size-tap");
     expect(screen.getByTestId("room-target-clear").className).toContain("before:-inset-");
+  });
+});
+
+const MENTIONS = { agents: [{ id: "builtin:coach", name: "Emma" }, { id: "u1", name: "Leo" }], defaultName: "Emma" };
+
+function Controlled(over: Partial<RoomComposerProps> & { onSendSpy?: () => void }) {
+  const [value, setValue] = useState("");
+  return (
+    <RoomComposer disabled={false} offline={false} ai target="group" onClearTarget={() => {}} voice={{ available: false, mode: "text", onToggle: () => {}, input: null }}
+      mentions={MENTIONS} {...over} value={value} onChange={setValue} onSend={over.onSendSpy ?? (() => {})} />
+  );
+}
+
+describe("RoomComposer @ autocomplete (spec addressing §3.2 #4)", () => {
+  beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); });
+  afterEach(async () => { localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+
+  it("opens on a leading @ with the AI alias named after the default agent, filters, and Enter picks instead of sending", async () => {
+    const onSend = vi.fn();
+    renderWithProviders(<Controlled onSendSpy={onSend} />);
+    const input = screen.getByRole("combobox");
+    await userEvent.type(input, "@");
+    const list = screen.getByRole("listbox", { name: "选择智能体" });
+    expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual(["AI(Emma)", "Emma", "Leo"]);
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    await userEvent.type(input, "l");
+    expect(within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.textContent)).toEqual(["Leo"]);
+    await userEvent.keyboard("{Enter}");
+    expect(input).toHaveValue("@Leo ");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("moves with the arrow keys and closes on Escape until the text changes", async () => {
+    renderWithProviders(<Controlled />);
+    const input = screen.getByRole("combobox");
+    await userEvent.type(input, "@");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+    expect(input.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[1].id);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await userEvent.type(input, "E");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
+
+  it("a tap picks without taking focus from the input (iOS keeps the keyboard)", async () => {
+    renderWithProviders(<Controlled />);
+    const input = screen.getByRole("combobox");
+    await userEvent.type(input, "＠");
+    const emma = screen.getAllByRole("option")[1];
+    const down = fireEvent.mouseDown(emma);
+    expect(down).toBe(false); // default prevented: the input does not blur
+    fireEvent.click(emma);
+    expect(input).toHaveValue("@Emma ");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("leaves keys alone while an IME is composing (iOS / Android / Sogou)", async () => {
+    const onSend = vi.fn();
+    renderWithProviders(<Controlled onSendSpy={onSend} />);
+    const input = screen.getByRole("combobox");
+    await userEvent.type(input, "@");
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(input).toHaveValue("@");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("closes on blur and never opens mid-message", async () => {
+    renderWithProviders(<Controlled />);
+    const input = screen.getByRole("combobox");
+    await userEvent.type(input, "@");
+    fireEvent.blur(input);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await userEvent.clear(input);
+    await userEvent.type(input, "hi @E");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("the @ key inserts a bare @ and opens the list when agents exist; shows the default agent in the placeholder", async () => {
+    renderWithProviders(<Controlled groupPlaceholder="说点什么,或 @AI(Emma)提问" />);
+    expect(screen.getByRole("combobox")).toHaveAttribute("placeholder", "说点什么,或 @AI(Emma)提问");
+    fireEvent.click(screen.getByTestId("room-at-ai"));
+    expect(screen.getByRole("combobox")).toHaveValue("@");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 });
