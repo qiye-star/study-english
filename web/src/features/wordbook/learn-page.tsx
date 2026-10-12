@@ -266,7 +266,7 @@ export function WordbookLearnPage() {
         <SessionHeader title={t("web.wordbook.learn.title")} />
         <div className="px-gutter pb-4">
           <StepBar done={index} total={batch.cards.length} />
-          <WordCardView key={current.key} card={current} defLang={defLang} {...listen} covered={!card.revealed} onReveal={reveal} regionRef={regionRef}
+          <WordCardView key={current.key} card={current} defLang={defLang} phrasesOpen="auto" {...listen} covered={!card.revealed} onReveal={reveal} regionRef={regionRef}
             showExample={showExample} badge={card.rating ? <RatingBadge rating={card.rating} check={spot} /> : null}
             eyebrow={t("web.wordbook.learn.eyebrow", { n: index + 1, total: batch.cards.length, book: book ? bookTitle(book, i18n.language) : "" })} />
           <p role="status" aria-live="polite" className="sr-only">{status}</p>

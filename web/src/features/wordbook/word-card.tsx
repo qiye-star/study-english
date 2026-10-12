@@ -1,4 +1,4 @@
-import { ChevronDownIcon, EyeIcon, EyeOffIcon, Volume2Icon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Volume2Icon } from "lucide-react";
 import { useId, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
@@ -6,12 +6,12 @@ import { SurfaceCard } from "~/components/surface-card";
 import { Slot } from "~/lib/extension-points-react";
 import { groupDefs } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
+import { MAX_PHRASES, PhrasesSection, type PhrasesOpen } from "./phrases-section";
 import { RecallCover } from "./recall-cover";
 import type { Card, DefLang, Sense } from "./wordbook-api";
 import "./locales";
 
 const MAX_SENSES = 4;
-const MAX_PHRASES = 5;
 
 /** 词性写法统一带点(`v` → `v.`)。 */
 export const posLabel = (pos: string) => (pos && !pos.endsWith(".") ? `${pos}.` : pos);
@@ -70,14 +70,15 @@ export function ListenButton({ id, text, accent, label, onListen, listening, can
  * 背单词 v2(spec 2026-10-11-wordbook-recall §3.1):`covered` 时释义 / 例句 / 短语换成遮罩按钮(不在 DOM 里);
  * `showExample` 关时不显示例句块;`badge` 显示在眉题右侧;`regionRef` 指向释义区(翻开后移焦点用)。都不传时与 v1 相同。
  * `defLang`:释义显示(`zh` 不显示英文释义,`en` 在有英文释义时不显示中文释义行;默认 `both`)。
+ * `phrasesOpen`:短语区初始状态,`"auto"` = 翻开后自动展开并记住手动开合(学新词页);默认折叠。
  */
 export function WordCardView({
   card, eyebrow, onListen, listening, canListen = true, className, covered = false, onReveal, showExample = true, badge, regionRef,
-  defLang = "both",
+  defLang = "both", phrasesOpen = false,
 }: ListenProps & {
   card: Card; eyebrow?: ReactNode; className?: string;
   covered?: boolean; onReveal?: () => void; showExample?: boolean; badge?: ReactNode; regionRef?: Ref<HTMLDivElement>;
-  defLang?: DefLang;
+  defLang?: DefLang; phrasesOpen?: PhrasesOpen;
 }) {
   const { t } = useTranslation();
   const regionId = useId();
@@ -151,19 +152,7 @@ export function WordCardView({
               </div>
             </div>
           ) : null}
-          {card.phrases.length ? (
-            <details className="group mt-3 border-t-[0.5px] border-hair-2">
-              <summary className="flex min-h-tap cursor-pointer list-none items-center justify-between text-sub text-ink-2 [&::-webkit-details-marker]:hidden">
-                <span className="truncate">{t("web.wordbook.word.phrases")} · <span lang="en">{card.phrases[0].en}</span> {card.phrases[0].zh}</span>
-                <ChevronDownIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3 transition-transform duration-fast group-open:rotate-180" />
-              </summary>
-              <ul className="space-y-1 pb-1 text-sub">
-                {card.phrases.slice(0, MAX_PHRASES).map((p, i) => (
-                  <li key={i}><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
+          <PhrasesSection phrases={card.phrases.slice(0, MAX_PHRASES)} mode={phrasesOpen} />
         </div>
       )}
       {covered ? null : <Slot point="wordDetailSections" props={{ word: card.key }} />}
