@@ -44,7 +44,7 @@ describe("agent SSE parser (spec §4.4, R-W11)", () => {
       thought: { source: "summary", text: "Synonym first.", chars: 14 },
     };
     expect(parseTurnEvent({ event: "done", data: JSON.stringify({ usage: { in: 10, out: 20 }, trace, text_len: 12 }) })).toEqual({
-      type: "done", usage: { in: 10, out: 20 }, textLen: 12,
+      type: "done", usage: { in: 10, out: 20 }, textLen: 12, noteZh: null,
       trace: {
         v: 1, ms: 3400, thought: { source: "summary", text: "Synonym first." },
         steps: [{ id: "word_lookup-0", group: "tool", key: "word_lookup", status: "done", labelKey: "agents.step.word_lookup", params: { word: "abandon" }, ms: 90, private: false }],
@@ -58,6 +58,14 @@ describe("agent SSE parser (spec §4.4, R-W11)", () => {
     expect(parseTurnEvent({ event: "delta", data: "not json" })).toBeNull();
     expect(parseTurnEvent({ event: "step", data: '{"id":"s1","group":"weird","status":"done"}' })).toBeNull();
     expect(parseTurnEvent({ event: "error", data: '{"code":"mystery"}' })).toEqual({ type: "error", code: "llm_unavailable" });
-    expect(parseTurnEvent({ event: "done", data: '{"trace":"x"}' })).toEqual({ type: "done", usage: null, trace: null, textLen: 0 });
+    expect(parseTurnEvent({ event: "done", data: '{"trace":"x"}' })).toEqual({ type: "done", usage: null, trace: null, textLen: 0, noteZh: null });
+  });
+
+  it("reads the optional done.note_zh apart from the trace (spec addressing §5.2)", () => {
+    expect(parseTurnEvent({ event: "done", data: JSON.stringify({ trace: null, text_len: 3, note_zh: "  放弃 = give up  " }) }))
+      .toMatchObject({ type: "done", noteZh: "放弃 = give up" });
+    expect(parseTurnEvent({ event: "done", data: JSON.stringify({ trace: null, text_len: 3 }) })).toMatchObject({ type: "done", noteZh: null });
+    const long = parseTurnEvent({ event: "done", data: JSON.stringify({ text_len: 1, note_zh: "长".repeat(120) }) }) as { noteZh: string };
+    expect(Array.from(long.noteZh)).toHaveLength(80);
   });
 });

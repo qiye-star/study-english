@@ -102,7 +102,8 @@ export async function streamAgentTurn(
     } else if (event.type === "meta") {
       handlers.onMeta?.(event.meta);
     } else if (event.type === "done") {
-      st.result = { text: st.full, trace: event.trace, turnId: st.live.turnId, meta: st.live.meta, clientTurnId };
+      st.result = { text: st.full, trace: event.trace, turnId: st.live.turnId, meta: st.live.meta, clientTurnId,
+        noteZh: event.noteZh ?? event.trace?.noteZh ?? null };
     } else if (event.type === "error") {
       st.failure = new AgentTurnError(event.code, event.code === "busy" ? clientTurnId : undefined);
     }

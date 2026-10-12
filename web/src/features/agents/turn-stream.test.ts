@@ -133,4 +133,16 @@ describe("streamAgentTurn (spec §4.4, R-W10, R-W11)", () => {
     const { api } = client(() => sse([HAPPY.join("")]));
     expect((await streamAgentTurn(api, REQ)).text).toBe("Hello there!");
   });
+
+  it("returns done.note_zh as result.noteZh, falling back to trace.note_zh; the visible text never contains it", async () => {
+    const run = (done: unknown) => {
+      const { api } = client(() => sse([ev("start", { turn_id: "t" }), ev("delta", { text: "Hi." }), ev("done", done)]));
+      return streamAgentTurn(api, REQ);
+    };
+    const both = await run({ trace: { v: 1, steps: [], note_zh: "旧" }, text_len: 3, note_zh: "新" });
+    expect(both.noteZh).toBe("新");
+    expect(both.text).toBe("Hi.");
+    expect((await run({ trace: { v: 1, steps: [], note_zh: "旧" }, text_len: 3 })).noteZh).toBe("旧");
+    expect((await run({ trace: null, text_len: 3 })).noteZh).toBeNull();
+  });
 });

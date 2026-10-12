@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stepLabel } from "./step-labels";
-import { liveAsTrace, normalizeTrace, reduceLive, sourcesOf, startLive, summarize } from "./trace";
+import { liveAsTrace, normalizeTrace, reduceLive, sourcesOf, startLive, summarize, withNote } from "./trace";
 import type { AgentStep } from "./types";
 import i18n from "~/i18n";
 import "./locales";
@@ -52,6 +52,20 @@ describe("normalizeTrace (messages.agent_trace and done.trace)", () => {
     expect(normalizeTrace({ v: 1, tools: "prefetch" })).toEqual({ v: 1, ms: 0, steps: [], thought: null });
     expect(normalizeTrace(null)).toBeNull();
     expect(normalizeTrace("x")).toBeNull();
+  });
+
+  it("normalizeTrace keeps note_zh only as a non-blank string, clipped to 80 (stored agent_trace)", () => {
+    expect(normalizeTrace({ v: 1, steps: [], note_zh: " 说明 " })!.noteZh).toBe("说明");
+    expect(normalizeTrace({ v: 1, steps: [], note_zh: "" })).not.toHaveProperty("noteZh");
+    expect(normalizeTrace({ v: 1, steps: [], note_zh: 3 })).not.toHaveProperty("noteZh");
+    expect(normalizeTrace({ v: 1, steps: [] })).not.toHaveProperty("noteZh");
+  });
+
+  it("withNote puts the done note on the trace and leaves a missing trace or note alone (R-AW11)", () => {
+    const trace = normalizeTrace({ v: 1, steps: [] })!;
+    expect(withNote(trace, "新")).toEqual({ ...trace, noteZh: "新" });
+    expect(withNote(trace, null)).toBe(trace);
+    expect(withNote(null, "新")).toBeNull();
   });
 });
 

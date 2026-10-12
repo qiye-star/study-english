@@ -42,6 +42,11 @@ export interface Persona {
 export type PersonaDraft = Pick<Persona, "name" | "intro" | "level" | "style" | "voice" | "tools" | "promptPublic" | "deepThink"> & { prompt: string };
 export const isBuiltin = (p: Pick<Persona, "id">): boolean => p.id.startsWith("builtin:");
 
+/** 是否生成中文说明(spec addressing §5.1):auto = 角色水平 A2 / B1 时生成。 */
+export const ZH_NOTE_MODES = ["auto", "always", "never"] as const;
+export type ZhNoteMode = (typeof ZH_NOTE_MODES)[number];
+/** note_zh / hint_zh 的上限(服务端同样截断)。 */
+export const NOTE_ZH_MAX = 80;
 export interface AgentSettings {
   tools: Record<ToolField, boolean>;
   memoryEnabled: boolean;
@@ -49,6 +54,8 @@ export interface AgentSettings {
   showProcess: boolean;
   defaultPersonaId: string | null;
   tutor: { length: number; mix: TutorKind[] };
+  /** 中文说明;旧服务端没有这个键时界面按 auto 显示 */
+  zhNote?: ZhNoteMode;
   /** 服务端固定 "collapsed"(D1);前端只读 */
   processDefault: string;
 }
@@ -124,6 +131,8 @@ export interface AgentTrace {
   ms: number;
   steps: AgentStep[];
   thought: AgentThought | null;
+  /** done.note_zh / agent_trace.note_zh(可选;不朗读,R-AW11) */
+  noteZh?: string;
 }
 export type TurnErrorCode = "disabled" | "limit" | "llm_unavailable" | "bad_request" | "busy";
 export type TurnEvent =
@@ -132,7 +141,7 @@ export type TurnEvent =
   | { type: "thought"; thought: AgentThought }
   | { type: "delta"; text: string }
   | { type: "meta"; meta: TurnMeta }
-  | { type: "done"; usage: { in: number; out: number } | null; trace: AgentTrace | null; textLen: number }
+  | { type: "done"; usage: { in: number; out: number } | null; trace: AgentTrace | null; textLen: number; noteZh?: string | null }
   | { type: "error"; code: TurnErrorCode };
 
 /** 生成中的过程(界面状态);startedAt 是客户端毫秒时间。 */
@@ -161,6 +170,7 @@ export interface AgentTurnResult {
   turnId: string | null;
   meta: TurnMeta | null;
   clientTurnId: string;
+  noteZh?: string | null;
 }
 /** 对话气泡上的智能体状态:生成中 live、完成后 trace、失败后可沿用的 retryId。 */
 export interface AgentView {

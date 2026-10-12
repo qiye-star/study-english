@@ -1,5 +1,5 @@
 import camelcaseKeys from "camelcase-keys";
-import type { AgentStep, AgentThought, AgentTrace, LiveTrace, TurnEvent } from "./types";
+import { NOTE_ZH_MAX, type AgentStep, type AgentThought, type AgentTrace, type LiveTrace, type TurnEvent } from "./types";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -39,7 +39,21 @@ export function normalizeTrace(raw: unknown): AgentTrace | null {
     .map((s, i) => (isObj(s) ? toStep(s, `${String(s.key ?? "step")}-${i}`) : null))
     .filter((s): s is AgentStep => !!s);
   const ms = isObj(d.ms) ? d.ms.total : d.ms;
-  return { v: typeof d.v === "number" ? d.v : 1, ms: typeof ms === "number" ? ms : 0, steps, thought: toThought(d.thought) };
+  const note = clipNote(d.noteZh);
+  return { v: typeof d.v === "number" ? d.v : 1, ms: typeof ms === "number" ? ms : 0, steps, thought: toThought(d.thought), ...(note ? { noteZh: note } : {}) };
+}
+
+/** 中文说明:非空字符串才算,去首尾空白,按码点截到 80。 */
+export function clipNote(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s ? Array.from(s).slice(0, NOTE_ZH_MAX).join("") : null;
+}
+
+/** done.note_zh 优先于 trace 里的 note_zh;没有过程时不附(R-AW11)。 */
+export function withNote(trace: AgentTrace | null, note: string | null | undefined): AgentTrace | null {
+  if (!trace || !note) return trace;
+  return trace.noteZh === note ? trace : { ...trace, noteZh: note };
 }
 
 export function startLive(now: number): LiveTrace {

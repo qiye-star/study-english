@@ -1,5 +1,5 @@
 import camelcaseKeys from "camelcase-keys";
-import { normalizeTrace, toStep, toThought } from "./trace";
+import { clipNote, normalizeTrace, toStep, toThought } from "./trace";
 import type { TurnErrorCode, TurnEvent, TurnMeta } from "./types";
 
 /** 一个 SSE 块:event 名 + 合并后的 data。 */
@@ -84,7 +84,7 @@ export function parseTurnEvent(raw: RawSseEvent): TurnEvent | null {
     }
     case "done": {
       const usage = isObj(d.usage) && typeof d.usage.in === "number" && typeof d.usage.out === "number" ? { in: d.usage.in, out: d.usage.out } : null;
-      return { type: "done", usage, trace: normalizeTrace(d.trace), textLen: typeof d.textLen === "number" ? d.textLen : 0 };
+      return { type: "done", usage, trace: normalizeTrace(d.trace), textLen: typeof d.textLen === "number" ? d.textLen : 0, noteZh: clipNote(d.noteZh) };
     }
     case "error":
       return { type: "error", code: ERROR_CODES.includes(d.code as TurnErrorCode) ? (d.code as TurnErrorCode) : "llm_unavailable" };

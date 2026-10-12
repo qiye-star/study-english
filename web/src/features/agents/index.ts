@@ -20,3 +20,5 @@ export type { TutorBarSlotProps, TutorEntryProps, TutorStartInfo, TutorStartShee
 // ---- A2 agents-memory(自包含子目录;页面经 memory/lazy 懒加载,INDEX X10)----
 export { MemoryPage } from "./memory/lazy";
 export type { MemoryItem, ProfileState } from "./memory/memory-api";
+// ---- addressing (plan 2026-10-12-agents-addressing-web) ----
+export { withNote } from "./trace";
