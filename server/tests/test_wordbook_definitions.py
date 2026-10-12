@@ -113,3 +113,76 @@ def test_the_loader_module_is_stdlib_only():
     source = (Path(__file__).resolve().parents[1] / "app" / "wordbook" / "definitions.py").read_text(encoding="utf-8")
     imports = {line.split()[1].split(".")[0] for line in source.splitlines() if line.startswith(("import ", "from "))}
     assert imports <= {"asyncio", "json", "logging", "threading", "pathlib"}  # no httpx, no app.providers: nothing can call out
+
+
+# ---- every endpoint that builds a card ----
+
+async def login(app, client, tmp_path, *, defs=True, books=("junior",)):
+    enable_wordbook(app, make_data_dir(tmp_path, books), wordbook_books=",".join(books))
+    if defs:
+        make_defs_dir(tmp_path)
+    r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    await client.put(f"{URL}/enrollment", headers=h, json={"book_id": books[0], "order_mode": "book"})
+    return h
+
+
+async def test_learn_batch_cards_carry_defs_en_and_keep_every_old_key(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    cards = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 3})).json()["cards"]
+    assert cards and all({"key", "word", "us", "uk", "senses", "phrases", "examples"} <= set(c) for c in cards)
+    talk = next(c for c in cards if c["key"] == "talk")
+    assert talk["defs_en"] == [{"pos": "v", "text": "speak to someone"}, {"pos": "v", "text": "have a conversation"},
+                               {"pos": "n", "text": "a conversation between people"}]
+
+
+async def test_no_definitions_file_means_no_defs_en_key(app, client, tmp_path):
+    h = await login(app, client, tmp_path, defs=False)
+    cards = (await client.post(f"{URL}/learn/batch", headers=h, json={"size": 3})).json()["cards"]
+    assert cards and all("defs_en" not in c for c in cards)
+    assert "defs_en" not in (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()
+
+
+async def test_a_word_without_a_definition_has_no_key(app, client, tmp_path):
+    enable_wordbook(app, make_data_dir(tmp_path))
+    make_defs_dir(tmp_path, {"ability": [("n", "skill")]})
+    r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert (await client.get(f"{URL}/cards/junior/ability", headers=h)).json()["defs_en"] == [{"pos": "n", "text": "skill"}]
+    assert "defs_en" not in (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()
+
+
+async def test_card_detail_review_learned_card_and_free_start_carry_it(app, client, tmp_path):
+    h = await login(app, client, tmp_path)
+    assert (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()["defs_en"][0]["text"] == "speak to someone"
+    await client.post(f"{URL}/answers", headers=h, json={"book_id": "junior", "key": "talk", "mode": "learn",
+                                                         "qtype": "meaning", "known": True})
+    learned = await client.post(f"{URL}/learned/card", headers=h, json={"book_id": "junior", "key": "talk"})
+    assert learned.json()["defs_en"][0]["pos"] == "v"
+    free = await client.post(f"{URL}/free/start", headers=h, json={"scope": "all", "mode": "browse", "count": 10})
+    assert [i["card"]["defs_en"][0]["pos"] for i in free.json()["items"]] == ["v"]
+
+
+async def test_more_than_four_defs_in_the_file_are_cut_at_four(app, client, tmp_path):
+    enable_wordbook(app, make_data_dir(tmp_path))
+    make_defs_dir(tmp_path, {"talk": [("n", "n1"), ("n", "n2"), ("v", "v1"), ("v", "v2"), ("a", "a1"), ("r", "r1")]})
+    r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    got = (await client.get(f"{URL}/cards/junior/talk", headers=h)).json()["defs_en"]
+    assert [(d["pos"], d["text"]) for d in got] == [("n", "n1"), ("v", "v1"), ("a", "a1"), ("r", "r1")]
+
+
+async def test_links_word_card_carries_it_too(app, client, tmp_path):
+    from tests.links_helpers import enable_links
+    h = await login(app, client, tmp_path)
+    enable_links(app)
+    r = await client.post("/api/links/wordbook/card", headers=h, json={"word": "talk"})
+    assert r.status_code == 200 and r.json()["card"]["defs_en"][0]["text"] == "speak to someone"
+
+
+async def test_reading_definitions_logs_no_words_and_calls_nothing_out(app, client, tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    h = await login(app, client, tmp_path)
+    await client.post(f"{URL}/learn/batch", headers=h, json={"size": 3})
+    await client.get(f"{URL}/cards/junior/talk", headers=h)
+    assert "speak to someone" not in caplog.text and "talk" not in caplog.text

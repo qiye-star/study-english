@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.wordbook.books import book_by_id
+from app.wordbook.definitions import Definitions, default_path
 from app.wordbook.entry import WordCard, clean_sentence, headword_key, merge_rows, pos_mask_of, pos_parts
 from app.wordbook.textnorm import find_form
 
@@ -103,6 +104,7 @@ def _read_rows(path: Path, groups: list[tuple[int, ...]]) -> list[list[dict]]:
 class DictionaryStore:
     def __init__(self, data_dir: Path, *, cache_size: int = 1024):
         self.data_dir = Path(data_dir)
+        self.definitions = Definitions(default_path(self.data_dir))  # English definitions (spec 2026-10-12 §3)
         self._cache_size = cache_size
         self._indexes: dict[str, BookIndex] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -185,6 +187,7 @@ class DictionaryStore:
 
     def reload(self, book_id: str | None = None) -> None:
         self._generation += 1
+        self.definitions.reload()
         if book_id is None:
             self._indexes.clear()
             self._cards.clear()

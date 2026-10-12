@@ -79,7 +79,7 @@ async def card(payload: WordIn, request: Request, user: User = Depends(require_l
             continue
         if found is not None:
             item = await store.known_one(session, user.id, found.key)
-            return {"book_id": book_id, "card": service.card_out(found), "item": service.item_out(item)}
+            return {"book_id": book_id, "card": service.card_out(found, ds), "item": service.item_out(item)}
     if books and unavailable == len(books):  # Ruling(L1-1):所有启用的书都读不到 → 503,而不是假装「没有这个词」
         raise HTTPException(503, UNAVAILABLE)
     raise HTTPException(404, NOT_FOUND)

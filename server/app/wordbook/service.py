@@ -105,6 +105,7 @@ async def ensure_hidden(session: AsyncSession, ds: DictionaryStore) -> None:
     """进程里第一次用到例句前,从 wordbook_hidden_sentences 载入屏蔽集合(管理端屏蔽时会刷新)。"""
     if not ds.hidden_loaded:
         await store.load_hidden(session, ds)
+    await ds.definitions.warm()  # English definitions: read the file off the event loop once per process
 
 
 def book_out(b: BookSpec, **extra) -> dict:
@@ -125,11 +126,15 @@ def config_out(settings: Settings) -> dict:
     }
 
 
-def card_out(card: WordCard) -> dict:
-    return {"key": card.key, "word": card.word, "us": card.us, "uk": card.uk,
-            "senses": [{"pos": s.pos, "text": s.text} for s in card.senses],
-            "phrases": [{"en": en, "zh": zh} for en, zh in card.phrases],
-            "examples": [{"id": e.id, "en": e.en, "zh": e.zh} for e in card.examples]}
+def card_out(card: WordCard, ds: DictionaryStore) -> dict:
+    """The one place a card object is built. `defs_en` (spec 2026-10-12 §4) is additive: absent = no English definition."""
+    out = {"key": card.key, "word": card.word, "us": card.us, "uk": card.uk,
+           "senses": [{"pos": s.pos, "text": s.text} for s in card.senses],
+           "phrases": [{"en": en, "zh": zh} for en, zh in card.phrases],
+           "examples": [{"id": e.id, "en": e.en, "zh": e.zh} for e in card.examples]}
+    if defs := ds.definitions.defs_for(card.key):
+        out["defs_en"] = defs
+    return out
 
 
 def item_out(known: Known | None) -> dict | None:
@@ -281,7 +286,7 @@ async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, 
     quiz = [question_out(await _question(ds, index, c, "meaning", question_rng(user_id, c.key, 0))) for c in cards]
     # spec recall §3.3:「不认识」的词在本轮小测里第二次出现时用看释义选词(随机源与 quiz 不同)
     drill = [question_out(await _question(ds, index, c, "word", question_rng(user_id, c.key, 1))) for c in cards]
-    return {"book_id": e.book_id, "cards": [card_out(c) for c in cards], "quiz": quiz, "drill": drill}
+    return {"book_id": e.book_id, "cards": [card_out(c, ds) for c in cards], "quiz": quiz, "drill": drill}
 
 
 async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
@@ -302,7 +307,7 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
         qtype = "recall" if recall_on and use_recall(user_id, card.key, row.reps, row.box) else pick_qtype(
             row.box, card, rng, tts=tts)
         questions.append(question_out(await _question(ds, index, card, qtype, rng)))
-    return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c) for c in cards]}
+    return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c, ds) for c in cards]}
 
 
 async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now) -> tuple[bool, bool]:
@@ -692,7 +697,7 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
             blanks.append({"i": next_blank, "outcome": r.outcome, "credit": r.credit, "typed": r.typed,
                            "expected": r.expected, "diff": [asdict(d) for d in r.diff]})
             next_blank += 1
-        words.append({"key": card.key, "outcome": outcome, "credit": credit, "blanks": blanks, "card": card_out(card)})
+        words.append({"key": card.key, "outcome": outcome, "credit": credit, "blanks": blanks, "card": card_out(card, ds)})
     set_credit = round(sum(w["credit"] for w in words) / len(words))
     # 同一组(服务端按 (key, sentence_id) 重算的 set_id,不用客户端传的)每个本地日只计一次:「再练一遍」不再得分
     set_id = set_id_for([cloze for _, cloze, _ in graded])
@@ -715,7 +720,7 @@ async def card_detail(session: AsyncSession, ds: DictionaryStore, settings: Sett
     card = (await cards_or_fail(ds, book_id, [key])).get(key)
     if card is None:
         fail(WORD_NOT_FOUND)
-    return card_out(card)
+    return card_out(card, ds)
 
 
 async def find_card(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, key: str) -> WordCard:
@@ -985,7 +990,7 @@ async def free_start(session: AsyncSession, ds: DictionaryStore, user_id: int, s
         if mode != "browse":
             qtype = "recall" if mode == "recall" else "spell" if mode == "spell" else free_choice_qtype(card, qrng)
             question = question_out(await _question(ds, await index_or_fail(ds, book_id), card, qtype, qrng))
-        items.append({"book_id": book_id, "card": card_out(card), "question": question})
+        items.append({"book_id": book_id, "card": card_out(card, ds), "question": question})
         if len(items) == count:
             break
     if not items:
