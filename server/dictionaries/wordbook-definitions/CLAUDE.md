@@ -18,6 +18,8 @@ runtime by `app/wordbook/definitions.py`; a missing or broken file silently mean
 - `.gitattributes` marks `*.jsonl` and `missing.txt` as `binary` (checksums stay stable on Windows).
 - Build inputs (OEWN zip, ECDICT zip) are NOT in the repo; they are checked by sha256 (`wordbook_definitions.py verify`).
 - Function words (`in`, `it`, `a` ...) must never come from WordNet: `build` skips WordNet for `prep pron conj art num aux int`.
+- A word with a hand entry is hand-only: `build` adds no WordNet line for ANY of its POS (R-DS17; `in` is not indium). Other words: WordNet, then llm.
+- `build` drops WordNet senses whose gloss opens with an explicit usage label (`(slang)`, `(British informal)`, `slang for ...`) while the POS keeps another sense (R-DS18; never the only sense).
 - `function-words.jsonl`: sorted by word, LF/UTF-8, one entry per (word, pos), closed-class POS only, each text <= 12 words,
   original wording (no copied dictionary text). The POS must be one the word book gives the word (strict build).
 - The runtime finds this folder next to the word-book folder (`<WORDBOOK_DATA_DIR>/../wordbook-definitions/`). If you point

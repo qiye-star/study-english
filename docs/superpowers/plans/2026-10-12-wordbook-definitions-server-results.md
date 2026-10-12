@@ -2,24 +2,33 @@
 
 Measured on 2026-10-12 with `scripts/wordbook_definitions.py` (script_version 1) on the real inputs (OEWN 2025 index.sense zip sha256 `38b16326...`, ECDICT 1.0.28 zip sha256 `ea01f76a...`, books manifest `4b80d2bc...`). `verify` printed `ok`; `check` printed `ok`; two builds produced byte-identical `definitions.jsonl`, `missing.txt`, `SOURCE.json`.
 
-| Item | Plan (written) | Measured |
-|---|---|---|
-| keys wanted | 14,615 | 14,615 |
-| words with a definition | 14,019 | 14,021 |
-| words with OEWN | 13,979 | 13,979 |
-| defs | 29,158 | 29,160 |
-| pairs oewn / hand / llm | 17,837 / 116 / 0 | 17,837 / 118 / 0 |
-| partial_open_pos | 1,320 | 1,320 |
-| gap rows | 757 | 755 |
-| gap categories | function 229, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 | function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 |
-| definitions.jsonl size | ~2.6 MB | 2,653,260 bytes |
+| Item | Plan (written) | First build | Rebuild (script_version 2) |
+|---|---|---|---|
+| keys wanted | 14,615 | 14,615 | 14,615 |
+| words with a definition | 14,019 | 14,021 | 14,021 |
+| words with OEWN | 13,979 | 13,979 | 13,916 |
+| defs | 29,158 | 29,160 | 28,943 |
+| pairs oewn / hand / llm | 17,837 / 116 / 0 | 17,837 / 118 / 0 | 17,719 / 118 / 0 |
+| partial_open_pos | 1,320 | 1,320 | 1,366 |
+| usage_filtered_pairs | - | - | 42 |
+| gap rows | 757 | 755 | 755 |
+| gap categories | function 229, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 | function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 | function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 |
+| definitions.jsonl size | ~2.6 MB | 2,653,260 bytes | 2,637,503 bytes |
 
-Why the differences: the committed hand file (lane D) has 104 words instead of 103 and, with the `an` entry added here (Ruling Z-1), 105; each hand pair removes one function gap. LLM candidates (function + compound + pos_mismatch + other) = 227 + 23 + 45 + 341 = 636 rows (before dropping rows without a POS).
+Rebuild (R-DS17, R-DS18): `verify` printed `ok`; `check` printed `ok`; two builds were byte-identical (`definitions.jsonl`, `missing.txt`, `SOURCE.json`). Hand-entry words now have only `hand` lines (the 118 hand pairs; the 105 hand words lose their WordNet noun/verb lines, which also raises `partial_open_pos`). 42 (word, POS) pairs changed because a usage-labelled sense was dropped.
 
-## Spot check (seed 12, 30 words + the named words)
-28/30 acceptable. Weak picks, accepted by design: `grass` n2 "a police informer", `confident` a2 "persuaded of". Named words: `abandon` v "forsake, leave behind"; `stamp`, `counter`, `sow`, `sketch` fine; `in`/`it`/`a`/`an`/`the`/`against`/`although` have `hand` lines for their closed POS. Proper nouns (`afghanistan`, `africa`, `alaska`, `shanghai` ...) have no definition and sit in `missing.txt` as `proper`. Not ideal: `in` and `a` also get WordNet noun lines (indium / inch, vitamin A / nucleotide) because one book types them `n` (`in`: "those in power; a way in"; `a`: "the letter A"). The strict build only forbids WordNet for closed POS, and the book really lists `n`.
+Why the first-build differences: the committed hand file (lane D) has 104 words instead of 103 and, with the `an` entry added here (Ruling Z-1), 105; each hand pair removes one function gap. LLM candidates (function + compound + pos_mismatch + other) = 227 + 23 + 45 + 341 = 636 rows (before dropping rows without a POS).
+
+## Spot check (rebuild; seed 7, 20 random words + the named words)
+Named words: `in` prep "inside or within a place, time, or state" (hand only, no indium); `a` art (hand only, no vitamin A); `an` art (hand); `abandon` v "forsake, leave behind" then "give up with the intent of never claiming again"; `stamp` n/v fine. The 20 random words (`gambling`, `comic`, `retrain`, `barrel`, `border`, `night`, `lane`, `duke` ...) read acceptably. Still weak, accepted: `grass` n2 "a police informer who implicates many people" and `confident` a2 "persuaded of" - their OEWN glosses carry no usage label of any kind (no leading label, no `;u` domain pointer), so the deterministic filter cannot and does not touch them. Proper nouns have no definition and sit in `missing.txt` as `proper`.
+
+### Markers found in the OEWN 2025 data (first 71,864 noun synsets etc.)
+- Leading parenthetical label in the gloss (101 synsets, e.g. `(slang) a self-aggrandizing action`, `(British informal) pork sausage`, `(archaic) lame persons collectively`, `(ethnic slur) offensive term for a Jew`, `(dated slang) a remarkable or excellent thing`): used, except hedged (`(usually informal)`, `(sometimes offensive)`) and `(euphemism)`.
+- Leading phrase (128 glosses, e.g. `British slang for a swindle`, `slang for a jail`, `informal term for a destroyer`, `an archaic term for a parrot`, `derogatory term for a variation that is not genuine`): used.
+- Usage-domain pointers `;u` (8,264; slang 91, colloquialism 295, disparagement 608, archaism 78, obscenity 48 ...): NOT used, too noisy (`insect`, `gorilla`, `toilet_bowl` under disparagement; `bite`, `Caterpillar` under slang; `forward` under dialect); `lex_filenum` is only the semantic class.
 
 ## Rulings
 - **Z-1** `an` is typed `indefinite article` by one book, which maps to `art`; lane D had left it out, so the build listed it as a function gap. Added a hand entry (`art`, "used instead of a before a vowel sound", 8 words) in its own commit.
-- **Z-2** The `in`/`a` noun lines are left as built: fixing them needs either a hand override of an open POS (the hand-file tests allow closed POS only) or a script rule; weak but harmless, they follow the book. Candidate for the LLM-fill / a later hand-override rule.
+- **Z-2** (superseded by R-DS17) The `in`/`a` noun lines were first left as built; the rebuild fixes them with a script rule: a word with a hand entry gets no OEWN lines at all.
+- **R-DS17** Hand entry wins entirely (see the plan). **R-DS18** Usage-labelled OEWN senses are dropped while the POS keeps another sense; markers are the two gloss forms listed above, `;u` pointers rejected (see the plan).
 - **Z-3** The loader test in `tests/test_wordbook_definitions_data.py` uses `pytest.importorskip("app.wordbook.definitions")` so it is skipped until lane R/P has merged (then it runs unchanged).
