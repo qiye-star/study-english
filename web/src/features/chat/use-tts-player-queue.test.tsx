@@ -48,6 +48,17 @@ describe("useTtsPlayer.playQueue (plan R8)", () => {
     expect(audio.play).toHaveBeenCalledTimes(4);
   });
 
+  it("push() skips Chinese-only sentences and strips Chinese from mixed ones (speechText gate)", async () => {
+    const mock = okSpeech();
+    const audio = fakeAudio();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: () => audio }));
+    let q!: ReturnType<typeof result.current.playQueue>;
+    act(() => { q = result.current.playQueue("a1", "m", "v"); });
+    act(() => { q.push("Good job!"); q.push("很好。"); q.push("Say 放弃 now."); q.end(); });
+    await flush();
+    expect(inputs(mock)).toEqual(["Good job!", "Say now."]);
+  });
+
   it("stop() clears the queue without reporting an error", async () => {
     const mock = createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
     const onError = vi.fn();

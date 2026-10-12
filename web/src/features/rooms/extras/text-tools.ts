@@ -1,3 +1,4 @@
+import { speechText } from "~/lib/speech-text";
 import type { RoomMessage } from "../protocol";
 
 const CJK = /[㐀-䶿一-鿿豈-﫿]/gu;
@@ -29,3 +30,6 @@ export function speakable(m: RoomMessage): string {
   }
   return m.text.replace(AT_AI, "").trim();
 }
+
+/** 「朗读」按钮是否出现、朗读什么:正文(speakable)再去掉中文(R-AW9);「译」仍用 speakable,保留中文原文。 */
+export const spokenText = (m: RoomMessage): string => speechText(speakable(m));

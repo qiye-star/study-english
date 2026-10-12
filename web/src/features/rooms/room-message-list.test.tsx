@@ -78,7 +78,7 @@ describe("RoomMessageList (v2 extras)", () => {
     setup([msg(3, "我也喜欢巧克力"), msg(4, "", { kind: "voice", voice: { durationMs: 1000, status: "pending", transcript: null, lang: null, translation: null, translationStatus: null, attempts: 0, audio: true } })]);
     fireEvent.click(screen.getByText("我也喜欢巧克力"));
     expect(screen.queryByTestId("msg-translate")).toBeNull();
-    expect(screen.getByTestId("msg-speak")).toBeTruthy();
+    expect(screen.queryByTestId("msg-speak")).toBeNull(); // all-Chinese text has nothing to read aloud (R-AW9)
     const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
     fireEvent.click(voice);
     expect(screen.queryByTestId("msg-translate")).toBeNull();

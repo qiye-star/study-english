@@ -15,7 +15,7 @@ import { MessageActions } from "./extras/message-actions";
 import { QuoteBlock } from "./extras/quote-block";
 import { ReactionBar } from "./extras/reaction-bar";
 import { TextTranslation } from "./extras/text-translation";
-import { isMostlyNative, speakable } from "./extras/text-tools";
+import { isMostlyNative, speakable, spokenText } from "./extras/text-tools";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
 import { TranslateQueue } from "./voice/translate-queue";
@@ -163,7 +163,7 @@ export const RoomMessageList = memo(function RoomMessageList({
     return () => ctrl.abort();
   }, [api, needsScenarios, scenarios]);
   const speak = (m: RoomMessage) => {
-    const text = speakable(m);
+    const text = spokenText(m); // the only text that reaches TTS: body only, no Chinese (R-AW9)
     if (ai) {
       if (ai.defaultTts.model) void tts.play(m.id, text, ai.defaultTts.model, ai.defaultTts.voice);
       else toast.error(t("web.rooms.extras.speakUnavailable"));
@@ -195,7 +195,7 @@ export const RoomMessageList = memo(function RoomMessageList({
               onReact={(key, on) => { reactOnce(m.seq, key, on); setSelected(null); }}
               onQuote={() => { onQuote(m); setSelected(null); }} onReport={() => onReport(m)}
               onTranslate={canTranslate ? () => translations.toggle(m.id, text) : undefined} translateOpen={open}
-              onSpeak={text ? () => speak(m) : undefined} speakState={tts.states[m.id] ?? "idle"} />
+              onSpeak={spokenText(m) ? () => speak(m) : undefined} speakState={tts.states[m.id] ?? "idle"} />
           </div>
         )}
       </div>

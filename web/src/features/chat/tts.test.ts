@@ -85,7 +85,8 @@ describe("tts helpers", () => {
   });
   it("cuts CJK text at a full-width terminator without needing whitespace", () => {
     const sentence = "这是一个句子\u3002";
-    const out = speakableText(sentence.repeat(1000));
+    expect(speakableText(sentence.repeat(1000))).toBe(""); // speechText now drops Chinese before truncation (R-AW8)
+    const out = truncateAtSentence(sentence.repeat(1000), 4096); // the cut itself still handles full-width terminators
     expect(out.length).toBeLessThanOrEqual(4096);
     expect(out.length).toBeGreaterThan(2048);
     expect(out.endsWith("\u3002")).toBe(true);
@@ -153,5 +154,13 @@ describe("tts helpers", () => {
     const t = performance.now();
     stripMarkdown(input);
     expect(performance.now() - t).toBeLessThan(1500);
+  });
+});
+
+describe("speakableText CJK fallback (spec addressing §5.3, R-AW8)", () => {
+  it("never hands Chinese to TTS", () => {
+    expect(speakableText("**Great!** 很好。")).toBe("Great!");
+    expect(speakableText("中文说明:继续加油")).toBe("");
+    expect(["Good job!", "很好。", "Keep going."].map(speakableText)).toEqual(["Good job!", "", "Keep going."]); // per-sentence queue input
   });
 });

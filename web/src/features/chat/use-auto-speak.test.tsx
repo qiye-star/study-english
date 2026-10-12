@@ -39,6 +39,8 @@ describe("autoSpeakDecision (R4)", () => {
     [{ hasVoice: false }, "no-voice"],
     [{ text: "```js\nx()\n```" }, "empty"],
     [{ text: "   " }, "empty"],
+    [{ text: "很好,继续。" }, "empty"], // Chinese only: speechText leaves nothing (spec addressing §5.3)
+    [{ text: "ありがとう。" }, "empty"],
     [{ enabled: false, status: "error", hidden: true }, "disabled"], // 按顺序取第一条
     [{ stale: true, voiceIdle: false }, "stale"],
     [{ status: "error", stale: true }, "not-done"],

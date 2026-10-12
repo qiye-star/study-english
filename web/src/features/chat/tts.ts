@@ -1,3 +1,5 @@
+import { speechText } from "~/lib/speech-text";
+
 export const MAX_TTS_INPUT = 4096;
 
 export function ttsKey(model: string, voice: string, text: string): string {
@@ -147,7 +149,7 @@ function dropStrayEmphasis(text: string): string {
 
 export function speakableText(markdown: string): string {
   const text = withCodeMasked(markdown, (masked) => dropStrayEmphasis(stripMasked(masked)));
-  return truncateAtSentence(text.replace(/\s+/g, " ").trim(), MAX_TTS_INPUT);
+  return truncateAtSentence(speechText(text.replace(/\s+/g, " ").trim()), MAX_TTS_INPUT);
 }
 
 export const sharedTtsCache = new TtsCache();

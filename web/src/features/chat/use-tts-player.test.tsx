@@ -31,6 +31,17 @@ describe("useTtsPlayer", () => {
     await act(() => result.current.play("m1", "Hello", "openai/tts-1", "alloy"));
     expect(mock.calls.filter((c) => c.url.pathname === "/api/ai/audio/speech")).toHaveLength(1);
   });
+  it("play() makes no TTS request for Chinese-only text and sends only the English part of mixed text (speechText gate)", async () => {
+    const mock = createFetchMock({ "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
+    const onNothingToRead = vi.fn();
+    const { result } = renderHook(() => useTtsPlayer(apiFor(mock), { cache: mkCache(), createAudio: fakeAudio, onNothingToRead }));
+    await act(() => result.current.play("zh", "很好,继续。", "m", "alloy"));
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/ai/audio/speech")).toHaveLength(0);
+    expect(onNothingToRead).toHaveBeenCalledTimes(1);
+    await act(() => result.current.play("mix", "Try this: 放弃 means give up.", "m", "alloy"));
+    const inputs = mock.calls.filter((c) => c.url.pathname === "/api/ai/audio/speech").map((c) => JSON.parse(String(c.body)).input);
+    expect(inputs).toEqual(["Try this: means give up."]);
+  });
   it("reports errors", async () => {
     const mock = createFetchMock({ "POST /api/ai/audio/speech": () => json({ error: "Upstream unavailable" }, 502) });
     const onError = vi.fn();
