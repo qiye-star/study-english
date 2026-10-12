@@ -430,6 +430,8 @@ def test_llm_rows_fill_only_what_oewn_and_hand_left_open(env):
     ("  wet   with	sweat. ", "wet with sweat"),
     ("American business magazine; a Scottish family name", "American business magazine; a Scottish family name"),
     ("Used in Britain to mean a Scot.", "Used in Britain to mean a Scot"),
+    ("A long river in Africa, the longest in the world", "a long river in Africa, the longest in the world"),
+    ("The Hague is a city", "the Hague is a city"),
     ("I am the speaker", "I am the speaker"),
     ("I'm here", "I'm here"),
     ("Used when I speak.", "used when I speak"),

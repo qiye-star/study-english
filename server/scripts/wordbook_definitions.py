@@ -372,7 +372,8 @@ _ABBREV_END = re.compile(r"(?:^|\s)(?:etc|(?:[A-Za-z]\.)+[A-Za-z])\.$")  # `etc.
 def normalize_llm_text(text: str) -> str:
     """Bring a model-written definition to the OEWN / hand style (R-DS19): collapse whitespace, drop ONE trailing
     period (not the end of `...` or of `etc.` / `e.g.` / `U.S.`), lowercase the first letter unless the first word has another capital (DNA,
-    McDonald's), is `I` / `I'm`, or the text holds another capitalised word (a proper noun: `a Scottish family name`)."""
+    McDonald's), is `I` / `I'm`, or the text holds another capitalised word (a proper noun: `American business magazine; a Scottish family name`);
+    a leading `A` / `An` / `The` is always lowercased (`a long river in Africa`)."""
     text = " ".join(text.split())
     if text.endswith(".") and not text.endswith("..") and not _ABBREV_END.search(text):
         text = text[:-1].rstrip()
@@ -380,7 +381,7 @@ def normalize_llm_text(text: str) -> str:
         return ""
     first, *rest = text.split(" ")
     keeps = (any(c.isupper() for c in first[1:]) or re.match(r"^I(?:['’].*)?$", first) is not None
-             or any(_CAP_WORD.match(w) and not re.match(r"^\W*I(?:['’]\w+)?\W*$", w) for w in rest))
+             or (first not in ("A", "An", "The") and any(_CAP_WORD.match(w) and not re.match(r"^\W*I(?:['’]\w+)?\W*$", w) for w in rest)))
     if not keeps and first[:1].isupper():
         text = first[0].lower() + text[1:]
     return text

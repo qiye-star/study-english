@@ -19,7 +19,7 @@ runtime by `app/wordbook/definitions.py`; a missing or broken file silently mean
 - Build inputs (OEWN zip, ECDICT zip) are NOT in the repo; they are checked by sha256 (`wordbook_definitions.py verify`).
 - Function words (`in`, `it`, `a` ...) must never come from WordNet: `build` skips WordNet for `prep pron conj art num aux int`.
 - A word with a hand entry is hand-only: `build` adds no WordNet line for ANY of its POS (R-DS17; `in` is not indium). Other words: WordNet, then llm.
-- `src: "llm"` lines are normalised by `build` (R-DS19: whitespace collapsed, one trailing period dropped, first letter lowercased unless acronym / `I` / the text holds another capitalised word); `definitions-llm.jsonl` itself stays raw model output. No POS filter for llm lines (R-DS20: none is outside the book POS set; wrong lines come from mis-typed book POS).
+- `src: "llm"` lines are normalised by `build` (R-DS19: whitespace collapsed, one trailing period dropped, first letter lowercased unless acronym / `I` / the text holds another capitalised word; a leading A/An/The is always lowercased); `definitions-llm.jsonl` itself stays raw model output. No POS filter for llm lines (R-DS20: none is outside the book POS set; wrong lines come from mis-typed book POS).
 - `build` drops WordNet senses whose gloss opens with an explicit usage label (`(slang)`, `(British informal)`, `slang for ...`) while the POS keeps another sense (R-DS18; never the only sense).
 - `function-words.jsonl`: sorted by word, LF/UTF-8, one entry per (word, pos), closed-class POS only, each text <= 12 words,
   original wording (no copied dictionary text). The POS must be one the word book gives the word (strict build).
