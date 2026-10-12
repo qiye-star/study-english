@@ -1,6 +1,6 @@
 import "./locales";
 import {
-  BookOpenIcon, BookmarkIcon, BrainIcon, CalendarClockIcon, EyeIcon, FlameIcon, GraduationCapIcon, UsersIcon, UserRoundIcon, type LucideIcon,
+  BookOpenIcon, BookmarkIcon, BrainIcon, CalendarClockIcon, EyeIcon, FlameIcon, GraduationCapIcon, LanguagesIcon, UsersIcon, UserRoundIcon, type LucideIcon,
 } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,13 +9,14 @@ import { Switch } from "@renderer/components/ui/switch";
 import { useAuth } from "~/auth/auth-context";
 import { FeatureGate, type GateState } from "~/components/feature-gate";
 import { IconChip } from "~/components/icon-chip";
+import { SegmentedControl } from "~/components/segmented-control";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import type { Tone } from "~/components/tone";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
 import { agentsApi } from "./agents-api";
 import { PersonaPicker } from "./persona-picker";
-import { TOOL_FIELD, TOOL_KEYS, TUTOR_KINDS, type AgentSettings, type AgentSettingsPatch, type ToolKey, type TutorKind } from "./types";
+import { TOOL_FIELD, TOOL_KEYS, TUTOR_KINDS, ZH_NOTE_MODES, type AgentSettings, type AgentSettingsPatch, type ToolKey, type TutorKind, type ZhNoteMode } from "./types";
 import { useAgentSettings, useAgentsConfig, usePersonas } from "./use-agents-data";
 
 const TOOL_ICON: Record<ToolKey, [LucideIcon, Tone]> = {
@@ -144,6 +145,19 @@ export function AgentSettingsPage() {
                 <SwitchRow id={`${id}-process`} testId="agent-setting-show-process" icon={EyeIcon} tone="gray" title={t("web.agents.settings.showProcess")}
                   hint={t("web.agents.settings.showProcessHint")} checked={settings.showProcess}
                   onChange={(showProcess) => save({ showProcess })} />
+              </SectionGroup>
+
+              <SectionGroup title={t("web.agents.settings.groups.language")}>
+                <div className="px-3.5 py-2.5">
+                  <div className="flex min-h-row flex-wrap items-center gap-x-3 gap-y-2">
+                    <IconChip tone="gray" icon={LanguagesIcon} />
+                    <span className="min-w-0 flex-1 text-body font-medium tracking-[-0.005em] text-ink">{t("web.agents.settings.zhNote")}</span>
+                    <SegmentedControl<ZhNoteMode> label={t("web.agents.settings.zhNote")} value={settings.zhNote ?? "auto"}
+                      onChange={(zhNote) => save({ zhNote })}
+                      options={ZH_NOTE_MODES.map((mode) => ({ value: mode, label: t(`web.agents.settings.zhNoteModes.${mode}`), testId: `agent-setting-zh-note-${mode}` }))} />
+                  </div>
+                  <p className="mt-1.5 text-meta text-ink-2">{t("web.agents.settings.zhNoteHint")}</p>
+                </div>
               </SectionGroup>
 
               {config.tutorEnabled && (

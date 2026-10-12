@@ -45,6 +45,25 @@ describe("AgentSettingsPage (spec §4.3, D2)", () => {
     expect(screen.getByTestId("agent-setting-tutor-length")).toHaveValue("8");
   });
 
+  it("offers the Chinese-note choice (server value, auto when missing) and saves a change as zh_note", async () => {
+    const mock = setup({ "PATCH /api/agents/settings": (c) => json({ ...SETTINGS, zh_note: "never", ...JSON.parse(String(c.body)) }) });
+    const auto = await screen.findByTestId("agent-setting-zh-note-auto");
+    expect(auto).toHaveAttribute("aria-checked", "true"); // SETTINGS has no zh_note: shown as auto
+    expect(screen.getByText(/never read aloud/)).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("agent-setting-zh-note-never"));
+    expect(screen.getByTestId("agent-setting-zh-note-never")).toHaveAttribute("aria-checked", "true"); // optimistic
+    await waitFor(() => expect(mock.calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    const patch = mock.calls.find((c) => c.method === "PATCH")!;
+    expect(JSON.parse(String(patch.body))).toEqual({ zh_note: "never" });
+    expect(patch.url.search).toBe("");
+  });
+
+  it("rolls the Chinese-note choice back when saving fails", async () => {
+    setup({ "PATCH /api/agents/settings": () => json({ error: "boom" }, 500) });
+    await userEvent.click(await screen.findByTestId("agent-setting-zh-note-always"));
+    await waitFor(() => expect(screen.getByTestId("agent-setting-zh-note-auto")).toHaveAttribute("aria-checked", "true"));
+  });
+
   it("saves a switch optimistically as snake_case and rolls back when saving fails", async () => {
     let fail = false;
     const mock = setup({ "PATCH /api/agents/settings": (call) => (fail ? json({ error: "x" }, 500) : json({ ...SETTINGS, ...JSON.parse(String(call.body)) })) });
