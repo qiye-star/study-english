@@ -2,7 +2,7 @@
 import json
 import random
 
-from app.agents.tutor.parse import _MARK, META_MARKER, Meta, StreamFilter, parse_meta, resolve
+from app.agents.tutor.parse import _MARK, META_MARKER, MAX_NOTE, Meta, StreamFilter, parse_meta, resolve
 
 
 def run(parts: list[str]) -> tuple[str, StreamFilter]:
@@ -93,3 +93,28 @@ def test_fuzz_chunk_splits_never_leak_meta_and_match_parse():
             assert parse_meta("x" + META_MARKER + f.tail)[1] == parse_meta(full)[1]
         else:
             assert not f.seen
+
+
+def test_parse_note_zh_and_hint_zh_clip_and_default_to_empty():
+    text = ('Nice!\n<<META>>{"verdict":"good","hint":"Start with when.","hint_zh":"先说什么时候","note_zh":"表达很自然",'
+            '"done":false}')
+    visible, meta = parse_meta(text)
+    assert visible == "Nice!"
+    assert (meta.hint, meta.hint_zh, meta.note_zh) == ("Start with when.", "先说什么时候", "表达很自然")
+    _, long = parse_meta('x<<META>>{"note_zh":"' + "很" * 200 + '","hint_zh":7}')
+    assert long.note_zh == "很" * MAX_NOTE and long.hint_zh == ""
+    for raw in ('{"verdict":"ok"}', '{"note_zh":["a"],"hint_zh":{"a":1}}', '{"note_zh":null}'):
+        _, plain = parse_meta("x<<META>>" + raw)
+        assert (plain.note_zh, plain.hint_zh) == ("", ""), raw
+    _, angle = parse_meta('x<<META>>{"note_zh":"a <b> c"}')
+    assert angle.note_zh == "a ‹b› c"  # same look-alike rule as every other META text
+
+
+def test_resolve_keeps_the_chinese_fields_and_the_filter_still_hides_them():
+    meta = Meta(verdict="weak", note_zh="再试一次", hint_zh="慢一点")
+    assert resolve(meta, answering=False) == (Meta(verdict=None, note_zh="再试一次", hint_zh="慢一点"), False)
+    assert resolve(Meta(note_zh="n"), answering=True)[0].note_zh == "n"
+    assert resolve(None, answering=True)[0].note_zh == ""
+    full = 'Good.\n<<META>>{"verdict":"good","hint_zh":"提示","note_zh":"不错"}'
+    out, f = run([full[i:i + 3] for i in range(0, len(full), 3)])
+    assert out == "Good." and "提示" in f.tail and "不错" in f.tail  # the tail is the META JSON: never visible

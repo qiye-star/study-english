@@ -1,7 +1,8 @@
 """<<META>> 输出协议(spec 2026-10-12-agents §7.3;R-T3、R-T5):纯函数。
 
 模型输出纯文本(点评 + 下一题),末尾一行 `<<META>>{json}`。StreamFilter 边流边剥:标记及其后的内容永不放行,
-即使标记被拆在多个增量里;标记前的尾随空白也不放行。回合结束后用 parse_meta 解析原文;缺失或无效交给 resolve。"""
+即使标记被拆在多个增量里;标记前的尾随空白也不放行。回合结束后用 parse_meta 解析原文;缺失或无效交给 resolve。
+`note_zh` / `hint_zh` 是 META 里可选的中文字段(缺失 / 非法 → 空串)。"""
 import json
 import re
 from dataclasses import dataclass, replace
@@ -11,6 +12,7 @@ from app.agents.tutor.plan import KINDS
 META_MARKER = "<<META>>"
 VERDICTS: tuple[str, ...] = ("good", "ok", "weak", "skip")
 MAX_FOCUS, MAX_HINT, MAX_SAY = 60, 120, 160
+MAX_NOTE = 80  # note_zh / hint_zh: unspoken Chinese text (same value as app.agents.lang.NOTE_MAX; pure module, no lang import)
 _WS = " \t\r\n"
 _OPEN, _CLOSE = "<«‹＜〈《", ">»›＞〉》"
 # 标记容忍大小写、括号内外的空白、全角 / 法文引号(`<< META >>`、`«META»`);只匹配「括号 + META + 括号」
@@ -28,6 +30,8 @@ class Meta:
     hint: str = ""
     say: str = ""
     done: bool = False
+    note_zh: str = ""  # Chinese comment on the learner's answer, <= 80 chars, never visible text
+    hint_zh: str = ""  # Chinese hint for the current question (optional)
 
 
 def _text(value: object, limit: int) -> str:
@@ -60,6 +64,8 @@ def parse_meta(text: str) -> tuple[str, Meta | None]:
         hint=_text(data.get("hint"), MAX_HINT),
         say=_text(data.get("say"), MAX_SAY),
         done=data.get("done") is True,
+        note_zh=_text(data.get("note_zh"), MAX_NOTE),
+        hint_zh=_text(data.get("hint_zh"), MAX_NOTE),
     )
 
 
