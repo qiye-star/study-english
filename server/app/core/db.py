@@ -25,6 +25,34 @@ def ensure_sqlite_dir(url: str) -> None:
         Path(parsed.database).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _harden_aiosqlite_terminate() -> None:
+    """Make SQLAlchemy's "terminate a cancelled connection" path unable to hang on SQLite.
+
+    When a task is cancelled while a query runs, SQLAlchemy (2.1) calls `terminate()`: it starts a shielded
+    `_terminate_graceful_close()` task and, because it was cancelled, immediately force-stops the aiosqlite worker
+    thread (`stop()` queues a stop sentinel; the thread exits). The graceful task then starts *after* that and
+    queues `Connection.close()` behind a sentinel nobody will ever read: its future never completes, and whoever
+    awaits it (`AsyncSession.close()` in the cancelled request/WebSocket task, hence also TestClient's `__exit__`
+    and a graceful server shutdown) waits forever. A connection that was already stopped has nothing left to close."""
+    from sqlalchemy.dialects.sqlite import aiosqlite as dialect
+
+    cls = getattr(dialect, "AsyncAdapt_aiosqlite_connection", None)
+    original = getattr(cls, "_terminate_graceful_close", None)
+    if original is None or getattr(original, "_stopped_guard", False):
+        return
+
+    async def _terminate_graceful_close(self) -> None:
+        if not getattr(self._connection, "_running", True):  # `stop()` already ran: the worker thread is gone
+            return
+        await original(self)
+
+    _terminate_graceful_close._stopped_guard = True
+    cls._terminate_graceful_close = _terminate_graceful_close
+
+
+_harden_aiosqlite_terminate()
+
+
 def make_engine(url: str) -> AsyncEngine:
     if url.startswith("sqlite") and ":memory:" in url:
         return create_async_engine(

@@ -41,3 +41,8 @@ Anything in `app`, plus other test modules' helpers (`from tests.test_x import h
   timers, `RoomTutor.timers()`) are cancel-only (`timer_tasks`): `drain_background` never waits for them; tests that need them to
   fire inject `sleep` into `RoomTutor` (see `test_rooms_agent_tutor.py::Clockwork`).
 - Log-hygiene tests assert keys/transcripts/tickets never appear in records: keep them.
+- Cancelling a task mid SQLite query (a WebSocket handler cancelled by TestClient's `__exit__`, a shutdown) used to hang forever: SQLAlchemy 2.1's
+  `terminate()` force-stops the aiosqlite thread, then the shielded graceful `close()` queues behind the stop sentinel. `app.core.db` guards it
+  (`_harden_aiosqlite_terminate`); `test_db_cancel.py` pins it. A hang in `testclient.py __exit__` is not necessarily lifespan shutdown: dump the
+  portal loop's tasks (`cr_await` chain) before touching shutdown code. Any wait in a new test on a worker thread / portal gets a hard timeout
+  (`asyncio.wait_for`, `anyio.fail_after`) so a regression fails instead of stalling the run.

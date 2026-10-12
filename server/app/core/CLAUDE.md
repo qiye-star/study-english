@@ -5,7 +5,7 @@ Foundation layer used by every other package.
 ## What lives here
 - `config.py` – `Settings` (pydantic-settings, env/.env) plus pure ASR config predicates
   (`effective_realtime_asr`, `realtime_asr_configured`, ...) that `Settings.realtime_available` needs
-- `db.py` – async engine factory and `Base`
+- `db.py` – async engine factory and `Base`; patches SQLAlchemy's aiosqlite `_terminate_graceful_close` so cancelling a task mid-query cannot hang on a dead worker thread (`test_db_cancel.py`)
 - `deps.py` – FastAPI dependencies: `get_settings`, `get_session`, `current_user`, `limited_user`
 - `security.py` – password hashing, access tokens
 - `errors.py` – JSON error handlers (`{"error": ...}`)
