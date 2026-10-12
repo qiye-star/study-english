@@ -13,18 +13,20 @@ from sqlalchemy import update
 from app.models import VocabularyItem, utcnow
 from app.wordbook import service
 from tests.test_web_contract import shape
-from tests.wordbook_helpers import enable_wordbook, make_data_dir
+from tests.wordbook_helpers import enable_wordbook, make_data_dir, make_defs_dir
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wordbook_contract.json"
 URL = "/api/wordbook"
 KEYS = {"config", "books", "enrollment", "today", "learn_batch", "answer_choice", "answer_typed", "review_batch",
         "spell_sets", "spell_submit", "card", "explain_unavailable", "answer_recall", "answer_check"}
 GOALS_KEYS = {"enrollment_patch", "bonus", "pause", "today_paused", "resume", "reset"}  # 计划 2026-10-11 GS5
+DEFS_KEYS = {"def_lang_patch"}  # 计划 2026-10-12-wordbook-definitions-server P1
 LEARNED_KEYS = {"learned_summary", "learned_list", "learned_card", "free_start", "answer_free"}  # 计划 2026-10-12-wordbook-learned-review S6
 
 
 async def collect(app, client, tmp_path, monkeypatch) -> dict:
     enable_wordbook(app, make_data_dir(tmp_path), wordbook_books="junior")
+    make_defs_dir(tmp_path)  # 英文释义(spec 2026-10-12-wordbook-definitions):词卡带可选的 defs_en
     r = await client.post("/api/users", json={"username": "alice", "password": "password123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     out = {"config": (await client.get(f"{URL}/config", headers=h)).json()}
@@ -41,6 +43,8 @@ async def collect(app, client, tmp_path, monkeypatch) -> dict:
     async with app.state.sessionmaker() as s:  # 只让 talk(盒 0)到期:题型只会是选择题
         await s.execute(update(VocabularyItem).where(VocabularyItem.word == "talk")
                         .values(due_at=utcnow() - timedelta(hours=1)))
+        await s.execute(update(VocabularyItem).where(VocabularyItem.word == "able")  # 刚学的词不能被自由答错拉到今天到期(R-L6)
+                        .values(created_at=utcnow() - timedelta(days=2)))
         await s.commit()
     out["today"] = (await client.get(f"{URL}/today", headers=h)).json()
     out["review_batch"] = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 3})).json()
@@ -93,6 +97,7 @@ async def collect_goals(client, h) -> dict:
         assert r.status_code == 200, r.text
         return r.json()
     out = {"enrollment_patch": await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 5}))}
+    out["def_lang_patch"] = await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"}))
     out["bonus"] = await ok(await client.post(f"{URL}/bonus", headers=h, json={"size": 5}))
     out["pause"] = await ok(await client.post(f"{URL}/enrollment/pause", headers=h, json={}))
     out["today_paused"] = await ok(await client.get(f"{URL}/today", headers=h))
@@ -106,7 +111,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     real = random.Random
     monkeypatch.setattr(random, "Random", lambda seed=0: real(seed))  # 句组抽词固定,样例稳定
     actual = await collect(app, client, tmp_path, monkeypatch)
-    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS
+    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS | DEFS_KEYS
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
                            newline="\n")
@@ -125,4 +130,10 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     assert expected["answer_check"]["outcome"] == "pending" and expected["answer_check"]["check"]["options"]
     assert expected["learned_list"]["next_cursor"] and expected["answer_free"]["applied"] is True
     assert expected["free_start"]["items"][0]["question"]["options"]
+    # 英文释义(计划 2026-10-12-wordbook-definitions-server P1):每个返回词卡的端点,首张卡都带 defs_en
+    assert expected["config"]["def_lang"] == "both" and expected["def_lang_patch"]["def_lang"] == "en"
+    for cards in (expected["learn_batch"]["cards"], expected["review_batch"]["cards"], [expected["card"]],
+                  [expected["learned_card"]], [i["card"] for i in expected["free_start"]["items"]],
+                  [w["card"] for w in expected["spell_submit"]["words"]]):
+        assert cards[0]["defs_en"] and set(cards[0]["defs_en"][0]) == {"pos", "text"}
     assert "by_book" in expected["learned_summary"] and isinstance(expected["learned_summary"]["by_book"], list)

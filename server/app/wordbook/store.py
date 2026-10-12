@@ -284,6 +284,30 @@ async def consume_settings(session: AsyncSession, user_id: int, day: str) -> boo
     return await usage.consume(session, "wordbook_settings", str(user_id), day, SETTINGS_DAILY_MAX)
 
 
+# ---- 释义显示偏好 def_lang(spec 2026-10-12-wordbook-definitions §4;计划 R-DS3:无迁移)----
+# wordbook 没有「每用户设置」的表或 JSON 列,所以偏好存成 wordbook_events 里的一行 kind="defpref"(book_id 为空串,
+# outcome = 值),取最新一行;段位只读 learn/spell_set,计划只数 learn/relearn/review,管理端按书统计的查询按 book_id 过滤,
+# 都读不到它。每次改动占用「设置」每日 60 次里的一次,所以行数有上限。
+
+DEF_LANGS = ("both", "zh", "en")
+DEFAULT_DEF_LANG = "both"
+DEF_PREF_KIND = "defpref"
+
+
+async def get_def_lang(session: AsyncSession, user_id: int) -> str:
+    value = await session.scalar(select(WordbookEvent.outcome).where(
+        WordbookEvent.book_id == "", WordbookEvent.kind == DEF_PREF_KIND, WordbookEvent.user_id == user_id)
+        .order_by(WordbookEvent.id.desc()).limit(1))
+    return value if value in DEF_LANGS else DEFAULT_DEF_LANG
+
+
+async def set_def_lang(session: AsyncSession, user_id: int, value: str, day: str, now: datetime) -> None:
+    """追加一行偏好事件;flush 不提交。"""
+    await add_event(session, user_id=user_id, book_id="", kind=DEF_PREF_KIND, word=DEF_PREF_KIND, item_id=None,
+                    qtype=None, outcome=value, credit=0, day=day, now=now)
+    await session.flush()
+
+
 async def pause_active(session: AsyncSession, user_id: int, now: datetime) -> WordbookEnrollment | None:
     """把当前在学的书设为 paused 并提交;没有在学的书返回 None。"""
     e = await active_enrollment(session, user_id)

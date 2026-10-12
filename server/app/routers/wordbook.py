@@ -49,8 +49,11 @@ class EnrollmentIn(BaseModel):
 
 
 @router.get("/config")
-async def wordbook_config(_: User = Depends(current_user), settings: Settings = Depends(get_settings)):
-    return service.config_out(settings) if settings.wordbook_enabled else {"enabled": False}
+async def wordbook_config(user: User = Depends(current_user), session: AsyncSession = Depends(get_session),
+                          settings: Settings = Depends(get_settings)):
+    if not settings.wordbook_enabled:
+        return {"enabled": False}
+    return service.config_out(settings, await service.def_lang_of(session, user.id))
 
 
 @router.get("/books")
@@ -259,6 +262,7 @@ class GoalsPatchIn(BaseModel):
     review_cap: int | None = Field(None, ge=REVIEW_MIN, le=REVIEW_MAX)
     review_unlimited: Literal[True] | None = None
     order_mode: Literal["shuffle", "book"] | None = None
+    def_lang: Literal["both", "zh", "en"] | None = None  # 释义显示偏好(按用户);未知值 → 422
 
 
 @router.patch("/enrollment")
@@ -269,7 +273,8 @@ async def wordbook_patch_enrollment(payload: GoalsPatchIn, user: User = Depends(
         return await service.patch_enrollment(session, user.id, settings, daily_new=payload.daily_new,
                                               review_cap=payload.review_cap,
                                               review_unlimited=bool(payload.review_unlimited),
-                                              order_mode=payload.order_mode, now=utcnow())
+                                              order_mode=payload.order_mode, now=utcnow(),
+                                              def_lang=payload.def_lang)
     except service.WordbookError as e:
         _raise(e)
 
