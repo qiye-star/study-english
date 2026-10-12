@@ -2,18 +2,18 @@
   "http": {
     "patch": {
       "room": {
-        "id": "d9bcfefd-dbe2-489d-871c-312f967da9b5",
-        "code": "842121",
+        "id": "9aa1526e-f5b8-464d-9433-cd812ffc5b1a",
+        "code": "492290",
         "topic": "面试",
         "status": "open",
         "locked": false,
         "ai_public": true,
         "ai_muted": false,
-        "owner_id": 78838945,
+        "owner_id": 58892695,
         "my_role": "owner",
         "member_count": 2,
         "online_count": 0,
-        "created_at": "2026-10-11T12:49:58.531636+00:00",
+        "created_at": "2026-10-12T05:11:58.518689+00:00",
         "closed_at": null,
         "name": "面试",
         "scenario": "free",
@@ -38,7 +38,7 @@
           "style": "concise",
           "builtin": true,
           "prompt_public": true,
-          "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容，而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语，纽约腔调。\n请尽量使用日常词汇，尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。",
+          "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容,而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语,纽约腔调。\n请尽量使用日常词汇,尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。\n\nReply in English only.",
           "disabled": false
         }
       ],
@@ -55,7 +55,7 @@
         "current_name": null,
         "deadline_at": null,
         "remaining_ms": null,
-        "started_by": 78838945,
+        "started_by": 58892695,
         "paused_reason": null
       }
     }
@@ -63,7 +63,7 @@
   "ws": {
     "agent_step": {
       "type": "agent_step",
-      "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
+      "turn_id": "774cd9481c3c4e7e8c51beee5cdb1578",
       "reply_to": 3,
       "step": {
         "id": "s1",
@@ -80,7 +80,7 @@
     },
     "agent_thought": {
       "type": "agent_thought",
-      "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
+      "turn_id": "774cd9481c3c4e7e8c51beee5cdb1578",
       "reply_to": 3,
       "thought": {
         "source": "summary",
@@ -91,7 +91,7 @@
       "type": "message",
       "message": {
         "seq": 4,
-        "id": "561acdf0-a439-4988-b927-7dfbe4ba2fe9",
+        "id": "cf232a1e-6585-4b30-9ca7-9a24f4dfe0eb",
         "lane": "public",
         "kind": "ai_answer",
         "sender": {
@@ -109,11 +109,12 @@
             "name": "英语教练"
           },
           "asker": {
-            "id": 74449995,
+            "id": 46281898,
             "name": "bob"
-          }
+          },
+          "note_zh": "先想想过去式"
         },
-        "created_at": "2026-10-11T12:49:58.751247+00:00",
+        "created_at": "2026-10-12T05:11:58.625271+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -124,7 +125,7 @@
       "type": "message",
       "message": {
         "seq": 5,
-        "id": "4b1a0fc7-cf3d-47ba-a533-314035a99575",
+        "id": "dddcc143-373d-4a5d-97e5-a1474e43cc01",
         "lane": "private",
         "kind": "agent_trace",
         "sender": {
@@ -137,7 +138,7 @@
         "reply_to": 4,
         "ai_status": null,
         "meta": {
-          "turn_id": "566ee5a6994e48bf9cac4f01aff1a62e",
+          "turn_id": "774cd9481c3c4e7e8c51beee5cdb1578",
           "trace": {
             "steps": [
               {
@@ -147,7 +148,7 @@
             ]
           }
         },
-        "created_at": "2026-10-11T12:49:58.754286+00:00",
+        "created_at": "2026-10-12T05:11:58.629958+00:00",
         "hidden": false,
         "quote": null,
         "voice": null,
@@ -162,11 +163,11 @@
         "phase": "await_answer",
         "step_index": 1,
         "steps_total": 3,
-        "current_user_id": 74449995,
+        "current_user_id": 46281898,
         "current_name": "bob",
-        "deadline_at": "2026-10-11T12:50:58.794385+00:00",
-        "remaining_ms": 59994,
-        "started_by": 78838945,
+        "deadline_at": "2026-10-12T05:12:58.662431+00:00",
+        "remaining_ms": 59993,
+        "started_by": 58892695,
         "paused_reason": null
       }
     }

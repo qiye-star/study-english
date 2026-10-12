@@ -102,6 +102,18 @@ async def test_replying_to_an_agent_message_needs_no_mention(env):
     assert set(sent["meta"]) == {"quote"} and sent["ai_status"] == "pending"  # a reply leaves no to_agent trace
 
 
+async def test_in_a_room_without_agents_a_reply_to_the_default_coach_continues_the_chat(env):
+    await env.store.set_agents(env.room.id, A, [])
+    await env.cb.handle(send("@ai hi", "k1"))
+    await env.hub.drain()
+    seq = answers(env.alice)[-1]["seq"]
+    await env.ca.handle(send("and then?", "k2", reply_to=seq))
+    await env.hub.drain()
+    assert called(env) == [DEFAULT_PERSONA_ID, DEFAULT_PERSONA_ID]
+    await env.ca.handle(send("hello", "k3", to=DEFAULT_PERSONA_ID))  # `to` still needs a configured agent
+    assert env.alice.sender.sent[-3] == {"type": "notice", "code": "agent_off"}
+
+
 async def test_replies_to_other_messages_or_to_agents_that_left_are_plain(env):
     await env.ca.handle(send("human text", "h1"))
     human = env.bob.sender.sent[-1]["message"]["seq"]

@@ -48,3 +48,11 @@ def test_room_agents_payloads_match_the_web_contract(agents_client):
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(got, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     assert shape(json.loads(FIXTURE.read_text(encoding="utf-8"))) == shape(got)
+
+
+def test_the_recorded_answer_carries_the_optional_note(agents_client):
+    _app, client = agents_client
+    got = record(client)
+    meta = got["ws"]["message_agent_answer"]["message"]["meta"]
+    assert meta["note_zh"] == "先想想过去式" and set(meta) == {"agent", "asker", "note_zh"}
+    assert sorted(got["http"]["agents"]) == ["agents", "available", "tutor"]  # R-AS18

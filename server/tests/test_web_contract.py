@@ -10,10 +10,12 @@ Regenerate after an intentional change: `CONTRACT_UPDATE=1 pytest tests/test_web
 """
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from app.agents.trace import Done
 from tests.test_rooms_agents_api import AGENTS_ON, fake_run_turn
 from tests.test_rooms_ws import login, make_client, until
 
@@ -99,8 +101,15 @@ def collect(client) -> dict:
     return {"http": http, "ws": ws}
 
 
+async def plain_run_turn(deps, req):
+    """The scripted turn without a Chinese note: `meta.note_zh` belongs to rooms_agents_contract.json, so this
+    fixture records only the keys every agent answer has (plan R3 ruling)."""
+    async for ev in fake_run_turn(deps, req):
+        yield replace(ev, note_zh=None) if isinstance(ev, Done) else ev
+
+
 def test_rooms_payloads_match_the_web_contract(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.routers.rooms_agents.run_turn", fake_run_turn)  # `@ai` is the default agent now (D3)
+    monkeypatch.setattr("app.routers.rooms_agents.run_turn", plain_run_turn)  # `@ai` is the default agent now (D3)
     app, client = make_client(tmp_path, monkeypatch, **AGENTS_ON)
     try:
         actual = collect(client)

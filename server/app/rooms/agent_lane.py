@@ -179,7 +179,10 @@ class AgentLane:
             return None
         if reply_to is not None:
             persona_id = await self.rooms().store.agent_of(room.id, reply_to)
-            persona = next((p for p in personas if p.id == persona_id), None) if persona_id else None
+            # A room with no (resolvable) agents answers `@ai` with the built-in coach, so replies to the coach
+            # continue the conversation too; with agents configured only those count (R-AS2).
+            known = personas or [await self.default_persona(agent_config.config_of(room), personas)]
+            persona = next((p for p in known if p is not None and p.id == persona_id), None) if persona_id else None
             if persona is not None:  # an agent that left the room's config makes the reply a plain message
                 return Target(persona, "reply")
         if to is not None:

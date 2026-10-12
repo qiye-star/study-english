@@ -22,7 +22,8 @@ async def fake_run_turn(deps, req):
                params={"count": 6}, ms=12, private=True)
     yield Thought(source="summary", text="look up abandon")
     yield Delta(text="Sure, try: I never abandon a project halfway.")
-    yield Done(usage=None, trace={"steps": [{"key": "learned_words", "status": "done"}]}, text_len=44)
+    yield Done(usage=None, trace={"steps": [{"key": "learned_words", "status": "done"}]}, text_len=44,
+               note_zh="先想想过去式")
 
 
 @pytest.fixture
