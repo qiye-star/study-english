@@ -17,6 +17,10 @@ Spec: `docs/superpowers/specs/2026-10-12-agents-design.md`;计划 `docs/superpow
 - `tutor/` 「带我学」(开始面板 / 带学条 / 总结抽屉;见 `tutor/CLAUDE.md`)。经 `chat-parts.tsx` 的 `TUTOR_SLOTS` 懒加载接入,本 feature 其余文件只可用
   `import("./tutor/…")` 触达它;它自己只可导入 `../locales`(`src/architecture.test.ts`)。
 
+- 中文说明(plan 2026-10-12-agents-addressing-web):`done.note_zh` 由 `sse.ts` 读出(`clipNote`,≤ 80 字),`turn-stream.ts` 返回 `result.noteZh`,
+  页面用 `withNote(trace, note)` 并入随回复保存的 `agent_trace.note_zh`;`AgentNote`(`agent-note.tsx`,懒包装)是气泡下的「中文」折叠。
+  设置页 `zh_note`(auto / always / never)缺省按 auto。`note_zh` 永不进朗读。
+
 ## Public surface
 见 `index.ts`:类型、`agentsApi`、`runAgentTurn`、`useAgentTurn`、`normalizeTrace`,组件一律是 `lazy-parts` 的懒包装。
 文案注册入口:`registerAgentsLocales({ en, "zh-CN" })`(`locales.ts`,供 memory/、tutor/ 在自己的懒加载块里并入 `web.agents.*`)。

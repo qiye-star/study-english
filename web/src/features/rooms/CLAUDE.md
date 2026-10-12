@@ -21,6 +21,10 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 ## 智能体免 @ 对话的纯模块(plan 2026-10-12-agents-addressing-web)
 - `agents/target.ts`:「对象」状态(按用户 + 房间存本机)、带练自动开关 `nextTarget`(只由状态推出,无计时器)、置灰原因 `targetBlock`、实际收件人 `recipientOf`、`myTutorTurn`;`agents/mention-suggest.ts`:开头 `@` 补全的纯逻辑(只在消息开头,全角「＠」同样触发)。
 - 新文案在 `agents/locales/{en,zh-CN}.json`(不进主包 glob),由 `agents/locales.ts` 合并;用到这些键的模块 `import "./locales"`。`web.rooms.*` 下的键不得与 `**/i18n/*.json` 重复(`locales.test.ts`)。
+- 协议:`say.to`(只在「对象」生效时写入,`encodeSay` / `useRoom().say(text, assistId, replyTo, to)`)、notice `voice_unclear`(`ROOM_NOTICE_VOICE_UNCLEAR`)、
+  `RoomTutorInfo.hintZh?`、`AgentAnswerMeta.noteZh`;语音上传 `uploadVoice(..., toAgent?)` 在生效时多一个 `to_agent` 表单字段(`useRoomVoice({ toAgent })`)。
+  `voice-contract.test.ts` / `room-agents-contract.test.ts` 里对服务端源码的两处字面量检查(`form.get("to_agent")`、`code="voice_unclear"`)在服务端语音车道合并前自动跳过。
+- 联机智能体气泡的「中文」折叠:`room-message-list.tsx` 用 `~/components/zh-note-fold`(文案 `web.rooms.agents.note.*`)。
 - 朗读只取 `extras/text-tools.ts::spokenText(m)`(正文再经 `~/lib/speech-text`),`note_zh` / `hint_zh` 永不进朗读。
 
 ## Slots(插槽)与 room-page 冻结
