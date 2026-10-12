@@ -7,6 +7,8 @@ Rules kept here:
   removes *staging* WAVs of rooms that closed `staging_keep_days` ago (after that a failed clip cannot be retried);
 - every upstream call runs under `metering.bind_user(...)` + `feature_scope("rooms_voice")` (spec §11.3):
   transcription as the sender, translation as the requester;
+- after every transcription the room's agents get `on_voice(room_id, message_id, status)` (addressing); they read
+  the transcript from the stored message;
 - logs carry only room/message ids, durations, byte counts, statuses, timings and exception class names - never
   audio, transcripts, translations or user text."""
 import asyncio
@@ -17,6 +19,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from app.core import metering
 from app.core.ratelimit import RateLimiter
@@ -63,6 +66,7 @@ class VoiceDeps:
     upload_limiter: RateLimiter  # 6/minute, key room:user
     translate_limiter: RateLimiter  # 20/minute, key user
     retry_limiter: RateLimiter  # 6/minute, key room:user
+    agents: Callable[[], Any] | None = None  # () -> the room AgentLane (or None): `on_voice` after every transcription
 
 
 def _is_cjk(ch: str) -> bool:
@@ -98,7 +102,7 @@ class VoiceService:
     # ---- upload (spec §4.2) ----
 
     async def upload(self, room: Room, sender_id: int, sender_name: str, wav: bytes, client_id: str,
-                     reply_to: int | None) -> dict:
+                     reply_to: int | None, to_agent: str | None = None) -> dict:
         """Store one clip and broadcast it; returns the v2 message dict. The same `client_id` within the dedupe
         window returns the original message (like `say`) and costs nothing."""
         d = self.deps
@@ -145,7 +149,7 @@ class VoiceService:
                     msg, _voice = await d.voices.append_voice(
                         room.id, sender_id=sender_id, client_id=client_id, reply_to=reply_to, quote=quote,
                         duration_ms=info.duration_ms, audio_path=stored, audio_bytes=len(data), audio_format=fmt,
-                        staging_path=staging, now=now, message_id=message_id)
+                        staging_path=staging, now=now, message_id=message_id, to_agent=to_agent)
             except BaseException as e:
                 for rel in (staging, stored):
                     await asyncio.to_thread(audio.delete_file, d.data_dir, rel)
@@ -197,6 +201,7 @@ class VoiceService:
                 voice = await d.voices.set_transcript(message_id, status="failed", transcript=None, lang=None,
                                                       now=d.clock())
                 await self._broadcast_voice(room_id, seq, voice)
+                await self._after_transcript(room_id, message_id, "failed")
                 return
             staging = voice.staging_path
             status = "done" if text else "empty"
@@ -207,11 +212,28 @@ class VoiceService:
             logger.info("room voice transcribed room=%s message=%s status=%s ms=%d",
                         room_id, message_id, status, (time.monotonic() - started) * 1000)
             await self._broadcast_voice(room_id, seq, voice)
+            await self._after_transcript(room_id, message_id, status)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # a background task must never die loudly
             logger.warning("room voice transcription task failed room=%s message=%s error=%s",
                            room_id, message_id, type(e).__name__)
+
+    async def _after_transcript(self, room_id: str, message_id: str, status: str) -> None:
+        """Hand a finished transcription (`done` / `empty` / `failed`, retries included) to the room's agents
+        (addressing R-AS8). The hook gets ids and the status only: the transcript is read from the stored message
+        (R-AS20), so it never travels through here, and an error here logs the exception class name only."""
+        get = self.deps.agents
+        hook = getattr(get() if get is not None else None, "on_voice", None)
+        if hook is None:
+            return
+        try:
+            await hook(room_id, message_id, status)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # the transcription itself already succeeded or failed on its own
+            logger.warning("room voice agent hook failed room=%s message=%s error=%s", room_id, message_id,
+                           type(e).__name__)
 
     # ---- WebSocket handlers (connection.VoiceHandler) ----
 

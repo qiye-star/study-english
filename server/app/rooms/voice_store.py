@@ -20,11 +20,13 @@ class VoiceStore:
 
     async def append_voice(self, room_id: str, *, sender_id: int, client_id: str, reply_to: int | None,
                            quote: dict | None, duration_ms: int, audio_path: str, audio_bytes: int, audio_format: str,
-                           staging_path: str, now: datetime,
-                           message_id: str | None = None) -> tuple[RoomMessage, RoomVoice]:
+                           staging_path: str, now: datetime, message_id: str | None = None,
+                           to_agent: str | None = None) -> tuple[RoomMessage, RoomVoice]:
         """The voice message and its `room_voice` row in one transaction (plan P2-9). Same seq logic as
         `RoomStore.append` (the caller holds `RoomHub.lock(room_id)`). `message_id` lets the caller name the files
-        before the row exists."""
+        before the row exists. `to_agent` (addressing R-AS1) is the persona id the sender addressed, kept in the
+        message's own `meta` next to the quote: the room_voice table needs no new column."""
+        meta = {key: value for key, value in (("quote", quote), ("to_agent", to_agent)) if value}
         async with self._sm() as s:
             room = await s.get(Room, room_id)
             room.last_seq += 1
@@ -32,7 +34,7 @@ class VoiceStore:
             msg = RoomMessage(id=message_id or new_uuid(), room_id=room_id, seq=room.last_seq, lane="public",
                               audience_id=None, sender_kind="user", sender_id=sender_id, kind="voice", text="",
                               assisted=False, reply_to=reply_to, ai_status=None, client_id=client_id,
-                              meta={"quote": quote} if quote else None, created_at=now)
+                              meta=meta or None, created_at=now)
             s.add(msg)
             await s.flush()
             voice = RoomVoice(message_id=msg.id, room_id=room_id, sender_id=sender_id, duration_ms=duration_ms,

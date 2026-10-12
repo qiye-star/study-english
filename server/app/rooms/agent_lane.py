@@ -356,3 +356,59 @@ class AgentLane:
     async def on_welcome(self, conn: "RoomConnection") -> None:
         if self.tutor is not None:
             await self.tutor.on_welcome(conn)
+
+    # ---- voice messages (addressing §3.2, §3.4; R-AS2, R-AS3, R-AS7, R-AS8, R-AS15, R-AS20, R-AS22) ----
+
+    async def on_voice(self, room_id: str, message_id: str, status: str) -> None:
+        """A voice message finished transcribing (`done` / `empty` / `failed`; `VoiceService` calls this after every
+        attempt). The transcript is read from the stored row, never passed in (R-AS20), and never logged.
+        - the room tutor waits for the sender: a transcript is the answer, an empty / failed one is `voice_unclear`
+          (no credit used, the 60 s clock untouched);
+        - a running tutor otherwise closes the implicit ways (R-AS3);
+        - addressed to an agent (a reply to its answer, or the upload's `to_agent`): the transcript is the question;
+          empty / failed -> `voice_unclear`; refusals follow `_admit`, notices go to the sender's connections.
+        A hidden clip, a closed room or a row that is not a public voice message does nothing. Voice never parses
+        `@`: spoken words are not a mention (R-AS2)."""
+        r = self.rooms()
+        found = await r.store.message_named(message_id)
+        if found is None:
+            return
+        m, sender_name = found
+        if (m.room_id != room_id or m.kind != "voice" or m.lane != "public" or m.sender_id is None
+                or m.hidden_at is not None):
+            return
+        room = await r.store.room(room_id)
+        if room is None or room.status != "open":
+            return
+        sender_id = m.sender_id
+        text = (m.text or "").strip() if status == "done" else ""
+
+        async def tell(frame: dict) -> None:
+            await r.hub.broadcast(room_id, frame, only_user=sender_id)
+
+        if self.tutor is not None and await self.tutor.waits_for(room_id, sender_id):
+            if text:
+                await self.tutor.on_message(room_id, m)  # False = the 60 s skip won the race: nothing to count or say
+            else:
+                await tell(event("notice", code="voice_unclear"))
+            return
+        cfg = agent_config.config_of(room)
+        personas = await self._personas(cfg)
+        meta = m.meta if isinstance(m.meta, dict) else {}
+        to = meta.get("to_agent")
+        target = await self._implicit(room, personas, m.reply_to, to if isinstance(to, str) else None)
+        if target is None:
+            return
+        if not text:
+            await tell(event("notice", code="voice_unclear"))
+            return
+        route = await self._admit(tell, target, room_id=room_id, asker_id=sender_id, asker_name=sender_name or "",
+                                  personas=personas, question=text)
+        if route is None:
+            return
+        try:
+            await r.store.set_ai_status(m.id, "pending")
+        except BaseException:
+            await self.release(route)
+            raise
+        r.hub.spawn(self.answer(route, m.seq, m.id))

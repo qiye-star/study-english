@@ -428,3 +428,73 @@ async def test_stored_wav_is_canonical_without_extra_chunks(env):
     assert stored == clean
     assert (await service.deps.voices.get(out["id"])).audio_bytes == len(clean)
     await hub.drain()
+
+
+class FakeLane:
+    """Stands in for AgentLane: records what the voice service hands over (ids and the status, never text)."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, str, str]] = []
+        self.fail = False
+
+    async def on_voice(self, room_id, message_id, status):
+        self.calls.append((room_id, message_id, status))
+        if self.fail:
+            raise RuntimeError("SECRET-HOOK-FAIL")
+
+
+async def test_upload_stores_the_target_and_the_quote_in_the_message_meta(env):
+    service, room, hub, senders, state, _ = env
+    out = await service.upload(room, A, "alice", wav_bytes(2), "c1", None, "builtin:coach")
+    await hub.drain()
+    assert out["meta"] == {"to_agent": "builtin:coach"}
+    quoted = await service.upload(room, A, "alice", wav_bytes(2), "c2", out["seq"], "builtin:coach")
+    assert set(quoted["meta"]) == {"quote", "to_agent"}
+    plain = await service.upload(room, A, "alice", wav_bytes(2), "c3", None)
+    await hub.drain()
+    assert plain["meta"] is None
+
+
+async def test_every_finished_transcription_reaches_the_agents_hook(env):
+    service, room, hub, senders, state, _ = env
+    lane = FakeLane()
+    service.deps.agents = lambda: lane
+    done = await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
+    await hub.drain()
+    state["transcript"] = "  "
+    empty = await service.upload(room, A, "alice", wav_bytes(2), "c2", None)
+    await hub.drain()
+    state["transcript"], state["fail"] = "again", True
+    failed = await service.upload(room, A, "alice", wav_bytes(2), "c3", None)
+    await hub.drain()
+    assert lane.calls == [(room.id, done["id"], "done"), (room.id, empty["id"], "empty"),
+                          (room.id, failed["id"], "failed")]
+    state["fail"] = False  # the sender retries: a success triggers the hook once more, as "done"
+    await service.on_retry(FakeConn(hub, room.id, A), failed["seq"])
+    await hub.drain()
+    assert lane.calls[-1] == (room.id, failed["id"], "done") and len(lane.calls) == 4
+
+
+async def test_a_lane_without_on_voice_or_none_means_no_hook(env):
+    service, room, hub, senders, state, _ = env
+    service.deps.agents = lambda: None
+    await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
+    await hub.drain()  # one transcription at a time: the order of the updates is then deterministic
+    service.deps.agents = lambda: object()  # a lane from before V2
+    await service.upload(room, A, "alice", wav_bytes(2), "c2", None)
+    await hub.drain()
+    assert [u["voice"]["status"] for u in events(senders[B], "voice_update")][-2:] == ["done", "done"]
+
+
+async def test_a_failing_hook_never_breaks_the_transcription_and_leaks_nothing(env, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    service, room, hub, senders, state, _ = env
+    lane = FakeLane()
+    lane.fail = True
+    service.deps.agents = lambda: lane
+    await service.upload(room, A, "alice", wav_bytes(2), "c1", None)
+    await hub.drain()
+    assert events(senders[B], "voice_update")[-1]["voice"]["status"] == "done"
+    text = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
+    assert "room voice agent hook failed" in text and "RuntimeError" in text
+    assert "SECRET-HOOK-FAIL" not in text and "noodle" not in text
