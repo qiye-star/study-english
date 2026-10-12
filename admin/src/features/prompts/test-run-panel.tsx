@@ -4,7 +4,7 @@ import { errorText } from "../../hooks/use-async";
 import { testPrompt, type TestResult } from "./api";
 import { S } from "./strings";
 
-const MULTILINE = new Set(["chat", "draft", "question", "text"]);
+const MULTILINE = new Set(["chat", "draft", "text"]);
 
 function messageFor(e: unknown): string {
   const text = errorText(e);
