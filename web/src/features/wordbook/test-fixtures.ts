@@ -38,3 +38,6 @@ export const card = (key: string, extra: Record<string, unknown> = {}) => ({
   examples: [{ id: `ex-${key}`, en: `They ${key} a lot.`, zh: `他们常常${key}。` }],
   ...extra,
 });
+
+/** useId 生成的 id(":r0:" 之类)随渲染顺序变化,换成固定占位再比较 DOM 字符串。 */
+export const normalizeIds = (html: string) => html.replace(/:r[0-9a-z]+:/g, ":rN:");
