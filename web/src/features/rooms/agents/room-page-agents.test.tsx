@@ -35,7 +35,10 @@ beforeEach(() => {
   localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
   vi.stubGlobal("WebSocket", FakeWebSocket);
 });
-afterEach(async () => { vi.unstubAllGlobals(); FakeWebSocket.last = null; localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+const TARGET_KEY = `enjoy-web.rooms.target.v1.${ME}.r1`;
+afterEach(async () => {
+  vi.unstubAllGlobals(); FakeWebSocket.last = null; localStorage.removeItem("enjoy-web.settings"); localStorage.removeItem(TARGET_KEY); await i18n.changeLanguage("en");
+});
 
 it("wires agent names, the persona sheet's @ask and the tutor bar into the room page", async () => {
   const mock = createFetchMock({
@@ -59,4 +62,72 @@ it("wires agent names, the persona sheet's @ask and the tutor bar into the room 
   fireEvent.click(await screen.findByRole("button", { name: "@Emma 提问" }));
   expect(screen.getByTestId("room-input")).toHaveValue("@Emma ");
   expect(document.body.textContent).not.toContain("secret-ticket");
+});
+
+const says = (ws: FakeWebSocket) => ws.sent.map((f) => JSON.parse(f) as Record<string, unknown>).filter((f) => f.type === "say");
+async function enterRoom() {
+  const mock = createFetchMock({
+    "GET /api/rooms/config": () => json(CONFIG),
+    "POST /api/rooms/r1/ticket": () => json({ ticket: "secret-ticket", expires_in: 60 }),
+    "GET /api/rooms/r1/agents": () => json(AGENTS_WIRE),
+  });
+  renderWithProviders(<RoomPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/r/r1", path: "/rooms/r/:roomId" });
+  await vi.waitFor(() => expect(FakeWebSocket.last?.sent[0]).toBeTruthy());
+  const ws = FakeWebSocket.last!;
+  ws.push({ type: "welcome", room: { ...ROOM_WIRE, owner_id: 22, my_role: "member" }, me: { user_id: ME, role: "member" },
+    members: [{ user_id: ME, name: "alice", role: "member", online: true }, { user_id: 22, name: "bob", role: "owner", online: true }],
+    last_seq: 0, truncated: false, assist_history: [], protocol: 2, reactions: [], join_requests: [] });
+  await screen.findByRole("button", { name: "对 Emma 说" });
+  return ws;
+}
+function send(text: string) {
+  fireEvent.change(screen.getByRole("combobox"), { target: { value: text } });
+  fireEvent.click(screen.getByTestId("room-send"));
+}
+
+it("the target chip adds say.to, shows the standing hint and is remembered per room (spec addressing §3.2 #2)", async () => {
+  const ws = await enterRoom();
+  expect(screen.getByRole("combobox")).toHaveAttribute("placeholder", "说点什么,或 @AI(Emma)提问");
+  send("plain");
+  expect(says(ws).at(-1)).not.toHaveProperty("to");
+  fireEvent.click(screen.getByRole("button", { name: "对 Emma 说" }));
+  expect(screen.getByTestId("room-target-status")).toHaveTextContent("消息会交给 Emma");
+  send("hello coach");
+  expect(says(ws).at(-1)).toMatchObject({ text: "hello coach", to: "builtin:coach" });
+  expect(JSON.parse(localStorage.getItem(TARGET_KEY)!)).toMatchObject({ on: true, personaId: "builtin:coach" });
+  expect(document.body.textContent).not.toContain("secret-ticket");
+});
+
+it("auto-opens for a member when a tutor starts and closes when it stops; never sends to while it is my turn (R-AW3, R-AW4)", async () => {
+  const ws = await enterRoom();
+  ws.push({ type: "agent_tutor", tutor: { ...TUTOR_WIRE, current_user_id: 22, current_name: "bob" } });
+  expect(screen.getByRole("button", { name: "对 Emma 说" })).toHaveAttribute("aria-pressed", "true");
+  ws.push({ type: "agent_tutor", tutor: { ...TUTOR_WIRE, current_user_id: ME } }); // now my turn
+  send("I went to the park");
+  expect(says(ws).at(-1)).not.toHaveProperty("to");
+  ws.push({ type: "message", message: { seq: 3, id: "m3", lane: "public", kind: "system", sender: { kind: "system", id: null, name: null }, text: "tutor_stopped",
+    assisted: false, reply_to: null, ai_status: null, created_at: "2026-10-12T09:02:00Z", hidden: false, quote: null, voice: null, reactions: [], meta: {} } });
+  ws.push({ type: "agent_tutor", tutor: null });
+  expect(screen.getByRole("button", { name: "对 Emma 说" })).toHaveAttribute("aria-pressed", "false");
+});
+
+it("shows 回复 Emma 中 while quoting an agent reply and keeps reply_to as today", async () => {
+  const ws = await enterRoom();
+  ws.push({ type: "message", message: { seq: 2, id: "m2", lane: "public", kind: "ai_answer", sender: { kind: "ai", id: null, name: null }, text: "Try again.",
+    assisted: false, reply_to: null, ai_status: null, created_at: "2026-10-12T09:00:00Z", hidden: false, quote: null, voice: null, reactions: [],
+    meta: { agent: { persona_id: "builtin:coach", name: "Emma" }, asker: { id: ME, name: "alice" } } } });
+  fireEvent.click(await screen.findByTestId("room-message-more"));
+  fireEvent.click(screen.getByTestId("msg-quote"));
+  expect(screen.getByTestId("room-target-status")).toHaveTextContent("回复 Emma 中 · 消息会交给 Emma");
+  send("ok");
+  expect(says(ws).at(-1)).toMatchObject({ reply_to: 2 });
+  expect(says(ws).at(-1)).not.toHaveProperty("to");
+});
+
+it("hides the generic banner for voice_unclear during my turn (the tutor bar says it)", async () => {
+  const ws = await enterRoom();
+  ws.push({ type: "agent_tutor", tutor: { ...TUTOR_WIRE, current_user_id: ME } });
+  ws.push({ type: "notice", code: "voice_unclear" });
+  expect(screen.getByTestId("room-tutor-bar")).toHaveTextContent("没听清,再说一次");
+  expect(screen.getAllByText("没听清,再说一次")).toHaveLength(1);
 });

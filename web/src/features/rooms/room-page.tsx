@@ -16,7 +16,11 @@ import { AssistEntry } from "./assist/assist-entry";
 import { useSoftKeyboard } from "./assist/use-soft-keyboard";
 import { agentOf } from "./agents/agent-meta";
 import { PersonaSheet } from "./agents/persona-sheet";
+import type { RoomAgent } from "./agents/room-agents-api";
+import { myTutorTurn, recipientOf, targetBlock } from "./agents/target";
+import { TargetRow } from "./agents/target-row";
 import { TutorBar } from "./agents/tutor-bar";
+import { useAgentTarget } from "./agents/use-agent-target";
 import { useRoomAgents } from "./agents/use-room-agents";
 import { JoinRequestBanner } from "./create/join-requests";
 import { ActivityLine } from "./extras/activity-line";
@@ -25,7 +29,7 @@ import { QuoteBar } from "./extras/quote-block";
 import { canReopen, ReopenBar } from "./extras/reopen-bar";
 import { SummaryCard } from "./extras/summary-card";
 import { useTypingEmitter } from "./extras/use-typing-emitter";
-import { ROOM_PROTOCOL_VERSION, type QuoteInfo, type RoomMessage } from "./protocol";
+import { ROOM_NOTICE_VOICE_UNCLEAR, ROOM_PROTOCOL_VERSION, type QuoteInfo, type RoomMessage } from "./protocol";
 import { RoomComposer } from "./room-composer";
 import { RoomMessageList } from "./room-message-list";
 import { RoomSettingsSheet } from "./room-settings-sheet";
@@ -116,7 +120,7 @@ const quoteOf = (m: RoomMessage): QuoteInfo => ({ seq: m.seq, name: m.kind === "
  * 需要改这里时在计划里写 Addendum,由 foundation 执行者改。
  */
 function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
-  const { api } = useAuth();
+  const { api, user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const room = useRoom(roomId);
@@ -163,9 +167,22 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
   const { info: agentsInfo } = useRoomAgents(api, roomId, agentIds, agentIds.length > 0 && !ended);
   const agentNames = useMemo(() => (agentsInfo?.agents ?? []).map((a) => a.name), [agentsInfo]);
   const [agentSheet, setAgentSheet] = useState<string | null>(null);
+  // 「对象」与 @ 补全(plan 2026-10-12-agents-addressing-web Addendum AW-1):房主选择的顺序就是默认顺序,第一个是默认智能体(spec §4,R-AW5)
+  const agentKey = agentIds.join(",");
+  const roomAgents = useMemo(() => agentIds.map((id) => agentsInfo?.agents.find((a) => a.id === id)).filter((a): a is RoomAgent => !!a),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentKey, agentsInfo]);
+  const addressee = useAgentTarget({ roomId, userId: user ? Number(user.id) : null, agents: roomAgents, state, ended, info: agentsInfo });
+  const block = targetBlock({ aiMuted: !!info?.aiMuted, aiPublic: info?.aiPublic !== false,
+    aiAvailable: !!config.aiAvailable && agentsInfo?.available !== false, agent: addressee.agent });
+  const myTurn = myTutorTurn(state.tutor, state.me?.userId ?? null);
+  /** 每条发言带的 to(R-AW3:轮到我答带练时不带;置灰时不带) */
+  const sendTo = addressee.on && !block && !myTurn ? addressee.personaId : null;
+  const recipient = !ended && !block && roomAgents.length ? recipientOf({ draft, quote, agents: roomAgents, to: sendTo }) : null;
+  const defaultAgentName = roomAgents[0]?.name ?? null;
 
   const voice = useRoomVoice({
-    roomId, enabled: voiceEnabled, maxMs: config.maxVoiceMs, target, replyTo: quote?.seq ?? null,
+    roomId, enabled: voiceEnabled, maxMs: config.maxVoiceMs, target, replyTo: quote?.seq ?? null, toAgent: sendTo,
     onFill: (text) => { setDraft(text); setVoiceMode("text"); },
     onAssistDraft: (text) => { room.ask(text); },
     onSent: (message) => { room.addMessage(message); setQuote(null); stick.current = true; },
@@ -252,7 +269,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
       if (room.ask(draft) !== null) setDraft("");
       return;
     }
-    if (room.say(draft, null, quote?.seq ?? null)) {
+    if (room.say(draft, null, quote?.seq ?? null, sendTo)) {
       setDraft("");
       setQuote(null);
       typingEmitter.onSent();
@@ -283,7 +300,9 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
     : `${announced.kind === "ai_answer" ? agentOf(announced)?.agent.name ?? t("web.rooms.room.aiName") : announced.sender.name ?? "?"}: ${announced.text}`;
   const listTop = "calc(52px + env(safe-area-inset-top) + 12px)";
   const listBottom = composerHeight + dockHeight + 14;
-  const message = state.notice ? t(`web.rooms.notice.${state.notice}`) : state.error ? t(`web.rooms.errors.${state.error}`) : null;
+  // 轮到我时「没听清」由带练条显示,不在通用横幅里重复(R-AW12)
+  const noticeShown = state.notice && !(state.notice === ROOM_NOTICE_VOICE_UNCLEAR && myTurn) ? state.notice : null;
+  const message = noticeShown ? t(`web.rooms.notice.${noticeShown}`) : state.error ? t(`web.rooms.errors.${state.error}`) : null;
   const newVersion = state.protocol > ROOM_PROTOCOL_VERSION ? t("web.rooms.room.newVersion") : null;
   const code = info?.code;
   const subtitle = closed || info?.status === "closed" ? t("web.rooms.room.ended") : code ? (
@@ -334,7 +353,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
       <AssistDock open={dockOpen && aiAvailable} snap={dockSnap} keyboardOpen={keyboardOpen} entries={state.assist} disabled={closed} offline={offline}
         onSnap={setDockSnap} onClose={closeDock}
         onAsk={(text) => room.ask(text) !== null}
-        onSend={(text, assistId) => { if (room.say(text, assistId)) stick.current = true; }}
+        onSend={(text, assistId) => { if (room.say(text, assistId, null, sendTo)) stick.current = true; }}
         onEdit={(text) => {
           // 语音模式下也要有文本框可聚焦:同步渲染出来,AssistDock 随后在同一次点按里聚焦(iOS 才弹键盘,review M8)
           flushSync(() => { setDraft(text); setTarget("group"); setDockSnap("row"); setVoiceMode("text"); });
@@ -343,13 +362,21 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
       <RoomComposer ref={composerRef} disabled={closed} offline={offline} ai={aiAvailable} value={draft} onChange={changeDraft} onSend={send}
         leading={aiAvailable ? <AssistEntry open={dockOpen} unread={unread} disabled={closed} onToggle={toggleDock} /> : undefined}
         target={target} onClearTarget={() => setTarget("group")}
+        mentions={aiAvailable ? { agents: roomAgents, defaultName: defaultAgentName } : undefined}
+        groupPlaceholder={aiAvailable ? (defaultAgentName ? t("web.rooms.agents.composer.placeholder", { name: defaultAgentName })
+          : t("web.rooms.agents.composer.placeholderNoName")) : undefined}
         voice={{ available: voiceEnabled, mode: voiceMode, onToggle: () => setVoiceMode((m) => (m === "voice" ? "text" : "voice")),
           input: <VoiceInput voice={voice} disabled={closed || offline} maxMs={config.maxVoiceMs} /> }}
         above={(
           <>
             {quote && <QuoteBar quote={quoteOf(quote)} onClear={() => setQuote(null)} />}
             <ActivityLine activity={state.activity} members={state.members} meId={state.me?.userId ?? null} />
-            <TutorBar tutor={state.tutor} receivedAt={state.tutorAt} meId={state.me?.userId ?? null} isOwner={isOwner} roomId={roomId} disabled={closed || offline} />
+            <TutorBar tutor={state.tutor} receivedAt={state.tutorAt} meId={state.me?.userId ?? null} isOwner={isOwner} roomId={roomId} disabled={closed || offline}
+              messages={state.messages} notice={state.notice} voice={voiceEnabled} />
+            {!ended && target === "group" && (
+              <TargetRow agents={roomAgents} activeId={addressee.personaId} on={addressee.on} block={block} recipient={recipient}
+                disabled={closed} onToggle={addressee.toggle} />
+            )}
           </>
         )}
         banner={status ?? message ?? newVersion ?? (state.status === "connecting" ? t("web.rooms.room.connecting") : null)}

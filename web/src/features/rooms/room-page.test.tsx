@@ -89,7 +89,10 @@ describe("RoomPage", () => {
     setup();
     await live();
     fireEvent.click(screen.getByTestId("room-at-ai"));
-    expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("@ai ");
+    // the @ key now opens the autocomplete (only the AI alias without agents); picking it inserts "@AI "
+    expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("@");
+    fireEvent.click(screen.getByRole("option", { name: "AI" }));
+    expect((screen.getByTestId("room-input") as HTMLInputElement).value).toBe("@AI ");
     FakeWebSocket.last!.push({ type: "message", message: user(3, "@ai what does break the ice mean?", { ai_status: "pending" }) });
     FakeWebSocket.last!.push({ type: "ai_typing", reply_to: 3 });
     expect(screen.getByText("AI 助手正在输入…")).toBeTruthy();
