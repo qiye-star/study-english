@@ -58,6 +58,7 @@ CONFIRM_MISMATCH = (422, "Confirmation does not match")
 INVALID_CURSOR = (422, "Invalid cursor")
 INVALID_DATE = (422, "Invalid date")
 INVALID_SCOPE = (422, "Invalid scope")
+INVALID_DEF_LANG = (422, "Invalid definition language")
 NOTHING_TO_REVIEW = (409, "No words to review")
 FREE_LIMIT = (429, "Daily free-review limit reached")
 STREAK_LOOKBACK_DAYS = 400
@@ -112,7 +113,7 @@ def book_out(b: BookSpec, **extra) -> dict:
     return {"id": b.id, "title_zh": b.title_zh, "title_en": b.title_en, "level": b.level, "words": b.unique, **extra}
 
 
-def config_out(settings: Settings) -> dict:
+def config_out(settings: Settings, def_lang: str = store.DEFAULT_DEF_LANG) -> dict:
     """GET /api/wordbook/config(开关打开时)。available = 数据文件存在(校验和由管理端「诊断」检查)。"""
     data_dir = settings.resolved_wordbook_data_dir
     enabled = enabled_books(settings.wordbook_books)
@@ -122,8 +123,13 @@ def config_out(settings: Settings) -> dict:
         "defaults": {"daily_new": settings.wordbook_daily_new, "review_cap": settings.wordbook_review_cap},
         "learn": {"autoplay": settings.wordbook_autoplay, "show_example": settings.wordbook_show_example},  # recall §7
         "limits": limits_out(limits_of(settings)),  # goals §9
+        "def_lang": def_lang,  # 释义显示偏好 both | zh | en(spec 2026-10-12-wordbook-definitions §4)
         "books": [book_out(b, available=(data_dir / b.file).is_file()) for b in BOOKS if b.id in enabled],
     }
+
+
+async def def_lang_of(session: AsyncSession, user_id: int) -> str:
+    return await store.get_def_lang(session, user_id)
 
 
 def card_out(card: WordCard, ds: DictionaryStore) -> dict:
@@ -765,22 +771,36 @@ async def report(session: AsyncSession, ds: DictionaryStore, user_id: int, setti
 # ---- 每日目标(goals v2,spec 2026-10-11 §3、§9)----
 
 async def patch_enrollment(session: AsyncSession, user_id: int, settings: Settings, *, daily_new: int | None,
-                           review_cap: int | None, review_unlimited: bool, order_mode: str | None, now) -> dict:
-    """改当前在学的书的每日设置,立即生效(今天的计数来自事件,不受影响)。先校验后扣次数。"""
-    if daily_new is None and review_cap is None and not review_unlimited and order_mode is None:
+                           review_cap: int | None, review_unlimited: bool, order_mode: str | None, now,
+                           def_lang: str | None = None) -> dict:
+    """改当前在学的书的每日设置,立即生效(今天的计数来自事件,不受影响)。先校验后扣次数。
+    `def_lang`(释义显示偏好,按用户、不按书)可以单独传:这时不需要有在学的书;传了就在响应里带回 `def_lang`。
+    值没变 = 不写、不扣次数。"""
+    goals = not (daily_new is None and review_cap is None and not review_unlimited and order_mode is None)
+    if not goals and def_lang is None:
         fail(NO_CHANGES)
+    if def_lang is not None and def_lang not in store.DEF_LANGS:
+        fail(INVALID_DEF_LANG)
     e = await store.active_enrollment(session, user_id)
-    if e is None:
-        fail(NO_ACTIVE)
-    book_or_fail(settings, e.book_id)
     limits = limits_of(settings)
-    if error := planning.goals_error(limits, daily_new=daily_new, review_cap=review_cap, unlimited=review_unlimited):
-        raise WordbookError(422, error)
-    if not await store.consume_settings(session, user_id, utc_day(now)):
+    if goals:
+        if e is None:
+            fail(NO_ACTIVE)
+        book_or_fail(settings, e.book_id)
+        if error := planning.goals_error(limits, daily_new=daily_new, review_cap=review_cap, unlimited=review_unlimited):
+            raise WordbookError(422, error)
+    change_lang = def_lang is not None and def_lang != await store.get_def_lang(session, user_id)
+    if (goals or change_lang) and not await store.consume_settings(session, user_id, utc_day(now)):
         fail(SETTINGS_LIMIT)
-    cap = planning.REVIEW_UNLIMITED if review_unlimited else review_cap
-    e = await store.update_goals(session, e, daily_new=daily_new, review_cap=cap, order_mode=order_mode, now=now)
-    return enrollment_out(e, limits)
+    if change_lang:
+        await store.set_def_lang(session, user_id, def_lang, utc_day(now), now)
+    if goals:
+        cap = planning.REVIEW_UNLIMITED if review_unlimited else review_cap
+        e = await store.update_goals(session, e, daily_new=daily_new, review_cap=cap, order_mode=order_mode, now=now)
+    elif change_lang:
+        await session.commit()
+    out = enrollment_out(e, limits) if e is not None else {}
+    return {**out, "def_lang": def_lang} if def_lang is not None else out
 
 
 BONUS_STEP_MAX = 20  # 每次最多加练 20 个(路由也校验)

@@ -22,6 +22,7 @@
       "review_unlimited": true,
       "bonus_max": 50
     },
+    "def_lang": "both",
     "books": [
       {
         "id": "junior",
@@ -39,7 +40,7 @@
     "order_mode": "book",
     "daily_new": 20,
     "review_cap": 100,
-    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "started_at": "2026-10-12T09:14:22.421796+00:00",
     "review_unlimited": false
   },
   "books": {
@@ -101,6 +102,20 @@
             "en": "Sue and Bob still aren’t talking.",
             "zh": "休和鲍勃仍然互不理睬。"
           }
+        ],
+        "defs_en": [
+          {
+            "pos": "v",
+            "text": "speak to someone"
+          },
+          {
+            "pos": "v",
+            "text": "have a conversation"
+          },
+          {
+            "pos": "n",
+            "text": "a conversation between people"
+          }
         ]
       },
       {
@@ -120,6 +135,12 @@
             "id": "1b734423bc1ad291",
             "en": "She has the ability to learn new languages quickly.",
             "zh": "她有快速学习新语言的能力。"
+          }
+        ],
+        "defs_en": [
+          {
+            "pos": "n",
+            "text": "the power or skill to do something"
           }
         ]
       },
@@ -146,6 +167,12 @@
             "en": "Will you be able to come to the party tonight?",
             "zh": "你今晚能来参加聚会吗？"
           }
+        ],
+        "defs_en": [
+          {
+            "pos": "a",
+            "text": "having the power or skill to do something"
+          }
         ]
       },
       {
@@ -165,6 +192,12 @@
             "id": "4824cd531ce5ac2b",
             "en": "They had to abandon the car in the deep snow.",
             "zh": "他们只好把车弃在深雪里。"
+          }
+        ],
+        "defs_en": [
+          {
+            "pos": "v",
+            "text": "leave something or someone for good"
           }
         ]
       },
@@ -186,6 +219,12 @@
             "en": "Plants absorb carbon dioxide from the air around them.",
             "zh": "植物从周围的空气中吸收二氧化碳。"
           }
+        ],
+        "defs_en": [
+          {
+            "pos": "v",
+            "text": "take in a liquid or gas slowly"
+          }
         ]
       }
     ],
@@ -198,10 +237,10 @@
           "us": "tɔk"
         },
         "options": [
-          "n. 能力，能耐；才能",
+          "v. 吸收；使专心",
+          "v. 说话；谈话；n. 交谈",
           "n. 星期一",
-          "v. 过去常常",
-          "v. 说话；谈话；n. 交谈"
+          "n. 事故；意外"
         ],
         "length": null
       },
@@ -214,7 +253,7 @@
         },
         "options": [
           "n. 能力，能耐；才能",
-          "n. 事故；意外",
+          "n. 星期一",
           "v. 说话；谈话；n. 交谈",
           "n. 孩子；儿童"
         ],
@@ -229,9 +268,9 @@
         },
         "options": [
           "adj. 能够的；有能力的",
-          "v. 吸收；使专心",
-          "n. 孩子；儿童",
-          "n. 事故；意外"
+          "n. 事故；意外",
+          "v. 放弃；抛弃",
+          "n. 能力，能耐；才能"
         ],
         "length": null
       },
@@ -243,10 +282,10 @@
           "us": "əˈbændən"
         },
         "options": [
-          "v. 吸收；使专心",
+          "v. 过去常常",
           "v. 携带；搬运",
-          "v. 放弃；抛弃",
-          "v. 说话；谈话；n. 交谈"
+          "v. 接受；承认",
+          "v. 放弃；抛弃"
         ],
         "length": null
       },
@@ -258,10 +297,10 @@
           "us": "əbˈsɔrb"
         },
         "options": [
-          "v. 吸收；使专心",
           "v. 去；走",
-          "v. 携带；搬运",
-          "v. 停止；阻止；n. 车站"
+          "v. 过去常常",
+          "v. 放弃；抛弃",
+          "v. 吸收；使专心"
         ],
         "length": null
       }
@@ -274,8 +313,8 @@
           "meaning": "v. 说话；谈话；n. 交谈"
         },
         "options": [
-          "stop",
-          "absorb",
+          "Monday",
+          "accept",
           "carry",
           "talk"
         ],
@@ -288,10 +327,10 @@
           "meaning": "n. 能力，能耐；才能"
         },
         "options": [
-          "ability",
-          "talk",
           "child",
-          "Monday"
+          "Monday",
+          "ability",
+          "accident"
         ],
         "length": null
       },
@@ -302,9 +341,9 @@
           "meaning": "adj. 能够的；有能力的"
         },
         "options": [
-          "Monday",
           "able",
-          "go",
+          "stop",
+          "absorb",
           "carry"
         ],
         "length": null
@@ -316,10 +355,10 @@
           "meaning": "v. 放弃；抛弃"
         },
         "options": [
-          "accept",
-          "carry",
+          "talk",
+          "used to",
           "abandon",
-          "absorb"
+          "stop"
         ],
         "length": null
       },
@@ -330,10 +369,10 @@
           "meaning": "v. 吸收；使专心"
         },
         "options": [
-          "stop",
-          "accept",
           "carry",
-          "absorb"
+          "absorb",
+          "accept",
+          "abandon"
         ],
         "length": null
       }
@@ -348,7 +387,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-11T18:32:39.954779+00:00"
+      "due_at": "2026-10-13T09:14:22.504822+00:00"
     },
     "applied": true,
     "rating": null,
@@ -362,7 +401,7 @@
       "order_mode": "book",
       "daily_new": 20,
       "review_cap": 100,
-      "started_at": "2026-10-10T18:32:39.895491+00:00",
+      "started_at": "2026-10-12T09:14:22.421796+00:00",
       "review_unlimited": false
     },
     "book": {
@@ -402,13 +441,13 @@
     "questions": [
       {
         "key": "talk",
-        "qtype": "word",
+        "qtype": "meaning",
         "prompt": {},
         "options": [
-          "child",
-          "stop",
-          "absorb",
-          "talk"
+          "v. 接受；承认",
+          "v. 说话；谈话；n. 交谈",
+          "n. 星期一",
+          "v. 吸收；使专心"
         ],
         "length": null
       }
@@ -454,6 +493,20 @@
             "id": "e8fc5b6c9d8c1d35",
             "en": "Sue and Bob still aren’t talking.",
             "zh": "休和鲍勃仍然互不理睬。"
+          }
+        ],
+        "defs_en": [
+          {
+            "pos": "v",
+            "text": "speak to someone"
+          },
+          {
+            "pos": "v",
+            "text": "have a conversation"
+          },
+          {
+            "pos": "n",
+            "text": "a conversation between people"
           }
         ]
       }
@@ -509,7 +562,7 @@
     ],
     "item": {
       "box": 2,
-      "due_at": "2026-10-14T18:32:39.971536+00:00"
+      "due_at": "2026-10-16T09:14:22.525927+00:00"
     },
     "applied": false,
     "rating": null,
@@ -651,11 +704,17 @@
               "en": "Will you be able to come to the party tonight?",
               "zh": "你今晚能来参加聚会吗？"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "a",
+              "text": "having the power or skill to do something"
+            }
           ]
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:32:40.048991+00:00"
+          "due_at": "2026-10-13T09:14:22.613820+00:00"
         }
       },
       {
@@ -690,11 +749,17 @@
               "en": "She has the ability to learn new languages quickly.",
               "zh": "她有快速学习新语言的能力。"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "n",
+              "text": "the power or skill to do something"
+            }
           ]
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:32:40.048991+00:00"
+          "due_at": "2026-10-13T09:14:22.613820+00:00"
         }
       },
       {
@@ -773,11 +838,25 @@
               "en": "Sue and Bob still aren’t talking.",
               "zh": "休和鲍勃仍然互不理睬。"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "speak to someone"
+            },
+            {
+              "pos": "v",
+              "text": "have a conversation"
+            },
+            {
+              "pos": "n",
+              "text": "a conversation between people"
+            }
           ]
         },
         "item": {
           "box": 0,
-          "due_at": "2026-10-11T18:32:40.048991+00:00"
+          "due_at": "2026-10-13T09:14:22.613820+00:00"
         }
       }
     ]
@@ -791,7 +870,7 @@
     "diff": null,
     "item": {
       "box": 1,
-      "due_at": "2026-10-12T18:32:40.059513+00:00"
+      "due_at": "2026-10-14T09:14:22.626284+00:00"
     },
     "applied": true,
     "rating": "fuzzy",
@@ -807,7 +886,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-10T17:32:40.068507+00:00"
+      "due_at": "2026-10-12T08:14:22.637307+00:00"
     },
     "applied": false,
     "rating": "know",
@@ -821,7 +900,7 @@
       },
       "options": [
         "n. 能力，能耐；才能",
-        "n. 事故；意外",
+        "n. 星期一",
         "v. 说话；谈话；n. 交谈",
         "n. 孩子；儿童"
       ],
@@ -869,6 +948,20 @@
         "en": "Sue and Bob still aren’t talking.",
         "zh": "休和鲍勃仍然互不理睬。"
       }
+    ],
+    "defs_en": [
+      {
+        "pos": "v",
+        "text": "speak to someone"
+      },
+      {
+        "pos": "v",
+        "text": "have a conversation"
+      },
+      {
+        "pos": "n",
+        "text": "a conversation between people"
+      }
     ]
   },
   "explain_unavailable": {
@@ -907,8 +1000,8 @@
         "word": "accept",
         "box": 1,
         "tier": "learning",
-        "learned_at": "2026-10-11T09:52:53.382950+00:00",
-        "due_at": "2026-10-13T09:52:53.382950+00:00",
+        "learned_at": "2026-10-12T09:14:22.626284+00:00",
+        "due_at": "2026-10-14T09:14:22.626284+00:00",
         "weak": false
       },
       {
@@ -917,12 +1010,12 @@
         "word": "absorb",
         "box": 2,
         "tier": "growing",
-        "learned_at": "2026-10-11T09:52:53.300119+00:00",
-        "due_at": "2026-10-15T09:52:53.300119+00:00",
+        "learned_at": "2026-10-12T09:14:22.566797+00:00",
+        "due_at": "2026-10-16T09:14:22.566797+00:00",
         "weak": false
       }
     ],
-    "next_cursor": "MjAyNi0xMC0xMVQwOTo1Mjo1My4zMDAxMTkrMDA6MDB8MjcxMDAzZTctMzNmYy00NWNmLTgwMjktYjg3NjUyMGM3OWE4"
+    "next_cursor": "MjAyNi0xMC0xMlQwOToxNDoyMi41NjY3OTcrMDA6MDB8YjkxYTIxZGItZDAwOC00MmQzLTlhMWMtYmFiMDkxMjBiMDUx"
   },
   "learned_card": {
     "key": "talk",
@@ -965,10 +1058,24 @@
         "en": "Sue and Bob still aren’t talking.",
         "zh": "休和鲍勃仍然互不理睬。"
       }
+    ],
+    "defs_en": [
+      {
+        "pos": "v",
+        "text": "speak to someone"
+      },
+      {
+        "pos": "v",
+        "text": "have a conversation"
+      },
+      {
+        "pos": "n",
+        "text": "a conversation between people"
+      }
     ]
   },
   "free_start": {
-    "set_id": "c56b1e16c9af",
+    "set_id": "147c01ecb61e",
     "scope": "all",
     "mode": "choice",
     "items": [
@@ -991,6 +1098,12 @@
               "id": "aac501f98a9a99f1",
               "en": "Plants absorb carbon dioxide from the air around them.",
               "zh": "植物从周围的空气中吸收二氧化碳。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "take in a liquid or gas slowly"
             }
           ]
         },
@@ -1053,6 +1166,20 @@
               "en": "Sue and Bob still aren’t talking.",
               "zh": "休和鲍勃仍然互不理睬。"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "speak to someone"
+            },
+            {
+              "pos": "v",
+              "text": "have a conversation"
+            },
+            {
+              "pos": "n",
+              "text": "a conversation between people"
+            }
           ]
         },
         "question": {
@@ -1091,6 +1218,12 @@
               "en": "They had to abandon the car in the deep snow.",
               "zh": "他们只好把车弃在深雪里。"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "leave something or someone for good"
+            }
           ]
         },
         "question": {
@@ -1128,6 +1261,12 @@
               "id": "1b734423bc1ad291",
               "en": "She has the ability to learn new languages quickly.",
               "zh": "她有快速学习新语言的能力。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "n",
+              "text": "the power or skill to do something"
             }
           ]
         },
@@ -1171,6 +1310,12 @@
               "en": "Will you be able to come to the party tonight?",
               "zh": "你今晚能来参加聚会吗？"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "a",
+              "text": "having the power or skill to do something"
+            }
           ]
         },
         "question": {
@@ -1209,6 +1354,12 @@
               "en": "I am happy to accept your kind invitation.",
               "zh": "我很高兴接受你的盛情邀请。"
             }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "agree to take something offered"
+            }
           ]
         },
         "question": {
@@ -1238,7 +1389,7 @@
     "diff": null,
     "item": {
       "box": 0,
-      "due_at": "2026-10-11T09:52:53.495019+00:00"
+      "due_at": "2026-10-12T09:14:22.706214+00:00"
     },
     "applied": true,
     "rating": null,
@@ -1251,22 +1402,32 @@
     "order_mode": "book",
     "daily_new": 5,
     "review_cap": 100,
-    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "started_at": "2026-10-12T09:14:22.421796+00:00",
     "review_unlimited": false
+  },
+  "def_lang_patch": {
+    "book_id": "junior",
+    "status": "active",
+    "order_mode": "book",
+    "daily_new": 5,
+    "review_cap": 100,
+    "started_at": "2026-10-12T09:14:22.421796+00:00",
+    "review_unlimited": false,
+    "def_lang": "en"
   },
   "bonus": {
     "plan": {
-      "new_target": 10,
+      "new_target": 11,
       "new_done": 6,
-      "new_left": 4,
-      "review_due": 1,
+      "new_left": 5,
+      "review_due": 2,
       "review_done": 1,
-      "review_left": 1,
+      "review_left": 2,
       "backlog_guard": false,
-      "bonus": 5,
+      "bonus": 6,
       "goal_met": false
     },
-    "bonus_left": 45
+    "bonus_left": 44
   },
   "pause": {
     "book_id": "junior",
@@ -1274,7 +1435,7 @@
     "order_mode": "book",
     "daily_new": 5,
     "review_cap": 100,
-    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "started_at": "2026-10-12T09:14:22.421796+00:00",
     "review_unlimited": false
   },
   "today_paused": {
@@ -1289,7 +1450,7 @@
       "order_mode": "book",
       "daily_new": 5,
       "review_cap": 100,
-      "started_at": "2026-10-10T18:32:39.895491+00:00",
+      "started_at": "2026-10-12T09:14:22.421796+00:00",
       "review_unlimited": false
     },
     "streak": {
@@ -1303,7 +1464,7 @@
     "order_mode": "book",
     "daily_new": 5,
     "review_cap": 100,
-    "started_at": "2026-10-10T18:32:39.895491+00:00",
+    "started_at": "2026-10-12T09:14:22.421796+00:00",
     "review_unlimited": false
   },
   "reset": {
@@ -1314,7 +1475,7 @@
       "order_mode": "book",
       "daily_new": 5,
       "review_cap": 100,
-      "started_at": "2026-10-10T18:32:40.127660+00:00",
+      "started_at": "2026-10-12T09:14:22.767754+00:00",
       "review_unlimited": false
     }
   }
