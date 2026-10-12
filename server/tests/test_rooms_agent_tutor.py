@@ -510,3 +510,114 @@ async def test_chinese_notes_never_reach_the_logs(tenv, caplog):
     await tenv.hub.drain()
     text = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
     assert "SECRET-NOTE-ZH-9" not in text and "SECRET-ANSWER-4" not in text
+
+
+async def _voice(tenv, user_id, text, **meta):
+    """A transcribed voice message as `VoiceStore.set_transcript` leaves it: kind voice, the transcript in `text`."""
+    return await tenv.store.append(tenv.room.id, lane="public", sender_kind="user", sender_id=user_id, kind="voice",
+                                   text=text, now=NOW, meta=meta or None)
+
+
+async def test_waits_for_names_only_the_called_member(tenv):
+    assert await tenv.tutor.waits_for(tenv.room.id, A) is False  # no lesson yet
+    await start(tenv)
+    assert await tenv.tutor.waits_for(tenv.room.id, A) is True and await tenv.tutor.waits_for(tenv.room.id, B) is False
+    await tenv.tutor.stop(tenv.room.id, A)
+    assert await tenv.tutor.waits_for(tenv.room.id, A) is False
+
+
+async def test_a_transcribed_voice_message_of_the_called_member_is_the_answer(tenv):
+    await start(tenv)
+    clip = await _voice(tenv, A, "I went hiking last weekend.")
+    assert await tenv.tutor.on_message(tenv.room.id, clip) is True
+    await tenv.hub.drain()
+    _, req = tenv.script.calls[1]
+    assert req.text == "alice: I went hiking last weekend."
+    state = machine.from_dict((await snapshot(tenv))["machine"])
+    assert [a.verdict for a in state.answers] == ["good"] and tutor_frames(tenv.bob)[-1]["current_user_id"] == B
+
+
+async def test_other_members_empty_or_old_voice_and_other_kinds_do_not_count(tenv):
+    old = await _voice(tenv, A, "spoken before the question was asked")  # seq below the question
+    await start(tenv)
+    assert await tenv.tutor.on_message(tenv.room.id, old) is False  # R-AS15: only clips after the question
+    assert await tenv.tutor.on_message(tenv.room.id, await _voice(tenv, B, "bob is not being asked")) is False
+    assert await tenv.tutor.on_message(tenv.room.id, await _voice(tenv, A, "   ")) is False
+    note = await tenv.store.append(tenv.room.id, lane="public", sender_kind="user", sender_id=A, kind="assist_request",
+                                   text="not a chat message", now=NOW)
+    assert await tenv.tutor.on_message(tenv.room.id, note) is False
+    assert len(tenv.script.calls) == 1 and (await snapshot(tenv))["phase"] == "await_answer"
+    assert tenv.tutor.timers()  # none of that reset or cancelled the question timer
+
+
+async def test_text_answers_still_count_and_a_second_answer_does_not(tenv):
+    await start(tenv)
+    first = await tenv.store.append(tenv.room.id, lane="public", sender_kind="user", sender_id=A, kind="text",
+                                    text="First answer.", now=NOW)
+    assert await tenv.tutor.on_message(tenv.room.id, first) is True
+    await tenv.hub.drain()
+    again = await _voice(tenv, A, "I answer again but it is bob's turn")
+    assert await tenv.tutor.on_message(tenv.room.id, again) is False
+
+
+async def test_a_late_transcript_loses_to_the_sixty_second_skip(tenv):
+    await start(tenv)
+    clip = await _voice(tenv, A, "too late")  # uploaded while the question was open, transcribed after the skip
+    await fire(tenv)  # the timer wins: alice is skipped, bob is asked
+    calls = len(tenv.script.calls)
+    assert await tenv.tutor.on_message(tenv.room.id, clip) is False
+    await tenv.hub.drain()
+    assert len(tenv.script.calls) == calls
+    state = machine.from_dict((await snapshot(tenv))["machine"])
+    assert [a.verdict for a in state.answers] == ["skip"]  # the late clip is neither an answer nor a second skip
+
+
+async def test_an_answer_that_arrives_first_cancels_the_timer(tenv):
+    await start(tenv)
+    clip = await _voice(tenv, A, "just in time")
+    assert await tenv.tutor.on_message(tenv.room.id, clip) is True
+    await tenv.hub.drain()
+    state = machine.from_dict((await snapshot(tenv))["machine"])
+    assert [a.verdict for a in state.answers] == ["good"]  # the old timer never skipped alice afterwards
+    assert tenv.clock.pending[0].cancelled()  # alice's timer died with her answer (bob's question armed a new one)
+
+
+async def test_voice_answers_leave_no_text_in_the_logs(tenv, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    await start(tenv)
+    await tenv.tutor.on_message(tenv.room.id, await _voice(tenv, A, "SECRET-VOICE-ANSWER-31"))
+    await tenv.hub.drain()
+    text = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
+    assert "SECRET-VOICE-ANSWER-31" not in text
+
+
+@pytest.mark.parametrize("answer_first", [True, False])
+async def test_a_late_transcript_and_the_auto_skip_race_resolves_to_exactly_one_outcome(tenv, answer_first):
+    """Both arrive while the tutor lock is held (the gate); the one queued first wins, the other is a no-op."""
+    await start(tenv)
+    clip = await _voice(tenv, A, "right at the deadline")
+    timer = tenv.tutor._timers[tenv.room.id]
+    live = [f for f in tenv.clock.pending if not f.done()][0]
+    gate = tenv.tutor._lock(tenv.room.id)
+    await gate.acquire()
+    answer = None
+    if answer_first:
+        answer = asyncio.ensure_future(tenv.tutor.on_message(tenv.room.id, clip))
+        for _ in range(20):
+            await asyncio.sleep(0)
+    live.set_result(None)  # the 60 s are up: the timer's skip now waits at the gate
+    for _ in range(20):
+        await asyncio.sleep(0)
+    if not answer_first:
+        answer = asyncio.ensure_future(tenv.tutor.on_message(tenv.room.id, clip))
+        for _ in range(20):
+            await asyncio.sleep(0)
+    gate.release()
+    taken = await asyncio.wait_for(answer, 10)
+    await asyncio.wait({timer}, timeout=10)  # an answer that won has cancelled the waiting timer (disarm)
+    assert timer.done()
+    await tenv.hub.drain()
+    assert taken is answer_first
+    state = machine.from_dict((await snapshot(tenv))["machine"])
+    assert [a.verdict for a in state.answers] == (["good"] if answer_first else ["skip"])
+    assert len(tenv.script.calls) == 2  # one question, one follow-up turn: never two

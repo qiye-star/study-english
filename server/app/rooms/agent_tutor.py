@@ -1,6 +1,6 @@
 """Room tutor "带练" (spec 2026-10-12-agents §7.5; plan A5 lane T, R-RA8; INDEX X5, X6, X18). The owner starts it with
 one of the room's agents; the agent calls on members in turn; the called member has TUTOR_TURN_SECONDS to answer with
-a text message (silence = skip). Other members may chip in: their messages are context, they never advance the round.
+a text message or a transcribed voice message (silence = skip). Other members may chip in: their messages are context, they never advance the round.
 
 The pure pieces are A3's, used directly: `tutor.plan.build_plan` (the lesson), `tutor.machine` (`next_state` with
 Asked / Answered / Skipped / Finished, difficulty and the repeat rule live there), `tutor.prompt.tutor_block` (the
@@ -321,10 +321,21 @@ class RoomTutor:
 
     # ---- hooks from AgentLane / the rooms runtime ----
 
-    async def on_message(self, room_id: str, message) -> None:
-        if room_id not in self._active or message.sender_kind != "user" or message.kind != "text":
-            return
-        await self._advance(room_id, "answer", (message.seq, message.text), user_id=message.sender_id)
+    async def waits_for(self, room_id: str, user_id: int) -> bool:
+        """True while the lesson of this process waits for this member's answer (called on, phase await_answer)."""
+        if room_id not in self._active:
+            return False
+        snap = await self._load(room_id)
+        return snap is not None and snap.get("phase") == "await_answer" and snap.get("current_user_id") == user_id
+
+    async def on_message(self, room_id: str, message) -> bool:
+        """A member's text, or a voice message whose transcription succeeded (the caller passes the stored row, its
+        `text` is the transcript): the called member's one becomes the answer. True = it was taken as the answer."""
+        if room_id not in self._active or message.sender_kind != "user" or message.kind not in ("text", "voice"):
+            return False
+        if not (message.text or "").strip():
+            return False
+        return await self._advance(room_id, "answer", (message.seq, message.text), user_id=message.sender_id)
 
     async def on_welcome(self, conn) -> None:
         snap = await self._load(conn.room_id)
@@ -369,8 +380,11 @@ class RoomTutor:
                 return False
             if expect_seq is not None and snap["question_seq"] != expect_seq:
                 return False
-            if outcome == "answer" and user_id != snap["current_user_id"]:
-                return False
+            if outcome == "answer":
+                if user_id != snap["current_user_id"]:
+                    return False
+                if answer is not None and snap.get("question_seq") is not None and answer[0] <= snap["question_seq"]:
+                    return False  # R-AS15: a clip uploaded before this question was asked is not its answer
             self._disarm(room_id)
             snap.update(phase="generating", deadline_at=None)
             await self._save(room_id, snap)
