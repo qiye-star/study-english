@@ -186,3 +186,30 @@ def test_property_random_event_sequences_keep_invariants():
             assert nxt.level == _reference_level(nxt.start_level, [a.verdict for a in nxt.answers])
             assert from_dict(to_dict(nxt)) == nxt
             state = nxt
+
+
+def test_hint_zh_follows_the_hint_through_the_machine():
+    s = next_state(new_state(plan_of("ask", "ask", "ask"), "B1"), Asked("Start with when.", hint_zh="先说什么时候"))
+    assert (s.phase, s.hint_text, s.hint_zh) == ("await_answer", "Start with when.", "先说什么时候")
+    assert next_state(s, HintUsed()).hint_zh == "先说什么时候"  # asking for a hint never rewrites it
+    moved = next_state(s, Answered("good", hint="Use the past tense.", hint_zh="用过去式"))
+    assert (moved.index, moved.hint_text, moved.hint_zh) == (1, "Use the past tense.", "用过去式")
+    assert next_state(moved, Skipped()).hint_zh == ""  # a skip moves on without a hint
+    last = next_state(next_state(moved, Answered("ok", hint="h", hint_zh="提")), Answered("ok", hint="x", hint_zh="y"))
+    assert (last.phase, last.hint_text, last.hint_zh) == ("wrap_up", "", "")  # nothing left to hint
+
+
+def test_a_weak_retry_keeps_the_old_chinese_hint_unless_a_new_one_comes():
+    s = next_state(new_state(plan_of("repeat", "ask"), "B1"), Asked("Say it slowly.", hint_zh="慢慢说"))
+    again = next_state(s, Answered("weak"))
+    assert (again.index, again.repeats, again.hint_zh) == (0, 1, "慢慢说")
+    better = next_state(s, Answered("weak", hint="Word by word.", hint_zh="一个词一个词"))
+    assert (better.hint_text, better.hint_zh) == ("Word by word.", "一个词一个词")
+
+
+def test_hint_zh_round_trips_and_old_snapshots_default_to_empty():
+    s = next_state(new_state(plan_of("ask", "ask"), "B1"), Asked("h", hint_zh="提示"))
+    assert to_dict(s)["hint_zh"] == "提示" and from_dict(to_dict(s)) == s
+    old = to_dict(s)
+    old.pop("hint_zh")
+    assert from_dict(old).hint_zh == ""

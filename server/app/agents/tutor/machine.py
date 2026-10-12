@@ -47,6 +47,7 @@ class TutorState:
     answers: tuple[Answer, ...] = ()
     hint_text: str = ""  # 模型给当前题的提示(META hint)
     say: str = ""        # 当前听写题的句子(META say;只在 dictate 题保留,不进可见文本)
+    hint_zh: str = ""    # 模型给当前题的中文提示(META hint_zh;只随带练帧 / 提示端点下发,不进可见文本)
 
 
 @dataclass(frozen=True)
@@ -54,14 +55,16 @@ class Asked:
     """智能体出了当前题(开场或跳过之后)。"""
     hint: str = ""
     say: str = ""
+    hint_zh: str = ""
 
 
 @dataclass(frozen=True)
 class Answered:
-    """模型对用户回答的评级;hint / say 属于下一题。"""
+    """模型对用户回答的评级;hint / say / hint_zh 属于下一题。"""
     verdict: str
     hint: str = ""
     say: str = ""
+    hint_zh: str = ""
 
 
 @dataclass(frozen=True)
@@ -135,15 +138,16 @@ def _streaks(state: TutorState, verdict: str) -> tuple[int, int, int]:
     return good, weak, level
 
 
-def _advance(state: TutorState, answer: Answer, next_phase: str, verdict: str, hint: str, say: str) -> TutorState:
+def _advance(state: TutorState, answer: Answer, next_phase: str, verdict: str, hint: str, say: str,
+             hint_zh: str = "") -> TutorState:
     good, weak, level = _streaks(state, verdict)
     answers = state.answers + (answer,)
     if is_last(state):
         return replace(state, phase="wrap_up", answers=answers, streak_good=good, streak_weak=weak, level=level,
-                       hints=0, repeats=0, hint_text="", say="")
+                       hints=0, repeats=0, hint_text="", hint_zh="", say="")
     nxt = state.index + 1
     return replace(state, phase=next_phase, index=nxt, answers=answers, streak_good=good, streak_weak=weak,
-                   level=level, hints=0, repeats=0, hint_text=hint, say=_say_for(state, nxt, say))
+                   level=level, hints=0, repeats=0, hint_text=hint, hint_zh=hint_zh, say=_say_for(state, nxt, say))
 
 
 def next_state(state: TutorState, event: Event) -> TutorState:
@@ -152,12 +156,12 @@ def next_state(state: TutorState, event: Event) -> TutorState:
             return state
         raise InvalidTransition("done")
     if isinstance(event, Finished):
-        return replace(state, phase="done", hint_text="", say="")
+        return replace(state, phase="done", hint_text="", hint_zh="", say="")
     if isinstance(event, Asked):
         if state.phase not in ("opening", "ask"):
             raise InvalidTransition(state.phase)
         return replace(state, phase="await_answer", hints=0, repeats=0, hint_text=event.hint,
-                       say=_say_for(state, state.index, event.say))
+                       hint_zh=event.hint_zh, say=_say_for(state, state.index, event.say))
     if state.phase != "await_answer":
         raise InvalidTransition(state.phase)
     item = state.plan[state.index]
@@ -171,9 +175,10 @@ def next_state(state: TutorState, event: Event) -> TutorState:
         verdict = event.verdict if event.verdict in VERDICTS else "ok"
         if verdict == "weak" and item.kind in RETRY_KINDS and state.repeats < REPEATS_MAX:
             return replace(state, repeats=state.repeats + 1, hint_text=event.hint or state.hint_text,
+                           hint_zh=event.hint_zh or state.hint_zh,
                            say=_say_for(state, state.index, event.say or state.say))
         return _advance(state, Answer(state.index, item.kind, verdict, state.hints), "await_answer", verdict,
-                        event.hint, event.say)
+                        event.hint, event.say, event.hint_zh)
     raise InvalidTransition(type(event).__name__)
 
 
@@ -182,7 +187,7 @@ def to_dict(state: TutorState) -> dict:
             "level": state.level, "start_level": state.start_level, "streak_good": state.streak_good,
             "streak_weak": state.streak_weak, "hints": state.hints, "repeats": state.repeats,
             "answers": [[a.index, a.kind, a.verdict, a.hints] for a in state.answers],
-            "hint_text": state.hint_text, "say": state.say}
+            "hint_text": state.hint_text, "hint_zh": state.hint_zh, "say": state.say}
 
 
 def _int(value: object, lo: int, hi: int, default: int) -> int:
@@ -211,4 +216,5 @@ def from_dict(data: dict) -> TutorState:
         streak_good=_int(data.get("streak_good"), 0, STREAK_TO_MOVE, 0),
         streak_weak=_int(data.get("streak_weak"), 0, STREAK_TO_MOVE, 0),
         hints=_int(data.get("hints"), 0, HINTS_MAX, 0), repeats=_int(data.get("repeats"), 0, REPEATS_MAX, 0),
-        answers=answers, hint_text=str(data.get("hint_text") or ""), say=str(data.get("say") or ""))
+        answers=answers, hint_text=str(data.get("hint_text") or ""),
+        hint_zh=str(data.get("hint_zh") or ""), say=str(data.get("say") or ""))
