@@ -1,3 +1,4 @@
+import "./agents/locales";
 import { LanguagesIcon, MoreHorizontalIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,6 +6,7 @@ import { toast } from "sonner";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
+import { ZhNoteFold } from "~/components/zh-note-fold";
 import { ttsErrorMessage, useMessageTranslations, useTtsPlayer } from "~/features/chat";
 import { cn } from "~/lib/cn";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
@@ -252,6 +254,10 @@ export const RoomMessageList = memo(function RoomMessageList({
               <p className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
             )}
             <AiAnswer text={m.text} />
+            {agent?.noteZh && (
+              <ZhNoteFold text={agent.noteZh} showLabel={t("web.rooms.agents.note.show")} hideLabel={t("web.rooms.agents.note.hide")}
+                testId="room-agent-note" className="mt-1" />
+            )}
           </div>
           {moreButton(m)}
           </div>

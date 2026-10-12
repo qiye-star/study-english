@@ -67,3 +67,35 @@ it("a hand-off shows the hand-off line; plain @ai answers keep the old card", ()
   expect(screen.getByTestId("room-agent-handoff")).toHaveTextContent("Emma → Leo");
   expect(screen.getByText("AI 助手")).toBeInTheDocument();
 });
+
+it("folds the note_zh under an agent reply; old replies without it show no button (spec addressing §5.1)", () => {
+  show({ messages: [question(ME, "alice"),
+    answer(5, 4, { ...EMMA_META, asker: { id: ME, name: "alice" }, noteZh: "abandon 指彻底放弃" }),
+    answer(6, 4, { ...EMMA_META, asker: { id: ME, name: "alice" } }, "Old reply")] });
+  const toggles = screen.getAllByTestId("room-agent-note-toggle");
+  expect(toggles).toHaveLength(1);
+  expect(toggles[0]).toHaveAccessibleName("中文");
+  expect(toggles[0]).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByTestId("room-agent-note-text")).not.toBeVisible();
+  fireEvent.click(toggles[0]);
+  expect(screen.getByTestId("room-agent-note-text")).toBeVisible();
+  expect(screen.getByTestId("room-agent-note-text")).toHaveTextContent("abandon 指彻底放弃");
+  expect(toggles[0]).toHaveAccessibleName("收起中文");
+  // tapping the fold is not a tap on the bubble: the actions row stays closed
+  expect(document.getElementById("room-actions-m5")).toBeNull();
+});
+
+it("renders a hostile note as text, never as markup", () => {
+  show({ messages: [question(ME, "alice"), answer(5, 4, { ...EMMA_META, asker: { id: ME, name: "alice" }, noteZh: "<img src=x onerror=alert(1)>" })] });
+  expect(screen.getByTestId("room-agent-note-text").querySelector("img")).toBeNull();
+  expect(screen.getByTestId("room-agent-note-text")).toHaveTextContent("<img src=x onerror=alert(1)>");
+});
+
+it("offers 朗读 only when the message has something English to read (R-AW9)", () => {
+  show({ messages: [msg({ seq: 7, text: "全是中文" }), msg({ seq: 8, text: "Mostly English 一点中文" })] });
+  const more = screen.getAllByTestId("room-message-more");
+  fireEvent.click(more[0]);
+  expect(screen.queryByRole("button", { name: "朗读" })).toBeNull();
+  fireEvent.click(more[1]);
+  expect(screen.getByRole("button", { name: "朗读" })).toBeInTheDocument();
+});
