@@ -1,13 +1,18 @@
-import { useEffect, useState } from "react";
+import "./locales";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { ZhNoteFold } from "~/components/zh-note-fold";
 import { cn } from "~/lib/cn";
-import { ROOM_AGENTS, type RoomTutorInfo } from "../protocol";
+import { ROOM_AGENTS, type RoomMessage, type RoomTutorInfo } from "../protocol";
 import { smallGhostButton } from "../ui";
 import { secondsLeft } from "./countdown";
 import { resumeRoomTutor, ROOM_AGENTS_ALL_ERRORS, skipRoomTutor, stopRoomTutor } from "./room-agents-api";
+import { maxSeq, turnVoice } from "./tutor-voice";
+
+const NO_MESSAGES: readonly RoomMessage[] = [];
 
 /** 等待作答时每秒刷新一次「现在」;不等待时不起计时器。 */
 function useNow(active: boolean): number {
@@ -49,20 +54,32 @@ function Countdown({ seconds, urgent }: { seconds: number; urgent: boolean }) {
  * 带练条(输入条上方):第几题、轮到谁(轮到自己时蓝色「轮到你了」)、倒计时;被点名的人和房主可「跳过」,房主可「结束」,
  * 暂停时房主可「继续」。只有「轮到谁 / 暂停原因」在 live 区里(轮次变化时播报一次)。窄屏(360 px)时按钮换到第二行。
  */
-export function TutorBar({ tutor, receivedAt, meId, isOwner, roomId, disabled }: {
+export function TutorBar({ tutor, receivedAt, meId, isOwner, roomId, disabled, messages = NO_MESSAGES, notice = null, voice = false }: {
   tutor: RoomTutorInfo | null; receivedAt: number; meId: number | null; isOwner: boolean; roomId: string; disabled: boolean;
+  /** 房间消息(推出「识别中 / 没听清」);房间页传 state.messages */
+  messages?: readonly RoomMessage[];
+  /** 当前的 notice(voice_unclear 也算没听清) */
+  notice?: string | null;
+  /** 本房可发语音:轮到我时提示「直接说或打字回答」 */
+  voice?: boolean;
 }) {
   const { api } = useAuth();
   const { t } = useTranslation();
   const waiting = tutor?.phase === "await_answer";
   const now = useNow(waiting);
   const [busy, setBusy] = useState(false);
+  const mine = waiting && tutor?.currentUserId === meId;
+  // 轮到我的那一刻记下列表里最大的 seq:之后我发的语音才算这一题的回答(轮次键变化才重算)
+  const turnKey = mine && tutor ? `${tutor.stepIndex}:${tutor.currentUserId}` : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sinceSeq = useMemo(() => maxSeq(messages), [turnKey]);
   if (!tutor) return null;
   const left = secondsLeft(tutor, receivedAt, now);
-  const mine = waiting && tutor.currentUserId === meId;
+  const heard = mine ? turnVoice(messages, meId, sinceSeq, notice) : "none";
   const label = tutor.phase === "paused" ? t(`web.rooms.agents.tutor.paused.${tutor.pausedReason ?? "upstream"}`, { defaultValue: t("web.rooms.agents.tutor.paused.upstream") })
     : tutor.phase === "generating" ? t("web.rooms.agents.tutor.generating", { name: tutor.personaName })
-    : mine ? t("web.rooms.agents.tutor.yourTurn") : t("web.rooms.agents.tutor.theirTurn", { name: tutor.currentName ?? "?" });
+    : mine ? (heard === "recognizing" ? t("web.rooms.agents.tutor.recognizing") : heard === "unclear" ? t("web.rooms.agents.tutor.unclear")
+      : voice ? t("web.rooms.agents.tutor.yourTurnSpeak") : t("web.rooms.agents.tutor.yourTurnType")) : t("web.rooms.agents.tutor.theirTurn", { name: tutor.currentName ?? "?" });
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
     try {
@@ -97,6 +114,10 @@ export function TutorBar({ tutor, receivedAt, meId, isOwner, roomId, disabled }:
           {t("web.rooms.agents.tutor.stop")}
         </button>
       )}
+      {tutor.hintZh ? (
+        <ZhNoteFold text={tutor.hintZh} showLabel={t("web.rooms.agents.note.show")} hideLabel={t("web.rooms.agents.note.hide")}
+          testId="room-tutor-hint-zh" className="basis-full" />
+      ) : null}
     </div>
   );
 }

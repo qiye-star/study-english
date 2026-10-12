@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,8 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
-import { renderWithProviders } from "~/test/render";
-import { EMMA, LEO, ME, TUTOR } from "./fixtures";
+import { renderWithProviders, TestProviders } from "~/test/render";
+import { EMMA, LEO, ME, msg, TUTOR } from "./fixtures";
 import { TutorBar } from "./tutor-bar";
 import { TUTOR_STEPS, TutorStart } from "./tutor-start";
 
@@ -97,4 +97,44 @@ it("the owner starts a round with a persona and a question count within the rang
   fireEvent.click(screen.getByRole("button", { name: "开始带练" }));
   await waitFor(() => expect(onStarted).toHaveBeenCalled());
   expect(JSON.parse(String(mock.calls.at(-1)!.body))).toEqual({ persona_id: "u1", steps: 7 });
+});
+
+const myVoice = (seq: number, status: "pending" | "empty" | "done") => msg({ seq, kind: "voice", text: "", sender: { kind: "user", id: ME, name: "alice" },
+  voice: { durationMs: 2000, status, transcript: null, lang: null, translation: null, translationStatus: null, attempts: 1, audio: true } });
+
+it("tells the called member to just speak (voice on) or type (voice off)", () => {
+  const { unmount } = renderWithProviders(<TutorBar tutor={TUTOR} receivedAt={Date.now()} meId={ME} isOwner={false} roomId="r1" disabled={false} voice />);
+  expect(screen.getByRole("status")).toHaveTextContent("轮到你了 · 直接说或打字回答");
+  unmount();
+  renderWithProviders(<TutorBar tutor={TUTOR} receivedAt={Date.now()} meId={ME} isOwner={false} roomId="r1" disabled={false} />);
+  expect(screen.getByRole("status")).toHaveTextContent("轮到你了 · 打字回答");
+});
+
+it("shows 识别中… while my answer is being transcribed and 没听清 when it came back empty", () => {
+  const base = { tutor: TUTOR, receivedAt: Date.now(), meId: ME, isOwner: false, roomId: "r1", disabled: false, voice: true };
+  const ui = (props: Partial<Parameters<typeof TutorBar>[0]>) => <TestProviders><TutorBar {...base} {...props} /></TestProviders>;
+  const { rerender } = render(ui({ messages: [myVoice(3, "done")] }));
+  rerender(ui({ messages: [myVoice(3, "done"), myVoice(4, "pending")] }));
+  expect(screen.getByRole("status")).toHaveTextContent("识别中…");
+  rerender(ui({ messages: [myVoice(3, "done"), myVoice(4, "empty")] }));
+  expect(screen.getByRole("status")).toHaveTextContent("没听清,再说一次");
+  rerender(ui({ messages: [myVoice(3, "done")], notice: "voice_unclear" }));
+  expect(screen.getByRole("status")).toHaveTextContent("没听清,再说一次");
+});
+
+it("does not show my recognition state when it is someone else's turn", () => {
+  renderWithProviders(<TutorBar tutor={{ ...TUTOR, currentUserId: 22, currentName: "bob" }} receivedAt={Date.now()} meId={ME} isOwner={false} roomId="r1"
+    disabled={false} voice messages={[myVoice(9, "pending")]} />);
+  expect(screen.getByRole("status")).toHaveTextContent("轮到 bob");
+});
+
+it("folds the tutor hint_zh when the server sends it, and shows nothing otherwise (R-AW14)", () => {
+  const { unmount } = renderWithProviders(<TutorBar tutor={{ ...TUTOR, hintZh: "想想过去式" }} receivedAt={Date.now()} meId={ME} isOwner={false} roomId="r1" disabled={false} />);
+  const toggle = screen.getByTestId("room-tutor-hint-zh-toggle");
+  expect(toggle).toHaveAccessibleName("中文");
+  fireEvent.click(toggle);
+  expect(screen.getByTestId("room-tutor-hint-zh-text")).toHaveTextContent("想想过去式");
+  unmount();
+  renderWithProviders(<TutorBar tutor={TUTOR} receivedAt={Date.now()} meId={ME} isOwner={false} roomId="r1" disabled={false} />);
+  expect(screen.queryByTestId("room-tutor-hint-zh")).toBeNull();
 });

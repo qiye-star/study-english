@@ -24,6 +24,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 - 协议:`say.to`(只在「对象」生效时写入,`encodeSay` / `useRoom().say(text, assistId, replyTo, to)`)、notice `voice_unclear`(`ROOM_NOTICE_VOICE_UNCLEAR`)、
   `RoomTutorInfo.hintZh?`、`AgentAnswerMeta.noteZh`;语音上传 `uploadVoice(..., toAgent?)` 在生效时多一个 `to_agent` 表单字段(`useRoomVoice({ toAgent })`)。
   `voice-contract.test.ts` / `room-agents-contract.test.ts` 里对服务端源码的两处字面量检查(`form.get("to_agent")`、`code="voice_unclear"`)在服务端语音车道合并前自动跳过。
+- 「对象」与带练语音:`agents/use-agent-target.ts`(按用户 + 房间存本机,带练开始自动开、结束 / 房间关闭自动关,无计时器)、`agents/target-row.tsx`(「对 Emma 说」行 + 常驻提示 / 置灰原因 / 「回复 Emma 中」)、
+  `agents/tutor-voice.ts`(轮到我时的「识别中 / 没听清」)、`tutor-bar.tsx`(「直接说或打字回答」、`hintZh` 折叠)。`room-composer.tsx` 的 `mentions` / `groupPlaceholder`:`@` 补全
+  (组字中 `isComposing` / keyCode 229 不拦截、失焦与 Esc 关闭、选项 `onMouseDown` 不夺焦点)。轮到我答带练时页面不发 `to` / `to_agent`(R-AW3);助手私聊(`target === "assist"`)的语音不带 `to_agent`。
 - 联机智能体气泡的「中文」折叠:`room-message-list.tsx` 用 `~/components/zh-note-fold`(文案 `web.rooms.agents.note.*`)。
 - 朗读只取 `extras/text-tools.ts::spokenText(m)`(正文再经 `~/lib/speech-text`),`note_zh` / `hint_zh` 永不进朗读。
 
@@ -34,6 +37,9 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 冻结的理由:四条并行车道(create / voice / assist / extras)都要接进同一页面,只改插槽实现、不改页面,才能互不冲突、单独测试。
 确实要改页面时在计划里写 Addendum 说明理由(参见计划的 WA-1、WE-1、WV-1)。
 WR-1(2026-10-12):`room-page.tsx` 只增加 `ReopenBar` 一行接线,理由:重新开启入口只能出现在页面的结束态里;逻辑全在 `extras/reopen-bar.tsx` 与 `use-room.ts`。
+
+AW-1(2026-10-12,addressing web C3):`room-page.tsx` 只增加「对象」接线(`useAgentTarget` 与四个派生值 `block` / `sendTo` / `recipient` / `defaultAgentName`、
+两处 `room.say(…, to)` 与 `useRoomVoice({ toAgent })`、`mentions` / `groupPlaceholder`、带练条的 `messages` / `notice` / `voice`、`TargetRow`、`voice_unclear` 横幅去重);逻辑全在 `agents/`。
 
 ## Public surface
 `RoomsLobbyPage`、`RoomPage`、`RoomInvitePage`(`/rooms/invite/:token`)、`RoomSummaryPage`(`/rooms/r/:roomId/summary`)、`RoomsEndedPage`(`/rooms/ended`,懒加载)、`fetchRoomsConfig`、`useRoomsEnabled`。

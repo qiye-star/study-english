@@ -27,7 +27,12 @@ export interface TutorSession {
   goal: TutorGoal; answers: TutorAnswer[]; say: string | null; recap: TutorRecap | null; resumed: boolean;
   createdAt: string; updatedAt: string;
 }
-export interface TutorHintResult { hint: string; session: TutorSession }
+export interface TutorHintResult {
+  hint: string;
+  /** 提示的中文说明(spec addressing §5.2,可选;缺省 = 没有) */
+  hintZh?: string | null;
+  session: TutorSession;
+}
 export interface TutorActive { session: TutorSession | null }
 /** SSE `meta` 事件(spec §4.4 + R-T3):verdict 属于刚答的题,kind / say 属于现在等待的题;服务端省略 null 键,这里一律归一为 null。 */
 export interface TutorMeta {

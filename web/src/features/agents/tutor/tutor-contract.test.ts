@@ -19,14 +19,18 @@ const SESSION: Record<keyof TutorSession, true> = {
 const RECAP: Record<keyof TutorRecap, true> = {
   total: true, answered: true, skipped: true, scores: true, strengths: true, weaknesses: true, words: true, levelStart: true, levelEnd: true, topic: true,
 };
-const HINT: Record<keyof TutorHintResult, true> = { hint: true, session: true };
+const HINT: Record<keyof TutorHintResult, true> = { hint: true, hintZh: true, session: true };
+const OPTIONAL_HINT = ["hintZh"];
 const META: Record<keyof TutorMeta, true> = { stepIndex: true, stepsTotal: true, verdict: true, kind: true, done: true, retry: true, say: true };
 const keys = (o: object) => Object.keys(o).sort();
 
 it("matches the server's tutor session, hint and recap shapes", () => {
   for (const name of ["start", "get", "skip", "finish"]) expect(keys(camel<TutorSession>(contract[name])), name).toEqual(keys(SESSION));
   expect(keys(camel<TutorSession>(contract.active.session))).toEqual(keys(SESSION));
-  expect(keys(camel<TutorHintResult>(contract.hint))).toEqual(keys(HINT));
+  expect(keys(camel<TutorHintResult>(contract.hint)).filter((k) => !OPTIONAL_HINT.includes(k)))
+    .toEqual(keys(HINT).filter((k) => !OPTIONAL_HINT.includes(k)));
+  const rawZh = (contract.hint as { hint_zh?: unknown }).hint_zh;
+  if (rawZh !== undefined) expect(typeof rawZh).toBe("string");
   const recap = camel<TutorSession>(contract.finish).recap!;
   expect(keys(recap)).toEqual(keys(RECAP));
   expect(keys(recap.scores)).toEqual(["good", "ok", "skip", "weak"]);

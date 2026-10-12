@@ -26,7 +26,9 @@ export function useTutorSession(options: UseTutorSessionOptions) {
   opts.current = options;
   const [session, setSessionState] = useState<TutorSession | null>(null);
   const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState<string | null>(null);
+  const [hint, setHintState] = useState<string | null>(null);
+  const [hintZh, setHintZh] = useState<string | null>(null);
+  const setHint = useCallback((next: string | null, zh: string | null = null) => { setHintState(next); setHintZh(zh); }, []);
   const sessionRef = useRef<TutorSession | null>(null);
   const finishing = useRef<string | null>(null);
 
@@ -117,7 +119,7 @@ export function useTutorSession(options: UseTutorSessionOptions) {
     try {
       const r = await hintTutor(opts.current.api, s.id);
       setSession(r.session);
-      setHint(r.hint);
+      setHint(r.hint, typeof r.hintZh === "string" && r.hintZh.trim() ? r.hintZh.trim() : null);
     } catch (err) {
       fail(err);
     } finally {
@@ -129,5 +131,5 @@ export function useTutorSession(options: UseTutorSessionOptions) {
     if (needsAgentTurn(sessionRef.current)) opts.current.onContinue();
   }, []);
 
-  return { session, busy, hint, skip, requestHint, finish, resume } as const;
+  return { session, busy, hint, hintZh, skip, requestHint, finish, resume } as const;
 }

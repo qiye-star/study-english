@@ -54,7 +54,7 @@ export function TutorBarPanel({ sessionId, meta, busy, onContinue, onEnd, lastRe
   return (
     <>
       {s.status === "active" ? (
-        <TutorBar session={s} hint={tutor.hint} busy={busy || tutor.busy}
+        <TutorBar session={s} hint={tutor.hint} hintZh={tutor.hintZh} busy={busy || tutor.busy}
           onHint={() => void tutor.requestHint()} onSkip={() => void tutor.skip()}
           onListen={() => onSpeak(s.kind === "dictate" && s.say ? s.say : lastReply)}
           onTranslate={onTranslateLast} onEnd={() => void tutor.finish()} onResume={tutor.resume} />
