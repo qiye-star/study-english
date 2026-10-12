@@ -268,6 +268,24 @@ async def test_tutor_endpoints_and_turns_never_log_answers_words_hints_recaps_or
     assert any("tutor start" in r.getMessage() for r in caplog.records)
 
 
+async def test_zh_notes_and_dropped_chinese_never_reach_the_logs(app, client, auth_headers, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    await use_fake_llm(app, FakeLLM(["Fine. ", "秘密句子很长很长很长。", "\n<<Z", "H>> 秘密说明"]))
+    conv = await new_conversation(client, auth_headers)
+    r = await client.post("/api/agents/turn", headers=auth_headers, json=turn_body(conv, text="NOTE-PRIVATE-1"))
+    done = next(d for e, d in parse_sse(r.text) if e == "done")
+    assert done["note_zh"] == "秘密说明"
+    await settle(app)
+    text = "\n".join(rec.getMessage() for rec in caplog.records if rec.name.startswith("app"))
+    assert "秘密" not in text and "NOTE-PRIVATE-1" not in text
+    await use_fake_llm(app, FakeLLM(["秘密整句。", "秘密第二句。"]))  # fully Chinese: refunded, still nothing logged
+    r = await client.post("/api/agents/turn", headers=auth_headers, json=turn_body(conv, text="NOTE-PRIVATE-2"))
+    assert parse_sse(r.text)[-1] == ("error", {"code": "llm_unavailable"})
+    await settle(app)
+    text = "\n".join(rec.getMessage() for rec in caplog.records if rec.name.startswith("app"))
+    assert "秘密" not in text and "NOTE-PRIVATE-2" not in text
+
+
 def test_agent_routes_carry_no_text_in_urls(app):
     """Read from the OpenAPI schema (route objects differ between FastAPI versions): path / query parameter names."""
     seen = set()

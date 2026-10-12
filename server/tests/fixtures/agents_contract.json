@@ -42,7 +42,7 @@
       "mine": false,
       "name": "英语教练",
       "intro": "生成地道的美式英语，纽约腔调。",
-      "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容，而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语，纽约腔调。\n请尽量使用日常词汇，尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。",
+      "prompt": "你是我的英语教练。\n请将我的话改写成英文。\n不需要逐字翻译。\n请分析清楚我的内容,而后用英文重新逻辑清晰地组织它。\n请使用地道的美式英语,纽约腔调。\n请尽量使用日常词汇,尽量优先使用短语动词或者习惯用语。\n每个句子最长不应该超过 20 个单词。\n\nReply in English only.",
       "level": "B1",
       "style": "concise",
       "voice": null,
@@ -152,6 +152,7 @@
         "dictate"
       ]
     },
+    "zh_note": "auto",
     "process_default": "collapsed"
   },
   "turn_sse": [
@@ -220,6 +221,17 @@
     {
       "event": "step",
       "data": {
+        "id": "s6",
+        "group": "context",
+        "key": "memory",
+        "status": "run",
+        "label_key": "agents.step.memory",
+        "private": true
+      }
+    },
+    {
+      "event": "step",
+      "data": {
         "id": "s2",
         "group": "tool",
         "key": "learned_words",
@@ -269,6 +281,18 @@
       "event": "step",
       "data": {
         "id": "s6",
+        "group": "context",
+        "key": "memory",
+        "status": "done",
+        "label_key": "agents.step.memory",
+        "private": true,
+        "ms": 0
+      }
+    },
+    {
+      "event": "step",
+      "data": {
+        "id": "s7",
         "group": "context",
         "key": "history",
         "status": "done",
@@ -348,6 +372,14 @@
               "label": "agents.step.word_lookup"
             },
             {
+              "key": "memory",
+              "group": "context",
+              "status": "done",
+              "ms": 0,
+              "private": true,
+              "label": "agents.step.memory"
+            },
+            {
               "key": "history",
               "group": "context",
               "status": "done",
@@ -368,12 +400,14 @@
             "ctx": 0,
             "ttft": 0,
             "total": 0
-          }
+          },
+          "note_zh": "你好。"
         },
         "usage": {
           "in": 12,
           "out": 5
-        }
+        },
+        "note_zh": "你好。"
       }
     }
   ],
@@ -396,7 +430,7 @@
       "turn_id": "00000000-0000-4000-8000-000000000000"
     },
     "step": {
-      "id": "s6",
+      "id": "s7",
       "group": "context",
       "key": "history",
       "status": "done",
@@ -468,6 +502,14 @@
             "label": "agents.step.word_lookup"
           },
           {
+            "key": "memory",
+            "group": "context",
+            "status": "done",
+            "ms": 0,
+            "private": true,
+            "label": "agents.step.memory"
+          },
+          {
             "key": "history",
             "group": "context",
             "status": "done",
@@ -488,12 +530,14 @@
           "ctx": 0,
           "ttft": 0,
           "total": 0
-        }
+        },
+        "note_zh": "你好。"
       },
       "usage": {
         "in": 12,
         "out": 5
-      }
+      },
+      "note_zh": "你好。"
     },
     "error": {
       "code": "limit"
@@ -553,6 +597,14 @@
           "label": "agents.step.word_lookup"
         },
         {
+          "key": "memory",
+          "group": "context",
+          "status": "done",
+          "ms": 0,
+          "private": true,
+          "label": "agents.step.memory"
+        },
+        {
           "key": "history",
           "group": "context",
           "status": "done",
@@ -573,7 +625,8 @@
         "ctx": 0,
         "ttft": 0,
         "total": 0
-      }
+      },
+      "note_zh": "你好。"
     }
   },
   "persona_try": {

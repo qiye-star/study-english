@@ -24,7 +24,7 @@ def listed(events: list[tuple[str, dict]]) -> list[dict]:
 
 async def test_agents_contract(app, client, auth_headers):
     config_off = (await client.get("/api/agents/config", headers=auth_headers)).json()
-    await use_fake_llm(app, FakeLLM(["Hello", " there."], reasoning=["Thinking about tense."]))
+    await use_fake_llm(app, FakeLLM(["Hello", " there.", "\n<<ZH>> 你好。"], reasoning=["Thinking about tense."]))
     enable_agents(app)
     config = (await client.get("/api/agents/config", headers=auth_headers)).json()
     persona = (await client.post("/api/agents/personas", headers=auth_headers, json={
@@ -45,10 +45,14 @@ async def test_agents_contract(app, client, auth_headers):
         "username": "bob", "password": "password123"})).json()["access_token"]}
     report = (await client.post(f"/api/agents/personas/{persona['id']}/report", headers=bob,
                                 json={"reason": "spam"})).json()
+    await use_fake_llm(app, FakeLLM(["Hello", " there."]))  # persona try is not a turn: no <<ZH>> filtering (R-AS17)
     tried = (await client.post("/api/agents/personas/try", headers=auth_headers, json={
         "persona": {"name": "Tom", "prompt": "You are Tom the cat."}, "text": "Hi"})).json()
     enable_agents(app, agents_turns_global_daily=0)
     error_events = parse_sse((await client.post("/api/agents/turn", headers=auth_headers, json=turn_body(conv))).text)
+    assert by_type["done"]["note_zh"] == "你好。" and by_type["done"]["trace"]["note_zh"] == "你好。"
+    assert settings["zh_note"] == "auto" and message["messages"][0]["agent_trace"]["note_zh"] == "你好。"
+    assert "".join(d["text"] for e, d in events if e == "delta") == "Hello there."
     check_contract("agents_contract", {
         "config_off": config_off,
         "config": config,
