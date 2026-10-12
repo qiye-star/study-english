@@ -13,7 +13,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const contract = JSON.parse(readFileSync(path.resolve(here, "../../../../server/tests/fixtures/links_word_actions_contract.json"), "utf8"));
 const ADOPT: Record<keyof AdoptResult, true> = { status: true, bookId: true };
 const LINK_CARD: Record<keyof LinkCard, true> = { bookId: true, card: true, item: true };
-const CARD: Record<keyof Card, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
+// defsEn is optional (absent = no English definitions): excluded from the exact key set (definitions plan R-DW11)
+const CARD: Record<Exclude<keyof Card, "defsEn">, true> = { key: true, word: true, us: true, uk: true, senses: true, phrases: true, examples: true };
 const ITEM: Record<keyof ItemState, true> = { box: true, dueAt: true };
 const keys = (o: object) => Object.keys(o).sort();
 
@@ -23,7 +24,7 @@ it("matches the server's /api/links/wordbook/adopt and /card shapes (P-L6)", () 
   expect(["added", "known", "not_in_book"]).toContain(adopt.status);
   const card = camelcaseKeys(contract.card, { deep: true }) as LinkCard;
   expect(keys(card)).toEqual(keys(LINK_CARD));
-  expect(keys(card.card)).toEqual(keys(CARD));
+  expect(keys(card.card).filter((k) => k !== "defsEn")).toEqual(keys(CARD));
   expect(keys(card.item!)).toEqual(keys(ITEM));
   expect(contract.missing).toEqual({ error: "Word not found" });
 });
