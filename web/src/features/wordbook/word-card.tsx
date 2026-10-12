@@ -4,8 +4,11 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { Slot } from "~/lib/extension-points-react";
+import { groupDefs } from "./def-lang";
+import { DefinitionsEn } from "./defs-en";
 import { RecallCover } from "./recall-cover";
-import type { Card, Sense } from "./wordbook-api";
+import type { Card, DefLang, Sense } from "./wordbook-api";
+import "./locales";
 
 const MAX_SENSES = 4;
 const MAX_PHRASES = 5;
@@ -66,12 +69,15 @@ export function ListenButton({ id, text, accent, label, onListen, listening, can
  * 首条例句(目标词琥珀高亮,译文可收起,可朗读)、短语(折叠,最多 5 条)。
  * 背单词 v2(spec 2026-10-11-wordbook-recall §3.1):`covered` 时释义 / 例句 / 短语换成遮罩按钮(不在 DOM 里);
  * `showExample` 关时不显示例句块;`badge` 显示在眉题右侧;`regionRef` 指向释义区(翻开后移焦点用)。都不传时与 v1 相同。
+ * `defLang`:释义显示(`zh` 不显示英文释义,`en` 在有英文释义时不显示中文释义行;默认 `both`)。
  */
 export function WordCardView({
   card, eyebrow, onListen, listening, canListen = true, className, covered = false, onReveal, showExample = true, badge, regionRef,
+  defLang = "both",
 }: ListenProps & {
   card: Card; eyebrow?: ReactNode; className?: string;
   covered?: boolean; onReveal?: () => void; showExample?: boolean; badge?: ReactNode; regionRef?: Ref<HTMLDivElement>;
+  defLang?: DefLang;
 }) {
   const { t } = useTranslation();
   const regionId = useId();
@@ -79,6 +85,10 @@ export function WordCardView({
   const example = card.examples[0];
   const phonetics = ([["us", card.us], ["uk", card.uk]] as const).filter(([, v]) => v);
   const listenProps = { onListen, listening, canListen };
+  const defGroups = groupDefs(card.defsEn);
+  const showDefs = defLang !== "zh" && defGroups.length > 0;
+  // 「仅英文」:有英文释义时中文行让位;缺口词(没有英文释义)仍显示中文,否则答案是空的(R-DW6)
+  const showSenses = card.senses.length > 0 && !(defLang === "en" && showDefs);
   return (
     <SurfaceCard data-testid="word-card" className={cn("px-4 pb-4 pt-5", className)}>
       {eyebrow || badge ? (
@@ -111,7 +121,7 @@ export function WordCardView({
         </>
       ) : (
         <div id={regionId} ref={regionRef} tabIndex={-1} className="outline-none">
-          {card.senses.length ? (
+          {showSenses ? (
             <ul className="mt-3.5 flex flex-col gap-1.5">
               {card.senses.slice(0, MAX_SENSES).map((s, i) => (
                 <li key={i} className="text-body leading-dialogue">
@@ -121,6 +131,7 @@ export function WordCardView({
               ))}
             </ul>
           ) : null}
+          {showDefs ? <DefinitionsEn groups={defGroups} className={showSenses ? "mt-1.5" : "mt-3.5"} /> : null}
           {showExample && example ? (
             <div className="mt-3.5 rounded-badge bg-surface-2 p-3">
               <p lang="en" className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
