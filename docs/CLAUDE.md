@@ -6,6 +6,7 @@ Design and planning records for our own work (web PWA, self-hosted server). Upst
 - `superpowers/specs/YYYY-MM-DD-<topic>-design.md` — approved designs (the "what and why"). Change only with the user's agreement.
 - `superpowers/plans/YYYY-MM-DD-<topic>.md` — implementation plans: numbered tasks with `- [ ]` checkboxes, rulings (R1, R2 …) and review notes. Plans may grow dated `## Addendum (YYYY-MM-DD)` sections; rulings there override earlier text.
 - `superpowers/plans/*-results.md`, `*-spike-*.md`, `*-latency.md`, `e2e-results.md` — measured results and verification checklists.
+- `images/readme/NN-<name>.png` — screenshots used by the root `README.md` (real app, local demo environment with fake data and a fake upstream; ≤ 250 KB each; no secrets or real users). Replace them when the UI changes noticeably.
 - `superpowers/design/<name>/` — visual design notes (e.g. `redesign-v3/design-notes.md`, the source for `web/src/styles/theme.css`).
 
 ## Conventions
