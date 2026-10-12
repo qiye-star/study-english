@@ -8,6 +8,8 @@ export const ROOM_SERVER_EVENT_TYPES = ["welcome", "message", "ack", "presence",
   "agent_step", "agent_thought", "agent_tutor"] as const;
 /** 联机智能体(plan 2026-10-12-agents-rooms):房主最多选 max 个角色;带练每人 tutorTurnSeconds 秒作答。 */
 export const ROOM_AGENTS = { max: 2, tutorTurnSeconds: 60 } as const;
+/** 语音转写为空 / 失败时服务端给说话人的提示(plan addressing-web Cross-plan S-3);名字只在这里出现一次。 */
+export const ROOM_NOTICE_VOICE_UNCLEAR = "voice_unclear" as const;
 /** 协议 v2(spec 2026-10-10 §9,R2-16):只做加法;hello 带 v,welcome.protocol 给出服务端版本。 */
 export const ROOM_PROTOCOL_VERSION = 2;
 /** 表情回应 key:小写、无下划线(camelcase-keys 会改写对象键,所以线上用 [{key, user_ids}] 列表,R2-15)。与服务端同序。 */
@@ -63,6 +65,8 @@ export interface RoomTutorInfo {
   personaId: string; personaName: string; phase: "generating" | "await_answer" | "paused"; stepIndex: number; stepsTotal: number;
   currentUserId: number | null; currentName: string | null; deadlineAt: string | null; remainingMs: number | null; startedBy: number;
   pausedReason: "restart" | "quota" | "upstream" | "ai_off" | "agent_off" | "state" | "empty" | null;
+  /** 带练提示的中文说明(spec 2026-10-12-agents-addressing §5.2,可选键;缺省 = 没有)。只在带练条的「中文」折叠里显示,不朗读 */
+  hintZh?: string | null;
 }
 export type RoomEvent =
   | { type: "welcome"; room: RoomInfo; me: { userId: number; role: "owner" | "member" }; members: RoomMemberInfo[]; lastSeq: number; truncated: boolean; assistHistory: RoomMessage[];
@@ -75,7 +79,7 @@ export type RoomEvent =
   | { type: "assist_reply"; requestId: string; message: RoomMessage }
   | { type: "assist_failed"; requestId: string; code: "upstream" | "quota" | "format" }
   | { type: "room_update"; room: RoomInfo }
-  | { type: "notice"; code: "ai_off" | "ai_busy" | "ai_quota" | "voice_off" | "voice_quota" | "translate_quota" | "retry_limit" | "agent_off" }
+  | { type: "notice"; code: "ai_off" | "ai_busy" | "ai_quota" | "voice_off" | "voice_quota" | "translate_quota" | "retry_limit" | "agent_off" | "voice_unclear" }
   | { type: "error"; code: "rate_limited" | "empty" | "bad_assist" | "bad_reply" | "bad_seq" }
   | { type: "closed"; reason: string }
   | { type: "pong" }
@@ -109,10 +113,13 @@ export const encodePing = () => JSON.stringify({ type: "ping" });
 
 const validSeq = (seq: number | null | undefined): seq is number => typeof seq === "number" && Number.isInteger(seq) && seq >= 1 && seq <= 2_147_483_647;
 
-export function encodeSay(p: { clientId: string; text: string; assistId?: string | null; replyTo?: number | null }): string | null {
+/** to:「对象」生效时的智能体角色 id(spec addressing §3.4);关闭时不写这个键,帧与旧版逐字节相同(R-AW2)。 */
+export function encodeSay(p: { clientId: string; text: string; assistId?: string | null; replyTo?: number | null; to?: string | null }): string | null {
   const text = clip(p.text, ROOM_LIMITS.sayRaw);
-  return text ? JSON.stringify({ type: "say", client_id: p.clientId.slice(0, ROOM_LIMITS.id), text, assist_id: p.assistId ?? null,
-    reply_to: validSeq(p.replyTo) ? p.replyTo : null }) : null;
+  if (!text) return null;
+  const to = typeof p.to === "string" ? p.to.trim().slice(0, ROOM_LIMITS.id) : "";
+  return JSON.stringify({ type: "say", client_id: p.clientId.slice(0, ROOM_LIMITS.id), text, assist_id: p.assistId ?? null,
+    reply_to: validSeq(p.replyTo) ? p.replyTo : null, ...(to ? { to } : {}) });
 }
 
 export const encodeTyping = (state: ActivityState) => JSON.stringify({ type: "typing", state });

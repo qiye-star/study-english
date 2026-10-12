@@ -112,11 +112,11 @@ export function useRoom(roomId: string) {
     return () => { window.clearInterval(timer); ctrl.abort(); };
   }, [watching, api, roomId]);
 
-  const say = useCallback((text: string, assistId: string | null = null, replyTo: number | null = null) => {
+  const say = useCallback((text: string, assistId: string | null = null, replyTo: number | null = null, to: string | null = null) => {
     const clientId = newId();
-    const frame = encodeSay({ clientId, text, assistId, replyTo });
+    const frame = encodeSay({ clientId, text, assistId, replyTo, to });
     if (!frame || !socketRef.current?.send(frame)) return false;
-    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId, seq: null, replyTo } });
+    dispatch({ type: "say", pending: { clientId, text: text.trim(), assistId, seq: null, replyTo, to } });
     return true;
   }, []);
 

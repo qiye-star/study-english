@@ -1,8 +1,8 @@
 import type { ActivityState, AgentStepWire, AgentThoughtWire, JoinRequestInfo, ReactionInfo, RoomEvent, RoomInfo, RoomMemberInfo, RoomMessage, RoomTutorInfo } from "./protocol";
 
 /** 已发出、还没在列表里看到的消息。seq 来自 ack:消息本身(广播/补发)到达前气泡一直保留,断线重连时据 seq 为空判断要重发。
- *  replyTo:引用回复的 seq(v2;缺省 = null),重发时一并带上。 */
-export interface PendingSay { clientId: string; text: string; assistId: string | null; seq: number | null; replyTo?: number | null }
+ *  replyTo:引用回复的 seq(v2;缺省 = null);to:「对象」的角色 id(addressing;缺省 = 没有)。重发时一并带上。 */
+export interface PendingSay { clientId: string; text: string; assistId: string | null; seq: number | null; replyTo?: number | null; to?: string | null }
 /** 「正在输入 / 正在说话」超过这么久没刷新就消失(spec §6.5)。 */
 export const ACTIVITY_TTL_MS = 6000;
 /** welcome.reactions 覆盖的最近 seq 数(服务端 RoomStore.recent_reactions 默认 200)。 */

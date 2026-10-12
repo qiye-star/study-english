@@ -6,7 +6,18 @@ export interface AgentTutorMeta {
   stepIndex: number; stepsTotal: number; toUserId: number | null; toName: string | null; final: boolean;
   verdictFor: number | null; verdict: "good" | "ok" | "weak" | "skip" | null;
 }
-export interface AgentAnswerMeta { agent: AgentRef; asker: { id: number; name: string } | null; handoffFrom: AgentRef | null; tutor: AgentTutorMeta | null }
+/** 中文说明的上限(与服务端 note_zh ≤ 80 字一致,spec addressing §5.1)。 */
+export const NOTE_ZH_MAX = 80;
+const note = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s ? Array.from(s).slice(0, NOTE_ZH_MAX).join("") : null;
+};
+export interface AgentAnswerMeta {
+  agent: AgentRef; asker: { id: number; name: string } | null; handoffFrom: AgentRef | null; tutor: AgentTutorMeta | null;
+  /** 公开消息 meta.note_zh(经 camelcase-keys);不朗读,界面折叠显示 */
+  noteZh: string | null;
+}
 
 const ref = (v: unknown): AgentRef | null => {
   const r = v as Partial<AgentRef> | null | undefined;
@@ -25,5 +36,6 @@ export function agentOf(m: RoomMessage): AgentAnswerMeta | null {
     asker: asker && typeof asker.id === "number" && typeof asker.name === "string" ? { id: asker.id, name: asker.name } : null,
     handoffFrom: ref(m.meta.handoffFrom),
     tutor: tutor && typeof tutor.stepIndex === "number" ? tutor : null,
+    noteZh: note(m.meta.noteZh),
   };
 }

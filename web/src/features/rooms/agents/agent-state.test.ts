@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStepWire } from "../protocol";
 import { initialRoomState, roomReducer, type RoomState } from "../room-state";
+import { agentOf, NOTE_ZH_MAX } from "./agent-meta";
 import { answer, msg, TUTOR } from "./fixtures";
 
 const step = (id: string, status: AgentStepWire["status"] = "done"): AgentStepWire =>
@@ -37,4 +38,12 @@ describe("agents in the room reducer", () => {
     s = fold(s, { type: "prepend", messages: [msg({ seq: 2, lane: "private", kind: "agent_trace", replyTo: 1, text: "", meta: { trace: { n: 1 } } })] });
     expect(s.agentTraces[1]).toEqual({ n: 1 });
   });
+});
+
+it("agentOf reads meta.noteZh (clipped to 80) and treats blank or missing as none", () => {
+  const agent = { agent: { personaId: "builtin:coach", name: "Emma" } };
+  expect(agentOf(answer(5, 4, { ...agent, noteZh: "  abandon 指彻底放弃  " }))!.noteZh).toBe("abandon 指彻底放弃");
+  expect(agentOf(answer(5, 4, { ...agent, noteZh: "   " }))!.noteZh).toBeNull();
+  expect(agentOf(answer(5, 4, agent))!.noteZh).toBeNull();
+  expect(Array.from(agentOf(answer(5, 4, { ...agent, noteZh: "长".repeat(200) }))!.noteZh!)).toHaveLength(NOTE_ZH_MAX);
 });

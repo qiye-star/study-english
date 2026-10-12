@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RoomInfo, RoomMessage, VoiceInfo } from "./protocol";
+import { encodeSay, type RoomInfo, type RoomMessage, type VoiceInfo } from "./protocol";
 import { initialRoomState, normalizeMessage, roomReducer, type RoomAction, type RoomState } from "./room-state";
 
 const msg = (seq: number, over: Partial<RoomMessage> = {}): RoomMessage => ({
@@ -233,4 +233,11 @@ describe("reopened rooms (R-O3)", () => {
     expect(reset.lastSeq).toBe(0);
     expect(reset.reopenSignal).toBe(signalled.reopenSignal);
   });
+});
+
+it("keeps say.to on the pending entry so the resend after a reconnect still addresses the agent", () => {
+  const s = roomReducer(initialRoomState(), { type: "say", pending: { clientId: "c1", text: "hi", assistId: null, seq: null, replyTo: null, to: "builtin:coach" } });
+  expect(JSON.parse(encodeSay(s.pending[0])!).to).toBe("builtin:coach");
+  const plain = roomReducer(initialRoomState(), { type: "say", pending: { clientId: "c2", text: "hi", assistId: null, seq: null } });
+  expect(JSON.parse(encodeSay(plain.pending[0])!)).not.toHaveProperty("to");
 });

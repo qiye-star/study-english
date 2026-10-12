@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
-import { parseRoomEvent, type AgentStepWire, type RoomEvent, type RoomMessage, type RoomTutorInfo } from "../protocol";
+import { parseRoomEvent, ROOM_NOTICE_VOICE_UNCLEAR, type AgentStepWire, type RoomEvent, type RoomMessage, type RoomTutorInfo } from "../protocol";
 import { initialRoomState, roomReducer } from "../room-state";
 import { agentOf } from "./agent-meta";
 import { secondsLeft } from "./countdown";
@@ -21,9 +21,16 @@ const wireKeys = (v: unknown) => Object.keys(camelcaseKeys(v as Record<string, u
 const AGENT: Record<keyof RoomAgent, true> = { id: true, name: true, intro: true, level: true, style: true, builtin: true, promptPublic: true, prompt: true, disabled: true };
 const STEP: Record<keyof AgentStepWire, true> = { id: true, group: true, key: true, status: true, labelKey: true, params: true, ms: true, private: true };
 const TUTOR: Record<keyof RoomTutorInfo, true> = { personaId: true, personaName: true, phase: true, stepIndex: true, stepsTotal: true,
-  currentUserId: true, currentName: true, deadlineAt: true, remainingMs: true, startedBy: true, pausedReason: true };
+  currentUserId: true, currentName: true, deadlineAt: true, remainingMs: true, startedBy: true, pausedReason: true, hintZh: true };
+/** spec addressing §5.3:可选键缺省 = 没有 */
+const TUTOR_OPTIONAL = ["hintZh"];
+const required = (list: string[]) => list.filter((k) => !TUTOR_OPTIONAL.includes(k)).sort();
 const ev = (raw: unknown) => parseRoomEvent(JSON.stringify(raw))!;
 const serverSrc = (rel: string) => readFileSync(path.resolve(here, "../../../../../server/app", rel), "utf8");
+/** Source of the files that may emit the unclear-voice notice (missing files count as empty). */
+const UNCLEAR_SRC = ["rooms/voice.py", "rooms/agent_tutor.py", "rooms/agent_lane.py", "rooms/connection.py", "routers/rooms_voice.py"]
+  .map((f) => { try { return serverSrc(f); } catch { return ""; } }).join("\n");
+const UNCLEAR_SENT = new RegExp(`code="${ROOM_NOTICE_VOICE_UNCLEAR}"`).test(UNCLEAR_SRC);
 
 describe("room agents payloads (recorded from the real server)", () => {
   it("HTTP", () => {
@@ -33,7 +40,7 @@ describe("room agents payloads (recorded from the real server)", () => {
   });
 
   it("HTTP tutor start", () => {
-    expect(wireKeys(C.http.tutor_start.tutor)).toEqual(keys(TUTOR));
+    expect(required(wireKeys(C.http.tutor_start.tutor))).toEqual(required(keys(TUTOR)));
   });
 
   it("WebSocket frames", () => {
@@ -50,7 +57,18 @@ describe("room agents payloads (recorded from the real server)", () => {
 
   it("WebSocket tutor frame", () => {
     const tutor = ev(C.ws.agent_tutor) as Extract<RoomEvent, { type: "agent_tutor" }>;
-    expect(Object.keys(tutor.tutor!).sort()).toEqual(keys(TUTOR));
+    expect(required(Object.keys(tutor.tutor!))).toEqual(required(keys(TUTOR)));
+  });
+
+  it("agent replies may carry meta.note_zh (optional); agentOf exposes it", () => {
+    const answer = (ev(C.ws.message_agent_answer) as { message: RoomMessage }).message;
+    const raw = C.ws.message_agent_answer.message.meta?.note_zh;
+    expect(agentOf(answer)!.noteZh).toBe(typeof raw === "string" && raw.trim() ? raw.trim() : null);
+  });
+
+  // Lane V (voice `to_agent` / `voice_unclear`) merges on the server separately; until then the literal is absent from the source.
+  it.skipIf(!UNCLEAR_SENT)("the unclear-voice notice the web shows is sent by the server (Cross-plan S-3)", () => {
+    expect(UNCLEAR_SRC).toMatch(new RegExp(`code="${ROOM_NOTICE_VOICE_UNCLEAR}"`));
   });
 
   it("the reducer folds them; welcome clears the tutor until the server re-sends it", () => {

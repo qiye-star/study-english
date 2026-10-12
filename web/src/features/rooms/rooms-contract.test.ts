@@ -70,7 +70,7 @@ const EVENTS: { [K in RoomEvent["type"]]: Ev<K> } = {
 type Code<T extends RoomEvent["type"]> = Extract<RoomEvent, { type: T }> extends { code: infer C } ? C & string : never;
 const CODES: { [K in "error" | "notice" | "ai_failed" | "assist_failed"]: Record<Code<K>, true> } = {
   error: { rate_limited: true, empty: true, bad_assist: true, bad_reply: true, bad_seq: true },
-  notice: { ai_off: true, ai_busy: true, ai_quota: true, voice_off: true, voice_quota: true, translate_quota: true, retry_limit: true, agent_off: true },
+  notice: { ai_off: true, ai_busy: true, ai_quota: true, voice_off: true, voice_quota: true, translate_quota: true, retry_limit: true, agent_off: true, voice_unclear: true },
   ai_failed: { upstream: true, quota: true, restart: true },
   assist_failed: { upstream: true, quota: true, format: true },
 };

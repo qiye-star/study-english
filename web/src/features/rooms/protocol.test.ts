@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   encodeAssist, encodeHello, encodePing, encodeReact, encodeSay, encodeTyping, encodeVoiceRetry, encodeVoiceTranslate, isTerminalClose,
-  mentionsAi, parseRoomEvent, REACTION_GLYPHS, REACTION_KEYS, ROOM_AGENTS, ROOM_CLOSE, ROOM_LIMITS, ROOM_PROTOCOL_VERSION, ROOM_SERVER_EVENT_TYPES, roomWsUrl,
+  mentionsAi, parseRoomEvent, REACTION_GLYPHS, REACTION_KEYS, ROOM_AGENTS, ROOM_CLOSE, ROOM_LIMITS, ROOM_NOTICE_VOICE_UNCLEAR, ROOM_PROTOCOL_VERSION, ROOM_SERVER_EVENT_TYPES, roomWsUrl,
 } from "./protocol";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,12 +24,33 @@ describe("room protocol mirrors server/app/rooms/protocol.py", () => {
     expect([...tuple.matchAll(/"([a-z_]+)"/g)].map((m) => m[1])).toEqual([...ROOM_SERVER_EVENT_TYPES]);
   });
 
+  it("say.to exists on the server model and the protocol version still matches (plan addressing-web R-AW2)", () => {
+    const say = /class SayMsg\(_Msg\):([\s\S]*?)\nclass /.exec(server)![1];
+    expect(say).toMatch(/\n\s+to: str \| None/);
+    expect(pyInt("PROTOCOL_VERSION")).toBe(ROOM_PROTOCOL_VERSION);
+  });
+
   it.each(mentions)("mentionsAi($text)", ({ text, ai, question }) => {
     expect(mentionsAi(text)).toEqual({ ai, question });
   });
 });
 
 describe("encoders and parser", () => {
+  it("adds say.to only while an agent is addressed, clipped to an id", () => {
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi" })!)).not.toHaveProperty("to");
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi", to: null })!)).not.toHaveProperty("to");
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi", to: "  " })!)).not.toHaveProperty("to");
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi", replyTo: 5, to: "builtin:coach" })!))
+      .toEqual({ type: "say", client_id: "c", text: "hi", assist_id: null, reply_to: 5, to: "builtin:coach" });
+    expect(JSON.parse(encodeSay({ clientId: "c", text: "hi", to: "x".repeat(100) })!).to).toHaveLength(ROOM_LIMITS.id);
+  });
+
+  it("parses the unclear-voice notice and the optional tutor hint_zh", () => {
+    expect(parseRoomEvent('{"type":"notice","code":"voice_unclear"}')).toEqual({ type: "notice", code: ROOM_NOTICE_VOICE_UNCLEAR });
+    const e = parseRoomEvent(JSON.stringify({ type: "agent_tutor", tutor: { persona_id: "p", hint_zh: "想想过去式" } }));
+    expect((e as { tutor: { hintZh?: string } }).tutor.hintZh).toBe("想想过去式");
+  });
+
   it("encodes frames within limits", () => {
     expect(JSON.parse(encodeHello(7))).toEqual({ type: "hello", last_seq: 7, v: 2 });
     expect(JSON.parse(encodePing())).toEqual({ type: "ping" });
