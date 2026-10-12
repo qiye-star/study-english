@@ -24,6 +24,7 @@ export const ROOMS_SERVER_ERRORS: Record<string, string> = {
   "Closed by an administrator": "web.rooms.errors.adminClosed",
   // admin-only / unreachable-from-the-UI errors fall back to the generic text
   "Room has no owner": "web.rooms.errors.generic",
+  "Room owner is gone": "web.rooms.errors.generic",
   "Invalid cursor": "web.rooms.errors.generic",
 };
 
