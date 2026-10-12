@@ -18,6 +18,11 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §5, §7.3, �
 - 各目录自带 `i18n/{zh-CN,en}.json`(`web/src/i18n/index.ts` 的 glob 自动深合并;可以往 `web.rooms.notice` / `web.rooms.errors` 里补键)
 - `ui.ts`(视觉稿 .btn / 输入框的类名)、`room-fixtures.ts`(测试用的线上 JSON 样例,不放进 *.test.ts 以免被重复执行)
 
+## 智能体免 @ 对话的纯模块(plan 2026-10-12-agents-addressing-web)
+- `agents/target.ts`:「对象」状态(按用户 + 房间存本机)、带练自动开关 `nextTarget`(只由状态推出,无计时器)、置灰原因 `targetBlock`、实际收件人 `recipientOf`、`myTutorTurn`;`agents/mention-suggest.ts`:开头 `@` 补全的纯逻辑(只在消息开头,全角「＠」同样触发)。
+- 新文案在 `agents/locales/{en,zh-CN}.json`(不进主包 glob),由 `agents/locales.ts` 合并;用到这些键的模块 `import "./locales"`。`web.rooms.*` 下的键不得与 `**/i18n/*.json` 重复(`locales.test.ts`)。
+- 朗读只取 `extras/text-tools.ts::spokenText(m)`(正文再经 `~/lib/speech-text`),`note_zh` / `hint_zh` 永不进朗读。
+
 ## Slots(插槽)与 room-page 冻结
 `room-page.tsx` 在 F5 之后冻结:只接线,不放功能逻辑。各子目录通过固定签名的插槽接入——
 `AssistDock` / `AssistEntry`(composer 的 `leading`)、`VoiceInput`(composer 的语音输入)、`QuoteBar` + `ActivityLine`(输入条上方)、
