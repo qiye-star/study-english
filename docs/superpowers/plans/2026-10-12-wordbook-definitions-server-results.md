@@ -32,3 +32,32 @@ Named words: `in` prep "inside or within a place, time, or state" (hand only, no
 - **Z-2** (superseded by R-DS17) The `in`/`a` noun lines were first left as built; the rebuild fixes them with a script rule: a word with a hand entry gets no OEWN lines at all.
 - **R-DS17** Hand entry wins entirely (see the plan). **R-DS18** Usage-labelled OEWN senses are dropped while the POS keeps another sense; markers are the two gloss forms listed above, `;u` pointers rejected (see the plan).
 - **Z-3** The loader test in `tests/test_wordbook_definitions_data.py` uses `pytest.importorskip("app.wordbook.definitions")` so it is skipped until lane R/P has merged (then it runs unchanged).
+
+## LLM merge (definitions-llm.jsonl, 620 words / 683 defs merged)
+Measured after `build --sources D:	mp-ecdict` with the merge-time text normalisation (R-DS19); `verify` printed `ok`; `check` printed `ok`; two builds were byte-identical (`definitions.jsonl`, `missing.txt`, `SOURCE.json`).
+
+| Item | Before (script_version 2, no llm) | After merge |
+|---|---|---|
+| keys wanted | 14,615 | 14,615 |
+| words with a definition | 14,021 | 14,480 |
+| words with oewn / hand / llm defs | 13,916 / 105 / 0 | 13,916 / 105 / 620 (459 llm-only) |
+| defs (oewn / hand / llm) | 28,943 total (28,825 / 118 / 0) | 29,626 total (28,825 / 118 / 683) |
+| pairs oewn / hand / llm | 17,719 / 118 / 0 | 17,719 / 118 / 683 |
+| partial_open_pos | 1,366 | 1,395 |
+| usage_filtered_pairs | 42 | 42 |
+| gap rows | 755 | 135 |
+| gap categories | function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341 | function 0, proper 105, abbr 14, compound 13, pos_mismatch 1, other 2 |
+| definitions.jsonl size | 2,637,503 bytes | 2,697,348 bytes |
+| missing.txt size | 17,404 bytes | 2,707 bytes |
+
+Normalisation effect: of 683 llm texts none ends with a period; 9 start with a capital (proper-noun rule: `everest`, `forbes`, `gibraltar`, `gobi`, `hamlin`, `hohokam`, `hopewell`, `hyksos`, `prairies`).
+
+### Spot check (llm merge; 30 random llm words, seed 5, plus named words)
+30 random words read acceptably (`nucleic` "relating to acids in cells that carry genetic information", `timescale`, `imagist`, `belter`, `uncrumple`, `wearability`, `pointe`, `resume`, `eka`, `connecticut`, `ouch`, ...). Weak lines found, accepted (R-DS20, no deterministic rule separates them from good lines):
+- `anybody` prep "used before a noun meaning any person" (the book types it `prep`); `another` prep "used before a different person or thing"; `all` prep "the whole of a period or amount"; `with` pron "used to ask which person goes together"; `dare` aux "used to ask if someone is brave enough"; `given` prep "when you consider something" (weak); `eka` and a few rare words are thin.
+- Fine: `everyone` (pron "all people", n "all the people in a group"), `past` prep "later than a time", `across`, `aboard`.
+
+### Rulings (LLM merge)
+- **R-DS19** llm text is normalised in `build` (see the plan), the raw file stays as generated.
+- **R-DS20** No POS filter: 683 llm lines, 0 with a POS outside the word's book POS set; wrong lines have book-typed POS (see the plan).
+- **Z-4** `test_hand_written_function_words` now checks "no oewn line for a hand word" instead of "hand only": llm may fill a POS the hand file lacks (e.g. `all` prep).

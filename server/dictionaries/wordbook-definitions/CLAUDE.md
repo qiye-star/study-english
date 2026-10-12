@@ -32,8 +32,7 @@ runtime by `app/wordbook/definitions.py`; a missing or broken file silently mean
 (hand file + licences; checksums/schema/sorting/wiring of the committed data; the builder with fixtures). Rebuild:
 `uv run python scripts/wordbook_definitions.py verify --sources <dir>` then `build --sources <dir>` then `check`.
 
-## Measured (build 2026-10-12, script_version 1)
-14,615 keys, 14,021 words with a definition (13,979 with OEWN), 29,160 defs; pairs oewn 17,837 / hand 118 / llm 0;
-755 gap rows (function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341); `definitions.jsonl` 2,653,260 bytes.
-Known weak picks (accepted by design: POS follows the book): `in` / `a` also get WordNet noun lines because one book types them `n`
-(indium, vitamin A); `grass` n2 is "a police informer".
+## Measured (build 2026-10-12, script_version 2, with the merged LLM file)
+14,615 keys, 14,480 words with a definition (13,916 with OEWN, 620 with llm of which 459 llm-only), 29,626 defs; pairs oewn 17,719 / hand 118 / llm 683;
+135 gap rows (function 0, proper 105, abbr 14, compound 13, pos_mismatch 1, other 2); `definitions.jsonl` 2,697,348 bytes; `missing.txt` 2,707 bytes.
+Known weak picks (accepted by design: POS follows the book): `grass` n2 is "a police informer"; llm lines for book-mistyped POS (`anybody` prep, `another` prep, `all` prep, `dare` aux; R-DS20).

@@ -42,43 +42,49 @@
   "files": [
     {
       "file": "definitions.jsonl",
-      "bytes": 2637503,
-      "sha256": "811d74972d092d70f4a96f15ea46980dd9abf254c697e71233c19207b10545e6",
-      "entries": 14021
+      "bytes": 2697348,
+      "sha256": "3d395f6fee2cc81e61cb4dd6863a8bb6096e96c8347285c58196685662f74166",
+      "entries": 14480
     },
     {
       "file": "missing.txt",
-      "bytes": 17404,
-      "sha256": "146c142c521cdc1d74266ce3279a848fa9a93cb2d31d0e1ae17d86b9f0232294",
-      "entries": 755
+      "bytes": 2707,
+      "sha256": "e070f316311f07b2eb6a3d5316a335eb80c9ce3b0be536489d71c5e4748f0209",
+      "entries": 135
     },
     {
       "file": "function-words.jsonl",
       "bytes": 11871,
       "sha256": "3d5010c928ae84a9af2c384272d28845e603901775a40b726b5ef6d96d1d8bfc",
       "entries": 105
+    },
+    {
+      "file": "definitions-llm.jsonl",
+      "bytes": 64296,
+      "sha256": "76fea59cc210c82eac17aa89e9eb44d496d0f8def54f5389469e6c388deac928",
+      "entries": 620
     }
   ],
   "stats": {
     "words_wanted": 14615,
-    "words_with_defs": 14021,
+    "words_with_defs": 14480,
     "words_with_oewn": 13916,
-    "defs": 28943,
+    "defs": 29626,
     "pairs": {
       "oewn": 17719,
       "hand": 118,
-      "llm": 0
+      "llm": 683
     },
-    "partial_open_pos": 1366,
+    "partial_open_pos": 1395,
     "usage_filtered_pairs": 42,
-    "gaps": 755,
+    "gaps": 135,
     "gap_categories": {
-      "function": 227,
+      "function": 0,
       "proper": 105,
       "abbr": 14,
-      "compound": 23,
-      "pos_mismatch": 45,
-      "other": 341
+      "compound": 13,
+      "pos_mismatch": 1,
+      "other": 2
     }
   }
 }
