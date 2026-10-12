@@ -10,6 +10,9 @@
 - `locales.ts` + `locales/{en,zh-CN}.json`(`web.agents.tutor.*`,经 `registerAgentsLocales` 并入;不在主包的 `**/i18n/*.json` glob 里)
 - `tutor-fixtures.ts`(测试数据,生产代码不导入)
 
+- 提示的中文说明:`POST /hint` 的 `hint_zh`(可选)经 `useTutorSession().hintZh` → `TutorBar` 的 `ZhNoteFold`(`~/components/zh-note-fold`,文案 `web.agents.tutor.bar.zhShow/zhHide`);
+  「听一遍」只读 `say` / `lastReply`,从不读提示(`tutor-bar-panel.test.tsx` 钉住)。
+
 ## Allowed dependencies
 `lib/`、`api/`、`components/`、`auth/`、`@renderer/*`、本目录文件,以及 `../locales`(文案注册入口)。不导入别的 feature、不导入 agents 的其他文件:
 单词只经 `<WordActions>`(`~/lib/extension-points-react`)进生词本,从不导入 `features/vocabulary` / `features/wordbook`(`src/architecture.test.ts`)。
