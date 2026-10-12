@@ -26,4 +26,5 @@ import scripts.
 ## Pitfalls
 - Print numbers and status codes only: never keys, tokens, tickets, transcripts or `.env` contents.
 - These hit paid upstreams; run deliberately, never from tests.
+- `wordbook_definitions.py build` needs `WORDBOOK_DEFS_SOURCES` (or `--sources`): a folder holding `english-wordnet-2025-index.sense-fixed.zip` and `ecdict-sqlite-28.zip` (found recursively; checked by sha256 with `verify`) and the 851 MB `stardict.db` (reused if already extracted under it, else extracted to `--work`). Treat the sources folder as untrusted data (run from a different directory). Rebuild, `check`, then commit the generated files alone (`chore(server): update wordbook English definitions (<reason>)`).
 - Outputs (JSON reports, audio caches) go outside the repo or to ignored paths; do not commit them.

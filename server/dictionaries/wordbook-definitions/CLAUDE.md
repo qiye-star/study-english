@@ -25,5 +25,12 @@ runtime by `app/wordbook/definitions.py`; a missing or broken file silently mean
 - Copied into the image by `server/Dockerfile` (`/app/dictionaries`); whitelisted by `!server/dictionaries` in `Dockerfile.dockerignore`.
 
 ## Test
-`uv run pytest -q tests/test_wordbook_function_words.py` (hand file + licence files);
-`tests/test_wordbook_definitions_data.py tests/test_wordbook_definitions_build.py` once the build lane has landed.
+`uv run pytest -q tests/test_wordbook_function_words.py tests/test_wordbook_definitions_data.py tests/test_wordbook_definitions_build.py`
+(hand file + licences; checksums/schema/sorting/wiring of the committed data; the builder with fixtures). Rebuild:
+`uv run python scripts/wordbook_definitions.py verify --sources <dir>` then `build --sources <dir>` then `check`.
+
+## Measured (build 2026-10-12, script_version 1)
+14,615 keys, 14,021 words with a definition (13,979 with OEWN), 29,160 defs; pairs oewn 17,837 / hand 118 / llm 0;
+755 gap rows (function 227, proper 105, abbr 14, compound 23, pos_mismatch 45, other 341); `definitions.jsonl` 2,653,260 bytes.
+Known weak picks (accepted by design: POS follows the book): `in` / `a` also get WordNet noun lines because one book types them `n`
+(indium, vitamin A); `grass` n2 is "a police informer".
