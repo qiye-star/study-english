@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "script": "scripts/wordbook_definitions.py",
-  "script_version": 1,
+  "script_version": 2,
   "built": "2026-10-12",
   "inputs": [
     {
@@ -35,13 +35,15 @@
     "long_gloss_words": 14,
     "max_paren_words": 4,
     "sense_order": "sense_number",
-    "closed_pos_from_wordnet": false
+    "closed_pos_from_wordnet": false,
+    "hand_entry_wins_entirely": true,
+    "usage_labelled_senses_dropped": true
   },
   "files": [
     {
       "file": "definitions.jsonl",
-      "bytes": 2653260,
-      "sha256": "9243de93479f06ddac1071696591956553f27bbb1d71be123f515cef690dca75",
+      "bytes": 2637503,
+      "sha256": "811d74972d092d70f4a96f15ea46980dd9abf254c697e71233c19207b10545e6",
       "entries": 14021
     },
     {
@@ -60,14 +62,15 @@
   "stats": {
     "words_wanted": 14615,
     "words_with_defs": 14021,
-    "words_with_oewn": 13979,
-    "defs": 29160,
+    "words_with_oewn": 13916,
+    "defs": 28943,
     "pairs": {
-      "oewn": 17837,
+      "oewn": 17719,
       "hand": 118,
       "llm": 0
     },
-    "partial_open_pos": 1320,
+    "partial_open_pos": 1366,
+    "usage_filtered_pairs": 42,
     "gaps": 755,
     "gap_categories": {
       "function": 227,

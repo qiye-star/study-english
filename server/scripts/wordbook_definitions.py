@@ -37,7 +37,7 @@ from app.wordbook.entry import headword_key  # noqa: E402  (same normalisation a
 DATA_DIR = SERVER / "dictionaries" / "wordbook-definitions"
 BOOKS_DIR = SERVER / "dictionaries" / "kylebing-english-vocabulary"
 BOOK_IDS = ("junior", "senior", "cet4", "cet6", "kaoyan", "toefl", "sat")
-SCRIPT_VERSION = 1
+SCRIPT_VERSION = 2
 MAX_PER_POS = 2
 LONG_GLOSS_WORDS = 14       # glosses longer than this go behind the shorter ones (stable)
 MAX_PAREN_WORDS = 4         # parentheses with more words are dropped from a gloss
@@ -162,9 +162,34 @@ def clean_gloss(gloss: str) -> str:
     return " ".join(text.split()).strip(" ;,:-")
 
 
-def pick_texts(glosses: list[str], limit: int = MAX_PER_POS) -> list[str]:
-    """Clean in sense order, drop empties and duplicates, move > LONG_GLOSS_WORDS-word glosses behind the shorter
-    ones (stable), keep `limit`."""
+# Usage labels as OEWN glosses really carry them (checked on data.noun/verb/adj/adv): a leading "(slang)" /
+# "(British informal)" group, or a leading "slang for ..." / "informal term for ..." phrase. Hedged labels
+# ("usually informal", "sometimes offensive"), topic groups ("(military)") and bare regions are NOT markers.
+_USAGE_CORE = frozenset({"slang", "informal", "colloquial", "vulgar", "offensive", "derogatory", "pejorative", "obscene",
+                         "disparaging", "dated", "archaic", "obsolete", "rare", "slur", "briticism"})
+_USAGE_MODIFIERS = frozenset({"british", "australian", "scottish", "irish", "american", "canadian", "ethnic", "usage",
+                              "term", "a", "or", "and"})
+_USAGE_PAREN = re.compile(r"^\(([^()]*)\)")
+_USAGE_PHRASE = re.compile(r"^(?:an?\s+)?((?:[a-z]+\s+){0,3}?)(slang|terms?|words?|expressions?|names?)(?:\s+\([a-z ]+\))?(?:\s+(?:for|referring)\b|$)")
+
+
+def is_usage_labelled(gloss: str) -> bool:
+    """True when the gloss opens with an explicit register / currency label (slang, informal, vulgar, archaic ...)."""
+    text = (gloss or "").strip().lower()
+    paren = _USAGE_PAREN.match(text)
+    if paren:
+        words = re.findall(r"[a-z]+", paren.group(1))
+        return bool(words) and all(w in _USAGE_CORE or w in _USAGE_MODIFIERS for w in words) and any(w in _USAGE_CORE for w in words)
+    phrase = _USAGE_PHRASE.match(text)
+    if not phrase:
+        return False
+    prefix = phrase.group(1).split()
+    if not all(w in _USAGE_CORE or w in _USAGE_MODIFIERS for w in prefix):
+        return False
+    return phrase.group(2) == "slang" or any(w in _USAGE_CORE for w in prefix)
+
+
+def _pick(glosses: list[str], limit: int) -> list[str]:
     seen: set[str] = set()
     short: list[str] = []
     long: list[str] = []
@@ -175,6 +200,21 @@ def pick_texts(glosses: list[str], limit: int = MAX_PER_POS) -> list[str]:
         seen.add(text.casefold())
         (long if len(text.split()) > LONG_GLOSS_WORDS else short).append(text)
     return (short + long)[:limit]
+
+
+def pick_texts_filtered(glosses: list[str], limit: int = MAX_PER_POS) -> tuple[list[str], bool]:
+    """Clean in sense order, drop empties and duplicates, drop usage-labelled senses (only while at least one other
+    sense with text remains), move > LONG_GLOSS_WORDS-word glosses behind the shorter ones (stable), keep `limit`.
+    The flag says whether the label filter changed the result."""
+    plain = [g for g in glosses if not is_usage_labelled(g)]
+    if len(plain) == len(glosses) or not _pick(plain, 1):
+        return _pick(glosses, limit), False
+    texts = _pick(plain, limit)
+    return texts, texts != _pick(glosses, limit)
+
+
+def pick_texts(glosses: list[str], limit: int = MAX_PER_POS) -> list[str]:
+    return pick_texts_filtered(glosses, limit)[0]
 
 
 # ---------------------------------------------------------------- inputs: WordNet, ECDICT
@@ -367,7 +407,7 @@ class BuildResult:
     stats: dict
 
 
-def find_defs(wn: WordNet, word: str, pos: str, lemma_hint: str | None) -> list[str]:
+def find_defs(wn: WordNet, word: str, pos: str, lemma_hint: str | None) -> tuple[list[str], bool]:
     """Exact lemma first, then WordNet's irregular-form list, then ECDICT's lemma (one hop)."""
     candidates = [word, *wn.exceptions.get((pos, word), ())]
     if lemma_hint:
@@ -377,10 +417,10 @@ def find_defs(wn: WordNet, word: str, pos: str, lemma_hint: str | None) -> list[
         if candidate in seen:
             continue
         seen.add(candidate)
-        texts = pick_texts(wn.gloss_list(candidate, pos))
+        texts, filtered = pick_texts_filtered(wn.gloss_list(candidate, pos))
         if texts:
-            return texts
-    return []
+            return texts, filtered
+    return [], False
 
 
 def _has_other_pos(wn: WordNet, word: str, lemma_hint: str | None) -> bool:
@@ -405,11 +445,12 @@ def categorize(info: WordInfo, missing_pos: list[str], other_pos_exists: bool) -
 
 def build_entries(wanted: dict[str, WordInfo], wn: WordNet, ecdict: dict[str, EcdictInfo],
                   hand: dict[str, dict[str, list[str]]], llm: dict[str, dict[str, list[str]]]) -> BuildResult:
-    """Merge per (word, POS): hand > oewn > llm. Closed-class POS never read WordNet (spec §2)."""
+    """Merge per (word, POS): hand > oewn > llm. Closed-class POS never read WordNet (spec §2). A word with a hand
+    entry is hand-only: no WordNet line for any of its POS (ruling R-DS17)."""
     entries: list[tuple[str, list[dict]]] = []
     gaps: list[Gap] = []
     src_pairs: collections.Counter = collections.Counter()
-    words_with_oewn = partial_open = 0
+    words_with_oewn = partial_open = usage_filtered = 0
     for key in sorted(wanted):
         info = wanted[key]
         hint = ecdict.get(key).lemma if key in ecdict else None
@@ -420,8 +461,9 @@ def build_entries(wanted: dict[str, WordInfo], wn: WordNet, ecdict: dict[str, Ec
             found, src = [], ""
             if hand.get(key, {}).get(pos):
                 found, src = hand[key][pos][:MAX_PER_POS], "hand"
-            elif pos in OPEN_POS and (texts := find_defs(wn, key, pos, hint)):
-                found, src = texts, "oewn"
+            elif key not in hand and pos in OPEN_POS and (found_pair := find_defs(wn, key, pos, hint))[0]:
+                found, src = found_pair[0], "oewn"
+                usage_filtered += found_pair[1]
             elif llm.get(key, {}).get(pos):
                 found, src = llm[key][pos][:MAX_PER_POS], "llm"
             if not found:
@@ -446,7 +488,7 @@ def build_entries(wanted: dict[str, WordInfo], wn: WordNet, ecdict: dict[str, Ec
         "words_wanted": len(wanted), "words_with_defs": len(entries), "words_with_oewn": words_with_oewn,
         "defs": sum(len(d) for _, d in entries),
         "pairs": {s: src_pairs.get(s, 0) for s in SRC_VALUES},
-        "partial_open_pos": partial_open, "gaps": len(gaps), "gap_categories": {c: sum(1 for g in gaps if g.category == c) for c in CATEGORIES},
+        "partial_open_pos": partial_open, "usage_filtered_pairs": usage_filtered, "gaps": len(gaps), "gap_categories": {c: sum(1 for g in gaps if g.category == c) for c in CATEGORIES},
     }
     return BuildResult(entries, gaps, stats)
 
@@ -528,7 +570,8 @@ def build_manifest(data_dir: Path, result: BuildResult, built: str, books_manife
         "inputs": [{"id": i, **{k: v for k, v in spec.items()}} for i, spec in INPUTS.items()]
                   + [{"id": "books", "name": "kylebing-english-vocabulary", "manifest_sha256": books_manifest_sha}],
         "rules": {"max_per_pos": MAX_PER_POS, "long_gloss_words": LONG_GLOSS_WORDS, "max_paren_words": MAX_PAREN_WORDS,
-                  "sense_order": "sense_number", "closed_pos_from_wordnet": False},
+                  "sense_order": "sense_number", "closed_pos_from_wordnet": False,
+                  "hand_entry_wins_entirely": True, "usage_labelled_senses_dropped": True},
         "files": files, "stats": result.stats,
     }
 

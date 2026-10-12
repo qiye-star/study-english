@@ -1,4 +1,4 @@
-{"word":"a","defs":[{"pos":"art","text":"used before a singular noun to mean one, not a particular one","src":"hand"},{"pos":"n","text":"any of several fat-soluble vitamins essential for normal vision","src":"oewn"},{"pos":"n","text":"nucleotide derived from adenine with a deoxyribose sugar and a phosphate group","src":"oewn"}]}
+{"word":"a","defs":[{"pos":"art","text":"used before a singular noun to mean one, not a particular one","src":"hand"}]}
 {"word":"abalone","defs":[{"pos":"n","text":"any of various large edible marine gastropods of the genus Haliotis having an ear-shaped shell with pearly interior","src":"oewn"}]}
 {"word":"abandon","defs":[{"pos":"n","text":"the trait of lacking restraint or control","src":"oewn"},{"pos":"n","text":"a feeling of extreme emotional intensity","src":"oewn"},{"pos":"v","text":"forsake, leave behind","src":"oewn"},{"pos":"v","text":"give up with the intent of never claiming again","src":"oewn"}]}
 {"word":"abandonment","defs":[{"pos":"n","text":"the act of giving something up","src":"oewn"},{"pos":"n","text":"withdrawing support or help despite allegiance or responsibility","src":"oewn"}]}
@@ -46,7 +46,7 @@
 {"word":"abortion","defs":[{"pos":"n","text":"termination of pregnancy","src":"oewn"},{"pos":"n","text":"failure of a plan","src":"oewn"}]}
 {"word":"abortive","defs":[{"pos":"a","text":"failing to accomplish an intended result","src":"oewn"}]}
 {"word":"abound","defs":[{"pos":"v","text":"be abundant or plentiful","src":"oewn"},{"pos":"v","text":"be in a state of movement or action","src":"oewn"}]}
-{"word":"about","defs":[{"pos":"prep","text":"on the subject of someone or something","src":"hand"},{"pos":"a","text":"on the move","src":"oewn"},{"pos":"r","text":"(of quantities) imprecise but fairly close to correct","src":"oewn"},{"pos":"r","text":"all around or on all sides","src":"oewn"}]}
+{"word":"about","defs":[{"pos":"prep","text":"on the subject of someone or something","src":"hand"}]}
 {"word":"above","defs":[{"pos":"r","text":"(in writing) at an earlier place","src":"oewn"},{"pos":"r","text":"in or to a place that is higher","src":"oewn"},{"pos":"a","text":"appearing earlier in the same text","src":"oewn"},{"pos":"n","text":"an earlier section of a written text","src":"oewn"}]}
 {"word":"aboveground","defs":[{"pos":"a","text":"on or above the surface of the ground","src":"oewn"}]}
 {"word":"abrade","defs":[{"pos":"v","text":"wear away","src":"oewn"},{"pos":"v","text":"rub hard or scrub","src":"oewn"}]}
@@ -339,7 +339,7 @@
 {"word":"afraid","defs":[{"pos":"a","text":"filled with fear or apprehension","src":"oewn"},{"pos":"a","text":"filled with regret or concern","src":"oewn"}]}
 {"word":"afresh","defs":[{"pos":"r","text":"again but in a new or different way","src":"oewn"}]}
 {"word":"african","defs":[{"pos":"a","text":"of or relating to the nations of Africa or their peoples","src":"oewn"},{"pos":"n","text":"a native or inhabitant of Africa","src":"oewn"}]}
-{"word":"after","defs":[{"pos":"r","text":"happening at a time subsequent to a reference time","src":"oewn"},{"pos":"r","text":"behind or in the rear","src":"oewn"},{"pos":"prep","text":"later than a time or event","src":"hand"},{"pos":"conj","text":"at a time later than when something happens","src":"hand"},{"pos":"a","text":"located farther aft","src":"oewn"}]}
+{"word":"after","defs":[{"pos":"prep","text":"later than a time or event","src":"hand"},{"pos":"conj","text":"at a time later than when something happens","src":"hand"}]}
 {"word":"afterlife","defs":[{"pos":"n","text":"life after death","src":"oewn"}]}
 {"word":"aftermath","defs":[{"pos":"n","text":"the consequences of an event (especially a catastrophic event)","src":"oewn"},{"pos":"n","text":"the outcome of an event especially as relative to an individual","src":"oewn"}]}
 {"word":"afternoon","defs":[{"pos":"n","text":"the part of the day between noon and evening","src":"oewn"},{"pos":"n","text":"a conventional expression of greeting or farewell, used to wish someone a good afternoon","src":"oewn"}]}
@@ -433,7 +433,7 @@
 {"word":"alkali","defs":[{"pos":"n","text":"a mixture of soluble salts found in arid soils and some bodies of water","src":"oewn"},{"pos":"n","text":"any of various water-soluble compounds capable of turning litmus blue and reacting with an acid to form a salt and water","src":"oewn"}]}
 {"word":"alkaline","defs":[{"pos":"a","text":"relating to or containing an alkali","src":"oewn"}]}
 {"word":"alkaloid","defs":[{"pos":"n","text":"natural bases containing nitrogen found in plants","src":"oewn"}]}
-{"word":"all","defs":[{"pos":"a","text":"completely given to or absorbed by","src":"oewn"},{"pos":"a","text":"(quantifier) used with either mass or count nouns to indicate the whole number or amount of or every one of a class","src":"oewn"},{"pos":"r","text":"to a complete degree or to the full or entire extent","src":"oewn"},{"pos":"pron","text":"the whole number or amount of people or things","src":"hand"}]}
+{"word":"all","defs":[{"pos":"pron","text":"the whole number or amount of people or things","src":"hand"}]}
 {"word":"allay","defs":[{"pos":"v","text":"lessen the intensity of or calm","src":"oewn"},{"pos":"v","text":"satisfy (thirst)","src":"oewn"}]}
 {"word":"allege","defs":[{"pos":"v","text":"report or maintain","src":"oewn"}]}
 {"word":"alleged","defs":[{"pos":"a","text":"declared but not proved","src":"oewn"},{"pos":"a","text":"doubtful or suspect","src":"oewn"},{"pos":"v","text":"report or maintain","src":"oewn"}]}
@@ -475,7 +475,7 @@
 {"word":"alpine","defs":[{"pos":"a","text":"relating to the Alps and their inhabitants","src":"oewn"},{"pos":"a","text":"relating to or characteristic of alps","src":"oewn"}]}
 {"word":"already","defs":[{"pos":"r","text":"prior to a specified or implied time","src":"oewn"}]}
 {"word":"alright","defs":[{"pos":"r","text":"without doubt","src":"oewn"},{"pos":"r","text":"an expression of agreement normally occurring at the beginning of a sentence","src":"oewn"}]}
-{"word":"also","defs":[{"pos":"r","text":"in addition","src":"oewn"},{"pos":"conj","text":"in addition to what has been said","src":"hand"},{"pos":"n","text":"someone who performs magic tricks to amuse an audience","src":"oewn"},{"pos":"n","text":"a witch doctor who practices conjury","src":"oewn"}]}
+{"word":"also","defs":[{"pos":"conj","text":"in addition to what has been said","src":"hand"}]}
 {"word":"altar","defs":[{"pos":"n","text":"the table in Christian churches where communion is given","src":"oewn"},{"pos":"n","text":"a raised structure on which gifts or sacrifices to a god are made","src":"oewn"}]}
 {"word":"alter","defs":[{"pos":"v","text":"cause to change","src":"oewn"},{"pos":"v","text":"make an alteration to","src":"oewn"}]}
 {"word":"alteration","defs":[{"pos":"n","text":"an event that occurs when something passes from one state or phase to another","src":"oewn"},{"pos":"n","text":"the act of making something different","src":"oewn"}]}
@@ -676,7 +676,7 @@
 {"word":"anxiety","defs":[{"pos":"n","text":"a vague unpleasant emotion that is experienced in anticipation of some (usually ill-defined) misfortune","src":"oewn"},{"pos":"n","text":"(psychiatry) a relatively permanent state of worry and nervousness occurring in a variety of mental disorders, usually accompanied by compulsive behavior or attacks of panic","src":"oewn"}]}
 {"word":"anxious","defs":[{"pos":"a","text":"eagerly desirous","src":"oewn"},{"pos":"a","text":"causing or fraught with or showing anxiety","src":"oewn"}]}
 {"word":"anxiously","defs":[{"pos":"r","text":"with anxiety or apprehension","src":"oewn"}]}
-{"word":"any","defs":[{"pos":"a","text":"one or some or every or all without specification","src":"oewn"},{"pos":"pron","text":"one or some, no matter which","src":"hand"},{"pos":"r","text":"to any degree or extent","src":"oewn"}]}
+{"word":"any","defs":[{"pos":"pron","text":"one or some, no matter which","src":"hand"}]}
 {"word":"anyhow","defs":[{"pos":"r","text":"used to indicate that a statement explains or supports a previous statement","src":"oewn"},{"pos":"r","text":"in any way whatsoever","src":"oewn"}]}
 {"word":"anymore","defs":[{"pos":"r","text":"at the present or from now on","src":"oewn"}]}
 {"word":"anyplace","defs":[{"pos":"r","text":"at or in or to any place","src":"oewn"}]}
@@ -861,7 +861,7 @@
 {"word":"artistry","defs":[{"pos":"n","text":"a superior skill that you can learn by study and practice and observation","src":"oewn"}]}
 {"word":"artless","defs":[{"pos":"a","text":"characterized by an inability to mask your feelings","src":"oewn"},{"pos":"a","text":"simple and natural","src":"oewn"}]}
 {"word":"artwork","defs":[{"pos":"n","text":"photographs or other visual representations in a printed publication","src":"oewn"}]}
-{"word":"as","defs":[{"pos":"conj","text":"while; at the time that; or in the same way that","src":"hand"},{"pos":"prep","text":"in the role or form of something","src":"hand"},{"pos":"r","text":"to the same degree (often followed by ‘as’)","src":"oewn"}]}
+{"word":"as","defs":[{"pos":"conj","text":"while; at the time that; or in the same way that","src":"hand"},{"pos":"prep","text":"in the role or form of something","src":"hand"}]}
 {"word":"ascend","defs":[{"pos":"v","text":"travel up","src":"oewn"},{"pos":"v","text":"go back in order of genealogical succession","src":"oewn"}]}
 {"word":"ascendant","defs":[{"pos":"n","text":"position or state of being dominant or in control","src":"oewn"},{"pos":"n","text":"someone from whom you are descended","src":"oewn"},{"pos":"a","text":"tending or directed upward","src":"oewn"},{"pos":"a","text":"most powerful or important or influential","src":"oewn"}]}
 {"word":"ascent","defs":[{"pos":"n","text":"an upward slope or grade (as in a road)","src":"oewn"},{"pos":"n","text":"a movement upward","src":"oewn"}]}
@@ -947,7 +947,7 @@
 {"word":"astute","defs":[{"pos":"a","text":"marked by practical hardheaded intelligence","src":"oewn"}]}
 {"word":"asylum","defs":[{"pos":"n","text":"a shelter from danger or hardship","src":"oewn"},{"pos":"n","text":"a hospital for mentally incompetent or unbalanced person","src":"oewn"}]}
 {"word":"asymmetrical","defs":[{"pos":"a","text":"characterized by asymmetry in the spatial arrangement or placement of parts or components","src":"oewn"},{"pos":"a","text":"irregular in shape or outline","src":"oewn"}]}
-{"word":"at","defs":[{"pos":"prep","text":"in or near a particular place or time","src":"hand"},{"pos":"n","text":"a highly unstable radioactive element","src":"oewn"},{"pos":"n","text":"100 at equal 1 kip in Laos","src":"oewn"}]}
+{"word":"at","defs":[{"pos":"prep","text":"in or near a particular place or time","src":"hand"}]}
 {"word":"atheism","defs":[{"pos":"n","text":"a lack of belief in the existence of God or gods","src":"oewn"}]}
 {"word":"atheist","defs":[{"pos":"n","text":"someone who does not believe in the existence of a god","src":"oewn"}]}
 {"word":"athenian","defs":[{"pos":"n","text":"a resident of Athens","src":"oewn"}]}
@@ -1147,7 +1147,7 @@
 {"word":"ballpoint","defs":[{"pos":"n","text":"a pen that has a small metal ball as the point of transfer of ink to paper","src":"oewn"}]}
 {"word":"ballroom","defs":[{"pos":"n","text":"large room used mainly for dancing","src":"oewn"}]}
 {"word":"balm","defs":[{"pos":"n","text":"any of various aromatic resinous substances used for healing and soothing","src":"oewn"},{"pos":"n","text":"semisolid preparation (usually containing a medicine) applied externally as a remedy or for soothing an irritation","src":"oewn"}]}
-{"word":"balmy","defs":[{"pos":"a","text":"informal or slang terms for mentally irregular","src":"oewn"},{"pos":"a","text":"mild and pleasant","src":"oewn"}]}
+{"word":"balmy","defs":[{"pos":"a","text":"mild and pleasant","src":"oewn"}]}
 {"word":"balsam","defs":[{"pos":"n","text":"any seed plant yielding balsam","src":"oewn"},{"pos":"n","text":"any of various fragrant oleoresins used in medicines and perfumes","src":"oewn"}]}
 {"word":"baltic","defs":[{"pos":"n","text":"a branch of the Indo-European family of languages related to the Slavonic languages","src":"oewn"}]}
 {"word":"bamboo","defs":[{"pos":"n","text":"the hard woody stems of bamboo plants","src":"oewn"},{"pos":"n","text":"woody tropical grass having hollow woody stems","src":"oewn"}]}
@@ -1228,7 +1228,7 @@
 {"word":"bawl","defs":[{"pos":"v","text":"shout loudly and without restraint","src":"oewn"},{"pos":"v","text":"make a raucous noise","src":"oewn"}]}
 {"word":"bay","defs":[{"pos":"n","text":"an indentation of a shoreline larger than a cove but smaller than a gulf","src":"oewn"},{"pos":"n","text":"the sound of a hound on the scent","src":"oewn"},{"pos":"v","text":"utter in deep prolonged tones","src":"oewn"},{"pos":"v","text":"bark with prolonged noises, of dogs","src":"oewn"}]}
 {"word":"bazaar","defs":[{"pos":"n","text":"a shop where a variety of goods are sold","src":"oewn"},{"pos":"n","text":"a street of small shops (especially in Orient)","src":"oewn"}]}
-{"word":"be","defs":[{"pos":"v","text":"have the quality of being","src":"oewn"},{"pos":"v","text":"be identical to","src":"oewn"},{"pos":"n","text":"a light strong brittle grey toxic bivalent metallic element","src":"oewn"},{"pos":"aux","text":"used with another verb to form tenses and the passive","src":"hand"}]}
+{"word":"be","defs":[{"pos":"aux","text":"used with another verb to form tenses and the passive","src":"hand"}]}
 {"word":"beach","defs":[{"pos":"n","text":"an area of sand sloping down to the water of a sea or lake","src":"oewn"},{"pos":"v","text":"land on a beach","src":"oewn"}]}
 {"word":"beacon","defs":[{"pos":"n","text":"a fire that can be seen from a distance","src":"oewn"},{"pos":"n","text":"a radio station that broadcasts a directional signal for navigational purposes","src":"oewn"}]}
 {"word":"bead","defs":[{"pos":"n","text":"a small ball with a hole through the middle","src":"oewn"},{"pos":"n","text":"a shape that is spherical and small","src":"oewn"}]}
@@ -1259,7 +1259,7 @@
 {"word":"bedcover","defs":[{"pos":"n","text":"decorative cover for a bed","src":"oewn"}]}
 {"word":"beddings","defs":[{"pos":"n","text":"coverings that are used on a bed","src":"oewn"},{"pos":"n","text":"material used to provide a bed for animals","src":"oewn"}]}
 {"word":"bedeck","defs":[{"pos":"v","text":"decorate","src":"oewn"}]}
-{"word":"bedlam","defs":[{"pos":"n","text":"pejorative terms for an insane asylum","src":"oewn"},{"pos":"n","text":"a state of extreme confusion and disorder","src":"oewn"}]}
+{"word":"bedlam","defs":[{"pos":"n","text":"a state of extreme confusion and disorder","src":"oewn"}]}
 {"word":"bedpan","defs":[{"pos":"n","text":"a shallow vessel used by a bedridden patient for defecation and urination","src":"oewn"}]}
 {"word":"bedrock","defs":[{"pos":"n","text":"solid unweathered rock lying beneath surface deposits of soil","src":"oewn"},{"pos":"n","text":"principles from which other truths can be derived","src":"oewn"}]}
 {"word":"bedroom","defs":[{"pos":"n","text":"a room used primarily for sleeping","src":"oewn"}]}
@@ -1270,7 +1270,7 @@
 {"word":"beetle","defs":[{"pos":"n","text":"a tool resembling a hammer but with a large head (usually wooden)","src":"oewn"},{"pos":"n","text":"insect having biting mouthparts and front wings modified to form horny covers overlying the membranous rear wings","src":"oewn"}]}
 {"word":"befit","defs":[{"pos":"v","text":"accord or comport with","src":"oewn"}]}
 {"word":"befog","defs":[{"pos":"v","text":"make less visible or unclear","src":"oewn"}]}
-{"word":"before","defs":[{"pos":"prep","text":"earlier than a time or event","src":"hand"},{"pos":"r","text":"earlier in time","src":"oewn"},{"pos":"r","text":"at or in the front","src":"oewn"},{"pos":"conj","text":"earlier than the time when","src":"hand"}]}
+{"word":"before","defs":[{"pos":"prep","text":"earlier than a time or event","src":"hand"},{"pos":"conj","text":"earlier than the time when","src":"hand"}]}
 {"word":"beforehand","defs":[{"pos":"r","text":"ahead of time","src":"oewn"}]}
 {"word":"befriend","defs":[{"pos":"v","text":"become friends with","src":"oewn"}]}
 {"word":"befuddle","defs":[{"pos":"v","text":"be confusing or perplexing to","src":"oewn"},{"pos":"v","text":"make stupid with alcohol","src":"oewn"}]}
@@ -1358,7 +1358,7 @@
 {"word":"betray","defs":[{"pos":"v","text":"reveal unintentionally","src":"oewn"},{"pos":"v","text":"deliver to an enemy by treachery","src":"oewn"}]}
 {"word":"betrothal","defs":[{"pos":"n","text":"a mutual promise to marry","src":"oewn"},{"pos":"n","text":"the act of becoming betrothed or engaged","src":"oewn"}]}
 {"word":"better","defs":[{"pos":"r","text":"comparative of ‘well’","src":"oewn"},{"pos":"r","text":"from a position of superiority or authority","src":"oewn"},{"pos":"a","text":"(comparative of ‘good’) superior to another in excellence or quality or desirability or suitability","src":"oewn"},{"pos":"a","text":"(comparative of ‘good’) changed for the better in health or fitness","src":"oewn"},{"pos":"n","text":"something superior in quality or condition or effect","src":"oewn"},{"pos":"n","text":"someone who bets","src":"oewn"},{"pos":"v","text":"surpass in excellence","src":"oewn"},{"pos":"v","text":"to make better","src":"oewn"}]}
-{"word":"between","defs":[{"pos":"prep","text":"in the space or time separating two things","src":"hand"},{"pos":"r","text":"in the interval","src":"oewn"},{"pos":"r","text":"in between","src":"oewn"}]}
+{"word":"between","defs":[{"pos":"prep","text":"in the space or time separating two things","src":"hand"}]}
 {"word":"beverage","defs":[{"pos":"n","text":"any liquid suitable for drinking","src":"oewn"}]}
 {"word":"beware","defs":[{"pos":"v","text":"be on one's guard","src":"oewn"}]}
 {"word":"bewilder","defs":[{"pos":"v","text":"be a mystery or bewildering to","src":"oewn"},{"pos":"v","text":"cause to be confused emotionally","src":"oewn"}]}
@@ -1607,7 +1607,7 @@
 {"word":"brazier","defs":[{"pos":"n","text":"large metal container in which coal or charcoal is burned","src":"oewn"}]}
 {"word":"brazilian","defs":[{"pos":"a","text":"of or relating to or characteristic of Brazil or the people of Brazil","src":"oewn"},{"pos":"n","text":"a native or inhabitant of Brazil","src":"oewn"}]}
 {"word":"breach","defs":[{"pos":"n","text":"a failure to perform some promised act or obligation","src":"oewn"},{"pos":"n","text":"an opening","src":"oewn"},{"pos":"v","text":"act in disregard of laws, rules, contracts, or promises","src":"oewn"},{"pos":"v","text":"make an opening or gap in","src":"oewn"}]}
-{"word":"bread","defs":[{"pos":"n","text":"informal terms for money","src":"oewn"},{"pos":"n","text":"food made from dough of flour or meal and usually raised with yeast or baking powder and then baked","src":"oewn"},{"pos":"v","text":"cover with bread crumbs","src":"oewn"}]}
+{"word":"bread","defs":[{"pos":"n","text":"food made from dough of flour or meal and usually raised with yeast or baking powder and then baked","src":"oewn"},{"pos":"v","text":"cover with bread crumbs","src":"oewn"}]}
 {"word":"breadbasket","defs":[{"pos":"n","text":"a geographic region serving as the principal source of grain","src":"oewn"},{"pos":"n","text":"an enlarged and muscular saclike organ of the alimentary canal","src":"oewn"}]}
 {"word":"breadfruit","defs":[{"pos":"n","text":"native to Pacific islands and having edible fruit with a texture like bread","src":"oewn"},{"pos":"n","text":"a large round seedless or seeded fruit with a texture like bread","src":"oewn"}]}
 {"word":"breadth","defs":[{"pos":"n","text":"the capacity to understand a broad range of topics","src":"oewn"},{"pos":"n","text":"the extent of something from side to side","src":"oewn"}]}
@@ -1709,7 +1709,7 @@
 {"word":"buffoon","defs":[{"pos":"n","text":"a rude or vulgar fool","src":"oewn"},{"pos":"n","text":"a person who amuses others by ridiculous behavior","src":"oewn"}]}
 {"word":"buffoonery","defs":[{"pos":"n","text":"acting like a clown or buffoon","src":"oewn"}]}
 {"word":"bug","defs":[{"pos":"n","text":"general term for any insect or similar creeping or crawling invertebrate","src":"oewn"},{"pos":"n","text":"a fault or defect in a computer program, system, or machine","src":"oewn"},{"pos":"v","text":"annoy persistently","src":"oewn"},{"pos":"v","text":"tap a telephone or telegraph wire to get information","src":"oewn"}]}
-{"word":"buggy","defs":[{"pos":"a","text":"informal or slang terms for mentally irregular","src":"oewn"},{"pos":"a","text":"infested with bugs","src":"oewn"}]}
+{"word":"buggy","defs":[{"pos":"a","text":"infested with bugs","src":"oewn"}]}
 {"word":"bugle","defs":[{"pos":"n","text":"a brass instrument without valves","src":"oewn"},{"pos":"n","text":"any of various low-growing annual or perennial evergreen herbs native to Eurasia","src":"oewn"},{"pos":"v","text":"play on a bugle","src":"oewn"}]}
 {"word":"build","defs":[{"pos":"v","text":"make by combining materials and parts","src":"oewn"},{"pos":"v","text":"form or accumulate steadily","src":"oewn"},{"pos":"n","text":"constitution of the human body","src":"oewn"},{"pos":"n","text":"alternative names for the body of a human being","src":"oewn"}]}
 {"word":"building","defs":[{"pos":"n","text":"the act of constructing something","src":"oewn"},{"pos":"n","text":"the commercial activity involved in repairing old structures or constructing new ones","src":"oewn"},{"pos":"v","text":"make by combining materials and parts","src":"oewn"},{"pos":"v","text":"form or accumulate steadily","src":"oewn"}]}
@@ -1767,7 +1767,7 @@
 {"word":"bust","defs":[{"pos":"v","text":"ruin completely","src":"oewn"},{"pos":"v","text":"search without warning, make a sudden surprise attack on","src":"oewn"},{"pos":"n","text":"a complete failure","src":"oewn"},{"pos":"n","text":"the chest of a woman","src":"oewn"}]}
 {"word":"bustle","defs":[{"pos":"v","text":"move or cause to move energetically or busily","src":"oewn"},{"pos":"n","text":"a rapid active commotion","src":"oewn"},{"pos":"n","text":"a framework worn at the back below the waist for giving fullness to a woman's skirt","src":"oewn"}]}
 {"word":"busy","defs":[{"pos":"a","text":"actively or fully engaged or occupied","src":"oewn"},{"pos":"a","text":"overcrowded or cluttered with detail","src":"oewn"},{"pos":"v","text":"keep busy with","src":"oewn"}]}
-{"word":"but","defs":[{"pos":"conj","text":"used to introduce an opposite or surprising idea","src":"hand"},{"pos":"r","text":"and nothing more","src":"oewn"},{"pos":"prep","text":"except; apart from","src":"hand"}]}
+{"word":"but","defs":[{"pos":"conj","text":"used to introduce an opposite or surprising idea","src":"hand"},{"pos":"prep","text":"except; apart from","src":"hand"}]}
 {"word":"butane","defs":[{"pos":"n","text":"occurs in natural gas","src":"oewn"}]}
 {"word":"butcher","defs":[{"pos":"v","text":"kill (animals) usually for food consumption","src":"oewn"},{"pos":"n","text":"a retailer of meat","src":"oewn"},{"pos":"n","text":"a brutal indiscriminate murderer","src":"oewn"}]}
 {"word":"butler","defs":[{"pos":"n","text":"a servant who has charge of wines and the table","src":"oewn"}]}
@@ -1780,7 +1780,7 @@
 {"word":"buy","defs":[{"pos":"v","text":"obtain by purchase","src":"oewn"},{"pos":"v","text":"make illegal payments to in exchange for favors or influence","src":"oewn"},{"pos":"n","text":"an advantageous purchase","src":"oewn"}]}
 {"word":"buyer","defs":[{"pos":"n","text":"a person who buys","src":"oewn"}]}
 {"word":"buzz","defs":[{"pos":"v","text":"make a buzzing sound","src":"oewn"},{"pos":"v","text":"fly low","src":"oewn"},{"pos":"n","text":"sound of rapid vibration","src":"oewn"},{"pos":"n","text":"a confusion of activity and gossip","src":"oewn"}]}
-{"word":"by","defs":[{"pos":"prep","text":"next to, or done by a person or thing","src":"hand"},{"pos":"r","text":"so as to pass a given point","src":"oewn"},{"pos":"r","text":"in reserve","src":"oewn"}]}
+{"word":"by","defs":[{"pos":"prep","text":"next to, or done by a person or thing","src":"hand"}]}
 {"word":"by-product","defs":[{"pos":"n","text":"a secondary and sometimes unexpected consequence","src":"oewn"},{"pos":"n","text":"a product made during the manufacture of something else","src":"oewn"}]}
 {"word":"bye","defs":[{"pos":"n","text":"an automatic advance to the next round in a tournament without playing an opponent","src":"oewn"},{"pos":"n","text":"a farewell remark","src":"oewn"}]}
 {"word":"bygone","defs":[{"pos":"a","text":"well in the past","src":"oewn"},{"pos":"n","text":"past events to be put aside","src":"oewn"}]}
@@ -1788,7 +1788,7 @@
 {"word":"bypass","defs":[{"pos":"n","text":"a surgically created shunt","src":"oewn"},{"pos":"n","text":"a highway that encircles an urban area so that traffic does not have to pass through the center","src":"oewn"},{"pos":"v","text":"avoid something unpleasant or laborious","src":"oewn"}]}
 {"word":"cab","defs":[{"pos":"n","text":"a compartment at the front of a motor vehicle or locomotive where driver sits","src":"oewn"},{"pos":"n","text":"small two-wheeled horse-drawn carriage","src":"oewn"},{"pos":"v","text":"ride in a taxicab","src":"oewn"}]}
 {"word":"cabal","defs":[{"pos":"n","text":"a clique (often secret) that seeks power usually through intrigue","src":"oewn"},{"pos":"n","text":"a plot to carry out some harmful or illegal act (especially a political plot)","src":"oewn"},{"pos":"v","text":"engage in plotting or enter into a conspiracy, swear together","src":"oewn"}]}
-{"word":"cabbage","defs":[{"pos":"n","text":"any of various types of cabbage","src":"oewn"},{"pos":"n","text":"informal terms for money","src":"oewn"}]}
+{"word":"cabbage","defs":[{"pos":"n","text":"any of various types of cabbage","src":"oewn"},{"pos":"n","text":"any of various cultivars of the genus Brassica oleracea grown for their edible leaves or flowers","src":"oewn"}]}
 {"word":"cabin","defs":[{"pos":"n","text":"small room on a ship or boat where people sleep","src":"oewn"},{"pos":"n","text":"a small house built of wood","src":"oewn"}]}
 {"word":"cabinet","defs":[{"pos":"n","text":"a piece of furniture resembling a cupboard with doors and shelves and drawers","src":"oewn"},{"pos":"n","text":"a storage compartment for clothes and valuables","src":"oewn"}]}
 {"word":"cabinetmaker","defs":[{"pos":"n","text":"a woodworker who specializes in making furniture","src":"oewn"}]}
@@ -1845,7 +1845,7 @@
 {"word":"camp","defs":[{"pos":"v","text":"live in or as if in a tent","src":"oewn"},{"pos":"v","text":"establish or set up a camp","src":"oewn"},{"pos":"n","text":"temporary living quarters specially built by the army for soldiers","src":"oewn"},{"pos":"n","text":"a group of people living together in a camp","src":"oewn"}]}
 {"word":"campaign","defs":[{"pos":"v","text":"run, stand, or compete for an office or a position","src":"oewn"},{"pos":"v","text":"go on a campaign","src":"oewn"},{"pos":"n","text":"a race between candidates for elective office","src":"oewn"},{"pos":"n","text":"a series of actions advancing a principle or tending toward a particular end","src":"oewn"}]}
 {"word":"campus","defs":[{"pos":"n","text":"a field on which the buildings of a university are situated","src":"oewn"}]}
-{"word":"can","defs":[{"pos":"v","text":"preserve in a can or tin","src":"oewn"},{"pos":"v","text":"terminate the employment of","src":"oewn"},{"pos":"aux","text":"used to say that someone is able to or may do something","src":"hand"},{"pos":"n","text":"airtight sealed metal container for food or drink or paint etc.","src":"oewn"},{"pos":"n","text":"the quantity contained in a can","src":"oewn"}]}
+{"word":"can","defs":[{"pos":"aux","text":"used to say that someone is able to or may do something","src":"hand"}]}
 {"word":"canadian","defs":[{"pos":"a","text":"of or relating to Canada or its people","src":"oewn"},{"pos":"n","text":"a native or inhabitant of Canada","src":"oewn"}]}
 {"word":"canal","defs":[{"pos":"n","text":"long and narrow strip of water made for boats or for irrigation","src":"oewn"},{"pos":"n","text":"(astronomy) an indistinct surface feature of Mars once thought to be a system of channels","src":"oewn"},{"pos":"v","text":"provide (a city) with a canal","src":"oewn"}]}
 {"word":"canary","defs":[{"pos":"n","text":"someone acting as an informer or decoy for the police","src":"oewn"},{"pos":"n","text":"a female singer","src":"oewn"}]}
@@ -1965,7 +1965,7 @@
 {"word":"casual","defs":[{"pos":"a","text":"marked by blithe unconcern","src":"oewn"},{"pos":"a","text":"without or seeming to be without plan or method","src":"oewn"}]}
 {"word":"casually","defs":[{"pos":"r","text":"not methodically or according to plan","src":"oewn"},{"pos":"r","text":"in an unconcerned manner","src":"oewn"}]}
 {"word":"casualty","defs":[{"pos":"n","text":"someone injured or killed or captured or missing in a military engagement","src":"oewn"},{"pos":"n","text":"someone injured or killed in an accident","src":"oewn"}]}
-{"word":"cat","defs":[{"pos":"n","text":"feline mammal usually having thick soft fur and no ability to roar","src":"oewn"},{"pos":"n","text":"an informal term for a youth or man","src":"oewn"}]}
+{"word":"cat","defs":[{"pos":"n","text":"feline mammal usually having thick soft fur and no ability to roar","src":"oewn"},{"pos":"n","text":"a spiteful woman gossip","src":"oewn"}]}
 {"word":"catabolism","defs":[{"pos":"n","text":"breakdown in living organisms of more complex substances into simpler ones together with release of energy","src":"oewn"}]}
 {"word":"cataclysm","defs":[{"pos":"n","text":"a sudden violent change in the earth's surface","src":"oewn"},{"pos":"n","text":"an event resulting in great loss and misfortune","src":"oewn"}]}
 {"word":"catalog","defs":[{"pos":"n","text":"a book or pamphlet containing an enumeration of things","src":"oewn"},{"pos":"n","text":"a complete list of things","src":"oewn"},{"pos":"v","text":"make a catalogue, compile a catalogue","src":"oewn"},{"pos":"v","text":"make an itemized list or catalog of","src":"oewn"}]}
@@ -2152,7 +2152,7 @@
 {"word":"chic","defs":[{"pos":"a","text":"elegant and stylish","src":"oewn"}]}
 {"word":"chicago","defs":[{"pos":"n","text":"a gambling card game in which chips are placed on the ace and king and queen and jack of separate suits","src":"oewn"}]}
 {"word":"chicanery","defs":[{"pos":"n","text":"the use of tricks to deceive someone","src":"oewn"}]}
-{"word":"chick","defs":[{"pos":"n","text":"young bird especially of domestic fowl","src":"oewn"},{"pos":"n","text":"informal terms for a (young) woman","src":"oewn"}]}
+{"word":"chick","defs":[{"pos":"n","text":"young bird especially of domestic fowl","src":"oewn"}]}
 {"word":"chicken","defs":[{"pos":"n","text":"the flesh of a chicken used for food","src":"oewn"},{"pos":"n","text":"a domestic fowl bred for flesh or eggs","src":"oewn"},{"pos":"a","text":"easily frightened","src":"oewn"}]}
 {"word":"chief","defs":[{"pos":"n","text":"a person who is in charge","src":"oewn"},{"pos":"n","text":"a person who exercises control over workers","src":"oewn"},{"pos":"a","text":"most important element","src":"oewn"}]}
 {"word":"chiefly","defs":[{"pos":"r","text":"for the most part","src":"oewn"}]}
@@ -2373,7 +2373,7 @@
 {"word":"cobalt","defs":[{"pos":"n","text":"a hard ferromagnetic silver-white bivalent or trivalent metallic element","src":"oewn"}]}
 {"word":"cobble","defs":[{"pos":"n","text":"rectangular paving stone with curved top","src":"oewn"},{"pos":"v","text":"pave with cobblestones","src":"oewn"},{"pos":"v","text":"repair or mend","src":"oewn"}]}
 {"word":"cocaine","defs":[{"pos":"n","text":"a narcotic (alkaloid) extracted from coca leaves","src":"oewn"}]}
-{"word":"cock","defs":[{"pos":"n","text":"obscene terms for penis","src":"oewn"},{"pos":"n","text":"faucet consisting of a rotating device for regulating flow of a liquid","src":"oewn"},{"pos":"v","text":"tilt or slant to one side","src":"oewn"},{"pos":"v","text":"set the trigger of a firearm back for firing","src":"oewn"}]}
+{"word":"cock","defs":[{"pos":"n","text":"faucet consisting of a rotating device for regulating flow of a liquid","src":"oewn"},{"pos":"n","text":"adult male chicken","src":"oewn"},{"pos":"v","text":"tilt or slant to one side","src":"oewn"},{"pos":"v","text":"set the trigger of a firearm back for firing","src":"oewn"}]}
 {"word":"cocktail","defs":[{"pos":"n","text":"a short mixed drink","src":"oewn"},{"pos":"n","text":"an appetizer served as a first course at a meal","src":"oewn"}]}
 {"word":"cocoa","defs":[{"pos":"n","text":"a beverage made from cocoa powder and milk and sugar","src":"oewn"},{"pos":"n","text":"powder of ground roasted cacao beans with most of the fat removed","src":"oewn"}]}
 {"word":"coconut","defs":[{"pos":"n","text":"the edible white meat of a coconut","src":"oewn"},{"pos":"n","text":"tall palm tree bearing coconuts as fruits","src":"oewn"}]}
@@ -2459,7 +2459,7 @@
 {"word":"combine","defs":[{"pos":"v","text":"have or possess in combination","src":"oewn"},{"pos":"v","text":"put or add together","src":"oewn"},{"pos":"n","text":"harvester that heads and threshes and cleans grain while moving across the field","src":"oewn"},{"pos":"n","text":"an occurrence that results in things being united","src":"oewn"}]}
 {"word":"combustible","defs":[{"pos":"a","text":"capable of igniting and burning","src":"oewn"},{"pos":"n","text":"a substance that can be burned to provide heat or power","src":"oewn"}]}
 {"word":"combustion","defs":[{"pos":"n","text":"a process in which a substance reacts with oxygen to give heat and light","src":"oewn"},{"pos":"n","text":"a state of violent disturbance and excitement","src":"oewn"}]}
-{"word":"come","defs":[{"pos":"v","text":"move toward, travel toward something or somebody or approach something or somebody","src":"oewn"},{"pos":"v","text":"reach a destination","src":"oewn"},{"pos":"int","text":"used to encourage someone or to show you are annoyed","src":"hand"},{"pos":"n","text":"the thick white fluid containing spermatozoa that is ejaculated by the male genital tract","src":"oewn"}]}
+{"word":"come","defs":[{"pos":"int","text":"used to encourage someone or to show you are annoyed","src":"hand"}]}
 {"word":"comedy","defs":[{"pos":"n","text":"light and humorous drama with a happy ending","src":"oewn"},{"pos":"n","text":"a comic incident or series of incidents","src":"oewn"}]}
 {"word":"comely","defs":[{"pos":"a","text":"according with custom or propriety","src":"oewn"},{"pos":"a","text":"very pleasing to the eye","src":"oewn"}]}
 {"word":"comer","defs":[{"pos":"n","text":"someone with a promising future","src":"oewn"},{"pos":"n","text":"someone who arrives (or has arrived)","src":"oewn"}]}
@@ -2885,7 +2885,7 @@
 {"word":"corp","defs":[{"pos":"n","text":"a business firm whose articles of incorporation have been approved in some state","src":"oewn"}]}
 {"word":"corporal","defs":[{"pos":"a","text":"affecting or characteristic of the body as opposed to the mind or spirit","src":"oewn"},{"pos":"a","text":"possessing or existing in bodily form","src":"oewn"},{"pos":"n","text":"a noncommissioned officer in the Army or Air Force or Marines","src":"oewn"}]}
 {"word":"corporate","defs":[{"pos":"a","text":"of or belonging to a corporation","src":"oewn"},{"pos":"a","text":"possessing or existing in bodily form","src":"oewn"}]}
-{"word":"corporation","defs":[{"pos":"n","text":"a business firm whose articles of incorporation have been approved in some state","src":"oewn"},{"pos":"n","text":"slang for a paunch","src":"oewn"}]}
+{"word":"corporation","defs":[{"pos":"n","text":"a business firm whose articles of incorporation have been approved in some state","src":"oewn"}]}
 {"word":"corporeal","defs":[{"pos":"a","text":"having material or physical form or substance","src":"oewn"},{"pos":"a","text":"affecting or characteristic of the body as opposed to the mind or spirit","src":"oewn"}]}
 {"word":"corps","defs":[{"pos":"n","text":"an army unit usually consisting of two or more divisions and their support","src":"oewn"},{"pos":"n","text":"a body of people associated together","src":"oewn"}]}
 {"word":"corpse","defs":[{"pos":"n","text":"the dead body of a human being","src":"oewn"}]}
@@ -2925,7 +2925,7 @@
 {"word":"couch","defs":[{"pos":"n","text":"an upholstered seat for more than one person","src":"oewn"},{"pos":"n","text":"a flat coat of paint or varnish used by artists as a primer","src":"oewn"},{"pos":"v","text":"formulate in a particular style or language","src":"oewn"}]}
 {"word":"cougar","defs":[{"pos":"n","text":"large American feline resembling a lion","src":"oewn"}]}
 {"word":"cough","defs":[{"pos":"n","text":"a sudden noisy expulsion of air from the lungs that clears the air passages","src":"oewn"},{"pos":"v","text":"exhale abruptly, as when one has a chest cold or congestion","src":"oewn"}]}
-{"word":"could","defs":[{"pos":"aux","text":"used to talk about what was possible or might happen","src":"hand"},{"pos":"v","text":"preserve in a can or tin","src":"oewn"},{"pos":"v","text":"terminate the employment of","src":"oewn"}]}
+{"word":"could","defs":[{"pos":"aux","text":"used to talk about what was possible or might happen","src":"hand"}]}
 {"word":"council","defs":[{"pos":"n","text":"a body serving in an administrative capacity","src":"oewn"},{"pos":"n","text":"a meeting of people for consultation","src":"oewn"}]}
 {"word":"counsel","defs":[{"pos":"v","text":"give advice to","src":"oewn"},{"pos":"n","text":"a lawyer who pleads cases in court","src":"oewn"},{"pos":"n","text":"something that provides direction or advice as to a decision or course of action","src":"oewn"}]}
 {"word":"counseling","defs":[{"pos":"n","text":"something that provides direction or advice as to a decision or course of action","src":"oewn"}]}
@@ -3565,7 +3565,7 @@
 {"word":"dignify","defs":[{"pos":"v","text":"confer dignity or honor upon","src":"oewn"},{"pos":"v","text":"raise the status of","src":"oewn"}]}
 {"word":"dignity","defs":[{"pos":"n","text":"the quality of being worthy of esteem or respect","src":"oewn"},{"pos":"n","text":"formality in bearing and appearance","src":"oewn"}]}
 {"word":"digression","defs":[{"pos":"n","text":"a message that departs from the main subject","src":"oewn"},{"pos":"n","text":"a turning aside","src":"oewn"}]}
-{"word":"dike","defs":[{"pos":"n","text":"(slang) offensive term for a lesbian who is noticeably masculine","src":"oewn"},{"pos":"n","text":"a barrier constructed to contain the flow of water or to keep out the sea","src":"oewn"},{"pos":"v","text":"enclose with a dike","src":"oewn"}]}
+{"word":"dike","defs":[{"pos":"n","text":"a barrier constructed to contain the flow of water or to keep out the sea","src":"oewn"},{"pos":"v","text":"enclose with a dike","src":"oewn"}]}
 {"word":"dilapidate","defs":[{"pos":"v","text":"bring into a condition of decay or partial ruin by neglect or misuse","src":"oewn"},{"pos":"v","text":"fall into decay or ruin","src":"oewn"}]}
 {"word":"dilate","defs":[{"pos":"v","text":"become wider","src":"oewn"},{"pos":"v","text":"add details, as to an account or idea","src":"oewn"}]}
 {"word":"dilatory","defs":[{"pos":"a","text":"wasting time","src":"oewn"}]}
@@ -3804,7 +3804,7 @@
 {"word":"divorce","defs":[{"pos":"n","text":"the legal dissolution of a marriage","src":"oewn"},{"pos":"v","text":"part","src":"oewn"},{"pos":"v","text":"get a divorce","src":"oewn"}]}
 {"word":"divulge","defs":[{"pos":"v","text":"make known to the public information that was previously known only to a few people or that was meant to be kept a secret","src":"oewn"}]}
 {"word":"dizzy","defs":[{"pos":"a","text":"having or causing a whirling sensation","src":"oewn"},{"pos":"a","text":"lacking seriousness","src":"oewn"},{"pos":"v","text":"make dizzy or giddy","src":"oewn"}]}
-{"word":"do","defs":[{"pos":"v","text":"engage in","src":"oewn"},{"pos":"v","text":"carry out or perform an action","src":"oewn"},{"pos":"aux","text":"used to make questions and negative sentences","src":"hand"}]}
+{"word":"do","defs":[{"pos":"aux","text":"used to make questions and negative sentences","src":"hand"}]}
 {"word":"docile","defs":[{"pos":"a","text":"willing to be taught or led or supervised or directed","src":"oewn"},{"pos":"a","text":"ready and willing to be taught","src":"oewn"}]}
 {"word":"dock","defs":[{"pos":"n","text":"an enclosure in a court of law where the defendant sits during the trial","src":"oewn"},{"pos":"n","text":"a platform built out from the shore into the water and supported by piles","src":"oewn"},{"pos":"v","text":"come into dock","src":"oewn"},{"pos":"v","text":"deprive someone of benefits, as a penalty","src":"oewn"}]}
 {"word":"doctor","defs":[{"pos":"v","text":"alter and make impure, as with the intention to deceive","src":"oewn"},{"pos":"v","text":"give medical treatment to","src":"oewn"},{"pos":"n","text":"a licensed medical practitioner","src":"oewn"},{"pos":"n","text":"a person who holds Ph.D. degree (or the equivalent) from an academic institution","src":"oewn"}]}
@@ -3816,7 +3816,7 @@
 {"word":"documentary","defs":[{"pos":"a","text":"relating to or consisting of or derived from documents","src":"oewn"},{"pos":"a","text":"depicting a real-life event using images or interviews with people involved in the event","src":"oewn"},{"pos":"n","text":"a film or TV program presenting the facts about a person or event","src":"oewn"}]}
 {"word":"documentation","defs":[{"pos":"n","text":"confirmation that some fact or statement is true through the use of documentary evidence","src":"oewn"},{"pos":"n","text":"program listings or technical manuals describing the operation and use of programs","src":"oewn"}]}
 {"word":"dodge","defs":[{"pos":"v","text":"make a sudden movement in a new direction so as to avoid","src":"oewn"},{"pos":"v","text":"move to and fro or from place to place usually in an irregular course","src":"oewn"},{"pos":"n","text":"an elaborate or deceitful scheme contrived to deceive or evade","src":"oewn"},{"pos":"n","text":"a quick evasive movement","src":"oewn"}]}
-{"word":"dog","defs":[{"pos":"n","text":"a dull unattractive unpleasant girl or woman","src":"oewn"},{"pos":"n","text":"informal term for a man","src":"oewn"},{"pos":"v","text":"go after with the intent to catch","src":"oewn"}]}
+{"word":"dog","defs":[{"pos":"n","text":"a dull unattractive unpleasant girl or woman","src":"oewn"},{"pos":"n","text":"someone who is morally reprehensible","src":"oewn"},{"pos":"v","text":"go after with the intent to catch","src":"oewn"}]}
 {"word":"dogged","defs":[{"pos":"a","text":"stubbornly unyielding","src":"oewn"},{"pos":"v","text":"go after with the intent to catch","src":"oewn"}]}
 {"word":"doggedly","defs":[{"pos":"r","text":"with obstinate determination","src":"oewn"}]}
 {"word":"dogmatic","defs":[{"pos":"a","text":"characterized by assertion of unproved or unprovable principles","src":"oewn"},{"pos":"a","text":"relating to or involving dogma","src":"oewn"}]}
@@ -3824,11 +3824,11 @@
 {"word":"dogwood","defs":[{"pos":"n","text":"a tree of shrub of the genus Cornus often having showy bracts resembling flowers","src":"oewn"},{"pos":"n","text":"hard tough wood of any dogwood of the genus Cornus","src":"oewn"}]}
 {"word":"dole","defs":[{"pos":"n","text":"a share of money or food or clothing that has been charitably given","src":"oewn"},{"pos":"n","text":"money received from the state","src":"oewn"}]}
 {"word":"doleful","defs":[{"pos":"a","text":"filled with or evoking sadness","src":"oewn"}]}
-{"word":"doll","defs":[{"pos":"n","text":"a small replica of a person","src":"oewn"},{"pos":"n","text":"informal terms for a (young) woman","src":"oewn"}]}
+{"word":"doll","defs":[{"pos":"n","text":"a small replica of a person","src":"oewn"}]}
 {"word":"dollar","defs":[{"pos":"n","text":"the basic monetary unit in many countries","src":"oewn"},{"pos":"n","text":"a piece of paper money worth one dollar","src":"oewn"}]}
 {"word":"dolphin","defs":[{"pos":"n","text":"large slender food and game fish widely distributed in warm seas (especially around Hawaii)","src":"oewn"},{"pos":"n","text":"any of various small toothed whales with a beaklike snout","src":"oewn"}]}
 {"word":"domain","defs":[{"pos":"n","text":"a particular environment or walk of life","src":"oewn"},{"pos":"n","text":"territory over which rule or control is exercised","src":"oewn"}]}
-{"word":"dome","defs":[{"pos":"n","text":"a concave shape whose distinguishing characteristic is that the concavity faces downward","src":"oewn"},{"pos":"n","text":"informal terms for a human head","src":"oewn"}]}
+{"word":"dome","defs":[{"pos":"n","text":"a concave shape whose distinguishing characteristic is that the concavity faces downward","src":"oewn"},{"pos":"n","text":"a stadium that has a roof","src":"oewn"}]}
 {"word":"domestic","defs":[{"pos":"a","text":"of concern to or concerning the internal affairs of a nation","src":"oewn"},{"pos":"a","text":"of or relating to the home","src":"oewn"},{"pos":"n","text":"a servant who is paid to perform menial tasks around the household","src":"oewn"}]}
 {"word":"domestically","defs":[{"pos":"r","text":"with respect to the internal affairs of a government","src":"oewn"},{"pos":"r","text":"with respect to home or family","src":"oewn"}]}
 {"word":"domesticate","defs":[{"pos":"v","text":"adapt to the environment","src":"oewn"},{"pos":"v","text":"overcome the wildness of","src":"oewn"}]}
@@ -3862,11 +3862,11 @@
 {"word":"doubt","defs":[{"pos":"n","text":"the state of being unsure of something","src":"oewn"},{"pos":"n","text":"uncertainty about the truth or factuality or existence of something","src":"oewn"},{"pos":"v","text":"consider unlikely","src":"oewn"},{"pos":"v","text":"lack confidence in","src":"oewn"}]}
 {"word":"doubtful","defs":[{"pos":"a","text":"open to doubt or suspicion","src":"oewn"},{"pos":"a","text":"fraught with uncertainty or doubt","src":"oewn"}]}
 {"word":"doubtless","defs":[{"pos":"r","text":"without doubt","src":"oewn"}]}
-{"word":"dough","defs":[{"pos":"n","text":"a flour mixture stiff enough to knead or roll","src":"oewn"},{"pos":"n","text":"informal terms for money","src":"oewn"}]}
+{"word":"dough","defs":[{"pos":"n","text":"a flour mixture stiff enough to knead or roll","src":"oewn"}]}
 {"word":"dour","defs":[{"pos":"a","text":"stubbornly unyielding","src":"oewn"},{"pos":"a","text":"harshly uninviting or formidable in manner or appearance","src":"oewn"}]}
 {"word":"douse","defs":[{"pos":"v","text":"put out, as of a candle or a light","src":"oewn"},{"pos":"v","text":"wet thoroughly","src":"oewn"}]}
 {"word":"dove","defs":[{"pos":"n","text":"any of numerous small pigeons","src":"oewn"},{"pos":"n","text":"someone who prefers negotiations to armed conflict in the conduct of foreign relations","src":"oewn"},{"pos":"v","text":"drop steeply","src":"oewn"},{"pos":"v","text":"plunge into water","src":"oewn"}]}
-{"word":"down","defs":[{"pos":"r","text":"spatially or metaphorically from a higher to a lower level or position","src":"oewn"},{"pos":"r","text":"away from a more central or a more northerly place","src":"oewn"},{"pos":"a","text":"being or moving lower in position or less in some value","src":"oewn"},{"pos":"a","text":"extending or moving from a higher to a lower place","src":"oewn"},{"pos":"n","text":"soft fine feathers","src":"oewn"},{"pos":"n","text":"(American football) a complete play to advance the football","src":"oewn"},{"pos":"prep","text":"from a higher to a lower place","src":"hand"},{"pos":"v","text":"drink down entirely","src":"oewn"},{"pos":"v","text":"eat up completely, as with great appetite","src":"oewn"}]}
+{"word":"down","defs":[{"pos":"prep","text":"from a higher to a lower place","src":"hand"}]}
 {"word":"downfall","defs":[{"pos":"n","text":"failure that results in a loss of position or reputation","src":"oewn"},{"pos":"n","text":"the falling to earth of any form of water","src":"oewn"}]}
 {"word":"downhill","defs":[{"pos":"r","text":"toward a lower or inferior state","src":"oewn"},{"pos":"r","text":"toward the bottom of a hill","src":"oewn"}]}
 {"word":"download","defs":[{"pos":"v","text":"transfer a file or program from a central computer to a smaller computer or to a computer at a remote location","src":"oewn"}]}
@@ -3983,7 +3983,7 @@
 {"word":"dynasty","defs":[{"pos":"n","text":"a sequence of powerful leaders in the same family","src":"oewn"}]}
 {"word":"dysfunction","defs":[{"pos":"n","text":"(medicine) any disturbance in the functioning of an organ or body part or a disturbance in the functioning of a social group","src":"oewn"}]}
 {"word":"e-mail","defs":[{"pos":"n","text":"a message sent over the internet via the email system","src":"oewn"},{"pos":"n","text":"(computer science) a system of world-wide electronic communication in which a computer user can compose a message at one terminal that can be regenerated at the recipient's terminal when the recipient logs in","src":"oewn"},{"pos":"v","text":"communicate electronically on the computer","src":"oewn"}]}
-{"word":"each","defs":[{"pos":"a","text":"(used of count nouns) every one considered individually","src":"oewn"},{"pos":"r","text":"to or from every one of two or more (considered individually)","src":"oewn"},{"pos":"pron","text":"every one of two or more, taken separately","src":"hand"}]}
+{"word":"each","defs":[{"pos":"pron","text":"every one of two or more, taken separately","src":"hand"}]}
 {"word":"eager","defs":[{"pos":"a","text":"having or showing keen interest or intense desire or impatient expectancy","src":"oewn"},{"pos":"n","text":"a high wave (often dangerous) caused by tidal flow","src":"oewn"}]}
 {"word":"eagerly","defs":[{"pos":"r","text":"with eagerness","src":"oewn"}]}
 {"word":"eagle","defs":[{"pos":"n","text":"(golf) a score of two strokes under par on a hole","src":"oewn"},{"pos":"n","text":"a former gold coin in the United States worth 10 dollars","src":"oewn"}]}
@@ -4700,7 +4700,7 @@
 {"word":"fairground","defs":[{"pos":"n","text":"an open area for holding fairs or exhibitions or circuses","src":"oewn"}]}
 {"word":"fairly","defs":[{"pos":"r","text":"to certain extent or degree","src":"oewn"},{"pos":"r","text":"without favoring one party, in a fair evenhanded manner","src":"oewn"}]}
 {"word":"fairness","defs":[{"pos":"n","text":"conformity with rules or standards","src":"oewn"},{"pos":"n","text":"ability to make judgments free from discrimination or dishonesty","src":"oewn"}]}
-{"word":"fairy","defs":[{"pos":"n","text":"a small being, human in form, playful and having magical powers","src":"oewn"},{"pos":"n","text":"offensive term for a homosexual man","src":"oewn"}]}
+{"word":"fairy","defs":[{"pos":"n","text":"a small being, human in form, playful and having magical powers","src":"oewn"}]}
 {"word":"faith","defs":[{"pos":"n","text":"a strong belief in a supernatural power or powers that control human destiny","src":"oewn"},{"pos":"n","text":"complete confidence in a person or plan etc","src":"oewn"}]}
 {"word":"faithful","defs":[{"pos":"a","text":"steadfast in affection or allegiance","src":"oewn"},{"pos":"a","text":"marked by fidelity to an original","src":"oewn"}]}
 {"word":"faithfully","defs":[{"pos":"r","text":"in a faithful manner","src":"oewn"}]}
@@ -4842,8 +4842,8 @@
 {"word":"fertilization","defs":[{"pos":"n","text":"creation by the physical union of male and female gametes","src":"oewn"},{"pos":"n","text":"making fertile as by applying fertilizer or manure","src":"oewn"}]}
 {"word":"fertilize","defs":[{"pos":"v","text":"provide with fertilizers or add nutrients to","src":"oewn"},{"pos":"v","text":"make fertile or productive","src":"oewn"}]}
 {"word":"fertilizer","defs":[{"pos":"n","text":"any substance such as manure or a mixture of nitrates used to make soil more fertile","src":"oewn"}]}
-{"word":"fervent","defs":[{"pos":"a","text":"characterized by intense emotion","src":"oewn"},{"pos":"a","text":"(archaic) extremely hot, burning, or glowing","src":"oewn"}]}
-{"word":"fervid","defs":[{"pos":"a","text":"characterized by intense emotion","src":"oewn"},{"pos":"a","text":"(archaic) extremely hot, burning, or glowing","src":"oewn"}]}
+{"word":"fervent","defs":[{"pos":"a","text":"characterized by intense emotion","src":"oewn"}]}
+{"word":"fervid","defs":[{"pos":"a","text":"characterized by intense emotion","src":"oewn"}]}
 {"word":"fervor","defs":[{"pos":"n","text":"feelings of great warmth and intensity","src":"oewn"},{"pos":"n","text":"the state of being emotionally aroused and worked up","src":"oewn"}]}
 {"word":"festival","defs":[{"pos":"n","text":"a day or period of time set aside for feasting and celebration","src":"oewn"},{"pos":"n","text":"an organized series of acts and performances (usually in one place)","src":"oewn"}]}
 {"word":"festive","defs":[{"pos":"a","text":"offering fun and gaiety","src":"oewn"}]}
@@ -4854,7 +4854,7 @@
 {"word":"feudal","defs":[{"pos":"a","text":"of or relating to or characteristic of feudalism","src":"oewn"}]}
 {"word":"fever","defs":[{"pos":"n","text":"a rise in the temperature of the body","src":"oewn"},{"pos":"n","text":"a state of nervous excitement","src":"oewn"}]}
 {"word":"feverishly","defs":[{"pos":"r","text":"in a feverish manner","src":"oewn"}]}
-{"word":"few","defs":[{"pos":"a","text":"a quantifier that can be used with count nouns and is often preceded by ‘a’","src":"oewn"},{"pos":"pron","text":"a small number of people or things","src":"hand"},{"pos":"n","text":"a small elite group","src":"oewn"}]}
+{"word":"few","defs":[{"pos":"pron","text":"a small number of people or things","src":"hand"}]}
 {"word":"fiber","defs":[{"pos":"n","text":"a slender and greatly elongated substance capable of being spun into yarn","src":"oewn"},{"pos":"n","text":"coarse, indigestible plant food low in nutrients","src":"oewn"}]}
 {"word":"fibre","defs":[{"pos":"n","text":"a slender and greatly elongated substance capable of being spun into yarn","src":"oewn"},{"pos":"n","text":"any of several elongated, threadlike cells","src":"oewn"}]}
 {"word":"fibrous","defs":[{"pos":"a","text":"(of meat) full of sinews","src":"oewn"},{"pos":"a","text":"having or resembling fibers especially fibers used in making cordage such as those of jute","src":"oewn"}]}
@@ -4926,7 +4926,7 @@
 {"word":"firm","defs":[{"pos":"a","text":"marked by firm determination or resolution","src":"oewn"},{"pos":"a","text":"not soft or yielding to pressure","src":"oewn"},{"pos":"n","text":"the members of a business organization that owns or operates one or more establishments","src":"oewn"},{"pos":"v","text":"become taut or tauter","src":"oewn"},{"pos":"v","text":"make taut or tauter","src":"oewn"},{"pos":"r","text":"with resolute determination","src":"oewn"}]}
 {"word":"firmly","defs":[{"pos":"r","text":"with resolute determination","src":"oewn"},{"pos":"r","text":"in a secure manner","src":"oewn"}]}
 {"word":"firmness","defs":[{"pos":"n","text":"the muscle tone of healthy tissue","src":"oewn"},{"pos":"n","text":"the trait of being resolute","src":"oewn"}]}
-{"word":"first","defs":[{"pos":"r","text":"before anything else","src":"oewn"},{"pos":"r","text":"the initial time","src":"oewn"},{"pos":"n","text":"the first or highest in an ordering or series","src":"oewn"},{"pos":"n","text":"the first element in a countable series","src":"oewn"},{"pos":"a","text":"preceding all others in time or space or degree","src":"oewn"},{"pos":"a","text":"highest in pitch or chief among parts or voices or instruments or orchestra sections","src":"oewn"},{"pos":"num","text":"coming before all others in order or time","src":"hand"}]}
+{"word":"first","defs":[{"pos":"num","text":"coming before all others in order or time","src":"hand"}]}
 {"word":"fiscal","defs":[{"pos":"a","text":"involving financial matters","src":"oewn"}]}
 {"word":"fish","defs":[{"pos":"v","text":"seek indirectly","src":"oewn"},{"pos":"v","text":"catch or try to catch fish or shellfish","src":"oewn"},{"pos":"n","text":"(astrology) a person who is born while the sun is in Pisces","src":"oewn"},{"pos":"n","text":"any of various mostly cold-blooded aquatic vertebrates usually having scales and breathing through gills","src":"oewn"}]}
 {"word":"fisherman","defs":[{"pos":"n","text":"a man whose occupation is catching fish","src":"oewn"}]}
@@ -4937,7 +4937,7 @@
 {"word":"fitness","defs":[{"pos":"n","text":"the quality of being suitable","src":"oewn"},{"pos":"n","text":"good physical condition","src":"oewn"}]}
 {"word":"fitting","defs":[{"pos":"a","text":"in harmony with the spirit of particular persons or occasion","src":"oewn"},{"pos":"a","text":"being precisely fitting and right","src":"oewn"},{"pos":"n","text":"making or becoming suitable","src":"oewn"},{"pos":"n","text":"a small and often standardized accessory to a larger system","src":"oewn"}]}
 {"word":"five","defs":[{"pos":"n","text":"the cardinal number that is the sum of four and one","src":"oewn"},{"pos":"n","text":"a team that plays basketball","src":"oewn"},{"pos":"a","text":"being one more than four","src":"oewn"}]}
-{"word":"fix","defs":[{"pos":"v","text":"restore by replacing a part or putting together what is torn or broken","src":"oewn"},{"pos":"v","text":"cause to be firmly attached","src":"oewn"},{"pos":"n","text":"informal terms for a difficult situation","src":"oewn"},{"pos":"n","text":"something craved, especially an intravenous injection of a narcotic drug","src":"oewn"}]}
+{"word":"fix","defs":[{"pos":"v","text":"restore by replacing a part or putting together what is torn or broken","src":"oewn"},{"pos":"v","text":"cause to be firmly attached","src":"oewn"},{"pos":"n","text":"something craved, especially an intravenous injection of a narcotic drug","src":"oewn"},{"pos":"n","text":"the act of putting something in working order again","src":"oewn"}]}
 {"word":"fixation","defs":[{"pos":"n","text":"an abnormal state in which development has stopped prematurely","src":"oewn"},{"pos":"n","text":"an unhealthy and compulsive preoccupation with something or someone","src":"oewn"}]}
 {"word":"fixture","defs":[{"pos":"n","text":"an object firmly fixed in place (especially in a household)","src":"oewn"},{"pos":"n","text":"a regular patron","src":"oewn"}]}
 {"word":"flag","defs":[{"pos":"v","text":"communicate or signal with a flag","src":"oewn"},{"pos":"v","text":"provide with a flag","src":"oewn"},{"pos":"n","text":"emblem usually consisting of a rectangular piece of cloth of distinctive design","src":"oewn"},{"pos":"n","text":"a rectangular piece of fabric used as a signalling device","src":"oewn"}]}
@@ -5659,7 +5659,7 @@
 {"word":"guileless","defs":[{"pos":"a","text":"free of deceit","src":"oewn"}]}
 {"word":"guilt","defs":[{"pos":"n","text":"the state of having committed an offense","src":"oewn"},{"pos":"n","text":"remorse caused by feeling responsible for some offense","src":"oewn"}]}
 {"word":"guilty","defs":[{"pos":"a","text":"responsible for or chargeable with a reprehensible act","src":"oewn"},{"pos":"a","text":"showing a sense of guilt","src":"oewn"}]}
-{"word":"guinea","defs":[{"pos":"n","text":"(ethnic slur) offensive term for a person of Italian descent","src":"oewn"},{"pos":"n","text":"a former British gold coin worth 21 shillings","src":"oewn"}]}
+{"word":"guinea","defs":[{"pos":"n","text":"a former British gold coin worth 21 shillings","src":"oewn"},{"pos":"n","text":"a west African bird having dark plumage mottled with white","src":"oewn"}]}
 {"word":"guise","defs":[{"pos":"n","text":"an artful or simulated semblance","src":"oewn"}]}
 {"word":"guitar","defs":[{"pos":"n","text":"a stringed instrument usually having six strings","src":"oewn"}]}
 {"word":"gulf","defs":[{"pos":"n","text":"an arm of a sea or ocean partly enclosed by land","src":"oewn"},{"pos":"n","text":"an unbridgeable disparity","src":"oewn"}]}
@@ -5676,7 +5676,7 @@
 {"word":"gusto","defs":[{"pos":"n","text":"vigorous and enthusiastic enjoyment","src":"oewn"}]}
 {"word":"gut","defs":[{"pos":"n","text":"the part of the alimentary canal between the stomach and the anus","src":"oewn"},{"pos":"n","text":"a narrow channel or strait","src":"oewn"},{"pos":"v","text":"empty completely","src":"oewn"},{"pos":"v","text":"remove the guts of","src":"oewn"}]}
 {"word":"gutter","defs":[{"pos":"n","text":"a channel along the eaves or on the roof","src":"oewn"},{"pos":"n","text":"misfortune resulting in lost effort or money","src":"oewn"}]}
-{"word":"guy","defs":[{"pos":"n","text":"an informal term for a youth or man","src":"oewn"},{"pos":"n","text":"a cable, wire, or rope that is used to brace something (especially a tent)","src":"oewn"},{"pos":"v","text":"subject to laughter or ridicule","src":"oewn"},{"pos":"v","text":"steady or support with a guy wire or cable","src":"oewn"}]}
+{"word":"guy","defs":[{"pos":"n","text":"a cable, wire, or rope that is used to brace something (especially a tent)","src":"oewn"},{"pos":"n","text":"an effigy of Guy Fawkes that is burned on a bonfire on Guy Fawkes Day","src":"oewn"},{"pos":"v","text":"subject to laughter or ridicule","src":"oewn"},{"pos":"v","text":"steady or support with a guy wire or cable","src":"oewn"}]}
 {"word":"guzzle","defs":[{"pos":"v","text":"drink greedily or as if with great thirst","src":"oewn"}]}
 {"word":"gy","defs":[{"pos":"n","text":"the SI unit of energy absorbed from ionizing radiation","src":"oewn"}]}
 {"word":"gym","defs":[{"pos":"n","text":"athletic facility equipped for sports or physical training","src":"oewn"}]}
@@ -5787,7 +5787,7 @@
 {"word":"haste","defs":[{"pos":"n","text":"overly eager speed (and possible carelessness)","src":"oewn"},{"pos":"n","text":"the act of moving hurriedly and in a careless manner","src":"oewn"}]}
 {"word":"hasten","defs":[{"pos":"v","text":"act at high speed","src":"oewn"},{"pos":"v","text":"move hurridly","src":"oewn"}]}
 {"word":"hasty","defs":[{"pos":"a","text":"excessively quick","src":"oewn"},{"pos":"a","text":"done with very great haste and without due deliberation","src":"oewn"}]}
-{"word":"hat","defs":[{"pos":"n","text":"headdress that protects the head from bad weather","src":"oewn"},{"pos":"n","text":"an informal term for a person's role","src":"oewn"},{"pos":"v","text":"put on or wear a hat","src":"oewn"},{"pos":"v","text":"furnish with a hat","src":"oewn"}]}
+{"word":"hat","defs":[{"pos":"n","text":"headdress that protects the head from bad weather","src":"oewn"},{"pos":"v","text":"put on or wear a hat","src":"oewn"},{"pos":"v","text":"furnish with a hat","src":"oewn"}]}
 {"word":"hatch","defs":[{"pos":"n","text":"the production of young from an egg","src":"oewn"},{"pos":"n","text":"shading consisting of multiple crossing lines","src":"oewn"},{"pos":"v","text":"emerge from the eggs","src":"oewn"},{"pos":"v","text":"devise or invent","src":"oewn"}]}
 {"word":"hatchery","defs":[{"pos":"n","text":"a place where eggs are hatched under artificial conditions (especially fish eggs)","src":"oewn"}]}
 {"word":"hatchet","defs":[{"pos":"n","text":"weapon consisting of a fighting ax","src":"oewn"},{"pos":"n","text":"a small ax with a short handle used with one hand (usually to chop wood)","src":"oewn"}]}
@@ -5798,7 +5798,7 @@
 {"word":"haughty","defs":[{"pos":"a","text":"having or showing arrogant superiority to and disdain of those one views as unworthy","src":"oewn"}]}
 {"word":"haul","defs":[{"pos":"v","text":"draw slowly or heavily","src":"oewn"},{"pos":"v","text":"transport in a vehicle","src":"oewn"},{"pos":"n","text":"the act of drawing or hauling something","src":"oewn"},{"pos":"n","text":"the quantity that was caught","src":"oewn"}]}
 {"word":"haunt","defs":[{"pos":"v","text":"follow stealthily or recur constantly and spontaneously to","src":"oewn"},{"pos":"v","text":"haunt like a ghost","src":"oewn"},{"pos":"n","text":"a frequently visited place","src":"oewn"}]}
-{"word":"have","defs":[{"pos":"v","text":"have or possess, either in a concrete or an abstract sense","src":"oewn"},{"pos":"v","text":"have as a feature","src":"oewn"},{"pos":"aux","text":"used with a past participle to form perfect tenses","src":"hand"},{"pos":"n","text":"a person who possesses great material wealth","src":"oewn"}]}
+{"word":"have","defs":[{"pos":"aux","text":"used with a past participle to form perfect tenses","src":"hand"}]}
 {"word":"haven","defs":[{"pos":"n","text":"a shelter serving as a place of safety or sanctuary","src":"oewn"},{"pos":"n","text":"a sheltered port where ships can take on or discharge cargo","src":"oewn"}]}
 {"word":"havoc","defs":[{"pos":"n","text":"violent and needless disturbance","src":"oewn"}]}
 {"word":"hawk","defs":[{"pos":"v","text":"sell or offer for sale from place to place","src":"oewn"},{"pos":"v","text":"hunt with hawks","src":"oewn"},{"pos":"n","text":"diurnal bird of prey typically having short rounded wings and a long tail","src":"oewn"},{"pos":"n","text":"an advocate of an aggressive policy on foreign relations","src":"oewn"}]}
@@ -5806,7 +5806,7 @@
 {"word":"hazard","defs":[{"pos":"n","text":"a source of danger","src":"oewn"},{"pos":"n","text":"an obstacle on a golf course","src":"oewn"},{"pos":"v","text":"put forward, of a guess, in spite of possible refutation","src":"oewn"},{"pos":"v","text":"put at risk","src":"oewn"}]}
 {"word":"hazardous","defs":[{"pos":"a","text":"involving risk or danger","src":"oewn"}]}
 {"word":"hazel","defs":[{"pos":"n","text":"Australian tree grown especially for ornament and its fine-grained wood and bearing edible nuts","src":"oewn"},{"pos":"n","text":"a shade of brown that is yellowish or reddish","src":"oewn"},{"pos":"a","text":"of a light brown or yellowish brown color","src":"oewn"}]}
-{"word":"he","defs":[{"pos":"n","text":"a very light colorless element that is one of the six inert gasses","src":"oewn"},{"pos":"n","text":"the 5th letter of the Hebrew alphabet","src":"oewn"},{"pos":"pron","text":"used for a man or boy already mentioned","src":"hand"}]}
+{"word":"he","defs":[{"pos":"pron","text":"used for a man or boy already mentioned","src":"hand"}]}
 {"word":"head","defs":[{"pos":"n","text":"a single domestic animal","src":"oewn"},{"pos":"n","text":"that which is responsible for one's thoughts, feelings, and conscious brain functions","src":"oewn"},{"pos":"v","text":"to go or travel towards","src":"oewn"},{"pos":"v","text":"be in charge of","src":"oewn"}]}
 {"word":"headache","defs":[{"pos":"n","text":"something or someone that causes anxiety","src":"oewn"},{"pos":"n","text":"pain in the head caused by dilation of cerebral arteries or muscle contractions or a reaction to drugs","src":"oewn"}]}
 {"word":"heading","defs":[{"pos":"n","text":"a line of text serving to indicate what the passage below it is about","src":"oewn"},{"pos":"n","text":"the direction or path along which something moves or along which it lies","src":"oewn"},{"pos":"v","text":"to go or travel towards","src":"oewn"},{"pos":"v","text":"be in charge of","src":"oewn"}]}
@@ -5882,7 +5882,7 @@
 {"word":"herbivorous","defs":[{"pos":"a","text":"feeding only on plants","src":"oewn"}]}
 {"word":"herculean","defs":[{"pos":"a","text":"displaying superhuman strength or power","src":"oewn"},{"pos":"a","text":"extremely difficult","src":"oewn"}]}
 {"word":"herd","defs":[{"pos":"n","text":"a crowd especially of ordinary or undistinguished persons or things","src":"oewn"},{"pos":"n","text":"a group of cattle or sheep or other domestic mammals all of the same kind that are herded by humans","src":"oewn"},{"pos":"v","text":"cause to herd, drive, or crowd together","src":"oewn"},{"pos":"v","text":"move together, like a herd","src":"oewn"}]}
-{"word":"here","defs":[{"pos":"r","text":"in or at this place","src":"oewn"},{"pos":"r","text":"in this circumstance or respect or on this point or detail","src":"oewn"},{"pos":"int","text":"used when you give something to someone","src":"hand"},{"pos":"n","text":"the present location","src":"oewn"}]}
+{"word":"here","defs":[{"pos":"int","text":"used when you give something to someone","src":"hand"}]}
 {"word":"hereditary","defs":[{"pos":"a","text":"occurring among members of a family usually by heredity","src":"oewn"},{"pos":"a","text":"inherited or inheritable by established rules (usually legal rules) of descent","src":"oewn"}]}
 {"word":"heredity","defs":[{"pos":"n","text":"the biological process whereby genetic factors are transmitted from one generation to the next","src":"oewn"},{"pos":"n","text":"the total of inherited attributes","src":"oewn"}]}
 {"word":"herein","defs":[{"pos":"r","text":"in this place or thing or document","src":"oewn"}]}
@@ -5941,7 +5941,7 @@
 {"word":"hippopotamus","defs":[{"pos":"n","text":"massive thick-skinned herbivorous animal living in or around rivers of tropical Africa","src":"oewn"}]}
 {"word":"hire","defs":[{"pos":"n","text":"a newly hired employee","src":"oewn"},{"pos":"n","text":"the act of hiring something or someone","src":"oewn"},{"pos":"v","text":"engage or hire for work","src":"oewn"},{"pos":"v","text":"hold under a lease or rental agreement","src":"oewn"}]}
 {"word":"hirsute","defs":[{"pos":"a","text":"having or covered with hair","src":"oewn"}]}
-{"word":"his","defs":[{"pos":"pron","text":"belonging to a man or boy already mentioned","src":"hand"},{"pos":"n","text":"a very light colorless element that is one of the six inert gasses","src":"oewn"},{"pos":"n","text":"the 5th letter of the Hebrew alphabet","src":"oewn"}]}
+{"word":"his","defs":[{"pos":"pron","text":"belonging to a man or boy already mentioned","src":"hand"}]}
 {"word":"hispanic","defs":[{"pos":"a","text":"related to a Spanish-speaking people or culture","src":"oewn"}]}
 {"word":"hiss","defs":[{"pos":"n","text":"a fricative sound","src":"oewn"},{"pos":"n","text":"a cry or noise made to express displeasure or contempt","src":"oewn"},{"pos":"v","text":"make a sharp hissing sound, as if to show disapproval","src":"oewn"},{"pos":"v","text":"move with a whooshing sound","src":"oewn"}]}
 {"word":"historian","defs":[{"pos":"n","text":"a person who is an authority on history and who studies it and writes about it","src":"oewn"}]}
@@ -6055,7 +6055,7 @@
 {"word":"howl","defs":[{"pos":"v","text":"emit long loud cries","src":"oewn"},{"pos":"v","text":"cry loudly, as of animals","src":"oewn"},{"pos":"n","text":"a long loud emotional utterance","src":"oewn"},{"pos":"n","text":"the long plaintive cry of a hound or a wolf","src":"oewn"}]}
 {"word":"hub","defs":[{"pos":"n","text":"the central part of a car wheel through which the shaft or axle passes","src":"oewn"},{"pos":"n","text":"a center of activity or interest or commerce or transportation","src":"oewn"}]}
 {"word":"huckleberry","defs":[{"pos":"n","text":"any of various dark-fruited as distinguished from blue-fruited blueberries","src":"oewn"},{"pos":"n","text":"any of several shrubs of the genus Gaylussacia bearing small berries resembling blueberries","src":"oewn"}]}
-{"word":"huddle","defs":[{"pos":"v","text":"crowd or draw together","src":"oewn"},{"pos":"v","text":"crouch or curl up","src":"oewn"},{"pos":"n","text":"(informal) a quick private conference","src":"oewn"},{"pos":"n","text":"a disorganized and densely packed crowd","src":"oewn"}]}
+{"word":"huddle","defs":[{"pos":"v","text":"crowd or draw together","src":"oewn"},{"pos":"v","text":"crouch or curl up","src":"oewn"},{"pos":"n","text":"a disorganized and densely packed crowd","src":"oewn"}]}
 {"word":"hue","defs":[{"pos":"n","text":"the quality of a color as determined by its dominant wavelength","src":"oewn"}]}
 {"word":"hug","defs":[{"pos":"v","text":"hold (someone) tightly in your arms, usually with fondness","src":"oewn"},{"pos":"v","text":"fit closely or tightly","src":"oewn"},{"pos":"n","text":"a tight or amorous embrace","src":"oewn"}]}
 {"word":"huge","defs":[{"pos":"a","text":"unusually great in size or amount or degree or especially extent or scope","src":"oewn"}]}
@@ -6132,7 +6132,7 @@
 {"word":"hypothesize","defs":[{"pos":"v","text":"to believe especially on uncertain or tentative grounds","src":"oewn"}]}
 {"word":"hypothetical","defs":[{"pos":"a","text":"based primarily on surmise rather than adequate evidence","src":"oewn"}]}
 {"word":"hysterical","defs":[{"pos":"a","text":"characterized by or arising from psychoneurotic hysteria","src":"oewn"},{"pos":"a","text":"marked by excessive or uncontrollable emotion","src":"oewn"}]}
-{"word":"i","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself","src":"hand"},{"pos":"n","text":"a nonmetallic element belonging to the halogens","src":"oewn"},{"pos":"n","text":"the smallest whole number or a numeral representing this number","src":"oewn"}]}
+{"word":"i","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself","src":"hand"}]}
 {"word":"ibex","defs":[{"pos":"n","text":"wild goat of mountain areas of Eurasia and northern Africa having large recurved horns","src":"oewn"}]}
 {"word":"ice","defs":[{"pos":"n","text":"water frozen in the solid state","src":"oewn"},{"pos":"n","text":"the frozen part of a body of water","src":"oewn"},{"pos":"v","text":"decorate with frosting","src":"oewn"},{"pos":"v","text":"cause to become ice or icy","src":"oewn"}]}
 {"word":"iceberg","defs":[{"pos":"n","text":"a large mass of ice floating at sea","src":"oewn"},{"pos":"n","text":"lettuce with crisp tightly packed light-green leaves in a firm head","src":"oewn"}]}
@@ -6313,7 +6313,7 @@
 {"word":"impunity","defs":[{"pos":"n","text":"exemption from punishment or loss","src":"oewn"}]}
 {"word":"impurity","defs":[{"pos":"n","text":"worthless or dangerous material that should be removed","src":"oewn"},{"pos":"n","text":"the condition of being impure","src":"oewn"}]}
 {"word":"impute","defs":[{"pos":"v","text":"attribute or credit to","src":"oewn"},{"pos":"v","text":"attribute (responsibility or fault) to a cause or source","src":"oewn"}]}
-{"word":"in","defs":[{"pos":"prep","text":"inside or within a place, time, or state","src":"hand"},{"pos":"r","text":"to or toward the inside of","src":"oewn"},{"pos":"a","text":"holding office","src":"oewn"},{"pos":"a","text":"directed or bound inward","src":"oewn"},{"pos":"n","text":"a rare soft silvery metallic element","src":"oewn"},{"pos":"n","text":"a unit of length equal to one twelfth of a foot","src":"oewn"}]}
+{"word":"in","defs":[{"pos":"prep","text":"inside or within a place, time, or state","src":"hand"}]}
 {"word":"inability","defs":[{"pos":"n","text":"lack of ability (especially mental ability) to do something","src":"oewn"},{"pos":"n","text":"lacking the power to perform","src":"oewn"}]}
 {"word":"inaccessible","defs":[{"pos":"a","text":"capable of being reached only with great difficulty or not at all","src":"oewn"},{"pos":"a","text":"not capable of being obtained","src":"oewn"}]}
 {"word":"inaccurate","defs":[{"pos":"a","text":"erroneous","src":"oewn"}]}
@@ -6884,14 +6884,14 @@
 {"word":"item","defs":[{"pos":"n","text":"a small part that can be considered separately from the whole","src":"oewn"},{"pos":"n","text":"a whole individual unit","src":"oewn"}]}
 {"word":"itinerary","defs":[{"pos":"n","text":"an established line of travel or access","src":"oewn"},{"pos":"n","text":"a guidebook for travelers","src":"oewn"}]}
 {"word":"itinerate","defs":[{"pos":"v","text":"travel from place to place, as for work","src":"oewn"}]}
-{"word":"its","defs":[{"pos":"pron","text":"belonging to a thing or animal already mentioned","src":"hand"},{"pos":"n","text":"the branch of engineering that deals with the use of computers and telecommunications to retrieve and store and transmit information","src":"oewn"}]}
+{"word":"its","defs":[{"pos":"pron","text":"belonging to a thing or animal already mentioned","src":"hand"}]}
 {"word":"ivory","defs":[{"pos":"n","text":"a shade of white the color of bleached bones","src":"oewn"},{"pos":"n","text":"a hard smooth ivory colored dentine that makes up most of the tusks of elephants and walruses","src":"oewn"}]}
 {"word":"jack","defs":[{"pos":"n","text":"a man who serves as a sailor","src":"oewn"},{"pos":"n","text":"a small worthless amount","src":"oewn"}]}
 {"word":"jacket","defs":[{"pos":"n","text":"a short coat","src":"oewn"},{"pos":"n","text":"an outer wrapping or casing","src":"oewn"},{"pos":"v","text":"provide with a thermally non-conducting cover","src":"oewn"},{"pos":"v","text":"put a jacket on","src":"oewn"}]}
 {"word":"jade","defs":[{"pos":"n","text":"a semiprecious gemstone that takes a high polish","src":"oewn"},{"pos":"n","text":"a woman adulterer","src":"oewn"},{"pos":"a","text":"of something having the color of jade","src":"oewn"},{"pos":"v","text":"lose interest or become bored with something or somebody","src":"oewn"},{"pos":"v","text":"exhaust or get tired through overuse or great strain or stress","src":"oewn"}]}
 {"word":"jaded","defs":[{"pos":"a","text":"exhausted","src":"oewn"},{"pos":"a","text":"dulled by surfeit","src":"oewn"},{"pos":"v","text":"lose interest or become bored with something or somebody","src":"oewn"},{"pos":"v","text":"exhaust or get tired through overuse or great strain or stress","src":"oewn"}]}
 {"word":"jail","defs":[{"pos":"n","text":"a correctional institution used to detain persons who are in the lawful custody of the government","src":"oewn"},{"pos":"v","text":"lock up or confine, in or as in a jail","src":"oewn"}]}
-{"word":"jam","defs":[{"pos":"n","text":"preserve of crushed fruit","src":"oewn"},{"pos":"n","text":"informal terms for a difficult situation","src":"oewn"},{"pos":"v","text":"press tightly together or cram","src":"oewn"},{"pos":"v","text":"push down forcibly","src":"oewn"}]}
+{"word":"jam","defs":[{"pos":"n","text":"preserve of crushed fruit","src":"oewn"},{"pos":"n","text":"a dense crowd of people","src":"oewn"},{"pos":"v","text":"press tightly together or cram","src":"oewn"},{"pos":"v","text":"push down forcibly","src":"oewn"}]}
 {"word":"january","defs":[{"pos":"n","text":"the first month of the year","src":"oewn"}]}
 {"word":"japan","defs":[{"pos":"n","text":"lacquerware decorated and varnished in the Japanese manner with a glossy durable black lacquer","src":"oewn"},{"pos":"n","text":"lacquer with a durable glossy black finish, originally from the orient","src":"oewn"}]}
 {"word":"japanese","defs":[{"pos":"a","text":"of or relating to or characteristic of Japan or its people or their culture or language","src":"oewn"},{"pos":"n","text":"a native or inhabitant of Japan","src":"oewn"},{"pos":"n","text":"the language spoken by the Japanese","src":"oewn"}]}
@@ -7230,7 +7230,7 @@
 {"word":"lethargic","defs":[{"pos":"a","text":"deficient in alertness or activity","src":"oewn"}]}
 {"word":"lethargy","defs":[{"pos":"n","text":"a state of comatose torpor","src":"oewn"},{"pos":"n","text":"weakness characterized by a lack of vitality or energy","src":"oewn"}]}
 {"word":"letter","defs":[{"pos":"n","text":"a written message addressed to a person or organization","src":"oewn"},{"pos":"n","text":"the conventional characters of the alphabet used to represent speech","src":"oewn"},{"pos":"v","text":"win an athletic letter","src":"oewn"},{"pos":"v","text":"set down or print with letters","src":"oewn"}]}
-{"word":"lettuce","defs":[{"pos":"n","text":"informal terms for money","src":"oewn"},{"pos":"n","text":"any of various plants of the genus Lactuca","src":"oewn"}]}
+{"word":"lettuce","defs":[{"pos":"n","text":"any of various plants of the genus Lactuca","src":"oewn"},{"pos":"n","text":"leaves of any of various plants of Lactuca sativa","src":"oewn"}]}
 {"word":"levee","defs":[{"pos":"n","text":"a formal reception of visitors or guests","src":"oewn"},{"pos":"n","text":"a pier that provides a landing place on a river","src":"oewn"}]}
 {"word":"level","defs":[{"pos":"n","text":"a position on a scale of intensity or amount or quality","src":"oewn"},{"pos":"n","text":"a relative position or degree of value in a graded group","src":"oewn"},{"pos":"a","text":"not showing abrupt variations","src":"oewn"},{"pos":"a","text":"being on a precise horizontal plane","src":"oewn"},{"pos":"v","text":"aim at","src":"oewn"},{"pos":"v","text":"tear down so as to make flat with the ground","src":"oewn"}]}
 {"word":"lever","defs":[{"pos":"n","text":"a rigid bar pivoted about a fulcrum","src":"oewn"},{"pos":"n","text":"a simple machine that gives a mechanical advantage when given a fulcrum","src":"oewn"},{"pos":"v","text":"to move or force, especially in an effort to get something open","src":"oewn"}]}
@@ -7278,7 +7278,7 @@
 {"word":"lightness","defs":[{"pos":"n","text":"a feeling of joy and pride","src":"oewn"},{"pos":"n","text":"the property of being comparatively small in weight","src":"oewn"}]}
 {"word":"lightning","defs":[{"pos":"n","text":"the flash of light that accompanies an electric discharge in the atmosphere","src":"oewn"},{"pos":"n","text":"abrupt electric discharge from cloud to cloud or from cloud to earth accompanied by the emission of light","src":"oewn"}]}
 {"word":"lightweight","defs":[{"pos":"n","text":"a professional boxer who weighs between 131 and 135 pounds","src":"oewn"},{"pos":"n","text":"someone who is unimportant but cheeky and presumptuous","src":"oewn"}]}
-{"word":"like","defs":[{"pos":"v","text":"to hope, to desire or to prefer to have something, or to do something","src":"oewn"},{"pos":"v","text":"find enjoyable or agreeable","src":"oewn"},{"pos":"prep","text":"similar to someone or something","src":"hand"},{"pos":"a","text":"resembling or similar","src":"oewn"},{"pos":"a","text":"equal in amount or value","src":"oewn"},{"pos":"n","text":"a similar kind","src":"oewn"},{"pos":"n","text":"a kind of person","src":"oewn"},{"pos":"conj","text":"in the way that; as if","src":"hand"}]}
+{"word":"like","defs":[{"pos":"prep","text":"similar to someone or something","src":"hand"},{"pos":"conj","text":"in the way that; as if","src":"hand"}]}
 {"word":"likelihood","defs":[{"pos":"n","text":"the probability of a specified outcome","src":"oewn"}]}
 {"word":"likely","defs":[{"pos":"a","text":"has a good chance of being the case or of coming about","src":"oewn"},{"pos":"a","text":"expected to become or be","src":"oewn"},{"pos":"r","text":"with considerable certainty","src":"oewn"}]}
 {"word":"likeness","defs":[{"pos":"n","text":"similarity in appearance or character or nature between persons or things","src":"oewn"},{"pos":"n","text":"picture consisting of a graphic image of a person or thing","src":"oewn"}]}
@@ -7409,7 +7409,7 @@
 {"word":"loosely","defs":[{"pos":"r","text":"in a relaxed manner","src":"oewn"},{"pos":"r","text":"in a loose manner","src":"oewn"}]}
 {"word":"loosen","defs":[{"pos":"v","text":"make loose or looser","src":"oewn"},{"pos":"v","text":"make less severe or strict","src":"oewn"}]}
 {"word":"looseness","defs":[{"pos":"n","text":"frequent and watery bowel movements","src":"oewn"},{"pos":"n","text":"freedom from restraint","src":"oewn"}]}
-{"word":"loot","defs":[{"pos":"n","text":"goods or money obtained illegally","src":"oewn"},{"pos":"n","text":"informal terms for money","src":"oewn"},{"pos":"v","text":"take illegally","src":"oewn"},{"pos":"v","text":"steal goods","src":"oewn"}]}
+{"word":"loot","defs":[{"pos":"n","text":"goods or money obtained illegally","src":"oewn"},{"pos":"v","text":"take illegally","src":"oewn"},{"pos":"v","text":"steal goods","src":"oewn"}]}
 {"word":"lop","defs":[{"pos":"v","text":"cut off from a whole","src":"oewn"},{"pos":"v","text":"cultivate, tend, and cut back the growth of","src":"oewn"}]}
 {"word":"lope","defs":[{"pos":"v","text":"run easily","src":"oewn"},{"pos":"n","text":"a slow pace of running","src":"oewn"},{"pos":"n","text":"a smooth three-beat gait","src":"oewn"}]}
 {"word":"lopsided","defs":[{"pos":"a","text":"having one side lower or smaller or lighter than the other","src":"oewn"},{"pos":"a","text":"turned or twisted toward one side","src":"oewn"}]}
@@ -7550,7 +7550,7 @@
 {"word":"mammal","defs":[{"pos":"n","text":"any warm-blooded vertebrate having the skin more or less covered with hair","src":"oewn"}]}
 {"word":"mammalian","defs":[{"pos":"n","text":"any warm-blooded vertebrate having the skin more or less covered with hair","src":"oewn"},{"pos":"a","text":"of or relating to the class Mammalia","src":"oewn"}]}
 {"word":"mammoth","defs":[{"pos":"n","text":"any of numerous extinct elephants widely distributed in the Pleistocene","src":"oewn"},{"pos":"a","text":"so exceedingly large or extensive as to suggest a giant or mammoth","src":"oewn"}]}
-{"word":"man","defs":[{"pos":"n","text":"an adult person who is male","src":"oewn"},{"pos":"n","text":"the generic use of the word to refer to any human being","src":"oewn"},{"pos":"v","text":"take charge of a certain job","src":"oewn"},{"pos":"v","text":"provide with workers","src":"oewn"},{"pos":"int","text":"informal word used to show surprise or strong feeling","src":"hand"}]}
+{"word":"man","defs":[{"pos":"int","text":"informal word used to show surprise or strong feeling","src":"hand"}]}
 {"word":"manage","defs":[{"pos":"v","text":"be successful","src":"oewn"},{"pos":"v","text":"be in charge of, act on, or dispose of","src":"oewn"}]}
 {"word":"manageable","defs":[{"pos":"a","text":"capable of being managed or controlled","src":"oewn"},{"pos":"a","text":"capable of existing or taking place or proving true","src":"oewn"}]}
 {"word":"management","defs":[{"pos":"n","text":"the act of managing something","src":"oewn"},{"pos":"n","text":"those in charge of running a business","src":"oewn"}]}
@@ -7582,7 +7582,7 @@
 {"word":"manufacturer","defs":[{"pos":"n","text":"a business engaged in manufacturing some product","src":"oewn"},{"pos":"n","text":"someone who manufactures something","src":"oewn"}]}
 {"word":"manure","defs":[{"pos":"n","text":"any animal or plant material used to fertilize land especially animal excreta usually with litter material","src":"oewn"}]}
 {"word":"manuscript","defs":[{"pos":"n","text":"the form of a literary work submitted for publication","src":"oewn"},{"pos":"n","text":"handwritten book or document","src":"oewn"}]}
-{"word":"many","defs":[{"pos":"pron","text":"a large number of people or things","src":"hand"},{"pos":"a","text":"a quantifier that can be used with count nouns and is often preceded by ‘as’ or ‘too’ or ‘so’ or ‘that’","src":"oewn"}]}
+{"word":"many","defs":[{"pos":"pron","text":"a large number of people or things","src":"hand"}]}
 {"word":"map","defs":[{"pos":"v","text":"make a map of","src":"oewn"},{"pos":"v","text":"explore or survey for the purpose of making a map","src":"oewn"},{"pos":"n","text":"a diagrammatic representation of the earth's surface (or part of it)","src":"oewn"},{"pos":"n","text":"(mathematics) a mathematical relation such that each element of a given set is associated with an element of another set","src":"oewn"}]}
 {"word":"maple","defs":[{"pos":"n","text":"wood of any of various maple trees","src":"oewn"},{"pos":"n","text":"any of numerous trees or shrubs of the genus Acer bearing winged seeds in pairs","src":"oewn"}]}
 {"word":"mar","defs":[{"pos":"n","text":"the month following February and preceding April","src":"oewn"},{"pos":"n","text":"a mark or flaw that spoils the appearance of something","src":"oewn"},{"pos":"v","text":"make imperfect","src":"oewn"},{"pos":"v","text":"destroy or injure severely","src":"oewn"}]}
@@ -7668,7 +7668,7 @@
 {"word":"mawkish","defs":[{"pos":"a","text":"effusively or insincerely emotional","src":"oewn"}]}
 {"word":"maximize","defs":[{"pos":"v","text":"make as big or large as possible","src":"oewn"},{"pos":"v","text":"make the most of","src":"oewn"}]}
 {"word":"maximum","defs":[{"pos":"n","text":"the largest possible quantity","src":"oewn"},{"pos":"n","text":"the greatest possible degree","src":"oewn"},{"pos":"a","text":"the greatest or most complete or best possible","src":"oewn"}]}
-{"word":"may","defs":[{"pos":"aux","text":"used to say that something is possible or allowed","src":"hand"},{"pos":"n","text":"the month following April and preceding June","src":"oewn"},{"pos":"n","text":"thorny Eurasian shrub of small tree having dense clusters of white to scarlet flowers followed by deep red berries","src":"oewn"}]}
+{"word":"may","defs":[{"pos":"aux","text":"used to say that something is possible or allowed","src":"hand"}]}
 {"word":"maya","defs":[{"pos":"n","text":"an ethnic minority speaking Mayan languages and living in Yucatan and adjacent areas","src":"oewn"},{"pos":"n","text":"a family of American Indian languages spoken by Mayas","src":"oewn"}]}
 {"word":"maybe","defs":[{"pos":"r","text":"by chance","src":"oewn"}]}
 {"word":"mayor","defs":[{"pos":"n","text":"the head of a city government","src":"oewn"}]}
@@ -7774,7 +7774,7 @@
 {"word":"mesolithic","defs":[{"pos":"a","text":"of or relating to a middle period of the Stone Age (following the paleolithic)","src":"oewn"}]}
 {"word":"mesozoic","defs":[{"pos":"a","text":"of or relating to or denoting the Mesozoic era","src":"oewn"}]}
 {"word":"mesquite","defs":[{"pos":"n","text":"any of several small spiny trees or shrubs of the genus Prosopis having small flowers in axillary cylindrical spikes followed by large pods rich in sugar","src":"oewn"}]}
-{"word":"mess","defs":[{"pos":"n","text":"a state of confusion and disorderliness","src":"oewn"},{"pos":"n","text":"informal terms for a difficult situation","src":"oewn"},{"pos":"v","text":"eat in a mess hall","src":"oewn"},{"pos":"v","text":"make a mess of or create disorder in","src":"oewn"}]}
+{"word":"mess","defs":[{"pos":"n","text":"a state of confusion and disorderliness","src":"oewn"},{"pos":"n","text":"soft semiliquid food","src":"oewn"},{"pos":"v","text":"eat in a mess hall","src":"oewn"},{"pos":"v","text":"make a mess of or create disorder in","src":"oewn"}]}
 {"word":"message","defs":[{"pos":"n","text":"a communication (usually brief) that is written or spoken or signaled","src":"oewn"},{"pos":"n","text":"content communicating a message","src":"oewn"},{"pos":"v","text":"send a message to","src":"oewn"},{"pos":"v","text":"send as a message","src":"oewn"}]}
 {"word":"messenger","defs":[{"pos":"n","text":"a person who carries a message","src":"oewn"}]}
 {"word":"messy","defs":[{"pos":"a","text":"dirty and disorderly","src":"oewn"}]}
@@ -7842,7 +7842,7 @@
 {"word":"midway","defs":[{"pos":"n","text":"the place at a fair or carnival where sideshows and similar amusements are located","src":"oewn"},{"pos":"a","text":"equally distant from the extremes","src":"oewn"},{"pos":"r","text":"at half the distance","src":"oewn"}]}
 {"word":"midwestern","defs":[{"pos":"a","text":"of a region of the United States generally including Ohio, Indiana, Illinois, Iowa, Missouri, Kansas, Nebraska, and sometimes Michigan, Wisconsin, Minnesota","src":"oewn"}]}
 {"word":"miff","defs":[{"pos":"n","text":"a state of irritation or annoyance","src":"oewn"},{"pos":"v","text":"cause to be annoyed","src":"oewn"}]}
-{"word":"might","defs":[{"pos":"aux","text":"used to say that something is possibly true or may happen","src":"hand"},{"pos":"n","text":"physical strength","src":"oewn"}]}
+{"word":"might","defs":[{"pos":"aux","text":"used to say that something is possibly true or may happen","src":"hand"}]}
 {"word":"mighty","defs":[{"pos":"a","text":"having or showing great strength or force or intensity","src":"oewn"}]}
 {"word":"migrant","defs":[{"pos":"n","text":"traveler who moves from one region or country to another","src":"oewn"}]}
 {"word":"migrate","defs":[{"pos":"v","text":"move from one country or region to another and settle there","src":"oewn"},{"pos":"v","text":"move periodically or seasonally","src":"oewn"}]}
@@ -8047,7 +8047,7 @@
 {"word":"moratorium","defs":[{"pos":"n","text":"a legally authorized postponement before some obligation must be discharged","src":"oewn"},{"pos":"n","text":"suspension of an ongoing activity","src":"oewn"}]}
 {"word":"morbid","defs":[{"pos":"a","text":"suggesting an unhealthy mental state","src":"oewn"},{"pos":"a","text":"suggesting the horror of death and decay","src":"oewn"}]}
 {"word":"mordacious","defs":[{"pos":"a","text":"capable of wounding","src":"oewn"},{"pos":"a","text":"biting or given to biting","src":"oewn"}]}
-{"word":"more","defs":[{"pos":"r","text":"comparative of much","src":"oewn"},{"pos":"r","text":"used to form the comparative of some adjectives and adverbs, indicates that the adjective or adverb is more of something","src":"oewn"},{"pos":"a","text":"a quantifier meaning greater in size or amount or extent or degree","src":"oewn"},{"pos":"a","text":"quantifier meaning greater in number","src":"oewn"},{"pos":"pron","text":"a greater amount or number of something","src":"hand"}]}
+{"word":"more","defs":[{"pos":"pron","text":"a greater amount or number of something","src":"hand"}]}
 {"word":"moreover","defs":[{"pos":"r","text":"denoting additional information","src":"oewn"}]}
 {"word":"morgue","defs":[{"pos":"n","text":"a building (or room) where dead bodies are kept before burial or cremation","src":"oewn"}]}
 {"word":"moribund","defs":[{"pos":"a","text":"not growing or changing","src":"oewn"},{"pos":"a","text":"being on the point of death","src":"oewn"}]}
@@ -8107,9 +8107,9 @@
 {"word":"movie","defs":[{"pos":"n","text":"a form of entertainment that enacts a story by sound and a sequence of images giving the illusion of continuous movement","src":"oewn"}]}
 {"word":"mow","defs":[{"pos":"v","text":"cut with a blade or mower","src":"oewn"},{"pos":"v","text":"make a sad face and thrust out one's lower lip","src":"oewn"}]}
 {"word":"mr.","defs":[{"pos":"n","text":"a form of address for a man","src":"oewn"}]}
-{"word":"much","defs":[{"pos":"r","text":"to a great degree or extent","src":"oewn"},{"pos":"r","text":"incredibly","src":"oewn"},{"pos":"pron","text":"a large amount of something","src":"hand"},{"pos":"a","text":"great in quantity or degree or extent","src":"oewn"},{"pos":"n","text":"a great amount or extent","src":"oewn"}]}
+{"word":"much","defs":[{"pos":"pron","text":"a large amount of something","src":"hand"}]}
 {"word":"mud","defs":[{"pos":"v","text":"soil with mud, muck, or mire","src":"oewn"},{"pos":"v","text":"plaster with mud","src":"oewn"},{"pos":"n","text":"water soaked soil","src":"oewn"},{"pos":"n","text":"slanderous remarks or charges","src":"oewn"}]}
-{"word":"muddle","defs":[{"pos":"v","text":"make into a puddle","src":"oewn"},{"pos":"v","text":"mix up or confuse","src":"oewn"},{"pos":"n","text":"a confused multitude of things","src":"oewn"},{"pos":"n","text":"informal terms for a difficult situation","src":"oewn"}]}
+{"word":"muddle","defs":[{"pos":"v","text":"make into a puddle","src":"oewn"},{"pos":"v","text":"mix up or confuse","src":"oewn"},{"pos":"n","text":"a confused multitude of things","src":"oewn"}]}
 {"word":"muddy","defs":[{"pos":"a","text":"(of soil) soft and watery","src":"oewn"},{"pos":"a","text":"dirty and messy","src":"oewn"},{"pos":"v","text":"dirty with mud","src":"oewn"},{"pos":"v","text":"cause to become muddy","src":"oewn"}]}
 {"word":"muffle","defs":[{"pos":"v","text":"suppress in order to conceal or hide","src":"oewn"},{"pos":"v","text":"deaden (a sound or noise), especially by wrapping","src":"oewn"},{"pos":"n","text":"a kiln with an inner chamber for firing things at a low temperature","src":"oewn"}]}
 {"word":"mug","defs":[{"pos":"n","text":"the quantity that can be held in a mug","src":"oewn"},{"pos":"n","text":"a person who is gullible and easy to take advantage of","src":"oewn"},{"pos":"v","text":"rob at gunpoint or with the threat of violence","src":"oewn"},{"pos":"v","text":"To stare awkwardly","src":"oewn"}]}
@@ -8146,7 +8146,7 @@
 {"word":"musician","defs":[{"pos":"n","text":"someone who plays a music as a profession","src":"oewn"},{"pos":"n","text":"artist who composes or conducts music as a profession","src":"oewn"}]}
 {"word":"musicologist","defs":[{"pos":"n","text":"a student of musicology","src":"oewn"}]}
 {"word":"mussel","defs":[{"pos":"n","text":"black marine bivalves usually steamed in wine","src":"oewn"},{"pos":"n","text":"marine or freshwater bivalve mollusk that lives attached to rocks etc.","src":"oewn"}]}
-{"word":"must","defs":[{"pos":"aux","text":"used to say that something is necessary or very likely","src":"hand"},{"pos":"n","text":"a necessary or essential thing","src":"oewn"},{"pos":"n","text":"grape juice before or during fermentation","src":"oewn"}]}
+{"word":"must","defs":[{"pos":"aux","text":"used to say that something is necessary or very likely","src":"hand"}]}
 {"word":"mustard","defs":[{"pos":"n","text":"any of several cruciferous plants of the genus Brassica","src":"oewn"},{"pos":"n","text":"pungent powder or paste prepared from ground mustard seeds","src":"oewn"}]}
 {"word":"mutation","defs":[{"pos":"n","text":"(biology) an organism that has characteristics resulting from chromosomal alteration","src":"oewn"},{"pos":"n","text":"(genetics) any event that changes genetic structure","src":"oewn"}]}
 {"word":"mute","defs":[{"pos":"a","text":"expressed without speech","src":"oewn"},{"pos":"a","text":"unable to speak because of hereditary deafness","src":"oewn"},{"pos":"n","text":"a deaf person who is unable to speak","src":"oewn"},{"pos":"n","text":"a device used to soften the tone of a musical instrument","src":"oewn"},{"pos":"v","text":"deaden (a sound or noise), especially by wrapping","src":"oewn"}]}
@@ -8156,7 +8156,7 @@
 {"word":"mutual","defs":[{"pos":"a","text":"common to or shared by two or more parties","src":"oewn"},{"pos":"a","text":"concerning each of two or more persons or things","src":"oewn"}]}
 {"word":"mutualism","defs":[{"pos":"n","text":"the relation between two different species of organisms that are interdependent","src":"oewn"}]}
 {"word":"mutually","defs":[{"pos":"r","text":"in a mutual or shared manner","src":"oewn"}]}
-{"word":"my","defs":[{"pos":"pron","text":"belonging to the speaker","src":"hand"},{"pos":"int","text":"used to show surprise","src":"hand"},{"pos":"n","text":"a nonmetallic element belonging to the halogens","src":"oewn"},{"pos":"n","text":"the smallest whole number or a numeral representing this number","src":"oewn"}]}
+{"word":"my","defs":[{"pos":"pron","text":"belonging to the speaker","src":"hand"},{"pos":"int","text":"used to show surprise","src":"hand"}]}
 {"word":"mycology","defs":[{"pos":"n","text":"the branch of botany that studies fungi and fungus-caused diseases","src":"oewn"}]}
 {"word":"myopia","defs":[{"pos":"n","text":"(ophthalmology) eyesight abnormality resulting from the eye's faulty refractive ability","src":"oewn"}]}
 {"word":"myopic","defs":[{"pos":"a","text":"unable to see distant objects clearly","src":"oewn"},{"pos":"a","text":"lacking foresight or scope","src":"oewn"}]}
@@ -8305,7 +8305,7 @@
 {"word":"nexus","defs":[{"pos":"n","text":"the means of connection between things linked in series","src":"oewn"},{"pos":"n","text":"a connected series or group","src":"oewn"}]}
 {"word":"nice","defs":[{"pos":"a","text":"pleasant or pleasing or agreeable in nature or appearance","src":"oewn"},{"pos":"a","text":"socially or conventionally correct","src":"oewn"}]}
 {"word":"niche","defs":[{"pos":"n","text":"a position particularly well suited to the person who or organization which occupies it","src":"oewn"},{"pos":"n","text":"a small concavity","src":"oewn"}]}
-{"word":"nick","defs":[{"pos":"n","text":"an impression in a surface","src":"oewn"},{"pos":"n","text":"(British slang) a prison","src":"oewn"}]}
+{"word":"nick","defs":[{"pos":"n","text":"an impression in a surface","src":"oewn"},{"pos":"n","text":"a small cut","src":"oewn"}]}
 {"word":"nickel","defs":[{"pos":"n","text":"a hard malleable ductile silvery metallic element that is resistant to corrosion","src":"oewn"},{"pos":"n","text":"a United States coin worth one twentieth of a dollar","src":"oewn"},{"pos":"v","text":"plate with nickel","src":"oewn"}]}
 {"word":"nickname","defs":[{"pos":"n","text":"a familiar name for a person","src":"oewn"},{"pos":"n","text":"a descriptive name for a place or thing","src":"oewn"},{"pos":"v","text":"give a nickname to","src":"oewn"}]}
 {"word":"nicotine","defs":[{"pos":"n","text":"an alkaloid poison that occurs in tobacco","src":"oewn"}]}
@@ -8359,7 +8359,7 @@
 {"word":"nonstop","defs":[{"pos":"a","text":"occurring without stops","src":"oewn"},{"pos":"a","text":"at all times","src":"oewn"},{"pos":"r","text":"without stopping","src":"oewn"}]}
 {"word":"nontraditional","defs":[{"pos":"a","text":"not conforming to or in accord with tradition","src":"oewn"}]}
 {"word":"nonverbal","defs":[{"pos":"a","text":"being other than verbal communication","src":"oewn"},{"pos":"a","text":"lacking verbal skill","src":"oewn"}]}
-{"word":"noodle","defs":[{"pos":"n","text":"a ribbonlike strip of pasta","src":"oewn"},{"pos":"n","text":"informal terms for a human head","src":"oewn"}]}
+{"word":"noodle","defs":[{"pos":"n","text":"a ribbonlike strip of pasta","src":"oewn"}]}
 {"word":"noon","defs":[{"pos":"n","text":"the middle of the day","src":"oewn"}]}
 {"word":"norm","defs":[{"pos":"n","text":"a standard or model or pattern regarded as typical","src":"oewn"},{"pos":"n","text":"a statistic describing the location of a distribution","src":"oewn"}]}
 {"word":"normal","defs":[{"pos":"a","text":"in accordance with scientific laws","src":"oewn"},{"pos":"a","text":"being approximately average or within certain limits in e.g. intelligence and development","src":"oewn"},{"pos":"n","text":"something regarded as a normative example","src":"oewn"}]}
@@ -8409,11 +8409,11 @@
 {"word":"novelty","defs":[{"pos":"n","text":"originality by virtue of being refreshingly novel","src":"oewn"},{"pos":"n","text":"originality by virtue of being new and surprising","src":"oewn"}]}
 {"word":"november","defs":[{"pos":"n","text":"the month following October and preceding December","src":"oewn"}]}
 {"word":"novice","defs":[{"pos":"n","text":"someone who has entered a religious order but has not taken final vows","src":"oewn"},{"pos":"n","text":"someone new to a field or activity","src":"oewn"}]}
-{"word":"now","defs":[{"pos":"r","text":"in the historical present","src":"oewn"},{"pos":"r","text":"in these times","src":"oewn"},{"pos":"n","text":"the momentary present","src":"oewn"},{"pos":"conj","text":"since; because something has just happened","src":"hand"}]}
+{"word":"now","defs":[{"pos":"conj","text":"since; because something has just happened","src":"hand"}]}
 {"word":"nowadays","defs":[{"pos":"r","text":"in these times","src":"oewn"},{"pos":"n","text":"the period of time that is happening now","src":"oewn"}]}
 {"word":"nowhere","defs":[{"pos":"r","text":"not anywhere","src":"oewn"},{"pos":"n","text":"an insignificant place","src":"oewn"}]}
 {"word":"noxious","defs":[{"pos":"a","text":"injurious to physical or mental health","src":"oewn"}]}
-{"word":"nozzle","defs":[{"pos":"n","text":"a projecting spout from which a fluid is discharged","src":"oewn"},{"pos":"n","text":"informal terms for the nose","src":"oewn"}]}
+{"word":"nozzle","defs":[{"pos":"n","text":"a projecting spout from which a fluid is discharged","src":"oewn"}]}
 {"word":"nuance","defs":[{"pos":"n","text":"a subtle difference in meaning or opinion or attitude","src":"oewn"}]}
 {"word":"nuclear","defs":[{"pos":"a","text":"(weapons) deriving destructive energy from the release of atomic energy","src":"oewn"},{"pos":"a","text":"of or relating to or constituting the nucleus of an atom","src":"oewn"}]}
 {"word":"nuclei","defs":[{"pos":"n","text":"the positively charged dense center of an atom","src":"oewn"},{"pos":"n","text":"a small group of indispensable persons or things","src":"oewn"}]}
@@ -8529,7 +8529,7 @@
 {"word":"odorous","defs":[{"pos":"a","text":"having odor or a characteristic odor","src":"oewn"},{"pos":"a","text":"emitting an odor","src":"oewn"}]}
 {"word":"odour","defs":[{"pos":"n","text":"any property detected by the olfactory system","src":"oewn"},{"pos":"n","text":"the sensation that results when olfactory receptors in the nose are stimulated by particular chemicals in gaseous form","src":"oewn"}]}
 {"word":"of","defs":[{"pos":"prep","text":"used to show belonging, contents, or a part of something","src":"hand"}]}
-{"word":"off","defs":[{"pos":"prep","text":"away from or no longer on something","src":"hand"},{"pos":"r","text":"from a particular thing or place or position (‘forth’ is obsolete)","src":"oewn"},{"pos":"r","text":"at a distance in space or time","src":"oewn"},{"pos":"a","text":"not in operation or operational","src":"oewn"},{"pos":"a","text":"below a satisfactory level","src":"oewn"}]}
+{"word":"off","defs":[{"pos":"prep","text":"away from or no longer on something","src":"hand"}]}
 {"word":"offence","defs":[{"pos":"n","text":"the action of attacking an enemy","src":"oewn"},{"pos":"n","text":"the team that has the ball (or puck) and is trying to score","src":"oewn"}]}
 {"word":"offend","defs":[{"pos":"v","text":"cause to feel resentment or indignation","src":"oewn"},{"pos":"v","text":"act in disregard of laws, rules, contracts, or promises","src":"oewn"}]}
 {"word":"offense","defs":[{"pos":"n","text":"a lack of politeness","src":"oewn"},{"pos":"n","text":"a feeling of anger caused by being offended","src":"oewn"}]}
@@ -8570,9 +8570,9 @@
 {"word":"omniscient","defs":[{"pos":"a","text":"infinitely wise","src":"oewn"}]}
 {"word":"omnivore","defs":[{"pos":"n","text":"a person who eats all kinds of foods","src":"oewn"},{"pos":"n","text":"an animal that feeds on both animal and vegetable substances","src":"oewn"}]}
 {"word":"omnivorous","defs":[{"pos":"a","text":"feeding on both plants and animals","src":"oewn"}]}
-{"word":"on","defs":[{"pos":"r","text":"with a forward motion","src":"oewn"},{"pos":"r","text":"indicates continuity or persistence or concentration","src":"oewn"},{"pos":"prep","text":"touching and supported by the top of a surface","src":"hand"},{"pos":"a","text":"in operation or operational","src":"oewn"},{"pos":"a","text":"(of events) planned or scheduled","src":"oewn"}]}
+{"word":"on","defs":[{"pos":"prep","text":"touching and supported by the top of a surface","src":"hand"}]}
 {"word":"once","defs":[{"pos":"r","text":"on one occasion","src":"oewn"},{"pos":"r","text":"as soon as","src":"oewn"}]}
-{"word":"one","defs":[{"pos":"pron","text":"a single person or thing; any person in general","src":"hand"},{"pos":"a","text":"used of a single unit or thing","src":"oewn"},{"pos":"a","text":"having the indivisible character of a unit","src":"oewn"},{"pos":"n","text":"the smallest whole number or a numeral representing this number","src":"oewn"},{"pos":"n","text":"a single person or thing","src":"oewn"},{"pos":"num","text":"the number 1","src":"hand"}]}
+{"word":"one","defs":[{"pos":"pron","text":"a single person or thing; any person in general","src":"hand"},{"pos":"num","text":"the number 1","src":"hand"}]}
 {"word":"oneness","defs":[{"pos":"n","text":"the quality of being united into one","src":"oewn"}]}
 {"word":"onerous","defs":[{"pos":"a","text":"not easily borne","src":"oewn"}]}
 {"word":"onetime","defs":[{"pos":"a","text":"belonging to some prior time","src":"oewn"}]}
@@ -8580,7 +8580,7 @@
 {"word":"onion","defs":[{"pos":"n","text":"the bulb of an onion plant","src":"oewn"},{"pos":"n","text":"bulbous plant having hollow leaves cultivated worldwide for its rounded edible bulb","src":"oewn"}]}
 {"word":"online","defs":[{"pos":"a","text":"on a regular route of a railroad or bus or airline system","src":"oewn"},{"pos":"a","text":"connected to a computer network or accessible by computer","src":"oewn"}]}
 {"word":"onlooker","defs":[{"pos":"n","text":"someone who looks on","src":"oewn"}]}
-{"word":"only","defs":[{"pos":"r","text":"and nothing more","src":"oewn"},{"pos":"r","text":"without any others being included or involved","src":"oewn"},{"pos":"a","text":"being the only one","src":"oewn"},{"pos":"a","text":"exclusive of anyone or anything else","src":"oewn"},{"pos":"conj","text":"but; except that","src":"hand"}]}
+{"word":"only","defs":[{"pos":"conj","text":"but; except that","src":"hand"}]}
 {"word":"onrush","defs":[{"pos":"n","text":"(military) an offensive against an enemy (using weapons)","src":"oewn"},{"pos":"n","text":"a forceful forward rush or flow","src":"oewn"}]}
 {"word":"onset","defs":[{"pos":"n","text":"the beginning or early stages","src":"oewn"},{"pos":"n","text":"(military) an offensive against an enemy (using weapons)","src":"oewn"}]}
 {"word":"onslaught","defs":[{"pos":"n","text":"a sudden and severe onset of trouble","src":"oewn"},{"pos":"n","text":"(military) an offensive against an enemy (using weapons)","src":"oewn"}]}
@@ -8629,7 +8629,7 @@
 {"word":"optional","defs":[{"pos":"a","text":"possible but not necessary","src":"oewn"}]}
 {"word":"optometrist","defs":[{"pos":"n","text":"a person skilled in testing for defects of vision in order to prescribe corrective glasses","src":"oewn"}]}
 {"word":"opulent","defs":[{"pos":"a","text":"ostentatiously rich and superior in quality","src":"oewn"}]}
-{"word":"or","defs":[{"pos":"conj","text":"used to show a choice between things","src":"hand"},{"pos":"n","text":"a room in a hospital equipped for the performance of surgical operations","src":"oewn"}]}
+{"word":"or","defs":[{"pos":"conj","text":"used to show a choice between things","src":"hand"}]}
 {"word":"oral","defs":[{"pos":"a","text":"using speech rather than writing","src":"oewn"},{"pos":"a","text":"of or relating to or affecting or for use in the mouth","src":"oewn"},{"pos":"n","text":"an examination conducted by spoken communication","src":"oewn"}]}
 {"word":"orange","defs":[{"pos":"a","text":"of the color between red and yellow","src":"oewn"},{"pos":"n","text":"round yellow to orange fruit of any of several citrus trees","src":"oewn"},{"pos":"n","text":"orange color or pigment","src":"oewn"}]}
 {"word":"oration","defs":[{"pos":"n","text":"an instance of oratory","src":"oewn"}]}
@@ -8692,7 +8692,7 @@
 {"word":"ostentatious","defs":[{"pos":"a","text":"intended to attract notice and impress others","src":"oewn"},{"pos":"a","text":"(of a display) tawdry or vulgar","src":"oewn"}]}
 {"word":"ostracize","defs":[{"pos":"v","text":"expel from a community or group","src":"oewn"},{"pos":"v","text":"avoid speaking to or dealing with","src":"oewn"}]}
 {"word":"ostrich","defs":[{"pos":"n","text":"a person who refuses to face reality or recognize the truth","src":"oewn"},{"pos":"n","text":"fast-running African flightless bird with two-toed feet","src":"oewn"}]}
-{"word":"other","defs":[{"pos":"a","text":"not the same one or ones already mentioned or implied","src":"oewn"},{"pos":"a","text":"recently past","src":"oewn"},{"pos":"pron","text":"the ones that remain, or another person or thing","src":"hand"}]}
+{"word":"other","defs":[{"pos":"pron","text":"the ones that remain, or another person or thing","src":"hand"}]}
 {"word":"otherwise","defs":[{"pos":"r","text":"in other respects or ways","src":"oewn"},{"pos":"r","text":"in another and different manner","src":"oewn"},{"pos":"a","text":"other than as supposed or expected","src":"oewn"}]}
 {"word":"ottawa","defs":[{"pos":"n","text":"a member of the Algonquian people of southern Ontario","src":"oewn"}]}
 {"word":"otter","defs":[{"pos":"n","text":"the fur of an otter","src":"oewn"},{"pos":"n","text":"freshwater carnivorous mammal having webbed and clawed feet and dark brown fur","src":"oewn"}]}
@@ -8700,7 +8700,7 @@
 {"word":"our","defs":[{"pos":"pron","text":"belonging to the speaker and one or more other people","src":"hand"}]}
 {"word":"ours","defs":[{"pos":"n","text":"excavation in the earth from which ores and minerals are extracted","src":"oewn"},{"pos":"n","text":"explosive device that explodes on contact","src":"oewn"}]}
 {"word":"oust","defs":[{"pos":"v","text":"remove from a position or office","src":"oewn"},{"pos":"v","text":"remove and replace","src":"oewn"}]}
-{"word":"out","defs":[{"pos":"r","text":"away from home","src":"oewn"},{"pos":"r","text":"from one's possession","src":"oewn"},{"pos":"a","text":"not allowed to continue to bat or run","src":"oewn"},{"pos":"a","text":"being out or having grown cold","src":"oewn"},{"pos":"n","text":"(baseball) a failure by a batter or runner to reach a base safely in baseball","src":"oewn"},{"pos":"prep","text":"away from the inside of a place","src":"hand"},{"pos":"v","text":"to state openly and publicly one's homosexuality","src":"oewn"},{"pos":"v","text":"reveal (something) about somebody's identity or lifestyle","src":"oewn"}]}
+{"word":"out","defs":[{"pos":"prep","text":"away from the inside of a place","src":"hand"}]}
 {"word":"outbreak","defs":[{"pos":"n","text":"a sudden violent spontaneous occurrence","src":"oewn"}]}
 {"word":"outbuilding","defs":[{"pos":"n","text":"a building that is subordinate to and separate from a main building","src":"oewn"}]}
 {"word":"outburst","defs":[{"pos":"n","text":"an unrestrained expression of emotion","src":"oewn"},{"pos":"n","text":"a sudden intense happening","src":"oewn"}]}
@@ -8751,7 +8751,7 @@
 {"word":"outwork","defs":[{"pos":"n","text":"subsidiary defensive structure lying outside the main fortified area","src":"oewn"}]}
 {"word":"oval","defs":[{"pos":"a","text":"rounded like an egg","src":"oewn"},{"pos":"n","text":"a closed plane curve resulting from the intersection of a circular cone and a plane cutting completely through it","src":"oewn"}]}
 {"word":"oven","defs":[{"pos":"n","text":"kitchen appliance used for baking or roasting","src":"oewn"}]}
-{"word":"over","defs":[{"pos":"r","text":"at or to a point across intervening space etc.","src":"oewn"},{"pos":"r","text":"throughout an area","src":"oewn"},{"pos":"prep","text":"above, across, or on the other side of something","src":"hand"},{"pos":"a","text":"having come or been brought to a conclusion","src":"oewn"},{"pos":"n","text":"(cricket) the division of play during which six balls are bowled at the batsman by one player from the other team from the same end of the pitch","src":"oewn"}]}
+{"word":"over","defs":[{"pos":"prep","text":"above, across, or on the other side of something","src":"hand"}]}
 {"word":"overact","defs":[{"pos":"v","text":"exaggerate one's acting","src":"oewn"}]}
 {"word":"overall","defs":[{"pos":"n","text":"(usually plural) work clothing consisting of denim trousers","src":"oewn"},{"pos":"n","text":"a loose protective coverall or smock worn over ordinary clothing for dirty work","src":"oewn"},{"pos":"a","text":"involving only main features","src":"oewn"},{"pos":"a","text":"including everything","src":"oewn"}]}
 {"word":"overbalance","defs":[{"pos":"v","text":"weigh more heavily","src":"oewn"},{"pos":"v","text":"cause to be off balance","src":"oewn"}]}
@@ -9187,7 +9187,7 @@
 {"word":"petrol","defs":[{"pos":"n","text":"a volatile flammable mixture of hydrocarbons derived from petroleum","src":"oewn"}]}
 {"word":"petroleum","defs":[{"pos":"n","text":"a dark oil consisting mainly of hydrocarbons","src":"oewn"}]}
 {"word":"petticoat","defs":[{"pos":"n","text":"undergarment worn under a skirt","src":"oewn"}]}
-{"word":"petty","defs":[{"pos":"a","text":"inferior in rank or status","src":"oewn"},{"pos":"a","text":"(informal) small and of little importance","src":"oewn"},{"pos":"n","text":"larceny of property having a value less than some amount","src":"oewn"}]}
+{"word":"petty","defs":[{"pos":"a","text":"inferior in rank or status","src":"oewn"},{"pos":"a","text":"contemptibly narrow in outlook","src":"oewn"},{"pos":"n","text":"larceny of property having a value less than some amount","src":"oewn"}]}
 {"word":"petulant","defs":[{"pos":"a","text":"easily irritated or annoyed","src":"oewn"}]}
 {"word":"pharaoh","defs":[{"pos":"n","text":"the title of the ancient Egyptian kings","src":"oewn"}]}
 {"word":"pharmacy","defs":[{"pos":"n","text":"the art and science of preparing and dispensing drugs and medicines","src":"oewn"},{"pos":"n","text":"a retail shop where medicine and other articles are sold","src":"oewn"}]}
@@ -9238,7 +9238,7 @@
 {"word":"piano","defs":[{"pos":"n","text":"(music) low loudness","src":"oewn"},{"pos":"n","text":"a keyboard instrument that is played by depressing keys that cause hammers to strike tuned strings and produce sounds","src":"oewn"}]}
 {"word":"pick","defs":[{"pos":"v","text":"select carefully from a group","src":"oewn"},{"pos":"v","text":"look for and gather","src":"oewn"},{"pos":"n","text":"the person or thing chosen or selected","src":"oewn"},{"pos":"n","text":"the quantity of a crop that is harvested","src":"oewn"}]}
 {"word":"pickaxe","defs":[{"pos":"n","text":"a heavy iron tool with a wooden handle and a curved head that is pointed on both ends","src":"oewn"}]}
-{"word":"pickle","defs":[{"pos":"n","text":"vegetables (especially cucumbers) preserved in brine or vinegar","src":"oewn"},{"pos":"n","text":"informal terms for a difficult situation","src":"oewn"}]}
+{"word":"pickle","defs":[{"pos":"n","text":"vegetables (especially cucumbers) preserved in brine or vinegar","src":"oewn"}]}
 {"word":"pickup","defs":[{"pos":"n","text":"a light truck with an open body and low sides and a tailboard","src":"oewn"},{"pos":"n","text":"a warrant to take someone into custody","src":"oewn"}]}
 {"word":"picky","defs":[{"pos":"a","text":"exacting especially about details","src":"oewn"}]}
 {"word":"picnic","defs":[{"pos":"n","text":"a day devoted to an outdoor social gathering","src":"oewn"},{"pos":"n","text":"any undertaking that is easy to do","src":"oewn"},{"pos":"v","text":"eat alfresco, in the open air","src":"oewn"}]}
@@ -9438,13 +9438,13 @@
 {"word":"ponder","defs":[{"pos":"v","text":"reflect deeply on a subject","src":"oewn"}]}
 {"word":"ponderous","defs":[{"pos":"a","text":"slow and laborious because of weight","src":"oewn"},{"pos":"a","text":"having great mass and weight and unwieldiness","src":"oewn"}]}
 {"word":"pontiff","defs":[{"pos":"n","text":"the head of the Roman Catholic Church","src":"oewn"}]}
-{"word":"pony","defs":[{"pos":"n","text":"a range horse of the western United States","src":"oewn"},{"pos":"n","text":"an informal term for a racehorse","src":"oewn"}]}
+{"word":"pony","defs":[{"pos":"n","text":"a range horse of the western United States","src":"oewn"},{"pos":"n","text":"a literal translation used in studying a foreign language (often used illicitly)","src":"oewn"}]}
 {"word":"ponytail","defs":[{"pos":"n","text":"a hair style that draws the hair back so that it hangs down in back of the head like a pony's tail","src":"oewn"}]}
 {"word":"pool","defs":[{"pos":"n","text":"an excavation that is (usually) filled with water","src":"oewn"},{"pos":"n","text":"a small lake","src":"oewn"},{"pos":"v","text":"combine into a common fund","src":"oewn"},{"pos":"v","text":"join or form a pool of people","src":"oewn"}]}
 {"word":"poor","defs":[{"pos":"a","text":"deserving or inciting pity","src":"oewn"},{"pos":"a","text":"having little money or few possessions","src":"oewn"},{"pos":"n","text":"people without possessions or wealth (considered as a group)","src":"oewn"}]}
 {"word":"poorhouse","defs":[{"pos":"n","text":"an establishment maintained at public expense in order to provide housing for the poor and homeless","src":"oewn"}]}
 {"word":"poorly","defs":[{"pos":"a","text":"somewhat ill or prone to illness","src":"oewn"}]}
-{"word":"pop","defs":[{"pos":"v","text":"bulge outward","src":"oewn"},{"pos":"v","text":"hit a pop-fly","src":"oewn"},{"pos":"n","text":"an informal term for a father","src":"oewn"},{"pos":"n","text":"a sweet drink containing carbonated water and flavoring","src":"oewn"},{"pos":"a","text":"(of music or art) new and of general appeal (especially among young people)","src":"oewn"}]}
+{"word":"pop","defs":[{"pos":"v","text":"bulge outward","src":"oewn"},{"pos":"v","text":"hit a pop-fly","src":"oewn"},{"pos":"n","text":"a sweet drink containing carbonated water and flavoring","src":"oewn"},{"pos":"n","text":"a sharp explosive sound as from a gunshot or drawing a cork","src":"oewn"},{"pos":"a","text":"(of music or art) new and of general appeal (especially among young people)","src":"oewn"}]}
 {"word":"popcorn","defs":[{"pos":"n","text":"corn having small ears and kernels that burst when exposed to dry heat","src":"oewn"},{"pos":"n","text":"small kernels of corn exploded by heat","src":"oewn"}]}
 {"word":"pope","defs":[{"pos":"n","text":"the head of the Roman Catholic Church","src":"oewn"}]}
 {"word":"populace","defs":[{"pos":"n","text":"people in general considered as a whole","src":"oewn"}]}
@@ -10925,7 +10925,7 @@
 {"word":"salvage","defs":[{"pos":"n","text":"property or goods saved from damage or destruction","src":"oewn"},{"pos":"n","text":"the act of saving goods or property that were in danger of damage or destruction","src":"oewn"},{"pos":"v","text":"save from ruin, destruction, or harm","src":"oewn"},{"pos":"v","text":"collect discarded material","src":"oewn"}]}
 {"word":"salvageable","defs":[{"pos":"a","text":"capable of being saved from ruin","src":"oewn"}]}
 {"word":"salvation","defs":[{"pos":"n","text":"(theology) the act of delivering from sin or saving from evil","src":"oewn"},{"pos":"n","text":"a means of preserving from harm or unpleasantness","src":"oewn"}]}
-{"word":"same","defs":[{"pos":"a","text":"same in identity","src":"oewn"},{"pos":"a","text":"closely similar or comparable in kind or quality or quantity or degree","src":"oewn"},{"pos":"pron","text":"exactly like another; not different","src":"hand"},{"pos":"n","text":"a member of an indigenous nomadic people living in northern Scandinavia and herding reindeer","src":"oewn"},{"pos":"n","text":"the language of nomadic Lapps in northern Scandinavia and the Kola Peninsula","src":"oewn"}]}
+{"word":"same","defs":[{"pos":"pron","text":"exactly like another; not different","src":"hand"}]}
 {"word":"sample","defs":[{"pos":"n","text":"a small part of something intended as representative of the whole","src":"oewn"},{"pos":"n","text":"items selected at random from a population and used to test hypotheses about the population","src":"oewn"},{"pos":"v","text":"take a sample of","src":"oewn"}]}
 {"word":"sanctimonious","defs":[{"pos":"a","text":"excessively or hypocritically pious","src":"oewn"}]}
 {"word":"sanction","defs":[{"pos":"v","text":"give sanction to","src":"oewn"},{"pos":"v","text":"give authority or permission to","src":"oewn"},{"pos":"n","text":"formal and explicit approval","src":"oewn"},{"pos":"n","text":"a mechanism of social control for enforcing a society's standards","src":"oewn"}]}
@@ -10978,7 +10978,7 @@
 {"word":"savor","defs":[{"pos":"v","text":"derive or receive pleasure from","src":"oewn"},{"pos":"v","text":"have flavor","src":"oewn"},{"pos":"n","text":"the taste experience when a savoury condiment is taken into the mouth","src":"oewn"}]}
 {"word":"saw","defs":[{"pos":"n","text":"hand tool having a toothed blade for cutting","src":"oewn"},{"pos":"n","text":"a power tool for cutting wood","src":"oewn"},{"pos":"v","text":"cut with a saw","src":"oewn"}]}
 {"word":"sawyer","defs":[{"pos":"n","text":"one who is employed to saw wood","src":"oewn"},{"pos":"n","text":"any of several beetles whose larvae bore holes in dead or dying trees especially conifers","src":"oewn"}]}
-{"word":"say","defs":[{"pos":"v","text":"express in words","src":"oewn"},{"pos":"v","text":"report or maintain","src":"oewn"},{"pos":"n","text":"the chance to speak","src":"oewn"},{"pos":"int","text":"used to get attention or show surprise","src":"hand"}]}
+{"word":"say","defs":[{"pos":"int","text":"used to get attention or show surprise","src":"hand"}]}
 {"word":"saying","defs":[{"pos":"n","text":"a word or phrase that particular people use in particular situations","src":"oewn"},{"pos":"v","text":"express in words","src":"oewn"},{"pos":"v","text":"report or maintain","src":"oewn"}]}
 {"word":"scaffolding","defs":[{"pos":"n","text":"a system of scaffolds","src":"oewn"}]}
 {"word":"scale","defs":[{"pos":"n","text":"an ordered reference standard","src":"oewn"},{"pos":"n","text":"relative magnitude","src":"oewn"},{"pos":"v","text":"measure by or as if by a scale","src":"oewn"},{"pos":"v","text":"pattern, make, regulate, set, measure, or estimate according to some rate or standard","src":"oewn"}]}
@@ -11055,7 +11055,7 @@
 {"word":"screening","defs":[{"pos":"n","text":"the display of a motion picture","src":"oewn"},{"pos":"n","text":"fabric of metal or plastic mesh","src":"oewn"},{"pos":"v","text":"test or examine for the presence of disease or infection","src":"oewn"},{"pos":"v","text":"examine methodically","src":"oewn"}]}
 {"word":"screw","defs":[{"pos":"n","text":"someone who guards prisoners","src":"oewn"},{"pos":"n","text":"a propeller with several angled blades that rotates to push against water or air","src":"oewn"},{"pos":"v","text":"have sexual intercourse with","src":"oewn"},{"pos":"v","text":"turn like a screw","src":"oewn"}]}
 {"word":"scribble","defs":[{"pos":"n","text":"poor handwriting","src":"oewn"},{"pos":"n","text":"an aimless drawing","src":"oewn"},{"pos":"v","text":"write down quickly without much attention to detail","src":"oewn"},{"pos":"v","text":"write carelessly","src":"oewn"}]}
-{"word":"scribe","defs":[{"pos":"n","text":"informal terms for journalists","src":"oewn"},{"pos":"n","text":"someone employed to make written copies of documents and manuscripts","src":"oewn"},{"pos":"v","text":"score a line on with a pointed instrument, as in metalworking","src":"oewn"}]}
+{"word":"scribe","defs":[{"pos":"n","text":"someone employed to make written copies of documents and manuscripts","src":"oewn"},{"pos":"n","text":"a sharp-pointed awl for marking wood or metal to be cut","src":"oewn"},{"pos":"v","text":"score a line on with a pointed instrument, as in metalworking","src":"oewn"}]}
 {"word":"script","defs":[{"pos":"n","text":"a written version of a play or other dramatic composition","src":"oewn"},{"pos":"n","text":"something written by hand","src":"oewn"},{"pos":"v","text":"write a script for","src":"oewn"}]}
 {"word":"scripture","defs":[{"pos":"n","text":"the sacred writings of the Christian religions","src":"oewn"},{"pos":"n","text":"any writing that is regarded as sacred by a religious group","src":"oewn"}]}
 {"word":"scroll","defs":[{"pos":"n","text":"a round shape formed by a series of concentric circles","src":"oewn"},{"pos":"n","text":"a document that can be rolled up (as for storage)","src":"oewn"}]}
@@ -11356,7 +11356,7 @@
 {"word":"shrewd","defs":[{"pos":"a","text":"marked by practical hardheaded intelligence","src":"oewn"},{"pos":"a","text":"acting with a specific goal","src":"oewn"}]}
 {"word":"shriek","defs":[{"pos":"v","text":"utter a shrill cry","src":"oewn"},{"pos":"n","text":"sharp piercing cry","src":"oewn"},{"pos":"n","text":"a high-pitched noise resembling a human cry","src":"oewn"}]}
 {"word":"shrill","defs":[{"pos":"a","text":"having or emitting a high-pitched and sharp tone or tones","src":"oewn"},{"pos":"a","text":"being sharply insistent on being heard","src":"oewn"},{"pos":"v","text":"utter a shrill cry","src":"oewn"}]}
-{"word":"shrimp","defs":[{"pos":"n","text":"disparaging terms for small people","src":"oewn"},{"pos":"n","text":"any of various edible decapod crustaceans","src":"oewn"}]}
+{"word":"shrimp","defs":[{"pos":"n","text":"any of various edible decapod crustaceans","src":"oewn"},{"pos":"n","text":"small slender-bodied chiefly marine decapod crustaceans with a long tail and single pair of pincers","src":"oewn"}]}
 {"word":"shrine","defs":[{"pos":"n","text":"a place of worship hallowed by association with some sacred thing or person","src":"oewn"}]}
 {"word":"shrink","defs":[{"pos":"v","text":"wither, as with a loss of moisture","src":"oewn"},{"pos":"v","text":"draw back, as with fear or pain","src":"oewn"},{"pos":"n","text":"a physician who specializes in psychiatry","src":"oewn"}]}
 {"word":"shrinkage","defs":[{"pos":"n","text":"process or result of becoming less or smaller","src":"oewn"},{"pos":"n","text":"the amount by which something shrinks","src":"oewn"}]}
@@ -11521,7 +11521,7 @@
 {"word":"slip","defs":[{"pos":"v","text":"move stealthily","src":"oewn"},{"pos":"v","text":"insert inconspicuously or quickly or quietly","src":"oewn"},{"pos":"n","text":"a socially awkward or tactless act","src":"oewn"},{"pos":"n","text":"potter's clay that is thinned and used for coating or decorating ceramics","src":"oewn"}]}
 {"word":"slipper","defs":[{"pos":"n","text":"low footwear that can be slipped on and off easily","src":"oewn"},{"pos":"n","text":"a person who slips or slides because of loss of traction","src":"oewn"}]}
 {"word":"slippery","defs":[{"pos":"a","text":"causing or tending to cause things to slip or slide","src":"oewn"},{"pos":"a","text":"not to be trusted","src":"oewn"}]}
-{"word":"slit","defs":[{"pos":"n","text":"a long narrow opening","src":"oewn"},{"pos":"n","text":"obscene terms for female genitals","src":"oewn"},{"pos":"v","text":"make a clean cut through","src":"oewn"},{"pos":"v","text":"cut a slit into","src":"oewn"}]}
+{"word":"slit","defs":[{"pos":"n","text":"a long narrow opening","src":"oewn"},{"pos":"n","text":"a depression scratched or carved into a surface","src":"oewn"},{"pos":"v","text":"make a clean cut through","src":"oewn"},{"pos":"v","text":"cut a slit into","src":"oewn"}]}
 {"word":"slog","defs":[{"pos":"v","text":"work doggedly or persistently","src":"oewn"},{"pos":"v","text":"walk heavily and firmly, as when weary, or through mud","src":"oewn"}]}
 {"word":"slogan","defs":[{"pos":"n","text":"a favorite saying of a group, organization or individual","src":"oewn"}]}
 {"word":"slop","defs":[{"pos":"v","text":"cause or allow (a liquid substance) to run or flow from a container","src":"oewn"},{"pos":"v","text":"walk through mud or mire","src":"oewn"}]}
@@ -11567,7 +11567,7 @@
 {"word":"snail","defs":[{"pos":"n","text":"freshwater or marine or terrestrial gastropod mollusk usually having an external enclosing spiral shell","src":"oewn"},{"pos":"n","text":"edible terrestrial snail usually served in the shell with a sauce of melted butter and garlic","src":"oewn"}]}
 {"word":"snake","defs":[{"pos":"n","text":"limbless scaly elongate reptile","src":"oewn"},{"pos":"n","text":"a deceitful or treacherous person","src":"oewn"},{"pos":"v","text":"move smoothly and sinuously, like a snake","src":"oewn"},{"pos":"v","text":"form a snake-like pattern","src":"oewn"}]}
 {"word":"snap","defs":[{"pos":"v","text":"utter in an angry, sharp, or abrupt tone","src":"oewn"},{"pos":"v","text":"separate or cause to separate abruptly","src":"oewn"},{"pos":"n","text":"the act of catching an object with the hands","src":"oewn"},{"pos":"n","text":"a spell of cold weather","src":"oewn"}]}
-{"word":"snatch","defs":[{"pos":"n","text":"a small fragment","src":"oewn"},{"pos":"n","text":"obscene terms for female genitals","src":"oewn"},{"pos":"v","text":"to grasp hastily or eagerly","src":"oewn"},{"pos":"v","text":"to make grasping motions","src":"oewn"}]}
+{"word":"snatch","defs":[{"pos":"n","text":"a small fragment","src":"oewn"},{"pos":"n","text":"a weightlift in which the barbell is lifted overhead in one rapid motion","src":"oewn"},{"pos":"v","text":"to grasp hastily or eagerly","src":"oewn"},{"pos":"v","text":"to make grasping motions","src":"oewn"}]}
 {"word":"sneak","defs":[{"pos":"v","text":"to go stealthily or furtively","src":"oewn"},{"pos":"v","text":"put, bring, or take in a secretive or furtive manner","src":"oewn"},{"pos":"n","text":"a person who is regarded as underhanded and furtive and contemptible","src":"oewn"},{"pos":"n","text":"someone who prowls or sneaks about","src":"oewn"},{"pos":"a","text":"marked by quiet and caution and secrecy","src":"oewn"}]}
 {"word":"sneaker","defs":[{"pos":"n","text":"a canvas shoe with a pliable rubber sole","src":"oewn"},{"pos":"n","text":"someone acting as an informer or decoy for the police","src":"oewn"}]}
 {"word":"sneaky","defs":[{"pos":"a","text":"marked by deception","src":"oewn"},{"pos":"a","text":"marked by quiet and caution and secrecy","src":"oewn"}]}
@@ -11580,7 +11580,7 @@
 {"word":"snob","defs":[{"pos":"n","text":"a person regarded as arrogant and annoying","src":"oewn"}]}
 {"word":"snobbish","defs":[{"pos":"a","text":"befitting or characteristic of those who incline to social exclusiveness and who rebuff the advances of people considered inferior","src":"oewn"}]}
 {"word":"snore","defs":[{"pos":"v","text":"breathe noisily during one's sleep","src":"oewn"}]}
-{"word":"snout","defs":[{"pos":"n","text":"a long projecting or anterior elongation of an animal's head","src":"oewn"},{"pos":"n","text":"informal terms for the nose","src":"oewn"}]}
+{"word":"snout","defs":[{"pos":"n","text":"a long projecting or anterior elongation of an animal's head","src":"oewn"},{"pos":"n","text":"beaklike projection of the anterior part of the head of certain insects such as e.g. weevils","src":"oewn"}]}
 {"word":"snow","defs":[{"pos":"n","text":"precipitation falling from clouds in the form of ice crystals","src":"oewn"},{"pos":"n","text":"a layer of snowflakes covering the ground","src":"oewn"},{"pos":"v","text":"fall as snow","src":"oewn"},{"pos":"v","text":"conceal one's true motives from especially by elaborately feigning good intentions so as to gain an end","src":"oewn"}]}
 {"word":"snowball","defs":[{"pos":"n","text":"plant having heads of fragrant white trumpet-shaped flowers","src":"oewn"},{"pos":"n","text":"ball of ice cream covered with coconut and usually chocolate sauce","src":"oewn"},{"pos":"v","text":"increase or accumulate at a rapidly accelerating rate","src":"oewn"},{"pos":"v","text":"throw snowballs at","src":"oewn"}]}
 {"word":"snowdrift","defs":[{"pos":"n","text":"a mass of snow heaped up by the wind","src":"oewn"}]}
@@ -11590,7 +11590,7 @@
 {"word":"snowstorm","defs":[{"pos":"n","text":"a storm with widespread snowfall accompanied by strong winds","src":"oewn"}]}
 {"word":"snowy","defs":[{"pos":"a","text":"marked by the presence of snow","src":"oewn"},{"pos":"a","text":"covered with snow","src":"oewn"}]}
 {"word":"snugly","defs":[{"pos":"r","text":"fitting closely","src":"oewn"},{"pos":"r","text":"safely protected","src":"oewn"}]}
-{"word":"so","defs":[{"pos":"r","text":"to a very great extent or degree","src":"oewn"},{"pos":"r","text":"in a manner that facilitates","src":"oewn"},{"pos":"conj","text":"for that reason; with the result that","src":"hand"},{"pos":"pron","text":"used to avoid repeating something already said","src":"hand"},{"pos":"n","text":"the syllable naming the fifth (dominant) note of any musical scale in solmization","src":"oewn"}]}
+{"word":"so","defs":[{"pos":"conj","text":"for that reason; with the result that","src":"hand"},{"pos":"pron","text":"used to avoid repeating something already said","src":"hand"}]}
 {"word":"so-called","defs":[{"pos":"a","text":"doubtful or suspect","src":"oewn"}]}
 {"word":"soak","defs":[{"pos":"v","text":"submerge in a liquid","src":"oewn"},{"pos":"v","text":"rip off","src":"oewn"},{"pos":"n","text":"washing something by allowing it to soak","src":"oewn"},{"pos":"n","text":"the process of becoming softened and saturated as a consequence of being immersed in water (or other liquid)","src":"oewn"}]}
 {"word":"soap","defs":[{"pos":"n","text":"a cleansing agent made from the salts of vegetable or animal fats","src":"oewn"},{"pos":"n","text":"money offered as a bribe","src":"oewn"},{"pos":"v","text":"rub soap all over, usually with the purpose of cleaning","src":"oewn"}]}
@@ -11654,7 +11654,7 @@
 {"word":"solve","defs":[{"pos":"v","text":"find the solution to (a problem or question) or understand the meaning of","src":"oewn"},{"pos":"v","text":"find the solution","src":"oewn"}]}
 {"word":"solvent","defs":[{"pos":"a","text":"capable of meeting financial obligations","src":"oewn"},{"pos":"n","text":"a liquid substance capable of dissolving other substances","src":"oewn"},{"pos":"n","text":"a statement that solves a problem or explains how to solve the problem","src":"oewn"}]}
 {"word":"somber","defs":[{"pos":"a","text":"lacking brightness or color","src":"oewn"},{"pos":"a","text":"grave or even gloomy in character","src":"oewn"}]}
-{"word":"some","defs":[{"pos":"a","text":"relatively many but unspecified in number","src":"oewn"},{"pos":"a","text":"remarkable","src":"oewn"},{"pos":"pron","text":"an amount or number of people or things that is not stated","src":"hand"},{"pos":"r","text":"(of quantities) imprecise but fairly close to correct","src":"oewn"}]}
+{"word":"some","defs":[{"pos":"pron","text":"an amount or number of people or things that is not stated","src":"hand"}]}
 {"word":"somebody","defs":[{"pos":"n","text":"a human being","src":"oewn"}]}
 {"word":"someday","defs":[{"pos":"r","text":"some unspecified time in the future","src":"oewn"}]}
 {"word":"somehow","defs":[{"pos":"r","text":"in some unspecified way or manner","src":"oewn"},{"pos":"r","text":"for some unspecified reason","src":"oewn"}]}
@@ -11973,7 +11973,7 @@
 {"word":"stiffness","defs":[{"pos":"n","text":"the physical property of being inflexible and hard to bend","src":"oewn"},{"pos":"n","text":"the property of moving with pain or difficulty","src":"oewn"}]}
 {"word":"stifle","defs":[{"pos":"v","text":"suppress in order to conceal or hide","src":"oewn"},{"pos":"v","text":"suppress or constrain so as to lessen in intensity","src":"oewn"},{"pos":"n","text":"joint between the femur and tibia in a quadruped","src":"oewn"}]}
 {"word":"stigma","defs":[{"pos":"n","text":"the apical end of the style where deposited pollen enters the pistil","src":"oewn"},{"pos":"n","text":"a symbol of disgrace or infamy","src":"oewn"}]}
-{"word":"still","defs":[{"pos":"r","text":"with reference to action or condition","src":"oewn"},{"pos":"r","text":"despite anything to the contrary (usually preceding a concession)","src":"oewn"},{"pos":"a","text":"not in physical motion","src":"oewn"},{"pos":"a","text":"marked by absence of sound","src":"oewn"},{"pos":"n","text":"a static photograph","src":"oewn"},{"pos":"n","text":"(poetic) tranquil silence","src":"oewn"},{"pos":"conj","text":"even so; despite that","src":"hand"},{"pos":"v","text":"make calm or still","src":"oewn"},{"pos":"v","text":"cause to be quiet or not talk","src":"oewn"}]}
+{"word":"still","defs":[{"pos":"conj","text":"even so; despite that","src":"hand"}]}
 {"word":"stillness","defs":[{"pos":"n","text":"(poetic) tranquil silence","src":"oewn"},{"pos":"n","text":"calmness without winds","src":"oewn"}]}
 {"word":"stilt","defs":[{"pos":"n","text":"one of two stout poles with foot rests in the middle","src":"oewn"},{"pos":"n","text":"long-legged three-toed wading bird of brackish marshes of Australia","src":"oewn"}]}
 {"word":"stimulant","defs":[{"pos":"n","text":"any stimulating information or event","src":"oewn"},{"pos":"n","text":"a drug that temporarily quickens some vital process","src":"oewn"},{"pos":"a","text":"that stimulates","src":"oewn"}]}
@@ -12174,7 +12174,7 @@
 {"word":"succor","defs":[{"pos":"n","text":"assistance in time of difficulty","src":"oewn"},{"pos":"v","text":"help in a difficult situation","src":"oewn"}]}
 {"word":"succulent","defs":[{"pos":"a","text":"tender and full of juice","src":"oewn"},{"pos":"n","text":"a plant adapted to arid conditions and characterized by fleshy water-storing tissues that act as water reservoirs","src":"oewn"}]}
 {"word":"succumb","defs":[{"pos":"v","text":"consent reluctantly","src":"oewn"},{"pos":"v","text":"be fatally overwhelmed","src":"oewn"}]}
-{"word":"such","defs":[{"pos":"a","text":"of so extreme a degree or extent","src":"oewn"},{"pos":"r","text":"to so extreme a degree","src":"oewn"},{"pos":"pron","text":"of the kind already mentioned","src":"hand"}]}
+{"word":"such","defs":[{"pos":"pron","text":"of the kind already mentioned","src":"hand"}]}
 {"word":"suck","defs":[{"pos":"v","text":"draw into the mouth by creating a practical vacuum in the mouth","src":"oewn"},{"pos":"v","text":"draw something in by or as if by a vacuum","src":"oewn"},{"pos":"n","text":"the act of sucking","src":"oewn"}]}
 {"word":"suction","defs":[{"pos":"n","text":"a force over an area produced by a pressure difference","src":"oewn"},{"pos":"n","text":"the act of sucking","src":"oewn"}]}
 {"word":"sudden","defs":[{"pos":"a","text":"happening without warning or in a short space of time","src":"oewn"}]}
@@ -12194,7 +12194,7 @@
 {"word":"suggestion","defs":[{"pos":"n","text":"an idea that is suggested","src":"oewn"},{"pos":"n","text":"a proposal offered for acceptance or rejection","src":"oewn"}]}
 {"word":"suggestive","defs":[{"pos":"a","text":"tending to suggest or imply","src":"oewn"},{"pos":"a","text":"(usually followed by ‘of’) pointing out or revealing clearly","src":"oewn"}]}
 {"word":"suicide","defs":[{"pos":"n","text":"the act of killing yourself","src":"oewn"},{"pos":"n","text":"a person who kills themself intentionally","src":"oewn"}]}
-{"word":"suit","defs":[{"pos":"n","text":"a set of garments for outerwear all of the same fabric and color","src":"oewn"},{"pos":"n","text":"(slang) a businessman dressed in a business suit","src":"oewn"},{"pos":"v","text":"be agreeable or acceptable to","src":"oewn"},{"pos":"v","text":"be agreeable or acceptable","src":"oewn"}]}
+{"word":"suit","defs":[{"pos":"n","text":"a set of garments for outerwear all of the same fabric and color","src":"oewn"},{"pos":"n","text":"a man's courting of a woman","src":"oewn"},{"pos":"v","text":"be agreeable or acceptable to","src":"oewn"},{"pos":"v","text":"be agreeable or acceptable","src":"oewn"}]}
 {"word":"suitable","defs":[{"pos":"a","text":"meant or adapted for an occasion or use","src":"oewn"},{"pos":"a","text":"worthy of being chosen especially as a spouse","src":"oewn"}]}
 {"word":"suitably","defs":[{"pos":"r","text":"in accordance with what is appropriate or suitable for the circumstances","src":"oewn"}]}
 {"word":"suitcase","defs":[{"pos":"n","text":"a portable rectangular container for carrying clothes","src":"oewn"}]}
@@ -12590,7 +12590,7 @@
 {"word":"their","defs":[{"pos":"pron","text":"belonging to them; of more than one person or thing","src":"hand"}]}
 {"word":"them","defs":[{"pos":"pron","text":"used for people or things already mentioned, as the object","src":"hand"}]}
 {"word":"theme","defs":[{"pos":"n","text":"the subject matter of a conversation or discussion","src":"oewn"},{"pos":"n","text":"a unifying idea that is a recurrent element in literary or artistic work","src":"oewn"}]}
-{"word":"then","defs":[{"pos":"r","text":"subsequently or soon afterward","src":"oewn"},{"pos":"r","text":"in that case or as a consequence","src":"oewn"},{"pos":"n","text":"that time","src":"oewn"},{"pos":"conj","text":"after that; and as a result","src":"hand"}]}
+{"word":"then","defs":[{"pos":"conj","text":"after that; and as a result","src":"hand"}]}
 {"word":"theological","defs":[{"pos":"a","text":"of or relating to or concerning theology","src":"oewn"}]}
 {"word":"theorem","defs":[{"pos":"n","text":"a proposition deducible from basic postulates","src":"oewn"},{"pos":"n","text":"an idea accepted as a demonstrable truth","src":"oewn"}]}
 {"word":"theoretical","defs":[{"pos":"a","text":"concerned primarily with theories or hypotheses rather than practical considerations","src":"oewn"},{"pos":"a","text":"concerned with theories rather than their practical applications","src":"oewn"}]}
@@ -12600,7 +12600,7 @@
 {"word":"therapeutic","defs":[{"pos":"a","text":"tending to cure or restore to health","src":"oewn"},{"pos":"a","text":"relating to or involved in therapy","src":"oewn"},{"pos":"n","text":"a medicine or therapy that cures disease or relieve pain","src":"oewn"}]}
 {"word":"therapist","defs":[{"pos":"n","text":"a person skilled in a particular type of therapy","src":"oewn"}]}
 {"word":"therapy","defs":[{"pos":"n","text":"(medicine) the act of caring for someone","src":"oewn"}]}
-{"word":"there","defs":[{"pos":"r","text":"in or at that place or location","src":"oewn"},{"pos":"r","text":"in that matter","src":"oewn"},{"pos":"int","text":"used to show you are pleased, or to comfort someone","src":"hand"},{"pos":"n","text":"a location other than here","src":"oewn"}]}
+{"word":"there","defs":[{"pos":"int","text":"used to show you are pleased, or to comfort someone","src":"hand"}]}
 {"word":"thereafter","defs":[{"pos":"r","text":"from that time on","src":"oewn"}]}
 {"word":"thereby","defs":[{"pos":"r","text":"by that means or because of that","src":"oewn"}]}
 {"word":"therefore","defs":[{"pos":"r","text":"from that fact or reason or as a result","src":"oewn"},{"pos":"r","text":"as a consequence","src":"oewn"}]}
@@ -12652,7 +12652,7 @@
 {"word":"threadlike","defs":[{"pos":"a","text":"thin in diameter","src":"oewn"}]}
 {"word":"threat","defs":[{"pos":"n","text":"something that is a source of danger","src":"oewn"},{"pos":"n","text":"a warning that something unpleasant is imminent","src":"oewn"}]}
 {"word":"threaten","defs":[{"pos":"v","text":"pose a threat to","src":"oewn"},{"pos":"v","text":"to utter intentions of injury or punishment against","src":"oewn"}]}
-{"word":"three","defs":[{"pos":"n","text":"the cardinal number that is the sum of one and one and one","src":"oewn"},{"pos":"n","text":"one of four playing cards in a deck having three pips","src":"oewn"},{"pos":"num","text":"the number 3","src":"hand"},{"pos":"a","text":"being one more than two","src":"oewn"}]}
+{"word":"three","defs":[{"pos":"num","text":"the number 3","src":"hand"}]}
 {"word":"thresh","defs":[{"pos":"v","text":"move or stir about violently","src":"oewn"},{"pos":"v","text":"move like a flail","src":"oewn"}]}
 {"word":"thresher","defs":[{"pos":"n","text":"a farm machine for separating seeds or grain from the husks and straw","src":"oewn"},{"pos":"n","text":"large pelagic shark of warm seas with a whiplike tail used to round up small fish on which to feed","src":"oewn"}]}
 {"word":"threshold","defs":[{"pos":"n","text":"the starting point for a new state or experience","src":"oewn"},{"pos":"n","text":"the smallest detectable sensation","src":"oewn"}]}
@@ -12665,7 +12665,7 @@
 {"word":"throat","defs":[{"pos":"n","text":"the passage to the stomach and lungs","src":"oewn"},{"pos":"n","text":"an opening in the vamp of a shoe at the instep","src":"oewn"}]}
 {"word":"throne","defs":[{"pos":"n","text":"the chair of state for a monarch, bishop, etc.","src":"oewn"},{"pos":"n","text":"a plumbing fixture for defecation and urination","src":"oewn"},{"pos":"v","text":"sit on the throne as a ruler","src":"oewn"},{"pos":"v","text":"put a monarch on the throne","src":"oewn"}]}
 {"word":"throng","defs":[{"pos":"v","text":"press tightly together or cram","src":"oewn"},{"pos":"n","text":"a large gathering of people","src":"oewn"}]}
-{"word":"through","defs":[{"pos":"prep","text":"from one end or side to the other","src":"hand"},{"pos":"r","text":"from beginning to end","src":"oewn"},{"pos":"r","text":"over the whole distance","src":"oewn"},{"pos":"a","text":"having finished or arrived at completion","src":"oewn"},{"pos":"a","text":"continuing without requiring stops or changes","src":"oewn"}]}
+{"word":"through","defs":[{"pos":"prep","text":"from one end or side to the other","src":"hand"}]}
 {"word":"throughout","defs":[{"pos":"r","text":"from first to last","src":"oewn"},{"pos":"r","text":"used to refer to cited works","src":"oewn"}]}
 {"word":"throw","defs":[{"pos":"v","text":"propel through the air","src":"oewn"},{"pos":"v","text":"move violently, energetically, or carelessly","src":"oewn"},{"pos":"n","text":"the act of throwing","src":"oewn"},{"pos":"n","text":"a single chance or instance","src":"oewn"}]}
 {"word":"thrust","defs":[{"pos":"v","text":"push forcefully","src":"oewn"},{"pos":"v","text":"press or force","src":"oewn"},{"pos":"n","text":"the force used in pushing","src":"oewn"},{"pos":"n","text":"a strong blow with a knife or other sharp pointed instrument","src":"oewn"}]}
@@ -12756,7 +12756,7 @@
 {"word":"toolmaker","defs":[{"pos":"n","text":"someone skilled in making or repairing tools","src":"oewn"}]}
 {"word":"tooth","defs":[{"pos":"n","text":"hard bonelike structures in the jaws of vertebrates","src":"oewn"},{"pos":"n","text":"something resembling the tooth of an animal","src":"oewn"}]}
 {"word":"toothache","defs":[{"pos":"n","text":"an ache localized in or around a tooth","src":"oewn"}]}
-{"word":"toothbrush","defs":[{"pos":"n","text":"small brush","src":"oewn"},{"pos":"n","text":"slang for a mustache","src":"oewn"}]}
+{"word":"toothbrush","defs":[{"pos":"n","text":"small brush","src":"oewn"}]}
 {"word":"toothpaste","defs":[{"pos":"n","text":"a dentifrice in the form of a paste","src":"oewn"}]}
 {"word":"top","defs":[{"pos":"n","text":"the upper part of anything","src":"oewn"},{"pos":"n","text":"the highest or uppermost side of anything","src":"oewn"},{"pos":"v","text":"be superior or better than some standard","src":"oewn"},{"pos":"v","text":"pass by, over, or under without making contact","src":"oewn"},{"pos":"a","text":"situated at the top or highest position","src":"oewn"}]}
 {"word":"topi","defs":[{"pos":"n","text":"a lightweight hat worn in tropical countries for protection from the sun","src":"oewn"},{"pos":"n","text":"a large South African antelope","src":"oewn"}]}
@@ -12935,7 +12935,7 @@
 {"word":"trite","defs":[{"pos":"a","text":"repeated too often","src":"oewn"}]}
 {"word":"triumph","defs":[{"pos":"n","text":"a successful ending of a struggle or contest","src":"oewn"},{"pos":"n","text":"the exultation of victory","src":"oewn"},{"pos":"v","text":"prove superior","src":"oewn"},{"pos":"v","text":"be ecstatic with joy","src":"oewn"}]}
 {"word":"triumphant","defs":[{"pos":"a","text":"joyful and proud especially because of triumph or success","src":"oewn"},{"pos":"a","text":"experiencing triumph","src":"oewn"}]}
-{"word":"trivial","defs":[{"pos":"a","text":"(informal) small and of little importance","src":"oewn"},{"pos":"a","text":"of little substance or significance","src":"oewn"}]}
+{"word":"trivial","defs":[{"pos":"a","text":"of little substance or significance","src":"oewn"},{"pos":"a","text":"concerned with trivialities","src":"oewn"}]}
 {"word":"trivialize","defs":[{"pos":"v","text":"make trivial or insignificant","src":"oewn"}]}
 {"word":"trolley","defs":[{"pos":"n","text":"a wheeled vehicle that runs on rails and is propelled by electricity","src":"oewn"}]}
 {"word":"trolleybus","defs":[{"pos":"n","text":"a passenger bus with an electric motor that draws power from overhead wires","src":"oewn"}]}
@@ -13015,7 +13015,7 @@
 {"word":"twinkle","defs":[{"pos":"v","text":"gleam or glow intermittently","src":"oewn"},{"pos":"v","text":"emit or reflect light in a flickering manner","src":"oewn"},{"pos":"n","text":"a rapid change in brightness","src":"oewn"},{"pos":"n","text":"merriment expressed by a brightness or gleam or animation of countenance","src":"oewn"}]}
 {"word":"twinkling","defs":[{"pos":"a","text":"shining intermittently with a sparkling light","src":"oewn"},{"pos":"n","text":"a very short time","src":"oewn"}]}
 {"word":"twist","defs":[{"pos":"v","text":"to move in a twisting or contorted motion, (especially when struggling)","src":"oewn"},{"pos":"v","text":"cause (an object) to assume a crooked or angular form","src":"oewn"},{"pos":"n","text":"an unforeseen development","src":"oewn"},{"pos":"n","text":"an interpretation of a text or action","src":"oewn"}]}
-{"word":"two","defs":[{"pos":"n","text":"one of the four playing cards in a deck that have two spots","src":"oewn"},{"pos":"n","text":"the cardinal number that is the sum of one and one or a numeral representing this number","src":"oewn"},{"pos":"a","text":"being one more than one","src":"oewn"},{"pos":"num","text":"the number 2","src":"hand"}]}
+{"word":"two","defs":[{"pos":"num","text":"the number 2","src":"hand"}]}
 {"word":"tycoon","defs":[{"pos":"n","text":"a very wealthy or powerful businessperson","src":"oewn"}]}
 {"word":"type","defs":[{"pos":"v","text":"write by means of a keyboard with types","src":"oewn"},{"pos":"v","text":"identify as belonging to a certain type","src":"oewn"},{"pos":"n","text":"a subdivision of a particular kind of thing","src":"oewn"},{"pos":"n","text":"a person of a specified kind (usually with many eccentricities)","src":"oewn"}]}
 {"word":"typewriter","defs":[{"pos":"n","text":"hand-operated character printer for printing written messages one character at a time","src":"oewn"}]}
@@ -13093,7 +13093,7 @@
 {"word":"unctuous","defs":[{"pos":"a","text":"unpleasantly and excessively suave or ingratiating in manner or speech","src":"oewn"}]}
 {"word":"undecided","defs":[{"pos":"a","text":"not brought to a conclusion","src":"oewn"},{"pos":"a","text":"characterized by indecision","src":"oewn"}]}
 {"word":"undeniable","defs":[{"pos":"a","text":"not possible to deny","src":"oewn"}]}
-{"word":"under","defs":[{"pos":"prep","text":"below or lower than something","src":"hand"},{"pos":"r","text":"down to defeat, death, or ruin","src":"oewn"},{"pos":"r","text":"through a range downward","src":"oewn"},{"pos":"a","text":"located below or beneath something else","src":"oewn"},{"pos":"a","text":"lower in rank, power, or authority","src":"oewn"}]}
+{"word":"under","defs":[{"pos":"prep","text":"below or lower than something","src":"hand"}]}
 {"word":"undercharge","defs":[{"pos":"v","text":"charge (someone) too little money","src":"oewn"},{"pos":"n","text":"a price that is too low","src":"oewn"},{"pos":"n","text":"an insufficient charge","src":"oewn"}]}
 {"word":"underestimate","defs":[{"pos":"v","text":"assign too low a value to","src":"oewn"},{"pos":"v","text":"make a deliberately low estimate","src":"oewn"},{"pos":"n","text":"an estimation that is too low","src":"oewn"}]}
 {"word":"underexposure","defs":[{"pos":"n","text":"inadequate publicity","src":"oewn"},{"pos":"n","text":"the act of exposing film to too little light or for too short a time","src":"oewn"}]}
@@ -13298,7 +13298,7 @@
 {"word":"unwillingness","defs":[{"pos":"n","text":"the trait of being unwilling","src":"oewn"}]}
 {"word":"unwitting","defs":[{"pos":"a","text":"not done with purpose or intent","src":"oewn"},{"pos":"a","text":"not aware or knowing","src":"oewn"}]}
 {"word":"unyielding","defs":[{"pos":"a","text":"stubbornly unyielding","src":"oewn"},{"pos":"a","text":"resistant to physical force or pressure","src":"oewn"}]}
-{"word":"up","defs":[{"pos":"r","text":"spatially or metaphorically from a lower to a higher position","src":"oewn"},{"pos":"r","text":"to a higher intensity","src":"oewn"},{"pos":"prep","text":"toward or at a higher place","src":"hand"},{"pos":"a","text":"being or moving higher in position or greater in some value","src":"oewn"},{"pos":"a","text":"out of bed","src":"oewn"},{"pos":"v","text":"raise","src":"oewn"}]}
+{"word":"up","defs":[{"pos":"prep","text":"toward or at a higher place","src":"hand"}]}
 {"word":"up-to-date","defs":[{"pos":"a","text":"reflecting the latest information or changes","src":"oewn"},{"pos":"a","text":"in accord with the most fashionable ideas or style","src":"oewn"}]}
 {"word":"upbraid","defs":[{"pos":"v","text":"express criticism towards","src":"oewn"}]}
 {"word":"upbringing","defs":[{"pos":"n","text":"properties acquired during a person's formative years","src":"oewn"},{"pos":"n","text":"helping someone grow up to be an accepted member of the community","src":"oewn"}]}
@@ -13717,7 +13717,7 @@
 {"word":"waxy","defs":[{"pos":"a","text":"made of or covered with wax","src":"oewn"},{"pos":"a","text":"easily impressed or influenced","src":"oewn"}]}
 {"word":"way","defs":[{"pos":"n","text":"how something is done or how it happens","src":"oewn"},{"pos":"n","text":"to have the ability to produce a particular effect or achieve an end","src":"oewn"},{"pos":"r","text":"to a great degree or by a great distance","src":"oewn"}]}
 {"word":"wayside","defs":[{"pos":"n","text":"edge of a way or road or path","src":"oewn"}]}
-{"word":"we","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself and others","src":"hand"},{"pos":"n","text":"a nonmetallic element belonging to the halogens","src":"oewn"},{"pos":"n","text":"the smallest whole number or a numeral representing this number","src":"oewn"}]}
+{"word":"we","defs":[{"pos":"pron","text":"used by a speaker to talk about himself or herself and others","src":"hand"}]}
 {"word":"weak","defs":[{"pos":"a","text":"wanting in physical strength","src":"oewn"},{"pos":"a","text":"overly diluted","src":"oewn"}]}
 {"word":"weaken","defs":[{"pos":"v","text":"lessen the strength of","src":"oewn"},{"pos":"v","text":"become weaker","src":"oewn"}]}
 {"word":"weakly","defs":[{"pos":"a","text":"lacking bodily or muscular strength or vitality","src":"oewn"},{"pos":"r","text":"in a weak or feeble manner or to a minor degree","src":"oewn"}]}
@@ -13759,7 +13759,7 @@
 {"word":"welcome","defs":[{"pos":"a","text":"giving pleasure or satisfaction or received with pleasure or freely granted","src":"oewn"},{"pos":"n","text":"the state of being welcome","src":"oewn"},{"pos":"n","text":"a greeting or reception","src":"oewn"},{"pos":"v","text":"accept gladly","src":"oewn"},{"pos":"v","text":"bid welcome to","src":"oewn"}]}
 {"word":"weld","defs":[{"pos":"v","text":"join together by heating","src":"oewn"},{"pos":"v","text":"unite closely or intimately","src":"oewn"},{"pos":"n","text":"European mignonette cultivated as a source of yellow dye","src":"oewn"},{"pos":"n","text":"a metal joint formed by softening with heat and fusing or hammering together","src":"oewn"}]}
 {"word":"welfare","defs":[{"pos":"n","text":"governmental provision of economic assistance to persons in need","src":"oewn"},{"pos":"n","text":"something that aids or promotes well-being","src":"oewn"}]}
-{"word":"well","defs":[{"pos":"r","text":"in a good or proper or satisfactory manner or to a high standard","src":"oewn"},{"pos":"r","text":"thoroughly or completely","src":"oewn"},{"pos":"a","text":"in good health especially after having suffered illness or injury","src":"oewn"},{"pos":"a","text":"resulting favorably","src":"oewn"},{"pos":"n","text":"a cavity or vessel used to contain liquid","src":"oewn"},{"pos":"n","text":"an abundant source","src":"oewn"},{"pos":"v","text":"come up, as of a liquid","src":"oewn"},{"pos":"int","text":"used to start speaking or to show surprise","src":"hand"}]}
+{"word":"well","defs":[{"pos":"int","text":"used to start speaking or to show surprise","src":"hand"}]}
 {"word":"well-heeled","defs":[{"pos":"a","text":"in fortunate circumstances financially","src":"oewn"}]}
 {"word":"well-known","defs":[{"pos":"a","text":"widely or fully known","src":"oewn"},{"pos":"a","text":"frequently experienced","src":"oewn"}]}
 {"word":"well-wisher","defs":[{"pos":"n","text":"someone who shares your feelings or opinions and hopes that you will be successful","src":"oewn"}]}
@@ -13784,7 +13784,7 @@
 {"word":"whet","defs":[{"pos":"v","text":"make keen or more acute","src":"oewn"},{"pos":"v","text":"sharpen by rubbing, as on a whetstone","src":"oewn"}]}
 {"word":"which","defs":[{"pos":"pron","text":"used to ask or show one thing out of a group","src":"hand"}]}
 {"word":"whig","defs":[{"pos":"n","text":"a supporter of the American Revolution","src":"oewn"},{"pos":"n","text":"a member of the political party that urged social reform in 18th and 19th century England","src":"oewn"}]}
-{"word":"while","defs":[{"pos":"conj","text":"during the time that; although","src":"hand"},{"pos":"n","text":"a period of indeterminate length (usually short) marked by some action or condition","src":"oewn"}]}
+{"word":"while","defs":[{"pos":"conj","text":"during the time that; although","src":"hand"}]}
 {"word":"whim","defs":[{"pos":"n","text":"a sudden desire","src":"oewn"},{"pos":"n","text":"an odd or fanciful or capricious idea","src":"oewn"}]}
 {"word":"whimsical","defs":[{"pos":"a","text":"determined by chance or impulse or whim rather than by necessity or reason","src":"oewn"}]}
 {"word":"whine","defs":[{"pos":"v","text":"move with a whining sound","src":"oewn"},{"pos":"v","text":"talk in a tearful manner","src":"oewn"},{"pos":"n","text":"a complaint uttered in a plaintive whining way","src":"oewn"}]}
@@ -13824,7 +13824,7 @@
 {"word":"wildflower","defs":[{"pos":"n","text":"wild or uncultivated flowering plant","src":"oewn"}]}
 {"word":"wildlife","defs":[{"pos":"n","text":"all living things (except people) that are undomesticated","src":"oewn"}]}
 {"word":"wile","defs":[{"pos":"n","text":"the use of tricks to deceive someone","src":"oewn"}]}
-{"word":"will","defs":[{"pos":"aux","text":"used to talk about things that are going to happen","src":"hand"},{"pos":"n","text":"the capability of conscious choice and decision and intention","src":"oewn"},{"pos":"n","text":"a fixed and persistent intent or purpose","src":"oewn"},{"pos":"v","text":"decree or ordain","src":"oewn"},{"pos":"v","text":"determine by choice","src":"oewn"}]}
+{"word":"will","defs":[{"pos":"aux","text":"used to talk about things that are going to happen","src":"hand"}]}
 {"word":"willful","defs":[{"pos":"a","text":"done by design","src":"oewn"},{"pos":"a","text":"habitually disposed to disobedience and opposition","src":"oewn"}]}
 {"word":"willing","defs":[{"pos":"a","text":"disposed or inclined toward","src":"oewn"},{"pos":"a","text":"not brought about by coercion or force","src":"oewn"},{"pos":"n","text":"the act of making a choice","src":"oewn"}]}
 {"word":"willingly","defs":[{"pos":"r","text":"in a willing manner","src":"oewn"}]}

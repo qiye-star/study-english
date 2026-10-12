@@ -88,7 +88,10 @@ def test_hand_written_function_words(rows):
         for d in h["defs"]:
             assert d["src"] == "hand" and d["pos"] in wd.CLOSED_POS and len(d["text"].split()) <= wd.LLM_MAX_WORDS
     got = {r["word"]: r["defs"] for r in rows}
-    assert got["in"][0]["src"] == "hand" and got["in"][0]["pos"] == "prep"  # not the WordNet noun (indium)
+    assert [(d["pos"], d["src"]) for d in got["in"]] == [("prep", "hand")]  # not the WordNet noun (indium)
+    assert [(d["pos"], d["src"]) for d in got["a"]] == [("art", "hand")]  # nor "vitamin A"
+    for h in hand:  # a hand entry wins entirely: no WordNet line for any POS of the word
+        assert {d["src"] for d in got[h["word"]]} == {"hand"}, h["word"]
     assert any(d["pos"] == "art" for d in got["the"]) and any(d["pos"] == "pron" for d in got["it"])
     assert got["an"][0]["pos"] == "art" and got["an"][0]["src"] == "hand"  # the book types it 'indefinite article'
     assert [d["text"] for d in got["abandon"] if d["pos"] == "v"][0] == "forsake, leave behind"
