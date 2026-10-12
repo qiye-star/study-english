@@ -5,6 +5,7 @@ Pure, framework-light helpers shared by every layer.
 ## What lives here
 - `storage.ts` (safe localStorage JSON, `PRACTICE_DRAFT_KEY`), `kv-cache.ts` (IndexedDB cache), `playback-rate.ts`.
 - `abortable.ts`, `latency.ts` (timing marks, `window.__enjoyLatency`), `model-json.ts` (strict LLM JSON parsing), `cn.ts` (class merge aware of design tokens), `format-clock.ts`.
+- `speech-text.ts` — `speechText()`: strips CJK ideographs, kana and full-width runs before TTS (empty result = no TTS call). Applied once in `chat/tts.ts::speakableText`, which every read-aloud path uses; never bypass it.
 - `hold-gesture.ts` — pure hold-to-talk gesture reducer (press/slide to cancel/to text) shared by chat and calls.
 - `extension-points.ts` — typed extension-point registry (learning-links spec §8): `LINK_KEYS`, `LinkFlags`/`ALL_OFF`/`flagsFromConfig`, `PointProps`/`POINT_NAMES`, `contribute`/`contributeRoute`/`contributionsFor`/`routesFor`/`allRoutes`, link flags store. `extension-points-react.tsx` — `useLinkFlags`, `useContributions`, `<Slot>` (per-contribution error boundary), `<WordActions>`, `<LinkRoute>`.
 
