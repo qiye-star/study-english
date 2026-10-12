@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { cn } from "@renderer/lib/utils";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { SegmentedControl } from "~/components/segmented-control";
+import { DefLangSetting } from "./def-lang-setting";
 import { GoalsConfirm } from "./goals-confirm";
 import { GoalsFields, valueOf } from "./goals-fields";
 import { GHOST, bookTitle, fmt } from "./ui";
@@ -117,6 +118,7 @@ export function GoalsSheet({ open, onOpenChange, today, limits, goals, focus }: 
           <span className="num">{streakText} · {todayText}</span>
         </p>
         <p className="mt-1 text-meta leading-dialogue text-ink-2">{t("web.wordbook.goals.streak.help")}</p>
+        <DefLangSetting />
 
         <div className="mt-5 divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface">
           <Link to="/wordbook/books" className={ROW} onClick={() => onOpenChange(false)}>

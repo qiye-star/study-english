@@ -36,6 +36,15 @@ const count = (mock: ReturnType<typeof setup>["mock"], method: string, path: str
 beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); void i18n.changeLanguage("zh-CN"); });
 afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
 
+describe("GoalsSheet definitions setting", () => {
+  it("contains the definitions segmented control, 中英 by default", async () => {
+    setup();
+    const sheet = await openSheet();
+    expect(within(sheet).getByRole("radiogroup", { name: "释义显示" })).toBeTruthy();
+    expect(within(sheet).getByRole("radio", { name: "中英" })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
 describe("GoalsSheet", () => {
   it("opens from both gears, traps focus and gives focus back on close", async () => {
     setup();
