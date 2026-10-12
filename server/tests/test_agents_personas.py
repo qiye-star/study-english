@@ -116,3 +116,7 @@ async def test_store_crud_visibility_and_reports(app):
         await s.commit()
         assert await s.scalar(select(func.count()).select_from(AgentPersonaReport)) == 0
         assert await store.get(10000001, tom.id) is None
+
+
+def test_builtin_personas_reply_in_english_only():
+    assert all("English only" in p.prompt for p in P.builtin_personas())

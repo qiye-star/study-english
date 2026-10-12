@@ -20,6 +20,7 @@ PARAM_LIST_MAX = 8
 THOUGHT_TRACE_MAX = 600
 THOUGHT_TRACE_SHORT = 200
 STEPS_KEEP = 12
+NOTE_MAX = 80  # note_zh (spec 2026-10-12-agents-addressing §5.1): the unspoken Chinese note, at most 80 characters
 
 
 def dumps(data) -> str:
@@ -137,11 +138,14 @@ class Done(Event):
     text_len: int
     trace: dict
     usage: tuple[int, int] | None = None
+    note_zh: str | None = None  # addressing §5.2: Chinese note that never enters the public text (optional key)
 
     def to_dict(self) -> dict:
         out = {"text_len": self.text_len, "trace": self.trace}
         if self.usage is not None:
             out["usage"] = {"in": self.usage[0], "out": self.usage[1]}
+        if self.note_zh:
+            out["note_zh"] = self.note_zh
         return out
 
 
@@ -155,7 +159,8 @@ class Error(Event):
             raise ValueError("bad error code")
 
 
-def compact_trace(outcomes, tools: str, thought: Thought | None, *, ms: dict | None = None) -> dict:
+def compact_trace(outcomes, tools: str, thought: Thought | None, *, ms: dict | None = None,
+                  note_zh: str | None = None) -> dict:
     """压缩过程:每步 key / group / status / ms / private / label(+ 清洗过的 params)、生效的工具方式、思路(≤ 600 字)、
     耗时。`outcomes` 是有 key / status / result / ms / private 属性的对象(context.SourceOutcome)。"""
     steps = []
@@ -172,6 +177,8 @@ def compact_trace(outcomes, tools: str, thought: Thought | None, *, ms: dict | N
         out["thought"] = {"source": thought.source, "text": thought.text[:THOUGHT_TRACE_MAX], "chars": len(thought.text)}
     if ms:
         out["ms"] = {k: int(v) for k, v in ms.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if note_zh:
+        out["note_zh"] = note_zh[:NOTE_MAX]  # R-AS12: saved with the assistant message into messages.agent_trace
     return fit(out)
 
 
@@ -195,10 +202,13 @@ def fit(data: dict) -> dict:
     t["truncated"] = True
     if size_of(t) <= TRACE_MAX_BYTES:
         return t
-    return {"v": TRACE_VERSION, "tools": t.get("tools", ""), "steps": [], "truncated": True}
+    last = {"v": TRACE_VERSION, "tools": t.get("tools", ""), "steps": [], "truncated": True}
+    if isinstance(t.get("note_zh"), str):
+        last["note_zh"] = t["note_zh"]
+    return last
 
 
-TRACE_KEYS = frozenset({"v", "tools", "steps", "thought", "ms", "truncated"})
+TRACE_KEYS = frozenset({"v", "tools", "steps", "thought", "ms", "truncated", "note_zh"})
 STORED_STEP_KEYS = frozenset({"id", "key", "group", "status", "ms", "private", "label", "label_key", "params"})
 STORED_STEPS_MAX = 32
 STORED_NAME_MAX = 64
@@ -276,6 +286,9 @@ def _stored_ok(raw: dict) -> bool:
         if len(ms) > STORED_MS_KEYS_MAX or not all(_text(k, 24) and _num(v) for k, v in ms.items()):
             return False
     elif ms is not None and not _num(ms):
+        return False
+    note = raw.get("note_zh")
+    if note is not None and not _text(note, NOTE_MAX):
         return False
     return "truncated" not in raw or isinstance(raw["truncated"], bool)
 

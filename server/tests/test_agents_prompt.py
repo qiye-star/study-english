@@ -51,3 +51,10 @@ def test_build_messages_is_deterministic_and_prefix_stable():
     assert one[:3] == two[:3]  # system + history identical: upstream prefix cache friendly
     assert [m["role"] for m in one] == ["system", "user", "assistant", "user"]
     assert one == prompt.build_messages(P, memory_block="m", blocks=[("due_words", "x")], history=history, text="t1")
+
+
+def test_language_rule_sits_between_the_mode_block_and_the_context():
+    msg = prompt.turn_message("hi", [("learned_words", "abandon")], "MODE", lang_block="LANG")
+    assert msg.index("MODE") < msg.index("LANG") < msg.index("<context>") < msg.index("<user_message>")
+    assert prompt.turn_message("hi", [], None, lang_block=None) == prompt.turn_message("hi", [], None)
+    assert "Reply in English only." in prompt.ROOM_LINE
