@@ -119,7 +119,7 @@
       "settings": {
         "title": "Agents",
         "disabled": "Agents are not enabled on this server.",
-        "groups": { "personas": "Personas", "tools": "Tools", "memory": "Memory", "rooms": "Rooms", "display": "Display", "tutor": "Teach me" },
+        "groups": { "personas": "Personas", "tools": "Tools", "memory": "Memory", "rooms": "Rooms", "display": "Display", "tutor": "Teach me", "language": "Reply language" },
         "defaultPersona": "Default persona",
         "defaultNone": "Not set",
         "myPersonas": "My personas",
@@ -136,8 +136,12 @@
         "tutorLengthValue": "{{count}} questions",
         "tutorMix": "Question types",
         "kinds": { "ask": "Ask", "words": "Use words", "repeat": "Repeat", "retell": "Retell", "roleplay": "Role-play", "dictate": "Dictation" },
-        "saveFailed": "Could not save. Please try again."
+        "saveFailed": "Could not save. Please try again.",
+        "zhNote": "Chinese notes",
+        "zhNoteHint": "Replies are English only. A Chinese note stays folded until you tap Chinese and is never read aloud. Auto = for A2 / B1 personas.",
+        "zhNoteModes": { "auto": "Auto", "always": "Always", "never": "Never" }
       },
+      "note": { "show": "Chinese", "hide": "Hide Chinese" },
       "tutor": { "entry": "Teach me" }
     }
   }

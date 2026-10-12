@@ -16,7 +16,8 @@
         "bar": {
           "region": "Lesson progress", "mode": "Lesson", "progress": "Q {{n}} / {{m}}", "level": "Level {{level}}",
           "hint": "Hint", "skip": "Skip", "listen": "Listen", "translate": "Translate", "end": "End", "confirmEnd": "Tap to end",
-          "resume": "Continue"
+          "resume": "Continue",
+          "zhShow": "Chinese", "zhHide": "Hide Chinese"
         },
         "recap": {
           "title": "Lesson recap", "sheetTitle": "Lesson recap", "count": "{{answered}} of {{total}} answered",

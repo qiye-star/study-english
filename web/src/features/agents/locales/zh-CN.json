@@ -119,7 +119,7 @@
       "settings": {
         "title": "智能体",
         "disabled": "智能体未开启。",
-        "groups": { "personas": "角色", "tools": "工具", "memory": "记忆", "rooms": "联机", "display": "显示", "tutor": "带我学" },
+        "groups": { "personas": "角色", "tools": "工具", "memory": "记忆", "rooms": "联机", "display": "显示", "tutor": "带我学", "language": "回复语言" },
         "defaultPersona": "默认角色",
         "defaultNone": "未设置",
         "myPersonas": "我的角色",
@@ -136,8 +136,12 @@
         "tutorLengthValue": "{{count}} 题",
         "tutorMix": "题型",
         "kinds": { "ask": "提问", "words": "用词造句", "repeat": "跟读", "retell": "复述", "roleplay": "情景对话", "dictate": "听写" },
-        "saveFailed": "没能保存,请重试。"
+        "saveFailed": "没能保存,请重试。",
+        "zhNote": "中文说明",
+        "zhNoteHint": "回复只用英文;中文说明默认折叠,点「中文」才显示,永远不朗读。自动 = 角色水平 A2 / B1 时附上。",
+        "zhNoteModes": { "auto": "自动", "always": "总是", "never": "从不" }
       },
+      "note": { "show": "中文", "hide": "收起中文" },
       "tutor": { "entry": "带我学" }
     }
   }

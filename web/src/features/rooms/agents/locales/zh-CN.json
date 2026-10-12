@@ -1,0 +1,29 @@
+{
+  "web": {
+    "rooms": {
+      "notice": { "voice_unclear": "没听清,再说一次" },
+      "agents": {
+        "target": {
+          "to": "对 {{name}} 说",
+          "goesTo": "消息会交给 {{name}}",
+          "replying": "回复 {{name}} 中 · 消息会交给 {{name}}",
+          "off": {
+            "muted": "本房 AI 已被管理员关闭",
+            "aiOff": "房主关闭了群内 AI",
+            "unavailable": "AI 暂时不可用",
+            "agentOff": "{{name}} 已停用"
+          }
+        },
+        "mention": { "list": "选择智能体", "alias": "AI", "aliasOf": "AI({{name}})" },
+        "composer": { "placeholder": "说点什么,或 @AI({{name}})提问", "placeholderNoName": "说点什么,或 @AI 提问" },
+        "tutor": {
+          "yourTurnSpeak": "轮到你了 · 直接说或打字回答",
+          "yourTurnType": "轮到你了 · 打字回答",
+          "recognizing": "识别中…",
+          "unclear": "没听清,再说一次"
+        },
+        "note": { "show": "中文", "hide": "收起中文" }
+      }
+    }
+  }
+}

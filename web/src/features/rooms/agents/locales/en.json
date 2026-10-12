@@ -1,0 +1,29 @@
+{
+  "web": {
+    "rooms": {
+      "notice": { "voice_unclear": "Didn't catch that, please say it again" },
+      "agents": {
+        "target": {
+          "to": "To {{name}}",
+          "goesTo": "Messages go to {{name}}",
+          "replying": "Replying to {{name}} · goes to {{name}}",
+          "off": {
+            "muted": "AI is turned off for this room",
+            "aiOff": "The owner turned off group AI",
+            "unavailable": "AI is unavailable right now",
+            "agentOff": "{{name}} is disabled"
+          }
+        },
+        "mention": { "list": "Choose an agent", "alias": "AI", "aliasOf": "AI ({{name}})" },
+        "composer": { "placeholder": "Say something, or ask @AI ({{name}})", "placeholderNoName": "Say something, or ask @AI" },
+        "tutor": {
+          "yourTurnSpeak": "Your turn · just say or type it",
+          "yourTurnType": "Your turn · type your answer",
+          "recognizing": "Recognizing…",
+          "unclear": "Didn't catch that, say it again"
+        },
+        "note": { "show": "Chinese", "hide": "Hide Chinese" }
+      }
+    }
+  }
+}

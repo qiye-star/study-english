@@ -16,7 +16,8 @@
         "bar": {
           "region": "带学进度", "mode": "带学中", "progress": "第 {{n}} / {{m}} 题", "level": "难度 {{level}}",
           "hint": "提示", "skip": "跳过", "listen": "听一遍", "translate": "翻译", "end": "结束", "confirmEnd": "再点结束",
-          "resume": "继续"
+          "resume": "继续",
+          "zhShow": "中文", "zhHide": "收起中文"
         },
         "recap": {
           "title": "本次总结", "sheetTitle": "带学总结", "count": "答了 {{answered}} / {{total}} 题",
