@@ -5,6 +5,7 @@
 {"word":"all","defs":[{"pos":"pron","text":"the whole number or amount of people or things","src":"hand"}]}
 {"word":"also","defs":[{"pos":"conj","text":"in addition to what has been said","src":"hand"}]}
 {"word":"although","defs":[{"pos":"conj","text":"in spite of the fact that; even though","src":"hand"}]}
+{"word":"an","defs":[{"pos":"art","text":"used instead of a before a vowel sound","src":"hand"}]}
 {"word":"and","defs":[{"pos":"conj","text":"used to join words or parts of a sentence","src":"hand"}]}
 {"word":"any","defs":[{"pos":"pron","text":"one or some, no matter which","src":"hand"}]}
 {"word":"as","defs":[{"pos":"conj","text":"while; at the time that; or in the same way that","src":"hand"},{"pos":"prep","text":"in the role or form of something","src":"hand"}]}
