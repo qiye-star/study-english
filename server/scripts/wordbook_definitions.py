@@ -365,6 +365,27 @@ def validate_def(pos: str, text: str, src: str) -> str | None:
     return None
 
 
+_CAP_WORD = re.compile(r"^[^A-Za-z]*[A-Z]")
+_ABBREV_END = re.compile(r"(?:^|\s)(?:etc|(?:[A-Za-z]\.)+[A-Za-z])\.$")  # `etc.`, `e.g.`, `U.S.` keep their dot
+
+
+def normalize_llm_text(text: str) -> str:
+    """Bring a model-written definition to the OEWN / hand style (R-DS19): collapse whitespace, drop ONE trailing
+    period (not the end of `...` or of `etc.` / `e.g.` / `U.S.`), lowercase the first letter unless the first word has another capital (DNA,
+    McDonald's), is `I` / `I'm`, or the text holds another capitalised word (a proper noun: `a Scottish family name`)."""
+    text = " ".join(text.split())
+    if text.endswith(".") and not text.endswith("..") and not _ABBREV_END.search(text):
+        text = text[:-1].rstrip()
+    if not text:
+        return ""
+    first, *rest = text.split(" ")
+    keeps = (any(c.isupper() for c in first[1:]) or re.match(r"^I(?:['’].*)?$", first) is not None
+             or any(_CAP_WORD.match(w) and not re.match(r"^\W*I(?:['’]\w+)?\W*$", w) for w in rest))
+    if not keeps and first[:1].isupper():
+        text = first[0].lower() + text[1:]
+    return text
+
+
 def read_extras(path: Path, src: str, *, strict: bool) -> dict[str, dict[str, list[str]]]:
     """word -> pos -> texts from function-words.jsonl (strict: any problem raises) or definitions-llm.jsonl."""
     out: dict[str, dict[str, list[str]]] = {}
@@ -380,9 +401,12 @@ def read_extras(path: Path, src: str, *, strict: bool) -> dict[str, dict[str, li
                 reason = validate_def(d["pos"], d["text"], src)
                 if reason or d.get("src") != src:
                     raise ExtrasError(f"{path.name}:{number}: bad def ({reason or 'src'})")
+                text = normalize_llm_text(d["text"]) if src == "llm" else d["text"]
+                if not text:
+                    continue
                 bucket = out.setdefault(word, {}).setdefault(d["pos"], [])
-                if d["text"] not in bucket:
-                    bucket.append(d["text"])
+                if text not in bucket:
+                    bucket.append(text)
         except (KeyError, TypeError, ValueError) as e:
             if strict:
                 raise ExtrasError(f"{path.name}:{number}: {type(e).__name__}") from None

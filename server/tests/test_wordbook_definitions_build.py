@@ -423,6 +423,38 @@ def test_llm_rows_fill_only_what_oewn_and_hand_left_open(env):
     assert "sweaty" not in {g.word for g in wd.read_missing(env["out"] / "missing.txt")}  # merged gaps leave the list
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ("Relating to acids in cells that carry genetic information.", "relating to acids in cells that carry genetic information"),
+    ("The length of time something takes.", "the length of time something takes"),
+    ("Person who gives or passes something with hands", "person who gives or passes something with hands"),
+    ("  wet   with	sweat. ", "wet with sweat"),
+    ("American business magazine; a Scottish family name", "American business magazine; a Scottish family name"),
+    ("Used in Britain to mean a Scot.", "Used in Britain to mean a Scot"),
+    ("I am the speaker", "I am the speaker"),
+    ("I'm here", "I'm here"),
+    ("Used when I speak.", "used when I speak"),
+    ("DNA found in cells.", "DNA found in cells"),
+    ("McDonald's founder", "McDonald's founder"),
+    ("A thing, e.g. a cup, etc.", "a thing, e.g. a cup, etc."),
+    ("Wait...", "wait..."),
+    ("already lowercase", "already lowercase"),
+    (".", ""),
+    ("", ""),
+    ("   ", ""),
+])
+def test_llm_text_is_normalised_to_the_oewn_style(raw, expected):
+    assert wd.normalize_llm_text(raw) == expected
+
+
+def test_llm_rows_are_normalised_when_merged_and_duplicates_collapse(env):
+    (env["out"]).mkdir(exist_ok=True)
+    (env["out"] / "definitions-llm.jsonl").write_text(
+        json.dumps({"word": "sweaty", "defs": [{"pos": "a", "text": "Wet with sweat.", "src": "llm"},
+                                               {"pos": "a", "text": "wet with sweat", "src": "llm"}]}) + "\n", encoding="utf-8")
+    run_build(env)
+    assert rows_of(env)["sweaty"] == [("a", "wet with sweat", "llm")]
+
+
 # ---- inputs and the command line ----
 
 def test_verify_reports_missing_wrong_size_and_wrong_hash(tmp_path, monkeypatch):
