@@ -49,9 +49,17 @@ def test_entry_count_and_sources_agree_with_the_manifest(rows, manifest):
     stats = manifest["stats"]
     assert len(rows) == stats["words_with_defs"] and sum(len(r["defs"]) for r in rows) == stats["defs"]
     assert 13_900 <= stats["words_with_oewn"] <= 14_100  # spec §2 measured 13,924 before lemma resolution
-    assert stats["words_with_defs"] / stats["words_wanted"] >= 0.95
+    assert stats["words_with_defs"] / stats["words_wanted"] >= 0.98  # with the merged llm file (was 0.95 without it)
     by_src = {s: sum(1 for r in rows for d in r["defs"] if d["src"] == s) for s in wd.SRC_VALUES}
     assert by_src["oewn"] > 25_000 and by_src["hand"] >= 60 and by_src["llm"] == stats["pairs"]["llm"]  # the model writes one def per POS
+
+
+def test_merged_llm_text_is_in_the_oewn_style(rows):
+    llm = [(r["word"], d["text"]) for r in rows for d in r["defs"] if d["src"] == "llm"]
+    assert len(llm) >= 600
+    for word, text in llm:
+        assert wd.normalize_llm_text(text) == text, (word, text)  # already normalised: no trailing period, lowercase start
+        assert text[0].islower() or any(w[:1].isupper() for w in text.split()[1:]) or text[1:2].isupper(), (word, text)
 
 
 def test_every_row_is_valid_sorted_and_has_a_definition(rows):
@@ -90,8 +98,9 @@ def test_hand_written_function_words(rows):
     got = {r["word"]: r["defs"] for r in rows}
     assert [(d["pos"], d["src"]) for d in got["in"]] == [("prep", "hand")]  # not the WordNet noun (indium)
     assert [(d["pos"], d["src"]) for d in got["a"]] == [("art", "hand")]  # nor "vitamin A"
-    for h in hand:  # a hand entry wins entirely: no WordNet line for any POS of the word
-        assert {d["src"] for d in got[h["word"]]} == {"hand"}, h["word"]
+    for h in hand:  # a hand entry wins entirely over WordNet (llm may still fill a POS the hand file lacks)
+        assert "oewn" not in {d["src"] for d in got[h["word"]]}, h["word"]
+        assert {(d["pos"], d["text"]) for d in h["defs"]} <= {(d["pos"], d["text"]) for d in got[h["word"]]}, h["word"]
     assert any(d["pos"] == "art" for d in got["the"]) and any(d["pos"] == "pron" for d in got["it"])
     assert got["an"][0]["pos"] == "art" and got["an"][0]["src"] == "hand"  # the book types it 'indefinite article'
     assert [d["text"] for d in got["abandon"] if d["pos"] == "v"][0] == "forsake, leave behind"
