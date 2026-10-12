@@ -192,3 +192,22 @@ def test_voice_disabled_site_wide_hides_the_feature(tmp_path, monkeypatch):
         assert _upload(client, room["id"], alice).status_code == 403
     finally:
         client.__exit__(None, None, None)
+
+
+def test_to_agent_is_validated_by_shape_and_kept_in_the_message_meta(tmp_path, monkeypatch):
+    app, client, rt = _client(tmp_path, monkeypatch)
+    try:
+        alice, _ = login(client, "alice")
+        room = client.post("/api/rooms", json={}, headers=alice).json()["room"]
+        ok = _upload(client, room["id"], alice, "c1", to_agent="builtin:coach")
+        assert ok.status_code == 200 and ok.json()["message"]["meta"] == {"to_agent": "builtin:coach"}
+        for i, bad in enumerate(("builtin:Coach", "x" * 80, "builtin:coach\nx", "../etc")):
+            r = _upload(client, room["id"], alice, f"b{i}", to_agent=bad)
+            assert r.status_code == 400 and r.json() == {"error": "Invalid to_agent"}, bad  # R-AS7: shape only here
+        for i, blank in enumerate(("", "null", "  ")):
+            r = _upload(client, room["id"], alice, f"n{i}", to_agent=blank)
+            assert r.status_code == 200 and r.json()["message"]["meta"] is None
+        again = _upload(client, room["id"], alice, "c1", to_agent="builtin:coach")  # a retried upload is the same message
+        assert again.json()["seq"] == ok.json()["seq"]
+    finally:
+        client.__exit__(None, None, None)

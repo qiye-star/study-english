@@ -19,6 +19,7 @@ from app.models import User, utcnow
 from app.providers import llm
 from app.rooms import audio
 from app.rooms.protocol import MAX_ID, MAX_SEQ
+from app.rooms.rules import is_persona_id
 from app.rooms.store import RoomError
 from app.rooms.voice import VoiceDeps, VoiceError, VoiceService
 from app.rooms.voice_store import VoiceStore
@@ -93,7 +94,7 @@ def install(app, rt: RoomsRuntime) -> None:
         gate=asyncio.Semaphore(settings0.rooms_voice_concurrency),
         upload_limiter=RateLimiter(limits.voice_per_minute, 60),
         translate_limiter=RateLimiter(limits.translate_per_minute, 60),
-        retry_limiter=RateLimiter(limits.retry_per_minute, 60)))
+        retry_limiter=RateLimiter(limits.retry_per_minute, 60), agents=lambda: rt.agents))
     rt.voice = service
 
     async def _voice_staging_sweep(rt_: RoomsRuntime, now) -> None:
@@ -148,9 +149,15 @@ async def upload_voice(room_id: str, request: Request, user: User = Depends(limi
             raise HTTPException(400, "Invalid reply") from None
         if not 1 <= reply_to <= MAX_SEQ:
             raise HTTPException(400, "Invalid reply")
+    raw_to = _form_text(form.get("to_agent"), name="to_agent")
+    to_agent = None
+    if raw_to is not None and raw_to.strip() not in ("", "null"):
+        to_agent = raw_to.strip()
+        if not is_persona_id(to_agent):  # shape only: membership of the room's agents is checked after transcription
+            raise HTTPException(400, "Invalid to_agent")
     wav = await file.read()
     try:
-        message = await service.upload(room, user.id, user.username, wav, client_id, reply_to)
+        message = await service.upload(room, user.id, user.username, wav, client_id, reply_to, to_agent)
     except VoiceError as e:
         status, text = VOICE_ERRORS.get(e.code, (400, "Invalid request"))
         raise HTTPException(status, text) from None
