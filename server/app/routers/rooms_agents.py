@@ -96,7 +96,7 @@ def install(app, rt: RoomsRuntime) -> None:
         async with app.state.sessionmaker() as s:
             st = await agent_settings.load(s, user_id)
         return AgentPrefs(share_in_rooms=bool(st.share_in_rooms), memory_enabled=bool(st.memory_enabled),
-                          show_process=bool(st.show_process))
+                          show_process=bool(st.show_process), zh_note=str(st.zh_note))
 
     def turn_deps(*, allow_private: bool, memory: bool, modes: dict):
         base = agents_deps_for(app)  # X1: the one access point to the agents runtime

@@ -5,11 +5,12 @@ from dataclasses import replace
 import pytest
 
 from app.agents import limits
-from app.agents.trace import Delta, Error, Meta
+from app.agents.trace import Delta, Done, Error, Meta
 from app.agents.tutor import machine
 from app.agents.tutor.plan import Goal, PlanSources, build_plan
+from app.rooms.agent_lane import AgentPrefs
 from app.rooms.agent_tutor import ROOM_MIX, RoomTutor, RoomTutorMode, TutorError, _level, room_block, tutor_view
-from tests.test_rooms_agents_lane import A, B, EMMA, Script, env, say  # noqa: F401 (fixture)
+from tests.test_rooms_agents_lane import A, B, EMMA, NOW, Script, env, say  # noqa: F401 (fixture)
 
 
 class TutorScript(Script):
@@ -17,6 +18,7 @@ class TutorScript(Script):
         super().__init__()
         self.tutor_reply = "Nice. Next question for you."
         self.meta = {"step_index": 1, "steps_total": 3, "verdict": "good", "kind": "ask", "done": False}
+        self.note_zh = None
 
     async def run_turn(self, deps, req):
         if req.mode != "tutor":
@@ -32,6 +34,7 @@ class TutorScript(Script):
         yield Delta(text=self.tutor_reply)
         if self.meta is not None:
             yield Meta(**self.meta)
+        yield Done(text_len=len(self.tutor_reply), trace={}, note_zh=self.note_zh)
 
 
 class Clockwork:
@@ -442,3 +445,68 @@ async def test_tutor_logs_no_text(tenv, caplog):
     for secret in ("SECRET-TUTOR-1", "SECRET-ANSWER-2", "alice", "bob", "Emma"):
         assert secret not in text
     assert "room tutor paused reason=upstream" in text
+
+
+async def test_the_mode_keeps_the_chinese_hint_only_when_asked_and_returns_the_note():
+    raw = 'Hi!\n<<META>>{"verdict":"good","hint":"Think.","hint_zh":"想想","note_zh":"不错","done":false}'
+    with_zh = RoomTutorMode(text="x", step_index=1, steps_total=3, answering=True, speaks_first=False, zh_note=True)
+    assert (await with_zh.finish(None, raw))["note_zh"] == "不错" and with_zh.hint_zh == "想想"
+    without = RoomTutorMode(text="x", step_index=1, steps_total=3, answering=True, speaks_first=False)
+    assert (await without.finish(None, raw))["note_zh"] == "不错"  # the setting filters in the orchestrator
+    assert without.hint == "Think." and without.hint_zh == ""  # a hint nobody asked for is not stored
+
+
+def test_room_block_asks_for_chinese_fields_only_with_zh_note():
+    goal = Goal(topic="free", length=3, mix=ROOM_MIX)
+    state = machine.next_state(machine.new_state(tuple(build_plan(goal, PlanSources())), "B1"), machine.Asked())
+    plain = room_block(state, goal, prev_name="alice", next_name="bob", retry_name="alice")
+    zh = room_block(state, goal, prev_name="alice", next_name="bob", retry_name="alice", zh_note=True)
+    assert "hint_zh" not in plain and "note_zh" not in plain and "Do not write any Chinese" in plain
+    assert '"hint_zh"' in zh and '"note_zh"' in zh
+    wrap = room_block(state, goal, prev_name="bob", next_name=None, retry_name=None, wrap=True)
+    wrap_zh = room_block(state, goal, prev_name="bob", next_name=None, retry_name=None, wrap=True, zh_note=True)
+    assert "English only" in wrap and "note_zh" not in wrap and '"note_zh"' in wrap_zh and '"done":true' in wrap_zh
+
+
+async def test_the_started_by_setting_and_the_level_decide_the_prompt(tenv):
+    await start(tenv)
+    assert "hint_zh" in tenv.script.calls[0][0]["modes"]["tutor"].text  # default auto: A2 / B1 lessons get a note
+    tenv.prefs[A] = AgentPrefs(zh_note="never")
+    await tenv.tutor.stop(tenv.room.id, A)
+    await start(tenv)
+    assert "hint_zh" not in tenv.script.calls[1][0]["modes"]["tutor"].text
+    tenv.prefs[A] = AgentPrefs(zh_note="always")
+    await tenv.tutor.stop(tenv.room.id, A)
+    await start(tenv)
+    assert "hint_zh" in tenv.script.calls[2][0]["modes"]["tutor"].text
+
+
+async def test_the_zh_note_goes_into_the_public_meta_and_the_hint_zh_into_the_frame(tenv):
+    tenv.script.note_zh = "说得好"
+    await start(tenv)
+    question = messages(tenv.bob)[-1]
+    assert question["meta"]["note_zh"] == "说得好" and set(question["meta"]) == {"agent", "tutor", "note_zh"}
+    snap = await snapshot(tenv)
+    state = machine.from_dict(snap["machine"])
+    await tenv.store.set_tutor(tenv.room.id, {**snap, "machine": machine.to_dict(replace(state, hint_zh="想想你的周末"))})
+    await tenv.tutor.on_welcome(tenv.ca)
+    frame = tenv.alice.sender.sent[-1]["tutor"]
+    assert frame["hint_zh"] == "想想你的周末" and "hint" not in frame  # R-AS18: no English hint key on the wire
+    generating = {**snap, "phase": "generating", "machine": machine.to_dict(replace(state, hint_zh="x"))}
+    assert "hint_zh" not in tutor_view(generating, None)  # only while a question is waiting
+    assert "hint_zh" not in tutor_view({**snap, "machine": machine.to_dict(state)}, None)  # and only when there is one
+
+
+async def test_no_note_means_no_key(tenv):
+    await start(tenv)
+    assert "note_zh" not in messages(tenv.bob)[-1]["meta"]
+
+
+async def test_chinese_notes_never_reach_the_logs(tenv, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    tenv.script.note_zh = "SECRET-NOTE-ZH-9"
+    await start(tenv)
+    await tenv.ca.handle(say("SECRET-ANSWER-4", "a1"))
+    await tenv.hub.drain()
+    text = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
+    assert "SECRET-NOTE-ZH-9" not in text and "SECRET-ANSWER-4" not in text

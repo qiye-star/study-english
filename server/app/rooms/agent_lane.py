@@ -65,6 +65,7 @@ class AgentPrefs:
     share_in_rooms: bool = True
     memory_enabled: bool = True
     show_process: bool = True
+    zh_note: str = "auto"  # the user's `zh_note` setting (addressing §5.1); the room tutor reads the starter's
 
 
 @dataclass(frozen=True)
