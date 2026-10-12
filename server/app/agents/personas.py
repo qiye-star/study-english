@@ -170,6 +170,7 @@ COACH_FALLBACK = ("你是我的英语教练。请将我的话改写成地道的�
                   "尽量使用日常词汇、短语动词与习惯用语,每个句子不超过 20 个单词。")
 REVIEWER_FALLBACK = ("You are an English writing reviewer. Analyse the learner's text for clarity, structure and style, "
                      "and give specific, formal suggestions with a short reason for each.")
+ENGLISH_ONLY = "Reply in English only."  # addressing §5.2 / R-AS14: Chinese persona text stays, replies are English
 # (id 后缀, 名称, 简介, 风格, 人设);人设与 web/src/features/chat/scenarios.ts 的 PRESET_SCENARIOS[*].role 逐字相同
 SCENARIO_PERSONAS: tuple[tuple[str, str, str, str, str], ...] = (
     ("interviewer", "面试官", "求职面试:一次一问,点评你的回答", "strict",
@@ -222,9 +223,10 @@ def _builtins() -> tuple[Persona, ...]:
         else fallback  # noqa: E731
     items = [
         _builtin("coach", str(coach.get("name") or "英语教练"), str(coach.get("description") or "生成地道的美式英语"),
-                 "concise", text(coach, COACH_FALLBACK)),
-        _builtin("partner", "聊天伙伴", "轻松的英语日常对话,每次三句以内", "friendly", PARTNER_PROMPT),
-        _builtin("reviewer", "写作批改", "逐句分析你的英文写作并给出正式建议", "strict", text(reviewer, REVIEWER_FALLBACK)),
+                 "concise", text(coach, COACH_FALLBACK) + "\n\n" + ENGLISH_ONLY),
+        _builtin("partner", "聊天伙伴", "轻松的英语日常对话,每次三句以内", "friendly", PARTNER_PROMPT + " " + ENGLISH_ONLY),
+        _builtin("reviewer", "写作批改", "逐句分析你的英文写作并给出正式建议", "strict",
+                 text(reviewer, REVIEWER_FALLBACK) + "\n\n" + ENGLISH_ONLY),
     ]
     items += [_builtin(key, name, intro, style, f"{role}\n\n{SCENARIO_RULES}")
               for key, name, intro, style, role in SCENARIO_PERSONAS]

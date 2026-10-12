@@ -13,6 +13,7 @@ TUTOR_LENGTH = (3, 12)
 TUTOR_DEFAULT_LENGTH = 8
 PROCESS_DEFAULT = "collapsed"
 FLAGS = ("memory_enabled", "share_in_rooms", "show_process")
+ZH_NOTES = ("auto", "always", "never")  # addressing §5.1: auto = write a Chinese note for A2 / B1 personas and questions
 
 
 class SettingsInvalid(ValueError):
@@ -33,13 +34,14 @@ class AgentSettings:
     show_process: bool = True
     default_persona_id: str | None = None
     tutor: dict = field(default_factory=_tutor_default)
+    zh_note: str = "auto"
 
     def out(self) -> dict:
         return {"tools": dict(self.tools), "memory_enabled": self.memory_enabled,
                 "share_in_rooms": self.share_in_rooms, "show_process": self.show_process,
                 "default_persona_id": self.default_persona_id,
                 "tutor": {"length": self.tutor["length"], "mix": list(self.tutor["mix"])},
-                "process_default": PROCESS_DEFAULT}
+                "zh_note": self.zh_note, "process_default": PROCESS_DEFAULT}
 
 
 DEFAULTS = AgentSettings()
@@ -73,6 +75,10 @@ def _check(key: str, value):
                 raise SettingsInvalid("tutor")
             out["mix"] = [k for k in TUTOR_KINDS if k in mix]
         return out
+    if key == "zh_note":
+        if not isinstance(value, str) or value not in ZH_NOTES:
+            raise SettingsInvalid("zh_note")
+        return value
     if key == "process_default":
         raise SettingsInvalid("process_default")
     raise SettingsInvalid("unknown")

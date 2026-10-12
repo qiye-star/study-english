@@ -9,7 +9,7 @@ from app.models import AgentUserSettings, User, utcnow
 def test_defaults_output():
     assert S.DEFAULTS.out() == {
         "tools": {k: True for k in TOOL_KEYS}, "memory_enabled": True, "share_in_rooms": True, "show_process": True,
-        "default_persona_id": None, "tutor": {"length": 8, "mix": list(S.TUTOR_KINDS)}, "process_default": "collapsed"}
+        "default_persona_id": None, "tutor": {"length": 8, "mix": list(S.TUTOR_KINDS)}, "zh_note": "auto", "process_default": "collapsed"}
 
 
 def test_merge_strict_and_lenient():
@@ -32,6 +32,8 @@ def test_merge_strict_and_lenient():
     ({"tutor": {"mix": ["sing"]}}, "tutor"),
     ({"tutor": {"speed": 1}}, "tutor"),
     ({"process_default": "expanded"}, "process_default"),
+    ({"zh_note": "sometimes"}, "zh_note"),
+    ({"zh_note": 1}, "zh_note"),
     ({"whatever": True}, "unknown"),
 ])
 def test_strict_merge_rejects(patch, field):
@@ -62,3 +64,11 @@ async def test_load_drops_stale_or_broken_keys(app):
         await s.commit()
         loaded = await S.load(s, 10000001)
         assert loaded.show_process is False and loaded.tools == S.DEFAULTS.tools and loaded.tutor["length"] == 8
+
+
+def test_zh_note_values_and_lenient_reads():
+    from app.agents import lang
+
+    assert S.ZH_NOTES == lang.ZH_SETTINGS
+    assert S.merge(S.DEFAULTS, {"zh_note": "never"}, strict=True).zh_note == "never"
+    assert S.merge(S.DEFAULTS, {"zh_note": "loud"}, strict=False).zh_note == "auto"  # a stale value is dropped
