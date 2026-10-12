@@ -5,7 +5,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { RatingBadge } from "./recall-rating-bar";
 import type { Rating } from "./session-machine";
 import { ListenButton, WordCardView, type ListenProps } from "./word-card";
-import type { Card, Question } from "./wordbook-api";
+import type { Card, DefLang, Question } from "./wordbook-api";
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -21,15 +21,15 @@ function useEntered() {
   return entered;
 }
 
-function Back({ card, rating, showExample, listen }: {
-  card: Card; rating: Rating | null; showExample: boolean; listen: ListenProps;
+function Back({ card, defLang, rating, showExample, listen }: {
+  card: Card; defLang: DefLang; rating: Rating | null; showExample: boolean; listen: ListenProps;
 }) {
   const { t } = useTranslation();
   const entered = useEntered();
   return (
     <div data-testid="recall-back" style={{ transform: entered ? "none" : "perspective(800px) rotateY(80deg)", transition: "transform 180ms ease-out" }}
       className="motion-reduce:!transition-none">
-      <WordCardView card={card} {...listen} showExample={showExample} eyebrow={t("web.wordbook.recall.kind")}
+      <WordCardView card={card} defLang={defLang} {...listen} showExample={showExample} eyebrow={t("web.wordbook.recall.kind")}
         badge={rating ? <RatingBadge rating={rating} /> : null} />
     </div>
   );
@@ -39,12 +39,12 @@ function Back({ card, rating, showExample, listen }: {
  * 复习「快速回忆」(spec 2026-10-11-wordbook-recall §4.2,视觉稿 05 / 07):正面只有词头与音标(没有遮罩,复习不能偷看);
  * 背面 = 完整词卡 + 评级徽标。抽查题(视觉稿 06)由复习页用选择题渲染。
  */
-export function RecallCard({ question, card, face, rating, showExample = true, onListen, listening, canListen }: ListenProps & {
-  question: Question; card: Card | undefined; face: "front" | "back"; rating: Rating | null; showExample?: boolean;
+export function RecallCard({ question, card, face, rating, showExample = true, defLang = "both", onListen, listening, canListen }: ListenProps & {
+  question: Question; card: Card | undefined; face: "front" | "back"; rating: Rating | null; showExample?: boolean; defLang?: DefLang;
 }) {
   const { t } = useTranslation();
   const listen = { onListen, listening, canListen };
-  if (face === "back" && card) return <Back card={card} rating={rating} showExample={showExample} listen={listen} />;
+  if (face === "back" && card) return <Back card={card} defLang={defLang} rating={rating} showExample={showExample} listen={listen} />;
   const word = question.prompt.word ?? card?.word ?? "";
   const ipa = question.prompt.us || card?.us || card?.uk;
   return (

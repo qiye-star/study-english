@@ -24,7 +24,7 @@ const subscribe = (l: () => void) => {
 export function useDefLangValue(): DefLang {
   const { api } = useAuth();
   const config = useWordbookConfig();
-  const override = useSyncExternalStore(subscribe, () => overrides.get(api), () => undefined);
+  const override = useSyncExternalStore<DefLang | undefined>(subscribe, () => overrides.get(api), () => undefined);
   return override ?? defLangOf(config);
 }
 

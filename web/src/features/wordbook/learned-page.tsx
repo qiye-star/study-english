@@ -14,6 +14,7 @@ import { FreeReviewSheet } from "./free-review-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
 import { useDebounced, useLearnedList, useLearnedSummary } from "./use-learned";
+import { useDefLangValue } from "./use-def-lang";
 import { useReturnFocus } from "./use-return-focus";
 import { useSpeaker } from "./use-speaker";
 import { useWordbookConfig } from "./use-wordbook-config";
@@ -45,12 +46,13 @@ function CardSheet({ item, onClose }: { item: LearnedItem | null; onClose: () =>
   }, [api, item]);
   const config = useWordbookConfig();
   const showExample = config?.enabled ? config.learn.showExample : true;
+  const defLang = useDefLangValue();
   return (
     <BottomSheet open={item !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
       <BottomSheetContent className="max-h-[88vh] overflow-y-auto" {...back}>
         <BottomSheetHeader title={item?.word ?? ""} description={t("web.wordbook.learned.title")} srOnlyDescription />
         {card ? (
-          <WordCardView card={card} showExample={showExample} onListen={speaker.listen} listening={speaker.active} canListen={speaker.available} />
+          <WordCardView card={card} defLang={defLang} showExample={showExample} onListen={speaker.listen} listening={speaker.active} canListen={speaker.available} />
         ) : failed ? <PageNote>{t("web.wordbook.learned.card.unavailable")}</PageNote> : <PageLoading />}
       </BottomSheetContent>
     </BottomSheet>

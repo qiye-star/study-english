@@ -82,10 +82,11 @@ export function AdoptRow({ target }: PointProps["wordActionsMenu"]) {
 }
 
 // 词卡与朗读只在第一次展开时加载(主包增长有上限,验收 8)
-const LazyLinkCard = lazy(() => Promise.all([import("./word-card"), import("./use-speaker")]).then(([cardModule, speakerModule]) => {
+const LazyLinkCard = lazy(() => Promise.all([import("./word-card"), import("./use-speaker"), import("./use-def-lang")]).then(([cardModule, speakerModule, defLangModule]) => {
   function LinkCardView({ card }: { card: Card }) {
     const speaker = speakerModule.useSpeaker();
-    return <cardModule.WordCardView card={card} className="mx-3 mb-3 mt-1" onListen={speaker.listen} listening={speaker.active}
+    const defLang = defLangModule.useDefLangValue();
+    return <cardModule.WordCardView card={card} defLang={defLang} className="mx-3 mb-3 mt-1" onListen={speaker.listen} listening={speaker.active}
       canListen={speaker.available} />;
   }
   return { default: LinkCardView };

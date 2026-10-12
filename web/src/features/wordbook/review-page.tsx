@@ -19,6 +19,7 @@ import { SessionSummary, type SessionStats } from "./session-summary";
 import { TypingQuestion } from "./typing-question";
 import { DOCK, GHOST, PRIMARY } from "./ui";
 import { useRankEnabled } from "./use-rank-enabled";
+import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
 import { useWordbookToday } from "./use-today";
 import { useWordbookConfig } from "./use-wordbook-config";
@@ -69,6 +70,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const prefs = config?.enabled ? config.learn : undefined;
   const autoplay = prefs?.autoplay ?? true;
   const showExample = prefs?.showExample ?? true;
+  const defLang = useDefLangValue();
   const [phase, setPhase] = useState<Phase>(free ? "quiz" : "intro");
   const [batch, setBatch] = useState<Batch | null>(() => (free ? toBatch(free) : null));
   const [error, setError] = useState<unknown>(null);
@@ -279,7 +281,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
                 onAnswer={(choice) => void send({ rating: "know", choice })} {...listen} />
             </div>
           ) : (
-            <RecallCard key={`${question.key}:${attempt}`} question={question} card={batch?.cards[question.key]}
+            <RecallCard key={`${question.key}:${attempt}`} question={question} card={batch?.cards[question.key]} defLang={defLang}
               face={answer ? "back" : "front"} rating={answer?.result.rating ?? null} showExample={showExample} {...listen} />
           )
         ) : question && CHOICE.has(question.qtype) ? (
