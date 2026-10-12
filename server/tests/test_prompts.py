@@ -33,8 +33,7 @@ def test_validation_edge_cases():
     assert "unknown_fields:level.__class__" in validate_prompt("rooms.assist", ok + " {level.__class__}")
     assert "unknown_fields:level:{draft}" in validate_prompt("rooms.assist", ok + " {level:{draft}}")
     assert "unknown_fields:{}" in validate_prompt("rooms.assist", ok + " {}")
-    assert validate_prompt("rooms.answer", "{topic}{asker}<chat>{chat}</chat>") == [
-        "missing_fields:question", "missing_boundary:<question>", "missing_boundary:</question>"]
+    assert validate_prompt("rooms.voice_translate", "{source}{target}<text>{text}") == ["missing_boundary:</text>"]
     with pytest.raises(KeyError):
         validate_prompt("nope", "x")
 
@@ -68,7 +67,7 @@ def test_static_templates_file_is_valid_and_every_spec_is_consistent():
     body = (STATIC / "chat_agent_templates.json").read_text(encoding="utf-8")
     assert validate_prompt("config.chat_agent_templates", body) == []
     assert PROMPTS["grammar.rules"].max_chars == MAX_PROMPT_CHARS
-    assert set(PROMPTS) == {"grammar.rules", "rooms.assist", "rooms.answer", "rooms.voice_translate", "rooms.summary",
+    assert set(PROMPTS) == {"grammar.rules", "rooms.assist", "rooms.voice_translate", "rooms.summary",
                             "wordbook.explain", "config.chat_agent_templates"}
 
 

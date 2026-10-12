@@ -4,7 +4,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.models import AdminAudit, PromptVersion
+from app.models import AdminAudit, PromptVersion, utcnow
 from app.services.grammar import GRAMMAR_OUTPUT_CONTRACT
 from tests.admin_helpers import publish_draft, ADMIN_ENABLED, PASSWORD, assert_no_secrets, login_as
 
@@ -53,19 +53,19 @@ async def test_draft_publish_and_grammar_endpoint_uses_new_rules(app, client, au
 
 async def test_invalid_prompt_cannot_be_published(app, client):
     su = await superadmin(app, client)
-    await client.post("/api/admin/prompts/rooms.answer/draft", headers=su, json={})
-    await client.put("/api/admin/prompts/rooms.answer/draft", headers=su, json={"body": "no fields", "note": ""})
-    r = await publish_draft(client, "/api/admin/prompts/rooms.answer/draft/publish", su, "x")
+    await client.post("/api/admin/prompts/rooms.voice_translate/draft", headers=su, json={})
+    await client.put("/api/admin/prompts/rooms.voice_translate/draft", headers=su, json={"body": "no fields", "note": ""})
+    r = await publish_draft(client, "/api/admin/prompts/rooms.voice_translate/draft/publish", su, "x")
     assert r.status_code == 422 and any(e.startswith("missing_fields") for e in r.json()["details"]["errors"])
 
 
 async def test_overview_detail_and_permissions(app, client):
     viewer = await login_as(app, client, "viewer")
     items = (await client.get("/api/admin/prompts")).json()
-    assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.answer", "rooms.voice_translate",
+    assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.voice_translate",
                                          "rooms.summary", "wordbook.explain", "config.chat_agent_templates"]
-    answer = (await client.get("/api/admin/prompts/rooms.answer")).json()["spec"]
-    assert answer["optional"] == ["level", "scenario"] and "scenario" in answer["sample_fields"]
+    assist = (await client.get("/api/admin/prompts/rooms.assist")).json()["spec"]
+    assert assist["optional"] == ["scenario"] and "scenario" in assist["sample_fields"]
     assert items[0] == {"key": "grammar.rules", "label": items[0]["label"], "kind": "text",
                         "published_version": None, "published_at": None, "has_draft": False}
     detail = (await client.get("/api/admin/prompts/grammar.rules")).json()
@@ -176,8 +176,8 @@ async def test_wordbook_explain_prompt_default_and_test_run(app, client, respx_m
 
 async def test_published_prompt_rows_are_immutable_versions(app, client):
     su = await superadmin(app, client)
-    base = "/api/admin/prompts/rooms.answer"
-    good = "Topic {topic} by {asker}. <chat>{chat}</chat> <question>{question}</question>"
+    base = "/api/admin/prompts/rooms.voice_translate"
+    good = "Translate {source} to {target}. <text>{text}</text>"
     await client.post(base + "/draft", headers=su, json={})
     await client.put(base + "/draft", headers=su, json={"body": good, "note": "n"})
     assert (await publish_draft(client, base + "/draft/publish", su, "go")).json() == {"version": 1}
@@ -185,14 +185,14 @@ async def test_published_prompt_rows_are_immutable_versions(app, client):
         rows = (await s.scalars(select(PromptVersion))).all()
     assert [(r.version, r.status, r.body, r.published_by) for r in rows] == [(1, "published", good, "superadmin1")]
     items = (await client.get("/api/admin/prompts")).json()
-    assert next(i for i in items if i["key"] == "rooms.answer")["published_version"] == 1
+    assert next(i for i in items if i["key"] == "rooms.voice_translate")["published_version"] == 1
 
 
 async def test_prompt_publish_is_bound_to_the_reviewed_draft(app, client):
     """Review M4: the superadmin publishes the body they reviewed, never one an operator saved meanwhile."""
     su = await superadmin(app, client)
-    base = "/api/admin/prompts/rooms.answer"
-    good = "Topic {topic} by {asker}. <chat>{chat}</chat> <question>{question}</question>"
+    base = "/api/admin/prompts/rooms.voice_translate"
+    good = "Translate {source} to {target}. <text>{text}</text>"
     await client.post(base + "/draft", headers=su, json={})
     await client.put(base + "/draft", headers=su, json={"body": good, "note": "n"})
     reviewed = (await client.get(base)).json()["draft"]["etag"]
@@ -205,3 +205,17 @@ async def test_prompt_publish_is_bound_to_the_reviewed_draft(app, client):
     assert r.status_code == 409 and r.json() == {"error": "Draft changed"}
     assert (await client.get(base)).json()["published"] is None
     assert (await client.post(base + "/draft/publish", headers=su, json={"reason": "go"})).status_code == 422
+
+
+async def test_the_retired_rooms_answer_prompt_is_gone_but_its_history_stays(app, client):
+    su = await superadmin(app, client)
+    async with app.state.sessionmaker() as s:
+        s.add(PromptVersion(key="rooms.answer", version=1, status="published", body="old {topic}", note="",
+                            created_by="root", published_by="root", published_at=utcnow()))
+        await s.commit()
+    assert "rooms.answer" not in [i["key"] for i in (await client.get("/api/admin/prompts")).json()]
+    assert (await client.get("/api/admin/prompts/rooms.answer")).status_code == 404
+    assert (await client.post("/api/admin/prompts/rooms.answer/draft", headers=su, json={})).status_code == 404
+    async with app.state.sessionmaker() as s:
+        rows = (await s.scalars(select(PromptVersion).where(PromptVersion.key == "rooms.answer"))).all()
+    assert [(r.version, r.status, r.body) for r in rows] == [(1, "published", "old {topic}")]  # nothing is deleted

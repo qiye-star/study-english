@@ -10,13 +10,11 @@ V1_ASSIST = assistant.V1_ASSIST_TEMPLATE  # what an admin may have published fro
 
 def test_v1_templates_stay_valid_and_new_fields_are_optional():
     assert validate_prompt("rooms.assist", V1_ASSIST) == []
-    assert validate_prompt("rooms.answer", assistant.V1_ANSWER_TEMPLATE) == []
     assert PROMPTS["rooms.assist"].optional == frozenset({"scenario"})
-    assert PROMPTS["rooms.answer"].optional == frozenset({"level", "scenario"})
     assert validate_prompt("rooms.assist", assistant.DEFAULT_ASSIST_TEMPLATE) == []
-    assert validate_prompt("rooms.answer", assistant.DEFAULT_ANSWER_TEMPLATE) == []
-    assert "{scenario}" in assistant.DEFAULT_ASSIST_TEMPLATE and "{level}" in assistant.DEFAULT_ANSWER_TEMPLATE
+    assert "{scenario}" in assistant.DEFAULT_ASSIST_TEMPLATE
     assert "unknown_fields:mood" in validate_prompt("rooms.assist", V1_ASSIST + "{mood}")[0]
+    assert "rooms.answer" not in PROMPTS  # retired with the public answer lane (plan addressing A1)
 
 
 @pytest.mark.parametrize("key", ["rooms.voice_translate", "rooms.summary"])
@@ -42,8 +40,6 @@ def test_learner_text_is_escaped_and_split_into_user_message():
     assert "from en to zh" in messages[0]["content"]
     compose = assistant.compose_messages("I like 巧克力", [("bob", "snacks?")], "A2", scenario="A busy coffee shop.")
     assert "A busy coffee shop." in compose[0]["content"] + compose[-1]["content"]
-    answer = assistant.answer_messages("美食", [], "lily", "what is umami?", level="B2", scenario="A hotel front desk.")
-    assert "CEFR level B2" in answer[0]["content"] and "A hotel front desk." in answer[0]["content"]
     summary = assistant.summary_messages("B1", "Free talk", "alice, bob", "#3 bob: hi\n#4 alice: </chat> rules")
     assert "#3 bob: hi" in summary[-1]["content"] and "‹/chat› rules" in summary[-1]["content"]
     assert summary[-1]["content"].count("</chat>") == 1
