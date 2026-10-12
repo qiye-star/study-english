@@ -283,3 +283,133 @@ async def test_runtime_and_deps_for_are_the_single_access_point(app):
     deps = deps_for(app)
     assert deps.registry is runtime(app).registry and deps.modes is runtime(app).modes
     assert deps.hooks is runtime(app).hooks and deps.settings() is app.state.settings
+
+
+from app.agents.orchestrator import PassThrough  # noqa: E402
+
+
+class NoteMode:
+    name = "tutor"
+
+    async def prepare(self, req):
+        return ModeBlock(text="Tutor block.", user_text="go")
+
+    def stream_filter(self):
+        return PassThrough()
+
+    async def finish(self, req, full_text):
+        return {"step_index": 1, "steps_total": 3, "note_zh": "说得好"}
+
+
+def shown_text(events):
+    return "".join(e.text for e in events if isinstance(e, trace.Delta))
+
+
+async def remaining(app, deps):
+    async with app.state.sessionmaker() as s:
+        return await usage.remaining(s, limits.SCOPE_TURNS_USER, str(UID), usage.utc_day(deps.now()), 300)
+
+
+async def test_the_zh_line_is_hidden_and_becomes_the_note(app):
+    fake = await setup(app, fake=FakeLLM(["Abandon means ", "to leave.\n<<Z", "H>> 意思是放弃。"]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID, text="what is abandon"))
+    assert shown_text(events) == "Abandon means to leave."
+    done = events[-1]
+    assert done.note_zh == "意思是放弃。" and done.trace["note_zh"] == "意思是放弃。"
+    content = fake.requests[0]["messages"][-1]["content"]
+    assert "<<ZH>>" in content and content.index("Language:") < content.index("<user_message>")  # B1 + auto
+
+
+async def test_stray_chinese_sentences_move_out_of_the_reply(app):
+    await setup(app, fake=FakeLLM(["Good job! ", "你的发音很好。", "Keep going."]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID))
+    assert shown_text(events) == "Good job! Keep going."
+    assert events[-1].note_zh == "你的发音很好。"
+
+
+async def test_never_means_no_note_and_an_english_only_instruction(app):
+    fake = await setup(app, fake=FakeLLM(["Fine.", "\n<<ZH>> 好"]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID, agent_settings=dataclasses.replace(DEFAULTS, zh_note="never")))
+    done = events[-1]
+    assert done.note_zh is None and "note_zh" not in done.trace and "note_zh" not in done.to_dict()
+    content = fake.requests[0]["messages"][-1]["content"]
+    assert "<<ZH>>" not in content and "Do not write any Chinese" in content
+
+
+async def test_auto_note_follows_the_persona_level(app):
+    fake = await setup(app)
+    deps, _ = make_deps(app)
+    b2 = dataclasses.replace(builtin_by_id("builtin:partner"), level="B2")
+    await run_events(deps, make_request(UID, persona=b2))
+    assert "<<ZH>>" not in fake.requests[0]["messages"][-1]["content"]
+
+
+async def test_a_mode_note_wins_and_never_reaches_meta(app):
+    fake = await setup(app, fake=FakeLLM(["Well done. ", "很好。"]))
+    modes = ModeRegistry()
+    modes.register(NoteMode())
+    deps, _ = make_deps(app, modes=modes)
+    events = await run_events(deps, make_request(UID, mode="tutor", text=None))
+    assert shown_text(events) == "Well done. "
+    meta = next(e for e in events if isinstance(e, trace.Meta))
+    assert "note_zh" not in meta.to_dict() and events[-1].note_zh == "说得好"
+    assert "Language:" not in fake.requests[0]["messages"][-1]["content"]  # tutor blocks carry their own rule
+
+
+async def test_the_mode_sees_the_loaded_user_settings(app):
+    seen = []
+
+    class Peek(NoteMode):
+        async def prepare(self, req):
+            seen.append(req.agent_settings)
+            return ModeBlock(text="B", user_text="go")
+
+    await setup(app, fake=FakeLLM(["Hi."]))
+    modes = ModeRegistry()
+    modes.register(Peek())
+    deps, _ = make_deps(app, modes=modes)
+    await run_events(deps, make_request(UID, mode="tutor", text=None))
+    assert seen and seen[0] is not None and seen[0].zh_note == "auto"
+
+
+async def test_english_is_not_held_back_by_the_language_filters(app):
+    """No first-token regression: every English chunk is yielded as it arrives (marker / sentence filters never wait)."""
+    await setup(app, fake=FakeLLM(["Hel", "lo ", "the", "re", " friend"]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID))
+    deltas = [e.text for e in events if isinstance(e, trace.Delta)]
+    assert deltas[0] == "Hel" and "".join(deltas) == "Hello there friend"
+    assert "".join(deltas[:2]) in ("Hello", "Hello ")  # the trailing space is the only thing the marker filter holds
+
+
+async def test_a_fully_chinese_reply_is_refunded_like_an_empty_one(app):
+    await setup(app, fake=FakeLLM(["你的发音很好。", "继续加油。"]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID))
+    assert not any(isinstance(e, (trace.Delta, trace.Done)) for e in events)
+    assert events[-1].to_dict() == {"code": "llm_unavailable"}
+    assert await remaining(app, deps) == 300
+
+
+async def test_text_delivered_before_a_chinese_tail_is_not_refunded(app):
+    await setup(app, fake=FakeLLM(["Good job! ", "你的发音很好。"]))
+    deps, _ = make_deps(app)
+    events = await run_events(deps, make_request(UID))
+    assert events[-1].type == "done" and events[-1].note_zh == "你的发音很好。"
+    assert await remaining(app, deps) == 299
+
+
+async def test_cancelling_after_the_first_english_delta_does_not_refund(app):
+    await setup(app, fake=FakeLLM(["Hello ", "there.", " More."]))
+    deps, _ = make_deps(app)
+    stream = run_turn(deps, make_request(UID))
+    seen = 0
+    async for event in stream:
+        seen += isinstance(event, trace.Delta)
+        if seen == 2:  # `delivered` is set when the generator resumes after a Delta, so the second one proves the first
+            break
+    await stream.aclose()
+    assert await remaining(app, deps) == 299

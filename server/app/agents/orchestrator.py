@@ -1,8 +1,10 @@
 """一次回合(spec 2026-10-12-agents §3、§5、§6):扣额度 → 内置步骤 + 并行预取 → 拼提示词 → 一次流式模型调用 → 过程事件。
 不用框架。模式(导师,A3)经 ModeHandler 插入;回合后的工作(记忆整理,A2)经 TurnHooks.after_turn 在后台运行。
+回复语言:聊天模式在模式块之后加 `lang.chat_rule`;流经「模式过滤器 → <<ZH>> → 中文句兜底」;`note_zh` 只进 `Done` 与压缩过程。
 用户文本、回复、人设只在内存;日志只有 `timing event=agent_turn` 的数字与固定字符串,以及模式名 / 异常类名。"""
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import time
 import uuid
@@ -12,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from app.agents import limits, prompt, trace
+from app.agents import lang, limits, prompt, trace
 from app.agents import settings as agent_settings
 from app.agents.context import PREFETCH_BUDGET_MS, SourceCtx, SourceOutcome, SourceRegistry, SourceResult, prefetch
 from app.agents.personas import Persona
@@ -304,6 +306,8 @@ async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings
     if agent is None:
         async with deps.sessions() as session:
             agent = await agent_settings.load(session, req.user_id)
+    if req.agent_settings is not agent:  # R-AS9: a mode (the tutor) reads the asker's zh_note from req
+        req = dataclasses.replace(req, agent_settings=agent)
     tools_mode = limits.effective_tools_mode(settings, deps.tools_probe())
     stats["tools"] = tools_mode
     history = prompt.clamp_history(req.history, settings.agents_history_max, settings.agents_history_chars_max)
@@ -346,10 +350,12 @@ async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings
         return
     memory_block = next((o.result.block for o in outcomes if o.key == "memory" and o.result is not None), None)
     blocks = [(o.key, o.result.block) for o in outcomes if o.key != "memory" and o.result is not None and o.result.block]
+    lang_block = lang.chat_rule(lang.want_note(agent.zh_note, req.persona.level)) if req.mode == "chat" else None
     messages = prompt.build_messages(req.persona, memory_block=memory_block, blocks=blocks, history=history,
                                      text=req.text if req.text is not None else block.user_text, mode_block=block.text,
-                                     in_room=req.in_room)
-    flt = mode.stream_filter()
+                                     in_room=req.in_room, lang_block=lang_block)
+    zh_filter, gate = lang.MarkerFilter(), lang.SentenceGate()
+    flt = lang.Chain(mode.stream_filter(), zh_filter, gate)  # mode <<META>> -> <<ZH>> -> Chinese sentence fallback (R-AS10)
     raw: list[str] = []
     shown: list[str] = []
     thinking: list[str] = []
@@ -393,9 +399,12 @@ async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings
 
     reply = "".join(shown)
     meta = None
+    mode_note = None
     try:
         found = await mode.finish(req, "".join(raw))
-        meta = trace.Meta.from_dict(found) if found else None
+        if isinstance(found, dict) and "note_zh" in found:  # R-AS11: the Chinese note never enters the meta event
+            mode_note, found = found["note_zh"], {k: v for k, v in found.items() if k != "note_zh"}
+        meta =trace.Meta.from_dict(found) if found else None
     except ModeError as e:  # AX-1:the text already streamed (no refund); the client gets the code instead of done
         logger.warning("agents mode finish failed mode=%s error=ModeError", mode.name)
         stats["status"] = _error(e.code).code
@@ -405,10 +414,11 @@ async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings
         logger.warning("agents mode finish failed mode=%s error=%s", mode.name, type(e).__name__)
     if meta is not None:
         yield meta
+    note = lang.resolve_note(agent.zh_note, mode_note, zh_filter.tail, gate.removed)
     thought = trace.Thought("reasoning", "".join(thinking)) if thinking else None
     total = _ms(deps.clock, t0)
     compact = trace.compact_trace([persona_done, *outcomes, history_done], tools_mode, thought,
-                                  ms={"ctx": stats["ctx_ms"], "ttft": stats["ttft_ms"], "total": total})
+                                  ms={"ctx": stats["ctx_ms"], "ttft": stats["ttft_ms"], "total": total}, note_zh=note)
     stats.update(status="ok", chars=len(reply))
     record = TurnRecord(turn_id=turn_id, user_id=req.user_id, persona_id=req.persona.id,
                         conversation_id=req.conversation_id, room_id=req.room_id, mode=req.mode,
@@ -417,4 +427,4 @@ async def _charged(deps: TurnDeps, req: TurnRequest, mode: ModeHandler, settings
     spawn = deps.spawn or _spawn_default
     for hook in list(deps.hooks.after_turn):
         spawn(_guarded(hook, record))
-    yield trace.Done(text_len=len(reply), trace=compact, usage=usage_tokens)
+    yield trace.Done(text_len=len(reply), trace=compact, usage=usage_tokens, note_zh=note)

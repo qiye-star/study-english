@@ -17,6 +17,10 @@
   `effective_tools_mode`、进程内幂等 `TurnLedger`
 - `orchestrator.py` – `run_turn(deps, req)`(异步生成器)、`TurnDeps` / `deps_for(app)`、`TurnRequest`、`ModeHandler` /
   `ModeBlock` / `StreamFilter` / `ChatMode` / `ModeRegistry`、`TurnHooks` / `TurnRecord`、`AgentsRuntime` / `runtime(app)`
+- `lang.py` – 回复语言纯函数(只用 `re`;计划 addressing L1):`want_note(zh_note 设置, 水平)`、`chat_rule`、`MarkerFilter`(`<<ZH>>` 流式剥离,
+  `tail` = 标记之后的原文)、`SentenceGate`(中文句兜底,`removed`)、`Chain`、`sanitize` / `split_marker`(一次性版本)、`clean_note` / `resolve_note`
+  (`note_zh` ≤ 80 字,来源优先级:模式 META → `<<ZH>>` → 被拿掉的中文;`never` 一律没有)。任意拆分下流式输出 == 一次性输出(模糊 + 全位置拆分测试)。
+  英文立即放行(首字延迟不变);含中文字符的句子才暂扣到句末。
 - `memory/`(计划 A2)、`tutor/`(计划 A3):各自的 CLAUDE.md
 - `memory/` 记忆五层、来源 `memory`、回合后整理(计划 A2;见 `memory/CLAUDE.md`)。`install` 在 `main.py` 里紧跟本层安装。
 
@@ -25,6 +29,12 @@
 links / admin / routers`(连函数内延迟导入也不行;`tests/test_architecture.py::test_agents_layer_rules`)。
 可被 `rooms / links / admin / routers / main` 导入。需要学习数据的来源写在 `app/links/agent_sources.py` 并注册进
 `runtime(app).registry`(R-A1:不受 `LINKS_ENABLED` 控制)。
+
+## 回复语言与 `note_zh`
+- 聊天模式在模式块之后追加 `lang.chat_rule(want_note(设置.zh_note, 角色水平))`(英文提示词);导师等模式自带规则(`mode.prepare` 读 `req.agent_settings`,
+  编排器总是把已加载的提问者设置放进去)。公开文本流经 `模式过滤器 → MarkerFilter → SentenceGate`;`Done.note_zh` 与 `done.trace.note_zh`
+  由 `resolve_note` 得出,不进 `Meta`、不进日志。模式 `finish` 返回的 `note_zh` 键被编排器取走。整条回复都是中文 → 没有文字送出 → 按「空回复」退还额度。
+- 用户设置 `zh_note`(`auto|always|never`)在 `settings.py`;内置角色 `coach / partner / reviewer` 的人设末尾带 `Reply in English only.`。
 
 ## Extension points(其他计划只经这些接入)
 - 来源:`runtime(app).registry.register(source)`(`key`、`private`、`async load(ctx) -> SourceResult | None`)。
