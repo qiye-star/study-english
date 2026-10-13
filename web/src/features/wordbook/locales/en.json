@@ -2,6 +2,7 @@
   "web": {
     "wordbookDefs": {
       "label": "English definitions (reference)",
+      "peek": { "label": "Show Chinese definitions" },
       "setting": {
         "label": "Definitions",
         "help": "Shown once a card is open. Quizzes stay in Chinese. English definitions come from an open dictionary and are a reference only.",

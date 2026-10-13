@@ -87,13 +87,26 @@ export function WordCardView({
   const phonetics = ([["us", card.us], ["uk", card.uk]] as const).filter(([, v]) => v);
   const listenProps = { onListen, listening, canListen };
   // 「仅英文」:有英文释义时中文行让位;缺口词(没有英文释义)回退成中文,否则答案是空的(计划 2026-10-13-defs-default R-A7)
-  const { groups: defGroups, showDefs, showSenses } = defView(defLang, card);
+  // 「中」小开关:只影响这一张卡的当前显示;记的是正在偷看的 card.key,换卡自动复位;不写服务端、不写本机(R-A9)
+  const [peekKey, setPeekKey] = useState<string | null>(null);
+  const peek = peekKey === card.key;
+  const { groups: defGroups, showDefs, showSenses, canPeek } = defView(defLang, card, peek);
+  const peekButton = canPeek && !covered ? (
+    <button type="button" data-testid="def-peek" aria-pressed={peek} aria-label={t("web.wordbookDefs.peek.label")}
+      onClick={() => setPeekKey((k) => (k === card.key ? null : card.key))}
+      className={cn(
+        "-my-2.5 -mr-2 inline-flex h-tap w-tap flex-none items-center justify-center rounded-button text-body font-semibold transition-colors duration-fast motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        peek ? "bg-surface-2 text-ink" : "text-ink-2",
+      )}>
+      <span aria-hidden>中</span>
+    </button>
+  ) : null;
   return (
     <SurfaceCard data-testid="word-card" className={cn("px-4 pb-4 pt-5", className)}>
-      {eyebrow || badge ? (
+      {eyebrow || badge || peekButton ? (
         <div className="flex min-h-[22px] items-center justify-between gap-2">
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : <span />}
-          {badge}
+          {peekButton ? <div className="flex items-center gap-1.5">{badge}{peekButton}</div> : badge}
         </div>
       ) : null}
       <h2 lang="en" className="mt-1.5 break-words text-hero font-semibold tracking-[-0.02em]" style={{ lineHeight: 1.1 }}>{card.word}</h2>
