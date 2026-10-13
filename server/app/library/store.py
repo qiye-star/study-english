@@ -56,6 +56,7 @@ def item_out(row: LibraryItem) -> dict:
         "stage": row.stage, "progress": progress, "error_kind": row.error_kind, "duration_ms": row.duration_ms,
         "seg_count": row.seg_count, "library_bytes": row.library_bytes, "sub_source": row.sub_source,
         "resume_ms": row.resume_ms, "resume_idx": row.resume_idx, "rate_pct": row.rate_pct,
+        "low_confidence": row.low_confidence,
         "has_poster": row.poster_path is not None, "created_at": iso_utc(row.created_at),
         "last_opened_at": iso_utc(row.last_opened_at) if row.last_opened_at else None,
     }

@@ -985,6 +985,7 @@ class LibraryItem(Base):
     resume_ms: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     resume_idx: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     rate_pct: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
+    low_confidence: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # D5:句边界可能不准
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
