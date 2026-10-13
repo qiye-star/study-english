@@ -43,6 +43,11 @@ export interface AnswerInput {
   rating?: Rating; revealedBefore?: boolean; elapsedMs?: number;
 }
 /**
+ * 答题后某个选项对应的词(spec 2026-10-13-review-after-answer §2.2)。`option` 是题面 options 里的原文,**按它匹配,不按下标**;
+ * `defsZh` = 词卡前几条中文释义,`defsEn` = 英英释义(没有 = `[]`)。
+ */
+export interface OptionInfo { option: string; word: string; defsZh: Sense[]; defsEn: DefEn[] }
+/**
  * `expected` = 词头;`correctOption` = 选择题正确项原文(打字题 / 自评为 null;Ruling Z-e)。
  * 自评题:`rating` = 服务端算出的有效评级(非自评题为 null),`spotCheck` = 学新词本轮要抽查,
  * `check` = 复习抽查题(`outcome:"pending"` 时先答它,此时 `grade` 为 null)。
@@ -50,6 +55,11 @@ export interface AnswerInput {
 export interface AnswerResult {
   correct: boolean; outcome: Outcome | "known" | Rating | "pending"; grade: Grade | null; expected: string; correctOption: string | null;
   diff: DiffOp[] | null; item: ItemState | null; applied: boolean; rating: Rating | null; spotCheck: boolean; check: Question | null;
+  /** 只在 meaning / word 选择题且服务端取得到出题备忘时有;老服务端 / 其他题型没有(spec 2026-10-13-review-after-answer §2.2) */
+  optionInfo?: OptionInfo[];
+  /** 正确单词的短语(≤ 3)与第一条例句;同上,可选 */
+  phrases?: { en: string; zh: string }[];
+  example?: Example;
 }
 /** 空的 `form` = 句中实际词形(go → went):只用于首字母提示与「听这句」,提交前不渲染进空里(Ruling Z-c)。 */
 export type Segment = { t: "text"; v: string } | { t: "blank"; i: number; len: number; form: string };
