@@ -14,6 +14,7 @@ import { holdMic, pressKey } from "~/test/hold";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { ConversationPage, POST_CALL_FOLLOW_UP_MS, POST_CALL_SETTLE_MAX_MS } from "./conversation-page";
 import { clearHintsMemory } from "./hints";
 import { COMPOSER_MODE_KEY } from "./composer-mode";
@@ -61,7 +62,7 @@ function NavProbe(): null {
 
 function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"], opts: { strict?: boolean; route?: string | { pathname: string; state?: unknown } } = {}) {
   const mock = createFetchMock(r);
-  const page = <><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></>;
+  const page = <WithShadowSheet><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></WithShadowSheet>;
   const view = renderWithProviders(opts.strict ? <StrictMode>{page}</StrictMode> : page, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: opts.route ?? "/chat/c1",
@@ -2530,7 +2531,7 @@ describe("ConversationPage", () => {
       expect(signal!.aborted).toBe(true);
     });
 
-    it("reads a hint aloud, saves it, and opens it for practice", async () => {
+    it("reads a hint aloud, saves it, and opens it in the shadow sheet", async () => {
       const { mock } = setup(routes({
         "POST /api/ai/chat/completions": ai(() => completion(REPLIES)),
         "POST /api/practice-items": () => json({ id: "p1", text: "I'd like a latte.", source: "chat", created_at: "2026-10-05T00:00:00+00:00" }),
@@ -2543,7 +2544,11 @@ describe("ConversationPage", () => {
       await userEvent.click(screen.getAllByTestId("hint-save")[0]);
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "I'd like a latte.", source: "chat" }));
       await userEvent.click(screen.getAllByTestId("hint-practice")[2]);
-      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Just water, thanks.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+      expect(screen.queryByTestId("shadow-position")).toBeNull(); // 单句入口:没有上一句 / 下一句
+      expect(screen.queryByTestId("hints-sheet")).toBeNull(); // 先关自己的面板,不叠两层弹窗
     });
   });
 

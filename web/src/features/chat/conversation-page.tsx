@@ -16,7 +16,7 @@ import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { AgentNote, ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
-import { goPractice, savePracticeItem } from "~/features/practice";
+import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
@@ -162,6 +162,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const { id = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   // 加载 effect 经 ref 调用 navigate:navigate 的引用可能随位置变化,不能放进加载 effect 的依赖(否则会重新加载会话)
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
@@ -1389,7 +1390,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         onFill={(text) => { setInput(text); setHintsOpen(false); switchComposer("text"); }}
         onSpeak={(i, text) => void tts.play(hintKey(i), text, config.ttsModel, config.ttsVoice)}
         speakStates={tts.states}
-        onPractice={(text) => { setHintsOpen(false); goPractice(navigate, text); }}
+        onPractice={(text) => { setHintsOpen(false); openShadow({ text, source: "chat" }); }}
         onSave={(text) => void savePracticeItem(api, t, text, "chat")} />
       {/* key={id}:切换会话时面板状态整体重置;saveSettings 以已存配置为底只叠加 recap,失败时它负责 toast 并抛出 */}
       <RecapSheet key={id} open={recapOpen} onOpenChange={setRecapOpen} messages={messages}
