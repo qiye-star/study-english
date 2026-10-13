@@ -23,7 +23,9 @@ from app.models import (
     AgentPersona, AgentPersonaReport, AgentUserSettings,
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
     AgentTutorSession,
+    LibraryAttempt, LibraryItem, LibrarySegment,
 )
+from app.library import paths as library_paths
 from app.services import recordings
 
 TEMP_PASSWORD_LEN = 16
@@ -45,6 +47,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (AgentPersona, "owner_id"), (AgentUserSettings, "user_id"), (AgentPersonaReport, "reporter_id"),
     (AgentMemoryItem, "user_id"), (AgentProfile, "user_id"), (AgentThreadState, "user_id"), (AgentRecap, "user_id"),
     (AgentMemoryTombstone, "user_id"), (AgentTutorSession, "user_id"),
+    (LibraryAttempt, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
@@ -175,6 +178,10 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     # reports other users filed against this user's personas (SQLite has no FK cascade from agent_personas)
     await session.execute(delete(AgentPersonaReport).where(AgentPersonaReport.persona_id.in_(
         select(AgentPersona.id).where(AgentPersona.owner_id == user_id))))
+    # library sentences reference the user's items, not the user (spec 2026-10-13-video-import §4)
+    library_items = list((await session.scalars(select(LibraryItem.id).where(LibraryItem.user_id == user_id))).all())
+    await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id.in_(
+        select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
     for model, column in USER_ROWS:
         await session.execute(delete(model).where(getattr(model, column) == user_id))
     for model, column in USER_REFS_NULLED:
@@ -190,6 +197,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
                        reason=reason)
     await session.commit()
     _remove_recordings(settings, user_id)
+    library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 

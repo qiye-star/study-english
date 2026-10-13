@@ -44,6 +44,8 @@ COPY server/alembic.ini ./
 
 FROM python:3.12-slim
 WORKDIR /app
+# ffmpeg + ffprobe for the media library (spec 2026-10-13-video-import §7.3); installed as root, before privileges are dropped
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app /app
 COPY server/dictionaries /app/dictionaries
 COPY --from=web /repo/web/dist /web/dist

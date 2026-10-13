@@ -27,10 +27,11 @@ from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
+from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, dictionary, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -57,8 +58,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
+        tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         yield
         await _stop_tasks(tasks, exclude="metering")
+        await app_.state.library.shutdown()  # running jobs stay `processing`; recovered at the next start
         for task in list(agents_runtime(app_).tasks):  # after-turn hooks still running (memory extraction, plan A2)
             task.cancel()
         with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
@@ -96,6 +99,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install, rooms_agents.install)  # + agents (plan A5)
+    install_library(app)  # app.state.library: queue, media tickets, fetch stage (spec 2026-10-13-video-import §6.1)
+    # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
+    # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---
+    library_import.install(app)  # plan S2: the worker's fetch stage becomes yt-dlp (spec 2026-10-13-video-import §7)
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     _log_secrets(None, settings)
@@ -111,8 +118,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
-        links, agents, agents_tutor, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
-        admin_prompts, admin_wordbook, admin_links, admin_agents, stubs, admin_web, web,
+        links, agents, agents_tutor,
+        library,  # /api/library/* (spec 2026-10-13-video-import §9); before stubs
+        # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
+        library_import,
+        admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
+        admin_prompts, admin_wordbook, admin_links, admin_agents,
+        # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
+        stubs, admin_web, web,
     ):
         app.include_router(module.router)
     return app

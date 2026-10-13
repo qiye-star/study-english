@@ -8,11 +8,13 @@ EXPECTED_ENV_ONLY = {
     "admin_totp_secret", "admin_session_secret", "settings_encryption_key", "admin_settings_safe_mode",
     "admin_ip_allowlist", "admin_cookie_secure", "trust_proxy_headers", "grammar_prompt_file", "build_sha",
     "wordbook_data_dir",  # spec 2026-10-10-wordbook §10
+    "library_ytdlp_cookies_file", "library_ytdlp_proxy",  # spec 2026-10-13-video-import §5.2
 }
 EXPECTED_SECRETS = {
     "database_url", "invite_code", "upstream_llm_key", "upstream_tts_key", "upstream_whisper_key", "upstream_grammar_key",
     "volcengine_tts_key", "volcengine_asr_key", "azure_speech_key", "xfyun_api_key", "xfyun_api_secret",
     "admin_password", "admin_session_secret", "admin_totp_secret", "settings_encryption_key",
+    "library_ytdlp_proxy",
 }
 
 

@@ -14,7 +14,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
     ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
-    ("links", "学习联动"), ("agents", "智能体"),
+    ("links", "学习联动"), ("agents", "智能体"), ("library", "跟读库"),
     ("admin", "管理端"),
     ("ops", "运维与维护"), ("system", "系统(只读)"),
 )
@@ -73,6 +73,9 @@ _ALL: tuple[SettingSpec, ...] = (
     _env("admin_cookie_secure", "bool", "仅 HTTPS Cookie", group="admin"),
     _env("wordbook_data_dir", "str", "词典目录", group="wordbook",
          help_zh="留空 = server/dictionaries/kylebing-english-vocabulary(容器 /app/dictionaries/...)"),
+    _env("library_ytdlp_cookies_file", "str", "yt-dlp cookies 文件", group="library",
+         help_zh="Netscape 格式;含账号会话,等同密钥;请用专门的小号;只读挂载"),
+    _env("library_ytdlp_proxy", "secret", "yt-dlp 代理", group="library", help_zh="链接取回时使用;可能含账号口令"),
     # features
     _s("realtime_enabled", "features", "bool", "实时通话", apply="new_sessions", danger=_COST),
     _s("rank_enabled", "features", "bool", "段位赛", danger="关闭后段位接口返回 404"),
@@ -83,6 +86,8 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("wordbook_enabled", "features", "bool", "背单词", danger="关闭后背单词接口返回 404;学习记录保留"),
     _s("wordbook_ai_enabled", "features", "bool", "背单词 AI 讲解", help_zh="按需、全站缓存、受每日额度限制",
        danger=_COST),
+    _s("library_enabled", "features", "bool", "跟读库", help_zh="需要服务器装有 ffmpeg / ffprobe",
+       danger="关闭后跟读库接口返回 404;素材与记录保留"),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
     _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册"),
@@ -258,6 +263,29 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("agents_history_chars_max", "agents", "int", "带入历史的总字数上限", help_zh="从最新一条往前取,整条放得下才带入,不截断单条"),
     _s("agents_chat_max_tokens", "agents", "int", "聊天回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
     _s("agents_tutor_max_tokens", "agents", "int", "导师回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
+    # 跟读库(设计文档 2026-10-13-video-import §5.2)
+    _s("library_asr_enabled", "library", "bool", "无字幕时自动转写", help_zh="用现有语音识别上游;受每日分钟数限制",
+       danger=_COST),
+    _s("library_link_import_enabled", "library", "bool", "链接导入",
+       help_zh="yt-dlp 能直接下载的公开页面;DRM 流媒体不支持", danger="会让服务器访问用户提交的网址并下载内容"),
+    _s("library_link_allow_generic", "library", "bool", "允许通用抓取器", help_zh="关 = 只用针对具体站点的提取器",
+       danger="通用抓取器会让服务器请求任意网页"),
+    _s("library_quota_mb", "library", "int", "每人媒体总量 MB", help_zh="可按用户覆盖"),
+    _s("library_max_items", "library", "int", "每人条目数上限", help_zh="可按用户覆盖"),
+    _s("library_max_upload_mb", "library", "int", "单个上传文件上限 MB"),
+    _s("library_max_duration_minutes", "library", "int", "单条时长上限(分钟)", help_zh="上传与链接都按探测出的时长检查"),
+    _s("library_asr_minutes_daily_per_user", "library", "int", "每人每天识别分钟数"),
+    _s("library_asr_minutes_global_daily", "library", "int", "全站每天识别分钟数", danger=_COST),
+    _s("library_imports_daily_per_user", "library", "int", "每人每天新建条目次数", help_zh="上传与链接合计"),
+    _s("library_job_concurrency", "library", "int", "同时处理的条目数", help_zh="ffmpeg / yt-dlp 吃 CPU 与带宽"),
+    _s("library_transcode_max_height", "library", "int", "视频最大高度(像素)", help_zh="转码与链接取回都按它"),
+    _s("library_link_timeout_minutes", "library", "int", "单次链接取回超时(分钟)"),
+    # D8:每句译文与句子分析(同样走现有大模型上游)
+    _s("library_ai_enabled", "library", "bool", "每句译文与 AI 分析",
+       help_zh="调大模型生成并存进句子;关 = 译文 / 分析接口返回 404", danger=_COST),
+    _s("library_translate_daily_per_user", "library", "int", "每人每天译文句数", help_zh="命中已存的译文不计"),
+    _s("library_analysis_daily_per_user", "library", "int", "每人每天句子分析次数", help_zh="命中已存的分析不计"),
+    _s("library_ai_daily_global", "library", "int", "全站每天译文 + 分析句数", help_zh="两类合计", danger=_COST),
 )
 
 SPECS: dict[str, SettingSpec] = {s.key: s for s in _ALL}

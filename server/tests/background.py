@@ -29,6 +29,9 @@ def _task_sets(app) -> list:
     judge = getattr(state, "links_judge", None)
     if judge is not None:
         out.append(judge.pending)
+    library = getattr(state, "library", None)
+    if library is not None:  # library jobs (spec 2026-10-13-video-import §6.1); its poll loop is never in here
+        out.append(library.pending)
     out.append(getattr(state, "realtime_drains", set()))
     return out
 

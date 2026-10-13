@@ -397,6 +397,20 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **管理端**:「学习联动」页(`GET /api/admin/links`,viewer):队列、每个联动的计数 / 熔断 / 关闭人数、段位来源、最近 50 条错误(无 PII);「复位熔断」(operator,写审计 `links.breaker.reset`)。诊断两条:`links_breaker_open`、`links_dropping`。
 - **接口**:`GET /api/links/config`、`PUT /api/links/prefs`、`POST /api/links/wordbook/{adopt,card}`(加入词书学习每人每 UTC 日最多 200 个,超出 429 `Daily adopt limit reached`)、`GET /api/links/today`、`GET /api/links/mistakes` + `POST …/mistakes/dismiss`、`GET /api/links/weak-words` + `POST …/weak-words/dismiss`、`GET /api/links/today-words`、`GET /api/links/chat-words`。契约样例 `server/tests/fixtures/links_*_contract.json`。
 
+## 跟读库(计划 2026-10-13)
+
+规格:[docs/superpowers/specs/2026-10-13-video-import-design.md](../docs/superpowers/specs/2026-10-13-video-import-design.md);迁移 `0018_library`(三张表:`library_items`、`library_segments`、`library_attempts`)。代码在 `app/library/`(只被 `admin/`、`routers/` 与 `main.py` 导入),接口 `routers/library.py`(`/api/library/*`)。
+
+- **开关,默认关**:`LIBRARY_ENABLED=false` 时 `GET /api/library/config` 返回 `{"enabled": false, …}`,其余 `/api/library/*` 返回 404 `{"error":"Library is disabled"}`。打开后还需要 ffmpeg / ffprobe(镜像里已装);缺了 `config.enabled` 为假,新建条目返回 503 `Media tools are not installed`。无字幕时的自动转写另有子开关 `LIBRARY_ASR_ENABLED`(默认关,花钱);链接导入 `LIBRARY_LINK_IMPORT_ENABLED`(默认关,计划 S2)。每句译文与单句分析另有子开关 `LIBRARY_AI_ENABLED`(默认关,花钱;需要已配置大模型上游),每人 / 全站每日额度按句计(`LIBRARY_TRANSLATE_DAILY_PER_USER`、`LIBRARY_ANALYSIS_DAILY_PER_USER`、`LIBRARY_AI_DAILY_GLOBAL`),提示词在管理端「提示词」页可编辑(`library.translate` / `library.analyze`)。全部变量与范围见 `server/.env.example`「跟读库」一节。
+- **上传**:8 MiB 一片的分片上传(`POST /api/library/uploads` → `PUT …/chunks/{n}` → `POST …/complete`),同一片重发是幂等的,断网后用 `GET /api/library/uploads/{id}` 续传;每人同时最多 2 个上传。处理在进程内后台队列里进行(探测 → 转码 → 字幕 → 转写 → 分句),网页每 3 秒轮询进度;瞬时错误自动重试 2 次(30 s、120 s 后)。
+- **存储**:媒体在 `DATA_DIR/library/<用户>/<条目>/`(规范化成 H.264/AAC 的 mp4,或 mp3 / m4a;视频另有一张封面),处理中的暂存在 `DATA_DIR/library/_tmp/<条目>/`,原始上传不保留。每人总量 `LIBRARY_QUOTA_MB`(默认 2000)、条目数 `LIBRARY_MAX_ITEMS`(默认 100),都可在管理端按用户覆盖。失败 / 取消的条目 7 天后连同文件自动清理;24 小时没传完的上传作废。
+- **备份**:应用内备份(`admin/backups.py`)只备份数据库,**媒体不在备份里**(可以重新导入)。要备份媒体,自己备份数据卷里的 `library/` 目录。
+- **隐私**:日志、错误、审计与用量计量里没有标题、文件名、URL、字幕与转写文字、ffmpeg / yt-dlp 的输出、cookies、代理和票据,只有条目 id、阶段、错误种类与数字(`tests/test_library_privacy.py`)。管理员看不到标题与内容。**句子译文与 AI 分析(`LIBRARY_AI_ENABLED`,默认关)会把句子文字发给已配置的大模型上游**(与现有聊天、翻译同一信任边界;结果存进句子行,重复打开不再花钱,按句计每日额度,日志与计量里只有数字);**自动转写会把媒体里的音频切成 15–50 秒的块发给已配置的识别上游**(火山流式或 Whisper / chat 转写,与现有语音功能同一信任边界);网页端从不请求第三方,链接导入只在服务端发生。删除用户会删除他的全部库文件与行。
+- **媒体播放**:`<video>` / `<audio>` 发不了 `Authorization` 头,所以先 `POST /api/library/items/{id}/media-ticket` 换一张 30 分钟可多次使用的票据,再 `GET /api/library/items/{id}/media?ticket=…`(支持 `Range` / `If-Range`,206 / 416)。票据只在进程内,重启即失效(网页会自动换票);访问日志里的 `ticket=` 会被脱敏。
+- **反向代理**:分片每片不超过 8 MiB,所以 `client_max_body_size 9m`(或更大)即可,建议对 `/api/library/` 关掉请求缓冲(`proxy_request_buffering off`);媒体读取必须把 `Range` 头原样转给后端并原样返回 206,建议 `proxy_buffering off`。Caddy 默认即可。**未验证**:Nginx / Caddy / Cloudflare 对分片与 Range 的实际行为、iOS Safari 的 seek 都没有在真实代理与真机上跑过。
+- **镜像**:最终阶段以 root 安装 `ffmpeg`(含 `ffprobe`)再切回 `app` 用户;镜像增大多少**未测**(需要 `docker compose build`,按仓库规则只在需要时做,结果写进 `docs/superpowers/plans/2026-10-13-video-import-results.md`)。转码速度取决于机器,**未测**;单条时长上限给它封顶。
+- **单 worker**:队列、票据、分片锁都在进程内,与房间、智能体一样只支持 `--workers 1`。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

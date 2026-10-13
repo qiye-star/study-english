@@ -109,7 +109,7 @@ export async function uploadFile(api: ApiClient, input: UploadInput, opts: Uploa
     try {
       await withRetries(() => putChunk(api, itemId, index, chunk, signal), signal, sleep);
     } catch (err) {
-      if (!(err instanceof ApiError && err.status === 409) || resyncs >= MAX_RESYNCS) throw err;
+      if (!(err instanceof ApiError && err.status === 409 && err.message === "Unexpected chunk") || resyncs >= MAX_RESYNCS) throw err;
       resyncs += 1;
       const status = await withRetries(() => uploadStatus(api, itemId, signal), signal, sleep);
       n = Math.floor(status.uploadReceived / chunkBytes);

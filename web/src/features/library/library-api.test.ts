@@ -33,7 +33,7 @@ describe("library api (spec §8, §9)", () => {
     const detail = await getItem(api, "a/b");
     expect(detail.resumeIdx).toBe(2);
     expect(detail.segments[1]).toEqual({
-      idx: 1, startMs: 3200, endMs: 6000, text: "How are you today?", zh: "你今天好吗?", zhLang: "zh-CN", analysis: null, analysisLang: null,
+      idx: 1, startMs: 3200, endMs: 6000, text: "How are you today?", zh: "你今天好吗?", zhLang: "zh-CN", hasAnalysis: false, analysisLang: null,
     });
     expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer t");
   });
@@ -147,7 +147,7 @@ describe("library api (spec §8, §9)", () => {
   });
 
   it("maps the fixed server error texts to library keys", () => {
-    expect(LIBRARY_SERVER_ERRORS["Quota exceeded"]).toBe("web.library.errors.quota");
+    expect(LIBRARY_SERVER_ERRORS["Library storage quota reached"]).toBe("web.library.errors.quota");
     expect(LIBRARY_SERVER_ERRORS["Invalid URL"]).toBe("web.library.errors.badUrl");
     expect(Object.values(LIBRARY_SERVER_ERRORS).every((k) => k.startsWith("web.library.errors."))).toBe(true);
   });
