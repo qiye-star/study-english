@@ -3,7 +3,7 @@
 App chrome around authenticated routes.
 
 ## What lives here
-- `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer`.
+- `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer` and the shadow sheet (`ShadowSheetProvider` wraps the shell, `ShadowSheetHost` sits next to `LookupLayer`; `~/features/practice`).
 - `bottom-nav.tsx` (练习 · 对话 · 联机 · 跟读库 · 我的; rooms and library tabs are controlled by `useRoomsEnabled()` / `useLibraryEnabled()`, at most 5 tabs), `page-header.tsx`.
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
 - `color-scheme.ts` (`initColorScheme` applies the stored appearance preference to `html.dark` before first render and follows the system; `applyColorScheme`, `useApplyColorScheme`, `useIsDark`), `color-scheme-sync.tsx` (`ColorSchemeSync`, applies the "Me > Appearance" choice inside `SettingsProvider`), `glass-quality.ts` (`.lite` on low-memory devices).

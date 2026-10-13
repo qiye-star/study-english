@@ -6,6 +6,7 @@ import { resetServerAiConfigCache } from "~/api/server-config";
 import { sharedTtsCache } from "~/features/chat";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { MatchPage } from "./match-page";
 import { MatchResult } from "./match-result";
 import type { Match, Verdict } from "./rank-api";
@@ -322,5 +323,20 @@ describe("MatchPage", () => {
     renderWithProviders(<MatchPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: `/rank/match/${id}`, path: "/rank/match/:id" });
     expect((await screen.findByTestId("match-result")).dataset.passed).toBe("false");
     expect(screen.queryByTestId("match-dock")).toBeNull();
+  });
+
+  it("the drill opens the shadow sheet after saving the sentence, without navigating", async () => {
+    const mock = createFetchMock({
+      [`GET /api/rank/matches/${id}`]: () => json(CONTRACT.finish_fail),
+      "POST /api/practice-items": () => json({ id: "p1", text: "x", source: "manual", created_at: "2026-10-05T00:00:00+00:00" }),
+    });
+    renderWithProviders(<WithShadowSheet><MatchPage /></WithShadowSheet>, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: `/rank/match/${id}`, path: "/rank/match/:id",
+    });
+    fireEvent.click(await screen.findByTestId("match-drill"));
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("I'd like a refund, please.");
+    expect(screen.getByTestId("location")).toHaveTextContent(`/rank/match/${id}`);
+    expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/practice-items")!.body as string)).toEqual({ text: "I'd like a refund, please.", source: "manual" });
   });
 });

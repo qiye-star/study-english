@@ -1,0 +1,50 @@
+{
+  "web": {
+    "practice": {
+      "shadow": {
+        "title": "Read aloud",
+        "position": "{{n}} / {{total}}",
+        "close": "Close",
+        "reference": "Sentence",
+        "prev": "Previous",
+        "next": "Next",
+        "hint": "Listen first, then tap Record and read along (up to 1 minute).",
+        "listen": "Listen",
+        "listening": "Playing",
+        "listenUnavailable": "Listening is unavailable right now (could not load the voice settings).",
+        "record": "Record",
+        "retryRecord": "Try recording again",
+        "stop": "Stop",
+        "recording": "Recording",
+        "assessing": "Assessing",
+        "assessingLong": "Assessing · comparing word by word",
+        "keptNote": "Your last recording was kept.",
+        "assessKept": "Assess this recording",
+        "discard": "Record again",
+        "noSpeech": "No sound was picked up. Please speak up and try again.",
+        "total": "Score",
+        "wordsTitle": "Word by word · tap a word to look it up",
+        "tip": {
+          "good": "Clear and steady. Keep this rhythm.",
+          "fair": "Close. Try once more, a little slower and clearer.",
+          "weak": "{{words}} need work. Tap a word to look it up or listen, then try again."
+        },
+        "mine": "My recording",
+        "stopMine": "Stop",
+        "standard": "Standard",
+        "fav": "Save",
+        "faved": "Saved",
+        "again": "Try again",
+        "nextSentence": "Next sentence",
+        "done": "Done",
+        "details": "View full details",
+        "confirm": {
+          "title": "Discard this recording?",
+          "body": "There is no score yet. Closing will discard this recording.",
+          "keep": "Keep going",
+          "drop": "Discard"
+        }
+      }
+    }
+  }
+}

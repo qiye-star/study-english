@@ -7,7 +7,7 @@ import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components
 import { FeatureGate } from "~/components/feature-gate";
 import { HoldToTalkBar } from "~/components/hold-to-talk-bar";
 import { ToneBadge } from "~/components/tone-badge";
-import { goPractice, savePracticeItem } from "~/features/practice";
+import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
 import { MatchResult } from "./match-result";
@@ -50,6 +50,7 @@ export function MatchPage() {
   const { api } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const m = useMatch(id);
   const { phase, match, verdict, error, retry, showText, speakFailed } = m.state;
   const [now, setNow] = useState(() => Date.now());
@@ -73,7 +74,7 @@ export function MatchPage() {
       <div className="flex flex-1 flex-col">
         <PageHeader title={t("web.rank.match.title")} back="/rank" />
         <MatchResult match={match} verdict={verdict}
-          onDrill={(text) => void savePracticeItem(api, t, text, "manual").finally(() => goPractice(navigate, text))} />
+          onDrill={(text) => void savePracticeItem(api, t, text, "manual").finally(() => openShadow({ text, source: "manual" }))} />
       </div>
     );
   }

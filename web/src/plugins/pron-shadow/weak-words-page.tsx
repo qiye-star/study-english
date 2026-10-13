@@ -1,12 +1,12 @@
 import { InfoIcon, LoaderIcon, MicIcon, PlayIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { useShadowSheet } from "~/features/practice";
 import { IconButton } from "~/components/icon-button";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import { scoreToneClass } from "~/components/score-tone";
@@ -18,13 +18,13 @@ const DRILL = 5;
 type State = { status: "loading" } | { status: "error" } | { status: "ready"; items: WeakWordItem[]; total: number };
 
 /**
- * `/links/weak-words`(spec §6.4,视觉稿帧 04):跟读里读得不准的词。「跟读」把例句(没有就是单词)交给练习页的参考文本,
+ * `/links/weak-words`(spec §6.4,视觉稿帧 04):跟读里读得不准的词。「跟读」把例句(没有就是单词)在原地打开跟读弹窗,
  * 「连读这 5 个」把前 5 个词连成一句;都走现有评测接口与配额,本页不发评测请求。
  */
 export function WeakWordsPage() {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -38,7 +38,7 @@ export function WeakWordsPage() {
     return () => controller.abort();
   }, [api, attempt]);
 
-  const shadow = (reference: string) => navigate("/practice", { state: { reference } });
+  const shadow = (reference: string) => openShadow({ text: reference, source: "manual" });
 
   const dismiss = useCallback(async (item: WeakWordItem) => {
     if (state.status !== "ready") return;

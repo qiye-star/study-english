@@ -14,6 +14,7 @@ import { holdMic, pressKey } from "~/test/hold";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import type { RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { ConversationPage, POST_CALL_FOLLOW_UP_MS, POST_CALL_SETTLE_MAX_MS } from "./conversation-page";
 import { clearHintsMemory } from "./hints";
 import { COMPOSER_MODE_KEY } from "./composer-mode";
@@ -61,7 +62,7 @@ function NavProbe(): null {
 
 function setup(r: Record<string, Handler>, recorderEnv?: ReturnType<typeof createFakeRecorderEnv>["env"], opts: { strict?: boolean; route?: string | { pathname: string; state?: unknown } } = {}) {
   const mock = createFetchMock(r);
-  const page = <><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></>;
+  const page = <WithShadowSheet><ConversationPage recorderEnv={recorderEnv} /><NavProbe /></WithShadowSheet>;
   const view = renderWithProviders(opts.strict ? <StrictMode>{page}</StrictMode> : page, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
     route: opts.route ?? "/chat/c1",
@@ -1820,7 +1821,9 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(callsTo(mock, "POST", "/api/practice-items")).toHaveLength(1));
       expect(JSON.parse(callsTo(mock, "POST", "/api/practice-items")[0].body as string)).toEqual({ text: "She doesn't like coffee.", source: "grammar" });
       await userEvent.click(screen.getByTestId("grammar-practice"));
-      expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("She doesn't like coffee.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
     });
 
     it("shows a clean badge for a correct message and persists the result", async () => {
@@ -2530,7 +2533,7 @@ describe("ConversationPage", () => {
       expect(signal!.aborted).toBe(true);
     });
 
-    it("reads a hint aloud, saves it, and opens it for practice", async () => {
+    it("reads a hint aloud, saves it, and opens it in the shadow sheet", async () => {
       const { mock } = setup(routes({
         "POST /api/ai/chat/completions": ai(() => completion(REPLIES)),
         "POST /api/practice-items": () => json({ id: "p1", text: "I'd like a latte.", source: "chat", created_at: "2026-10-05T00:00:00+00:00" }),
@@ -2543,7 +2546,11 @@ describe("ConversationPage", () => {
       await userEvent.click(screen.getAllByTestId("hint-save")[0]);
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "I'd like a latte.", source: "chat" }));
       await userEvent.click(screen.getAllByTestId("hint-practice")[2]);
-      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Just water, thanks.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+      expect(screen.queryByTestId("shadow-position")).toBeNull(); // 单句入口:没有上一句 / 下一句
+      expect(screen.queryByTestId("hints-sheet")).toBeNull(); // 先关自己的面板,不叠两层弹窗
     });
   });
 
@@ -2670,7 +2677,20 @@ describe("ConversationPage", () => {
       await userEvent.click(await screen.findByTestId("recap-grammar-save"));
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "Yesterday I went home.", source: "grammar" }));
       await userEvent.click(screen.getByTestId("recap-poor-word-practice"));
-      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("meet");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+      expect(screen.queryByTestId("recap-sheet")).toBeNull(); // 先关复盘面板
+    });
+
+    it("opens a recap grammar sentence in the shadow sheet", async () => {
+      setup(routes({ "GET /api/conversations/c1/messages": () => json(LOADED) }));
+      await screen.findByText("You too!");
+      await userEvent.click(await headerOption("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-grammar-practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Yesterday I went home.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
     });
 
     it("with no user messages shows the empty state and cannot generate", async () => {

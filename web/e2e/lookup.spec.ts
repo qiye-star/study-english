@@ -118,8 +118,11 @@ test("practice and save a selected sentence from the lookup drawer", async ({ pa
   await page.getByTestId("lookup-save").click();
   expect((await added).status()).toBe(200);
   await page.getByTestId("lookup-practice").click();
-  await expect(page).toHaveURL(/\/practice$/);
-  await expect(page.getByTestId("reference-input")).toHaveValue(SPEECH_REFERENCE);
+  await expect(page.getByTestId("shadow-sheet")).toBeVisible();
+  await expect(page).toHaveURL(/\/practice\/assessments\//); // 没有导航
+  await expect(page.getByTestId("shadow-reference")).toContainText(SPEECH_REFERENCE);
+  await page.getByTestId("shadow-close").click();
+  await page.getByTestId("nav-practice").click();
   await page.getByTestId("practice-list").click();
   await expect(page.getByTestId("practice-item")).toContainText("ask not what your country can do for you");
 });

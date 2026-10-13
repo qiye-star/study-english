@@ -231,12 +231,15 @@ test("voice message: transcript, streamed reply, pronunciation and grammar badge
   expect((await audio).status()).toBe(200);
   await expect(page.getByTestId("voice-play")).not.toHaveAttribute("data-state", "error");
 
-  // 详情 → 跟读这句:带参考文本跳转
+  // 详情 → 跟读这句:原地打开跟读弹窗(不跳转),参考文本是这句
   await page.getByTestId("badge-pronunciation").click();
   await expect(page.getByTestId("turn-detail-assessment").getByTestId("assessment-scores")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("detail-practice").click();
-  await expect(page).toHaveURL(/\/practice$/);
-  await expect(page.getByTestId("reference-input")).toHaveValue(/fellow|americans|country|ask/i);
+  await expect(page.getByTestId("shadow-sheet")).toBeVisible();
+  await expect(page).toHaveURL(/\/chat\//);
+  await expect(page.getByTestId("shadow-reference")).toContainText(/fellow|americans|country|ask/i);
+  await page.getByTestId("shadow-close").click(); // 遮罩盖住了底部导航:先关弹窗
+  await expect(page.getByTestId("shadow-sheet")).toHaveCount(0);
 
   // 删除对话:对话评测与录音一并删除(文件是否删除在门槛 5 里用 docker exec 复核)
   await page.getByTestId("nav-chat").click();
@@ -265,8 +268,9 @@ test("grammar: a correct and a wrong typed message; the corrected sentence goes 
   expect(corrected).not.toBe("Yesterday I go to the park and buy two apple.");
   console.log(`grammar: corrected=${corrected}`);
   await page.getByTestId("grammar-practice").click();
-  await expect(page).toHaveURL(/\/practice$/);
-  await expect(page.getByTestId("reference-input")).toHaveValue(corrected);
+  await expect(page.getByTestId("shadow-sheet")).toBeVisible();
+  await expect(page).toHaveURL(/\/chat\//);
+  await expect(page.getByTestId("shadow-reference")).toContainText(corrected);
 });
 
 test("translation on demand is cached when toggled; bilingual mode translates new replies", async ({ page, request }) => {

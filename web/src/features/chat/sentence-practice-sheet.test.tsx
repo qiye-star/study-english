@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
@@ -18,7 +19,7 @@ function StateProbe() {
 function setup(routes: Parameters<typeof createFetchMock>[0] = {}, text = "**Great** idea! Mr. Lee agrees.\n- Shall we go?") {
   const mock = createFetchMock(routes);
   const onClose = vi.fn();
-  const view = renderWithProviders(<><SentencePracticeSheet text={text} onClose={onClose} /><StateProbe /></>, {
+  const view = renderWithProviders(<WithShadowSheet><SentencePracticeSheet text={text} onClose={onClose} /><StateProbe /></WithShadowSheet>, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1",
   });
   return { mock, onClose, view };
@@ -33,12 +34,22 @@ describe("SentencePracticeSheet", () => {
     expect(screen.getAllByTestId("practice-sentence")).toHaveLength(3);
   });
 
-  it("opens the practice page with the sentence as reference", async () => {
+  it("opens the shadow sheet on the tapped sentence with the whole list, without navigating", async () => {
     const { onClose } = setup();
     await userEvent.click(screen.getAllByTestId("practice-sentence-go")[1]);
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
-    expect(JSON.parse(screen.getByTestId("state").textContent!)).toEqual({ reference: "Mr. Lee agrees." });
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Mr. Lee agrees.");
+    expect(screen.getByTestId("shadow-position")).toHaveTextContent("2 / 3");
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+    expect(JSON.parse(screen.getByTestId("state").textContent!)).toBeNull();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("leaves too-long sentences out of the list, so next / previous never land on a truncated one", async () => {
+    setup({}, `${"a".repeat(2100)}. Short one. Another one.`);
+    await userEvent.click(screen.getAllByTestId("practice-sentence-go")[1]);
+    expect(await screen.findByTestId("shadow-reference")).toHaveTextContent("Short one.");
+    expect(screen.getByTestId("shadow-position")).toHaveTextContent("1 / 2");
   });
 
   it("saves a sentence to the practice list", async () => {

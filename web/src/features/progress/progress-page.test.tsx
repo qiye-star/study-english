@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { ProgressPage } from "./progress-page";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
@@ -17,7 +18,7 @@ const stats = (n: number, extra: Record<string, unknown> = {}) => ({
   speaking_seconds: 95, avg_pronunciation: 81.5, grammar_top: [{ category: "tense", count: 2 }], poor_words: [{ word: "think", count: 2 }], truncated: false, ...extra,
 });
 const page = (mock: ReturnType<typeof createFetchMock>) =>
-  renderWithProviders(<ProgressPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/progress" });
+  renderWithProviders(<WithShadowSheet><ProgressPage /></WithShadowSheet>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/progress" });
 
 describe("ProgressPage", () => {
   it("shows the numbers for the last 7 days and switches the period", async () => {
@@ -64,7 +65,10 @@ describe("ProgressPage", () => {
     await userEvent.click(await screen.findByTestId("progress-word-save"));
     await waitFor(() => expect(JSON.parse(mock.calls.find((c) => c.method === "POST")!.body as string)).toEqual({ text: "think", source: "chat" }));
     await userEvent.click(screen.getByTestId("progress-word-practice"));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("think");
+    expect(screen.getByTestId("location")).toHaveTextContent("/progress");
+    expect(screen.getByTestId("location").getAttribute("data-state")).toBe("null");
   });
 
   it("adds a word to the vocabulary book and links to it", async () => {

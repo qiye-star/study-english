@@ -1,11 +1,10 @@
 import { LoaderIcon, MicIcon, StarIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { IconButton } from "~/components/icon-button";
-import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
+import { MAX_PRACTICE_TEXT, savePracticeItem, useShadowSheet } from "~/features/practice";
 import { splitSentences } from "./sentences";
 import { stripMarkdown } from "./tts";
 
@@ -13,12 +12,14 @@ import { stripMarkdown } from "./tts";
 export function SentencePracticeSheet({ text, onClose }: { text: string | null; onClose(): void }) {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   // 关闭动画期间 text 已是 null:保留最后一次非空文本,避免列表被清空、闪出"没有可练的句子"
   const lastTextRef = useRef("");
   if (text) lastTextRef.current = text;
   const shownText = text ?? lastTextRef.current;
   const sentences = useMemo(() => (shownText ? splitSentences(stripMarkdown(shownText)) : []), [shownText]);
+  /** 弹窗里的「上一句 / 下一句」只走能练的句子:超长的整句不会被截断后当参考句(R-S18) */
+  const practicable = useMemo(() => sentences.filter((s) => s.length <= MAX_PRACTICE_TEXT), [sentences]);
   const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
   const savingRef = useRef(new Set<string>()); // 同步防连点:state 在同一帧内仍是旧值
   const mountedRef = useRef(true);
@@ -56,7 +57,15 @@ export function SentencePracticeSheet({ text, onClose }: { text: string | null; 
                 </div>
                 <IconButton tone="blue" data-testid="practice-sentence-go"
                   disabled={tooLong} label={t("web.chat.practicePanel.go")}
-                  onClick={() => { onClose(); goPractice(navigate, sentence); }}>
+                  onClick={() => {
+                    onClose(); // 先关自己的面板,再打开弹窗(不叠两层)
+                    openShadow({
+                      text: sentence,
+                      list: practicable,
+                      index: sentences.slice(0, i).filter((s) => s.length <= MAX_PRACTICE_TEXT).length,
+                      source: "chat",
+                    });
+                  }}>
                   <MicIcon />
                 </IconButton>
                 <IconButton data-testid="practice-sentence-save" className="text-ink-2"

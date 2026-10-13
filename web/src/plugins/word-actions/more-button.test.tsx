@@ -7,6 +7,7 @@ import { ALL_OFF, LINK_KEYS, setLinkFlags, type LinkFlags } from "~/lib/extensio
 import { WordActions } from "~/lib/extension-points-react";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import "./index";
 
 const ON: LinkFlags = { enabled: true, links: Object.fromEntries(LINK_KEYS.map((k) => [k, k === "word_actions"])) as LinkFlags["links"] };
@@ -91,14 +92,30 @@ describe("word actions menu", () => {
     expect(JSON.parse(String(mock.calls.find((c) => c.url.pathname === "/api/vocabulary")!.body))).toMatchObject({ word: "talk", meaning: "说", source: "lookup" });
   });
 
-  it("shadowing navigates to practice with the example (or the word)", async () => {
+  it("shadowing opens the shadow sheet with the example (or the word), without navigating", async () => {
     setLinkFlags(ON);
-    renderWithProviders(<WordActions testId="summary-word-add-0" variant="icon" target={{ word: "brew", example: "Brew the tea.", source: "recap" }} />,
-      { ...api({}), route: "/rooms/r/1/summary" });
+    renderWithProviders(
+      <WithShadowSheet><WordActions testId="summary-word-add-0" variant="icon" target={{ word: "brew", example: "Brew the tea.", source: "recap" }} /></WithShadowSheet>,
+      { ...api({}), route: "/rooms/r/1/summary" },
+    );
     fireEvent.click(screen.getByTestId("summary-word-add-0-more"));
     fireEvent.click(await screen.findByRole("button", { name: /跟读这个词/ }));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
-    expect(JSON.parse(screen.getByTestId("location").dataset.state!)).toEqual({ reference: "Brew the tea." });
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Brew the tea.");
+    expect(screen.getByTestId("location")).toHaveTextContent("/rooms/r/1/summary");
+    expect(screen.getByTestId("location").dataset.state).toBe("null");
+    expect(screen.queryByRole("dialog", { name: "单词操作" })).toBeNull();
+  });
+
+  it("shadowing a word without an example reads the word itself", async () => {
+    setLinkFlags(ON);
+    renderWithProviders(
+      <WithShadowSheet><WordActions testId="summary-word-add-1" variant="icon" target={{ word: "brew", source: "recap" }} /></WithShadowSheet>,
+      { ...api({}), route: "/rooms/r/1/summary" },
+    );
+    fireEvent.click(screen.getByTestId("summary-word-add-1-more"));
+    fireEvent.click(await screen.findByRole("button", { name: /跟读这个词/ }));
+    expect(await screen.findByTestId("shadow-reference")).toHaveTextContent("brew");
   });
 
   it("returns focus to the more button when the sheet closes", async () => {
