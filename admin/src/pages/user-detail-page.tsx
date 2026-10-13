@@ -5,6 +5,7 @@ import { AssessmentCard } from "../components/assessment-card";
 import { Avatar } from "../components/avatar";
 import { ChevronIcon } from "../components/icons";
 import { Chips, Screen, TOP_BAR_H, TopBar, UnderlineTabs } from "../components/layout";
+import { UserLibraryUsage } from "../features/library";
 import { UserRankPanel } from "../features/rank";
 import { UserAdminPanel } from "../features/users";
 import { ErrorState, PagedList, Skeleton } from "../components/states";
@@ -173,7 +174,9 @@ export function UserDetailPage() {
               )}
             </section>
 
-            <div className="sticky z-10 -mx-4 border-b border-line bg-bg/88 px-4 backdrop-blur-xl" style={{ top: `calc(${TOP_BAR_H}px + env(safe-area-inset-top))` }}>
+            <UserLibraryUsage userId={id} />
+
+            <div className="sticky z-10-mx-4 border-b border-line bg-bg/88 px-4 backdrop-blur-xl" style={{ top: `calc(${TOP_BAR_H}px + env(safe-area-inset-top))` }}>
               <UnderlineTabs label="内容" value={tab} onChange={setTab} options={TABS.map((t) => ({ value: t, label: S.user.tabs[t] }))} />
             </div>
 
