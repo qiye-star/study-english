@@ -67,7 +67,7 @@
       "upload": {
         "file": "Audio or video file",
         "limits": "Up to {{mb}} MB and {{minutes}} minutes",
-        "subtitles": "Subtitles (optional, .srt or .vtt)",
+        "subtitles": "Subtitles (optional, .srt / .vtt)",
         "titleLabel": "Title (optional)",
         "submit": "Upload",
         "badType": "This file type is not supported.",
@@ -76,7 +76,17 @@
         "overQuota": "Not enough space left in your library.",
         "subtitleBadType": "Subtitles must be a .srt or .vtt file.",
         "subtitleTooLarge": "Subtitle files can be at most 2 MB.",
-        "noAsr": "Without subtitles this server cannot transcribe the audio, so add a subtitle file."
+        "noAsr": "Without subtitles this server cannot transcribe the audio, so add a subtitle file.",
+        "pickTitle": "Choose a video or audio file",
+        "pickDrop": "Drop to add",
+        "pickDrag": "or drag a file here",
+        "formats": "Formats: {{list}}",
+        "replace": "Replace",
+        "remove": "Remove file",
+        "subtitlesAdd": "Add",
+        "subtitlesRemove": "Remove subtitles",
+        "titleAuto": "Filled in from the file name. You can edit it.",
+        "submitting": "Adding to uploads…"
       },
       "link": {
         "url": "Video page link",
@@ -86,7 +96,9 @@
         "badUrl": "Enter a full link that starts with http:// or https://.",
         "disabled": "The administrator has not turned on link import.",
         "drm": "Works with public video pages that yt-dlp can download directly (such as YouTube). DRM-protected streaming services (Netflix, Disney+, iQIYI, Tencent Video, Youku, Spotify and similar) cannot be imported; upload a file you own instead.",
-        "note": "The server downloads the video. This can take a few minutes."
+        "note": "The server downloads the video. This can take a few minutes.",
+        "paste": "Paste",
+        "submitting": "Importing…"
       },
       "player": {
         "notReady": "This item is still being processed.",

@@ -67,7 +67,7 @@
       "upload": {
         "file": "音频或视频文件",
         "limits": "单个最大 {{mb}} MB,最长 {{minutes}} 分钟",
-        "subtitles": "字幕(可选,.srt 或 .vtt)",
+        "subtitles": "字幕(可选,.srt / .vtt)",
         "titleLabel": "标题(可选)",
         "submit": "上传",
         "badType": "不支持这种文件类型。",
@@ -76,7 +76,17 @@
         "overQuota": "库的剩余空间不够。",
         "subtitleBadType": "字幕必须是 .srt 或 .vtt 文件。",
         "subtitleTooLarge": "字幕文件最大 2 MB。",
-        "noAsr": "没有字幕时本服务器无法自动转写,请同时上传字幕文件。"
+        "noAsr": "没有字幕时本服务器无法自动转写,请同时上传字幕文件。",
+        "pickTitle": "选择视频或音频",
+        "pickDrop": "松开即可添加",
+        "pickDrag": "也可以把文件拖到这里",
+        "formats": "格式:{{list}}",
+        "replace": "更换",
+        "remove": "移除文件",
+        "subtitlesAdd": "添加",
+        "subtitlesRemove": "移除字幕",
+        "titleAuto": "已根据文件名填写,可以修改。",
+        "submitting": "正在加入上传…"
       },
       "link": {
         "url": "视频页面链接",
@@ -86,7 +96,9 @@
         "badUrl": "请输入以 http:// 或 https:// 开头的完整链接。",
         "disabled": "管理员没有开启链接导入。",
         "drm": "支持 yt-dlp 能直接下载的公开视频页面(如 YouTube 等)。受 DRM 保护的流媒体服务(Netflix、Disney+、爱奇艺、腾讯视频、优酷、Spotify 等)无法导入,请使用你自己拥有的文件上传。",
-        "note": "由服务器下载视频,可能需要几分钟。"
+        "note": "由服务器下载视频,可能需要几分钟。",
+        "paste": "粘贴",
+        "submitting": "导入中…"
       },
       "player": {
         "notReady": "这条素材还在处理中。",

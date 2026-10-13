@@ -42,6 +42,16 @@ describe("library locales (R-L3: lazy, outside the eager i18n glob)", () => {
     expect(b["web.library.errors.kind.no_subtitles"]).toBe("这条没有字幕,管理员也没有开启自动转写;可以上传一份字幕后重新导入");
   });
 
+  it("has the add-sheet polish strings (plan 2026-10-14-library-add-sheet-polish)", () => {
+    for (const k of [
+      "pickTitle", "pickDrop", "pickDrag", "formats", "replace", "remove", "subtitlesAdd", "subtitlesRemove", "titleAuto", "submitting",
+    ]) expect(a).toHaveProperty([`web.library.upload.${k}`]);
+    for (const k of ["paste", "submitting"]) expect(a).toHaveProperty([`web.library.link.${k}`]);
+    expect(b["web.library.upload.subtitles"]).toBe("字幕(可选,.srt / .vtt)");
+    expect(a["web.library.upload.subtitles"]).toBe("Subtitles (optional, .srt / .vtt)");
+    expect(placeholders(a["web.library.upload.formats"])).toEqual(["list"]);
+  });
+
   it("pre-seeds the W2 shadowing subtree (R-L4)", () => {
     for (const k of ["record", "stop", "assessing", "listenMine", "listenOriginal", "addToList", "added", "edit", "save", "cancel"]) {
       expect(a).toHaveProperty([`web.library.shadow.${k}`]);

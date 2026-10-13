@@ -281,6 +281,173 @@
   border-radius: 14px;
 }
 
+/* ===== 添加素材表单(计划 2026-10-14-library-add-sheet-polish):页签换皮、选文件磁贴、文件卡、字幕行、玻璃输入框、提示卡。
+   只用半透明填充 + 高光边,不加新的模糊层(弹层本身是这一屏唯一的模糊层);只有 transition,没有关键帧动画(R-A7) ===== */
+.library-root .lib-seg { background: var(--lib-chip); border: 0.5px solid var(--lib-hair); border-radius: 16px; }
+.library-root .lib-seg [role="radio"] { border-radius: 13px; }
+.library-root .lib-seg [role="radio"][aria-checked="true"] {
+  background: var(--lib-solid);
+  border-color: var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi), 0 2px 6px -2px rgba(0, 0, 0, 0.35);
+}
+
+/* 真实的 <input type=file>:视觉隐藏但可聚焦(不是 display:none,iOS 与键盘都要它);焦点环画在紧随其后的磁贴 / 文件卡上 */
+.lib-pick-wrap { position: relative; }
+.lib-pick-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+.lib-pick-input:focus-visible ~ .lib-pick-surface { outline: 2px solid rgb(var(--ring)); outline-offset: 2px; }
+
+/* 磁贴:SpotlightCard(.lib-spot .lib-tint)改成虚线边;内容层 position:relative,才在高光 ::before 之上 */
+.lib-pick {
+  border: 1.5px dashed var(--lib-glass-bd);
+  border-radius: 20px;
+  transition: border-color 0.2s, background-color 0.2s, transform 0.15s;
+}
+.lib-pick-face {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 14px 16px;
+  text-align: center;
+  cursor: pointer;
+}
+.lib-pick[data-press] { transform: scale(0.99); }
+@media (hover: hover) {
+  .lib-pick:hover { border-color: rgb(var(--blue)); }
+}
+.lib-pick-wrap[data-drag] .lib-pick { border-color: rgb(var(--blue)); background: var(--lib-blue-tint); }
+.lib-pick-wrap[data-drag] .lib-pick::before { opacity: 1; }
+@media (hover: none) {
+  .lib-pick-drag { display: none; }
+}
+.lib-pick-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  color: rgb(var(--blue));
+  background: var(--lib-blue-tint);
+}
+.lib-pick-ico svg { width: 24px; height: 24px; }
+
+/* 文件卡(选中后) */
+.lib-pick-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px 10px 12px;
+  border-radius: 20px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+.lib-pick-card .lib-pick-ico { margin-bottom: 0; }
+.lib-pick-card[data-invalid],
+.lib-subrow[data-invalid] { border-color: rgb(var(--red)); background: var(--red-tint); }
+.lib-pick-meta { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.lib-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-pick-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--blue));
+  cursor: pointer;
+}
+.lib-pick-x { color: rgb(var(--ink-2)); }
+.lib-pick-x svg { width: 18px; height: 18px; }
+
+/* 字幕行:紧凑的次级行;「添加」复用播放器的 .lib-chip(34px 视觉、44px 命中) */
+.lib-subrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 16px;
+  background: var(--lib-chip);
+  border: 0.5px solid var(--lib-hair);
+}
+.lib-subrow .lib-pick-ico { width: 34px; height: 34px; margin-bottom: 0; border-radius: 11px; }
+.lib-subrow .lib-pick-ico svg { width: 18px; height: 18px; }
+.lib-sub-add { flex: none; margin-right: 4px; font-weight: 600; color: rgb(var(--blue)); cursor: pointer; }
+
+/* 玻璃输入框:框内上方是常驻上浮的小标签;聚焦时蓝边 + 淡蓝光晕(代替浏览器默认焦点环) */
+.library-root .lib-ffield {
+  position: relative;
+  display: block;
+  border-radius: 16px;
+  background: var(--lib-chip);
+  border: 0.5px solid var(--lib-hair);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.library-root .lib-ffield:focus-within { border-color: rgb(var(--blue)); box-shadow: 0 0 0 3px var(--lib-blue-tint); }
+.lib-ffield-in { display: block; }
+.lib-ffield-label { display: block; padding: 8px 14px 0; font-size: 11.5px; line-height: 1.2; color: rgb(var(--ink-2)); }
+.library-root .lib-ffield-input {
+  display: block;
+  width: 100%;
+  height: 32px;
+  padding: 0 14px 6px;
+  border: 0;
+  border-radius: 0 0 16px 16px;
+  background: none;
+  font-size: 16px;
+  color: rgb(var(--ink));
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lib-ffield-input:focus { outline: none; }
+.lib-ffield-input::placeholder { color: rgb(var(--ink-3)); }
+.lib-ffield--paste .lib-ffield-input { padding-right: 84px; }
+.lib-ffield-paste { position: absolute; right: 8px; bottom: 6px; }
+
+/* 提示卡:DRM / 开关关 / 没有转写 / 错误;着色靠令牌 amber / red 的 tint */
+.lib-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgb(var(--ink));
+  background: var(--lib-chip);
+  border: 0.5px solid var(--lib-hair);
+}
+.lib-note p { flex: 1; min-width: 0; margin: 0; }
+.lib-note svg { flex: none; width: 18px; height: 18px; margin-top: 1px; color: rgb(var(--ink-2)); }
+.lib-note--warn { background: var(--amber-tint); border-color: rgb(var(--amber) / 0.35); }
+.lib-note--warn svg { color: rgb(var(--amber)); }
+.lib-note--err { background: var(--red-tint); border-color: rgb(var(--red) / 0.4); }
+.lib-note--err svg,
+.lib-note--err p { color: rgb(var(--red)); }
+
+/* 禁用的主按钮:灰玻璃底 + 淡字 + 不扫光(比 opacity-40 醒目) */
+.library-root .lib-spec:disabled { opacity: 0.7; color: rgb(var(--ink-3)); background: var(--lib-chip); box-shadow: none; }
+.library-root .lib-spec:disabled::after { display: none; }
+
 /* ===== 播放器:顶栏胶囊、媒体区、句子列表 ===== */
 .lib-stage { position: relative; flex: none; padding-top: env(safe-area-inset-top); background: #000; }
 .lib-stage-audio {
@@ -547,6 +714,9 @@ html.lite .lib-zh-skeleton {
 }
 html.lite .lib-rise { animation: none; opacity: 1; }
 html.lite .lib-bw { animation: none; opacity: 1; filter: none; transform: none; }
+html.lite .lib-pick,
+html.lite .lib-pick-card,
+html.lite .library-root .lib-ffield { transition: none; }
 
 /* ===== 降级:系统「减少动态效果」:全部静止 ===== */
 @media (prefers-reduced-motion: reduce) {
@@ -562,7 +732,10 @@ html.lite .lib-bw { animation: none; opacity: 1; filter: none; transform: none; 
   .lib-rise { animation: none; opacity: 1; }
   .lib-bw { animation: none; opacity: 1; filter: none; transform: none; }
   .lib-slider-fill,
-  .lib-slider-knob { transition: none; }
+  .lib-slider-knob,
+  .lib-pick,
+  .lib-pick-card,
+  .library-root .lib-ffield { transition: none; }
 }
 
 /* ===== 降级:系统「减少透明度」:玻璃一律实心 ===== */

@@ -127,6 +127,34 @@ describe("library.css (spec §11.4a, D11)", () => {
   });
 
   it("stays small (target: library styles + effects ≤ 6 kB gzip in total, measured in L16)", () => {
-    expect(css.length).toBeLessThan(22_000);
+    expect(css.length).toBeLessThan(28_000); // 22_000 → 28_000:添加素材表单分节(R-A11);gzip 目标不变,未实测
+  });
+
+  it("styles the add-sheet form without new blur layers or keyframes, and keeps the real file input focusable (R-A3, R-A7)", () => {
+    const section = sectionAfter(css, "添加素材表单");
+    expect(section).not.toContain("backdrop-filter");
+    expect(section).not.toContain("@keyframes");
+    // 真实的文件框:视觉隐藏,但不是 display:none(iOS 与键盘都要它)
+    const input = blockOf(css, /^\.lib-pick-input\s*\{/m);
+    expect(input).toContain("opacity: 0;");
+    expect(input).toContain("clip-path: inset(50%);");
+    expect(input).not.toContain("display: none");
+    expect(css).toMatch(/\.lib-pick-input:focus-visible ~ \.lib-pick-surface\s*\{/);
+    // 磁贴是虚线边;输入框 16px 防 iOS 缩放
+    expect(blockOf(css, /^\.lib-pick\s*\{/m)).toContain("dashed");
+    expect(blockOf(css, /^\.library-root \.lib-ffield-input\s*\{/m)).toContain("font-size: 16px;");
+    // 命中区:更换 / 移除按钮 44px
+    expect(blockOf(css, /^\.lib-pick-act\s*\{/m)).toContain("min-height: 44px;");
+    // 禁用的主按钮不再扫光
+    expect(css).toMatch(/\.library-root \.lib-spec:disabled::after\s*\{\s*display: none;/);
+  });
+
+  it("drops the add-sheet transitions under reduced motion and on low-end devices (R-L28)", () => {
+    const reduced = blockOf(css, /@media \(prefers-reduced-motion: reduce\)\s*\{/);
+    const lite = sectionAfter(css, "降级:低端机");
+    for (const selector of [".lib-pick", ".lib-pick-card", ".library-root .lib-ffield"]) {
+      expect(reduced, `reduced-motion: ${selector}`).toContain(selector);
+      expect(lite, `lite: ${selector}`).toContain(`html.lite ${selector}`);
+    }
   });
 });
