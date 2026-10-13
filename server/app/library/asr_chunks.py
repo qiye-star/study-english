@@ -1,4 +1,6 @@
 """无字幕转写(B 档,spec §6.4、E5):静音感知分块 → 逐块现有识别 → 按字符比例估算句边界并吸附到静音点。
+带时间的识别(plan 2026-10-13-library-alignment):块里存识别服务给的 `utterances`,`usable_utterances` 判断可信,`fragments`
+对可信的块给出每个识别句一个真实时间的片段,其余块回落到估算。
 
 纯函数:`parse_silences`(ffmpeg silencedetect 的输出,只取数字)、`plan_chunks`(15–50 s 窗口里最长静音的中点切,
 没有静音就在 40 s 处硬切)、`speech_span`(扣掉块首尾静音)、`fragments`、`snapper`(句边界吸附到 ±0.8 s 内最近的
@@ -13,6 +15,7 @@ import re
 import wave
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from app.library.errors import LibraryError
@@ -20,9 +23,14 @@ from app.library.limits import (
     ASR_CHUNK_MAX_MS, ASR_CHUNK_MIN_MS, ASR_CHUNK_RETRIES, ASR_CHUNK_TARGET_MS, ASR_CONCURRENCY, ASR_HARD_CUT_MS,
 )
 from app.library.segment import Aligned, Fragment, set_span
+from app.speech.timed import TimedText, Utterance
 
 SNAP_WINDOW_MS = 800
-STATE_VERSION = 1
+STATE_VERSION = 2
+READABLE_VERSIONS = (1, 2)  # version 1 chunks carry no utterances: still usable, nothing is paid for twice (R-A6)
+UTTERANCE_SLACK_MS = 1500  # an utterance may end this far past the chunk (rounding, trailing silence)
+UTTERANCE_OVERLAP_MS = 250  # an utterance may start this far before the previous one ended
+TEXT_AGREEMENT = 0.9  # SequenceMatcher ratio between the chunk text and the utterance texts (letters and digits only)
 _START = re.compile(r"silence_start:\s*(-?\d+(?:\.\d+)?)")
 _END = re.compile(r"silence_end:\s*(-?\d+(?:\.\d+)?)")
 
@@ -46,6 +54,8 @@ class Chunk:
     start_ms: int
     end_ms: int
     text: str | None = None  # None = not transcribed yet
+    # the recognizer's own sentences, ms from the chunk start; None = never asked / legacy state, [] = none returned
+    utterances: list[Utterance] | None = None
 
     @property
     def seconds(self) -> int:
@@ -101,13 +111,51 @@ def speech_span(chunk: Chunk, silences: list[Silence]) -> tuple[int, int]:
     return (s0, s1) if s1 > s0 else (chunk.start_ms, chunk.end_ms)
 
 
+def _letters(text: str) -> str:
+    return "".join(c for c in text.lower() if c.isalnum())
+
+
+def usable_utterances(chunk: Chunk) -> list[Utterance]:
+    """The chunk's recognizer-reported sentences when they can be trusted, else [] (R-A4): every one inside the chunk (plus
+    slack), in order (small overlap allowed), and their texts agree with the chunk text. A time list that does not
+    match the words must not be believed: the caller then estimates this chunk the old way. A chunk whose tail has no
+    utterance (speech ended early, nothing returned for the rest) is still trusted as long as the words agree."""
+    utts = chunk.utterances or []
+    if not utts or not chunk.text:
+        return []
+    length = chunk.end_ms - chunk.start_ms
+    previous_end = 0
+    for u in utts:
+        if not 0 <= u.start_ms < u.end_ms <= length + UTTERANCE_SLACK_MS or u.start_ms < previous_end - UTTERANCE_OVERLAP_MS:
+            return []
+        previous_end = u.end_ms
+    a, b = _letters(chunk.text), _letters("".join(u.text for u in utts))
+    if not a or not b or SequenceMatcher(None, a, b, autojunk=False).ratio() < TEXT_AGREEMENT:
+        return []
+    return list(utts)
+
+
+def estimated_chunks(chunks: list[Chunk]) -> list[Chunk]:
+    """Chunks that have text but no trustworthy times: their sentence times are character-share estimates."""
+    return [c for c in chunks if " ".join((c.text or "").split()) and not usable_utterances(c)]
+
+
 def fragments(chunks: list[Chunk], silences: list[Silence]) -> list[Fragment]:
-    out = []
+    """One fragment per recognizer sentence for a trusted chunk (real times, offset by the chunk start); one fragment for
+    the whole speech span of any other chunk (the character-share estimate, silences trimmed at both edges)."""
+    out: list[Fragment] = []
     for chunk in chunks:
         text = " ".join((chunk.text or "").split())
-        if text:
-            s0, s1 = speech_span(chunk, silences)
-            out.append(Fragment(s0, s1, text))
+        if not text:
+            continue
+        length = chunk.end_ms - chunk.start_ms
+        real = [Fragment(chunk.start_ms + u.start_ms, chunk.start_ms + min(length, u.end_ms), u.text)
+                for u in usable_utterances(chunk) if u.start_ms < length]
+        if real:
+            out += real
+            continue
+        s0, s1 = speech_span(chunk, silences)
+        out.append(Fragment(s0, s1, text))
     return out
 
 
@@ -137,13 +185,20 @@ def snapper(silences: list[Silence]) -> Callable[[Aligned], None]:
 
 # ---- state file and WAV slices ----
 
+def _load_utterances(raw) -> list[Utterance] | None:
+    if not isinstance(raw, list):
+        return None
+    return [Utterance(str(u["text"]), int(u["start_ms"]), int(u["end_ms"])) for u in raw]
+
+
 def load_state(path: Path) -> list[Chunk] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        if data.get("version") != STATE_VERSION:
+        if data.get("version") not in READABLE_VERSIONS:
             return None
-        return [Chunk(int(c["start_ms"]), int(c["end_ms"]), c.get("text")) for c in data["chunks"]]
-    except (OSError, ValueError, KeyError, TypeError):
+        return [Chunk(int(c["start_ms"]), int(c["end_ms"]), c.get("text"), _load_utterances(c.get("utterances")))
+                for c in data["chunks"]]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
@@ -172,13 +227,14 @@ def slice_wav(path: Path, start_ms: int, end_ms: int) -> bytes:
     return buf.getvalue()
 
 
-async def transcribe_chunks(chunks: list[Chunk], *, read: Callable[[Chunk], Awaitable[bytes]],
-                            transcribe: Callable[[bytes], Awaitable[str]], save: Callable[[list[Chunk]], None],
-                            progress: Callable[[int, int], Awaitable[None]],
-                            concurrency: int = ASR_CONCURRENCY, retries: int = ASR_CHUNK_RETRIES) -> int:
-    """Fill `text` of every chunk that has none (concurrency <= 2, each chunk tried 1 + `retries` times).
-    `save` runs after every finished chunk; `progress(done, total)` after every chunk. Returns the seconds actually
-    transcribed in this call. Any chunk failing for good -> LibraryError("upstream") (the others finish first)."""
+async def transcribe_chunks_timed(chunks: list[Chunk], *, read: Callable[[Chunk], Awaitable[bytes]],
+                                  transcribe: Callable[[bytes], Awaitable[TimedText]],
+                                  save: Callable[[list[Chunk]], None],
+                                  progress: Callable[[int, int], Awaitable[None]],
+                                  concurrency: int = ASR_CONCURRENCY, retries: int = ASR_CHUNK_RETRIES) -> int:
+    """Fill `text` (and `utterances`) of every chunk that has no text (concurrency <= 2, each chunk tried 1 + `retries`
+    times). `save` runs after every finished chunk; `progress(done, total)` after every chunk. Returns the seconds
+    actually transcribed in this call. Any chunk failing for good -> LibraryError("upstream") (the others finish first)."""
     todo = [c for c in chunks if c.text is None]
     total, done = len(chunks), len(chunks) - len(todo)
     gate = asyncio.Semaphore(max(1, concurrency))
@@ -194,7 +250,7 @@ async def transcribe_chunks(chunks: list[Chunk], *, read: Callable[[Chunk], Awai
             wav = await read(chunk)
             for attempt in range(retries + 1):
                 try:
-                    text = await transcribe(wav)
+                    result = await transcribe(wav)
                     break
                 except asyncio.CancelledError:
                     raise
@@ -203,7 +259,8 @@ async def transcribe_chunks(chunks: list[Chunk], *, read: Callable[[Chunk], Awai
                         failed = True
                         return
             async with lock:
-                chunk.text = " ".join((text or "").split())
+                chunk.text = " ".join((result.text or "").split())
+                chunk.utterances = list(result.utterances)
                 spent += chunk.seconds
                 done += 1
                 save(chunks)
@@ -213,3 +270,15 @@ async def transcribe_chunks(chunks: list[Chunk], *, read: Callable[[Chunk], Awai
     if failed:
         raise LibraryError("upstream")
     return spent
+
+
+async def transcribe_chunks(chunks: list[Chunk], *, read: Callable[[Chunk], Awaitable[bytes]],
+                            transcribe: Callable[[bytes], Awaitable[str]], save: Callable[[list[Chunk]], None],
+                            progress: Callable[[int, int], Awaitable[None]],
+                            concurrency: int = ASR_CONCURRENCY, retries: int = ASR_CHUNK_RETRIES) -> int:
+    """The text-only form (no times): `transcribe_chunks_timed` with every result wrapped as `TimedText(text)`."""
+    async def timed(wav: bytes) -> TimedText:
+        return TimedText(await transcribe(wav))
+
+    return await transcribe_chunks_timed(chunks, read=read, transcribe=timed, save=save, progress=progress,
+                                         concurrency=concurrency, retries=retries)
