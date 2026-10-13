@@ -6,6 +6,7 @@ Conversations with the AI tutor: text and voice messages, hold-to-talk, auto-spe
 - Pages: `conversations-page.tsx`, `conversation-page.tsx` (orchestration; large).
 - `lazy-pages.tsx` — the routed `ConversationPage` is lazy (agents-web R-W2); tests import `./conversation-page` directly.
 - Turns: `use-voice-turn.ts`, `turn-results.ts` (assessment + grammar, late PATCH), `chat-request.ts`, `chat-turns.ts`, `ui-message.ts`.
+- `read-aloud-action.tsx` / `register-selection-actions.tsx` — the select-to-lookup bar's "Read aloud" (core contribution to the `selectionActions` point; registration file imported only by `plugins/core`).
 - Speech out: `tts.ts`, `use-tts-player.ts` (sentence queue), `use-auto-speak.ts`, `sentence-stream.ts`, `sentences.ts`.
 - Hold-to-talk: `hold-to-talk-button.tsx` wires voice messages to the shared gesture (`~/lib/hold-gesture` reducer, `~/components/use-hold-gesture`, `~/components/hold-to-talk-bar` UI, shared with realtime calls).
 - Helpers: `hints*.ts(x)`, `recap*.ts(x)`, `scenarios.ts`, `levels.ts`, `coach.ts`, `composer-mode.ts`.
@@ -26,5 +27,6 @@ Public (`index.ts`): pages, `useTtsPlayer`/`ttsErrorMessage`/`TtsState`, `useMes
 - `speakableText()` ends with `speechText()` (`~/lib/speech-text`): Chinese / kana / full-width text is never sent to TTS, Chinese-only text is "nothing to read" (`play()` toast, auto-speak `empty`, queue `push()` skips). `note_zh` / `hint_zh` are never part of any spoken input.
 - Agent conversations (`config.agentPersonaId`) stream from `/api/agents/turn` via `~/features/agents` `runAgentTurn`; the `onDelta` path into sentence-stream/auto-speak is shared with the old path. Without a persona nothing changes (tests pin the request and saved bodies). The teach-me entry and tutor bar are slots (`TUTOR_SLOTS` in `agents/chat-parts.tsx`), not imports.
 - iOS: prime the shared audio element synchronously in the tap (`primeAudioElement`).
+- Selection read-aloud: `tts.play` must be called synchronously in the click handler (iOS); no `await` before it.
 - `sentence-stream.ts` must agree with `server/tests/fixtures/sentence_cases.json`.
 - No playback while recording (`claimAudio` from `~/audio/audio-focus`).

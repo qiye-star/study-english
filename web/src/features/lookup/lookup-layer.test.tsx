@@ -11,6 +11,8 @@ import { LookupLayer } from "./lookup-layer";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
 
+const aiCalls = (mock: { calls: Array<{ url: URL; body?: unknown }> }) => mock.calls.filter((c) => c.url.pathname === "/api/ai/chat/completions");
+
 function Page() {
   return (
     <>
@@ -54,12 +56,12 @@ describe("LookupLayer", () => {
     expect(screen.getByTestId("lookup-result")).toHaveTextContent("a nation");
     await userEvent.click(screen.getByTestId("lookup-switch-mode"));
     await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveTextContent("国家"));
-    expect(mock.calls).toHaveLength(2);
+    expect(aiCalls(mock)).toHaveLength(2);
     await userEvent.keyboard("{Escape}");
     await selectText("country");
     await userEvent.click(await screen.findByTestId("lookup-trigger"));
     await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
-    expect(mock.calls).toHaveLength(2);
+    expect(aiCalls(mock)).toHaveLength(2);
   });
 
   it("translates long selections and offers retry on errors", async () => {
@@ -75,7 +77,7 @@ describe("LookupLayer", () => {
     fail = false;
     await userEvent.click(screen.getByTestId("lookup-retry"));
     await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveTextContent("不要问"));
-    expect(JSON.parse(mock.calls[1].body as string).response_format).toBeUndefined();
+    expect(JSON.parse(aiCalls(mock)[1].body as string).response_format).toBeUndefined();
   });
 
   it("offers no trigger for selections outside lookup regions", async () => {

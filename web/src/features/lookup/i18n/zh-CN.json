@@ -2,6 +2,7 @@
   "web": {
     "lookup": {
       "lookup": "查词", "translate": "翻译", "lookupInstead": "查词典", "translateInstead": "改为翻译",
+      "sourceDict": "词典", "sourceAi": "AI 查询", "aiExplain": "AI 结合语境讲解", "barLabel": "选中文字操作", "phrases": "短语",
       "lemma": "原形", "invalid": "无法解析词典结果,请重试。",
       "upstream": "AI 服务暂不可用,请重试。", "notConfigured": "服务器未配置 AI 服务。",
       "drawerDescription": "所选文字的 AI 词典或翻译",
