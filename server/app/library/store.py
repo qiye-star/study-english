@@ -1,0 +1,253 @@
+"""跟读库的数据库读写(spec §4、§9)。所有用户可见的查询都带 user_id:别人的 id 一律当作不存在。
+SQLite 没有外键级联:删条目显式删 attempts → segments → item(`delete_item_rows`)。
+本模块只读写库(停任务、删文件的 `cancel_item` / `delete_item` 由 Task 11 追加)。标题、链接、句子文本永远不进日志。"""
+import hashlib
+import re
+from datetime import datetime, timedelta
+from pathlib import PurePath
+
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.library.limits import (
+    ACTIVE, AUDIO_EXTENSIONS, FAILED_KEEP_DAYS, LIST_LIMIT, TITLE_MAX, UPLOAD_EXPIRE_HOURS,
+)
+from app.library.segment import Sentence
+from app.models import LibraryAttempt, LibraryItem, LibrarySegment, iso_utc, utcnow
+
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def is_item_id(value: str | None) -> bool:
+    return isinstance(value, str) and _UUID.fullmatch(value) is not None
+
+
+def clean_title(raw: str | None, fallback: str = "Untitled") -> str:
+    title = " ".join((raw or "").split())[:TITLE_MAX].strip()
+    return title or fallback
+
+
+def title_from_filename(filename: str) -> str:
+    stem = PurePath(filename.replace("\\", "/")).stem
+    return clean_title(stem.replace("_", " "))
+
+
+def extension_of(filename: str) -> str:
+    return PurePath(filename.replace("\\", "/")).suffix.lower().lstrip(".")
+
+
+def text_hash(text: str) -> str:
+    return hashlib.sha256(" ".join(text.split()).encode("utf-8")).hexdigest()[:16]
+
+
+def same_text(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
+
+
+# ---- output shapes (the web reads them through tests/fixtures/library_contract.json) ----
+
+def item_out(row: LibraryItem) -> dict:
+    progress = row.progress
+    if row.status == "uploading" and row.upload_total:
+        progress = min(100, row.upload_received * 100 // row.upload_total)
+    return {
+        "id": row.id, "kind": row.kind, "source": row.source, "title": row.title, "status": row.status,
+        "stage": row.stage, "progress": progress, "error_kind": row.error_kind, "duration_ms": row.duration_ms,
+        "seg_count": row.seg_count, "library_bytes": row.library_bytes, "sub_source": row.sub_source,
+        "resume_ms": row.resume_ms, "resume_idx": row.resume_idx, "rate_pct": row.rate_pct,
+        "has_poster": row.poster_path is not None, "created_at": iso_utc(row.created_at),
+        "last_opened_at": iso_utc(row.last_opened_at) if row.last_opened_at else None,
+    }
+
+
+def segment_out(row: LibrarySegment) -> dict:
+    """D8:列表里带译文 `zh`(+ `zh_lang`,网页拿它和当前母语比,不一致就当没有);分析正文最长 4000 字、只在点「分析」时
+    才取,列表只告诉有没有(`has_analysis` + `analysis_lang`)。"""
+    return {"idx": row.idx, "start_ms": row.start_ms, "end_ms": row.end_ms, "text": row.text, "zh": row.zh,
+            "zh_lang": row.zh_lang, "has_analysis": bool(row.analysis), "analysis_lang": row.analysis_lang}
+
+
+# ---- create / read ----
+
+async def create_item(session: AsyncSession, *, user_id: int, kind: str, source: str, status: str, title: str,
+                      source_url: str | None = None, source_host: str | None = None,
+                      upload_total: int = 0) -> LibraryItem:
+    """Insert and commit one item. Plan S2 creates link items with it (`source="link"`, `status="queued"`,
+    `title=""` when the user gave none: the fetch stage's page title fills it in, R-SC22)."""
+    now = utcnow()
+    row = LibraryItem(user_id=user_id, kind=kind, source=source, title=(title or "")[:TITLE_MAX], status=status,
+                      source_url=source_url, source_host=(source_host or None) and source_host[:64],
+                      upload_total=upload_total, upload_received=0, created_at=now, updated_at=now)
+    session.add(row)
+    await session.commit()
+    return row
+
+
+async def create_upload(session: AsyncSession, user_id: int, *, title: str, size: int, ext: str) -> LibraryItem:
+    """`kind` is a guess from the extension until the probe decides (spec §4)."""
+    return await create_item(session, user_id=user_id, kind="audio" if ext in AUDIO_EXTENSIONS else "video",
+                             source="upload", status="uploading", title=clean_title(title), upload_total=size)
+
+
+async def get_owned(session: AsyncSession, user_id: int, item_id: str) -> LibraryItem | None:
+    if not is_item_id(item_id):
+        return None
+    return await session.scalar(select(LibraryItem).where(LibraryItem.id == item_id, LibraryItem.user_id == user_id))
+
+
+async def list_page(session: AsyncSession, user_id: int, cursor: str | None,
+                    limit: int = LIST_LIMIT) -> tuple[list[LibraryItem], str | None]:
+    """Newest first; `cursor` is the id of the last item of the previous page (unknown cursor = first page)."""
+    query = select(LibraryItem).where(LibraryItem.user_id == user_id)
+    anchor = await get_owned(session, user_id, cursor) if cursor else None
+    if anchor is not None:
+        query = query.where((LibraryItem.created_at < anchor.created_at)
+                            | ((LibraryItem.created_at == anchor.created_at) & (LibraryItem.id < anchor.id)))
+    rows = (await session.scalars(query.order_by(LibraryItem.created_at.desc(), LibraryItem.id.desc())
+                                  .limit(limit + 1))).all()
+    more = len(rows) > limit
+    rows = list(rows[:limit])
+    return rows, (rows[-1].id if more and rows else None)
+
+
+async def segments_of(session: AsyncSession, item_id: str) -> list[LibrarySegment]:
+    return list((await session.scalars(select(LibrarySegment).where(LibrarySegment.item_id == item_id)
+                                       .order_by(LibrarySegment.idx))).all())
+
+
+async def write_segments(session: AsyncSession, item: LibraryItem, sentences: list[Sentence]) -> None:
+    """Replace every sentence of the item (caller commits). Old attempts stay; their text hash decides (R-SC14)."""
+    await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item.id))
+    session.add_all(LibrarySegment(item_id=item.id, idx=i, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text)
+                    for i, s in enumerate(sentences))
+    item.seg_count = len(sentences)
+    item.resume_idx = min(item.resume_idx, max(0, len(sentences) - 1))
+
+
+async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
+    """Explicit child deletes (SQLite has no FK cascade); caller commits, then removes the files."""
+    await session.execute(delete(LibraryAttempt).where(LibraryAttempt.item_id == item_id))
+    await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item_id))
+    await session.execute(delete(LibraryItem).where(LibraryItem.id == item_id))
+
+
+# ---- the worker's queue ----
+
+async def claim(session: AsyncSession, now: datetime, limit: int) -> list[LibraryItem]:
+    """Atomically move up to `limit` due queued items to `processing` (UPDATE ... WHERE status='queued' and check
+    the row count, so two claimers never get the same item; safe on Postgres too)."""
+    if limit <= 0:
+        return []
+    ids = (await session.scalars(
+        select(LibraryItem.id).where(LibraryItem.status == "queued",
+                                     (LibraryItem.next_run_at.is_(None)) | (LibraryItem.next_run_at <= now))
+        .order_by(LibraryItem.created_at, LibraryItem.id).limit(limit))).all()
+    claimed = []
+    for item_id in ids:
+        result = await session.execute(update(LibraryItem).where(LibraryItem.id == item_id,
+                                                                 LibraryItem.status == "queued")
+                                       .values(status="processing", stage=None, updated_at=now))
+        if result.rowcount == 1:
+            claimed.append(item_id)
+    await session.commit()
+    if not claimed:
+        return []
+    return list((await session.scalars(select(LibraryItem).where(LibraryItem.id.in_(claimed))
+                                       .order_by(LibraryItem.created_at, LibraryItem.id))).all())
+
+
+async def recover(session: AsyncSession, now: datetime) -> int:
+    """Startup: items left `processing` by a stopped process go back to the queue (attempts unchanged)."""
+    result = await session.execute(update(LibraryItem).where(LibraryItem.status == "processing")
+                                   .values(status="queued", updated_at=now))
+    await session.commit()
+    return result.rowcount or 0
+
+
+async def set_progress(session: AsyncSession, item_id: str, stage: str, progress: int, now: datetime) -> bool:
+    """False = the item is no longer processing (canceled or deleted): the job must stop."""
+    result = await session.execute(update(LibraryItem).where(LibraryItem.id == item_id,
+                                                             LibraryItem.status == "processing")
+                                   .values(stage=stage, progress=max(0, min(100, progress)), updated_at=now))
+    await session.commit()
+    return result.rowcount == 1
+
+
+async def fail(session: AsyncSession, item_id: str, kind: str, *, retry_at: datetime | None, now: datetime) -> bool:
+    """A failed job: transient with retries left -> back to `queued` with `next_run_at`; else `failed`."""
+    values = dict(error_kind=kind, updated_at=now, stage=None)
+    if retry_at is not None:
+        values.update(status="queued", next_run_at=retry_at, attempts=LibraryItem.attempts + 1)
+    else:
+        values.update(status="failed", next_run_at=None)
+    result = await session.execute(update(LibraryItem).where(LibraryItem.id == item_id,
+                                                             LibraryItem.status == "processing").values(**values))
+    await session.commit()
+    return result.rowcount == 1
+
+
+# ---- sweeps ----
+
+async def expire_uploads(session: AsyncSession, now: datetime) -> list[str]:
+    """Uploads idle for 24 h become failed(upload_expired); returns their ids (the caller deletes `_tmp`)."""
+    cutoff = now - timedelta(hours=UPLOAD_EXPIRE_HOURS)
+    ids = list((await session.scalars(select(LibraryItem.id).where(LibraryItem.status == "uploading",
+                                                                   LibraryItem.updated_at < cutoff))).all())
+    if ids:
+        await session.execute(update(LibraryItem).where(LibraryItem.id.in_(ids), LibraryItem.status == "uploading")
+                              .values(status="failed", error_kind="upload_expired", updated_at=now))
+    await session.commit()
+    return ids
+
+
+async def stale_items(session: AsyncSession, now: datetime) -> list[tuple[int, str]]:
+    """(user_id, item_id) of failed / canceled items untouched for 7 days: rows and files go."""
+    cutoff = now - timedelta(days=FAILED_KEEP_DAYS)
+    rows = (await session.execute(select(LibraryItem.user_id, LibraryItem.id).where(
+        LibraryItem.status.in_(("failed", "canceled")), LibraryItem.updated_at < cutoff))).all()
+    return [(r[0], r[1]) for r in rows]
+
+
+async def statuses(session: AsyncSession, item_ids: list[str]) -> dict[str, str]:
+    if not item_ids:
+        return {}
+    rows = (await session.execute(select(LibraryItem.id, LibraryItem.status)
+                                  .where(LibraryItem.id.in_(item_ids)))).all()
+    return {r[0]: r[1] for r in rows}
+
+
+async def active_count(session: AsyncSession) -> int:
+    return int(await session.scalar(select(func.count()).select_from(LibraryItem)
+                                    .where(LibraryItem.status.in_(ACTIVE))) or 0)
+
+
+# ---- attempts ----
+
+async def add_attempt(session: AsyncSession, *, user_id: int, item_id: str, seg_idx: int, assessment_id: str,
+                      text: str, score: int | None, now: datetime) -> LibraryAttempt:
+    existing = await session.scalar(select(LibraryAttempt).where(LibraryAttempt.item_id == item_id,
+                                                                 LibraryAttempt.assessment_id == assessment_id))
+    if existing is not None:  # the same assessment posted twice counts once
+        return existing
+    row = LibraryAttempt(user_id=user_id, item_id=item_id, seg_idx=seg_idx, assessment_id=assessment_id,
+                         text_hash=text_hash(text), score=score, created_at=now)
+    session.add(row)
+    await session.commit()
+    return row
+
+
+async def best_attempts(session: AsyncSession, item_id: str, segments: list[LibrarySegment]) -> list[dict]:
+    """Per sentence: best score, count and last time, counting only attempts made on the sentence's current text."""
+    hashes = {s.idx: text_hash(s.text) for s in segments}
+    rows = (await session.scalars(select(LibraryAttempt).where(LibraryAttempt.item_id == item_id)
+                                  .order_by(LibraryAttempt.seg_idx, LibraryAttempt.created_at))).all()
+    out: dict[int, dict] = {}
+    for row in rows:
+        if hashes.get(row.seg_idx) != row.text_hash:
+            continue
+        entry = out.setdefault(row.seg_idx, {"seg_idx": row.seg_idx, "best_score": None, "count": 0, "last_at": None})
+        entry["count"] += 1
+        if row.score is not None and (entry["best_score"] is None or row.score > entry["best_score"]):
+            entry["best_score"] = row.score
+        entry["last_at"] = iso_utc(row.created_at)
+    return [out[k] for k in sorted(out)]
