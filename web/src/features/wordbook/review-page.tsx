@@ -7,7 +7,8 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PAGE_NOTE } from "~/components/list-card";
 import { SurfaceCard } from "~/components/surface-card";
-import { ChoiceQuestion, correctOptionOf, type ChoiceResult } from "./choice-question";
+import { ChoiceQuestion, correctOptionOf, type AfterAnswer, type ChoiceResult } from "./choice-question";
+import { AfterAnswerPanel } from "./after-answer-panel";
 import { FreeBrowse } from "./free-browse";
 import { readFreeState, toBatch, uniqueKeys } from "./free-batch";
 import { PageError, PageLoading } from "./page-status";
@@ -80,6 +81,8 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const [check, setCheck] = useState<Question | null>(null);
   const [first, setFirst] = useState<Record<string, AnswerResult>>({});
   const [busy, setBusy] = useState(false);
+  // 答题后「中」开关(meaning 题,计划 2026-10-13-review-after-answer R-A10):记的是正在偷看的题槽,换题 / 重出自动复位
+  const [peekSlot, setPeekSlot] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const mounted = useRef(true);
   // 同步的「请求进行中」:连点两次时第二次点击还看不到 busy state
@@ -267,6 +270,12 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const choiceResult: ChoiceResult | null = answer && question
     ? { choice: answer.choice ?? "", correct: answer.result.correct, correctOption: correctOptionOf(question, answer.result) }
     : null;
+  // 答题后界面只给 meaning / word 选择题(cloze 与抽查题不变);选项信息可能不存在(老服务端 / 备忘取不到),下游都按缺失处理
+  const slot = question ? `${question.key}:${attempt}` : "";
+  const afterQuestion = answer && choiceResult && question && (question.qtype === "meaning" || question.qtype === "word") ? question : null;
+  const after: AfterAnswer | undefined = afterQuestion && answer
+    ? { info: answer.result.optionInfo, defLang, peek: peekSlot === slot, onPeek: () => setPeekSlot((s) => (s === slot ? null : slot)) }
+    : undefined;
   return (
     <div className="flex flex-1 flex-col">
       <SessionHeader title={free ? t("web.wordbook.learned.free.title") : t("web.wordbook.review.title")}
@@ -286,7 +295,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
           )
         ) : question && CHOICE.has(question.qtype) ? (
           <ChoiceQuestion key={`${question.key}:${attempt}`} question={question} result={choiceResult} busy={busy}
-            onAnswer={(choice) => void send({ choice })} {...listen} />
+            onAnswer={(choice) => void send({ choice })} after={after} {...listen} />
         ) : question ? (
           <TypingQuestion key={`${question.key}:${attempt}`} question={question} result={answer?.result ?? null} busy={busy}
             onSubmit={(a) => void send(a)} {...listen} />
@@ -301,6 +310,10 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
               : choiceResult?.correctOption ? t("web.wordbook.quiz.wrong", { answer: choiceResult.correctOption }) : t("web.wordbook.quiz.wrongPlain")
             : answer ? t(`web.wordbook.outcome.${answer.result.outcome}`) : ""}
         </p>
+        {afterQuestion && answer ? (
+          <AfterAnswerPanel question={afterQuestion} result={answer.result} card={batch?.cards[afterQuestion.key]} defLang={defLang}
+            peek={peekSlot === slot} {...listen} />
+        ) : null}
         {actionError ? <p role="alert" className="mt-2 text-sub text-ink">{actionError}</p> : null}
       </div>
       {recall && !answer && !check ? <RecallRatingBar busy={busy} onRate={rateRecall} /> : null}
