@@ -1,7 +1,6 @@
 import { BarChart3Icon, BookOpenIcon, CalendarCheckIcon, ClockIcon, FlameIcon, MessageSquareIcon, MicIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
@@ -12,7 +11,7 @@ import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
-import { goPractice, savePracticeItem } from "~/features/practice";
+import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
 import { ScoreChart } from "./score-chart";
@@ -23,7 +22,7 @@ const oneDecimal = (n: number) => Math.round(n * 10) / 10;
 export function ProgressPage() {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const [days, setDays] = useState<StatsPeriod>(7);
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +137,7 @@ export function ProgressPage() {
                           {w.word} <span className="num text-meta font-normal text-ink-2">×{w.count}</span>
                         </span>
                         <IconButton label={`${t("web.progress.practice")}: ${w.word}`} tone="blue" data-testid="progress-word-practice"
-                          onClick={() => goPractice(navigate, w.word)}><MicIcon /></IconButton>
+                          onClick={() => openShadow({ text: w.word, source: "manual" })}><MicIcon /></IconButton>
                         <IconButton label={`${t("web.progress.save")}: ${w.word}`} data-testid="progress-word-save" className="text-ink-2"
                           onClick={() => void savePracticeItem(api, t, w.word, "chat")}><StarIcon /></IconButton>
                         <WordActions testId="progress-word-vocab" label={`${t("web.vocabulary.add")}: ${w.word}`} variant="icon" target={{ word: w.word, source: "progress" }} />
