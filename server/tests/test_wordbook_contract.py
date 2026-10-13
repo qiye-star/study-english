@@ -126,6 +126,12 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
                  ("learned_list", "items"), ("free_start", "items")):
         assert isinstance(expected[path[0]][path[1]], list) and expected[path[0]][path[1]], path
     assert expected["explain_unavailable"] == {"error": "AI explanation unavailable"}
+    # 答题后的选项信息(计划 2026-10-13-review-after-answer S3):学新词的 meaning 题先经 learn/batch 出题,备忘必命中
+    choice = expected["answer_choice"]
+    assert choice["option_info"] and set(choice["option_info"][0]) == {"option", "word", "defs_zh", "defs_en"}
+    assert choice["option_info"][0]["defs_zh"] and choice["correct_option"] in {i["option"] for i in choice["option_info"]}
+    assert choice["phrases"] and set(choice["phrases"][0]) == {"en", "zh"} and set(choice["example"]) == {"id", "en", "zh"}
+    assert not {"option_info", "phrases", "example"} & set(expected["answer_typed"])  # 非选择题保持旧形状
     assert expected["answer_recall"]["rating"] == "fuzzy"
     assert expected["answer_check"]["outcome"] == "pending" and expected["answer_check"]["check"]["options"]
     assert expected["learned_list"]["next_cursor"] and expected["answer_free"]["applied"] is True
