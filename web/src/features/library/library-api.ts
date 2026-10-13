@@ -38,6 +38,8 @@ export interface LibraryItem {
   resumeIdx: number;
   ratePct: number;
   hasPoster: boolean;
+  /** D5:句边界可能不准(服务端合理性检查;重新识别后重算) */
+  lowConfidence: boolean;
   createdAt: string;
   lastOpenedAt: string | null;
 }
@@ -245,6 +247,9 @@ export const LIBRARY_SERVER_ERRORS: Record<string, string> = {
   "Item is not ready": "web.library.errors.notReady",
   "Item has not failed": "web.library.errors.invalidState",
   "Nothing left to retry": "web.library.errors.invalidState",
+  "Item cannot be reprocessed": "web.library.errors.notReprocessable",
+  "Transcription is not available": "web.library.errors.asrUnavailable",
+  "Daily transcription limit reached": "web.library.errors.asrLimited",
   "Item cannot be canceled": "web.library.errors.invalidState",
   "No changes": "web.library.errors.invalidState",
   "Invalid resume position": "web.library.errors.invalidState",

@@ -128,6 +128,9 @@
         "uploadExpired": "上传已过期,请删除后重新上传。",
         "aiDisabled": "本服务器没有开启 AI 辅助。",
         "aiUnavailable": "AI 辅助暂时不可用,请稍后再试。",
+        "notReprocessable": "这条素材现在不能重新识别。",
+        "asrUnavailable": "本服务器没有开启自动转写。",
+        "asrLimited": "今天的自动转写额度已用完,明天再试。",
         "kind": {
           "too_large": "文件超过了单个文件的大小上限。",
           "too_long": "时长超过了单条上限。",

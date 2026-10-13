@@ -9,7 +9,7 @@ import type { UploadJob } from "./upload-store";
 
 const base: LibraryItem = {
   id: "i1", kind: "video", source: "upload", title: "Lecture 1", status: "ready", stage: null, progress: 100, errorKind: null,
-  durationMs: 125_000, segCount: 3, libraryBytes: 5 * 1024 * 1024, subSource: "uploaded", resumeMs: 0, resumeIdx: 0, ratePct: 100, hasPoster: true,
+  durationMs: 125_000, segCount: 3, libraryBytes: 5 * 1024 * 1024, subSource: "uploaded", resumeMs: 0, resumeIdx: 0, ratePct: 100, hasPoster: true, lowConfidence: false,
   createdAt: "2026-10-13T08:00:00Z", lastOpenedAt: null,
 };
 const handlers = (): ItemCardHandlers => ({

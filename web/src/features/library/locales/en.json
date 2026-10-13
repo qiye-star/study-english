@@ -128,6 +128,9 @@
         "uploadExpired": "The upload expired. Delete it and upload again.",
         "aiDisabled": "AI help is turned off on this server.",
         "aiUnavailable": "AI help is unavailable right now. Try again later.",
+        "notReprocessable": "This item cannot be re-recognized right now.",
+        "asrUnavailable": "Automatic transcription is not enabled on this server.",
+        "asrLimited": "Today's transcription allowance is used up. Try again tomorrow.",
         "kind": {
           "too_large": "The file is larger than the upload limit.",
           "too_long": "It is longer than the allowed length.",

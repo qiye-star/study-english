@@ -31,7 +31,7 @@ const LIMITS: Record<keyof LibraryLimits, true> = {
 const ITEM: Record<keyof LibraryItem, true> = {
   id: true, kind: true, source: true, title: true, status: true, stage: true, progress: true, errorKind: true, durationMs: true,
   segCount: true, libraryBytes: true, subSource: true, resumeMs: true, resumeIdx: true, ratePct: true, hasPoster: true,
-  createdAt: true, lastOpenedAt: true,
+  lowConfidence: true, createdAt: true, lastOpenedAt: true,
 };
 const DETAIL: Record<keyof LibraryItemDetail, true> = { ...ITEM, segments: true };
 const SEGMENT: Record<keyof LibrarySegment, true> = {
@@ -115,6 +115,20 @@ describe("library contract (server fixture)", () => {
 
   it.skipIf(!has("analysis"))("analysis returns {analysis, cached} (S1 records it; Z removes the skip)", () => {
     expect(keysOf(cc<{ analysis: string; cached: boolean }>(c.analysis))).toEqual(["analysis", "cached"]);
+  });
+
+  it("reprocess returns the queued item, and refuses a non-recognized item with the fixed text (D7)", () => {
+    const queued = unwrapItem(cc<unknown>(c.reprocess));
+    expect(keysOf(queued)).toEqual(keys(ITEM));
+    expect(queued.status).toBe("queued");
+    expect(queued.lowConfidence).toBe(false);
+    expect(c.reprocess_error).toEqual({ error: "Item cannot be reprocessed" });
+  });
+
+  it("every item carries the low_confidence flag as a boolean", () => {
+    const page = cc<{ items: LibraryItem[] }>(c.items);
+    for (const item of page.items) expect(typeof item.lowConfidence).toBe("boolean");
+    expect(typeof unwrapDetail(cc<unknown>(c.item_detail)).lowConfidence).toBe("boolean");
   });
 
   it("every fixed server error text is translated (fixture key `errors`: code -> text)", () => {
