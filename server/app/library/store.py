@@ -1,6 +1,6 @@
 """跟读库的数据库读写(spec §4、§9)。所有用户可见的查询都带 user_id:别人的 id 一律当作不存在。
 SQLite 没有外键级联:删条目显式删 attempts → segments → item(`delete_item_rows`)。
-本模块只读写库(停任务、删文件的 `cancel_item` / `delete_item` 由 Task 11 追加)。标题、链接、句子文本永远不进日志。"""
+除 `cancel_item` / `delete_item`(停任务、删文件,路由与管理端共用)外只读写库。标题、链接、句子文本永远不进日志。"""
 import hashlib
 import re
 from datetime import datetime, timedelta
@@ -9,6 +9,7 @@ from pathlib import PurePath
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.library import paths
 from app.library.limits import (
     ACTIVE, AUDIO_EXTENSIONS, FAILED_KEEP_DAYS, LIST_LIMIT, TITLE_MAX, UPLOAD_EXPIRE_HOURS,
 )
@@ -129,6 +130,39 @@ async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
     await session.execute(delete(LibraryAttempt).where(LibraryAttempt.item_id == item_id))
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item_id))
     await session.execute(delete(LibraryItem).where(LibraryItem.id == item_id))
+
+
+async def cancel_item(session: AsyncSession, app, item: LibraryItem) -> bool:
+    """spec §6.5: an uploading / queued / processing item becomes `canceled`, its job and subprocesses stop, its
+    staging and media files go, its tickets die. False = it was not active (nothing changed). Commits.
+    Shared by `POST /api/library/items/{id}/cancel` and the admin console (plan A)."""
+    done = await session.execute(update(LibraryItem).where(LibraryItem.id == item.id, LibraryItem.status.in_(ACTIVE))
+                                 .values(status="canceled", stage=None, updated_at=utcnow()))
+    await session.commit()
+    if done.rowcount != 1:
+        return False
+    worker = app.state.library
+    await worker.cancel(item.id)
+    worker.tickets.revoke_item(item.id)
+    paths.remove_item_files(app.state.library.deps.data_dir, item.user_id, item.id)
+    await session.execute(update(LibraryItem).where(LibraryItem.id == item.id).values(
+        media_path=None, poster_path=None, library_bytes=0, error_kind=None, source_url=None))
+    await session.commit()
+    await session.refresh(item)
+    return True
+
+
+async def delete_item(session: AsyncSession, app, item: LibraryItem) -> None:
+    """spec §4 / §6.5: deleting implies canceling; then explicit deletes of attempts, sentences and the item, and
+    both directories. Commits. Shared by `DELETE /api/library/items/{id}` and the admin console (plan A).
+    Assessments and recordings made while shadowing stay (they belong to the practice history)."""
+    item_id, user_id = item.id, item.user_id
+    if item.status in ACTIVE:
+        await cancel_item(session, app, item)
+    await delete_item_rows(session, item_id)
+    await session.commit()
+    app.state.library.tickets.revoke_item(item_id)
+    paths.remove_item_files(app.state.library.deps.data_dir, user_id, item_id)
 
 
 # ---- the worker's queue ----

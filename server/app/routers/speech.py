@@ -32,7 +32,7 @@ MAX_ASSESSMENT_BYTES = 25 * 1024 * 1024
 MAX_ASSESSMENT_SECONDS = 300
 ASSESSMENT_RATE = 16000
 TRUTHY = {"true", "1", "yes"}
-SOURCES = ("practice", "chat")
+SOURCES = ("practice", "chat", "library")
 BAD_WAV = "Audio must be a 16 kHz mono 16-bit WAV"
 
 

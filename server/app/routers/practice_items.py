@@ -18,7 +18,7 @@ ItemId = Annotated[str, Path(max_length=64)]
 
 class PracticeItemIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
-    source: Literal["chat", "lookup", "grammar", "manual"] = "manual"
+    source: Literal["chat", "lookup", "grammar", "manual", "library"] = "manual"
 
     @field_validator("text")
     @classmethod
