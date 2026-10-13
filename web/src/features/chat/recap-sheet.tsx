@@ -1,14 +1,13 @@
 import { LoaderIcon, MicIcon, SquareIcon, StarIcon, Volume2Icon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { cn } from "~/lib/cn";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { scoreToneClass } from "~/components/score-tone";
-import { goPractice, savePracticeItem } from "~/features/practice";
+import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import type { StoredRecap } from "./chat-api";
 import type { Level } from "./levels";
 import { RECAP_SERVER_ERRORS, computeRecapFacts, generateRecap, isRecapStale } from "./recap";
@@ -47,7 +46,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
 }) {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const facts = useMemo(() => computeRecapFacts(messages), [messages]);
   const [local, setLocal] = useState<StoredRecap | null>(null); // 本次生成(可能未保存成功)
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -99,7 +98,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
     }
   };
 
-  const practice = (text: string) => { onOpenChange(false); goPractice(navigate, text); };
+  const practice = (text: string, source: "chat" | "grammar") => { onOpenChange(false); openShadow({ text, source }); };
   const speakButton = (testId: string, key: string, text: string) => {
     const state = speakStates[key] ?? "idle";
     return (
@@ -149,7 +148,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                           <span className="mt-0.5 block text-meta text-ink-2">{g.sentence}</span>
                         </span>
                         {speakButton("recap-grammar-speak", recapSpeakKey("grammar", i), g.sentence)}
-                        <IconAction testId="recap-grammar-practice" label={t("web.chat.recap.practice")} onClick={() => practice(g.sentence)}><MicIcon aria-hidden /></IconAction>
+                        <IconAction testId="recap-grammar-practice" label={t("web.chat.recap.practice")} onClick={() => practice(g.sentence, "grammar")}><MicIcon aria-hidden /></IconAction>
                         <IconAction testId="recap-grammar-save" label={t("web.chat.recap.save")} onClick={() => void savePracticeItem(api, t, g.sentence, "grammar")}><StarIcon aria-hidden /></IconAction>
                       </li>
                     ))}
@@ -164,7 +163,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                       <li key={w} data-testid="recap-poor-word" className="flex items-center rounded-card border-[0.5px] border-hair bg-surface pl-3">
                         <span className="mr-1 rounded-[4px] bg-amber-tint px-[3px] text-body font-medium text-amber">{w}</span>
                         {speakButton("recap-poor-word-speak", recapSpeakKey("word", i), w)}
-                        <IconAction testId="recap-poor-word-practice" label={t("web.chat.recap.practice")} onClick={() => practice(w)}><MicIcon aria-hidden /></IconAction>
+                        <IconAction testId="recap-poor-word-practice" label={t("web.chat.recap.practice")} onClick={() => practice(w, "chat")}><MicIcon aria-hidden /></IconAction>
                         <IconAction testId="recap-poor-word-save" label={t("web.chat.recap.save")} onClick={() => void savePracticeItem(api, t, w, "chat")}><StarIcon aria-hidden /></IconAction>
                         {extraActions?.poorWord?.(w)}
                       </li>
@@ -207,7 +206,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                         <span className="mt-0.5 block text-meta text-ink-2">{e.zh}</span>
                       </span>
                       {speakButton("recap-expression-speak", recapSpeakKey("expression", i), e.text)}
-                      <IconAction testId="recap-expression-practice" label={t("web.chat.recap.practice")} onClick={() => practice(e.text)}><MicIcon aria-hidden /></IconAction>
+                      <IconAction testId="recap-expression-practice" label={t("web.chat.recap.practice")} onClick={() => practice(e.text, "chat")}><MicIcon aria-hidden /></IconAction>
                       <IconAction testId="recap-expression-save" label={t("web.chat.recap.save")} onClick={() => void savePracticeItem(api, t, e.text, "chat")}><StarIcon aria-hidden /></IconAction>
                       {extraActions?.expression?.(e.text, e.zh)}
                     </li>

@@ -2677,7 +2677,20 @@ describe("ConversationPage", () => {
       await userEvent.click(await screen.findByTestId("recap-grammar-save"));
       await waitFor(() => expect(bodyOf(callsTo(mock, "POST", "/api/practice-items")[0])).toEqual({ text: "Yesterday I went home.", source: "grammar" }));
       await userEvent.click(screen.getByTestId("recap-poor-word-practice"));
-      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("meet");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+      expect(screen.queryByTestId("recap-sheet")).toBeNull(); // 先关复盘面板
+    });
+
+    it("opens a recap grammar sentence in the shadow sheet", async () => {
+      setup(routes({ "GET /api/conversations/c1/messages": () => json(LOADED) }));
+      await screen.findByText("You too!");
+      await userEvent.click(await headerOption("conversation-recap"));
+      await userEvent.click(await screen.findByTestId("recap-grammar-practice"));
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Yesterday I went home.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
     });
 
     it("with no user messages shows the empty state and cannot generate", async () => {
