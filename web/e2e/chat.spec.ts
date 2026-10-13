@@ -265,8 +265,9 @@ test("grammar: a correct and a wrong typed message; the corrected sentence goes 
   expect(corrected).not.toBe("Yesterday I go to the park and buy two apple.");
   console.log(`grammar: corrected=${corrected}`);
   await page.getByTestId("grammar-practice").click();
-  await expect(page).toHaveURL(/\/practice$/);
-  await expect(page.getByTestId("reference-input")).toHaveValue(corrected);
+  await expect(page.getByTestId("shadow-sheet")).toBeVisible();
+  await expect(page).toHaveURL(/\/chat\//);
+  await expect(page.getByTestId("shadow-reference")).toContainText(corrected);
 });
 
 test("translation on demand is cached when toggled; bilingual mode translates new replies", async ({ page, request }) => {

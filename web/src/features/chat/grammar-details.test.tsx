@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { GrammarDetails } from "./grammar-details";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
@@ -16,10 +17,11 @@ const RESULT = {
 
 function setup(save: Handler) {
   const mock = createFetchMock({ "POST /api/practice-items": save });
-  const view = renderWithProviders(<GrammarDetails result={RESULT} onClose={vi.fn()} />, {
+  const onClose = vi.fn();
+  const view = renderWithProviders(<WithShadowSheet><GrammarDetails result={RESULT} onClose={onClose} /></WithShadowSheet>, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1",
   });
-  return { mock, view };
+  return { mock, view, onClose };
 }
 
 describe("GrammarDetails save button", () => {
@@ -62,5 +64,18 @@ describe("GrammarDetails save button", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(err).not.toHaveBeenCalled();
     err.mockRestore();
+  });
+});
+
+describe("GrammarDetails practice button", () => {
+  it("closes the details and opens the shadow sheet with the corrected sentence, without navigating", async () => {
+    const { onClose } = setup(() => json({ id: "p1", text: "x", source: "grammar", created_at: "t" }));
+    await userEvent.click(screen.getByTestId("grammar-practice"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("She doesn't like coffee.");
+    expect(screen.queryByTestId("shadow-position")).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
+    expect(screen.getByTestId("location").getAttribute("data-state")).toBe("null");
   });
 });

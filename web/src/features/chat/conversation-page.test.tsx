@@ -1821,7 +1821,9 @@ describe("ConversationPage", () => {
       await waitFor(() => expect(callsTo(mock, "POST", "/api/practice-items")).toHaveLength(1));
       expect(JSON.parse(callsTo(mock, "POST", "/api/practice-items")[0].body as string)).toEqual({ text: "She doesn't like coffee.", source: "grammar" });
       await userEvent.click(screen.getByTestId("grammar-practice"));
-      expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+      expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+      expect(screen.getByTestId("shadow-reference")).toHaveTextContent("She doesn't like coffee.");
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
     });
 
     it("shows a clean badge for a correct message and persists the result", async () => {

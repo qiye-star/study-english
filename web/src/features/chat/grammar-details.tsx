@@ -1,16 +1,15 @@
 import { LoaderIcon, MicIcon, StarIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { useAuth } from "~/auth/auth-context";
 import type { GrammarResult } from "~/features/grammar";
-import { goPractice, savePracticeItem } from "~/features/practice";
+import { savePracticeItem, useShadowSheet } from "~/features/practice";
 
 export function GrammarDetails({ result, onClose }: { result: GrammarResult; onClose(): void }) {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false); // 同步防连点:state 在同一帧内仍是旧值
   const mountedRef = useRef(true);
@@ -54,7 +53,7 @@ export function GrammarDetails({ result, onClose }: { result: GrammarResult; onC
             <p data-testid="grammar-corrected" data-lookup-context className="select-text text-title font-medium leading-dialogue text-ink">{result.corrected}</p>
             <div className="flex gap-2">
               <Button variant="outline" data-testid="grammar-practice" className="h-11 flex-1 rounded-button border-[0.5px] border-hair bg-surface text-ink"
-                onClick={() => { onClose(); goPractice(navigate, result.corrected); }}>
+                onClick={() => { onClose(); openShadow({ text: result.corrected, source: "grammar" }); }}>
                 <MicIcon className="mr-2 h-4 w-4" />{t("web.grammar.practice")}
               </Button>
               <Button variant="outline" data-testid="grammar-save" className="h-11 flex-1 rounded-button border-[0.5px] border-hair bg-surface text-ink" disabled={saving}
