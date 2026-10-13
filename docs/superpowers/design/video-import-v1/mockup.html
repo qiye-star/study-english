@@ -112,12 +112,53 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 .ana{margin:4px 0 6px 39px;padding:12px;border-radius:12px;background:var(--surface-2);font-size:13px;line-height:1.6}
 .ana h4{font-size:12px;color:var(--teal);font-weight:600;margin:8px 0 2px}.ana h4:first-child{margin-top:0}
 .ana .hd{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-3);margin-bottom:6px}
+
+/* ===== Glass pass (v2): 沿用 index.css 的 .glass 配方 blur(20px) saturate(1.8);每屏最多 3 处真实模糊,其余用半透明 + 高光描边;.lite 机型退回实色 ===== */
+.phone{--glass-bg:rgba(255,255,255,.62);--glass-edge:rgba(255,255,255,.72);--glass-hi:inset 0 1px 0 rgba(255,255,255,.85);--glass-sh:0 10px 28px -10px rgba(17,19,24,.22)}
+.gls,.hdr:not(.dk),.tabbar,.sheet,.ctrl,.more,.rec{background:var(--glass-bg);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+.hdr:not(.dk){border-bottom:.5px solid rgba(17,19,24,.06);box-shadow:var(--glass-hi)}
+.tabbar{background:rgba(255,255,255,.7);border-top:.5px solid rgba(17,19,24,.08);box-shadow:var(--glass-hi)}
+.sheet{background:rgba(255,255,255,.78);border:.5px solid var(--glass-edge);border-bottom:none;box-shadow:var(--glass-hi),0 -12px 40px -12px rgba(17,19,24,.3)}
+.scrim{background:linear-gradient(180deg,rgba(17,19,24,.18),rgba(17,19,24,.42))}
+.fab{background:linear-gradient(180deg,rgba(60,112,236,.9),rgba(36,86,219,.9));-webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6);border:.5px solid rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 10px 24px -6px rgba(36,86,219,.55)}
+.hdr.dk{background:rgba(13,16,23,.34);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);border-bottom:.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.media{top:47px;height:263px;background:radial-gradient(120% 90% at 30% 20%,#33435f 0%,#121722 70%)}
+.media .play{margin-top:44px}
+.media .tl{background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.ctrl{background:rgba(255,255,255,.66);border-top:.5px solid var(--glass-edge);box-shadow:var(--glass-hi),0 -10px 30px -12px rgba(17,19,24,.18)}
+.chip{background:rgba(17,19,24,.05);border:.5px solid rgba(17,19,24,.06)}
+.chip.on{background:rgba(36,86,219,.12);border-color:rgba(36,86,219,.22)}
+.ctrl .main i.pp{background:linear-gradient(180deg,#3c70ec,#2456db);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 18px -6px rgba(36,86,219,.6)}
+.rec{border-top:.5px solid var(--glass-edge);background:rgba(255,255,255,.72)}
+.more{background:rgba(255,255,255,.74);border:.5px solid var(--glass-edge);box-shadow:var(--glass-hi),var(--glass-sh)}
+.more div+div{border-top:.5px solid rgba(17,19,24,.06)}
+.bar2{background:rgba(17,19,24,.62);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);border:.5px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 12px 28px rgba(17,19,24,.34)}
+/* 无真实模糊的半透明玻璃(卡片、分数、分析卡):高光描边 + 轻阴影 */
+.card{background:rgba(255,255,255,.58);border:.5px solid rgba(255,255,255,.75);box-shadow:var(--glass-hi),0 6px 18px -10px rgba(17,19,24,.2)}
+.score,.ana{background:rgba(255,255,255,.55);border:.5px solid rgba(255,255,255,.8);box-shadow:var(--glass-hi),0 6px 18px -12px rgba(17,19,24,.2)}
+.edit{background:rgba(255,255,255,.6);border:.5px solid rgba(255,255,255,.8);box-shadow:var(--glass-hi)}
+.mini{background:rgba(255,255,255,.75);border:.5px solid rgba(17,19,24,.08);box-shadow:var(--glass-hi)}
+.drop{background:rgba(255,255,255,.5);border-color:rgba(36,86,219,.35)}
+.inp{background:rgba(255,255,255,.7)}
+.seg{background:rgba(17,19,24,.05)}.seg div.on{box-shadow:var(--glass-hi),0 1px 3px rgba(0,0,0,.1)}
+.note.gray{background:rgba(17,19,24,.05)}
+.seg-row.cur{background:linear-gradient(90deg,rgba(36,86,219,.16),rgba(36,86,219,.06));border-left-color:var(--blue)}
+/* 极光背景:玻璃需要被模糊的东西(参考 reactbits 的 Aurora / Silk 背景的思路,这里只用 3 个静态渐变斑点,无动画,省电) */
+.aur{background:
+  radial-gradient(60% 40% at 12% 8%,rgba(120,150,255,.38),transparent 70%),
+  radial-gradient(55% 38% at 92% 28%,rgba(120,220,205,.34),transparent 70%),
+  radial-gradient(60% 40% at 30% 92%,rgba(255,190,150,.30),transparent 70%),#f4f6fc}
+.phone .list{background:
+  radial-gradient(70% 30% at 90% 10%,rgba(120,220,205,.28),transparent 70%),
+  radial-gradient(70% 35% at 10% 70%,rgba(130,150,255,.26),transparent 70%),#f4f6fc}
+.phone .body{background:transparent}
+.phone .tabbar div.on{color:var(--blue);font-weight:600}
 </style>
 </head>
 <body>
 <div class="canvas">
 <h1>跟读库 · 上传视频,跟着练习(设计稿 v1)</h1>
-<p class="lede">手机优先,375 × 812。入口是底部导航的独立标签「跟读库」;全部页面懒加载。下面 9 个画面覆盖:列表、添加(上传 / 链接)、播放与跟读、评分结果、点词查词、微调时间、双语与 AI 分析。颜色沿用 redesign-v3 令牌:蓝色=操作和当前句,绿 / 琥珀 / 红=发音分数,青色=词汇。</p>
+<p class="lede"><b>v2 磨砂玻璃版:</b>顶栏、底部标签、浮动按钮、弹层、控制条、菜单使用与全站一致的玻璃配方(blur 20 px + saturate 1.8 + 顶部高光描边);列表背景是三团静态极光渐变,让玻璃有东西可模糊;卡片和分数 / 分析卡用「半透明 + 高光边」不加真实模糊。<b>性能规则:</b>每屏真实模糊 ≤ 3 层(与联机页同规则),低内存机型(<code>.lite</code>)自动退回实色,不做动画。<br>手机优先,375 × 812。入口是底部导航的独立标签「跟读库」;全部页面懒加载。下面 9 个画面覆盖:列表、添加(上传 / 链接)、播放与跟读、评分结果、点词查词、微调时间、双语与 AI 分析。颜色沿用 redesign-v3 令牌:蓝色=操作和当前句,绿 / 琥珀 / 红=发音分数,青色=词汇。</p>
 <ul class="notes">
 <li><b>主流程:</b>添加素材 → 处理(识别 / 断句)→ 点进播放器 → 听一句 → 点话筒跟读 → 看分数和逐词着色 → 对比原声 → 下一句。</li>
 <li><b>点句子 = 跳到该句播放;</b>单句循环、速度、盲听放在底部固定的控制条;录音时自动暂停媒体(录音与播放不并行,避免 iOS 音频冲突)。</li>
@@ -131,7 +172,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <div class="spec"><div class="phone">
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
-<div class="body">
+<div class="body aur">
  <div class="quota"><span>已用 680 MB / 2 GB</span><div class="bar"><b></b></div><span>5 / 100 条</span></div>
  <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">12:08</span></div><div class="m"><div class="t">Friends S01E01 – The One Where Monica Gets a Roommate</div><div class="s"><span class="badge g">已就绪</span><span class="badge">上传字幕</span></div><div class="s">214 句 · 312 MB</div></div></div>
  <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">04:21</span></div><div class="m"><div class="t">How to Learn Any Language Fast – TED</div><div class="s"><span class="badge b">识别中</span>生成句子 62%</div><div class="prog"><b></b></div></div></div>
@@ -148,7 +189,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <div class="spec"><div class="phone">
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
-<div class="body"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
+<div class="body aur"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
 <div class="scrim"></div>
 <div class="sheet"><div class="grab"></div>
  <div class="seg"><div class="on">上传文件</div><div>粘贴链接</div></div>
@@ -166,7 +207,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <div class="spec"><div class="phone">
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
-<div class="body"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
+<div class="body aur"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
 <div class="scrim"></div>
 <div class="sheet"><div class="grab"></div>
  <div class="seg"><div>上传文件</div><div class="on">粘贴链接</div></div>
@@ -186,7 +227,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 4 播放器 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-pause-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row"><div class="n">11</div><div class="tx">Wait, does he know you’re here?<div class="sub"></div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
@@ -205,7 +246,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 5 录音 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?</div><div class="mic"><i class="ti ti-microphone-filled"></i></div></div>
@@ -218,7 +259,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 6 结果 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-play-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row cur"><div class="n">12</div><div class="tx"><span class="w-g">So,</span> <span class="w-g">Rachel,</span> <span class="w-g">what</span> <span class="w-g">are</span> <span class="w-g">you</span> <span class="w-a">going</span> <span class="w-g">to</span> <span class="w-g">do</span> <span class="w-r">now?</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
@@ -236,7 +277,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 7 点词 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">I don’t know. I’ll find a job, I guess…</div><div class="tl"><span>03:20</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row cur"><div class="n">13</div><div class="tx">I don’t know. I’ll find a <span style="background:#cfe0ff;border-radius:4px;padding:0 2px">job</span>, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
@@ -249,7 +290,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 8 微调 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-play-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
@@ -269,7 +310,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <!-- 9 双语与分析 -->
 <div class="spec"><div class="phone">
 <div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
-<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="hdr dk"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
 <div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
 <div class="list">
  <div class="seg-row"><div class="n">11</div><div class="tx">Wait, does he know you’re here?<div class="zh">等等,他知道你在这儿吗?</div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
