@@ -134,6 +134,7 @@ export function ShadowSheet({ request, onClose, recorderEnv }: ShadowSheetProps)
   const { reset } = session;
 
   const [faved, setFaved] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [favPending, setFavPending] = useState(false);
   const favLock = useRef(false);
 
@@ -176,7 +177,18 @@ export function ShadowSheet({ request, onClose, recorderEnv }: ShadowSheetProps)
     : null;
   const errorText = session.error ?? keptNotice ?? "";
 
-  const requestClose = () => onClose();
+  // 录音 / 评测 / 申请麦克风中关闭先确认(R-S16);确认出现时再关一次(Escape / 遮罩)= 继续
+  const requestClose = () => {
+    if (confirming) {
+      setConfirming(false);
+      return;
+    }
+    if (busyNav) setConfirming(true);
+    else onClose();
+  };
+  useEffect(() => {
+    if (!busyNav) setConfirming(false); // 录音结束(出分 / 出错 / 取消)时问题自动消失
+  }, [busyNav]);
 
   const touchStart = useRef<number | null>(null);
   const onTouchEnd = (e: TouchEvent) => {
@@ -340,6 +352,22 @@ export function ShadowSheet({ request, onClose, recorderEnv }: ShadowSheetProps)
               </>
             )}
           </div>
+          {confirming && (
+            <div data-testid="shadow-confirm" className="shs-confirm" role="alertdialog" aria-labelledby="shs-confirm-title" aria-describedby="shs-confirm-body">
+              <div className="shs-confirm-card">
+                <h5 id="shs-confirm-title">{t("web.practice.shadow.confirm.title")}</h5>
+                <p id="shs-confirm-body">{t("web.practice.shadow.confirm.body")}</p>
+                <div className="shs-btns">
+                  <button type="button" data-testid="shadow-confirm-keep" className="shs-btn shs-btn--ghost shs-tint" onClick={() => setConfirming(false)}>
+                    {t("web.practice.shadow.confirm.keep")}
+                  </button>
+                  <button type="button" data-testid="shadow-confirm-drop" className="shs-btn shs-btn--stop" onClick={onClose}>
+                    {t("web.practice.shadow.confirm.drop")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

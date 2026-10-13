@@ -1,5 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
@@ -306,5 +307,108 @@ describe("ShadowSheet", () => {
     view.unmount();
     await waitFor(() => expect(fake.track.stop).toHaveBeenCalled());
     expect(mock.calls.every((c) => !decodeURIComponent(c.url.href).includes("latte"))).toBe(true);
+  });
+});
+
+function Closable({ onClosed, env }: { onClosed: () => void; env: ReturnType<typeof createFakeRecorderEnv>["env"] }) {
+  const [open, setOpen] = useState(true);
+  return open ? (
+    <ShadowSheet request={{ id: 1, items: [REFERENCE], index: 0, source: "chat" }} recorderEnv={env}
+      onClose={() => { onClosed(); setOpen(false); }} />
+  ) : null;
+}
+
+function setupClosable(routes: Record<string, Handler> = {}) {
+  const mock = createFetchMock({ ...CONFIG_ROUTES, ...routes });
+  const fake = createFakeRecorderEnv();
+  const onClosed = vi.fn();
+  renderWithProviders(<Closable onClosed={onClosed} env={fake.env} />, {
+    api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1",
+  });
+  return { mock, fake, onClosed };
+}
+
+describe("ShadowSheet close confirmation", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetServerAiConfigCache();
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:mine"), revokeObjectURL: vi.fn() });
+    Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
+  });
+
+  it("closes at once when nothing is in progress", async () => {
+    const { onClosed } = setupClosable();
+    await userEvent.click(screen.getByTestId("shadow-close"));
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("shadow-sheet")).toBeNull();
+  });
+
+  it("asks before closing while recording; Keep going resumes, Discard closes and releases the microphone", async () => {
+    const { fake, onClosed } = setupClosable();
+    await userEvent.click(screen.getByTestId("shadow-record"));
+    await screen.findByTestId("shadow-stop");
+    await userEvent.click(screen.getByTestId("shadow-close"));
+    expect(screen.getByTestId("shadow-confirm")).toBeInTheDocument();
+    expect(onClosed).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId("shadow-confirm-keep"));
+    expect(screen.queryByTestId("shadow-confirm")).toBeNull();
+    expect(screen.getByTestId("shadow-stop")).toBeInTheDocument(); // 仍在录音
+    expect(fake.track.stop).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId("shadow-scrim"));
+    expect(screen.getByTestId("shadow-confirm")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("shadow-confirm-drop"));
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("shadow-sheet")).toBeNull();
+    await waitFor(() => expect(fake.track.stop).toHaveBeenCalled());
+  });
+
+  it("Escape asks too, and a second Escape or a scrim tap dismisses the question (keep going)", async () => {
+    setupClosable();
+    await userEvent.click(screen.getByTestId("shadow-record"));
+    await screen.findByTestId("shadow-stop");
+    await userEvent.keyboard("{Escape}");
+    expect(await screen.findByTestId("shadow-confirm")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("shadow-scrim"));
+    expect(screen.queryByTestId("shadow-confirm")).toBeNull();
+    expect(screen.getByTestId("shadow-sheet")).toBeInTheDocument();
+  });
+
+  it("asks while assessing; Discard aborts the upload and drops the late score", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { mock, onClosed } = setupClosable({ "POST /api/speech/assessments": async () => { await gate; return json(ASSESSED); } });
+    await recordAndStop();
+    await screen.findByTestId("shadow-assessing");
+    await userEvent.click(screen.getByTestId("shadow-close"));
+    expect(screen.getByTestId("shadow-confirm")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("shadow-confirm-drop"));
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(assessCalls(mock)[0].signal?.aborted).toBe(true));
+    await act(async () => { release(); await new Promise((r) => setTimeout(r, 10)); });
+    expect(screen.queryByTestId("shadow-sheet")).toBeNull();
+  });
+
+  it("the question goes away by itself when the score arrives", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    setupClosable({ "POST /api/speech/assessments": async () => { await gate; return json(ASSESSED); } });
+    await recordAndStop();
+    await screen.findByTestId("shadow-assessing");
+    await userEvent.click(screen.getByTestId("shadow-close"));
+    expect(screen.getByTestId("shadow-confirm")).toBeInTheDocument();
+    await act(async () => { release(); });
+    expect(await screen.findByTestId("shadow-result")).toBeInTheDocument();
+    expect(screen.queryByTestId("shadow-confirm")).toBeNull();
+  });
+
+  it("a downward swipe on the grabber asks as well", async () => {
+    setupClosable();
+    await userEvent.click(screen.getByTestId("shadow-record"));
+    await screen.findByTestId("shadow-stop");
+    const grab = screen.getByTestId("shadow-sheet").querySelector(".shs-grab-zone")!;
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.touchStart(grab, { touches: [{ clientY: 100 }] });
+    fireEvent.touchEnd(grab, { changedTouches: [{ clientY: 200 }] });
+    expect(screen.getByTestId("shadow-confirm")).toBeInTheDocument();
   });
 });
