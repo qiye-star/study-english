@@ -48,6 +48,18 @@ async def test_run_streams_stdout_lines():
     assert seen == ["a=1", "b=2"] and result.stdout == b""
 
 
+async def test_run_reads_one_very_long_stdout_line():
+    # yt-dlp --dump-single-json prints the whole description on ONE line, far over asyncio's 64 KiB default limit.
+    result = await media.run(py("import sys; sys.stdout.write('x' * 3_000_000 + chr(10))"), timeout=30)
+    assert result.returncode == 0 and len(result.stdout.strip()) == 3_000_000
+
+
+async def test_run_reads_one_very_long_line_through_the_callback():
+    seen = []
+    result = await media.run(py("import sys; sys.stdout.write('y' * 500_000 + chr(10))"), timeout=30, on_stdout_line=seen.append)
+    assert result.returncode == 0 and [len(x) for x in seen] == [500_000]
+
+
 async def test_run_times_out_and_kills():
     result = await media.run(py("import time; time.sleep(30)"), timeout=0.5)
     assert result.timed_out and result.returncode != 0

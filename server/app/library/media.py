@@ -23,6 +23,8 @@ from app.library.asr_chunks import Silence, parse_silences
 from app.library.errors import LibraryError
 
 STDERR_CAP = 4 * 1024 * 1024
+# asyncio's StreamReader refuses a line over 64 KiB (ValueError); `yt-dlp --dump-single-json` prints everything on ONE line.
+STDOUT_LINE_LIMIT = 64 * 1024 * 1024
 KILL_GRACE_SECONDS = 5.0
 SAFE_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")  # SYSTEMROOT/TEMP: Windows dev machines
 THREADS = "2"
@@ -71,7 +73,7 @@ async def run(cmd: Sequence[str], *, timeout: float, env: Mapping[str, str] | No
     proc = await asyncio.create_subprocess_exec(
         *_prefix(), *cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE, env=dict(env) if env is not None else safe_env(),
-        cwd=str(cwd) if cwd is not None else None)
+        cwd=str(cwd) if cwd is not None else None, limit=STDOUT_LINE_LIMIT)
     out = bytearray()
     err = bytearray()
 
