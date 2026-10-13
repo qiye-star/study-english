@@ -1,7 +1,7 @@
 import type { ApiClient } from "~/api/client";
 import type { Paged } from "~/api/types";
 
-export type PracticeItemSource = "chat" | "lookup" | "grammar" | "manual";
+export type PracticeItemSource = "chat" | "lookup" | "grammar" | "manual" | "library";
 
 export interface PracticeItem {
   id: string;

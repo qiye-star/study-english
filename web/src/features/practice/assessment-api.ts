@@ -29,6 +29,9 @@ export interface AssessmentDetail extends AssessmentSummary {
   result: AssessmentResult;
 }
 
+/** 保存评测时的来源;服务端 routers/speech.py 的 SOURCES 必须同时含有它(library:跟读库,spec 2026-10-13-video-import §9)。 */
+export type AssessmentSource = "practice" | "chat" | "library";
+
 export const ASSESSMENT_TIMEOUT_MS = 330_000;
 
 export const PRACTICE_SERVER_ERRORS: Record<string, string> = {
@@ -48,7 +51,7 @@ const path = (id: string) => `/api/assessments/${encodeURIComponent(id)}`;
 
 export function assessPronunciation(
   api: ApiClient,
-  params: { wav: Blob; reference: string; language: string; save: boolean; source?: "practice" | "chat"; signal?: AbortSignal },
+  params: { wav: Blob; reference: string; language: string; save: boolean; source?: AssessmentSource; signal?: AbortSignal },
 ): Promise<AssessResponse> {
   const form = new FormData();
   form.append("file", new File([params.wav], "recording.wav", { type: "audio/wav" }));

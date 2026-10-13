@@ -22,7 +22,7 @@
       "list": {
         "entry": "清单", "title": "练习清单", "empty": "还没有收藏的句子。可以在对话或查词里收藏。",
         "saved": "已加入练习清单。", "deleteConfirm": "从清单中移除这句?",
-        "sources": { "chat": "对话", "lookup": "查词", "grammar": "语法改正", "manual": "手动添加" },
+        "sources": { "chat": "对话", "lookup": "查词", "grammar": "语法改正", "manual": "手动添加", "library": "跟读库" },
         "errors": { "limit": "练习清单已满,请先删除一些。", "notFound": "这句已不在清单里。" }
       }
     }

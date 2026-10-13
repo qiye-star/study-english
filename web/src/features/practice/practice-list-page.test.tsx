@@ -32,6 +32,11 @@ describe("PracticeListPage", () => {
     expect(JSON.parse(screen.getByTestId("state").textContent!)).toEqual({ reference: "Nice to meet you." });
   });
 
+  it("labels sentences saved from the shadowing library", async () => {
+    setup({ "GET /api/practice-items": () => json({ practice_items: [item("p1", "From a video.", "library")], page: 1, next: null }) });
+    expect(await screen.findByTestId("practice-item")).toHaveTextContent("Shadowing library");
+  });
+
   it("deletes an item after confirmation", async () => {
     const { mock } = setup({
       "GET /api/practice-items": () => json({ practice_items: [item("p1", "One.")], page: 1, next: null }),

@@ -1,4 +1,4 @@
-import { MessagesSquareIcon, PencilIcon, SearchIcon, SpellCheckIcon, Trash2Icon, type LucideIcon } from "lucide-react";
+import { FilmIcon, MessagesSquareIcon, PencilIcon, SearchIcon, SpellCheckIcon, Trash2Icon, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,7 @@ const SOURCE: Record<PracticeItemSource, { tone: Tone; icon: LucideIcon }> = {
   lookup: { tone: "gray", icon: SearchIcon },
   grammar: { tone: "gray", icon: SpellCheckIcon },
   manual: { tone: "gray", icon: PencilIcon },
+  library: { tone: "gray", icon: FilmIcon },
 };
 
 export function PracticeListPage() {

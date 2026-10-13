@@ -4,7 +4,7 @@ Read-aloud pronunciation practice: record, assess, history, saved practice items
 
 ## What lives here
 - Pages: `practice-page.tsx`, `assessment-page.tsx`, `history-page.tsx`, `practice-list-page.tsx`.
-- `assessment-api.ts` (assess, fetch, delete, audio), `practice-items-api.ts`, `save-practice-item.ts` (`savePracticeItem`, `goPractice`).
+- `assessment-api.ts` (assess, fetch, delete, audio), `practice-items-api.ts`, `save-practice-item.ts` (`savePracticeItem`, `goPractice`). Sources include `library` (shadowing library, plan 2026-10-13-video-import-web-shadow); `PracticeItemSource` / `AssessmentSource` must match the server.
 - `mobile-score-result.tsx` (score view reused by chat).
 - `i18n/{en,zh-CN}.json` — this feature's strings.
 
