@@ -4,7 +4,8 @@ App chrome around authenticated routes.
 
 ## What lives here
 - `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer`.
-- `bottom-nav.tsx`, `page-header.tsx`, `use-app-height.ts`.
+- `bottom-nav.tsx`, `page-header.tsx`.
+- `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
 - `color-scheme.ts` (`initColorScheme`, `useIsDark`), `glass-quality.ts` (`.lite` on low-memory devices).
 
 ## Allowed dependencies
@@ -15,3 +16,6 @@ App chrome around authenticated routes.
 
 ## Pitfalls
 - Safe-area insets and app height matter on iOS standalone PWA; test with the mobile viewport.
+- `html` / `body` are `position: fixed; overflow: hidden` in `index.css`: the document never scrolls, so every new page needs its own scroll container (`AppShell`'s `<main>`, the inner container of `AnnouncementFrame`, the wrapper of the full-maintenance page). Do not rely on `window.scrollTo` / document scrolling.
+- The keyboard-jump fix (plan `2026-10-13-ios-keyboard-scroll`) is **not verified on a real iPhone**; read that plan's hypotheses and `…-device-checklist.md` before changing `use-app-height.ts`.
+- The reset calls `scrollTo(0,0)` only when the offset is non-zero and the page is not pinch-zoomed; never read layout synchronously inside `visualViewport` handlers.
