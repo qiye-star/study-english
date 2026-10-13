@@ -319,3 +319,171 @@ class Progress:
             return
         fraction = min(1.0, max(0.0, float(m[1]) / total))
         self.value = max(self.value, self.low + int((self.high - self.low) * fraction))
+
+
+# ---- the child process ----
+
+@dataclass(frozen=True)
+class Proc:
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool = False
+
+
+Runner = Callable[..., Awaitable[Proc]]  # (argv, *, timeout, env, cwd, on_line) -> Proc
+
+
+def _text(value: Any) -> str:
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).decode("utf-8", "replace")
+    return value or ""
+
+
+async def media_runner(argv: list[str], *, timeout: float, env: dict[str, str], cwd: Path,
+                       on_line: Callable[[str], None] | None = None) -> Proc:
+    """The only place that knows S1's `media.run` signature (plan assumption A-3)."""
+    result = await media.run(argv, timeout=timeout, env=env, cwd=cwd, on_stdout_line=on_line)
+    return Proc(int(result.returncode), _text(result.stdout), _text(result.stderr),
+                bool(getattr(result, "timed_out", False)))
+
+
+def _disk_free(path: Path) -> int:
+    return shutil.disk_usage(path).free
+
+
+class YtDlpFetch:
+    """The real `FetchStage`. Everything external is injectable for tests: `runner`, `resolver` (DNS), `disk_free`,
+    `clock`, `tick` (seconds between progress reports while downloading)."""
+
+    def __init__(self, runner: Runner = media_runner, *, resolver: urlcheck.Resolver | None = None,
+                 disk_free: Callable[[Path], int] = _disk_free, clock: Callable[[], float] = time.monotonic,
+                 tick: float = 1.0):
+        self._runner, self._resolver, self._disk_free = runner, resolver, disk_free
+        self._clock, self._tick = clock, tick
+
+    def _remaining(self, deadline: float) -> float:
+        left = deadline - self._clock()
+        if left <= 0:
+            raise LibraryError("ytdlp_transient")
+        return left
+
+    async def _download(self, argv: list[str], *, timeout: float, env: dict[str, str], cwd: Path,
+                        report: Callable[[int], Awaitable[None]]) -> tuple[Proc, bool]:
+        """Run the download; returns `(process, refused_for_size)`.
+
+        S1's `media.run` does not buffer stdout when it is given a line callback, so the one stdout line that matters
+        besides progress ("File is larger than max-filesize": yt-dlp exits 0 without a file) is caught in the
+        callback (R-LI23). The progress ticker and the child run side by side: when `report` raises (S1 raises
+        `Aborted` for a canceled / deleted item) the child is cancelled and the exception comes out unchanged
+        (R-LI24); an outer cancellation cancels both. Nothing outlives this call."""
+        progress = Progress(P_PROBED, P_DOWNLOADED - 5)
+        too_large = False
+
+        def on_line(line: str) -> None:
+            nonlocal too_large
+            progress.feed(line)
+            if _TOO_LARGE.search(line):
+                too_large = True
+
+        async def tick() -> None:
+            sent = progress.low
+            while True:
+                await asyncio.sleep(self._tick)
+                if progress.value > sent:
+                    sent = progress.value
+                    await report(sent)
+
+        run = asyncio.ensure_future(self._runner(argv, timeout=timeout, env=env, cwd=cwd, on_line=on_line))
+        ticker = asyncio.ensure_future(tick())
+        try:
+            await asyncio.wait({run, ticker}, return_when=asyncio.FIRST_COMPLETED)
+            if not run.done():  # the ticker only ends by raising
+                run.cancel()
+                await asyncio.gather(run, return_exceptions=True)
+                ticker.result()
+            return run.result(), too_large
+        finally:
+            for task in (run, ticker):
+                task.cancel()
+            await asyncio.gather(run, ticker, return_exceptions=True)
+
+    async def fetch(self, req: FetchRequest) -> FetchResult:
+        s = req.settings
+        started = self._clock()
+        deadline = started + int(s.library_link_timeout_minutes) * 60
+        tmp = Path(req.tmp_dir)
+        tmp.mkdir(parents=True, exist_ok=True)
+        cookies: Path | None = None
+        exit_code: int | None = None
+        try:
+            if not s.library_link_available:  # switched off (or yt-dlp gone) after the item was queued
+                raise LibraryError("link_disabled")
+            cached = load_cache(tmp)
+            if cached is not None:
+                await req.report(P_DONE)
+                logger.info("library fetch reused item=%s", req.item_id)
+                return cached
+            try:
+                checked = await urlcheck.precheck(req.url, resolver=self._resolver)
+            except urlcheck.UrlRejected as e:
+                logger.info("library fetch precheck rejected item=%s reason=%s", req.item_id, e.reason)
+                raise LibraryError("bad_url") from None
+            await req.report(P_CHECKED)
+            allow_generic = bool(s.library_link_allow_generic)
+            cookies = copy_cookies(s.library_ytdlp_cookies_file, tmp, req.item_id)
+            env = child_env(tmp, s.library_ytdlp_proxy)
+
+            proc = await self._runner(
+                info_args(checked.url, allow_generic=allow_generic, cookies=cookies,
+                          max_height=s.library_transcode_max_height),
+                timeout=min(INFO_TIMEOUT, self._remaining(deadline)), env=env, cwd=tmp, on_line=None)
+            exit_code = proc.returncode
+            if proc.timed_out:
+                raise LibraryError("ytdlp_transient")
+            if proc.returncode != 0:
+                raise LibraryError(classify(proc.stderr))
+            try:
+                info = json.loads(proc.stdout)
+            except ValueError:
+                raise LibraryError("ytdlp_failed") from None
+            if not isinstance(info, dict):
+                raise LibraryError("ytdlp_failed")
+            check_info(info, max_minutes=int(s.library_max_duration_minutes), allow_generic=allow_generic)
+            check_space(estimate_bytes(info), int(s.library_max_upload_mb) * MB, self._disk_free(tmp))
+            sub_lang, sub_auto = pick_subtitles(info, req.asr_available)
+            await req.report(P_PROBED)
+
+            proc, too_large = await self._download(
+                download_args(checked.url, tmp, allow_generic=allow_generic, cookies=cookies,
+                              max_height=s.library_transcode_max_height, max_mb=s.library_max_upload_mb,
+                              sub_lang=sub_lang, sub_auto=sub_auto),
+                timeout=self._remaining(deadline), env=env, cwd=tmp, report=req.report)
+            exit_code = proc.returncode
+            if proc.timed_out:
+                raise LibraryError("ytdlp_transient")
+            if proc.returncode != 0:
+                raise LibraryError(classify(proc.stderr))
+            media_path = find_media(tmp)
+            if media_path is None:
+                raise LibraryError("too_large" if too_large else "ytdlp_failed")
+            await req.report(P_DOWNLOADED)
+            subtitles = find_subtitles(tmp) if sub_lang else None
+            duration = _number(info.get("duration"))
+            result = FetchResult(media_path=media_path, title=clean_title(info.get("title")),
+                                 duration_ms=round(duration * 1000) if duration is not None else None,
+                                 subtitle_path=subtitles, subtitle_auto=bool(subtitles is not None and sub_auto),
+                                 source_host=checked.source_host)
+            save_cache(tmp, result)
+            await req.report(P_DONE)
+            logger.info("library fetch done item=%s ms=%d bytes=%d subs=%s auto=%s", req.item_id,
+                        (self._clock() - started) * 1000, media_path.stat().st_size,
+                        "yes" if subtitles else "no", "yes" if result.subtitle_auto else "no")
+            return result
+        except LibraryError as e:
+            logger.info("library fetch failed item=%s kind=%s exit=%s ms=%d", req.item_id, e.kind,
+                        exit_code if exit_code is not None else "-", (self._clock() - started) * 1000)
+            raise
+        finally:
+            if cookies is not None:
+                cookies.unlink(missing_ok=True)

@@ -212,3 +212,271 @@ def test_clean_title():
     assert ytdlp.clean_title(None) is None and ytdlp.clean_title("   ") is None
 
 
+
+
+# ==== Task 4: the stage ====
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
+from pathlib import Path  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from app.library.pipeline import FetchRequest, FetchResult  # noqa: E402
+from app.library.ytdlp import Proc, YtDlpFetch  # noqa: E402
+
+STDERR_SECRET = "ERROR: [youtube] SECRETVIDEO1: Sign in to confirm you're not a bot. cookie=SESSIONSECRET"
+
+
+def settings(**over):
+    values = dict(library_link_available=True, library_link_timeout_minutes=20, library_link_allow_generic=False, library_ytdlp_cookies_file="",
+                  library_ytdlp_proxy="", library_transcode_max_height=720, library_max_upload_mb=500,
+                  library_max_duration_minutes=90)
+    values.update(over)
+    return SimpleNamespace(**values)
+
+
+async def public(host):
+    return ["142.250.1.1"]
+
+
+async def private(host):
+    return ["10.0.0.7"]
+
+
+class FakeRunner:
+    """Plays yt-dlp: the first call is the probe (prints `info`), the second the download (writes files).
+
+    Like S1's real `media.run`, a call that passes `on_line` gets its stdout line by line and the returned process
+    has an EMPTY stdout (R-LI23): the `download` stdout is therefore fed through `on_line`, never returned.
+    `contents` maps a file name to the bytes written for it (default 1000 x "x")."""
+
+    def __init__(self, probe: Proc | None = None, download: Proc | None = None, files=("dl.mp4", "subs.en.srt"),
+                 lines=(), on_download=None, contents: dict[str, bytes] | None = None):
+        self.calls: list[dict] = []
+        self.probe = probe or Proc(0, json.dumps(info()), "")
+        self.download = download or Proc(0, "", "")
+        self.files, self.lines, self.on_download = files, lines, on_download
+        self.contents = contents or {}
+
+    async def __call__(self, argv, *, timeout, env, cwd, on_line=None):
+        self.calls.append({"argv": list(argv), "timeout": timeout, "env": dict(env), "cwd": Path(cwd),
+                           "cookies": (Path(cwd) / ytdlp.COOKIES_NAME).exists()})
+        if "--dump-single-json" in argv:
+            return self.probe
+        if self.on_download is not None:
+            await self.on_download()
+        for line in (*self.lines, *self.download.stdout.splitlines()):
+            on_line(line)
+        for name in self.files:
+            (Path(cwd) / name).write_bytes(self.contents.get(name, b"x" * 1000))
+        return Proc(self.download.returncode, "", self.download.stderr, self.download.timed_out)
+
+
+def request(tmp_path, *, asr=False, reports=None, **over):
+    async def report(pct):
+        if reports is not None:
+            reports.append(pct)
+    return FetchRequest(item_id="item-1", user_id=7, url=URL, tmp_dir=tmp_path / "_tmp" / "item-1",
+                        settings=settings(**over), asr_available=asr, report=report)
+
+
+def stage(runner, **kw):
+    kw.setdefault("resolver", public)
+    kw.setdefault("disk_free", lambda p: 100 * 1024 * ytdlp.MB)
+    return YtDlpFetch(runner, **kw)
+
+
+# ---- the stage ----
+
+async def test_fetch_success(tmp_path):
+    runner = FakeRunner(lines=["LIBPROG 50 100 NA", "LIBPROG 100 100 NA"])
+    reports: list[int] = []
+    result = await stage(runner, tick=0.001).fetch(request(tmp_path, reports=reports))
+    tmp = tmp_path / "_tmp" / "item-1"
+    assert result == FetchResult(media_path=tmp / "dl.mp4", title=TITLE, duration_ms=61500,
+                                 subtitle_path=tmp / "subs.en.srt", subtitle_auto=False,
+                                 source_host="www.youtube.com")
+    assert reports[0] == ytdlp.P_CHECKED and reports[-1] == ytdlp.P_DONE and reports == sorted(reports)
+    probe, download = runner.calls
+    assert probe["cwd"] == tmp and probe["timeout"] == ytdlp.INFO_TIMEOUT and download["timeout"] <= 20 * 60
+    assert download["argv"][download["argv"].index("--sub-langs") + 1] == "en"
+
+
+async def test_a_finished_fetch_is_reused_by_a_retry(tmp_path):
+    first = await stage(FakeRunner()).fetch(request(tmp_path))
+    assert (tmp_path / "_tmp" / "item-1" / ytdlp.CACHE_NAME).is_file()
+    again = FakeRunner(probe=Proc(1, "", "ERROR: must not run"))
+    reports: list[int] = []
+    assert await stage(again, resolver=private).fetch(request(tmp_path, reports=reports)) == first
+    assert again.calls == [] and reports == [ytdlp.P_DONE]
+
+
+@pytest.mark.parametrize("cache", ["not json", '{"media": "../dl.mp4"}', '{"media": "other.mp4"}', '{"media": 5}',
+                                   '{"media": "dl.mp4"}', "[]"])
+async def test_a_broken_or_stale_cache_means_fetch_again(tmp_path, cache):
+    tmp = tmp_path / "_tmp" / "item-1"
+    tmp.mkdir(parents=True)
+    (tmp / ytdlp.CACHE_NAME).write_text(cache, encoding="utf-8")
+    if "other" in cache:
+        (tmp / "other.mp4").write_bytes(b"x")
+    runner = FakeRunner()
+    result = await stage(runner).fetch(request(tmp_path))
+    assert len(runner.calls) == 2 and result.media_path == tmp / "dl.mp4"
+
+
+async def test_fetch_uses_auto_captions_only_without_asr(tmp_path):
+    runner = FakeRunner(probe=Proc(0, json.dumps(info(subtitles={})), ""), files=("dl.mp4", "subs.en-orig.srt"))
+    result = await stage(runner).fetch(request(tmp_path, asr=False))
+    assert result.subtitle_auto is True and result.subtitle_path.name == "subs.en-orig.srt"
+    runner = FakeRunner(probe=Proc(0, json.dumps(info(subtitles={})), ""), files=("dl.mp4",))
+    result = await stage(runner).fetch(request(tmp_path / "b", asr=True))
+    assert result.subtitle_path is None and "--sub-langs" not in runner.calls[1]["argv"]
+
+
+async def test_fetch_missing_subtitle_file_is_not_an_error(tmp_path):
+    result = await stage(FakeRunner(files=("dl.mp4",))).fetch(request(tmp_path))
+    assert result.subtitle_path is None and result.subtitle_auto is False
+
+
+@pytest.mark.parametrize("runner, kind", [
+    (FakeRunner(probe=Proc(1, "", STDERR_SECRET)), "blocked"),
+    (FakeRunner(probe=Proc(-9, "", "", timed_out=True)), "ytdlp_transient"),
+    (FakeRunner(probe=Proc(0, "not json", "")), "ytdlp_failed"),
+    (FakeRunner(probe=Proc(0, "[1, 2]", "")), "ytdlp_failed"),
+    (FakeRunner(probe=Proc(0, json.dumps(info(is_live=True)), "")), "live_unsupported"),
+    (FakeRunner(probe=Proc(0, json.dumps(info(duration=10 ** 6)), "")), "too_long"),
+    (FakeRunner(download=Proc(1, "", "ERROR: This video is DRM protected")), "drm"),
+    # yt-dlp prints this on stdout and exits 0 without a file; the real runner does not buffer stdout when it has a
+    # line callback, so only the callback can see it (R-LI23). FakeRunner feeds it through `on_line` only.
+    (FakeRunner(download=Proc(0, "[download] File is larger than max-filesize (9 bytes > 1 bytes). Aborting.", ""),
+                files=()), "too_large"),
+    (FakeRunner(download=Proc(0, "", ""), files=("dl.f1.mp4",)), "ytdlp_failed"),
+    (FakeRunner(download=Proc(-9, "", "", timed_out=True)), "ytdlp_transient"),
+])
+async def test_fetch_failures(tmp_path, runner, kind):
+    with pytest.raises(LibraryError) as e:
+        await stage(runner).fetch(request(tmp_path))
+    assert e.value.kind == kind
+
+
+async def test_fetch_rechecks_the_url_before_running_anything(tmp_path):
+    runner = FakeRunner()
+    with pytest.raises(LibraryError) as e:
+        await stage(runner, resolver=private).fetch(request(tmp_path))
+    assert e.value.kind == "bad_url" and runner.calls == []
+
+
+async def test_fetch_refuses_when_link_import_was_switched_off(tmp_path):
+    runner = FakeRunner()
+    with pytest.raises(LibraryError) as e:
+        await stage(runner).fetch(request(tmp_path, library_link_available=False))
+    assert e.value.kind == "link_disabled" and runner.calls == []
+
+
+async def test_fetch_refuses_without_disk_space(tmp_path):
+    runner = FakeRunner()
+    with pytest.raises(LibraryError) as e:
+        await stage(runner, disk_free=lambda p: 5 * ytdlp.MB).fetch(request(tmp_path))
+    assert e.value.kind == "disk_full" and len(runner.calls) == 1  # never downloaded
+
+
+async def test_fetch_wall_clock_budget(tmp_path):
+    ticks = iter([0.0, 0.0, 1300.0, 1300.0])  # started, probe budget, download budget (> 20 min), log
+    runner = FakeRunner()
+    with pytest.raises(LibraryError) as e:
+        await stage(runner, clock=lambda: next(ticks)).fetch(request(tmp_path))
+    assert e.value.kind == "ytdlp_transient" and len(runner.calls) == 1
+
+
+async def test_cookies_are_copied_for_the_run_and_removed(tmp_path):
+    source = tmp_path / "cookies-source.txt"
+    source.write_text("# Netscape HTTP Cookie File\n")
+    runner = FakeRunner(probe=Proc(1, "", STDERR_SECRET))
+    with pytest.raises(LibraryError):
+        await stage(runner).fetch(request(tmp_path, library_ytdlp_cookies_file=str(source)))
+    assert runner.calls[0]["cookies"] is True
+    copied = tmp_path / "_tmp" / "item-1" / ytdlp.COOKIES_NAME
+    assert runner.calls[0]["argv"][runner.calls[0]["argv"].index("--cookies") + 1] == str(copied)
+    assert not copied.exists() and source.exists()
+
+
+async def test_unreadable_cookies_are_skipped(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="app")
+    runner = FakeRunner()
+    await stage(runner).fetch(request(tmp_path, library_ytdlp_cookies_file=str(tmp_path / "missing" / "c.txt")))
+    assert "--cookies" not in runner.calls[0]["argv"]
+    assert "missing" not in caplog.text and "cookies unreadable" in caplog.text
+
+
+async def test_cancel_kills_nothing_left_behind(tmp_path):
+    source = tmp_path / "c.txt"
+    source.write_text("x")
+
+    async def hang():
+        await asyncio.sleep(30)
+
+    task = asyncio.create_task(stage(FakeRunner(on_download=hang), tick=0.001).fetch(
+        request(tmp_path, library_ytdlp_cookies_file=str(source))))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not (tmp_path / "_tmp" / "item-1" / ytdlp.COOKIES_NAME).exists()
+
+
+async def test_an_aborted_report_stops_the_download(tmp_path):
+    """S1's `report` raises `Aborted` once the item was canceled / deleted: yt-dlp must be stopped (the runner is
+    cancelled, which is what `media.run` turns into SIGTERM / SIGKILL), the exception must come out unchanged
+    (not swallowed with the ticker, not turned into a LibraryError) and the cookies copy must be gone (R-LI24)."""
+    from app.library.errors import Aborted
+    source = tmp_path / "c.txt"
+    source.write_text("x")
+    killed: list[int] = []
+
+    class Hanging(FakeRunner):
+        async def __call__(self, argv, *, timeout, env, cwd, on_line=None):
+            if "--dump-single-json" in argv:
+                return self.probe
+            on_line("LIBPROG 50 100 NA")  # the ticker reports 50 % -> report() raises Aborted
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                killed.append(1)
+                raise
+
+    async def report(pct):
+        if pct > ytdlp.P_PROBED:
+            raise Aborted()
+
+    req = FetchRequest(item_id="item-1", user_id=7, url=URL, tmp_dir=tmp_path / "_tmp" / "item-1",
+                       settings=settings(library_ytdlp_cookies_file=str(source)), asr_available=False, report=report)
+    with pytest.raises(Aborted):
+        await asyncio.wait_for(stage(Hanging(), tick=0.001).fetch(req), 5)
+    assert killed == [1]
+    assert not (tmp_path / "_tmp" / "item-1" / ytdlp.COOKIES_NAME).exists()
+
+
+async def test_fetch_logs_no_url_title_output_or_secrets(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    source = tmp_path / "cookie-file-name.txt"
+    source.write_text("x")
+    over = dict(library_ytdlp_cookies_file=str(source), library_ytdlp_proxy="http://u:PROXYPASS@p.example:1")
+    await stage(FakeRunner()).fetch(request(tmp_path, **over))
+    with pytest.raises(LibraryError):
+        await stage(FakeRunner(probe=Proc(1, "", STDERR_SECRET))).fetch(request(tmp_path / "b", **over))
+    text = caplog.text
+    for secret in ("SECRETVIDEO1", "youtube.com", TITLE, "SESSIONSECRET", "not a bot", "cookie-file-name",
+                   "PROXYPASS", str(tmp_path)):
+        assert secret not in text
+    assert "item=item-1" in text and "kind=blocked" in text
+
+
+@pytest.mark.skipif(importlib.util.find_spec("yt_dlp") is None, reason="yt-dlp is not installed here")
+async def test_media_runner_runs_the_real_yt_dlp(tmp_path):
+    """Pins assumption A-3 against S1's real `media.run`: no network, only `--version`."""
+    argv = [sys.executable, "-I", "-X", "utf8", "-m", "yt_dlp", "--ignore-config", "--version"]
+    proc = await asyncio.wait_for(
+        ytdlp.media_runner(argv, timeout=60, env=ytdlp.child_env(tmp_path, ""), cwd=tmp_path), 90)
+    assert proc.returncode == 0 and not proc.timed_out
+    printed = [int(x) for x in proc.stdout.strip().split(".")[:3]]
+    assert printed == [int(x) for x in ytdlp.installed_version().split(".")[:3]]
