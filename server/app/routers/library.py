@@ -18,11 +18,13 @@ from starlette.datastructures import UploadFile
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.core.quotas import effective
+from app.library import ai as library_ai
 from app.library import limits, paths, segment, store, subtitles
 from app.library.errors import API_ERRORS, LibraryError, api_error, http_error
 from app.library.pipeline import UPLOADED_SUBS, INPUT_PREFIX
 from app.library.worker import LibraryWorker
 from app.models import Assessment, LibraryItem, User, utcnow
+from app.services.prompts import prompt_cache
 from app.services.uploads import parse_buffered_form
 
 router = APIRouter(prefix="/api/library")
@@ -374,6 +376,8 @@ async def patch_segment(payload: SegmentPatch, item_id: ItemId, idx: int = PathP
         text = " ".join(changes["text"].split())
         if not text or len(text) > limits.SEGMENT_TEXT_MAX or not any(c.isalpha() for c in text):
             raise fail("bad_text")
+        if not store.same_text(text, seg.text):
+            store.clear_ai(seg)  # E11: a changed sentence keeps no translation or analysis
         seg.text = text
     start, end = changes.get("start_ms", seg.start_ms), changes.get("end_ms", seg.end_ms)
     low = segs[idx - 1].end_ms if idx > 0 else 0
@@ -384,6 +388,75 @@ async def patch_segment(payload: SegmentPatch, item_id: ItemId, idx: int = PathP
     item.updated_at = utcnow()
     await session.commit()
     return {"segment": store.segment_out(seg)}
+
+
+# ---- translations and analysis (D8 / E11 / E12) ----
+
+def require_ai(settings: Settings = Depends(require_library)) -> Settings:
+    """译文与分析需要 `library_ai_available`(子开关开且大模型已配置),否则 404,与 `config.ai: false` 一致。"""
+    if not settings.library_ai_available:
+        raise fail("ai_disabled")
+    return settings
+
+
+def language_of(code: str) -> str:
+    if code not in library_ai.LANGS:
+        raise fail("language")
+    return code
+
+
+class TranslateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    indices: list[Annotated[int, Field(ge=0, le=1_000_000)]] = Field(min_length=1, max_length=limits.AI_BATCH_MAX)
+    native_language: str = Field(min_length=1, max_length=16)
+
+
+@router.post("/items/{item_id}/translate")
+async def translate_segments(payload: TranslateIn, request: Request, item_id: ItemId,
+                             user: User = Depends(limited_user), settings: Settings = Depends(require_ai),
+                             session: AsyncSession = Depends(get_session)):
+    """E12:一次最多 20 句。已存且语言一致的照常返回;其余按额度批量生成并写回句子行。额度不够时能生成的先生成,
+    缺的不生成并带 `limited: true`;模型失败 503。不存在的序号直接略过(网页的视野可能比刚替换的字幕旧)。"""
+    language = language_of(payload.native_language)
+    item = await owned(session, user, item_id)
+    if item.status != "ready":
+        raise fail("not_ready")
+    segs = await store.segments_at(session, item.id, list(dict.fromkeys(payload.indices)))
+    _, template = await prompt_cache(request.app).get("library.translate")
+    try:
+        done, limited = await library_ai.translate(session, request.app.state.http, settings, user_id=user.id,
+                                                   item_id=item.id, segments=segs, language=language,
+                                                   template=template, now=utcnow())
+    except library_ai.AiUnavailable:
+        raise fail("ai_unavailable") from None
+    return {"segments": [{"idx": idx, "zh": done[idx]} for idx in sorted(done)], "limited": limited}
+
+
+class AnalysisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    native_language: str = Field(min_length=1, max_length=16)
+
+
+@router.post("/items/{item_id}/segments/{idx}/analysis")
+async def analyze_segment(payload: AnalysisIn, request: Request, item_id: ItemId,
+                          idx: int = PathParam(ge=0, le=1_000_000), user: User = Depends(limited_user),
+                          settings: Settings = Depends(require_ai), session: AsyncSession = Depends(get_session)):
+    """只在用户点「分析」时调用;命中已存的(同语言)直接返回 `cached: true`,不计额度;额度满 429,模型失败 503。"""
+    language = language_of(payload.native_language)
+    item = await owned(session, user, item_id)
+    if item.status != "ready":
+        raise fail("not_ready")
+    segs = await store.segments_at(session, item.id, [idx])
+    if not segs:
+        raise fail("segment_missing")
+    _, template = await prompt_cache(request.app).get("library.analyze")
+    try:
+        text, cached = await library_ai.analyze(session, request.app.state.http, settings, user_id=user.id,
+                                                item_id=item.id, segment=segs[0], language=language,
+                                                template=template, now=utcnow())
+    except library_ai.AiUnavailable as e:
+        raise fail({"user_cap": "ai_user_cap", "global_cap": "ai_global_cap"}.get(e.kind, "ai_unavailable")) from None
+    return {"analysis": text, "cached": cached}
 
 
 # ---- media (spec §10) ----
