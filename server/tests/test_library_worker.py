@@ -211,12 +211,14 @@ async def test_a_registered_fetch_stage_supplies_media_title_and_platform_subtit
     assert isinstance(app.state.library.fetch_stage, Fetch)
     item_id = await seed(app, source="link", url="https://www.example.com/v/1", title="")
     named = await seed(app, source="link", url="https://www.example.com/v/2", title="My own name")
-    app.state.settings = app.state.settings.model_copy(update={"library_job_concurrency": 2})
+    # one job per round: two tasks would share the test's single SQLite connection (StaticPool), where one task's
+    # session close rolls back the other's executed-but-uncommitted title update
+    await process(app)
     await process(app)
     item = await get(app, item_id)
     assert (item.status, item.sub_source, item.title, item.source_url) == ("ready", "platform", "A page title", None)
     assert (await get(app, named)).title == "My own name"  # a user title is never replaced
-    req = requests[0]
+    req = next(r for r in requests if r.url.endswith("/1"))
     assert (req.url, req.user_id, req.asr_available, req.settings.library_transcode_max_height) == (
         "https://www.example.com/v/1", UID, False, 720)
     assert req.tmp_dir == paths.tmp_dir(app.state.library.deps.data_dir, item_id)
