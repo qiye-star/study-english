@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import good from "~/test/fixtures/assessment-good.json";
 import { resetPlaybackRateForTests, setPlaybackRate } from "~/lib/playback-rate";
 import { claimAudio } from "~/audio/audio-focus";
@@ -146,15 +147,17 @@ describe("voice UI", () => {
     expect(onRetry).toHaveBeenCalledTimes(2);
   });
 
-  it("detail sheet loads the full result and opens practice with the sentence", async () => {
+  it("detail sheet loads the full result and opens the shadow sheet with the sentence, without navigating", async () => {
     const { api } = apiFor({ "GET /api/assessments/a1": () => json({ id: "a1", reference_text: "Hello", language: "en-US", duration_ms: 1, scores: good, result: good, created_at: "t" }) });
     const onClose = vi.fn();
     const message: UiMessage = { key: "u1", role: "user", status: "done", content: "Hello, nice to meet you.", assessmentId: "a1" };
-    renderWithProviders(<TurnDetailSheet message={message} onClose={onClose} />, { api });
+    renderWithProviders(<WithShadowSheet><TurnDetailSheet message={message} onClose={onClose} /></WithShadowSheet>, { api });
     await waitFor(() => expect(screen.getByTestId("assessment-scores")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("detail-practice"));
     expect(onClose).toHaveBeenCalled();
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Hello, nice to meet you.");
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
   });
   it("plays a voice bubble at the global speed and applies a change immediately", async () => {
     localStorage.clear();

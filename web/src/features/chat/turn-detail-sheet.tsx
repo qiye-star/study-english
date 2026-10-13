@@ -1,14 +1,13 @@
 import { LoaderIcon, StarIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { Skeleton } from "@renderer/components/ui/skeleton";
 import { PronunciationAssessmentFulltextResult } from "@renderer/components/pronunciation-assessments/pronunciation-assessment-fulltext-result";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
-import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail, MobileScoreResult, goPractice, savePracticeItem } from "~/features/practice";
+import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail, MobileScoreResult, savePracticeItem, useShadowSheet } from "~/features/practice";
 import type { UiMessage } from "./ui-message";
 import { poorWords } from "./voice-words";
 
@@ -16,7 +15,7 @@ import { poorWords } from "./voice-words";
 export function TurnDetailSheet({ message, onClose, children }: { message: UiMessage | null; onClose(): void; children?: ReactNode }) {
   const { api } = useAuth();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const tRef = useRef(t);
   tRef.current = t;
   const [detail, setDetail] = useState<AssessmentDetail | null>(null);
@@ -92,7 +91,7 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
             )}
             {children}
             <div className="flex gap-2">
-              <Button data-testid="detail-practice" className="h-12 flex-1 rounded-button text-body font-semibold" onClick={() => { onClose(); goPractice(navigate, message.content); }}>
+              <Button data-testid="detail-practice" className="h-12 flex-1 rounded-button text-body font-semibold" onClick={() => { onClose(); openShadow({ text: message.content, source: "chat" }); }}>
                 {t("web.chat.voice.practiceThis")}
               </Button>
               <Button variant="outline" data-testid="detail-save" className="h-12 w-12 rounded-button border-[0.5px] border-hair bg-surface p-0 text-ink" disabled={saving}
