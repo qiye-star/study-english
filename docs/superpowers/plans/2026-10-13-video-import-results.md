@@ -103,3 +103,21 @@ alembic heads:`0018 (head)`。名字与签名全部与计划一致,没有需要�
 - S1 所有者:`app/library/CLAUDE.md` 增加 `urlcheck.py` / `ytdlp.py` 两条;`routers/CLAUDE.md` 增加 `library_import`;`server/README.md` 链接导入一节(升级流程、cookies 小号、机房 IP、DRM、SSRF 剩余风险);`test_library_privacy.py` 已有 `LATER`;`tests/test_library_worker.py` 的一行改动(偏离 3)。
 - A:`from app.library.ytdlp import installed_version`。
 - Z:镜像体积、T0.3 真实导入、**重新生成 `uv.lock`**、Task 6 的 JS 运行时决定(依赖 T0.2)。
+
+## A 管理端 · 前置核对(计划 2026-10-13-video-import-admin.md Task A0)
+
+- 日期 / 基于提交:2026-10-13 / 8fe55f2c
+- alembic heads:0018 (head)
+- LibraryItem 列:与 spec §4 一致(全部 29 列同名,`library_bytes` / `source_host` / `status` / `kind` / `user_id` / `created_at` 都在);add_item 是否调整:否(列的可空性与计划假设相符,add_item 显式给值即可)
+- 删除函数:`app.library.store.delete_item(session, app, item) -> None`;自己提交:是(先在需要时 `cancel_item`,再删子行与条目并 commit,最后清文件与票据);取消运行中任务并清两个目录:是(经 `cancel_item` + `paths.remove_item_files`)。需要 `app.state.library`(worker)存在
+- 取消函数:`app.library.store.cancel_item(session, app, item) -> bool`(False = 条目不是 uploading / queued / processing,未改动;自己提交);与学习者端点共用。计划假设它返回 None,实际返回 bool,`_s1_cancel` 据此处理
+- 识别计数:scope=`library_asr` 全站 subject=`*`(常量:有,`app.library.limits.SCOPE_ASR` / `limits.GLOBAL`)
+- worker:app.state.library.pending 存在(`set[asyncio.Task]`)
+- QUOTA_KEYS 含 library_quota_mb / library_max_items:是
+- 设置字段与属性(含 D8 的四个 AI 设置与 library_ai_available):齐全(`library_ai_available` = library_enabled 且 library_ai_enabled 且配了 LLM 上游);另有 `library_asr_minutes_daily_per_user`、`library_imports_daily_per_user`
+- AI 额度计数:译文 scope=`library_translate` 分析 scope=`library_analysis`,**只有每人行**(subject=用户 id);全站行 subject=`*` 只存在于合计 scope `library_ai`(译文 + 分析的句数之和,`limits.SCOPE_AI_GLOBAL`)。常量:有(`limits.SCOPE_TRANSLATE` / `SCOPE_ANALYSIS` / `SCOPE_AI_GLOBAL` / `GLOBAL`)。`_day_total` 的 `max(全站行, 每人行之和)` 在这里等于每人行之和(译文 / 分析各自没有全站行),满足「分别显示两个数字」
+- LibrarySegment 列:与 spec §4 一致;add_item 的 segments 分支是否调整:否
+- test_architecture 中 admin 可导入 library:是
+- main.py 锚点:`# --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---`,在路由元组里 `admin_agents,` 之后、`stubs` 之前;`from app.routers import (...)` 的导入处按 R-A16 后备放在 `admin_agents` 之后
+- 本机 ffmpeg:有(ffmpeg version 9.0-full_build-www.gyan.dev);ffprobe 有;yt-dlp:未安装(`PackageNotFoundError`)
+- 结论:可以开始 AS1

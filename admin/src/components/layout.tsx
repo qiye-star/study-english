@@ -9,6 +9,8 @@ import { LinkIcon } from "../features/links/link-icon";
 import { S as LINKS_STRINGS } from "../features/links/strings";
 import { AgentIcon } from "../features/agents/agent-icon";
 import { S as AGENTS_STRINGS } from "../features/agents/strings";
+import { LibraryIcon } from "../features/library/library-icon";
+import { S as LIBRARY_STRINGS } from "../features/library/strings";
 import { S } from "../strings";
 import {
   BackIcon,
@@ -65,6 +67,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: "/assessments", label: I.recordings, icon: MicIcon, min: "viewer" },
       { to: "/invites", label: I.invites, icon: TicketIcon, min: "operator" },
       { to: "/wordbook", label: WORDBOOK_STRINGS.title, icon: BookIcon, min: "viewer" },
+      { to: "/library", label: LIBRARY_STRINGS.title, icon: LibraryIcon, min: "viewer" },
     ],
   },
   {
