@@ -4,7 +4,7 @@
 登记进 `~/lib/extension-points`。`index.ts` 一行一个插件:删一行 = 删一个联动。
 
 ## What lives here
-- `index.ts`(由 `main.tsx` 导入一次)、`core.ts`(核心贡献 `wordActions/vocabulary.add`;`test/setup.ts` 只导入它)
+- `index.ts`(由 `main.tsx` 导入一次)、`core.ts`(核心贡献 `wordActions/vocabulary.add`、`selectionActions/chat.read-aloud`;`test/setup.ts` 只导入它)
 - `links/`(旗标加载 `appEffects/links.config`、「我的」一行 `meRows/links.row`、设置页路由 `/me/links`、`LINKS_SERVER_ERRORS`)
 - 联动插件:`word-actions/`(「更多」按钮与「单词操作」面板)、`daily-tasks/`(练习页「今日任务」卡)、`mistakes/`(生词本「易错词」
   与 `/links/mistakes`)、`pron-shadow/`(跟读来源条、今日新词例句、`/links/weak-words`)、`chat-words/`(今日任务一行与词卡小标);
@@ -21,7 +21,8 @@
 - `contributeRoute({ id, path, link? | requiresLinks?, component })`:app.tsx 把全部路由挂在 AppShell 下,由 `LinkRoute`
   按旗标渲染;旗标未到(仍是 `ALL_OFF` 本身)时什么都不渲染,到了但不可见则回 `/practice`。
 - 点与 props:`wordActions`(`WordActionProps`)、`wordActionsMenu`(+ `close`)、`dailyTasks`(`{ today }`)、`practiceHome`、
-  `learningSources`(`{ pick }`)、`wordDetailSections`(`{ word }`,词卡未遮罩时才渲染)、`notebookViews`、`meRows`、`appEffects`。
+  `learningSources`(`{ pick }`)、`wordDetailSections`(`{ word }`,词卡未遮罩时才渲染)、`notebookViews`、`meRows`、`appEffects`、
+  `selectionActions`(`{ text, testId }`,选词操作条;核心贡献 `chat.read-aloud` = 朗读)。
 
 ## Test
 `cd web && yarn vitest run src/plugins`;联动测试自己导入所需插件并 `setLinkFlags(...)`;`test/setup.ts` 的 `afterEach` 已统一复位为全关。
