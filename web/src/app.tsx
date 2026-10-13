@@ -34,7 +34,12 @@ export function AnnouncementFrame() {
   const { i18n } = useTranslation();
   if (state?.maintenance.mode === "full") {
     const m = state.maintenance;
-    return <MaintenanceScreen message={pickText(i18n.language, m.messageZh, m.messageEn)} onRetry={() => void refreshAnnouncements()} />;
+    // html/body 已固定(index.css),维护页自己提供滚动容器;横屏小屏文字超出时才能滚动
+    return (
+      <div className="h-[100dvh] overflow-y-auto">
+        <MaintenanceScreen message={pickText(i18n.language, m.messageZh, m.messageEn)} onRetry={() => void refreshAnnouncements()} />
+      </div>
+    );
   }
   return (
     <div className="flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
