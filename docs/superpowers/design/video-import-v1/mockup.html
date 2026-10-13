@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 跟读库 v1 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1720px;margin:0 auto;padding:40px 32px 80px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2{font-size:15px;font-weight:600;margin-top:34px}
+.canvas p.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:84ch;line-height:1.6}
+.canvas ul.notes{color:#5b6170;font-size:13px;line-height:1.75;margin:8px 0 0 18px;max-width:90ch}
+.row{display:flex;flex-wrap:wrap;gap:36px;margin-top:22px;align-items:flex-start}
+.spec{width:375px}
+.spec>p.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.6}
+.spec>p.cap b{color:#1b1d22;font-weight:600}
+
+.phone{--bg:#fff;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;--hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);--surface-2:#F5F6F8;
+  --blue:#2456DB;--blue-tint:#EAF0FF;--teal:#0E7067;--teal-tint:#E3F5F2;--amber:#9A4B00;--amber-tint:#FFF0DE;--green:#157A3B;--green-tint:#E4F6EA;--red:#D1242F;--red-tint:#FFE8E9;
+  color:var(--ink);background:var(--bg);position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(17,19,24,.18);
+  box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.18);font-size:15px;line-height:1.4}
+.phone i.ti{line-height:1;display:inline-block}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:40}
+.hdr{position:absolute;top:47px;left:0;right:0;height:52px;display:flex;align-items:center;gap:8px;padding:0 12px 0 8px;border-bottom:.5px solid var(--hair-2);background:#fff;z-index:20}
+.hdr .back{width:44px;height:44px;display:grid;place-items:center;font-size:22px;color:var(--ink)}
+.hdr h3{font-size:17px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .act{width:44px;height:44px;display:grid;place-items:center;font-size:21px;color:var(--blue)}
+.body{position:absolute;top:99px;left:0;right:0;bottom:0;overflow:hidden}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:83px;border-top:.5px solid var(--hair);background:rgba(255,255,255,.94);display:flex;padding-top:8px;z-index:30}
+.tabbar div{flex:1;text-align:center;font-size:10.5px;color:var(--ink-3)}
+.tabbar div i{display:block;font-size:24px;margin-bottom:2px}
+.tabbar div.on{color:var(--blue)}
+
+.quota{margin:12px 16px 4px;font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
+.quota .bar{flex:1;height:4px;border-radius:2px;background:var(--surface-2);margin:0 10px;overflow:hidden}
+.quota .bar b{display:block;height:100%;width:34%;background:var(--blue)}
+.card{display:flex;gap:12px;margin:10px 16px;padding:10px;border-radius:14px;border:.5px solid var(--hair);background:#fff}
+.thumb{flex:none;width:104px;height:66px;border-radius:9px;background:linear-gradient(135deg,#2b3a55,#6b7fa8);position:relative;display:grid;place-items:center;color:#fff;font-size:24px}
+.thumb.a{background:linear-gradient(135deg,#0E7067,#5fb3a8)}
+.thumb .dur{position:absolute;right:5px;bottom:4px;font-size:10.5px;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:5px}
+.card .m{flex:1;min-width:0}
+.card .t{font-size:14.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .s{font-size:12px;color:var(--ink-2);margin-top:4px}
+.badge{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:6px;margin-right:4px;background:var(--surface-2);color:var(--ink-2)}
+.badge.g{background:var(--green-tint);color:var(--green)}.badge.b{background:var(--blue-tint);color:var(--blue)}.badge.r{background:var(--red-tint);color:var(--red)}
+.prog{height:4px;border-radius:2px;background:var(--surface-2);margin-top:8px;overflow:hidden}.prog b{display:block;height:100%;width:62%;background:var(--blue)}
+.link{color:var(--blue);font-size:12.5px;margin-right:14px}
+.fab{position:absolute;right:16px;bottom:100px;height:48px;padding:0 18px;border-radius:24px;background:var(--blue);color:#fff;display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;box-shadow:0 8px 20px -6px rgba(36,86,219,.5);z-index:25}
+
+.scrim{position:absolute;inset:0;background:rgba(17,19,24,.4);z-index:50}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;padding:8px 16px 28px;z-index:60}
+.grab{width:40px;height:4px;border-radius:2px;background:rgba(17,19,24,.2);margin:0 auto 10px}
+.seg{display:flex;background:var(--surface-2);border-radius:10px;padding:3px;margin:6px 0 14px}
+.seg div{flex:1;text-align:center;padding:8px 0;border-radius:8px;font-size:14px;color:var(--ink-2)}
+.seg div.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.drop{border:1.5px dashed rgba(17,19,24,.22);border-radius:14px;padding:22px 12px;text-align:center;color:var(--ink-2);font-size:13.5px}
+.drop i{font-size:30px;color:var(--blue);display:block;margin-bottom:6px}
+.field{margin-top:12px}.field label{font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px}
+.inp{height:44px;border:.5px solid var(--hair);border-radius:10px;padding:0 12px;display:flex;align-items:center;font-size:15px;color:var(--ink-3);background:#fff}
+.inp.v{color:var(--ink)}
+.btn{height:48px;border-radius:12px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:16px;font-weight:600;margin-top:16px}
+.btn.off{background:var(--surface-2);color:var(--ink-3)}
+.note{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--amber-tint);color:var(--amber);font-size:12.5px;line-height:1.55}
+.note.gray{background:var(--surface-2);color:var(--ink-2)}
+.fileline{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px}
+.fileline .p{flex:1;height:4px;border-radius:2px;background:var(--surface-2);overflow:hidden}.fileline .p b{display:block;height:100%;width:47%;background:var(--blue)}
+
+/* player */
+.media{position:absolute;top:99px;left:0;right:0;height:211px;background:#0d1017;display:grid;place-items:center;color:#fff;z-index:10}
+.media .play{font-size:44px;opacity:.9}
+.media .cur{position:absolute;left:12px;right:12px;bottom:34px;text-align:center;font-size:13px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.media .tl{position:absolute;left:0;right:0;bottom:0;height:22px;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:10.5px;color:#cfd3dc;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.media .tl .bar{flex:1;height:3px;background:rgba(255,255,255,.25);border-radius:2px}.media .tl .bar b{display:block;width:38%;height:100%;background:#fff;border-radius:2px}
+.list{position:absolute;top:310px;left:0;right:0;bottom:136px;overflow:hidden;padding:6px 0}
+.seg-row{display:flex;gap:10px;padding:11px 14px 11px 16px;border-left:3px solid transparent}
+.seg-row .n{flex:none;width:20px;font-size:11px;color:var(--ink-3);padding-top:4px}
+.seg-row .tx{flex:1;font-size:16.5px;line-height:1.5}
+.seg-row .mic{flex:none;width:44px;height:44px;border-radius:22px;display:grid;place-items:center;font-size:21px;color:var(--ink-2);margin:-6px -8px -6px 0}
+.seg-row.cur{background:var(--blue-tint);border-left-color:var(--blue)}.seg-row.cur .mic{color:var(--blue)}
+.seg-row .sub{font-size:12px;color:var(--ink-3);margin-top:3px}
+.w-g{color:var(--green)}.w-a{color:var(--amber)}.w-r{color:var(--red);text-decoration:underline wavy}
+.blind{color:transparent;background:var(--surface-2);border-radius:6px;user-select:none}
+.ctrl{position:absolute;left:0;right:0;bottom:0;height:136px;background:rgba(255,255,255,.96);border-top:.5px solid var(--hair);padding:8px 12px 0;z-index:30}
+.ctrl .main{display:flex;align-items:center;justify-content:center;gap:22px}
+.ctrl .main i{font-size:26px;color:var(--ink);width:48px;height:48px;display:grid;place-items:center}
+.ctrl .main i.pp{background:var(--blue);color:#fff;border-radius:24px;font-size:26px}
+.chips{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.chip{height:36px;padding:0 12px;border-radius:18px;background:var(--surface-2);font-size:13px;display:flex;align-items:center;gap:5px;color:var(--ink)}
+.chip.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+.score{margin:4px 0 6px 39px;padding:12px;border-radius:12px;background:var(--surface-2)}
+.score .top{display:flex;align-items:center;gap:12px}
+.ring{width:54px;height:54px;border-radius:27px;border:5px solid var(--green);display:grid;place-items:center;font-weight:700;font-size:17px;color:var(--green)}
+.score .row2{display:flex;gap:8px;margin-top:10px}
+.mini{height:36px;padding:0 12px;border-radius:18px;background:#fff;border:.5px solid var(--hair);font-size:13px;display:flex;align-items:center;gap:5px}
+.rec{position:absolute;left:0;right:0;bottom:0;height:136px;background:#fff;border-top:.5px solid var(--hair);z-index:35;padding-top:14px;text-align:center}
+.rec .big{width:64px;height:64px;border-radius:32px;background:var(--red);color:#fff;display:grid;place-items:center;font-size:28px;margin:6px auto 0;box-shadow:0 0 0 8px var(--red-tint)}
+.bar2{position:absolute;left:50%;transform:translateX(-50%);bottom:152px;height:44px;border-radius:22px;background:#111318;color:#fff;display:flex;align-items:center;padding:0 6px;gap:2px;z-index:45;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.bar2 div{height:36px;padding:0 12px;display:flex;align-items:center;gap:5px;font-size:13.5px}
+.bar2 div+div{border-left:.5px solid rgba(255,255,255,.2)}
+.edit{margin:2px 0 6px 39px;padding:12px;border-radius:12px;border:.5px solid var(--hair)}
+.edit .r{display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:8px}
+.edit .pm{display:flex;gap:6px}.edit .pm span{height:34px;min-width:52px;padding:0 8px;border-radius:9px;background:var(--surface-2);display:grid;place-items:center;font-size:13px}
+
+.zh{font-size:13px;color:var(--ink-2);margin-top:2px;line-height:1.45}
+.zh.sk{height:12px;width:70%;background:var(--surface-2);border-radius:6px;margin-top:6px}
+.more{position:absolute;right:14px;width:176px;background:#fff;border-radius:12px;border:.5px solid var(--hair);box-shadow:0 10px 28px rgba(17,19,24,.18);z-index:46;padding:4px 0}
+.more div{height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;font-size:14.5px}
+.more div i{font-size:19px;color:var(--ink-2)}
+.ana{margin:4px 0 6px 39px;padding:12px;border-radius:12px;background:var(--surface-2);font-size:13px;line-height:1.6}
+.ana h4{font-size:12px;color:var(--teal);font-weight:600;margin:8px 0 2px}.ana h4:first-child{margin-top:0}
+.ana .hd{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-3);margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="canvas">
+<h1>跟读库 · 上传视频,跟着练习(设计稿 v1)</h1>
+<p class="lede">手机优先,375 × 812。入口在「练习」页的一张卡片;全部页面懒加载。下面 9 个画面覆盖:列表、添加(上传 / 链接)、播放与跟读、评分结果、点词查词、微调时间、双语与 AI 分析。颜色沿用 redesign-v3 令牌:蓝色=操作和当前句,绿 / 琥珀 / 红=发音分数,青色=词汇。</p>
+<ul class="notes">
+<li><b>主流程:</b>添加素材 → 处理(识别 / 断句)→ 点进播放器 → 听一句 → 点话筒跟读 → 看分数和逐词着色 → 对比原声 → 下一句。</li>
+<li><b>点句子 = 跳到该句播放;</b>单句循环、速度、盲听放在底部固定的控制条;录音时自动暂停媒体(录音与播放不并行,避免 iOS 音频冲突)。</li>
+<li><b>点词</b>沿用现有的选词操作条(查词 · 朗读 · 加入生词本),不另做一套。</li>
+</ul>
+
+<h2>A. 列表与添加</h2>
+<div class="row">
+
+<!-- 1 列表 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
+<div class="body">
+ <div class="quota"><span>已用 680 MB / 2 GB</span><div class="bar"><b></b></div><span>5 / 100 条</span></div>
+ <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">12:08</span></div><div class="m"><div class="t">Friends S01E01 – The One Where Monica Gets a Roommate</div><div class="s"><span class="badge g">已就绪</span><span class="badge">上传字幕</span></div><div class="s">214 句 · 312 MB</div></div></div>
+ <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">04:21</span></div><div class="m"><div class="t">How to Learn Any Language Fast – TED</div><div class="s"><span class="badge b">识别中</span>生成句子 62%</div><div class="prog"><b></b></div></div></div>
+ <div class="card"><div class="thumb a"><i class="ti ti-headphones"></i><span class="dur">18:40</span></div><div class="m"><div class="t">BBC 6 Minute English – Sleep</div><div class="s"><span class="badge g">已就绪</span><span class="badge">自动识别</span></div><div class="s">96 句 · 17 MB</div></div></div>
+ <div class="card"><div class="thumb"><i class="ti ti-alert-triangle"></i></div><div class="m"><div class="t">Netflix 链接</div><div class="s"><span class="badge r">失败</span>该站点有版权保护,无法导入。请下载后上传。</div><div class="s" style="margin-top:8px"><span class="link">删除</span></div></div></div>
+ <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">02:55</span></div><div class="m"><div class="t">Interview clip.mp4</div><div class="s"><span class="badge r">失败</span>没能识别出语音</div><div class="s" style="margin-top:8px"><span class="link">重试</span><span class="link">补传字幕</span><span class="link" style="color:#D1242F">删除</span></div></div></div>
+</div>
+<div class="fab"><i class="ti ti-plus"></i>添加</div>
+<div class="tabbar"><div><i class="ti ti-home"></i>首页</div><div class="on"><i class="ti ti-microphone"></i>练习</div><div><i class="ti ti-messages"></i>对话</div><div><i class="ti ti-user"></i>我的</div></div>
+</div>
+<p class="cap"><b>1 列表。</b>封面 / 音频图标、标题、时长、句数、字幕来源。处理中显示阶段和进度(3 秒轮询,页面不可见时停);失败卡片给出具体原因和对应操作;顶部显示配额。空状态:一段说明加「添加」按钮。</p></div>
+
+<!-- 2 上传 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
+<div class="body"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
+<div class="scrim"></div>
+<div class="sheet"><div class="grab"></div>
+ <div class="seg"><div class="on">上传文件</div><div>粘贴链接</div></div>
+ <div class="drop"><i class="ti ti-upload"></i>选择视频或音频<br><span style="font-size:12px;color:var(--ink-3)">mp4 · mov · mkv · mp3 · m4a · wav,单个不超过 500 MB / 90 分钟</span></div>
+ <div class="fileline"><i class="ti ti-movie" style="font-size:20px;color:var(--blue)"></i><span style="flex:none">episode2.mp4</span><div class="p"><b></b></div><span style="color:var(--ink-2)">47%</span><i class="ti ti-x" style="font-size:18px;color:var(--ink-3)"></i></div>
+ <div class="field"><label>字幕文件(可选,.srt / .vtt)</label><div class="inp">选择字幕…</div></div>
+ <div class="field"><label>标题</label><div class="inp v">Friends S01E02</div></div>
+ <div class="note gray">没有字幕时,会用语音识别自动生成句子,每人每天有识别时长额度。</div>
+ <div class="btn">开始导入</div>
+</div>
+</div>
+<p class="cap"><b>2 添加 · 上传。</b>底部弹层,两个页签。分片上传带进度和取消,失败自动重试同一片;上传时离开页面会提示。字幕可选。</p></div>
+
+<!-- 3 链接 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="back"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="act"><i class="ti ti-plus"></i></div></div>
+<div class="body"><div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
+<div class="scrim"></div>
+<div class="sheet"><div class="grab"></div>
+ <div class="seg"><div>上传文件</div><div class="on">粘贴链接</div></div>
+ <div class="field" style="margin-top:0"><label>视频链接</label><div class="inp v">https://www.youtube.com/watch?v=…</div></div>
+ <div class="note">支持 YouTube 等公开视频。Netflix、Disney+ 等有版权保护(DRM)的站点无法导入;若被站点拦截,请下载后用「上传文件」。</div>
+ <div class="btn">开始导入</div>
+ <div class="note gray" style="margin-top:16px"><b>管理员关闭链接导入时</b>,这一页只显示:「链接导入未开启,请下载视频后上传文件」,输入框和按钮不出现。</div>
+</div>
+</div>
+<p class="cap"><b>3 添加 · 链接。</b>开关在管理后台,默认关。提交后回到列表,新卡片进入处理中(下载 → 取字幕或识别 → 断句)。</p></div>
+
+</div>
+
+<h2>B. 播放与跟读</h2>
+<div class="row">
+
+<!-- 4 播放器 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-pause-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row"><div class="n">11</div><div class="tx">Wait, does he know you’re here?<div class="sub"></div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="seg-row"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="seg-row"><div class="n">14</div><div class="tx"><span class="blind">Look, you can stay with me for as long as you like.</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="seg-row"><div class="n">15</div><div class="tx"><span class="blind">Seriously? That’s so sweet of you.</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="ctrl">
+ <div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-pause-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip on"><i class="ti ti-repeat"></i>单句循环 ×3</div><div class="chip">0.75×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div>
+</div>
+</div>
+<p class="cap"><b>4 播放器。</b>顶部固定 16:9 媒体区(音频显示图标),下面是句子列表,当前句蓝色高亮并自动居中;手动滚动后 3 秒内不抢滚动。点句子跳到该句播放。控制条:上一句 / 播放 / 下一句,循环(关 / 无限 / 3 次 / 5 次)、速度 0.5–1.25(每条目记住)、盲听(后面的句子遮住,点一下显示)。进入时自动回到上次位置。</p></div>
+
+<!-- 5 录音 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?</div><div class="mic"><i class="ti ti-microphone-filled"></i></div></div>
+ <div class="seg-row"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="rec"><div style="font-size:13px;color:var(--ink-2)">正在录音 · 0:03 — 读完点一下停止</div><div class="big"><i class="ti ti-player-stop-filled"></i></div></div>
+</div>
+<p class="cap"><b>5 录音中。</b>点句子右侧话筒:媒体自动暂停,底部换成录音条(红色停止键)。读完点停止,自动上传评测。点击发生在手势内,满足 iOS 麦克风授权要求。</p></div>
+
+<!-- 6 结果 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-play-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row cur"><div class="n">12</div><div class="tx"><span class="w-g">So,</span> <span class="w-g">Rachel,</span> <span class="w-g">what</span> <span class="w-g">are</span> <span class="w-g">you</span> <span class="w-a">going</span> <span class="w-g">to</span> <span class="w-g">do</span> <span class="w-r">now?</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="score"><div class="top"><div class="ring">86</div><div style="flex:1"><div style="font-weight:600">发音 86 · 流利度 82</div><div style="font-size:12px;color:var(--ink-2);margin-top:2px">now 读得偏短,going 的 ng 可以更清楚</div></div></div>
+  <div class="row2"><div class="mini"><i class="ti ti-player-play"></i>原声</div><div class="mini"><i class="ti ti-ear"></i>我的录音</div><div class="mini"><i class="ti ti-star"></i>加入练习</div><div class="mini"><i class="ti ti-adjustments"></i>微调</div></div></div>
+ <div class="seg-row"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="ctrl">
+ <div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-play-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip"><i class="ti ti-repeat"></i>单句循环</div><div class="chip">1×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div>
+</div>
+</div>
+<p class="cap"><b>6 评分结果。</b>在该句下展开:发音总分、流利度、一句话提示,逐词着色(绿 ≥85,琥珀 70–84,红波浪线 &lt;70)。按钮:<b>原声 ↔ 我的录音</b>对比、加入练习清单、微调。复用现有评测组件。</p></div>
+
+<!-- 7 点词 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">I don’t know. I’ll find a job, I guess…</div><div class="tl"><span>03:20</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row cur"><div class="n">13</div><div class="tx">I don’t know. I’ll find a <span style="background:#cfe0ff;border-radius:4px;padding:0 2px">job</span>, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="bar2"><div><i class="ti ti-search"></i>查词</div><div><i class="ti ti-volume"></i>朗读</div><div><i class="ti ti-star"></i>生词本</div></div>
+<div class="ctrl"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-play-filled pp"></i><i class="ti ti-player-skip-forward"></i></div></div>
+</div>
+<p class="cap"><b>7 点词。</b>点一个词会把它选中,弹出「查词 · 朗读 · 生词本」操作条(与全站选词一致);查词先走本地词典,查不到再问 AI。点词时媒体自动暂停。</p></div>
+
+<!-- 8 微调 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-play-filled play"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="edit">
+  <div class="r"><span>起点 03:10.4</span><div class="pm"><span>−0.2s</span><span>+0.2s</span></div></div>
+  <div class="r"><span>终点 03:13.9</span><div class="pm"><span>−0.2s</span><span>+0.2s</span></div></div>
+  <div class="inp v" style="height:auto;padding:8px 10px;line-height:1.4">So, Rachel, what are you going to do now?</div>
+  <div style="display:flex;gap:8px;margin-top:10px"><div class="mini"><i class="ti ti-player-play"></i>试听这一句</div><div class="mini" style="background:var(--blue);color:#fff;border:none">保存</div></div>
+ </div>
+ <div class="seg-row"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="ctrl"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-play-filled pp"></i><i class="ti ti-player-skip-forward"></i></div></div>
+</div>
+<p class="cap"><b>8 微调。</b>自动识别的句边界有零点几秒误差,每句可单独调整起止(±0.2 秒)和改字,并「试听这一句」。上传了字幕的素材通常不需要。</p></div>
+
+
+<!-- 9 双语与分析 -->
+<div class="spec"><div class="phone">
+<div class="sb" style="color:#fff;z-index:41"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="background:#0d1017;border-bottom:none"><div class="back" style="color:#fff"><i class="ti ti-chevron-left"></i></div><h3 style="color:#fff;font-size:15px">Friends S01E01</h3><div class="act" style="color:#fff"><i class="ti ti-dots"></i></div></div>
+<div class="media"><i class="ti ti-player-pause-filled play" style="opacity:.35"></i><div class="cur">So, Rachel, what are you going to do now?</div><div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div></div>
+<div class="list">
+ <div class="seg-row"><div class="n">11</div><div class="tx">Wait, does he know you’re here?<div class="zh">等等,他知道你在这儿吗?</div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="seg-row cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?<div class="zh">那么,瑞秋,你现在打算怎么办?</div></div><div class="mic"><i class="ti ti-dots-vertical"></i></div></div>
+ <div class="ana"><div class="hd"><span>AI 分析 · 已保存</span><i class="ti ti-chevron-up" style="font-size:16px"></i></div>
+  <h4>句子结构</h4>疑问句,<i>what are you going to do</i> 是 be going to 的特殊疑问形式;<i>So, Rachel</i> 是话题引入和称呼。
+  <h4>语法</h4>be going to + 动词原形,表示已有打算;<i>now</i> 指「事情到了这一步之后」。
+  <h4>词汇与短语</h4><i>what are you going to do</i>:你打算怎么办(口语里常读作 whadaya gonna do)。</div>
+ <div class="seg-row"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.<div class="zh sk"></div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="more" style="top:292px"><div><i class="ti ti-copy"></i>复制句子</div><div><i class="ti ti-sparkles"></i>AI 分析</div><div><i class="ti ti-star"></i>加入练习清单</div><div><i class="ti ti-adjustments"></i>微调</div></div>
+<div class="ctrl"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-play-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip on"><i class="ti ti-language"></i>译</div><div class="chip"><i class="ti ti-repeat"></i>循环</div><div class="chip">1×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div></div>
+</div>
+<p class="cap"><b>9 双语与分析(本次增补)。</b>控制条「译」开关打开后,每句下面出现中文译文(视野附近批量生成,未到的显示骨架行);句子右侧 ⋯ 菜单:复制、AI 分析、加入练习清单、微调。分析只在点击时生成,结果存下来,再次展开不再花钱。额度满时给一次固定提示,播放和跟读不受影响。</p></div>
+</div>
+
+<h2>需要你拍板的 5 点</h2>
+<ul class="notes">
+<li><b>1. 入口位置:</b>放在「练习」页一张卡片(推荐),还是做成底部导航里的独立标签?</li>
+<li><b>2. 跟读时机:</b>目前是「点话筒才录」(推荐,简单可控)。另一种是「自动跟读模式」:播完一句自动进入录音,读完自动下一句,更像影子跟读,但在 iOS 上更容易出音频冲突。要不要做?</li>
+<li><b>3. 盲听:</b>目前是整页句子文字遮住、点一下显示(推荐);还可以做成「只遮当前句」。</li>
+<li><b>4. 列表排序与分组:</b>只按添加时间倒序(推荐)。要不要加「最近在学」置顶?</li>
+<li><b>5. 横屏全屏视频:</b>本期不做(手机竖屏看句子更重要),需要时再加。</li>
+</ul>
+</div>
+</body>
+</html>
