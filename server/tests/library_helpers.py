@@ -11,6 +11,7 @@ from app.core import config as config_module
 from app.library.asr_chunks import Silence
 from app.library.errors import LibraryError
 from app.library.media import Normalized, ProbeInfo
+from app.speech.timed import TimedText
 from tests.background import drain_background
 
 SRT = (b"1\n00:00:00,500 --> 00:00:03,000\nHello there, my friend.\n\n"
@@ -92,11 +93,35 @@ class FakeAsr:
         return transcribe
 
 
-def use_fakes(app, tools: FakeTools | None = None, asr: FakeAsr | None = None) -> FakeTools:
+class FakeTimedAsr:
+    """timed transcriber(user_id) -> async (wav) -> TimedText. `results` are returned in order: a `TimedText`, a plain str
+    (a recognizer that gives no times) or an Exception instance (raised)."""
+
+    def __init__(self, results: list):
+        self.results = list(results)
+        self.calls: list[int] = []
+
+    def __call__(self, user_id: int):
+        async def transcribe(wav: bytes) -> TimedText:
+            with wave.open(io.BytesIO(wav)) as w:
+                self.calls.append(w.getnframes() * 1000 // 16000)
+            item = self.results.pop(0) if self.results else ""
+            if isinstance(item, Exception):
+                raise item
+            return item if isinstance(item, TimedText) else TimedText(item)
+        return transcribe
+
+
+def use_fakes(app, tools: FakeTools | None = None, asr: FakeAsr | None = None,
+              timed_asr: FakeTimedAsr | None = None) -> FakeTools:
+    """`asr=` (text only) turns the timed transcriber off so the fake is what runs; `timed_asr=` turns it on."""
     tools = tools or FakeTools()
     app.state.library.deps.tools = tools
     if asr is not None:
         app.state.library.deps.transcriber = asr
+        app.state.library.deps.timed_transcriber = None
+    if timed_asr is not None:
+        app.state.library.deps.timed_transcriber = timed_asr
     return tools
 
 
