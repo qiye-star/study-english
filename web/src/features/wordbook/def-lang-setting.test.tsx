@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
+import { WORDBOOK_PREFS_KEY, writeJson } from "~/lib/storage";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { DefLangSetting } from "./def-lang-setting";
+import { readPhrasesPref, writePhrasesPref } from "./phrases-pref";
 import { CONFIG } from "./test-fixtures";
 import en from "./locales/en.json";
 
@@ -17,7 +19,7 @@ function setup(config: unknown = CONFIG, extra: Record<string, Handler> = {}) {
 const group = () => screen.getByRole("radiogroup", { name: "释义显示" });
 const PATCH = "PATCH /api/wordbook/enrollment"; // AD-1
 
-beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); void i18n.changeLanguage("zh-CN"); });
+beforeEach(() => { localStorage.removeItem(WORDBOOK_PREFS_KEY); localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); void i18n.changeLanguage("zh-CN"); });
 afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
 
 describe("DefLangSetting", () => {
@@ -74,5 +76,44 @@ describe("DefLangSetting", () => {
     expect(group().className).toContain("w-full");
     const labels = Object.values(en.web.wordbookDefs.setting.options);
     for (const l of labels) expect(l.length).toBeLessThanOrEqual(12);
+  });
+});
+
+describe("DefLangSetting phrases switch", () => {
+  const phrases = () => screen.getByRole("radiogroup", { name: "短语" });
+
+  it("offers 自动展开 / 收起 with 自动展开 selected when nothing is stored", () => {
+    setup();
+    expect(within(phrases()).getAllByRole("radio").map((r) => r.textContent)).toEqual(["自动展开", "收起"]);
+    expect(within(phrases()).getByRole("radio", { name: "自动展开" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(/复习页和已学词页的短语默认折叠/)).toBeTruthy();
+  });
+
+  it("reflects a stored fold choice", () => {
+    writePhrasesPref(false);
+    setup();
+    expect(within(phrases()).getByRole("radio", { name: "收起" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("writes the device preference (merging, not replacing) and sends no request", async () => {
+    writeJson(WORDBOOK_PREFS_KEY, { showLength: true });
+    const mock = setup();
+    await userEvent.click(within(phrases()).getByRole("radio", { name: "收起" }));
+    expect(readPhrasesPref()).toBe(false);
+    expect(JSON.parse(localStorage.getItem(WORDBOOK_PREFS_KEY)!)).toEqual({ showLength: true, phrasesOpen: false });
+    await userEvent.click(within(phrases()).getByRole("radio", { name: "自动展开" }));
+    expect(readPhrasesPref()).toBe(true);
+    expect(mock.calls.some((c) => c.method !== "GET")).toBe(false); // device-level: never the server
+    expect(await screen.findByText("已保存")).toBeTruthy();
+  });
+
+  it("structure for 360 px: two equal cells that never wrap, no fixed pixel widths (jsdom has no layout; real width unverified)", () => {
+    setup();
+    for (const r of within(phrases()).getAllByRole("radio")) {
+      expect(r.className).toContain("flex-1");
+      expect(r.className).toContain("whitespace-nowrap");
+      expect(r.className).not.toMatch(/\bw-\[\d+px\]/);
+    }
+    for (const l of Object.values(en.web.wordbookDefs.phrases.options)) expect(l.length).toBeLessThanOrEqual(12);
   });
 });

@@ -5,8 +5,13 @@
       "peek": { "label": "Show Chinese definitions" },
       "setting": {
         "label": "Definitions",
-        "help": "Shown once a card is open. Quizzes stay in Chinese. English definitions come from an open dictionary and are a reference only.",
+        "help": "Shown once a card is open. Quizzes stay in Chinese. In English only, words without an English definition still show Chinese; the 中 button on a card shows it for that card. English definitions come from an open dictionary and are a reference only.",
         "options": { "both": "Both", "zh": "Chinese only", "en": "English only" }
+      },
+      "phrases": {
+        "label": "Phrases",
+        "help": "Learn page only: phrases open or stay folded once a card is open. Review and learned-word pages keep them folded. Saved on this device only.",
+        "options": { "open": "Auto-open", "closed": "Folded" }
       }
     }
   }
