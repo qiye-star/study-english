@@ -17,7 +17,8 @@
 | D6 | 跟读体验:句子列表、单句循环、可调速度、跟读录音 + 发音评测(复用现有评测)、点词查词(复用现有查词)、把句子加入练习清单、续播位置 |
 | D7 | 管理页只做桌面端,列出大小 / 所有者 / 删除 |
 | D8 | (2026-10-13 增补,对齐桌面端 enjoy 播放页)**每句翻译(双语显示)**、**AI 分析句子**(结构 / 语法 / 词汇与短语)、**复制句子**列入本期范围;译文和分析由服务端调大模型生成后**存进句子行**,重复打开不再花钱 |
-| D9 | (同上)**第二期**再做:录音管理页(列表 / 批量删除 / 导出)、转写稿下载与打印、每句笔记、重新识别(重转写)、单句音频下载、素材 AI 摘要与录音统计、音标显示。**不做**:波形图与拖动区域、快捷键、词级强制对齐(与 §14 一致) |
+| D9 | (2026-10-13 设计稿拍板)入口 = **独立底部标签**;跟读 = **点话筒才录**(不做自动跟读模式);盲听 = **整页句子文字遮住、点一下显示**;列表只按添加时间**倒序**(不做「最近在学」置顶);横屏全屏视频**不做** |
+| D10 | (同上)**第二期**再做:录音管理页(列表 / 批量删除 / 导出)、转写稿下载与打印、每句笔记、重新识别(重转写)、单句音频下载、素材 AI 摘要与录音统计、音标显示。**不做**:波形图与拖动区域、快捷键、词级强制对齐(与 §14 一致) |
 
 ## 2. 设计裁定(E 系列,待复核)与已核对的事实
 
@@ -33,7 +34,7 @@
 | E6 | **字幕优先级**:用户上传的字幕 > 平台人工字幕 > 识别转写 > 平台自动字幕(仅当识别不可用时才用,因为滚动式自动字幕重复多、无标点)。字幕与识别都走同一个「文本 + 时间 → 句子」分句器(§6.3) |
 | E7 | 所有设置项(含链接导入的)统一由服务端车道 S1 一次性加进 `config.py` / `settings_registry.py` / `.env.example`,避免多车道改同一批文件冲突 |
 | E8 | 链接导入的 yt-dlp **以子进程运行**(`python -m yt_dlp`),环境变量白名单(绝不继承 `UPSTREAM_*_KEY` 等密钥)、超时、可被取消终止;标准错误只做分类后丢弃(里面有 URL 和标题) |
-| E9 | 入口:不加底部标签。库的入口卡片通过扩展点 `practiceHome` 贡献(核心贡献,永远可见,受 `GET /api/library/config.enabled` 控制),这样练习页不需要导入 library,不新增跨 feature 边 |
+| E9 | **入口:独立底部标签「跟读库」**(用户 2026-10-13 决定,取代原先的练习页入口卡)。在 `web/src/layout/bottom-nav.tsx` 的标签数组里增加 `LIBRARY`(`/library`,`also: []`,`/library/*` 下保持高亮),与「联机」一样由 `useLibraryEnabled()`(来自 `~/features/library` 的 `index.ts`,只含读 `GET /api/library/config` 的小钩子,页面全部懒加载)控制:`enabled` 为假时不显示标签,直接访问路由跳回 `/practice`。标签顺序:练习 · 对话 · 联机 · 跟读库 · 我的(联机或跟读库任一关闭时对应少一个;最多 5 个,360 px 下每个标签约 72 px,标签文字 ≤ 4 个汉字 / 8 个英文字符,「核对」`glass-tab-bar` 在 5 列时不溢出)。layout 层导入 feature 的 `index.ts` 是现有做法(联机同理),**不新增 `practiceHome` 扩展点,也不新增跨 feature 边**(layout 不在 feature 之间的边基线里,「核对」`architecture.test.ts`)。新文案键 `web.nav.library` 进主包(≈ 几十字节),体积预算 §11.5 照旧 |
 | E10 | 管理员**看不到**标题、URL、字幕与转写内容,只看大小、所有者、种类、状态、时长、时间、来源主机名(与「管理员不能读记忆内容」同一原则) |
 | E11 | **译文与分析放服务端、存在 `library_segments` 行上**(而不是像全站选词那样在网页直接调模型):理由是一条素材几百句,反复打开不应重复花钱,且额度能统一计量。提示词沿用桌面端 `enjoy/src/shared/commands/{translate,analyze}.command.ts` 的原文(服务端放进现有提示词注册方式,「核对」`app/services/prompts.py` 与 `admin/prompts_admin.py` 怎么登记可编辑的提示词;不新增 enjoy 改动)。母语取自用户设置,服务端只接受白名单语言码。句子文字被编辑(`PATCH segments` 改了 `text`)或字幕被替换时,该句的 `zh` / `analysis` 清空 |
 | E12 | 译文**按需批量生成**:打开「译」开关后,网页只请求视野内及前后各 10 句里还没有译文的句子(每次 ≤ 20 句);分析**只在点「分析」时**生成。额度按「句」计(§5.2),开关关或额度满时给固定文案,不影响播放与跟读 |
@@ -316,7 +317,7 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 
 ### 11.1 路由与入口
 
-`/library`(列表)、`/library/:id`(播放器与跟读),在 `app.tsx` 里用 `React.lazy` 懒加载;添加素材用列表页里的底部弹层(上传 / 链接两个页签),不单独路由。入口卡片按 E9 通过 `practiceHome` 扩展点注册(`features/library/register.tsx`,只被 `plugins/` 导入)。`GET /api/library/config` 的 `enabled` 为假时卡片不渲染,直接访问路由则跳回 `/practice`(与 `LinkRoute` 的行为一致)。
+`/library`(列表)、`/library/:id`(播放器与跟读),在 `app.tsx` 里用 `React.lazy` 懒加载;添加素材用列表页里的底部弹层(上传 / 链接两个页签),不单独路由。入口是底部导航里的独立标签(E9)。`GET /api/library/config` 的 `enabled` 为假时标签不渲染,直接访问路由则跳回 `/practice`(与 `LinkRoute` 的行为一致)。
 
 ### 11.2 列表页
 
@@ -344,7 +345,7 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 ### 11.5 文案、体积与测试
 
 - 文案:`features/library/i18n/{en,zh-CN}.json`(自动合并,不改 `i18n/index.ts`),服务端错误映射表 `LIBRARY_SERVER_ERRORS`。
-- **体积预算(目标,不是已测数字)**:主包 gzip 增量 ≤ 1.5 kB(代码 ≤ 0.5 kB:两条懒路由 + `practiceHome` 入口卡;文案 ≤ 1.0 kB,因为文案是 eager 进主包的,见 §2.2);列表页、添加弹层、播放器、跟读面板全部在懒块里,懒块 gzip 目标 ≤ 40 kB 并在结果文档里报告实数;不引入新的 npm 依赖(不做虚拟列表库,用 `content-visibility: auto` + 按需渲染逐词 `span`)。基线以计划 P0 用 `node web/scripts/check-main-bundle.mjs --record` 重录为准,合并后报告前后数字。
+- **体积预算(目标,不是已测数字)**:主包 gzip 增量 ≤ 1.5 kB(代码 ≤ 0.5 kB:两条懒路由 + 底部标签与 `useLibraryEnabled`;文案 ≤ 1.0 kB,因为文案是 eager 进主包的,见 §2.2);列表页、添加弹层、播放器、跟读面板全部在懒块里,懒块 gzip 目标 ≤ 40 kB 并在结果文档里报告实数;不引入新的 npm 依赖(不做虚拟列表库,用 `content-visibility: auto` + 按需渲染逐词 `span`)。基线以计划 P0 用 `node web/scripts/check-main-bundle.mjs --record` 重录为准,合并后报告前后数字。
 - 测试:API 客户端与分片上传(`MockTransport`/fetch 假实现)、列表轮询与状态呈现、播放器状态机(循环、速度、续播)用假的 `HTMLMediaElement`、跟读流程、点词选区、契约、架构测试(`CROSS_FEATURE_BASELINE` 只多一条 `library->practice`)、中英文文案键一致性。
 
 ## 12. 管理端(`admin/`,仅桌面)
@@ -370,7 +371,7 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 
 ## 14. 不做
 
-公开分享或跨用户共享、离线下载 / PWA 缓存媒体、字幕翻译的**并排双栏视图**(D8 只做「句下一行」)、**D9 的第二期清单**(录音管理页、转写稿下载与打印、每句笔记、重新识别、单句音频下载、素材 AI 摘要、音标显示)、波形图与拖动区域、快捷键、播放列表 / 频道批量导入、直播与录屏、**绕过 DRM**、应用内自动更新 yt-dlp、说话人分离、强制对齐到词级时间戳、视频剪辑与导出、非英语素材、与桌面版 `enjoy` 数据的同步或迁移、把 SSRF 检查抽到 `core/`(两处各自实现,以后再合并)、给库的跟读单独的段位加成或排除、改共享切句夹具或网页切句器、按用户限制可用的链接站点名单。
+公开分享或跨用户共享、离线下载 / PWA 缓存媒体、字幕翻译的**并排双栏视图**(D8 只做「句下一行」)、**D10 的第二期清单**(录音管理页、转写稿下载与打印、每句笔记、重新识别、单句音频下载、素材 AI 摘要、音标显示)、波形图与拖动区域、快捷键、播放列表 / 频道批量导入、直播与录屏、**绕过 DRM**、应用内自动更新 yt-dlp、说话人分离、强制对齐到词级时间戳、视频剪辑与导出、非英语素材、与桌面版 `enjoy` 数据的同步或迁移、把 SSRF 检查抽到 `core/`(两处各自实现,以后再合并)、给库的跟读单独的段位加成或排除、改共享切句夹具或网页切句器、按用户限制可用的链接站点名单。
 
 ## 15. 计划拆分、文件归属与合并顺序
 
@@ -390,10 +391,10 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 
 **D8 增补的归属(各计划需追加 Addendum,不要重写)**:
 - **S1**:迁移 `0018` 的 `zh` / `zh_lang` / `analysis` / `analysis_lang` 四列、§5.2 的四个新设置与 `library_ai_available` 属性、新文件 `app/library/ai.py`(批量译文与分析的编排、额度、提示词渲染,大模型只经 `providers/llm.py`)、`routers/library.py` 里 `translate` 与 `analysis` 两个端点、`PATCH segments` 改文字时清 `zh` / `analysis`、契约夹具与隐私测试扩充、`GET config` 的 `ai` 字段、提示词注册(`services/prompts.py`)。
-- **W1**:`segment-list.tsx` 渲染译文行(只读 `segment.zh`)、控制条「译」开关、`library-api.ts` 的 `translate` / `analysis` 调用与类型。
+- **W1(含入口标签,E9)**:`web/src/layout/bottom-nav.tsx` 与其测试(`layout.test.tsx` 的标签断言)、`web/src/layout/CLAUDE.md`、`features/library/use-library-enabled.ts`、文案 `web.nav.library`(取代 `register.tsx` 与 `practiceHome`;计划里相关任务作废);`segment-list.tsx` 渲染译文行(只读 `segment.zh`)、控制条「译」开关、`library-api.ts` 的 `translate` / `analysis` 调用与类型。
 - **W2**:新文件 `segment-menu.tsx`(⋯ 菜单与复制)、`analysis-card.tsx`、`use-translations.ts`(视野附近批量取、去重、失败处理);`shadow-panel` 不变。
 - **A 管理端**:设置页自动出现新设置,无额外工作;`overview` 增加今日译文 / 分析句数。
-- 第二期清单(D9)不进任何本期计划。
+- 第二期清单(D10)不进任何本期计划。
 
 **合并顺序**:**S1 →(S2 ‖ A 服务端 ‖ W1)→ W2 → A 网页 → Z**。
 - S1 先合,因为它冻结表结构、设置与契约夹具;之后 S2、A 的服务端部分、W1 互不依赖,可并行(W1 读 S1 录制的契约夹具;S2 只需要 `FetchStage` 接口)。

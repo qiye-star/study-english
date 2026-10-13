@@ -117,7 +117,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <body>
 <div class="canvas">
 <h1>跟读库 · 上传视频,跟着练习(设计稿 v1)</h1>
-<p class="lede">手机优先,375 × 812。入口在「练习」页的一张卡片;全部页面懒加载。下面 9 个画面覆盖:列表、添加(上传 / 链接)、播放与跟读、评分结果、点词查词、微调时间、双语与 AI 分析。颜色沿用 redesign-v3 令牌:蓝色=操作和当前句,绿 / 琥珀 / 红=发音分数,青色=词汇。</p>
+<p class="lede">手机优先,375 × 812。入口是底部导航的独立标签「跟读库」;全部页面懒加载。下面 9 个画面覆盖:列表、添加(上传 / 链接)、播放与跟读、评分结果、点词查词、微调时间、双语与 AI 分析。颜色沿用 redesign-v3 令牌:蓝色=操作和当前句,绿 / 琥珀 / 红=发音分数,青色=词汇。</p>
 <ul class="notes">
 <li><b>主流程:</b>添加素材 → 处理(识别 / 断句)→ 点进播放器 → 听一句 → 点话筒跟读 → 看分数和逐词着色 → 对比原声 → 下一句。</li>
 <li><b>点句子 = 跳到该句播放;</b>单句循环、速度、盲听放在底部固定的控制条;录音时自动暂停媒体(录音与播放不并行,避免 iOS 音频冲突)。</li>
@@ -140,7 +140,7 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
  <div class="card"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">02:55</span></div><div class="m"><div class="t">Interview clip.mp4</div><div class="s"><span class="badge r">失败</span>没能识别出语音</div><div class="s" style="margin-top:8px"><span class="link">重试</span><span class="link">补传字幕</span><span class="link" style="color:#D1242F">删除</span></div></div></div>
 </div>
 <div class="fab"><i class="ti ti-plus"></i>添加</div>
-<div class="tabbar"><div><i class="ti ti-home"></i>首页</div><div class="on"><i class="ti ti-microphone"></i>练习</div><div><i class="ti ti-messages"></i>对话</div><div><i class="ti ti-user"></i>我的</div></div>
+<div class="tabbar"><div><i class="ti ti-microphone"></i>练习</div><div><i class="ti ti-messages"></i>对话</div><div><i class="ti ti-users"></i>联机</div><div class="on"><i class="ti ti-movie"></i>跟读库</div><div><i class="ti ti-user"></i>我的</div></div>
 </div>
 <p class="cap"><b>1 列表。</b>封面 / 音频图标、标题、时长、句数、字幕来源。处理中显示阶段和进度(3 秒轮询,页面不可见时停);失败卡片给出具体原因和对应操作;顶部显示配额。空状态:一段说明加「添加」按钮。</p></div>
 
@@ -287,14 +287,8 @@ html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSys
 <p class="cap"><b>9 双语与分析(本次增补)。</b>控制条「译」开关打开后,每句下面出现中文译文(视野附近批量生成,未到的显示骨架行);句子右侧 ⋯ 菜单:复制、AI 分析、加入练习清单、微调。分析只在点击时生成,结果存下来,再次展开不再花钱。额度满时给一次固定提示,播放和跟读不受影响。</p></div>
 </div>
 
-<h2>需要你拍板的 5 点</h2>
-<ul class="notes">
-<li><b>1. 入口位置:</b>放在「练习」页一张卡片(推荐),还是做成底部导航里的独立标签?</li>
-<li><b>2. 跟读时机:</b>目前是「点话筒才录」(推荐,简单可控)。另一种是「自动跟读模式」:播完一句自动进入录音,读完自动下一句,更像影子跟读,但在 iOS 上更容易出音频冲突。要不要做?</li>
-<li><b>3. 盲听:</b>目前是整页句子文字遮住、点一下显示(推荐);还可以做成「只遮当前句」。</li>
-<li><b>4. 列表排序与分组:</b>只按添加时间倒序(推荐)。要不要加「最近在学」置顶?</li>
-<li><b>5. 横屏全屏视频:</b>本期不做(手机竖屏看句子更重要),需要时再加。</li>
-</ul>
+<h2>已定的 5 点(2026-10-13)</h2>
+<ul class="notes"><li>入口:底部独立标签「跟读库」(练习 · 对话 · 联机 · 跟读库 · 我的)。</li><li>跟读:点话筒才录,不做自动跟读。</li><li>盲听:整页句子文字遮住,点一下显示。</li><li>列表:只按添加时间倒序。</li><li>横屏全屏视频:不做。</li></ul>
 </div>
 </body>
 </html>
