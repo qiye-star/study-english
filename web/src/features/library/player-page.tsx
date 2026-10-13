@@ -189,6 +189,9 @@ function Player({ detail, ai }: { detail: LibraryItemDetail; ai: boolean }) {
         </div>
       ) : null}
       <GlassSurface data-testid="library-controls" className="lib-ctrl">
+        {detail.lowConfidence ? (
+          <p role="status" data-testid="library-lowconf-notice" className="lib-notice">{t("web.library.lowConfidence")}</p>
+        ) : null}
         {showTranslation && translations.notice ? (
           <p role="status" data-testid="library-translate-notice" className="lib-notice">
             {t(translations.notice === "limited" ? "web.library.player.translateLimited" : "web.library.player.translateFailed")}

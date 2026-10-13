@@ -161,18 +161,30 @@ describe("LibraryPlayerPage (spec §11.4)", () => {
   });
 });
 
+describe("low-confidence notice (D5)", () => {
+  it("tells the learner the sentence boundaries may be off, only when the server flagged the item", async () => {
+    render(detailRaw({ low_confidence: true }));
+    expect(await screen.findByTestId("library-lowconf-notice")).toHaveTextContent("句边界可能不准,可重新识别或微调");
+    cleanup();
+    render(detailRaw());
+    await screen.findByTestId("library-media");
+    expect(screen.queryByTestId("library-lowconf-notice")).toBeNull();
+  });
+});
+
 describe("translation line and switch (D8, E12, R-L32)", () => {
-  it("offers the switch when the server has AI on and the UI language has a native target", async () => {
+  it("offers the switch, on by default (D8), when the server has AI on and the UI language has a native target", async () => {
     render(detailRaw());
     const chip = await screen.findByTestId("library-translate");
-    expect(chip).toHaveAttribute("aria-pressed", "false");
-    expect(chip).toHaveAccessibleName("显示译文");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAccessibleName("隐藏译文");
   });
 
   it("hides the switch when the administrator turned AI off", async () => {
     render(detailRaw(), {}, { ...CONFIG_RAW, ai: false });
     await screen.findByTestId("library-media");
     expect(screen.queryByTestId("library-translate")).toBeNull();
+    expect(tr.args?.enabled).toBe(false); // default-on never fetches when library_ai is off
   });
 
   it("hides the switch in the English UI (nothing to translate into, like chat R16)", async () => {
@@ -182,17 +194,25 @@ describe("translation line and switch (D8, E12, R-L32)", () => {
     expect(screen.queryByTestId("library-translate")).toBeNull();
   });
 
-  it("turns the translation on, remembers it per item and starts fetching around the current sentence", async () => {
+  it("turns the translation off, remembers the choice per item and stops fetching", async () => {
     render(detailRaw({ resume_idx: 1 }));
     const chip = await screen.findByTestId("library-translate");
-    expect(tr.args).toMatchObject({ itemId: "i1", enabled: false, native: "zh-CN" });
+    expect(tr.args).toMatchObject({ itemId: "i1", enabled: true, native: "zh-CN", anchorIdx: 1 });
     fireEvent.click(chip);
-    expect(chip).toHaveAttribute("aria-pressed", "true");
-    expect(chip).toHaveAccessibleName("隐藏译文");
-    expect(tr.args).toMatchObject({ enabled: true, anchorIdx: 1 });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(chip).toHaveAccessibleName("显示译文");
+    expect(tr.args).toMatchObject({ enabled: false });
+    expect(JSON.parse(localStorage.getItem(ON_KEY)!)).toBe(false);
+    fireEvent.click(chip);
     expect(JSON.parse(localStorage.getItem(ON_KEY)!)).toBe(true);
-    fireEvent.click(chip);
-    expect(localStorage.getItem(ON_KEY)).toBeNull();
+  });
+
+  it("stays off for an item the learner turned off earlier", async () => {
+    localStorage.setItem(ON_KEY, "false");
+    render(detailRaw());
+    await screen.findByTestId("library-media");
+    expect(tr.args?.enabled).toBe(false);
+    expect(screen.queryByTestId("segment-zh-1")).toBeNull();
   });
 
   it("starts with the remembered switch and shows stored translations under their sentences", async () => {
@@ -246,6 +266,7 @@ describe("translation line and switch (D8, E12, R-L32)", () => {
 
   it("does not show the note while the translation switch is off", async () => {
     tr.state.notice = "limited";
+    localStorage.setItem(ON_KEY, "false");
     render(detailRaw());
     await screen.findByTestId("library-media");
     expect(screen.queryByTestId("library-translate-notice")).toBeNull();
