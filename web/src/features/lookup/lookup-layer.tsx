@@ -1,4 +1,4 @@
-import { LanguagesIcon, LoaderIcon, MicIcon, SearchIcon, StarIcon } from "lucide-react";
+import { LoaderIcon, MicIcon, SparklesIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
@@ -10,14 +10,19 @@ import { useAuth } from "~/auth/auth-context";
 import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
+import { DictionaryResult } from "./dictionary-result";
+import { dictToLookup, lookupDictionary, type DictEntry } from "./dictionary";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
+import { LookupBar } from "./lookup-bar";
+import { useDictionaryPrefetch } from "./use-dictionary-prefetch";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
 import { wordTargetFromLookup } from "./word-target";
 
 type LookupState =
   | { status: "loading" }
-  | { status: "done"; lookup?: LookupResult; translation?: string }
+  | { status: "done"; source?: "dict" | "ai"; dict?: DictEntry; lookup?: LookupResult; translation?: string }
   | { status: "error"; error: string };
+type AiState = { status: "idle" } | { status: "loading" } | { status: "done"; lookup: LookupResult } | { status: "error"; error: string };
 
 const SWIPE_CLOSE_PX = 60;
 
@@ -26,12 +31,15 @@ export function LookupLayer() {
   const { language } = useSettings();
   const { t } = useTranslation();
   const { selection, clear } = useTextSelection();
+  const prefetched = useDictionaryPrefetch(selection);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<TextSelectionInfo | null>(null);
   const [mode, setMode] = useState<LookupMode>("lookup");
   const [state, setState] = useState<LookupState>({ status: "loading" });
+  const [ai, setAi] = useState<AiState>({ status: "idle" });
   const native = nativeLanguageCode(language);
   const controller = useRef<AbortController | null>(null);
+  const aiController = useRef<AbortController | null>(null);
   const touchStart = useRef<number | null>(null);
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
@@ -56,6 +64,8 @@ export function LookupLayer() {
   const abort = useCallback(() => {
     controller.current?.abort();
     controller.current = null;
+    aiController.current?.abort();
+    aiController.current = null;
   }, []);
   useEffect(() => abort, [abort]); // no request outlives the layer
 
@@ -65,16 +75,40 @@ export function LookupLayer() {
     controller.current = ctl;
     setMode(nextMode);
     setState({ status: "loading" });
+    setAi({ status: "idle" });
     try {
-      const next: LookupState = nextMode === "lookup"
-        ? { status: "done", lookup: await cachedLookup(api, { word: info.text, context: info.context, nativeLanguage: native }, ctl.signal) }
-        : { status: "done", translation: await cachedTranslate(api, { text: info.text, nativeLanguage: native }, ctl.signal) };
+      let next: LookupState;
+      if (nextMode === "lookup") {
+        // 先本地词典(便宜,无上游成本);未命中或任何错误都静默回退大模型(spec D7、§3.3)。长句不问词典。
+        const dict = classifySelection(info.text) === "lookup" ? await lookupDictionary(api, info.text, ctl.signal).catch((): null => null) : null;
+        if (ctl.signal.aborted) return;
+        next = dict
+          ? { status: "done", source: "dict", dict }
+          : { status: "done", source: "ai", lookup: await cachedLookup(api, { word: info.text, context: info.context, nativeLanguage: native }, ctl.signal) };
+      } else {
+        next = { status: "done", translation: await cachedTranslate(api, { text: info.text, nativeLanguage: native }, ctl.signal) };
+      }
       if (!ctl.signal.aborted) setState(next);
     } catch (err) {
       if (ctl.signal.aborted) return;
       setState({ status: "error", error: translateServerError(t, err, LOOKUP_SERVER_ERRORS) });
     }
   }, [abort, api, native, t]);
+
+  /** 词典命中后的「AI 结合语境讲解」:点了才调现有大模型查询(R-L10)。 */
+  const explain = async () => {
+    if (!target || ai.status === "loading") return;
+    aiController.current?.abort();
+    const ctl = new AbortController();
+    aiController.current = ctl;
+    setAi({ status: "loading" });
+    try {
+      const lookup = await cachedLookup(api, { word: target.text, context: target.context, nativeLanguage: native }, ctl.signal);
+      if (!ctl.signal.aborted) setAi({ status: "done", lookup });
+    } catch (err) {
+      if (!ctl.signal.aborted) setAi({ status: "error", error: translateServerError(t, err, LOOKUP_SERVER_ERRORS) });
+    }
+  };
 
   const openFor = (info: TextSelectionInfo) => {
     setTarget(info);
@@ -108,18 +142,13 @@ export function LookupLayer() {
   };
 
   const suggested = selection ? classifySelection(selection.text) : null;
+  const done = state.status === "done" ? state : null;
+  // 抽屉里「加入词汇本」的来源:词典命中用词典结果,否则用大模型结果(与改动前相同)
+  const addSource = done?.dict ? dictToLookup(done.dict) : done?.lookup;
 
   return (
     <>
-      {selection && suggested && !open && (
-        <Button data-testid="lookup-trigger"
-          className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 h-11 -translate-x-1/2 rounded-full px-5 shadow-lg"
-          onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
-          onClick={() => openFor(selection)}>
-          {suggested === "lookup" ? <SearchIcon className="mr-2 h-4 w-4" /> : <LanguagesIcon className="mr-2 h-4 w-4" />}
-          {suggested === "lookup" ? t("web.lookup.lookup") : t("web.lookup.translate")}
-        </Button>
-      )}
+      {selection && suggested && !open && <LookupBar selection={selection} suggested={suggested} entry={prefetched} onOpen={openFor} />}
       <BottomSheet open={open} onOpenChange={onOpenChange}>
         <BottomSheetContent data-testid="lookup-drawer"
           className="max-h-[70dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -134,25 +163,37 @@ export function LookupLayer() {
           <div data-testid="lookup-result" data-status={state.status} aria-live="polite" className="mt-3 select-text space-y-2 text-base">
             {state.status === "loading" && <LoaderIcon className="h-5 w-5 animate-spin" aria-label={t("web.common.loading")} />}
             {state.status === "error" && <p role="alert" className="text-destructive">{state.error}</p>}
-            {state.status === "done" && state.lookup && (
-              <>
-                <p className="text-lg font-semibold">
-                  {state.lookup.word || target?.text}
-                  {state.lookup.pronunciation && <span className="ml-2 font-code font-normal text-muted-foreground">/{state.lookup.pronunciation}/</span>}
-                  {state.lookup.pos && <span className="ml-2 text-sm font-normal text-muted-foreground">{state.lookup.pos}</span>}
-                </p>
-                {state.lookup.lemma && state.lookup.lemma !== state.lookup.word && (
-                  <p className="text-sm text-muted-foreground">{t("web.lookup.lemma")}: {state.lookup.lemma}</p>
-                )}
-                {state.lookup.definition && <p>{state.lookup.definition}</p>}
-                {state.lookup.translation && <p className="font-medium">{state.lookup.translation}</p>}
-                {state.lookup.contextTranslation && (
-                  <p className="border-l-2 pl-2 text-sm text-muted-foreground">{state.lookup.contextTranslation}</p>
-                )}
-              </>
+            {done?.source && (
+              <p data-testid="lookup-source" data-source={done.source} className="text-xs text-muted-foreground">
+                {done.source === "dict" ? t("web.lookup.sourceDict") : t("web.lookup.sourceAi")}
+              </p>
             )}
-            {state.status === "done" && state.translation !== undefined && <p className="whitespace-pre-wrap">{state.translation}</p>}
+            {done?.dict && <DictionaryResult entry={done.dict} />}
+            {done?.lookup && <AiLookup lookup={done.lookup} fallbackWord={target?.text ?? ""} />}
+            {done && done.translation !== undefined && <p className="whitespace-pre-wrap">{done.translation}</p>}
           </div>
+          {done?.dict && (
+            <div className="mt-3">
+              {ai.status === "idle" && (
+                <Button variant="outline" data-testid="lookup-ai-explain" className="h-11 w-full" onClick={() => void explain()}>
+                  <SparklesIcon className="mr-2 h-4 w-4" />{t("web.lookup.aiExplain")}
+                </Button>
+              )}
+              {ai.status === "loading" && <LoaderIcon data-testid="lookup-ai-loading" className="h-5 w-5 animate-spin" aria-label={t("web.common.loading")} />}
+              {ai.status === "error" && (
+                <div className="space-y-2">
+                  <p role="alert" className="text-destructive">{ai.error}</p>
+                  <Button variant="outline" data-testid="lookup-ai-retry" className="h-11 w-full" onClick={() => void explain()}>{t("web.common.retry")}</Button>
+                </div>
+              )}
+              {ai.status === "done" && (
+                <div data-testid="lookup-ai-result" className="select-text space-y-2 border-t pt-3">
+                  <p data-testid="lookup-ai-source" className="text-xs text-muted-foreground">{t("web.lookup.sourceAi")}</p>
+                  <AiLookup lookup={ai.lookup} fallbackWord={target?.text ?? ""} />
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-4 flex gap-2">
             <Button variant="outline" data-testid="lookup-switch-mode" className="h-11 flex-1"
               disabled={!target || state.status === "loading"}
@@ -163,10 +204,10 @@ export function LookupLayer() {
               <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
-          {state.status === "done" && state.lookup && isWordOrPhrase && target && (
+          {addSource && isWordOrPhrase && target && (
             <div className="mt-2 flex">
               <WordActions key={`${target.text}
-${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFromLookup(state.lookup, target)} />
+${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFromLookup(addSource, target)} />
             </div>
           )}
           {isPassage && (
@@ -186,6 +227,24 @@ ${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFr
           )}
         </BottomSheetContent>
       </BottomSheet>
+    </>
+  );
+}
+
+/** 大模型查词结果(原来内联在抽屉里的那一段,逐项相同)。 */
+function AiLookup({ lookup, fallbackWord }: { lookup: LookupResult; fallbackWord: string }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <p className="text-lg font-semibold">
+        {lookup.word || fallbackWord}
+        {lookup.pronunciation && <span className="ml-2 font-code font-normal text-muted-foreground">/{lookup.pronunciation}/</span>}
+        {lookup.pos && <span className="ml-2 text-sm font-normal text-muted-foreground">{lookup.pos}</span>}
+      </p>
+      {lookup.lemma && lookup.lemma !== lookup.word && <p className="text-sm text-muted-foreground">{t("web.lookup.lemma")}: {lookup.lemma}</p>}
+      {lookup.definition && <p>{lookup.definition}</p>}
+      {lookup.translation && <p className="font-medium">{lookup.translation}</p>}
+      {lookup.contextTranslation && <p className="border-l-2 pl-2 text-sm text-muted-foreground">{lookup.contextTranslation}</p>}
     </>
   );
 }

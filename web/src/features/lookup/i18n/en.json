@@ -2,6 +2,7 @@
   "web": {
     "lookup": {
       "lookup": "Look up", "translate": "Translate", "lookupInstead": "Dictionary", "translateInstead": "Translate instead",
+      "sourceDict": "Dictionary", "sourceAi": "AI lookup", "aiExplain": "Explain in context with AI", "barLabel": "Selection actions", "phrases": "Phrases",
       "lemma": "Base form", "invalid": "The dictionary answer could not be read. Try again.",
       "upstream": "The AI service is unavailable. Please try again.", "notConfigured": "The AI service is not configured on the server.",
       "drawerDescription": "AI dictionary or translation for the selected text",
