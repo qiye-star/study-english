@@ -30,7 +30,7 @@ from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, dictionary, grammar, grammar_prompt, health, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -110,6 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
         health, announcements, sessions, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
+        dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
         links, agents, agents_tutor, admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents, stubs, admin_web, web,
     ):

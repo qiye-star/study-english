@@ -5,7 +5,7 @@ Third-party dictionary data read at runtime by `app/wordbook/` (spec 2026-10-10-
 ## What lives here
 - `kylebing-english-vocabulary/` – seven sentence-level JSONL word books + `SOURCE.json` manifest + upstream `LICENSE`.
 
-- `wordbook-definitions/` – English definitions for word cards (generated + hand-written + licences; see its own `CLAUDE.md`).
+- `wordbook-definitions/` – English definitions for word cards + `forms.txt` word-form table (generated + hand-written + licences; see its own `CLAUDE.md`).
   Attribution is in the repo-root `NOTICE`.
 
 ## Rules
@@ -17,4 +17,4 @@ Third-party dictionary data read at runtime by `app/wordbook/` (spec 2026-10-10-
 - Copied into the image by `server/Dockerfile` (`/app/dictionaries`); whitelisted in `server/Dockerfile.dockerignore`.
 
 ## Test
-`uv run pytest -q tests/test_wordbook_data_files.py tests/test_wordbook_definitions_data.py`
+`uv run pytest -q tests/test_wordbook_data_files.py tests/test_wordbook_definitions_data.py tests/test_wordbook_forms_data.py`

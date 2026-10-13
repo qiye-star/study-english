@@ -1,0 +1,85 @@
+{
+  "hit": {
+    "hit": true,
+    "word": "talk",
+    "phonetic": "tɔk",
+    "defs_zh": [
+      {
+        "pos": "v",
+        "text": "说话；谈话"
+      },
+      {
+        "pos": "n",
+        "text": "交谈"
+      },
+      {
+        "pos": "n/v",
+        "text": "谈话，讲话"
+      }
+    ],
+    "defs_en": [
+      {
+        "pos": "v",
+        "text": "speak to someone"
+      },
+      {
+        "pos": "v",
+        "text": "have a conversation"
+      },
+      {
+        "pos": "n",
+        "text": "a conversation between people"
+      }
+    ],
+    "phrases": [
+      {
+        "en": "talk about",
+        "zh": "谈论某事"
+      }
+    ],
+    "source": "dict",
+    "def_lang": "both"
+  },
+  "inflected": {
+    "hit": true,
+    "word": "went",
+    "lemma": "go",
+    "phonetic": "ɡo",
+    "defs_zh": [
+      {
+        "pos": "v",
+        "text": "去；走"
+      }
+    ],
+    "defs_en": [
+      {
+        "pos": "v",
+        "text": "move or travel to a place"
+      }
+    ],
+    "phrases": [
+      {
+        "en": "go on",
+        "zh": "继续"
+      }
+    ],
+    "source": "dict",
+    "def_lang": "both"
+  },
+  "phrase": {
+    "hit": true,
+    "word": "be able to",
+    "defs_zh": [
+      {
+        "pos": "",
+        "text": "能够"
+      }
+    ],
+    "defs_en": [],
+    "source": "dict",
+    "def_lang": "both"
+  },
+  "miss": {
+    "hit": false
+  }
+}
