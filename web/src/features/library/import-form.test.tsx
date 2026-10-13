@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { setUiLanguage } from "./test-i18n";
@@ -62,5 +62,77 @@ describe("ImportForm (spec §7.4)", () => {
     status = 404;
     fireEvent.click(screen.getByRole("button", { name: "导入" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("管理员没有开启链接导入。"));
+  });
+});
+
+describe("ImportForm polish (R-A13, R-A14)", () => {
+  const withClipboard = (readText: () => Promise<string>) => {
+    Object.defineProperty(navigator, "clipboard", { value: { readText }, configurable: true });
+  };
+  const withoutClipboard = () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+  };
+
+  it("shows the DRM notice as an amber card and the disabled notice as a plain card", () => {
+    const { unmount } = renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />);
+    expect(screen.getByTestId("library-drm-note").className).toMatch(/\blib-note--warn\b/);
+    unmount();
+    renderWithProviders(<ImportForm linkImport={false} onImported={vi.fn()} />);
+    expect(screen.getByTestId("library-link-disabled").className).toMatch(/\blib-note\b/);
+    expect(screen.getByTestId("library-link-disabled")).toHaveAttribute("role", "status");
+  });
+
+  it("uses glass fields and the specular button", () => {
+    withoutClipboard();
+    renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />);
+    expect(screen.getByLabelText("视频页面链接").className).toMatch(/\blib-ffield-input\b/);
+    expect(screen.getByLabelText("标题(可选)").className).toMatch(/\blib-ffield-input\b/);
+    expect(screen.getByRole("button", { name: "导入" }).className).toMatch(/\blib-spec\b/);
+    expect(screen.getByRole("button", { name: "导入" })).toBeDisabled();
+  });
+
+  it("hides the paste button when the clipboard cannot be read", () => {
+    withoutClipboard();
+    renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "粘贴" })).toBeNull();
+  });
+
+  it("pastes a trimmed link into the field and clears an old error", async () => {
+    withClipboard(() => Promise.resolve("  https://www.youtube.com/watch?v=x \n"));
+    renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("视频页面链接"), { target: { value: "nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "导入" }));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "粘贴" }));
+    });
+    expect((screen.getByLabelText("视频页面链接") as HTMLInputElement).value).toBe("https://www.youtube.com/watch?v=x");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("stays quiet and focuses the field when the paste is refused", async () => {
+    withClipboard(() => Promise.reject(new DOMException("denied", "NotAllowedError")));
+    renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "粘贴" }));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("视频页面链接")).toHaveFocus();
+  });
+
+  it("shows the import as in progress while the request is pending, and an error as a red card", async () => {
+    withoutClipboard();
+    let release: (r: Response) => void = () => {};
+    const mock = createFetchMock({
+      "POST /api/library/imports": () => new Promise<Response>((resolve) => { release = resolve; }),
+    });
+    renderWithProviders(<ImportForm linkImport onImported={vi.fn()} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    fireEvent.change(screen.getByLabelText("视频页面链接"), { target: { value: "http://10.0.0.1/x" } });
+    fireEvent.click(screen.getByRole("button", { name: "导入" }));
+    expect(await screen.findByRole("button", { name: "导入中…" })).toBeDisabled();
+    await act(async () => { release(json({ error: "Invalid URL" }, 400)); });
+    const alert = await screen.findByRole("alert");
+    expect(alert.className).toMatch(/\blib-note--err\b/);
+    expect(screen.getByRole("button", { name: "导入" })).toBeEnabled();
   });
 });

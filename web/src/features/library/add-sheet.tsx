@@ -25,7 +25,7 @@ export function AddSheet({ open, onOpenChange, config, onUpload, onImported }: {
     <BottomSheet open={open} onOpenChange={onOpenChange}>
       <BottomSheetContent className="library-root lib-sheet max-h-[90dvh] overflow-y-auto" aria-describedby={undefined}>
         <BottomSheetHeader title={t("web.library.sheet.title")} />
-        <SegmentedControl<Tab> label={t("web.library.sheet.tabs")} value={tab} onChange={setTab}
+        <SegmentedControl<Tab> label={t("web.library.sheet.tabs")} value={tab} onChange={setTab} className="lib-seg flex w-full" optionClassName="flex-1"
           options={[
             { value: "upload", label: t("web.library.sheet.upload"), testId: "library-tab-upload" },
             { value: "link", label: t("web.library.sheet.link"), testId: "library-tab-link" },
