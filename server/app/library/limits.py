@@ -41,9 +41,15 @@ POLL_SECONDS = 2.0
 SHUTDOWN_WAIT_SECONDS = 2.0
 LIST_LIMIT = 50
 ACTIVE = ("uploading", "queued", "processing")
+AI_BATCH_MAX = 20  # sentences per translate request (spec E12)
+TRANSLATION_MAX = 1200  # stored translation length (spec §4)
+ANALYSIS_MAX = 4000  # stored analysis length (spec §4)
 
 SCOPE_IMPORTS = "library_imports"
 SCOPE_ASR = "library_asr"
+SCOPE_TRANSLATE = "library_translate"  # D8: sentences translated today (subject = user id)
+SCOPE_ANALYSIS = "library_analysis"  # D8: sentence analyses today (subject = user id)
+SCOPE_AI_GLOBAL = "library_ai"  # D8: both kinds together, in sentences (subject = "*")
 GLOBAL = "*"
 
 
@@ -128,3 +134,40 @@ async def admit_new_item(session: AsyncSession, app, user_id: int, *, size_bytes
 
 async def refund_new_item(session: AsyncSession, app, user_id: int) -> None:
     await usage.refund(session, SCOPE_IMPORTS, str(user_id), day_of(datetime.now(timezone.utc)))
+
+
+async def reserve_upto(session: AsyncSession, scope: str, subject: str, day: str, want: int, limit: int) -> int:
+    """Take up to `want` of today's `limit`: all of it, else what is left, else 0 (commits)."""
+    if want <= 0 or limit <= 0:
+        return 0
+    if await reserve(session, scope, subject, day, want, limit):
+        return want
+    for _ in range(2):  # a concurrent request may take the rest between the read and the update
+        take = min(want, await usage.remaining(session, scope, subject, day, limit))
+        if take <= 0:
+            return 0
+        if await reserve(session, scope, subject, day, take, limit):
+            return take
+    return 0
+
+
+async def reserve_ai(session: AsyncSession, user_id: int, scope: str, user_limit: int, global_limit: int, want: int,
+                     day: str) -> tuple[int, str | None]:
+    """D8: spend up to `want` sentences of the user's daily allowance for `scope` (translate or analysis) and of the
+    site-wide one. Returns (granted, shortfall): `shortfall` is None when all `want` were granted, else which cap
+    stopped it, "user" or "global". Whatever the site-wide cap refused is given back to the user's counter."""
+    mine = await reserve_upto(session, scope, str(user_id), day, want, user_limit)
+    if mine == 0:
+        return 0, "user"
+    both = await reserve_upto(session, SCOPE_AI_GLOBAL, GLOBAL, day, mine, global_limit)
+    if both < mine:
+        await release(session, scope, str(user_id), day, mine - both)
+    if both >= want:
+        return both, None
+    return both, "global" if both < mine else "user"
+
+
+async def refund_ai(session: AsyncSession, user_id: int, scope: str, amount: int, day: str) -> None:
+    """Give back sentences that were reserved but not produced (upstream failure or a short reply)."""
+    await release(session, scope, str(user_id), day, amount)
+    await release(session, SCOPE_AI_GLOBAL, GLOBAL, day, amount)

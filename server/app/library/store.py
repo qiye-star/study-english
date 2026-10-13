@@ -125,6 +125,45 @@ async def write_segments(session: AsyncSession, item: LibraryItem, sentences: li
     item.resume_idx = min(item.resume_idx, max(0, len(sentences) - 1))
 
 
+async def segments_at(session: AsyncSession, item_id: str, indices: list[int]) -> list[LibrarySegment]:
+    """The sentences with these indices (unknown ones are simply absent), in index order."""
+    if not indices:
+        return []
+    return list((await session.scalars(select(LibrarySegment).where(
+        LibrarySegment.item_id == item_id, LibrarySegment.idx.in_(indices)).order_by(LibrarySegment.idx))).all())
+
+
+def clear_ai(seg: LibrarySegment) -> None:
+    """Spec E11: a sentence whose text changed keeps no translation or analysis (caller commits)."""
+    seg.zh = seg.zh_lang = seg.analysis = seg.analysis_lang = None
+
+
+async def set_translations(session: AsyncSession, item_id: str, entries: list[tuple[int, str, str]],
+                           language: str) -> set[int]:
+    """Store translations (commits). Each entry is (idx, the text the translation was made for, zh): a sentence edited
+    while the model was working no longer matches and is skipped, so a stale translation never lands on new text.
+    Returns the indices that were stored."""
+    stored = set()
+    for idx, text, zh in entries:
+        result = await session.execute(update(LibrarySegment).where(
+            LibrarySegment.item_id == item_id, LibrarySegment.idx == idx, LibrarySegment.text == text)
+            .values(zh=zh, zh_lang=language))
+        if result.rowcount == 1:
+            stored.add(idx)
+    await session.commit()
+    return stored
+
+
+async def set_analysis(session: AsyncSession, item_id: str, idx: int, text: str, analysis: str,
+                       language: str) -> bool:
+    """Store one analysis (commits) under the same stale-text guard as `set_translations`."""
+    result = await session.execute(update(LibrarySegment).where(
+        LibrarySegment.item_id == item_id, LibrarySegment.idx == idx, LibrarySegment.text == text)
+        .values(analysis=analysis, analysis_lang=language))
+    await session.commit()
+    return result.rowcount == 1
+
+
 async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
     """Explicit child deletes (SQLite has no FK cascade); caller commits, then removes the files."""
     await session.execute(delete(LibraryAttempt).where(LibraryAttempt.item_id == item_id))

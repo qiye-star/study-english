@@ -52,6 +52,13 @@ PROMPTS: dict[str, PromptSpec] = {
     "wordbook.explain": PromptSpec(
         "wordbook.explain", "背单词 AI 讲解", "text", frozenset({"word", "meanings", "example"}),
         ("<word>", "</word>"), 4000, sample_fields=("word", "meanings", "example")),
+    # 跟读库的句子译文与分析(spec 2026-10-13-video-import D8 / E11);默认值在 app/library/ai.py,取自桌面端 enjoy 的原文
+    "library.translate": PromptSpec(
+        "library.translate", "跟读库句子译文", "text", frozenset({"native_language", "text"}), ("<text>", "</text>"),
+        4000, sample_fields=("native_language", "text")),
+    "library.analyze": PromptSpec(
+        "library.analyze", "跟读库句子分析", "text", frozenset({"native_language", "learning_language"}), (), 4000,
+        sample_fields=("native_language", "text")),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }
