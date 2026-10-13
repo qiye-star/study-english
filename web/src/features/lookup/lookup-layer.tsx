@@ -7,7 +7,7 @@ import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { MAX_PRACTICE_TEXT, savePracticeItem, useShadowSheet } from "~/features/practice";
+import { MAX_PRACTICE_TEXT, savePracticeItem, useShadowSheet, useShadowSheetOpen } from "~/features/practice";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { DictionaryResult } from "./dictionary-result";
@@ -42,6 +42,7 @@ export function LookupLayer() {
   const aiController = useRef<AbortController | null>(null);
   const touchStart = useRef<number | null>(null);
   const { open: openShadow } = useShadowSheet();
+  const shadowOpen = useShadowSheetOpen();
   const [saving, setSaving] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -134,6 +135,12 @@ export function LookupLayer() {
     shownAt.current = pathname;
     if (open && navigationType === "PUSH") onOpenChange(false);
   }); // 每次渲染比较路径:只在路径真的变了时动作
+
+  // 跟读弹窗打开时收起查词面板(含「单词操作」面板里的「跟读这个词」:它不导航,抽屉不会因路径变化而收起,R-S21)。
+  // 只在弹窗「打开的那一刻」触发;弹窗已开时再从弹窗里选词打开抽屉不会被它关掉。
+  useEffect(() => {
+    if (shadowOpen && open) onOpenChange(false);
+  }, [shadowOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onTouchEnd = (e: TouchEvent) => {
     const start = touchStart.current;

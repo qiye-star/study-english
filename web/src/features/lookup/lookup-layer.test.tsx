@@ -7,6 +7,7 @@ import { ApiClient } from "~/api/client";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { useShadowSheet } from "~/features/practice";
 import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { LookupLayer } from "./lookup-layer";
 
@@ -167,6 +168,30 @@ describe("LookupLayer", () => {
     expect(screen.queryByTestId("shadow-position")).toBeNull();
     expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/); // 没有导航
     await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull()); // 先关查词面板
+  });
+
+  it("collapses the drawer when the shadow sheet opens from somewhere else", async () => {
+    const mock = createFetchMock({ "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","definition":"a nation"}' } }] }) });
+    function OpenElsewhere() {
+      const { open } = useShadowSheet();
+      return <button type="button" data-testid="open-elsewhere" onClick={() => open({ text: "Hello there.", source: "manual" })}>x</button>;
+    }
+    // 不用 Page(它自带一层 WithShadowSheet):两个 Provider 不同步。这里只有外面这一层。
+    renderWithProviders(
+      <WithShadowSheet>
+        <OpenElsewhere />
+        <p data-testid="ctx" data-lookup-context>ask not what your country can do for you</p>
+        <LookupLayer />
+      </WithShadowSheet>,
+      { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) },
+    );
+    await selectText("country");
+    await userEvent.click(await screen.findByTestId("lookup-trigger"));
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    // 抽屉是模态的(body 带 pointer-events:none),userEvent 点不到外面的按钮;这里模拟「从别处打开」,直接触发 click
+    await act(async () => { screen.getByTestId("open-elsewhere").click(); });
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull());
   });
 
   it("does not offer practice for a single word", async () => {

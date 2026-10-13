@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "~/test/render";
-import { ShadowSheetProvider, normalizeShadowInput, useShadowSheet, type ShadowOpenInput } from "./shadow-context";
+import { ShadowSheetProvider, normalizeShadowInput, useShadowSheet, useShadowSheetOpen, type ShadowOpenInput } from "./shadow-context";
 import { ShadowSheetHost } from "./shadow-host";
 
 describe("normalizeShadowInput", () => {
@@ -112,5 +112,29 @@ describe("ShadowSheetProvider + ShadowSheetHost", () => {
     );
     await userEvent.click(screen.getByTestId("open"));
     expect(screen.queryByTestId("shadow-sheet")).toBeNull();
+  });
+});
+
+function OpenProbe() {
+  return <span data-testid="shadow-open-probe">{String(useShadowSheetOpen())}</span>;
+}
+
+describe("useShadowSheetOpen", () => {
+  it("is false without a provider and follows the sheet with one", async () => {
+    const first = renderWithProviders(<OpenProbe />);
+    expect(screen.getByTestId("shadow-open-probe")).toHaveTextContent("false");
+    first.unmount();
+    renderWithProviders(
+      <ShadowSheetProvider><OpenProbe /><Opener input={{ text: "Hello there.", source: "chat" }} /><ShadowSheetHost /></ShadowSheetProvider>,
+    );
+    expect(screen.getByTestId("shadow-open-probe")).toHaveTextContent("false");
+    await userEvent.click(screen.getByTestId("open"));
+    expect(screen.getByTestId("shadow-open-probe")).toHaveTextContent("true");
+    await userEvent.click(await screen.findByTestId("shadow-close"));
+    expect(screen.getByTestId("shadow-open-probe")).toHaveTextContent("false");
+  });
+
+  it("accepts the manual source", () => {
+    expect(normalizeShadowInput({ text: "Hi.", source: "manual" })).toEqual({ items: ["Hi."], index: 0, source: "manual" });
   });
 });

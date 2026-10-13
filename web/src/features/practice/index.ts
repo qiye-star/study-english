@@ -17,5 +17,5 @@ export {
 export { MAX_PRACTICE_TEXT } from "./practice-items-api";
 export { goPractice, savePracticeItem } from "./save-practice-item";
 export { MobileScoreResult } from "./mobile-score-result";
-export { ShadowSheetProvider, useShadowSheet, type ShadowOpenInput, type ShadowSource } from "./shadow/shadow-context";
+export { ShadowSheetProvider, useShadowSheet, useShadowSheetOpen, type ShadowOpenInput, type ShadowSource } from "./shadow/shadow-context";
 export { ShadowSheetHost } from "./shadow/shadow-host";

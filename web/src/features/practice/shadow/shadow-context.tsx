@@ -79,6 +79,11 @@ export function useShadowSheet(): ShadowSheetApi {
   return api ?? fallback;
 }
 
+/** 弹窗当前是否打开(给 LookupLayer:弹窗打开时收起查词抽屉,R-S21)。没有 Provider 时恒为 false。 */
+export function useShadowSheetOpen(): boolean {
+  return useContext(RequestContext) !== null;
+}
+
 /** 只给 ShadowSheetHost 用 */
 export function useShadowHost(): { request: ShadowRequest | null; api: ShadowSheetApi | null } {
   return { request: useContext(RequestContext), api: useContext(ApiContext) };
