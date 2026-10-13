@@ -17,6 +17,12 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - enjoy-data:/data
+      # 跟读库 · 链接导入(可选,默认不需要;spec 2026-10-13-video-import §7.3):给 yt-dlp 用的 cookies 文件
+      # (Netscape 格式,从浏览器导出)。它含账号会话,等同密钥:只用专门的小号,主账号有被平台限制的风险。
+      # 宿主机上:chown 10001 ./secrets/ytdlp-cookies.txt && chmod 600 ./secrets/ytdlp-cookies.txt(容器用户 uid 10001)
+      # 然后在 server/.env 写 LIBRARY_YTDLP_COOKIES_FILE=/run/secrets/ytdlp-cookies.txt;服务端每次取回复制一份副本用完即删,
+      # 原文件只读。被拦时最稳的办法仍是在本机下载后「上传文件」。
+      # - ./secrets/ytdlp-cookies.txt:/run/secrets/ytdlp-cookies.txt:ro
     depends_on:
       postgres:
         condition: service_healthy
