@@ -6,6 +6,7 @@ import { ALL_OFF, LINK_KEYS, setLinkFlags, type LinkFlags } from "~/lib/extensio
 import { Slot } from "~/lib/extension-points-react";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { WeakWordsPage } from "./weak-words-page";
 import "./index";
 
@@ -42,24 +43,26 @@ it("lists weak words with score tones and hit counts", async () => {
   expect(screen.getByText("跟读里读得不准的词。读准两次后自动移出。")).toBeInTheDocument();
 });
 
-it("shadow uses the example sentence", async () => {
-  renderWithProviders(<WeakWordsPage />, { api: api(listing()) });
+it("shadow uses the example sentence and opens the shadow sheet without navigating", async () => {
+  renderWithProviders(<WithShadowSheet><WeakWordsPage /></WithShadowSheet>, { api: api(listing()) });
   fireEvent.click(within(await screen.findByTestId("weak-three")).getByRole("button", { name: "跟读:three" }));
-  expect(screen.getByTestId("location")).toHaveTextContent("/practice");
-  expect(state()).toEqual({ reference: "Three trees." });
+  expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+  expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Three trees.");
+  expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+  expect(state()).toBeNull();
 });
 
 it("shadowing a word without an example uses the word", async () => {
-  renderWithProviders(<WeakWordsPage />, { api: api(listing()) });
+  renderWithProviders(<WithShadowSheet><WeakWordsPage /></WithShadowSheet>, { api: api(listing()) });
   fireEvent.click(within(await screen.findByTestId("weak-world")).getByRole("button", { name: "跟读:world" }));
-  expect(state()).toEqual({ reference: "world" });
+  expect(await screen.findByTestId("shadow-reference")).toHaveTextContent("world");
 });
 
-it("drills the top five words together", async () => {
-  renderWithProviders(<WeakWordsPage />, { api: api(listing()) });
+it("drills the top five words together in the shadow sheet", async () => {
+  renderWithProviders(<WithShadowSheet><WeakWordsPage /></WithShadowSheet>, { api: api(listing()) });
   fireEvent.click(await screen.findByRole("button", { name: "连读这 5 个" }));
-  expect(screen.getByTestId("location")).toHaveTextContent("/practice");
-  expect(state()).toEqual({ reference: "three, world, rural, thought, squirrel" });
+  expect(await screen.findByTestId("shadow-reference")).toHaveTextContent("three, world, rural, thought, squirrel");
+  expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
 });
 
 it("dismisses a word and shows the empty state", async () => {
