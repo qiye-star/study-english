@@ -1,4 +1,9 @@
 """配置诊断(spec §3.10):纯函数 diagnose(settings, facts) + 事实收集 gather_facts。消息只含键名,不含值。"""
+import importlib.util
+import os
+import shutil
+import stat as stat_mod
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -7,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 
 from app.admin import sessions, usage
-from app.core.config import realtime_asr_configured
+from app.core.config import asr_stream_usable, realtime_asr_configured, whisper_fallback_configured
 from app.core.secretbox import box_for, fingerprint
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
 from app.wordbook.books import book_by_id, enabled_books
@@ -20,6 +25,7 @@ CODES = (
     "env_drift", "pending_restart", "sqlite_without_backup", "missing_prices", "login_alarm", "safe_mode",
     "retention_enabled", "invite_without_codes", "wordbook_data_missing", "wordbook_ai_unavailable",
     "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
+    "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
 )
 
 
@@ -48,6 +54,9 @@ class Facts:
     links_breakers_open: int = 0  # learning links whose circuit breaker is open (this process)
     links_dropped: int = 0  # learning events dropped because the queue was full (this process, since start)
     agents_probe_ok: bool = False  # last native function calling probe passed (this process; plan R-C7)
+    library_ffmpeg_ok: bool = True  # ffmpeg and ffprobe on PATH (video import spec §5.2)
+    library_ytdlp_ok: bool = True  # the yt_dlp module can be found (link import)
+    library_cookies: str = "unset"  # LIBRARY_YTDLP_COOKIES_FILE: unset | ok | missing | too_open
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -61,6 +70,27 @@ def _realtime_reasons(s) -> tuple[str, ...]:
     if not realtime_asr_configured(s):
         reasons.append("realtime_asr_mode")
     return tuple(reasons)
+
+
+def _library_findings(s, f: Facts) -> list[Finding]:
+    """跟读库(spec 2026-10-13-video-import §5.2):只在总开关打开时检查;消息只写键名,不写路径或代理地址。"""
+    out: list[Finding] = []
+    if not f.library_ffmpeg_ok:
+        out.append(Finding("error", "library_ffmpeg_missing", ("library_enabled",),
+                           "跟读库已开启,但服务器上找不到 ffmpeg / ffprobe:上传与链接导入都无法处理"))
+    if getattr(s, "library_link_import_enabled", False) and not f.library_ytdlp_ok:
+        out.append(Finding("warn", "library_ytdlp_missing", ("library_link_import_enabled",),
+                           "链接导入已打开,但服务器上没有安装 yt-dlp:链接页签会显示不可用"))
+    if getattr(s, "library_asr_enabled", False) and not (asr_stream_usable(s) or whisper_fallback_configured(s)):
+        out.append(Finding("warn", "library_asr_unavailable", ("library_asr_enabled",),
+                           "跟读库自动转写已打开,但没有可用的语音识别(流式识别或 Whisper):没有字幕的素材会失败"))
+    if f.library_cookies == "missing":
+        out.append(Finding("warn", "library_cookies_missing", ("library_ytdlp_cookies_file",),
+                           "LIBRARY_YTDLP_COOKIES_FILE 已配置,但文件不存在或不是普通文件"))
+    elif f.library_cookies == "too_open":
+        out.append(Finding("warn", "library_cookies_missing", ("library_ytdlp_cookies_file",),
+                           "yt-dlp 的 cookies 文件权限比 0600 宽:它含账号会话,等同密钥,请改为只有服务进程可读"))
+    return out
 
 
 def diagnose(s, f: Facts) -> list[Finding]:
@@ -123,6 +153,8 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if getattr(s, "agents_enabled", False) and getattr(s, "agents_tools_mode", "prefetch") == "native"             and not f.agents_probe_ok:
         out.append(Finding("info", "agents_native_unverified", ("agents_tools_mode",),
                            "AGENTS_TOOLS_MODE=native,但函数调用探测未通过或未运行:按 prefetch 运行(在「智能体」页运行探测)"))
+    if getattr(s, "library_enabled", False):
+        out.extend(_library_findings(s, f))
     rank = {"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
@@ -149,6 +181,35 @@ def _links_facts(app) -> tuple[int, int]:
         return 0, 0
     opened = sum(1 for s in bus.stats().values() if s.get("breaker") == "open")
     return opened, int(bus.queue().get("dropped", 0))
+
+
+def _library_ffmpeg_ok() -> bool:
+    return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+def _library_ytdlp_ok() -> bool:
+    """只找模块,不 import(yt_dlp 的 import 很慢)。"""
+    try:
+        return importlib.util.find_spec("yt_dlp") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _cookies_state(path: str | None, *, stat_fn: Callable[[str], os.stat_result] = os.stat,
+                   posix: bool = os.name == "posix") -> str:
+    """unset | ok | missing | too_open。权限只在 POSIX 上判(Windows 的 st_mode 没有权限位,计划 R-A12)。"""
+    path = (path or "").strip()
+    if not path:
+        return "unset"
+    try:
+        info = stat_fn(path)
+    except OSError:
+        return "missing"
+    if not stat_mod.S_ISREG(info.st_mode):
+        return "missing"
+    if posix and stat_mod.S_IMODE(info.st_mode) & 0o077:
+        return "too_open"
+    return "ok"
 
 
 def _backups(base) -> int:
@@ -194,4 +255,6 @@ async def gather_facts(session, app) -> Facts:
         live_invites=int(live_invites), wordbook_missing=_wordbook_missing(app.state.settings),
         links_breakers_open=links_open, links_dropped=links_dropped,
         agents_probe_ok=bool((getattr(app.state, "agents_tools_probe", None) or {}).get("ok")),
+        library_ffmpeg_ok=_library_ffmpeg_ok(), library_ytdlp_ok=_library_ytdlp_ok(),
+        library_cookies=_cookies_state(getattr(app.state.settings, "library_ytdlp_cookies_file", "")),
     )
