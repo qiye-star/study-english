@@ -10,8 +10,9 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
 - `agents_helpers.py` – agents fakes: `FakeLLM` (httpx.MockTransport upstream), SSE parsing, `enable_agents`, `new_conversation`, `turn_body`, `check_contract`
 - `test_agents_privacy.py` – caplog (scoped to logger `app`) over every agents / memory / admin-agents endpoint, after-turn hooks, the memory worker and sources; also pins that agents routes carry no text in URLs (new routes must be added there)
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
-- `library_helpers.py` – library fakes: `FakeTools` (no ffmpeg needed), `FakeAsr`, `fake_media`, `enable`, `library_settings`, `upload` (chunked), `process` (one worker round + drain)
+- `library_helpers.py` – library fakes: `FakeTools` (no ffmpeg needed), `FakeAsr`, `FakeTimedAsr` (`use_fakes(timed_asr=)`; passing `asr=` turns the timed transcriber off), `fake_media`, `enable`, `library_settings`, `upload` (chunked), `process` (one worker round + drain)
 - `test_library_privacy.py` – caplog over every `/api/library` endpoint (incl. the D8 translate / analysis paths) and the worker paths; pins that library routes carry only ids, `cursor` and `ticket` (new routes must be added there)
+- `test_library_asr_timed.py` / `test_library_quality.py` / `test_library_alignment.py` – real sentence times, the sanity check, the continuous-background-music fixture; `test_library_reprocess.py` – re-recognition state machine and allowance
 - `test_library_ai.py` / `test_library_ai_api.py` – sentence translation and analysis: pure functions, per-sentence allowances, write-back, editable prompts; endpoints against a respx fake LLM
 - `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
   `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` / `agents_contract.json` (shared with web contract tests; the agents one is recorded by `test_agents_contract.py`, uuids/times/ms are fixed by `agents_helpers.stable`);

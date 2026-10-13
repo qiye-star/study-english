@@ -3,9 +3,11 @@
 Speech-to-text for uploads, hold-to-talk and realtime calls.
 
 ## What lives here
-- `asr_stream.py` – Volcengine streaming ASR: frame codec, `AsrGate` (concurrency + breaker), `transcribe_pcm`
+- `timed.py` – `Utterance` / `TimedText` (recognition results with times; pure data, stdlib only)
+- `asr_stream.py` – Volcengine streaming ASR: frame codec, `AsrGate` (concurrency + breaker), `transcribe_pcm`, `transcribe_pcm_timed`
+  (adds `show_utterances` to the request and parses `result.utterances`; only it adds the field, existing request bodies are unchanged)
 - `asr_realtime.py` – long-lived streaming recognizer for calls (partials)
-- `asr.py` – per-utterance recognizer abstraction; stream first, chat/Whisper fallback (R3/R25)
+- `asr.py` – per-utterance recognizer abstraction; stream first, chat/Whisper fallback (R3/R25); `make_timed_transcriber`
 - `stt.py` – chat-model / Whisper transcription over the upstream LLM API
 - `realtime_asr.py` – the one place callers ask which recognizer a call uses (re-exports the
   predicates that live in `app.core.config`)
@@ -20,9 +22,10 @@ Inside: `asr` -> `asr_stream`, never the reverse (tests scan the source for this
 `effective_realtime_asr`, `SentenceSplitter`.
 
 ## Tests
-`uv run pytest -q tests/test_asr_stream.py tests/test_asr_buffered.py tests/test_asr_realtime.py tests/test_stt_prompt.py tests/test_sentence_split.py`
+`uv run pytest -q tests/test_asr_stream.py tests/test_asr_buffered.py tests/test_asr_realtime.py tests/test_asr_stream_timed.py tests/test_asr_timed.py tests/test_stt_prompt.py tests/test_sentence_split.py`
 
 ## Pitfalls
 - Never log transcripts or keys; log kinds, ids, durations.
+- `utterances` times are milliseconds relative to the start of the audio sent (vendor docs; verified once on the real service, see the Task 0 section of `docs/superpowers/plans/2026-10-13-video-import-results.md`); their text never goes into logs.
 - The websockets library loggers are pinned to `app.asr_*.websockets` at INFO (debug would leak frames).
 - `tests/fixtures/sentence_cases.json` is shared with the web client's splitter: change both together.

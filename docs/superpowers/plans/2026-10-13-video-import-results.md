@@ -215,3 +215,23 @@ alembic heads:`0018 (head)`。名字与签名全部与计划一致,没有需要�
 | 与真实边界的误差 | 未验证(没有人工听出的 truth);只有侧面证据:A 的第一句人声起点 27.36 s,与 spec 的证据「开头 ~12 s 人声落在前 40 s」吻合,而旧估算会把它摊在 0 – 13 s |
 | Whisper `verbose_json` `segments` | 不适用(chat 模式) |
 | **G0** | **A**(可用,继续 T2…)。注意:B 中后 38 s 没有 utterance(A / B 都只有 6 条),T2 / T3 的 `usable_utterances` 须处理「块尾没有识别句」;A 的一条 248 字符 / 13.5 s 的句子很长,分句仍由 `segment.py` 负责 |
+
+### B 句边界根治 · 完成情况与未验证(plans/2026-10-13-library-alignment.md)
+
+- 日期 / 基于提交:2026-10-14 / cc482fb5(文档提交之前的最后一个功能提交);alembic head:0019;T5(Whisper 时间)与 T11(VAD)按 G0 = A 跳过
+- 自动化(实际运行并通过):`test_asr_timing_probe` 13、`test_asr_stream_timed` 22、`test_asr_timed` 5、`test_library_asr_timed` 18、`test_library_quality` 13、`test_library_alignment` 8、`test_library_reprocess` 12、`test_library_contract` 1;服务端合并目标运行(全部 `test_library_*.py`、`test_admin_library.py`、`test_architecture.py`、`test_migrations.py`、三个 asr 计时文件)743 通过;网页 `src/features/library` + `architecture.test.ts` 58 个文件 374 通过 1 跳过,`tsc --noEmit` 干净。未跑:服务端全量、网页全量、构建、E2E。
+- 持续背景音乐夹具:单元与流水线用例用已知时间证明「有真实时间时不再平摊」;`ffmpeg` 的 `sine` 夹具用例(没有 ffmpeg 会 skip;本机 ffmpeg 存在,已运行并通过)证明 `silencedetect` 在连续音上零静音
+
+**未验证(按规矩写明,直到真环境 / 真机跑过):**
+
+| 项 | 状态 |
+|---|---|
+| 火山 `result.utterances` 字段名 / 单位 / 相对块起点 / 是否出现在 `bigmodel_nostream` | 见本文档 Task 0 一节(2026-10-14 真实运行,G0 = A) |
+| 真实素材上的边界误差(与人耳比) | 未验证(没有人工 truth 列表) |
+| Whisper `verbose_json` 的 `segments` | 不适用(`UPSTREAM_WHISPER_MODE=chat`,T5 跳过) |
+| 用户那条素材重新识别后前三句是否对上 | 未验证(需要用户在部署后点「重新识别」听) |
+| `low_confidence` 的阈值(6 / 25 字符每秒、占比 40%)在真实素材上的误报率 | 未验证 |
+| 迁移 `0019` 在 Postgres 上 | 未验证(只在 SQLite 上跑) |
+| iOS Safari 上卡片 ⋯ 面板与确认对话框的先后关闭、「译」默认开时的请求量 | 未验证(jsdom 里先关面板再开对话框的用例通过) |
+| 重新识别时并发 worker(`library_job_concurrency > 1`)与取消的竞争;并发双击 POST 的竞态 | 只有单 worker、顺序请求的测试 |
+| 真实识别服务端到端的 `make_timed_transcriber`(只用假 websocket 与假转写器) | 未验证 |
