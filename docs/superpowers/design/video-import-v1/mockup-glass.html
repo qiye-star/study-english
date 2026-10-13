@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -30,18 +30,18 @@ html[data-theme=dark] .spec>p.cap{color:#9aa0b0}.spec>p.cap b{color:inherit;font
 /* ============ tokens ============ */
 .phone{
   --ink:#111318;--ink-2:#566073;--ink-3:#8A90A0;--blue:#2456DB;--teal:#0E7067;--green:#157A3B;--amber:#9A4B00;--red:#D1242F;
-  --page:#EEF1F8;--solid:#ffffff;--glass-bg:rgba(255,255,255,.55);--glass-strong:rgba(255,255,255,.72);--glass-bd:rgba(255,255,255,.75);
+  --page:#EEF1F8;--solid:#ffffff;--glass-bg:rgba(255,255,255,.38);--glass-strong:rgba(255,255,255,.55);--glass-bd:rgba(255,255,255,.85);
   --glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--glass-sh:0 10px 30px -8px rgba(36,56,110,.28);
   --chip:rgba(255,255,255,.6);--hair:rgba(17,19,24,.1);--blue-tint:rgba(36,86,219,.12);
   --blob1:#9db8ff;--blob2:#b9f0e6;--blob3:#ffd7b0;
-  --blur:22px;
+  --blur:34px;
 }
 html[data-theme=dark] .phone{
   --ink:#f1f2f6;--ink-2:#aab0c0;--ink-3:#7c8396;--blue:#8fb0ff;--teal:#5fd1c4;--green:#6ee09a;--amber:#f2b056;--red:#ff7a84;
-  --page:#0e1016;--solid:#1a1d25;--glass-bg:rgba(34,38,50,.5);--glass-strong:rgba(30,34,46,.72);--glass-bd:rgba(255,255,255,.14);
-  --glass-hi:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(255,255,255,.04);--glass-sh:0 12px 34px -8px rgba(0,0,0,.6);
+  --page:#0b0d14;--solid:#1a1d25;--glass-bg:rgba(150,170,255,.10);--glass-strong:rgba(120,140,230,.17);--glass-bd:rgba(255,255,255,.26);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.38),inset 0 0 22px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.08);--glass-sh:0 14px 38px -8px rgba(0,0,0,.65);
   --chip:rgba(255,255,255,.1);--hair:rgba(255,255,255,.12);--blue-tint:rgba(143,176,255,.18);
-  --blob1:#3a56c9;--blob2:#0f7a70;--blob3:#8a4a22;
+  --blob1:#4f6dff;--blob2:#12b3a2;--blob3:#8f5a3a;
 }
 .phone{color:var(--ink);background:var(--page);position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(120,125,140,.4);
   box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4}
@@ -50,14 +50,14 @@ html[data-theme=dark] .phone{
 
 /* ===== [Backgrounds → SoftAurora] 页面背景:三团慢速漂移的色块(纯 CSS,不用 WebGL) ===== */
 .aurora{position:absolute;inset:0;overflow:hidden;z-index:0}
-.aurora i{position:absolute;width:300px;height:300px;border-radius:50%;filter:blur(54px);opacity:.85;animation:drift 18s ease-in-out infinite alternate}
+.aurora i{position:absolute;width:320px;height:320px;border-radius:50%;filter:blur(50px);opacity:.9;animation:drift 18s ease-in-out infinite alternate}
 .aurora i:nth-child(1){background:var(--blob1);left:-80px;top:40px}
 .aurora i:nth-child(2){background:var(--blob2);right:-100px;top:280px;animation-duration:23s}
 .aurora i:nth-child(3){background:var(--blob3);left:20px;bottom:-100px;animation-duration:27s}
 @keyframes drift{to{transform:translate(40px,-50px) scale(1.15)}}
 
 /* ===== [Components → GlassSurface] 玻璃面:模糊 + 饱和 + 内高光 + 外阴影 ===== */
-.glass{background:var(--glass-bg);backdrop-filter:blur(var(--blur)) saturate(1.7);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.7);
+.glass{background:var(--glass-bg);backdrop-filter:blur(var(--blur)) saturate(2);-webkit-backdrop-filter:blur(var(--blur)) saturate(2);
   border:1px solid var(--glass-bd);box-shadow:var(--glass-hi),var(--glass-sh)}
 .glass.strong{background:var(--glass-strong)}
 /* 列表卡片只用半透明填充 + 高光边,不加 backdrop-filter(一屏最多 3 层模糊) */
@@ -68,7 +68,7 @@ html[data-theme=dark] .phone{
 .hdr h3{font-size:16px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .body{position:absolute;top:108px;left:0;right:0;bottom:0;overflow:hidden;z-index:5}
 .tabbar{position:absolute;left:12px;right:12px;bottom:14px;height:64px;border-radius:32px;display:flex;align-items:center;padding:0 6px;z-index:60}
-.tabbar div{flex:1;text-align:center;font-size:10px;color:var(--ink-3);padding:6px 0;border-radius:24px}
+.tabbar div{flex:1;text-align:center;font-size:10px;color:var(--ink-2);padding:6px 0;border-radius:24px}
 .tabbar div i{display:block;font-size:22px;margin-bottom:1px}
 .tabbar div.on{color:var(--blue);background:var(--blue-tint)}
 
@@ -133,7 +133,7 @@ html[data-theme=dark] .spec-btn{background:linear-gradient(180deg,#6d93ff,#3a63e
   radial-gradient(120px 90px at 30% 55%,rgba(255,200,150,.55),transparent 70%),radial-gradient(160px 120px at 75% 45%,rgba(120,150,255,.5),transparent 70%),linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52);z-index:1}
 .video .cur{position:absolute;left:16px;right:16px;bottom:62px;text-align:center;font-size:14px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8)}
 .video .big{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:26px;color:#fff;background:rgba(255,255,255,.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.4)}
-.hdr.vid{color:#fff;background:rgba(20,22,32,.35);border-color:rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 24px -8px rgba(0,0,0,.5)}
+.hdr.vid{color:#fff;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 24px -8px rgba(0,0,0,.5)}
 .tl{position:absolute;left:14px;right:14px;top:246px;height:26px;display:flex;align-items:center;gap:8px;font-size:10.5px;color:#fff;z-index:3}
 .tl .bar{flex:1;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.tl .bar b{display:block;width:38%;height:100%;background:#fff;border-radius:2px}
 .list{position:absolute;top:286px;left:0;right:0;bottom:0;overflow:hidden;padding:8px 10px 150px;z-index:4;background:linear-gradient(var(--page) 0,var(--page) 100%);border-radius:26px 26px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
@@ -206,10 +206,10 @@ html[data-theme=dark] .spec-btn{background:linear-gradient(180deg,#6d93ff,#3a63e
 </head>
 <body>
 <div class="canvas" id="root">
-<h1>跟读库 · 玻璃质感与动效(设计稿 v2)</h1>
+<h1>跟读库 · 玻璃质感与动效(设计稿 v2,深色默认、玻璃加强)</h1>
 <p class="lede">在 v1 的 9 个画面基础上,换上「透明玻璃」外观,并从 reactbits.dev 的组件库里挑了 12 个适合手机端的效果,用纯 CSS / 少量 JS 复刻出来给你看(正式实现时是自写的小组件,<b>不会引入 reactbits 的依赖</b>:它的组件多为 React + GSAP / three.js,体积大,而我们主包有预算)。下面 5 个画面都是可操作的:卡片上按住、点「加入练习」、拖速度滑块、点「重播」,可以直接看到效果。</p>
 <div class="toolbar">
-  <button class="tb on" data-act="light">浅色</button><button class="tb" data-act="dark">深色(玻璃更明显)</button>
+  <button class="tb" data-act="light">浅色</button><button class="tb on" data-act="dark">深色(默认)</button>
   <button class="tb" data-act="lite">低端机降级(关模糊与动画)</button><button class="tb" data-act="replay">重播入场动画</button>
 </div>
 

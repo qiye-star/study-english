@@ -18,6 +18,7 @@
 | D7 | 管理页只做桌面端,列出大小 / 所有者 / 删除 |
 | D8 | (2026-10-13 增补,对齐桌面端 enjoy 播放页)**每句翻译(双语显示)**、**AI 分析句子**(结构 / 语法 / 词汇与短语)、**复制句子**列入本期范围;译文和分析由服务端调大模型生成后**存进句子行**,重复打开不再花钱 |
 | D9 | (2026-10-13 设计稿拍板)入口 = **独立底部标签**;跟读 = **点话筒才录**(不做自动跟读模式);盲听 = **整页句子文字遮住、点一下显示**;列表只按添加时间**倒序**(不做「最近在学」置顶);横屏全屏视频**不做** |
+| D11 | (2026-10-13 视觉评审)跟读库页面采用**深色优先、加强透明玻璃**的外观(浅色同样支持);动效强度保持「克制档」(处理中流光、当前句描边、主按钮光带、一次性入场与数字滚动);**12 个效果全部采用**;**只用在跟读库新页面**,不改全站现有页面。设计稿:`docs/superpowers/design/video-import-v1/mockup-glass.html`(视觉的唯一依据) |
 | D10 | (同上)**第二期**再做:录音管理页(列表 / 批量删除 / 导出)、转写稿下载与打印、每句笔记、重新识别(重转写)、单句音频下载、素材 AI 摘要与录音统计、音标显示。**不做**:波形图与拖动区域、快捷键、词级强制对齐(与 §14 一致) |
 
 ## 2. 设计裁定(E 系列,待复核)与已核对的事实
@@ -341,6 +342,15 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 - **微调**:每句的「编辑」展开面板:起点 / 终点各 ±0.2 s 按钮、修改文字;保存走 `PATCH segments`。
 - **续播**:进入时 `seek(resume_ms)` 并滚到 `resume_idx`;播放中每 5 s、暂停、页面隐藏(`visibilitychange`)与卸载时保存(用 `fetch` 的 `keepalive: true`,因为 `sendBeacon` 带不了 Bearer)。
 - **错误与边界**:票据过期自动换票;处理中的条目只显示进度;`failed` 的条目不进播放器。
+
+### 11.4a 视觉与动效(D11)
+
+- **依据**:`mockup-glass.html`(深色为默认展示,玻璃参数:模糊 34px、饱和 200%、深色填充 rgba(150,170,255,.10) / 强面 .17、内高光边 .26,浅色填充 .38 / .55)。具体数值由实现者从稿中取,偏离要写 Ruling。
+- **范围**:样式与小组件只放在 `features/library/` 内(`library.css` 随懒加载块进入,不进主包);**底部标签栏沿用全站现有的 `GlassTabBar`,不改**;不动 `theme.css` 的全局令牌,只新增库内作用域的 CSS 变量(`.library-root` 上定义)。深浅色跟随系统与应用设置(`useIsDark`),不另设开关。
+- **12 个效果**(自写,**不引入 reactbits 或任何新 npm 依赖**):GlassSurface、SoftAurora(纯 CSS 色块,**不用 WebGL**)、SpotlightCard、SpecularButton、ShinyText、Stepper、BorderGlow、GradualBlur、ElasticSlider、CountUp + GradientText、ClickSpark、BlurText。
+- **性能与无障碍(硬规则)**:一屏模糊层 ≤ 3(播放器:顶栏、渐进模糊、控制条);列表卡片只用半透明填充 + 高光边,不加 `backdrop-filter`;沿用现有 `glass-quality.ts` 的低端机 `.lite`(去模糊、去动画、玻璃退为实色);`prefers-reduced-motion` 时全部静止;动画只用 `transform` / `opacity` / `background-position`(不触发布局);`@property` 旋转描边在不支持的浏览器上退化为静态描边。iOS Safari 需 `-webkit-backdrop-filter`。
+- **测试**:降级与减少动态效果有样式源码断言;组件逻辑(ElasticSlider 吸附、CountUp 终值、BlurText 逐字、ClickSpark 清理)有单元测试;**真机的模糊性能、耗电、旋转描边表现标「未验证」**。
+- **体积目标**(非实测):库内样式 + 小组件 gzip ≤ 6 kB,全部在懒加载块里;主包增量 ≤ 0(不新增)。
 
 ### 11.5 文案、体积与测试
 
