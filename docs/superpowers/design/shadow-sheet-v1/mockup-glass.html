@@ -57,7 +57,9 @@ html[data-theme=dark] .phone{
 .sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:80}
 
 /* ===== SoftAurora:玻璃需要"后面有颜色" ===== */
-.aurora{position:absolute;inset:0;overflow:hidden;z-index:0}
+.aurora{position:absolute;inset:0;overflow:hidden;z-index:0;opacity:0;transition:opacity .7s ease}
+.phone.glow .aurora{opacity:1}
+.phone.shut .sheet,.phone.shut .scrim{display:none}
 .aurora i{position:absolute;width:320px;height:320px;border-radius:50%;filter:blur(50px);opacity:.85;animation:drift 18s ease-in-out infinite alternate}
 .aurora i:nth-child(1){background:var(--blob1);left:-80px;top:40px}
 .aurora i:nth-child(2){background:var(--blob2);right:-100px;top:300px;animation-duration:23s}
@@ -227,7 +229,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 
 /* ===== 降级:低端机 / 减少动态效果 ===== */
 .lite .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--solid)}
-.lite .aurora{opacity:.5}
+.lite .phone.glow .aurora{opacity:.5}
 .lite .aurora i,.lite .btn.pri::after,.lite .btn.stop::before,.lite .pulse::after,.lite .shiny,.lite .indet b,.lite .wave i,.lite .timer.live .t,
 .lite .sheet.enter,.lite .scrim.enter,.lite .st,.lite .wd,.lite .bar .t b,.lite .spark,.lite .eq b{animation:none}
 .lite .shiny{color:var(--ink-2);background:none}
@@ -277,7 +279,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <p class="cap"><b>1 入口。</b>消息下方「跟读」→ 现有的句子列表面板(这里同样换成玻璃板);点某一句的话筒不再跳转,而是<b>原位换成跟读弹窗</b>(同一块玻璃,内容交叉淡入,不叠第二层)。其余 5 处入口(语法详情、复盘、转写详情、聊天提示、选词查词里的「跟读」)同样改成弹窗。列表行是半透明填充 + 高光边,不加模糊。</p></div>
 
 <!-- 2 交互 -->
-<div class="spec"><div class="phone" id="p2">
+<div class="spec"><div class="phone glow" id="p2">
 <div class="aurora"><i></i><i></i><i></i></div>
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><div class="av">E</div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
@@ -290,10 +292,10 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <div class="sheet glass strong enter"></div>
 </div>
 <p class="cap"><b>2 跟读弹窗(可点击)。</b>点「录音」开始、再点「停止」→ 评测中 → 出结果。打开时就有上一句 / 下一句(来自同一条消息的句子),中间的小圆点表示位置,所以连续练不用退出。三句的演示成绩分别落在绿 / 绿 / 琥珀档,可以看到圆环颜色规则。<span id="dstate" style="opacity:.7"></span></p>
-<div class="toolbar"><button class="tb" id="reset">重置演示</button><button class="tb" id="lowscore">演示低分结果</button></div></div>
+<div class="toolbar"><button class="tb" id="toggleSheet">关闭 / 打开弹窗</button><button class="tb" id="reset">重置演示</button><button class="tb" id="lowscore">演示低分结果</button></div></div>
 
 <!-- 3 录音中 -->
-<div class="spec"><div class="phone" id="p3">
+<div class="spec"><div class="phone glow" id="p3">
 <div class="aurora"><i></i><i></i><i></i></div>
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><div class="av">E</div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
@@ -305,7 +307,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <p class="cap"><b>3 录音中。</b>红点向外扩散、计时数字轻微呼吸,细进度条走向 1:00 上限;波形是一排随声音起伏的竖条(正式版由麦克风音量驱动,这里是模拟)。「停止」是红色主按钮,外圈一道光晕向外散开。录音中上一句 / 下一句和「听范读」变灰,关闭要先确认。</p></div>
 
 <!-- 4 评测中 -->
-<div class="spec"><div class="phone" id="p4">
+<div class="spec"><div class="phone glow" id="p4">
 <div class="aurora"><i></i><i></i><i></i></div>
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><div class="av">E</div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
@@ -317,7 +319,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <p class="cap"><b>4 评测中。</b>波形定格变淡,文字是流光字「评测中 · 正在逐词对比发音」,下方一条细的来回进度(不显示假百分比,评测时长不可预知)。主按钮变灰显示转圈。</p></div>
 
 <!-- 5 结果(低分) -->
-<div class="spec"><div class="phone" id="p5">
+<div class="spec"><div class="phone glow" id="p5">
 <div class="aurora"><i></i><i></i><i></i></div>
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><div class="av">E</div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
@@ -329,7 +331,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <p class="cap"><b>5 结果(低分)。</b>成绩直接在弹窗里:圆环从 0 转到分数、数字同步滚动;三条横条依次伸出;逐词着色逐个浮现(沿用 ≥85 绿 / 70–84 琥珀 / &lt;70 灰;≥85 时数字是绿→青渐变字)。一句话提示;「我的录音」「标准发音」可对比听;点「收藏」迸出火花。成绩已经保存进练习历史;「查看完整详情」才跳到完整页(带波形)。</p></div>
 
 <!-- 6 错误 -->
-<div class="spec"><div class="phone" id="p6">
+<div class="spec"><div class="phone glow" id="p6">
 <div class="aurora"><i></i><i></i><i></i></div>
 <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
 <div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><div class="av">E</div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
@@ -396,7 +398,7 @@ html[data-theme=dark] .gt{background:linear-gradient(90deg,#6ee09a,#5fd1c4);-web
 <tr><td>1</td><td>6 处入口(对话提示、语法纠正、复盘、转写详情、句子列表、选词查词的「跟读」)<b>全部</b>改成弹窗,还是只改对话里的 5 处、选词查词保持跳转?我推荐全部改,行为一致。</td></tr>
 <tr><td>2</td><td>弹窗里的逐词着色:我推荐简化版(行内着色,点词查词),不带波形。要完整波形的话弹窗会很高、也更重。</td></tr>
 <tr><td>3</td><td>「下一句」连续练:我推荐只在多句列表入口出现。要不要连「自动播范读后立刻录音」这种全自动模式也做?我不推荐(iOS 音频冲突风险)。</td></tr>
-<tr><td>4</td><td><b>对话页背景要不要加极光色块?</b>玻璃要"后面有颜色"才好看;不加的话弹窗背后只有气泡,效果接近磨砂白 / 磨砂黑。我推荐:只在弹窗打开时、遮罩下方淡入极光(成本是一层纯 CSS 色块),对话页平时保持现状。</td></tr>
+<tr><td>4</td><td><b>对话页背景要不要加极光色块?</b>玻璃要"后面有颜色"才好看;不加的话弹窗背后只有气泡,效果接近磨砂白 / 磨砂黑。<b>已定(用户):</b>只在弹窗打开时、遮罩下方淡入极光(0.7 秒,纯 CSS 色块),弹窗关闭后淡出,对话页平时保持现状。演示里点「关闭 / 打开弹窗」可对比。</td></tr>
 <tr><td>5</td><td><b>悬浮(四周留边)还是贴底</b>?本稿是悬浮玻璃板(更像卡片,背后透出更多对话);贴底版全宽、可用宽度多 20px。我推荐悬浮。</td></tr>
 <tr><td>6</td><td><b>样式放哪:</b>规范 §11.4a 把玻璃样式限定在 <code>features/library/</code> 内。跟读弹窗属于练习 / 对话,我推荐把 <code>.glass</code> 令牌抽成一个两边懒块都引用的小样式文件(仍不进主包、不改 <code>theme.css</code>),这需要在计划里写一条 Ruling。</td></tr>
 </table>
@@ -520,6 +522,7 @@ const inst=[demo,
   makeSheet(document.getElementById('p4'),{st:'busy',elapsed:7,live:false}),
   makeSheet(document.getElementById('p5'),{st:'res',low:true,live:false}),
   makeSheet(document.getElementById('p6'),{st:'err',live:false})];
+document.getElementById('toggleSheet').onclick=()=>{const ph=document.getElementById('p2');const shut=ph.classList.toggle('shut');ph.classList.toggle('glow',!shut)};
 document.getElementById('reset').onclick=()=>demo.go('idle',{idx:0,low:false});
 document.getElementById('lowscore').onclick=()=>demo.go('res',{low:true});
 
