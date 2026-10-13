@@ -29,7 +29,7 @@ async function openDrawerFor(page: Page, needle: string | null) {
   await page.getByTestId("lookup-trigger").click();
 }
 
-test("look up a word and translate a sentence, served from cache the second time", async ({ page, request }) => {
+test("look up a word (dictionary) and translate a sentence, translation served from cache the second time", async ({ page, request }) => {
   const { token } = await signIn(page, request);
   const saved = await request.post("/api/speech/assessments", {
     headers: { Authorization: `Bearer ${token}` },
@@ -56,49 +56,50 @@ test("look up a word and translate a sentence, served from cache the second time
   await expect(page.getByTestId("assessment-reference")).toBeVisible();
   const result = page.getByTestId("lookup-result");
 
-  // 1) word lookup: exactly one LLM request, structured non-empty Chinese result
+  // 1) word lookup: answered by the local dictionary (the E2E stack ships the dictionary files), no LLM request
   await openDrawerFor(page, "country");
   await expect(result).toHaveAttribute("data-status", "done", { timeout: 60_000 });
   await expect(result).toContainText(/[一-鿿]/);
   await expect(page.getByTestId("lookup-drawer")).toContainText(/country/i);
-  expect(aiCalls).toBe(1);
+  await expect(page.getByTestId("lookup-source")).toHaveAttribute("data-source", "dict");
+  expect(aiCalls).toBe(0);
   const wordResult = (await result.innerText()).trim();
   expect(wordResult).not.toBe("");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lookup-drawer")).toBeHidden();
 
-  // 2) whole sentence: translation, one more request
+  // 2) whole sentence: translation, the first LLM request
   await openDrawerFor(page, null);
   await expect(result).toHaveAttribute("data-status", "done", { timeout: 60_000 });
   await expect(result).toContainText(/[一-鿿]/);
-  expect(aiCalls).toBe(2);
+  expect(aiCalls).toBe(1);
   const sentenceResult = (await result.innerText()).trim();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lookup-drawer")).toBeHidden();
 
-  // 3) same word again: identical result straight from the IndexedDB cache, zero new requests
+  // 3) same word again: the dictionary answers again (dictionary hits do not use the AI; the translation is cached); do not compare the whole text (not cached, carries the user preference)
   await openDrawerFor(page, "country");
   await expect(result).toHaveAttribute("data-status", "done");
-  expect((await result.innerText()).trim()).toBe(wordResult);
-  expect(aiCalls).toBe(2);
+  await expect(result).toContainText(/[一-鿿]/);
+  expect(aiCalls).toBe(1);
 
   const box = await page.getByTestId("lookup-drawer").boundingBox();
   expect(box!.height).toBeLessThanOrEqual(page.viewportSize()!.height * 0.7 + 1);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lookup-drawer")).toBeHidden();
 
-  // 4) the cache is persistent: after a full reload both results are still served without a request
+  // 4) the translation cache is persistent: after a full reload the sentence is still served without an LLM request
   await page.reload();
   await expect(page.getByTestId("assessment-reference")).toBeVisible();
   await openDrawerFor(page, "country");
   await expect(result).toHaveAttribute("data-status", "done");
-  expect((await result.innerText()).trim()).toBe(wordResult);
+  await expect(result).toContainText(/[一-鿿]/);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lookup-drawer")).toBeHidden();
   await openDrawerFor(page, null);
   await expect(result).toHaveAttribute("data-status", "done");
   expect((await result.innerText()).trim()).toBe(sentenceResult);
-  expect(aiCalls).toBe(2);
+  expect(aiCalls).toBe(1);
 });
 
 test("practice and save a selected sentence from the lookup drawer", async ({ page, request }) => {
@@ -121,4 +122,25 @@ test("practice and save a selected sentence from the lookup drawer", async ({ pa
   await expect(page.getByTestId("reference-input")).toHaveValue(SPEECH_REFERENCE);
   await page.getByTestId("practice-list").click();
   await expect(page.getByTestId("practice-item")).toContainText("ask not what your country can do for you");
+});
+
+test("explain a looked-up word in context with the AI", async ({ page, request }) => {
+  const { token } = await signIn(page, request);
+  const saved = await request.post("/api/speech/assessments", {
+    headers: { Authorization: `Bearer ${token}` },
+    multipart: { file: { name: "jfk.wav", mimeType: "audio/wav", buffer: readFileSync(SPEECH_WAV) }, reference: SPEECH_REFERENCE, language: "en-US", save: "true" },
+    timeout: 150_000,
+  });
+  expect(saved.status(), await saved.text()).toBe(200);
+  let aiCalls = 0;
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/ai/chat/completions")) aiCalls++;
+  });
+  await page.goto(`/practice/assessments/${(await saved.json()).assessment_id}`);
+  await expect(page.getByTestId("assessment-reference")).toBeVisible();
+  await openDrawerFor(page, "country");
+  await expect(page.getByTestId("lookup-result")).toHaveAttribute("data-status", "done", { timeout: 60_000 });
+  await page.getByTestId("lookup-ai-explain").click();
+  await expect(page.getByTestId("lookup-ai-result")).toBeVisible({ timeout: 60_000 });
+  expect(aiCalls).toBe(1);
 });
