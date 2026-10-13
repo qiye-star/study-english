@@ -6,7 +6,7 @@ App chrome around authenticated routes.
 - `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer`.
 - `bottom-nav.tsx`, `page-header.tsx`.
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
-- `color-scheme.ts` (`initColorScheme`, `useIsDark`), `glass-quality.ts` (`.lite` on low-memory devices).
+- `color-scheme.ts` (`initColorScheme` applies the stored appearance preference to `html.dark` before first render and follows the system; `applyColorScheme`, `useApplyColorScheme`, `useIsDark`), `color-scheme-sync.tsx` (`ColorSchemeSync`, applies the "Me > Appearance" choice inside `SettingsProvider`), `glass-quality.ts` (`.lite` on low-memory devices).
 
 ## Allowed dependencies
 - `components/`, `lib/`, `i18n/`, `settings/`, features via `~/features/<name>`. Not `pages/`.
@@ -15,6 +15,7 @@ App chrome around authenticated routes.
 - `cd web && yarn test` (`layout/*.test.ts(x)`).
 
 ## Pitfalls
+- When the appearance is fixed to light/dark, both `theme-color` metas are rewritten to one colour (and restored for "follow system"); iOS home-screen status bar behaviour is not verified on a real device.
 - Safe-area insets and app height matter on iOS standalone PWA; test with the mobile viewport.
 - `html` / `body` are `position: fixed; overflow: hidden` in `index.css`: the document never scrolls, so every new page needs its own scroll container (`AppShell`'s `<main>`, the inner container of `AnnouncementFrame`, the wrapper of the full-maintenance page). Do not rely on `window.scrollTo` / document scrolling.
 - The keyboard-jump fix (plan `2026-10-13-ios-keyboard-scroll`) is **not verified on a real iPhone**; read that plan's hypotheses and `…-device-checklist.md` before changing `use-app-height.ts`.

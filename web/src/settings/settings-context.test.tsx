@@ -24,7 +24,7 @@ describe("settings", () => {
     expect(screen.getByRole("button")).toHaveTextContent("zh-CN");
     expect(i18n.language).toBe("zh-CN");
     expect(document.documentElement.lang).toBe("zh-CN");
-    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: false });
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: false, colorScheme: "system" });
     await act(async () => { await i18n.changeLanguage("en"); });
   });
 
@@ -47,9 +47,9 @@ describe("settings", () => {
       expect(screen.getByTestId("auto")).toHaveTextContent("false");
       await act(async () => screen.getByRole("button", { name: "on" }).click());
       expect(screen.getByTestId("auto")).toHaveTextContent("true");
-      expect(stored()).toEqual({ language: "zh-CN", roomVoiceAutoText: true });
+      expect(stored()).toEqual({ language: "zh-CN", roomVoiceAutoText: true, colorScheme: "system" });
       await act(async () => screen.getByRole("button", { name: "en" }).click());
-      expect(stored()).toEqual({ language: "en", roomVoiceAutoText: true });
+      expect(stored()).toEqual({ language: "en", roomVoiceAutoText: true, colorScheme: "system" });
     });
 
     it("ignores a non-boolean value but keeps a valid language", () => {
@@ -63,6 +63,46 @@ describe("settings", () => {
       render(<SettingsProvider><AutoProbe /></SettingsProvider>);
       expect(screen.getByTestId("auto")).toHaveTextContent("true");
       await act(async () => { await i18n.changeLanguage("en"); });
+    });
+  });
+
+  describe("colorScheme (D12)", () => {
+    function SchemeProbe() {
+      const { colorScheme, setColorScheme, setLanguage, setRoomVoiceAutoText } = useSettings();
+      return (
+        <>
+          <span data-testid="scheme">{colorScheme}</span>
+          <button onClick={() => setColorScheme("dark")}>dark</button>
+          <button onClick={() => setLanguage("en")}>en</button>
+          <button onClick={() => setRoomVoiceAutoText(true)}>auto</button>
+        </>
+      );
+    }
+    const stored = () => JSON.parse(localStorage.getItem("enjoy-web.settings")!);
+
+    it("defaults to system for old storage and keeps the other preferences when it changes", async () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN", roomVoiceAutoText: true }));
+      render(<SettingsProvider><SchemeProbe /></SettingsProvider>);
+      expect(screen.getByTestId("scheme")).toHaveTextContent("system");
+      await act(async () => screen.getByRole("button", { name: "dark" }).click());
+      expect(screen.getByTestId("scheme")).toHaveTextContent("dark");
+      expect(stored()).toEqual({ language: "zh-CN", roomVoiceAutoText: true, colorScheme: "dark" });
+      await act(async () => screen.getByRole("button", { name: "en" }).click());
+      expect(stored()).toEqual({ language: "en", roomVoiceAutoText: true, colorScheme: "dark" });
+      await act(async () => { await i18n.changeLanguage("en"); });
+    });
+
+    it("falls back to system for a corrupt value without touching the other fields", () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "en", roomVoiceAutoText: true, colorScheme: 3 }));
+      render(<SettingsProvider><SchemeProbe /></SettingsProvider>);
+      expect(screen.getByTestId("scheme")).toHaveTextContent("system");
+    });
+
+    it("keeps the colour scheme when the room voice switch is turned on", async () => {
+      localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "en", colorScheme: "light" }));
+      render(<SettingsProvider><SchemeProbe /></SettingsProvider>);
+      await act(async () => screen.getByRole("button", { name: "auto" }).click());
+      expect(stored()).toEqual({ language: "en", roomVoiceAutoText: true, colorScheme: "light" });
     });
   });
 

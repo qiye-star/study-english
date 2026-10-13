@@ -9,7 +9,7 @@
 - R-L1 核对:全部成立(Step 2 的 grep 全部命中;`CROSS_FEATURE_BASELINE.size` 为 18;`src/features/library` 尚不存在)。
 
 ### LA 外观设置的主包增量(R-L35)
-(LA 填写)
+- 构建与 `check-main-bundle.mjs --max-delta=1000` 未运行(本次执行者被禁止构建),基线未重录;主包增量待量(未验证)。目标测试 95 个用例通过,`yarn web:typecheck` 无错误。
 
 ### L16 合并前实测
 (L16 填写)

@@ -17,6 +17,7 @@ import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
 import { AppShell } from "~/layout/app-shell";
+import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
 import { allRoutes } from "~/lib/extension-points";
 import { LinkRoute, Slot } from "~/lib/extension-points-react";
@@ -115,6 +116,7 @@ export function App() {
   return (
     <BrowserRouter>
       <SettingsProvider>
+        <ColorSchemeSync />
         <AuthProvider>
           <AppRoutes />
           <ThemedToaster />
