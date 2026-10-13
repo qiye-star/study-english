@@ -19,6 +19,7 @@
 | D8 | (2026-10-13 增补,对齐桌面端 enjoy 播放页)**每句翻译(双语显示)**、**AI 分析句子**(结构 / 语法 / 词汇与短语)、**复制句子**列入本期范围;译文和分析由服务端调大模型生成后**存进句子行**,重复打开不再花钱 |
 | D9 | (2026-10-13 设计稿拍板)入口 = **独立底部标签**;跟读 = **点话筒才录**(不做自动跟读模式);盲听 = **整页句子文字遮住、点一下显示**;列表只按添加时间**倒序**(不做「最近在学」置顶);横屏全屏视频**不做** |
 | D11 | (2026-10-13 视觉评审)跟读库页面采用**深色优先、加强透明玻璃**的外观(浅色同样支持);动效强度保持「克制档」(处理中流光、当前句描边、主按钮光带、一次性入场与数字滚动);**12 个效果全部采用**;**只用在跟读库新页面**,不改全站现有页面。设计稿:`docs/superpowers/design/video-import-v1/mockup-glass.html`(视觉的唯一依据) |
+| D12 | (2026-10-13)用户要求**可以切换深色和浅色**。现状:应用只跟随系统(`layout/color-scheme.ts` 的 `initColorScheme` 只读 `prefers-color-scheme`),没有手动开关。本期加一个**全站「外观:跟随系统 / 浅色 / 深色」设置**(默认「跟随系统」),存在现有设置里(`settings/`,本机),`initColorScheme` 读取它后切换 `html.dark`;入口放在「我的」设置区,库页面不另设开关。全站原本就有 `.dark` 变量,所以这只是加开关,不重画其他页面;玻璃与动效仍只在跟读库 |
 | D10 | (同上)**第二期**再做:录音管理页(列表 / 批量删除 / 导出)、转写稿下载与打印、每句笔记、重新识别(重转写)、单句音频下载、素材 AI 摘要与录音统计、音标显示。**不做**:波形图与拖动区域、快捷键、词级强制对齐(与 §14 一致) |
 
 ## 2. 设计裁定(E 系列,待复核)与已核对的事实
@@ -346,7 +347,7 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 ### 11.4a 视觉与动效(D11)
 
 - **依据**:`mockup-glass.html`(深色为默认展示,玻璃参数:模糊 34px、饱和 200%、深色填充 rgba(150,170,255,.10) / 强面 .17、内高光边 .26,浅色填充 .38 / .55)。具体数值由实现者从稿中取,偏离要写 Ruling。
-- **范围**:样式与小组件只放在 `features/library/` 内(`library.css` 随懒加载块进入,不进主包);**底部标签栏沿用全站现有的 `GlassTabBar`,不改**;不动 `theme.css` 的全局令牌,只新增库内作用域的 CSS 变量(`.library-root` 上定义)。深浅色跟随系统与应用设置(`useIsDark`),不另设开关。
+- **范围**:样式与小组件只放在 `features/library/` 内(`library.css` 随懒加载块进入,不进主包);**底部标签栏沿用全站现有的 `GlassTabBar`,不改**;不动 `theme.css` 的全局令牌,只新增库内作用域的 CSS 变量(`.library-root` 上定义)。深浅色跟随 `html.dark`(D12 的「外观」设置或系统),库页面不另设开关。
 - **12 个效果**(自写,**不引入 reactbits 或任何新 npm 依赖**):GlassSurface、SoftAurora(纯 CSS 色块,**不用 WebGL**)、SpotlightCard、SpecularButton、ShinyText、Stepper、BorderGlow、GradualBlur、ElasticSlider、CountUp + GradientText、ClickSpark、BlurText。
 - **性能与无障碍(硬规则)**:一屏模糊层 ≤ 3(播放器:顶栏、渐进模糊、控制条);列表卡片只用半透明填充 + 高光边,不加 `backdrop-filter`;沿用现有 `glass-quality.ts` 的低端机 `.lite`(去模糊、去动画、玻璃退为实色);`prefers-reduced-motion` 时全部静止;动画只用 `transform` / `opacity` / `background-position`(不触发布局);`@property` 旋转描边在不支持的浏览器上退化为静态描边。iOS Safari 需 `-webkit-backdrop-filter`。
 - **测试**:降级与减少动态效果有样式源码断言;组件逻辑(ElasticSlider 吸附、CountUp 终值、BlurText 逐字、ClickSpark 清理)有单元测试;**真机的模糊性能、耗电、旋转描边表现标「未验证」**。
@@ -401,7 +402,7 @@ yt-dlp **不支持也不会绕过 DRM**。导入页的链接页签与 `drm` 错�
 
 **D8 增补的归属(各计划需追加 Addendum,不要重写)**:
 - **S1**:迁移 `0018` 的 `zh` / `zh_lang` / `analysis` / `analysis_lang` 四列、§5.2 的四个新设置与 `library_ai_available` 属性、新文件 `app/library/ai.py`(批量译文与分析的编排、额度、提示词渲染,大模型只经 `providers/llm.py`)、`routers/library.py` 里 `translate` 与 `analysis` 两个端点、`PATCH segments` 改文字时清 `zh` / `analysis`、契约夹具与隐私测试扩充、`GET config` 的 `ai` 字段、提示词注册(`services/prompts.py`)。
-- **W1(含入口标签,E9)**:`web/src/layout/bottom-nav.tsx` 与其测试(`layout.test.tsx` 的标签断言)、`web/src/layout/CLAUDE.md`、`features/library/use-library-enabled.ts`、文案 `web.nav.library`(取代 `register.tsx` 与 `practiceHome`;计划里相关任务作废);`segment-list.tsx` 渲染译文行(只读 `segment.zh`)、控制条「译」开关、`library-api.ts` 的 `translate` / `analysis` 调用与类型。
+- **W1(含入口标签,E9 与外观设置,D12)**:`web/src/settings/*`(新增 `colorScheme: "system" | "light" | "dark"`)、`layout/color-scheme.ts`(读设置)、「我的」里的设置行及文案与测试、`web/src/layout/bottom-nav.tsx` 与其测试(`layout.test.tsx` 的标签断言)、`web/src/layout/CLAUDE.md`、`features/library/use-library-enabled.ts`、文案 `web.nav.library`(取代 `register.tsx` 与 `practiceHome`;计划里相关任务作废);`segment-list.tsx` 渲染译文行(只读 `segment.zh`)、控制条「译」开关、`library-api.ts` 的 `translate` / `analysis` 调用与类型。
 - **W2**:新文件 `segment-menu.tsx`(⋯ 菜单与复制)、`analysis-card.tsx`、`use-translations.ts`(视野附近批量取、去重、失败处理);`shadow-panel` 不变。
 - **A 管理端**:设置页自动出现新设置,无额外工作;`overview` 增加今日译文 / 分析句数。
 - 第二期清单(D10)不进任何本期计划。
