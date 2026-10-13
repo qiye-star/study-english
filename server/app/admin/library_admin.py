@@ -12,8 +12,10 @@ from datetime import datetime
 
 from sqlalchemy import func, select
 
+from app.admin import audit
 from app.core.quotas import quota_for
 from app.library import limits as library_limits
+from app.library import store
 from app.models import DailyUsage, LibraryItem, User, iso_utc
 from app.services.usage import utc_day
 
@@ -204,3 +206,81 @@ async def user_usage(session, settings, user_id: int, now: datetime) -> dict:
             "quota_mb": int(await quota_for(session, settings, user_id, "library_quota_mb", now)),
             "max_items": int(await quota_for(session, settings, user_id, "library_max_items", now)),
             "by_status": await _status_counts(session, LibraryItem.user_id == user_id)}
+
+
+# ---- 写操作(R-A3、R-A4、R-A6、R-A14) ----
+
+PURGE_LIMIT = 500
+CANCELLABLE = frozenset({"uploading", "queued", "processing"})
+
+
+def delete_phrase(item_id: str) -> str:
+    return f"DELETE {item_id[:8]}"
+
+
+async def _s1_delete(session, app, item: LibraryItem) -> None:
+    """S1 的删除:取消任务、显式删 attempts / segments / item、清两个目录;它自己提交(A0 第 2 项)。"""
+    await store.delete_item(session, app, item)
+
+
+async def _s1_cancel(session, app, item: LibraryItem) -> None:
+    """S1 的取消:终止子进程、清 `_tmp`、条目标 canceled;自己提交,返回 False = 条目已不在运行(A0 第 3 项)。"""
+    if not await store.cancel_item(session, app, item):
+        raise LibraryAdminError(409, "Item is not running")
+
+
+async def _get(session, item_id: str) -> LibraryItem:
+    item = await session.get(LibraryItem, item_id)
+    if item is None:
+        raise LibraryAdminError(404, "Item not found")
+    return item
+
+
+async def delete_item(session, app, actor, item_id: str, *, reason: str, confirm: str) -> dict:
+    item = await _get(session, item_id)
+    phrase = delete_phrase(item_id)
+    if (confirm or "").strip() != phrase:
+        raise LibraryAdminError(409, "Confirmation required", {"confirm": phrase})
+    freed = int(item.library_bytes or 0)
+    await _s1_delete(session, app, item)
+    # 审计在 S1 调用之后(R-A3):不在等任务停下时持有审计链的写锁
+    await audit.record(session, actor, "library.item.delete", target_type="library_item", target_id=item_id,
+                       after={"bytes": freed}, reason=reason)
+    await session.commit()
+    return {"deleted": item_id, "bytes": freed}
+
+
+async def cancel_item(session, app, actor, item_id: str, *, reason: str) -> dict:
+    item = await _get(session, item_id)
+    before = item.status
+    if before not in CANCELLABLE:
+        raise LibraryAdminError(409, "Item is not running")
+    await _s1_cancel(session, app, item)
+    await audit.record(session, actor, "library.item.cancel", target_type="library_item", target_id=item_id,
+                       before={"status": before}, reason=reason)
+    await session.commit()
+    status = await session.scalar(select(LibraryItem.status).where(LibraryItem.id == item_id))
+    return {"id": item_id, "status": status}
+
+
+async def purge_failed(session, app, actor, *, reason: str, confirm: str) -> dict:
+    ids = list((await session.scalars(
+        select(LibraryItem.id).where(LibraryItem.status == "failed")
+        .order_by(LibraryItem.created_at, LibraryItem.id))).all())
+    if not ids:
+        raise LibraryAdminError(409, "Nothing to purge")
+    phrase = purge_phrase(len(ids))
+    if (confirm or "").strip() != phrase:
+        raise LibraryAdminError(409, "Confirmation required", {"confirm": phrase})
+    deleted = freed = 0
+    for item_id in ids[:PURGE_LIMIT]:
+        item = await session.get(LibraryItem, item_id)
+        if item is None or item.status != "failed":
+            continue  # 期间被用户删除或重试了
+        freed += int(item.library_bytes or 0)
+        await _s1_delete(session, app, item)
+        deleted += 1
+    await audit.record(session, actor, "library.purge_failed", target_type="library", target_id="failed",
+                       after={"count": deleted, "bytes": freed}, reason=reason)
+    await session.commit()
+    return {"deleted": deleted, "bytes": freed, "more": len(ids) > PURGE_LIMIT}

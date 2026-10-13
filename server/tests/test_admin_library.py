@@ -375,3 +375,148 @@ async def test_tool_versions_are_cached_per_process(app, monkeypatch):
     assert await library_admin.tool_versions(app) == {"ffmpeg": "7.1", "ytdlp": None}
     assert await library_admin.tool_versions(app) == {"ffmpeg": "7.1", "ytdlp": None}
     assert len(calls) == 1
+
+
+# ---- 写端点与隐私(AS3) ---------------------------------------------------------------------------------------
+
+async def audit_rows(app, action: str) -> list:
+    async with app.state.sessionmaker() as s:
+        return list((await s.scalars(select(AdminAudit).where(AdminAudit.action == action))).all())
+
+
+async def item_ids(app) -> set[str]:
+    async with app.state.sessionmaker() as s:
+        return set((await s.scalars(select(LibraryItem.id))).all())
+
+
+async def test_delete_needs_operator_and_the_typed_phrase(app, client):
+    await add_users(app)
+    item = await add_item(app, ALICE, nbytes=4_096, media=True, segments=True)
+    assert await segment_count(app, item) == 2
+    media = app.state.settings.resolved_data_dir / "library" / str(ALICE) / item / "media.mp4"
+    assert media.exists()
+    url = f"{API}/items/{item}/delete"
+    phrase = f"DELETE {item[:8]}"
+
+    viewer = await login_as(app, client, "viewer")
+    denied = await client.post(url, headers=viewer, json={"reason": "clean up", "confirm": phrase})
+    assert denied.status_code == 403
+
+    operator = await login_as(app, client, "operator")
+    wrong = await client.post(url, headers=operator, json={"reason": "clean up", "confirm": "DELETE"})
+    assert wrong.status_code == 409
+    assert wrong.json() == {"error": "Confirmation required", "details": {"confirm": phrase}}
+    assert item in await item_ids(app)
+
+    r = await client.post(url, headers=operator, json={"reason": "clean up", "confirm": phrase})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"deleted": item, "bytes": 4_096}
+    assert item not in await item_ids(app)
+    assert not media.exists()  # S1 的 delete_item 清目录(spec §5.1 的布局)
+    assert await segment_count(app, item) == 0  # 句子、译文、分析随条目一起删(spec §4「显式删」;缺陷归 S1)
+    (row,) = await audit_rows(app, "library.item.delete")
+    assert (row.target_type, row.target_id, row.after, row.reason, row.summary) == (
+        "library_item", item, {"bytes": 4_096}, "clean up", "")
+    again = await client.post(url, headers=operator, json={"reason": "again", "confirm": phrase})
+    assert again.status_code == 404 and again.json() == {"error": "Item not found"}
+
+
+async def test_item_ids_must_be_uuids(app, client):
+    operator = await login_as(app, client, "operator")
+    bad = await client.post(f"{API}/items/not-a-uuid/delete", headers=operator, json={"reason": "x", "confirm": "x"})
+    assert bad.status_code == 422
+    unknown = await client.post(f"{API}/items/{uuid.uuid4()}/cancel", headers=operator, json={"reason": "x"})
+    assert unknown.status_code == 404
+
+
+async def test_cancel_only_running_items(app, client):
+    await add_users(app)
+    queued = await add_item(app, BOB, status="queued", nbytes=0)
+    ready = await add_item(app, BOB)
+    operator = await login_as(app, client, "operator")
+    r = await client.post(f"{API}/items/{queued}/cancel", headers=operator, json={"reason": "stuck job"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"id": queued, "status": "canceled"}
+    async with app.state.sessionmaker() as s:
+        assert (await s.get(LibraryItem, queued)).status == "canceled"
+    (row,) = await audit_rows(app, "library.item.cancel")
+    assert (row.target_type, row.target_id, row.before, row.reason) == (
+        "library_item", queued, {"status": "queued"}, "stuck job")
+    again = await client.post(f"{API}/items/{ready}/cancel", headers=operator, json={"reason": "stuck job"})
+    assert again.status_code == 409 and again.json() == {"error": "Item is not running"}
+
+
+async def test_purge_failed_items(app, client, tools):
+    await add_users(app)
+    await add_item(app, ALICE, status="failed", nbytes=100, error_kind="corrupt")
+    await add_item(app, BOB, status="failed", nbytes=50, error_kind="drm")
+    keep = await add_item(app, BOB)
+    canceled = await add_item(app, BOB, status="canceled", nbytes=0)
+    operator = await login_as(app, client, "operator")
+    assert (await client.get(API)).json()["purge_confirm"] == "PURGE 2 ITEMS"
+
+    wrong = await client.post(f"{API}/purge-failed", headers=operator,
+                              json={"reason": "weekly", "confirm": "PURGE 3 ITEMS"})
+    assert wrong.status_code == 409 and wrong.json()["details"] == {"confirm": "PURGE 2 ITEMS"}
+    r = await client.post(f"{API}/purge-failed", headers=operator, json={"reason": "weekly", "confirm": "PURGE 2 ITEMS"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"deleted": 2, "bytes": 150, "more": False}
+    assert await item_ids(app) == {keep, canceled}  # 已取消的不清(R-A14)
+    (row,) = await audit_rows(app, "library.purge_failed")
+    assert (row.target_type, row.target_id, row.after, row.summary) == (
+        "library", "failed", {"count": 2, "bytes": 150}, "")
+    empty = await client.post(f"{API}/purge-failed", headers=operator,
+                              json={"reason": "weekly", "confirm": "PURGE 0 ITEMS"})
+    assert empty.status_code == 409 and empty.json() == {"error": "Nothing to purge"}
+
+
+async def test_purge_is_capped_per_call(app, client, monkeypatch):
+    await add_users(app)
+    for _ in range(3):
+        await add_item(app, ALICE, status="failed", nbytes=10)
+    monkeypatch.setattr(library_admin, "PURGE_LIMIT", 2)
+    operator = await login_as(app, client, "operator")
+    r = await client.post(f"{API}/purge-failed", headers=operator, json={"reason": "weekly", "confirm": "PURGE 3 ITEMS"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"deleted": 2, "bytes": 20, "more": True}
+    assert len(await item_ids(app)) == 1
+
+
+async def test_no_titles_or_urls_in_logs_responses_or_audit(app, client, tools, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    await add_users(app)
+    keep = await add_item(app, ALICE, segments=True)
+    await add_item(app, ALICE, status="failed", error_kind="blocked", segments=True)
+    queued = await add_item(app, BOB, status="queued", nbytes=0, segments=True)
+    async with app.state.sessionmaker() as s:  # D8:今日译文 / 分析计数也在响应里,但只是数字
+        s.add(DailyUsage(scope="library_translate", subject="*", day=utc_day(utcnow()), count=7))
+        await s.commit()
+    operator = await login_as(app, client, "operator")
+    texts = []
+    for path in (API, f"{API}/items", f"{API}/top-users", f"{API}/users/{ALICE}"):
+        r = await client.get(path)
+        assert r.status_code == 200, (path, r.text)
+        texts.append(r.text)
+    texts.append((await client.post(f"{API}/items/{queued}/cancel", headers=operator,
+                                    json={"reason": "privacy run"})).text)
+    texts.append((await client.post(f"{API}/items/{keep}/delete", headers=operator,
+                                    json={"reason": "privacy run", "confirm": f"DELETE {keep[:8]}"})).text)
+    texts.append((await client.post(f"{API}/purge-failed", headers=operator,
+                                    json={"reason": "privacy run", "confirm": "PURGE 1 ITEMS"})).text)
+    for text in texts:
+        no_content(text)
+    no_content(caplog.text)
+    async with app.state.sessionmaker() as s:
+        rows = (await s.scalars(select(AdminAudit).where(AdminAudit.action.like("library.%")))).all()
+    assert sorted(r.action for r in rows) == ["library.item.cancel", "library.item.delete", "library.purge_failed"]
+    no_content(json.dumps([[r.summary, r.before, r.after, r.target_id] for r in rows], ensure_ascii=False,
+                          default=str))
+
+
+def test_admin_library_urls_carry_only_ids():
+    from app.main import create_app
+    from tests.test_admin_routes_guarded import api_routes
+    paths = sorted({p for p, _ in api_routes(create_app(make_settings()).routes) if p.startswith(API)})
+    assert paths == sorted([API, f"{API}/items", f"{API}/top-users", f"{API}/users/{{user_id}}",
+                            f"{API}/items/{{item_id}}/delete", f"{API}/items/{{item_id}}/cancel",
+                            f"{API}/purge-failed"])

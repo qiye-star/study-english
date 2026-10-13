@@ -52,3 +52,53 @@ async def library_user(user_id: UserId, request: Request, _: AdminContext = Depe
         return await library_admin.user_usage(session, request.app.state.settings, user_id, utcnow())
     except library_admin.LibraryAdminError as e:
         return _error(e)
+
+
+class ReasonIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=200)
+
+    @field_validator("reason")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("reason is required")
+        return value.strip()
+
+
+class ConfirmIn(ReasonIn):
+    confirm: str = Field("", max_length=40)
+
+
+@router.post("/items/{item_id}/delete")
+async def library_delete(item_id: ItemUuid, body: ConfirmIn, request: Request,
+                         ctx: AdminContext = Depends(require("operator")),
+                         session: AsyncSession = Depends(get_session)):
+    try:
+        return await library_admin.delete_item(session, request.app, ctx.actor, item_id, reason=body.reason,
+                                               confirm=body.confirm)
+    except library_admin.LibraryAdminError as e:
+        await session.rollback()
+        return _error(e)
+
+
+@router.post("/items/{item_id}/cancel")
+async def library_cancel(item_id: ItemUuid, body: ReasonIn, request: Request,
+                         ctx: AdminContext = Depends(require("operator")),
+                         session: AsyncSession = Depends(get_session)):
+    try:
+        return await library_admin.cancel_item(session, request.app, ctx.actor, item_id, reason=body.reason)
+    except library_admin.LibraryAdminError as e:
+        await session.rollback()
+        return _error(e)
+
+
+@router.post("/purge-failed")
+async def library_purge_failed(body: ConfirmIn, request: Request, ctx: AdminContext = Depends(require("operator")),
+                               session: AsyncSession = Depends(get_session)):
+    try:
+        return await library_admin.purge_failed(session, request.app, ctx.actor, reason=body.reason,
+                                                confirm=body.confirm)
+    except library_admin.LibraryAdminError as e:
+        await session.rollback()
+        return _error(e)
