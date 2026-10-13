@@ -188,6 +188,7 @@ async def test_transient_tool_failures_back_off_30_then_120_seconds_then_fail(ap
 
 async def test_links_fail_until_plan_s2_registers_a_fetch_stage(app):
     use_fakes(app)
+    app.state.library.set_fetch_stage(pipeline.NoFetch())  # create_app now registers yt-dlp (plan S2); pin the default
     item_id = await seed(app, source="link", url="https://www.example.com/v/1", title="")
     await process(app)
     assert ((await get(app, item_id)).error_kind) == "unsupported_site"

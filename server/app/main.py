@@ -31,7 +31,7 @@ from app.library.worker import install as install_library  # imported media libr
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -102,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_library(app)  # app.state.library: queue, media tickets, fetch stage (spec 2026-10-13-video-import §6.1)
     # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
     # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---
+    library_import.install(app)  # plan S2: the worker's fetch stage becomes yt-dlp (spec 2026-10-13-video-import §7)
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     _log_secrets(None, settings)
@@ -120,6 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         links, agents, agents_tutor,
         library,  # /api/library/* (spec 2026-10-13-video-import §9); before stubs
         # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
+        library_import,
         admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents,
         # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
