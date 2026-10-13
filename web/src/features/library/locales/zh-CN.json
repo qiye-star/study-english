@@ -152,25 +152,69 @@
         }
       },
       "shadow": {
-        "record": "录音",
+        "best": "最好 {{score}}",
+        "record": "跟读",
         "stop": "停止",
-        "assessing": "评测中…",
-        "listenMine": "听我的",
+        "assessing": "评分中…",
         "listenOriginal": "听原句",
+        "listenMine": "听我的录音",
+        "stopMine": "停止播放我的录音",
+        "more": "更多操作",
+        "save": "加入练习清单",
+        "saved": "已加入练习清单",
+        "noSpeech": "没听到声音,请大声一点再试一次。",
+        "attemptNotSaved": "已评分,但没有记入本条素材的最好成绩。",
+        "translateLimited": "今日译文额度已用完,已翻译的句子仍可查看。",
+        "translateFailed": "译文加载失败,关闭再打开「译」可重试。",
+        "menu": {
+          "title": "句子操作",
+          "description": "选择对这一句要做的操作。",
+          "copy": "复制句子",
+          "copied": "已复制句子。",
+          "copySelected": "已选中句子,请手动复制。",
+          "copyFailed": "无法复制句子。",
+          "analysis": "AI 分析",
+          "analysisClose": "收起 AI 分析",
+          "edit": "微调"
+        },
+        "score": {
+          "good": "发音很棒",
+          "fair": "不错,还能更好",
+          "low": "再练一练"
+        },
+        "analysis": {
+          "title": "AI 分析",
+          "loading": "正在分析这句话…",
+          "retry": "重试",
+          "collapse": "收起",
+          "expand": "展开",
+          "limited": "今日 AI 分析额度已用完。",
+          "unavailable": "AI 分析暂不可用。"
+        },
+        "editor": {
+          "title": "微调句子",
+          "start": "起点",
+          "end": "终点",
+          "startEarlier": "起点提前 0.2 秒",
+          "startLater": "起点推后 0.2 秒",
+          "endEarlier": "终点提前 0.2 秒",
+          "endLater": "终点推后 0.2 秒",
+          "text": "文字",
+          "save": "保存",
+          "saving": "保存中…",
+          "cancel": "取消",
+          "saved": "句子已更新。",
+          "invalidText": "文字必须包含字母(最多 600 字)。"
+        },
+        "errors": {
+          "notFound": "这一句已不存在,请刷新页面。",
+          "badTimes": "时间与相邻句重叠,或超出了媒体时长。",
+          "badText": "文字必须包含字母(最多 600 字)。"
+        },
         "addToList": "加入练习清单",
         "added": "已加入练习清单",
         "edit": "微调",
-        "startEarlier": "起点提前 0.2 秒",
-        "startLater": "起点推后 0.2 秒",
-        "endEarlier": "终点提前 0.2 秒",
-        "endLater": "终点推后 0.2 秒",
-        "text": "句子文字",
-        "save": "保存",
-        "cancel": "取消",
-        "best": "最好 {{score}}",
-        "attempts_one": "{{count}} 次",
-        "attempts_other": "{{count}} 次",
-        "unavailable": "评测暂时不可用。"
+        "cancel": "取消"
       }
     }
   }
