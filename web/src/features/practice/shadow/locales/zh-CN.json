@@ -1,0 +1,50 @@
+{
+  "web": {
+    "practice": {
+      "shadow": {
+        "title": "跟读",
+        "position": "{{n}} / {{total}}",
+        "close": "关闭",
+        "reference": "参考句子",
+        "prev": "上一句",
+        "next": "下一句",
+        "hint": "先听一遍范读,再点「录音」跟着说(最长 1 分钟)。",
+        "listen": "听范读",
+        "listening": "播放中",
+        "listenUnavailable": "暂时无法使用范读(未能加载语音设置)。",
+        "record": "录音",
+        "retryRecord": "重试录音",
+        "stop": "停止",
+        "recording": "正在录音",
+        "assessing": "评测中",
+        "assessingLong": "评测中 · 正在逐词对比发音",
+        "keptNote": "上一次的录音已保留,不会丢失。",
+        "assessKept": "评测这段录音",
+        "discard": "重录",
+        "noSpeech": "没听到声音,请大声一点再试一次。",
+        "total": "总分",
+        "wordsTitle": "逐词 · 点单词查词",
+        "tip": {
+          "good": "很稳。保持这个节奏。",
+          "fair": "接近了。放慢一点、读清楚一点,再试一次。",
+          "weak": "{{words}} 读得不准。点单词可以查词或听发音,再练一次试试。"
+        },
+        "mine": "我的录音",
+        "stopMine": "停止",
+        "standard": "标准发音",
+        "fav": "收藏",
+        "faved": "已收藏",
+        "again": "再练一次",
+        "nextSentence": "下一句",
+        "done": "完成",
+        "details": "查看完整详情",
+        "confirm": {
+          "title": "放弃这次录音?",
+          "body": "还没出成绩,关闭后这次录音会被丢弃。",
+          "keep": "继续",
+          "drop": "放弃"
+        }
+      }
+    }
+  }
+}
