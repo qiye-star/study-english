@@ -52,6 +52,35 @@
 - `web/src/features/library/CLAUDE.md` 不在基底(任务说明说 W1 写了,实际没有);未创建。
 - S1 相关(错误文本、夹具键名、`source=library`)全部 PENDING,待服务端合并后复核。
 
+### 预检复核(Task 8 起,基底已含 S1 服务端与录制的契约夹具,2026-10-13)
+| 原 PENDING 项 | 复核结果(对真实 `server/app/routers/library.py`、`server/app/library/errors.py`、`server/tests/fixtures/library_contract.json`) |
+|---|---|
+| 改句 / 记成绩 / 分析的错误文本 | 真实文本:`Not Found`、`Sentence not found`、`Invalid sentence times`、`Invalid sentence text`、`Item is not ready`、`No changes`、`Assessment does not match`、`AI is disabled`(404)、`Daily analysis limit reached` / `Daily AI limit reached`(429)、`AI is unavailable`(503)、`Unsupported language`。`SHADOW_SERVER_ERRORS` 以 W1 的 `LIBRARY_SERVER_ERRORS` 为底,只把前四条换成本车道的文案键;契约用例逐条核对键存在于两种语言 |
+| 429 / 404 语义 | 429 = 额度满(`ai_user_cap` / `ai_global_cap`,译文端点以 `limited: true` 表示);404 = AI 未开启(`ai_disabled`);失败 503。批处理器与分析卡按状态码处理,不靠文本 |
+| 契约夹具键 | `attempts`(`{attempts:[{seg_idx,best_score,count,last_at}]}`)、`attempt_post`(`{seg_idx,score}`)、`segment_patch`(`{segment:{idx,start_ms,end_ms,text,zh,zh_lang,has_analysis,analysis_lang}}`)、`translate`(`{segments:[{idx,zh}],limited}`)、`analysis`(`{analysis,cached}`)、`item_detail_with_ai`(句子带 `has_analysis` 布尔,**没有**分析正文)。`attempts-contract.test.ts` 不再跳过 |
+| `source=library` | `speech.py` 的 `SOURCES` 与 `practice_items.py` 的 `Literal` 均已含 `library` |
+| 句子里的分析 | 详情只给 `has_analysis`;分析卡在要显示时 POST `…/segments/{idx}/analysis` 取正文(服务端已缓存的返回 `cached: true`,不计额度、不动画) |
+
+### 自动化测试(Task 8–12,2026-10-13)
+- 最后一次 `yarn vitest run src/features/library src/features/practice src/architecture.test.ts`:64 个文件通过,414 个用例通过,1 个跳过(W1 `library-contract.test.ts` 的 `import` 用例,等 S2 录制);`tsc --noEmit -p .` 无错误。
+- 各任务目标测试(首次观察到失败后才实现,Task 10 / 12 的失败是「模块 / 导出不存在」):segment-editor 9、analysis-card 9、use-translations 19(批处理器 11 + 钩子 8)、segment-menu 10、shadow-panel 13 + shadow-theme 5;`architecture.test.ts` 11 通过(基线 19,不变)。
+- 译文接线:W1 的 `player-page.tsx` 调 `useTranslations`;W2 替换了 `use-translations.ts` 的内容并保持导出(`useTranslations`、`UseTranslationsArgs`、`TranslationsState`),`ShadowPanel` 没有 `translate` prop、没有行级译文钩子。
+- 全量 `yarn web:test`、`yarn web:build`、主包体积、E2E:**未跑**。
+
+### 偏离(Part 2)
+| 项 | 偏离与理由 |
+|---|---|
+| 删除 `attempts-api.ts` 里的 `translateSegments` / `analyzeSegment`(裁定 2) | 复用 W1 `library-api.ts` 的同名函数;`SegmentWithAi` 改为带 `hasAnalysis`;`patchSegment` 解 `{segment}` 并带回 D8 字段;`attempts-api.test.ts` 删去对应用例、`attempts-contract.test.ts` 改读真实夹具键 |
+| 分析卡取正文(裁定 1) | 原计划读 `segment.analysis`;改为 `hasAnalysis` 时 POST 取正文。分析卡对空文本报错(W1 的 `analyzeSegment` 不检查);W1 的 `analyzeSegment` 没有计划里的 120 s 超时(用默认 60 s),大模型很慢时可能提前超时,记给 Z |
+| `use-translations.ts` 重写(裁定 3) | 不再是行级哨兵 + `IntersectionObserver` + toast:按 W1 接缝(`segments` / `anchorIdx` / `onTranslated` / `pending` / `notice` / `retry`)取锚点前后各 10 句(E12 的字面做法,取代 R-SH27 的 800 px 近似);一批结果一次交回(W1 的 `mergeTranslations` 是函数式的);提示由 W1 渲染(`web.library.player.translate*`),所以 `web.library.shadow.translateLimited / translateFailed` 两个键现在没有使用者 |
+| `shadow-panel.tsx` | 非当前句返回 `null`(不再有哨兵 div);没有 `translate` prop;`SegmentText` 在查词容器外多放一份 sr-only 整句文字、逐词的 `<p>` 设为 `aria-hidden`:W1 的 `segment-list.test.tsx` / `player-page.test.tsx` 按整句文字找元素,逐词 span 会让它们失败,而计划禁止改 W1 的测试;容器外所以查词上下文不重复 |
+| `shadow-fx.tsx`(裁定 4) | 保留本地无模糊的 `GlassSurface`,其余四个转出 W1 |
+
+### 未验证(Part 2)
+- 点词后选区与操作条(iOS)、剪贴板与回退选中、录音与音频路由、评分卡 / 分析卡 / 火花的动画与深浅色外观:均未在真机或浏览器里看过(没有视觉检查);`/code-review` 评审波未跑。
+- 真实服务端的译文 / 分析 / 成绩记录只有契约夹具,没有真上游运行。
+- `web/src/features/library/CLAUDE.md` 在本分支基底里不存在(裁定 5 说主线已有),未创建也未更新,合并后由 Z 补 W2 一节。
+
 ## S2 链接导入(spike S2,计划 2026-10-13-video-import-server-import)
 
 本节由无网络的执行者写成:T0.1 只联网到 PyPI、T0.2 访问 YouTube、T0.3 要目标服务器,**全部没有做**,一律 PENDING(不编造任何数字)。
