@@ -4,7 +4,7 @@ import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
 import {
   CHUNK_TIMEOUT_MS, LIBRARY_SERVER_ERRORS, MAX_TRANSLATE_BATCH, analyzeSegment, cancelItem, completeUpload, deleteItem, extOf, fetchPoster,
   getItem, importLink, isAiLimited, limitsOrDefault, listItems, mediaTicket, patchItem, putChunk, putItemSubtitles, putUploadSubtitles,
-  retryItem, startUpload, stemOf, translateSegments, uploadStatus,
+  reprocessItem, retryItem, startUpload, stemOf, translateSegments, uploadStatus,
 } from "./library-api";
 import { detailRaw, itemRaw } from "./test-fixtures";
 
@@ -53,6 +53,22 @@ describe("library api (spec §8, §9)", () => {
     expect((await cancelItem(api, "i1")).status).toBe("canceled");
     await deleteItem(api, "i1");
     expect(mock.calls.every((c) => c.url.search === "")).toBe(true);
+  });
+
+  it("reprocesses with a bodyless POST and unwraps the queued item", async () => {
+    const { mock, api } = client({
+      "POST /api/library/items/i1/reprocess": () => json({ item: itemRaw({ status: "queued", progress: 0, sub_source: "asr" }) }),
+    });
+    const next = await reprocessItem(api, "i1");
+    expect(next).toMatchObject({ id: "i1", status: "queued", subSource: "asr", lowConfidence: false });
+    expect(mock.calls[0].url.search).toBe("");
+    expect(mock.calls[0].body ?? null).toBeNull();
+  });
+
+  it("maps the three reprocess errors to their texts", () => {
+    for (const text of ["Item cannot be reprocessed", "Transcription is not available", "Daily transcription limit reached"]) {
+      expect(LIBRARY_SERVER_ERRORS).toHaveProperty([text]);
+    }
   });
 
   it("starts uploads with the filename only in the JSON body and sends chunks with a neutral multipart name", async () => {

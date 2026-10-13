@@ -38,6 +38,8 @@ export interface LibraryItem {
   resumeIdx: number;
   ratePct: number;
   hasPoster: boolean;
+  /** D5:句边界可能不准(服务端合理性检查;重新识别后重算) */
+  lowConfidence: boolean;
   createdAt: string;
   lastOpenedAt: string | null;
 }
@@ -145,6 +147,11 @@ export async function cancelItem(api: ApiClient, id: string): Promise<LibraryIte
   return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/cancel`));
 }
 
+/** D7:重新识别一条自动识别的条目(旧句子保留到新句子写入;额度不足 429 / 不可重新识别 409 / 没开转写 503)。 */
+export async function reprocessItem(api: ApiClient, id: string): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/reprocess`));
+}
+
 export async function putItemSubtitles(api: ApiClient, id: string, file: Blob, filename: string): Promise<LibraryItem> {
   return unwrapItem(await api.request<unknown>("PUT", `${itemPath(id)}/subtitles`, { form: subtitleForm(file, filename) }));
 }
@@ -245,6 +252,9 @@ export const LIBRARY_SERVER_ERRORS: Record<string, string> = {
   "Item is not ready": "web.library.errors.notReady",
   "Item has not failed": "web.library.errors.invalidState",
   "Nothing left to retry": "web.library.errors.invalidState",
+  "Item cannot be reprocessed": "web.library.errors.notReprocessable",
+  "Transcription is not available": "web.library.errors.asrUnavailable",
+  "Daily transcription limit reached": "web.library.errors.asrLimited",
   "Item cannot be canceled": "web.library.errors.invalidState",
   "No changes": "web.library.errors.invalidState",
   "Invalid resume position": "web.library.errors.invalidState",

@@ -12,14 +12,17 @@
   `used_bytes`、`admit_new_item` / `refund_new_item`(上传与链接共用的准入)
 - `subtitles.py` – SRT / WebVTT 解析与清洗(纯函数)
 - `segment.py` – 「带时间的片段 → 句子」:`align`(包装 `speech.sentence_split.split_all`,不改它)+ `finish`(长句断开、短句合并、不重叠)
-- `asr_chunks.py` – B 档转写:静音表解析、静音感知分块、句边界吸附、`chunks.json` 断点、逐块调度
+- `asr_chunks.py` – B 档转写:静音表解析、静音感知分块、句边界吸附、`chunks.json` 断点、逐块调度;`Chunk.utterances` /
+  `usable_utterances` / `transcribe_chunks_timed`:识别服务给的真实句子时间优先(plan 2026-10-13-library-alignment),不可信的块逐块回落估算;
+  `chunks.json` 版本 2(仍读 1)
+- `quality.py` – 合理性检查(纯函数):字符速度 6–25 / 秒、估算块说话占比 ≥ 40%,结果写 `library_items.low_confidence`(阈值未用真实素材校准)
 - `media.py` – 子进程 `run`(不经 shell、环境变量白名单、超时 / 取消终止)与 `Ffmpeg`(探测、规范化、封面、识别用 WAV)
 - `tickets.py` – 媒体票据 `MediaTicketStore`(进程内,30 分钟,≤ 1000 张)
 - `store.py` – 数据库读写、输出形状 `item_out` / `segment_out`、队列认领 / 恢复 / 失败、清扫查询、跟读成绩;
-  `cancel_item` / `delete_item`(路由与管理端共用)
+  `cancel_item` / `delete_item`(路由与管理端共用);`fail` / `cancel_item` 对重新识别(`seg_count > 0`)回到 `ready`
 - `ai.py` – D8 / E11 / E12:每句译文(批量,≤ 20 句一次调用)与单句分析;额度按句计(`limits.reserve_ai`);提示词
   `library.translate` / `library.analyze`(管理端可编辑,默认值取自桌面端 enjoy);大模型只经 `providers/llm.complete`
-- `pipeline.py` – 一个条目的流水线;取回阶段接口 `FetchRequest` / `FetchResult` / `FetchStage`(默认 `NoFetch`,S2 注册 yt-dlp)
+- `pipeline.py` – 一个条目的流水线(`PipelineDeps.timed_transcriber` 给带时间的转写);取回阶段接口 `FetchRequest` / `FetchResult` / `FetchStage`(默认 `NoFetch`,S2 注册 yt-dlp)
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
 ## Allowed dependencies
@@ -49,4 +52,8 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 进度写库发现条目已不在 `processing` 就停(`Aborted`);新的写库点照做,别在取消之后写行或文件。
 - SQLite 没有外键级联:删条目用 `store.delete_item`,删用户在 `admin/users_admin.py`(segments 按条目删)。
 - 原始上传 / 下载不保留;成品与 `_tmp` 在同一数据卷(`os.replace`)。媒体不进备份(`admin/backups.py` 只备份数据库)。
+- 重新识别(`POST /items/{id}/reprocess`):`ready` 且 `sub_source=asr`;状态由 `seg_count > 0` 且 `queued/processing` 推出,**不要**在这种条目上直接删媒体;
+  失败 / 取消回到 `ready`(失败保留 `error_kind`);旧句子到新句子写入前一直在,手动修改与译文会被替换。
+- 识别服务返回的 `utterances[].text` 与转写一样永不进日志;`chunks.json` 在 `_tmp`,条目 ready 时随目录清掉。
+- `low_confidence` 只对 ASR 条目有意义,换字幕时清。
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。

@@ -6,6 +6,7 @@
 分片与媒体读取不走每分钟限流。链接导入 `POST /imports` 在 `routers/library_import.py`(计划 S2)。
 日志只有条目 id、序号、字节数;标题、文件名、字幕、票据一律不记。"""
 import logging
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query, Request
@@ -319,6 +320,38 @@ async def cancel_item(request: Request, item_id: ItemId, user: User = Depends(cu
     return {"item": store.item_out(item)}
 
 
+@router.post("/items/{item_id}/reprocess")
+async def reprocess_item(request: Request, item_id: ItemId, user: User = Depends(current_user),
+                         settings: Settings = Depends(require_library), session: AsyncSession = Depends(get_session)):
+    """D7:重新识别一条 `ready` 的自动识别条目(裁定 R-R1…R-R6)。旧句子留到新句子写入(失败 / 取消回到原状);
+    预检今天的识别额度(不扣,真实预留在流水线里);陈旧的 `_tmp`(chunks.json 等)在锁内清掉再入队。"""
+    item = await owned(session, user, item_id)
+    if item.status != "ready" or item.sub_source != "asr" or item.seg_count <= 0:
+        raise fail("not_reprocessable")
+    if not settings.library_available:
+        raise fail("unavailable")
+    if not settings.library_asr_available:
+        raise fail("asr_unavailable")
+    data_dir = settings.resolved_data_dir
+    if not item.media_path or not (data_dir / item.media_path).is_file():
+        raise fail("no_material")
+    now = utcnow()
+    need = max(1, math.ceil((item.duration_ms or 0) / 1000))
+    if await limits.asr_seconds_left(session, user.id, settings, now) < need:
+        raise fail("asr_daily")
+    async with runtime(request).upload_lock(item.id):
+        await session.refresh(item)
+        if item.status != "ready":
+            raise fail("not_reprocessable")
+        paths.remove_tree(paths.tmp_dir(data_dir, item.id))
+        item.status, item.stage, item.progress, item.error_kind = "queued", None, 0, None
+        item.attempts, item.next_run_at, item.updated_at = 0, None, now
+        await session.commit()
+    runtime(request).wake()
+    logger.info("library reprocess queued item=%s", item.id)
+    return {"item": store.item_out(item)}
+
+
 @router.put("/items/{item_id}/subtitles")
 async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Depends(current_user),
                              settings: Settings = Depends(require_library),
@@ -337,7 +370,7 @@ async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Dep
         raise fail("bad_subtitle")
     if item.status == "ready":
         await store.write_segments(session, item, sentences)
-        item.sub_source, item.updated_at = "uploaded", utcnow()
+        item.sub_source, item.error_kind, item.low_confidence, item.updated_at = "uploaded", None, False, utcnow()
         await session.commit()
         segs = await store.segments_of(session, item.id)
         return {"item": store.item_out(item), "segments": [store.segment_out(s) for s in segs]}

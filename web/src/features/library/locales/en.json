@@ -27,6 +27,7 @@
         "segment": "Splitting sentences"
       },
       "progress": "{{stage}} · {{pct}}%",
+      "lowConfidence": "Sentence boundaries may be off. You can re-recognize or fine-tune them.",
       "card": {
         "retry": "Retry",
         "addSubtitles": "Add subtitles",
@@ -35,12 +36,23 @@
         "cancelUpload": "Cancel",
         "dismiss": "Dismiss",
         "uploading": "Uploading {{pct}}%",
-        "uploadFailed": "Upload stopped: {{reason}}"
+        "uploadFailed": "Upload stopped: {{reason}}",
+        "more": "More",
+        "menuTitle": "Item actions",
+        "menuDescription": "More actions for this item.",
+        "reprocess": "Re-recognize",
+        "lowConfidenceBadge": "Boundaries may be off",
+        "reprocessFailed": "Re-recognition did not work; your earlier sentences are still here: {{reason}}"
       },
       "confirmDelete": {
         "title": "Delete this item?",
         "body": "The media and its sentences are removed. Your recordings and scores stay in your history.",
         "confirm": "Delete"
+      },
+      "confirmReprocess": {
+        "title": "Re-recognize this item?",
+        "body": "The whole audio is transcribed again and uses today's transcription allowance once more. Your edits to sentence text and times, and any translations, are replaced. The item cannot be opened while it runs; if it fails, your current sentences are kept.",
+        "confirm": "Re-recognize"
       },
       "resume": { "mismatch": "That is not the same file. Choose the file you started uploading." },
       "toast": {
@@ -48,7 +60,8 @@
         "uploadDone": "Upload finished. Processing now.",
         "imported": "Link added. Processing now.",
         "subtitlesSaved": "Subtitles added. Processing again.",
-        "retrying": "Trying again."
+        "retrying": "Trying again.",
+        "reprocessing": "Re-recognition started."
       },
       "sheet": { "title": "Add material", "tabs": "Source", "upload": "Upload", "link": "Link" },
       "upload": {
@@ -128,6 +141,9 @@
         "uploadExpired": "The upload expired. Delete it and upload again.",
         "aiDisabled": "AI help is turned off on this server.",
         "aiUnavailable": "AI help is unavailable right now. Try again later.",
+        "notReprocessable": "This item cannot be re-recognized right now.",
+        "asrUnavailable": "Automatic transcription is not enabled on this server.",
+        "asrLimited": "Today's transcription allowance is used up. Try again tomorrow.",
         "kind": {
           "too_large": "The file is larger than the upload limit.",
           "too_long": "It is longer than the allowed length.",

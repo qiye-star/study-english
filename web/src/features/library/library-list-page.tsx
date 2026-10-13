@@ -17,7 +17,7 @@ import { formatBytes } from "./format";
 import { ItemCard } from "./item-card";
 import {
   LIBRARY_FORMATS, LIBRARY_SERVER_ERRORS, MAX_SUBTITLE_BYTES, MIB, SUBTITLE_FORMATS, deleteItem, extOf, limitsOrDefault,
-  putItemSubtitles, retryItem, type LibraryItem,
+  putItemSubtitles, reprocessItem, retryItem, type LibraryItem,
 } from "./library-api";
 import { LibraryRoot } from "./library-root";
 import "./locales";
@@ -46,6 +46,7 @@ export function LibraryListPage() {
   const jobs = useUploads();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LibraryItem | null>(null);
+  const [pendingReprocess, setPendingReprocess] = useState<LibraryItem | null>(null);
   const subsInput = useRef<HTMLInputElement>(null);
   const resumeInput = useRef<HTMLInputElement>(null);
   const target = useRef<LibraryItem | null>(null);
@@ -97,6 +98,18 @@ export function LibraryListPage() {
       fail(err);
     }
   };
+  const confirmReprocess = async () => {
+    const item = pendingReprocess;
+    setPendingReprocess(null);
+    if (!item) return;
+    try {
+      list.replace(await reprocessItem(api, item.id));
+      toast.success(t("web.library.toast.reprocessing"));
+    } catch (err) {
+      fail(err);
+    }
+  };
+
   const onRetry = (item: LibraryItem) => {
     retryItem(api, item.id).then((next) => {
       list.replace(next);
@@ -160,6 +173,7 @@ export function LibraryListPage() {
 
   const handlers = {
     onDelete: setPendingDelete,
+    onReprocess: config.asr ? setPendingReprocess : undefined,
     onRetry,
     onAddSubtitles,
     onResumeUpload,
@@ -224,6 +238,20 @@ export function LibraryListPage() {
             <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction className="h-11 rounded-button" onClick={() => void confirmDelete()}>
               {t("web.library.confirmDelete.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!pendingReprocess} onOpenChange={(open) => { if (!open) setPendingReprocess(null); }}>
+        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-title font-semibold text-ink">{t("web.library.confirmReprocess.title")}</AlertDialogTitle>
+            <AlertDialogDescription className="text-sub text-ink-2">{t("web.library.confirmReprocess.body")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction className="h-11 rounded-button" onClick={() => void confirmReprocess()}>
+              {t("web.library.confirmReprocess.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

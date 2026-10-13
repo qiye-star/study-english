@@ -10,11 +10,36 @@ from tests.test_migrations import _config, _tables
 LIBRARY_TABLES = {"library_items", "library_segments", "library_attempts"}
 
 
-def test_head_is_0018_and_down_revision_is_0017(tmp_path, monkeypatch):
+def test_head_is_0019_and_the_chain_is_linear(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0018"]
+    assert script.get_heads() == ["0019"]
+    assert script.get_revision("0019").down_revision == "0018"
     assert script.get_revision("0018").down_revision == "0017"
+
+
+def test_0019_adds_low_confidence_keeps_rows_and_round_trips(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0018")
+    con = sqlite3.connect(db)
+    con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-13')")
+    con.execute("insert into library_items (id, user_id, kind, source, title, status, created_at, updated_at) "
+                "values ('i1', 12345678, 'video', 'upload', 't', 'ready', '2026-10-13', '2026-10-13')")
+    con.commit()
+    con.close()
+    command.upgrade(cfg, "0019")
+    con = sqlite3.connect(db)
+    assert "low_confidence" in {r[1] for r in con.execute("pragma table_info(library_items)")}
+    assert con.execute("select low_confidence from library_items where id = 'i1'").fetchone() == (0,)
+    con.close()
+    command.downgrade(cfg, "0018")
+    con = sqlite3.connect(db)
+    assert "low_confidence" not in {r[1] for r in con.execute("pragma table_info(library_items)")}
+    assert con.execute("select count(*) from library_items").fetchone() == (1,)
+    assert {"ix_library_items_user_id_created_at", "ix_library_items_status_next_run_at"} <= {
+        r[1] for r in con.execute("pragma index_list(library_items)")}
+    con.close()
+    command.upgrade(cfg, "head")
 
 
 def test_0018_creates_the_tables_with_their_keys_and_round_trips(tmp_path, monkeypatch):

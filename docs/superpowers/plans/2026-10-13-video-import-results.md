@@ -175,3 +175,63 @@ alembic heads:`0018 (head)`。名字与签名全部与计划一致,没有需要�
 - main.py 锚点:`# --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---`,在路由元组里 `admin_agents,` 之后、`stubs` 之前;`from app.routers import (...)` 的导入处按 R-A16 后备放在 `admin_agents` 之后
 - 本机 ffmpeg:有(ffmpeg version 9.0-full_build-www.gyan.dev);ffprobe 有;yt-dlp:未安装(`PackageNotFoundError`)
 - 结论:可以开始 AS1
+
+## B 句边界根治 · Task 0 识别服务时间戳验证(plans/2026-10-13-library-alignment.md)
+
+- 日期 / 基于提交:2026-10-14 / fe9ca8da(探针脚本提交;运行用的容器是该日已部署的镜像,脚本经 `docker compose cp` 拷入,未重建、未重启)
+- 识别路径:`UPSTREAM_ASR_MODE=volc_stream`,`asr_stream_url` 的路径末段 `bigmodel_nostream`;`UPSTREAM_WHISPER_MODE=chat`
+- 素材:A = 已导入库视频开头 60 s(持续背景音乐;人声约从 27 s 起);B = 同一视频中段(400 s 起)60 s 人声(只写时长,不写标题与内容)。两段都用容器内 ffmpeg 切成 16 kHz 单声道 mp3 后由脚本再解成 WAV 发送,每段一次识别请求;用毕已从容器删除。
+
+### 素材 A-music(音频 60.0 s)
+
+- 火山流式:响应帧 301,错误码 None,耗时 8.5 s;中间帧带 utterances 的 60 帧
+- 最终帧顶层字段:audio_info, result
+- result 字段:additions, text, utterances;result.text 字符数 599
+- `utterances`:有
+- 条数 6;单位猜测 `ms`;起点单调 True;重叠 0;倒置或负值 0;首条起点 27360.0,末条终点 59890.0
+- 每条的字段:additions, definite, end_time, start_time, text, words;words 字段:end_time, start_time, text
+- 逐条(序号:起点 – 终点 / 字符数 / definite):0:27360.0 – 32240.0 / 71 / True;1:32560.0 – 46120.0 / 248 / True;2:46120.0 – 47840.0 / 41 / True;3:47890.0 – 50690.0 / 68 / True;4:51050.0 – 55250.0 / 82 / True;5:55690.0 – 59890.0 / 89 / True
+- 边界误差:**未验证**(没有提供 --truth)
+- Whisper:不适用(`UPSTREAM_WHISPER_MODE=chat`,脚本未发请求)
+
+### 素材 B-clean(音频 60.0 s)
+
+- 火山流式:响应帧 301,错误码 None,耗时 15.0 s;中间帧带 utterances 的 198 帧
+- 最终帧顶层字段:audio_info, result
+- result 字段:additions, text, utterances;result.text 字符数 490
+- `utterances`:有
+- 条数 6;单位猜测 `ms`;起点单调 True;重叠 0;倒置或负值 0;首条起点 0.0,末条终点 21770.0
+- 每条的字段:additions, definite, end_time, start_time, text, words;words 字段:end_time, start_time, text
+- 逐条(序号:起点 – 终点 / 字符数 / definite):0:0.0 – 1040.0 / 19 / True;1:1120.0 – 2640.0 / 51 / True;2:2800.0 – 7920.0 / 120 / True;3:8000.0 – 13560.0 / 138 / True;4:13720.0 – 20160.0 / 140 / True;5:20330.0 – 21770.0 / 22 / True
+- 边界误差:**未验证**(没有提供 --truth)
+
+### G0 结论
+| 问题 | 结果 |
+|---|---|
+| `result.utterances` 是否存在、字段名 | 有(两段都在最终帧里);每条 `text, start_time, end_time, definite, words, additions`;`words[]` 有 `text, start_time, end_time`;`result` 另有 `additions` |
+| 时间字段与单位 | `start_time` / `end_time`,ms(最大终点 59890 / 21770,不超过 60000 + 2000) |
+| 基准 | 相对所发音频起点(A 首条起点 27360 与 27 s 才开口的背景音乐素材一致;B 首条起点 0) |
+| 条数、单调、重叠、倒置 | A:6 / 单调 / 0 / 0;B:6 / 单调 / 0 / 0 |
+| 与真实边界的误差 | 未验证(没有人工听出的 truth);只有侧面证据:A 的第一句人声起点 27.36 s,与 spec 的证据「开头 ~12 s 人声落在前 40 s」吻合,而旧估算会把它摊在 0 – 13 s |
+| Whisper `verbose_json` `segments` | 不适用(chat 模式) |
+| **G0** | **A**(可用,继续 T2…)。注意:B 中后 38 s 没有 utterance(A / B 都只有 6 条),T2 / T3 的 `usable_utterances` 须处理「块尾没有识别句」;A 的一条 248 字符 / 13.5 s 的句子很长,分句仍由 `segment.py` 负责 |
+
+### B 句边界根治 · 完成情况与未验证(plans/2026-10-13-library-alignment.md)
+
+- 日期 / 基于提交:2026-10-14 / cc482fb5(文档提交之前的最后一个功能提交);alembic head:0019;T5(Whisper 时间)与 T11(VAD)按 G0 = A 跳过
+- 自动化(实际运行并通过):`test_asr_timing_probe` 13、`test_asr_stream_timed` 22、`test_asr_timed` 5、`test_library_asr_timed` 18、`test_library_quality` 13、`test_library_alignment` 8、`test_library_reprocess` 12、`test_library_contract` 1;服务端合并目标运行(全部 `test_library_*.py`、`test_admin_library.py`、`test_architecture.py`、`test_migrations.py`、三个 asr 计时文件)743 通过;网页 `src/features/library` + `architecture.test.ts` 58 个文件 374 通过 1 跳过,`tsc --noEmit` 干净。未跑:服务端全量、网页全量、构建、E2E。
+- 持续背景音乐夹具:单元与流水线用例用已知时间证明「有真实时间时不再平摊」;`ffmpeg` 的 `sine` 夹具用例(没有 ffmpeg 会 skip;本机 ffmpeg 存在,已运行并通过)证明 `silencedetect` 在连续音上零静音
+
+**未验证(按规矩写明,直到真环境 / 真机跑过):**
+
+| 项 | 状态 |
+|---|---|
+| 火山 `result.utterances` 字段名 / 单位 / 相对块起点 / 是否出现在 `bigmodel_nostream` | 见本文档 Task 0 一节(2026-10-14 真实运行,G0 = A) |
+| 真实素材上的边界误差(与人耳比) | 未验证(没有人工 truth 列表) |
+| Whisper `verbose_json` 的 `segments` | 不适用(`UPSTREAM_WHISPER_MODE=chat`,T5 跳过) |
+| 用户那条素材重新识别后前三句是否对上 | 未验证(需要用户在部署后点「重新识别」听) |
+| `low_confidence` 的阈值(6 / 25 字符每秒、占比 40%)在真实素材上的误报率 | 未验证 |
+| 迁移 `0019` 在 Postgres 上 | 未验证(只在 SQLite 上跑) |
+| iOS Safari 上卡片 ⋯ 面板与确认对话框的先后关闭、「译」默认开时的请求量 | 未验证(jsdom 里先关面板再开对话框的用例通过) |
+| 重新识别时并发 worker(`library_job_concurrency > 1`)与取消的竞争;并发双击 POST 的竞态 | 只有单 worker、顺序请求的测试 |
+| 真实识别服务端到端的 `make_timed_transcriber`(只用假 websocket 与假转写器) | 未验证 |

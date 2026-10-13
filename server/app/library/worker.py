@@ -23,7 +23,7 @@ from app.library.media import Ffmpeg
 from app.library.pipeline import FetchStage, NoFetch, PipelineDeps
 from app.library.tickets import MediaTicketStore
 from app.models import LibraryItem, utcnow
-from app.speech.asr import make_transcriber, shared_asr_gate
+from app.speech.asr import make_timed_transcriber, make_transcriber, shared_asr_gate
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,9 @@ class LibraryWorker:
             if kind in TRANSIENT and row.attempts < limits.AUTO_RETRIES:
                 retry_at = now + timedelta(seconds=limits.BACKOFF_SECONDS[row.attempts])
             await store.fail(s, item_id, kind, retry_at=retry_at, now=now)
-        if retry_at is None and kind in DROP_STAGING:
+            await s.refresh(row)
+            restored = row.status == "ready"  # a failed re-recognition: the item is playable again (R-R3)
+        if retry_at is None and (kind in DROP_STAGING or restored):
             self._drop_staging(item_id)
         logger.info("library job failed item=%s kind=%s retry=%s", item_id, kind, retry_at is not None)
 
@@ -227,10 +229,15 @@ def install(app) -> LibraryWorker:
         s = settings()
         return make_transcriber(state.http, s, "en", gate=shared_asr_gate(state, s), uid=str(user_id))
 
+    def timed_transcriber(user_id: int):
+        s = settings()
+        return make_timed_transcriber(state.http, s, "en", gate=shared_asr_gate(state, s), uid=str(user_id))
+
     worker: LibraryWorker | None = None
     deps = PipelineDeps(sessionmaker=state.sessionmaker, settings=settings,
                         data_dir=Path(state.settings.resolved_data_dir), tools=Ffmpeg(),
-                        fetch=lambda: worker.fetch_stage, transcriber=transcriber, clock=utcnow)
+                        fetch=lambda: worker.fetch_stage, transcriber=transcriber, clock=utcnow,
+                        timed_transcriber=timed_transcriber)
     worker = LibraryWorker(deps)
     state.library = worker
     return worker

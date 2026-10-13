@@ -11,6 +11,7 @@ import { ShinyText } from "./fx/shiny-text";
 import { SpotlightCard } from "./fx/spotlight-card";
 import { Stepper, type StepperStep } from "./fx/stepper";
 import { formatBytes, formatDuration } from "./format";
+import { ItemMenu } from "./item-menu";
 import { LIBRARY_SERVER_ERRORS, type LibraryItem, type LibrarySource } from "./library-api";
 import "./locales";
 import { TEXT_BUTTON } from "./ui";
@@ -25,6 +26,8 @@ export interface ItemCardHandlers {
   onCancelUpload(job: UploadJob): void;
   onRetryUpload(job: UploadJob): void;
   onDismissUpload(job: UploadJob): void;
+  /** 只在服务端开着自动转写时传(裁定 R-W1);没有就不显示 ⋯ 菜单 */
+  onReprocess?(item: LibraryItem): void;
 }
 
 /** 处理阶段的步骤(spec §6.2):上传类没有「取回」,链接有。 */
@@ -53,6 +56,9 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
   const { t } = useTranslation();
   const ref = useRef<HTMLLIElement>(null);
   const ready = item?.status === "ready";
+  const lowConfidence = ready && item?.lowConfidence === true;
+  const reprocessFailed = ready && item?.errorKind != null; // 重新识别失败:原句子还在,原因留在 error_kind(裁定 R-R3)
+  const canReprocess = ready && item?.subSource === "asr" && h.onReprocess !== undefined;
   const poster = usePosterUrl(item?.id ?? "", !!item && ready && item.kind === "video", ref);
   const title = item?.title ?? job?.title ?? "";
   const state = job ? (job.state === "uploading" ? "upload-local" : "upload-failed") : (item?.status ?? "uploading");
@@ -76,6 +82,7 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
           <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
             <ToneBadge tone="green">{t("web.library.status.ready")}</ToneBadge>
             {item.subSource ? <ToneBadge tone="gray">{t(`web.library.sub.${item.subSource}`)}</ToneBadge> : null}
+            {lowConfidence ? <ToneBadge tone="amber">{t("web.library.card.lowConfidenceBadge")}</ToneBadge> : null}
           </span>
         ) : null}
         {meta ? <span className="num mt-[3px] block truncate text-meta text-ink-2">{meta}</span> : null}
@@ -151,6 +158,17 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
     );
   } else if (item?.status === "canceled") {
     body = <p className="mt-2 text-meta text-ink-2">{t("web.library.status.canceled")}</p>;
+  } else if (ready && item && (lowConfidence || reprocessFailed)) {
+    body = (
+      <>
+        {lowConfidence ? <p data-testid="library-item-lowconf" className="mt-2 text-meta text-ink-2">{t("web.library.lowConfidence")}</p> : null}
+        {reprocessFailed ? (
+          <p data-testid="library-item-reprocess-failed" className="mt-2 text-meta text-ink-2">
+            {t("web.library.card.reprocessFailed", { reason: t(errorKindKey(item.errorKind)) })}
+          </p>
+        ) : null}
+      </>
+    );
   }
 
   return (
@@ -164,6 +182,7 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
               <ChevronRightIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3" />
             </Link>
           ) : <div className="flex min-w-0 flex-1 items-center gap-3">{head}</div>}
+          {item && canReprocess && h.onReprocess ? <ItemMenu item={item} onReprocess={h.onReprocess} /> : null}
           {item && job?.state !== "uploading" ? (
             <IconButton label={t("web.library.card.delete")} onClick={() => h.onDelete(item)} className="text-ink-2">
               <Trash2Icon aria-hidden />

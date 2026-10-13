@@ -21,7 +21,7 @@ export function itemRaw(over: Record<string, unknown> = {}): Record<string, unkn
   return {
     id: "i1", kind: "video", source: "upload", title: "Lecture 1", status: "ready", stage: null, progress: 100,
     error_kind: null, duration_ms: 125_000, seg_count: 3, library_bytes: 5 * 1024 * 1024, sub_source: "uploaded",
-    resume_ms: 0, resume_idx: 0, rate_pct: 100, has_poster: true, created_at: "2026-10-13T08:00:00Z", last_opened_at: null, ...over,
+    resume_ms: 0, resume_idx: 0, rate_pct: 100, has_poster: true, low_confidence: false, created_at: "2026-10-13T08:00:00Z", last_opened_at: null, ...over,
   };
 }
 

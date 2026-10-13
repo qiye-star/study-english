@@ -29,6 +29,7 @@ from websockets.asyncio.client import connect
 
 from app.core import metering
 from app.core.config import Settings
+from app.speech.timed import TimedText, Utterance
 
 logger = logging.getLogger(__name__)
 # websockets logs the handshake request headers (including X-Api-Key) at DEBUG. The
@@ -216,12 +217,35 @@ def _logid(headers) -> str:
     return _clean(values[0], 64) if values else ""
 
 
-def _request_payload(uid: str) -> dict:
+def _request_payload(uid: str, utterances: bool = False) -> dict:
+    """`utterances=True` adds `show_utterances` so the final frame carries per-sentence times (R-A3: only the timed path)."""
+    request = {"model_name": "bigmodel", "enable_itn": True, "enable_punc": True}
+    if utterances:
+        request["show_utterances"] = True
     return {
         "user": {"uid": uid},
         "audio": {"format": "pcm", "codec": "raw", "rate": SAMPLE_RATE, "bits": 16, "channel": 1},
-        "request": {"model_name": "bigmodel", "enable_itn": True, "enable_punc": True},
+        "request": request,
     }
+
+
+def parse_utterances(result: object) -> tuple[Utterance, ...]:
+    """`result.utterances[{text, start_time, end_time, definite?}]` -> `Utterance`s in ms (R-A1; real shape verified in
+    Task 0: milliseconds relative to the audio sent). Entries that are not finished (`definite` is false), have no usable
+    times or no text are dropped; whether the rest can be trusted is the caller's decision
+    (`app.library.asr_chunks.usable_utterances`)."""
+    raw = result.get("utterances") if isinstance(result, dict) else None
+    out: list[Utterance] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict) or item.get("definite") is False:
+            continue
+        text, start, end = item.get("text"), item.get("start_time"), item.get("end_time")
+        if not isinstance(text, str) or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (start, end)):
+            continue
+        text = " ".join(text.split())
+        if text and start >= 0 and end > start:
+            out.append(Utterance(text, round(start), round(end)))
+    return tuple(out)
 
 
 def stream_budget(settings: Settings, pcm_bytes: int) -> float:
@@ -232,10 +256,19 @@ def stream_budget(settings: Settings, pcm_bytes: int) -> float:
 async def transcribe_pcm(settings: Settings, pcm: bytes, uid: str = "server") -> str:
     """Final transcript, or AsrStreamError for any failure (so callers can always fall back).
     Cancellation (BaseException) still propagates."""
+    return (await _run(settings, pcm, uid, utterances=False)).text
+
+
+async def transcribe_pcm_timed(settings: Settings, pcm: bytes, uid: str = "server") -> TimedText:
+    """`transcribe_pcm` plus the recognizer's own sentence times (plan 2026-10-13-library-alignment)."""
+    return await _run(settings, pcm, uid, utterances=True)
+
+
+async def _run(settings: Settings, pcm: bytes, uid: str, *, utterances: bool) -> TimedText:
     connect_id = str(uuid.uuid4())
     timer = metering.Timer()
     try:
-        text = await _transcribe(settings, pcm, uid, connect_id)
+        result = await _transcribe(settings, pcm, uid, connect_id, utterances)
     except AsrStreamError as e:
         e.connect_id = connect_id
         _meter(settings, meter_status(e), timer.ms(), len(pcm))
@@ -246,7 +279,7 @@ async def transcribe_pcm(settings: Settings, pcm: bytes, uid: str = "server") ->
         _meter(settings, meter_status(err), timer.ms(), len(pcm))
         raise err from None
     _meter(settings, 200, timer.ms(), len(pcm))
-    return text
+    return result
 
 
 def meter_status(err: AsrStreamError | None) -> int:
@@ -269,7 +302,7 @@ def _meter(settings: Settings, status: int, ms: int, pcm_bytes: int) -> None:
                     status, ms, units_in=metering.pcm_ms(pcm_bytes), unit="audio_ms")
 
 
-async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str) -> str:
+async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str, utterances: bool = False) -> TimedText:
     key = settings.asr_stream_key
     if not key:
         raise AsrStreamError("not_configured")
@@ -290,10 +323,10 @@ async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str)
                 logger=_ws_logger,
             ) as ws:
                 logid = _logid(ws.response.headers)
-                await ws.send(encode_full_request(_request_payload(uid)))
+                await ws.send(encode_full_request(_request_payload(uid, utterances)))
                 sender = asyncio.create_task(_send_audio(ws, pcm))
                 try:
-                    text = await _collect(ws)
+                    result = await _collect(ws, utterances)
                 finally:
                     sender.cancel()
                     await asyncio.gather(sender, return_exceptions=True)
@@ -314,12 +347,12 @@ async def _transcribe(settings: Settings, pcm: bytes, uid: str, connect_id: str)
         err = AsrStreamError("upstream", type(e).__name__)
         err.logid = logid
         raise err from None
-    text = text.strip()
+    text = result.text.strip()
     if not text:
         err = AsrStreamError("empty")
         err.logid = logid
         raise err
-    return text
+    return TimedText(text, result.utterances)
 
 
 async def _send_audio(ws, pcm: bytes) -> None:
@@ -333,7 +366,7 @@ async def _send_audio(ws, pcm: bytes) -> None:
         pass
 
 
-async def _collect(ws) -> str:
+async def _collect(ws, utterances: bool = False) -> TimedText:
     try:
         async for raw in ws:
             frame = decode_frame(raw)
@@ -345,7 +378,7 @@ async def _collect(ws) -> str:
             if frame.last:
                 result = frame.payload.get("result")
                 text = result.get("text") if isinstance(result, dict) else None
-                return text if isinstance(text, str) else ""
+                return TimedText(text if isinstance(text, str) else "", parse_utterances(result) if utterances else ())
     except websockets.ConnectionClosedError:
         pass
     raise AsrStreamError("protocol", "closed before the final result")

@@ -128,9 +128,10 @@ async def test_item_out_shape_and_upload_progress(app):
     async with app.state.sessionmaker() as s:
         out = store.item_out(await s.get(LibraryItem, item_id))
     assert out["progress"] == 25 and out["has_poster"] is False and out["last_opened_at"] is None
+    assert out["low_confidence"] is False
     assert set(out) == {"id", "kind", "source", "title", "status", "stage", "progress", "error_kind", "duration_ms",
                         "seg_count", "library_bytes", "sub_source", "resume_ms", "resume_idx", "rate_pct", "has_poster",
-                        "created_at", "last_opened_at"}
+                        "created_at", "last_opened_at", "low_confidence"}
 
 
 async def test_sweeps(app):

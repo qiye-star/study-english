@@ -4,6 +4,8 @@
     "ai_global_cap": "Daily AI limit reached",
     "ai_unavailable": "AI is unavailable",
     "ai_user_cap": "Daily analysis limit reached",
+    "asr_daily": "Daily transcription limit reached",
+    "asr_unavailable": "Transcription is not available",
     "assessment": "Assessment does not match",
     "bad_resume": "Invalid resume position",
     "bad_subtitle": "Invalid subtitle file",
@@ -25,6 +27,7 @@
     "not_failed": "Item has not failed",
     "not_found": "Not Found",
     "not_ready": "Item is not ready",
+    "not_reprocessable": "Item cannot be reprocessed",
     "not_uploading": "Upload is not in progress",
     "quota": "Library storage quota reached",
     "segment_missing": "Sentence not found",
@@ -65,7 +68,7 @@
   "config": {
     "enabled": true,
     "link_import": false,
-    "asr": false,
+    "asr": true,
     "ai": true,
     "limits": {
       "max_upload_mb": 500,
@@ -128,6 +131,7 @@
       "resume_ms": 0,
       "resume_idx": 0,
       "rate_pct": 100,
+      "low_confidence": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": null
@@ -151,6 +155,7 @@
         "resume_ms": 0,
         "resume_idx": 0,
         "rate_pct": 100,
+        "low_confidence": false,
         "has_poster": true,
         "created_at": "2026-01-01T00:00:00Z",
         "last_opened_at": null
@@ -175,6 +180,7 @@
       "resume_ms": 0,
       "resume_idx": 0,
       "rate_pct": 100,
+      "low_confidence": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -219,6 +225,7 @@
       "resume_ms": 1200,
       "resume_idx": 1,
       "rate_pct": 75,
+      "low_confidence": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -310,6 +317,7 @@
       "resume_ms": 1200,
       "resume_idx": 1,
       "rate_pct": 75,
+      "low_confidence": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -357,6 +365,33 @@
       "resume_ms": 0,
       "resume_idx": 0,
       "rate_pct": 100,
+      "low_confidence": false,
+      "has_poster": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null
+    }
+  },
+  "reprocess_error": {
+    "error": "Item cannot be reprocessed"
+  },
+  "reprocess": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "audio",
+      "source": "upload",
+      "title": "Pod",
+      "status": "queued",
+      "stage": null,
+      "progress": 0,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 58,
+      "sub_source": "asr",
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "low_confidence": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": null
