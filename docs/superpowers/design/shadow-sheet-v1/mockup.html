@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 跟读弹窗 v1 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+html[data-theme=dark],html[data-theme=dark] body{background:#0b0c10;color:#e8e9ee}
+.canvas{max-width:1800px;margin:0 auto;padding:36px 32px 90px}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}h2{font-size:15px;font-weight:600;margin-top:32px}
+.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:92ch;line-height:1.65}
+html[data-theme=dark] .lede,html[data-theme=dark] .cap{color:#9aa0b0}
+ul.notes{color:#5b6170;font-size:13px;line-height:1.75;margin:8px 0 0 18px;max-width:92ch}
+html[data-theme=dark] ul.notes{color:#9aa0b0}
+.toolbar{display:flex;gap:10px;margin:16px 0 0;flex-wrap:wrap}
+.tb{border:0;cursor:pointer;height:34px;padding:0 14px;border-radius:17px;font-size:13px;background:#fff;color:#1b1d22;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tb.on{background:#2456DB;color:#fff}
+html[data-theme=dark] .tb{background:#1d2028;color:#e8e9ee}html[data-theme=dark] .tb.on{background:#5b86ff;color:#0b0c10}
+.row{display:flex;flex-wrap:wrap;gap:34px;margin-top:22px;align-items:flex-start}
+.spec{width:375px}.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.65}.cap b{font-weight:600}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1100px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}th{font-weight:600}
+
+/* ---- app tokens (same families as theme.css) ---- */
+.phone{--bg:#fff;--surface:#fff;--surface-2:#F5F6F8;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;--hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);
+  --blue:#2456DB;--blue-tint:#EAF0FF;--green:#157A3B;--green-tint:#E4F6EA;--amber:#9A4B00;--amber-tint:#FFF0DE;--red:#D1242F;--red-tint:#FFE8E9;--teal:#0E7067;--scrim:rgba(10,14,28,.42);
+  position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(120,125,140,.4);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.4;
+  box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3)}
+html[data-theme=dark] .phone{--bg:#0f1013;--surface:#17191e;--surface-2:#1e2127;--ink:#f3f4f6;--ink-2:#a6abb8;--ink-3:#6e7482;--hair:rgba(255,255,255,.12);--hair-2:rgba(255,255,255,.07);
+  --blue:#8fb0ff;--blue-tint:rgba(143,176,255,.16);--green:#6ee09a;--green-tint:rgba(110,224,154,.14);--amber:#f2b056;--amber-tint:rgba(242,176,86,.14);--red:#ff7a84;--red-tint:rgba(255,122,132,.14);--teal:#5fd1c4;--scrim:rgba(0,0,0,.55)}
+.phone i.ti{line-height:1;display:inline-block}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:90}
+.hdr{position:absolute;top:47px;left:0;right:0;height:52px;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:.5px solid var(--hair-2)}
+.hdr .b{width:44px;height:44px;display:grid;place-items:center;font-size:22px}.hdr h3{font-size:17px;font-weight:600;flex:1}
+.chat{position:absolute;top:99px;left:0;right:0;bottom:0;padding:14px}
+.bubble{max-width:84%;padding:10px 13px;border-radius:18px;font-size:15px;line-height:1.5;margin-bottom:10px}
+.bubble.u{margin-left:auto;background:var(--blue);color:#fff;border-bottom-right-radius:6px}
+.bubble.a{background:var(--surface-2);border-bottom-left-radius:6px}
+.acts{display:flex;gap:4px;margin:-4px 0 10px 4px}.acts span{height:32px;padding:0 10px;border-radius:16px;font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:4px;border:.5px solid var(--hair)}
+.acts span.hot{color:var(--blue);border-color:var(--blue)}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:50}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:22px 22px 0 0;z-index:60;padding:8px 16px 24px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--hair);margin:0 auto 8px}
+.sh-top{display:flex;align-items:center;justify-content:space-between;height:44px}
+.sh-top h4{font-size:17px;font-weight:600}.sh-top .x{width:44px;height:44px;display:grid;place-items:center;font-size:21px;color:var(--ink-2);margin-right:-10px}
+.sh-top .pos{font-size:12px;color:var(--ink-3);margin-left:8px;font-weight:500}
+.ref{background:var(--surface-2);border-radius:16px;padding:14px 15px;margin-top:4px}
+.ref .eb{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--ink-2)}
+.ref p{font-size:19px;font-weight:500;line-height:1.5;margin-top:6px;letter-spacing:-.01em}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.nav .n{height:36px;padding:0 12px;border-radius:18px;font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:4px;border:.5px solid var(--hair)}
+.nav .n.off{opacity:.35}
+.btns{display:flex;gap:8px;margin-top:14px}
+.btn{flex:1;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:16px;font-weight:600;cursor:pointer;user-select:none}
+.btn.ghost{background:var(--surface);border:.5px solid var(--hair);color:var(--ink)}
+.btn.pri{background:var(--blue);color:#fff}html[data-theme=dark] .btn.pri{color:#0b0c10}
+.btn.stop{background:var(--red);color:#fff}
+.btn.dis{opacity:.45}
+.timer{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);margin-top:12px}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pl 1s ease-in-out infinite}@keyframes pl{50%{opacity:.25}}
+.wave{display:flex;align-items:center;gap:3px;height:28px;margin-top:10px}.wave i{width:3px;border-radius:2px;background:var(--blue);animation:wv 1s ease-in-out infinite}
+@keyframes wv{50%{transform:scaleY(.35)}}
+.score{display:flex;align-items:center;gap:16px;margin-top:12px}
+.ring{--p:86;width:78px;height:78px;border-radius:50%;display:grid;place-items:center;position:relative;flex:none;background:conic-gradient(var(--c,var(--green)) calc(var(--p)*1%),var(--surface-2) 0)}
+.ring::before{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--surface)}.ring b{position:relative;font-size:26px;font-weight:700;color:var(--c,var(--green))}
+.bars{flex:1}.bar{margin-bottom:7px}.bar .l{display:flex;justify-content:space-between;font-size:12.5px}.bar .t{height:6px;border-radius:3px;background:var(--surface-2);margin-top:3px;overflow:hidden}.bar .t b{display:block;height:100%;border-radius:3px}
+.words{margin-top:10px;font-size:19px;line-height:1.7;font-weight:500}
+.w-g{color:var(--green)}.w-a{color:var(--amber)}.w-r{color:var(--red);text-decoration:underline wavy}
+.tip{margin-top:8px;padding:9px 12px;border-radius:12px;background:var(--amber-tint);color:var(--amber);font-size:13px;line-height:1.5}
+.tip.red{background:var(--red-tint);color:var(--red)}
+.mini{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.mini span{height:38px;padding:0 13px;border-radius:19px;border:.5px solid var(--hair);font-size:13.5px;display:flex;align-items:center;gap:5px}
+.mini span.blue{color:var(--blue)}
+.foot{display:flex;gap:8px;margin-top:14px}
+.link{margin-top:10px;text-align:center;font-size:13px;color:var(--ink-2)}
+.list{margin-top:4px;border:.5px solid var(--hair);border-radius:16px;overflow:hidden}
+.li{display:flex;align-items:center;gap:6px;padding:8px 6px 8px 14px;border-bottom:.5px solid var(--hair-2);font-size:15px;line-height:1.5}.li:last-child{border:0}
+.li .tx{flex:1}.li .ib{width:44px;height:44px;display:grid;place-items:center;font-size:21px;color:var(--ink-2)}.li .ib.blue{color:var(--blue)}
+.err{display:flex;gap:10px;margin-top:12px;padding:12px;border-radius:14px;background:var(--red-tint);color:var(--red);font-size:13.5px;line-height:1.55}
+.hint{position:absolute;left:12px;right:12px;bottom:12px;padding:8px 12px;border-radius:12px;background:rgba(17,19,24,.88);color:#fff;font-size:12px;z-index:70;text-align:center}
+</style>
+</head>
+<body>
+<div class="canvas">
+<h1>对话里的跟读:弹窗版(设计稿 v1)</h1>
+<p class="lede">现在在对话里点「跟读」会跳去练习页,练完还得自己回来。改成<b>底部弹窗</b>:在对话原地练,看成绩,继续下一句或回到对话。下面第 2 个画面可以点击操作:点「录音」→「停止」→ 看评分,再点「再练一次」「下一句」。</p>
+<div class="toolbar"><button class="tb on" data-t="light">浅色</button><button class="tb" data-t="dark">深色</button></div>
+
+<h2>画面</h2>
+<div class="row">
+
+<!-- 1 入口 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="chat">
+ <div class="bubble u">How can I sound more natural when I order coffee?</div>
+ <div class="bubble a">Try saying, “Could I get a medium latte, please?” It sounds polite and natural. You can also add, “Make it oat milk, if possible.”</div>
+ <div class="acts"><span><i class="ti ti-volume"></i>朗读</span><span class="hot"><i class="ti ti-microphone"></i>跟读</span><span><i class="ti ti-copy"></i>复制</span></div>
+</div>
+<div class="scrim"></div>
+<div class="sheet"><div class="grab"></div>
+ <div class="sh-top"><h4>选一句来跟读</h4><div class="x"><i class="ti ti-x"></i></div></div>
+ <div class="list">
+  <div class="li"><div class="tx">Try saying, “Could I get a medium latte, please?”</div><div class="ib blue"><i class="ti ti-microphone"></i></div><div class="ib"><i class="ti ti-star"></i></div></div>
+  <div class="li"><div class="tx">It sounds polite and natural.</div><div class="ib blue"><i class="ti ti-microphone"></i></div><div class="ib"><i class="ti ti-star"></i></div></div>
+  <div class="li"><div class="tx">You can also add, “Make it oat milk, if possible.”</div><div class="ib blue"><i class="ti ti-microphone"></i></div><div class="ib"><i class="ti ti-star"></i></div></div>
+ </div>
+ <div class="link">点话筒 → 在原地弹出跟读窗口(不再跳转页面)</div>
+</div>
+</div>
+<p class="cap"><b>1 入口。</b>消息下方「跟读」→ 现有的句子列表面板;点某一句的话筒不再跳转,而是<b>换成跟读弹窗</b>。其余 5 处入口(语法详情、复盘、转写详情、聊天提示、选词查词里的「跟读」)同样改成弹窗。</p></div>
+
+<!-- 2 交互 -->
+<div class="spec"><div class="phone" id="demo">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="chat"><div class="bubble a">Try saying, “Could I get a medium latte, please?” It sounds polite and natural.</div></div>
+<div class="scrim"></div>
+<div class="sheet" id="dsheet"></div>
+</div>
+<p class="cap"><b>2 跟读弹窗(可点击)。</b>点「录音」开始、再点「停止」→ 评测中 → 出结果。打开时就有前一句 / 后一句(来自同一条消息的句子),所以连续练不用退出。<span id="dstate" style="opacity:.7"></span></p>
+<div class="toolbar"><button class="tb" id="reset">重置演示</button><button class="tb" id="lowscore">演示低分结果</button></div></div>
+
+<!-- 3 结果(低分,带提示) -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="chat"><div class="bubble a">Try saying, “Could I get a medium latte, please?”</div></div>
+<div class="scrim"></div>
+<div class="sheet"><div class="grab"></div>
+ <div class="sh-top"><h4>跟读 <span class="pos">1 / 3</span></h4><div class="x"><i class="ti ti-x"></i></div></div>
+ <div class="score"><div class="ring" style="--p:64;--c:var(--ink-3)"><b style="color:var(--ink-2)">64</b></div>
+  <div class="bars"><div class="bar"><div class="l"><span>准确度</span><b>61</b></div><div class="t"><b style="width:61%;background:var(--ink-3)"></b></div></div>
+   <div class="bar"><div class="l"><span>流利度</span><b>72</b></div><div class="t"><b style="width:72%;background:var(--amber)"></b></div></div>
+   <div class="bar"><div class="l"><span>完整度</span><b>90</b></div><div class="t"><b style="width:90%;background:var(--green)"></b></div></div></div></div>
+ <div class="words"><span class="w-g">Could</span> <span class="w-g">I</span> <span class="w-a">get</span> <span class="w-g">a</span> <span class="w-r">medium</span> <span class="w-r">latte,</span> <span class="w-a">please?</span></div>
+ <div class="tip">medium、latte 读得不准。点单词可以查词和朗读标准发音,再练一次试试。</div>
+ <div class="mini"><span class="blue"><i class="ti ti-player-play"></i>我的录音</span><span><i class="ti ti-volume"></i>标准发音</span><span><i class="ti ti-star"></i>收藏</span></div>
+ <div class="foot"><div class="btn ghost"><i class="ti ti-rotate"></i>再练一次</div><div class="btn pri">下一句<i class="ti ti-chevron-right"></i></div></div>
+ <div class="link">查看完整详情 <i class="ti ti-arrow-up-right"></i></div>
+</div>
+</div>
+<p class="cap"><b>3 结果(低分)。</b>成绩直接在弹窗里:圆环 + 三条横条(沿用 ≥85 绿 / 70–84 琥珀 / &lt;70 灰),逐词着色,一句话提示;「我的录音」「标准发音」可对比听。成绩已经保存进练习历史;「查看完整详情」才跳到完整页(带波形)。</p></div>
+
+<!-- 4 错误 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Coach Emma</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="chat"><div class="bubble a">Try saying, “Could I get a medium latte, please?”</div></div>
+<div class="scrim"></div>
+<div class="sheet"><div class="grab"></div>
+ <div class="sh-top"><h4>跟读 <span class="pos">1 / 3</span></h4><div class="x"><i class="ti ti-x"></i></div></div>
+ <div class="ref"><div class="eb">参考句子</div><p>Try saying, “Could I get a medium latte, please?”</p></div>
+ <div class="err"><i class="ti ti-microphone-off" style="font-size:20px"></i><div>没有麦克风权限。请在 Safari 的网站设置里允许使用麦克风,然后回来再试。</div></div>
+ <div class="btns"><div class="btn ghost"><i class="ti ti-volume"></i>听范读</div><div class="btn pri"><i class="ti ti-microphone"></i>重试录音</div></div>
+</div>
+</div>
+<p class="cap"><b>4 出错。</b>麦克风被拒、评测失败、额度满:错误显示在弹窗里,录音保留可重试(沿用现有文案和「保留录音」逻辑),不会丢掉也不会跳走。</p></div>
+
+</div>
+
+<h2>设计要点(我的看法)</h2>
+<table>
+<tr><th>点</th><th>做法与理由</th></tr>
+<tr><td>全局只挂一个</td><td>弹窗挂在应用外壳里(和「选词查词」同一位置),各处调用 <code>openShadow(text, {list, index})</code> 打开;调用方先关自己的面板再打开。<b>不叠加两层弹窗</b>:项目里有记录,嵌套弹层会让两套焦点陷阱互相递归卡死。</td></tr>
+<tr><td>复用而不是重写</td><td>把练习页里的「录音 → 转 WAV → 评测 → 保存」抽成一个钩子,练习页和弹窗共用;评分环、逐词着色复用现有组件(逐词着色只用简化的行内着色,不带 wavesurfer 波形,波形留给完整页)。</td></tr>
+<tr><td>多句连续练</td><td>从一条消息的句子列表进入时,弹窗带「第几句 / 共几句」和「下一句」;从单句入口(选词查词、语法纠正)进入时不显示。</td></tr>
+<tr><td>录音时锁关闭</td><td>录音和评测中,下拉关闭 / 点遮罩 / 点 × 会先询问「放弃这次录音?」,防止误触丢掉。</td></tr>
+<tr><td>成绩照常保存</td><td>仍然 <code>save: true</code>,在「练习 → 历史」里能找到;弹窗里只多一个「查看完整详情」跳转,不强制。</td></tr>
+<tr><td>懒加载</td><td>弹窗和钩子放进动态加载的块,对话页首屏体积不增加。</td></tr>
+<tr><td>保留练习页</td><td>练习页本身不动(自由输入文本练习、历史、列表),只是对话里的 6 处入口不再跳去那里。</td></tr>
+</table>
+
+<h2>风险与我没法保证的</h2>
+<ul class="notes">
+<li><b>iOS 麦克风授权</b>必须在点击手势内触发 <code>getUserMedia</code>;弹窗里的「录音」按钮是这个手势,但真机上的授权弹窗、音频路由(录音时停掉范读)<b>未验证</b>。</li>
+<li><b>与选词查词叠加:</b>弹窗里的参考句可以长按选词(沿用现有选词操作条);操作条和弹窗底部按钮的叠放位置需要真机确认。录音中暂停选词操作条,避免误触。</li>
+<li><b>练习页的重构风险:</b>抽钩子会动到现有练习页,要靠它现有的测试兜住;这是改动里最需要小心的一处。</li>
+</ul>
+
+<h2>需要你拍板</h2>
+<table>
+<tr><td>1</td><td>6 处入口(对话提示、语法纠正、复盘、转写详情、句子列表、选词查词的「跟读」)<b>全部</b>改成弹窗,还是只改对话里的 5 处、选词查词保持跳转?我推荐全部改,行为一致。</td></tr>
+<tr><td>2</td><td>弹窗里的逐词着色:我推荐简化版(行内着色,点词查词),不带波形。要完整波形的话弹窗会很高、也更重。</td></tr>
+<tr><td>3</td><td>「下一句」连续练:我推荐只在多句列表入口出现。要不要连「自动播范读后立刻录音」这种全自动模式也做?我不推荐(iOS 音频冲突风险)。</td></tr>
+</table>
+</div>
+
+<script>
+document.querySelectorAll('.toolbar [data-t]').forEach(b=>b.addEventListener('click',()=>{document.documentElement.dataset.theme=b.dataset.t;document.querySelectorAll('.toolbar [data-t]').forEach(x=>x.classList.toggle('on',x===b))}));
+/* interactive demo */
+const sheet=document.getElementById('dsheet'),stateEl=document.getElementById('dstate');
+let st='idle',idx=0,elapsed=0,timer=null,low=false;
+const SENT=['Try saying, “Could I get a medium latte, please?”','It sounds polite and natural.','You can also add, “Make it oat milk, if possible.”'];
+const fmt=s=>`0:${String(s).padStart(2,'0')}`;
+function words(){return low?'<span class="w-g">Could</span> <span class="w-g">I</span> <span class="w-a">get</span> <span class="w-g">a</span> <span class="w-r">medium</span> <span class="w-r">latte,</span> <span class="w-a">please?</span>':'<span class="w-g">Could</span> <span class="w-g">I</span> <span class="w-g">get</span> <span class="w-g">a</span> <span class="w-g">medium</span> <span class="w-a">latte,</span> <span class="w-g">please?</span>'}
+function head(){return `<div class="grab"></div><div class="sh-top"><h4>跟读 <span class="pos">${idx+1} / 3</span></h4><div class="x" data-a="close"><i class="ti ti-x"></i></div></div>`}
+function render(){
+  let h=head();
+  if(st==='idle'||st==='rec'||st==='busy'){
+    h+=`<div class="ref"><div class="eb">参考句子</div><p>${SENT[idx]}</p></div>`;
+    h+=`<div class="nav"><div class="n ${idx===0?'off':''}" data-a="prev"><i class="ti ti-chevron-left"></i>上一句</div><div class="n ${idx===2?'off':''}" data-a="next">下一句<i class="ti ti-chevron-right"></i></div></div>`;
+    if(st==='rec')h+=`<div class="timer"><span class="pulse"></span>正在录音 ${fmt(elapsed)} / 1:00</div><div class="wave">${Array.from({length:34},(_,i)=>`<i style="height:${8+((i*7)%20)}px;animation-delay:${(i%9)*80}ms"></i>`).join('')}</div>`;
+    if(st==='busy')h+=`<div class="timer" style="color:var(--blue)"><i class="ti ti-loader-2" style="animation:sp 1s linear infinite"></i>评测中…</div>`;
+    h+=`<div class="btns"><div class="btn ghost ${st!=='idle'?'dis':''}" data-a="listen"><i class="ti ti-volume"></i>听范读</div>`+
+      (st==='rec'?`<div class="btn stop" data-a="stop"><i class="ti ti-player-stop-filled"></i>停止</div>`:st==='busy'?`<div class="btn pri dis"><i class="ti ti-loader-2" style="animation:sp 1s linear infinite"></i>评测中</div>`:`<div class="btn pri" data-a="rec"><i class="ti ti-microphone"></i>录音</div>`)+`</div>`;
+  } else {
+    const sc=low?64:86,c=low?'var(--ink-3)':'var(--green)';
+    h+=`<div class="score"><div class="ring" style="--p:${sc};--c:${c}"><b style="color:${low?'var(--ink-2)':'var(--green)'}">${sc}</b></div><div class="bars">`+
+     [['准确度',low?61:88],['流利度',low?72:84],['完整度',low?90:100]].map(([l,v])=>`<div class="bar"><div class="l"><span>${l}</span><b>${v}</b></div><div class="t"><b style="width:${v}%;background:${v>=85?'var(--green)':v>=70?'var(--amber)':'var(--ink-3)'}"></b></div></div>`).join('')+`</div></div>`;
+    h+=`<div class="words">${words()}</div>`;
+    h+=low?`<div class="tip">medium、latte 读得不准。点单词可以查词和朗读标准发音,再练一次试试。</div>`:`<div class="tip" style="background:var(--green-tint);color:var(--green)">很棒!只有 latte 的重音可以再稍微重一点。</div>`;
+    h+=`<div class="mini"><span class="blue"><i class="ti ti-player-play"></i>我的录音</span><span><i class="ti ti-volume"></i>标准发音</span><span><i class="ti ti-star"></i>收藏</span></div>`;
+    h+=`<div class="foot"><div class="btn ghost" data-a="again"><i class="ti ti-rotate"></i>再练一次</div><div class="btn pri" data-a="next2">${idx<2?'下一句':'完成'}<i class="ti ti-chevron-right"></i></div></div><div class="link">查看完整详情 <i class="ti ti-arrow-up-right"></i></div>`;
+  }
+  sheet.innerHTML=h;stateEl.textContent=' 当前状态:'+{idle:'待录音',rec:'录音中',busy:'评测中',res:'已出成绩'}[st];
+}
+function stop(){clearInterval(timer)}
+sheet.addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!a)return;const k=a.dataset.a;
+  if(k==='rec'){st='rec';elapsed=0;timer=setInterval(()=>{elapsed++;render()},1000);render()}
+  else if(k==='stop'){stop();st='busy';render();setTimeout(()=>{st='res';render()},1400)}
+  else if(k==='again'){st='idle';render()}
+  else if(k==='next'||k==='next2'){if(idx<2){idx++;st='idle';low=false;render()}else{st='idle';idx=0;render()}}
+  else if(k==='prev'){if(idx>0){idx--;st='idle';render()}}
+  else if(k==='close'){if(st==='rec'||st==='busy'){alert('放弃这次录音?(演示:正式版这里是确认对话框)')}}
+});
+document.getElementById('reset').onclick=()=>{stop();st='idle';idx=0;low=false;render()};
+document.getElementById('lowscore').onclick=()=>{stop();low=true;st='res';render()};
+const style=document.createElement('style');style.textContent='@keyframes sp{to{transform:rotate(360deg)}}';document.head.appendChild(style);
+render();
+</script>
+</body>
+</html>
