@@ -29,7 +29,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
   `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`,
-  `agents_unavailable` / `agents_native_unverified`, `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`)
+  `agents_unavailable` / `agents_native_unverified`, `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`; 跟读库 `library_ffmpeg_missing` / `library_ytdlp_missing` / `library_asr_unavailable` / `library_cookies_missing`, only while `LIBRARY_ENABLED`, cookies permissions checked on POSIX only, messages never include the path)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
   `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
   Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`
@@ -55,6 +55,12 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `resolve` hide/dismiss (`wordbook.sentence.hide` / `wordbook.report.dismiss`; hide refreshes the live hidden set).
   Never returns user input, explanation bodies or absolute paths
 - `agents_admin.py` – 智能体(spec 2026-10-12-agents §10.2):`overview`(数字)、`personas`(查询,含人设原文仅供审核)、`set_disabled` / `edit` / `remove` / `resolve`(审计 `agents.*`,只记 id、字段名与计数)、`probe_tools`(先调上游再审计;结果存 `app.state.agents_tools_probe`)。管理员不能读任何记忆内容
+- `library_admin.py` – 跟读库(spec 2026-10-13-video-import §12、E10;plan `2026-10-13-video-import-admin.md`):`overview`(开关、计数、
+  队列、今日识别分钟、AI 译文 / 分析开关与今日句数(只读 `daily_usage`,D8)、ffmpeg / yt-dlp 版本、cookies / 代理只给布尔值)、`items`(分页 + 状态 / 所有者 / 种类筛选)、`top_users`、
+  `user_usage`;**只选数字、状态、种类、阶段与来源主机名,永不选 title / source_url / 路径,不读 `library_segments`(句子、译文 zh、分析 analysis 都是内容)**。`delete_item` / `cancel_item` /
+  `purge_failed`(操作员 + 输入确认 `DELETE <id 前 8 位>` / `PURGE <n> ITEMS`,不需要 step-up)只经 `_s1_delete` / `_s1_cancel` 调
+  `app.library.store`,审计在 S1 调用之后(`library.item.delete {bytes}`、`library.item.cancel`、`library.purge_failed {count, bytes}`,
+  summary 留空)。新增 `/api/admin/library*` 路由要同时改 `tests/test_admin_library.py::test_admin_library_urls_carry_only_ids`
 - `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
@@ -66,7 +72,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
 ## Allowed dependencies
-`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`, `app.wordbook`, `app.agents`.
+`app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`, `app.realtime`, `app.rank`, `app.rooms`, `app.wordbook`, `app.agents`, `app.library`.
 Only `app/routers/` and `app/main.py` may import `app.admin` (enforced by `tests/test_architecture.py`).
 Never import routers from here (room runtime lives in `routers/admin_rooms.py` via `app.routers.rooms.runtime`).
 
