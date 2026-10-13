@@ -5,7 +5,7 @@ import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
 import { DEF_POS_CODES, isDefLang } from "./def-lang";
 import type {
-  AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DefEn, DayPlan, Enrollment, GoalLimits, ItemState, Progress, Question,
+  AnswerResult, BlankResult, BonusResult, BookProgress, Card, ClozeLine, DefEn, DayPlan, Enrollment, GoalLimits, ItemState, OptionInfo, Progress, Question,
   FreeItem, FreeSet, LearnedItem, LearnedPage, LearnedSummary, ResetResult, Segment, SpellResult, SpellWordResult, Streak, Today, WordbookBook, WordbookConfig,
 } from "./wordbook-api";
 
@@ -68,7 +68,11 @@ const fixtureHas = (...p: string[]) => {
 };
 const serverHasDefs = fixtureHas("config", "def_lang");
 const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
-const ANSWER: Record<keyof AnswerResult, true> = {
+// optionInfo / phrases / example 是可选键(spec 2026-10-13-review-after-answer §2.2:缺省 = 没有这项信息):键表不含它们,由 answerKeys 过滤、专门的用例核对
+const ANSWER_OPTIONAL = ["optionInfo", "phrases", "example"] as const;
+const answerKeys = (a: object) => keysOf(a).filter((k) => !(ANSWER_OPTIONAL as readonly string[]).includes(k));
+const OPTION_INFO: Record<keyof OptionInfo, true> = { option: true, word: true, defsZh: true, defsEn: true };
+const ANSWER: Record<Exclude<keyof AnswerResult, (typeof ANSWER_OPTIONAL)[number]>, true> = {
   correct: true, outcome: true, grade: true, expected: true, correctOption: true, diff: true, item: true, applied: true,
   rating: true, spotCheck: true, check: true,
 };
@@ -106,11 +110,11 @@ describe("wordbook contract (server fixture)", () => {
     const q = cc<{ quiz: Question[] }>(c.learn_batch).quiz[0];
     expect(keysOf(q)).toEqual(keys(QUESTION));
     const answer = cc<AnswerResult>(c.answer_typed);
-    expect(keysOf(answer)).toEqual(keys(ANSWER));
+    expect(answerKeys(answer)).toEqual(keys(ANSWER));
     expect(answer.correctOption).toBeNull();
     // 选择题:correct_option 是题目选项里的那一项原文(Ruling Z-e)
     const choice = cc<AnswerResult>(c.answer_choice);
-    expect(keysOf(choice)).toEqual(keys(ANSWER));
+    expect(answerKeys(choice)).toEqual(keys(ANSWER));
     expect(cc<{ quiz: Question[] }>(c.learn_batch).quiz.find((q) => q.key === "talk")?.options).toContain(choice.correctOption);
     if (answer.item) expect(keysOf(answer.item)).toEqual(keys(ITEM));
     const set = cc<{ sets: { lines: ClozeLine[] }[] }>(c.spell_sets).sets[0];
@@ -125,16 +129,36 @@ describe("wordbook contract (server fixture)", () => {
     expect(c.explain_unavailable).toEqual({ error: "AI explanation unavailable" });
   });
 
+  it("choice answers carry option info, phrases and an example (spec 2026-10-13-review-after-answer §2.2)", () => {
+    const choice = cc<AnswerResult>(c.answer_choice);
+    expect(choice.optionInfo?.length).toBeGreaterThan(1);
+    for (const info of choice.optionInfo ?? []) {
+      expect(keysOf(info)).toEqual(keys(OPTION_INFO));
+      for (const d of info.defsZh) expect(keysOf(d)).toEqual(["pos", "text"]);
+      for (const d of info.defsEn) {
+        expect(keysOf(d)).toEqual(["pos", "text"]);
+        expect(DEF_POS_CODES).toContain(d.pos);
+      }
+    }
+    expect((choice.optionInfo ?? []).map((i) => i.option)).toContain(choice.correctOption);
+    expect(cc<{ quiz: Question[] }>(c.learn_batch).quiz.find((q) => q.key === "talk")?.options).toEqual((choice.optionInfo ?? []).map((i) => i.option));
+    expect(choice.phrases?.length).toBeLessThanOrEqual(3);
+    expect(keysOf(choice.phrases?.[0] ?? {})).toEqual(["en", "zh"]);
+    expect(keysOf(choice.example ?? {})).toEqual(["en", "id", "zh"]);
+    // 非选择题保持旧形状
+    expect(keysOf(cc<AnswerResult>(c.answer_typed))).not.toContain("optionInfo");
+  });
+
   it("recall payloads match (spec recall §9)", () => {
     const recall = cc<AnswerResult>(c.answer_recall);
-    expect(keysOf(recall)).toEqual(keys(ANSWER));
+    expect(answerKeys(recall)).toEqual(keys(ANSWER));
     expect(recall.rating).toBe("fuzzy");
     expect(recall.outcome).toBe("fuzzy");
     expect(recall.spotCheck).toBe(false);
     expect(recall.check).toBeNull();
     if (recall.item) expect(keysOf(recall.item)).toEqual(keys(ITEM));
     const pending = cc<AnswerResult>(c.answer_check);
-    expect(keysOf(pending)).toEqual(keys(ANSWER));
+    expect(answerKeys(pending)).toEqual(keys(ANSWER));
     expect(pending.outcome).toBe("pending");
     expect(pending.grade).toBeNull();
     expect(pending.rating).toBe("know");
@@ -197,7 +221,7 @@ describe("wordbook contract (server fixture)", () => {
     expectCard(free.items[0].card);
     expect(keysOf(free.items[0].question as Question)).toEqual(keys(QUESTION));
     const answer = cc<AnswerResult>(c.answer_free);
-    expect(keysOf(answer)).toEqual(keys(ANSWER));
+    expect(answerKeys(answer)).toEqual(keys(ANSWER));
     expect(answer.applied).toBe(true);
   });
 

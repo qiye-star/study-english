@@ -14,6 +14,7 @@ from pathlib import Path
 from app.wordbook.books import book_by_id
 from app.wordbook.definitions import Definitions, default_path
 from app.wordbook.entry import WordCard, clean_sentence, headword_key, merge_rows, pos_mask_of, pos_parts
+from app.wordbook.option_memo import OptionMemo
 from app.wordbook.textnorm import find_form
 
 
@@ -105,6 +106,7 @@ class DictionaryStore:
     def __init__(self, data_dir: Path, *, cache_size: int = 1024):
         self.data_dir = Path(data_dir)
         self.definitions = Definitions(default_path(self.data_dir))  # English definitions (spec 2026-10-12 §3)
+        self.option_memo = OptionMemo()  # 出题时记下「选项 → 词」,答题后回填 option_info(计划 2026-10-13-review-after-answer R-A1)
         self._cache_size = cache_size
         self._indexes: dict[str, BookIndex] = {}
         self._locks: dict[str, asyncio.Lock] = {}

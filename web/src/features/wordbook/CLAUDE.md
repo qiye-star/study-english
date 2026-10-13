@@ -11,6 +11,7 @@ the spelling-in-context mode lives in `spell/`. Hidden unless `/api/wordbook/con
 - `use-speaker.ts` (TTS via `useTtsPlayer` + server default model/voice, US/UK voice by accent), `use-rank-enabled.ts`.
 - `use-today.ts` (`useWordbookToday`), `page-status.tsx` (loading / translated error + retry / note), `ui.ts` (shared button / dock classes, `bookTitle`, `fmt`), `test-fixtures.ts` (snake_case server samples for tests only).
 - `session-machine.ts` (learn/review queue), `word-card.tsx`, `choice-question.tsx`, `typing-question.tsx`, `letter-diff.tsx`, `plan-ring.tsx`, `session-summary.tsx`.
+- Review after-answer (spec `2026-10-13-review-after-answer-and-library-alignment-design.md` §2, plan `2026-10-13-review-after-answer.md`): `option-view.ts` (pure: per-option row view, 中 switch rule, panel card), `after-answer-panel.tsx` (study panel under the question), `double-tap.ts` (tap tracker), `double-tap-pref.ts` + `double-tap-hint.tsx` (one-time hint, device-local). `ChoiceQuestion` takes an optional `after` prop: only the review page passes it.
 - `spell/` – see `spell/CLAUDE.md`. `i18n/{en,zh-CN}.json`.
 - Wordbook v2 (spec `2026-10-11-wordbook-recall-design.md`): `recall-cover.tsx` (meaning cover button), `recall-rating-bar.tsx`
   (`RecallRatingBar` 不认识 / 模糊 / 认识, `SpotBar`, `RatingBadge`), `recall-card.tsx` (review quick-recall front / back).
@@ -81,3 +82,5 @@ Other directories import only `~/features/wordbook`.
 - Audio: no autoplay before the first tap (iOS); `speaker.prime()` only on the first gesture; read in click handlers, not
   effects, so StrictMode cannot read twice (a second `play()` with the same id stops playback).
 - 释义显示默认「仅英文」(`def-lang.ts` 的 `DEFAULT_DEF_LANG`,spec `2026-10-13-defs-default-lookup-ios-design.md` §2):组件的默认 prop、`defLangOf`、`RecallCard` 都引用它,不要再写死 `"both"`。「哪些行显示」只由纯函数 `defView()` 决定(没有英文释义的卡回退成中文);卡片右上角「中」开关(`word-card.tsx`)是单卡本地状态,按 `card.key` 复位,不写服务端也不写本机;设置里的「短语」开关与学新词页卡片上的手动开合写同一个 `phrasesOpen`(`phrases-pref.ts`)。
+- `ChoiceQuestion` answered-state containers exist only when `after` is passed (review page, meaning / word). The learn page, the spot-check question and cloze keep disabled buttons (E2E selectors `button[data-state="correct"]` depend on it). Never put `role="status"` in the after-answer area (the result line is the only one).
+- `optionInfo` / `phrases` / `example` on `AnswerResult` are optional (old server, memo miss, other qtypes): match info by `option` text, never by index; render the old look when absent. Double-tap selects the word through `~/lib/select-word` (same contract as the library's `selectWord`); the word span carries `data-lookup-context` so the global lookup bar accepts the selection. Double-tap on a real iPhone is UNVERIFIED (see the device checklist).

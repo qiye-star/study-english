@@ -20,7 +20,7 @@ from app.wordbook import learned
 from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
-from app.wordbook.entry import WordCard
+from app.wordbook.entry import WordCard, meaning_line
 from app.wordbook.grading import grade_blank, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import GoalLimits, Known
@@ -240,6 +240,10 @@ async def today_out(session: AsyncSession, ds: DictionaryStore, user_id: int, se
 
 LEARN_DUE = timedelta(days=1)
 
+OPTION_INFO_QTYPES = ("meaning", "word")  # 答题后回填「选项 → 词」的题型(cloze 不改)
+MAX_ANSWER_PHRASES = 3
+MAX_OPTION_DEFS_ZH = 4  # 与 lookup.MAX_ZH 相同
+
 
 @dataclass(frozen=True)
 class AnswerInput:
@@ -272,12 +276,54 @@ async def _active(session: AsyncSession, ds: DictionaryStore, user_id: int,
     return e, await index_or_fail(ds, e.book_id)
 
 
-async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype: str, rng) -> Question:
+def _option_text(qtype: str, card: WordCard) -> str:
+    """与 quiz.build_question 放进 options 的那一项逐字相同:meaning = 释义行,word = 词头。"""
+    return meaning_line(card) if qtype == "meaning" else card.word
+
+
+async def _choice_extras(ds: DictionaryStore, user_id: int, p: AnswerInput, card: WordCard) -> dict:
+    """/answers 的追加字段(spec 2026-10-13-review-after-answer §2.2),只给 meaning / word 选择题,全部可选:
+    `phrases`(≤ 3)与 `example`(第一条例句)来自词卡,没有就省略键;`option_info` 来自出题时的备忘(R-A1),
+    备忘取不到、你选的项或正确项不在其中、或有词卡读不出来时整个省略。只在判分之后调用:题面不泄露(R-A5)。"""
+    if p.qtype not in OPTION_INFO_QTYPES:
+        return {}
+    out: dict = {}
+    if card.phrases:
+        out["phrases"] = [{"en": en, "zh": zh} for en, zh in card.phrases[:MAX_ANSWER_PHRASES]]
+    if card.examples:
+        e = card.examples[0]
+        out["example"] = {"id": e.id, "en": e.en, "zh": e.zh}
+    pairs = ds.option_memo.recall(user_id, p.book_id, card.key, p.qtype)
+    if not pairs or p.choice is None or not {p.choice, correct_option(p.qtype, card)} <= {o for o, _ in pairs}:
+        return out
+    try:
+        cards = await ds.cards(p.book_id, [k for _, k in pairs])
+    except DataUnavailable:
+        return out
+    if not all(k in cards for _, k in pairs):
+        return out
+    out["option_info"] = [
+        {"option": option, "word": cards[k].word,
+         "defs_zh": [{"pos": s.pos, "text": s.text} for s in cards[k].senses[:MAX_OPTION_DEFS_ZH]],
+         "defs_en": ds.definitions.defs_for(k)}
+        for option, k in pairs]
+    return out
+
+
+async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype: str, rng, *,
+                    user_id: int | None = None) -> Question:
     distractors: list[WordCard] = []
     if qtype in CHOICE_QTYPES:
         pool = await cards_or_fail(ds, index.book_id, candidate_keys(index, card.key, rng))
         distractors = pick_distractors(card, list(pool.values()), qtype, rng)
-    return build_question(qtype, card, distractors, rng)
+    question = build_question(qtype, card, distractors, rng)
+    if user_id is not None and qtype in OPTION_INFO_QTYPES and question.options is not None:
+        # R-A1:出题时记下「选项原文 -> 词键」(与题面同序),答题后回填 option_info;对不上(重复文本等)就不记
+        owners = {_option_text(qtype, c): c.key for c in (card, *distractors)}
+        pairs = tuple((o, owners[o]) for o in question.options if o in owners)
+        if len(owners) == len(question.options) == len(pairs):
+            ds.option_memo.remember(user_id, index.book_id, card.key, qtype, pairs)
+    return question
 
 
 async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, size: int,
@@ -289,9 +335,9 @@ async def learn_batch(session: AsyncSession, ds: DictionaryStore, user_id: int, 
     order = planning.permutation(len(index), e.seed, e.order_mode)
     keys, _ = planning.next_new(index.keys, order, e.cursor, known, min(size, left))
     cards = list((await cards_or_fail(ds, e.book_id, keys)).values())
-    quiz = [question_out(await _question(ds, index, c, "meaning", question_rng(user_id, c.key, 0))) for c in cards]
+    quiz = [question_out(await _question(ds, index, c, "meaning", question_rng(user_id, c.key, 0), user_id=user_id)) for c in cards]
     # spec recall §3.3:「不认识」的词在本轮小测里第二次出现时用看释义选词(随机源与 quiz 不同)
-    drill = [question_out(await _question(ds, index, c, "word", question_rng(user_id, c.key, 1))) for c in cards]
+    drill = [question_out(await _question(ds, index, c, "word", question_rng(user_id, c.key, 1), user_id=user_id)) for c in cards]
     return {"book_id": e.book_id, "cards": [card_out(c, ds) for c in cards], "quiz": quiz, "drill": drill}
 
 
@@ -312,7 +358,7 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
         rng = question_rng(user_id, card.key, row.reps)
         qtype = "recall" if recall_on and use_recall(user_id, card.key, row.reps, row.box) else pick_qtype(
             row.box, card, rng, tts=tts)
-        questions.append(question_out(await _question(ds, index, card, qtype, rng)))
+        questions.append(question_out(await _question(ds, index, card, qtype, rng, user_id=user_id)))
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c, ds) for c in cards]}
 
 
@@ -442,8 +488,9 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
         at=now))
     # Ruling Z-e:expected = 词头;correct_option = 选择题正确项原文(打字题为 null)
     option = correct_option(p.qtype, card) if p.qtype in CHOICE_QTYPES else None
+    extras = await _choice_extras(ds, user_id, p, card) if p.qtype in CHOICE_QTYPES else None
     return _answer_out(outcome == "correct", outcome, grade, card, option, diff,
-                       await store.known_one(session, user_id, card.key), applied)
+                       await store.known_one(session, user_id, card.key), applied, extras=extras)
 
 
 @dataclass(frozen=True)
@@ -456,11 +503,14 @@ class _LearnContext:
 
 def _answer_out(correct: bool, outcome: str, grade: str | None, card: WordCard, option: str | None, diff,
                 known: Known | None, applied: bool, *, rating: str | None = None, spot_check: bool = False,
-                check: dict | None = None) -> dict:
+                check: dict | None = None, extras: dict | None = None) -> dict:
     """/answers 的响应。spec recall §9.1 追加 rating / spot_check / check(非自评题为 null / false / null)。"""
-    return {"correct": correct, "outcome": outcome, "grade": grade, "expected": card.word, "correct_option": option,
+    out = {"correct": correct, "outcome": outcome, "grade": grade, "expected": card.word, "correct_option": option,
             "diff": diff, "item": item_out(known), "applied": applied, "rating": rating, "spot_check": spot_check,
             "check": check}
+    if extras:
+        out.update(extras)
+    return out
 
 
 async def _learn_kind(session: AsyncSession, user_id: int, key: str) -> str:
@@ -597,8 +647,9 @@ async def _free_answer(session: AsyncSession, ds: DictionaryStore, user_id: int,
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind="practice", qtype=p.qtype, outcome=outcome,
         credit=credit, at=now))
+    extras = await _choice_extras(ds, user_id, p, card) if p.qtype in CHOICE_QTYPES else None
     return _answer_out(correct, outcome, grade, card, option, diff, await store.known_one(session, user_id, card.key),
-                       queued, rating=rating)
+                       queued, rating=rating, extras=extras)
 
 
 # ---- 按句拼写、词卡、例句举报(S4;spec §6.6)----
@@ -1009,7 +1060,7 @@ async def free_start(session: AsyncSession, ds: DictionaryStore, user_id: int, s
         question = None
         if mode != "browse":
             qtype = "recall" if mode == "recall" else "spell" if mode == "spell" else free_choice_qtype(card, qrng)
-            question = question_out(await _question(ds, await index_or_fail(ds, book_id), card, qtype, qrng))
+            question = question_out(await _question(ds, await index_or_fail(ds, book_id), card, qtype, qrng, user_id=user_id))
         items.append({"book_id": book_id, "card": card_out(card, ds), "question": question})
         if len(items) == count:
             break
