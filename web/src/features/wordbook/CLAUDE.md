@@ -80,3 +80,4 @@ Other directories import only `~/features/wordbook`.
 - Contract: `wordbook-contract.test.ts` checks `learned_summary / learned_list / learned_card / free_start / answer_free` key by key.
 - Audio: no autoplay before the first tap (iOS); `speaker.prime()` only on the first gesture; read in click handlers, not
   effects, so StrictMode cannot read twice (a second `play()` with the same id stops playback).
+- 释义显示默认「仅英文」(`def-lang.ts` 的 `DEFAULT_DEF_LANG`,spec `2026-10-13-defs-default-lookup-ios-design.md` §2):组件的默认 prop、`defLangOf`、`RecallCard` 都引用它,不要再写死 `"both"`。「哪些行显示」只由纯函数 `defView()` 决定(没有英文释义的卡回退成中文);卡片右上角「中」开关(`word-card.tsx`)是单卡本地状态,按 `card.key` 复位,不写服务端也不写本机;设置里的「短语」开关与学新词页卡片上的手动开合写同一个 `phrasesOpen`(`phrases-pref.ts`)。

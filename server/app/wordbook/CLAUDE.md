@@ -31,6 +31,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   Spell blanks carry `form` (sentence surface form, e.g. go → went) for the hint and TTS only; grading never trusts it.
 - Contract fixture `tests/fixtures/wordbook_contract.json` is read by the web contract test (never skipped): re-record with
   `CONTRACT_UPDATE=1` whenever a response shape changes.
+- `def_lang` 默认值是 `store.DEFAULT_DEF_LANG = "en"`(无偏好行的用户);已存过偏好的用户读最新 `defpref` 事件,不受默认值影响。录制的 `def_lang_patch` 用 `"zh"`(PATCH 成默认值是空操作)。
 - Self-rating (`qtype=recall`): boxes, spot checks and the fuzzy streak are decided here, never by the client.
   `known:true` is an alias for an unpeeked `know`. Same-day follow-ups on a new word (round quiz, spot check,
   re-rating) only move the box through `store.set_learn_box` (no reps, no `last_reviewed_at` → no `vocab_review`);

@@ -220,12 +220,13 @@ describe("wordbook contract (server fixture)", () => {
     expect(batch.cards.some((card) => (card.defsEn?.length ?? 0) > 0)).toBe(true);
     const config = cc<Extract<WordbookConfig, { enabled: true }>>(c.config);
     expect(isDefLang(config.defLang)).toBe(true);
-    expect(config.defLang).toBe("both");
+    expect(config.defLang).toBe("en");
   });
 
   // GUARDED (needs the re-recorded server fixture): the PATCH /enrollment {def_lang} response recorded by the server (AD-1).
   it.skipIf(!fixtureHas("def_lang_patch"))("definitions: PATCH enrollment with def_lang echoes def_lang (AD-1)", () => {
     const patch = c.def_lang_patch as Record<string, unknown>;
     expect(isDefLang(patch.def_lang)).toBe(true);
+    expect(patch.def_lang).toBe("zh");
   });
 });

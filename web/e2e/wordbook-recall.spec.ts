@@ -48,6 +48,8 @@ test("wordbook v2: covered card, three ratings, round quiz, quick recall", async
   const creds = await signIn(page, request);
   const auth = { Authorization: `Bearer ${creds.token}` };
   expect((await request.put("/api/wordbook/enrollment", { headers: auth, data: { book_id: "junior", order_mode: "book" } })).status()).toBe(200);
+  // 默认释义显示是「仅英文」(spec 2026-10-13-defs-default):本用例按中文释义断言,先把这个账号切到「中英」
+  expect((await request.patch("/api/wordbook/enrollment", { headers: auth, data: { def_lang: "both" } })).status()).toBe(200);
 
   // 1. 学新词:记下这一批(词卡 + 小测题),用来判断遮罩时释义不在页面上、以及小测的正确项
   const batchResponse = page.waitForResponse((r) => r.url().endsWith("/api/wordbook/learn/batch") && r.request().method() === "POST");
