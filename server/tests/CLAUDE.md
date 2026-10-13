@@ -10,9 +10,13 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
 - `agents_helpers.py` – agents fakes: `FakeLLM` (httpx.MockTransport upstream), SSE parsing, `enable_agents`, `new_conversation`, `turn_body`, `check_contract`
 - `test_agents_privacy.py` – caplog (scoped to logger `app`) over every agents / memory / admin-agents endpoint, after-turn hooks, the memory worker and sources; also pins that agents routes carry no text in URLs (new routes must be added there)
 - `test_architecture.py` – AST import scan enforcing the `app/` layering rules
+- `library_helpers.py` – library fakes: `FakeTools` (no ffmpeg needed), `FakeAsr`, `fake_media`, `enable`, `library_settings`, `upload` (chunked), `process` (one worker round + drain)
+- `test_library_privacy.py` – caplog over every `/api/library` endpoint (incl. the D8 translate / analysis paths) and the worker paths; pins that library routes carry only ids, `cursor` and `ticket` (new routes must be added there)
+- `test_library_ai.py` / `test_library_ai_api.py` – sentence translation and analysis: pure functions, per-sentence allowances, write-back, editable prompts; endpoints against a respx fake LLM
 - `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
   `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` / `agents_contract.json` (shared with web contract tests; the agents one is recorded by `test_agents_contract.py`, uuids/times/ms are fixed by `agents_helpers.stable`);
   `dictionary_contract.json` (recorded by `test_dictionary_contract.py`; web `dictionary-contract.test.ts` reads it);
+  `library_contract.json` (recorded by `test_library_contract.py`; web `library-contract.test.ts` reads it; tickets written `REDACTED`);
   `agents_memory_contract.json` (web `memory-contract.test.ts`); `agents_tutor_contract.json` (recorded by `test_agents_tutor_contract.py`; helpers in `agents_tutor_helpers.py`)
 - `test_web_contract.py` – drives a real room session and pins every rooms HTTP/WS payload shape in
   `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional
