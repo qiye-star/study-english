@@ -3,6 +3,12 @@
     "wordbookDefs": {
       "label": "English definitions (reference)",
       "peek": { "label": "Show Chinese definitions" },
+      "after": {
+        "title": "Learn more",
+        "hint": "Double-tap an option to look it up",
+        "correct": "Correct answer",
+        "yours": "Your answer"
+      },
       "setting": {
         "label": "Definitions",
         "help": "Shown once a card is open. Quizzes stay in Chinese. In English only, words without an English definition still show Chinese; the 中 button on a card shows it for that card. English definitions come from an open dictionary and are a reference only.",
