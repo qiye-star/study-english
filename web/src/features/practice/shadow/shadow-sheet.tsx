@@ -14,6 +14,7 @@ import { formatClock } from "~/lib/format-clock";
 import { savePracticeItem } from "../save-practice-item";
 import { useShadowSession } from "../use-shadow-session";
 import type { ShadowRequest } from "./shadow-context";
+import "./shadow-sheet.css";
 import "./shadow-locales";
 import { ShadowResult } from "./shadow-result";
 
