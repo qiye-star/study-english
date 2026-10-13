@@ -1,17 +1,14 @@
 import { BarChart3Icon, ClockIcon, HistoryIcon, ListChecksIcon, LoaderIcon, MicIcon, SquareIcon, Volume2Icon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "@renderer/lib/utils";
-import { ApiError } from "~/api/client";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
-import { MAX_RECORDING_MS, toAssessmentWav } from "~/audio/convert";
-import { describeAudioError } from "~/audio/describe-error";
-import type { RecorderEnv, RecordingResult } from "~/audio/recorder";
-import { useRecorder } from "~/audio/use-recorder";
+import { MAX_RECORDING_MS } from "~/audio/convert";
+import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { IconChip } from "~/components/icon-chip";
 import { ListRow, SectionGroup } from "~/components/section-group";
@@ -23,7 +20,7 @@ import { PageHeader } from "~/layout/page-header";
 import { Slot } from "~/lib/extension-points-react";
 import { formatClock } from "~/lib/format-clock";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";
-import { PRACTICE_SERVER_ERRORS, assessPronunciation } from "./assessment-api";
+import { useShadowSession } from "./use-shadow-session";
 
 const isString = (v: unknown): v is string => typeof v === "string";
 
@@ -58,21 +55,6 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const [reference, setReference] = useState(
     () => (location.state as { reference?: string } | null)?.reference ?? readJson(DRAFT_KEY, isString) ?? "",
   );
-  const [busy, setBusy] = useState(false);
-  const [kept, setKept] = useState<RecordingResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const mounted = useRef(true);
-  const submitting = useRef(false);
-  const inflight = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      inflight.current?.abort(); // 卸载时中止进行中的上传
-    };
-  }, []);
-
   const tRef = useRef(t);
   tRef.current = t;
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
@@ -106,57 +88,16 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
     writeJson(DRAFT_KEY, reference);
   }, [reference]);
 
-  const submit = useCallback(
-    async (recording: RecordingResult) => {
-      if (submitting.current) return; // 防止重复提交
-      submitting.current = true;
-      setKept(recording); // 上传成功前一直保留录音,失败后可重试
-      setBusy(true);
-      setError(null);
-      const controller = new AbortController();
-      inflight.current = controller;
-      try {
-        const { wav } = await toAssessmentWav(recording.blob);
-        const res = await assessPronunciation(api, { wav, reference: reference.trim(), language: "en-US", save: true, signal: controller.signal });
-        if (!mounted.current) return;
-        if (!res.assessmentId) throw new ApiError(500, "Could not save the recording");
-        setKept(null);
-        navigate(`/practice/assessments/${res.assessmentId}`);
-      } catch (err) {
-        // 非 JSON 的 2xx 等未知错误由 translateServerError 落到通用文案
-        if (mounted.current) setError(describeAudioError(t, err, PRACTICE_SERVER_ERRORS));
-      } finally {
-        submitting.current = false;
-        if (inflight.current === controller) inflight.current = null;
-        if (mounted.current) setBusy(false);
-      }
-    },
-    [api, navigate, reference, t],
-  );
-
-  const recorder = useRecorder({
-    env: recorderEnv,
-    onAutoStop: (result) => (result.stoppedBy === "max_duration" ? void submit(result) : setKept(result)),
+  const session = useShadowSession({
+    reference,
+    recorderEnv,
+    beforeRecord: stopTts, // 不要把扬声器的范读录进麦克风
+    onAssessed: (id) => navigate(`/practice/assessments/${id}`),
   });
-
-  const toggle = async () => {
-    if (recorder.state === "recording") {
-      const result = await recorder.stop();
-      if (result) await submit(result);
-      return;
-    }
-    if (recorder.state !== "idle") return; // "starting" 时 stop() 无效,不允许操作
-    setError(null);
-    setKept(null);
-    tts.stop(); // 不要把扬声器的范读录进麦克风
-    await recorder.start();
-  };
-
-  const recording = recorder.state === "recording";
-  const shownError = error ?? (recorder.error ? describeAudioError(t, recorder.error) : null);
+  const { busy, recording, kept, error: shownError, elapsedMs, recorderState, toggle } = session;
   const status = busy ? "processing" : recording ? "recording" : shownError ? "error" : kept ? "kept" : "idle";
   // 停止按钮只在状态确为 "recording" 时可用;"starting" 期间整体禁用
-  const canRecord = recording || (reference.trim().length > 0 && !busy && recorder.state === "idle");
+  const canRecord = recording || (reference.trim().length > 0 && !busy && recorderState === "idle");
 
   return (
     <div className="flex flex-1 flex-col">
@@ -187,14 +128,14 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
               <div className="mt-2.5 flex items-center gap-1.5 text-meta text-ink-2">
                 <ClockIcon aria-hidden className={cn("h-3.5 w-3.5", recording && "text-blue motion-safe:animate-pulse")} />
                 <span data-testid="record-timer" className="num">
-                  {formatClock(recorder.elapsedMs)} / {formatClock(MAX_RECORDING_MS)}
+                  {formatClock(elapsedMs)} / {formatClock(MAX_RECORDING_MS)}
                 </span>
                 {busy && <span className="ml-auto text-blue">{t("web.practice.assessing")}</span>}
               </div>
               <div className="mt-3.5 flex gap-2">
                 <button type="button" data-testid="practice-listen" data-state={listenState}
                   className={`${BUTTON} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2`}
-                  disabled={!reference.trim() || !ai?.defaultTts.model || recorder.state !== "idle" || busy}
+                  disabled={!reference.trim() || !ai?.defaultTts.model || recorderState !== "idle" || busy}
                   onClick={() => void tts.play("reference", reference, ai!.defaultTts.model, ai!.defaultTts.voice)}>
                   {listenState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
                     : listenState === "playing" ? <SquareIcon aria-hidden /> : <Volume2Icon aria-hidden />}
@@ -214,8 +155,8 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
                     <p>{t(kept.stoppedBy === "background" ? "web.recorder.background" : "web.recorder.trackEnded", { seconds: Math.round(kept.durationMs / 1000) })}</p>
                   )}
                   <div className="flex gap-2">
-                    <Button data-testid="practice-assess-kept" className="h-tap flex-1" onClick={() => void submit(kept)}>{t("web.practice.assessKept")}</Button>
-                    <Button data-testid="practice-discard" variant="outline" className="h-tap flex-1" onClick={() => { setKept(null); setError(null); }}>{t("web.practice.discard")}</Button>
+                    <Button data-testid="practice-assess-kept" className="h-tap flex-1" onClick={() => void session.assessKept()}>{t("web.practice.assessKept")}</Button>
+                    <Button data-testid="practice-discard" variant="outline" className="h-tap flex-1" onClick={session.discardKept}>{t("web.practice.discard")}</Button>
                   </div>
                 </div>
               )}
