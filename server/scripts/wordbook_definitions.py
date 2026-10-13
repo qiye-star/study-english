@@ -5,6 +5,7 @@ Offline operator tool; `app/` never imports it and nothing here runs at request 
   uv run python scripts/wordbook_definitions.py verify  --sources D:\\tmp-ecdict
   uv run python scripts/wordbook_definitions.py build   --sources D:\\tmp-ecdict
   uv run python scripts/wordbook_definitions.py check
+  uv run python scripts/wordbook_definitions.py forms   --sources D:\\tmp-ecdict   # forms.txt: inflected form -> lemma
   uv run python scripts/wordbook_definitions.py llm-fill            # needs the LLM upstream (dev machine only)
 `--sources` defaults to the env var WORDBOOK_DEFS_SOURCES. Output is deterministic: the same inputs give
 byte-identical files. Never prints keys, prompts or replies; only counts and words from the public word lists.
@@ -50,7 +51,7 @@ ALL_POS = OPEN_POS + CLOSED_POS
 SRC_VALUES = ("oewn", "hand", "llm")
 CATEGORIES = ("function", "proper", "abbr", "compound", "pos_mismatch", "other")
 FILES = {"definitions": "definitions.jsonl", "hand": "function-words.jsonl", "llm": "definitions-llm.jsonl",
-         "missing": "missing.txt", "manifest": "SOURCE.json"}
+         "missing": "missing.txt", "manifest": "SOURCE.json", "forms": "forms.txt"}
 
 INPUTS = {
     "oewn": {"name": "Open English WordNet", "version": "2025", "license": "CC BY 4.0",
@@ -62,6 +63,9 @@ INPUTS = {
 }
 ECDICT_DB = "stardict.db"
 ECDICT_DB_BYTES = 851_288_064
+FORMS_VERSION = 1           # forms.txt rules (not SCRIPT_VERSION: definitions.jsonl bytes do not depend on them)
+FORM_KINDS = ("p", "d", "i", "3", "s", "r", "t")  # ECDICT exchange kinds that name an inflected form of the lemma
+FORM_RE = re.compile(r"^[a-z]+(?:['\-][a-z]+)*$")  # one lower-case token: letters with inner ' or -
 
 
 
@@ -342,6 +346,84 @@ def collect_wanted(books_dir: Path, book_ids: tuple[str, ...] = BOOK_IDS) -> tup
                             info.pos.append(pos)
     return wanted, dropped
 
+
+
+# ---------------------------------------------------------------- forms.txt (inflected form -> lemma)
+
+def parse_exchange_pairs(exchange: str | None) -> dict[str, list[str]]:
+    """'p:went/d:gone/0:go' -> {'p': ['went'], 'd': ['gone'], '0': ['go']}: values lower-cased, empty ones dropped."""
+    out: dict[str, list[str]] = {}
+    for item in (exchange or "").split("/"):
+        kind, _, value = item.partition(":")
+        value = value.strip().lower()
+        if kind and value:
+            out.setdefault(kind, []).append(value)
+    return out
+
+
+@dataclass
+class FormsScan:
+    candidates: dict[str, set[str]] = field(default_factory=dict)  # form -> the lemmas that claim it
+    frq: dict[str, int] = field(default_factory=dict)              # lemma -> ECDICT frequency rank (smaller = commoner, 0 = unknown)
+
+
+def scan_ecdict_forms(db_path: Path, lemmas: set[str]) -> FormsScan:
+    """One pass over ECDICT. A form is claimed by a word-book lemma either from the lemma's own row (`p:went/d:gone/...`)
+    or from the form's row (`0:go`). Only lemmas in `lemmas` count; nothing else of ECDICT is kept."""
+    scan = FormsScan()
+    con = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+    try:
+        for word, exchange, frq in con.execute("select word, exchange, frq from stardict order by rowid"):
+            low = (word or "").lower()
+            if low in lemmas and (low not in scan.frq or word == low):  # the exact lower-case row wins
+                scan.frq[low] = int(frq or 0)
+            if not exchange:
+                continue
+            pairs = parse_exchange_pairs(exchange)
+            if low in lemmas:
+                for kind in FORM_KINDS:
+                    for form in pairs.get(kind, ()):
+                        scan.candidates.setdefault(form, set()).add(low)
+            for lemma in pairs.get("0", ()):
+                if lemma in lemmas:
+                    scan.candidates.setdefault(low, set()).add(lemma)
+    finally:
+        con.close()
+    return scan
+
+
+def build_forms(scan: FormsScan, lemmas: set[str]) -> dict[str, str]:
+    """form -> lemma. A form that is itself a word-book headword is left out (the headword lookup finds it first);
+    a form several lemmas claim goes to the commonest one (smallest known ECDICT `frq`, unknown last, then alphabetical)."""
+    table: dict[str, str] = {}
+    for form, claimed in scan.candidates.items():
+        claimed = claimed - {form}
+        if not claimed or form in lemmas or not FORM_RE.match(form):
+            continue
+        table[form] = min(claimed, key=lambda lemma: (scan.frq.get(lemma, 0) <= 0, scan.frq.get(lemma, 0), lemma))
+    return table
+
+
+def render_forms(table: dict[str, str]) -> bytes:
+    return "".join(f"{form}\t{table[form]}\n" for form in sorted(table)).encode("utf-8")
+
+
+def forms_problems(path: Path) -> list[str]:
+    """Schema rules the runtime loader (`app/wordbook/forms.py`) relies on: `form<TAB>lemma`, sorted, no duplicates."""
+    if not path.is_file():
+        return [f"{path.name}: missing"]
+    problems, previous = [], ""
+    for number, line in enumerate(path.read_bytes().decode("utf-8").split("\n"), 1):
+        if not line:
+            continue
+        form, tab, lemma = line.partition("\t")
+        if not tab or "\t" in lemma or not FORM_RE.match(form) or not lemma or lemma != lemma.strip().lower() or form == lemma:
+            problems.append(f"line {number}: bad row")
+        elif form <= previous:
+            problems.append(f"line {number}: not sorted ({form})")
+        else:
+            previous = form
+    return problems
 
 
 # ---------------------------------------------------------------- extras (hand / llm)
@@ -634,8 +716,36 @@ def build(sources: Path | None, data_dir: Path = DATA_DIR, books_dir: Path = BOO
     date.fromisoformat(day)
     books_sha = sha256_of(books_dir / "SOURCE.json") if (books_dir / "SOURCE.json").is_file() else ""
     manifest = build_manifest(data_dir, result, day, books_sha)
+    if "forms" in previous and (data_dir / FILES["forms"]).is_file():  # the `forms` command owns this part: carry it over
+        manifest["files"].append(_file_entry(data_dir / FILES["forms"], entries=_line_count(data_dir / FILES["forms"])))
+        manifest["forms"] = previous["forms"]
     write_bytes(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return result
+
+
+def forms_rules() -> dict:
+    return {"version": FORMS_VERSION, "kinds": list(FORM_KINDS), "lemmas": "word-book headwords only",
+            "skips_book_headword_forms": True, "tiebreak": "commonest lemma by ECDICT frq, then alphabetical"}
+
+
+def build_forms_file(sources: Path | None, data_dir: Path = DATA_DIR, books_dir: Path = BOOKS_DIR, *,
+                     work: Path | None = None, ecdict_path: Path | None = None) -> dict:
+    """Write forms.txt and add its entry to SOURCE.json (which `build` must have written before). Deterministic."""
+    if ecdict_path is None:
+        if sources is None:
+            raise SystemExit("ecdict not found; pass --sources or set WORDBOOK_DEFS_SOURCES")
+        ecdict_path = ecdict_db(sources, work or Path(tempfile.gettempdir()) / "wordbook-defs-work")
+    lemmas = set(collect_wanted(books_dir)[0])
+    table = build_forms(scan_ecdict_forms(ecdict_path, lemmas), lemmas)
+    path = data_dir / FILES["forms"]
+    write_bytes(path, render_forms(table))
+    manifest_path = data_dir / FILES["manifest"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    stats = {"forms": len(table), "lemmas_covered": len(set(table.values()))}
+    manifest["files"] = [f for f in manifest["files"] if f["file"] != FILES["forms"]] + [_file_entry(path, entries=len(table))]
+    manifest["forms"] = {**forms_rules(), **stats}
+    write_bytes(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    return stats
 
 
 def check(data_dir: Path = DATA_DIR) -> list[str]:
@@ -656,6 +766,8 @@ def check(data_dir: Path = DATA_DIR) -> list[str]:
         elif entry["file"].endswith((".jsonl", ".txt")) and _line_count(path) != entry["entries"]:
             problems.append(f"{entry['file']}: entries {_line_count(path)} != {entry['entries']}")
     problems += definitions_problems(data_dir / FILES["definitions"])
+    if any(f["file"] == FILES["forms"] for f in manifest["files"]):
+        problems += forms_problems(data_dir / FILES["forms"])
     return problems
 
 
@@ -833,7 +945,7 @@ def _sources_arg(value: str | None) -> Path | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=("verify", "build", "check", "llm-fill"))
+    parser.add_argument("command", choices=("verify", "build", "check", "forms", "llm-fill"))
     parser.add_argument("--sources", help="dir holding the two input zips (default: env WORDBOOK_DEFS_SOURCES)")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--books-dir", type=Path, default=BOOKS_DIR)
@@ -857,6 +969,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         stats = build(sources, args.data_dir, args.books_dir, built=args.built, work=args.work).stats
         print(json.dumps(stats, indent=2))
+        return 0
+    elif args.command == "forms":
+        if sources is None:
+            raise SystemExit("pass --sources or set WORDBOOK_DEFS_SOURCES")
+        if problems := verify(sources):
+            print("\n".join(problems))
+            return 1
+        print(json.dumps(build_forms_file(sources, args.data_dir, args.books_dir, work=args.work), indent=2))
         return 0
     else:
         return _llm_fill_cli(args)

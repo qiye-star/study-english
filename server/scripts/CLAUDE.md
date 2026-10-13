@@ -10,7 +10,7 @@ Manual operator tools. Not imported by `app/` and not run by CI; some are covere
 - `agents_latency.py` – in-process agents-turn overhead benchmark with a fake upstream (no real vendor; Markdown to stdout; results in `docs/superpowers/plans/2026-10-12-agents-latency.md`)
 - `eval_free_speech.py` (+ `_cases.json`) – free-speech assessment / grammar evaluation via TTS
 - `fetch_config.py` – refreshes `app/static_config/*.json` snapshots from upstream
-- `wordbook_definitions.py` – offline builder of the wordbook English definitions (`verify` / `build` / `check` / `llm-fill`; Open English WordNet + ECDICT inputs read from `--sources` / env `WORDBOOK_DEFS_SOURCES`, output into `dictionaries/wordbook-definitions/`, deterministic bytes). `llm-fill` is resumable, strict-JSON, reads credentials only from the server settings at run time (exit 3 = upstream refused, progress kept); never run by tests (fake client only). `build` normalises `src: "llm"` text (lowercase first letter unless acronym/`I`/proper noun, no trailing period; R-DS19) and applies no POS filter to it (R-DS20). Tests: `tests/test_wordbook_definitions_build.py`
+- `wordbook_definitions.py` – offline builder of the wordbook English definitions (`verify` / `build` / `check` / `llm-fill`; Open English WordNet + ECDICT inputs read from `--sources` / env `WORDBOOK_DEFS_SOURCES`, output into `dictionaries/wordbook-definitions/`, deterministic bytes). `llm-fill` is resumable, strict-JSON, reads credentials only from the server settings at run time (exit 3 = upstream refused, progress kept); never run by tests (fake client only). `build` normalises `src: "llm"` text (lowercase first letter unless acronym/`I`/proper noun, no trailing period; R-DS19) and applies no POS filter to it (R-DS20). Tests: `tests/test_wordbook_definitions_build.py`. `forms` subcommand: ECDICT `exchange` -> `forms.txt` (inflected form -> lemma, deterministic; run `build` first because it appends an entry to `SOURCE.json`; `build` carries an existing forms entry over). Tests: `tests/test_wordbook_forms_build.py`
 - `spikes/` – one-off protocol experiments (ASR stream, STT params, TTS chunking); reference only
 
 ## Allowed dependencies
@@ -21,7 +21,7 @@ import scripts.
 `uv run python scripts/<name>.py --help`
 
 ## Tests
-`uv run pytest -q tests/test_latency_tools.py tests/test_eval_free_speech.py tests/test_wordbook_definitions_build.py`
+`uv run pytest -q tests/test_latency_tools.py tests/test_eval_free_speech.py tests/test_wordbook_definitions_build.py tests/test_wordbook_forms_build.py`
 
 ## Pitfalls
 - Print numbers and status codes only: never keys, tokens, tickets, transcripts or `.env` contents.
