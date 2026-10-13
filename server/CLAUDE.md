@@ -9,7 +9,7 @@ Python 3.12, uv-managed (`pyproject.toml`, `uv.lock`).
 - `alembic/` + `alembic.ini` – database migrations
 - `tests/` – pytest suite (includes the layering test `tests/test_architecture.py`)
 - `scripts/` – manual smoke / latency / eval tools against a running server (not imported by app); `wordbook_data.py` downloads/verifies the dictionary files; `wordbook_definitions.py` builds/verifies the English definitions
-- `dictionaries/` – committed third-party word books and generated English definitions read at runtime by `app/wordbook/` (byte-exact / checksummed; see `dictionaries/CLAUDE.md`, repo-root `NOTICE`)
+- `dictionaries/` – committed third-party word books and generated English definitions and the `forms.txt` word-form table read at runtime by `app/wordbook/` (byte-exact / checksummed; see `dictionaries/CLAUDE.md`, repo-root `NOTICE`)
 - `Dockerfile` – built from the repo root via `docker-compose.yml` (copied from the tracked `docker-compose.example.yml`); also builds `web/dist`
 - `.env.example` – documented settings; copy to `.env` locally
 
