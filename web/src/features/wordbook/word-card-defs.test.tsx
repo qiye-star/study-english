@@ -25,7 +25,7 @@ afterEach(() => {
 
 describe("English definitions on the word card", () => {
   it("shows them under the Chinese meaning, per POS, at most two per POS, in lang=en", () => {
-    renderWithProviders(<WordCardView card={WITH_DEFS} />);
+    renderWithProviders(<WordCardView card={WITH_DEFS} defLang="both" />);
     const list = screen.getByTestId("word-defs-en");
     expect(list).toHaveAccessibleName("英文释义(参考)");
     const rows = within(list).getAllByRole("listitem");
@@ -40,7 +40,7 @@ describe("English definitions on the word card", () => {
   });
 
   it("orders Chinese meaning, English definitions, example, phrases", () => {
-    renderWithProviders(<WordCardView card={WITH_DEFS} />);
+    renderWithProviders(<WordCardView card={WITH_DEFS} defLang="both" />);
     const zh = screen.getByText("说话；谈话");
     const en = screen.getByTestId("word-defs-en");
     const example = screen.getByText("talk", { selector: "mark" }); // the highlighted headword inside the example sentence
@@ -113,7 +113,7 @@ describe("English definitions on the word card", () => {
 
   it("ignores blank texts and unknown POS codes safely", () => {
     const odd = { ...PLAIN, defsEn: [{ pos: "x", text: "odd one" }, { pos: "n", text: "  " }] } as Card;
-    renderWithProviders(<WordCardView card={odd} />);
+    renderWithProviders(<WordCardView card={odd} defLang="both" />);
     const rows = within(screen.getByTestId("word-defs-en")).getAllByRole("listitem");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("x. odd one");

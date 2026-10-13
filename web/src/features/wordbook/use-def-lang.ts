@@ -9,7 +9,7 @@ import { WORDBOOK_SERVER_ERRORS, type DefLang } from "./wordbook-api";
 
 /**
  * 释义显示偏好(R-DW14)。`useWordbookConfig` 每个 ApiClient 只取一次配置,保存后不会刷新,
- * 所以这里按 ApiClient 记一层「本次会话里用户选过的值」:`defLang = 覆盖 ?? config.defLang ?? "both"`。
+ * 所以这里按 ApiClient 记一层「本次会话里用户选过的值」:`defLang = 覆盖 ?? config.defLang ?? DEFAULT_DEF_LANG("en")`。
  * 换账号 = 新 ApiClient,覆盖层自然失效。
  */
 const overrides = new WeakMap<ApiClient, DefLang>();

@@ -21,11 +21,11 @@ beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ l
 afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
 
 describe("DefLangSetting", () => {
-  it("offers 中英 / 仅中文 / 仅英文 with 中英 selected on an old server", async () => {
+  it("offers 中英 / 仅中文 / 仅英文 with 仅英文 selected on an old server", async () => {
     setup();
     const radios = within(group()).getAllByRole("radio");
     expect(radios.map((r) => r.textContent)).toEqual(["中英", "仅中文", "仅英文"]);
-    expect(screen.getByRole("radio", { name: "中英" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "仅英文" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText(/小测的题面和选项仍用中文/)).toBeTruthy();
     for (const r of radios) expect(r.className).toContain("hit-expand"); // visual 32px, hit area 44px
   });
@@ -38,12 +38,12 @@ describe("DefLangSetting", () => {
   it("applies a choice before the server answers, then announces it", async () => {
     let release!: () => void;
     const mock = setup(CONFIG, {
-      [PATCH]: () => new Promise<Response>((resolve) => { release = () => resolve(json({ def_lang: "en" })); }),
+      [PATCH]: () => new Promise<Response>((resolve) => { release = () => resolve(json({ def_lang: "both" })); }),
     });
-    await userEvent.click(screen.getByRole("radio", { name: "仅英文" }));
-    expect(screen.getByRole("radio", { name: "仅英文" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: "中英" })); // English only is the default now, so pick another
+    expect(screen.getByRole("radio", { name: "中英" })).toHaveAttribute("aria-checked", "true");
     await waitFor(() => expect(mock.calls.some((c) => c.method === "PATCH")).toBe(true));
-    expect(JSON.parse(String(mock.calls.find((c) => c.method === "PATCH")!.body))).toEqual({ def_lang: "en" });
+    expect(JSON.parse(String(mock.calls.find((c) => c.method === "PATCH")!.body))).toEqual({ def_lang: "both" });
     release();
     await waitFor(() => expect(screen.getByText("已保存")).toBeTruthy());
   });
@@ -58,8 +58,8 @@ describe("DefLangSetting", () => {
 
   it("is reachable by keyboard like the other segmented controls", async () => {
     setup(CONFIG, { [PATCH]: () => json({ def_lang: "zh" }) }); // without a route the 404 would roll the choice back
-    screen.getByRole("radio", { name: "中英" }).focus();
-    await userEvent.keyboard("{ArrowRight}");
+    screen.getByRole("radio", { name: "仅英文" }).focus();
+    await userEvent.keyboard("{ArrowLeft}");
     expect(screen.getByRole("radio", { name: "仅中文" })).toHaveAttribute("aria-checked", "true");
   });
 

@@ -37,11 +37,11 @@ beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ l
 afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
 
 describe("GoalsSheet definitions setting", () => {
-  it("contains the definitions segmented control, 中英 by default", async () => {
+  it("contains the definitions segmented control, 仅英文 by default", async () => {
     setup();
     const sheet = await openSheet();
     expect(within(sheet).getByRole("radiogroup", { name: "释义显示" })).toBeTruthy();
-    expect(within(sheet).getByRole("radio", { name: "中英" })).toHaveAttribute("aria-checked", "true");
+    expect(within(sheet).getByRole("radio", { name: "仅英文" })).toHaveAttribute("aria-checked", "true");
   });
 });
 

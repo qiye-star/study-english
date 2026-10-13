@@ -17,18 +17,18 @@ function setup(config: unknown = CONFIG, extra: Record<string, Handler> = {}) {
 }
 
 describe("useDefLang", () => {
-  it("defaults to both until the config arrives, then follows config.def_lang", async () => {
+  it("defaults to en until the config arrives, then follows config.def_lang", async () => {
     const { wrapper } = setup({ ...CONFIG, def_lang: "zh" });
     const { result } = renderHook(() => useDefLangValue(), { wrapper });
-    expect(result.current).toBe("both");
+    expect(result.current).toBe("en");
     await waitFor(() => expect(result.current).toBe("zh"));
   });
 
-  it("stays both on an old server without def_lang", async () => {
+  it("stays English only on an old server without def_lang", async () => {
     const { wrapper, mock } = setup(CONFIG);
     const { result } = renderHook(() => useDefLangValue(), { wrapper });
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
-    expect(result.current).toBe("both");
+    expect(result.current).toBe("en");
   });
 
   it("applies a change at once, sends it, and every reader of the same ApiClient sees it", async () => {

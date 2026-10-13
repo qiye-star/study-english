@@ -1,14 +1,17 @@
 // 英英释义与释义显示偏好的运行时辅助(计划 2026-10-12-wordbook-definitions-web R-DW2 / R-DW4,AD-1)。
 // 只被懒加载块引用:类型在 wordbook-api.ts(擦除),这里的运行时代码不进主包。
 import type { ApiClient } from "~/api/client";
-import type { DefEn, DefLang, WordbookConfig } from "./wordbook-api";
+import type { Card, DefEn, DefLang, WordbookConfig } from "./wordbook-api";
 
 export const DEF_LANGS: readonly DefLang[] = ["both", "zh", "en"];
 export const isDefLang = (v: unknown): v is DefLang => typeof v === "string" && (DEF_LANGS as readonly string[]).includes(v);
 
-/** 配置里的偏好;老服务端没有这个键 / 值不认识 / 配置没到 → "both"。 */
+/** 没存过偏好 / 配置没到 / 老服务端没有这个键时的显示:仅英文(spec 2026-10-13-defs-default §1 D1、D2)。全站唯一的默认值落点。 */
+export const DEFAULT_DEF_LANG: DefLang = "en";
+
+/** 配置里的偏好;没有这个键 / 值不认识 / 配置没到 → DEFAULT_DEF_LANG。 */
 export const defLangOf = (config: WordbookConfig | null): DefLang =>
-  config?.enabled && isDefLang(config.defLang) ? config.defLang : "both";
+  config?.enabled && isDefLang(config.defLang) ? config.defLang : DEFAULT_DEF_LANG;
 
 /**
  * 保存偏好的端点(AD-1 覆盖 R-DW2:服务端没有 /settings,偏好随 `PATCH /api/wordbook/enrollment` 的 `def_lang` 写入;
@@ -49,4 +52,31 @@ export function groupDefs(defs: readonly DefEn[] | undefined): DefGroup[] {
     if (group.texts.length < MAX_DEFS_PER_POS) group.texts.push(text);
   }
   return groups;
+}
+
+export interface DefView {
+  groups: DefGroup[];
+  /** 显示英文释义行 */
+  showDefs: boolean;
+  /** 显示中文释义行(含词性标签) */
+  showSenses: boolean;
+  /** 「中」开关有意义:偏好是 en,且这张卡既有英文释义(会隐藏中文)又有中文释义 */
+  canPeek: boolean;
+}
+
+/**
+ * 一张翻开的卡显示哪几类释义行(spec 2026-10-13-defs-default §2.2,计划 R-A7)。纯函数。
+ * 「仅英文」只在这张卡有英文释义时生效;没有(约 135 个国家 / 城市等词、老服务端)就照中文显示,不出现空卡。
+ * `peek` = 用户点了这张卡的「中」:中文行回来,英文行照旧。
+ */
+export function defView(defLang: DefLang, card: Pick<Card, "senses" | "defsEn">, peek = false): DefView {
+  const groups = groupDefs(card.defsEn);
+  const hasEn = groups.length > 0;
+  const hasZh = card.senses.length > 0;
+  return {
+    groups,
+    showDefs: defLang !== "zh" && hasEn,
+    showSenses: hasZh && !(defLang === "en" && hasEn && !peek),
+    canPeek: defLang === "en" && hasEn && hasZh,
+  };
 }

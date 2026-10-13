@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { Slot } from "~/lib/extension-points-react";
-import { groupDefs } from "./def-lang";
+import { DEFAULT_DEF_LANG, defView } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
 import { MAX_PHRASES, PhrasesSection, type PhrasesOpen } from "./phrases-section";
 import { RecallCover } from "./recall-cover";
@@ -69,12 +69,12 @@ export function ListenButton({ id, text, accent, label, onListen, listening, can
  * 首条例句(目标词琥珀高亮,译文可收起,可朗读)、短语(折叠,最多 5 条)。
  * 背单词 v2(spec 2026-10-11-wordbook-recall §3.1):`covered` 时释义 / 例句 / 短语换成遮罩按钮(不在 DOM 里);
  * `showExample` 关时不显示例句块;`badge` 显示在眉题右侧;`regionRef` 指向释义区(翻开后移焦点用)。都不传时与 v1 相同。
- * `defLang`:释义显示(`zh` 不显示英文释义,`en` 在有英文释义时不显示中文释义行;默认 `both`)。
+ * `defLang`:释义显示(`zh` 不显示英文释义,`en` 在有英文释义时不显示中文释义行;默认「仅英文」,没有英文释义的卡回退成中文)。
  * `phrasesOpen`:短语区初始状态,`"auto"` = 翻开后自动展开并记住手动开合(学新词页);默认折叠。
  */
 export function WordCardView({
   card, eyebrow, onListen, listening, canListen = true, className, covered = false, onReveal, showExample = true, badge, regionRef,
-  defLang = "both", phrasesOpen = false,
+  defLang = DEFAULT_DEF_LANG, phrasesOpen = false,
 }: ListenProps & {
   card: Card; eyebrow?: ReactNode; className?: string;
   covered?: boolean; onReveal?: () => void; showExample?: boolean; badge?: ReactNode; regionRef?: Ref<HTMLDivElement>;
@@ -86,10 +86,8 @@ export function WordCardView({
   const example = card.examples[0];
   const phonetics = ([["us", card.us], ["uk", card.uk]] as const).filter(([, v]) => v);
   const listenProps = { onListen, listening, canListen };
-  const defGroups = groupDefs(card.defsEn);
-  const showDefs = defLang !== "zh" && defGroups.length > 0;
-  // 「仅英文」:有英文释义时中文行让位;缺口词(没有英文释义)仍显示中文,否则答案是空的(R-DW6)
-  const showSenses = card.senses.length > 0 && !(defLang === "en" && showDefs);
+  // 「仅英文」:有英文释义时中文行让位;缺口词(没有英文释义)回退成中文,否则答案是空的(计划 2026-10-13-defs-default R-A7)
+  const { groups: defGroups, showDefs, showSenses } = defView(defLang, card);
   return (
     <SurfaceCard data-testid="word-card" className={cn("px-4 pb-4 pt-5", className)}>
       {eyebrow || badge ? (
