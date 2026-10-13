@@ -52,7 +52,8 @@ English definitions (server/dictionaries/wordbook-definitions/)
            Attribution and licence text: server/dictionaries/wordbook-definitions/LICENSE-OEWN
   Open English WordNet is derived from Princeton WordNet. Changes are described above.
 
-ECDICT 1.0.28 (used only while building definitions.jsonl: word forms and frequency ranks; no ECDICT entry is redistributed)
+ECDICT 1.0.28 (used while building definitions.jsonl and forms.txt: word forms and frequency ranks. forms.txt redistributes inflected-form -> lemma
+  pairs derived from the ECDICT `exchange` field, for the word-book headwords only; no ECDICT entry text is redistributed)
   Source:  https://github.com/skywind3000/ECDICT (skywind3000)
   License: MIT License. Full text: server/dictionaries/wordbook-definitions/LICENSE-ECDICT
 
