@@ -65,7 +65,7 @@ const topOf = (rel: string) => rel.split("/")[0];
 const featureOf = (rel: string) => (rel.startsWith("features/") ? rel.split("/")[1] : null);
 const isTest = (rel: string) => /\.test\.tsx?$/.test(rel);
 const CROSS_FEATURE_BASELINE = new Set([
-  "chat->agents", "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "lookup->practice",
+  "chat->agents", "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "library->practice", "lookup->practice",
   "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
   "rank->chat", "rank->practice", "realtime->chat", "rooms->agents", "rooms->chat",
   "vocabulary->chat", "wordbook->chat", "wordbook->rank",
@@ -74,6 +74,8 @@ const CROSS_FEATURE_BASELINE = new Set([
 // agents 是产品本身(不受 LINKS_ENABLED 控制),不能挂在扩展点上;agents 不导入任何 feature,所以没有桶循环。
 // A5(agents-rooms W3,INDEX X13):rooms->agents —— 房间设置里的「智能体」区用 agents 的 PersonaPicker 选角色,消息列表用 ProcessCapsule 显示只给提问者的过程
 // (spec 2026-10-12-agents §9.2);两者都是 lazy-parts 的懒包装,是产品本身而不是学习联动,不能挂在扩展点上;agents 不导入任何 feature,没有桶循环。
+// W2(video-import-web-shadow R-SH06):library->practice —— 跟读库的跟读用 practice 的评测 API、savePracticeItem 与 AssessmentScores 类型
+// (spec 2026-10-13-video-import §2.2、§11.4),与 chat->practice 同理;practice 不导入 library,没有桶循环。别的 library 边一律不加。
 /** `to` 已去掉扩展名;`rel` 带扩展名。 */
 const isRegister = (rel: string) => /^features\/[^/]+\/register(-[a-z-]+)?(\.tsx?)?$/.test(rel);
 
@@ -174,6 +176,9 @@ describe("web architecture boundaries", () => {
     expect(violationsOf("features/wordbook/register-daily-tasks.tsx", 'import { goPractice } from "~/features/practice";')).toHaveLength(2);
     expect(violationsOf("features/progress/x.tsx", 'import { RankCard } from "~/features/rank";')).toHaveLength(1);
     expect(violationsOf("features/practice/x.tsx", 'import { RankCard } from "~/features/rank";')).toEqual([]);
+    expect(violationsOf("features/library/x.tsx", 'import { savePracticeItem } from "~/features/practice";')).toEqual([]);
+    expect(violationsOf("features/library/x.tsx", 'import { useTtsPlayer } from "~/features/chat";')).toHaveLength(1);
+    expect(violationsOf("features/library/x.tsx", 'import { LookupLayer } from "~/features/lookup";')).toHaveLength(1);
   });
 
   it("AddVocabularyButton is used only inside features/vocabulary", () => {
@@ -192,7 +197,7 @@ describe("web architecture boundaries", () => {
       }
     }
     expect([...CROSS_FEATURE_BASELINE].filter((e) => !edges.has(e))).toEqual([]);
-    expect(CROSS_FEATURE_BASELINE.size).toBe(18);
+    expect(CROSS_FEATURE_BASELINE.size).toBe(19);
   });
 
   it("every extension point is rendered by product code and every contribution names a real point", () => {
