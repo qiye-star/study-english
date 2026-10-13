@@ -27,6 +27,7 @@ from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
+from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
@@ -57,8 +58,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
+        tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         yield
         await _stop_tasks(tasks, exclude="metering")
+        await app_.state.library.shutdown()  # running jobs stay `processing`; recovered at the next start
         for task in list(agents_runtime(app_).tasks):  # after-turn hooks still running (memory extraction, plan A2)
             task.cancel()
         with suppress(asyncio.TimeoutError, Exception):  # last pass over queued learning events, give up after 2 s
@@ -96,6 +99,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install, rooms_agents.install)  # + agents (plan A5)
+    install_library(app)  # app.state.library: queue, media tickets, fetch stage (spec 2026-10-13-video-import §6.1)
+    # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
+    # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     _log_secrets(None, settings)
