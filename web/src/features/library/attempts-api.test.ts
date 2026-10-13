@@ -4,8 +4,8 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import en from "./locales/en.json";
 import zh from "./locales/zh-CN.json";
 import {
-  BEST_TTL_MS, SHADOW_SERVER_ERRORS, analyzeSegment, bestBySegment, listAttempts, loadBest, mergeBest, mergeServerBest, noteAttempt,
-  patchSegment, peekBest, recordAttempt, resetBestCache, translateSegments, type SavedSegment,
+  BEST_TTL_MS, SHADOW_SERVER_ERRORS, bestBySegment, listAttempts, loadBest, mergeBest, mergeServerBest, noteAttempt,
+  patchSegment, peekBest, recordAttempt, resetBestCache, type SavedSegment,
 } from "./attempts-api";
 
 const client = (routes: Parameters<typeof createFetchMock>[0]) => {
@@ -46,19 +46,23 @@ describe("library attempts api (spec §9)", () => {
     expect(mock.calls[0].url.search).toBe("");
   });
 
-  it("patches only the given keys and returns the server's segment", async () => {
+  it("patches only the given keys and returns the server's {segment} with its D8 fields", async () => {
     const { api, mock } = client({
-      "PATCH /api/library/items/i1/segments/2": () => json({ idx: 2, start_ms: 1400, end_ms: 3000, text: "Hello world." }),
+      "PATCH /api/library/items/i1/segments/2": () => json({ segment: {
+        idx: 2, start_ms: 1400, end_ms: 3000, text: "Hello world.", zh: null, zh_lang: null, has_analysis: false, analysis_lang: null,
+      } }),
     });
-    expect(await patchSegment(api, "i1", 2, { startMs: 1400 }, BASE)).toEqual({ idx: 2, startMs: 1400, endMs: 3000, text: "Hello world." });
+    expect(await patchSegment(api, "i1", 2, { startMs: 1400 }, BASE)).toEqual({
+      idx: 2, startMs: 1400, endMs: 3000, text: "Hello world.", zh: null, zhLang: null, hasAnalysis: false, analysisLang: null,
+    });
     expect(JSON.parse(mock.calls[0].body as string)).toEqual({ start_ms: 1400 });
   });
 
-  it("falls back to the local edit when the response carries no segment, and unwraps {segment}", async () => {
+  it("falls back to the local edit when the response carries no segment, and also accepts a bare segment", async () => {
     const empty = client({ "PATCH /api/library/items/i1/segments/2": () => new Response(null, { status: 200 }) });
     expect(await patchSegment(empty.api, "i1", 2, { text: "Hello there." }, BASE)).toEqual({ ...BASE, text: "Hello there." });
     const wrapped = client({
-      "PATCH /api/library/items/i1/segments/2": () => json({ segment: { idx: 2, start_ms: 1000, end_ms: 3200, text: "Hello world." } }),
+      "PATCH /api/library/items/i1/segments/2": () => json({ idx: 2, start_ms: 1000, end_ms: 3200, text: "Hello world." }),
     });
     expect(await patchSegment(wrapped.api, "i1", 2, { endMs: 3200 }, BASE)).toEqual({ ...BASE, endMs: 3200 });
   });
@@ -125,37 +129,13 @@ describe("best-score cache (plan W2 R-SH30)", () => {
   });
 });
 
-describe("translate and analysis calls (spec §9, D8)", () => {
-  it("posts the indices and native language in the body, never in the URL", async () => {
-    const { api, mock } = client({
-      "POST /api/library/items/i1/translate": () => json([{ idx: 1, zh: "你好" }, { idx: 2, zh: "" }, { zh: "x" }]),
-    });
-    expect(await translateSegments(api, "i1", [1, 2], "zh-CN")).toEqual({ items: [{ idx: 1, zh: "你好" }], limited: false });
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ indices: [1, 2], native_language: "zh-CN" });
-    expect(mock.calls[0].url.search).toBe("");
-  });
-
-  it("reads a wrapped result and the limited flag", async () => {
-    const { api } = client({
-      "POST /api/library/items/i1/translate": () => json({ items: [{ idx: 3, zh: "好" }], limited: true }),
-    });
-    expect(await translateSegments(api, "i1", [3, 4], "zh-CN")).toEqual({ items: [{ idx: 3, zh: "好" }], limited: true });
-  });
-
-  it("requests an analysis for one sentence and returns the stored text", async () => {
-    const { api, mock } = client({
-      "POST /api/library/items/i1/segments/2/analysis": () => json({ analysis: "### Grammar\nbe going to", cached: true }),
-    });
-    expect(await analyzeSegment(api, "i1", 2, "zh-CN")).toEqual({ analysis: "### Grammar\nbe going to", cached: true });
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ native_language: "zh-CN" });
-    expect(mock.calls[0].url.search).toBe("");
-  });
-
-  it("treats an empty analysis as an error and keeps the status of a refusal", async () => {
-    const empty = client({ "POST /api/library/items/i1/segments/2/analysis": () => json({ analysis: "  ", cached: false }) });
-    await expect(analyzeSegment(empty.api, "i1", 2, "zh-CN")).rejects.toBeInstanceOf(ApiError);
-    const full = client({ "POST /api/library/items/i1/segments/2/analysis": () => json({ error: "Daily limit reached" }, 429) });
-    await expect(analyzeSegment(full.api, "i1", 2, "zh-CN")).rejects.toMatchObject({ status: 429 });
+describe("server error texts (real server/app/library/errors.py)", () => {
+  it("maps the sentence errors the real server sends to the shadow strings", () => {
+    expect(SHADOW_SERVER_ERRORS["Not Found"]).toBe("web.library.shadow.errors.notFound");
+    expect(SHADOW_SERVER_ERRORS["Sentence not found"]).toBe("web.library.shadow.errors.notFound");
+    expect(SHADOW_SERVER_ERRORS["Invalid sentence times"]).toBe("web.library.shadow.errors.badTimes");
+    expect(SHADOW_SERVER_ERRORS["Invalid sentence text"]).toBe("web.library.shadow.errors.badText");
+    expect(SHADOW_SERVER_ERRORS["Item is not ready"]).toBe("web.library.errors.notReady"); // 底表来自 W1
   });
 
   it("maps every server error to a key that exists in both languages", () => {
