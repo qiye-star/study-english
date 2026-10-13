@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
@@ -97,7 +97,7 @@ describe("MePage", () => {
     expect(screen.getByText("收到语音消息时自动显示文字和翻译")).toBeInTheDocument();
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-checked", "true");
-    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: true });
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toEqual({ language: "zh-CN", roomVoiceAutoText: true, colorScheme: "system" });
     unmount();
     localStorage.removeItem("enjoy-web.settings");
     await i18n.changeLanguage("en");
@@ -131,6 +131,27 @@ describe("MePage", () => {
     } finally {
       localStorage.removeItem("enjoy-web.settings");
       await i18n.changeLanguage("en");
+    }
+  });
+  it("switches the appearance between system, light and dark and remembers it (D12)", async () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const select = screen.getByTestId("me-color-scheme");
+    expect(select).toHaveValue("system");
+    expect(within(select).getAllByRole("option").map((o) => (o as HTMLOptionElement).value)).toEqual(["system", "light", "dark"]);
+    expect(screen.getByText("Appearance")).toBeInTheDocument();
+    expect(screen.getByText("Follow system", { selector: "span.num" })).toBeInTheDocument(); // 行右侧的当前值(<option> 里也有同名文字,所以限定选择器)
+    await userEvent.selectOptions(select, "dark");
+    expect(select).toHaveValue("dark");
+    expect(screen.getByText("Dark", { selector: "span.num" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toMatchObject({ colorScheme: "dark" });
+    await userEvent.selectOptions(select, "system");
+    expect(JSON.parse(localStorage.getItem("enjoy-web.settings")!)).toMatchObject({ colorScheme: "system" });
+  });
+
+  it("has the appearance copy in both languages", () => {
+    for (const [lang, title, dark] of [["en", "Appearance", "Dark"], ["zh-CN", "外观", "深色"]] as const) {
+      expect(i18n.getFixedT(lang)("web.me.colorScheme")).toBe(title);
+      expect(i18n.getFixedT(lang)("web.me.colorSchemeOptions.dark")).toBe(dark);
     }
   });
   it("shows the agents row when agents are on", async () => {

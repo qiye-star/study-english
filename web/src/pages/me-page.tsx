@@ -1,6 +1,6 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, SmartphoneIcon, type LucideIcon,
+  LanguagesIcon, LogOutIcon, SmartphoneIcon, SunMoonIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,7 @@ import { PageHeader } from "~/layout/page-header";
 import { Slot } from "~/lib/extension-points-react";
 import { shouldShowIosInstallHint } from "~/pwa/ios";
 import { useSettings } from "~/settings/settings-context";
+import { COLOR_SCHEMES, type ColorScheme } from "~/settings/color-scheme-pref";
 
 const oneDecimal = (n: number) => Math.round(n * 10) / 10;
 
@@ -124,7 +125,7 @@ function WeekStrip({ stats }: { stats: Stats }) {
 export function MePage() {
   const { t } = useTranslation();
   const { user, api, logout } = useAuth();
-  const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText } = useSettings();
+  const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText, colorScheme, setColorScheme } = useSettings();
   const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
@@ -210,6 +211,11 @@ export function MePage() {
 
         <SectionGroup title={t("web.me.groups.general")} bare>
           <div className="divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface">
+            <SelectRow id={`${id}-color-scheme`} testId="me-color-scheme" icon={SunMoonIcon} title={t("web.me.colorScheme")}
+              hint={t("web.me.colorSchemeHint")} display={t(`web.me.colorSchemeOptions.${colorScheme}`)} value={colorScheme}
+              onChange={(v) => setColorScheme(v as ColorScheme)}>
+              {COLOR_SCHEMES.map((s) => <option key={s} value={s}>{t(`web.me.colorSchemeOptions.${s}`)}</option>)}
+            </SelectRow>
             <SelectRow id={`${id}-language`} testId="me-language" icon={LanguagesIcon} title={t("web.me.language")}
               hint={t("web.me.languageHint")} display={t(`web.languages.${language}`)} value={language}
               onChange={(v) => setLanguage(v as UiLanguage)}>

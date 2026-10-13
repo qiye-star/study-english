@@ -1,6 +1,6 @@
 # web/src/pages/
 
-Screens that are not owned by a single feature: `login-page.tsx`, `install-page.tsx`, `me-page.tsx` (profile, language, playback rate, grammar prompt editor, stats).
+Screens that are not owned by a single feature: `login-page.tsx`, `install-page.tsx`, `me-page.tsx` (profile, appearance, language, playback rate, grammar prompt editor, stats).
 
 ## Allowed dependencies
 - Features only via `~/features/<name>`; `components/`, `layout/`, `auth/`, `settings/`, `api/`, `lib/`, `pwa/`, `i18n/`, `@renderer/*`.

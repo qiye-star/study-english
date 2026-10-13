@@ -9,7 +9,9 @@
       "progressSummary": "近 7 天 · 活跃 {{active}} 天 · 消息 {{messages}} 条",
       "week": "近 7 天的练习情况", "weekDay": "{{day}}:{{state}}", "active": "已练习", "inactive": "未练习",
       "today": "今天",
-      "roomVoiceAutoText": "联机语音自动转文字", "roomVoiceAutoTextHint": "收到语音消息时自动显示文字和翻译"
+      "roomVoiceAutoText": "联机语音自动转文字", "roomVoiceAutoTextHint": "收到语音消息时自动显示文字和翻译",
+      "colorScheme": "外观", "colorSchemeHint": "跟随系统,或固定为浅色、深色",
+      "colorSchemeOptions": { "system": "跟随系统", "light": "浅色", "dark": "深色" }
     },
     "login": { "tagline": "每天开口说英语。" },
     "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
