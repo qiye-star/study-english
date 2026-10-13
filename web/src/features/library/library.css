@@ -1,0 +1,577 @@
+/*
+ * 跟读库视觉层(计划 2026-10-13-video-import-web-library:LV1–LV3;spec §11.4a、D11;R-L26–R-L30)。
+ * 依据 docs/superpowers/design/video-import-v1/mockup-glass.html:模糊 34px、饱和 200%、深色填充 .10 / 强面 .17 / 内高光边 .26,
+ * 浅色填充 .38 / .55。只在 .library-root 内生效,不动 theme.css;文字颜色沿用全站令牌 rgb(var(--ink));深浅色跟随 html.dark(D12)。
+ * 规则(library-css.test.ts 守着):一屏模糊层 ≤ 3(只有 .lib-glass、.lib-gblur、.library-root.lib-sheet 写了 backdrop-filter;
+ * 全站底栏是第三层,所以播放器顶栏胶囊不模糊);动画只用 transform / opacity / background-position(例外:.lib-glow 的 --lib-a
+ * 只重绘、.lib-bw 的 filter 一次性);文末是低端机 html.lite、prefers-reduced-motion、prefers-reduced-transparency 的降级。
+ */
+
+/* ===== 令牌 ===== */
+.library-root {
+  --lib-page: #eef1f8;
+  --lib-solid: #ffffff;
+  --lib-pop: rgba(255, 255, 255, 0.92);
+  --lib-glass-bg: rgba(255, 255, 255, 0.38);
+  --lib-glass-strong: rgba(255, 255, 255, 0.55);
+  --lib-glass-bd: rgba(255, 255, 255, 0.85);
+  --lib-glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+  --lib-glass-sh: 0 10px 30px -8px rgba(36, 56, 110, 0.28);
+  --lib-card-sh: 0 6px 18px -10px rgba(36, 56, 110, 0.3);
+  --lib-chip: rgba(255, 255, 255, 0.6);
+  --lib-hair: rgba(17, 19, 24, 0.1);
+  --lib-blue-tint: rgba(36, 86, 219, 0.12);
+  --lib-blob1: #9db8ff;
+  --lib-blob2: #b9f0e6;
+  --lib-blob3: #ffd7b0;
+  --lib-blur: 34px;
+  /* 全站底栏的高度(glass-tab-bar 的 TAB_BAR_HEIGHT)+ 安全区:页面延伸到底栏下面,浮层贴着底栏上沿 */
+  --lib-tab: calc(3.5rem + env(safe-area-inset-bottom));
+}
+.dark .library-root {
+  --lib-page: #0b0d14;
+  --lib-solid: #1a1d25;
+  --lib-pop: rgba(26, 29, 37, 0.92);
+  --lib-glass-bg: rgba(150, 170, 255, 0.1);
+  --lib-glass-strong: rgba(120, 140, 230, 0.17);
+  --lib-glass-bd: rgba(255, 255, 255, 0.26);
+  --lib-glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 0 0 22px rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  --lib-glass-sh: 0 14px 38px -8px rgba(0, 0, 0, 0.65);
+  --lib-card-sh: 0 6px 18px -10px rgba(0, 0, 0, 0.6);
+  --lib-chip: rgba(255, 255, 255, 0.1);
+  --lib-hair: rgba(255, 255, 255, 0.12);
+  --lib-blue-tint: rgba(143, 176, 255, 0.18);
+  --lib-blob1: #4f6dff;
+  --lib-blob2: #12b3a2;
+  --lib-blob3: #8f5a3a;
+}
+
+/* ===== 页面 ===== */
+/* 页面底色延伸到全站底栏下面(负外边距 + 等量内边距),底栏的玻璃才不会透出别的底色 */
+.lib-page {
+  position: relative;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-height: 0;
+  color: rgb(var(--ink));
+  background: var(--lib-page);
+  padding-bottom: var(--lib-tab);
+  margin-bottom: calc(-1 * var(--lib-tab));
+}
+/* 播放器:自己是一个不滚动的 flex 列(滚动在 .lib-segments 里,R-L33) */
+.lib-player {
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.lib-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ===== SoftAurora:三团慢速漂移的色块(纯 CSS,不用 WebGL);R-L30 只覆盖页面第一屏 ===== */
+.lib-aurora {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: min(100%, 100dvh);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.lib-aurora i {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  filter: blur(50px);
+  opacity: 0.9;
+  animation: lib-drift 18s ease-in-out infinite alternate;
+}
+.lib-aurora i:nth-child(1) { left: -80px; top: 40px; background: var(--lib-blob1); }
+.lib-aurora i:nth-child(2) { right: -100px; top: 280px; background: var(--lib-blob2); animation-duration: 23s; }
+.lib-aurora i:nth-child(3) { left: 20px; bottom: -100px; background: var(--lib-blob3); animation-duration: 27s; }
+@keyframes lib-drift {
+  to { transform: translate(40px, -50px) scale(1.15); }
+}
+
+/* ===== GlassSurface:模糊 + 饱和 + 内高光边 + 外阴影 ===== */
+.lib-glass {
+  background: var(--lib-glass-bg);
+  -webkit-backdrop-filter: blur(var(--lib-blur)) saturate(2);
+  backdrop-filter: blur(var(--lib-blur)) saturate(2);
+  border: 1px solid var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi), var(--lib-glass-sh);
+}
+.lib-glass--strong { background: var(--lib-glass-strong); }
+/* 列表卡片等:只用半透明填充 + 高光边,不加 backdrop-filter(一屏最多 3 层模糊) */
+.lib-tint {
+  background: var(--lib-glass-bg);
+  border: 1px solid var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi), var(--lib-card-sh);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .lib-glass,
+  .library-root.lib-sheet { background: var(--lib-solid); }
+  .lib-gblur { display: none; }
+}
+
+/* ===== SpotlightCard:手指 / 鼠标所在位置的跟随高光 ===== */
+.lib-spot { position: relative; overflow: hidden; }
+.lib-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+  background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.55), transparent 70%);
+}
+.dark .lib-spot::before {
+  background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), rgba(143, 176, 255, 0.28), transparent 70%);
+}
+.lib-spot[data-press]::before { opacity: 1; }
+@media (hover: hover) {
+  .lib-spot:hover::before { opacity: 1; }
+}
+/* 卡片依次浮入(一次性);--lib-delay 由 ItemCard 按序号给 */
+.lib-rise {
+  opacity: 0;
+  animation: lib-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: var(--lib-delay, 0s);
+}
+@keyframes lib-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ===== 列表页:已用空间条、「添加」主按钮 ===== */
+.lib-quota {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 18px;
+  font-size: 12px;
+  color: rgb(var(--ink-2));
+}
+.lib-quota-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--lib-hair); overflow: hidden; }
+.lib-quota-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgb(var(--blue)), rgb(var(--teal)));
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+}
+/* 贴着底栏上沿的悬浮按钮:sticky 的下沿算的是滚动区(含内边距)的下沿,所以要把底栏高度算进去(R-L33) */
+.lib-fab {
+  position: sticky;
+  bottom: calc(var(--lib-tab) + 12px);
+  z-index: 30;
+  align-self: flex-end;
+  margin: auto 16px 12px 0;
+}
+
+/* ===== ShinyText:处理中的文字流光;GradientText:高分渐变字(回退色在前,@supports 里再覆盖) ===== */
+.lib-shiny { color: rgb(var(--ink-2)); }
+.lib-gt { color: #18a058; font-weight: 700; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .lib-shiny {
+    background: linear-gradient(110deg, rgb(var(--ink-2)) 35%, rgb(var(--ink)) 50%, rgb(var(--ink-2)) 65%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: lib-shine 2.4s linear infinite;
+  }
+  .lib-gt {
+    background: linear-gradient(90deg, #18a058, #2cc7b0 60%, #4b78f0);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+@keyframes lib-shine {
+  from { background-position: 130% 0; }
+  to { background-position: -90% 0; }
+}
+
+/* ===== Stepper:处理阶段(圆点 + 连线,当前阶段脉冲) ===== */
+.lib-steps { display: flex; align-items: center; margin-top: 9px; }
+.lib-step {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lib-hair);
+  color: rgb(var(--ink-3));
+}
+.lib-step[data-state="done"] { background: rgb(var(--blue)); color: rgb(var(--on-blue)); }
+.lib-step[data-state="now"] { background: var(--lib-solid); border: 2px solid rgb(var(--blue)); }
+.lib-step[data-state="now"]::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--blue));
+  animation: lib-pulse 1.6s ease-out infinite;
+}
+.lib-step-line { flex: 1; height: 2px; background: var(--lib-hair); }
+.lib-step-line[data-state="done"] { background: rgb(var(--blue)); }
+.lib-step-labels { display: flex; justify-content: space-between; margin-top: 3px; font-size: 9.5px; color: rgb(var(--ink-3)); }
+@keyframes lib-pulse {
+  from { transform: scale(0.7); opacity: 0.7; }
+  to { transform: scale(1.5); opacity: 0; }
+}
+
+/* ===== SpecularButton:主按钮,斜向高光扫过 ===== */
+.library-root .lib-spec {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(180deg, #4b78f0, #2456db);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 10px 24px -8px rgba(36, 86, 219, 0.65);
+}
+.dark .library-root .lib-spec { background: linear-gradient(180deg, #6d93ff, #3a63e0); }
+.library-root .lib-spec::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 46%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-130%) skewX(-22deg);
+  animation: lib-sweep 3.2s ease-in-out infinite;
+}
+.library-root .lib-spec:active { transform: scale(0.97); }
+@keyframes lib-sweep {
+  0%, 55% { transform: translateX(-130%) skewX(-22deg); }
+  100% { transform: translateX(285%) skewX(-22deg); }
+}
+
+/* ===== 添加素材弹层(BottomSheetContent 经 Portal 在 body 下,所以它自己带 .library-root):悬浮的强玻璃板 ===== */
+.library-root.lib-sheet {
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  width: auto;
+  max-width: min(640px, calc(100% - 16px));
+  border-radius: 28px;
+  background: var(--lib-glass-strong);
+  -webkit-backdrop-filter: blur(var(--lib-blur)) saturate(2);
+  backdrop-filter: blur(var(--lib-blur)) saturate(2);
+  border: 1px solid var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi), var(--lib-glass-sh);
+}
+.library-root .lib-field {
+  background: var(--lib-chip);
+  border: 0.5px solid var(--lib-hair);
+  border-radius: 14px;
+}
+
+/* ===== 播放器:顶栏胶囊、媒体区、句子列表 ===== */
+.lib-stage { position: relative; flex: none; padding-top: env(safe-area-inset-top); background: #000; }
+.lib-stage-audio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  aspect-ratio: 3 / 1;
+  background: linear-gradient(160deg, #1c2540, #3a2a55 55%, #124a52);
+  color: rgba(255, 255, 255, 0.85);
+}
+/* 压在视频上的顶栏:半透明填充 + 高光边,不模糊(视频上做 backdrop-filter 很贵,且全站底栏已占第三层,R-L26) */
+.lib-bar {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 6px;
+  border-radius: 22px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+}
+.lib-bar-btn { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; color: inherit; }
+.lib-bar-btn svg { width: 22px; height: 22px; }
+.lib-bar-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.lib-stage-alert {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+/* 句子列表是圆角抽屉,自己滚动(文档与 <main> 都不滚,R-L33) */
+.lib-segments {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: -14px;
+  padding: 8px 10px 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 26px 26px 0 0;
+  background: var(--lib-page);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
+}
+.lib-row { position: relative; margin: 2px 0; padding: 4px 6px 4px 8px; border-radius: 18px; }
+/* 非当前行跳过屏幕外的布局与绘制(不引虚拟列表库,spec §11.5);当前行不用,否则 paint containment 会裁掉它的投影与描边 */
+.lib-row:not([aria-current="true"]) { content-visibility: auto; contain-intrinsic-size: auto 72px; }
+.lib-row[aria-current="true"] { background: var(--lib-glass-strong); box-shadow: var(--lib-glass-hi), 0 8px 22px -10px rgba(36, 86, 219, 0.5); }
+.lib-row-play {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: rgb(var(--ink-2));
+}
+.lib-row[aria-current="true"] .lib-row-play { color: rgb(var(--blue)); }
+.lib-seg-text {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.lib-zh { margin-top: 2px; font-size: 13px; line-height: 1.5; color: rgb(var(--ink-2)); }
+.lib-zh-skeleton {
+  display: block;
+  width: min(70%, 16rem);
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 6px;
+  background: var(--lib-hair);
+  animation: lib-skel 1.4s ease-in-out infinite;
+}
+@keyframes lib-skel {
+  50% { opacity: 0.45; }
+}
+
+/* ===== BorderGlow:当前句的流动描边(只描 1.5px;@property 不被支持时是静态描边) ===== */
+@property --lib-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.lib-glow { position: relative; }
+.lib-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: conic-gradient(from var(--lib-a, 0deg), transparent 0 55%, rgb(var(--blue)) 78%, #7fe3d6 90%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: lib-spin 3.6s linear infinite;
+}
+@keyframes lib-spin {
+  to { --lib-a: 360deg; }
+}
+
+/* ===== GradualBlur:列表底部渐进模糊,文字滑入控制条时自然淡出(算一层模糊) ===== */
+.lib-gblur {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--lib-tab);
+  height: 190px;
+  z-index: 20;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  -webkit-mask-image: linear-gradient(transparent, #000 70%);
+  mask-image: linear-gradient(transparent, #000 70%);
+}
+
+/* ===== 控制胶囊与芯片(z-index ≤ 30:选词操作条是 z-40,会盖在它上面,R-L33) ===== */
+.lib-ctrl {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(var(--lib-tab) + 10px);
+  z-index: 30;
+  padding: 10px 12px 12px;
+  border-radius: 30px;
+}
+.lib-ctrl-main { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.lib-ctrl-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: rgb(var(--ink)); }
+.lib-ctrl-btn:disabled { opacity: 0.4; }
+.lib-ctrl-btn svg { width: 24px; height: 24px; }
+.lib-ctrl-play { width: 48px; height: 48px; }
+.lib-chips { display: flex; justify-content: center; gap: 7px; margin-top: 8px; }
+.lib-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 17px;
+  font-size: 12.5px;
+  color: rgb(var(--ink));
+  background: var(--lib-chip);
+  border: 0.5px solid var(--lib-hair);
+}
+.lib-chip::before { content: ""; position: absolute; inset: -5px -2px; } /* 视觉 34px,命中区 44px */
+.lib-chip:disabled { opacity: 0.4; }
+.lib-chip svg { width: 15px; height: 15px; }
+.lib-chip[aria-pressed="true"] { color: rgb(var(--blue)); font-weight: 600; background: var(--lib-blue-tint); }
+.lib-notice { margin: 0 4px 6px; font-size: 12px; text-align: center; color: rgb(var(--ink-2)); }
+.lib-notice-btn { margin-left: 6px; min-height: 44px; padding: 0 6px; font-weight: 600; color: rgb(var(--blue)); }
+
+/* ===== ElasticSlider:速度滑块(弹性手感,吸附档位);只动 transform ===== */
+.lib-speed {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: calc(var(--lib-tab) + 150px);
+  z-index: 35;
+  padding: 12px 16px;
+  border-radius: 24px;
+  background: var(--lib-pop);
+  border: 1px solid var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi), var(--lib-glass-sh);
+}
+.lib-speed-top { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12.5px; color: rgb(var(--ink-2)); }
+.lib-speed-top b { font-size: 15px; color: rgb(var(--ink)); }
+.lib-slider-track { position: relative; height: 36px; touch-action: none; cursor: pointer; }
+.lib-slider-track:focus-visible { outline: 2px solid rgb(var(--ring)); outline-offset: 2px; border-radius: 10px; }
+.lib-slider-rail { position: absolute; left: 0; right: 0; top: 15px; height: 6px; border-radius: 3px; background: var(--lib-hair); overflow: hidden; }
+.lib-slider-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(var(--blue)), rgb(var(--teal)));
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lib-slider-knob {
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lib-slider-ticks { display: flex; justify-content: space-between; margin-top: -2px; padding: 0 2px; font-size: 10.5px; color: rgb(var(--ink-3)); }
+
+/* ===== ClickSpark / BlurText ===== */
+.lib-spark-host { position: relative; display: inline-flex; }
+.lib-spark {
+  position: absolute;
+  z-index: 90;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: lib-spk 0.55s ease-out forwards;
+}
+@keyframes lib-spk {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); }
+}
+.lib-bw {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(6px);
+  animation: lib-bw 0.5s ease forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes lib-bw {
+  to { opacity: 1; filter: none; transform: none; }
+}
+
+/* ===== 降级:低端机 html.lite(layout/glass-quality.ts):去模糊、去动画、玻璃退为实色 ===== */
+html.lite .lib-glass,
+html.lite .library-root.lib-sheet {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--lib-solid);
+}
+html.lite .lib-gblur {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  background: linear-gradient(transparent, var(--lib-page) 80%);
+}
+html.lite .lib-aurora { opacity: 0.5; }
+html.lite .lib-aurora i,
+html.lite .lib-shiny,
+html.lite .library-root .lib-spec::after,
+html.lite .lib-glow::after,
+html.lite .lib-step[data-state="now"]::after,
+html.lite .lib-zh-skeleton {
+  animation: none;
+}
+html.lite .lib-rise { animation: none; opacity: 1; }
+html.lite .lib-bw { animation: none; opacity: 1; filter: none; transform: none; }
+
+/* ===== 降级:系统「减少动态效果」:全部静止 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .lib-aurora i,
+  .lib-shiny,
+  .library-root .lib-spec::after,
+  .lib-glow::after,
+  .lib-step[data-state="now"]::after,
+  .lib-zh-skeleton,
+  .lib-spark {
+    animation: none;
+  }
+  .lib-rise { animation: none; opacity: 1; }
+  .lib-bw { animation: none; opacity: 1; filter: none; transform: none; }
+  .lib-slider-fill,
+  .lib-slider-knob { transition: none; }
+}
+
+/* ===== 降级:系统「减少透明度」:玻璃一律实心 ===== */
+@media (prefers-reduced-transparency: reduce) {
+  .lib-glass,
+  .library-root.lib-sheet {
+    background: var(--lib-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .lib-gblur { display: none; }
+}
