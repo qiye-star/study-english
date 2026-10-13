@@ -123,6 +123,11 @@
         "badUrl": "链接无效或不允许访问。",
         "notReady": "这条素材还没有处理完。",
         "invalidState": "当前状态下不能这样操作。",
+        "disabled": "本服务器没有开启跟读库。",
+        "mediaTools": "服务器暂时无法处理媒体,请联系管理员。",
+        "uploadExpired": "上传已过期,请删除后重新上传。",
+        "aiDisabled": "本服务器没有开启 AI 辅助。",
+        "aiUnavailable": "AI 辅助暂时不可用,请稍后再试。",
         "kind": {
           "too_large": "文件超过了单个文件的大小上限。",
           "too_long": "时长超过了单条上限。",

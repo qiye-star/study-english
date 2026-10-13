@@ -42,7 +42,7 @@ afterEach(async () => {
 function render(detail: Record<string, unknown> | null, extra: Record<string, Handler> = {}, config: unknown = CONFIG_RAW) {
   const mock = createFetchMock({
     "GET /api/library/config": () => json(config),
-    "GET /api/library/items/i1": () => (detail ? json(detail) : json({ error: "Library item not found" }, 404)),
+    "GET /api/library/items/i1": () => (detail ? json(detail) : json({ error: "Not Found" }, 404)),
     "POST /api/library/items/i1/media-ticket": () => json({ url: TICKET, expires_in: 1800 }),
     "PATCH /api/library/items/i1": () => json({}),
     ...extra,

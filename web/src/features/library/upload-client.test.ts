@@ -88,7 +88,7 @@ describe("uploadFile (spec §8, R-L7, R-L8)", () => {
 
   it("re-aligns with the server after a 409 out-of-order answer", async () => {
     const { mock, api } = setup({
-      [`PUT ${BASE}/chunks/1`]: () => json({ error: "Chunk out of order" }, 409),
+      [`PUT ${BASE}/chunks/1`]: () => json({ error: "Unexpected chunk" }, 409),
       [`GET ${BASE}`]: () => json({ upload_received: 8, upload_total: 10 }),
     });
     await uploadFile(api, { file: FILE, filename: "a.mp3" }, { sleep: vi.fn(async () => {}) });

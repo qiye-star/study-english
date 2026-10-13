@@ -123,6 +123,11 @@
         "badUrl": "This link is not valid or not allowed.",
         "notReady": "This item is not ready yet.",
         "invalidState": "That is not possible right now.",
+        "disabled": "The library is turned off on this server.",
+        "mediaTools": "The server cannot process media right now. Contact the administrator.",
+        "uploadExpired": "The upload expired. Delete it and upload again.",
+        "aiDisabled": "AI help is turned off on this server.",
+        "aiUnavailable": "AI help is unavailable right now. Try again later.",
         "kind": {
           "too_large": "The file is larger than the upload limit.",
           "too_long": "It is longer than the allowed length.",

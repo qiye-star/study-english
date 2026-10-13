@@ -35,7 +35,9 @@ export interface LibraryItem {
   libraryBytes: number;
   subSource: SubSource | null;
   resumeMs: number;
+  resumeIdx: number;
   ratePct: number;
+  hasPoster: boolean;
   createdAt: string;
   lastOpenedAt: string | null;
 }
@@ -52,13 +54,15 @@ export interface LibrarySegment {
    */
   zh?: string | null;
   zhLang?: string | null;
-  /** D8:AI 分析的原文与语言(可空;W2 的分析卡使用,本车道的列表不显示) */
-  analysis?: string | null;
+  /**
+   * D8:这一句是否已有缓存的 AI 分析(契约夹具:详情只给 `has_analysis` 布尔,分析正文只在 POST analysis 的回包里)。
+   * 可选:W2 的测试里构造句子也不必带上它们。
+   */
+  hasAnalysis?: boolean;
   analysisLang?: string | null;
 }
 
 export interface LibraryItemDetail extends LibraryItem {
-  resumeIdx: number;
   segments: LibrarySegment[];
 }
 
@@ -66,11 +70,26 @@ export interface ItemPage { items: LibraryItem[]; nextCursor: string | null }
 export interface ItemPatch { title?: string; resumeMs?: number; resumeIdx?: number; ratePct?: number }
 export interface MediaTicket { url: string; expiresIn: number }
 export interface UploadStart { itemId: string; chunkBytes: number }
-export interface UploadStatus { uploadReceived: number; uploadTotal: number }
+/** 契约夹具:分片与状态回包相同,带 `item_id`、`status`、`chunk_bytes`。 */
+export interface UploadStatus { itemId: string; status: LibraryStatus; uploadReceived: number; uploadTotal: number; chunkBytes: number }
 
 const BASE = "/api/library";
 const itemPath = (id: string) => `${BASE}/items/${encodeURIComponent(id)}`;
 const uploadPath = (id: string) => `${BASE}/uploads/${encodeURIComponent(id)}`;
+
+/**
+ * 契约夹具(spec §9 的落地形状):条目类回包都包在 `{item}` 里,详情与补传字幕是 `{item, segments}`。
+ * 宽容地也接受裸条目(旧形状 / S2 的 imports 尚未录制)。
+ */
+export function unwrapItem(reply: unknown): LibraryItem {
+  const r = reply as { item?: LibraryItem } & LibraryItem;
+  return r.item ?? r;
+}
+
+export function unwrapDetail(reply: unknown): LibraryItemDetail {
+  const r = reply as { item?: LibraryItem; segments?: LibrarySegment[] } & LibraryItemDetail;
+  return r.item ? { ...r.item, segments: r.segments ?? [] } : r;
+}
 
 /** 小写扩展名(不含点);没有则为空串。 */
 export function extOf(name: string): string {
@@ -106,28 +125,28 @@ export async function listItems(api: ApiClient, cursor?: string | null, signal?:
   return { items: page.items ?? [], nextCursor: page.nextCursor ?? null };
 }
 
-export function getItem(api: ApiClient, id: string, signal?: AbortSignal): Promise<LibraryItemDetail> {
-  return api.request<LibraryItemDetail>("GET", itemPath(id), { signal });
+export async function getItem(api: ApiClient, id: string, signal?: AbortSignal): Promise<LibraryItemDetail> {
+  return unwrapDetail(await api.request<unknown>("GET", itemPath(id), { signal }));
 }
 
-export function patchItem(api: ApiClient, id: string, patch: ItemPatch): Promise<LibraryItem> {
-  return api.request<LibraryItem>("PATCH", itemPath(id), { json: patch });
+export async function patchItem(api: ApiClient, id: string, patch: ItemPatch): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("PATCH", itemPath(id), { json: patch }));
 }
 
 export async function deleteItem(api: ApiClient, id: string): Promise<void> {
   await api.request("DELETE", itemPath(id));
 }
 
-export function retryItem(api: ApiClient, id: string): Promise<LibraryItem> {
-  return api.request<LibraryItem>("POST", `${itemPath(id)}/retry`);
+export async function retryItem(api: ApiClient, id: string): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/retry`));
 }
 
-export function cancelItem(api: ApiClient, id: string): Promise<LibraryItem> {
-  return api.request<LibraryItem>("POST", `${itemPath(id)}/cancel`);
+export async function cancelItem(api: ApiClient, id: string): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/cancel`));
 }
 
-export function putItemSubtitles(api: ApiClient, id: string, file: Blob, filename: string): Promise<LibraryItem> {
-  return api.request<LibraryItem>("PUT", `${itemPath(id)}/subtitles`, { form: subtitleForm(file, filename) });
+export async function putItemSubtitles(api: ApiClient, id: string, file: Blob, filename: string): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("PUT", `${itemPath(id)}/subtitles`, { form: subtitleForm(file, filename) }));
 }
 
 export function mediaTicket(api: ApiClient, id: string): Promise<MediaTicket> {
@@ -156,13 +175,13 @@ export async function putUploadSubtitles(api: ApiClient, id: string, file: Blob,
   await api.request("PUT", `${uploadPath(id)}/subtitles`, { form: subtitleForm(file, filename), signal });
 }
 
-export function completeUpload(api: ApiClient, id: string, signal?: AbortSignal): Promise<LibraryItem> {
-  return api.request<LibraryItem>("POST", `${uploadPath(id)}/complete`, { signal });
+export async function completeUpload(api: ApiClient, id: string, signal?: AbortSignal): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${uploadPath(id)}/complete`, { signal }));
 }
 
 /** 链接只在 JSON 体里(隐私规则);开关关时服务端 404。 */
-export function importLink(api: ApiClient, body: { url: string; title?: string }): Promise<LibraryItem> {
-  return api.request<LibraryItem>("POST", `${BASE}/imports`, { json: body });
+export async function importLink(api: ApiClient, body: { url: string; title?: string }): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${BASE}/imports`, { json: body }));
 }
 
 /** D8:一次最多取这么多句的译文(spec §9)。 */
@@ -174,18 +193,18 @@ export interface TranslateResult { items: TranslatedSegment[]; limited: boolean 
 export interface AnalysisResult { analysis: string; cached: boolean }
 
 /**
- * D8 / E12:批量取译文(≤ 20 句)。句子文字不在请求里(服务端从库里读),URL 里只有条目 id。回包形状 S1 未定稿:
- * 接受 `{items, limited}` 与裸数组两种(计划「跨计划假设」)。`limited` = 额度满,已有的照常返回、缺的没有生成。
+ * D8 / E12:批量取译文(≤ 20 句)。句子文字不在请求里(服务端从库里读),URL 里只有条目 id。契约夹具的回包是
+ * `{segments: [{idx, zh}], limited}`;宽容地也接受 `{items, limited}` 与裸数组(计划「跨计划假设」)。`limited` = 额度满,已有的照常返回、缺的没有生成。
  */
 export async function translateSegments(
   api: ApiClient, id: string, indices: readonly number[], nativeLanguage: string, signal?: AbortSignal,
 ): Promise<TranslateResult> {
   if (indices.length > MAX_TRANSLATE_BATCH) throw new RangeError(`at most ${MAX_TRANSLATE_BATCH} sentences per translate call`);
-  const reply = await api.request<TranslatedSegment[] | { items?: TranslatedSegment[]; limited?: boolean }>(
+  const reply = await api.request<TranslatedSegment[] | { segments?: TranslatedSegment[]; items?: TranslatedSegment[]; limited?: boolean }>(
     "POST", `${itemPath(id)}/translate`, { json: { indices, nativeLanguage }, signal },
   );
   if (Array.isArray(reply)) return { items: reply, limited: false };
-  return { items: reply.items ?? [], limited: reply.limited === true };
+  return { items: reply.segments ?? reply.items ?? [], limited: reply.limited === true };
 }
 
 /** D8:某一句的 AI 分析(只在用户点「分析」时调用,不预取;额度满 → 429,见 isAiLimited)。URL 里只有条目 id 与句序号。 */
@@ -198,22 +217,45 @@ export function isAiLimited(err: unknown): boolean {
   return err instanceof ApiError && err.status === 429;
 }
 
-/** 服务端固定英文错误文本 → 文案键(计划「跨计划假设」;未命中走通用提示)。 */
+/**
+ * 服务端固定英文错误文本 → 文案键(契约夹具 `errors` 录的是 server/app/library/errors.py 的 API_ERRORS;未命中走通用提示)。
+ * `Invalid URL` 不在夹具里:链接导入(S2)的文本尚未录制,先保留。
+ */
 export const LIBRARY_SERVER_ERRORS: Record<string, string> = {
-  "Library item not found": "web.library.errors.notFound",
+  "Library is disabled": "web.library.errors.disabled",
   "Not Found": "web.library.errors.notFound",
-  "Quota exceeded": "web.library.errors.quota",
-  "Too many items": "web.library.errors.maxItems",
-  "File too large": "web.library.errors.tooLarge",
-  "Unsupported format": "web.library.errors.unsupportedFormat",
-  "Daily import limit reached": "web.library.errors.dailyLimit",
+  "Sentence not found": "web.library.errors.notFound",
+  "Media tools are not installed": "web.library.errors.mediaTools",
+  "Unsupported file type": "web.library.errors.unsupportedFormat",
+  "File is too large": "web.library.errors.tooLarge",
+  "Chunk is too large": "web.library.errors.chunkTooLarge",
+  "Library storage quota reached": "web.library.errors.quota",
+  "Library item limit reached": "web.library.errors.maxItems",
   "Too many uploads in progress": "web.library.errors.concurrentUploads",
-  "Chunk out of order": "web.library.errors.chunkOrder",
-  "Chunk too large": "web.library.errors.chunkTooLarge",
-  "Upload incomplete": "web.library.errors.uploadIncomplete",
+  "Daily import limit reached": "web.library.errors.dailyLimit",
+  "Upload is not in progress": "web.library.errors.invalidState",
+  "Unexpected chunk": "web.library.errors.chunkOrder",
+  "Wrong chunk size": "web.library.errors.chunkOrder",
+  "Chunk is required": "web.library.errors.chunkOrder",
+  "Upload is incomplete": "web.library.errors.uploadIncomplete",
+  "Upload expired": "web.library.errors.uploadExpired",
+  "Subtitle file is required": "web.library.errors.badSubtitle",
   "Invalid subtitle file": "web.library.errors.badSubtitle",
-  "Invalid URL": "web.library.errors.badUrl",
-  "Item not ready": "web.library.errors.notReady",
-  "Invalid state": "web.library.errors.invalidState",
+  "Subtitles cannot be changed now": "web.library.errors.invalidState",
+  "Item is not ready": "web.library.errors.notReady",
+  "Item has not failed": "web.library.errors.invalidState",
+  "Nothing left to retry": "web.library.errors.invalidState",
+  "Item cannot be canceled": "web.library.errors.invalidState",
+  "No changes": "web.library.errors.invalidState",
+  "Invalid resume position": "web.library.errors.invalidState",
+  "Invalid sentence text": "web.library.errors.invalidState",
+  "Invalid sentence times": "web.library.errors.invalidState",
+  "Assessment does not match": "web.library.errors.invalidState",
+  "Invalid ticket": "web.library.errors.invalidState",
+  "Unsupported language": "web.library.errors.invalidState",
+  "AI is disabled": "web.library.errors.aiDisabled",
+  "AI is unavailable": "web.library.errors.aiUnavailable",
   "Daily AI limit reached": "web.library.errors.aiLimited",
+  "Daily analysis limit reached": "web.library.errors.aiLimited",
+  "Invalid URL": "web.library.errors.badUrl",
 };
