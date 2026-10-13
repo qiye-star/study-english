@@ -116,6 +116,10 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
                            newline="\n")
     expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    # `option_info` is optional by contract: the option→word memo only holds questions this process issued, and the free
+    # question's qtype is not pinned, so a free answer may legitimately come back without it (the S2 unit tests pin it).
+    if "option_info" not in actual["answer_free"]:
+        expected["answer_free"].pop("option_info", None)
     assert shape(actual) == shape(expected)
     # 录制的样例里不能有令牌、密钥或本机路径
     raw = FIXTURE.read_text(encoding="utf-8")
