@@ -157,25 +157,69 @@
         }
       },
       "shadow": {
-        "record": "Record",
+        "best": "Best {{score}}",
+        "record": "Shadow",
         "stop": "Stop",
         "assessing": "Scoring…",
-        "listenMine": "My recording",
-        "listenOriginal": "Original",
+        "listenOriginal": "Play the original sentence",
+        "listenMine": "Play my recording",
+        "stopMine": "Stop my recording",
+        "more": "More actions",
+        "save": "Add to practice list",
+        "saved": "Added to practice list",
+        "noSpeech": "We did not hear you. Try again a little louder.",
+        "attemptNotSaved": "Scored, but not added to this item's best scores.",
+        "translateLimited": "Today's translation limit is used up. Sentences already translated stay available.",
+        "translateFailed": "Could not load translations. Turn the translation switch off and on to try again.",
+        "menu": {
+          "title": "Sentence actions",
+          "description": "Choose what to do with this sentence.",
+          "copy": "Copy sentence",
+          "copied": "Sentence copied.",
+          "copySelected": "Sentence selected. Copy it manually.",
+          "copyFailed": "Could not copy the sentence.",
+          "analysis": "AI analysis",
+          "analysisClose": "Hide AI analysis",
+          "edit": "Adjust timing and text"
+        },
+        "score": {
+          "good": "Great pronunciation",
+          "fair": "Pretty good",
+          "low": "Keep practising"
+        },
+        "analysis": {
+          "title": "AI analysis",
+          "loading": "Analysing this sentence…",
+          "retry": "Retry",
+          "collapse": "Collapse",
+          "expand": "Expand",
+          "limited": "Today's analysis limit is used up.",
+          "unavailable": "AI analysis is not available."
+        },
+        "editor": {
+          "title": "Adjust sentence",
+          "start": "Start",
+          "end": "End",
+          "startEarlier": "Start 0.2 s earlier",
+          "startLater": "Start 0.2 s later",
+          "endEarlier": "End 0.2 s earlier",
+          "endLater": "End 0.2 s later",
+          "text": "Text",
+          "save": "Save",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "saved": "Sentence updated.",
+          "invalidText": "The text must contain letters (600 characters max)."
+        },
+        "errors": {
+          "notFound": "This sentence no longer exists. Reload the page.",
+          "badTimes": "Those times overlap a neighbouring sentence or fall outside the media.",
+          "badText": "The text must contain letters (600 characters max)."
+        },
         "addToList": "Add to practice list",
         "added": "Added to your practice list",
         "edit": "Adjust",
-        "startEarlier": "Start 0.2 s earlier",
-        "startLater": "Start 0.2 s later",
-        "endEarlier": "End 0.2 s earlier",
-        "endLater": "End 0.2 s later",
-        "text": "Sentence text",
-        "save": "Save",
-        "cancel": "Cancel",
-        "best": "Best {{score}}",
-        "attempts_one": "{{count}} try",
-        "attempts_other": "{{count}} tries",
-        "unavailable": "Scoring is not available right now."
+        "cancel": "Cancel"
       }
     }
   }

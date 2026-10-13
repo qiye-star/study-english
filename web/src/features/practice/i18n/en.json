@@ -22,7 +22,7 @@
       "list": {
         "entry": "List", "title": "Practice list", "empty": "No saved sentences yet. Save sentences from chat or lookups.",
         "saved": "Saved to your practice list.", "deleteConfirm": "Remove this sentence from your list?",
-        "sources": { "chat": "Chat", "lookup": "Dictionary", "grammar": "Grammar correction", "manual": "Added by you" },
+        "sources": { "chat": "Chat", "lookup": "Dictionary", "grammar": "Grammar correction", "manual": "Added by you", "library": "Shadowing library" },
         "errors": { "limit": "Your practice list is full. Delete some sentences first.", "notFound": "This sentence is no longer in your list." }
       }
     }

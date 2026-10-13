@@ -51,4 +51,14 @@ describe("assessment api", () => {
       .toEqual([{ word: "hi", accuracyScore: 55, errorType: "Mispronunciation" }]);
     expect(briefWords(undefined)).toEqual([]);
   });
+
+  it("saves library shadowing with source=library", async () => {
+    const mock = createFetchMock({ "POST /api/speech/assessments": () => json({ pronunciation_score: 70, assessment_id: "a2" }) });
+    const client = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await assessPronunciation(client, { wav: new Blob(["RIFF"]), reference: "Hello world.", language: "en-US", save: true, source: "library" });
+    const form = mock.calls[0].body as FormData;
+    expect(form.get("source")).toBe("library");
+    expect(form.get("reference")).toBe("Hello world.");
+    expect(mock.calls[0].url.search).toBe("");
+  });
 });

@@ -22,6 +22,14 @@ describe("practice items api", () => {
     expect(await deletePracticeItem(api, "p1")).toEqual({ id: "p1" });
   });
 
+  it("accepts library as a source (spec 2026-10-13-video-import §2.2)", async () => {
+    const mock = createFetchMock({ "POST /api/practice-items": () => json({ ...ITEM, source: "library" }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const saved = await addPracticeItem(api, { text: "From a video.", source: "library" });
+    expect(saved.source).toBe("library");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ text: "From a video.", source: "library" });
+  });
+
   it("builds a practice reference", () => {
     expect(practiceReference("  Hello \n  there ")).toBe("Hello there");
     expect(practiceReference("a".repeat(2500))).toHaveLength(2000);
