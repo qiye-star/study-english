@@ -16,6 +16,7 @@ import { AgentSettingsPage, MemoryPage } from "~/features/agents";
 import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
+import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -84,6 +85,8 @@ export function AppRoutes() {
             <Route path="/wordbook/review" element={<WordbookReviewPage />} />
             <Route path="/wordbook/spell" element={<WordbookSpellPage />} />
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
+            <Route path="/library" element={<LibraryListPage />} />
+            <Route path="/library/:id" element={<LibraryPlayerPage />} />
             <Route path="/me" element={<MePage />} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />

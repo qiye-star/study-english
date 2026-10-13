@@ -15,6 +15,7 @@ function setup(enabled: boolean, page: "practice" | "me") {
     "GET /api/rank/config": () => json(enabled ? CONTRACT.config : { enabled: false, match_available: false, tiers: [], season: null }),
     "GET /api/rank/me": () => (enabled ? json(CONTRACT.me) : json({ error: "Rank is disabled" }, 404)),
     "GET /api/rooms/config": () => json({ enabled, ai_available: enabled, max_members: 8, max_text: 500 }),
+    "GET /api/library/config": () => json({ enabled, link_import: false, asr: false, ai: false, limits: null }),
   });
   const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
   renderWithProviders(<><BottomNav />{page === "practice" ? <PracticePage /> : <MePage />}</>, { api, route: `/${page}` });
@@ -25,22 +26,24 @@ const called = (mock: ReturnType<typeof setup>, path: string) => mock.calls.some
 const linksTo = (prefix: string) => [...document.querySelectorAll("a[href]")].filter((a) => a.getAttribute("href")!.startsWith(prefix));
 
 describe("feature flags", () => {
-  it.each(["practice", "me"] as const)("off: 3 tabs and no rank or rooms entry on %s", async (page) => {
+  it.each(["practice", "me"] as const)("off: 3 tabs and no rank, rooms or library entry on %s", async (page) => {
     const mock = setup(false, page);
-    await waitFor(() => expect(called(mock, "/api/rank/config") && called(mock, "/api/rooms/config")).toBe(true));
+    await waitFor(() => expect(called(mock, "/api/rank/config") && called(mock, "/api/rooms/config") && called(mock, "/api/library/config")).toBe(true));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("[data-testid^='nav-']"))).toHaveLength(3);
     expect(screen.queryByTestId("nav-rooms")).toBeNull();
+    expect(screen.queryByTestId("nav-library")).toBeNull();
     expect(screen.queryByTestId("rank-card")).toBeNull();
     expect(linksTo("/rank")).toEqual([]);
     expect(linksTo("/rooms")).toEqual([]);
     expect(called(mock, "/api/rank/me")).toBe(false); // nothing beyond /config is touched when off
   });
 
-  it.each(["practice", "me"] as const)("on: 4 tabs and the rank card on %s", async (page) => {
+  it.each(["practice", "me"] as const)("on: 5 tabs and the rank card on %s", async (page) => {
     setup(true, page);
     expect(await screen.findByTestId("nav-rooms")).toBeTruthy();
-    for (const id of ["nav-practice", "nav-chat", "nav-rooms", "nav-me"]) expect(screen.getByTestId(id)).toBeTruthy();
+    expect(await screen.findByTestId("nav-library")).toBeTruthy();
+    for (const id of ["nav-practice", "nav-chat", "nav-rooms", "nav-library", "nav-me"]) expect(screen.getByTestId(id)).toBeTruthy();
     expect(await screen.findByTestId("rank-card")).toBeTruthy();
     expect(linksTo("/rank").length).toBeGreaterThan(0);
   });

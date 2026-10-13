@@ -4,7 +4,7 @@ App chrome around authenticated routes.
 
 ## What lives here
 - `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer`.
-- `bottom-nav.tsx`, `page-header.tsx`.
+- `bottom-nav.tsx` (练习 · 对话 · 联机 · 跟读库 · 我的; rooms and library tabs are controlled by `useRoomsEnabled()` / `useLibraryEnabled()`, at most 5 tabs), `page-header.tsx`.
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
 - `color-scheme.ts` (`initColorScheme` applies the stored appearance preference to `html.dark` before first render and follows the system; `applyColorScheme`, `useApplyColorScheme`, `useIsDark`), `color-scheme-sync.tsx` (`ColorSchemeSync`, applies the "Me > Appearance" choice inside `SettingsProvider`), `glass-quality.ts` (`.lite` on low-memory devices).
 
@@ -15,6 +15,7 @@ App chrome around authenticated routes.
 - `cd web && yarn test` (`layout/*.test.ts(x)`).
 
 ## Pitfalls
+- 5 tabs at 360 px are about 72 px each: tab labels stay at most 8 English characters / 4 Chinese characters (`bottom-nav.test.tsx` guards it); change a label together with that test.
 - When the appearance is fixed to light/dark, both `theme-color` metas are rewritten to one colour (and restored for "follow system"); iOS home-screen status bar behaviour is not verified on a real device.
 - Safe-area insets and app height matter on iOS standalone PWA; test with the mobile viewport.
 - `html` / `body` are `position: fixed; overflow: hidden` in `index.css`: the document never scrolls, so every new page needs its own scroll container (`AppShell`'s `<main>`, the inner container of `AnnouncementFrame`, the wrapper of the full-maintenance page). Do not rely on `window.scrollTo` / document scrolling.
