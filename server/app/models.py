@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import (JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text,
-                        true)
+from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
+                        UniqueConstraint, false, text, true)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -946,3 +946,77 @@ class AgentTutorSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ---- 跟读库(设计文档 2026-10-13-video-import §4;迁移 0018)----
+
+class LibraryItem(Base):
+    """用户私有库里的一条音视频。同一时刻最多一个处理任务,状态 / 阶段 / 进度 / 重试都是本行的属性(不建任务表)。
+    标题与链接只给所有者;日志、审计、管理端永远不读它们(spec §13、E10)。"""
+    __tablename__ = "library_items"
+    __table_args__ = (
+        Index("ix_library_items_user_id_created_at", "user_id", "created_at"),
+        Index("ix_library_items_status_next_run_at", "status", "next_run_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(8))  # audio / video(探测后以实际为准)
+    source: Mapped[str] = mapped_column(String(8))  # upload / link
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(12))  # uploading / queued / processing / ready / failed / canceled
+    stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    progress: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    error_kind: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_host: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    upload_total: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    upload_received: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    media_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    poster_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    media_mime: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    library_bytes: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    sub_source: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    asr_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    seg_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    resume_ms: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    resume_idx: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    rate_pct: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LibrarySegment(Base):
+    """一条素材的一句:原始起止毫秒(播放时网页再加缓冲)与文本(≤ 600 字)。D8:译文 `zh`(≤ 1200 字)与分析
+    `analysis`(≤ 4000 字,模型返回的原文)存在句子行上,各带语言码;句子文字被改或字幕被替换时清空(spec E11)。"""
+    __tablename__ = "library_segments"
+
+    item_id: Mapped[str] = mapped_column(ForeignKey("library_items.id", ondelete="CASCADE"), primary_key=True)
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    start_ms: Mapped[int] = mapped_column(Integer)
+    end_ms: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    zh: Mapped[str | None] = mapped_column(Text, nullable=True)
+    zh_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
+
+
+class LibraryAttempt(Base):
+    """一次跟读评测的成绩。assessment_id 指向 assessments.id,SET NULL 语义由应用层保证(无外键,兼容 SQLite);
+    text_hash = 评测时该句文本的指纹(计划 R-SC14):句子改字或重新分句后,旧成绩不再算在这一句上。"""
+    __tablename__ = "library_attempts"
+    __table_args__ = (Index("ix_library_attempts_item_id_seg_idx", "item_id", "seg_idx"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    item_id: Mapped[str] = mapped_column(ForeignKey("library_items.id", ondelete="CASCADE"))
+    seg_idx: Mapped[int] = mapped_column(Integer)
+    assessment_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    text_hash: Mapped[str] = mapped_column(String(16))
+    score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
