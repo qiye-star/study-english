@@ -11,7 +11,8 @@
     agents     -> core, providers, speech, services (shared agent core: rooms, links, admin, routers and main import it;
                   never rank, rooms, realtime, wordbook, links, admin or routers)
     links      -> core, providers, speech, services, rank, rooms, wordbook, agents (top layer: only routers and main)
-    admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents (admin console logic)
+    library    -> core, providers, speech, services (imported media library: only admin, routers and main import it)
+    admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents, library (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
                   (likewise only routers and main may import admin)
@@ -24,7 +25,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 
 LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
-          "admin", "routers")
+          "library", "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -39,12 +40,13 @@ ALLOWED: dict[str, set[str]] = {
     "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
     "agents": {"agents", "core", "models", "providers", "speech", "services"},
     "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
+    "library": {"library", "core", "models", "providers", "speech", "services"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-              "agents"},
+              "agents", "library"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links", "agents"},
+                "admin", "links", "agents", "library"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links", "agents"},
+             "routers", "links", "agents", "library"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -316,3 +318,42 @@ def test_tutor_core_modules_are_pure():
             ok = top in sys.stdlib_module_names or (
                 target.startswith("app.agents.tutor.") and target not in TUTOR_STATEFUL)
             assert ok, f"app/{rel}:{lineno} imports {target}"
+
+
+def test_library_layer_rules(tmp_path):
+    """spec 2026-10-13-video-import §3: library imports only core/models/providers/speech/services; only admin, routers
+    and main import it (links, agents, rooms, rank, wordbook, realtime, services, speech and core may not)."""
+    app = tmp_path / "app"
+    for pkg in ("library", "admin", "routers", "links", "agents", "rooms", "rank", "wordbook", "realtime", "services",
+                "speech", "core"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {  # file -> (source, line of the bad import)
+        "library/a.py": ("from app.admin import audit\n", 1),
+        "library/b.py": ("def f():\n    from app.routers import library\n", 2),
+        "library/c.py": ("from app.agents import orchestrator\n", 1),
+        "library/d.py": ("from app.links import gate\n", 1),
+        "library/e.py": ("from app.rooms import audio\n", 1),
+        "library/f.py": ("from app.realtime import x\n", 1),
+        "links/g.py": ("from app.library import store\n", 1),
+        "agents/h.py": ("from app.library import store\n", 1),
+        "rooms/i.py": ("from app.library import store\n", 1),
+        "services/j.py": ("from app.library import store\n", 1),
+        "speech/k.py": ("import app.library.segment\n", 1),
+        "core/l.py": ("from app.library.paths import tmp_dir\n", 1),
+    }
+    ok = {
+        "library/ok.py": "from app.speech.sentence_split import split_all\nfrom app.services import usage\n"
+                         "from app.core import metering\nfrom app.models import LibraryItem\nfrom app.library import paths\n",
+        "admin/ok.py": "from app.library import paths\n",
+        "routers/ok.py": "from app.library import store\n",
+    }
+    for rel, (src, _) in bad.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    for rel, src in ok.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel, (_, line) in bad.items():
+        assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
