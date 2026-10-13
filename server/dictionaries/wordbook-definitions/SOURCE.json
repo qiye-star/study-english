@@ -63,6 +63,12 @@
       "bytes": 64296,
       "sha256": "76fea59cc210c82eac17aa89e9eb44d496d0f8def54f5389469e6c388deac928",
       "entries": 620
+    },
+    {
+      "file": "forms.txt",
+      "bytes": 361197,
+      "sha256": "a44e4cc42fb7a3563ccb844601375280debf93f29c80edb875f6e917460097b1",
+      "entries": 21074
     }
   ],
   "stats": {
@@ -86,5 +92,22 @@
       "pos_mismatch": 1,
       "other": 2
     }
+  },
+  "forms": {
+    "version": 1,
+    "kinds": [
+      "p",
+      "d",
+      "i",
+      "3",
+      "s",
+      "r",
+      "t"
+    ],
+    "lemmas": "word-book headwords only",
+    "skips_book_headword_forms": true,
+    "tiebreak": "commonest lemma by ECDICT frq, then alphabetical",
+    "forms": 21074,
+    "lemmas_covered": 11537
   }
 }
