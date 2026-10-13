@@ -27,3 +27,4 @@ Public (`index.ts`): `LookupLayer`, `cachedTranslate`, `normalizeSelection`, `LO
 - Read aloud is contributed by chat (core contribution); lookup never imports chat.
 - The bar keeps `data-testid="lookup-trigger"` on its look up / translate button.
 - The add-to-vocabulary button is the `<WordActions>` slot (`~/lib/extension-points-react`), not a vocabulary import (no lookup→vocabulary edge).
+- 「跟读这段」(`lookup-practice`) closes the drawer, then opens the shadow sheet (`useShadowSheet` from `~/features/practice`); it no longer navigates. The sheet's sentences are `data-lookup-context` containers, so this layer's selection bar works over it (bar z-40 > sheet z-36); the word-actions panel's 「跟读这个词」 (contributed by practice's `register-word-actions.tsx`) closes its own panel and opens the sheet too; because it does not navigate, `LookupLayer` collapses the drawer itself when `useShadowSheetOpen()` turns true (only on that transition).
