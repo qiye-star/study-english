@@ -8,7 +8,7 @@ import { DEFS_EN, card } from "./test-fixtures";
 import { WordCardView } from "./word-card";
 import type { Card } from "./wordbook-api";
 
-const BASE = { senses: [{ pos: "v", text: "说话；谈话" }, { pos: "n", text: "交谈" }], phrases: [] };
+const BASE = { senses: [{ pos: "v", text: "说话；谈话" }, { pos: "n", text: "交谈" }], phrases: [] as unknown[] };
 const WITH_DEFS = { ...card("talk", BASE), defsEn: DEFS_EN } as unknown as Card;
 const PLAIN = card("talk", BASE) as unknown as Card;
 const OTHER = { ...card("walk", { senses: [{ pos: "v", text: "走路" }] }), defsEn: [{ pos: "v", text: "move on foot" }] } as unknown as Card;
