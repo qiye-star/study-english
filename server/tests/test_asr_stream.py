@@ -147,6 +147,7 @@ class FakeAsr:
         self.path = None
         self.frames: list[bytes] = []
         self.text = "Hello, world."
+        self.utterances = None
 
     async def process_request(self, connection, request):
         self.headers = request.headers
@@ -197,7 +198,10 @@ class FakeAsr:
             if self.mode == "no_text":
                 await ws.send(server_response({"result": {}}, seq=-seq, last=True))
                 return
-            await ws.send(server_response({"result": {"text": self.text}}, seq=-seq, last=True))
+            result = {"text": self.text}
+            if self.utterances is not None:
+                result["utterances"] = self.utterances
+            await ws.send(server_response({"result": result}, seq=-seq, last=True))
             return
 
 

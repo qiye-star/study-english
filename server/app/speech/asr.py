@@ -16,9 +16,10 @@ from typing import Literal, Protocol
 import httpx
 from fastapi import HTTPException
 
-from app.speech.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, wav_to_pcm
+from app.speech.asr_stream import SAMPLE_RATE, AsrGate, AsrStreamError, transcribe_pcm, transcribe_pcm_timed, wav_to_pcm
 from app.core.config import Settings, asr_stream_usable, whisper_fallback_configured
 from app.speech.stt import pcm_to_wav, transcribe_wav
+from app.speech.timed import TimedText
 from app.core.timing import log_timing
 
 logger = logging.getLogger(__name__)
@@ -95,9 +96,10 @@ def _map_stream(kind: str) -> AsrError:
     return AsrError("upstream")
 
 
-async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, fallback: bool) -> str | None:
-    """流式识别的文本;None 表示应走回落(没有回落时直接抛 AsrError)。
-    没有回落时,流式结果为空(`empty`)= 没听清,返回 "",不是错误(复核 1.5-I1;
+async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, fallback: bool, *,
+                      timed: bool = False) -> str | TimedText | None:
+    """流式识别的文本;None 表示应走回落(没有回落时直接抛 AsrError)。`timed=True` 同时要句子时间,返回 `TimedText`。
+    没有回落时,流式结果为空(`empty`)= 没听清,返回 "" / `TimedText("")`,不是错误(复核 1.5-I1;
     上传识别接口 ai_audio 仍按 R4 口径处理,不受影响)。取消对熔断计数是中性的。"""
     audio_s = len(pcm) / (SAMPLE_RATE * 2)
     skip = await gate.try_enter()
@@ -109,7 +111,7 @@ async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, f
     started = time.perf_counter()
     kind = "aborted"  # cancelled (or anything unexpected) → neutral for the breaker
     try:
-        text = await transcribe_pcm(settings, pcm, uid)
+        text = await (transcribe_pcm_timed if timed else transcribe_pcm)(settings, pcm, uid)
         kind = None
     except AsrStreamError as e:
         kind = e.kind
@@ -121,7 +123,7 @@ async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, f
         )
         if not fallback:
             if e.kind == "empty":
-                return ""
+                return TimedText("") if timed else ""
             raise _map_stream(e.kind) from None
         return None
     finally:
@@ -152,6 +154,34 @@ def make_transcriber(
                     return text
         try:
             return await transcribe_wav(http, settings, wav, language)
+        except HTTPException as e:
+            raise _map_http(e) from None
+
+    return transcribe
+
+
+def make_timed_transcriber(
+    http: httpx.AsyncClient,
+    settings: Settings,
+    language: str | None = "en",
+    *,
+    gate: AsrGate | None = None,
+    uid: str = "server",
+) -> Callable[[bytes], Awaitable[TimedText]]:
+    """WAV → `TimedText`(跟读库的识别块用,plan 2026-10-13-library-alignment)。流式路径带句子时间;流式不可用 / 失败时回落
+    到 chat / Whisper,那条路径只给文字(`utterances` 为空,调用方逐块回落到估算,R-A5)。错误口径与 `make_transcriber` 相同。"""
+    if gate is None and settings.asr_stream_enabled:
+        gate = AsrGate(settings.asr_stream_max_concurrency)
+
+    async def transcribe(wav: bytes) -> TimedText:
+        if settings.asr_stream_enabled:
+            pcm = wav_to_pcm(wav)
+            if pcm is not None:
+                result = await _try_stream(settings, gate, pcm, uid, _fallback_configured(settings), timed=True)
+                if result is not None:
+                    return result  # type: ignore[return-value]  # timed=True always yields TimedText
+        try:
+            return TimedText(await transcribe_wav(http, settings, wav, language))
         except HTTPException as e:
             raise _map_http(e) from None
 
