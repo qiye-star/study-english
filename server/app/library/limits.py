@@ -101,6 +101,15 @@ async def used_bytes(session: AsyncSession, user_id: int) -> int:
     return int(stored or 0) + int(pending or 0)
 
 
+async def asr_seconds_left(session: AsyncSession, user_id: int, settings, now: datetime) -> int:
+    """Seconds of recognition still available today: the smaller of the user's and the site-wide allowance. Reads only
+    (the real `reserve` happens in the pipeline when the job runs)."""
+    day = day_of(now)
+    mine = await usage.remaining(session, SCOPE_ASR, str(user_id), day, settings.library_asr_minutes_daily_per_user * 60)
+    site = await usage.remaining(session, SCOPE_ASR, GLOBAL, day, settings.library_asr_minutes_global_daily * 60)
+    return min(mine, site)
+
+
 async def item_count(session: AsyncSession, user_id: int) -> int:
     return int(await session.scalar(select(func.count()).select_from(LibraryItem).where(
         LibraryItem.user_id == user_id, LibraryItem.status != "canceled")) or 0)

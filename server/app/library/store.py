@@ -172,10 +172,29 @@ async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
     await session.execute(delete(LibraryItem).where(LibraryItem.id == item_id))
 
 
+async def _cancel_reprocess(session: AsyncSession, app, item: LibraryItem) -> bool:
+    """Canceling a re-recognition gives the item back as it was (R-R3): `ready`, with its media and sentences."""
+    done = await session.execute(update(LibraryItem).where(
+        LibraryItem.id == item.id, LibraryItem.status.in_(("queued", "processing")))
+        .values(status="ready", stage=None, progress=100, error_kind=None, attempts=0, next_run_at=None,
+                updated_at=utcnow()))
+    await session.commit()
+    if done.rowcount != 1:
+        return False
+    worker = app.state.library
+    await worker.cancel(item.id)
+    paths.remove_tree(paths.tmp_dir(worker.deps.data_dir, item.id))
+    await session.refresh(item)
+    return True
+
+
 async def cancel_item(session: AsyncSession, app, item: LibraryItem) -> bool:
     """spec §6.5: an uploading / queued / processing item becomes `canceled`, its job and subprocesses stop, its
     staging and media files go, its tickets die. False = it was not active (nothing changed). Commits.
+    A re-recognition (`seg_count > 0`) is reverted to `ready` instead and keeps its files (`_cancel_reprocess`).
     Shared by `POST /api/library/items/{id}/cancel` and the admin console (plan A)."""
+    if item.seg_count > 0 and item.status in ("queued", "processing"):
+        return await _cancel_reprocess(session, app, item)
     done = await session.execute(update(LibraryItem).where(LibraryItem.id == item.id, LibraryItem.status.in_(ACTIVE))
                                  .values(status="canceled", stage=None, updated_at=utcnow()))
     await session.commit()
@@ -248,12 +267,18 @@ async def set_progress(session: AsyncSession, item_id: str, stage: str, progress
 
 
 async def fail(session: AsyncSession, item_id: str, kind: str, *, retry_at: datetime | None, now: datetime) -> bool:
-    """A failed job: transient with retries left -> back to `queued` with `next_run_at`; else `failed`."""
+    """A failed job: transient with retries left -> back to `queued` with `next_run_at`; else `failed`.
+    A re-recognition (the item still has its finished sentences, R-R2) is given back as it was instead: `ready`, with
+    `error_kind` kept so the card can say the attempt did not work (R-R3)."""
     values = dict(error_kind=kind, updated_at=now, stage=None)
     if retry_at is not None:
         values.update(status="queued", next_run_at=retry_at, attempts=LibraryItem.attempts + 1)
     else:
-        values.update(status="failed", next_run_at=None)
+        kept = int(await session.scalar(select(LibraryItem.seg_count).where(LibraryItem.id == item_id)) or 0)
+        if kept > 0:
+            values.update(status="ready", progress=100, attempts=0, next_run_at=None)
+        else:
+            values.update(status="failed", next_run_at=None)
     result = await session.execute(update(LibraryItem).where(LibraryItem.id == item_id,
                                                              LibraryItem.status == "processing").values(**values))
     await session.commit()

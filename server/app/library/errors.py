@@ -45,6 +45,10 @@ API_ERRORS: dict[str, tuple[int, str]] = {
     "not_failed": (409, "Item has not failed"),
     "no_material": (409, "Nothing left to retry"),
     "not_active": (409, "Item cannot be canceled"),
+    # 重新识别(plan 2026-10-13-library-alignment R-P)
+    "not_reprocessable": (409, "Item cannot be reprocessed"),
+    "asr_unavailable": (503, "Transcription is not available"),
+    "asr_daily": (429, "Daily transcription limit reached"),
     "no_changes": (400, "No changes"),
     "bad_resume": (400, "Invalid resume position"),
     "bad_text": (400, "Invalid sentence text"),

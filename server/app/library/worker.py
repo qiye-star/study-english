@@ -126,7 +126,9 @@ class LibraryWorker:
             if kind in TRANSIENT and row.attempts < limits.AUTO_RETRIES:
                 retry_at = now + timedelta(seconds=limits.BACKOFF_SECONDS[row.attempts])
             await store.fail(s, item_id, kind, retry_at=retry_at, now=now)
-        if retry_at is None and kind in DROP_STAGING:
+            await s.refresh(row)
+            restored = row.status == "ready"  # a failed re-recognition: the item is playable again (R-R3)
+        if retry_at is None and (kind in DROP_STAGING or restored):
             self._drop_staging(item_id)
         logger.info("library job failed item=%s kind=%s retry=%s", item_id, kind, retry_at is not None)
 
