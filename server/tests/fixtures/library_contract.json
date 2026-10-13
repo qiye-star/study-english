@@ -1,0 +1,368 @@
+{
+  "errors": {
+    "ai_disabled": "AI is disabled",
+    "ai_global_cap": "Daily AI limit reached",
+    "ai_unavailable": "AI is unavailable",
+    "ai_user_cap": "Daily analysis limit reached",
+    "assessment": "Assessment does not match",
+    "bad_resume": "Invalid resume position",
+    "bad_subtitle": "Invalid subtitle file",
+    "bad_text": "Invalid sentence text",
+    "bad_times": "Invalid sentence times",
+    "chunk_required": "Chunk is required",
+    "chunk_size": "Wrong chunk size",
+    "chunk_too_large": "Chunk is too large",
+    "daily": "Daily import limit reached",
+    "disabled": "Library is disabled",
+    "file_required": "Subtitle file is required",
+    "format": "Unsupported file type",
+    "incomplete": "Upload is incomplete",
+    "language": "Unsupported language",
+    "max_items": "Library item limit reached",
+    "no_changes": "No changes",
+    "no_material": "Nothing left to retry",
+    "not_active": "Item cannot be canceled",
+    "not_failed": "Item has not failed",
+    "not_found": "Not Found",
+    "not_ready": "Item is not ready",
+    "not_uploading": "Upload is not in progress",
+    "quota": "Library storage quota reached",
+    "segment_missing": "Sentence not found",
+    "subs_state": "Subtitles cannot be changed now",
+    "ticket": "Invalid ticket",
+    "too_large": "File is too large",
+    "unavailable": "Media tools are not installed",
+    "unexpected_chunk": "Unexpected chunk",
+    "upload_expired": "Upload expired",
+    "uploads": "Too many uploads in progress"
+  },
+  "error_kinds": [
+    "bad_subtitle",
+    "bad_url",
+    "blocked",
+    "corrupt",
+    "disk_full",
+    "drm",
+    "geo_blocked",
+    "link_disabled",
+    "live_unsupported",
+    "login_required",
+    "network",
+    "no_audio",
+    "no_subtitles",
+    "playlist_unsupported",
+    "private",
+    "quota",
+    "too_large",
+    "too_long",
+    "unsupported_format",
+    "unsupported_site",
+    "upload_expired",
+    "upstream",
+    "ytdlp_failed",
+    "ytdlp_transient"
+  ],
+  "config": {
+    "enabled": true,
+    "link_import": false,
+    "asr": false,
+    "ai": true,
+    "limits": {
+      "max_upload_mb": 500,
+      "max_duration_minutes": 90,
+      "quota_mb": 2000,
+      "used_bytes": 0,
+      "max_items": 100,
+      "chunk_bytes": 8388608,
+      "formats": [
+        "mp4",
+        "m4v",
+        "mov",
+        "webm",
+        "mkv",
+        "mp3",
+        "m4a",
+        "aac",
+        "wav",
+        "ogg",
+        "opus",
+        "flac"
+      ]
+    }
+  },
+  "upload_start": {
+    "item_id": "00000000-0000-4000-8000-000000000000",
+    "chunk_bytes": 8388608
+  },
+  "upload_chunk": {
+    "item_id": "00000000-0000-4000-8000-000000000000",
+    "status": "uploading",
+    "upload_received": 57,
+    "upload_total": 57,
+    "chunk_bytes": 8388608
+  },
+  "upload_state": {
+    "item_id": "00000000-0000-4000-8000-000000000000",
+    "status": "uploading",
+    "upload_received": 57,
+    "upload_total": 57,
+    "chunk_bytes": 8388608
+  },
+  "upload_subtitles": {
+    "cue_count": 2
+  },
+  "upload_complete": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "video",
+      "source": "upload",
+      "title": "Talk",
+      "status": "queued",
+      "stage": null,
+      "progress": 0,
+      "error_kind": null,
+      "duration_ms": null,
+      "seg_count": 0,
+      "library_bytes": 0,
+      "sub_source": null,
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "has_poster": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null
+    }
+  },
+  "items": {
+    "items": [
+      {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "kind": "video",
+        "source": "upload",
+        "title": "Talk",
+        "status": "ready",
+        "stage": null,
+        "progress": 100,
+        "error_kind": null,
+        "duration_ms": 6000,
+        "seg_count": 2,
+        "library_bytes": 70,
+        "sub_source": "uploaded",
+        "resume_ms": 0,
+        "resume_idx": 0,
+        "rate_pct": 100,
+        "has_poster": true,
+        "created_at": "2026-01-01T00:00:00Z",
+        "last_opened_at": null
+      }
+    ],
+    "next_cursor": null
+  },
+  "item_detail": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "video",
+      "source": "upload",
+      "title": "Talk",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 70,
+      "sub_source": "uploaded",
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "has_poster": true,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": "2026-01-01T00:00:00Z"
+    },
+    "segments": [
+      {
+        "idx": 0,
+        "start_ms": 500,
+        "end_ms": 3000,
+        "text": "Hello there, my friend.",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null
+      },
+      {
+        "idx": 1,
+        "start_ms": 3200,
+        "end_ms": 6000,
+        "text": "How are you doing today?",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null
+      }
+    ]
+  },
+  "item_patch": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "video",
+      "source": "upload",
+      "title": "Talk",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 70,
+      "sub_source": "uploaded",
+      "resume_ms": 1200,
+      "resume_idx": 1,
+      "rate_pct": 75,
+      "has_poster": true,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  "segment_patch": {
+    "segment": {
+      "idx": 0,
+      "start_ms": 400,
+      "end_ms": 3000,
+      "text": "Hello there, my friend.",
+      "zh": null,
+      "zh_lang": null,
+      "has_analysis": false,
+      "analysis_lang": null
+    }
+  },
+  "translate": {
+    "segments": [
+      {
+        "idx": 0,
+        "zh": "你好,我的朋友。"
+      },
+      {
+        "idx": 1,
+        "zh": "你今天好吗?"
+      }
+    ],
+    "limited": false
+  },
+  "analysis": {
+    "analysis": "### 句子结构\n一句问候。",
+    "cached": false
+  },
+  "item_detail_with_ai": [
+    {
+      "idx": 0,
+      "start_ms": 400,
+      "end_ms": 3000,
+      "text": "Hello there, my friend.",
+      "zh": "你好,我的朋友。",
+      "zh_lang": "zh-CN",
+      "has_analysis": true,
+      "analysis_lang": "zh-CN"
+    },
+    {
+      "idx": 1,
+      "start_ms": 3200,
+      "end_ms": 6000,
+      "text": "How are you doing today?",
+      "zh": "你今天好吗?",
+      "zh_lang": "zh-CN",
+      "has_analysis": false,
+      "analysis_lang": null
+    }
+  ],
+  "media_ticket": {
+    "url": "/api/library/items/00000000-0000-4000-8000-000000000000/media?ticket=REDACTED",
+    "expires_in": 1800
+  },
+  "attempt_post": {
+    "seg_idx": 0,
+    "score": 88
+  },
+  "attempts": {
+    "attempts": [
+      {
+        "seg_idx": 0,
+        "best_score": 88,
+        "count": 1,
+        "last_at": "2026-01-01T00:00:00Z"
+      }
+    ]
+  },
+  "subtitles_replace": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "video",
+      "source": "upload",
+      "title": "Talk",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 70,
+      "sub_source": "uploaded",
+      "resume_ms": 1200,
+      "resume_idx": 1,
+      "rate_pct": 75,
+      "has_poster": true,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": "2026-01-01T00:00:00Z"
+    },
+    "segments": [
+      {
+        "idx": 0,
+        "start_ms": 500,
+        "end_ms": 3000,
+        "text": "Hello there, my friend.",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null
+      },
+      {
+        "idx": 1,
+        "start_ms": 3200,
+        "end_ms": 6000,
+        "text": "How are you doing today?",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null
+      }
+    ]
+  },
+  "error_example": {
+    "error": "Item has not failed"
+  },
+  "cancel": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "audio",
+      "source": "upload",
+      "title": "b",
+      "status": "canceled",
+      "stage": null,
+      "progress": 0,
+      "error_kind": null,
+      "duration_ms": null,
+      "seg_count": 0,
+      "library_bytes": 0,
+      "sub_source": null,
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "has_poster": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null
+    }
+  },
+  "delete": {
+    "deleted": true
+  }
+}
