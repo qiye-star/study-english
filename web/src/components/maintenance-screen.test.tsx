@@ -56,6 +56,19 @@ it("shows the maintenance page instead of the app (no bottom navigation) in full
   expect(screen.getByRole("button", { name: "重新检查" })).toBeInTheDocument();
 });
 
+it("keeps the full-maintenance page scrollable now that html/body are locked (R-K5)", async () => {
+  vi.mocked(ann.fetchAnnouncements).mockResolvedValue({
+    announcements: [],
+    maintenance: { mode: "full", messageZh: "数据库升级,预计 10 分钟", messageEn: "Upgrading" },
+  });
+  renderApp("/me");
+  await screen.findByText("数据库升级,预计 10 分钟");
+  const main = screen.getByRole("main");
+  const scroller = main.parentElement!;
+  expect(scroller.className).toMatch(/\boverflow-y-auto\b/);
+  expect(scroller.className).toContain("h-[100dvh]");
+});
+
 it("falls back to a default message", () => {
   render(<MaintenanceScreen />);
   expect(screen.getByText("我们正在升级服务,请稍后再来。")).toBeInTheDocument();

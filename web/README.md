@@ -80,6 +80,7 @@
 - 契约:`src/features/rooms/create/rooms-v2-contract.test.ts`、`extras/extras-contract.test.ts`、`voice/voice-contract.test.ts` 分别核对 `server/tests/fixtures/rooms_v2_{core,summary,voice}_contract.json`。E2E:`e2e/rooms-v2.spec.ts`(两个上下文审批加入、引用、回应、正在输入、助手面板不遮挡、邀请链接第三人进入;语音上传用契约样例应答,零上游成本)。
 - **联机练习 v2 未在真机验证**(iOS Safari 与 Android Chrome 各一台;结果记在 `docs/superpowers/plans/e2e-results.md`「Rooms v2」):按住说话录 10 秒并发送、上滑取消、上滑转文字;对方播放 MP3(iOS `<audio>` 播放 Blob)、语速跟随;键盘弹出时助手面板收成一行与恢复(`visualViewport`);拖动面板三档;切后台/锁屏再回来重连与补齐;二维码被另一台手机扫码打开;邀请链接从微信等应用内浏览器打开;Android 数字键盘粘贴房间号;自动转文字设置在真机上的表现。
 - **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。
+- **未在真机验证**:iOS Safari 点输入框页面跳到顶部的修复(`useAppHeight` 在键盘相关事件后 `scrollTo(0,0)` 复位 + 固定 `html` / `body`,计划 `2026-10-13-ios-keyboard-scroll`)。清单见 `docs/superpowers/plans/2026-10-13-ios-keyboard-scroll-device-checklist.md`。
 
 ## 背单词(计划 2026-10-10)
 
