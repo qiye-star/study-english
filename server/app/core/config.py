@@ -1,5 +1,7 @@
+import importlib.util
 import ipaddress
 import re
+import shutil
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -243,6 +245,29 @@ class Settings(BaseSettings):
     agents_chat_max_tokens: int = Field(300, ge=64, le=2000)  # 计划 R-C9
     agents_tutor_max_tokens: int = Field(350, ge=64, le=2000)
 
+    # 跟读库(spec 2026-10-13-video-import §5.2);总开关关 = /api/library/* 除 config 外 404
+    library_enabled: bool = False
+    library_asr_enabled: bool = False
+    library_link_import_enabled: bool = False
+    library_quota_mb: int = Field(2000, ge=1, le=1_000_000)
+    library_max_items: int = Field(100, ge=1, le=10_000)
+    library_max_upload_mb: int = Field(500, ge=1, le=20_000)
+    library_max_duration_minutes: int = Field(90, ge=1, le=600)
+    library_asr_minutes_daily_per_user: int = Field(60, ge=0, le=2000)
+    library_asr_minutes_global_daily: int = Field(600, ge=0, le=100_000)
+    library_imports_daily_per_user: int = Field(20, ge=0, le=1000)
+    library_job_concurrency: int = Field(1, ge=1, le=4)
+    library_transcode_max_height: int = Field(720, ge=240, le=1080)
+    library_link_timeout_minutes: int = Field(20, ge=1, le=120)
+    library_link_allow_generic: bool = False
+    library_ytdlp_cookies_file: str = ""  # env-only;Netscape 格式,含账号会话,等同密钥
+    library_ytdlp_proxy: str = ""  # env-only secret;可能含账号口令
+    # D8:每句译文与句子分析(调大模型,花钱);按「句」计的每日额度,命中已存的译文 / 分析不计
+    library_ai_enabled: bool = False
+    library_translate_daily_per_user: int = Field(500, ge=0, le=20_000)
+    library_analysis_daily_per_user: int = Field(30, ge=0, le=1000)
+    library_ai_daily_global: int = Field(5000, ge=0, le=1_000_000)
+
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""
     admin_password: str = ""
@@ -422,6 +447,26 @@ class Settings(BaseSettings):
         return self.agents_memory_model.strip() or self.resolved_agents_model
 
     @property
+    def library_available(self) -> bool:
+        """跟读库能处理媒体:总开关开,且 ffmpeg 与 ffprobe 都在 PATH 上(spec §5.2)。"""
+        return self.library_enabled and media_tools_present()
+
+    @property
+    def library_asr_available(self) -> bool:
+        """无字幕时可用识别转写:子开关开,且现有识别路径可用(火山流式或 Whisper/chat 回退)。"""
+        return self.library_asr_enabled and (asr_stream_usable(self) or whisper_fallback_configured(self))
+
+    @property
+    def library_link_available(self) -> bool:
+        """链接导入:子开关开,且 yt-dlp 可导入(依赖由计划 S2 加进 pyproject)。"""
+        return self.library_link_import_enabled and ytdlp_present()
+
+    @property
+    def library_ai_available(self) -> bool:
+        """译文与句子分析(D8):总开关与子开关都开,且大模型上游已配置。不需要 ffmpeg:已处理好的条目照常可译。"""
+        return self.library_enabled and self.library_ai_enabled and bool(self.upstream_llm_base_url)
+
+    @property
     def realtime_available(self) -> bool:
         return (
             self.realtime_enabled
@@ -440,6 +485,16 @@ class Settings(BaseSettings):
 # `realtime_asr.effective_realtime_asr`, ...), which stay the call sites' entry points.
 
 RealtimeAsr = Literal["stream", "buffered"]
+
+
+def media_tools_present() -> bool:
+    """ffmpeg 与 ffprobe 都能在 PATH 上找到(跟读库;测试里 monkeypatch 这个函数)。"""
+    return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+def ytdlp_present() -> bool:
+    """yt-dlp 能被导入(只查找,不导入;测试里 monkeypatch 这个函数)。"""
+    return importlib.util.find_spec("yt_dlp") is not None
 
 
 def whisper_fallback_configured(settings) -> bool:

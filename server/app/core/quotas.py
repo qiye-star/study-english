@@ -29,6 +29,8 @@ QUOTA_KEYS: dict[str, str] = {
     "agents_personas_max": "agents_personas_max",
     "agents_tutor_daily_per_user": "agents_tutor_daily_per_user",
     "agents_memory_extract_daily_per_user": "agents_memory_extract_daily_per_user",
+    "library_quota_mb": "library_quota_mb",
+    "library_max_items": "library_max_items",
 }
 
 
