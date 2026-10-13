@@ -64,3 +64,42 @@ alembic heads:`0018 (head)`。名字与签名全部与计划一致,没有需要�
 | A-9 | `app/main.py` 第 103 行起两行锚点、路由元组里 `library,` 之后的锚点;`tests/test_library_privacy.py::LATER` 含 `("POST", "/api/library/imports")`;`tests/background.py` 登记 `library.pending`;`tests/library_helpers.py` 有 `enable` / `library_settings` / `fake_media` / `use_fakes` / `process` / `SRT` | 无 |
 
 注:`.venv` 里没有安装 `yt_dlp`(Task 1 之前),所以 `ytdlp_present()` 现在为假。
+
+### S2 · Task 1–8 结果(无网络执行者)
+
+| 项 | 结果 |
+|---|---|
+| 锁定的 yt-dlp 版本 | **未锁定**:`server/pyproject.toml` 已加 `"yt-dlp[default]>=2025.11.12"`,但 `uv.lock` 没有重新生成(离线:`uv add --offline` 报本机 uv 缓存里只有 < 2025.11.12 的 yt-dlp,解析失败)。需要在有网络的检出里运行 `cd server && uv lock && uv sync`,并核对 `git diff --stat` 只有依赖行 |
+| Task 6(JS 运行时) | 未做:取决于 T0.2(PENDING)。既没有走分支 A / B / C 的结论,也没有提交 |
+| 测试 | `tests/test_library_ytdlp.py` + `tests/test_library_urlcheck.py`:171 passed、3 skipped(三个 skip 都是需要已安装的 yt-dlp:依赖已安装、版本一致、`media_runner` 跑真实 `--version`);`tests/test_architecture.py` + 全部 `tests/test_library_*.py`:598 passed、3 skipped |
+| `media_runner` 适配 | 用 `python -I -c print(...)` 对真实 S1 `media.run` 跑过一次(带回调 stdout 为空、回调拿到各行;不带回调 stdout 有内容):A-3 成立。没有跑真实 yt-dlp |
+
+**未验证清单 → 已做 / 未做**
+
+| 项 | 状态 |
+|---|---|
+| yt-dlp 真实参数语法、`--use-extractors`、`yt-dlp-ejs` | 未做(T0.1 需要联网) |
+| YouTube 是否需要 JS 运行时、`deno` 轮子 | 未做(T0.2) |
+| yt-dlp 是否读 `HTTP(S)_PROXY` 环境变量 | 未做(T0.2) |
+| `CLASSIFY` 对真实错误文案 | 未做(只用计划里写的样例文案) |
+| 目标服务器 / 机房 IP 能否下载 | 未做(T0.3) |
+| 镜像体积增量 | 未做(Z) |
+| SSRF 剩余风险(DNS 重绑、站点重定向) | 如实保留:默认关 generic 是唯一缓解 |
+| Postgres | 未做:路由与端到端用例只在 SQLite 上跑 |
+| S1 接口 A-1 至 A-9 | 已做:对合并后的真实代码核对一致(见 Task 0b 表) |
+| `max-filesize` 真实文案与 stdout 逐行到达 | 未做(T0.2 (e));假进程只证明了代码路径 |
+| 取消时真实子进程被终止 | 未做(只有假进程测过) |
+
+**与计划不一致之处(偏离)**
+
+1. `uv.lock` 未更新(见上),所以 Task 1 的依赖测试拆成两个:`test_ytdlp_is_a_declared_dependency`(读 `pyproject.toml`,始终运行)与 `test_ytdlp_dependency_is_installed`(yt-dlp 未安装时 skip)。Task 3 的 `test_installed_version_matches_the_dependency` 与 Task 4 的 `test_media_runner_runs_the_real_yt_dlp` 同样加了 skipif。
+2. Task 5 测试:详情接口返回 `{"item": ..., "segments": ...}`,所以断言改为 `.json()["item"]["error_kind"]`;`app.routes` 在本仓库的 FastAPI 里不展开 `include_router` 的路由,`test_the_import_route_carries_no_text_in_its_url` 改用 `app.openapi()["paths"]`(S1 的隐私测试同样做法)。
+3. S1 的 `tests/test_library_worker.py::test_links_fail_until_plan_s2_registers_a_fetch_stage` 断言默认取回阶段为 `NoFetch`;`create_app` 现在注册 `YtDlpFetch`,它会红。最小修复:该用例开头显式 `set_fetch_stage(pipeline.NoFetch())`(改了 S1 的测试文件一行,计划没预料到)。S1 所有者应知悉。
+4. 没有运行任何联网步骤;`classify` 对真实文案的核对待补。
+
+**交接**(文末「交接」一节的待办,均尚未被对方落地)
+
+- W1:`POST /api/library/imports` 的线上行为与 `Invalid link` / `Link import is disabled` 两条错误文案(见计划「交接」给 W1 一节)。
+- S1 所有者:`app/library/CLAUDE.md` 增加 `urlcheck.py` / `ytdlp.py` 两条;`routers/CLAUDE.md` 增加 `library_import`;`server/README.md` 链接导入一节(升级流程、cookies 小号、机房 IP、DRM、SSRF 剩余风险);`test_library_privacy.py` 已有 `LATER`;`tests/test_library_worker.py` 的一行改动(偏离 3)。
+- A:`from app.library.ytdlp import installed_version`。
+- Z:镜像体积、T0.3 真实导入、**重新生成 `uv.lock`**、Task 6 的 JS 运行时决定(依赖 T0.2)。
