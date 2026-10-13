@@ -27,6 +27,7 @@
         "segment": "分句中"
       },
       "progress": "{{stage}} · {{pct}}%",
+      "lowConfidence": "句边界可能不准,可重新识别或微调。",
       "card": {
         "retry": "重试",
         "addSubtitles": "补传字幕",
@@ -35,12 +36,23 @@
         "cancelUpload": "取消",
         "dismiss": "关闭",
         "uploading": "上传中 {{pct}}%",
-        "uploadFailed": "上传中断:{{reason}}"
+        "uploadFailed": "上传中断:{{reason}}",
+        "more": "更多",
+        "menuTitle": "素材操作",
+        "menuDescription": "对这条素材的更多操作。",
+        "reprocess": "重新识别",
+        "lowConfidenceBadge": "边界可能不准",
+        "reprocessFailed": "重新识别没有成功,原来的句子还在:{{reason}}"
       },
       "confirmDelete": {
         "title": "删除这条素材?",
         "body": "媒体文件和句子会被删除。你的录音和成绩仍保留在练习记录里。",
         "confirm": "删除"
+      },
+      "confirmReprocess": {
+        "title": "重新识别这条素材?",
+        "body": "会重新转写整段音频,并再用掉今天的自动转写额度。你对句子文字和时间的修改、已生成的译文会被替换。重新识别期间这条素材暂时不能打开;如果失败,会保留现在的句子。",
+        "confirm": "重新识别"
       },
       "resume": { "mismatch": "这不是同一个文件。请选择开始上传时的那个文件。" },
       "toast": {
@@ -48,7 +60,8 @@
         "uploadDone": "上传完成,正在处理。",
         "imported": "链接已添加,正在处理。",
         "subtitlesSaved": "字幕已添加,正在重新处理。",
-        "retrying": "正在重试。"
+        "retrying": "正在重试。",
+        "reprocessing": "已开始重新识别。"
       },
       "sheet": { "title": "添加素材", "tabs": "来源", "upload": "上传", "link": "链接" },
       "upload": {

@@ -147,6 +147,11 @@ export async function cancelItem(api: ApiClient, id: string): Promise<LibraryIte
   return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/cancel`));
 }
 
+/** D7:重新识别一条自动识别的条目(旧句子保留到新句子写入;额度不足 429 / 不可重新识别 409 / 没开转写 503)。 */
+export async function reprocessItem(api: ApiClient, id: string): Promise<LibraryItem> {
+  return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/reprocess`));
+}
+
 export async function putItemSubtitles(api: ApiClient, id: string, file: Blob, filename: string): Promise<LibraryItem> {
   return unwrapItem(await api.request<unknown>("PUT", `${itemPath(id)}/subtitles`, { form: subtitleForm(file, filename) }));
 }

@@ -14,7 +14,7 @@ const base: LibraryItem = {
 };
 const handlers = (): ItemCardHandlers => ({
   onDelete: vi.fn(), onRetry: vi.fn(), onAddSubtitles: vi.fn(), onResumeUpload: vi.fn(), onCancelUpload: vi.fn(),
-  onRetryUpload: vi.fn(), onDismissUpload: vi.fn(),
+  onRetryUpload: vi.fn(), onDismissUpload: vi.fn(), onReprocess: vi.fn(),
 });
 const job = (over: Partial<UploadJob> = {}): UploadJob => ({
   key: "upload-1", itemId: "u1", filename: "Talk.mp4", title: "Talk", size: 10 * 1024 * 1024, sent: 4 * 1024 * 1024,
@@ -133,5 +133,41 @@ describe("ItemCard (spec §11.2, R-L12)", () => {
     const bar = screen.getByRole("progressbar", { name: "上传中 40%" });
     expect(bar.className).toMatch(/\blib-quota-bar\b/);
     expect((bar.firstElementChild as HTMLElement).style.getPropertyValue("--p")).toBe("0.4");
+  });
+
+  it("offers re-recognition in the more menu only for ready, automatically recognized items", async () => {
+    const h = handlers();
+    card({ item: { ...base, subSource: "asr" }, ...h });
+    fireEvent.click(screen.getByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-reprocess"));
+    expect(h.onReprocess).toHaveBeenCalledWith(expect.objectContaining({ id: "i1" }));
+  });
+
+  it("has no more menu for uploaded subtitles, non-ready items, or when the server offers no transcription", () => {
+    card({ item: base, ...handlers() });
+    expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+    card({ item: { ...base, id: "i2", subSource: "asr", status: "processing", stage: "transcribe" }, ...handlers() });
+    expect(screen.queryByTestId("library-item-more-i2")).toBeNull();
+    const { onReprocess: _omitted, ...without } = handlers();
+    card({ item: { ...base, id: "i3", subSource: "asr" }, ...without });
+    expect(screen.queryByTestId("library-item-more-i3")).toBeNull();
+  });
+
+  it("tells the learner when the sentence boundaries may be off (D5)", () => {
+    card({ item: { ...base, subSource: "asr", lowConfidence: true }, ...handlers() });
+    expect(screen.getByTestId("library-item-lowconf")).toHaveTextContent("句边界可能不准,可重新识别或微调");
+    expect(screen.getByText("边界可能不准")).toBeInTheDocument();
+  });
+
+  it("says a failed re-recognition kept the earlier sentences, with the translated reason", () => {
+    card({ item: { ...base, subSource: "asr", errorKind: "quota" }, ...handlers() });
+    expect(screen.getByTestId("library-item-reprocess-failed")).toHaveTextContent("重新识别没有成功,原来的句子还在:今天的自动转写额度已用完");
+    expect(screen.getByRole("link", { name: /Lecture 1/ })).toBeInTheDocument(); // still playable
+  });
+
+  it("shows no notes on a clean ready item", () => {
+    card({ item: base, ...handlers() });
+    expect(screen.queryByTestId("library-item-lowconf")).toBeNull();
+    expect(screen.queryByTestId("library-item-reprocess-failed")).toBeNull();
   });
 });

@@ -105,4 +105,48 @@ describe("LibraryListPage (spec §11.2)", () => {
     expect(mock.calls.some((c) => c.url.pathname.startsWith("/api/library/uploads"))).toBe(false);
     sessionStorage.clear();
   });
+
+  it("re-recognizes an automatically recognized item after confirmation", async () => {
+    const mock = render([itemRaw({ sub_source: "asr" })], {
+      "POST /api/library/items/i1/reprocess": () => json({ item: itemRaw({ sub_source: "asr", status: "queued", stage: null, progress: 0 }) }),
+    });
+    fireEvent.click(await screen.findByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-reprocess"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("重新识别这条素材?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/再用掉今天的自动转写额度/)).toBeInTheDocument();
+    expect(mock.calls.some((c) => c.method === "POST" && c.url.pathname.endsWith("/reprocess"))).toBe(false); // nothing before the confirm
+    fireEvent.click(within(dialog).getByRole("button", { name: "重新识别" }));
+    await waitFor(() => expect(screen.getByTestId("library-item-i1")).toHaveAttribute("data-state", "queued"));
+    expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/library/items/i1/reprocess")).toHaveLength(1);
+    const { toast } = await import("sonner");
+    expect(toast.success).toHaveBeenCalledWith("已开始重新识别。");
+  });
+
+  it("sends nothing when the confirmation is canceled", async () => {
+    const mock = render([itemRaw({ sub_source: "asr" })]);
+    fireEvent.click(await screen.findByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-reprocess"));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(mock.calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("shows the server's reason as a toast when the allowance is used up", async () => {
+    render([itemRaw({ sub_source: "asr" })], {
+      "POST /api/library/items/i1/reprocess": () => json({ error: "Daily transcription limit reached" }, 429),
+    });
+    fireEvent.click(await screen.findByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-reprocess"));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "重新识别" }));
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("今天的自动转写额度已用完,明天再试。"));
+    expect(screen.getByTestId("library-item-i1")).toHaveAttribute("data-state", "ready");
+  });
+
+  it("has no re-recognize action when the server has transcription off", async () => {
+    render([itemRaw({ sub_source: "asr" })], {}, { ...CONFIG_RAW, asr: false });
+    await screen.findByTestId("library-item-i1");
+    expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+  });
 });
