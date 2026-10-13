@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 跟读库 玻璃与动效 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E4E6EC;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+html[data-theme=dark] body{background:#0b0c10;color:#e8e9ee}
+.canvas{max-width:1900px;margin:0 auto;padding:36px 32px 90px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2{font-size:15px;font-weight:600;margin-top:34px}
+.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:92ch;line-height:1.65}
+html[data-theme=dark] .lede{color:#9aa0b0}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0;padding:10px 0;background:linear-gradient(#E4E6EC 70%,transparent)}
+html[data-theme=dark] .toolbar{background:linear-gradient(#0b0c10 70%,transparent)}
+.tb{border:0;cursor:pointer;height:34px;padding:0 14px;border-radius:17px;font-size:13px;background:#fff;color:#1b1d22;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tb.on{background:#2456DB;color:#fff}
+html[data-theme=dark] .tb{background:#1d2028;color:#e8e9ee}html[data-theme=dark] .tb.on{background:#5b86ff;color:#0b0c10}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1100px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+th{font-weight:600;color:#5b6170}
+html[data-theme=dark] th{color:#9aa0b0}
+.row{display:flex;flex-wrap:wrap;gap:34px;margin-top:22px;align-items:flex-start}
+.spec{width:375px}.spec>p.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.65}
+html[data-theme=dark] .spec>p.cap{color:#9aa0b0}.spec>p.cap b{color:inherit;font-weight:600}
+
+/* ============ tokens ============ */
+.phone{
+  --ink:#111318;--ink-2:#566073;--ink-3:#8A90A0;--blue:#2456DB;--teal:#0E7067;--green:#157A3B;--amber:#9A4B00;--red:#D1242F;
+  --page:#EEF1F8;--solid:#ffffff;--glass-bg:rgba(255,255,255,.55);--glass-strong:rgba(255,255,255,.72);--glass-bd:rgba(255,255,255,.75);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--glass-sh:0 10px 30px -8px rgba(36,56,110,.28);
+  --chip:rgba(255,255,255,.6);--hair:rgba(17,19,24,.1);--blue-tint:rgba(36,86,219,.12);
+  --blob1:#9db8ff;--blob2:#b9f0e6;--blob3:#ffd7b0;
+  --blur:22px;
+}
+html[data-theme=dark] .phone{
+  --ink:#f1f2f6;--ink-2:#aab0c0;--ink-3:#7c8396;--blue:#8fb0ff;--teal:#5fd1c4;--green:#6ee09a;--amber:#f2b056;--red:#ff7a84;
+  --page:#0e1016;--solid:#1a1d25;--glass-bg:rgba(34,38,50,.5);--glass-strong:rgba(30,34,46,.72);--glass-bd:rgba(255,255,255,.14);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(255,255,255,.04);--glass-sh:0 12px 34px -8px rgba(0,0,0,.6);
+  --chip:rgba(255,255,255,.1);--hair:rgba(255,255,255,.12);--blue-tint:rgba(143,176,255,.18);
+  --blob1:#3a56c9;--blob2:#0f7a70;--blob3:#8a4a22;
+}
+.phone{color:var(--ink);background:var(--page);position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(120,125,140,.4);
+  box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4}
+.phone i.ti{line-height:1;display:inline-block}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:80}
+
+/* ===== [Backgrounds → SoftAurora] 页面背景:三团慢速漂移的色块(纯 CSS,不用 WebGL) ===== */
+.aurora{position:absolute;inset:0;overflow:hidden;z-index:0}
+.aurora i{position:absolute;width:300px;height:300px;border-radius:50%;filter:blur(54px);opacity:.85;animation:drift 18s ease-in-out infinite alternate}
+.aurora i:nth-child(1){background:var(--blob1);left:-80px;top:40px}
+.aurora i:nth-child(2){background:var(--blob2);right:-100px;top:280px;animation-duration:23s}
+.aurora i:nth-child(3){background:var(--blob3);left:20px;bottom:-100px;animation-duration:27s}
+@keyframes drift{to{transform:translate(40px,-50px) scale(1.15)}}
+
+/* ===== [Components → GlassSurface] 玻璃面:模糊 + 饱和 + 内高光 + 外阴影 ===== */
+.glass{background:var(--glass-bg);backdrop-filter:blur(var(--blur)) saturate(1.7);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.7);
+  border:1px solid var(--glass-bd);box-shadow:var(--glass-hi),var(--glass-sh)}
+.glass.strong{background:var(--glass-strong)}
+/* 列表卡片只用半透明填充 + 高光边,不加 backdrop-filter(一屏最多 3 层模糊) */
+.tint{background:var(--glass-bg);border:1px solid var(--glass-bd);box-shadow:var(--glass-hi),0 6px 18px -10px rgba(36,56,110,.3)}
+
+.hdr{position:absolute;top:47px;left:12px;right:12px;height:50px;border-radius:25px;display:flex;align-items:center;gap:6px;padding:0 6px;z-index:60}
+.hdr .b{width:40px;height:40px;display:grid;place-items:center;font-size:20px}
+.hdr h3{font-size:16px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.body{position:absolute;top:108px;left:0;right:0;bottom:0;overflow:hidden;z-index:5}
+.tabbar{position:absolute;left:12px;right:12px;bottom:14px;height:64px;border-radius:32px;display:flex;align-items:center;padding:0 6px;z-index:60}
+.tabbar div{flex:1;text-align:center;font-size:10px;color:var(--ink-3);padding:6px 0;border-radius:24px}
+.tabbar div i{display:block;font-size:22px;margin-bottom:1px}
+.tabbar div.on{color:var(--blue);background:var(--blue-tint)}
+
+/* ===== [Components → SpotlightCard] 手指/鼠标所在位置的跟随高光 ===== */
+.spot{position:relative;overflow:hidden}
+.spot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(160px circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.55),transparent 70%)}
+html[data-theme=dark] .spot::before{background:radial-gradient(160px circle at var(--mx,50%) var(--my,50%),rgba(143,176,255,.28),transparent 70%)}
+.spot:hover::before,.spot.press::before{opacity:1}
+
+.quota{margin:6px 18px 6px;font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
+.quota .bar{flex:1;height:5px;border-radius:3px;background:var(--hair);margin:0 10px;overflow:hidden}
+.quota .bar b{display:block;height:100%;width:34%;background:linear-gradient(90deg,var(--blue),var(--teal));border-radius:3px}
+.card{display:flex;gap:12px;margin:9px 14px;padding:10px;border-radius:18px;opacity:0;animation:rise .55s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.thumb{flex:none;width:100px;height:64px;border-radius:12px;background:linear-gradient(135deg,#2b3a55,#6b7fa8);position:relative;display:grid;place-items:center;color:#fff;font-size:22px}
+.thumb.a{background:linear-gradient(135deg,#0E7067,#5fb3a8)}.thumb.p{background:linear-gradient(135deg,#6a3df0,#c26bd6)}
+.thumb .dur{position:absolute;right:5px;bottom:4px;font-size:10px;background:rgba(0,0,0,.5);padding:1px 5px;border-radius:5px}
+.card .m{flex:1;min-width:0}.card .t{font-size:14.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .s{font-size:12px;color:var(--ink-2);margin-top:4px}
+.badge{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:7px;margin-right:4px;background:var(--chip);color:var(--ink-2);border:.5px solid var(--hair)}
+.badge.g{color:var(--green)}.badge.b{color:var(--blue)}.badge.r{color:var(--red)}
+
+/* ===== [Text → ShinyText] 处理中的文字流光 ===== */
+.shiny{background:linear-gradient(110deg,var(--ink-2) 35%,var(--ink) 50%,var(--ink-2) 65%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 2.4s linear infinite}
+@keyframes shine{from{background-position:130% 0}to{background-position:-90% 0}}
+
+/* ===== [Components → Stepper] 处理阶段 ===== */
+.steps{display:flex;align-items:center;margin-top:9px}
+.steps .d{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:9px;background:var(--hair);color:var(--ink-3);flex:none}
+.steps .d.ok{background:var(--blue);color:#fff}
+.steps .d.now{background:var(--solid);border:2px solid var(--blue);box-shadow:0 0 0 4px var(--blue-tint);animation:pulse 1.6s ease-in-out infinite}
+.steps .l{flex:1;height:2px;background:var(--hair)}.steps .l.ok{background:var(--blue)}
+@keyframes pulse{50%{box-shadow:0 0 0 7px transparent}}
+.stl{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-3);margin-top:3px}
+
+.fab{position:absolute;right:18px;bottom:96px;z-index:70}
+
+/* ===== [Components → SpecularButton] 主按钮:斜向高光扫过 ===== */
+.spec-btn{position:relative;overflow:hidden;height:50px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:7px;color:#fff;font-weight:600;font-size:16px;
+  background:linear-gradient(180deg,#4b78f0,#2456DB);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 24px -8px rgba(36,86,219,.65);padding:0 22px;cursor:pointer}
+html[data-theme=dark] .spec-btn{background:linear-gradient(180deg,#6d93ff,#3a63e0)}
+.spec-btn::after{content:"";position:absolute;top:0;bottom:0;width:46%;left:-60%;transform:skewX(-22deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:sweep 3.2s ease-in-out infinite}
+@keyframes sweep{0%,55%{left:-60%}100%{left:130%}}
+.spec-btn:active{transform:scale(.97)}
+
+.scrim{position:absolute;inset:0;background:rgba(10,14,28,.32);z-index:50}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;border-radius:28px;padding:10px 16px 18px;z-index:60}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--hair);margin:0 auto 10px}
+.seg{display:flex;background:var(--chip);border-radius:14px;padding:3px;margin:6px 0 14px;border:.5px solid var(--hair)}
+.seg div{flex:1;text-align:center;padding:8px 0;border-radius:11px;font-size:14px;color:var(--ink-2)}
+.seg div.on{background:var(--solid);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.drop{border:1.5px dashed var(--hair);border-radius:18px;padding:20px 12px;text-align:center;color:var(--ink-2);font-size:13px;background:var(--chip)}
+.drop i{font-size:30px;color:var(--blue);display:block;margin-bottom:6px}
+.field{margin-top:12px}.field label{font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px}
+.inp{height:44px;border:.5px solid var(--hair);border-radius:14px;padding:0 12px;display:flex;align-items:center;font-size:15px;color:var(--ink);background:var(--chip)}
+.fileline{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px}
+.fileline .p{flex:1;height:5px;border-radius:3px;background:var(--hair);overflow:hidden}.fileline .p b{display:block;height:100%;width:47%;background:linear-gradient(90deg,var(--blue),var(--teal));border-radius:3px}
+
+/* ===== 播放器 ===== */
+.video{position:absolute;top:0;left:0;right:0;height:300px;background:
+  radial-gradient(120px 90px at 30% 55%,rgba(255,200,150,.55),transparent 70%),radial-gradient(160px 120px at 75% 45%,rgba(120,150,255,.5),transparent 70%),linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52);z-index:1}
+.video .cur{position:absolute;left:16px;right:16px;bottom:62px;text-align:center;font-size:14px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+.video .big{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:26px;color:#fff;background:rgba(255,255,255,.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.4)}
+.hdr.vid{color:#fff;background:rgba(20,22,32,.35);border-color:rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 24px -8px rgba(0,0,0,.5)}
+.tl{position:absolute;left:14px;right:14px;top:246px;height:26px;display:flex;align-items:center;gap:8px;font-size:10.5px;color:#fff;z-index:3}
+.tl .bar{flex:1;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.tl .bar b{display:block;width:38%;height:100%;background:#fff;border-radius:2px}
+.list{position:absolute;top:286px;left:0;right:0;bottom:0;overflow:hidden;padding:8px 10px 150px;z-index:4;background:linear-gradient(var(--page) 0,var(--page) 100%);border-radius:26px 26px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.srow{display:flex;gap:10px;padding:11px 8px 11px 12px;margin:2px 0;border-radius:18px;position:relative}
+.srow .n{flex:none;width:18px;font-size:11px;color:var(--ink-3);padding-top:4px}
+.srow .tx{flex:1;font-size:16.5px;line-height:1.5}.srow .zh{font-size:13px;color:var(--ink-2);margin-top:2px}
+.srow .mic{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:20px;color:var(--ink-2);margin:-6px -4px -6px 0}
+/* ===== [Animations → BorderGlow / ElectricBorder] 当前句的流动描边 ===== */
+.srow.cur{background:var(--glass-strong);box-shadow:var(--glass-hi),0 8px 22px -10px rgba(36,86,219,.5)}
+.srow.cur::after{content:"";position:absolute;inset:-1px;border-radius:19px;padding:1.5px;pointer-events:none;
+  background:conic-gradient(from var(--a,0deg),transparent 0 55%,var(--blue) 78%,#7fe3d6 90%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 3.6s linear infinite}
+@property --a{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes spin{to{--a:360deg}}
+.srow.cur .mic{color:var(--blue)}
+.blind{color:transparent;background:var(--hair);border-radius:7px;user-select:none}
+
+/* ===== [Animations → GradualBlur] 列表底部渐进模糊,文字滑入控制条时自然淡出 ===== */
+.gblur{position:absolute;left:0;right:0;bottom:0;height:190px;z-index:20;pointer-events:none;
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  -webkit-mask-image:linear-gradient(transparent,#000 70%);mask-image:linear-gradient(transparent,#000 70%)}
+.ctrl{position:absolute;left:10px;right:10px;bottom:12px;border-radius:30px;padding:10px 12px 12px;z-index:30}
+.ctrl .main{display:flex;align-items:center;justify-content:center;gap:22px}
+.ctrl .main i{font-size:24px;width:44px;height:44px;display:grid;place-items:center;color:var(--ink)}
+.ctrl .main i.pp{background:linear-gradient(180deg,#4b78f0,#2456DB);color:#fff;border-radius:50%;font-size:24px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 18px -6px rgba(36,86,219,.7)}
+.chips{display:flex;gap:7px;justify-content:center;margin-top:8px}
+.chip{height:34px;padding:0 12px;border-radius:17px;background:var(--chip);border:.5px solid var(--hair);font-size:12.5px;display:flex;align-items:center;gap:5px;color:var(--ink)}
+.chip.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+
+/* ===== [Components → ElasticSlider] 速度滑块(弹性手感,吸附 0.5/0.75/1/1.25) ===== */
+.speed{position:absolute;left:24px;right:24px;bottom:132px;border-radius:24px;padding:12px 16px 12px;z-index:40}
+.speed .top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);margin-bottom:10px}
+.speed .top b{color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums}
+.track{position:relative;height:36px;touch-action:none;cursor:pointer}
+.track .rail{position:absolute;left:0;right:0;top:16px;height:6px;border-radius:3px;background:var(--hair);overflow:hidden}
+.track .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--blue),var(--teal));width:50%;transition:width .18s cubic-bezier(.3,1.6,.5,1)}
+.track .knob{position:absolute;top:8px;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35);left:50%;transition:left .18s cubic-bezier(.3,1.6,.5,1),transform .15s}
+.track.drag .knob{transform:scale(1.25)}
+.ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-top:-2px}
+
+/* ===== 评分(CountUp + GradientText + ClickSpark) ===== */
+.score{margin:4px 4px 6px 32px;padding:14px;border-radius:20px}
+.score .top{display:flex;align-items:center;gap:14px}
+.ring{--p:0;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;position:relative;flex:none;
+  background:conic-gradient(var(--green) calc(var(--p)*1%),var(--hair) 0);}
+.ring::before{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--page)}
+.ring b{position:relative;font-size:22px;font-variant-numeric:tabular-nums}
+.gt{background:linear-gradient(90deg,#18a058,#2cc7b0 60%,#4b78f0);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:700}
+.w-g{color:var(--green)}.w-a{color:var(--amber)}.w-r{color:var(--red);text-decoration:underline wavy}
+.mini-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.mini{height:36px;padding:0 13px;border-radius:18px;background:var(--chip);border:.5px solid var(--hair);font-size:13px;display:flex;align-items:center;gap:5px;cursor:pointer;position:relative}
+.spark{position:absolute;width:6px;height:6px;border-radius:50%;pointer-events:none;z-index:90;animation:spk .55s ease-out forwards}
+@keyframes spk{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+
+/* ===== 分析(BlurText) ===== */
+.ana{margin:4px 4px 6px 32px;padding:14px;border-radius:20px;font-size:13px;line-height:1.7}
+.ana h4{font-size:12px;color:var(--teal);font-weight:600;margin:8px 0 2px}.ana h4:first-child{margin-top:0}
+.bw{display:inline-block;opacity:0;filter:blur(8px);transform:translateY(6px);animation:bw .5s ease forwards}
+@keyframes bw{to{opacity:1;filter:none;transform:none}}
+
+/* ===== 降级:低端机 / 减少动态效果 ===== */
+.lite .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--solid)}
+.lite .gblur,.lite .video .big{backdrop-filter:none;-webkit-backdrop-filter:none}
+.lite .gblur{background:linear-gradient(transparent,var(--page) 80%)}
+.lite .aurora i,.lite .shiny,.lite .spec-btn::after,.lite .srow.cur::after,.lite .steps .d.now,.lite .card{animation:none}
+.lite .card{opacity:1}
+.lite .aurora{opacity:.5}
+@media (prefers-reduced-motion:reduce){.aurora i,.shiny,.spec-btn::after,.srow.cur::after,.steps .d.now{animation:none}.card{animation:none;opacity:1}}
+</style>
+</head>
+<body>
+<div class="canvas" id="root">
+<h1>跟读库 · 玻璃质感与动效(设计稿 v2)</h1>
+<p class="lede">在 v1 的 9 个画面基础上,换上「透明玻璃」外观,并从 reactbits.dev 的组件库里挑了 12 个适合手机端的效果,用纯 CSS / 少量 JS 复刻出来给你看(正式实现时是自写的小组件,<b>不会引入 reactbits 的依赖</b>:它的组件多为 React + GSAP / three.js,体积大,而我们主包有预算)。下面 5 个画面都是可操作的:卡片上按住、点「加入练习」、拖速度滑块、点「重播」,可以直接看到效果。</p>
+<div class="toolbar">
+  <button class="tb on" data-act="light">浅色</button><button class="tb" data-act="dark">深色(玻璃更明显)</button>
+  <button class="tb" data-act="lite">低端机降级(关模糊与动画)</button><button class="tb" data-act="replay">重播入场动画</button>
+</div>
+
+<h2>选中的 12 个组件</h2>
+<table>
+<tr><th>reactbits 组件</th><th>用在哪</th><th>怎么落地</th><th>成本 / 风险</th></tr>
+<tr><td><b>GlassSurface</b>(Components)</td><td>顶栏、底部标签、底部弹层、控制条、评分卡</td><td>半透明填充 + 模糊 + 饱和 + 内高光边 + 阴影,统一成一个 <code>.glass</code> 类</td><td>模糊要 GPU;一屏最多 3 层(项目既有规则);低端机自动降为实色(已有 <code>.lite</code> 机制)</td></tr>
+<tr><td><b>SoftAurora</b>(Backgrounds)</td><td>页面背景,玻璃需要"后面有东西"才好看</td><td>3 团模糊色块缓慢漂移,纯 CSS;<b>不用 WebGL 版</b></td><td>很低;省电模式 / 减少动态时静止</td></tr>
+<tr><td><b>SpotlightCard</b></td><td>列表卡片、按钮</td><td>按住 / 悬停时高光跟随手指,<code>pointermove</code> 写两个 CSS 变量</td><td>极低</td></tr>
+<tr><td><b>SpecularButton</b></td><td>主按钮「开始导入 / 添加」</td><td>渐变底 + 内高光 + 斜向光带周期性扫过</td><td>极低(一个伪元素动画)</td></tr>
+<tr><td><b>ShinyText</b>(Text)</td><td>「识别中…生成句子」状态文字</td><td><code>background-clip:text</code> + 流光渐变</td><td>极低;仅处理中的卡片使用</td></tr>
+<tr><td><b>Stepper</b></td><td>处理阶段:探测 → 取回 → 转码 → 字幕 → 转写 → 分句</td><td>圆点 + 连线,当前阶段脉冲</td><td>极低</td></tr>
+<tr><td><b>BorderGlow / ElectricBorder</b></td><td>当前播放的句子</td><td><code>conic-gradient</code> 旋转描边(只描 1.5px)</td><td>低;每屏仅一句在动</td></tr>
+<tr><td><b>GradualBlur</b>(Animations)</td><td>句子列表底部,文字滑入控制条时渐进模糊</td><td>一层带遮罩的 <code>backdrop-filter</code></td><td>算一层模糊(播放器 3 层:顶栏、渐进模糊、控制条)</td></tr>
+<tr><td><b>ElasticSlider</b></td><td>播放速度 0.5–1.25</td><td>拖动有弹性,吸附到 4 个档位</td><td>低;替代原来的 4 个小按钮</td></tr>
+<tr><td><b>CountUp</b>(Text)+ <b>GradientText</b></td><td>评分数字、配额数字</td><td>数字从 0 滚到目标;分数高时渐变色字</td><td>极低</td></tr>
+<tr><td><b>ClickSpark</b></td><td>点「加入练习」星标、拿到高分时</td><td>点击处迸出 8 颗小火花</td><td>极低;一次性</td></tr>
+<tr><td><b>BlurText</b></td><td>AI 分析逐词浮现</td><td>每个词从模糊到清晰,依次延迟</td><td>低;只在生成完成的那一次</td></tr>
+</table>
+<p class="lede">没选的:FluidGlass、Lanyard、ModelViewer、Galaxy、LiquidEther 等(WebGL / three.js,几百 KB,耗电,手机端收益小);Dock、各类 Menu / Gallery(桌面交互)。<b>所有动效遵守:</b>系统开了「减少动态效果」时全部静止;低端机走降级(去模糊、去动画);单屏模糊层 ≤ 3;主包新增体积目标 ≤ 2 kB gzip(都在跟读库的懒加载块里,只有 <code>.glass</code> 与 <code>.aurora</code> 两个公共样式进主包)。</p>
+
+<h2>画面</h2>
+<div class="row">
+
+<!-- A 列表 -->
+<div class="spec"><div class="phone" id="pA">
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="b" style="color:var(--blue)"><i class="ti ti-plus"></i></div></div>
+<div class="body">
+ <div class="quota"><span>已用 <b class="cu" data-to="680" data-suffix=" MB">0 MB</b> / 2 GB</span><div class="bar"><b></b></div><span><span class="cu" data-to="5">0</span> / 100 条</span></div>
+ <div class="card tint spot" style="animation-delay:.05s"><div class="thumb"><i class="ti ti-player-play-filled"></i><span class="dur">12:08</span></div><div class="m"><div class="t">Friends S01E01 – The One Where Monica Gets a Roommate</div><div class="s"><span class="badge g">已就绪</span><span class="badge">上传字幕</span></div><div class="s">214 句 · 312 MB</div></div></div>
+ <div class="card tint spot" style="animation-delay:.15s"><div class="thumb p"><i class="ti ti-player-play-filled"></i><span class="dur">04:21</span></div><div class="m"><div class="t">How to Learn Any Language Fast – TED</div><div class="s"><span class="shiny">识别中 · 生成句子 62%</span></div>
+   <div class="steps"><span class="d ok"><i class="ti ti-check"></i></span><span class="l ok"></span><span class="d ok"><i class="ti ti-check"></i></span><span class="l ok"></span><span class="d ok"><i class="ti ti-check"></i></span><span class="l ok"></span><span class="d now"></span><span class="l"></span><span class="d"></span></div>
+   <div class="stl"><span>探测</span><span>转码</span><span>字幕</span><span>转写</span><span>分句</span></div></div></div>
+ <div class="card tint spot" style="animation-delay:.25s"><div class="thumb a"><i class="ti ti-headphones"></i><span class="dur">18:40</span></div><div class="m"><div class="t">BBC 6 Minute English – Sleep</div><div class="s"><span class="badge g">已就绪</span><span class="badge">自动识别</span></div><div class="s">96 句 · 17 MB</div></div></div>
+ <div class="card tint spot" style="animation-delay:.35s"><div class="thumb"><i class="ti ti-alert-triangle"></i></div><div class="m"><div class="t">Netflix 链接</div><div class="s"><span class="badge r">失败</span>该站点有版权保护,无法导入。请下载后上传。</div></div></div>
+</div>
+<div class="fab"><div class="spec-btn" style="height:48px"><i class="ti ti-plus"></i>添加</div></div>
+<div class="tabbar glass"><div><i class="ti ti-microphone"></i>练习</div><div><i class="ti ti-messages"></i>对话</div><div><i class="ti ti-users"></i>联机</div><div class="on"><i class="ti ti-movie"></i>跟读库</div><div><i class="ti ti-user"></i>我的</div></div>
+</div>
+<p class="cap"><b>A 列表。</b>极光背景透过玻璃顶栏和标签栏;卡片用半透明 + 高光边(不加模糊,省性能),按住卡片有跟随高光;处理中的卡片是流光文字 + 阶段步骤条;数字滚动;卡片依次浮入。「添加」是带光带的主按钮。<span style="opacity:.7">用到:GlassSurface、SoftAurora、SpotlightCard、ShinyText、Stepper、CountUp、SpecularButton。</span></p></div>
+
+<!-- B 添加 -->
+<div class="spec"><div class="phone" id="pB">
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr glass"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>跟读库</h3><div class="b" style="color:var(--blue)"><i class="ti ti-plus"></i></div></div>
+<div class="body"><div class="card tint" style="opacity:1;animation:none"><div class="thumb"><i class="ti ti-player-play-filled"></i></div><div class="m"><div class="t">Friends S01E01</div></div></div></div>
+<div class="scrim"></div>
+<div class="sheet glass strong"><div class="grab"></div>
+ <div class="seg"><div class="on">上传文件</div><div>粘贴链接</div></div>
+ <div class="drop"><i class="ti ti-upload"></i>选择视频或音频<br><span style="font-size:12px;color:var(--ink-3)">mp4 · mov · mkv · mp3 · m4a · wav,≤ 500 MB / 90 分钟</span></div>
+ <div class="fileline"><i class="ti ti-movie" style="font-size:20px;color:var(--blue)"></i><span>episode2.mp4</span><div class="p"><b></b></div><span style="color:var(--ink-2)">47%</span></div>
+ <div class="field"><label>字幕文件(可选,.srt / .vtt)</label><div class="inp" style="color:var(--ink-3)">选择字幕…</div></div>
+ <div class="field"><label>标题</label><div class="inp">Friends S01E02</div></div>
+ <div class="spec-btn" style="margin-top:16px">开始导入</div>
+</div>
+</div>
+<p class="cap"><b>B 添加弹层。</b>弹层是悬浮的玻璃板(四周留 8px 边,圆角 28),后面的页面透出来。主按钮有光带扫过。<span style="opacity:.7">用到:GlassSurface、SpecularButton。</span></p></div>
+
+<!-- C 播放器 + 速度 -->
+<div class="spec"><div class="phone" id="pC">
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="video"><div class="cur">So, Rachel, what are you going to do now?</div><div class="big"><i class="ti ti-player-pause-filled"></i></div></div>
+<div class="sb" style="color:#fff"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr glass vid"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Friends S01E01</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div>
+<div class="list">
+ <div class="srow"><div class="n">11</div><div class="tx">Wait, does he know you’re here?<div class="zh">等等,他知道你在这儿吗?</div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="srow cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?<div class="zh">那么,瑞秋,你现在打算怎么办?</div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="srow"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.<div class="zh">我不知道。我想我会找份工作,再找个公寓。</div></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="srow"><div class="n">14</div><div class="tx"><span class="blind">Look, you can stay with me for as long as you like.</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="srow"><div class="n">15</div><div class="tx"><span class="blind">Seriously? That’s so sweet of you.</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="gblur"></div>
+<div class="speed glass strong"><div class="top"><span>播放速度</span><b id="spv">1.00×</b></div>
+ <div class="track" id="trk"><div class="rail"><div class="fill" id="fil"></div></div><div class="knob" id="knb"></div></div>
+ <div class="ticks"><span>0.5</span><span>0.75</span><span>1</span><span>1.25</span></div></div>
+<div class="ctrl glass"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-pause-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip on"><i class="ti ti-language"></i>译</div><div class="chip"><i class="ti ti-repeat"></i>循环</div><div class="chip on">1×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div></div>
+</div>
+<p class="cap"><b>C 播放器。</b>视频区在最上面,顶栏是压在视频上的玻璃;句子列表是圆角"抽屉"升在视频下方;<b>当前句有流动的描边光</b>;列表底部渐进模糊,文字滑到控制条后面自然淡出;控制条是悬浮玻璃胶囊。点「1×」弹出<b>弹性速度滑块</b>(这里直接展示,可拖动,吸附到四档)。<span style="opacity:.7">用到:GlassSurface、BorderGlow、GradualBlur、ElasticSlider。</span></p></div>
+
+<!-- D 评分 -->
+<div class="spec"><div class="phone" id="pD">
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="video"><div class="cur">So, Rachel, what are you going to do now?</div><div class="big"><i class="ti ti-player-play-filled"></i></div></div>
+<div class="sb" style="color:#fff"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr glass vid"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Friends S01E01</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div>
+<div class="list">
+ <div class="srow cur"><div class="n">12</div><div class="tx"><span class="w-g">So,</span> <span class="w-g">Rachel,</span> <span class="w-g">what</span> <span class="w-g">are</span> <span class="w-g">you</span> <span class="w-a">going</span> <span class="w-g">to</span> <span class="w-g">do</span> <span class="w-r">now?</span></div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+ <div class="score tint"><div class="top"><div class="ring" id="ring"><b class="cu" data-to="86">0</b></div><div style="flex:1"><div style="font-weight:600;font-size:16px"><span class="gt">发音很棒</span> · 流利度 <span class="cu" data-to="82">0</span></div><div style="font-size:12px;color:var(--ink-2);margin-top:3px">now 读得偏短,going 的 ng 可以更清楚</div></div></div>
+  <div class="mini-row"><div class="mini"><i class="ti ti-player-play"></i>原声</div><div class="mini"><i class="ti ti-ear"></i>我的录音</div><div class="mini spk-btn"><i class="ti ti-star"></i>加入练习</div><div class="mini"><i class="ti ti-adjustments"></i>微调</div></div></div>
+ <div class="srow"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="gblur"></div>
+<div class="ctrl glass"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-play-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip on"><i class="ti ti-language"></i>译</div><div class="chip"><i class="ti ti-repeat"></i>循环</div><div class="chip">1×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div></div>
+</div>
+<p class="cap"><b>D 评分结果。</b>评分环从 0 转到 86 并数字滚动,「发音很棒」是渐变字;点「加入练习」迸出火花(点一下试试)。<span style="opacity:.7">用到:CountUp、GradientText、ClickSpark、GlassSurface。</span></p></div>
+
+<!-- E 分析 -->
+<div class="spec"><div class="phone" id="pE">
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="video"><div class="cur">So, Rachel, what are you going to do now?</div><div class="big"><i class="ti ti-player-pause-filled"></i></div></div>
+<div class="sb" style="color:#fff"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr glass vid"><div class="b"><i class="ti ti-chevron-left"></i></div><h3>Friends S01E01</h3><div class="b"><i class="ti ti-dots"></i></div></div>
+<div class="tl"><span>03:12</span><div class="bar"><b></b></div><span>12:08</span></div>
+<div class="list">
+ <div class="srow cur"><div class="n">12</div><div class="tx">So, Rachel, what are you going to do now?<div class="zh">那么,瑞秋,你现在打算怎么办?</div></div><div class="mic"><i class="ti ti-dots-vertical"></i></div></div>
+ <div class="ana tint" id="ana"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);margin-bottom:6px"><span><i class="ti ti-sparkles"></i> AI 分析</span><span class="mini" id="replayAna" style="height:26px;padding:0 10px;font-size:11.5px">重播</span></div>
+  <div id="anaText"></div></div>
+ <div class="srow"><div class="n">13</div><div class="tx">I don’t know. I’ll find a job, I guess, and an apartment.</div><div class="mic"><i class="ti ti-microphone"></i></div></div>
+</div>
+<div class="gblur"></div>
+<div class="ctrl glass"><div class="main"><i class="ti ti-player-skip-back"></i><i class="ti ti-player-pause-filled pp"></i><i class="ti ti-player-skip-forward"></i></div>
+ <div class="chips"><div class="chip on"><i class="ti ti-language"></i>译</div><div class="chip"><i class="ti ti-repeat"></i>循环</div><div class="chip">1×</div><div class="chip"><i class="ti ti-eye-off"></i>盲听</div></div></div>
+</div>
+<p class="cap"><b>E AI 分析。</b>分析完成后逐词从模糊浮现(点「重播」再看一次);卡片是半透明玻璃,背后的当前句描边光仍可见。<span style="opacity:.7">用到:BlurText、GlassSurface、BorderGlow。</span></p></div>
+
+</div>
+
+<h2>请你看完告诉我</h2>
+<table>
+<tr><td>1</td><td><b>整体风格:</b>浅色 / 深色哪个更接近你想要的?玻璃是否太"透"或不够?(可调:模糊半径、透明度,现在是中等。)</td></tr>
+<tr><td>2</td><td><b>动效强度:</b>现在是「克制」档(只有处理中、当前句、主按钮有持续动画)。想更"炫"还是更静?</td></tr>
+<tr><td>3</td><td><b>要去掉的:</b>12 个里有没有你不想要的(比如极光背景、主按钮光带)?</td></tr>
+<tr><td>4</td><td><b>范围:</b>只用于跟读库新页面(推荐),还是之后也逐步推到全站?全站改会动到现有页面,要另做计划。</td></tr>
+</table>
+</div>
+
+<script>
+const root=document.documentElement;
+/* 主题 / 降级 / 重播 */
+document.querySelectorAll('.toolbar .tb').forEach(b=>b.addEventListener('click',()=>{
+  const a=b.dataset.act;
+  if(a==='light'||a==='dark'){root.dataset.theme=a;document.querySelectorAll('[data-act=light],[data-act=dark]').forEach(x=>x.classList.toggle('on',x===b))}
+  if(a==='lite'){const on=document.getElementById('root').classList.toggle('lite');b.classList.toggle('on',on)}
+  if(a==='replay')replay();
+}));
+/* SpotlightCard:高光跟随 */
+document.querySelectorAll('.spot').forEach(el=>{
+  const mv=e=>{const r=el.getBoundingClientRect();el.style.setProperty('--mx',(e.clientX-r.left)+'px');el.style.setProperty('--my',(e.clientY-r.top)+'px')};
+  el.addEventListener('pointermove',mv);el.addEventListener('pointerdown',e=>{mv(e);el.classList.add('press')});
+  ['pointerup','pointerleave','pointercancel'].forEach(t=>el.addEventListener(t,()=>el.classList.remove('press')));
+});
+/* CountUp */
+function countUp(el){const to=+el.dataset.to,suf=el.dataset.suffix||'',t0=performance.now(),d=1100;
+  const f=t=>{const p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);el.textContent=Math.round(to*e)+suf;if(el.parentElement.id==='ring'||el.id==='ringnum'){}
+    if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}
+function ring(){const r=document.getElementById('ring');if(!r)return;const t0=performance.now(),d=1100;
+  const f=t=>{const p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);r.style.setProperty('--p',86*e);if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}
+/* ClickSpark */
+document.querySelectorAll('.spk-btn').forEach(b=>b.addEventListener('click',e=>{
+  const ph=b.closest('.phone'),pr=ph.getBoundingClientRect();
+  for(let i=0;i<9;i++){const s=document.createElement('i');s.className='spark';const a=i/9*Math.PI*2,r=26+Math.random()*14;
+    s.style.left=(e.clientX-pr.left-3)+'px';s.style.top=(e.clientY-pr.top-3)+'px';s.style.background=['#f2b056','#2cc7b0','#4b78f0','#ff7a84'][i%4];
+    s.style.setProperty('--dx',Math.cos(a)*r+'px');s.style.setProperty('--dy',Math.sin(a)*r+'px');ph.appendChild(s);setTimeout(()=>s.remove(),600)}
+  b.querySelector('i').className='ti ti-star-filled';b.style.color='var(--amber)';
+}));
+/* BlurText */
+const ANA=[['句子结构','疑问句,what are you going to do 是 be going to 的特殊疑问形式;So, Rachel 是话题引入和称呼。'],['语法','be going to + 动词原形,表示已有打算;now 指「事情到了这一步之后」。'],['口语','what are you going to do 常读作 whadaya gonna do,注意弱读与连读。']];
+function blurText(){const box=document.getElementById('anaText');box.innerHTML='';let k=0;
+  ANA.forEach(([h,t])=>{const hh=document.createElement('h4');hh.textContent=h;box.appendChild(hh);const p=document.createElement('div');
+    [...t].forEach(ch=>{const s=document.createElement('span');s.className='bw';s.textContent=ch;s.style.animationDelay=(k++*18)+'ms';p.appendChild(s)});box.appendChild(p)})}
+document.getElementById('replayAna').addEventListener('click',blurText);
+/* ElasticSlider */
+(function(){const trk=document.getElementById('trk'),fil=document.getElementById('fil'),knb=document.getElementById('knb'),v=document.getElementById('spv');
+  const steps=[.5,.75,1,1.25];let drag=false;
+  const set=x=>{const r=trk.getBoundingClientRect(),p=Math.max(0,Math.min(1,(x-r.left)/r.width)),i=Math.round(p*3),pct=i/3*100;
+    fil.style.width=pct+'%';knb.style.left=pct+'%';v.textContent=steps[i].toFixed(2)+'×'};
+  trk.addEventListener('pointerdown',e=>{drag=true;trk.classList.add('drag');trk.setPointerCapture(e.pointerId);set(e.clientX)});
+  trk.addEventListener('pointermove',e=>{if(drag)set(e.clientX)});
+  ['pointerup','pointercancel'].forEach(t=>trk.addEventListener(t,()=>{drag=false;trk.classList.remove('drag')}));
+  fil.style.width='66.7%';knb.style.left='66.7%';})();
+function replay(){
+  document.querySelectorAll('.card').forEach(c=>{c.style.animation='none';void c.offsetWidth;c.style.animation=''});
+  document.querySelectorAll('.cu').forEach(countUp);ring();blurText();
+}
+replay();
+</script>
+</body>
+</html>
