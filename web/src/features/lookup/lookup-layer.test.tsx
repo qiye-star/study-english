@@ -7,6 +7,7 @@ import { ApiClient } from "~/api/client";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { LookupLayer } from "./lookup-layer";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
@@ -15,11 +16,11 @@ const aiCalls = (mock: { calls: Array<{ url: URL; body?: unknown }> }) => mock.c
 
 function Page() {
   return (
-    <>
+    <WithShadowSheet>
       <p data-testid="ctx" data-lookup-context>ask not what your country can do for you</p>
       <p data-testid="plain">plain text here</p>
       <LookupLayer />
-    </>
+    </WithShadowSheet>
   );
 }
 
@@ -161,8 +162,11 @@ describe("LookupLayer", () => {
     expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/practice-items")!.body as string))
       .toEqual({ text: "ask not what your country can do", source: "lookup" });
     await userEvent.click(screen.getByTestId("lookup-practice"));
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
-    await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull());
+    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("shadow-reference")).toHaveTextContent("ask not what your country can do");
+    expect(screen.queryByTestId("shadow-position")).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/); // 没有导航
+    await waitFor(() => expect(screen.queryByTestId("lookup-drawer")).toBeNull()); // 先关查词面板
   });
 
   it("does not offer practice for a single word", async () => {

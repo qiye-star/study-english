@@ -1,13 +1,13 @@
 import { LoaderIcon, MicIcon, SparklesIcon, StarIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@renderer/components/ui/sheet";
 import { BottomSheet, BottomSheetContent } from "~/components/bottom-sheet";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
-import { MAX_PRACTICE_TEXT, goPractice, savePracticeItem } from "~/features/practice";
+import { MAX_PRACTICE_TEXT, savePracticeItem, useShadowSheet } from "~/features/practice";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { DictionaryResult } from "./dictionary-result";
@@ -41,7 +41,7 @@ export function LookupLayer() {
   const controller = useRef<AbortController | null>(null);
   const aiController = useRef<AbortController | null>(null);
   const touchStart = useRef<number | null>(null);
-  const navigate = useNavigate();
+  const { open: openShadow } = useShadowSheet();
   const [saving, setSaving] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -214,7 +214,7 @@ ${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFr
             <div className="mt-2">
               <div className="flex gap-2">
                 <Button variant="outline" data-testid="lookup-practice" className="h-11 min-w-11 flex-1" disabled={tooLong}
-                  onClick={() => { onOpenChange(false); goPractice(navigate, passageText); }}>
+                  onClick={() => { onOpenChange(false); openShadow({ text: passageText, source: "lookup" }); }}>
                   <MicIcon className="mr-2 h-4 w-4" />{t("web.lookup.practice")}
                 </Button>
                 <Button variant="outline" data-testid="lookup-save" className="h-11 min-w-11 flex-1" disabled={tooLong || saving}
