@@ -11,6 +11,8 @@
 - `learned.py` – 已学词熟练度分档(存储盒 0–5)、易错判定、游标、本地日窗口(纯;只导入 `plan`)
 - `recall.py` – v2 self-rating rules (spec `2026-10-11-wordbook-recall-design.md` §5): effective rating (peek → fuzzy,
   two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
+- `forms.py` – 词形 → 原形小表加载器(forms.txt,懒加载、文件变了自动重读)
+- `lookup.py` – 选词词典(DictionaryLookup:规范化 → 七本书直接命中 → 词形 → 短语表;不记录查询)
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`, `app.speech`, `app.services`. Imported only by `app/admin`, `app/routers`,
@@ -60,3 +62,4 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   改这几条前先读计划 R-L6:`due_at = now` 会通向 `vocab_review`。
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
+- 选词词典 `POST /api/dictionary/lookup` 的词只在 POST 体;`lookup.py` / `forms.py` 里不许有 logging 调用(`test_dictionary_lookup.py::test_the_module_is_not_a_logging_site`);不受 `WORDBOOK_ENABLED` 控制;`DictionaryLookup` 随 `dictionary(app)` 的 store 更换(`lookup_service`)。
