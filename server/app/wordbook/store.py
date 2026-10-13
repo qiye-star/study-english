@@ -289,8 +289,10 @@ async def consume_settings(session: AsyncSession, user_id: int, day: str) -> boo
 # outcome = 值),取最新一行;段位只读 learn/spell_set,计划只数 learn/relearn/review,管理端按书统计的查询按 book_id 过滤,
 # 都读不到它。每次改动占用「设置」每日 60 次里的一次,所以行数有上限。
 
+# 默认值(spec 2026-10-13-defs-default-lookup-ios-design §2):没存过偏好的用户显示「仅英文」;缺英文释义的词由网页回退成中文。
+# 已存过偏好的用户读到自己最新一行事件,不受默认值影响。
 DEF_LANGS = ("both", "zh", "en")
-DEFAULT_DEF_LANG = "both"
+DEFAULT_DEF_LANG = "en"
 DEF_PREF_KIND = "defpref"
 
 

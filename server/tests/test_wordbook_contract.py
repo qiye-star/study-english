@@ -97,7 +97,7 @@ async def collect_goals(client, h) -> dict:
         assert r.status_code == 200, r.text
         return r.json()
     out = {"enrollment_patch": await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 5}))}
-    out["def_lang_patch"] = await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"}))
+    out["def_lang_patch"] = await ok(await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "zh"}))
     out["bonus"] = await ok(await client.post(f"{URL}/bonus", headers=h, json={"size": 5}))
     out["pause"] = await ok(await client.post(f"{URL}/enrollment/pause", headers=h, json={}))
     out["today_paused"] = await ok(await client.get(f"{URL}/today", headers=h))
@@ -131,7 +131,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     assert expected["learned_list"]["next_cursor"] and expected["answer_free"]["applied"] is True
     assert expected["free_start"]["items"][0]["question"]["options"]
     # 英文释义(计划 2026-10-12-wordbook-definitions-server P1):每个返回词卡的端点,首张卡都带 defs_en
-    assert expected["config"]["def_lang"] == "both" and expected["def_lang_patch"]["def_lang"] == "en"
+    assert expected["config"]["def_lang"] == "en" and expected["def_lang_patch"]["def_lang"] == "zh"
     for cards in (expected["learn_batch"]["cards"], expected["review_batch"]["cards"], [expected["card"]],
                   [expected["learned_card"]], [i["card"] for i in expected["free_start"]["items"]],
                   [w["card"] for w in expected["spell_submit"]["words"]]):

@@ -4,7 +4,7 @@ import logging
 import pytest
 from sqlalchemy import func, select
 
-from app.models import WordbookEvent
+from app.models import User, WordbookEvent, utcnow
 from app.wordbook import store
 from tests.wordbook_helpers import enable_wordbook, make_data_dir
 
@@ -28,10 +28,28 @@ async def pref_rows(app) -> list[tuple[int, str, str]]:
         return [tuple(r) for r in rows]
 
 
-async def test_default_is_both_and_the_key_sits_next_to_the_other_config_keys(app, client, tmp_path):
+async def test_default_is_en_and_the_key_sits_next_to_the_other_config_keys(app, client, tmp_path):
     h = await register(app, client, tmp_path)
     cfg = await config(client, h)
-    assert cfg["def_lang"] == "both" and {"enabled", "defaults", "learn", "limits", "books"} <= set(cfg)
+    assert cfg["def_lang"] == "en" and {"enabled", "defaults", "learn", "limits", "books"} <= set(cfg)
+    assert store.DEFAULT_DEF_LANG == "en" and store.DEFAULT_DEF_LANG in store.DEF_LANGS
+
+
+async def test_a_user_who_saved_both_keeps_both(app, client, tmp_path):
+    """D2:默认值只影响没存过偏好的用户;存过「中英」的用户读到的还是 both(最新一行事件)。"""
+    h = await register(app, client, tmp_path)
+    assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "both"})).json() == {"def_lang": "both"}
+    assert (await config(client, h))["def_lang"] == "both"
+    assert [r[2] for r in await pref_rows(app)] == ["both"]  # 相对默认 en 是一次真实变化,写了一行
+
+
+async def test_a_stored_value_that_is_not_a_language_falls_back_to_the_default(app, client, tmp_path):
+    h = await register(app, client, tmp_path)
+    async with app.state.sessionmaker() as s:
+        user_id = await s.scalar(select(User.id))
+        await store.set_def_lang(s, user_id, "fr", "2026-10-13", utcnow())
+        await s.commit()
+    assert (await config(client, h))["def_lang"] == "en"
 
 
 async def test_disabled_config_is_unchanged(app, client, tmp_path):
@@ -67,8 +85,8 @@ async def test_it_is_per_user(app, client, tmp_path):
     a = await register(app, client, tmp_path)
     r = await client.post("/api/users", json={"username": "bob", "password": "password123"})
     b = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    await client.patch(f"{URL}/enrollment", headers=a, json={"def_lang": "en"})
-    assert (await config(client, a))["def_lang"] == "en" and (await config(client, b))["def_lang"] == "both"
+    await client.patch(f"{URL}/enrollment", headers=a, json={"def_lang": "zh"})
+    assert (await config(client, a))["def_lang"] == "zh" and (await config(client, b))["def_lang"] == "en"
 
 
 async def test_with_an_active_book_the_response_is_the_enrollment_plus_def_lang(app, client, tmp_path):
@@ -93,38 +111,38 @@ async def test_goals_and_def_lang_in_one_request_cost_one_settings_use(app, clie
 async def test_an_invalid_goal_with_a_def_lang_changes_neither(app, client, tmp_path):
     h = await register(app, client, tmp_path)
     await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "order_mode": "book"})
-    r = await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 5, "def_lang": "en"})
+    r = await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 5, "def_lang": "zh"})
     assert r.status_code == 200
     app.state.settings = app.state.settings.model_copy(update={"wordbook_daily_new_max": 10})
-    r = await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 50, "def_lang": "zh"})
+    r = await client.patch(f"{URL}/enrollment", headers=h, json={"daily_new": 50, "def_lang": "both"})
     assert r.status_code == 422
-    assert (await config(client, h))["def_lang"] == "en"
+    assert (await config(client, h))["def_lang"] == "zh"
 
 
 async def test_an_unchanged_value_writes_nothing_and_costs_nothing(app, client, tmp_path, monkeypatch):
     h = await register(app, client, tmp_path)
     monkeypatch.setattr(store, "SETTINGS_DAILY_MAX", 1)
-    for _ in range(3):
-        assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "both"})).status_code == 200
+    for _ in range(3):  # en is the default now: saving it again is "no change"
+        assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"})).status_code == 200
     assert await pref_rows(app) == []
-    assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"})).status_code == 200
-    assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "zh"})).status_code == 429
-    assert [r[2] for r in await pref_rows(app)] == ["en"]
+    assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "zh"})).status_code == 200
+    assert (await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "both"})).status_code == 429
+    assert [r[2] for r in await pref_rows(app)] == ["zh"]
 
 
 async def test_change_history_is_events_with_an_empty_book_id_and_the_latest_wins(app, client, tmp_path):
     h = await register(app, client, tmp_path)
-    for value in ("en", "zh", "en"):
+    for value in ("zh", "both", "en"):
         await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": value})
     rows = await pref_rows(app)
-    assert [(r[1], r[2]) for r in rows] == [("", "en"), ("", "zh"), ("", "en")]
+    assert [(r[1], r[2]) for r in rows] == [("", "zh"), ("", "both"), ("", "en")]
     assert (await config(client, h))["def_lang"] == "en"
 
 
 async def test_the_preference_rows_do_not_touch_plans_rank_or_the_admin_book_counts(app, client, tmp_path):
     h = await register(app, client, tmp_path)
     await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "order_mode": "book"})
-    await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"})
+    await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "zh"})
     plan = (await client.get(f"{URL}/today", headers=h)).json()["plan"]
     assert plan["new_done"] == 0 and plan["review_done"] == 0 and plan["goal_met"] is False
     async with app.state.sessionmaker() as s:
@@ -135,7 +153,7 @@ async def test_the_preference_rows_do_not_touch_plans_rank_or_the_admin_book_cou
 async def test_no_user_content_in_logs(app, client, tmp_path, caplog):
     caplog.set_level(logging.DEBUG, logger="app")
     h = await register(app, client, tmp_path)
-    await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "en"})
+    await client.patch(f"{URL}/enrollment", headers=h, json={"def_lang": "zh"})
     await config(client, h)
     assert "def_lang" not in caplog.text and "alice" not in caplog.text
 
