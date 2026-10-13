@@ -26,3 +26,23 @@
 
 ### 未验证(W1)
 (L16 填写)
+
+## S2 链接导入(spike S2,计划 2026-10-13-video-import-server-import)
+
+本节由无网络的执行者写成:T0.1 只联网到 PyPI、T0.2 访问 YouTube、T0.3 要目标服务器,**全部没有做**,一律 PENDING(不编造任何数字)。
+
+| 项 | 结果 | 状态 |
+|---|---|---|
+| 锁定的 yt-dlp 版本 | 未锁定(见 Task 1 记录) | PENDING(T0.1) |
+| `[default]` 是否带 `yt-dlp-ejs` | 未验证 | PENDING(T0.1) |
+| 参数全部存在(`--use-extractors` 等) | 未验证 | PENDING(T0.1) |
+| `--use-extractors "default,-generic"` 对通用 URL | 未验证 | PENDING(T0.1) |
+| 开发机:不给 JS 运行时能否下载 YouTube | 未测(禁止联网) | PENDING(T0.2) |
+| 开发机:有 deno 轮子时 | 未测 | PENDING(T0.2) |
+| yt-dlp 读环境代理 | 未验证 | PENDING(T0.2) |
+| 进度行格式 | 未验证 | PENDING(T0.2) |
+| `--max-filesize 1K`:退出码 / 是否产生文件 / stdout 有无 `max-filesize` 行 | 未测 | PENDING(T0.2 (e)) |
+| `classify` 对真实错误文本 | 未测 | PENDING(T0.2) |
+| 目标服务器真实导入 | 未做(需要用户重建容器) | PENDING(T0.3) |
+
+结论:Task 6 无法按 spike 结果三选一;因 T0.2 PENDING,本次不做 Task 6(见后续记录)。
