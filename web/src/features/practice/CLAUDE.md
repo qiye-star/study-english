@@ -9,6 +9,7 @@ Read-aloud pronunciation practice: record, assess, history, saved practice items
 - `use-shadow-session.ts` — `useShadowSession`: record → WAV → assess (`save: true`, no `source`) → keep the recording for retry. Shared by `practice-page.tsx` and the shadow sheet (plan 2026-10-14-shadow-sheet); with default options it is the page's old logic verbatim (`keepAudio`, `silenceError`, `starter`, `maxDurationMs` are sheet/test-only).
 - `shadow/` — the in-place read-aloud sheet opened from chat and lookup. Main bundle (tiny): `shadow-context.tsx` (`ShadowSheetProvider`, `useShadowSheet`, `normalizeShadowInput`), `shadow-host.tsx` (`ShadowSheetHost`, `lazy`). Lazy chunk only: `shadow-sheet.tsx`, `shadow-result.tsx` (`ShadowResult`), `shadow-fx.tsx`, `word-tap.ts`, `shadow-locales.ts` + `locales/`, `shadow-sheet.css` (`.shs-*`). `test-utils.tsx` (`WithShadowSheet`) is for tests only.
 - `i18n/{en,zh-CN}.json` — this feature's strings.
+- The page header renders `<Slot point="practiceHeaderActions" />` before the practice-list link; the changelog entry arrives through it (no import of `~/features/changelog`: that would be a new cross-feature edge, plan 2026-10-14-changelog R-2).
 
 ## Public surface
 Public (`index.ts`): pages, assessment API + types, `MAX_PRACTICE_TEXT`, `savePracticeItem`/`goPractice`, `MobileScoreResult`, `ShadowSheetProvider`/`ShadowSheetHost`/`useShadowSheet`/`useShadowSheetOpen` (+ `ShadowOpenInput`, `ShadowSource`). Other directories import only `~/features/practice`; add exports there only when another directory needs them.

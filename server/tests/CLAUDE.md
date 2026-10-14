@@ -14,10 +14,12 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
 - `test_library_privacy.py` – caplog over every `/api/library` endpoint (incl. the D8 translate / analysis paths) and the worker paths; pins that library routes carry only ids, `cursor` and `ticket` (new routes must be added there)
 - `test_library_asr_timed.py` / `test_library_quality.py` / `test_library_alignment.py` – real sentence times, the sanity check, the continuous-background-music fixture; `test_library_reprocess.py` – re-recognition state machine and allowance
 - `test_library_ai.py` / `test_library_ai_api.py` – sentence translation and analysis: pure functions, per-sentence allowances, write-back, editable prompts; endpoints against a respx fake LLM
+- `test_changelog_privacy.py` – caplog + audit + command-output scan for entry text, static no-logging check of the four changelog modules, pinned `/api/changelog*` and `/api/admin/changelog*` route table (new routes must be added there); `test_changelog_import.py` also validates every `docs/changelog/*.json`
 - `fixtures/` – ISE XML samples, `sentence_cases.json` (shared with web's sentence splitter),
   `rank_contract.json` / `rooms_contract.json` / `room_mentions.json` / `agents_contract.json` (shared with web contract tests; the agents one is recorded by `test_agents_contract.py`, uuids/times/ms are fixed by `agents_helpers.stable`);
   `dictionary_contract.json` (recorded by `test_dictionary_contract.py`; web `dictionary-contract.test.ts` reads it);
   `library_contract.json` (recorded by `test_library_contract.py`; web `library-contract.test.ts` reads it; tickets written `REDACTED`);
+  `changelog_contract.json` (recorded by `test_changelog_contract.py`; web `changelog-contract.test.ts` and admin `features/changelog/api.test.ts` read it; timestamps fixed);
   `agents_memory_contract.json` (web `memory-contract.test.ts`); `agents_tutor_contract.json` (recorded by `test_agents_tutor_contract.py`; helpers in `agents_tutor_helpers.py`)
 - `test_web_contract.py` – drives a real room session and pins every rooms HTTP/WS payload shape in
   `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional

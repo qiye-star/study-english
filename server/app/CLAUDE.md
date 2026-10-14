@@ -17,7 +17,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `agents/` | 智能体共用核心:角色、用户设置、上下文来源注册表与并行预取、提示词拼装、过程事件、一次流式调用的编排、每日上限与回合幂等;`memory/`(A2)、`tutor/`(A3)子包 (off unless `AGENTS_ENABLED`; see `agents/CLAUDE.md`) |
 | `links/` | 学习联动(顶层):订阅核心学习事件(`core/learning_events.py`),实现六个联动;只有 routers 与 `main.py` 导入 (off unless `LINKS_ENABLED`; see `links/CLAUDE.md`) |
 | `library/` | 跟读库:上传 / 链接导入的音视频、处理流水线与进程内队列、字幕解析与分句、媒体票据 (off unless `LIBRARY_ENABLED`; see `library/CLAUDE.md`) |
-| `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, backups, prompts; v1 cross-user queries |
+| `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, changelog (entries, per-user read position, draft import), backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
 | `static_config/` | JSON config snapshots served by `/api/config/{key}` |
