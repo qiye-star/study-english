@@ -96,20 +96,22 @@ afterEach(() => {
 });
 
 describe("review page · after the answer (meaning)", () => {
-  it("swaps the options to English words, hides Chinese, shows the study panel and the hint; the request body is unchanged", async () => {
+  it("keeps the Chinese options with the English word underneath, shows the study panel and the hint; the request body is unchanged", async () => {
     const user = userEvent.setup();
     const mock = setup();
     await startAndAnswer(user, /v\. 放弃；抛弃/);
     expect(rows().map(wordOf)).toEqual(["abandon", "accept", "carry", "stop"]);
+    expect(rows().map((r) => within(r).getByTestId("option-main").textContent)).toEqual(["v. 放弃；抛弃", OPT_ACCEPT, "v. 携带；搬运", "v. 停止"]);
     expect(rows().map((r) => r.getAttribute("data-state"))).toEqual(["wrong", "correct", "idle", "idle"]);
-    expect(screen.queryByText("v. 放弃；抛弃")).toBeNull();
-    expect(rows()[3]).toHaveTextContent("v. 停止"); // 没有英文释义的词回退成中文
+    expect(screen.queryByTestId("option-peek")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("正确答案是"); // 仍然只有一个 status
     const panel = screen.getByTestId("after-answer-panel");
     expect(panel).toHaveTextContent("agree to take something offered");
     expect(panel).toHaveTextContent("accept defeat");
     expect(panel).not.toHaveTextContent("接受；承认");
-    expect(screen.getByTestId("double-tap-hint")).toHaveTextContent("双击选项可查词");
+    expect(panel).not.toHaveTextContent("认输");
+    expect(within(panel).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("long-press-hint")).toHaveTextContent("长按选项里的单词可查询");
     const sent = JSON.parse(String(mock.calls.find((c) => c.url.pathname === "/api/wordbook/answers")?.body)) as Record<string, unknown>;
     expect(Object.keys(sent).sort()).toEqual(["book_id", "choice", "key", "mode", "qtype", "tz_offset_minutes"]);
   });
@@ -118,9 +120,7 @@ describe("review page · after the answer (meaning)", () => {
     const user = userEvent.setup();
     setup();
     await startAndAnswer(user, /v\. 放弃；抛弃/);
-    const panel = screen.getByTestId("after-answer-panel");
-    expect(panel).not.toHaveTextContent("认输");
-    await user.click(within(panel).getByTestId("after-zh"));
+    await user.click(within(screen.getByTestId("after-answer-panel")).getByTestId("after-zh"));
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("接受；承认");
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("accept defeat 认输");
     expect(screen.getByTestId("after-zh")).toHaveAttribute("aria-pressed", "true");
@@ -130,14 +130,15 @@ describe("review page · after the answer (meaning)", () => {
     const wc = screen.getByTestId("word-card");
     expect(within(wc).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false"); // 换题复位
     expect(wc).not.toHaveTextContent("携带；搬运");
+    expect(screen.queryByTestId("long-press-hint")).toBeNull(); // 只提示一次
   });
 
-  it("honours def_lang 'zh': Chinese on the rows, no switch, Chinese in the panel", async () => {
+  it("honours def_lang 'zh': Chinese rows (as always), no chip, Chinese in the panel", async () => {
     const user = userEvent.setup();
     setup({ ...CONFIG, def_lang: "zh" });
     await startAndAnswer(user, /v\. 放弃；抛弃/);
     expect(rows()[0]).toHaveTextContent("v. 放弃；抛弃");
-    expect(screen.queryByTestId("option-peek")).toBeNull();
+    expect(screen.queryByTestId("after-zh")).toBeNull();
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("接受；承认");
     expect(screen.queryByTestId("word-defs-en")).toBeNull();
   });
@@ -150,13 +151,13 @@ describe("review page · after the answer (meaning)", () => {
     expect(rows()[0]).toHaveTextContent("v. 放弃；抛弃");
     expect(rows()[0].querySelector("s")).not.toBeNull();
     expect(screen.queryByTestId("option-word")).toBeNull();
-    expect(screen.queryByTestId("double-tap-hint")).toBeNull();
+    expect(screen.queryByTestId("long-press-hint")).toBeNull();
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("agree to take something offered");
   });
 });
 
 describe("review page · after the answer (word and cloze)", () => {
-  it("shows words with Chinese and part of speech under the options and the correct word's card below", async () => {
+  it("shows words with Chinese and part of speech under the options and the correct word's card below, with the 中文 chip", async () => {
     const user = userEvent.setup();
     setup();
     await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
@@ -169,6 +170,8 @@ describe("review page · after the answer (word and cloze)", () => {
     const wc = screen.getByTestId("word-card");
     expect(wc).toHaveTextContent("carry");
     expect(wc).toHaveTextContent("hold something and take it somewhere");
+    expect(within(wc).getByTestId("after-zh")).toBeTruthy();
+    expect(within(wc).queryByTestId("def-peek")).toBeNull();
   });
 
   it("leaves cloze exactly as it was: disabled option buttons, no panel", async () => {
@@ -187,14 +190,14 @@ describe("review page · after the answer (word and cloze)", () => {
   });
 });
 
-describe("review page · double tap opens the lookup bar", () => {
-  it("selects the option's word and the global selection bar appears", async () => {
+describe("review page · long press opens the lookup bar", () => {
+  it("selects the option's word after a hold and the global selection bar appears", async () => {
     const user = userEvent.setup();
     setup();
     await startAndAnswer(user, /v\. 放弃；抛弃/);
-    fireEvent.click(rows()[2], { detail: 1 });
-    fireEvent.click(rows()[2], { detail: 2 });
-    expect(window.getSelection()?.toString()).toBe("carry");
+    fireEvent.pointerDown(rows()[2], { pointerId: 1, clientX: 10, clientY: 10, button: 0, isPrimary: true });
+    await waitFor(() => expect(window.getSelection()?.toString()).toBe("carry"), { timeout: 1500 });
+    fireEvent.pointerUp(rows()[2], { pointerId: 1 });
     expect(await screen.findByTestId("lookup-bar")).toBeTruthy();
     expect(screen.getByTestId("lookup-trigger")).toBeTruthy();
   });

@@ -81,7 +81,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const [check, setCheck] = useState<Question | null>(null);
   const [first, setFirst] = useState<Record<string, AnswerResult>>({});
   const [busy, setBusy] = useState(false);
-  // 答题后「中」开关(meaning 题,计划 2026-10-13-review-after-answer R-A10):记的是正在偷看的题槽,换题 / 重出自动复位
+  // 答题后「学习内容」区的「中文」按钮(计划 2026-10-14-review-bilingual-longpress R-Z2):记的是正在看中文的题槽,换题 / 重出自动复位
   const [peekSlot, setPeekSlot] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -274,7 +274,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const slot = question ? `${question.key}:${attempt}` : "";
   const afterQuestion = answer && choiceResult && question && (question.qtype === "meaning" || question.qtype === "word") ? question : null;
   const after: AfterAnswer | undefined = afterQuestion && answer
-    ? { info: answer.result.optionInfo, defLang, peek: peekSlot === slot, onPeek: () => setPeekSlot((s) => (s === slot ? null : slot)) }
+    ? { info: answer.result.optionInfo }
     : undefined;
   return (
     <div className="flex flex-1 flex-col">
