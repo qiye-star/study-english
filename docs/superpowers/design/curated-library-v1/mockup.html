@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>跟读库 · 精选 设计稿 v1</title>
+<!--
+  设计稿:跟读库「精选」(计划 docs/superpowers/plans/2026-10-14-curated-library-web.md Task 0;
+  spec docs/superpowers/specs/2026-10-14-curated-library-design.md §10)。
+  单文件、无外部请求(图标是内联 SVG,封面是 CSS 渐变)。令牌名与数值照抄 web/src/features/library/library.css(--lib-*)
+  与 web/src/styles/theme.css(--ink 等 "r g b" 通道);视觉延续 docs/superpowers/design/video-import-v1/mockup-glass.html。
+  html.dark = 深色(默认),html.lite = 低端机降级,html.rm = 模拟「减少动态效果」。
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+html,body{background:#E4E6EC;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+html.dark body{background:#0b0c10;color:#e8e9ee}
+.canvas{max-width:1900px;margin:0 auto;padding:32px 24px 90px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2{font-size:15px;font-weight:600;margin-top:34px}
+.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:96ch;line-height:1.65}
+html.dark .lede{color:#9aa0b0}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;background:linear-gradient(#E4E6EC 70%,transparent)}
+html.dark .toolbar{background:linear-gradient(#0b0c10 70%,transparent)}
+.tb{height:34px;padding:0 14px;border-radius:17px;font-size:13px;background:#fff;color:#1b1d22;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tb.on{background:#2456DB;color:#fff}
+html.dark .tb{background:#1d2028;color:#e8e9ee}html.dark .tb.on{background:#5b86ff;color:#0b0c10}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1150px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+th{font-weight:600;color:#5b6170}html.dark th{color:#9aa0b0}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em}
+.row{display:flex;flex-wrap:wrap;gap:30px;margin-top:20px;align-items:flex-start}
+.spec{width:var(--pw,390px)}
+.spec>.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.65}
+html.dark .spec>.cap{color:#9aa0b0}.spec>.cap b{color:inherit;font-weight:600}
+.cap .fx{display:block;margin-top:6px;padding:7px 9px;border-radius:10px;background:rgba(120,125,140,.12);font-size:11.5px}
+html.w430 .spec{--pw:430px}
+
+/* ============ 全站令牌(theme.css,"r g b" 通道)============ */
+.phone{
+  --surface:255 255 255;--surface-2:245 246 248;--ink:17 19 24;--ink-2:91 97 112;--ink-3:138 144 160;
+  --blue:36 86 219;--teal:14 112 103;--amber:154 75 0;--green:21 122 59;--red:209 36 47;--on-blue:255 255 255;--ring:36 86 219;
+  --blue-tint-s:#eaf0ff;--green-tint:#e4f6ea;--amber-tint:#fff0de;--red-tint:#ffe8e9;
+}
+html.dark .phone{
+  --surface:23 25 30;--surface-2:30 33 39;--ink:243 244 246;--ink-2:166 171 184;--ink-3:110 116 130;
+  --blue:143 176 255;--teal:95 209 196;--amber:242 176 86;--green:111 211 154;--red:255 123 123;--on-blue:15 16 19;--ring:143 176 255;
+  --blue-tint-s:rgba(143,176,255,.16);--green-tint:rgba(111,211,154,.14);--amber-tint:rgba(242,176,86,.14);--red-tint:rgba(255,123,123,.14);
+}
+/* ============ 跟读库令牌(library.css 原值)============ */
+.library-root{
+  --lib-page:#eef1f8;--lib-solid:#ffffff;--lib-pop:rgba(255,255,255,.92);
+  --lib-glass-bg:rgba(255,255,255,.38);--lib-glass-strong:rgba(255,255,255,.55);--lib-glass-bd:rgba(255,255,255,.85);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--lib-glass-sh:0 10px 30px -8px rgba(36,56,110,.28);
+  --lib-card-sh:0 6px 18px -10px rgba(36,56,110,.3);--lib-chip:rgba(255,255,255,.6);--lib-hair:rgba(17,19,24,.1);--lib-blue-tint:rgba(36,86,219,.12);
+  --lib-blob1:#9db8ff;--lib-blob2:#b9f0e6;--lib-blob3:#ffd7b0;--lib-blur:34px;--lib-tab:64px;
+}
+html.dark .library-root{
+  --lib-page:#0b0d14;--lib-solid:#1a1d25;--lib-pop:rgba(26,29,37,.92);
+  --lib-glass-bg:rgba(150,170,255,.1);--lib-glass-strong:rgba(120,140,230,.17);--lib-glass-bd:rgba(255,255,255,.26);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.38),inset 0 0 22px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.08);--lib-glass-sh:0 14px 38px -8px rgba(0,0,0,.65);
+  --lib-card-sh:0 6px 18px -10px rgba(0,0,0,.6);--lib-chip:rgba(255,255,255,.1);--lib-hair:rgba(255,255,255,.12);--lib-blue-tint:rgba(143,176,255,.18);
+  --lib-blob1:#4f6dff;--lib-blob2:#12b3a2;--lib-blob3:#8f5a3a;
+}
+
+/* ============ 手机框 ============ */
+.phone{container:phone/inline-size;color:rgb(var(--ink));background:var(--lib-page);position:relative;width:var(--pw,390px);height:844px;border-radius:46px;overflow:hidden;
+  border:.5px solid rgba(120,125,140,.4);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4}
+.i{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.125em}
+.i.f{fill:currentColor;stroke:none}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px 32px;font-size:15px;font-weight:600;z-index:80}
+.scroll{position:absolute;inset:47px 0 0 0;overflow-y:auto;overflow-x:hidden;z-index:5;padding-bottom:calc(var(--lib-tab) + 40px);scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* SoftAurora(已有) */
+.lib-aurora{position:absolute;inset:0 0 auto 0;height:100%;overflow:hidden;pointer-events:none;z-index:0}
+.lib-aurora i{position:absolute;width:320px;height:320px;border-radius:50%;filter:blur(50px);opacity:.9;animation:lib-drift 18s ease-in-out infinite alternate}
+.lib-aurora i:nth-child(1){left:-80px;top:40px;background:var(--lib-blob1)}
+.lib-aurora i:nth-child(2){right:-100px;top:280px;background:var(--lib-blob2);animation-duration:23s}
+.lib-aurora i:nth-child(3){left:20px;bottom:-100px;background:var(--lib-blob3);animation-duration:27s}
+@keyframes lib-drift{to{transform:translate(40px,-50px) scale(1.15)}}
+
+/* GlassSurface / tint(已有) */
+.lib-glass{background:var(--lib-glass-bg);-webkit-backdrop-filter:blur(var(--lib-blur)) saturate(2);backdrop-filter:blur(var(--lib-blur)) saturate(2);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),var(--lib-glass-sh)}
+.lib-tint{background:var(--lib-glass-bg);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),var(--lib-card-sh)}
+/* SpotlightCard(已有) */
+.lib-spot{position:relative;overflow:hidden}
+.lib-spot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;z-index:0;
+  background:radial-gradient(160px circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.55),transparent 70%)}
+html.dark .lib-spot::before{background:radial-gradient(160px circle at var(--mx,50%) var(--my,50%),rgba(143,176,255,.28),transparent 70%)}
+.lib-spot[data-press]::before,.lib-spot:hover::before{opacity:1}
+.lib-spot>*{position:relative;z-index:1}
+.lib-rise{opacity:0;animation:lib-rise .55s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--lib-delay,0s)}
+@keyframes lib-rise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+
+/* 全站顶栏(PageHeader:滚动后才变玻璃;这里画的是未滚动的透明态) */
+.hdr{display:flex;align-items:center;height:52px;padding:0 16px;font-size:20px;font-weight:700;letter-spacing:-.02em}
+/* 全站底栏(GlassTabBar,一屏的一层模糊) */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:var(--lib-tab);display:flex;align-items:center;padding:0 6px 6px;z-index:60;border-radius:0;border-width:1px 0 0}
+.tabbar div{flex:1;text-align:center;font-size:10px;color:rgb(var(--ink-2));padding:5px 0}
+.tabbar div .i{display:block;margin:0 auto 2px;font-size:22px}
+.tabbar div.on{color:rgb(var(--blue))}
+
+/* 分段(SegmentedControl + .library-root .lib-seg,已有样式) */
+.lib-seg{display:flex;margin:2px 16px 10px;padding:3px;background:var(--lib-chip);border:.5px solid var(--lib-hair);border-radius:16px}
+.lib-seg [role=radio]{flex:1;height:36px;border-radius:13px;font-size:14px;color:rgb(var(--ink-2));border:1px solid transparent;display:flex;align-items:center;justify-content:center;gap:5px}
+.lib-seg [role=radio][aria-checked=true]{background:var(--lib-solid);color:rgb(var(--ink));font-weight:600;border-color:var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),0 2px 6px -2px rgba(0,0,0,.35)}
+.lib-seg .cnt{font-size:11px;color:rgb(var(--ink-3));font-weight:500}
+
+/* 已用空间条(已有) */
+.lib-quota{display:flex;align-items:center;gap:10px;margin:2px 18px 6px;font-size:12px;color:rgb(var(--ink-2))}
+.lib-quota-bar{flex:1;height:5px;border-radius:3px;background:var(--lib-hair);overflow:hidden}
+.lib-quota-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,rgb(var(--blue)),rgb(var(--teal)));transform-origin:left;transform:scaleX(var(--p,0))}
+
+/* 「我的」卡片(ItemCard 现状) */
+.list{list-style:none;display:flex;flex-direction:column;gap:8px;padding:6px 16px 0}
+.icard{border-radius:18px;padding:12px}
+.icard .rowx{display:flex;align-items:center;gap:8px}
+.icard .lnk{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.thumb{flex:none;width:96px;height:54px;border-radius:12px;overflow:hidden;display:grid;place-items:center;background:rgb(var(--surface-2));color:rgb(var(--ink-2));font-size:24px}
+.icard .t{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icard .meta{display:block;margin-top:3px;font-size:12px;color:rgb(var(--ink-2));font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tone{display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 7px;border-radius:7px;font-size:11px;font-weight:600}
+.tone .i{font-size:11px}
+.tone.green{color:rgb(var(--green));background:var(--green-tint)}
+.tone.gray{color:rgb(var(--ink-2));background:rgb(var(--surface-2))}
+html.dark .tone.gray{background:rgba(255,255,255,.08)}
+/* 新:副本的「精选」徽标 —— 中性玻璃色(不用琥珀:琥珀已表示「提示 / 连续天数」) */
+.lib-cat-badge{color:rgb(var(--ink));background:var(--lib-chip);border:.5px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi)}
+.lib-cat-badge .i{color:rgb(var(--blue))}
+.ibtn{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:rgb(var(--ink-2));font-size:19px}
+.chev{flex:none;color:rgb(var(--ink-3));font-size:18px}
+.fab{position:absolute;right:16px;bottom:calc(var(--lib-tab) + 14px);z-index:30}
+
+/* SpecularButton(已有):主按钮 */
+.lib-spec{position:relative;overflow:hidden;border-radius:999px;color:#fff;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:linear-gradient(180deg,#4b78f0,#2456db);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 24px -8px rgba(36,86,219,.65)}
+html.dark .lib-spec{background:linear-gradient(180deg,#6d93ff,#3a63e0)}
+.lib-spec::after{content:"";position:absolute;top:0;bottom:0;left:0;width:46%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  transform:translateX(-130%) skewX(-22deg);animation:lib-sweep 3.2s ease-in-out infinite}
+@keyframes lib-sweep{0%,55%{transform:translateX(-130%) skewX(-22deg)}100%{transform:translateX(285%) skewX(-22deg)}}
+.lib-spec:active{transform:scale(.97)}
+html .lib-spec:disabled{opacity:.7;color:rgb(var(--ink-3));background:var(--lib-chip);box-shadow:none;cursor:default}
+.lib-spec:disabled::after{display:none}
+/* 新:添加中 —— 保持主按钮颜色(表示「正在进行」而不是「不可用」),停扫光、略淡 */
+html .lib-spec[aria-busy=true]{opacity:.85;color:#fff;background:linear-gradient(180deg,#4b78f0,#2456db);cursor:progress}
+html.dark .lib-spec[aria-busy=true]{background:linear-gradient(180deg,#6d93ff,#3a63e0)}
+
+/* ============ 新:精选(.lib-cat-*)============ */
+.lib-cat-levels{display:flex;gap:7px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none}
+.lib-chip{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 14px;border-radius:17px;font-size:13px;color:rgb(var(--ink));background:var(--lib-chip);border:.5px solid var(--lib-hair)}
+.lib-chip[aria-pressed=true]{color:rgb(var(--blue));font-weight:600;background:var(--lib-blue-tint)}
+.lib-cat-grid{display:grid;grid-template-columns:1fr;gap:12px;padding:0 16px}
+@container phone (min-width:400px){.lib-cat-grid{grid-template-columns:1fr 1fr}.lib-cat-grid .lib-cat-title{font-size:14px}.lib-cat-grid .lib-cat-btn{font-size:13px}}
+.lib-cat-card{border-radius:20px;display:flex;flex-direction:column}
+.lib-cat-poster{position:relative;aspect-ratio:16/9;margin:6px 6px 0;border-radius:15px;overflow:hidden;display:grid;place-items:center;color:rgba(255,255,255,.85);font-size:30px}
+.lib-cat-poster .art{position:absolute;inset:0}
+.lib-cat-body{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;flex:1}
+.lib-cat-title{font-size:15.5px;font-weight:600;line-height:1.3;letter-spacing:-.01em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lib-cat-tags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.lib-cat-level{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:7px;font-size:11px;font-weight:700;letter-spacing:.02em;color:rgb(var(--blue));background:var(--lib-blue-tint)}
+.lib-cat-tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:7px;font-size:11px;color:rgb(var(--ink-2));background:var(--lib-chip);border:.5px solid var(--lib-hair)}
+.lib-cat-meta{font-size:12px;color:rgb(var(--ink-2));font-variant-numeric:tabular-nums}
+.lib-cat-license{font-size:11px;color:rgb(var(--ink-2));opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-cat-btn{margin-top:4px;height:44px;width:100%;font-size:14.5px}
+.lib-cat-btn .i{font-size:16px}
+/* 次按钮:已添加 · 去学习 —— 玻璃芯片底 + 蓝字,不扫光 */
+.lib-cat-open{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;color:rgb(var(--blue));font-weight:600;
+  background:var(--lib-chip);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi);transition:background-color .2s}
+.lib-cat-open .ok{color:rgb(var(--green))}
+.lib-cat-open .sep{color:rgb(var(--ink-3));font-weight:400}
+/* 添加中:按钮内转圈(实现用 lucide Loader2 + Tailwind 现成 animate-spin,不在 library.css 新增 @keyframes) */
+.spin{animation:mock-spin .9s linear infinite}
+@keyframes mock-spin{to{transform:rotate(360deg)}}
+.lib-cat-card[hidden]{display:none}
+/* 空状态 / 错误页(PageError 的样子) */
+.lib-cat-empty{margin:28px 16px 0;padding:28px 20px 26px;border-radius:22px;text-align:center}
+.lib-cat-empty .ico{width:56px;height:56px;margin:0 auto 12px;border-radius:18px;display:grid;place-items:center;font-size:28px;color:rgb(var(--blue));background:var(--lib-blue-tint)}
+.lib-cat-empty h3{font-size:16px;font-weight:600}
+.lib-cat-empty p{margin-top:6px;font-size:13px;color:rgb(var(--ink-2));line-height:1.55}
+.ghost{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;margin-top:14px;border-radius:999px;font-size:14px;font-weight:600;color:rgb(var(--blue));background:var(--lib-chip);border:.5px solid var(--lib-hair)}
+/* 吐司(sonner,top-center,实色,不加模糊) */
+.toast{position:absolute;top:56px;left:16px;right:16px;z-index:90;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;font-size:13.5px;
+  background:rgb(var(--surface));border:.5px solid var(--lib-hair);box-shadow:0 10px 30px -8px rgba(0,0,0,.35)}
+.toast .i{font-size:18px;color:rgb(var(--red))}.toast.ok .i{color:rgb(var(--green))}
+.toast .x{margin-left:auto;color:rgb(var(--ink-3));font-size:15px}
+.toast.fade{transition:opacity .3s;opacity:0;pointer-events:none}
+/* 评审标注(只在设计稿里) */
+.ann{position:absolute;z-index:95;max-width:210px;padding:6px 9px;border-radius:9px;font-size:11px;line-height:1.45;color:#3b2a00;background:#ffe08a;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.ann::before{content:"注";font-weight:700;margin-right:4px}
+.mark{outline:2px dashed #ffbf1f;outline-offset:2px}
+
+/* 删除确认(AlertDialog,实色) */
+.scrim{position:absolute;inset:0;background:rgba(10,14,28,.45);z-index:70}
+.dlg{position:absolute;left:16px;right:16px;top:50%;transform:translateY(-50%);z-index:75;padding:20px 18px 16px;border-radius:24px;background:rgb(var(--surface));border:.5px solid var(--lib-hair)}
+.dlg h3{font-size:17px;font-weight:600}.dlg p{margin-top:8px;font-size:13.5px;color:rgb(var(--ink-2));line-height:1.55}
+.dlg p.add{padding:8px 10px;border-radius:12px;background:var(--lib-blue-tint);color:rgb(var(--ink))}
+.dlg .acts{display:flex;gap:8px;margin-top:16px}
+.dlg .acts button{flex:1;height:44px;border-radius:14px;font-size:15px;font-weight:600;border:.5px solid var(--lib-hair)}
+.dlg .acts .danger{background:rgb(var(--red));color:#fff;border:0}
+
+/* 底部菜单(ItemMenu 的 BottomSheet,对照用) */
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;z-index:75;padding:10px 12px 14px;border-radius:28px;background:var(--lib-glass-strong);-webkit-backdrop-filter:blur(var(--lib-blur)) saturate(2);backdrop-filter:blur(var(--lib-blur)) saturate(2);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),var(--lib-glass-sh)}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--lib-hair);margin:0 auto 8px}
+.sheet h4{font-size:15px;font-weight:600;padding:2px 8px 8px}
+.mi{display:flex;align-items:center;gap:12px;height:52px;padding:0 10px;border-radius:14px;font-size:15px}
+.mi .i{font-size:19px;color:rgb(var(--ink-2))}
+.mi.off{color:rgb(var(--ink-3));text-decoration:line-through}
+
+/* ============ 播放页(已有 + 封面)============ */
+.lib-stage{position:relative;flex:none;padding-top:47px;background:#000}
+.lib-stage-audio{position:relative;aspect-ratio:3/1;display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;
+  background:linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52);color:rgba(255,255,255,.85)}
+/* 新:有封面时铺满 + 下沿压暗(实现:<img class="lib-stage-poster" alt="">,object-fit:cover;无封面回退到图标) */
+.lib-stage-poster{position:absolute;inset:0}
+.lib-stage-audio.has-poster{aspect-ratio:16/9}
+.lib-stage-audio::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),transparent 40%,rgba(0,0,0,.45))}
+.lib-bar{position:absolute;top:55px;left:12px;right:12px;z-index:5;display:flex;align-items:center;gap:6px;height:44px;padding:0 6px;border-radius:22px;color:#fff;
+  background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 24px -8px rgba(0,0,0,.5)}
+.lib-bar .b{width:40px;height:40px;display:grid;place-items:center;font-size:22px}
+.lib-bar .tt{flex:1;min-width:0;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player{position:absolute;inset:0;display:flex;flex-direction:column}
+.lib-segments{position:relative;z-index:2;flex:1 1 0;min-height:0;margin-top:-14px;padding:8px 10px 200px;overflow:hidden;border-radius:26px 26px 0 0;background:var(--lib-page);box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.lib-row{position:relative;display:flex;gap:4px;margin:2px 0;padding:4px 6px 4px 8px;border-radius:18px}
+.lib-row-play{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:rgb(var(--ink-2));font-size:18px;margin-top:4px}
+.lib-row[aria-current=true]{background:var(--lib-glass-strong);box-shadow:var(--lib-glass-hi),0 8px 22px -10px rgba(36,86,219,.5)}
+.lib-row[aria-current=true] .lib-row-play{color:rgb(var(--blue))}
+.lib-seg-text{flex:1;min-width:0;padding:10px 0;font-size:17px;line-height:1.5}
+.lib-zh{margin-top:2px;font-size:13px;line-height:1.5;color:rgb(var(--ink-2))}
+@property --lib-a{syntax:"<angle>";inherits:false;initial-value:0deg}
+.lib-glow::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1.5px;pointer-events:none;
+  background:conic-gradient(from var(--lib-a,0deg),transparent 0 55%,rgb(var(--blue)) 78%,#7fe3d6 90%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:lib-spin 3.6s linear infinite}
+@keyframes lib-spin{to{--lib-a:360deg}}
+.lib-gblur{position:absolute;left:0;right:0;bottom:var(--lib-tab);height:190px;z-index:20;pointer-events:none;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  -webkit-mask-image:linear-gradient(transparent,#000 70%);mask-image:linear-gradient(transparent,#000 70%)}
+.lib-ctrl{position:absolute;left:10px;right:10px;bottom:calc(var(--lib-tab) + 10px);z-index:30;padding:10px 12px 12px;border-radius:30px}
+.lib-ctrl-main{display:flex;align-items:center;justify-content:center;gap:22px}
+.lib-ctrl-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;font-size:24px;color:rgb(var(--ink))}
+.lib-ctrl-play{width:48px;height:48px;color:#fff;background:linear-gradient(180deg,#4b78f0,#2456DB);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 18px -6px rgba(36,86,219,.7)}
+.lib-chips{display:flex;justify-content:center;gap:7px;margin-top:8px}
+.lib-chips .lib-chip{font-size:12.5px;padding:0 12px}
+.lib-chips .lib-chip .i{font-size:15px}
+
+/* ============ 降级:低端机(html.lite)与减少动态效果(html.rm 模拟)============ */
+html.lite .lib-glass,html.lite .sheet{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--lib-solid)}
+html.lite .lib-gblur{-webkit-backdrop-filter:none;backdrop-filter:none;-webkit-mask-image:none;mask-image:none;background:linear-gradient(transparent,var(--lib-page) 80%)}
+html.lite .lib-aurora{opacity:.5}
+html.lite .lib-aurora i,html.lite .lib-spec::after,html.lite .lib-glow::after{animation:none}
+html.lite .lib-rise{animation:none;opacity:1}
+html.lite .lib-cat-open{transition:none}
+html.rm .lib-aurora i,html.rm .lib-spec::after,html.rm .lib-glow::after{animation:none}
+html.rm .lib-rise{animation:none;opacity:1}
+html.rm .lib-cat-open,html.rm .lib-spot::before{transition:none}
+@media (prefers-reduced-motion:reduce){.lib-aurora i,.lib-spec::after,.lib-glow::after{animation:none}.lib-rise{animation:none;opacity:1}.lib-cat-open{transition:none}}
+</style>
+</head>
+<body>
+<!-- 图标(lucide 风格,内联,不请求网络) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+ <symbol id="i-clap" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+ <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></symbol>
+ <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+ <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+ <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+ <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+ <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5Z"/></symbol>
+ <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+ <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol>
+ <symbol id="i-lang" viewBox="0 0 24 24"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></symbol>
+ <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+ <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="m2 2 20 20"/><path d="M6.7 6.7C4.1 8.4 2.5 12 2.5 12s3.5 7 9.5 7c1.9 0 3.6-.6 5-1.5"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.2 3.2"/></symbol>
+ <symbol id="i-skipb" viewBox="0 0 24 24"><path d="M19 20 9 12l10-8Z"/><path d="M5 19V5"/></symbol>
+ <symbol id="i-skipf" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8Z"/><path d="M19 5v14"/></symbol>
+ <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+ <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+ <symbol id="i-wifioff" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M8.5 16.4a5 5 0 0 1 7 0"/><path d="M2 8.8a15 15 0 0 1 4.2-2.6"/><path d="M22 8.8A15 15 0 0 0 10.7 5"/><path d="M5 12.9a10 10 0 0 1 5.2-2.8"/><path d="M19 12.9a10 10 0 0 0-2.4-1.7"/><path d="m2 2 20 20"/></symbol>
+ <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M10 3 11.7 8.3 17 10l-5.3 1.7L10 17l-1.7-5.3L3 10l5.3-1.7Z"/><path d="M19 15v4"/><path d="M17 17h4"/></symbol>
+ <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2Z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7Z"/></symbol>
+ <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+ <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9"/><path d="M14.5 14.5 20 20"/><path d="M8.1 8.1 12 12"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+ <symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+ <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+ <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+</svg>
+
+<div class="canvas" id="root">
+<h1>跟读库 ·「精选」设计稿 v1(深色默认)</h1>
+<p class="lede">8 个画面,覆盖计划 <code>2026-10-14-curated-library-web.md</code> Task 0 列出的全部状态,外加离线、开关关闭、删除副本确认与 ⋯ 菜单对照。颜色、玻璃、圆角全部沿用 <code>library.css</code> 的 <code>--lib-*</code> 令牌与 <code>theme.css</code> 的 <code>--ink / --blue …</code>;新增的只有 <code>.lib-cat-*</code> 卡片样式,<b>不新增模糊层、不新增 <code>@keyframes</code></b>(设计稿里转圈用了一个演示用动画,实现时用 Tailwind 现成的 <code>animate-spin</code>)。画面可操作:点「添加到我的库」看「添加中 → 已添加」,点级别芯片筛选,按住卡片有跟随高光。<b>黄色「注」是评审标注,不是产品界面。</b></p>
+<div class="toolbar">
+  <button class="tb" data-act="light">浅色</button><button class="tb on" data-act="dark">深色(默认)</button>
+  <button class="tb" data-act="lite">低端机降级 html.lite</button><button class="tb" data-act="rm">减少动态效果</button>
+  <button class="tb" data-act="w430">手机宽 430(看 2 列)</button><button class="tb" data-act="ann">隐藏标注</button><button class="tb" data-act="replay">重播入场</button>
+</div>
+
+<h2>画面</h2>
+<div class="row">
+
+<!-- ============ 1 我的 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="true">我的</button><button role="radio" aria-checked="false">精选</button></div>
+  <div class="lib-quota"><span>已用 680 MB / 2 GB</span><div class="lib-quota-bar"><div class="lib-quota-fill" style="--p:.34"></div></div><span>5 / 100 条</span></div>
+  <ul class="list">
+   <li><div class="icard lib-tint lib-spot lib-rise" style="--lib-delay:.0s"><div class="rowx">
+     <a class="lnk"><span class="thumb" style="background:linear-gradient(135deg,#2b3a55,#6b7fa8);color:#fff"><svg class="i"><use href="#i-clap"/></svg></span>
+      <span style="min-width:0;flex:1"><span class="t">Friends S01E01 – The One Where Monica Gets a Roommate</span><span class="badges"><span class="tone green">已就绪</span><span class="tone gray">上传字幕</span></span><span class="meta">12:08 · 214 句 · 312 MB</span></span>
+      <svg class="i chev"><use href="#i-chev-r"/></svg></a>
+     <button class="ibtn" title="删除"><svg class="i"><use href="#i-trash"/></svg></button></div></div></li>
+   <li><div class="icard lib-tint lib-spot lib-rise mark" style="--lib-delay:.07s"><div class="rowx">
+     <a class="lnk"><span class="thumb"><span class="art p-coffee" style="width:100%;height:100%"></span></span>
+      <span style="min-width:0;flex:1"><span class="t">How Coffee Travels from Farm to Cup</span><span class="badges"><span class="tone lib-cat-badge"><svg class="i"><use href="#i-sparkles"/></svg>精选</span><span class="tone gray">B1</span></span><span class="meta">4:12 · 38 句 · 不占空间</span></span>
+      <svg class="i chev"><use href="#i-chev-r"/></svg></a>
+     <button class="ibtn" title="删除"><svg class="i"><use href="#i-trash"/></svg></button></div></div></li>
+   <li><div class="icard lib-tint lib-spot lib-rise" style="--lib-delay:.14s"><div class="rowx">
+     <a class="lnk"><span class="thumb"><svg class="i"><use href="#i-music"/></svg></span>
+      <span style="min-width:0;flex:1"><span class="t">BBC 6 Minute English – Sleep</span><span class="badges"><span class="tone green">已就绪</span><span class="tone gray">自动识别</span></span><span class="meta">18:40 · 96 句 · 17 MB</span></span>
+      <svg class="i chev"><use href="#i-chev-r"/></svg></a>
+     <button class="ibtn" title="更多"><svg class="i"><use href="#i-dots"/></svg></button>
+     <button class="ibtn" title="删除"><svg class="i"><use href="#i-trash"/></svg></button></div></div></li>
+  </ul>
+ </div>
+ <div class="ann" style="left:16px;top:470px;max-width:300px">第 2 张是副本:「精选」徽标(中性玻璃 + 蓝色小星),大小处写「不占空间」;<b>没有 ⋯</b>(菜单里只剩 0 项),只留删除</div>
+ <div class="ann" style="left:16px;top:545px;max-width:300px">「5 / 100 条」不计副本(E7)</div>
+ <div class="fab"><button class="lib-spec" style="height:48px;padding:0 20px;font-size:15px"><svg class="i"><use href="#i-plus"/></svg>添加素材</button></div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>1 列表 ·「我的」。</b>顶栏下新增 <code>我的 / 精选</code> 分段(现有 <code>SegmentedControl</code> + <code>.lib-seg</code> 皮肤);已用空间条与「添加素材」只在「我的」出现。第二张是从精选加入的副本。
+<span class="fx">fx:SpotlightCard、SpecularButton(FAB)、lib-rise。模糊层:底栏 1 层(+ 顶栏滚动后 1 层)= 2 ≤ 3。<code>.lite</code>:底栏退为实色,FAB 不扫光,卡片不浮入。</span></p></div>
+
+<!-- ============ 2 精选(主状态)============ -->
+<div class="spec"><div class="phone library-root" id="pCat">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="false">我的</button><button role="radio" aria-checked="true">精选</button></div>
+  <div class="lib-cat-levels" id="lvls"><button class="lib-chip" aria-pressed="true" data-l="*">全部</button><button class="lib-chip" aria-pressed="false" data-l="A2">A2</button><button class="lib-chip" aria-pressed="false" data-l="B1">B1</button><button class="lib-chip" aria-pressed="false" data-l="B2">B2</button></div>
+  <div class="lib-cat-grid" id="grid">
+   <article class="lib-cat-card lib-tint lib-spot lib-rise" data-level="B1" style="--lib-delay:0s">
+    <div class="lib-cat-poster"><span class="art p-market"></span></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">A Morning at the Farmers Market: Talking Prices and Seasons</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">B1</span><span class="lib-cat-tag">daily life</span><span class="lib-cat-tag">food</span><span class="lib-cat-tag">shopping</span></div>
+     <div class="lib-cat-meta">5:46 · 52 句</div>
+     <div class="lib-cat-license">VOA Learning English · Public domain (U.S. Government work)</div>
+     <button class="lib-spec lib-cat-btn js-add"><svg class="i"><use href="#i-plus"/></svg>添加到我的库</button></div>
+   </article>
+   <article class="lib-cat-card lib-tint lib-spot lib-rise" data-level="B2" style="--lib-delay:.07s">
+    <div class="lib-cat-poster"><span class="art p-space"></span></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">Life on the Space Station</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">B2</span><span class="lib-cat-tag">science</span><span class="lib-cat-tag">space</span></div>
+     <div class="lib-cat-meta">7:03 · 61 句</div>
+     <div class="lib-cat-license">VOA Learning English · Public domain (U.S. Government work)</div>
+     <button class="lib-spec lib-cat-btn" disabled aria-busy="true"><svg class="i spin"><use href="#i-loader"/></svg>正在添加</button></div>
+   </article>
+   <article class="lib-cat-card lib-tint lib-spot lib-rise" data-level="B1" style="--lib-delay:.14s">
+    <div class="lib-cat-poster"><span class="art p-coffee"></span></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">How Coffee Travels from Farm to Cup</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">B1</span><span class="lib-cat-tag">food</span><span class="lib-cat-tag">economy</span><span class="lib-cat-tag">travel</span></div>
+     <div class="lib-cat-meta">4:12 · 38 句</div>
+     <div class="lib-cat-license">VOA Learning English · Public domain (U.S. Government work)</div>
+     <button class="lib-cat-open lib-cat-btn"><svg class="i ok"><use href="#i-check"/></svg>已添加<span class="sep">·</span>去学习<svg class="i"><use href="#i-chev-r"/></svg></button></div>
+   </article>
+   <article class="lib-cat-card lib-tint lib-spot lib-rise" data-level="A2" style="--lib-delay:.21s">
+    <div class="lib-cat-poster" style="background:linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52)"><svg class="i"><use href="#i-headphones"/></svg></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">Everyday Grammar: Making Polite Requests</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">A2</span><span class="lib-cat-tag">grammar</span></div>
+     <div class="lib-cat-meta">3:28 · 29 句</div>
+     <div class="lib-cat-license">示例来源 · 许可说明一行,超长时省略号截断</div>
+     <button class="lib-spec lib-cat-btn js-add"><svg class="i"><use href="#i-plus"/></svg>添加到我的库</button></div>
+   </article>
+  </div>
+ </div>
+ <div class="ann" style="right:14px;top:150px;max-width:150px">芯片只列出现过的级别;纯客户端筛选,不进 URL</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>2 列表 ·「精选」。</b>级别芯片(全部 · A2 · B1 · B2);卡片:16:9 封面(无封面 = 播放页同款音频渐变 + 耳机图标)、标题两行截断、级别徽标(淡蓝)+ ≤ 3 个标签、<code>时长 · 句数</code>、许可说明一行小字。按钮三态从上到下:<b>添加到我的库</b>(主)、<b>正在添加</b>(按钮内转圈、禁用)、<b>已添加 · 去学习</b>(次按钮)。390 宽是 1 列;点工具栏「手机宽 430」看 2 列。点「添加」演示添加中 → 已添加(实际会直接进入播放页,R-W2)。
+<span class="fx">fx:SpotlightCard(卡片)、SpecularButton(添加)、lib-rise。卡片是 <code>.lib-tint</code>,不加模糊;本屏模糊层 = 底栏 1(+ 顶栏滚动后 1)。<code>.lite</code>:按钮不扫光、卡片不浮入,高光与布局不变;转圈在减少动态效果下仍转(它表示进行中)。</span></p></div>
+
+<!-- ============ 3 空状态 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="false">我的</button><button role="radio" aria-checked="true">精选</button></div>
+  <div class="lib-cat-empty lib-tint"><div class="ico"><svg class="i"><use href="#i-book"/></svg></div><h3>精选素材正在准备中</h3><p>管理员发布后会出现在这里。</p></div>
+ </div>
+ <div class="ann" style="left:24px;top:330px;max-width:330px">没有级别芯片(全部为空时不显示);不给按钮(用户什么也做不了)</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>3 空状态。</b>开关开着但还没有发布任何条目。半透明卡片 + 淡蓝图标块,和添加表单的提示卡同一语言。
+<span class="fx">fx:无。模糊层:底栏 1。<code>.lite</code>:无变化。</span></p></div>
+
+<!-- ============ 4 错误:已下架 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="false">我的</button><button role="radio" aria-checked="true">精选</button></div>
+  <div class="lib-cat-levels"><button class="lib-chip" aria-pressed="true">全部</button><button class="lib-chip" aria-pressed="false">A2</button><button class="lib-chip" aria-pressed="false">B1</button></div>
+  <div class="lib-cat-grid">
+   <article class="lib-cat-card lib-tint lib-spot mark">
+    <div class="lib-cat-poster"><span class="art p-city"></span></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">City Bikes Change How People Commute</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">B1</span><span class="lib-cat-tag">city</span><span class="lib-cat-tag">transport</span></div>
+     <div class="lib-cat-meta">4:55 · 41 句</div>
+     <div class="lib-cat-license">VOA Learning English · Public domain (U.S. Government work)</div>
+     <button class="lib-spec lib-cat-btn"><svg class="i"><use href="#i-plus"/></svg>添加到我的库</button></div>
+   </article>
+   <article class="lib-cat-card lib-tint lib-spot">
+    <div class="lib-cat-poster" style="background:linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52)"><svg class="i"><use href="#i-headphones"/></svg></div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">Everyday Grammar: Making Polite Requests</h3>
+     <div class="lib-cat-tags"><span class="lib-cat-level">A2</span><span class="lib-cat-tag">grammar</span></div>
+     <div class="lib-cat-meta">3:28 · 29 句</div>
+     <button class="lib-spec lib-cat-btn"><svg class="i"><use href="#i-plus"/></svg>添加到我的库</button></div>
+   </article>
+  </div>
+ </div>
+ <div class="toast" id="toastGone"><svg class="i"><use href="#i-alert"/></svg><span>这条精选素材已下架</span><svg class="i x"><use href="#i-x"/></svg></div>
+ <div class="toast" style="top:112px"><svg class="i"><use href="#i-wifioff"/></svg><span>网络连接失败,请稍后重试。</span><svg class="i x"><use href="#i-x"/></svg></div>
+ <div class="ann" style="left:130px;top:210px;max-width:230px">添加失败后按钮回到「添加到我的库」;404(已下架)时这张卡建议同时从列表移除(待定,见决定 5)</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>4 添加失败。</b>吐司用现有 sonner(顶部居中,<code>toast.error(translateServerError(…))</code>):上 = <code>catalog_not_found</code> →「这条精选素材已下架」;下 = 断网时的通用网络错误文案(沿用现有映射,不新增键)。两条同时出现只为评审对照。
+<span class="fx">fx:SpotlightCard、SpecularButton。吐司是实色,不加模糊;模糊层 = 底栏 1。</span></p></div>
+
+<!-- ============ 5 离线 / 加载失败 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="false">我的</button><button role="radio" aria-checked="true">精选</button></div>
+  <div class="lib-cat-empty lib-tint"><div class="ico" style="color:rgb(var(--ink-2));background:var(--lib-chip)"><svg class="i"><use href="#i-wifioff"/></svg></div><h3>加载失败</h3><p>网络连接失败,请稍后重试。</p>
+   <button class="ghost"><svg class="i"><use href="#i-rotate"/></svg>重试</button></div>
+ </div>
+ <div class="ann" style="left:24px;top:400px;max-width:330px">就是现有的 <code>PageError</code> + 重试(不新增文案键);没有单独的「离线横幅」,PWA 现有的离线提示照常</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>5 离线 / 目录加载失败。</b>列表取不到时整块换成错误卡 + 「重试」;已经加入的副本在「我的」里照常显示(它们是普通条目)。
+<span class="fx">fx:无。模糊层:底栏 1。</span></p></div>
+
+<!-- ============ 6 开关关闭 + 菜单对照 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-quota" style="margin-top:6px"><span>已用 680 MB / 2 GB</span><div class="lib-quota-bar"><div class="lib-quota-fill" style="--p:.34"></div></div><span>5 / 100 条</span></div>
+  <ul class="list">
+   <li><div class="icard lib-tint"><div class="rowx">
+     <a class="lnk"><span class="thumb"><span class="art p-coffee" style="width:100%;height:100%"></span></span>
+      <span style="min-width:0;flex:1"><span class="t">How Coffee Travels from Farm to Cup</span><span class="badges"><span class="tone lib-cat-badge"><svg class="i"><use href="#i-sparkles"/></svg>精选</span><span class="tone gray">B1</span></span><span class="meta">4:12 · 38 句 · 不占空间</span></span>
+      <svg class="i chev"><use href="#i-chev-r"/></svg></a>
+     <button class="ibtn"><svg class="i"><use href="#i-trash"/></svg></button></div></div></li>
+   <li><div class="icard lib-tint"><div class="rowx">
+     <a class="lnk"><span class="thumb"><svg class="i"><use href="#i-music"/></svg></span>
+      <span style="min-width:0;flex:1"><span class="t">BBC 6 Minute English – Sleep</span><span class="badges"><span class="tone green">已就绪</span><span class="tone gray">自动识别</span></span><span class="meta">18:40 · 96 句 · 17 MB</span></span>
+      <svg class="i chev"><use href="#i-chev-r"/></svg></a>
+     <button class="ibtn mark"><svg class="i"><use href="#i-dots"/></svg></button><button class="ibtn"><svg class="i"><use href="#i-trash"/></svg></button></div></div></li>
+  </ul>
+ </div>
+ <div class="ann" style="left:16px;top:440px;max-width:330px"><code>config.catalog = false</code>:没有分段,页面与今天一样;<code>?tab=catalog</code> 被忽略。已加入的副本照常可用</div>
+ <div class="scrim" style="top:auto;height:330px;bottom:0;background:rgba(10,14,28,.35)"></div>
+ <div class="sheet"><div class="grab"></div><h4>素材操作 · 普通条目(自动识别)</h4>
+  <div class="mi"><svg class="i"><use href="#i-scissors"/></svg>重新分句</div>
+  <div class="mi"><svg class="i"><use href="#i-rotate"/></svg>重新识别</div>
+  <h4 style="margin-top:8px">副本(精选)</h4>
+  <div class="mi off"><svg class="i"><use href="#i-scissors"/></svg>重新分句</div>
+  <div class="mi off"><svg class="i"><use href="#i-rotate"/></svg>重新识别 / 换字幕</div>
+ </div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>6 开关关闭 + ⋯ 菜单对照。</b>上半:<code>config.catalog</code> 为假时的「我的」(无分段)。下半:现有 ⋯ 菜单只含「重新分句 / 重新识别」;副本两项都去掉(划线示意),所以副本卡片<b>不渲染 ⋯ 按钮</b>(见画面 1)。
+<span class="fx">fx:菜单是现有底部弹层(1 层模糊)+ 底栏 1 = 2。<code>.lite</code>:弹层退为实色。</span></p></div>
+
+<!-- ============ 7 删除副本确认 ============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="lib-aurora"><i></i><i></i><i></i></div>
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="hdr">跟读库</div>
+  <div class="lib-seg" role="radiogroup"><button role="radio" aria-checked="true">我的</button><button role="radio" aria-checked="false">精选</button></div>
+  <ul class="list"><li><div class="icard lib-tint"><div class="rowx"><a class="lnk"><span class="thumb"><span class="art p-coffee" style="width:100%;height:100%"></span></span>
+   <span style="min-width:0;flex:1"><span class="t">How Coffee Travels from Farm to Cup</span><span class="badges"><span class="tone lib-cat-badge"><svg class="i"><use href="#i-sparkles"/></svg>精选</span></span><span class="meta">4:12 · 38 句 · 不占空间</span></span></a></div></div></li></ul>
+ </div>
+ <div class="scrim"></div>
+ <div class="dlg"><h3>删除这条素材?</h3><p>媒体文件和句子会被删除。你的录音和成绩仍保留在练习记录里。</p>
+  <p class="add">不会影响精选库里的原条目,之后可以重新添加。</p>
+  <div class="acts"><button>取消</button><button class="danger">删除</button></div></div>
+ <div class="ann" style="left:24px;bottom:200px;max-width:330px">第一句是现有文案,对副本略不准确(媒体文件其实是共享的、不会被删)— 见决定 6</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>7 删除副本。</b>现有 AlertDialog,副本多一行淡蓝提示 <code>deleteCopyNote</code>(R-W5)。
+<span class="fx">fx:无(对话框实色)。模糊层:底栏 1。</span></p></div>
+
+<!-- ============ 8 播放页(副本)============ -->
+<div class="spec"><div class="phone library-root">
+ <div class="player">
+  <div class="lib-stage"><div class="lib-stage-audio has-poster"><span class="lib-stage-poster art p-coffee"></span></div></div>
+  <div class="lib-segments">
+   <div class="lib-row"><div class="lib-row-play"><svg class="i f"><use href="#i-play"/></svg></div><div class="lib-seg-text">Coffee starts as a small red fruit on a farm.<div class="lib-zh">咖啡最初是农场里一颗小小的红色果实。</div></div></div>
+   <div class="lib-row lib-glow" aria-current="true"><div class="lib-row-play"><svg class="i f"><use href="#i-play"/></svg></div><div class="lib-seg-text">Farmers pick the fruit by hand when it is ripe.<div class="lib-zh">果实成熟时,农民用手把它摘下来。</div></div></div>
+   <div class="lib-row"><div class="lib-row-play"><svg class="i f"><use href="#i-play"/></svg></div><div class="lib-seg-text">Then the beans are dried in the sun for many days.<div class="lib-zh">然后,咖啡豆要在阳光下晒很多天。</div></div></div>
+   <div class="lib-row mark"><div class="lib-row-play"><svg class="i f"><use href="#i-play"/></svg></div><div class="lib-seg-text">I changed this sentence myself.</div></div>
+  </div>
+ </div>
+ <div class="sb" style="color:#fff"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="lib-bar"><div class="b"><svg class="i"><use href="#i-chev-l"/></svg></div><div class="tt">How Coffee Travels from Farm to Cup</div><div class="b"><svg class="i"><use href="#i-dots"/></svg></div></div>
+ <div class="lib-gblur"></div>
+ <div class="lib-ctrl lib-glass"><div class="lib-ctrl-main"><button class="lib-ctrl-btn"><svg class="i f"><use href="#i-skipb"/></svg></button><button class="lib-ctrl-btn lib-ctrl-play"><svg class="i f"><use href="#i-pause"/></svg></button><button class="lib-ctrl-btn"><svg class="i f"><use href="#i-skipf"/></svg></button></div>
+  <div class="lib-chips"><button class="lib-chip mark" aria-pressed="true"><svg class="i"><use href="#i-lang"/></svg>译</button><button class="lib-chip" aria-pressed="false"><svg class="i"><use href="#i-repeat"/></svg>循环</button><button class="lib-chip" aria-pressed="false">1×</button><button class="lib-chip" aria-pressed="false"><svg class="i"><use href="#i-eyeoff"/></svg>盲听</button></div></div>
+ <div class="ann" style="left:150px;top:118px;max-width:220px">有封面时舞台改 16:9(3:1 时封面几乎全被顶栏挡住);上下压暗;无封面仍是原来的 3:1 渐变 + 图标</div>
+ <div class="ann" style="left:150px;bottom:178px;max-width:220px"><code>config.ai = false</code> 时「译」仍可用:只显示已存译文,不发翻译请求;改过文字的句子没有译文,也不显示骨架</div>
+ <nav class="tabbar lib-glass"><div><svg class="i"><use href="#i-mic"/></svg>练习</div><div><svg class="i"><use href="#i-msg"/></svg>对话</div><div><svg class="i"><use href="#i-users"/></svg>联机</div><div class="on"><svg class="i"><use href="#i-clap"/></svg>跟读库</div><div><svg class="i"><use href="#i-user"/></svg>我的</div></nav>
+</div>
+<p class="cap"><b>8 播放页(副本)。</b>与现有播放页相同,只多了音频舞台的封面图(16:9);句子下面是导入时预先生成的中文译文。
+<span class="fx">fx:BorderGlow(当前句)、GradualBlur、GlassSurface(控制条)。模糊层 = 渐进模糊 + 控制条 + 底栏 = 3(现状,不增加;封面上的顶栏胶囊仍不模糊)。<code>.lite</code>:控制条实色、渐进模糊变渐变、描边光静止。</span></p></div>
+
+</div>
+
+<h2>需要你确认的设计决定</h2>
+<table>
+<tr><th>#</th><th>决定(设计稿的做法)</th><th>备选</th></tr>
+<tr><td>1</td><td><b>分段文案「我的 / 精选」与底栏「我的」(个人页)同名。</b>设计稿按计划写「我的」。</td><td>改成「我的素材 / 精选」或「我的库 / 精选」,避免两个「我的」。</td></tr>
+<tr><td>2</td><td><b>390 宽是 1 列大卡</b>(计划:≥ 400px 才 2 列),一屏约 2 张。</td><td>窄屏改成「我的」那样的横向紧凑卡(左侧 96×54 封面),一屏 5–6 张;或把 2 列门槛降到 360px(标题更容易被截断)。</td></tr>
+<tr><td>3</td><td><b>级别徽标用淡蓝</b>,标签用中性芯片;副本的「精选」徽标用中性玻璃 + 蓝色小星(不用琥珀)。</td><td>级别按 A / B / C 分三色(会占用绿 / 琥珀已有的「分数」含义,不推荐)。</td></tr>
+<tr><td>4</td><td><b>许可说明用 <code>ink-2</code> 11px、80% 不透明</b>(计划写 <code>text-ink-3</code>,但 <code>theme.css</code> 规定 ink-3 不用于文字)。</td><td>按计划用 ink-3。</td></tr>
+<tr><td>5</td><td><b>添加时遇到「已下架」(404):吐司 + 按钮恢复</b>,卡片留在列表里直到下次刷新。</td><td>同时把这张卡从列表移除(推荐,避免用户再点一次又失败;实现很小)。</td></tr>
+<tr><td>6</td><td><b>删除副本:现有正文 + 一行补充</b>(R-W5)。现有第一句「媒体文件和句子会被删除」对副本不准确。</td><td>副本换一整段专用正文(要多 1 个文案键,总数仍 ≤ 15)。</td></tr>
+<tr><td>7</td><td><b>副本卡片不显示 ⋯</b>(菜单里两项都被去掉);计划 R-W5 提到的「改标题」在现有 ⋯ 菜单里并不存在。</td><td>保留 ⋯ 并显示一条灰色说明「精选素材不能重新识别或换字幕」。</td></tr>
+<tr><td>8</td><td><b>有封面的音频条目,播放页舞台从 3:1 改为 16:9</b>:3:1 只有约 130px 高,扣掉状态栏与顶栏胶囊后封面只露出一条;代价是句子区少约 90px。</td><td>保持 3:1(封面只是一条氛围色带);或折中 2:1。</td></tr>
+<tr><td>9</td><td><b>「精选」页签隐藏已用空间条与「添加素材」按钮</b>(计划如此);离线只用现有错误卡 + 重试,不加离线横幅。</td><td>—</td></tr>
+</table>
+</div>
+
+<style>
+/* 假封面(CSS 渐变,代替真实 jpg) */
+.art{display:block;background-size:cover}
+.p-coffee{background:radial-gradient(40px 30px at 30% 60%,#c98a52,transparent 70%),radial-gradient(60px 40px at 70% 40%,#7a3f1f,transparent 70%),linear-gradient(150deg,#3b2416,#8c5a34 55%,#e0b07c)}
+.p-market{background:radial-gradient(30px 30px at 25% 65%,#e94b3c,transparent 70%),radial-gradient(34px 30px at 55% 60%,#f2c84b,transparent 70%),radial-gradient(40px 30px at 80% 55%,#5cae4a,transparent 70%),linear-gradient(170deg,#9fd4ff,#e9f3d6 55%,#6f8b3a)}
+.p-space{background:radial-gradient(2px 2px at 20% 30%,#fff,transparent),radial-gradient(2px 2px at 70% 20%,#fff,transparent),radial-gradient(1.5px 1.5px at 45% 70%,#fff,transparent),radial-gradient(80px 80px at 80% 110%,#3a7bd5,transparent 70%),linear-gradient(160deg,#05060f,#1b1f4a 60%,#3b2a6b)}
+.p-city{background:radial-gradient(60px 30px at 50% 90%,#f2b056,transparent 70%),linear-gradient(180deg,#5a7fb8,#c9d7ee 50%,#3c4658 51%,#252b36)}
+</style>
+
+<script>
+const root=document.documentElement;
+document.querySelectorAll('.toolbar .tb').forEach(b=>b.addEventListener('click',()=>{
+  const a=b.dataset.act;
+  if(a==='light'||a==='dark'){root.classList.toggle('dark',a==='dark');document.querySelectorAll('[data-act=light],[data-act=dark]').forEach(x=>x.classList.toggle('on',x===b))}
+  if(a==='lite'||a==='rm'||a==='w430'){b.classList.toggle('on',root.classList.toggle(a))}
+  if(a==='ann'){const off=b.classList.toggle('on');document.querySelectorAll('.ann').forEach(n=>n.style.display=off?'none':'');document.querySelectorAll('.mark').forEach(n=>n.style.outline=off?'none':'')}
+  if(a==='replay')document.querySelectorAll('.lib-rise').forEach(c=>{c.style.animation='none';void c.offsetWidth;c.style.animation=''});
+}));
+/* SpotlightCard */
+document.querySelectorAll('.lib-spot').forEach(el=>{
+  const mv=e=>{const r=el.getBoundingClientRect();el.style.setProperty('--mx',(e.clientX-r.left)+'px');el.style.setProperty('--my',(e.clientY-r.top)+'px')};
+  el.addEventListener('pointermove',mv);el.addEventListener('pointerdown',e=>{mv(e);el.dataset.press=''});
+  ['pointerup','pointerleave','pointercancel'].forEach(t=>el.addEventListener(t,()=>delete el.dataset.press));
+});
+/* 级别筛选(客户端) */
+document.querySelectorAll('#lvls .lib-chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#lvls .lib-chip').forEach(x=>x.setAttribute('aria-pressed',String(x===c)));
+  const l=c.dataset.l;document.querySelectorAll('#grid .lib-cat-card').forEach(k=>k.hidden=!(l==='*'||k.dataset.level===l));
+}));
+/* 添加:主按钮 → 正在添加 → 已添加 · 去学习 */
+const OPEN='<svg class="i ok"><use href="#i-check"/></svg>已添加<span class="sep">·</span>去学习<svg class="i"><use href="#i-chev-r"/></svg>';
+document.querySelectorAll('.js-add').forEach(b=>b.addEventListener('click',()=>{
+  if(b.disabled)return;b.disabled=true;b.setAttribute('aria-busy','true');
+  b.innerHTML='<svg class="i spin"><use href="#i-loader"/></svg>正在添加';
+  setTimeout(()=>{const n=document.createElement('button');n.className='lib-cat-open lib-cat-btn';n.innerHTML=OPEN;b.replaceWith(n)},1300);
+}));
+</script>
+</body>
+</html>
