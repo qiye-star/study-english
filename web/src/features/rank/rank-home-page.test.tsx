@@ -32,6 +32,13 @@ describe("RankHomePage", () => {
     expect(screen.getByTestId("rank-achievements-link").getAttribute("href")).toBe("/rank/achievements");
   });
 
+  it("names and explains the tier's CEFR level (plan 2026-10-14-level-annotations W16)", async () => {
+    const tiers = [...CONTRACT.config.tiers, { key: "gold", index: 2, cefr: "B1+", divisions: 3, division_rp: 120 }];
+    setup(CONTRACT.me, undefined, { ...CONTRACT.config, tiers });
+    expect(await screen.findByTestId("rank-cefr")).toHaveTextContent("对齐 CEFR B1+ · 中级+");
+    expect(screen.getByTestId("rank-cefr-hint")).toHaveTextContent("能应对大多数日常场景");
+  });
+
   it("links unfinished stage tasks to their practice page", async () => {
     setup({ ...CONTRACT.me, stage_tasks: [{ key: "voice", kind: "voice_turns", done: 3, target: 20, min_score: null, complete: false }] });
     const row = (await screen.findAllByTestId("stage-task"))[0];
