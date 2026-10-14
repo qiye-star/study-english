@@ -5,7 +5,8 @@
       "peek": { "label": "Show Chinese definitions" },
       "after": {
         "title": "Learn more",
-        "hint": "Double-tap an option to look it up",
+        "zh": "Chinese",
+        "longPressHint": "Press and hold a word in an option to look it up",
         "correct": "Correct answer",
         "yours": "Your answer"
       },

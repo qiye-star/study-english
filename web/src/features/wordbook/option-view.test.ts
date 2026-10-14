@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardForPanel, infoFor, optionRowView, optionsCanPeek } from "./option-view";
+import { cardForPanel, infoFor, optionRowView } from "./option-view";
 import type { Card, OptionInfo, Question } from "./wordbook-api";
 
 const OPT = "v. 说话；谈话；n. 交谈";
@@ -11,50 +11,31 @@ const TALK: OptionInfo = {
 const BARE: OptionInfo = { option: "v. 放弃", word: "abandon", defsZh: [{ pos: "vt", text: "放弃" }], defsEn: [] }; // 缺口词:没有英文释义
 const meaning: Question = { key: "talk", qtype: "meaning", prompt: { word: "talk" }, options: [OPT, "v. 放弃"], length: null };
 
-describe("optionRowView · meaning", () => {
-  it("shows the English word and hides the Chinese line under English-only", () => {
-    expect(optionRowView("meaning", OPT, TALK, "en", false)).toEqual({ word: "talk", sub: null });
+describe("optionRowView · meaning (R-Z1: bilingual, whatever def_lang says)", () => {
+  it("keeps the Chinese option as the main line and adds the English word as the small second line", () => {
+    expect(optionRowView("meaning", OPT, TALK)).toEqual({ main: OPT, sub: "talk", word: "talk", wordLine: "sub" });
   });
 
-  it("brings the Chinese line back for peek, 'zh' and 'both'", () => {
-    expect(optionRowView("meaning", OPT, TALK, "en", true)).toEqual({ word: "talk", sub: OPT });
-    expect(optionRowView("meaning", OPT, TALK, "zh", false)).toEqual({ word: "talk", sub: OPT });
-    expect(optionRowView("meaning", OPT, TALK, "both", false)).toEqual({ word: "talk", sub: OPT });
-  });
-
-  it("falls back to Chinese for a word without an English definition, so the row is never empty of meaning", () => {
-    expect(optionRowView("meaning", "v. 放弃", BARE, "en", false)).toEqual({ word: "abandon", sub: "v. 放弃" });
+  it("does the same for a word without an English definition", () => {
+    expect(optionRowView("meaning", "v. 放弃", BARE)).toEqual({ main: "v. 放弃", sub: "abandon", word: "abandon", wordLine: "sub" });
   });
 
   it("has no word (legacy look) when the server sent no info", () => {
-    expect(optionRowView("meaning", OPT, undefined, "en", false)).toEqual({ word: null, sub: null });
+    expect(optionRowView("meaning", OPT, undefined)).toEqual({ main: OPT, sub: null, word: null, wordLine: null });
   });
 });
 
 describe("optionRowView · word", () => {
-  it("always shows the word with a small Chinese line and part of speech, whatever def_lang says (spec D3)", () => {
-    for (const lang of ["en", "zh", "both"] as const) {
-      expect(optionRowView("word", "talk", { ...TALK, option: "talk" }, lang, false)).toEqual({ word: "talk", sub: "v. 说话；谈话；n. 交谈" });
-    }
+  it("shows the word with a small Chinese line and part of speech (spec D3)", () => {
+    expect(optionRowView("word", "talk", { ...TALK, option: "talk" })).toEqual({ main: "talk", sub: "v. 说话；谈话；n. 交谈", word: "talk", wordLine: "main" });
   });
 
   it("uses the option text as the word when there is no info (the option is the word)", () => {
-    expect(optionRowView("word", "talk", undefined, "en", false)).toEqual({ word: "talk", sub: null });
+    expect(optionRowView("word", "talk", undefined)).toEqual({ main: "talk", sub: null, word: "talk", wordLine: "main" });
   });
 
   it("is not a thing for cloze", () => {
-    expect(optionRowView("cloze", "talk", undefined, "en", false)).toEqual({ word: null, sub: null });
-  });
-});
-
-describe("optionsCanPeek", () => {
-  it("is only for meaning questions where some option hid its Chinese", () => {
-    expect(optionsCanPeek("meaning", "en", [TALK, BARE])).toBe(true);
-    expect(optionsCanPeek("meaning", "en", [BARE])).toBe(false); // nothing hidden
-    expect(optionsCanPeek("meaning", "zh", [TALK])).toBe(false);
-    expect(optionsCanPeek("meaning", "both", [TALK])).toBe(false);
-    expect(optionsCanPeek("word", "en", [TALK])).toBe(false);
-    expect(optionsCanPeek("meaning", "en", undefined)).toBe(false);
+    expect(optionRowView("cloze", "talk", undefined)).toEqual({ main: "talk", sub: null, word: null, wordLine: null });
   });
 });
 

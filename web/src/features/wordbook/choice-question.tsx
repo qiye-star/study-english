@@ -1,15 +1,14 @@
 import { CheckIcon, CircleCheckIcon, XIcon } from "lucide-react";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { selectWord } from "~/lib/select-word";
-import { DEFAULT_DEF_LANG } from "./def-lang";
-import { createTapTracker } from "./double-tap";
-import { DoubleTapHint } from "./double-tap-hint";
-import { infoFor, optionRowView, optionsCanPeek } from "./option-view";
+import { LongPressHint } from "./long-press-hint";
+import { infoFor, optionRowView } from "./option-view";
+import { useLongPress } from "./use-long-press";
 import { ListenButton, type ListenProps } from "./word-card";
-import type { AnswerResult, DefLang, OptionInfo, Question } from "./wordbook-api";
+import type { AnswerResult, OptionInfo, Question } from "./wordbook-api";
 import "./locales";
 
 /** 选择题作答结果:你选的项、是否正确、正确项文本(不知道时为 null)。 */
@@ -17,20 +16,16 @@ export interface ChoiceResult { choice: string; correct: boolean; correctOption:
 
 /**
  * 答题后界面的开关(计划 2026-10-13-review-after-answer R-A7):只有复习页在答题后传它。传了(且不是 cloze)才把选项换成
- * 非禁用的普通容器 + 双击查词 + 一次性提示;没传(学新词页、抽查题)逐字节保持原来的禁用按钮。
+ * 非禁用的普通容器 + 长按查词 + 一次性提示;没传(学新词页、抽查题)逐字节保持原来的禁用按钮。
+ * 选项行本身就是双语的(计划 2026-10-14-review-bilingual-longpress R-Z1),「中文」按钮在「学习内容」区,不在这里。
  */
 export interface AfterAnswer {
   /** `/answers` 的 optionInfo;老服务端 / 备忘取不到 / 非 meaning·word 题为 undefined */
   info?: OptionInfo[];
-  defLang: DefLang;
-  /** 「中」开关:本题临时显示中文(meaning 题,「仅英文」下才有意义);状态由复习页持有 */
-  peek: boolean;
-  onPeek: () => void;
 }
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
 const BLANK = "_____";
-const now = () => performance.now();
 
 /** 例句选词的题面:把 `_____` 画成下划线空(视觉稿 .mini .gap),读屏读「空」。 */
 function ClozeSentence({ sentence }: { sentence: string }) {
@@ -58,31 +53,26 @@ type OptionState = "idle" | "correct" | "wrong";
 /**
  * 选择题(meaning / word / cloze;spec §6.4,视觉稿 05 / 05b):题面 + 4 个 ≥ 52px 选项。
  * 结果到达后:正确项绿底 + 勾,你选错的项中性删除线 + ×,其余不变;选项不再可点。
- * 复习页答题后传 `after`(spec 2026-10-13-review-after-answer §2.3):选项换成普通容器,显示英文单词(meaning 题中文默认藏起,
- * 「中」开关才看;word 题带小字中文与词性),双击 / 300 ms 内连点两次 → 程序化选中该选项的单词 → 全局选词操作条。
+ * 复习页答题后传 `after`:选项换成普通容器;meaning 题 = 中文原文 + 小字英文单词,word 题 = 英文单词 + 小字词性与中文(R-Z1);
+ * 长按 450 ms → 程序化选中该行的英文单词 → 全局选词操作条(R-L1–R-L5,只在答题后)。
  */
 export function ChoiceQuestion({ question, onAnswer, result, busy = false, onListen, listening, canListen, after }: ListenProps & {
   question: Question; onAnswer: (choice: string) => void; result: ChoiceResult | null; busy?: boolean; after?: AfterAnswer;
 }) {
   const { t } = useTranslation();
   const { prompt, qtype } = question;
-  const [tracker] = useState(() => createTapTracker());
   const answered = result !== null && after !== undefined && qtype !== "cloze";
-  const defLang = after?.defLang ?? DEFAULT_DEF_LANG;
-  const peek = after?.peek ?? false;
-  const canPeek = answered && optionsCanPeek(qtype, defLang, after?.info);
   const tappable = answered && (qtype === "word" || (after?.info?.length ?? 0) > 0);
 
   const lookUp = (row: HTMLElement) => {
     const el = row.querySelector<HTMLElement>("[data-option-word]");
     if (el) selectWord(el);
   };
-  // detail === 0:键盘 / 读屏「激活」产生的合成点击,一次就查;真实点按的 detail ≥ 1
-  const onRowClick = (e: MouseEvent<HTMLElement>, id: string) => {
-    if (e.detail === 0 || tracker.tap(id, now())) lookUp(e.currentTarget);
-  };
-  const onRowDoubleClick = (e: MouseEvent<HTMLElement>) => {
-    if (tracker.dblclick(now())) lookUp(e.currentTarget);
+  // 长按查词:hook 无条件调用,处理器只展开到答题后有单词的行上(R-L1)
+  const press = useLongPress(lookUp);
+  // detail === 0:键盘 / 读屏「激活」产生的合成点击,一次就查;真实点按(detail ≥ 1)什么也不做(R-L5)
+  const onRowClick = (e: MouseEvent<HTMLElement>) => {
+    if (e.detail === 0) lookUp(e.currentTarget);
   };
   const onRowKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key !== "Enter" && e.key !== " ") return;
@@ -90,22 +80,9 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
     lookUp(e.currentTarget);
   };
 
-  const eyebrow = <p className="text-meta font-semibold tracking-eyebrow text-ink-2">{t(`web.wordbook.quiz.kind.${qtype}`)}</p>;
   return (
     <SurfaceCard data-testid="choice-question" className="px-4 py-[18px]">
-      {canPeek ? (
-        <div className="flex min-h-[22px] items-center justify-between gap-2">
-          {eyebrow}
-          <button type="button" data-testid="option-peek" aria-pressed={peek} aria-label={t("web.wordbookDefs.peek.label")}
-            onClick={() => after?.onPeek()}
-            className={cn(
-              "-my-2.5 -mr-2 inline-flex h-tap w-tap flex-none items-center justify-center rounded-button text-body font-semibold transition-colors duration-fast motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              peek ? "bg-surface-2 text-ink" : "text-ink-2",
-            )}>
-            <span aria-hidden>中</span>
-          </button>
-        </div>
-      ) : eyebrow}
+      <p className="text-meta font-semibold tracking-eyebrow text-ink-2">{t(`web.wordbook.quiz.kind.${qtype}`)}</p>
       {qtype === "meaning" ? (
         <>
           <div className="mt-2 flex items-center gap-2.5">
@@ -144,11 +121,13 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
           const icon = state === "correct" ? <CircleCheckIcon aria-hidden className="h-5 w-5 flex-none" />
             : state === "wrong" ? <XIcon aria-hidden className="h-5 w-5 flex-none text-ink-2" /> : null;
           if (answered) {
-            const row = optionRowView(qtype, option, infoFor(after?.info, option), defLang, peek);
+            const row = optionRowView(qtype, option, infoFor(after?.info, option));
             const lookupProps = row.word ? {
-              role: "button" as const, tabIndex: 0,
-              onClick: (e: MouseEvent<HTMLElement>) => onRowClick(e, String(i)), onDoubleClick: onRowDoubleClick, onKeyDown: onRowKeyDown,
+              role: "button" as const, tabIndex: 0, ...press(String(i)), onClick: onRowClick, onKeyDown: onRowKeyDown,
             } : {};
+            const wordSpan = row.word ? (
+              <span data-testid="option-word" data-option-word="" data-lookup-context lang="en" className="select-text break-words">{row.word}</span>
+            ) : null;
             return (
               <li key={`${i}:${option}`}>
                 <div data-testid="choice-option" data-state={state} {...lookupProps}
@@ -157,17 +136,21 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     state === "correct" ? "border-transparent bg-green-tint font-semibold text-green"
                       : state === "wrong" ? "border-hair bg-surface text-ink-2" : "border-hair bg-surface text-ink",
-                    row.word && "cursor-pointer",
+                    row.word && "cursor-pointer select-none [-webkit-touch-callout:none]",
                   )}>
                   {badge}
                   <span className="min-w-0 flex-1 py-2">
-                    {row.word ? (
+                    {row.wordLine === "main" ? (
                       <>
-                        <span data-testid="option-word" data-option-word="" data-lookup-context lang="en"
-                          className="select-text break-words font-semibold">{row.word}</span>
-                        {row.sub ? <small className="mt-0.5 block select-text break-words text-sub font-normal text-ink-2">{row.sub}</small> : null}
+                        <span className="block font-semibold">{wordSpan}</span>
+                        {row.sub ? <small className="mt-0.5 block break-words text-sub font-normal text-ink-2">{row.sub}</small> : null}
                       </>
-                    ) : state === "wrong" ? <s className="decoration-[1.5px]">{option}</s> : option}
+                    ) : row.wordLine === "sub" ? (
+                      <>
+                        <span data-testid="option-main" className="block break-words">{row.main}</span>
+                        <small className="mt-0.5 block text-sub font-medium text-ink-2">{wordSpan}</small>
+                      </>
+                    ) : state === "wrong" ? <s className="decoration-[1.5px]">{row.main}</s> : row.main}
                     {state !== "idle" ? (
                       <span className="sr-only">{" "}{t(state === "correct" ? "web.wordbookDefs.after.correct" : "web.wordbookDefs.after.yours")}</span>
                     ) : null}
@@ -195,7 +178,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
           );
         })}
       </ul>
-      {tappable ? <DoubleTapHint /> : null}
+      {tappable ? <LongPressHint /> : null}
     </SurfaceCard>
   );
 }

@@ -80,3 +80,17 @@ export function defView(defLang: DefLang, card: Pick<Card, "senses" | "defsEn">,
     canPeek: defLang === "en" && hasEn && hasZh,
   };
 }
+
+export interface ZhReveal { view: DefView; phraseZh: boolean; chip: boolean }
+
+/**
+ * 答后「学习内容」区与受控词卡的「中文」按钮(计划 2026-10-14-review-bilingual-longpress R-Z2 / R-Z3)。纯函数,建在 defView 之上:
+ * 偏好「仅英文」且这个词有英文释义时,中文释义行与短语译文默认藏起,`peek` 带回;`chip` = 有中文可带回(中文释义或任一短语译文)。
+ * 偏好 zh / both、没有英文释义的词:中文直接显示,没有按钮。
+ */
+export function zhReveal(defLang: DefLang, card: Pick<Card, "senses" | "defsEn" | "phrases">, peek = false): ZhReveal {
+  const view = defView(defLang, card, peek);
+  const hidesZh = defLang === "en" && view.groups.length > 0;
+  const hasZh = card.senses.length > 0 || card.phrases.some((p) => p.zh.trim() !== "");
+  return { view, phraseZh: !hidesZh || peek, chip: hidesZh && hasZh };
+}
