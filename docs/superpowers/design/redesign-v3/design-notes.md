@@ -116,3 +116,7 @@ track restored; #3 top-bar glass saturate 1.3 / alpha .80; #4 04b scrolled Me fr
 margin 8px + 40px fade; #6 `.hintrow.collapsed` (150ms) shown in the dark chat frame.
 Disagree: review-1 #7 "数据 (导出历史 / 清除缓存)" — not added; no export or cache-clearing feature exists in
 `web/`, and mocking a settings row for a feature that cannot ship would mislead the implementation.
+
+## Addendum (2026-10-14) — floating tab bar
+
+Owner request: the bottom bar becomes a fully transparent rounded glass. Plan `docs/superpowers/plans/2026-10-14-floating-glass-bottom-bar.md`, mockup `docs/superpowers/design/floating-glass-bar-v1/mockup.html` (approved: tab bar only, variant B 10% tint, halo kept). Only the tab bar changes: a floating pill inset 12px, bottom `max(10px, safe-area − 8px)`, radius 28 (`rounded-dock`), 64px tall, `.glass-float` = tint `--glass-float` (approved alpha 0.1, never below .06) + `blur(28px) saturate(1.8)` + 1px highlight border + soft shadow; labels and icons carry a halo (`--tab-halo`) because the tint no longer guarantees contrast; the active tab keeps a `--tab-on` pill. Fallbacks keep the shape: no backdrop-filter → `--glass-solid`; `html.lite` → blur 12 + .62; reduced transparency → solid surface + hairline, no halo. Composer, docks and the call dock keep the `.glass` recipe above (.72) and sit 8px above the pill via `--tab-bar-space`. Still one blurred layer for the bar; ≤ 3 per screen unchanged.
