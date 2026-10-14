@@ -4,18 +4,18 @@ import logging
 import pytest
 
 from app.speech.asr_stream import AsrStreamError, parse_utterances, transcribe_pcm, transcribe_pcm_timed
-from app.speech.timed import TimedText, Utterance
+from app.speech.timed import TimedText, Utterance, Word
 from tests.test_asr_stream import decode_frame_request, fake, settings_for  # noqa: F401  (`fake` is a fixture)
 
 PCM = b"\x00\x00" * 10
 
-# The real shape seen in Task 0 (volc bigmodel_nostream): extra `words` / `additions` fields are ignored.
+# The real shape seen in Task 0 (volc bigmodel_nostream): `words` are kept (plan v2 R-V1), `additions` is ignored.
 REAL = {"text": "Hello, world.", "start_time": 27360, "end_time": 32550, "definite": True,
         "words": [{"text": "Hello,", "start_time": 27360, "end_time": 27900}], "additions": {"x": "y"}}
 
 
 @pytest.mark.parametrize("raw, expected", [
-    ({"utterances": [REAL]}, (Utterance("Hello, world.", 27360, 32550),)),
+    ({"utterances": [REAL]}, (Utterance("Hello, world.", 27360, 32550, (Word("Hello,", 27360, 27900),)),)),
     ({"utterances": [{"text": " Hello,  world. ", "start_time": 120, "end_time": 900, "definite": True}]},
      (Utterance("Hello, world.", 120, 900),)),
     ({"utterances": [{"text": "kept", "start_time": 0, "end_time": 5.4}]}, (Utterance("kept", 0, 5),)),  # no `definite`

@@ -102,13 +102,13 @@ async def test_segments_attempts_and_explicit_delete(app):
         segs = await store.segments_of(s, item_id)
         assert [store.segment_out(x) for x in segs] == [
             {"idx": 0, "start_ms": 0, "end_ms": 900, "text": "Hello there.", "zh": None, "zh_lang": None,
-             "has_analysis": False, "analysis_lang": None},
+             "has_analysis": False, "analysis_lang": None, "flags": []},
             {"idx": 1, "start_ms": 900, "end_ms": 2000, "text": "Bye now.", "zh": None, "zh_lang": None,
-             "has_analysis": False, "analysis_lang": None}]
+             "has_analysis": False, "analysis_lang": None, "flags": []}]
         segs[0].zh, segs[0].zh_lang, segs[0].analysis, segs[0].analysis_lang = "你好。", "zh-CN", "### Grammar", "zh-CN"
         assert store.segment_out(segs[0]) == {"idx": 0, "start_ms": 0, "end_ms": 900, "text": "Hello there.",
                                               "zh": "你好。", "zh_lang": "zh-CN", "has_analysis": True,
-                                              "analysis_lang": "zh-CN"}  # the analysis text itself is not listed
+                                              "analysis_lang": "zh-CN", "flags": []}  # the analysis text itself is not listed
         assert (item.seg_count, item.resume_idx) == (2, 1)
         for aid, score, text in (("a1", 70, "Hello there."), ("a2", 90, "Hello  there."), ("a3", 99, "Old text."),
                                  ("a1", 10, "Hello there.")):
@@ -128,10 +128,10 @@ async def test_item_out_shape_and_upload_progress(app):
     async with app.state.sessionmaker() as s:
         out = store.item_out(await s.get(LibraryItem, item_id))
     assert out["progress"] == 25 and out["has_poster"] is False and out["last_opened_at"] is None
-    assert out["low_confidence"] is False
+    assert out["low_confidence"] is False and out["rebuildable"] is False
     assert set(out) == {"id", "kind", "source", "title", "status", "stage", "progress", "error_kind", "duration_ms",
                         "seg_count", "library_bytes", "sub_source", "resume_ms", "resume_idx", "rate_pct", "has_poster",
-                        "created_at", "last_opened_at", "low_confidence"}
+                        "created_at", "last_opened_at", "low_confidence", "rebuildable"}
 
 
 async def test_sweeps(app):

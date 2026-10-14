@@ -27,6 +27,7 @@
     "not_failed": "Item has not failed",
     "not_found": "Not Found",
     "not_ready": "Item is not ready",
+    "not_rebuildable": "Item cannot be rebuilt",
     "not_reprocessable": "Item cannot be reprocessed",
     "not_uploading": "Upload is not in progress",
     "quota": "Library storage quota reached",
@@ -132,6 +133,7 @@
       "resume_idx": 0,
       "rate_pct": 100,
       "low_confidence": false,
+      "rebuildable": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": null
@@ -156,6 +158,7 @@
         "resume_idx": 0,
         "rate_pct": 100,
         "low_confidence": false,
+        "rebuildable": false,
         "has_poster": true,
         "created_at": "2026-01-01T00:00:00Z",
         "last_opened_at": null
@@ -181,6 +184,7 @@
       "resume_idx": 0,
       "rate_pct": 100,
       "low_confidence": false,
+      "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -194,7 +198,8 @@
         "zh": null,
         "zh_lang": null,
         "has_analysis": false,
-        "analysis_lang": null
+        "analysis_lang": null,
+        "flags": []
       },
       {
         "idx": 1,
@@ -204,7 +209,8 @@
         "zh": null,
         "zh_lang": null,
         "has_analysis": false,
-        "analysis_lang": null
+        "analysis_lang": null,
+        "flags": []
       }
     ]
   },
@@ -226,6 +232,7 @@
       "resume_idx": 1,
       "rate_pct": 75,
       "low_confidence": false,
+      "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -240,7 +247,8 @@
       "zh": null,
       "zh_lang": null,
       "has_analysis": false,
-      "analysis_lang": null
+      "analysis_lang": null,
+      "flags": []
     }
   },
   "translate": {
@@ -269,7 +277,8 @@
       "zh": "你好,我的朋友。",
       "zh_lang": "zh-CN",
       "has_analysis": true,
-      "analysis_lang": "zh-CN"
+      "analysis_lang": "zh-CN",
+      "flags": []
     },
     {
       "idx": 1,
@@ -279,7 +288,8 @@
       "zh": "你今天好吗?",
       "zh_lang": "zh-CN",
       "has_analysis": false,
-      "analysis_lang": null
+      "analysis_lang": null,
+      "flags": []
     }
   ],
   "media_ticket": {
@@ -318,6 +328,7 @@
       "resume_idx": 1,
       "rate_pct": 75,
       "low_confidence": false,
+      "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": "2026-01-01T00:00:00Z"
@@ -331,7 +342,8 @@
         "zh": null,
         "zh_lang": null,
         "has_analysis": false,
-        "analysis_lang": null
+        "analysis_lang": null,
+        "flags": []
       },
       {
         "idx": 1,
@@ -341,7 +353,8 @@
         "zh": null,
         "zh_lang": null,
         "has_analysis": false,
-        "analysis_lang": null
+        "analysis_lang": null,
+        "flags": []
       }
     ]
   },
@@ -366,10 +379,62 @@
       "resume_idx": 0,
       "rate_pct": 100,
       "low_confidence": false,
+      "rebuildable": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": null
     }
+  },
+  "rebuild": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "audio",
+      "source": "upload",
+      "title": "Pod",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 58,
+      "sub_source": "asr",
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "low_confidence": false,
+      "rebuildable": true,
+      "has_poster": false,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null
+    },
+    "segments": [
+      {
+        "idx": 0,
+        "start_ms": 0,
+        "end_ms": 2875,
+        "text": "Hello there, my friend.",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null,
+        "flags": []
+      },
+      {
+        "idx": 1,
+        "start_ms": 3000,
+        "end_ms": 6000,
+        "text": "How are you doing today?",
+        "zh": null,
+        "zh_lang": null,
+        "has_analysis": false,
+        "analysis_lang": null,
+        "flags": []
+      }
+    ]
+  },
+  "rebuild_error": {
+    "error": "Item cannot be rebuilt"
   },
   "reprocess_error": {
     "error": "Item cannot be reprocessed"
@@ -392,6 +457,7 @@
       "resume_idx": 0,
       "rate_pct": 100,
       "low_confidence": false,
+      "rebuildable": true,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
       "last_opened_at": null

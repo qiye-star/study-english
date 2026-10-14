@@ -97,7 +97,7 @@ def _map_stream(kind: str) -> AsrError:
 
 
 async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, fallback: bool, *,
-                      timed: bool = False) -> str | TimedText | None:
+                      timed: bool = False, final_empty: bool = False) -> str | TimedText | None:
     """流式识别的文本;None 表示应走回落(没有回落时直接抛 AsrError)。`timed=True` 同时要句子时间,返回 `TimedText`。
     没有回落时,流式结果为空(`empty`)= 没听清,返回 "" / `TimedText("")`,不是错误(复核 1.5-I1;
     上传识别接口 ai_audio 仍按 R4 口径处理,不受影响)。取消对熔断计数是中性的。"""
@@ -121,9 +121,9 @@ async def _try_stream(settings: Settings, gate: AsrGate, pcm: bytes, uid: str, f
             "asr volc_stream failed kind=%s detail=%s ms=%d audio_s=%.2f fallback=%s connect_id=%s logid=%s",
             e.kind, e.detail, ms, audio_s, fallback, e.connect_id, e.logid,
         )
+        if e.kind == "empty" and (final_empty or not fallback):
+            return TimedText("") if timed else ""  # v2 R-V12: with final_empty an empty answer is "no speech", not a reason to fall back
         if not fallback:
-            if e.kind == "empty":
-                return TimedText("") if timed else ""
             raise _map_stream(e.kind) from None
         return None
     finally:
@@ -167,9 +167,11 @@ def make_timed_transcriber(
     *,
     gate: AsrGate | None = None,
     uid: str = "server",
+    final_empty: bool = False,
 ) -> Callable[[bytes], Awaitable[TimedText]]:
     """WAV → `TimedText`(跟读库的识别块用,plan 2026-10-13-library-alignment)。流式路径带句子时间;流式不可用 / 失败时回落
-    到 chat / Whisper,那条路径只给文字(`utterances` 为空,调用方逐块回落到估算,R-A5)。错误口径与 `make_transcriber` 相同。"""
+    到 chat / Whisper,那条路径只给文字(`utterances` 为空,调用方逐块回落到估算,R-A5)。错误口径与 `make_transcriber` 相同。
+    `final_empty=True`(跟读库,v2 R-V12):流式结果为空 = 没有人声,不回落、不再计费。"""
     if gate is None and settings.asr_stream_enabled:
         gate = AsrGate(settings.asr_stream_max_concurrency)
 
@@ -177,7 +179,8 @@ def make_timed_transcriber(
         if settings.asr_stream_enabled:
             pcm = wav_to_pcm(wav)
             if pcm is not None:
-                result = await _try_stream(settings, gate, pcm, uid, _fallback_configured(settings), timed=True)
+                result = await _try_stream(settings, gate, pcm, uid, _fallback_configured(settings), timed=True,
+                                           final_empty=final_empty)
                 if result is not None:
                     return result  # type: ignore[return-value]  # timed=True always yields TimedText
         try:

@@ -49,6 +49,7 @@ API_ERRORS: dict[str, tuple[int, str]] = {
     "not_reprocessable": (409, "Item cannot be reprocessed"),
     "asr_unavailable": (503, "Transcription is not available"),
     "asr_daily": (429, "Daily transcription limit reached"),
+    "not_rebuildable": (409, "Item cannot be rebuilt"),  # plan v2 R-V16
     "no_changes": (400, "No changes"),
     "bad_resume": (400, "Invalid resume position"),
     "bad_text": (400, "Invalid sentence text"),

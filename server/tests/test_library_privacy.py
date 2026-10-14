@@ -21,7 +21,7 @@ ROUTES = {
     ("POST", "/api/library/uploads/{item_id}/complete"), ("GET", "/api/library/items"),
     ("GET", "/api/library/items/{item_id}"), ("PATCH", "/api/library/items/{item_id}"),
     ("DELETE", "/api/library/items/{item_id}"), ("POST", "/api/library/items/{item_id}/retry"),
-    ("POST", "/api/library/items/{item_id}/cancel"), ("POST", "/api/library/items/{item_id}/reprocess"), ("PUT", "/api/library/items/{item_id}/subtitles"),
+    ("POST", "/api/library/items/{item_id}/cancel"), ("POST", "/api/library/items/{item_id}/reprocess"), ("POST", "/api/library/items/{item_id}/rebuild"), ("PUT", "/api/library/items/{item_id}/subtitles"),
     ("PATCH", "/api/library/items/{item_id}/segments/{idx}"), ("POST", "/api/library/items/{item_id}/media-ticket"),
     ("POST", "/api/library/items/{item_id}/translate"), ("POST", "/api/library/items/{item_id}/segments/{idx}/analysis"),
     ("GET", "/api/library/items/{item_id}/media"), ("HEAD", "/api/library/items/{item_id}/media"),

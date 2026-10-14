@@ -1014,6 +1014,8 @@ class LibraryItem(Base):
     resume_idx: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     rate_pct: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
     low_confidence: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # D5:句边界可能不准
+    # plan v2 R-V8:识别结果留在条目目录(transcript.json),可以不花钱重建句子
+    rebuildable: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1033,6 +1035,8 @@ class LibrarySegment(Base):
     zh_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # plan v2 R-V14:这一句时间可疑的原因(逗号分隔,如 "rate,pause");NULL = 没有;手动改时间后清空
+    flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
 
 
 class LibraryAttempt(Base):

@@ -14,7 +14,7 @@ import os
 import re
 import wave
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -23,11 +23,12 @@ from app.library.limits import (
     ASR_CHUNK_MAX_MS, ASR_CHUNK_MIN_MS, ASR_CHUNK_RETRIES, ASR_CHUNK_TARGET_MS, ASR_CONCURRENCY, ASR_HARD_CUT_MS,
 )
 from app.library.segment import Aligned, Fragment, set_span
-from app.speech.timed import TimedText, Utterance
+from app.speech.timed import TimedText, Utterance, Word
 
 SNAP_WINDOW_MS = 800
-STATE_VERSION = 2
-READABLE_VERSIONS = (1, 2)  # version 1 chunks carry no utterances: still usable, nothing is paid for twice (R-A6)
+STATE_VERSION = 3  # plan v2 R-V7: utterances carry their words ([text, start_ms, end_ms] lists)
+READABLE_VERSIONS = (1, 2, 3)  # version 1 chunks carry no utterances, version 2 no words: still usable (R-A6, R-V7)
+TRANSCRIPT_VERSION = 1  # the kept recognizer output of a ready item (plan v2 R-V8)
 UTTERANCE_SLACK_MS = 1500  # an utterance may end this far past the chunk (rounding, trailing silence)
 UTTERANCE_OVERLAP_MS = 250  # an utterance may start this far before the previous one ended
 TEXT_AGREEMENT = 0.9  # SequenceMatcher ratio between the chunk text and the utterance texts (letters and digits only)
@@ -79,11 +80,15 @@ def parse_silences(log: str, duration_ms: int) -> list[Silence]:
     return out
 
 
-def plan_chunks(duration_ms: int, silences: list[Silence]) -> list[Chunk]:
+def plan_chunks(duration_ms: int, silences: list[Silence], overlap_ms: int = 0) -> list[Chunk]:
     """Greedy from 0: the rest fits in 50 s -> one last chunk; else cut at the middle of the longest silence whose
-    middle lies 15-50 s after the chunk start (ties: closest to 25 s); no silence there -> hard cut at 40 s."""
+    middle lies 15-50 s after the chunk start (ties: closest to 25 s); no silence there -> hard cut at 40 s.
+    `overlap_ms` > 0 (plan v2 R-V5, only with word times): a hard cut is not a pause, so both chunks hear
+    `overlap_ms` around it (the left one ends overlap/2 after the cut, the right one starts overlap/2 before it) and
+    `timeline.merge_seams` keeps each word once. Silence cuts never overlap."""
     chunks: list[Chunk] = []
     start = 0
+    half = max(0, overlap_ms) // 2
     while start < duration_ms:
         if duration_ms - start <= ASR_CHUNK_MAX_MS:
             chunks.append(Chunk(start, duration_ms))
@@ -93,10 +98,12 @@ def plan_chunks(duration_ms: int, silences: list[Silence]) -> list[Chunk]:
         if inside:
             best = max(inside, key=lambda s: (s.length_ms, -abs(s.mid_ms - (start + ASR_CHUNK_TARGET_MS))))
             cut = best.mid_ms
+            chunks.append(Chunk(start, cut))
+            start = cut
         else:
             cut = start + ASR_HARD_CUT_MS
-        chunks.append(Chunk(start, cut))
-        start = cut
+            chunks.append(Chunk(start, min(duration_ms, cut + half)))
+            start = cut - half
     return chunks
 
 
@@ -188,7 +195,32 @@ def snapper(silences: list[Silence]) -> Callable[[Aligned], None]:
 def _load_utterances(raw) -> list[Utterance] | None:
     if not isinstance(raw, list):
         return None
-    return [Utterance(str(u["text"]), int(u["start_ms"]), int(u["end_ms"])) for u in raw]
+    return [Utterance(str(u["text"]), int(u["start_ms"]), int(u["end_ms"]),
+                      tuple(Word(str(w[0]), int(w[1]), int(w[2])) for w in u.get("words") or ()))
+            for u in raw]
+
+
+def _utterance_json(u: Utterance) -> dict:
+    out = {"text": u.text, "start_ms": u.start_ms, "end_ms": u.end_ms}
+    if u.words:
+        out["words"] = [[w.text, w.start_ms, w.end_ms] for w in u.words]
+    return out
+
+
+def _chunk_json(c: Chunk) -> dict:
+    return {"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text,
+            "utterances": None if c.utterances is None else [_utterance_json(u) for u in c.utterances]}
+
+
+def _chunks_from(raw) -> list[Chunk]:
+    return [Chunk(int(c["start_ms"]), int(c["end_ms"]), c.get("text"), _load_utterances(c.get("utterances")))
+            for c in raw]
+
+
+def _write_json(path: Path, data: dict) -> None:
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def load_state(path: Path) -> list[Chunk] | None:
@@ -196,16 +228,31 @@ def load_state(path: Path) -> list[Chunk] | None:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("version") not in READABLE_VERSIONS:
             return None
-        return [Chunk(int(c["start_ms"]), int(c["end_ms"]), c.get("text"), _load_utterances(c.get("utterances")))
-                for c in data["chunks"]]
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return _chunks_from(data["chunks"])
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
         return None
 
 
 def save_state(path: Path, chunks: list[Chunk]) -> None:
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": STATE_VERSION, "chunks": [asdict(c) for c in chunks]}), encoding="utf-8")
-    os.replace(tmp, path)
+    _write_json(path, {"version": STATE_VERSION, "chunks": [_chunk_json(c) for c in chunks]})
+
+
+def save_transcript(path: Path, chunks: list[Chunk], silences: list[Silence]) -> None:
+    """The recognizer's whole output for a ready item (plan v2 R-V8): every chunk with its text, utterances and words,
+    plus the silence table. Kept in the item directory so sentences can be rebuilt without paying again; deleted with
+    the item. Holds transcript text: never log it, never copy it elsewhere."""
+    _write_json(path, {"version": TRANSCRIPT_VERSION, "chunks": [_chunk_json(c) for c in chunks],
+                       "silences": [[x.start_ms, x.end_ms] for x in silences]})
+
+
+def load_transcript(path: Path) -> tuple[list[Chunk], list[Silence]] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("version") != TRANSCRIPT_VERSION:
+            return None
+        return _chunks_from(data["chunks"]), [Silence(int(a), int(b)) for a, b in data["silences"]]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+        return None
 
 
 def slice_wav(path: Path, start_ms: int, end_ms: int) -> bytes:

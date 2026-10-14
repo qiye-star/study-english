@@ -231,7 +231,8 @@ def install(app) -> LibraryWorker:
 
     def timed_transcriber(user_id: int):
         s = settings()
-        return make_timed_transcriber(state.http, s, "en", gate=shared_asr_gate(state, s), uid=str(user_id))
+        return make_timed_transcriber(state.http, s, "en", gate=shared_asr_gate(state, s), uid=str(user_id),
+                                      final_empty=True)  # plan v2 R-V12: an empty answer = no speech, no fallback
 
     worker: LibraryWorker | None = None
     deps = PipelineDeps(sessionmaker=state.sessionmaker, settings=settings,

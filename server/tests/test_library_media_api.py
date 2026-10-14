@@ -121,7 +121,8 @@ async def test_segment_fine_tuning(app, client, auth_headers):
     r = await client.patch(f"{url}/0", headers=auth_headers, json={"start_ms": 300, "end_ms": 3200,
                                                                    "text": "  Hello  there, my dear friend. "})
     assert r.json() == {"segment": {"idx": 0, "start_ms": 300, "end_ms": 3200, "text": "Hello there, my dear friend.",
-                                    "zh": None, "zh_lang": None, "has_analysis": False, "analysis_lang": None}}
+                                    "zh": None, "zh_lang": None, "has_analysis": False, "analysis_lang": None,
+                                    "flags": []}}
     for idx, body, error in (
         (0, {"end_ms": 3201}, "Invalid sentence times"),  # overlaps the next sentence
         (1, {"end_ms": 6001}, "Invalid sentence times"),  # beyond the media
