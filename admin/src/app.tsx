@@ -5,6 +5,7 @@ import { AppShell } from "./components/layout";
 import { Skeleton } from "./components/states";
 import { AuditPage } from "./features/audit";
 import { AgentsPage } from "./features/agents";
+import { ChangelogPage } from "./features/changelog";
 import { LibraryPage } from "./features/library";
 import { LinksPage } from "./features/links";
 import { AnnouncementsPage, DataPage, LogsPage, SystemPage } from "./features/ops";
@@ -77,6 +78,7 @@ export function AppRoutes() {
           <Route path="system" element={<SystemPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="changelog" element={<ChangelogPage />} />
           <Route path="data" element={<DataPage />} />
           <Route path="prompts" element={<PromptsPage />} />
           <Route path="wordbook" element={<WordbookPage />} />

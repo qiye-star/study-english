@@ -11,6 +11,8 @@ import { AgentIcon } from "../features/agents/agent-icon";
 import { S as AGENTS_STRINGS } from "../features/agents/strings";
 import { LibraryIcon } from "../features/library/library-icon";
 import { S as LIBRARY_STRINGS } from "../features/library/strings";
+import { ChangelogIcon } from "../features/changelog/changelog-icon";
+import { S as CHANGELOG_STRINGS } from "../features/changelog/strings";
 import { S } from "../strings";
 import {
   BackIcon,
@@ -93,6 +95,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: "/links", label: LINKS_STRINGS.title, icon: LinkIcon, min: "viewer" },
       { to: "/agents", label: AGENTS_STRINGS.title, icon: AgentIcon, min: "viewer" },
       { to: "/announcements", label: I.announcements, icon: MegaphoneIcon, min: "operator" },
+      { to: "/changelog", label: CHANGELOG_STRINGS.title, icon: ChangelogIcon, min: "viewer" },
     ],
   },
   {
