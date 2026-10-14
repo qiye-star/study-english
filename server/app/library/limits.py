@@ -51,6 +51,7 @@ SCOPE_ASR = "library_asr"
 SCOPE_TRANSLATE = "library_translate"  # D8: sentences translated today (subject = user id)
 SCOPE_ANALYSIS = "library_analysis"  # D8: sentence analyses today (subject = user id)
 SCOPE_AI_GLOBAL = "library_ai"  # D8: both kinds together, in sentences (subject = "*")
+SCOPE_CATALOG_AI = "library_cat_ai"  # curated catalog: system-paid shared analyses (subject "*")
 GLOBAL = "*"
 
 

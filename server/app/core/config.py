@@ -267,6 +267,9 @@ class Settings(BaseSettings):
     library_translate_daily_per_user: int = Field(500, ge=0, le=20_000)
     library_analysis_daily_per_user: int = Field(30, ge=0, le=1000)
     library_ai_daily_global: int = Field(5000, ge=0, le=1_000_000)
+    # 精选库(spec 2026-10-14-curated-library E12、R3):用户可见开关;共享分析每天全站最多生成多少句(系统付费)
+    library_catalog_enabled: bool = False
+    library_catalog_ai_daily: int = Field(300, ge=0, le=100_000)
 
     # ---- 管理端(设计文档 2026-10-08):账号来自环境变量,任一为空则整个管理端关闭 ----
     admin_username: str = ""

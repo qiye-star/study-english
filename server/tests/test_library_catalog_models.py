@@ -5,10 +5,15 @@ import pytest
 from alembic import command
 from alembic.script import ScriptDirectory
 
+from app.core import metering
+from app.core.config import Settings
+from app.core.settings_registry import SPECS
+from app.library import errors, limits, paths
 from app.models import CatalogItem, CatalogSegment, LibraryItem
 from tests.test_migrations import _config, _tables
 
 CATALOG_TABLES = {"catalog_items", "catalog_segments"}
+CID = "0f0e0d0c-0b0a-4908-8706-050403020100"
 
 
 def _indexes(con, table: str) -> dict[str, bool]:
@@ -82,3 +87,51 @@ def test_models_declare_the_frozen_names():
                                                             "zh_lang", "analysis", "analysis_lang", "flags"}
     assert "catalog_id" in LibraryItem.__table__.columns
     assert not LibraryItem.__table__.columns["catalog_id"].foreign_keys  # R-SC1
+
+
+def test_new_settings_have_defaults_and_specs():
+    s = Settings()
+    assert s.library_catalog_enabled is False and s.library_catalog_ai_daily == 300
+    assert SPECS["library_catalog_enabled"].group == "library"
+    assert SPECS["library_catalog_ai_daily"].danger  # costs money (system-paid analyses)
+
+
+def test_new_error_codes_are_fixed_english():
+    assert errors.API_ERRORS["catalog_disabled"] == (404, "Built-in library is disabled")
+    assert errors.API_ERRORS["catalog_not_found"] == (404, "Built-in item not found")
+    assert errors.API_ERRORS["catalog_locked"] == (409, "Built-in items cannot be changed this way")
+
+
+def test_catalog_paths_live_beside_user_dirs_and_reject_bad_ids(tmp_path):
+    assert paths.catalog_rel(CID) == f"library/_catalog/{CID}"
+    assert paths.catalog_tmp_rel(CID) == f"library/_catalog/_tmp/{CID}"
+    assert paths.catalog_dir(tmp_path, CID) == (tmp_path / "library" / "_catalog" / CID).resolve()
+    assert paths.catalog_tmp_dir(tmp_path, CID) == (tmp_path / "library" / "_catalog" / "_tmp" / CID).resolve()
+    for bad in ("../x", "_tmp", "", CID.upper()):
+        with pytest.raises(ValueError):
+            paths.catalog_rel(bad)
+    # the user library's staging root is elsewhere: its sweep never sees catalog staging
+    assert not paths.catalog_tmp_dir(tmp_path, CID).is_relative_to(paths.tmp_root(tmp_path))
+
+
+def test_remove_catalog_files_takes_both_dirs_only(tmp_path):
+    keep = paths.item_dir(tmp_path, 7, CID)
+    keep.mkdir(parents=True)
+    for d in (paths.catalog_dir(tmp_path, CID), paths.catalog_tmp_dir(tmp_path, CID)):
+        d.mkdir(parents=True)
+        (d / "x").write_bytes(b"1")
+    paths.remove_catalog_files(tmp_path, CID)
+    assert not paths.catalog_dir(tmp_path, CID).exists() and not paths.catalog_tmp_dir(tmp_path, CID).exists()
+    assert keep.is_dir()
+
+
+def test_catalog_ai_scope_name_fits_daily_usage():
+    assert limits.SCOPE_CATALOG_AI == "library_cat_ai"
+
+
+def test_system_scope_unbinds_the_user_and_restores_it():
+    metering.bind_user(42)
+    with metering.system_scope():
+        assert metering.current_user_id() is None
+    assert metering.current_user_id() == 42
+    metering.bind_user(None)

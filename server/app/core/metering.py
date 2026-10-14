@@ -77,6 +77,17 @@ def feature_scope(name: str):
         _feature.reset(token)
 
 
+@contextmanager
+def system_scope():
+    """Upstream calls inside are the system's (curated catalog: plan 2026-10-14-curated-library R-SC9): no user is
+    charged in `upstream_calls` (user_id NULL; usage_daily rolls it up as 0). The previous user comes back on exit."""
+    token = _user.set(None)
+    try:
+        yield
+    finally:
+        _user.reset(token)
+
+
 def feature_for(path: str) -> str:
     return next((name for prefix, name in FEATURE_PREFIXES if path == prefix or path.startswith(prefix + "/")),
                 "other")

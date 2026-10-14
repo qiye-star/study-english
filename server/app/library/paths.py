@@ -3,6 +3,8 @@
     library/<user_id>/<item_id>/media.mp4 | media.m4a | media.mp3
     library/<user_id>/<item_id>/poster.jpg            # 仅视频
     library/_tmp/<item_id>/                           # 分片、下载、WAV、chunks.json;完成 / 取消 / 失败清理时整个删除
+    library/_catalog/<catalog_id>/media.m4a | poster.jpg   # 精选库,系统所有,所有用户共用(spec 2026-10-14-curated-library E4)
+    library/_catalog/_tmp/<catalog_id>/               # 精选库的导入暂存(不在 library/_tmp/:用户库的清扫碰不到)
 
 路径逃逸检查与 `services.recordings.absolute_path` 相同;id 先按形状校验,任何外部输入都拼不出数据目录外的路径。
 """
@@ -99,3 +101,28 @@ def replace(src: Path, dst: Path) -> None:
     """Atomic move inside the data volume (`_tmp` and the final directory are on the same file system)."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.replace(src, dst)
+
+
+# ---- 精选库(spec 2026-10-14-curated-library E4):系统所有,所有用户共用 ----
+CATALOG = "_catalog"
+
+
+def catalog_rel(catalog_id: str) -> str:
+    return f"{ROOT}/{CATALOG}/{check_item_id(catalog_id)}"
+
+
+def catalog_tmp_rel(catalog_id: str) -> str:
+    return f"{ROOT}/{CATALOG}/{TMP}/{check_item_id(catalog_id)}"
+
+
+def catalog_dir(data_dir: Path, catalog_id: str) -> Path:
+    return absolute(data_dir, catalog_rel(catalog_id))
+
+
+def catalog_tmp_dir(data_dir: Path, catalog_id: str) -> Path:
+    return absolute(data_dir, catalog_tmp_rel(catalog_id))
+
+
+def remove_catalog_files(data_dir: Path, catalog_id: str) -> None:
+    remove_tree(catalog_dir(data_dir, catalog_id))
+    remove_tree(catalog_tmp_dir(data_dir, catalog_id))

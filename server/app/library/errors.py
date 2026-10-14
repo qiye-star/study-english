@@ -63,6 +63,10 @@ API_ERRORS: dict[str, tuple[int, str]] = {
     "ai_user_cap": (429, "Daily analysis limit reached"),
     "ai_global_cap": (429, "Daily AI limit reached"),
     "ai_unavailable": (503, "AI is unavailable"),
+    # 精选库(spec 2026-10-14-curated-library §9)
+    "catalog_disabled": (404, "Built-in library is disabled"),
+    "catalog_not_found": (404, "Built-in item not found"),
+    "catalog_locked": (409, "Built-in items cannot be changed this way"),
 }
 
 

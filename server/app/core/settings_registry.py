@@ -286,6 +286,11 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("library_translate_daily_per_user", "library", "int", "每人每天译文句数", help_zh="命中已存的译文不计"),
     _s("library_analysis_daily_per_user", "library", "int", "每人每天句子分析次数", help_zh="命中已存的分析不计"),
     _s("library_ai_daily_global", "library", "int", "全站每天译文 + 分析句数", help_zh="两类合计", danger=_COST),
+    # 精选库(spec 2026-10-14-curated-library)
+    _s("library_catalog_enabled", "library", "bool", "精选库(内置素材)",
+       help_zh="关 = 用户看不到「精选」;已加入的副本照常可用;管理端导入不受影响"),
+    _s("library_catalog_ai_daily", "library", "int", "精选库共享分析每日句数",
+       help_zh="首次生成后所有用户共享;系统付费,不扣用户额度", danger=_COST),
 )
 
 SPECS: dict[str, SettingSpec] = {s.key: s for s in _ALL}

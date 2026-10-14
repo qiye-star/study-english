@@ -16,6 +16,8 @@ LIBRARY_KEYS = {
     # D8(spec §5.2):每句译文与句子分析
     "library_ai_enabled", "library_translate_daily_per_user", "library_analysis_daily_per_user",
     "library_ai_daily_global",
+    # 精选库(spec 2026-10-14-curated-library)
+    "library_catalog_enabled", "library_catalog_ai_daily",
 }
 
 
@@ -46,6 +48,7 @@ def test_bounds_match_the_spec():
     assert field_bounds("library_translate_daily_per_user") == (0, 20_000)
     assert field_bounds("library_analysis_daily_per_user") == (0, 1000)
     assert field_bounds("library_ai_daily_global") == (0, 1_000_000)
+    assert field_bounds("library_catalog_ai_daily") == (0, 100_000)
 
 
 def test_registry_entries():
