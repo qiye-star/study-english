@@ -18,7 +18,7 @@ import "./locales";
 import { PageError, PageLoading } from "./page-status";
 import { useResume } from "./resume";
 import { SegmentList } from "./segment-list";
-import { mergeTranslations } from "./translation-state";
+import { mergeTranslations, zhFor } from "./translation-state";
 import { RATES, nextLoop, pctFromRate, rateFromPct, useMediaPlayer, type Rate } from "./use-media-player";
 import { useMediaSource } from "./use-media-source";
 import { usePosterUrl } from "./use-poster";
@@ -78,12 +78,14 @@ function Player({ detail, ai }: { detail: LibraryItemDetail; ai: boolean }) {
   const { api } = useAuth();
   const { language } = useSettings();
   const native = nativeLanguageCode(language);
-  const canTranslate = ai && native !== "en-US"; // R-L32:英文界面没有可译的目标语言(同 chat 的 R16)
   const [segments, setSegments] = useState<LibrarySegment[]>(detail.segments);
+  // R-L32:英文界面没有可译的目标语言(同 chat 的 R16)。R-W6:`ai` 关着时,已存的译文(精选副本自带)仍可显示,只是不再请求新的
+  const hasStored = segments.some((s) => zhFor(s, native) !== null);
+  const canTranslate = (ai || hasStored) && native !== "en-US";
   const [media, setMedia] = useState<HTMLMediaElement | null>(null);
   const { controller, state } = useMediaPlayer(media, segments, { rate: rateFromPct(detail.ratePct), index: detail.resumeIdx });
   const source = useMediaSource(detail.id, true, media);
-  const poster = usePosterUrl(detail.id, detail.kind === "video");
+  const poster = usePosterUrl(detail.id, detail.hasPoster); // R-W4:有封面的音频也显示(精选副本)
   useResume(detail.id, controller, { initial: { resumeMs: detail.resumeMs, resumeIdx: detail.resumeIdx } });
   const [blind, setBlind] = useState(false);
   const [translateOn, setTranslateOn] = useTranslateToggle(detail.id);
@@ -143,7 +145,7 @@ function Player({ detail, ai }: { detail: LibraryItemDetail; ai: boolean }) {
   const onTranslated = useCallback((items: TranslatedSegment[]) => {
     setSegments((list) => mergeTranslations(list, items, native));
   }, [native]);
-  const translations = useTranslations({ itemId: detail.id, enabled: showTranslation, segments, anchorIdx: current, native, onTranslated });
+  const translations = useTranslations({ itemId: detail.id, enabled: showTranslation && ai, segments, anchorIdx: current, native, onTranslated });
   const mediaProps = { ref: setMedia, src: source.url ?? undefined, preload: "metadata" as const, "data-testid": "library-media" };
 
   return (
@@ -152,9 +154,13 @@ function Player({ detail, ai }: { detail: LibraryItemDetail; ai: boolean }) {
         {detail.kind === "video" ? (
           <video {...mediaProps} poster={poster ?? undefined} playsInline className="aspect-video w-full bg-black" />
         ) : (
-          <div className="lib-stage-audio">
-            <MusicIcon aria-hidden className="h-8 w-8" />
-            <span className="text-sub">{t("web.library.player.audio")}</span>
+          <div className={poster ? "lib-stage-audio has-poster" : "lib-stage-audio"}>
+            {poster ? <img src={poster} alt="" className="lib-stage-poster" /> : (
+              <>
+                <MusicIcon aria-hidden className="h-8 w-8" />
+                <span className="text-sub">{t("web.library.player.audio")}</span>
+              </>
+            )}
             <audio {...mediaProps} />
           </div>
         )}

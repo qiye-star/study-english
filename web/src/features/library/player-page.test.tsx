@@ -4,7 +4,7 @@ import { ApiClient } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { LibraryPlayerPage } from "./player-page";
-import { CONFIG_OFF_RAW, CONFIG_RAW, detailRaw } from "./test-fixtures";
+import { CONFIG_OFF_RAW, CONFIG_RAW, SEGMENTS_RAW, detailRaw } from "./test-fixtures";
 import { resetUiLanguage, setUiLanguage } from "./test-i18n";
 import type { UseTranslationsArgs } from "./use-translations";
 
@@ -159,6 +159,32 @@ describe("LibraryPlayerPage (spec §11.4)", () => {
     expect(audio.tagName).toBe("AUDIO");
     expect(screen.getByText("音频")).toBeInTheDocument();
   });
+
+  it("shows the cover of an audio item that has one, 16:9, with the audio element kept (R-W4)", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:poster-a");
+    URL.revokeObjectURL = vi.fn();
+    const mock = render(detailRaw({ kind: "audio", has_poster: true }), {
+      "GET /api/library/items/i1/poster": () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/jpeg" } }),
+    });
+    const img = await waitFor(() => {
+      const el = document.querySelector("img.lib-stage-poster");
+      expect(el).not.toBeNull();
+      return el as HTMLImageElement;
+    });
+    expect(img).toHaveAttribute("src", "blob:poster-a");
+    expect(img).toHaveAttribute("alt", "");
+    expect(document.querySelector(".lib-stage-audio.has-poster")).not.toBeNull();
+    expect(screen.getByTestId("library-media").tagName).toBe("AUDIO");
+    expect(mock.calls.some((c) => c.url.pathname === "/api/library/items/i1/poster")).toBe(true);
+  });
+
+  it("an audio item without a cover keeps the icon stage and asks for no poster", async () => {
+    const mock = render(detailRaw({ kind: "audio", has_poster: false }));
+    await screen.findByTestId("library-media");
+    expect(screen.getByText("音频")).toBeInTheDocument();
+    expect(document.querySelector("img.lib-stage-poster")).toBeNull();
+    expect(mock.calls.some((c) => c.url.pathname.endsWith("/poster"))).toBe(false);
+  });
 });
 
 describe("low-confidence notice (D5)", () => {
@@ -180,11 +206,25 @@ describe("translation line and switch (D8, E12, R-L32)", () => {
     expect(chip).toHaveAccessibleName("隐藏译文");
   });
 
-  it("hides the switch when the administrator turned AI off", async () => {
-    render(detailRaw(), {}, { ...CONFIG_RAW, ai: false });
+  it("hides the switch when the administrator turned AI off and nothing is stored", async () => {
+    render(detailRaw({ segments: SEGMENTS_RAW.map((s): Record<string, unknown> => ({ ...s, zh: null, zh_lang: null })) }), {}, { ...CONFIG_RAW, ai: false });
     await screen.findByTestId("library-media");
     expect(screen.queryByTestId("library-translate")).toBeNull();
     expect(tr.args?.enabled).toBe(false); // default-on never fetches when library_ai is off
+  });
+
+  it("with AI off, stored translations (featured copies) still show through the switch and nothing is requested (R-W6)", async () => {
+    render(detailRaw({ source: "catalog" }), {}, { ...CONFIG_RAW, ai: false });
+    const chip = await screen.findByTestId("library-translate");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByText("你今天好吗?")).toBeInTheDocument();
+    expect(tr.args?.enabled).toBe(false);
+  });
+
+  it("with AI off, a stored translation in another language does not open the switch", async () => {
+    render(detailRaw({ segments: SEGMENTS_RAW.map((s) => ({ ...s, zh_lang: s.zh ? "es-ES" : null })) }), {}, { ...CONFIG_RAW, ai: false });
+    await screen.findByTestId("library-media");
+    expect(screen.queryByTestId("library-translate")).toBeNull();
   });
 
   it("hides the switch in the English UI (nothing to translate into, like chat R16)", async () => {

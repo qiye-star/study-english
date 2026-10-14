@@ -459,6 +459,10 @@
   background: linear-gradient(160deg, #1c2540, #3a2a55 55%, #124a52);
   color: rgba(255, 255, 255, 0.85);
 }
+/* 有封面的音频条目(精选副本,裁定 7):16:9,封面铺满,下沿压暗;没有封面时回到上面的 3:1 图标舞台 */
+.lib-stage-audio.has-poster { position: relative; aspect-ratio: 16 / 9; }
+.lib-stage-audio.has-poster::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%; pointer-events: none; background: linear-gradient(transparent, rgba(0, 0, 0, 0.45)); }
+.lib-stage-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 /* 压在视频上的顶栏:半透明填充 + 高光边,不模糊(视频上做 backdrop-filter 很贵,且全站底栏已占第三层,R-L26) */
 .lib-bar {
   position: absolute;
@@ -689,6 +693,107 @@
   to { opacity: 1; filter: none; transform: none; }
 }
 
+/* ===== 精选(.lib-cat-*,设计稿 curated-library-v1):窄屏(≤ 390)是紧凑行卡(小封面在左),≥ 430 才是 2 列大卡。
+   卡片 = 半透明填充 + 高光边,不加模糊,不加关键帧(转圈用 Tailwind 的 animate-spin);许可说明用 ink-2 的 80%,不用 ink-3(ink-3 不用于文字) ===== */
+.lib-cat-tabs { margin: 2px 16px 10px; }
+.lib-cat-tabs .lib-seg [role="radio"] { height: 36px; font-size: 14px; }
+.lib-cat-levels { display: flex; gap: 7px; padding: 0 16px 10px; overflow-x: auto; scrollbar-width: none; }
+.lib-cat-levels::-webkit-scrollbar { display: none; }
+.lib-cat-levels .lib-chip { flex: none; padding: 0 14px; font-size: 13px; }
+.lib-cat-grid { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 0 16px; list-style: none; }
+.lib-cat-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-areas: "poster body" "act act";
+  gap: 8px 12px;
+  padding: 12px;
+  border-radius: 18px;
+}
+.lib-cat-poster {
+  grid-area: poster;
+  position: relative;
+  align-self: start;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(160deg, #1c2540, #3a2a55 55%, #124a52);
+}
+.lib-cat-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lib-cat-body { grid-area: body; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lib-cat-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lib-cat-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.lib-cat-level, .lib-cat-tag, .lib-cat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+.lib-cat-level { font-weight: 700; letter-spacing: 0.02em; color: rgb(var(--blue)); background: var(--lib-blue-tint); }
+.lib-cat-tag { color: rgb(var(--ink-2)); background: var(--lib-chip); border: 0.5px solid var(--lib-hair); }
+/* 「我的」里副本的「精选」徽标:中性玻璃色(琥珀已表示提示 / 连续天数) */
+.lib-cat-badge { font-weight: 600; color: rgb(var(--ink)); background: var(--lib-chip); border: 0.5px solid var(--lib-glass-bd); box-shadow: var(--lib-glass-hi); }
+.lib-cat-badge svg { width: 11px; height: 11px; color: rgb(var(--blue)); }
+.lib-cat-meta { font-size: 12px; color: rgb(var(--ink-2)); }
+.lib-cat-license { font-size: 11px; color: rgb(var(--ink-2)); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-cat-act { grid-area: act; }
+.lib-cat-btn { height: 44px; width: 100%; font-size: 14.5px; }
+/* 添加中:保持主按钮的蓝色(表示「正在进行」而不是「不可用」),停扫光、略淡 */
+.library-root .lib-spec[aria-busy="true"] { opacity: 0.85; color: #fff; background: linear-gradient(180deg, #4b78f0, #2456db); cursor: progress; }
+.dark .library-root .lib-spec[aria-busy="true"] { background: linear-gradient(180deg, #6d93ff, #3a63e0); }
+/* 次按钮「已添加 · 去学习」:玻璃芯片底 + 蓝字,不扫光 */
+.lib-cat-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  color: rgb(var(--blue));
+  font-weight: 600;
+  background: var(--lib-chip);
+  border: 1px solid var(--lib-glass-bd);
+  box-shadow: var(--lib-glass-hi);
+  transition: background-color 0.2s;
+}
+.lib-cat-open .ok { color: rgb(var(--green)); }
+.lib-cat-open .sep { color: rgb(var(--ink-3)); font-weight: 400; }
+.lib-cat-empty { margin: 28px 16px 0; padding: 28px 20px 26px; border-radius: 22px; text-align: center; }
+.lib-cat-empty-ico {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--blue));
+  background: var(--lib-blue-tint);
+}
+.lib-cat-empty h3 { font-size: 16px; font-weight: 600; }
+.lib-cat-empty p { margin-top: 6px; font-size: 13px; line-height: 1.55; color: rgb(var(--ink-2)); }
+@media (min-width: 430px) {
+  .lib-cat-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .lib-cat-card { grid-template-columns: 1fr; grid-template-areas: "poster" "body" "act"; gap: 0; padding: 0; border-radius: 20px; }
+  .lib-cat-poster { margin: 6px 6px 0; border-radius: 15px; }
+  .lib-cat-body { padding: 10px 12px 6px; flex: 1; }
+  .lib-cat-title { font-size: 14.5px; }
+  .lib-cat-act { padding: 4px 12px 12px; }
+  .lib-cat-btn { font-size: 13px; }
+}
+
 /* ===== 降级:低端机 html.lite(layout/glass-quality.ts):去模糊、去动画、玻璃退为实色 ===== */
 html.lite .lib-glass,
 html.lite .library-root.lib-sheet {
@@ -716,6 +821,7 @@ html.lite .lib-rise { animation: none; opacity: 1; }
 html.lite .lib-bw { animation: none; opacity: 1; filter: none; transform: none; }
 html.lite .lib-pick,
 html.lite .lib-pick-card,
+html.lite .lib-cat-open,
 html.lite .library-root .lib-ffield { transition: none; }
 
 /* ===== 降级:系统「减少动态效果」:全部静止 ===== */
@@ -735,6 +841,7 @@ html.lite .library-root .lib-ffield { transition: none; }
   .lib-slider-knob,
   .lib-pick,
   .lib-pick-card,
+  .lib-cat-open,
   .library-root .lib-ffield { transition: none; }
 }
 

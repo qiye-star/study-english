@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import camelcaseKeys from "camelcase-keys";
 import { describe, expect, it } from "vitest";
+import type { CatalogCard } from "./catalog-api";
 import type { LibraryConfig, LibraryLimits } from "./config";
 import { ERROR_KINDS } from "./error-kinds";
 import {
@@ -37,6 +38,10 @@ const DETAIL: Record<keyof LibraryItemDetail, true> = { ...ITEM, segments: true 
 const SEGMENT: Record<keyof LibrarySegment, true> = {
   idx: true, startMs: true, endMs: true, text: true, zh: true, zhLang: true, hasAnalysis: true, analysisLang: true,
   flags: true,
+};
+const CARD: Record<keyof CatalogCard, true> = {
+  id: true, title: true, level: true, tags: true, licenseNote: true, durationMs: true, segCount: true, hasPoster: true,
+  publishedAt: true, addedItemId: true,
 };
 const START: Record<keyof UploadStart, true> = { itemId: true, chunkBytes: true };
 const STATUS: Record<keyof UploadStatus, true> = { itemId: true, status: true, uploadReceived: true, uploadTotal: true, chunkBytes: true };
@@ -139,6 +144,17 @@ describe("library contract (server fixture)", () => {
     const page = cc<{ items: LibraryItem[] }>(c.items);
     for (const item of page.items) expect(typeof item.lowConfidence).toBe("boolean");
     expect(typeof unwrapDetail(cc<unknown>(c.item_detail)).lowConfidence).toBe("boolean");
+  });
+
+  it("catalog list cards and the add reply match (curated library)", () => {
+    const list = cc<{ items: CatalogCard[] }>(c.catalog_list);
+    expect(keysOf(list)).toEqual(["items"]);
+    expect(keysOf(list.items[0])).toEqual(keys(CARD));
+    const add = cc<{ item: LibraryItem; created: boolean }>(c.catalog_add);
+    expect(keysOf(add)).toEqual(["created", "item"]);
+    expect(keysOf(add.item)).toEqual(keys(ITEM));
+    expect(add.item.source).toBe("catalog");
+    expect(cc<{ created: boolean }>(c.catalog_add_again).created).toBe(false);
   });
 
   it("every fixed server error text is translated (fixture key `errors`: code -> text)", () => {

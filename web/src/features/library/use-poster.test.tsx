@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
+import { fetchCatalogPoster } from "./catalog-api";
 import { usePosterUrl } from "./use-poster";
 
 let observed: ((entries: { isIntersecting: boolean }[]) => void) | null = null;
@@ -50,6 +51,15 @@ describe("usePosterUrl (R-L18)", () => {
     expect(mock.calls).toHaveLength(0);
     act(() => observed?.([{ isIntersecting: true }]));
     await waitFor(() => expect(result.current).toBe("blob:poster-1"));
+  });
+
+  it("uses the given fetcher (catalog posters)", async () => {
+    const mock = createFetchMock({ "GET /api/library/catalog/c1/poster": () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/jpeg" } }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+    const { result } = renderHook(() => usePosterUrl("c1", true, undefined, fetchCatalogPoster), { wrapper });
+    await waitFor(() => expect(result.current).toBe("blob:poster-1"));
+    expect(mock.calls[0].url.pathname).toBe("/api/library/catalog/c1/poster");
   });
 
   it("does nothing when disabled", () => {

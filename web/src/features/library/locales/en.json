@@ -50,6 +50,22 @@
         "body": "The media and its sentences are removed. Your recordings and scores stay in your history.",
         "confirm": "Delete"
       },
+      "catalog": {
+        "tabs": "Library content",
+        "tabMine": "My material",
+        "tabCatalog": "Featured",
+        "levels": "Filter by level",
+        "allLevels": "All",
+        "add": "Add to my library",
+        "adding": "Adding",
+        "added": "Added",
+        "open": "Study",
+        "badge": "Featured",
+        "noSpace": "Uses no space",
+        "empty": "Featured items are on the way",
+        "emptyHint": "They will appear here once the administrator publishes them.",
+        "deleteCopyBody": "This only removes your copy. The featured original stays and you can add it again later. Your recordings and scores stay in your practice history."
+      },
       "confirmRebuild": {
         "title": "Re-split this item's sentences?",
         "body": "The sentences are cut again from the existing recognition with the latest method. This uses no transcription allowance. Your edits to sentence text and times are replaced; sentences whose text did not change keep their translations.",

@@ -1,0 +1,83 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it } from "vitest";
+import { ApiClient, ApiError } from "~/api/client";
+import { translateServerError } from "~/api/error-messages";
+import i18n from "~/i18n";
+import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
+import { TestProviders } from "~/test/render";
+import { LIBRARY_SERVER_ERRORS } from "./library-api";
+import "./locales";
+import { itemRaw } from "./test-fixtures";
+import { setUiLanguage } from "./test-i18n";
+import { useCatalog } from "./use-catalog";
+
+const card = (id: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id, title: `T ${id}`, level: "B1", tags: [], license_note: null, duration_ms: 1000, seg_count: 2, has_poster: false,
+  published_at: "2026-10-14T00:00:00Z", added_item_id: null, ...over,
+});
+
+function setup(addHandler: Handler = () => json({ item: itemRaw({ id: "i9", source: "catalog" }), created: true })) {
+  const mock = createFetchMock({
+    "GET /api/library/catalog": () => json({ items: [card("c1"), card("c2")] }),
+    "POST /api/library/catalog/c1/add": addHandler,
+  });
+  const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+  const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+  return { mock, ...renderHook(() => useCatalog(true), { wrapper }) };
+}
+
+describe("useCatalog", () => {
+  it("loads the list once", async () => {
+    const { result, mock } = setup();
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.loading).toBe(false);
+    expect(mock.calls.filter((c) => c.method === "GET")).toHaveLength(1);
+  });
+
+  it("add marks the card as added without reloading", async () => {
+    const { result, mock } = setup();
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    await act(async () => { await result.current.add("c1"); });
+    expect(result.current.items[0].addedItemId).toBe("i9");
+    expect(result.current.items[1].addedItemId).toBeNull();
+    expect(result.current.adding.size).toBe(0);
+    expect(mock.calls.filter((c) => c.method === "GET")).toHaveLength(1);
+  });
+
+  it("a double tap sends one request and shares the promise", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    const { result, mock } = setup(async () => {
+      await gate;
+      return json({ item: itemRaw({ id: "i9" }), created: true });
+    });
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    let a!: Promise<unknown>;
+    let b!: Promise<unknown>;
+    act(() => { a = result.current.add("c1"); b = result.current.add("c1"); });
+    expect(a).toBe(b);
+    expect(result.current.adding.has("c1")).toBe(true);
+    await act(async () => { release(); await a; });
+    expect(mock.calls.filter((c) => c.method === "POST")).toHaveLength(1);
+  });
+
+  it("404 removes the card at once and rethrows an error that maps to the not-found text", async () => {
+    await setUiLanguage("zh-CN");
+    const { result } = setup(() => json({ error: "Built-in item not found" }, 404));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    let caught: unknown;
+    await act(async () => { await result.current.add("c1").catch((e: unknown) => { caught = e; }); });
+    expect(caught).toBeInstanceOf(ApiError);
+    expect(result.current.items.map((c) => c.id)).toEqual(["c2"]);
+    expect(translateServerError(i18n.t.bind(i18n), caught, LIBRARY_SERVER_ERRORS)).toBe("这条精选素材已下架。");
+  });
+
+  it("other failures keep the card", async () => {
+    const { result } = setup(() => json({ error: "boom" }, 500));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    await act(async () => { await result.current.add("c1").catch(() => {}); });
+    expect(result.current.items).toHaveLength(2);
+    expect(result.current.adding.size).toBe(0);
+  });
+});

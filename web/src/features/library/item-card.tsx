@@ -1,4 +1,4 @@
-import { ChevronRightIcon, ClapperboardIcon, FileTextIcon, MusicIcon, RotateCcwIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, ClapperboardIcon, FileTextIcon, MusicIcon, RotateCcwIcon, SparklesIcon, Trash2Icon, UploadIcon, XIcon } from "lucide-react";
 import { type CSSProperties, type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -60,16 +60,17 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
   const ready = item?.status === "ready";
   const lowConfidence = ready && item?.lowConfidence === true;
   const reprocessFailed = ready && item?.errorKind != null; // 重新识别失败:原句子还在,原因留在 error_kind(裁定 R-R3)
-  const canReprocess = ready && item?.subSource === "asr" && h.onReprocess !== undefined;
-  const canRebuild = ready && item?.subSource === "asr" && item?.rebuildable === true && h.onRebuild !== undefined;
-  const poster = usePosterUrl(item?.id ?? "", !!item && ready && item.kind === "video", ref);
+  const isCopy = item?.source === "catalog"; // 精选副本:共享媒体,不能重新识别 / 重新分句(R-W5、裁定 6:连 ⋯ 都不显示)
+  const canReprocess = ready && !isCopy && item?.subSource === "asr" && h.onReprocess !== undefined;
+  const canRebuild = ready && !isCopy && item?.subSource === "asr" && item?.rebuildable === true && h.onRebuild !== undefined;
+  const poster = usePosterUrl(item?.id ?? "", !!item && ready && (item.kind === "video" || item.hasPoster), ref);
   const title = item?.title ?? job?.title ?? "";
   const state = job ? (job.state === "uploading" ? "upload-local" : "upload-failed") : (item?.status ?? "uploading");
   const meta = item
     ? [
       item.durationMs ? formatDuration(item.durationMs) : null,
       ready ? t("web.library.sentences", { count: item.segCount }) : null,
-      item.libraryBytes > 0 ? formatBytes(item.libraryBytes) : null,
+      isCopy ? t("web.library.catalog.noSpace") : item.libraryBytes > 0 ? formatBytes(item.libraryBytes) : null,
     ].filter(Boolean).join(" · ")
     : formatBytes(job?.size ?? 0);
 
@@ -83,9 +84,15 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
         <span className="block truncate text-body font-semibold tracking-[-0.01em]">{title}</span>
         {ready && item ? (
           <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-            <ToneBadge tone="green">{t("web.library.status.ready")}</ToneBadge>
-            {item.subSource ? <ToneBadge tone="gray">{t(`web.library.sub.${item.subSource}`)}</ToneBadge> : null}
-            {lowConfidence ? <ToneBadge tone="amber">{t("web.library.card.lowConfidenceBadge")}</ToneBadge> : null}
+            {isCopy ? (
+              <span className="lib-cat-badge"><SparklesIcon aria-hidden />{t("web.library.catalog.badge")}</span>
+            ) : (
+              <>
+                <ToneBadge tone="green">{t("web.library.status.ready")}</ToneBadge>
+                {item.subSource ? <ToneBadge tone="gray">{t(`web.library.sub.${item.subSource}`)}</ToneBadge> : null}
+                {lowConfidence ? <ToneBadge tone="amber">{t("web.library.card.lowConfidenceBadge")}</ToneBadge> : null}
+              </>
+            )}
           </span>
         ) : null}
         {meta ? <span className="num mt-[3px] block truncate text-meta text-ink-2">{meta}</span> : null}
