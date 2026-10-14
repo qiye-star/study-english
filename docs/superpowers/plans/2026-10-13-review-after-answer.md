@@ -1982,3 +1982,7 @@ describe("review page · double tap opens the lookup bar", () => {
 - 真实词书里干扰项的词面与英文释义覆盖(约 135 个缺口词会回退中文);真实数据下 `meaning_line` 被截断到 24 字时选项原文与词的对应(备忘按原文,不受截断影响,但没在真实数据上跑过)。
 - 多 worker / 重启 / LRU 淘汰时 `option_info` 缺失的体验(单测只模拟了 `clear()`)。
 - 主包体积(`yarn web:build` 未运行)。三个 E2E 规格未运行(未改动,依赖「学新词小测仍是按钮」这一事实)。
+
+## Addendum (2026-10-14)
+
+计划 `2026-10-14-review-bilingual-longpress.md` 覆盖本计划的以下裁定:**R-A9**(双击)→ 长按 R-L1–R-L5,`double-tap*.ts(x)` 已删除;**R-A10** 中「meaning 题选项行按 `defView` 藏中文、题卡「中」开关」→ R-Z1(选项行永远双语)与 R-Z2(「中文」按钮移到「学习内容」区,`option-peek` 删除);**R-A12**(双击提示)→ R-L6(长按提示,新字段 `longPressHintSeen`)。其余裁定不变。真机清单中 A、B 两节(双击)作废,以新计划的「真机清单」为准。
