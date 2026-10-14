@@ -6,6 +6,7 @@ import { Skeleton } from "./components/states";
 import { AuditPage } from "./features/audit";
 import { AgentsPage } from "./features/agents";
 import { ChangelogPage } from "./features/changelog";
+import { CatalogPage } from "./features/catalog";
 import { LibraryPage } from "./features/library";
 import { LinksPage } from "./features/links";
 import { AnnouncementsPage, DataPage, LogsPage, SystemPage } from "./features/ops";
@@ -83,6 +84,7 @@ export function AppRoutes() {
           <Route path="prompts" element={<PromptsPage />} />
           <Route path="wordbook" element={<WordbookPage />} />
           <Route path="library" element={<LibraryPage />} />
+          <Route path="catalog" element={<CatalogPage />} />
           <Route path="links" element={<LinksPage />} />
           <Route path="agents" element={<AgentsPage />} />
           <Route path="prompts/:key" element={<PromptDetailPage />} />

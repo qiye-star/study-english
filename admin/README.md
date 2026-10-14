@@ -36,6 +36,7 @@ yarn workspace admin build          # 产物 admin/dist,Docker 镜像里由 serv
 | `rooms` | 房间列表与详情(时间线、移出、隐藏消息、关闭 AI)、举报 | viewer / operator |
 | `usage` | 用量与估算费用、错误分布、上游健康(超级管理员可逐行测试连接) | viewer |
 | `ops` | 系统状态、脱敏日志、公告与维护、数据与备份 | viewer / operator / superadmin |
+| `catalog` | 精选库:按链接 / 上传导入内置素材、审核与发布、逐句编辑、删除(退役)/ 强制删除 | viewer / operator / superadmin |
 | `prompts` | 提示词版本(语法规则、房间助手、语音翻译、小结、情景模板):草稿、检查清单、对比、试运行、发布 | viewer |
 
 ## 约定

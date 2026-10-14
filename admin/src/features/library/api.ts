@@ -39,7 +39,7 @@ export interface LibraryRow {
   userId: number;
   username: string | null;
   kind: LibraryKind;
-  source: "upload" | "link";
+  source: "upload" | "link" | "catalog";
   status: LibraryStatus;
   stage: string | null;
   progress: number;
