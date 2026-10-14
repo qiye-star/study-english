@@ -153,3 +153,6 @@ web/.env
 
 # 各部署环境自己维护的 compose 文件(从 docker-compose.example.yml 复制),不进 git
 /docker-compose.yml
+
+# 本地部署脚本配置(服务器地址等),不进 git
+/scripts/deploy.env

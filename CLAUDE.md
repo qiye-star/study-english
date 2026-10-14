@@ -19,6 +19,7 @@ Upstream Enjoy desktop app + our self-hosted backend (`server/`) + mobile-first 
 ## Deploy
 - `docker-compose.yml` is NOT tracked (per-deployment, git-ignored): first `cp docker-compose.example.yml docker-compose.yml`, then `docker compose up -d --build` builds web (`yarn workspace web build`) into the server image; the container runs `alembic upgrade head` then uvicorn on 127.0.0.1:8000. Put HTTPS + WebSocket-capable reverse proxy in front (see `server/README.md`).
 - Rebuild/restart containers only when the user asks.
+- One-command deploy from local: `cp scripts/deploy.env.example scripts/deploy.env` (git-ignored), then `scripts/deploy.sh` (must be on `DEPLOY_BRANCH`, clean tree; runs pytest + web typecheck/test, pushes, then SSHes to `git merge --ff-only` + `docker compose up -d --build` + `/up` health check; `--skip-checks` to skip tests). Run it only when the user asks.
 
 ## Security rules
 - Never commit `.env`, `server/.env`, API keys, invite codes, access tokens, realtime tickets, or recordings. Only `*.env.example` files with placeholders are tracked.
