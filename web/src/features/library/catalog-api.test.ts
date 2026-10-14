@@ -3,7 +3,7 @@ import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { addCatalogItem, fetchCatalogPoster, listCatalog } from "./catalog-api";
 
-const CARD = {
+const CARD: Record<string, unknown> = {
   id: "c1", title: "T", level: "B1", tags: ["news"], license_note: null, duration_ms: 1, seg_count: 2, has_poster: true,
   published_at: "2026-10-14T00:00:00Z", added_item_id: null,
 };

@@ -127,7 +127,7 @@ describe("library.css (spec §11.4a, D11)", () => {
   });
 
   it("stays small (target: library styles + effects ≤ 6 kB gzip in total, measured in L16)", () => {
-    expect(css.length).toBeLessThan(28_000); // 22_000 → 28_000:添加素材表单分节(R-A11);gzip 目标不变,未实测
+    expect(css.length).toBeLessThan(32_000); // 22_000 → 28_000:添加素材表单分节(R-A11);→ 32_000:精选分节(设计稿 curated-library-v1);gzip 目标不变,未实测
   });
 
   it("styles the add-sheet form without new blur layers or keyframes, and keeps the real file input focusable (R-A3, R-A7)", () => {
@@ -149,10 +149,21 @@ describe("library.css (spec §11.4a, D11)", () => {
     expect(css).toMatch(/\.library-root \.lib-spec:disabled::after\s*\{\s*display: none;/);
   });
 
+  it("styles the featured section without blur or keyframes; compact row on narrow screens, two columns from 430px (rulings 2, 3, 8)", () => {
+    const section = sectionAfter(css, "精选(.lib-cat-*");
+    expect(section).not.toContain("backdrop-filter");
+    expect(section).not.toContain("@keyframes");
+    expect(blockOf(css, /^\.lib-cat-grid\s*\{/m)).toContain("grid-template-columns: 1fr;");
+    expect(blockOf(section, /@media \(min-width: 430px\)\s*\{/)).toContain("grid-template-columns: 1fr 1fr;");
+    expect(blockOf(css, /^\.lib-cat-license\s*\{/m)).toContain("color: rgb(var(--ink-2));");
+    expect(blockOf(css, /^\.lib-cat-license\s*\{/m)).toContain("opacity: 0.8;");
+    expect(css).toMatch(/\.library-root \.lib-spec\[aria-busy="true"\]\s*\{[^}]*color: #fff;/);
+  });
+
   it("drops the add-sheet transitions under reduced motion and on low-end devices (R-L28)", () => {
     const reduced = blockOf(css, /@media \(prefers-reduced-motion: reduce\)\s*\{/);
     const lite = sectionAfter(css, "降级:低端机");
-    for (const selector of [".lib-pick", ".lib-pick-card", ".library-root .lib-ffield"]) {
+    for (const selector of [".lib-pick", ".lib-pick-card", ".lib-cat-open", ".library-root .lib-ffield"]) {
       expect(reduced, `reduced-motion: ${selector}`).toContain(selector);
       expect(lite, `lite: ${selector}`).toContain(`html.lite ${selector}`);
     }

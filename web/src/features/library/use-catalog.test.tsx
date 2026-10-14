@@ -12,7 +12,7 @@ import { itemRaw } from "./test-fixtures";
 import { setUiLanguage } from "./test-i18n";
 import { useCatalog } from "./use-catalog";
 
-const card = (id: string, over: Record<string, unknown> = {}) => ({
+const card = (id: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
   id, title: `T ${id}`, level: "B1", tags: [], license_note: null, duration_ms: 1000, seg_count: 2, has_poster: false,
   published_at: "2026-10-14T00:00:00Z", added_item_id: null, ...over,
 });

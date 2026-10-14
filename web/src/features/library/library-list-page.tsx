@@ -1,7 +1,7 @@
 import { PlusIcon } from "lucide-react";
 import { type ChangeEvent, type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -9,8 +9,10 @@ import {
 } from "@renderer/components/ui/alert-dialog";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { SegmentedControl } from "~/components/segmented-control";
 import { PageHeader } from "~/layout/page-header";
 import { AddSheet } from "./add-sheet";
+import { CatalogView } from "./catalog-view";
 import { fetchLibraryConfig, type LibraryConfig } from "./config";
 import { CountUp } from "./fx/count-up";
 import { formatBytes } from "./format";
@@ -31,6 +33,7 @@ import { useLibraryItems } from "./use-library-items";
 export function LibraryListPage() {
   const { t } = useTranslation();
   const { api } = useAuth();
+  const [params, setParams] = useSearchParams();
   const [config, setConfig] = useState<LibraryConfig | null>(null);
   const [configError, setConfigError] = useState<unknown>(null);
   const loadConfig = useCallback(() => {
@@ -76,6 +79,9 @@ export function LibraryListPage() {
   }
   if (!config) return <PageLoading />;
   if (!enabled) return <Navigate to="/practice" replace />;
+  // R-W1:`?tab=catalog` 只在服务端开着精选库时生效,否则被忽略(回到「我的」)
+  const tab: "mine" | "catalog" = config.catalog && params.get("tab") === "catalog" ? "catalog" : "mine";
+  const onTab = (next: "mine" | "catalog") => setParams(next === "catalog" ? { tab: "catalog" } : {}, { replace: true });
 
   const onUpload = (input: UploadInput) => {
     setSheetOpen(false);
@@ -209,6 +215,16 @@ export function LibraryListPage() {
     <LibraryRoot>
       {/* 标签根页:没有返回键(R-L34);顶栏沿用全站 PageHeader(滚动后才变玻璃) */}
       <PageHeader title={t("web.library.title")} />
+      {config.catalog ? (
+        <div className="lib-cat-tabs">
+          <SegmentedControl<"mine" | "catalog"> label={t("web.library.catalog.tabs")} value={tab} onChange={onTab} className="lib-seg flex w-full" optionClassName="flex-1"
+            options={[
+              { value: "mine", label: t("web.library.catalog.tabMine"), testId: "library-tab-mine" },
+              { value: "catalog", label: t("web.library.catalog.tabCatalog"), testId: "library-tab-catalog" },
+            ]} />
+        </div>
+      ) : null}
+      {tab === "catalog" ? <div className="pb-24"><CatalogView /></div> : <>
       <div data-testid="library-usage" className="lib-quota">
         <span className="num">
           {t("web.library.usedLabel")} <CountUp to={usedBytes} format={formatBytes} /> / {formatBytes(quotaBytes)}
@@ -239,6 +255,7 @@ export function LibraryListPage() {
           <PlusIcon aria-hidden />{t("web.library.addShort")}
         </button>
       </div>
+      </>}
       <input ref={subsInput} type="file" accept=".srt,.vtt" hidden data-testid="library-subtitles-input" onChange={onSubtitlesChosen} />
       <input ref={resumeInput} type="file" accept={["audio/*", "video/*", ...formats.map((f) => `.${f}`)].join(",")} hidden
         data-testid="library-resume-input" onChange={onResumeChosen} />
@@ -247,7 +264,9 @@ export function LibraryListPage() {
         <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-title font-semibold text-ink">{t("web.library.confirmDelete.title")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-sub text-ink-2">{t("web.library.confirmDelete.body")}</AlertDialogDescription>
+            <AlertDialogDescription className="text-sub text-ink-2">
+              {t(pendingDelete?.source === "catalog" ? "web.library.catalog.deleteCopyBody" : "web.library.confirmDelete.body")}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>

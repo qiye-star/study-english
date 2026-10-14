@@ -1,12 +1,18 @@
 import { type RefObject, useEffect, useState } from "react";
+import type { ApiClient } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import { fetchPoster } from "./library-api";
 
 /**
  * 视频封面(R-L18):`<img>` 发不了 Bearer,所以用 ApiClient 取 blob 再 createObjectURL;给了 target 且有
  * IntersectionObserver 时,进入视口(提前 200px)才取;卸载或换条目时撤销 URL。失败 = 没有封面(显示图标)。
+ * `fetcher` 默认取用户条目的封面;精选目录卡片传 `fetchCatalogPoster`(R-W4,不复制这套懒取 / 撤销逻辑)。
  */
-export function usePosterUrl(itemId: string, enabled: boolean, target?: RefObject<Element | null>): string | null {
+export type PosterFetcher = (api: ApiClient, id: string, signal?: AbortSignal) => Promise<Blob>;
+
+export function usePosterUrl(
+  itemId: string, enabled: boolean, target?: RefObject<Element | null>, fetcher: PosterFetcher = fetchPoster,
+): string | null {
   const { api } = useAuth();
   const [url, setUrl] = useState<string | null>(null);
   const [visible, setVisible] = useState(!target);
@@ -32,7 +38,7 @@ export function usePosterUrl(itemId: string, enabled: boolean, target?: RefObjec
     if (!enabled || !visible || !itemId || typeof URL.createObjectURL !== "function") return;
     const ctl = new AbortController();
     let made: string | null = null;
-    fetchPoster(api, itemId, ctl.signal).then((blob) => {
+    fetcher(api, itemId, ctl.signal).then((blob) => {
       if (ctl.signal.aborted) return;
       made = URL.createObjectURL(blob);
       setUrl(made);
@@ -42,7 +48,7 @@ export function usePosterUrl(itemId: string, enabled: boolean, target?: RefObjec
       if (made) URL.revokeObjectURL(made);
       setUrl(null);
     };
-  }, [api, itemId, enabled, visible]);
+  }, [api, itemId, enabled, visible, fetcher]);
 
   return url;
 }

@@ -8,18 +8,19 @@ import { LibraryListPage } from "./library-list-page";
 import { CONFIG_OFF_RAW, CONFIG_RAW, itemRaw } from "./test-fixtures";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
+vi.mock("./catalog-view", () => ({ CatalogView: () => <p data-testid="catalog-view-stub">catalog view</p> }));
 
 beforeEach(async () => {
   await setUiLanguage("zh-CN");
 });
 
-function render(items: Record<string, unknown>[], extra: Record<string, Handler> = {}, config: unknown = CONFIG_RAW) {
+function render(items: Record<string, unknown>[], extra: Record<string, Handler> = {}, config: unknown = CONFIG_RAW, route = "/library") {
   const mock = createFetchMock({
     "GET /api/library/config": () => json(config),
     "GET /api/library/items": () => json({ items, next_cursor: null }),
     ...extra,
   });
-  renderWithProviders(<LibraryListPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/library", path: "/library" });
+  renderWithProviders(<LibraryListPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route, path: "/library" });
   return mock;
 }
 
@@ -177,5 +178,44 @@ describe("LibraryListPage (spec §11.2)", () => {
     render([itemRaw({ sub_source: "asr" })], {}, { ...CONFIG_RAW, asr: false });
     await screen.findByTestId("library-item-i1");
     expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+  });
+});
+
+describe("LibraryListPage · featured tab (curated library, R-W1)", () => {
+  const ON = { ...CONFIG_RAW, catalog: true };
+
+  it("has no switch and ignores ?tab=catalog when config.catalog is off", async () => {
+    render([], {}, { ...CONFIG_RAW, catalog: false }, "/library?tab=catalog");
+    await screen.findByTestId("library-add");
+    expect(screen.queryByTestId("library-tab-catalog")).toBeNull();
+    expect(screen.queryByTestId("catalog-view-stub")).toBeNull();
+    expect(screen.getByTestId("library-usage")).toBeInTheDocument();
+  });
+
+  it("shows the 我的素材 / 精选 switch on 我的 with the usage bar and add button", async () => {
+    render([], {}, ON);
+    expect(await screen.findByTestId("library-tab-mine")).toHaveTextContent("我的素材");
+    expect(screen.getByTestId("library-tab-catalog")).toHaveTextContent("精选");
+    expect(screen.getByTestId("library-tab-mine")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("library-usage")).toBeInTheDocument();
+    expect(screen.getByTestId("library-add")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-view-stub")).toBeNull();
+  });
+
+  it("?tab=catalog renders the catalog view and hides the usage bar and the add button; switching back restores them", async () => {
+    render([], {}, ON, "/library?tab=catalog");
+    expect(await screen.findByTestId("catalog-view-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("library-tab-catalog")).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByTestId("library-usage")).toBeNull();
+    expect(screen.queryByTestId("library-add")).toBeNull();
+    fireEvent.click(screen.getByTestId("library-tab-mine"));
+    expect(await screen.findByTestId("library-add")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-view-stub")).toBeNull();
+  });
+
+  it("switching to 精选 shows the catalog view", async () => {
+    render([], {}, ON);
+    fireEvent.click(await screen.findByTestId("library-tab-catalog"));
+    expect(await screen.findByTestId("catalog-view-stub")).toBeInTheDocument();
   });
 });
