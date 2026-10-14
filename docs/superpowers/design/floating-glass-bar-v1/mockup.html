@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>悬浮玻璃底栏 · mockup v1</title>
+<!--
+  计划 docs/superpowers/plans/2026-10-14-floating-glass-bottom-bar.md 的视觉稿(owner 批准前不实现)。
+  自包含:无外部脚本 / 字体 / 图标(图标为内联 SVG,路径取自 lucide)。颜色取自 web/src/styles/theme.css,
+  玻璃配方取自 web/src/index.css(.glass)与 docs/superpowers/design/video-import-v1/mockup-glass.html(.tabbar 悬浮胶囊)。
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--page-bg:#E4E6EC;--page-ink:#1b1d22;--page-ink-2:#5b6170;--tb:#fff;--tb-ink:#1b1d22;--tb-on:#2456DB;--tb-on-ink:#fff}
+:root[data-theme=dark]{--page-bg:#0b0c10;--page-ink:#e8e9ee;--page-ink-2:#9aa0b0;--tb:#1d2028;--tb-ink:#e8e9ee;--tb-on:#8fb0ff;--tb-on-ink:#0b0c10}
+html,body{background:var(--page-bg);color:var(--page-ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1900px;margin:0 auto;padding:28px 16px 80px}
+@media(min-width:700px){.canvas{padding:36px 32px 90px}}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+h2{font-size:15px;font-weight:600;margin-top:30px}
+.lede{color:var(--page-ink-2);font-size:13px;margin-top:6px;max-width:96ch;line-height:1.65}
+.lede code,.cap code,td code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;margin-top:16px;padding:10px 0;background:linear-gradient(var(--page-bg) 78%,transparent)}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.grp>span{font-size:12px;color:var(--page-ink-2);margin-right:2px}
+.tb{border:0;cursor:pointer;min-height:34px;padding:0 13px;border-radius:17px;font-size:13px;background:var(--tb);color:var(--tb-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:inherit}
+.tb[aria-pressed=true]{background:var(--tb-on);color:var(--tb-on-ink)}
+.tb:focus-visible{outline:2px solid var(--tb-on);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:28px;margin-top:18px;align-items:flex-start}
+.spec{width:390px;max-width:100%}
+.spec h3{font-size:13px;font-weight:600;margin:0 2px 8px;display:flex;gap:8px;align-items:center}
+.spec h3 .tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:rgba(120,125,140,.18);color:var(--page-ink-2)}
+.spec h3 .tag.new{background:#2456DB;color:#fff}
+.cap{font-size:12px;color:var(--page-ink-2);margin:10px 2px 0;line-height:1.65}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1100px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+th{font-weight:600;color:var(--page-ink-2);white-space:nowrap}
+.tablewrap{overflow-x:auto}
+
+/* ============ 手机内令牌:web/src/styles/theme.css ============ */
+.phone{
+  --bg:#ffffff;--surface:#ffffff;--surface-2:#f5f6f8;--ink:#111318;--ink-2:#5b6170;--ink-3:#8a90a0;
+  --blue:#2456DB;--teal:#0E7067;--green:#157A3B;--red:#D1242F;--amber:#9A4B00;
+  --hair:rgba(17,19,24,.12);--blue-tint:#eaf0ff;--green-tint:#e4f6ea;--red-tint:#ffe8e9;
+  --glass:rgba(255,255,255,.72);--glass-solid:rgba(255,255,255,.94);--glass-bar:rgba(255,255,255,.8);--glass-lite:rgba(255,255,255,.86);
+  /* 新:悬浮底栏令牌(计划 R-F3/R-F4) */
+  --float-rgb:255,255,255;--float-lite:rgba(255,255,255,.62);
+  --float-bd:rgba(255,255,255,.55);--float-hi:inset 0 1px 0 rgba(255,255,255,.7);
+  --float-sh:0 10px 28px -10px rgba(17,19,24,.30),0 1px 2px rgba(17,19,24,.06);
+  --float-on:rgba(36,86,219,.14);--halo:rgba(255,255,255,.9);
+  /* 库页令牌:web/src/features/library/library.css */
+  --lib-page:#eef1f8;--lib-glass-bg:rgba(255,255,255,.38);--lib-glass-bd:rgba(255,255,255,.85);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--lib-glass-sh:0 10px 30px -8px rgba(36,56,110,.28);
+  --lib-chip:rgba(255,255,255,.6);--lib-hair:rgba(17,19,24,.1);--lib-blue-tint:rgba(36,86,219,.12);
+  --blob1:#9db8ff;--blob2:#b9f0e6;--blob3:#ffd7b0;
+  --tint:.10;
+}
+[data-theme=dark] .phone{
+  --bg:#0f1013;--surface:#17191e;--surface-2:#1e2127;--ink:#f3f4f6;--ink-2:#a6abb8;--ink-3:#6e7482;
+  --blue:#8fb0ff;--teal:#5fd1c4;--green:#6fd39a;--red:#ff7b7b;--amber:#f2b056;
+  --hair:rgba(255,255,255,.14);--blue-tint:rgba(143,176,255,.14);--green-tint:rgba(111,211,154,.14);--red-tint:rgba(255,123,123,.14);
+  --glass:rgba(23,25,30,.66);--glass-solid:rgba(23,25,30,.94);--glass-bar:rgba(23,25,30,.74);--glass-lite:rgba(23,25,30,.86);
+  --float-rgb:23,25,30;--float-lite:rgba(23,25,30,.62);
+  --float-bd:rgba(255,255,255,.16);--float-hi:inset 0 1px 0 rgba(255,255,255,.14);
+  --float-sh:0 12px 32px -10px rgba(0,0,0,.65),0 1px 2px rgba(0,0,0,.3);
+  --float-on:rgba(143,176,255,.20);--halo:rgba(0,0,0,.6);
+  --lib-page:#0b0d14;--lib-glass-bg:rgba(150,170,255,.1);--lib-glass-bd:rgba(255,255,255,.26);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.38),inset 0 0 22px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.08);--lib-glass-sh:0 14px 38px -8px rgba(0,0,0,.65);
+  --lib-chip:rgba(255,255,255,.1);--lib-hair:rgba(255,255,255,.12);--lib-blue-tint:rgba(143,176,255,.18);
+  --blob1:#4f6dff;--blob2:#12b3a2;--blob3:#8f5a3a;
+}
+body[data-tint=a] .phone{--tint:.06}
+body[data-tint=b] .phone{--tint:.10}
+body[data-tint=c] .phone{--tint:.16}
+
+.phone{position:relative;width:390px;max-width:100%;height:844px;border-radius:46px;overflow:hidden;color:var(--ink);background:var(--bg);
+  border:.5px solid rgba(120,125,140,.4);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4}
+body[data-narrow=on] .phone{width:360px}
+body[data-narrow=on] .spec{width:360px}
+/* 底栏占位(= 计划里的 --tab-bar-space;safe-area 按 iPhone 的 34px 模拟) */
+.phone{--safe-b:34px}
+.phone.old{--space:calc(56px + var(--safe-b))}
+.phone.new{--tab-bottom:max(10px, calc(var(--safe-b) - 8px));--space:calc(64px + var(--tab-bottom) + 8px)}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:80;pointer-events:none}
+.home{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);opacity:.85;z-index:90;pointer-events:none}
+.scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:var(--space);scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.col{display:flex;flex-direction:column;min-height:100%}
+
+/* ============ 现有玻璃配方:web/src/index.css .glass / .glass-edge-t / .glass-bar ============ */
+.glass{background:var(--glass-solid);box-shadow:inset 0 .5px 0 var(--hair)}
+.glass-bar{background:var(--glass-solid);box-shadow:inset 0 -.5px 0 var(--hair)}
+body:not([data-nosupport=on]) .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+body:not([data-nosupport=on]) .glass-bar{background:var(--glass-bar);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+body[data-lite=on]:not([data-nosupport=on]) .glass,body[data-lite=on]:not([data-nosupport=on]) .glass-bar{background:var(--glass-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .glass,body[data-rt=on] .glass-bar{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+
+/* ============ 底栏:当前(全宽贴边) ============ */
+.tab{position:absolute;z-index:30;display:grid}
+.tab a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;font-size:11px;letter-spacing:.01em;font-weight:500;color:var(--ink-2);text-decoration:none}
+.tab a svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tab a.on{color:var(--blue);font-weight:600}
+.old .tab{left:0;right:0;bottom:0;padding-bottom:var(--safe-b)}
+.old .tab ul{display:contents}
+
+/* ============ 底栏:新(悬浮圆角玻璃,计划 .glass-float) ============ */
+.new .tab{left:12px;right:12px;bottom:var(--tab-bottom);height:64px;padding:3px;border-radius:28px;
+  background:var(--glass-solid);border:1px solid var(--float-bd);box-shadow:var(--float-hi),var(--float-sh)}
+body:not([data-nosupport=on]) .new .tab{background:rgba(var(--float-rgb),var(--tint));-webkit-backdrop-filter:blur(28px) saturate(1.8);backdrop-filter:blur(28px) saturate(1.8)}
+body[data-lite=on]:not([data-nosupport=on]) .new .tab{background:var(--float-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .new .tab{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-color:var(--hair)}
+.new .tab a{border-radius:24px;min-height:56px}
+.new .tab a.on{background:var(--float-on)}
+body[data-halo=on] .new .tab a{text-shadow:0 0 6px var(--halo),0 0 2px var(--halo)}
+body[data-halo=on] .new .tab a svg{filter:drop-shadow(0 0 3px var(--halo))}
+body[data-rt=on] .new .tab a,body[data-rt=on] .new .tab a svg{text-shadow:none;filter:none}
+
+/* ============ 页面:跟读库(库页令牌 + 3 层模糊:顶栏胶囊 / 渐进模糊 / 底栏) ============ */
+.lib{background:var(--lib-page);min-height:100%;position:relative}
+.aurora{position:absolute;inset:0 0 auto 0;height:900px;overflow:hidden;z-index:0;pointer-events:none}
+.aurora i{position:absolute;width:300px;height:300px;border-radius:50%;filter:blur(50px);opacity:.85}
+.aurora i:nth-child(1){background:var(--blob1);left:-80px;top:40px}
+.aurora i:nth-child(2){background:var(--blob2);right:-100px;top:300px}
+.aurora i:nth-child(3){background:var(--blob3);left:20px;top:620px}
+.lib-glass{background:var(--lib-glass-bg);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),var(--lib-glass-sh);-webkit-backdrop-filter:blur(34px) saturate(2);backdrop-filter:blur(34px) saturate(2)}
+body[data-lite=on] .lib-glass,body[data-rt=on] .lib-glass,body[data-nosupport=on] .lib-glass{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+.lib-hdr{position:sticky;top:47px;margin:0 12px;height:50px;border-radius:25px;display:flex;align-items:center;gap:6px;padding:0 6px 0 16px;z-index:40}
+.lib-hdr h4{flex:1;font-size:17px;font-weight:600}
+.ib{width:40px;height:40px;display:grid;place-items:center;border-radius:20px;color:var(--ink)}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.chips{display:flex;gap:7px;padding:12px 14px 4px;overflow-x:auto;position:relative;z-index:1;scrollbar-width:none}
+.chip{flex:none;height:34px;padding:0 13px;border-radius:17px;font-size:12.5px;display:inline-flex;align-items:center;background:var(--lib-chip);border:.5px solid var(--lib-hair);color:var(--ink)}
+.chip.on{color:var(--blue);font-weight:600;background:var(--lib-blue-tint)}
+.quota{margin:8px 18px 4px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.quota b{flex:1;height:5px;border-radius:3px;background:var(--lib-hair);overflow:hidden}
+.quota b i{display:block;height:100%;width:34%;background:linear-gradient(90deg,var(--blue),var(--teal))}
+.card{position:relative;z-index:1;display:flex;gap:12px;margin:9px 14px;padding:10px;border-radius:18px;background:var(--lib-glass-bg);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),0 6px 18px -10px rgba(36,56,110,.3)}
+.thumb{flex:none;width:104px;height:66px;border-radius:12px;position:relative;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;overflow:hidden}
+.thumb .dur{position:absolute;right:5px;bottom:4px;font-size:10px;font-weight:500;background:rgba(0,0,0,.5);padding:1px 5px;border-radius:5px}
+.card .m{flex:1;min-width:0}
+.card .t{font-size:14.5px;font-weight:600;line-height:1.3}
+.card .s{font-size:12px;color:var(--ink-2);margin-top:5px;display:flex;gap:5px;flex-wrap:wrap}
+.badge{font-size:10.5px;padding:1px 7px;border-radius:7px;background:var(--lib-chip);color:var(--ink-2);border:.5px solid var(--lib-hair)}
+.badge.lv{color:var(--blue)}
+.gblur{position:absolute;left:0;right:0;bottom:var(--space);height:150px;z-index:20;pointer-events:none;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);-webkit-mask-image:linear-gradient(transparent,#000 70%);mask-image:linear-gradient(transparent,#000 70%)}
+body[data-lite=on] .gblur,body[data-rt=on] .gblur,body[data-nosupport=on] .gblur{display:none}
+.fab{position:absolute;right:16px;bottom:calc(var(--space) + 12px);z-index:30;height:48px;padding:0 20px;border-radius:12px;background:var(--blue);color:#fff;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:0 10px 24px -8px rgba(36,86,219,.65)}
+[data-theme=dark] .fab{color:#0f1013}
+.fab svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+/* ============ 页面:对话 ============ */
+.topbar{position:sticky;top:0;z-index:40;padding-top:47px}
+.topbar .in{height:52px;display:flex;align-items:center;gap:8px;padding:0 8px}
+.topbar h4{flex:1;font-size:17px;font-weight:600;text-align:center;margin-right:44px}
+.msgs{display:flex;flex-direction:column;gap:14px;padding:12px 16px}
+.b{max-width:80%;padding:10px 13px;border-radius:14px;font-size:15px;line-height:1.5}
+.b.ai{background:var(--surface-2);align-self:flex-start;border-top-left-radius:6px}
+.b.me{background:var(--blue);color:#fff;align-self:flex-end;border-top-right-radius:6px}
+[data-theme=dark] .b.me{color:#0f1013}
+.b .zh{display:block;font-size:13px;color:var(--ink-2);margin-top:4px}
+.b.img{padding:0;overflow:hidden;width:240px;height:150px;background:linear-gradient(135deg,#0a1a3d,#c42b4a 55%,#ffd23f)}
+.composer{position:absolute;left:0;right:0;bottom:var(--space);z-index:30;padding:8px}
+.composer .row2{display:flex;gap:8px;align-items:center}
+.hold{flex:1;height:44px;border-radius:22px;background:var(--surface);border:.5px solid var(--hair);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--ink)}
+.round{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink-2)}
+.round svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ============ 页面:复习(答后)+ DOCK ============ */
+.qcard{margin:8px 16px 0;padding:18px 16px;border-radius:14px;background:var(--surface);border:.5px solid var(--hair)}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.qword{font-size:30px;font-weight:700;letter-spacing:-.02em;margin-top:6px}
+.qph{font-size:14px;color:var(--ink-2);font-family:ui-monospace,Menlo,Consolas,monospace}
+.opts{display:flex;flex-direction:column;gap:8px;margin:14px 16px 0}
+.opt{min-height:56px;padding:9px 14px;border-radius:14px;background:var(--surface);border:.5px solid var(--hair);display:flex;gap:12px;align-items:center}
+.opt .l{width:26px;height:26px;border-radius:13px;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--ink-2);flex:none}
+.opt .tx{flex:1}.opt .tx small{display:block;font-size:12.5px;color:var(--ink-2)}
+.opt.ok{background:var(--green-tint);border-color:transparent}.opt.ok .l{background:var(--green);color:#fff}
+.opt.bad{background:var(--red-tint);border-color:transparent}.opt.bad .l{background:var(--red);color:#fff}
+.panel{margin:16px 16px 0;padding:14px 16px;border-radius:14px;background:var(--surface-2);font-size:14px;line-height:1.55}
+.panel p+p{margin-top:6px}.panel .k{color:var(--ink-2);font-size:12.5px}
+.dock{position:sticky;bottom:0;z-index:30;margin-top:auto;display:flex;gap:8px;padding:10px 16px}
+.btn{flex:1;height:48px;border-radius:12px;display:grid;place-items:center;font-weight:600;font-size:15px}
+.btn.pri{background:var(--blue);color:#fff}[data-theme=dark] .btn.pri{color:#0f1013}
+.btn.gh{background:var(--surface);border:.5px solid var(--hair);color:var(--ink);flex:0 0 112px}
+.spacer{height:16px}
+
+/* ============ 隐藏的旧/新 ============ */
+body[data-look=old] .spec.is-new,body[data-look=new] .spec.is-old{display:none}
+.legend{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+</style>
+</head>
+<body data-look="both" data-tint="b" data-lite="off" data-rt="off" data-nosupport="off" data-halo="on" data-narrow="off">
+<div class="canvas">
+  <h1>悬浮玻璃底栏 · mockup v1(待 owner 批准)</h1>
+  <p class="lede">owner 原话:「下面部分的样式改成全透明玻璃效果,带 R 角」。我们的理解:<b>全站底部 Tab 栏</b>(练习 · 对话 · 联机 · 跟读库 · 我的,<code>web/src/components/glass-tab-bar.tsx</code>)由「贴边全宽、近乎不透明的磨砂条」改为<b>离开屏幕边缘的悬浮圆角玻璃胶囊</b>:左右各 12px、下沿让开 iPhone 底部横条、圆角 28px、填充几乎透明(只留很淡的底色)+ 强模糊 + 白色高光描边 + 柔和阴影。页面里的「继续」操作条、对话输入条整体上移到胶囊之上,不被遮住。下面每个页面左边是<b>当前</b>,右边是<b>新</b>;手机内容可以滚动,看内容从胶囊下穿过的效果。按 iPhone(底部安全区 34px)模拟。</p>
+
+  <div class="toolbar" role="toolbar" aria-label="mockup 开关">
+    <div class="grp" data-key="look"><span>对比</span>
+      <button class="tb" data-v="both">当前 vs 新</button><button class="tb" data-v="old">只看当前</button><button class="tb" data-v="new">只看新</button></div>
+    <div class="grp" data-key="theme"><span>主题</span>
+      <button class="tb" data-v="light">浅色</button><button class="tb" data-v="dark">深色</button></div>
+    <div class="grp" data-key="tint"><span>透明度</span>
+      <button class="tb" data-v="a">A 底色 6%</button><button class="tb" data-v="b">B 底色 10%(推荐)</button><button class="tb" data-v="c">C 底色 16%</button></div>
+    <div class="grp" data-key="halo"><span>文字光晕</span>
+      <button class="tb" data-v="on">开(推荐)</button><button class="tb" data-v="off">关</button></div>
+    <div class="grp" data-key="lite"><span>低端机模式</span>
+      <button class="tb" data-v="off">关</button><button class="tb" data-v="on">开 html.lite</button></div>
+    <div class="grp" data-key="rt"><span>减少透明度</span>
+      <button class="tb" data-v="off">关</button><button class="tb" data-v="on">开</button></div>
+    <div class="grp" data-key="nosupport"><span>浏览器不支持模糊</span>
+      <button class="tb" data-v="off">支持</button><button class="tb" data-v="on">不支持(实心回退)</button></div>
+    <div class="grp" data-key="narrow"><span>屏宽</span>
+      <button class="tb" data-v="off">390px</button><button class="tb" data-v="on">360px(5 个标签最窄)</button></div>
+  </div>
+
+  <h2>1 · 跟读库(owner 截图所在页:等级筛选 + 海报列表;该页已有 2 层模糊,底栏是第 3 层)</h2>
+  <div class="row" id="row-lib"></div>
+  <h2>2 · 对话(输入条本身也是玻璃,要整条坐在胶囊上方)</h2>
+  <div class="row" id="row-chat"></div>
+  <h2>3 · 复习答后(DOCK「继续」操作条 sticky 在底栏之上)</h2>
+  <div class="row" id="row-review"></div>
+
+  <h2>待 owner 确认的设计决定</h2>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>决定</th><th>本稿的取值</th></tr>
+    <tr><td>D1</td><td>改哪里</td><td>只改<b>全站底部 Tab 栏</b>的形状与玻璃。对话输入条、复习 / 学新词 / 拼写 / 排位的 DOCK 操作条、通话控制台、弹层底部按钮条<b>样式不变</b>,只跟着上移。若 owner 指的是别的「下面部分」(例如跟读库播放器的控制胶囊),请指出。</td></tr>
+    <tr><td>D2</td><td>几何</td><td>左右 12px、圆角 28px(与通话控制台同一圆角令牌 <code>rounded-dock</code>)、高 64px(内边距 4px + 56px 标签行)、下沿 = max(10px, 安全区 − 8px)(iPhone 上约 26px,横条之上;无安全区的手机 10px)、平板最宽 640px 居中。</td></tr>
+    <tr><td>D3</td><td>透明度</td><td>A 6% / B 10% / C 16% 三选一(白色底色 / 深色模式用 surface 色)。<b>推荐 B</b>:A 在深色海报上标签开始发虚,C 已经像「磨砂」不像「透明」。模糊 28px、饱和 1.8(现在是 20px / 1.8)。底色永远不为 0。</td></tr>
+    <tr><td>D4</td><td>可读性规则</td><td>透明之后标签对比度不再由底色保证,改由<b>文字光晕</b>保证:标签与图标加一圈浅色(深色模式为深色)光晕;当前标签保留蓝色小胶囊底(浅 14% / 深 20%)。可以用「文字光晕」开关看去掉后的样子(不推荐)。</td></tr>
+    <tr><td>D5</td><td>描边与阴影</td><td>1px 白色高光描边 + 顶部内高光 + 柔和外阴影;去掉原来顶部那条发丝线。</td></tr>
+    <tr><td>D6</td><td>回退</td><td>不支持模糊:94% 实心;「减少透明度」:实心 surface + 发丝线描边(仍是圆角胶囊);低端机:模糊 12px + 62% 底色。三种情况形状都不变。</td></tr>
+    <tr><td>D7</td><td>操作条与胶囊的间距</td><td>DOCK、输入条下沿离胶囊上沿 8px;中间这 8px 与胶囊两侧会透出滚动内容(见复习页)。备选:操作条也改成悬浮圆角(<b>不在本轮</b>,另开)。</td></tr>
+    <tr><td>D8</td><td>跟读库渐进模糊</td><td>列表底部的渐进模糊层仍贴在「底栏占位」上沿(现在会停在胶囊上方 8px)。备选:让它延伸到屏幕底部(会和胶囊叠两层模糊,超出每屏 3 层的上限,不推荐)。</td></tr>
+  </table></div>
+  <p class="lede" style="margin-top:14px">本稿只证明「看起来怎样」。真机上的模糊质量、iOS 主屏模式下的安全区位置、低端安卓的滚动流畅度、深色海报上标签的实际可读性都<b>未验证</b>,见计划的真机清单。</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+    chat: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+    rooms: '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
+    lib: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    me: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    back: '<path d="m15 18-6-6 6-6"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    kb: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>'
+  };
+  var svg = function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + I[k] + "</svg>"; };
+  var TABS = [["mic", "练习"], ["chat", "对话"], ["rooms", "联机"], ["lib", "跟读库"], ["me", "我的"]];
+  function tabbar(active) {
+    var items = TABS.map(function (t, i) {
+      return '<a href="#" class="' + (i === active ? "on" : "") + '"' + (i === active ? ' aria-current="page"' : "") + ">" + svg(t[0]) + t[1] + "</a>";
+    }).join("");
+    return '<nav class="tab glass-tab" aria-label="主导航" style="grid-template-columns:repeat(5,minmax(0,1fr))">' + items + "</nav>";
+  }
+  function oldBarClass(html) { return html.replace('class="tab glass-tab"', 'class="tab glass"'); }
+
+  var POSTERS = [
+    ["linear-gradient(135deg,#0a1a3d,#24386e)", "TED", "Why we sleep", "B2", "12:40"],
+    ["linear-gradient(135deg,#ffd23f,#ff8a00)", "VLOG", "A day in Tokyo, slowly", "A2", "08:12"],
+    ["linear-gradient(135deg,#c42b4a,#3b0a1e)", "FILM", "Before Sunrise · train scene", "B1", "04:05"],
+    ["linear-gradient(135deg,#0E7067,#5fb3a8)", "POD", "6 Minute English · Coffee", "B1", "06:20"],
+    ["linear-gradient(135deg,#111,#444)", "NEWS", "Evening headlines, slow", "B2", "05:48"],
+    ["linear-gradient(135deg,#6a3df0,#c26bd6)", "SONG", "Learning with lyrics", "A2", "03:31"],
+    ["linear-gradient(135deg,#f5f5f5,#cfd6e4)", "BOOK", "The Little Prince · ch. 2", "A2", "11:02"],
+    ["linear-gradient(135deg,#1b5e20,#a5d6a7)", "TALK", "Small talk at work", "B1", "07:15"],
+    ["linear-gradient(135deg,#ff5252,#ffd740)", "KIDS", "Peppa Pig · Muddy puddles", "A1", "05:00"],
+    ["linear-gradient(135deg,#263238,#90a4ae)", "TED", "The power of vulnerability", "C1", "20:19"]
+  ];
+  function library() {
+    var cards = POSTERS.map(function (p) {
+      var darkText = p[1] === "BOOK" ? ' style="color:#222"' : "";
+      return '<div class="card"><div class="thumb" style="background:' + p[0] + '"><span' + darkText + ">" + p[1] + '</span><span class="dur">' + p[4] + '</span></div><div class="m"><div class="t">' + p[2] + '</div><div class="s"><span class="badge lv">' + p[3] + '</span><span class="badge">字幕已对齐</span></div></div></div>';
+    }).join("");
+    return '<div class="scroll"><div class="lib col"><div class="aurora"><i></i><i></i><i></i></div><div style="height:47px"></div>' +
+      '<div class="lib-hdr lib-glass"><h4>跟读库</h4><span class="ib">' + svg("search") + "</span></div>" +
+      '<div class="chips"><span class="chip on">全部</span><span class="chip">A1</span><span class="chip">A2</span><span class="chip">B1</span><span class="chip">B2</span><span class="chip">C1</span><span class="chip">C2</span></div>' +
+      '<div class="quota"><span>已用 1.2 GB / 5 GB</span><b><i></i></b></div>' + cards + '<div style="height:60px"></div></div></div>' +
+      '<div class="gblur"></div><div class="fab">' + svg("plus") + "添加</div>";
+  }
+  function chat() {
+    var m = [
+      ["ai", "Hi! How was your weekend? Did you do anything fun?", "嗨!周末过得怎么样?做了什么有趣的事吗?"],
+      ["me", "I went hiking with my friends near the lake."],
+      ["ai", "That sounds lovely. What was the weather like up there?", "听起来很棒。山上的天气怎么样?"],
+      ["me", "It was sunny but a little windy in the afternoon."],
+      ["img"],
+      ["ai", "Great photo! The colours are amazing. Try saying: “The view from the top was breathtaking.”", "照片真好!试着说:山顶的景色美得令人窒息。"],
+      ["me", "The view from the top was breathtaking."],
+      ["ai", "Perfect pronunciation on “breathtaking”. Next, tell me what you ate for lunch.", "「breathtaking」发音很准。接下来说说你午饭吃了什么。"],
+      ["me", "We had sandwiches and some fruit."],
+      ["ai", "Nice and simple! Did you take the same trail back down?", "简单又不错!你们原路下山的吗?"]
+    ].map(function (x) {
+      if (x[0] === "img") return '<div class="b ai img" aria-label="图片"></div>';
+      return '<div class="b ' + x[0] + '">' + x[1] + (x[2] ? '<span class="zh">' + x[2] + "</span>" : "") + "</div>";
+    }).join("");
+    return '<div class="scroll" style="bottom:var(--space);padding-bottom:72px"><div class="topbar glass-bar"><div class="in"><span class="ib">' + svg("back") + '</span><h4>Emma · Daily chat</h4></div></div><div class="msgs">' + m + "</div></div>" +
+      '<div class="composer glass"><div class="row2"><span class="round">' + svg("kb") + '</span><div class="hold">按住 说话</div><span class="round">' + svg("plus") + "</span></div></div>";
+  }
+  function review() {
+    return '<div class="scroll"><div class="col"><div class="topbar glass-bar"><div class="in"><span class="ib">' + svg("back") + '</span><h4>复习 · 3 / 20</h4></div></div>' +
+      '<div class="qcard"><div class="eyebrow">看单词选中文</div><div class="qword">country</div><div class="qph">/ˈkʌntri/</div></div>' +
+      '<div class="opts">' +
+      '<div class="opt bad"><span class="l">A</span><span class="tx">n. 城市<small>city</small></span></div>' +
+      '<div class="opt ok"><span class="l">B</span><span class="tx">n. 国家;乡村<small>country</small></span></div>' +
+      '<div class="opt"><span class="l">C</span><span class="tx">n. 海岸<small>coast</small></span></div>' +
+      '<div class="opt"><span class="l">D</span><span class="tx">n. 法院<small>court</small></span></div></div>' +
+      '<div class="panel"><p class="k">学习内容</p><p>a nation with its own government, occupying a particular territory</p><p>the land outside cities and towns</p><p class="k">短语</p><p>country music · country club · across the country</p><p class="k">例句</p><p>She has lived in this country for ten years.</p><p>They moved to the country to get away from the noise.</p></div>' +
+      '<div class="spacer"></div><div class="dock glass"><div class="btn gh">查看单词</div><div class="btn pri">继续</div></div></div></div>';
+  }
+  var SCREENS = { lib: [library, 3], chat: [chat, 1], review: [review, 0] };
+  function build() {
+    Object.keys(SCREENS).forEach(function (key) {
+      var s = SCREENS[key], row = document.getElementById("row-" + key);
+      var body = s[0](), bar = tabbar(s[1]);
+      row.innerHTML =
+        '<div class="spec is-old"><h3><span class="tag">当前</span>全宽贴边 · .glass + 顶部发丝线</h3><div class="phone old"><div class="sb"><span>9:41</span><span>5G</span></div>' + body + oldBarClass(bar) + '<div class="home"></div></div></div>' +
+        '<div class="spec is-new"><h3><span class="tag new">新</span>悬浮圆角 · 近乎透明玻璃</h3><div class="phone new"><div class="sb"><span>9:41</span><span>5G</span></div>' + body + bar + '<div class="home"></div></div>' +
+        '<p class="cap">' + CAPS[key] + "</p></div>";
+    });
+    // 对话一开始停在最新消息(底部),其余停在顶部;内容本来就比屏幕长,底栏下面始终有内容
+    document.querySelectorAll("#row-chat .phone .scroll").forEach(function (el) { el.scrollTop = el.scrollHeight; });
+  }
+  var CAPS = {
+    lib: "胶囊下沿在横条之上约 26px;海报(含深色、亮黄)滚到胶囊下面时,标签靠光晕保持可读。顶栏胶囊 + 渐进模糊 + 底栏 = 3 层模糊,与现在相同。「添加」按钮跟着上移。",
+    chat: "输入条仍是全宽玻璃(样式不变),整条上移到胶囊上方 8px。对话页的消息列表本来就停在底栏占位之上(与现在相同),所以胶囊后面只有页面底色;最后一条消息不会被挡。",
+    review: "DOCK(查看单词 / 继续)sticky 在滚动区内容框的下沿 = 胶囊上方 8px;这 8px 与胶囊两侧会透出滚动内容(D7)。"
+  };
+
+  function setOpt(key, v) {
+    if (key === "theme") document.documentElement.setAttribute("data-theme", v);
+    else document.body.setAttribute("data-" + key, v);
+    document.querySelectorAll('.grp[data-key="' + key + '"] .tb').forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+  }
+  document.querySelectorAll(".grp").forEach(function (g) {
+    var key = g.getAttribute("data-key");
+    g.addEventListener("click", function (e) { var b = e.target.closest(".tb"); if (b) setOpt(key, b.getAttribute("data-v")); });
+  });
+  build();
+  var init = { look: "both", theme: "light", tint: "b", halo: "on", lite: "off", rt: "off", nosupport: "off", narrow: "off" };
+  try { var q = new URLSearchParams(location.search); Object.keys(init).forEach(function (k) { if (q.get(k)) init[k] = q.get(k); }); } catch (e) { /* 无 URL 参数时用默认 */ }
+  Object.keys(init).forEach(function (k) { setOpt(k, init[k]); });
+})();
+</script>
+</body>
+</html>
