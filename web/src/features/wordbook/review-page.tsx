@@ -312,7 +312,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
         </p>
         {afterQuestion && answer ? (
           <AfterAnswerPanel question={afterQuestion} result={answer.result} card={batch?.cards[afterQuestion.key]} defLang={defLang}
-            peek={peekSlot === slot} {...listen} />
+            peek={peekSlot === slot} onPeek={() => setPeekSlot((s) => (s === slot ? null : slot))} {...listen} />
         ) : null}
         {actionError ? <p role="alert" className="mt-2 text-sub text-ink">{actionError}</p> : null}
       </div>

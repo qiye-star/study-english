@@ -114,18 +114,22 @@ describe("review page · after the answer (meaning)", () => {
     expect(Object.keys(sent).sort()).toEqual(["book_id", "choice", "key", "mode", "qtype", "tz_offset_minutes"]);
   });
 
-  it("the 中 switch shows Chinese on the rows and in the panel, and resets for the next question", async () => {
+  it("the 中文 chip in the study panel shows Chinese senses and phrase translations, and resets for the next question", async () => {
     const user = userEvent.setup();
     setup();
     await startAndAnswer(user, /v\. 放弃；抛弃/);
-    await user.click(screen.getByTestId("option-peek"));
-    expect(rows()[0]).toHaveTextContent("v. 放弃；抛弃");
+    const panel = screen.getByTestId("after-answer-panel");
+    expect(panel).not.toHaveTextContent("认输");
+    await user.click(within(panel).getByTestId("after-zh"));
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("接受；承认");
+    expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("accept defeat 认输");
+    expect(screen.getByTestId("after-zh")).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "继续" }));
     await user.click(await screen.findByRole("button", { name: /carry/ }));
     await screen.findAllByTestId("choice-option");
-    expect(screen.queryByTestId("option-peek")).toBeNull(); // word 题没有选项级的「中」
-    expect(screen.queryByTestId("double-tap-hint")).toBeNull(); // 只提示一次
+    const wc = screen.getByTestId("word-card");
+    expect(within(wc).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false"); // 换题复位
+    expect(wc).not.toHaveTextContent("携带；搬运");
   });
 
   it("honours def_lang 'zh': Chinese on the rows, no switch, Chinese in the panel", async () => {

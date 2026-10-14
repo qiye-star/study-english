@@ -3,8 +3,9 @@ import { useId, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
+import { ZhToggle } from "~/components/zh-toggle";
 import { Slot } from "~/lib/extension-points-react";
-import { DEFAULT_DEF_LANG, defView } from "./def-lang";
+import { DEFAULT_DEF_LANG, zhReveal } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
 import { MAX_PHRASES, PhrasesSection, type PhrasesOpen } from "./phrases-section";
 import { RecallCover } from "./recall-cover";
@@ -74,11 +75,13 @@ export function ListenButton({ id, text, accent, label, onListen, listening, can
  */
 export function WordCardView({
   card, eyebrow, onListen, listening, canListen = true, className, covered = false, onReveal, showExample = true, badge, regionRef,
-  defLang = DEFAULT_DEF_LANG, phrasesOpen = false,
+  defLang = DEFAULT_DEF_LANG, phrasesOpen = false, peek: peekProp, onPeek,
 }: ListenProps & {
   card: Card; eyebrow?: ReactNode; className?: string;
   covered?: boolean; onReveal?: () => void; showExample?: boolean; badge?: ReactNode; regionRef?: Ref<HTMLDivElement>;
   defLang?: DefLang; phrasesOpen?: PhrasesOpen;
+  /** 受控「中文」(复习页答后区,计划 2026-10-14 R-Z2):传了 onPeek 就不画右上角「中」,改在英文释义下方画「中文」按钮,短语译文跟随 */
+  peek?: boolean; onPeek?: () => void;
 }) {
   const { t } = useTranslation();
   const regionId = useId();
@@ -89,9 +92,10 @@ export function WordCardView({
   // 「仅英文」:有英文释义时中文行让位;缺口词(没有英文释义)回退成中文,否则答案是空的(计划 2026-10-13-defs-default R-A7)
   // 「中」小开关:只影响这一张卡的当前显示;记的是正在偷看的 card.key,换卡自动复位;不写服务端、不写本机(R-A9)
   const [peekKey, setPeekKey] = useState<string | null>(null);
-  const peek = peekKey === card.key;
-  const { groups: defGroups, showDefs, showSenses, canPeek } = defView(defLang, card, peek);
-  const peekButton = canPeek && !covered ? (
+  const controlled = onPeek !== undefined;
+  const peek = controlled ? peekProp === true : peekKey === card.key;
+  const { view: { groups: defGroups, showDefs, showSenses, canPeek }, phraseZh, chip } = zhReveal(defLang, card, peek);
+  const peekButton = canPeek && !covered && !controlled ? (
     <button type="button" data-testid="def-peek" aria-pressed={peek} aria-label={t("web.wordbookDefs.peek.label")}
       onClick={() => setPeekKey((k) => (k === card.key ? null : card.key))}
       className={cn(
@@ -144,6 +148,7 @@ export function WordCardView({
             </ul>
           ) : null}
           {showDefs ? <DefinitionsEn groups={defGroups} className={showSenses ? "mt-1.5" : "mt-3.5"} /> : null}
+          {onPeek && chip ? <ZhToggle pressed={peek} onToggle={onPeek} label={t("web.wordbookDefs.after.zh")} testId="after-zh" className="mt-2.5" /> : null}
           {showExample && example ? (
             <div className="mt-3.5 rounded-badge bg-surface-2 p-3">
               <p lang="en" className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
@@ -163,7 +168,7 @@ export function WordCardView({
               </div>
             </div>
           ) : null}
-          <PhrasesSection phrases={card.phrases.slice(0, MAX_PHRASES)} mode={phrasesOpen} />
+          <PhrasesSection phrases={card.phrases.slice(0, MAX_PHRASES)} mode={phrasesOpen} showZh={!controlled || phraseZh} />
         </div>
       )}
       {covered ? null : <Slot point="wordDetailSections" props={{ word: card.key }} />}

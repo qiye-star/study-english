@@ -28,11 +28,13 @@ const talkCard = (extra: Record<string, unknown> = {}) => toCard(defsCard("talk"
 
 const result = (extra: Partial<AnswerResult> = {}): Pick<AnswerResult, "optionInfo" | "correctOption" | "phrases" | "example"> =>
   ({ correctOption: OPT, optionInfo: [TALK_INFO], ...extra });
-const view = (q: Question, c: Card | undefined, extra: { defLang?: "en" | "zh" | "both"; peek?: boolean; result?: ReturnType<typeof result> } = {}) => {
+type Extra = { defLang?: "en" | "zh" | "both"; peek?: boolean; result?: ReturnType<typeof result>; onPeek?: () => void };
+const view = (q: Question, c: Card | undefined, extra: Extra = {}) => {
   const onListen = vi.fn();
+  const onPeek = extra.onPeek ?? vi.fn();
   render(<AfterAnswerPanel question={q} result={extra.result ?? result()} card={c} defLang={extra.defLang ?? "en"} peek={extra.peek ?? false}
-    onListen={onListen} canListen />);
-  return { onListen };
+    onPeek={onPeek} onListen={onListen} canListen />);
+  return { onListen, onPeek };
 };
 
 beforeEach(() => { localStorage.clear(); void i18n.changeLanguage("zh-CN"); });
@@ -47,7 +49,8 @@ describe("AfterAnswerPanel · meaning (spec D1)", () => {
     expect(panel).not.toHaveTextContent("说话；谈话");
     const phrases = within(panel).getAllByRole("listitem").filter((li) => li.closest("details"));
     expect(phrases).toHaveLength(3);
-    expect(phrases[0]).toHaveTextContent("talk about 谈论");
+    expect(phrases[0]).toHaveTextContent("talk about");
+    expect(phrases[0]).not.toHaveTextContent("谈论"); // 短语译文跟着「中文」(R-Z3)
     await userEvent.click(within(panel).getByRole("button", { name: "播放读音" }));
     expect(onListen).toHaveBeenCalledWith("talk:after", "talk", undefined);
   });
@@ -64,10 +67,34 @@ describe("AfterAnswerPanel · meaning (spec D1)", () => {
     expect(screen.getByTestId("word-defs-en")).toBeTruthy();
   });
 
-  it("brings the Chinese lines back with peek", () => {
+  it("brings the Chinese lines and the phrase translations back with peek; the chip stays, pressed", () => {
     view(meaningQ, talkCard(), { peek: true });
-    expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("说话；谈话");
+    const panel = screen.getByTestId("after-answer-panel");
+    expect(panel).toHaveTextContent("说话；谈话");
+    expect(panel).toHaveTextContent("talk about 谈论");
     expect(screen.getByTestId("word-defs-en")).toBeTruthy();
+    expect(screen.getByTestId("after-zh")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows a visible 中文 chip under English-only that asks the page to reveal Chinese", async () => {
+    const { onPeek } = view(meaningQ, talkCard());
+    const chip = screen.getByTestId("after-zh");
+    expect(chip).toHaveTextContent("中文");
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(chip.className).toMatch(/\bmin-h-tap\b/);
+    await userEvent.click(chip);
+    expect(onPeek).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no chip under 'zh' / 'both' or for a word that fell back to Chinese", () => {
+    for (const defLang of ["zh", "both"] as const) {
+      const { unmount } = render(<AfterAnswerPanel question={meaningQ} result={result()} card={talkCard()} defLang={defLang} peek={false} onPeek={vi.fn()} onListen={vi.fn()} />);
+      expect(screen.queryByTestId("after-zh")).toBeNull();
+      expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("talk about 谈论");
+      unmount();
+    }
+    view(meaningQ, talkCard({ defs_en: undefined }));
+    expect(screen.queryByTestId("after-zh")).toBeNull();
   });
 
   it("falls back to Chinese for a word that has no English definition", () => {
@@ -95,10 +122,19 @@ describe("AfterAnswerPanel · word (spec D3)", () => {
     expect(within(wc).getAllByRole("button", { name: /朗读|播放/ }).length).toBeGreaterThan(0);
   });
 
-  it("follows def_lang through the card's own 中 switch under English-only", () => {
-    view(wordQ, talkCard(), { defLang: "en" });
-    expect(screen.getByTestId("word-card")).not.toHaveTextContent("说话；谈话");
-    expect(screen.getByTestId("def-peek")).toBeTruthy();
+  it("uses the same 中文 chip instead of the card's small 中 switch, driven by the page", async () => {
+    const { onPeek } = view(wordQ, talkCard(), { defLang: "en" });
+    const wc = screen.getByTestId("word-card");
+    expect(wc).not.toHaveTextContent("说话；谈话");
+    expect(screen.queryByTestId("def-peek")).toBeNull();
+    await userEvent.click(within(wc).getByTestId("after-zh"));
+    expect(onPeek).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the card's Chinese senses when peek is on", () => {
+    view(wordQ, talkCard(), { defLang: "en", peek: true });
+    expect(screen.getByTestId("word-card")).toHaveTextContent("说话；谈话");
+    expect(screen.getByTestId("after-zh")).toHaveAttribute("aria-pressed", "true");
   });
 });
 
