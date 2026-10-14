@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 from sqlalchemy import update
 
-from app.library import asr_chunks, limits, paths, quality, segment, store, subtitles
+from app.library import asr_chunks, limits, paths, segment, sentences as sentences_mod, store, subtitles
 from app.library.errors import Aborted, LibraryError
 from app.library.media import ProbeInfo
 from app.models import LibraryItem
@@ -33,6 +33,7 @@ PLATFORM_SUBS = "platform.srt"
 SILENCES = "silences.json"
 SPEECH_WAV = "speech.wav"
 CHUNKS = "chunks.json"
+TRANSCRIPT = "transcript.json"  # plan v2 R-V8: the kept recognizer output, in the item directory (not `_tmp`)
 INPUT_PREFIX = "in."
 
 
@@ -218,8 +219,10 @@ def _untimed(transcribe: Callable[[bytes], Awaitable[str]]) -> Callable[[bytes],
 
 
 async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, duration_ms: int, tmp: Path,
-                      progress: Progress, t0: int) -> tuple[list[segment.Sentence], bool]:
-    """Chunked recognition -> sentences, plus the `low_confidence` verdict (spec D5: the recognizer's real times first)."""
+                      progress: Progress, t0: int
+                      ) -> tuple[sentences_mod.Built, list[asr_chunks.Chunk], list[asr_chunks.Silence]]:
+    """Chunked recognition -> sentences with flags and the `low_confidence` verdict (plan v2: word times first), plus
+    the chunks and silences the caller keeps as the item's transcript."""
     settings = deps.settings()
     wav, state_path, silences_path = tmp / SPEECH_WAV, tmp / CHUNKS, tmp / SILENCES
     chunks = asr_chunks.load_state(state_path)
@@ -232,7 +235,8 @@ async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, durati
         silences = await deps.tools.speech_wav(media, wav, duration_ms, home=tmp)
         silences_path.write_text(json.dumps([[s.start_ms, s.end_ms] for s in silences]), encoding="utf-8")
     if chunks is None:
-        chunks = asr_chunks.plan_chunks(duration_ms, silences)
+        overlap = limits.ASR_HARD_CUT_OVERLAP_MS if deps.timed_transcriber is not None else 0  # R-V5
+        chunks = asr_chunks.plan_chunks(duration_ms, silences, overlap_ms=overlap)
         asr_chunks.save_state(state_path, chunks)
     need = sum(c.seconds for c in chunks if c.text is None)
     uid, day = str(item.user_id), limits.day_of(deps.clock())
@@ -270,8 +274,10 @@ async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, durati
     await _add_asr_seconds(deps, item.id, spent)
     timed_chunks = sum(1 for c in chunks if asr_chunks.usable_utterances(c))
     logger.info("library transcribed item=%s chunks=%d timed=%d seconds=%d", item.id, len(chunks), timed_chunks, spent)
-    sentences = segment.build(asr_chunks.fragments(chunks, silences), adjust=asr_chunks.snapper(silences))
-    return sentences, quality.is_low_confidence(sentences, chunks, silences)
+    built = await asyncio.to_thread(sentences_mod.build, chunks, silences)
+    logger.info("library sentences item=%s algorithm=%s sentences=%d flagged=%d low_confidence=%s", item.id,
+                built.algorithm, len(built.sentences), sum(1 for f in built.flags if f), built.low_confidence)
+    return built, chunks, silences
 
 
 async def process(deps: PipelineDeps, item_id: str) -> None:
@@ -295,6 +301,8 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     t0 = 60 if item.source == "link" else 50
     await progress.set("subtitles", t0)
     sentences: list[segment.Sentence]
+    flags: list[tuple[str, ...]] | None = None
+    transcript: tuple[list[asr_chunks.Chunk], list[asr_chunks.Silence]] | None = None
     low_confidence = False
     if (tmp / UPLOADED_SUBS).is_file():
         cues = subtitles.parse((tmp / UPLOADED_SUBS).read_bytes())
@@ -304,23 +312,35 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     elif (tmp / PLATFORM_SUBS).is_file() and (cues := _platform_cues(tmp / PLATFORM_SUBS)):
         sentences, sub_source = segment.build(_fragments(cues)), "platform"
     elif settings.library_asr_available:
-        sentences, low_confidence = await _transcribe(deps, item, media, duration_ms, tmp, progress, t0)
+        built, chunks, silences = await _transcribe(deps, item, media, duration_ms, tmp, progress, t0)
+        sentences, flags, low_confidence = built.sentences, built.flags, built.low_confidence
+        transcript = (chunks, silences)
         sub_source = "asr"
     else:
         raise LibraryError("no_subtitles")
     if not sentences:
         raise LibraryError("no_subtitles")
     await progress.set("segment", 95)
+    final = paths.item_dir(deps.data_dir, item.user_id, item.id)
+    staged = final / (TRANSCRIPT + ".new")
+    if transcript is not None:  # written before the commit, put in place after it (R-V8)
+        await asyncio.to_thread(asr_chunks.save_transcript, staged, *transcript)
     async with deps.sessionmaker() as s:
         row = await s.get(LibraryItem, item_id)
         if row is None or row.status != "processing":
+            staged.unlink(missing_ok=True)
             raise Aborted()
-        await store.write_segments(s, row, sentences)
+        await store.write_segments(s, row, sentences, flags=flags)
         row.sub_source, row.status, row.stage, row.progress = sub_source, "ready", None, 100
         row.low_confidence = low_confidence
+        row.rebuildable = transcript is not None
         row.error_kind, row.source_url, row.next_run_at, row.attempts = None, None, None, 0
         row.updated_at = deps.clock()
         await s.commit()
+    if transcript is not None:
+        paths.replace(staged, final / TRANSCRIPT)
+    else:
+        (final / TRANSCRIPT).unlink(missing_ok=True)
     paths.remove_tree(tmp)
     logger.info("library item ready item=%s sentences=%d sub_source=%s", item_id, len(sentences), sub_source)
 
