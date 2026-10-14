@@ -610,7 +610,9 @@ async def test_no_titles_or_urls_in_logs_responses_or_audit(app, client, tools, 
 def test_admin_library_urls_carry_only_ids():
     from app.main import create_app
     from tests.test_admin_routes_guarded import api_routes
-    paths = sorted({p for p, _ in api_routes(create_app(make_settings()).routes) if p.startswith(API)})
+    # the curated catalog routes (plan SI) have their own pinned table in tests/test_admin_catalog.py
+    paths = sorted({p for p, _ in api_routes(create_app(make_settings()).routes)
+                    if p.startswith(API) and not p.startswith(f"{API}/catalog")})
     assert paths == sorted([API, f"{API}/items", f"{API}/top-users", f"{API}/users/{{user_id}}",
                             f"{API}/items/{{item_id}}/delete", f"{API}/items/{{item_id}}/cancel",
                             f"{API}/purge-failed"])
