@@ -28,6 +28,12 @@
 - `ai.py` – D8 / E11 / E12:每句译文(批量,≤ 20 句一次调用)与单句分析;额度按句计(`limits.reserve_ai`);提示词
   `library.translate` / `library.analyze`(管理端可编辑,默认值取自桌面端 enjoy);大模型只经 `providers/llm.complete`
 - `pipeline.py` – 一个条目的流水线(`PipelineDeps.timed_transcriber` 给带时间的转写);取回阶段接口 `FetchRequest` / `FetchResult` / `FetchStage`(默认 `NoFetch`,S2 注册 yt-dlp)
+- `catalog_store.py` – 精选库(spec `2026-10-14-curated-library-design.md`):系统所有的 `catalog_items` / `catalog_segments`、
+  输出形状(`public_out` / `admin_out`)、导入队列(`claim_next` / `fail` / `recover`)、**添加即复制** `add_to_library`(幂等,
+  唯一索引 `(user_id, catalog_id)`)、`fill_translations`、引用数 `refs`(查询算,不存计数)、退役回收 `collect_*`、强制删除 `purge`
+- `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → `audio_only` → 字幕 / 识别 →
+  分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布)
+- `catalog_jobs.py` – (计划 SI)`CatalogJobs`(`app.state.catalog`):一次一个、无轮询、`kick()` 触发、启动恢复;`pending` 在 `tests/background.py`
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
 ## Allowed dependencies
@@ -66,5 +72,11 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。
 - 重新分句(`POST /items/{id}/rebuild`):`ready` + `sub_source=asr` + `rebuildable`;不排队、不扣额度;文字没变的句子保留译文;
   每句标记 `library_segments.flags` 在手动改时间时清空。
+- 精选库:共享文件在 `library/_catalog/<id>/`,暂存在 `library/_catalog/_tmp/<id>/`(不在 `library/_tmp/`)。副本 `source="catalog"`、
+  `library_bytes=0`、`media_path` 指向共享文件;**删副本 / 删用户只删 `library/<uid>/…`**,永远不按 `media_path` 删文件。
+  目录文件只在「退役且引用数为 0」或强制删除时删除(spec R1)。副本不能重新识别、不能换字幕(`catalog_locked`),且不计入 `item_count`。
+- 精选库计费:导入的识别与译文、共享分析都是系统的(`metering.system_scope()` / `bind_user(None)`,feature `cat_import` /
+  `cat_translate` / `cat_analysis`);共享分析受 `library_cat_ai`(`*`)每日上限(`LIBRARY_CATALOG_AI_DAILY`);其他母语或改过字的句子走用户自己的额度。
+- 目录的标题、许可说明、句子与用户内容一样不进日志 / 审计 / 计量。
 - 链接预检(`urlcheck.precheck`):配置了 `LIBRARY_YTDLP_PROXY`(非空白)时 `resolve=False`——只做语法检查(协议 / 长度 / 字符 / userinfo / 端口 / 黑名单名与后缀 / 字面 IP),**不做本地 DNS 与解析地址检查**(代理在远端解析,本地解析器可能被污染);无代理时行为不变。路由 `library_import` 与取回阶段 `ytdlp.fetch` 的复查用同一规则。永远不记录代理值。
 - 粘贴分享文本:`urlcheck.extract_link` 在导入接口里先于预检运行——去空白后仍含空白的字符串取第一个 `https?://\S+`(去掉尾部标点与全角收尾符),没找到就原样交给预检(仍是 `chars`);无空白的字符串不动。提取出的链接照常走完整预检。

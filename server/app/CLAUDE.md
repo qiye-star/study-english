@@ -53,6 +53,7 @@ and reach the runtime only through `runtime(app)` / `deps_for(app)`.
 Library wiring: `library.worker.install(app)` builds `app.state.library` (queue, media tickets, fetch stage); the lifespan runs
 its poll loop as `tasks["library"]` and calls `shutdown()` before the engine closes. Plan S2 (`library_import`) and plan A
 (`admin_library`) append at the labelled anchor comments.
+精选库:`library_catalog` 路由(用户)在 `library_import` 之后;计划 SI 在三处带 `plan SI` 字样的锚点装 `CatalogJobs` 与 `admin_catalog`。
 
 ## Tests
 `cd server && uv run pytest -q`
@@ -62,7 +63,7 @@ its poll loop as `tasks["library"]` and calls `shutdown()` before the engine clo
 - Logger names follow `__name__`, except the pinned `app.timing` and
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
-- Migrations: `alembic/versions/` is linear (head `0021`); `tests/test_migrations.py::test_models_match_migrations`
+- Migrations: `alembic/versions/` is linear (head `0022`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
   `0016_agent_memory` is shared with A3 (A3 appends `agent_tutor_sessions`).
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
