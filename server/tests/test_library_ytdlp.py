@@ -216,6 +216,7 @@ def test_clean_title():
 
 # ==== Task 4: the stage ====
 import asyncio  # noqa: E402
+from dataclasses import replace  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -363,6 +364,21 @@ async def test_fetch_rechecks_the_url_before_running_anything(tmp_path):
     runner = FakeRunner()
     with pytest.raises(LibraryError) as e:
         await stage(runner, resolver=private).fetch(request(tmp_path))
+    assert e.value.kind == "bad_url" and runner.calls == []
+
+
+async def test_fetch_with_a_proxy_skips_local_dns(tmp_path):
+    runner = FakeRunner()
+    await stage(runner, resolver=private).fetch(request(tmp_path, library_ytdlp_proxy="http://proxy.invalid:3128"))
+    assert runner.calls
+
+
+async def test_fetch_with_a_proxy_still_refuses_private_literals(tmp_path):
+    runner = FakeRunner()
+    req = request(tmp_path, library_ytdlp_proxy="http://proxy.invalid:3128")
+    req = replace(req, url="http://127.0.0.1/v")
+    with pytest.raises(LibraryError) as e:
+        await stage(runner, resolver=public).fetch(req)
     assert e.value.kind == "bad_url" and runner.calls == []
 
 

@@ -116,10 +116,13 @@ def parse(raw: object) -> CheckedUrl:
 
 
 async def precheck(raw: object, *, resolver: Resolver | None = None,
-                   timeout: float = RESOLVE_TIMEOUT) -> CheckedUrl:
-    """`parse` + every resolved address must be public. `resolver(host) -> [addresses]` replaces DNS in tests."""
+                   timeout: float = RESOLVE_TIMEOUT, resolve: bool = True) -> CheckedUrl:
+    """`parse` + every resolved address must be public. `resolver(host) -> [addresses]` replaces DNS in tests.
+    `resolve=False` (a yt-dlp proxy is configured: it resolves and connects remotely, and the local resolver may be
+    poisoned) keeps only the syntactic checks of `parse` (scheme, length, characters, userinfo, port, blocked names
+    and suffixes, literal addresses)."""
     checked = parse(raw)
-    if _literal(checked.host):
+    if not resolve or _literal(checked.host):
         return checked
     try:
         async with asyncio.timeout(timeout):

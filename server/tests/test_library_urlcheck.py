@@ -117,6 +117,25 @@ async def test_precheck_uses_the_module_resolver_by_default(monkeypatch):
     assert calls == ["example.org"]
 
 
+async def test_precheck_without_resolve_skips_dns_and_the_address_check():
+    calls: list[str] = []
+    checked = await precheck("https://www.youtube.com/watch?v=x", resolver=fake_resolver("10.0.0.1", calls=calls),
+                             resolve=False)
+    assert checked.host == "www.youtube.com" and calls == []
+
+
+@pytest.mark.parametrize("raw, reason", [
+    ("http://127.0.0.1/v", "private"), ("http://[::1]/v", "private"), ("http://10.0.0.5/v", "private"),
+    ("http://localhost/v", "private"), ("https://a.internal/v", "private"), ("https://intranet/v", "host"),
+    ("ftp://example.com/v", "scheme"), ("https://u:p@example.com/v", "userinfo"), ("https://example.com:8443/v", "port"),
+    ("https://exa mple.com/v", "chars"), ("https://example.com/" + "a" * 2100, "length"),
+])
+async def test_precheck_without_resolve_keeps_the_syntactic_checks(raw, reason):
+    with pytest.raises(UrlRejected) as info:
+        await precheck(raw, resolver=fake_resolver("8.8.8.8"), resolve=False)
+    assert info.value.reason == reason
+
+
 # ==== Task 5: POST /api/library/imports (spec §7.1, §9) ====
 import logging  # noqa: E402
 
@@ -343,3 +362,28 @@ async def test_a_transient_yt_dlp_failure_is_retried_by_the_worker(app, client, 
 def test_the_import_route_carries_no_text_in_its_url(app):
     paths = {path for path in app.openapi()["paths"] if path.startswith("/api/library/imports")}
     assert paths == {"/api/library/imports"}
+
+
+@pytest.mark.parametrize("settings_overrides", [{**ON, "library_ytdlp_proxy": "http://proxy.invalid:3128"}], indirect=True)
+async def test_import_with_a_proxy_skips_local_dns(app, client, auth_headers, available, wakes, monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr("app.library.urlcheck.system_resolve", fake_resolver("10.0.0.2", calls=calls))
+    r = await client.post("/api/library/imports", json={"url": LINK}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    assert calls == [] and wakes == [1] and len(await items_of(app)) == 1
+
+
+@pytest.mark.parametrize("settings_overrides", [{**ON, "library_ytdlp_proxy": "http://proxy.invalid:3128"}], indirect=True)
+@pytest.mark.parametrize("url", ["http://127.0.0.1/v", "http://localhost/v", "http://[::1]/v", "https://a.internal/v"])
+async def test_import_with_a_proxy_still_rejects_private_literals_and_names(app, client, auth_headers, available,
+                                                                          dns, wakes, url):
+    r = await client.post("/api/library/imports", json={"url": url}, headers=auth_headers)
+    assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})
+    assert await items_of(app) == [] and wakes == []
+
+
+@pytest.mark.parametrize("settings_overrides", [{**ON, "library_ytdlp_proxy": "   "}], indirect=True)
+async def test_a_blank_proxy_does_not_count_as_a_proxy(app, client, auth_headers, available, wakes, monkeypatch):
+    monkeypatch.setattr("app.library.urlcheck.system_resolve", fake_resolver("10.0.0.2"))
+    r = await client.post("/api/library/imports", json={"url": LINK}, headers=auth_headers)
+    assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})

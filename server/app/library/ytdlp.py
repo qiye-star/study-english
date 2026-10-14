@@ -425,7 +425,8 @@ class YtDlpFetch:
                 logger.info("library fetch reused item=%s", req.item_id)
                 return cached
             try:
-                checked = await urlcheck.precheck(req.url, resolver=self._resolver)
+                checked = await urlcheck.precheck(
+                    req.url, resolver=self._resolver, resolve=not (s.library_ytdlp_proxy or "").strip())
             except urlcheck.UrlRejected as e:
                 logger.info("library fetch precheck rejected item=%s reason=%s", req.item_id, e.reason)
                 raise LibraryError("bad_url") from None

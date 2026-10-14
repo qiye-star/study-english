@@ -66,3 +66,4 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。
 - 重新分句(`POST /items/{id}/rebuild`):`ready` + `sub_source=asr` + `rebuildable`;不排队、不扣额度;文字没变的句子保留译文;
   每句标记 `library_segments.flags` 在手动改时间时清空。
+- 链接预检(`urlcheck.precheck`):配置了 `LIBRARY_YTDLP_PROXY`(非空白)时 `resolve=False`——只做语法检查(协议 / 长度 / 字符 / userinfo / 端口 / 黑名单名与后缀 / 字面 IP),**不做本地 DNS 与解析地址检查**(代理在远端解析,本地解析器可能被污染);无代理时行为不变。路由 `library_import` 与取回阶段 `ytdlp.fetch` 的复查用同一规则。永远不记录代理值。
