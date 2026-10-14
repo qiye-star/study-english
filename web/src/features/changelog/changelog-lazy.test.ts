@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 /** 主包守卫(计划 R-3):这些模块在主包里,不得静态导入懒模块、懒加载文案或样式。 */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = (rel: string) => readFileSync(path.join(here, rel), "utf8");
-const MAIN = ["index.ts", "register.tsx"];
+const MAIN = ["index.ts", "lazy-pages.tsx", "register.tsx"];
 const LAZY_ONLY = [
   "locales", "changelog-entry", "changelog-page", "entry-card", "unread-store", "use-unread", "use-one-time-hint", "hint-pref",
   "use-changelog-list", "use-near-end", "api", "entries", "changelog.css",
@@ -23,12 +23,15 @@ describe("changelog stays out of the main bundle (R-3)", () => {
     }
   });
 
-  it("the entry is reached only through import()", () => {
+  it("the entry and the page are reached only through import()", () => {
     expect(src("register.tsx")).toContain('import("./changelog-entry")');
+    expect(src("lazy-pages.tsx")).toContain('import("./changelog-page")');
+    expect(src("index.ts")).toContain('from "./lazy-pages"');
   });
 
   it("is wired in without a new cross-feature edge", () => {
     expect(readFileSync(path.resolve(here, "../../plugins/core.ts"), "utf8")).toContain('import "~/features/changelog/register"');
+    expect(readFileSync(path.resolve(here, "../../app.tsx"), "utf8")).toContain('path="/practice/changelog"');
     expect(readFileSync(path.resolve(here, "../practice/practice-page.tsx"), "utf8")).not.toContain("features/changelog");
     const register = src("register.tsx");
     expect(register).toContain('point: "practiceHeaderActions"');
