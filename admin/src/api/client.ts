@@ -22,6 +22,8 @@ export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export interface RequestOptions {
   method?: Method;
   json?: unknown;
+  /** multipart(分片上传):浏览器自己写 Content-Type 与 boundary */
+  form?: FormData;
   query?: Record<string, string | number | undefined | null>;
   /** 默认 "json";204 无论如何返回 undefined */
   as?: "json" | "blob" | "none";
@@ -75,7 +77,7 @@ export function createClient(options: ClientOptions) {
   const base = options.baseUrl ?? "";
 
   async function once<T>(path: string, opts: RequestOptions, allowStepUp: boolean): Promise<T> {
-    const method: Method = opts.method ?? (opts.json !== undefined ? "POST" : "GET");
+    const method: Method = opts.method ?? (opts.json !== undefined || opts.form !== undefined ? "POST" : "GET");
     const headers: Record<string, string> = {};
     if (opts.json !== undefined) headers["Content-Type"] = "application/json";
     if (method !== "GET") {
@@ -89,7 +91,7 @@ export function createClient(options: ClientOptions) {
         method,
         headers,
         credentials: "same-origin",
-        body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined,
+        body: opts.form ?? (opts.json !== undefined ? JSON.stringify(opts.json) : undefined),
         signal: opts.signal,
       });
     } catch (e) {

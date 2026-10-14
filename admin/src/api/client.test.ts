@@ -107,3 +107,22 @@ describe("client v2", () => {
     await expect(b.request("/api/admin/logout", { method: "POST" })).resolves.toBeUndefined();
   });
 });
+
+describe("client FormData", () => {
+  it("sends FormData without a JSON content type but with the CSRF header", async () => {
+    const { fetchImpl, request } = setup(json(200, { ok: true }), "csrf-1");
+    const form = new FormData();
+    form.append("chunk", new Blob([new Uint8Array([1, 2, 3])]), "blob");
+    await request("/api/admin/library/catalog/uploads/x/chunks/0", { method: "PUT", form });
+    const init = initOf(fetchImpl);
+    expect(init.body).toBe(form);
+    expect(init.headers["Content-Type"]).toBeUndefined();
+    expect(init.headers["X-Admin-CSRF"]).toBe("csrf-1");
+  });
+
+  it("defaults a form body to POST", async () => {
+    const { fetchImpl, request } = setup(json(200, { ok: true }));
+    await request("/api/x", { form: new FormData() });
+    expect(initOf(fetchImpl).method).toBe("POST");
+  });
+});
