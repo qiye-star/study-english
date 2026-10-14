@@ -5,6 +5,8 @@ Manual operator tools. Not imported by `app/` and not run by CI; some are covere
 
 ## What lives here
 - `asr_timing_probe.py` – Task 0 manual probe of the recognizer's sentence times (prints field names / counts / numbers only; `--yes` spends money; not in the image: `docker compose cp` + `exec -e PYTHONPATH=/app`)
+- `asr_words_probe.py` – library alignment v2 Task 0: word times, alignment, cross-run jitter at a seam, v1 edge offsets (numbers only; `--yes` spends ~2x the clip; copy it next to `asr_timing_probe.py`)
+- `library_alignment_eval.py` – one library item's sentence boundaries from its kept `transcript.json`: consistency report, gold template, scoring (numbers only; no network)
 - `smoke.py` – real-upstream smoke test against a running server (`--base-url`)
 - `realtime_smoke.py` – realtime-call scenarios against a server with `REALTIME_ENABLED`
 - `measure_latency.py`, `latency_samples.py` – server-side latency measurement + WAV samples
@@ -22,7 +24,7 @@ import scripts.
 `uv run python scripts/<name>.py --help`
 
 ## Tests
-`uv run pytest -q tests/test_asr_timing_probe.py tests/test_latency_tools.py tests/test_eval_free_speech.py tests/test_wordbook_definitions_build.py tests/test_wordbook_forms_build.py`
+`uv run pytest -q tests/test_asr_timing_probe.py tests/test_latency_tools.py tests/test_eval_free_speech.py tests/test_wordbook_definitions_build.py tests/test_wordbook_forms_build.py` tests/test_asr_words_probe.py tests/test_library_alignment_eval.py
 
 ## Pitfalls
 - Print numbers and status codes only: never keys, tokens, tickets, transcripts or `.env` contents.

@@ -14,8 +14,13 @@
 - `segment.py` – 「带时间的片段 → 句子」:`align`(包装 `speech.sentence_split.split_all`,不改它)+ `finish`(长句断开、短句合并、不重叠)
 - `asr_chunks.py` – B 档转写:静音表解析、静音感知分块、句边界吸附、`chunks.json` 断点、逐块调度;`Chunk.utterances` /
   `usable_utterances` / `transcribe_chunks_timed`:识别服务给的真实句子时间优先(plan 2026-10-13-library-alignment),不可信的块逐块回落估算;
-  `chunks.json` 版本 2(仍读 1)
-- `quality.py` – 合理性检查(纯函数):字符速度 6–25 / 秒、估算块说话占比 ≥ 40%,结果写 `library_items.low_confidence`(阈值未用真实素材校准)
+  `chunks.json` 版本 3(识别句带词 `[text, start_ms, end_ms]`,仍读 1、2);硬切处重叠(`plan_chunks(..., overlap_ms)`,只在有带时间的转写器时);
+  `save_transcript` / `load_transcript`(条目目录里的 `transcript.json`)
+- `quality.py` – 合理性检查(纯函数):字符速度 6–25 / 秒、估算块说话占比 ≥ 40%,结果写 `library_items.low_confidence`(阈值未用真实素材校准);v2:`sentence_flags`(rate / pause / timing / estimated / seam,按本条素材的分布)+ `item_low_confidence`(被标记 >= 15%)
+- `timeline.py` – 词级时间线(纯函数):识别句文字的词元对齐到词(`word` / `interp`),不可信块回落 v1 估算(`est`),硬切重叠的接缝去重
+  (plan 2026-10-14-library-alignment-v2)
+- `wordseg.py` – 词元 → 句子:`split_all` 定文字,长停顿断句、超长断在最大间隔、短句只在 <= 700 ms 的间隔内合并、带上限的首尾余量
+- `sentences.py` – 总入口 `build(chunks, silences)`:有词走词路径(每句标记 + v2 检查),否则 v1 原样;流水线与「重新分句」共用
 - `media.py` – 子进程 `run`(不经 shell、环境变量白名单、超时 / 取消终止)与 `Ffmpeg`(探测、规范化、封面、识别用 WAV)
 - `tickets.py` – 媒体票据 `MediaTicketStore`(进程内,30 分钟,≤ 1000 张)
 - `store.py` – 数据库读写、输出形状 `item_out` / `segment_out`、队列认领 / 恢复 / 失败、清扫查询、跟读成绩;
@@ -54,6 +59,10 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 原始上传 / 下载不保留;成品与 `_tmp` 在同一数据卷(`os.replace`)。媒体不进备份(`admin/backups.py` 只备份数据库)。
 - 重新识别(`POST /items/{id}/reprocess`):`ready` 且 `sub_source=asr`;状态由 `seg_count > 0` 且 `queued/processing` 推出,**不要**在这种条目上直接删媒体;
   失败 / 取消回到 `ready`(失败保留 `error_kind`);旧句子到新句子写入前一直在,手动修改与译文会被替换。
-- 识别服务返回的 `utterances[].text` 与转写一样永不进日志;`chunks.json` 在 `_tmp`,条目 ready 时随目录清掉。
+- 识别服务返回的 `utterances[].text` / `words[].text` 与转写一样永不进日志;`chunks.json` 在 `_tmp`,条目 ready 时随目录清掉;
+  最终的识别结果另存为条目目录里的 `transcript.json`(含转写文字:随条目 / 用户删除,换字幕时删除并清 `rebuildable`,不进备份,
+  不计入 `library_bytes`)。
 - `low_confidence` 只对 ASR 条目有意义,换字幕时清。
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。
+- 重新分句(`POST /items/{id}/rebuild`):`ready` + `sub_source=asr` + `rebuildable`;不排队、不扣额度;文字没变的句子保留译文;
+  每句标记 `library_segments.flags` 在手动改时间时清空。
