@@ -1,0 +1,201 @@
+[
+  {
+    "entry_date": "2026-10-11",
+    "version": null,
+    "title_zh": "已学词和自由复习",
+    "title_en": "Learned words and free review",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "背单词首页新增「已学词」入口,可按熟练度、词书、易错词和学习日期查看学过的单词,也能按英文开头搜索。",
+        "en": "The wordbook home has a Learned Words page: browse what you have learned by level, book, weak words and date, or search by the start of a word."
+      },
+      {
+        "tag": "new",
+        "zh": "点一个已学的词就能打开它的词卡。",
+        "en": "Tap any learned word to open its word card."
+      },
+      {
+        "tag": "new",
+        "zh": "新增「自由复习」:随时挑一批学过的词,用翻卡、快速回忆、选择题或拼写再练一遍。",
+        "en": "New free review: pick a batch of learned words any time and practice them with flashcards, quick recall, multiple choice or spelling."
+      },
+      {
+        "tag": "improve",
+        "zh": "自由复习不占用每日复习上限,也不影响连续达标。",
+        "en": "Free review does not use up your daily review limit and does not affect your streak."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-11",
+    "version": null,
+    "title_zh": "已结束的房间可以重新开启",
+    "title_en": "Reopen ended rooms",
+    "items": [
+      {
+        "tag": "improve",
+        "zh": "联机大厅现在只列出进行中的房间。",
+        "en": "The rooms lobby now lists only rooms that are still open."
+      },
+      {
+        "tag": "new",
+        "zh": "新增「已结束的房间」页,可以回看历史消息和学习小结。",
+        "en": "A new Ended Rooms page lets you look back at past messages and the learning summary."
+      },
+      {
+        "tag": "new",
+        "zh": "房主可以重新开启已结束的房间,成员保持不变,房间码会更新。",
+        "en": "The host can reopen an ended room: members stay the same and the room gets a new code."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-12",
+    "version": null,
+    "title_zh": "智能体:角色、带我学和记忆",
+    "title_en": "Agents: personas, tutor mode and memory",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "在 AI 对话里可以选择不同的角色,也可以创建和编辑自己的角色。",
+        "en": "Choose a different persona in AI chat, or create and edit your own."
+      },
+      {
+        "tag": "new",
+        "zh": "新增「带我学」:AI 出题、点评并给出总结,可以打字或用语音回答。",
+        "en": "New Teach Me mode: the AI asks questions, gives feedback and a summary, and you can answer by typing or by voice."
+      },
+      {
+        "tag": "new",
+        "zh": "在设置里可以查看、整理和清除 AI 对你的记忆。",
+        "en": "In Settings you can view, tidy up and clear what the AI remembers about you."
+      },
+      {
+        "tag": "new",
+        "zh": "联机房间里可以用 @ai 呼叫智能体,房间导师也能带大家一起练习。",
+        "en": "In online rooms you can call an agent with @ai, and a room tutor can guide everyone through practice."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-13",
+    "version": null,
+    "title_zh": "英文释义和选词即查",
+    "title_en": "English definitions and tap-to-look-up",
+    "items": [
+      {
+        "tag": "improve",
+        "zh": "背单词的单词卡新增英文释义,默认只显示英文,点卡片右上角的「中」可临时查看中文。",
+        "en": "Word cards in the wordbook now have English definitions, shown by default; tap the small Chinese switch on the card to see Chinese for that card."
+      },
+      {
+        "tag": "improve",
+        "zh": "可以在「每日目标」里选择释义显示:中英文、仅中文或仅英文。",
+        "en": "In Daily Goals you can choose how definitions are shown: Chinese and English, Chinese only or English only."
+      },
+      {
+        "tag": "new",
+        "zh": "选中英文单词或短语后,底部会出现「查词、朗读、加入生词本」操作条。",
+        "en": "Select an English word or phrase and a bar appears at the bottom with Look up, Read aloud and Add to wordbook."
+      },
+      {
+        "tag": "improve",
+        "zh": "查词先查本地词典,命中立刻显示并支持 went 查到 go 这样的词形变化,查不到再交给 AI。",
+        "en": "Lookups check the built-in dictionary first, including word forms such as went to go, and fall back to the AI only when nothing is found."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-13",
+    "version": null,
+    "title_zh": "跟读库上线",
+    "title_en": "The shadowing library",
+    "items": [
+      {
+        "tag": "library",
+        "zh": "新增「跟读库」:上传自己的音视频,或粘贴视频链接导入。",
+        "en": "New shadowing library: upload your own audio or video, or paste a video link to import it."
+      },
+      {
+        "tag": "library",
+        "zh": "逐句播放,可以单句循环、调整语速,并录音跟读、查看评分。",
+        "en": "Play sentence by sentence, loop a single sentence, change the speed, then record yourself and see your score."
+      },
+      {
+        "tag": "library",
+        "zh": "每一句都可以显示中文译文,也可以让 AI 分析这一句。",
+        "en": "Show a Chinese translation for any sentence, or ask the AI to analyse it."
+      },
+      {
+        "tag": "improve",
+        "zh": "跟读库有独立的底部标签和毛玻璃界面,并新增外观设置:跟随系统、浅色或深色。",
+        "en": "The library has its own bottom tab and a frosted-glass look, and there is a new appearance setting: follow the system, light or dark."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-13",
+    "version": null,
+    "title_zh": "修复 iPhone 输入框跳动",
+    "title_en": "Fix: page jumping on iPhone inputs",
+    "items": [
+      {
+        "tag": "fix",
+        "zh": "修复 iPhone Safari 里点开对话或联机输入框后页面跳到顶部、要点空白处才能恢复的问题。",
+        "en": "Fixed the page jumping to the top in iPhone Safari after tapping the chat or room message box, which needed a tap elsewhere to recover."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-14",
+    "version": null,
+    "title_zh": "对话里的跟读弹窗和更准的句子时间",
+    "title_en": "Shadowing window in chat and more accurate sentence timing",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "在对话、查词等处点「跟读」,会在原地弹出跟读窗口,不再跳到练习页。",
+        "en": "Tapping Shadow in chat, lookups and other places now opens a shadowing window in place instead of jumping to the practice page."
+      },
+      {
+        "tag": "improve",
+        "zh": "在跟读窗口里录音或评分时关闭,会先确认,避免误触丢失。",
+        "en": "Closing the shadowing window while recording or scoring now asks for confirmation first."
+      },
+      {
+        "tag": "library",
+        "zh": "跟读库的句子时间改为优先使用语音识别给出的真实时间,开头几句不再对不上。",
+        "en": "Library sentence timing now prefers the real times from speech recognition, so the first sentences no longer drift."
+      },
+      {
+        "tag": "library",
+        "zh": "已导入的素材可以在卡片菜单里「重新识别」,识别结果可疑时会有提示。",
+        "en": "Imported items can be re-recognized from the card menu, and you get a notice when a result looks doubtful."
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-14",
+    "version": null,
+    "title_zh": "复习答题后的学习内容",
+    "title_en": "Study panel after review answers",
+    "items": [
+      {
+        "tag": "improve",
+        "zh": "复习选择题答完后,每个选项都会显示对应的英文单词,方便对比辨析。",
+        "en": "After you answer a multiple-choice review question, every option shows its English word so you can compare them."
+      },
+      {
+        "tag": "new",
+        "zh": "答题后题目下方会出现「学习内容」:英文释义、短语和朗读,或正确单词的卡片。",
+        "en": "After answering, a study panel appears under the question with the English definition, phrases and audio, or the card of the correct word."
+      },
+      {
+        "tag": "new",
+        "zh": "双击某个选项就能查词、朗读或加入生词本,第一次答题后会有提示。",
+        "en": "Double-tap an option to look it up, hear it or add it to your wordbook; a hint shows after your first answer."
+      }
+    ]
+  }
+]
