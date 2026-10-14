@@ -57,7 +57,7 @@ export const S = {
     canceled: "已取消",
   } as Record<string, string>,
   kind: { audio: "音频", video: "视频" } as Record<string, string>,
-  source: { upload: "上传", link: "链接" } as Record<string, string>,
+  source: { upload: "上传", link: "链接", catalog: "精选" } as Record<string, string>,
   stage: {
     probe: "探测",
     fetch: "取回",
