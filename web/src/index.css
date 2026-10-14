@@ -29,6 +29,16 @@
     @apply bg-background font-sans text-body text-foreground antialiased;
     -webkit-tap-highlight-color: transparent;
   }
+  /*
+   * 悬浮底栏的几何(计划 2026-10-14-floating-glass-bottom-bar R-F2/R-F5):滚动区底部留白、跟读库浮层、选词操作条都只读
+   * --tab-bar-space,不在页面里各写数值。下沿 = max(10px, 安全区 − 8px):有 Home 横条的 iPhone 上约 26px,横条之上;其余 10px。
+   */
+  :root {
+    --tab-bar-h: 64px;
+    --tab-bar-gap: 8px;
+    --tab-bar-bottom: max(10px, calc(env(safe-area-inset-bottom) - 8px));
+    --tab-bar-space: calc(var(--tab-bar-h) + var(--tab-bar-bottom) + var(--tab-bar-gap));
+  }
   @font-face {
     font-family: "CharisSIL";
     src: url("../../enjoy/assets/fonts/CharisSIL-Regular.ttf") format("truetype");
@@ -46,6 +56,7 @@
  *   .glass-edge-t   与 .glass 同用,顶部发丝线(底部导航、输入条)
  *   .glass-edge-b   与 .glass 同用,底部发丝线
  *   .glass-bar      顶栏:滚动后才加(saturate 1.3 / .80,避免主按钮在其下晕开),自带底部发丝线
+ *   .glass-float    悬浮圆角玻璃,只给全站底部 Tab 栏(近乎透明 + blur 28px + 高光描边;回退同上);.tab-halo 给标签与图标加光晕
  * 规则:每屏最多 3 层模糊;模糊元素的祖先不得有 opacity<1 / filter / overflow:hidden+transform;
  * 不对模糊元素本身做动画,只动其子元素。
  *   .hit-expand     视觉 32px 的控件把命中区扩到 44px(::before 上下各 6px)
@@ -97,6 +108,45 @@
     }
   }
 
+  /* ----- 悬浮玻璃底栏(计划 2026-10-14-floating-glass-bottom-bar R-F3–R-F8):只给 GlassTabBar ----- */
+  .glass-float {
+    background: var(--glass-solid);
+    border: 1px solid var(--glass-float-bd);
+    box-shadow: var(--glass-float-hi), var(--glass-float-sh);
+  }
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .glass-float {
+      background: var(--glass-float);
+      -webkit-backdrop-filter: blur(28px) saturate(1.8);
+      backdrop-filter: blur(28px) saturate(1.8);
+    }
+    html.lite .glass-float {
+      background: var(--glass-float-lite);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+  .tab-halo {
+    text-shadow: 0 0 6px var(--tab-halo), 0 0 2px var(--tab-halo);
+  }
+  .tab-halo svg {
+    filter: drop-shadow(0 0 3px var(--tab-halo));
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-float,
+    html.lite .glass-float {
+      background: rgb(var(--surface));
+      border-color: var(--hair);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .tab-halo,
+    .tab-halo svg {
+      text-shadow: none;
+      filter: none;
+    }
+  }
+  /* ----- 悬浮玻璃底栏结束 ----- */
   .hit-expand {
     position: relative;
   }

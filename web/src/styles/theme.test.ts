@@ -35,6 +35,7 @@ const COLOR_TOKENS = [
   "--hair", "--hair-2", "--key", "--seg-track", "--seg-on",
   "--blue-tint", "--blue-wash", "--teal-tint", "--amber-tint", "--green-tint", "--red-tint",
   "--glass", "--glass-solid", "--glass-bar", "--glass-lite", "--glass-shadow",
+  "--glass-float", "--glass-float-lite", "--glass-float-bd", "--glass-float-hi", "--glass-float-sh", "--tab-on", "--tab-halo",
 ];
 /** 与主题无关、只在 :root 定义的令牌。 */
 const SCALAR_TOKENS = ["--radius", "--dur-fast", "--dur-base", "--ease-standard"];
