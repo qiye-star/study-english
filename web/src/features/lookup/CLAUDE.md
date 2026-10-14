@@ -5,7 +5,7 @@ Select-to-lookup and translation layer over the whole app.
 ## What lives here
 - `lookup-layer.tsx` (sheet, mounted by `layout/app-shell.tsx`), `use-text-selection.ts`.
 - `word-target.ts` (`wordTargetFromLookup`, R19: lookup result → `WordTarget` for the `<WordActions>` slot; moved from vocabulary's `vocabularyFromLookup`, same output).
-- `dictionary.ts` (local dictionary client + pure helpers: `lookupDictionary`, `visibleDefs`, `dictToLookup`), `use-dictionary-prefetch.ts`, `dictionary-result.tsx`.
+- `dictionary.ts` (local dictionary client + pure helpers: `lookupDictionary`, `visibleDefs`, `drawerDefs`, `dictToLookup`), `use-dictionary-prefetch.ts`, `dictionary-result.tsx`.
 - `lookup-bar.tsx` — the selection action bar: look up / translate, read aloud (extension point `selectionActions`), add to vocabulary (`<WordActions variant="icon">`).
 - `lookup.ts` (`lookupWord`, `translateText`, cached variants incl. `cachedTranslate`, `normalizeSelection`).
 - `prompts.ts` extracts desktop prompts from enjoy command sources (via `~/shims/enjoy-sources`).
@@ -28,3 +28,4 @@ Public (`index.ts`): `LookupLayer`, `cachedTranslate`, `normalizeSelection`, `LO
 - The bar keeps `data-testid="lookup-trigger"` on its look up / translate button.
 - The add-to-vocabulary button is the `<WordActions>` slot (`~/lib/extension-points-react`), not a vocabulary import (no lookup→vocabulary edge).
 - 「跟读这段」(`lookup-practice`) closes the drawer, then opens the shadow sheet (`useShadowSheet` from `~/features/practice`); it no longer navigates. The sheet's sentences are `data-lookup-context` containers, so this layer's selection bar works over it (bar z-40 > sheet z-36); the word-actions panel's 「跟读这个词」 (contributed by practice's `register-word-actions.tsx`) closes its own panel and opens the sheet too; because it does not navigate, `LookupLayer` collapses the drawer itself when `useShadowSheetOpen()` turns true (only on that transition).
+- 「中文」 chip in the drawer (plan `2026-10-14-review-bilingual-longpress` R-Z4): with `def_lang` en and English definitions, Chinese definitions and phrase translations hide behind `ZhToggle` (`data-testid="lookup-zh"`, from `~/components/zh-toggle`); the state is per lookup (keyed by the entry object), never stored. No chip when Chinese already shows or there is none; the AI fallback path is unchanged.

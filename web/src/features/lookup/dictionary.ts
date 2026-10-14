@@ -66,6 +66,24 @@ export function visibleDefs(entry: Pick<DictEntry, "defLang" | "defsZh" | "defsE
   return !zh.length && !en.length ? { zh: entry.defsZh, en: entry.defsEn } : { zh, en };
 }
 
+/**
+ * 抽屉的「中文」按钮(计划 2026-10-14-review-bilingual-longpress R-Z4):偏好 en 且有英文释义时,中文释义与短语译文默认藏起,
+ * `peek`(用户按了「中文」)带回;`canPeek` = 有中文可带回。其余情况与 visibleDefs 相同、没有按钮。纯函数,不缓存。
+ */
+export function drawerDefs(
+  entry: Pick<DictEntry, "defLang" | "defsZh" | "defsEn" | "phrases">,
+  peek = false,
+): { zh: DictDef[]; en: DictDef[]; phraseZh: boolean; canPeek: boolean } {
+  const hidesZh = entry.defLang === "en" && entry.defsEn.length > 0;
+  const { zh, en } = visibleDefs(entry);
+  return {
+    zh: hidesZh && peek ? entry.defsZh : zh,
+    en,
+    phraseZh: !hidesZh || peek,
+    canPeek: hidesZh && (entry.defsZh.length > 0 || entry.phrases.some((p) => p.zh.trim() !== "")),
+  };
+}
+
 const EN_POS: Record<string, string> = {
   n: "n.", v: "v.", a: "adj.", r: "adv.", prep: "prep.", pron: "pron.", conj: "conj.", art: "art.", num: "num.", aux: "aux.", int: "interj.",
 };
