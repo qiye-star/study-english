@@ -36,7 +36,7 @@ describe("CatalogView", () => {
     render([card()]);
     expect(await screen.findByText("VOA: Coffee")).toBeInTheDocument();
     const c = screen.getByTestId("catalog-card-c1");
-    expect(within(c).getByText("B1")).toBeInTheDocument();
+    expect(within(c).getByText("B1 · 中级")).toBeInTheDocument();
     expect(within(c).getByText("food")).toBeInTheDocument();
     expect(within(c).queryByText("extra")).toBeNull();
     expect(within(c).getByText("1:01 · 12 句")).toBeInTheDocument();
@@ -82,11 +82,13 @@ describe("CatalogView", () => {
     render([card(), card({ id: "c2", title: "Other", level: "A2" }), card({ id: "c3", title: "Third", level: "B2" })]);
     await screen.findByText("VOA: Coffee");
     const chips = within(screen.getByRole("group", { name: "按级别筛选" })).getAllByRole("button").map((b) => b.textContent);
-    expect(chips).toEqual(["全部", "A2", "B1", "B2"]);
-    fireEvent.click(screen.getByRole("button", { name: "A2" }));
+    expect(chips).toEqual(["全部", "A2 · 初级", "B1 · 中级", "B2 · 中高级"]);
+    expect(screen.getByTestId("catalog-level-hint")).toHaveTextContent("A1–C2 是国际通用的英语水平分级(CEFR),A1 最低,C2 最高。");
+    fireEvent.click(screen.getByRole("button", { name: "A2 · 初级" }));
     expect(screen.queryByText("VOA: Coffee")).toBeNull();
     expect(screen.getByText("Other")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "A2" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "A2 · 初级" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("catalog-level-hint")).toHaveTextContent("能进行简单的日常交流");
   });
 
   it("shows the empty state", async () => {

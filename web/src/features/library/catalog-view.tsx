@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { translateServerError } from "~/api/error-messages";
+import { LevelHint } from "~/components/level-hint";
+import { levelLabel } from "~/lib/levels";
 import type { CatalogCard } from "./catalog-api";
 import { CatalogItemCard } from "./catalog-card";
 import { LIBRARY_SERVER_ERRORS } from "./library-api";
@@ -60,13 +62,16 @@ export function CatalogView() {
   return (
     <div data-testid="catalog-view">
       {levels.length > 1 ? (
-        <div role="group" aria-label={t("web.library.catalog.levels")} className="lib-cat-levels">
+        <div role="group" aria-label={t("web.library.catalog.levels")} aria-describedby="catalog-level-hint" className="lib-cat-levels">
           {[ALL, ...levels].map((l) => (
             <button key={l} type="button" className="lib-chip" aria-pressed={l === level} onClick={() => setPicked(l)}>
-              {l === ALL ? t("web.library.catalog.allLevels") : l}
+              {l === ALL ? t("web.library.catalog.allLevels") : levelLabel(t, l)}
             </button>
           ))}
         </div>
+      ) : null}
+      {levels.length > 1 ? (
+        <LevelHint code={level === ALL ? null : level} fallback={t("web.level.scale")} id="catalog-level-hint" testId="catalog-level-hint" className="mx-1 mb-2 mt-1.5" />
       ) : null}
       <ul className="lib-cat-grid" data-testid="catalog-list">
         {shown.map((card, i) => (

@@ -1,6 +1,7 @@
 import { CheckIcon, ChevronRightIcon, HeadphonesIcon, LoaderIcon, PlusIcon } from "lucide-react";
 import { type CSSProperties, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { levelLabel } from "~/lib/levels";
 import type { CatalogCard } from "./catalog-api";
 import { fetchCatalogPoster } from "./catalog-api";
 import { SpecularButton } from "./fx/specular-button";
@@ -36,7 +37,7 @@ export function CatalogItemCard({ card, index = 0, adding, onAdd, onOpen }: {
         <div className="lib-cat-body">
           <h3 className="lib-cat-title">{card.title}</h3>
           <div className="lib-cat-tags">
-            {card.level ? <span className="lib-cat-level">{card.level}</span> : null}
+            {card.level ? <span className="lib-cat-level">{levelLabel(t, card.level)}</span> : null}
             {card.tags.slice(0, MAX_TAGS).map((tag) => <span key={tag} className="lib-cat-tag">{tag}</span>)}
           </div>
           <div className="lib-cat-meta num">{meta}</div>
