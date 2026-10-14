@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "~/lib/cn";
+import { levelLabel } from "~/lib/levels";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
 import { IconButton } from "~/components/icon-button";
 import { streamChatCompletion } from "~/api/ai";
@@ -1191,7 +1192,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const scenarioInfo = scenario || options.level !== "auto" ? (
     <span data-testid="conversation-scenario">
       {scenario ? scenarioLabel(t, scenario) : t("web.chat.scenarios.free.title")}
-      {options.level !== "auto" && <> · <span data-testid="conversation-level">{options.level}</span></>}
+      {options.level !== "auto" && <> · <span data-testid="conversation-level">{levelLabel(t, options.level)}</span></>}
     </span>
   ) : null;
   const subtitle = scenarioInfo || partnerVoice ? <>{scenarioInfo}{scenarioInfo && partnerVoice ? " · " : null}{partnerVoice}</> : undefined;

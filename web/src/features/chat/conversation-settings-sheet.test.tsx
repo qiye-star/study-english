@@ -49,6 +49,16 @@ describe("ConversationSettingsSheet", () => {
     expect(onSave).toHaveBeenCalledWith({ autoSpeak: false, level: "B1" });
   });
 
+  it("labels the levels and explains the chosen one under the select (plan 2026-10-14-level-annotations W2)", async () => {
+    render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={vi.fn()} config={{ ...base }} />);
+    expect(screen.queryByTestId("settings-level-hint")).toBeNull(); // auto 没有说明
+    expect(screen.getByRole("option", { name: "B1 · Intermediate" })).toHaveAttribute("value", "B1");
+    expect(screen.getByRole("option", { name: "Auto (no limit)" })).toHaveAttribute("value", "auto");
+    await userEvent.selectOptions(screen.getByTestId("settings-level"), "B1");
+    expect(screen.getByTestId("settings-level-hint")).toHaveTextContent("Copes with most everyday situations");
+    expect(screen.getByTestId("settings-level")).toHaveAttribute("aria-describedby", "settings-level-hint");
+  });
+
   it("shows a stored auto-read off and level", () => {
     render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={vi.fn()} config={{ ...base, autoSpeak: false, level: "C1" }} />);
     expect(screen.getByTestId("settings-auto-speak")).toHaveAttribute("data-state", "unchecked");

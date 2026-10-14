@@ -6,6 +6,8 @@ import { Textarea } from "@renderer/components/ui/textarea";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { LevelHint } from "~/components/level-hint";
+import { levelLabel } from "~/lib/levels";
 import { CHAT_SERVER_ERRORS, DEFAULT_CONVERSATION_NAME } from "./chat-api";
 import { titleFrom } from "./chat-request";
 import { LEVELS, type Level } from "./levels";
@@ -112,10 +114,11 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
           <div className="rounded-card border-[0.5px] border-hair bg-surface">
             <label className={fieldClass}>
               <span className={labelClass}>{t("web.chat.scenarios.level")}</span>
-              <select data-testid="scenario-level" className={selectClass} value={level} disabled={busy}
+              <select data-testid="scenario-level" aria-describedby="scenario-level-hint" className={selectClass} value={level} disabled={busy}
                 onChange={(e) => setLevel(e.target.value as Level)}>
-                {LEVELS.map((l) => <option key={l} value={l}>{t(`web.chat.levels.${l}`)}</option>)}
+                {LEVELS.map((l) => <option key={l} value={l}>{l === "auto" ? t("web.chat.levels.auto") : levelLabel(t, l)}</option>)}
               </select>
+              <LevelHint code={level} id="scenario-level-hint" testId="scenario-level-hint" />
             </label>
           </div>
           {error && (

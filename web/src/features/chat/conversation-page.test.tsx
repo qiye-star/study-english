@@ -2360,7 +2360,7 @@ describe("ConversationPage", () => {
         "POST /api/conversations/c1/messages": () => json({ messages: [{ id: "m1" }, { id: "m2" }] }),
       }));
       expect(await screen.findByTestId("conversation-scenario")).toHaveTextContent("Ordering coffee");
-      expect(screen.getByTestId("conversation-level")).toHaveTextContent("B1");
+      expect(screen.getByTestId("conversation-level")).toHaveTextContent("B1 · Intermediate");
       await userEvent.type(await textMode(), "A latte, please.");
       await userEvent.click(screen.getByTestId("chat-send"));
       await waitFor(() => expect(callsTo(mock, "POST", "/api/ai/chat/completions")).toHaveLength(1));

@@ -4,6 +4,8 @@ import { Button } from "@renderer/components/ui/button";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "~/lib/cn";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { LevelHint } from "~/components/level-hint";
+import { levelLabel } from "~/lib/levels";
 import { voicesFor, type ServerAiConfig } from "~/api/server-config";
 import type { ConversationConfig } from "./chat-api";
 import { LEVELS, normalizeLevel, type Level } from "./levels";
@@ -118,10 +120,11 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
             )}
             <label className={fieldClass}>
               <span className={labelClass}>{t("web.chat.settingsForm.level")}</span>
-              <select data-testid="settings-level" className={selectClass} value={normalizeLevel(draft.level)}
+              <select data-testid="settings-level" aria-describedby="settings-level-hint" className={selectClass} value={normalizeLevel(draft.level)}
                 onChange={(e) => setDraft({ ...draft, level: e.target.value as Level })}>
-                {LEVELS.map((l) => <option key={l} value={l}>{t(`web.chat.levels.${l}`)}</option>)}
+                {LEVELS.map((l) => <option key={l} value={l}>{l === "auto" ? t("web.chat.levels.auto") : levelLabel(t, l)}</option>)}
               </select>
+              <LevelHint code={normalizeLevel(draft.level)} id="settings-level-hint" testId="settings-level-hint" />
               <span className={hintClass}>{t("web.chat.settingsForm.levelHint")}</span>
             </label>
             <label className={fieldClass}>

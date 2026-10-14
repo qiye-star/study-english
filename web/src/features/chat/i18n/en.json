@@ -39,7 +39,7 @@
         "playFailed": "Could not play this recording", "weakWords": "Words to work on:", "save": "Save to practice list",
         "mixedVoices": "Other voices may have been picked up", "nearFieldTip": "Speak close to the microphone; in noisy places use a headset. Other people's voices cannot be fully excluded."
       },
-      "levels": { "auto": "Auto (no limit)", "A2": "A2 · Elementary", "B1": "B1 · Intermediate", "B2": "B2 · Upper intermediate", "C1": "C1 · Advanced" },
+      "levels": { "auto": "Auto (no limit)" },
       "hints": { "button": "Not sure what to say?", "title": "Things you could say", "description": "Pick a reply, listen to it, practice it or save it.", "fill": "Use this reply", "speak": "Read aloud", "practice": "Practice", "save": "Save to practice list", "row": "Hints", "available": "{{count}} ready", "view": "View", "errors": { "invalid": "The suggestions could not be read. Try again." } },
       "recap": { "title": "Recap", "description": "What you practiced in this conversation.", "empty": "Send a few messages first.", "userMessages": "Your messages", "avgScore": "Avg. pronunciation", "grammar": "Grammar issues", "poorWords": "Words to work on", "summary": "Summary", "generate": "Write a summary", "regenerate": "Write it again", "stale": "There are new messages since this summary.", "notSaved": "The summary was not saved to the conversation.", "listen": "Read aloud", "practice": "Practice", "save": "Save to practice list", "costNote": "Writing a summary uses one AI request.", "errors": { "invalid": "The recap could not be read. Try again." } },
       "sheetClose": "Close",

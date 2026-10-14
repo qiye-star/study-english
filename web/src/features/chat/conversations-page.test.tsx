@@ -41,6 +41,7 @@ describe("ConversationsPage", () => {
     await userEvent.click(screen.getByTestId("conversation-new"));
     expect(await screen.findByTestId("scenario-sheet")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByTestId("scenario-level"), "B1");
+    expect(screen.getByTestId("scenario-level-hint")).toHaveTextContent("Copes with most everyday situations");
     play.mockClear();
     await userEvent.click(screen.getByTestId("scenario-cafe"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c9"));
