@@ -10,10 +10,10 @@ from tests.test_migrations import _config, _tables
 LIBRARY_TABLES = {"library_items", "library_segments", "library_attempts"}
 
 
-def test_chain_through_0019_is_linear_and_head_is_0021(tmp_path, monkeypatch):
+def test_chain_through_0019_is_linear_and_head_is_0022(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0021"]
+    assert script.get_heads() == ["0022"]
     assert script.get_revision("0019").down_revision == "0018"
     assert script.get_revision("0018").down_revision == "0017"
 

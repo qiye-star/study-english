@@ -985,6 +985,7 @@ class LibraryItem(Base):
     __table_args__ = (
         Index("ix_library_items_user_id_created_at", "user_id", "created_at"),
         Index("ix_library_items_status_next_run_at", "status", "next_run_at"),
+        Index("ux_library_items_user_id_catalog_id", "user_id", "catalog_id", unique=True),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -1019,6 +1020,8 @@ class LibraryItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 精选库副本(spec 2026-10-14-curated-library E1;无外键,R-SC1)
+    catalog_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class LibrarySegment(Base):
@@ -1053,3 +1056,58 @@ class LibraryAttempt(Base):
     text_hash: Mapped[str] = mapped_column(String(16))
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- 精选库(设计文档 2026-10-14-curated-library §5;迁移 0022)----
+
+class CatalogItem(Base):
+    """系统所有的一条内置素材(只存音频 + 封面,`library/_catalog/<id>/`)。标题、许可说明、句子只给界面;
+    日志、审计、计量只记 id 与数字。删除规则见 spec R1(退役 / 回收 / 强制删除)。"""
+    __tablename__ = "catalog_items"
+    __table_args__ = (Index("ix_catalog_items_status_created_at", "status", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    title: Mapped[str] = mapped_column(String(200))
+    level: Mapped[str | None] = mapped_column(String(2), nullable=True)  # A1..C2
+    tags: Mapped[str | None] = mapped_column(String(120), nullable=True)  # comma-joined, <= 5
+    license_note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source: Mapped[str] = mapped_column(String(8))  # upload / link
+    source_host: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # cleared when ready (spec R6)
+    status: Mapped[str] = mapped_column(String(12))  # uploading / queued / processing / ready / failed / canceled
+    stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    progress: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    error_kind: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    upload_total: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    upload_received: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    media_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    poster_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    media_mime: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    media_bytes: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    sub_source: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    asr_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    seg_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    low_confidence: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    ai_lang: Mapped[str] = mapped_column(String(8), default="zh-CN", server_default="zh-CN")
+    published: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CatalogSegment(Base):
+    """目录的一句;列与 `library_segments` 同名同型(复制时一一对应)。`zh` / `analysis` 只缓存 `ai_lang` 一种语言。"""
+    __tablename__ = "catalog_segments"
+
+    catalog_id: Mapped[str] = mapped_column(ForeignKey("catalog_items.id", ondelete="CASCADE"), primary_key=True)
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    start_ms: Mapped[int] = mapped_column(Integer)
+    end_ms: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    zh: Mapped[str | None] = mapped_column(Text, nullable=True)
+    zh_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
