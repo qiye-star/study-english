@@ -21,10 +21,10 @@ def test_state_keeps_utterances_and_still_reads_version_1(tmp_path):
     chunks = [ac.Chunk(0, 1000, "hi there", [Utterance("hi there", 100, 900)]), ac.Chunk(1000, 2000, "x", []),
               ac.Chunk(2000, 3000)]
     ac.save_state(path, chunks)
-    assert ac.STATE_VERSION == 2 and ac.load_state(path) == chunks
+    assert ac.STATE_VERSION == 3 and ac.load_state(path) == chunks
     path.write_text('{"version": 1, "chunks": [{"start_ms": 0, "end_ms": 1000, "text": "old"}]}', encoding="utf-8")
     assert ac.load_state(path) == [ac.Chunk(0, 1000, "old")]
-    path.write_text('{"version": 3, "chunks": []}', encoding="utf-8")
+    path.write_text('{"version": 4, "chunks": []}', encoding="utf-8")
     assert ac.load_state(path) is None
 
 
