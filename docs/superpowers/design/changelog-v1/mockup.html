@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enjoy · 更新日志 v1 mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E9EAEE;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+html[data-theme=dark],html[data-theme=dark] body{background:#0b0c10;color:#e8e9ee}
+.canvas{max-width:1800px;margin:0 auto;padding:36px 32px 90px}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}h2{font-size:15px;font-weight:600;margin-top:32px}
+.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:92ch;line-height:1.65}
+html[data-theme=dark] .lede,html[data-theme=dark] .cap{color:#9aa0b0}
+ul.notes{color:#5b6170;font-size:13px;line-height:1.75;margin:8px 0 0 18px;max-width:92ch}html[data-theme=dark] ul.notes{color:#9aa0b0}
+.toolbar{display:flex;gap:10px;margin:16px 0 0;flex-wrap:wrap}
+.tb{border:0;cursor:pointer;height:34px;padding:0 14px;border-radius:17px;font-size:13px;background:#fff;color:#1b1d22;box-shadow:0 1px 3px rgba(0,0,0,.12)}.tb.on{background:#2456DB;color:#fff}
+html[data-theme=dark] .tb{background:#1d2028;color:#e8e9ee}html[data-theme=dark] .tb.on{background:#5b86ff;color:#0b0c10}
+.row{display:flex;flex-wrap:wrap;gap:34px;margin-top:22px;align-items:flex-start}
+.spec{width:375px}.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.65}.cap b{font-weight:600}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1100px;width:100%}td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}th{font-weight:600}
+
+.phone{--bg:#fff;--surface:#fff;--surface-2:#F5F6F8;--ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;--hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);
+  --blue:#2456DB;--blue-tint:#EAF0FF;--green:#157A3B;--green-tint:#E4F6EA;--amber:#9A4B00;--amber-tint:#FFF0DE;--red:#D1242F;--red-tint:#FFE8E9;--teal:#0E7067;--teal-tint:#E3F5F2;--purple:#6a3df0;--purple-tint:#EFE9FF;
+  position:relative;width:375px;height:812px;border-radius:44px;overflow:hidden;border:.5px solid rgba(120,125,140,.4);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.4;box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3)}
+html[data-theme=dark] .phone{--bg:#0f1013;--surface:#17191e;--surface-2:#1e2127;--ink:#f3f4f6;--ink-2:#a6abb8;--ink-3:#6e7482;--hair:rgba(255,255,255,.12);--hair-2:rgba(255,255,255,.07);
+  --blue:#8fb0ff;--blue-tint:rgba(143,176,255,.16);--green:#6ee09a;--green-tint:rgba(110,224,154,.14);--amber:#f2b056;--amber-tint:rgba(242,176,86,.14);--red:#ff7a84;--red-tint:rgba(255,122,132,.14);--teal:#5fd1c4;--teal-tint:rgba(95,209,196,.14);--purple:#b79cff;--purple-tint:rgba(183,156,255,.16)}
+.phone i.ti{line-height:1;display:inline-block}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:90}
+.hdr{position:absolute;top:47px;left:0;right:0;height:56px;display:flex;align-items:center;gap:2px;padding:0 8px 0 16px;z-index:20}
+.hdr .tt{flex:1;min-width:0}.hdr h3{font-size:22px;font-weight:700;letter-spacing:-.02em}.hdr .sub{font-size:12px;color:var(--ink-2);margin-top:1px}
+.ib{position:relative;width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:12px}
+.ib.new{color:var(--ink)}.dot{position:absolute;top:8px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg)}
+.ring{position:absolute;inset:-3px;border-radius:15px;border:1.5px solid var(--blue);opacity:.7;animation:pop 2.2s ease-out infinite}@keyframes pop{0%{transform:scale(.9);opacity:.8}100%{transform:scale(1.25);opacity:0}}
+.hint{position:absolute;right:56px;top:98px;background:var(--ink);color:var(--bg);font-size:12px;padding:7px 11px;border-radius:10px;z-index:30;white-space:nowrap}
+.hint::after{content:"";position:absolute;top:-5px;right:16px;border:5px solid transparent;border-top:0;border-bottom-color:var(--ink)}
+.body{position:absolute;top:103px;left:0;right:0;bottom:83px;overflow:hidden;padding:4px 16px}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:83px;border-top:.5px solid var(--hair);background:var(--bg);display:flex;padding-top:8px}
+.tabbar div{flex:1;text-align:center;font-size:10px;color:var(--ink-3)}.tabbar div i{display:block;font-size:22px;margin-bottom:1px}.tabbar div.on{color:var(--blue)}
+.card{background:var(--surface);border:.5px solid var(--hair);border-radius:16px;padding:14px;margin-top:8px}
+.row2{display:flex;align-items:center;gap:10px}
+.rank{font-size:14px;font-weight:600}.bar{height:5px;border-radius:3px;background:var(--surface-2);margin-top:6px;overflow:hidden}.bar b{display:block;height:100%;width:30%;background:var(--blue)}
+
+/* changelog page */
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:7px;font-size:11px;font-weight:600;margin-right:6px}
+.t-new{background:var(--blue-tint);color:var(--blue)}.t-imp{background:var(--teal-tint);color:var(--teal)}.t-fix{background:var(--amber-tint);color:var(--amber)}.t-lib{background:var(--purple-tint);color:var(--purple)}
+.filters{display:flex;gap:8px;padding:2px 0 8px;overflow:hidden}.f{height:32px;padding:0 13px;border-radius:16px;background:var(--surface-2);font-size:13px;display:flex;align-items:center;color:var(--ink-2);white-space:nowrap}.f.on{background:var(--blue-tint);color:var(--blue);font-weight:600}
+.month{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--ink-2);margin:14px 2px 2px}
+.entry{background:var(--surface);border:.5px solid var(--hair);border-radius:16px;padding:14px 14px 12px;margin-top:8px;position:relative}
+.entry.unread{border-color:var(--blue)}.entry .newb{position:absolute;top:12px;right:12px;font-size:11px;font-weight:700;color:#fff;background:var(--red);border-radius:8px;padding:1px 7px}
+.entry .meta{font-size:12px;color:var(--ink-3);display:flex;gap:8px;align-items:center}.entry .meta b{color:var(--ink-2);font-weight:600}
+.entry h4{font-size:17px;font-weight:600;margin-top:4px;letter-spacing:-.01em;padding-right:40px}
+.entry ul{list-style:none;margin-top:8px}.entry li{display:flex;gap:8px;font-size:14px;line-height:1.55;padding:3px 0}.entry li .chip{margin-top:2px;flex:none;margin-right:0}
+.entry .more{margin-top:6px;font-size:13px;color:var(--blue);display:flex;align-items:center;gap:3px}
+.entry.collapsed ul li:nth-child(n+3){display:none}
+.sk{height:14px;border-radius:7px;background:var(--surface-2);margin-top:8px}
+.empty{text-align:center;color:var(--ink-2);font-size:14px;padding:50px 20px}.empty i{font-size:40px;color:var(--ink-3);display:block;margin-bottom:10px}
+.end{text-align:center;color:var(--ink-3);font-size:12px;margin:16px 0}
+
+/* admin (desktop) */
+.desk{width:1100px;border-radius:14px;overflow:hidden;border:.5px solid rgba(120,125,140,.4);background:#fff;color:#111318;box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);display:flex;height:560px;font-size:13.5px}
+html[data-theme=dark] .desk{background:#14161b;color:#e8e9ee}
+.side{width:190px;background:#F5F6F8;padding:14px 10px;border-right:.5px solid rgba(120,125,140,.3)}html[data-theme=dark] .side{background:#101216}
+.side div{padding:8px 10px;border-radius:8px;color:#5B6170;margin-bottom:2px}.side div.on{background:#EAF0FF;color:#2456DB;font-weight:600}html[data-theme=dark] .side div.on{background:rgba(143,176,255,.16);color:#8fb0ff}
+.list2{width:340px;border-right:.5px solid rgba(120,125,140,.3);overflow:hidden}.list2 .top{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:.5px solid rgba(120,125,140,.3);font-weight:600}
+.btn{height:32px;padding:0 12px;border-radius:8px;background:#2456DB;color:#fff;display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600}html[data-theme=dark] .btn{background:#5b86ff;color:#0b0c10}
+.btn.g{background:transparent;color:inherit;border:.5px solid rgba(120,125,140,.5)}
+.li2{padding:11px 14px;border-bottom:.5px solid rgba(120,125,140,.2)}.li2.on{background:#EAF0FF}html[data-theme=dark] .li2.on{background:rgba(143,176,255,.12)}
+.li2 .d{font-size:11.5px;color:#8A90A0}.li2 .t{font-weight:600;margin-top:2px}.st{font-size:11px;padding:1px 7px;border-radius:7px;margin-left:6px}.st.pub{background:#E4F6EA;color:#157A3B}.st.dr{background:#FFF0DE;color:#9A4B00}
+.edit{flex:1;padding:16px 20px;overflow:hidden}.edit label{display:block;font-size:11.5px;color:#8A90A0;margin:12px 0 4px}
+.in{border:.5px solid rgba(120,125,140,.5);border-radius:8px;padding:8px 10px;background:transparent}
+.langs{display:inline-flex;background:#F5F6F8;border-radius:8px;padding:2px;margin-bottom:6px}html[data-theme=dark] .langs{background:#1e2127}.langs span{padding:4px 12px;border-radius:6px;font-size:12px}.langs span.on{background:#fff;color:#111318;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.itm{display:flex;gap:8px;align-items:center;margin-top:6px}.itm .sel{width:84px;border:.5px solid rgba(120,125,140,.5);border-radius:8px;padding:7px 9px;font-size:12.5px}.itm .in{flex:1}
+</style>
+</head>
+<body>
+<div class="canvas">
+<h1>更新日志(设计稿 v1)</h1>
+<p class="lede">需求:在练习页顶栏、「练习清单」图标的左边加一个「更新日志」入口,日志内容存后端,由管理员在管理后台写。下面 4 个画面:顶栏入口(带未读红点)、日志页、各种状态、管理端编辑。</p>
+<div class="toolbar"><button class="tb on" data-t="light">浅色</button><button class="tb" data-t="dark">深色</button></div>
+
+<h2>手机端</h2>
+<div class="row">
+
+<!-- 1 入口 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr"><div class="tt"><h3>练习</h3><div class="sub">10月14日 周三</div></div>
+  <div class="ib new"><span class="ring"></span><i class="ti ti-sparkles"></i><span class="dot"></span></div>
+  <div class="ib"><i class="ti ti-list-check"></i></div></div>
+<div class="hint">有 3 条新更新</div>
+<div class="body">
+ <div class="card"><div class="row2"><div style="flex:1"><div class="rank">铂金 II · 4,570 / 4,600 段位点</div><div class="bar"><b style="width:96%"></b></div></div><i class="ti ti-chevron-right" style="color:var(--ink-3)"></i></div></div>
+ <div class="card"><div class="rank">背单词</div><div style="font-size:13px;color:var(--ink-2);margin-top:4px">今天已学 12 个新词</div></div>
+ <div class="card"><div class="rank">跟读库</div><div style="font-size:13px;color:var(--ink-2);margin-top:4px">1 个素材 · 可重新识别</div></div>
+</div>
+<div class="tabbar"><div class="on"><i class="ti ti-microphone"></i>练习</div><div><i class="ti ti-messages"></i>对话</div><div><i class="ti ti-users"></i>联机</div><div><i class="ti ti-movie"></i>跟读库</div><div><i class="ti ti-user"></i>我的</div></div>
+</div>
+<p class="cap"><b>1 入口。</b>放在「练习清单」图标左边,图标用星花(<code>sparkles</code>),不用铃铛,以免被当成消息通知。有未读时右上角红点,图标外圈有一圈缓慢扩散的提示环;<b>第一次出现未读时</b>下方弹一条小提示「有 3 条新更新」,点开日志页或点别处后不再出现。没有未读时只剩图标,不打扰。</p></div>
+
+<!-- 2 日志页 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="gap:0;padding-left:6px"><div class="ib"><i class="ti ti-chevron-left"></i></div><div class="tt"><h3 style="font-size:19px">更新日志</h3></div></div>
+<div class="body" style="bottom:0;top:103px">
+ <div class="filters"><div class="f on">全部</div><div class="f">新功能</div><div class="f">改进</div><div class="f">修复</div></div>
+ <div class="month">2026年10月</div>
+ <div class="entry unread"><span class="newb">新</span><div class="meta"><b>10月14日</b><span>v1.12</span></div><h4>跟读弹窗和更准的句边界</h4>
+  <ul><li><span class="chip t-new">新功能</span><span>在对话里点「跟读」,不再跳页面,直接在弹窗里练习并看成绩</span></li>
+  <li><span class="chip t-imp">改进</span><span>跟读库的句子时间改用识别服务的真实时间,前几句不再对不上</span></li>
+  <li><span class="chip t-fix">修复</span><span>修复 iPhone Safari 点输入框后页面跳到顶部</span></li></ul></div>
+ <div class="entry unread collapsed"><span class="newb">新</span><div class="meta"><b>10月13日</b></div><h4>选词查词和生词本</h4>
+  <ul><li><span class="chip t-new">新功能</span><span>长按选中单词或短语,可查词、朗读、加入生词本</span></li>
+  <li><span class="chip t-imp">改进</span><span>查词先查本地词典,查不到再问 AI</span></li><li><span class="chip t-imp">改进</span><span>复习答题后显示英英释义和短语</span></li></ul><div class="more">展开全部 3 条<i class="ti ti-chevron-down"></i></div></div>
+ <div class="entry collapsed"><div class="meta"><b>10月11日</b></div><h4>跟读库上线</h4>
+  <ul><li><span class="chip t-lib">跟读库</span><span>上传视频或粘贴链接,逐句跟读并评分</span></li><li><span class="chip t-new">新功能</span><span>每句中文翻译和 AI 句子分析</span></li></ul></div>
+ <div class="month">2026年9月</div>
+ <div class="entry collapsed"><div class="meta"><b>9月28日</b></div><h4>背单词:已学词页</h4><ul><li><span class="chip t-new">新功能</span><span>随时复习所有已学过的单词</span></li></ul></div>
+</div>
+</div>
+<p class="cap"><b>2 日志页。</b>整页(不是弹窗):日志可能很长,整页可以滚动、可深链。按月份分组,最新在上;每条是一张卡片:日期、可选版本号、标题、带类型标签的条目(新功能 / 改进 / 修复 / 其他)。<b>未读的卡片</b>描边加「新」角标;条目超过 2 条时默认折叠,点「展开全部」。顶部可按类型筛选。打开页面后 1 秒标记已读,返回时入口红点消失。</p></div>
+
+<!-- 3 状态 -->
+<div class="spec"><div class="phone">
+<div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div class="hdr" style="gap:0;padding-left:6px"><div class="ib"><i class="ti ti-chevron-left"></i></div><div class="tt"><h3 style="font-size:19px">更新日志</h3></div></div>
+<div class="body" style="bottom:0;top:103px">
+ <div class="month">加载中</div>
+ <div class="entry"><div class="sk" style="width:30%"></div><div class="sk" style="width:70%;height:18px"></div><div class="sk"></div><div class="sk" style="width:85%"></div></div>
+ <div class="month">没有更新时</div>
+ <div class="entry"><div class="empty" style="padding:26px 10px"><i class="ti ti-sparkles"></i>还没有更新日志</div></div>
+ <div class="month">加载失败</div>
+ <div class="entry"><div class="empty" style="padding:22px 10px"><i class="ti ti-cloud-off"></i>没能加载更新日志<div style="margin-top:10px;color:var(--blue);font-weight:600">重试</div></div></div>
+ <div class="month">到底了</div><div class="end">已经是全部更新</div>
+</div>
+</div>
+<p class="cap"><b>3 状态。</b>加载骨架、空状态(没有任何日志时入口图标也不显示)、加载失败带重试、翻到底。分页 20 条一页,滚到底自动加载更多;日志是公开内容,所以离线时显示上次缓存的内容并标「离线」。</p></div>
+
+</div>
+
+<h2>管理端(桌面)</h2>
+<div class="row"><div>
+<div class="desk">
+ <div class="side"><div style="font-weight:700;margin:2px 10px 10px">Enjoy 管理</div><div>总览</div><div>用户</div><div>房间</div><div>设置</div><div>公告与维护</div><div class="on">更新日志</div><div>审计</div></div>
+ <div class="list2"><div class="top"><span>更新日志</span><span class="btn"><i class="ti ti-plus"></i>新建</span></div>
+  <div class="li2 on"><div class="d">2026-10-14 · v1.12 <span class="st pub">已发布</span></div><div class="t">跟读弹窗和更准的句边界</div></div>
+  <div class="li2"><div class="d">2026-10-13 <span class="st pub">已发布</span></div><div class="t">选词查词和生词本</div></div>
+  <div class="li2"><div class="d">草稿 <span class="st dr">草稿</span></div><div class="t">跟读库「添加素材」界面更新</div></div>
+  <div class="li2"><div class="d">2026-10-11 <span class="st pub">已发布</span></div><div class="t">跟读库上线</div></div></div>
+ <div class="edit">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:15px">编辑更新</b><span><span class="btn g">预览</span> <span class="btn g">下架</span> <span class="btn">发布</span></span></div>
+  <label>发布日期 · 版本号(可选)</label><div style="display:flex;gap:8px"><div class="in" style="width:150px">2026-10-14</div><div class="in" style="width:110px">v1.12</div></div>
+  <label>标题</label><div class="langs"><span class="on">中文</span><span>English</span></div><div class="in">跟读弹窗和更准的句边界</div>
+  <label>条目(每条一个类型标签)</label>
+  <div class="itm"><div class="sel">新功能 ▾</div><div class="in">在对话里点「跟读」,不再跳页面,直接在弹窗里练习并看成绩</div></div>
+  <div class="itm"><div class="sel">改进 ▾</div><div class="in">跟读库的句子时间改用识别服务的真实时间,前几句不再对不上</div></div>
+  <div class="itm"><div class="sel">修复 ▾</div><div class="in">修复 iPhone Safari 点输入框后页面跳到顶部</div></div>
+  <div style="margin-top:8px;color:#2456DB;font-weight:600">+ 添加条目</div>
+  <div style="margin-top:14px;font-size:12px;color:#8A90A0">发布后所有用户可见;只有「已发布」的会出现在手机端并产生未读红点。每次发布 / 下架 / 修改都会写入审计。英文版留空时,英文用户看到中文。</div>
+ </div></div>
+<p class="cap" style="max-width:1100px"><b>4 管理端。</b>桌面专用(沿用现有管理后台的权限和审计):左侧列表(草稿 / 已发布)、右侧编辑器:日期、版本号(可选)、中英文标题、条目列表(类型下拉 + 一句话,不用 Markdown,避免排版和注入问题)。发布前可预览手机端的样子。需要「操作员」以上角色,写操作进审计链。</p></div></div>
+
+<h2>设计要点和我的看法</h2>
+<table>
+<tr><th>点</th><th>做法与理由</th></tr>
+<tr><td>整页,不用弹窗</td><td>日志会越写越长,需要滚动、分页和可深链接(以后可以从「我的」里再放一个入口)。这和跟读弹窗不矛盾:跟读是「做一件事」,日志是「读一份清单」。</td></tr>
+<tr><td>结构化条目,不用 Markdown</td><td>每条 = 类型标签 + 一句话。排版统一、双语好管、没有富文本注入;代价是不能放图片和长文。我认为更新日志用不着,真需要再加「详情链接」。</td></tr>
+<tr><td>未读状态放服务端</td><td>用一张很小的表记「每个用户读到哪一条」,这样手机、电脑之间同步;本机只缓存一份减少请求。若你更想要最省事,也可以只存在本机(换设备会重新亮红点)。</td></tr>
+<tr><td>红点只算「已发布且比我读到的更新」</td><td>草稿不出现;新用户首次登录不要把整份历史都算成未读,只显示最近 N 条为未读(默认 3 条)。</td></tr>
+<tr><td>后端接口</td><td><code>GET /api/changelog?cursor=</code>(登录即可看,返回条目和 <code>unread</code> 数);<code>POST /api/changelog/seen</code>;管理端 <code>/api/admin/changelog</code> 增删改、发布 / 下架(审计)。内容公开,不含用户数据,日志里不记内容。</td></tr>
+<tr><td>首批内容</td><td>我可以根据最近的提交和你验证过的功能起草首批 5 到 8 条中英文日志,放进管理端当草稿,由你改完再发布;不会写进数据库迁移里。</td></tr>
+<tr><td>不做</td><td>推送通知、按用户或用户组定向、点赞评论、富文本图片、自动从 git 生成并直接发布。</td></tr>
+</table>
+
+<h2>需要你拍板</h2>
+<table>
+<tr><td>1</td><td>入口只放在练习页顶栏(按你说的),还是也在「我的」里加一行?我推荐先只放练习页。</td></tr>
+<tr><td>2</td><td>日志页用整页(我推荐),还是底部弹窗?</td></tr>
+<tr><td>3</td><td>未读状态放服务端(我推荐,多设备同步),还是只存本机?</td></tr>
+<tr><td>4</td><td>条目要不要带「版本号」这个可选字段?我觉得可选就够,你的应用不一定需要版本号。</td></tr>
+<tr><td>5</td><td>要不要我起草首批日志草稿?</td></tr>
+</table>
+</div>
+<script>document.querySelectorAll('.toolbar [data-t]').forEach(b=>b.addEventListener('click',()=>{document.documentElement.dataset.theme=b.dataset.t;document.querySelectorAll('.toolbar [data-t]').forEach(x=>x.classList.toggle('on',x===b))}))</script>
+</body>
+</html>
