@@ -131,7 +131,7 @@ async def test_item_out_shape_and_upload_progress(app):
     assert out["low_confidence"] is False and out["rebuildable"] is False
     assert set(out) == {"id", "kind", "source", "title", "status", "stage", "progress", "error_kind", "duration_ms",
                         "seg_count", "library_bytes", "sub_source", "resume_ms", "resume_idx", "rate_pct", "has_poster",
-                        "created_at", "last_opened_at", "low_confidence", "rebuildable"}
+                        "created_at", "last_opened_at", "low_confidence", "rebuildable", "catalog_id"}
 
 
 async def test_sweeps(app):

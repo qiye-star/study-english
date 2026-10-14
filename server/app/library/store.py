@@ -57,7 +57,7 @@ def item_out(row: LibraryItem) -> dict:
         "seg_count": row.seg_count, "library_bytes": row.library_bytes, "sub_source": row.sub_source,
         "resume_ms": row.resume_ms, "resume_idx": row.resume_idx, "rate_pct": row.rate_pct,
         "low_confidence": row.low_confidence, "rebuildable": row.rebuildable,
-        "has_poster": row.poster_path is not None, "created_at": iso_utc(row.created_at),
+        "has_poster": row.poster_path is not None, "catalog_id": row.catalog_id, "created_at": iso_utc(row.created_at),
         "last_opened_at": iso_utc(row.last_opened_at) if row.last_opened_at else None,
     }
 
