@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玻璃查词 · mockup v1</title>
+<!--
+  计划 docs/superpowers/plans/2026-10-15-global-longpress-glass-lookup.md 的视觉稿(owner 批准前不实现视觉任务)。
+  自包含:无外部脚本 / 字体 / 图标(图标为内联 SVG,路径取自 lucide)。颜色取自 web/src/styles/theme.css,
+  玻璃配方沿用 docs/superpowers/design/floating-glass-bar-v1/mockup.html(已实现的 .glass-float / .tab-halo)。
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--page-bg:#E4E6EC;--page-ink:#1b1d22;--page-ink-2:#5b6170;--tb:#fff;--tb-ink:#1b1d22;--tb-on:#2456DB;--tb-on-ink:#fff}
+:root[data-theme=dark]{--page-bg:#0b0c10;--page-ink:#e8e9ee;--page-ink-2:#9aa0b0;--tb:#1d2028;--tb-ink:#e8e9ee;--tb-on:#8fb0ff;--tb-on-ink:#0b0c10}
+html,body{background:var(--page-bg);color:var(--page-ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:1900px;margin:0 auto;padding:28px 16px 80px}
+@media(min-width:700px){.canvas{padding:36px 32px 90px}}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+h2{font-size:15px;font-weight:600;margin-top:30px}
+.lede{color:var(--page-ink-2);font-size:13px;margin-top:6px;max-width:100ch;line-height:1.65}
+.lede code,.cap code,td code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;margin-top:16px;padding:10px 0;background:linear-gradient(var(--page-bg) 78%,transparent)}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.grp>span{font-size:12px;color:var(--page-ink-2);margin-right:2px}
+.tb{border:0;cursor:pointer;min-height:34px;padding:0 13px;border-radius:17px;font-size:13px;background:var(--tb);color:var(--tb-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:inherit}
+.tb[aria-pressed=true]{background:var(--tb-on);color:var(--tb-on-ink)}
+.tb:focus-visible{outline:2px solid var(--tb-on);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:28px;margin-top:18px;align-items:flex-start}
+.spec{width:390px;max-width:100%}
+.spec h3{font-size:13px;font-weight:600;margin:0 2px 8px;display:flex;gap:8px;align-items:center}
+.spec h3 .tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:rgba(120,125,140,.18);color:var(--page-ink-2)}
+.spec h3 .tag.new{background:#2456DB;color:#fff}
+.cap{font-size:12px;color:var(--page-ink-2);margin:10px 2px 0;line-height:1.65}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1100px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+th{font-weight:600;color:var(--page-ink-2);white-space:nowrap}
+.tablewrap{overflow-x:auto}
+body[data-look=old] .spec.is-new,body[data-look=new] .spec.is-old{display:none}
+
+/* ============ 手机内令牌:web/src/styles/theme.css(+ 已实现的悬浮底栏令牌) ============ */
+.phone{
+  --bg:#ffffff;--surface:#ffffff;--surface-2:#f5f6f8;--ink:#111318;--ink-2:#5b6170;--ink-3:#8a90a0;
+  --blue:#2456DB;--on-blue:#fff;--teal:#0E7067;--green:#157A3B;--amber:#9A4B00;--amber-tint:#fff3e0;
+  --hair:rgba(17,19,24,.12);--blue-tint:#eaf0ff;--green-tint:#e4f6ea;
+  --glass:rgba(255,255,255,.72);--glass-solid:rgba(255,255,255,.94);--glass-bar:rgba(255,255,255,.8);--glass-lite:rgba(255,255,255,.86);
+  --float-rgb:255,255,255;--float-lite:rgba(255,255,255,.62);
+  --float-bd:rgba(255,255,255,.55);--float-hi:inset 0 1px 0 rgba(255,255,255,.7);
+  --float-sh:0 10px 28px -10px rgba(17,19,24,.30),0 1px 2px rgba(17,19,24,.06);
+  --float-on:rgba(36,86,219,.14);--halo:rgba(255,255,255,.9);
+  /* 新:查词玻璃(计划 R-G1–R-G6)。--lk-bar / --lk-sheet 随透明度方案变化 */
+  --lk-sheet-lite:rgba(255,255,255,.86);
+  --lk-scrim:rgba(17,19,24,.14);
+  --lk-well:rgba(255,255,255,.45);--lk-well-bd:rgba(255,255,255,.7);
+  --sel:rgba(36,86,219,.26);
+  --lib-page:#eef1f8;--lib-glass-bg:rgba(255,255,255,.38);--lib-glass-bd:rgba(255,255,255,.85);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--lib-glass-sh:0 10px 30px -8px rgba(36,56,110,.28);
+  --blob1:#9db8ff;--blob2:#b9f0e6;--blob3:#ffd7b0;
+}
+[data-theme=dark] .phone{
+  --bg:#0f1013;--surface:#17191e;--surface-2:#1e2127;--ink:#f3f4f6;--ink-2:#a6abb8;--ink-3:#6e7482;
+  --blue:#8fb0ff;--on-blue:#0f1013;--teal:#5fd1c4;--green:#6fd39a;--amber:#f2b056;--amber-tint:rgba(242,176,86,.16);
+  --hair:rgba(255,255,255,.14);--blue-tint:rgba(143,176,255,.14);--green-tint:rgba(111,211,154,.14);
+  --glass:rgba(23,25,30,.66);--glass-solid:rgba(23,25,30,.94);--glass-bar:rgba(23,25,30,.74);--glass-lite:rgba(23,25,30,.86);
+  --float-rgb:23,25,30;--float-lite:rgba(23,25,30,.62);
+  --float-bd:rgba(255,255,255,.16);--float-hi:inset 0 1px 0 rgba(255,255,255,.14);
+  --float-sh:0 12px 32px -10px rgba(0,0,0,.65),0 1px 2px rgba(0,0,0,.3);
+  --float-on:rgba(143,176,255,.20);--halo:rgba(0,0,0,.6);
+  --lk-sheet-lite:rgba(23,25,30,.86);
+  --lk-scrim:rgba(0,0,0,.34);
+  --lk-well:rgba(255,255,255,.06);--lk-well-bd:rgba(255,255,255,.12);
+  --sel:rgba(143,176,255,.34);
+  --lib-page:#0b0d14;--lib-glass-bg:rgba(150,170,255,.1);--lib-glass-bd:rgba(255,255,255,.26);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.38),inset 0 -1px 0 rgba(255,255,255,.08);--lib-glass-sh:0 14px 38px -8px rgba(0,0,0,.65);
+  --blob1:#4f6dff;--blob2:#12b3a2;--blob3:#8f5a3a;
+}
+/* 透明度方案:操作条底色 / 抽屉底色(抽屉要放整段文字,底色比操作条高) */
+body[data-tint=a] .phone{--bar-a:.06;--sheet-a:.38}
+body[data-tint=b] .phone{--bar-a:.10;--sheet-a:.55}
+body[data-tint=c] .phone{--bar-a:.16;--sheet-a:.70}
+
+.phone{position:relative;width:390px;max-width:100%;height:844px;border-radius:46px;overflow:hidden;color:var(--ink);background:var(--bg);
+  border:.5px solid rgba(120,125,140,.4);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4;
+  --safe-b:34px;--tab-bottom:max(10px, calc(var(--safe-b) - 8px));--space:calc(64px + var(--tab-bottom) + 8px)}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:80;pointer-events:none}
+.home{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);opacity:.85;z-index:90;pointer-events:none}
+.scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:var(--space);scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.col{display:flex;flex-direction:column;min-height:100%}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ============ 已实现:.glass / .glass-bar / .glass-float(index.css) ============ */
+.glass{background:var(--glass-solid);box-shadow:inset 0 .5px 0 var(--hair)}
+.glass-bar{background:var(--glass-solid);box-shadow:inset 0 -.5px 0 var(--hair)}
+body:not([data-nosupport=on]) .glass{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+body:not([data-nosupport=on]) .glass-bar{background:var(--glass-bar);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}
+body[data-lite=on]:not([data-nosupport=on]) .glass,body[data-lite=on]:not([data-nosupport=on]) .glass-bar{background:var(--glass-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .glass,body[data-rt=on] .glass-bar{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.tab{position:absolute;z-index:30;display:grid;left:12px;right:12px;bottom:var(--tab-bottom);height:64px;padding:3px;border-radius:28px;
+  background:var(--glass-solid);border:1px solid var(--float-bd);box-shadow:var(--float-hi),var(--float-sh);grid-template-columns:repeat(5,minmax(0,1fr))}
+body:not([data-nosupport=on]) .tab{background:rgba(var(--float-rgb),.10);-webkit-backdrop-filter:blur(28px) saturate(1.8);backdrop-filter:blur(28px) saturate(1.8)}
+body[data-lite=on]:not([data-nosupport=on]) .tab{background:var(--float-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .tab{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-color:var(--hair)}
+.tab a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;font-size:11px;font-weight:500;color:var(--ink-2);text-decoration:none;border-radius:24px;text-shadow:0 0 6px var(--halo),0 0 2px var(--halo)}
+.tab a svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--halo))}
+.tab a.on{color:var(--blue);font-weight:600;background:var(--float-on)}
+body[data-rt=on] .tab a,body[data-rt=on] .tab a svg{text-shadow:none;filter:none}
+
+/* ============ 当前:选词操作条(lookup-bar.tsx)与抽屉(bottom-sheet.tsx + lookup-layer.tsx) ============ */
+.bar-old{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--space) + 8px);z-index:40;display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);box-shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1)}
+.sheet-old{position:absolute;left:0;right:0;bottom:0;z-index:50;border-radius:20px 20px 0 0;background:var(--surface);padding:8px 16px calc(16px + var(--safe-b));box-shadow:0 -.5px 0 var(--hair),0 -12px 32px -16px rgba(17,19,24,.28);max-height:70%;overflow:hidden}
+.scrim-old{position:absolute;inset:0;z-index:50;background:rgba(17,19,24,.32)}
+[data-theme=dark] .scrim-old{background:rgba(0,0,0,.55)}
+.btn-pri{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;background:var(--blue);color:var(--on-blue);font-weight:600;font-size:15px}
+.btn-pri svg{width:16px;height:16px}
+.btn-ic{width:44px;height:44px;display:grid;place-items:center;border-radius:22px;color:var(--ink-2)}
+.btn-out{height:44px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;border:1px solid var(--hair);background:var(--surface);font-size:14.5px;font-weight:500;flex:1}
+.btn-out svg{width:16px;height:16px}
+
+/* ============ 新:玻璃选词操作条(R-G2) ============ */
+.bar-new{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--space) + 8px);z-index:40;display:flex;align-items:center;gap:2px;
+  height:54px;padding:4px;border-radius:27px;border:1px solid var(--float-bd);box-shadow:var(--float-hi),var(--float-sh);background:var(--glass-solid)}
+body:not([data-nosupport=on]) .bar-new{background:rgba(var(--float-rgb),var(--bar-a));-webkit-backdrop-filter:blur(28px) saturate(1.8);backdrop-filter:blur(28px) saturate(1.8)}
+body[data-lite=on]:not([data-nosupport=on]) .bar-new{background:var(--float-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .bar-new{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-color:var(--hair)}
+.bar-new .btn-ic{color:var(--ink)}
+.bar-new .btn-ic svg{filter:drop-shadow(0 0 3px var(--halo))}
+.bar-new .btn-pri{box-shadow:0 6px 16px -8px rgba(36,86,219,.7)}
+body[data-rt=on] .bar-new .btn-ic svg{filter:none}
+
+/* ============ 新:玻璃查词抽屉(R-G3:悬浮圆角卡片,四角 28) ============ */
+.scrim-new{position:absolute;inset:0;z-index:50;background:var(--lk-scrim)}
+.sheet-new{position:absolute;left:8px;right:8px;bottom:max(8px, calc(var(--safe-b) - 8px));z-index:50;border-radius:28px;padding:6px 16px 16px;max-height:72%;overflow:hidden;
+  border:1px solid var(--float-bd);box-shadow:var(--float-hi),0 24px 48px -16px rgba(17,19,24,.45),0 1px 2px rgba(17,19,24,.08);background:var(--glass-solid)}
+body:not([data-nosupport=on]) .sheet-new{background:rgba(var(--float-rgb),var(--sheet-a));-webkit-backdrop-filter:blur(36px) saturate(1.8);backdrop-filter:blur(36px) saturate(1.8)}
+body[data-lite=on]:not([data-nosupport=on]) .sheet-new{background:var(--lk-sheet-lite);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .sheet-new{background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-color:var(--hair)}
+.grab{display:flex;justify-content:center;height:22px;align-items:center}
+.grab i{width:36px;height:5px;border-radius:3px;background:var(--ink-3);opacity:.55}
+.sheet-new .x,.sheet-old .x{position:absolute;right:8px;top:8px;width:44px;height:44px;display:grid;place-items:center;color:var(--ink-2);border-radius:22px}
+.sheet-new .x{background:var(--lk-well);border:1px solid var(--lk-well-bd);width:36px;height:36px;right:12px;top:12px}
+.sheet-new .x svg{width:18px;height:18px}
+.lk-title{font-size:22px;font-weight:650;letter-spacing:-.015em;padding-right:48px}
+.sheet-old .lk-title{font-size:18px;font-weight:600}
+.src{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;font-size:11.5px;font-weight:600;color:var(--ink-2);margin-top:6px}
+.sheet-new .src{background:var(--lk-well);border:1px solid var(--lk-well-bd)}
+.sheet-old .src{padding:0;height:auto;font-weight:400;font-size:12px}
+.wd{font-size:18px;font-weight:600;margin-top:8px}.wd .ph{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:400;font-size:14px;color:var(--ink-2);margin-left:8px}
+.defs{list-style:none;margin-top:8px;font-size:14px;line-height:1.55;color:var(--ink)}
+.defs li+li{margin-top:3px}.defs em{font-style:normal;color:var(--ink-2);margin-right:6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.zh-chip{display:inline-flex;align-items:center;height:44px;padding:0 16px;margin-top:8px;border-radius:22px;font-size:14px;font-weight:600;border:1px solid var(--hair);color:var(--ink)}
+.sheet-new .zh-chip{background:var(--lk-well);border-color:var(--lk-well-bd)}
+.zh-chip[aria-pressed=true]{background:var(--blue-tint)!important;color:var(--blue);border-color:transparent!important}
+.phr{margin-top:10px;font-size:13.5px}.phr .k{color:var(--ink-2);font-size:12.5px}.phr p{margin-top:2px}.phr b{font-weight:600}.phr span{color:var(--ink-2);margin-left:8px}
+.ctx{border-left:2px solid var(--hair);padding-left:8px;font-size:13.5px;color:var(--ink-2);margin-top:6px}
+.acts{display:flex;gap:8px;margin-top:12px}
+.sheet-new .btn-out{border-radius:22px;background:var(--lk-well);border-color:var(--lk-well-bd)}
+.sheet-new .btn-out.pri{background:var(--blue);color:var(--on-blue);border-color:transparent}
+.sheet-old .btn-out.pri{background:var(--blue);color:var(--on-blue);border-color:transparent}
+.spin{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--hair);border-top-color:var(--ink-2);margin:14px 0;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.sk{height:12px;border-radius:6px;background:var(--hair);margin-top:8px}
+
+/* ============ 学新词页(learn-page.tsx + word-card.tsx) ============ */
+.hdr{position:sticky;top:0;z-index:40;padding-top:47px}
+.hdr .in{height:52px;display:flex;align-items:center;gap:10px;padding:0 8px 0 4px}
+.hdr .steps{flex:1;display:flex;gap:4px;padding-right:12px}.hdr .steps i{flex:1;height:4px;border-radius:2px;background:var(--hair)}.hdr .steps i.d{background:var(--teal)}
+.wcard{margin:8px 16px 0;padding:20px 16px 16px;border-radius:16px;background:var(--surface);border:.5px solid var(--hair)}
+.eb{font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--ink-2)}
+.hw{font-size:34px;font-weight:650;letter-spacing:-.02em;margin-top:6px;line-height:1.1}
+.phs{display:flex;gap:8px;margin-top:10px}
+.phb{height:44px;display:flex;align-items:center;gap:6px;padding:0 12px 0 6px;border-radius:12px;background:var(--surface-2);font-size:15px}
+.phb b{width:32px;height:32px;border-radius:9px;background:var(--surface);display:grid;place-items:center;color:var(--blue);box-shadow:0 0 0 .5px var(--hair)}
+.phb b svg{width:18px;height:18px}.phb small{font-size:11px;font-weight:600;color:var(--ink-2)}
+.den{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:4px}
+.den li{font-size:14px;line-height:1.55;color:var(--ink-2)}
+.den em{font-style:normal;font-weight:600;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;margin-right:4px}
+.ex{margin-top:14px;padding:12px;border-radius:12px;background:var(--surface-2);font-size:15px;line-height:1.55}
+.ex mark{background:var(--amber-tint);color:var(--amber);font-weight:600;border-radius:4px;padding:0 3px}
+.ex .z{font-size:13.5px;color:var(--ink-2);margin-top:4px}
+.ex .lis{display:flex;gap:6px;margin-top:6px;font-size:12.5px;color:var(--ink-2);font-weight:500}
+.phrs{margin-top:12px;border-top:.5px solid var(--hair);font-size:13.5px}
+.phrs .s{min-height:44px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-2)}
+.phrs p{margin-bottom:4px}.phrs p b{font-weight:600}.phrs p span{color:var(--ink-2)}
+.dock{position:sticky;bottom:0;z-index:30;margin-top:auto;display:flex;gap:8px;padding:10px 16px}
+.rb{flex:1;height:48px;border-radius:12px;display:grid;place-items:center;font-weight:600;font-size:15px;background:var(--surface);border:.5px solid var(--hair)}
+.rb.ok{background:var(--teal);color:#fff;border-color:transparent}
+[data-theme=dark] .rb.ok{color:#0f1013}
+.hl{background:var(--sel);border-radius:3px;box-shadow:0 0 0 2px var(--sel)}
+.finger{position:absolute;z-index:45;width:46px;height:46px;border-radius:50%;background:rgba(36,86,219,.18);border:2px solid rgba(36,86,219,.55);pointer-events:none;transform:translate(-50%,-50%)}
+.finger::after{content:"450 ms";position:absolute;left:50%;top:-22px;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:#fff;background:rgba(17,19,24,.72);padding:1px 6px;border-radius:6px;white-space:nowrap}
+.nat{position:absolute;z-index:45;display:flex;background:#2b2d33;color:#fff;border-radius:10px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.3);overflow:hidden}
+.nat span{padding:9px 12px}.nat span+span{border-left:.5px solid rgba(255,255,255,.2)}
+.note{position:absolute;z-index:46;left:16px;right:16px;padding:8px 12px;border-radius:10px;background:rgba(209,36,47,.92);color:#fff;font-size:12.5px;line-height:1.45}
+
+/* ============ 跟读库句子页(背景:海报 + 极光) ============ */
+.lib{background:var(--lib-page);min-height:100%;position:relative}
+.aurora{position:absolute;inset:0 0 auto 0;height:900px;overflow:hidden;z-index:0;pointer-events:none}
+.aurora i{position:absolute;width:300px;height:300px;border-radius:50%;filter:blur(50px);opacity:.85}
+.aurora i:nth-child(1){background:var(--blob1);left:-80px;top:40px}.aurora i:nth-child(2){background:var(--blob2);right:-100px;top:300px}.aurora i:nth-child(3){background:var(--blob3);left:20px;top:620px}
+.poster{position:relative;z-index:1;margin:56px 12px 0;height:210px;border-radius:20px;background:linear-gradient(135deg,#0a1a3d,#c42b4a 55%,#ffd23f);display:flex;align-items:flex-end;padding:14px;color:#fff;font-weight:700;font-size:18px}
+.segs{position:relative;z-index:1;margin:10px 12px 0;display:flex;flex-direction:column;gap:8px}
+.seg{padding:12px 14px;border-radius:16px;background:var(--lib-glass-bg);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),0 6px 18px -10px rgba(36,56,110,.3);font-size:15px;line-height:1.5}
+.seg small{display:block;font-size:12px;color:var(--ink-2);margin-top:3px}
+.seg.on{outline:2px solid var(--blue);outline-offset:-2px}
+.thumbs{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 12px 0}
+.thumbs i{height:110px;border-radius:14px}
+
+/* ============ 对话 ============ */
+.msgs{display:flex;flex-direction:column;gap:14px;padding:12px 16px}
+.b{max-width:80%;padding:10px 13px;border-radius:14px;font-size:15px;line-height:1.5}
+.b.ai{background:var(--surface-2);align-self:flex-start;border-top-left-radius:6px}
+.b.me{background:var(--blue);color:#fff;align-self:flex-end;border-top-right-radius:6px}
+[data-theme=dark] .b.me{color:#0f1013}
+.b.img{padding:0;overflow:hidden;width:260px;height:170px;background:linear-gradient(135deg,#ffd23f,#ff8a00 40%,#0a1a3d)}
+.composer{position:absolute;left:0;right:0;bottom:var(--space);z-index:30;padding:8px}
+.hold{height:44px;border-radius:22px;background:var(--surface);border:.5px solid var(--hair);display:grid;place-items:center;font-size:15px;font-weight:600}
+</style>
+</head>
+<body data-look="both" data-tint="b" data-lite="off" data-rt="off" data-nosupport="off">
+<div class="canvas">
+  <h1>玻璃查词 · mockup v1(待 owner 批准)</h1>
+  <p class="lede">两件事。<b>A 长按查词变成全站功能:</b>任何显示英文学习内容的地方(学新词的英文释义、例句、短语,复习、已学、拼写,对话气泡、提示、复盘,跟读库句子,生词卡,房间,排位,跟读参考句……)按住一个英文单词约半秒,这个词被选中,底部出现查词操作条。<b>B 弹层换成透明圆角玻璃:</b>选中后的操作条变成悬浮玻璃胶囊(与新的底部 Tab 栏同一配方),查词结果抽屉变成离开屏幕边缘、四角圆角 28 的玻璃卡片,背后遮罩变淡。每组左边是<b>当前</b>,右边是<b>新</b>。按 iPhone(底部安全区 34px)模拟;手机内容可以滚动。</p>
+
+  <div class="toolbar" role="toolbar" aria-label="mockup 开关">
+    <div class="grp" data-key="look"><span>对比</span>
+      <button class="tb" data-v="both">当前 vs 新</button><button class="tb" data-v="old">只看当前</button><button class="tb" data-v="new">只看新</button></div>
+    <div class="grp" data-key="theme"><span>主题</span>
+      <button class="tb" data-v="light">浅色</button><button class="tb" data-v="dark">深色</button></div>
+    <div class="grp" data-key="tint"><span>透明度(操作条 / 抽屉)</span>
+      <button class="tb" data-v="a">A 6% / 38%</button><button class="tb" data-v="b">B 10% / 55%(推荐)</button><button class="tb" data-v="c">C 16% / 70%</button></div>
+    <div class="grp" data-key="lite"><span>低端机模式</span>
+      <button class="tb" data-v="off">关</button><button class="tb" data-v="on">开 html.lite</button></div>
+    <div class="grp" data-key="rt"><span>减少透明度</span>
+      <button class="tb" data-v="off">关</button><button class="tb" data-v="on">开</button></div>
+    <div class="grp" data-key="nosupport"><span>浏览器不支持模糊</span>
+      <button class="tb" data-v="off">支持</button><button class="tb" data-v="on">不支持(实心回退)</button></div>
+  </div>
+
+  <h2>1 · 学新词:长按英文释义里的词(owner 报的问题)</h2>
+  <div class="row" id="row-learn"></div>
+  <h2>2 · 查词抽屉:加载中 / 词典命中(带「中文」按钮)/ 词典未命中改用 AI</h2>
+  <div class="row" id="row-drawer"></div>
+  <h2>3 · 换背景看可读性:跟读库(海报 + 极光)与对话(彩色图片气泡)</h2>
+  <div class="row" id="row-bg"></div>
+
+  <h2>待 owner 确认的设计决定</h2>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>决定</th><th>本稿的取值</th></tr>
+    <tr><td>D1</td><td>哪里能长按查词</td><td>所有<b>标记为「可查词」的英文内容</b>(计划里的清单,约 40 处,含学新词 / 复习 / 已学 / 拼写 / 对话 / 跟读库 / 生词本 / 房间 / 排位 / 跟读参考句)。按钮、链接、输入框、导航行、中文行<b>不</b>参与;复习答后选项保留它们自己的整行长按。不做「页面上任意英文都能长按」(会把列表行、按钮标题都卷进来)。</td></tr>
+    <tr><td>D2</td><td>长按手感</td><td>按住 450ms 不动(移动 ≤ 8px)→ 选中手指下的那个英文单词(高亮)→ 立刻出操作条(不再等 300ms)。滚动、移动、第二根手指都取消;长按后松手的那一下点击被吞掉(不会跳播、不会翻卡)。只对触摸生效,鼠标照旧拖选 / 双击。</td></tr>
+    <tr><td>D3</td><td>系统长按菜单</td><td><b>默认保留</b>系统自己的选词(把手、复制 / 分享菜单),只是我们先把词选好、操作条一定出现;这样拖动把手选整句、复制都照常。备选「严格模式」:在可查词文字上压掉系统菜单(安卓上会因此失去长按拖选),不推荐。</td></tr>
+    <tr><td>D4</td><td>操作条样式</td><td>悬浮玻璃胶囊:高 54、圆角 27、白色高光描边 + 柔和阴影 + 28px 模糊;「查词」是实心蓝色胶囊,朗读 / 收藏图标带光晕;位置不变(Tab 栏上方 8px,居中)。</td></tr>
+    <tr><td>D5</td><td>抽屉样式</td><td>悬浮玻璃卡片:左右各 8px、下沿让开 Home 横条、四角圆角 28、36px 模糊;遮罩从 32% 降到 14%(深色 34%),让玻璃后面的页面看得见。内部按钮是半透明「小井」(不再模糊,只有卡片本身一层模糊)。备选:贴底全宽、只有上方圆角。</td></tr>
+    <tr><td>D6</td><td>透明度</td><td>A 6%/38%、B 10%/55%、C 16%/70%(操作条 / 抽屉)。<b>推荐 B</b>:操作条与 Tab 栏同为 10%;抽屉放整段释义,55% 在深色海报上仍能读,A 在亮黄海报上的释义行开始吃力,C 已接近原来的实底。</td></tr>
+    <tr><td>D7</td><td>模糊层数</td><td>操作条和抽屉不会同时出现(打开抽屉时操作条卸载),各算 1 层临时层。大多数页面常驻 3 层(顶栏 / 输入条或 DOCK / Tab 栏),查词时短暂成为第 4 层。跟读库页面已是硬上限 3 层:在那里操作条和抽屉自动改成不模糊的实底玻璃色(与「减少透明度」同样子)。是否接受「临时第 4 层」请确认。</td></tr>
+    <tr><td>D9</td><td>操作条盖住 DOCK</td><td>位置与现在相同(Tab 栏上方 8px),所以有选区时仍会盖住学新词 / 复习的「不认识 / 模糊 / 认识」等 DOCK(现在就是这样,z-40 > z-30);玻璃之后 DOCK 隐约可见。取消选区即恢复。备选:有 DOCK 的页面把操作条抬到 DOCK 之上(要给每个 DOCK 页加一个高度变量,不在本轮)。</td></tr>
+    <tr><td>D8</td><td>回退</td><td>不支持模糊:94% 实心;减少透明度:实心 surface + 发丝线(仍是圆角胶囊 / 卡片);低端机:模糊 12px + 62%(操作条)/ 86%(抽屉)。</td></tr>
+  </table></div>
+  <p class="lede" style="margin-top:14px">本稿只证明「看起来怎样」,手指圆圈与「450 ms」标签只是示意。真机上长按与系统选词的先后、iOS 的「拷贝 / 查询」菜单是否叠出来、模糊质量与深色海报上的可读性都<b>未验证</b>,见计划的真机清单。</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+    chat: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+    rooms: '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
+    lib: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    me: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    vol: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5Z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.7"/>',
+    star: '<path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7a2 2 0 0 0 1.6 1.1l5.2.8a.5.5 0 0 1 .3.9l-3.8 3.7a2 2 0 0 0-.6 1.9l.9 5.2a.5.5 0 0 1-.8.6l-4.6-2.5a2 2 0 0 0-2 0l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2a2 2 0 0 0-.6-1.9L2.1 9.8a.5.5 0 0 1 .3-.9l5.2-.8a2 2 0 0 0 1.6-1.1Z"/>',
+    spark: '<path d="M9.9 15.5A2 2 0 0 0 8.5 14.1l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0Z"/>',
+    lang: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>'
+  };
+  var svg = function (k) { return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + I[k] + "</svg>"; };
+  var TABS = [["mic", "练习"], ["chat", "对话"], ["rooms", "联机"], ["lib", "跟读库"], ["me", "我的"]];
+  function tabbar(active) {
+    return '<nav class="tab" aria-label="主导航">' + TABS.map(function (t, i) {
+      return '<a href="#" class="' + (i === active ? "on" : "") + '">' + svg(t[0]) + t[1] + "</a>";
+    }).join("") + "</nav>";
+  }
+  function bar(kind, mode) {
+    var label = mode === "t" ? svg("lang") + "翻译" : svg("search") + "查词";
+    var star = mode === "t" ? "" : '<span class="btn-ic" aria-label="加入生词本">' + svg("star") + "</span>";
+    return '<div class="' + (kind === "old" ? "bar-old" : "bar-new") + '" role="toolbar" aria-label="选词操作"><span class="btn-pri">' + label + '</span><span class="btn-ic" aria-label="朗读">' + svg("vol") + "</span>" + star + "</div>";
+  }
+  function phone(inner) { return '<div class="phone"><div class="sb"><span>9:41</span><span>5G</span></div>' + inner + '<div class="home"></div></div>'; }
+  function spec(kind, title, inner, cap) {
+    return '<div class="spec ' + (kind === "old" ? "is-old" : "is-new") + '"><h3><span class="tag' + (kind === "old" ? "" : " new") + '">' + (kind === "old" ? "当前" : "新") + "</span>" + title + "</h3>" + phone(inner) + (cap ? '<p class="cap">' + cap + "</p>" : "") + "</div>";
+  }
+
+  /* ---------- 学新词页 ---------- */
+  function learn(selected) {
+    var gov = selected ? '<span class="hl">government</span>' : "government";
+    return '<div class="scroll"><div class="col"><div class="hdr glass-bar"><div class="in"><span class="btn-ic">' + svg("x") + '</span><div class="steps"><i class="d"></i><i class="d"></i><i class="d"></i><i></i><i></i><i></i><i></i><i></i></div></div></div>' +
+      '<div class="wcard"><div class="eb">新词 · 3 / 8</div><div class="hw">country</div>' +
+      '<div class="phs"><span class="phb"><b>' + svg("vol") + '</b><small>美</small>ˈkʌntri</span><span class="phb"><b>' + svg("vol") + '</b><small>英</small>ˈkʌntri</span></div>' +
+      '<ul class="den"><li><em>n.</em> a nation with its own ' + gov + ', occupying a particular territory; the people of a nation</li><li><em>n.</em> an area of land outside cities and towns</li><li><em>adj.</em> connected with or typical of the countryside</li></ul>' +
+      '<div class="ex">She has lived in this <mark>country</mark> for ten years.<div class="z">她在这个国家住了十年。</div><div class="lis">' + svg("vol") + "听例句 · 隐藏中文</div></div>" +
+      '<div class="phrs"><div class="s">短语<span>⌃</span></div><p><b>country music</b> <span>乡村音乐</span></p><p><b>across the country</b> <span>全国各地</span></p><p><b>country house</b> <span>乡间别墅</span></p></div></div>' +
+      '<div style="height:16px"></div><div class="dock glass"><span class="rb">不认识</span><span class="rb">模糊</span><span class="rb ok">认识</span></div></div></div>';
+  }
+  function learnRow() {
+    var row = document.getElementById("row-learn");
+    var oldInner = learn(true) +
+      '<div class="nat" style="left:150px;top:206px"><span>复制</span><span>全选</span><span>分享</span></div>' +
+      '<div class="finger" style="left:241px;top:268px"></div>' +
+      '<div class="note" style="top:560px">当前:释义 / 例句 / 短语没有「可查词」标记,系统选中了词,但我们的查词条<b>不出现</b>(iOS 上同理只有系统菜单)。</div>' +
+      tabbar(0);
+    var newInner = learn(true) + '<div class="finger" style="left:241px;top:268px"></div>' + bar("new") + tabbar(0);
+    row.innerHTML = spec("old", "长按英文释义:只有系统菜单", oldInner) +
+      spec("new", "长按 450ms → 选中词 → 玻璃操作条", newInner,
+        "手指下的 <code>government</code> 被选中(蓝色高亮),操作条立刻浮在 Tab 栏上方 8px。DOCK「不认识 / 模糊 / 认识」与 Tab 栏不受影响。系统的复制菜单是否同时出现取决于浏览器(D3)。");
+  }
+
+  /* ---------- 抽屉 ---------- */
+  function drawerBody(state, kind) {
+    var head = '<div class="grab"><i></i></div><span class="x">' + svg("x") + '</span><div class="lk-title">government</div>';
+    if (state === "loading") return head + '<div class="spin" aria-label="加载中"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:90%"></div><div class="sk" style="width:55%"></div>' +
+      '<div class="acts"><span class="btn-out" style="opacity:.5">翻译整句</span></div>';
+    if (state === "ai") return head + '<div class="src">AI 释义 · 词典里没有</div>' +
+      '<div class="wd">government<span class="ph">/ˈɡʌvərnmənt/</span> <span class="ph" style="font-family:inherit">noun</span></div>' +
+      '<p style="margin-top:6px;font-size:14.5px">the group of people with the authority to govern a country or state</p>' +
+      '<p style="margin-top:6px;font-weight:600">政府</p><p class="ctx">一个拥有自己政府、占有特定领土的国家</p>' +
+      '<div class="acts"><span class="btn-out">翻译整句</span></div><div class="acts" style="margin-top:8px"><span class="btn-out pri">' + svg("star") + "加入生词本</span></div>";
+    var zhOn = state === "dictzh";
+    return head + '<div class="src">词典</div>' +
+      '<div class="wd">government<span class="ph">/ˈɡʌvərnmənt/</span></div>' +
+      (zhOn ? '<ul class="defs"><li><em>n.</em>政府;政体;治理</li></ul>' : "") +
+      '<ul class="defs" style="color:var(--ink-2);font-size:13.5px"><li><em>n.</em>the group of people who officially control a country</li><li><em>n.</em>the activity or manner of controlling a country</li></ul>' +
+      '<span class="zh-chip" aria-pressed="' + zhOn + '">中文</span>' +
+      '<div class="phr"><p class="k">短语</p><p><b>local government</b>' + (zhOn ? "<span>地方政府</span>" : "") + '</p><p><b>government policy</b>' + (zhOn ? "<span>政府政策</span>" : "") + "</p></div>" +
+      '<div class="acts"><span class="btn-out">' + svg("spark") + "AI 结合语境讲解</span></div>" +
+      '<div class="acts" style="margin-top:8px"><span class="btn-out">翻译整句</span><span class="btn-out pri">' + svg("star") + "加入生词本</span></div>";
+  }
+  function drawer(kind, state) {
+    var sheet = kind === "old" ? '<div class="scrim-old"></div><div class="sheet-old">' : '<div class="scrim-new"></div><div class="sheet-new">';
+    return learn(false) + tabbar(0) + sheet + drawerBody(state, kind) + "</div>";
+  }
+  function drawerRow() {
+    var row = document.getElementById("row-drawer");
+    row.innerHTML =
+      spec("old", "词典命中 · 实底白色 + 深遮罩", drawer("old", "dict"), "现在:贴底全宽、上方圆角 20、实心 surface、遮罩 32%(深色 55%),后面的页面几乎看不见。") +
+      spec("new", "加载中", drawer("new", "loading"), "悬浮玻璃卡片:左右 8px、四角 28、36px 模糊;遮罩 14%,能看到后面的学新词页。加载时只有转圈与占位条。") +
+      spec("new", "词典命中 ·「中文」未按", drawer("new", "dict"), "「仅英文」偏好:中文释义与短语译文藏在「中文」按钮后面(行为不变,只换样式)。按钮、「AI 讲解」「翻译整句」是半透明小井,不再各自模糊。") +
+      spec("new", "词典命中 ·「中文」已按", drawer("new", "dictzh"), "按下「中文」:中文释义行出现,短语带译文;按钮变蓝底。下一次查词自动复位。") +
+      spec("new", "词典没有 → AI 释义", drawer("new", "ai"), "词典未命中静默改用 AI(现有逻辑),来源小标签写「AI 释义」,语境译文左侧细线。");
+  }
+
+  /* ---------- 换背景 ---------- */
+  function library(withBar, withSheet, kind) {
+    var segs = [
+      ["Before we go, I want to tell you something.", "走之前,我想告诉你一件事。"],
+      ["I think the <span class=\"hl\">train</span> is slowing down.", "我想火车在减速。", true],
+      ["Do you want to get off here with me?", "你愿意和我一起在这里下车吗?"],
+      ["It's crazy, but I mean it.", "这很疯狂,但我是认真的。"],
+      ["We could just walk around the city.", "我们可以就在城里随便走走。"]
+    ].map(function (s) { return '<div class="seg' + (s[2] ? " on" : "") + '">' + s[0] + "<small>" + s[1] + "</small></div>"; }).join("");
+    var inner = '<div class="scroll"><div class="lib col"><div class="aurora"><i></i><i></i><i></i></div><div class="poster">Before Sunrise · train scene</div>' + segs +
+      '<div class="thumbs"><i style="background:linear-gradient(135deg,#ffd23f,#ff8a00)"></i><i style="background:linear-gradient(135deg,#0a1a3d,#24386e)"></i><i style="background:linear-gradient(135deg,#6a3df0,#c26bd6)"></i><i style="background:linear-gradient(135deg,#f5f5f5,#cfd6e4)"></i></div><div style="height:60px"></div></div></div>';
+    if (withBar) inner += bar(kind);
+    inner += tabbar(3);
+    if (withSheet) inner += '<div class="scrim-new"></div><div class="sheet-new">' + drawerBody("dict", "new").replace(/government/g, "train").replace("/ˈɡʌvərnmənt/", "/treɪn/") + "</div>";
+    return inner;
+  }
+  function chatPage(kind) {
+    var m = [
+      ["ai", "Hi! How was your weekend? Did you do anything fun?"],
+      ["me", "I went hiking with my friends near the lake."],
+      ["img"],
+      ["ai", "Great photo! Try saying: “The view from the top was <span class=\"hl\">breathtaking</span>.”"],
+      ["me", "The view from the top was breathtaking."],
+      ["ai", "Perfect. Next, tell me what you ate for lunch."]
+    ].map(function (x) { return x[0] === "img" ? '<div class="b ai img"></div>' : '<div class="b ' + x[0] + '">' + x[1] + "</div>"; }).join("");
+    return '<div class="scroll" style="bottom:var(--space);padding-bottom:72px"><div class="hdr glass-bar"><div class="in" style="justify-content:center;font-weight:600">Emma · Daily chat</div></div><div class="msgs">' + m + "</div></div>" +
+      '<div class="composer glass"><div class="hold">按住 说话</div></div>' + bar(kind) + tabbar(1);
+  }
+  function bgRow() {
+    var row = document.getElementById("row-bg");
+    row.innerHTML =
+      spec("old", "跟读库句子 · 当前操作条", library(true, false, "old"), "") +
+      spec("new", "跟读库句子 · 玻璃操作条", library(true, false, "new"), "海报与极光从胶囊下透出;跟读库已有 3 层模糊,实现里这里的操作条会改用不模糊的实底(D7),此处为了比较仍画成模糊。") +
+      spec("new", "跟读库 · 玻璃抽屉", library(false, true, "new"), "抽屉压在海报上:B 方案 55% 底色 + 36px 模糊下,释义行仍可读(请在 A / C 间切换对比)。") +
+      spec("old", "对话 · 当前操作条", chatPage("old"), "") +
+      spec("new", "对话 · 玻璃操作条", chatPage("new"), "操作条在 Tab 栏上方 8px,与输入条同高度区域时盖在输入条之上(z-40 > z-30,与现在相同)。");
+  }
+
+  function setOpt(key, v) {
+    if (key === "theme") document.documentElement.setAttribute("data-theme", v);
+    else document.body.setAttribute("data-" + key, v);
+    document.querySelectorAll('.grp[data-key="' + key + '"] .tb').forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+  }
+  document.querySelectorAll(".grp").forEach(function (g) {
+    var key = g.getAttribute("data-key");
+    g.addEventListener("click", function (e) { var b = e.target.closest(".tb"); if (b) setOpt(key, b.getAttribute("data-v")); });
+  });
+  learnRow(); drawerRow(); bgRow();
+  document.querySelectorAll("#row-bg .phone .scroll").forEach(function (el, i) { if (i >= 3) el.scrollTop = el.scrollHeight; });
+  var init = { look: "both", theme: "light", tint: "b", lite: "off", rt: "off", nosupport: "off" };
+  try { var q = new URLSearchParams(location.search); Object.keys(init).forEach(function (k) { if (q.get(k)) init[k] = q.get(k); }); } catch (e) { /* 无 URL 参数时用默认 */ }
+  Object.keys(init).forEach(function (k) { setOpt(k, init[k]); });
+})();
+</script>
+</body>
+</html>
