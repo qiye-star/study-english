@@ -191,6 +191,13 @@ def normalize_plan(info: ProbeInfo, out_dir: Path, max_height: int) -> tuple[lis
     return args + ["-movflags", "+faststart", "-f", "mp4", str(out)], Normalized(out, "audio/mp4", "audio")
 
 
+def audio_only_plan(out_dir: Path) -> tuple[list[str], Normalized]:
+    """Curated catalog (spec 2026-10-14-curated-library D4): always re-encode to mono AAC 64 kbps m4a."""
+    out = out_dir / "media.m4a"
+    return (["-vn", "-map", "0:a:0", "-ac", "1", "-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart",
+             "-f", "mp4", str(out)], Normalized(out, "audio/mp4", "audio"))
+
+
 class Ffmpeg:
     def __init__(self, ffmpeg: str = "ffmpeg", ffprobe: str = "ffprobe"):
         self.ffmpeg = ffmpeg
@@ -218,6 +225,16 @@ class Ffmpeg:
 
         cmd = [*self._base(), "-nostats", "-progress", "pipe:1", "-i", str(src), "-threads", THREADS, *args]
         done = await run(cmd, timeout=timeout_for(info.duration_ms), env=safe_env(home), on_stdout_line=on_line)
+        if done.timed_out:
+            raise LibraryError("unsupported_format")
+        if done.returncode != 0 or not result.path.is_file():
+            raise LibraryError(_failure_kind(done.stderr, "unsupported_format"))
+        return result
+
+    async def audio_only(self, src: Path, out_dir: Path, *, duration_ms: int, home: Path) -> Normalized:
+        args, result = audio_only_plan(out_dir)
+        cmd = [*self._base(), "-nostats", "-i", str(src), "-threads", THREADS, *args]
+        done = await run(cmd, timeout=timeout_for(duration_ms), env=safe_env(home))
         if done.timed_out:
             raise LibraryError("unsupported_format")
         if done.returncode != 0 or not result.path.is_file():

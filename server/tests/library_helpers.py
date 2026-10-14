@@ -60,6 +60,12 @@ class FakeTools:
         out.write_bytes(src.read_bytes())
         return Normalized(out, "video/mp4" if info.has_video else "audio/mp4", "video" if info.has_video else "audio")
 
+    async def audio_only(self, src, out_dir, *, duration_ms, home):
+        self._check("audio_only")
+        out = out_dir / "media.m4a"
+        out.write_bytes(src.read_bytes())
+        return Normalized(out, "audio/mp4", "audio")
+
     async def poster(self, media, dst, duration_ms, *, home) -> bool:
         self._check("poster")
         dst.write_bytes(b"\xff\xd8\xff\xe0fake-jpeg")

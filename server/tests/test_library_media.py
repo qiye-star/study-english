@@ -181,3 +181,20 @@ async def test_real_garbage_is_corrupt(tmp_path):
     with pytest.raises(LibraryError) as e:
         await Ffmpeg().probe(src, home=tmp_path)
     assert e.value.kind == "corrupt"
+
+
+def test_audio_only_plan_is_mono_64k_m4a(tmp_path):
+    from app.library.media import audio_only_plan
+    args, result = audio_only_plan(tmp_path)
+    assert args == ["-vn", "-map", "0:a:0", "-ac", "1", "-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart",
+                    "-f", "mp4", str(tmp_path / "media.m4a")]
+    assert (result.path, result.mime, result.kind) == (tmp_path / "media.m4a", "audio/mp4", "audio")
+
+
+async def test_fake_tools_audio_only_writes_the_file(tmp_path):
+    from tests.library_helpers import FakeTools, fake_media
+    src = tmp_path / "in.mp4"
+    src.write_bytes(fake_media())
+    tools = FakeTools()
+    out = await tools.audio_only(src, tmp_path, duration_ms=6000, home=tmp_path)
+    assert out.path.read_bytes() == src.read_bytes() and tools.calls == ["audio_only"]
