@@ -6,6 +6,8 @@
       "after": {
         "title": "学习内容",
         "hint": "双击选项可查词",
+        "zh": "中文",
+        "longPressHint": "长按选项里的单词可查询",
         "correct": "正确答案",
         "yours": "你选的"
       },

@@ -14,8 +14,9 @@ type Phrase = { en: string; zh: string };
  * 所以挂载时刻 = 遮罩 → 翻开的那一刻;本机偏好不是 false 就展开。展开时标题行不再重复第一条短语。
  * 只有 "auto" 模式把手动开合写入本机(否则在复习页展开再收起会让学新词页从此不再自动展开)。
  * 收起状态的 DOM 与改动前逐字节相同(word-card-legacy 金标准)。
+ * `showZh`(默认 true):false = 不显示短语译文(复习页答后区「中文」未按下时,计划 2026-10-14 R-Z3);true 时 DOM 与改动前逐字节相同。
  */
-export function PhrasesSection({ phrases, mode }: { phrases: readonly Phrase[]; mode: PhrasesOpen }) {
+export function PhrasesSection({ phrases, mode, showZh = true }: { phrases: readonly Phrase[]; mode: PhrasesOpen; showZh?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState<boolean>(() => (mode === "auto" ? readPhrasesPref() !== false : mode));
   if (phrases.length === 0) return null;
@@ -31,13 +32,13 @@ export function PhrasesSection({ phrases, mode }: { phrases: readonly Phrase[]; 
         className="flex min-h-tap cursor-pointer list-none items-center justify-between text-sub text-ink-2 [&::-webkit-details-marker]:hidden">
         <span className="truncate">
           {t("web.wordbook.word.phrases")}
-          {open ? null : <> · <span lang="en">{first.en}</span> {first.zh}</>}
+          {open ? null : showZh ? <> · <span lang="en">{first.en}</span> {first.zh}</> : <> · <span lang="en">{first.en}</span></>}
         </span>
         <ChevronDownIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3 transition-transform duration-fast group-open:rotate-180" />
       </summary>
       <ul className="space-y-1 pb-1 text-sub">
         {phrases.slice(0, MAX_PHRASES).map((p, i) => (
-          <li key={i}><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></li>
+          <li key={i}>{showZh ? <><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></> : <span lang="en" className="font-medium text-ink">{p.en}</span>}</li>
         ))}
       </ul>
     </details>
