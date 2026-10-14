@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -270,5 +270,66 @@ describe("LookupLayer", () => {
     await userEvent.click(screen.getByTestId("lookup-switch-mode"));
     await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveTextContent("a quote"));
     expect(screen.queryByTestId("lookup-vocab")).toBeNull();
+  });
+});
+
+describe("LookupLayer: a press on the bar survives Android collapsing the native selection", () => {
+  beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+  const collapse = async () => {
+    await act(async () => {
+      window.getSelection()!.removeAllRanges();
+      document.dispatchEvent(new Event("selectionchange"));
+      await new Promise((r) => setTimeout(r, 400)); // longer than the 300 ms debounce
+    });
+  };
+  const mountMock = () => {
+    const mock = createFetchMock({
+      "POST /api/dictionary/lookup": () => json({ hit: false }),
+      "POST /api/ai/chat/completions": () => json({ choices: [{ message: { content: '{"word":"country","pos":"noun","definition":"a nation","translation":"国家"}' } }] }),
+    });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+  };
+
+  it("touch press, selection collapses, release, click: the bar stays and the lookup opens", async () => {
+    mountMock();
+    await selectText("country");
+    const trigger = await screen.findByTestId("lookup-trigger");
+    fireEvent.touchStart(trigger);
+    fireEvent.pointerDown(trigger, { pointerType: "touch" });
+    await collapse(); // what Chrome on Android does to the selection while the finger is down
+    expect(screen.getByTestId("lookup-bar")).toBeInTheDocument();
+    fireEvent.pointerUp(trigger, { pointerType: "touch" });
+    fireEvent.touchEnd(trigger);
+    await collapse(); // a late collapse right after release, before the click lands
+    expect(screen.getByTestId("lookup-bar")).toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(await screen.findByTestId("lookup-drawer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("lookup-result")).toHaveAttribute("data-status", "done"));
+    expect(screen.getByTestId("lookup-drawer")).toHaveTextContent("country"); // opened with the latched selection
+  });
+
+  it("a collapse with no press on the bar still hides it (tap elsewhere)", async () => {
+    mountMock();
+    await selectText("country");
+    await screen.findByTestId("lookup-bar");
+    await collapse();
+    expect(screen.queryByTestId("lookup-bar")).toBeNull();
+  });
+
+  it("a press that never turns into a click lets go: the bar hides once the selection is really gone", async () => {
+    mountMock();
+    await selectText("country");
+    const trigger = await screen.findByTestId("lookup-trigger");
+    fireEvent.pointerDown(trigger, { pointerType: "touch" });
+    await collapse();
+    fireEvent.pointerCancel(trigger, { pointerType: "touch" });
+    await act(async () => { await new Promise((r) => setTimeout(r, 900)); });
+    expect(screen.queryByTestId("lookup-bar")).toBeNull();
+  });
+
+  it("the bar is not text-selectable (a press cannot start a new selection)", async () => {
+    mountMock();
+    await selectText("country");
+    expect(await screen.findByTestId("lookup-bar")).toHaveClass("select-none");
   });
 });

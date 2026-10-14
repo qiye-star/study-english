@@ -34,7 +34,7 @@ export const BubbleAction = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<H
 
 /** 气泡动作行:贴着气泡内边距向外扩(设计稿 margin 4px -8px -6px)。 */
 export function BubbleActions({ children }: { children: ReactNode }) {
-  return <div className="-mx-2 -mb-1.5 mt-1 flex flex-wrap gap-1">{children}</div>;
+  return <div data-testid="bubble-actions" className="-mx-2 -mb-1.5 mt-1 flex select-none flex-wrap gap-1">{children}</div>;
 }
 
 export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled, partnerName, before, after, note }: {

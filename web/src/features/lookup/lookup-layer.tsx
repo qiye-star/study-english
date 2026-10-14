@@ -30,7 +30,7 @@ export function LookupLayer() {
   const { api } = useAuth();
   const { language } = useSettings();
   const { t } = useTranslation();
-  const { selection, clear } = useTextSelection();
+  const { selection, clear, press, release } = useTextSelection();
   const prefetched = useDictionaryPrefetch(selection);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<TextSelectionInfo | null>(null);
@@ -155,7 +155,7 @@ export function LookupLayer() {
 
   return (
     <>
-      {selection && suggested && !open && <LookupBar selection={selection} suggested={suggested} entry={prefetched} onOpen={openFor} />}
+      {selection && suggested && !open && <LookupBar selection={selection} suggested={suggested} entry={prefetched} onOpen={openFor} onPress={press} onRelease={release} />}
       <BottomSheet open={open} onOpenChange={onOpenChange}>
         <BottomSheetContent data-testid="lookup-drawer"
           className="max-h-[70dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">

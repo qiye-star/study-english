@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeSelection } from "./lookup";
 
 export interface TextSelectionInfo {
@@ -36,40 +36,76 @@ function boundContext(raw: string, start: number, end: number): string {
 
 export function readSelection(selection: Selection | null): TextSelectionInfo | null {
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
-  const text = normalizeSelection(selection.toString());
-  if (!text) return null;
-  const anchor = elementOf(selection.anchorNode)?.closest(LOOKUP_CONTEXT_SELECTOR);
-  const focus = elementOf(selection.focusNode)?.closest(LOOKUP_CONTEXT_SELECTOR);
-  if (!anchor || anchor !== focus) return null;
+  const anchor = elementOf(selection.anchorNode)?.closest(LOOKUP_CONTEXT_SELECTOR) ?? null;
+  const focus = elementOf(selection.focusNode)?.closest(LOOKUP_CONTEXT_SELECTOR) ?? null;
+  const ctx = anchor ?? focus;
+  if (!ctx || (anchor && focus && anchor !== focus)) return null;
   if (elementOf(selection.anchorNode)?.closest(EDITABLE_SELECTOR) || elementOf(selection.focusNode)?.closest(EDITABLE_SELECTOR)) return null;
-  const raw = anchor.textContent ?? "";
-  const range = selection.getRangeAt(0);
+  // Android can let one end land just outside the text (action row, bubble padding): clamp it to the context. Two different contexts still reject.
+  const range = selection.getRangeAt(0).cloneRange();
+  if (!ctx.contains(range.startContainer)) range.setStart(ctx, 0);
+  if (!ctx.contains(range.endContainer)) range.setEnd(ctx, ctx.childNodes.length);
+  const text = normalizeSelection(range.toString());
+  if (!text) return null;
+  const raw = ctx.textContent ?? "";
   const before = document.createRange();
-  before.selectNodeContents(anchor);
+  before.selectNodeContents(ctx);
   before.setEnd(range.startContainer, range.startOffset);
   const start = before.toString().length;
   const context = boundContext(raw, start, start + range.toString().length);
   return { text: text.slice(0, MAX_TEXT), context };
 }
 
-/** Reports the selection only after it has been stable for `debounceMs` (handle dragging fires selectionchange continuously). */
+/** After a press on the bar ends, selectionchange events this long still do not clear the selection (the click lands after the release). */
+const PRESS_GRACE_MS = 600;
+
+/**
+ * Reports the selection only after it has been stable for `debounceMs` (handle dragging fires selectionchange continuously).
+ *
+ * Android Chrome collapses the native selection when a finger touches anything that is not selected text, which would unmount the
+ * action bar before its click lands. `press()` / `release()` (called by the bar) latch the current selection: while a press is in
+ * flight, and for PRESS_GRACE_MS after it, selectionchange does not update (so does not clear) it. After the grace the real native
+ * selection is read again, so a press that never became a click does not leave a stale bar.
+ */
 export function useTextSelection(debounceMs = 300, doc: Document = document) {
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
+  const pressing = useRef(false);
+  const graceUntil = useRef(0);
+  const graceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const held = () => pressing.current || Date.now() < graceUntil.current;
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onChange = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => setSelection(readSelection(doc.getSelection())), debounceMs);
+      timer = setTimeout(() => {
+        if (held()) return;
+        setSelection(readSelection(doc.getSelection()));
+      }, debounceMs);
     };
     doc.addEventListener("selectionchange", onChange);
     return () => {
       clearTimeout(timer);
+      clearTimeout(graceTimer.current);
       doc.removeEventListener("selectionchange", onChange);
     };
   }, [debounceMs, doc]);
+  const press = useCallback(() => {
+    pressing.current = true;
+    clearTimeout(graceTimer.current);
+  }, []);
+  const release = useCallback(() => {
+    if (!pressing.current) return;
+    pressing.current = false;
+    graceUntil.current = Date.now() + PRESS_GRACE_MS;
+    clearTimeout(graceTimer.current);
+    graceTimer.current = setTimeout(() => setSelection(readSelection(doc.getSelection())), PRESS_GRACE_MS + 20);
+  }, [doc]);
   const clear = useCallback(() => {
+    pressing.current = false;
+    graceUntil.current = 0;
+    clearTimeout(graceTimer.current);
     setSelection(null);
     doc.getSelection()?.removeAllRanges();
   }, [doc]);
-  return { selection, clear };
+  return { selection, clear, press, release };
 }

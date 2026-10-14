@@ -91,6 +91,22 @@ describe("readSelection", () => {
   });
 });
 
+describe("readSelection one-sided spill", () => {
+  afterEach(() => { window.getSelection()?.removeAllRanges(); document.body.innerHTML = ""; });
+  it("clamps a selection whose far end lands outside any context to the context of the other end", () => {
+    document.body.innerHTML = `<div id="bubble"><div data-lookup-context id="ctx"><p>Hello wonderful world</p></div><div id="actions"><button>Listen</button></div></div>`;
+    const text = document.querySelector("#ctx p")!.firstChild!;
+    const label = document.querySelector("#actions button")!.firstChild!;
+    expect(readSelection(select(text, 6, label, 3))).toEqual({ text: "wonderful world", context: "Hello wonderful world" });
+  });
+  it("still rejects selections spanning two different contexts", () => {
+    setup();
+    const a = document.getElementById("a")!.firstChild!;
+    const b = document.getElementById("b")!.firstChild!;
+    expect(readSelection(select(a, 0, b, 3))).toBeNull();
+  });
+});
+
 describe("useTextSelection", () => {
   afterEach(() => { window.getSelection()?.removeAllRanges(); document.body.innerHTML = ""; });
 
@@ -118,6 +134,23 @@ describe("useTextSelection", () => {
     expect(result.current.selection).toBeNull();
     act(() => vi.advanceTimersByTime(300));
     expect(result.current.selection?.text).toBe("Ask not");
+    vi.useRealTimers();
+  });
+  it("ignores a collapse while a press is in flight and for a grace after, then reads the real selection", () => {
+    vi.useFakeTimers();
+    setup();
+    const { result } = renderHook(() => useTextSelection(300));
+    const a = document.getElementById("a")!.firstChild!;
+    act(() => { select(a, 0, a, 3); document.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(300); });
+    expect(result.current.selection?.text).toBe("Ask");
+    act(() => result.current.press());
+    act(() => { window.getSelection()!.removeAllRanges(); document.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(1000); });
+    expect(result.current.selection?.text).toBe("Ask");
+    act(() => result.current.release());
+    act(() => { document.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(300); });
+    expect(result.current.selection?.text).toBe("Ask"); // still inside the grace
+    act(() => vi.advanceTimersByTime(400));
+    expect(result.current.selection).toBeNull(); // grace over: the real (collapsed) selection wins
     vi.useRealTimers();
   });
 });

@@ -1,6 +1,13 @@
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@renderer/lib/utils";
+
+// 模块级常量:内联对象每次渲染都是新引用,会让 react-markdown 换掉链接节点,把落在链接里的选区弄丢。
+const REMARK = [remarkGfm];
+const DISALLOWED = ["img"];
+const COMPONENTS: Components = {
+  a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
+};
 
 /**
  * 轻量 Markdown(桌面的 markdown-wrapper 依赖 EnjoyApp,不能复用)。
@@ -10,11 +17,7 @@ import { cn } from "@renderer/lib/utils";
 export function MarkdownText({ content, className }: { content: string; className?: string }) {
   return (
     <div className={cn("prose prose-sm max-w-none break-words dark:prose-invert", className)}>
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        disallowedElements={["img"]}
-        components={{ a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" /> }}
-      >
+      <Markdown remarkPlugins={REMARK} disallowedElements={DISALLOWED} components={COMPONENTS}>
         {content}
       </Markdown>
     </div>

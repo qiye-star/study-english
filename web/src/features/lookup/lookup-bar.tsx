@@ -12,13 +12,17 @@ const keep = (e: { preventDefault: () => void }) => e.preventDefault(); // 点�
 
 /**
  * 选中后的底部操作条(spec D6):查词(长句为「翻译」)· 朗读(扩展点 selectionActions)· 加入生词本(<WordActions>,只对单词 / 短语)。
- * 点击不抢焦点(preventDefault),沿用原触发按钮的位置与 data-testid="lookup-trigger"。
+ * 点击不抢焦点(pointerdown/mousedown 的 preventDefault;不拦 touchstart,否则 click 不会触发)。按下期间经 onPress/onRelease 锁住选区(见 useTextSelection)。
+沿用原触发按钮的位置与 data-testid="lookup-trigger"。
  */
-export function LookupBar({ selection, suggested, entry, onOpen }: {
+export function LookupBar({ selection, suggested, entry, onOpen, onPress, onRelease }: {
   selection: TextSelectionInfo;
   suggested: LookupMode;
   entry: DictEntry | null | undefined;
   onOpen: (info: TextSelectionInfo) => void;
+  /** 手指按下 / 抬起(含取消):Android 会在按下时收起原生选区,调用方据此在这段时间里保住选区。 */
+  onPress?: () => void;
+  onRelease?: () => void;
 }) {
   const { t } = useTranslation();
   const target = useMemo(
@@ -27,8 +31,11 @@ export function LookupBar({ selection, suggested, entry, onOpen }: {
   );
   return (
     <div role="toolbar" aria-label={t("web.lookup.barLabel")} data-testid="lookup-bar"
-      className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-surface p-1 shadow-lg"
-      onPointerDown={keep} onMouseDown={keep}>
+      className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-surface p-1 shadow-lg select-none"
+      onPointerDown={(e) => { onPress?.(); keep(e); }} onMouseDown={keep}
+      onTouchStart={() => onPress?.()}
+      onPointerUp={() => onRelease?.()} onPointerCancel={() => onRelease?.()}
+      onTouchEnd={() => onRelease?.()} onTouchCancel={() => onRelease?.()}>
       <Button data-testid="lookup-trigger" className="h-11 rounded-full px-4" onClick={() => onOpen(selection)}>
         {suggested === "lookup" ? <SearchIcon className="mr-1.5 h-4 w-4" /> : <LanguagesIcon className="mr-1.5 h-4 w-4" />}
         {suggested === "lookup" ? t("web.lookup.lookup") : t("web.lookup.translate")}

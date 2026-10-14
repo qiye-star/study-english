@@ -21,4 +21,10 @@ describe("MarkdownText", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector("script")).toBeNull();
   });
+  it("keeps link DOM nodes across re-renders (a selection inside a link survives)", () => {
+    const { container, rerender } = render(<MarkdownText content="see [the link](https://example.com) here" />);
+    const text = container.querySelector("a")!.firstChild!;
+    rerender(<MarkdownText content="see [the link](https://example.com) here" />);
+    expect(text.isConnected).toBe(true);
+  });
 });

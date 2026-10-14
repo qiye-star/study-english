@@ -31,3 +31,4 @@ Public (`index.ts`): pages, `useTtsPlayer`/`ttsErrorMessage`/`TtsState`, `useMes
 - `sentence-stream.ts` must agree with `server/tests/fixtures/sentence_cases.json`.
 - No playback while recording (`claimAudio` from `~/audio/audio-focus`).
 - Practice entries (hints in `conversation-page.tsx`, `grammar-details.tsx`, `recap-sheet.tsx`, `turn-detail-sheet.tsx`, `sentence-practice-sheet.tsx`) close their own sheet and then call `useShadowSheet().open(...)` from `~/features/practice`; they no longer `goPractice`. The sentence list passes only practicable sentences (≤ `MAX_PRACTICE_TEXT`) as `list`. Tests that tap these buttons wrap the UI in `WithShadowSheet` (`~/features/practice/shadow/test-utils`).
+- `BubbleActions` is `select-none` so a long-press selection cannot start in or spill into the action row (the lookup bar's `readSelection` also clamps a one-sided spill).
