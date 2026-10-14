@@ -24,14 +24,14 @@ const keys = (r: Record<string, true>) => Object.keys(r).sort();
 const keysOf = (o: object) => Object.keys(o).sort();
 const cc = <T>(v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as T;
 
-const CONFIG: Record<keyof LibraryConfig, true> = { enabled: true, linkImport: true, asr: true, ai: true, limits: true };
+const CONFIG: Record<keyof LibraryConfig, true> = { enabled: true, linkImport: true, asr: true, ai: true, catalog: true, limits: true };
 const LIMITS: Record<keyof LibraryLimits, true> = {
   maxUploadMb: true, maxDurationMinutes: true, quotaMb: true, usedBytes: true, maxItems: true, chunkBytes: true, formats: true,
 };
 const ITEM: Record<keyof LibraryItem, true> = {
   id: true, kind: true, source: true, title: true, status: true, stage: true, progress: true, errorKind: true, durationMs: true,
   segCount: true, libraryBytes: true, subSource: true, resumeMs: true, resumeIdx: true, ratePct: true, hasPoster: true,
-  lowConfidence: true, rebuildable: true, createdAt: true, lastOpenedAt: true,
+  lowConfidence: true, rebuildable: true, catalogId: true, createdAt: true, lastOpenedAt: true,
 };
 const DETAIL: Record<keyof LibraryItemDetail, true> = { ...ITEM, segments: true };
 const SEGMENT: Record<keyof LibrarySegment, true> = {

@@ -6,7 +6,7 @@ import { AddSheet } from "./add-sheet";
 import type { LibraryConfig } from "./library-api";
 
 const CONFIG: LibraryConfig = {
-  enabled: true, linkImport: false, asr: true, ai: false,
+  enabled: true, linkImport: false, asr: true, ai: false, catalog: false,
   limits: { maxUploadMb: 500, maxDurationMinutes: 90, quotaMb: 2000, usedBytes: 0, maxItems: 100, chunkBytes: 8388608, formats: ["mp4", "mp3"] },
 };
 

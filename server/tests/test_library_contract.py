@@ -17,7 +17,7 @@ LLM = "https://llm.test/v1/chat/completions"
 
 @pytest.fixture
 def settings_overrides(tmp_path):
-    return library_settings(tmp_path, library_ai_enabled=True, library_asr_enabled=True)
+    return library_settings(tmp_path, library_ai_enabled=True, library_asr_enabled=True, library_catalog_enabled=True)
 
 
 @respx.mock
@@ -76,6 +76,15 @@ async def test_library_contract(app, client, auth_headers, monkeypatch):
     out["rebuild_error"] = (await client.post(f"/api/library/items/{item_id}/rebuild", headers=h)).json()
     out["reprocess_error"] = (await client.post(f"/api/library/items/{item_id}/reprocess", headers=h)).json()
     out["reprocess"] = (await client.post(f"/api/library/items/{asr_id}/reprocess", headers=h)).json()
+    from tests.catalog_helpers import make_catalog
+    cid = await make_catalog(app)
+    out["catalog_list"] = (await client.get("/api/library/catalog", headers=h)).json()
+    out["catalog_add"] = (await client.post(f"/api/library/catalog/{cid}/add", headers=h)).json()
+    out["catalog_add_again"] = (await client.post(f"/api/library/catalog/{cid}/add", headers=h)).json()
+    out["catalog_locked"] = (await client.post(f"/api/library/items/{out['catalog_add']['item']['id']}/reprocess",
+                                               headers=h)).json()
+    assert out["catalog_add"]["created"] is True and out["catalog_add_again"]["created"] is False
+    assert out["catalog_locked"] == {"error": "Built-in items cannot be changed this way"}
     out["delete"] = (await client.delete(f"/api/library/items/{item_id}", headers=h)).json()
     assert out["item_detail"]["item"]["status"] == "ready" and out["error_example"] == {"error": "Item has not failed"}
     assert out["reprocess"]["item"]["status"] == "queued" and out["reprocess_error"] == {"error": "Item cannot be reprocessed"}

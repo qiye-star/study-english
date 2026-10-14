@@ -22,16 +22,18 @@ export interface LibraryConfig {
   asr: boolean;
   /** D8:是否允许生成译文与句子分析(spec §5.2 `library_ai_enabled`);关 = 网页不显示「译」与「分析」 */
   ai: boolean;
+  /** 精选库对用户可见(spec 2026-10-14-curated-library E12) */
+  catalog: boolean;
   limits: LibraryLimits | null;
 }
 
-export const LIBRARY_DISABLED: LibraryConfig = Object.freeze({ enabled: false, linkImport: false, asr: false, ai: false, limits: null });
+export const LIBRARY_DISABLED: LibraryConfig = Object.freeze({ enabled: false, linkImport: false, asr: false, ai: false, catalog: false, limits: null });
 
 /** 404 = 没装跟读库的旧服务端,按关闭处理;其他错误照抛,由调用方决定重试(R-L6)。 */
 export async function fetchLibraryConfig(api: ApiClient): Promise<LibraryConfig> {
   try {
     const c = await api.request<Partial<LibraryConfig>>("GET", "/api/library/config");
-    return { enabled: c.enabled === true, linkImport: c.linkImport === true, asr: c.asr === true, ai: c.ai === true, limits: c.limits ?? null };
+    return { enabled: c.enabled === true, linkImport: c.linkImport === true, asr: c.asr === true, ai: c.ai === true, catalog: c.catalog === true, limits: c.limits ?? null };
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return LIBRARY_DISABLED;
     throw err;

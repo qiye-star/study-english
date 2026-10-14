@@ -38,7 +38,10 @@
     "unavailable": "Media tools are not installed",
     "unexpected_chunk": "Unexpected chunk",
     "upload_expired": "Upload expired",
-    "uploads": "Too many uploads in progress"
+    "uploads": "Too many uploads in progress",
+    "catalog_disabled": "Built-in library is disabled",
+    "catalog_not_found": "Built-in item not found",
+    "catalog_locked": "Built-in items cannot be changed this way"
   },
   "error_kinds": [
     "bad_subtitle",
@@ -92,7 +95,8 @@
         "opus",
         "flac"
       ]
-    }
+    },
+    "catalog": true
   },
   "upload_start": {
     "item_id": "00000000-0000-4000-8000-000000000000",
@@ -136,7 +140,8 @@
       "rebuildable": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": null
+      "last_opened_at": null,
+      "catalog_id": null
     }
   },
   "items": {
@@ -161,7 +166,8 @@
         "rebuildable": false,
         "has_poster": true,
         "created_at": "2026-01-01T00:00:00Z",
-        "last_opened_at": null
+        "last_opened_at": null,
+        "catalog_id": null
       }
     ],
     "next_cursor": null
@@ -187,7 +193,8 @@
       "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": "2026-01-01T00:00:00Z"
+      "last_opened_at": "2026-01-01T00:00:00Z",
+      "catalog_id": null
     },
     "segments": [
       {
@@ -235,7 +242,8 @@
       "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": "2026-01-01T00:00:00Z"
+      "last_opened_at": "2026-01-01T00:00:00Z",
+      "catalog_id": null
     }
   },
   "segment_patch": {
@@ -331,7 +339,8 @@
       "rebuildable": false,
       "has_poster": true,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": "2026-01-01T00:00:00Z"
+      "last_opened_at": "2026-01-01T00:00:00Z",
+      "catalog_id": null
     },
     "segments": [
       {
@@ -382,7 +391,8 @@
       "rebuildable": false,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": null
+      "last_opened_at": null,
+      "catalog_id": null
     }
   },
   "rebuild": {
@@ -406,7 +416,8 @@
       "rebuildable": true,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": null
+      "last_opened_at": null,
+      "catalog_id": null
     },
     "segments": [
       {
@@ -460,10 +471,85 @@
       "rebuildable": true,
       "has_poster": false,
       "created_at": "2026-01-01T00:00:00Z",
-      "last_opened_at": null
+      "last_opened_at": null,
+      "catalog_id": null
     }
   },
   "delete": {
     "deleted": true
+  },
+  "catalog_list": {
+    "items": [
+      {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "title": "Catalog talk",
+        "level": "B1",
+        "tags": [
+          "news",
+          "science"
+        ],
+        "license_note": "VOA Learning English · Public domain",
+        "duration_ms": 0,
+        "seg_count": 2,
+        "has_poster": true,
+        "published_at": "2026-01-01T00:00:00Z",
+        "added_item_id": null
+      }
+    ]
+  },
+  "catalog_add": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "audio",
+      "source": "catalog",
+      "title": "Talk",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 0,
+      "sub_source": "uploaded",
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "low_confidence": false,
+      "rebuildable": false,
+      "has_poster": true,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null,
+      "catalog_id": "00000000-0000-4000-8000-000000000000"
+    },
+    "created": true
+  },
+  "catalog_add_again": {
+    "item": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "kind": "audio",
+      "source": "catalog",
+      "title": "Talk",
+      "status": "ready",
+      "stage": null,
+      "progress": 100,
+      "error_kind": null,
+      "duration_ms": 6000,
+      "seg_count": 2,
+      "library_bytes": 0,
+      "sub_source": "uploaded",
+      "resume_ms": 0,
+      "resume_idx": 0,
+      "rate_pct": 100,
+      "low_confidence": false,
+      "rebuildable": false,
+      "has_poster": true,
+      "created_at": "2026-01-01T00:00:00Z",
+      "last_opened_at": null,
+      "catalog_id": "00000000-0000-4000-8000-000000000000"
+    },
+    "created": false
+  },
+  "catalog_locked": {
+    "error": "Built-in items cannot be changed this way"
   }
 }

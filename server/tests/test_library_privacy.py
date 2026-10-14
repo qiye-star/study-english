@@ -27,15 +27,18 @@ ROUTES = {
     ("GET", "/api/library/items/{item_id}/media"), ("HEAD", "/api/library/items/{item_id}/media"),
     ("GET", "/api/library/items/{item_id}/poster"), ("POST", "/api/library/items/{item_id}/attempts"),
     ("GET", "/api/library/items/{item_id}/attempts"),
+    # curated catalog (plan 2026-10-14-curated-library-server-core)
+    ("GET", "/api/library/catalog"), ("POST", "/api/library/catalog/{catalog_id}/add"),
+    ("GET", "/api/library/catalog/{catalog_id}/poster"),
 }
 LATER = {("POST", "/api/library/imports")}  # plan S2 (server-import); its own privacy test covers the body
-ALLOWED_PATH = {"item_id", "n", "idx"}
+ALLOWED_PATH = {"item_id", "n", "idx", "catalog_id"}
 ALLOWED_QUERY = {"cursor", "ticket"}
 
 
 @pytest.fixture
 def settings_overrides(tmp_path):
-    return library_settings(tmp_path, library_asr_enabled=True, library_ai_enabled=True)
+    return library_settings(tmp_path, library_asr_enabled=True, library_ai_enabled=True, library_catalog_enabled=True)
 
 
 def leaked(caplog, extra: tuple[str, ...] = ()) -> list[str]:
@@ -135,3 +138,25 @@ def test_library_routes_carry_no_text_in_urls(app):
             assert {p["name"] for p in params if p["in"] == "path"} <= ALLOWED_PATH, path
             assert {p["name"] for p in params if p["in"] == "query"} <= ALLOWED_QUERY, path
     assert ROUTES <= seen
+
+
+@respx.mock
+async def test_catalog_paths_never_log_titles_licenses_or_sentences(app, client, auth_headers, caplog, monkeypatch):
+    from tests.catalog_helpers import make_catalog
+    caplog.set_level(logging.DEBUG, logger="app")
+    enable(monkeypatch)
+    cid = await make_catalog(app, title="SECRET-TITLE",
+                             segments=[(0, 1000, "SECRET-SUBTITLE one.", "SECRET-TRANSLATION")])
+    respx.post(LLM).mock(side_effect=[httpx.Response(200, json={"choices": [{"message": {"content": "SECRET-ANALYSIS"}}]}),
+                                      httpx.Response(502, json={"error": "SECRET-UPSTREAM"})])
+    await client.get("/api/library/catalog", headers=auth_headers)
+    item = (await client.post(f"/api/library/catalog/{cid}/add", headers=auth_headers)).json()["item"]["id"]
+    await client.post(f"/api/library/catalog/{cid}/add", headers=auth_headers)
+    await client.get(f"/api/library/catalog/{cid}/poster", headers=auth_headers)
+    zh = {"native_language": "zh-CN"}
+    assert (await client.post(f"/api/library/items/{item}/segments/0/analysis", headers=auth_headers,
+                              json=zh)).status_code == 200
+    await client.post(f"/api/library/items/{item}/translate", headers=auth_headers, json={"indices": [0], **zh})
+    await client.delete(f"/api/library/items/{item}", headers=auth_headers)
+    assert any("catalog" in r.getMessage() for r in caplog.records)  # the scan saw the catalog's own lines
+    assert leaked(caplog) == []

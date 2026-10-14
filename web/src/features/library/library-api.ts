@@ -15,7 +15,7 @@ export const MAX_TITLE_CHARS = 200;
 export const CHUNK_TIMEOUT_MS = 180_000;
 
 export type LibraryKind = "audio" | "video";
-export type LibrarySource = "upload" | "link";
+export type LibrarySource = "upload" | "link" | "catalog";
 export type LibraryStatus = "uploading" | "queued" | "processing" | "ready" | "failed" | "canceled";
 export type LibraryStage = "probe" | "fetch" | "transcode" | "subtitles" | "transcribe" | "segment";
 export type SubSource = "uploaded" | "platform" | "asr";
@@ -38,6 +38,8 @@ export interface LibraryItem {
   resumeIdx: number;
   ratePct: number;
   hasPoster: boolean;
+  /** 精选副本:来源目录条目 id(spec 2026-10-14-curated-library E1);普通条目为 null。可选:旧夹具与测试数据可以不带。 */
+  catalogId?: string | null;
   /** D5:句边界可能不准(服务端合理性检查;重新识别后重算) */
   lowConfidence: boolean;
   /** plan v2 R-V8:服务端留着识别结果,可以「重新分句」(不花识别额度)。可选:旧夹具与测试里的条目不必带。 */
@@ -242,6 +244,9 @@ export function isAiLimited(err: unknown): boolean {
  */
 export const LIBRARY_SERVER_ERRORS: Record<string, string> = {
   "Library is disabled": "web.library.errors.disabled",
+  "Built-in library is disabled": "web.library.errors.catalogDisabled",
+  "Built-in item not found": "web.library.errors.catalogNotFound",
+  "Built-in items cannot be changed this way": "web.library.errors.catalogLocked",
   "Not Found": "web.library.errors.notFound",
   "Sentence not found": "web.library.errors.notFound",
   "Media tools are not installed": "web.library.errors.mediaTools",

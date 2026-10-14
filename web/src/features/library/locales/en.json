@@ -165,6 +165,9 @@
         "notRebuildable": "This item was recognized by an earlier version and has no kept recognition. Use Re-recognize instead.",
         "asrUnavailable": "Automatic transcription is not enabled on this server.",
         "asrLimited": "Today's transcription allowance is used up. Try again tomorrow.",
+        "catalogDisabled": "The built-in library is not available.",
+        "catalogNotFound": "This built-in item is no longer available.",
+        "catalogLocked": "Built-in items can't be changed this way.",
         "kind": {
           "too_large": "The file is larger than the upload limit.",
           "too_long": "It is longer than the allowed length.",

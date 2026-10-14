@@ -165,6 +165,9 @@
         "notRebuildable": "这条素材是更早的版本识别的,没有保留识别结果;请用「重新识别」。",
         "asrUnavailable": "本服务器没有开启自动转写。",
         "asrLimited": "今天的自动转写额度已用完,明天再试。",
+        "catalogDisabled": "精选库暂未开放。",
+        "catalogNotFound": "这条精选素材已下架。",
+        "catalogLocked": "精选素材不能这样修改。",
         "kind": {
           "too_large": "文件超过了单个文件的大小上限。",
           "too_long": "时长超过了单条上限。",
