@@ -32,7 +32,7 @@ describe("RoomInvitePage", () => {
     const mock = setup();
     expect(await screen.findByText("美食角")).toBeTruthy();
     expect(screen.getByText(/咖啡店点单/)).toBeTruthy();
-    expect(screen.getByText(/A2/)).toBeTruthy();
+    expect(screen.getByText("水平 A2 · 初级")).toBeTruthy();
     expect(screen.getByText(/3\/4 人/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "加入房间" }));
     await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/rooms/r/r1"));

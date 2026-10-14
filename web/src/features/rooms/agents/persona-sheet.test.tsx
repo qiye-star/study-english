@@ -20,6 +20,7 @@ it("shows the public prompt, inserts an @mention and reports", async () => {
   expect(await screen.findByTestId("persona-prompt")).toHaveTextContent("You are a patient coach.");
   expect(screen.getByText("内置")).toBeInTheDocument();
   expect(screen.getByText("友好")).toBeInTheDocument();
+  expect(screen.getByText("B1 · 中级")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "@Emma 提问" }));
   expect(onAsk).toHaveBeenCalledWith("Emma");
   fireEvent.click(screen.getByRole("button", { name: "举报这个角色" }));

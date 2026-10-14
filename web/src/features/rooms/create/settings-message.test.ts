@@ -18,6 +18,12 @@ describe("describeSettingsChanges", () => {
       .toBe("The owner changed the scenario to “At a café”, allowed voice messages");
   });
 
+  it("names the target level in the change message (plan 2026-10-14-level-annotations W6)", async () => {
+    await i18n.changeLanguage("zh-CN");
+    expect(describeSettingsChanges(i18n.t, { changes: [{ field: "level", value: "B1" }] }, SCENARIOS, "zh-CN")).toBe("房主把目标水平改为 B1 · 中级");
+    expect(describeSettingsChanges(i18n.t, { changes: [{ field: "level", value: "Z9" }] }, SCENARIOS, "zh-CN")).toBe("房主把目标水平改为 Z9");
+  });
+
   it("returns null when nothing is recognised", () => {
     expect(describeSettingsChanges(i18n.t, null)).toBeNull();
     expect(describeSettingsChanges(i18n.t, { changes: [{ field: "x", value: 1 }] })).toBeNull();

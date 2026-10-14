@@ -29,6 +29,30 @@ describe("SettingsFields", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ maxMembers: 5 }));
   });
 
+  it("shows each target level with its name and says what happens when none is picked (plan 2026-10-14-level-annotations W5)", () => {
+    const onChange = vi.fn();
+    renderWithProviders(<SettingsFields value={{ scenario: "free" }} onChange={onChange} config={CONFIG} mode="create" namePlaceholder="" minMembers={2} />);
+    const b1 = screen.getByRole("radio", { name: /^B1/ });
+    expect(b1.textContent).toBe("B1中级");
+    expect(screen.getByRole("radio", { name: /^A1/ }).textContent).toBe("A1入门");
+    expect(screen.getByTestId("room-level")).toHaveAttribute("aria-describedby", "room-level-hint");
+    expect(screen.getByTestId("room-level-hint")).toHaveTextContent("不选时按你的段位自动定。");
+    fireEvent.click(b1);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ level: "B1" }));
+  });
+
+  it("explains the chosen target level", () => {
+    renderWithProviders(<SettingsFields value={{ scenario: "free", level: "B2" }} onChange={vi.fn()} config={CONFIG} mode="edit" namePlaceholder="" minMembers={2} />);
+    expect(screen.getByRole("radio", { name: /^B2/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("room-level-hint")).toHaveTextContent("能流利地讨论熟悉的话题");
+  });
+
+  it("uses short level names in English so the 5 segments do not truncate (Q3)", () => {
+    localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "en" }));
+    renderWithProviders(<SettingsFields value={{ scenario: "free" }} onChange={vi.fn()} config={CONFIG} mode="create" namePlaceholder="" minMembers={2} />);
+    expect(screen.getByRole("radio", { name: /^B2/ }).textContent).toBe("B2Upper");
+  });
+
   it("does not go below the current member count when editing", () => {
     const onChange = vi.fn();
     renderWithProviders(<SettingsFields value={{ maxMembers: 3 }} onChange={onChange} config={CONFIG} mode="edit" namePlaceholder="" minMembers={3} />);
@@ -47,7 +71,7 @@ describe("SettingsFields", () => {
       onChange={onChange} config={{ ...CONFIG, voiceAvailable: true }} mode="create" namePlaceholder="x" minMembers={2} />);
     // 水平不传时(服务端按段位默认)不预选任何一档
     expect(screen.getAllByRole("radio", { checked: true }).map((r) => r.textContent)).toEqual(["凭房间号"]);
-    fireEvent.click(screen.getByRole("radio", { name: "B2" }));
+    fireEvent.click(screen.getByRole("radio", { name: /^B2/ }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ level: "B2" }));
     fireEvent.click(screen.getByRole("radio", { name: "需房主同意" }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ joinMode: "approval" }));

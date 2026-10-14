@@ -17,6 +17,8 @@
           "scenarioHint": "Shapes the assistant and @ai",
           "level": "Target level",
           "levelHint": "Sets the assistant's difficulty",
+          "levelAuto": "If you skip this, it follows your rank tier.",
+          "levelShort": { "A1": "Basic", "A2": "Elem.", "B1": "Inter.", "B2": "Upper", "C1": "Adv.", "C2": "Pro" },
           "joinMode": "Who can join",
           "joinCode": "Anyone with the code",
           "joinApproval": "Owner approval",

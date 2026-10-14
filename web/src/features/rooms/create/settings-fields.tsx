@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useTranslation } from "react-i18next";
 import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "~/lib/cn";
+import { LevelHint } from "~/components/level-hint";
+import { levelName } from "~/lib/levels";
 import type { RoomsConfig } from "../rooms-api";
 import { fieldInput } from "../ui";
 import type { RoomSettingsInput } from "./rooms-v2-api";
@@ -26,8 +28,8 @@ function Label({ id, children, aside }: { id?: string; children: ReactNode; asid
  * 分段控件(视觉稿 `.seg`):surface-2 轨道、圆角 10、内边距 2;每段等宽 32 高(命中 44)、13px 半粗;选中片 surface + 发丝线。
  * 与 components/segmented-control 不同:允许「都不选」(创建时目标水平留给服务端按段位定)。←/→ 切换。
  */
-function Segments<T extends string>({ labelledBy, value, options, onChange, disabled, testId }: {
-  labelledBy: string; value: T | undefined; options: readonly { value: T; label: string }[]; onChange(v: T): void; disabled?: boolean; testId?: string;
+function Segments<T extends string>({ labelledBy, describedBy, value, options, onChange, disabled, testId }: {
+  labelledBy: string; describedBy?: string; value: T | undefined; options: readonly { value: T; label: string; sub?: string }[]; onChange(v: T): void; disabled?: boolean; testId?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = options.findIndex((o) => o.value === value);
@@ -44,17 +46,22 @@ function Segments<T extends string>({ labelledBy, value, options, onChange, disa
     pick(to);
   };
   return (
-    <div role="radiogroup" aria-labelledby={labelledBy} data-testid={testId} aria-disabled={disabled || undefined}
+    <div role="radiogroup" aria-labelledby={labelledBy} aria-describedby={describedBy} data-testid={testId} aria-disabled={disabled || undefined}
       className={cn("flex gap-0.5 rounded-badge bg-seg-track p-0.5", disabled && "opacity-50")}>
       {options.map((o, i) => {
         const on = i === current;
         return (
           <button key={o.value} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on}
             tabIndex={on || (current < 0 && i === 0) ? 0 : -1} disabled={disabled} onClick={() => pick(i)} onKeyDown={(e) => onKeyDown(e, i)}
-            className={cn("hit-expand flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-1 text-sub font-semibold transition-colors duration-fast",
+            className={cn("hit-expand flex min-w-0 flex-1 items-center justify-center rounded-lg px-1 text-sub font-semibold transition-colors duration-fast",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              on ? "bg-seg-on text-ink shadow-seg" : "text-ink-2")}>
-            <span className="truncate">{o.label}</span>
+              on ? "bg-seg-on text-ink shadow-seg" : "text-ink-2", o.sub ? "h-11" : "h-8")}>
+            {o.sub ? (
+              <span className="flex min-w-0 flex-col items-center leading-tight">
+                <span className="truncate">{o.label}</span>
+                <span className="truncate text-meta font-medium text-ink-2">{o.sub}</span>
+              </span>
+            ) : <span className="truncate">{o.label}</span>}
           </button>
         );
       })}
@@ -122,8 +129,9 @@ export function SettingsFields({ value, onChange, config, mode, namePlaceholder,
         disabled={disabled} onChange={(scenario) => set({ scenario })} />
 
       <Label id="room-level-label" aside={t("web.rooms.v2.create.levelHint")}>{t("web.rooms.v2.create.level")}</Label>
-      <Segments labelledBy="room-level-label" testId="room-level" value={value.level} disabled={disabled}
-        options={levels.map((l) => ({ value: l, label: l }))} onChange={(level) => set({ level })} />
+      <Segments labelledBy="room-level-label" describedBy="room-level-hint" testId="room-level" value={value.level} disabled={disabled}
+        options={levels.map((l) => ({ value: l, label: l, sub: t(`web.rooms.v2.create.levelShort.${l}`, { defaultValue: levelName(t, l) ?? "" }) || undefined }))} onChange={(level) => set({ level })} />
+      <LevelHint code={value.level} fallback={t("web.rooms.v2.create.levelAuto")} id="room-level-hint" testId="room-level-hint" className="mx-0.5 mt-1.5" />
 
       <Label id="room-join-mode-label">{t("web.rooms.v2.create.joinMode")}</Label>
       <Segments labelledBy="room-join-mode-label" testId="room-join-mode" value={joinMode} disabled={disabled}

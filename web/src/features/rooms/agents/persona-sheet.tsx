@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { levelLabel } from "~/lib/levels";
 import { ghostButton } from "../ui";
 import { reportRoomAgent, ROOM_AGENTS_ALL_ERRORS, type AgentReportReason, type RoomAgent } from "./room-agents-api";
 
@@ -41,7 +42,7 @@ export function PersonaSheet({ open, onOpenChange, roomId, agent, canAsk, onAsk 
         <div className="flex flex-wrap gap-1.5 text-label">
           {current.builtin && <span className={chip}>{t("web.rooms.agents.sheet.builtin")}</span>}
           {current.disabled && <span className={chip}>{t("web.rooms.agents.sheet.disabled")}</span>}
-          <span className={chip}>{current.level}</span>
+          <span className={chip}>{levelLabel(t, current.level)}</span>
           <span className={chip}>{t(`web.rooms.agents.sheet.style.${current.style}`, { defaultValue: current.style })}</span>
         </div>
         <section className="mt-section">

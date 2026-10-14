@@ -17,6 +17,8 @@
           "scenarioHint": "影响助手和 @ai",
           "level": "目标水平",
           "levelHint": "影响助手的难度",
+          "levelAuto": "不选时按你的段位自动定。",
+          "levelShort": { "A1": "入门", "A2": "初级", "B1": "中级", "B2": "中高级", "C1": "高级", "C2": "精通" },
           "joinMode": "加入方式",
           "joinCode": "凭房间号",
           "joinApproval": "需房主同意",
