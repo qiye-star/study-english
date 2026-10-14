@@ -29,7 +29,7 @@ from websockets.asyncio.client import connect
 
 from app.core import metering
 from app.core.config import Settings
-from app.speech.timed import TimedText, Utterance
+from app.speech.timed import TimedText, Utterance, Word
 
 logger = logging.getLogger(__name__)
 # websockets logs the handshake request headers (including X-Api-Key) at DEBUG. The
@@ -244,7 +244,32 @@ def parse_utterances(result: object) -> tuple[Utterance, ...]:
             continue
         text = " ".join(text.split())
         if text and start >= 0 and end > start:
-            out.append(Utterance(text, round(start), round(end)))
+            out.append(Utterance(text, round(start), round(end), parse_words(item.get("words"))))
+    return tuple(out)
+
+
+def _ms(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return None
+    return round(value)
+
+
+def parse_words(raw: object) -> tuple[Word, ...]:
+    """`utterances[].words[{text, start_time, end_time}]` -> `Word`s in ms, same time base as the utterance (plan
+    2026-10-14-library-alignment-v2 R-V1; Task 0 checks the base). The recognizer interleaves 1-char placeholder entries
+    timed -1/-1 with the real words: any entry with a negative start or end is dropped here (never a word). An entry
+    without text or with an inverted time is dropped too; a zero-length word is kept (the caller judges it). Order is
+    kept as sent."""
+    out: list[Word] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        text, start, end = item.get("text"), _ms(item.get("start_time")), _ms(item.get("end_time"))
+        if not isinstance(text, str) or start is None or end is None or end < start:
+            continue
+        text = " ".join(text.split())
+        if text:
+            out.append(Word(text, start, end))
     return tuple(out)
 
 
