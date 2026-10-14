@@ -8,6 +8,7 @@ import {
   ACTIVE, cancel, deleteItem, deletePhrase, fetchCatalogItem, mediaUrl, patchMeta, patchSegment, posterUrl, publish,
   purgeItem, purgePhrase, retry, translateMissing, unpublish, type CatalogRow, type CatalogSegment,
 } from "./api";
+import { levelLong } from "../../lib/levels";
 import { S, errorText } from "./strings";
 
 const clock = (ms: number) => {
@@ -133,7 +134,7 @@ function MetaForm({ row, onSaved, onError }: { row: CatalogRow; onSaved: () => v
           <span className="text-xs font-medium text-fg-2">{S.form.level}</span>
           <select className="field-sm" value={level} disabled={busy} onChange={(e) => setLevel(e.target.value)}>
             <option value="">{S.form.noLevel}</option>
-            {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => <option key={l} value={l}>{l}</option>)}
+            {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => <option key={l} value={l}>{levelLong(l)}</option>)}
           </select>
         </label>
         <label className="block space-y-1">

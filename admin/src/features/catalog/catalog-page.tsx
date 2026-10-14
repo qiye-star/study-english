@@ -7,6 +7,7 @@ import { ErrorState, Skeleton } from "../../components/states";
 import { StatusDot, type Tone } from "../../components/status-dot";
 import { errorText as apiErrorText, useAsync } from "../../hooks/use-async";
 import { formatDuration } from "../../lib/format";
+import { levelText } from "../../lib/levels";
 import { ACTIVE, fetchCatalog, publish, unpublish, type CatalogRow, type CatalogState } from "./api";
 import { CatalogDetail } from "./catalog-detail";
 import { ImportDialog } from "./import-dialog";
@@ -144,7 +145,7 @@ export function CatalogPage() {
         </span>
       ),
     },
-    { key: "level", header: S.cols.level, render: (r) => r.level ?? "—" },
+    { key: "level", header: S.cols.level, render: (r) => (r.level ? levelText(r.level) : "—") },
     { key: "tags", header: S.cols.tags, render: (r) => (r.tags.length ? r.tags.join(" · ") : "—") },
     { key: "status", header: S.cols.status, render: (r) => <StatusCell row={r} /> },
     { key: "duration", header: S.cols.duration, numeric: true, render: (r) => (r.durationMs === null ? "—" : formatDuration(r.durationMs)) },

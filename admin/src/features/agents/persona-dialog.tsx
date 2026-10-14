@@ -4,6 +4,7 @@ import { Dialog } from "../../components/dialog";
 import { RoleGate } from "../../components/role-gate";
 import { errorText } from "../../hooks/use-async";
 import { formatDateTime } from "../../lib/format";
+import { levelText } from "../../lib/levels";
 import { editPersona, type AdminPersona, type PersonaEdit } from "./api";
 import { S } from "./strings";
 
@@ -50,7 +51,7 @@ export function PersonaDialog({ persona, onClose, onSaved }: { persona: AdminPer
 
   const facts: [string, string][] = [
     [S.dialog.owner, persona.owner ?? "—"],
-    [S.dialog.level, persona.level],
+    [S.dialog.level, levelText(persona.level)],
     [S.dialog.style, persona.style],
     [S.dialog.tools, persona.tools.join(", ") || "—"],
     [S.dialog.public, persona.promptPublic ? S.dialog.yes : S.dialog.no],

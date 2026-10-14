@@ -9,6 +9,7 @@ import { StatusDot } from "../../components/status-dot";
 import { S as Shell } from "../../strings";
 import { errorText, useAsync } from "../../hooks/use-async";
 import { formatDateTime } from "../../lib/format";
+import { levelText } from "../../lib/levels";
 import {
   closeRoom,
   reopenRoom,
@@ -129,7 +130,7 @@ function SettingsCard({ room, canEdit, onEdit }: { room: RoomDetail; canEdit: bo
       <dl className="pb-2">
         <SettingRow id="name" label={ST.name} value={s.name || ST.unnamed} />
         <SettingRow id="scenario" label={ST.scenario} value={ST.scenarios[s.scenario] ?? s.scenario} />
-        <SettingRow id="level" label={ST.level} value={s.level} />
+        <SettingRow id="level" label={ST.level} value={levelText(s.level)} />
         <SettingRow id="joinMode" label={ST.joinMode} value={ST.joinModes[s.joinMode] ?? s.joinMode} />
         <SettingRow id="maxMembers" label={ST.maxMembers} value={ST.maxMembersValue(s.maxMembers)} />
         <SettingRow id="aiPublic" label={ST.aiPublic} value={onOff(s.aiPublic)} />
