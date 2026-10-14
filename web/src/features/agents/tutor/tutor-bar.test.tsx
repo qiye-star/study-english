@@ -27,6 +27,19 @@ it("shows progress, kind and level; actions call back", () => {
   expect([p.onHint, p.onSkip, p.onListen, p.onTranslate].map((f) => (f as ReturnType<typeof vi.fn>).mock.calls.length)).toEqual([1, 1, 1, 1]);
 });
 
+it("keeps the question type whole and lets the long level label shrink (full label stays in title)", async () => {
+  localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "en" }));
+  await i18n.changeLanguage("en");
+  renderWithProviders(<TutorBar {...props()} />);
+  const level = screen.getByTestId("tutor-level");
+  expect(level).toHaveTextContent("B1 · Intermediate");
+  expect(level).toHaveClass("min-w-0", "truncate");
+  expect(level).toHaveAttribute("title");
+  expect(level.getAttribute("title")).toContain("B1");
+  expect(screen.getByTestId("tutor-kind")).toHaveClass("shrink-0", "whitespace-nowrap");
+  expect(screen.getByTestId("tutor-kind")).not.toHaveClass("truncate");
+});
+
 it("folds the Chinese hint under the English hint; nothing without it", () => {
   const { unmount } = renderWithProviders(<TutorBar {...props({ hint: "Think about yesterday.", hintZh: "想想昨天" })} />);
   expect(screen.getByTestId("tutor-hint")).toHaveTextContent("Think about yesterday.");
