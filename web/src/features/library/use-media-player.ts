@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-/** 播放缓冲(spec §6.3 第 6 条):提前 150 ms 开始,延后 250 ms 才算这句结束。只在网页端,不进库。 */
+/**
+ * 播放缓冲(spec §6.3 第 6 条):提前 150 ms 开始,延后 250 ms 才算这句结束。只在网页端,不进库。
+ * plan v2 R-V11:与相邻句之间有空隙时,缓冲最多用到这段空隙(不回放上一句的尾、不带进下一句的头);
+ * 两句首尾相接(字幕常见)时仍用完整缓冲,与以前相同。
+ */
 export const PAD_BEFORE_MS = 150;
 export const PAD_AFTER_MS = 250;
 /** 库自己的速度档位(不碰全局 PLAYBACK_RATES,那是给 TTS 的;spec §11.4)。 */
@@ -81,7 +85,19 @@ export function applyRate(media: MediaLike, rate: Rate): void {
   }
 }
 
-const startOf = (seg: Seg) => Math.max(0, seg.startMs - PAD_BEFORE_MS) / 1000;
+/** 提前量:有前一句且两句之间有空隙时不超过这段空隙。 */
+export function leadOf(segs: readonly Seg[], i: number): number {
+  const gap = i > 0 && segs[i - 1] ? segs[i].startMs - segs[i - 1].endMs : Number.POSITIVE_INFINITY;
+  return gap > 0 && gap < PAD_BEFORE_MS ? gap : PAD_BEFORE_MS;
+}
+
+/** 延后量:有后一句且两句之间有空隙时不超过这段空隙。 */
+export function tailOf(segs: readonly Seg[], i: number): number {
+  const gap = segs[i + 1] ? segs[i + 1].startMs - segs[i].endMs : Number.POSITIVE_INFINITY;
+  return gap > 0 && gap < PAD_AFTER_MS ? gap : PAD_AFTER_MS;
+}
+
+const startOf = (segs: readonly Seg[], i: number) => Math.max(0, segs[i].startMs - leadOf(segs, i)) / 1000;
 
 /**
  * 与 React 无关的播放控制器(R-L13):播放中用 requestAnimationFrame 轮询 currentTime(timeupdate 只有约 250 ms 粒度),
@@ -163,7 +179,7 @@ export class PlayerController {
     const seg = this.segs[index];
     const pinned = !!seg && (once || (loop !== "off" && this.released !== index));
     if (pinned && seg) {
-      if (ms < seg.endMs + PAD_AFTER_MS) return;
+      if (ms < seg.endMs + tailOf(this.segs, index)) return;
       if (once) {
         this.patch({ once: false });
         this.media.pause();
@@ -172,7 +188,7 @@ export class PlayerController {
       const total = loop === "infinite" ? Number.POSITIVE_INFINITY : (loop as number);
       if (repeats + 1 < total) {
         this.patch({ repeats: repeats + 1 });
-        this.media.currentTime = startOf(seg);
+        this.media.currentTime = startOf(this.segs, index);
         return;
       }
       this.released = index;
@@ -209,7 +225,7 @@ export class PlayerController {
     if (!seg) return;
     this.released = -1;
     this.patch({ index: idx, repeats: 0, once: false });
-    this.media.currentTime = startOf(seg);
+    this.media.currentTime = startOf(this.segs, idx);
     if (play) this.play();
   }
 

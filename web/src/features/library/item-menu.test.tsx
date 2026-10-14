@@ -29,3 +29,29 @@ describe("ItemMenu (D7)", () => {
     expect(screen.queryByTestId("library-item-menu")).toBeNull();
   });
 });
+
+describe("ItemMenu (plan v2 R-V16)", () => {
+  it("offers re-splitting for an item whose recognition was kept, and closes before handing it over", async () => {
+    const onRebuild = vi.fn();
+    render(<ItemMenu item={{ ...item, rebuildable: true }} onReprocess={vi.fn()} onRebuild={onRebuild} />);
+    await userEvent.click(screen.getByTestId("library-item-more-i1"));
+    expect(await screen.findByTestId("menu-rebuild")).toHaveTextContent("重新分句(不用额度)");
+    await userEvent.click(screen.getByTestId("menu-rebuild"));
+    expect(onRebuild).toHaveBeenCalledWith(expect.objectContaining({ id: "i1" }));
+    expect(screen.queryByTestId("library-item-menu")).toBeNull();
+  });
+
+  it("shows only the actions it was given", async () => {
+    render(<ItemMenu item={{ ...item, rebuildable: true }} onRebuild={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("library-item-more-i1"));
+    expect(await screen.findByTestId("menu-rebuild")).toBeInTheDocument();
+    expect(screen.queryByTestId("menu-reprocess")).toBeNull();
+  });
+
+  it("hides re-splitting when nothing was kept", async () => {
+    render(<ItemMenu item={item} onReprocess={vi.fn()} onRebuild={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("library-item-more-i1"));
+    expect(await screen.findByTestId("menu-reprocess")).toBeInTheDocument();
+    expect(screen.queryByTestId("menu-rebuild")).toBeNull();
+  });
+});

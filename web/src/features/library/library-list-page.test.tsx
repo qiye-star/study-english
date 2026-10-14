@@ -144,6 +144,35 @@ describe("LibraryListPage (spec §11.2)", () => {
     expect(screen.getByTestId("library-item-i1")).toHaveAttribute("data-state", "ready");
   });
 
+  it("re-splits a rebuildable item after confirmation, without using the allowance (plan v2)", async () => {
+    const segments: Record<string, unknown>[] = [{ idx: 0, start_ms: 1000, end_ms: 2000, text: "Hi.", zh: null, zh_lang: null, has_analysis: false, analysis_lang: null, flags: [] }];
+    const mock = render([itemRaw({ sub_source: "asr", rebuildable: true })], {
+      "POST /api/library/items/i1/rebuild": () => json({ item: itemRaw({ sub_source: "asr", rebuildable: true, seg_count: 1 }), segments }),
+    });
+    fireEvent.click(await screen.findByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-rebuild"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("重新分句这条素材?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/不用自动转写额度/)).toBeInTheDocument();
+    expect(mock.calls.some((c) => c.method === "POST")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "重新分句" }));
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("已重新分句。"));
+    expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/library/items/i1/rebuild")).toHaveLength(1);
+    expect(screen.getByTestId("library-item-i1")).toHaveTextContent("1 句");
+  });
+
+  it("explains when an older item cannot be re-split", async () => {
+    render([itemRaw({ sub_source: "asr", rebuildable: true })], {
+      "POST /api/library/items/i1/rebuild": () => json({ error: "Item cannot be rebuilt" }, 409),
+    });
+    fireEvent.click(await screen.findByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-rebuild"));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "重新分句" }));
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("这条素材是更早的版本识别的,没有保留识别结果;请用「重新识别」。"));
+  });
+
   it("has no re-recognize action when the server has transcription off", async () => {
     render([itemRaw({ sub_source: "asr" })], {}, { ...CONFIG_RAW, asr: false });
     await screen.findByTestId("library-item-i1");

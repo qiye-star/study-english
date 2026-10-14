@@ -17,7 +17,7 @@ import { formatBytes } from "./format";
 import { ItemCard } from "./item-card";
 import {
   LIBRARY_FORMATS, LIBRARY_SERVER_ERRORS, MAX_SUBTITLE_BYTES, MIB, SUBTITLE_FORMATS, deleteItem, extOf, limitsOrDefault,
-  putItemSubtitles, reprocessItem, retryItem, type LibraryItem,
+  putItemSubtitles, rebuildItem, reprocessItem, retryItem, type LibraryItem,
 } from "./library-api";
 import { LibraryRoot } from "./library-root";
 import "./locales";
@@ -47,6 +47,7 @@ export function LibraryListPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LibraryItem | null>(null);
   const [pendingReprocess, setPendingReprocess] = useState<LibraryItem | null>(null);
+  const [pendingRebuild, setPendingRebuild] = useState<LibraryItem | null>(null);
   const subsInput = useRef<HTMLInputElement>(null);
   const resumeInput = useRef<HTMLInputElement>(null);
   const target = useRef<LibraryItem | null>(null);
@@ -105,6 +106,19 @@ export function LibraryListPage() {
     try {
       list.replace(await reprocessItem(api, item.id));
       toast.success(t("web.library.toast.reprocessing"));
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const confirmRebuild = async () => {
+    const item = pendingRebuild;
+    setPendingRebuild(null);
+    if (!item) return;
+    try {
+      const { segments: _segments, ...next } = await rebuildItem(api, item.id);
+      list.replace(next);
+      toast.success(t("web.library.toast.rebuilt"));
     } catch (err) {
       fail(err);
     }
@@ -174,6 +188,7 @@ export function LibraryListPage() {
   const handlers = {
     onDelete: setPendingDelete,
     onReprocess: config.asr ? setPendingReprocess : undefined,
+    onRebuild: setPendingRebuild,
     onRetry,
     onAddSubtitles,
     onResumeUpload,
@@ -252,6 +267,20 @@ export function LibraryListPage() {
             <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction className="h-11 rounded-button" onClick={() => void confirmReprocess()}>
               {t("web.library.confirmReprocess.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!pendingRebuild} onOpenChange={(open) => { if (!open) setPendingRebuild(null); }}>
+        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-title font-semibold text-ink">{t("web.library.confirmRebuild.title")}</AlertDialogTitle>
+            <AlertDialogDescription className="text-sub text-ink-2">{t("web.library.confirmRebuild.body")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction className="h-11 rounded-button" onClick={() => void confirmRebuild()}>
+              {t("web.library.confirmRebuild.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

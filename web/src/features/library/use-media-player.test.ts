@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  PAD_AFTER_MS, PlayerController, nextLoop, nextRate, pctFromRate, rateFromPct, segmentIndexAt, type Frames,
+  PAD_AFTER_MS, PAD_BEFORE_MS, PlayerController, leadOf, nextLoop, nextRate, pctFromRate, rateFromPct, segmentIndexAt, tailOf,
+  type Frames,
 } from "./use-media-player";
 
 const SEGS = [
@@ -110,14 +111,14 @@ describe("PlayerController (spec §11.4, R-L13)", () => {
     expect(c.getState().index).toBe(2);
   });
 
-  it("loops one sentence forever 250 ms after its end", () => {
+  it("loops one sentence forever, at the next sentence's start when the gap is shorter than 250 ms (plan v2 R-V11)", () => {
     const { media, c, at } = setup();
     c.setLoop("infinite");
     c.seekTo(0);
-    at(3000 + PAD_AFTER_MS - 1);
+    at(3199);
     expect(media.seeks).toHaveLength(1);
     for (let i = 1; i <= 3; i += 1) {
-      at(3000 + PAD_AFTER_MS);
+      at(3200);
       expect(media.seeks).toHaveLength(1 + i);
       expect(media.seeks.at(-1)).toBeCloseTo(0.85);
       expect(c.getState()).toMatchObject({ index: 0, repeats: i });
@@ -209,5 +210,27 @@ describe("PlayerController (spec §11.4, R-L13)", () => {
     c.destroy();
     media.dispatchEvent(new Event("play"));
     expect(c.getState().playing).toBe(false);
+  });
+});
+
+describe("gap-aware pads (plan v2 R-V11)", () => {
+  const segs = [
+    { idx: 0, startMs: 1000, endMs: 2000 },
+    { idx: 1, startMs: 2080, endMs: 3000 }, // 80 ms after the previous one
+    { idx: 2, startMs: 3000, endMs: 4000 }, // touches the previous one (subtitles)
+    { idx: 3, startMs: 9000, endMs: 9500 },
+  ];
+
+  it("never pre-rolls into the previous sentence or post-rolls into the next one when there is a gap", () => {
+    expect(leadOf(segs, 0)).toBe(PAD_BEFORE_MS);
+    expect(leadOf(segs, 1)).toBe(80);
+    expect(tailOf(segs, 0)).toBe(80);
+    expect(tailOf(segs, 3)).toBe(PAD_AFTER_MS);
+    expect(leadOf(segs, 3)).toBe(PAD_BEFORE_MS); // a 5 s gap is longer than the pad
+  });
+
+  it("keeps the full pads for sentences that touch, as before", () => {
+    expect(tailOf(segs, 1)).toBe(PAD_AFTER_MS);
+    expect(leadOf(segs, 2)).toBe(PAD_BEFORE_MS);
   });
 });

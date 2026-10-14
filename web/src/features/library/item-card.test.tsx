@@ -171,3 +171,19 @@ describe("ItemCard (spec §11.2, R-L12)", () => {
     expect(screen.queryByTestId("library-item-reprocess-failed")).toBeNull();
   });
 });
+
+describe("ItemCard re-splitting (plan v2 R-V16)", () => {
+  it("shows the more menu for a rebuildable item even when the server has transcription off", async () => {
+    const { onReprocess: _omitted, ...without } = handlers();
+    const onRebuild = vi.fn();
+    card({ item: { ...base, subSource: "asr", rebuildable: true }, ...without, onRebuild });
+    fireEvent.click(screen.getByTestId("library-item-more-i1"));
+    fireEvent.click(await screen.findByTestId("menu-rebuild"));
+    expect(onRebuild).toHaveBeenCalledWith(expect.objectContaining({ id: "i1" }));
+  });
+
+  it("never offers re-splitting for subtitles or items without a kept recognition", () => {
+    card({ item: { ...base, rebuildable: true }, ...handlers(), onRebuild: vi.fn() });
+    expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+  });
+});

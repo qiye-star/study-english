@@ -80,6 +80,10 @@ export function SegmentList({
                     className="lib-row-play focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <PlayIcon aria-hidden className="h-4 w-4" />
                     <span className="num text-[11px] leading-none">{formatDuration(seg.startMs)}</span>
+                    {seg.flags?.length ? (
+                      <span data-testid={`segment-flag-${seg.idx}`} role="img" aria-label={t("web.library.player.timingSuspect")}
+                        title={t("web.library.player.timingSuspect")} className="mt-0.5 block h-1.5 w-1.5 rounded-full bg-[rgb(var(--amber))]" />
+                    ) : null}
                   </button>
                   <div className="lib-seg-text" onClick={hidden ? undefined : () => selectFromText(seg.idx)}>
                     {hidden ? (

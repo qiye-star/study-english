@@ -1,4 +1,4 @@
-import { EllipsisIcon, RefreshCwIcon } from "lucide-react";
+import { EllipsisIcon, RefreshCwIcon, ScissorsIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
@@ -12,8 +12,13 @@ const ITEM = cn(
   "hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:flex-none",
 );
 
-/** 卡片的 ⋯ 菜单(裁定 R-W1):目前只有「重新识别」。先关闭面板,再把条目交给调用方(调用方弹确认,不嵌套在面板里)。 */
-export function ItemMenu({ item, onReprocess }: { item: LibraryItem; onReprocess(item: LibraryItem): void }) {
+/**
+ * 卡片的 ⋯ 菜单(裁定 R-W1):「重新分句」(plan v2 R-V16:`item.rebuildable` 且有 `onRebuild`)与「重新识别」(有 `onReprocess` 时)。
+ * 先关闭面板,再把条目交给调用方(调用方弹确认,不嵌套在面板里)。
+ */
+export function ItemMenu({ item, onReprocess, onRebuild }: {
+  item: LibraryItem; onReprocess?(item: LibraryItem): void; onRebuild?(item: LibraryItem): void;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
@@ -28,16 +33,30 @@ export function ItemMenu({ item, onReprocess }: { item: LibraryItem; onReprocess
         <BottomSheetContent data-testid="library-item-menu">
           <BottomSheetHeader title={t("web.library.card.menuTitle")} description={t("web.library.card.menuDescription")} srOnlyDescription />
           <div className="space-y-1">
-            <button
-              type="button" data-testid="menu-reprocess" className={ITEM}
-              onClick={() => {
-                setOpen(false);
-                onReprocess(item);
-              }}
-            >
-              <RefreshCwIcon aria-hidden />
-              <span className="min-w-0 flex-1">{t("web.library.card.reprocess")}</span>
-            </button>
+            {item.rebuildable && onRebuild ? (
+              <button
+                type="button" data-testid="menu-rebuild" className={ITEM}
+                onClick={() => {
+                  setOpen(false);
+                  onRebuild(item);
+                }}
+              >
+                <ScissorsIcon aria-hidden />
+                <span className="min-w-0 flex-1">{t("web.library.card.rebuild")}</span>
+              </button>
+            ) : null}
+            {onReprocess ? (
+              <button
+                type="button" data-testid="menu-reprocess" className={ITEM}
+                onClick={() => {
+                  setOpen(false);
+                  onReprocess(item);
+                }}
+              >
+                <RefreshCwIcon aria-hidden />
+                <span className="min-w-0 flex-1">{t("web.library.card.reprocess")}</span>
+              </button>
+            ) : null}
           </div>
         </BottomSheetContent>
       </BottomSheet>

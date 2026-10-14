@@ -151,3 +151,12 @@ describe("translation line (D8, E11, E12, R-L32)", () => {
     expect(onSelect).toHaveBeenLastCalledWith(0);
   });
 });
+
+describe("SegmentList timing flags (plan v2 R-V14)", () => {
+  it("marks a sentence whose timing may be off, and nothing else", () => {
+    render({ segments: [{ ...SEGS[0], flags: ["pause"] }, { ...SEGS[1], flags: [] }, SEGS[2]] });
+    expect(screen.getByTestId("segment-flag-0")).toHaveAccessibleName("这句的时间可能不准,可微调");
+    expect(screen.queryByTestId("segment-flag-1")).toBeNull();
+    expect(screen.queryByTestId("segment-flag-2")).toBeNull();
+  });
+});

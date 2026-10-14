@@ -26,8 +26,10 @@ export interface ItemCardHandlers {
   onCancelUpload(job: UploadJob): void;
   onRetryUpload(job: UploadJob): void;
   onDismissUpload(job: UploadJob): void;
-  /** 只在服务端开着自动转写时传(裁定 R-W1);没有就不显示 ⋯ 菜单 */
+  /** 只在服务端开着自动转写时传(裁定 R-W1) */
   onReprocess?(item: LibraryItem): void;
+  /** plan v2 R-V16:重新分句;只对 `rebuildable` 的条目显示。两个都用不上就不显示 ⋯ 菜单 */
+  onRebuild?(item: LibraryItem): void;
 }
 
 /** 处理阶段的步骤(spec §6.2):上传类没有「取回」,链接有。 */
@@ -59,6 +61,7 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
   const lowConfidence = ready && item?.lowConfidence === true;
   const reprocessFailed = ready && item?.errorKind != null; // 重新识别失败:原句子还在,原因留在 error_kind(裁定 R-R3)
   const canReprocess = ready && item?.subSource === "asr" && h.onReprocess !== undefined;
+  const canRebuild = ready && item?.subSource === "asr" && item?.rebuildable === true && h.onRebuild !== undefined;
   const poster = usePosterUrl(item?.id ?? "", !!item && ready && item.kind === "video", ref);
   const title = item?.title ?? job?.title ?? "";
   const state = job ? (job.state === "uploading" ? "upload-local" : "upload-failed") : (item?.status ?? "uploading");
@@ -182,7 +185,9 @@ export function ItemCard({ item, job, index = 0, ...h }: { item: LibraryItem | n
               <ChevronRightIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3" />
             </Link>
           ) : <div className="flex min-w-0 flex-1 items-center gap-3">{head}</div>}
-          {item && canReprocess && h.onReprocess ? <ItemMenu item={item} onReprocess={h.onReprocess} /> : null}
+          {item && (canReprocess || canRebuild) ? (
+            <ItemMenu item={item} onReprocess={canReprocess ? h.onReprocess : undefined} onRebuild={canRebuild ? h.onRebuild : undefined} />
+          ) : null}
           {item && job?.state !== "uploading" ? (
             <IconButton label={t("web.library.card.delete")} onClick={() => h.onDelete(item)} className="text-ink-2">
               <Trash2Icon aria-hidden />
