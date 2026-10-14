@@ -270,9 +270,9 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const choiceResult: ChoiceResult | null = answer && question
     ? { choice: answer.choice ?? "", correct: answer.result.correct, correctOption: correctOptionOf(question, answer.result) }
     : null;
-  // 答题后界面只给 meaning / word 选择题(cloze 与抽查题不变);选项信息可能不存在(老服务端 / 备忘取不到),下游都按缺失处理
+  // 答题后界面给 meaning / word / cloze 选择题(抽查题不变;cloze 没有选项信息时保持原样);选项信息可能不存在(老服务端 / 备忘取不到),下游都按缺失处理
   const slot = question ? `${question.key}:${attempt}` : "";
-  const afterQuestion = answer && choiceResult && question && (question.qtype === "meaning" || question.qtype === "word") ? question : null;
+  const afterQuestion = answer && choiceResult && question && (question.qtype === "meaning" || question.qtype === "word" || (question.qtype === "cloze" && (answer.result.optionInfo?.length ?? 0) > 0)) ? question : null;
   const after: AfterAnswer | undefined = afterQuestion && answer
     ? { info: answer.result.optionInfo }
     : undefined;

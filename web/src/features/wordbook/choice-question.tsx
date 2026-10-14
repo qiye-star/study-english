@@ -15,7 +15,7 @@ import "./locales";
 export interface ChoiceResult { choice: string; correct: boolean; correctOption: string | null }
 
 /**
- * 答题后界面的开关(计划 2026-10-13-review-after-answer R-A7):只有复习页在答题后传它。传了(且不是 cloze)才把选项换成
+ * 答题后界面的开关(计划 2026-10-13-review-after-answer R-A7):只有复习页在答题后传它。传了(cloze 还须有选项信息)才把选项换成
  * 非禁用的普通容器 + 长按查词 + 一次性提示;没传(学新词页、抽查题)逐字节保持原来的禁用按钮。
  * 选项行本身就是双语的(计划 2026-10-14-review-bilingual-longpress R-Z1),「中文」按钮在「学习内容」区,不在这里。
  */
@@ -61,8 +61,10 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
 }) {
   const { t } = useTranslation();
   const { prompt, qtype } = question;
-  const answered = result !== null && after !== undefined && qtype !== "cloze";
-  const tappable = answered && (qtype === "word" || (after?.info?.length ?? 0) > 0);
+  const hasInfo = (after?.info?.length ?? 0) > 0;
+  // cloze 没有选项信息(老服务端 / 备忘取不到)时保持原样:禁用的按钮
+  const answered = result !== null && after !== undefined && (qtype !== "cloze" || hasInfo);
+  const tappable = answered && (qtype === "word" || qtype === "cloze" || hasInfo);
 
   const lookUp = (row: HTMLElement) => {
     const el = row.querySelector<HTMLElement>("[data-option-word]");

@@ -5,9 +5,9 @@ import type { AnswerResult, Card, OptionInfo, QType, Question } from "./wordbook
 export interface OptionRowView {
   /** 第一行:meaning 题 = 选项原文(服务端的中文释义行);word 题 = 英文单词;没有信息 = 选项原文 */
   main: string;
-  /** 第二行小字:meaning 题 = 英文单词;word 题 = 「词性. 中文」;null = 没有 */
+  /** 第二行小字:meaning 题 = 英文单词;word / cloze 题 = 「词性. 中文」;null = 没有 */
   sub: string | null;
-  /** 长按查的英文单词;null = 这行没有可查的词(旧服务端的 meaning 题 / cloze),按原来的样子显示 */
+  /** 长按查的英文单词;null = 这行没有可查的词(旧服务端的 meaning 题),按原来的样子显示 */
   word: string | null;
   /** 英文单词在哪一行 */
   wordLine: "main" | "sub" | null;
@@ -22,7 +22,7 @@ export const infoFor = (infos: readonly OptionInfo[] | undefined, option: string
  * meaning 题:选项原文(中文)为主行 + 小字英文单词(正确项、错误项、未选项一样);word 题:英文单词 + 小字「词性. 中文」(spec D3)。
  */
 export function optionRowView(qtype: QType, option: string, info: OptionInfo | undefined): OptionRowView {
-  if (qtype === "word") {
+  if (qtype === "word" || qtype === "cloze") {
     const word = info?.word ?? option;
     return { main: word, sub: info ? meaningLine(info.defsZh ?? [], 40) || null : null, word, wordLine: "main" };
   }

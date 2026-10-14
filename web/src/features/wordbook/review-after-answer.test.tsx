@@ -32,7 +32,7 @@ const BATCH = {
   cards: [
     defsCard("accept", { senses: [{ pos: "vt", text: "接受；承认" }], defs_en: [{ pos: "v", text: "agree to take something offered" }], phrases: [{ en: "accept defeat", zh: "认输" }] }),
     defsCard("carry", { senses: [{ pos: "vt", text: "携带；搬运" }], defs_en: [{ pos: "v", text: "hold something and take it somewhere" }] }),
-    card("go"),
+    defsCard("go", { senses: [{ pos: "v", text: "去" }], defs_en: [{ pos: "v", text: "move to a place" }] }),
   ],
 };
 const info = (option: string, word: string, zh: [string, string], en: string[] = []) => ({
@@ -45,6 +45,7 @@ const INFO: Record<string, unknown[]> = {
     info("v. 携带；搬运", "carry", ["vt", "携带；搬运"], ["hold something and take it somewhere"]),
     info("v. 停止", "stop", ["v", "停止"]),
   ],
+  go: [info("go", "go", ["v", "去"], ["move to a place"]), info("stop", "stop", ["v", "停止"]), info("child", "child", ["n", "孩子"]), info("carry", "carry", ["vt", "携带；搬运"])],
   carry: [info("stop", "stop", ["v", "停止"]), info("carry", "carry", ["vt", "携带；搬运"], ["hold it"]), info("go", "go", ["v", "去"]), info("child", "child", ["n", "孩子"])],
 };
 const CORRECT: Record<string, string> = { accept: OPT_ACCEPT, carry: "carry", go: "go" };
@@ -174,7 +175,26 @@ describe("review page · after the answer (word and cloze)", () => {
     expect(within(wc).queryByTestId("def-peek")).toBeNull();
   });
 
-  it("leaves cloze exactly as it was: disabled option buttons, no panel", async () => {
+  it("treats cloze like word: words with pos and Chinese, the correct word's card below", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt\. 接受；承认/ }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
+    await user.click(await screen.findByRole("button", { name: /carry/ }));
+    await user.click(await screen.findByRole("button", { name: "继续" }));
+    await user.click(await screen.findByRole("button", { name: /go/ }));
+    await screen.findAllByTestId("choice-option");
+    expect(rows().map(wordOf)).toEqual(["go", "stop", "child", "carry"]);
+    expect(rows()[1]).toHaveTextContent("v. 停止");
+    expect(rows()[0]).toHaveAttribute("data-state", "correct");
+    const wc = screen.getByTestId("word-card");
+    expect(wc).toHaveTextContent("move to a place");
+    expect(within(wc).getByTestId("after-zh")).toBeTruthy();
+  });
+
+  it("keeps the old cloze look (disabled buttons, no panel) when the server sent no option info", async () => {
+    withInfo = false;
     const user = userEvent.setup();
     setup();
     await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
@@ -185,7 +205,6 @@ describe("review page · after the answer (word and cloze)", () => {
     await user.click(await screen.findByRole("button", { name: /go/ }));
     await waitFor(() => expect(screen.getByRole("button", { name: /go/ })).toHaveAttribute("data-state", "correct"));
     expect(screen.queryByTestId("choice-option")).toBeNull();
-    expect(screen.queryByTestId("after-answer-panel")).toBeNull();
     expect(screen.queryByTestId("word-card")).toBeNull();
   });
 });

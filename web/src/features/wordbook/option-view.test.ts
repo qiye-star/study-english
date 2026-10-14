@@ -34,8 +34,8 @@ describe("optionRowView · word", () => {
     expect(optionRowView("word", "talk", undefined)).toEqual({ main: "talk", sub: null, word: "talk", wordLine: "main" });
   });
 
-  it("is not a thing for cloze", () => {
-    expect(optionRowView("cloze", "talk", undefined)).toEqual({ main: "talk", sub: null, word: null, wordLine: null });
+  it("treats cloze like word (options are English words)", () => {
+    expect(optionRowView("cloze", "talk", { ...TALK, option: "talk" })).toEqual({ main: "talk", sub: "v. 说话；谈话；n. 交谈", word: "talk", wordLine: "main" });
   });
 });
 

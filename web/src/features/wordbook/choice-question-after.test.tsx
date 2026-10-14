@@ -71,12 +71,26 @@ describe("ChoiceQuestion before the answer / without `after`", () => {
     expect(screen.queryByTestId("choice-option")).toBeNull();
   });
 
-  it("never changes cloze, even with `after`", () => {
+  it("keeps cloze as disabled buttons when `after` has no option info (old server / memo miss)", () => {
     view(cloze, { choice: "stop", correct: false, correctOption: "carry" }, after({ info: undefined }));
     const buttons = screen.getAllByRole("button").filter((b) => b.closest("li") !== null && b.getAttribute("data-state"));
     expect(buttons).toHaveLength(2);
     expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     expect(screen.queryByTestId("choice-option")).toBeNull();
+  });
+});
+
+describe("ChoiceQuestion · cloze, after the answer", () => {
+  it("shows each English word with a small 'pos. Chinese' line, like word", () => {
+    const info: OptionInfo[] = [
+      { option: "stop", word: "stop", defsZh: [{ pos: "v", text: "停止" }], defsEn: [] },
+      { option: "carry", word: "carry", defsZh: [{ pos: "vt", text: "携带；搬运" }], defsEn: [] },
+    ];
+    view(cloze, { choice: "stop", correct: false, correctOption: "carry" }, after({ info }));
+    expect(rows().map(wordOf)).toEqual(["stop", "carry"]);
+    expect(rows()[1]).toHaveTextContent("vt. 携带；搬运");
+    expect(rows().map((r) => r.getAttribute("data-state"))).toEqual(["wrong", "correct"]);
+    expect(screen.getByTestId("long-press-hint")).toBeTruthy();
   });
 });
 

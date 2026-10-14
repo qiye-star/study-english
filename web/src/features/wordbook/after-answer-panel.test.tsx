@@ -109,6 +109,17 @@ describe("AfterAnswerPanel · meaning (spec D1)", () => {
   });
 });
 
+describe("AfterAnswerPanel · cloze", () => {
+  it("renders the correct word's card like word", () => {
+    const clozeQ: Question = { key: "talk", qtype: "cloze", prompt: { sentence: "They _____ a lot.", zh: "他们聊得很多。" }, options: ["talk", "stop"], length: null };
+    view(clozeQ, talkCard(), { defLang: "en" });
+    const wc = screen.getByTestId("word-card");
+    expect(wc).toHaveTextContent("talk");
+    expect(wc).toHaveTextContent("speak to someone");
+    expect(within(wc).getByTestId("after-zh")).toBeTruthy();
+  });
+});
+
 describe("AfterAnswerPanel · word (spec D3)", () => {
   it("renders the correct word's card: senses or definitions per preference, example, folded phrases, listen buttons", () => {
     view(wordQ, talkCard(), { defLang: "both" });
