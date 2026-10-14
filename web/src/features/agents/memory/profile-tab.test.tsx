@@ -28,6 +28,8 @@ describe("ProfileTab", () => {
     const native = await screen.findByLabelText(/母语/);
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     expect(screen.getByText("你改过")).toBeTruthy();
+    expect(screen.getByRole("option", { name: "B1 · 中级" })).toHaveAttribute("value", "B1");
+    expect(screen.getByTestId("profile-level-hint")).toHaveTextContent("能应对大多数日常场景");
     await user.type(native, "中文");
     await user.click(screen.getByRole("button", { name: "保存" }));
     expect(await screen.findByText("已保存")).toBeTruthy();
@@ -40,7 +42,7 @@ describe("ProfileTab", () => {
     const user = userEvent.setup();
     const mock = setupMemory({ "PATCH /api/agents/memory/profile": () => json({ ...STATE, proposals: {} }) });
     const card = await screen.findByTestId("proposal-level");
-    expect(card).toHaveTextContent("智能体建议把「水平」改成 B2");
+    expect(card).toHaveTextContent("智能体建议把「水平」改成 B2 · 中高级");
     await user.click(within(card).getByRole("button", { name: "忽略" }));
     await waitFor(() => expect(screen.queryByTestId("proposal-level")).toBeNull());
     expect(JSON.parse(String(mock.calls.find((c) => c.method === "PATCH")!.body))).toEqual({ values: {}, dismiss: ["level"] });
