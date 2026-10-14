@@ -51,7 +51,7 @@ describe("ConversationSettingsSheet", () => {
 
   it("labels the levels and explains the chosen one under the select (plan 2026-10-14-level-annotations W2)", async () => {
     render(<ConversationSettingsSheet open onOpenChange={vi.fn()} ai={null} onSave={vi.fn()} config={{ ...base }} />);
-    expect(screen.queryByTestId("settings-level-hint")).toBeNull(); // auto 没有说明
+    expect(screen.getByTestId("settings-level-hint")).toHaveTextContent("No level is set"); // auto 也有说明
     expect(screen.getByRole("option", { name: "B1 · Intermediate" })).toHaveAttribute("value", "B1");
     expect(screen.getByRole("option", { name: "Auto (no limit)" })).toHaveAttribute("value", "auto");
     await userEvent.selectOptions(screen.getByTestId("settings-level"), "B1");

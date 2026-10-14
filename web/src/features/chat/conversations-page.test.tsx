@@ -40,6 +40,7 @@ describe("ConversationsPage", () => {
     expect(await screen.findByTestId("conversations-empty")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("conversation-new"));
     expect(await screen.findByTestId("scenario-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("scenario-level-hint")).toHaveTextContent("No level is set");
     await userEvent.selectOptions(screen.getByTestId("scenario-level"), "B1");
     expect(screen.getByTestId("scenario-level-hint")).toHaveTextContent("Copes with most everyday situations");
     play.mockClear();
@@ -295,7 +296,7 @@ describe("ConversationsPage", () => {
     page(createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) }));
     await userEvent.click(await screen.findByTestId("conversation-new"));
     expect(await screen.findByRole("dialog", { name: "Choose a scenario" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "English level" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^English level/ })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Custom scenario" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Ordering coffee/ })).toBeInTheDocument();
   });

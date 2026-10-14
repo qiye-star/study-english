@@ -118,7 +118,7 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
                 onChange={(e) => setLevel(e.target.value as Level)}>
                 {LEVELS.map((l) => <option key={l} value={l}>{l === "auto" ? t("web.chat.levels.auto") : levelLabel(t, l)}</option>)}
               </select>
-              <LevelHint code={level} id="scenario-level-hint" testId="scenario-level-hint" />
+              <LevelHint code={level} fallback={t("web.chat.levels.autoHint")} id="scenario-level-hint" testId="scenario-level-hint" />
             </label>
           </div>
           {error && (

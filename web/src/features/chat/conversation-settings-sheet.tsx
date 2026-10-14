@@ -124,7 +124,7 @@ export function ConversationSettingsSheet({ open, onOpenChange, config, ai, onSa
                 onChange={(e) => setDraft({ ...draft, level: e.target.value as Level })}>
                 {LEVELS.map((l) => <option key={l} value={l}>{l === "auto" ? t("web.chat.levels.auto") : levelLabel(t, l)}</option>)}
               </select>
-              <LevelHint code={normalizeLevel(draft.level)} id="settings-level-hint" testId="settings-level-hint" />
+              <LevelHint code={normalizeLevel(draft.level)} fallback={t("web.chat.levels.autoHint")} id="settings-level-hint" testId="settings-level-hint" />
               <span className={hintClass}>{t("web.chat.settingsForm.levelHint")}</span>
             </label>
             <label className={fieldClass}>
