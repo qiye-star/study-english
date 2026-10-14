@@ -39,9 +39,9 @@ describe("layout", () => {
   it("bottom nav is an always-on glass bar with the active tab in blue", () => {
     renderWithProviders(<BottomNav />, { route: "/me" });
     const nav = screen.getByRole("navigation");
-    expect(nav.className).toMatch(/\bglass\b/);
-    expect(nav.className).toContain("glass-edge-t");
-    expect(nav.className).toContain("pb-[env(safe-area-inset-bottom)]");
+    expect(nav.className).toMatch(/\bglass-float\b/);
+    expect(nav.className).not.toContain("glass-edge-t");
+    expect(nav.className).toContain("bottom-[var(--tab-bar-bottom)]");
     expect(screen.getByTestId("nav-me").className).toMatch(/\btext-blue\b/);
     expect(screen.getByTestId("nav-chat").className).toMatch(/\btext-ink-2\b/);
   });
@@ -50,7 +50,7 @@ describe("layout", () => {
     const shell = renderWithProviders(<AppShell />, { route: "/x" });
     const main = shell.container.querySelector("main")!;
     // 内容从玻璃底栏下穿过:滚动区为底栏留出空间
-    expect(main.className).toContain("pb-[calc(3.5rem+env(safe-area-inset-bottom))]");
+    expect(main.className).toContain("pb-[var(--tab-bar-space)]");
     shell.unmount();
 
     function Page() {

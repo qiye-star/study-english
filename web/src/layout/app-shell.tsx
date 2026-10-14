@@ -8,7 +8,8 @@ import { useAppHeight } from "./use-app-height";
 
 /**
  * 应用壳:<main> 是唯一滚动区,通过 ScrollRootProvider 交给 PageHeader 判断是否已滚动;
- * 玻璃底栏浮在其上,main 底部留出底栏高度,内容从玻璃下穿过。
+ * 悬浮玻璃底栏浮在其上,main 底部留出 --tab-bar-space(index.css,计划 2026-10-14-floating-glass-bottom-bar R-F5),内容从玻璃下穿过;
+ * DOCK / 输入条 sticky 或 absolute 在 main 的内容框下沿,因此自动停在胶囊上方 8px,不需要各自改。
  * 弹窗(ShadowSheetHost)与查词层并列,Provider 包住整个壳,各页面经 useShadowSheet() 打开。
  */
 export function AppShell() {
@@ -20,7 +21,7 @@ export function AppShell() {
         <ScrollRootProvider value={scrollRoot}>
           <main
             ref={setScrollRoot}
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[calc(3.5rem+env(safe-area-inset-bottom))]"
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[var(--tab-bar-space)]"
           >
             <Outlet />
           </main>
