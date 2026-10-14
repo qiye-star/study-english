@@ -5,8 +5,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { FeatureGate, type GateState } from "~/components/feature-gate";
+import { LevelHint } from "~/components/level-hint";
 import { SectionGroup } from "~/components/section-group";
 import { PageHeader } from "~/layout/page-header";
+import { levelLabel } from "~/lib/levels";
 import { PromotionCard } from "./promotion-card";
 import { fetchRankConfig, RANK_SERVER_ERRORS, startMatch, type RankConfig, type RankMe } from "./rank-api";
 import { loadRankMe } from "./rank-me";
@@ -87,7 +89,8 @@ export function RankHomePage() {
               <h2 className="mt-[18px] text-headline font-semibold" aria-label={`${t(`web.rank.tiers.${me.tier}`)} ${divisionLabel(me.division)}`.trim()}>
                 {t(`web.rank.tiers.${me.tier}`)}
               </h2>
-              {cefr && <p className="mt-0.5 text-meta text-ink-2">{t("web.rank.cefr", { level: cefr })}</p>}
+              {cefr && <p data-testid="rank-cefr" className="mt-0.5 text-meta text-ink-2">{t("web.rank.cefr", { level: levelLabel(t, cefr) })}</p>}
+              {cefr && <LevelHint code={cefr} testId="rank-cefr-hint" className="mt-0.5 max-w-[260px]" />}
               <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
                 className="mt-3 h-1.5 w-[200px] overflow-hidden rounded-full bg-surface-2">
                 <div className="h-full rounded-full bg-blue" style={{ width: `${ratio * 100}%` }} />
