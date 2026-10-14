@@ -105,9 +105,12 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
         title={t("web.practice.title")}
         subtitle={today}
         actions={
-          <Link to="/practice/list" data-testid="practice-list" aria-label={t("web.practice.list.title")} className={ICON_LINK}>
-            <ListChecksIcon aria-hidden />
-          </Link>
+          <>
+            <Slot point="practiceHeaderActions" props={{}} />
+            <Link to="/practice/list" data-testid="practice-list" aria-label={t("web.practice.list.title")} className={ICON_LINK}>
+              <ListChecksIcon aria-hidden />
+            </Link>
+          </>
         }
       />
       <div className="px-gutter pb-6">

@@ -2,9 +2,9 @@ import { bumpGrammarRev } from "~/features/grammar";
 import { sharedTtsCache, clearHintsMemory, clearComposerMode } from "~/features/chat";
 import { kvClear } from "~/lib/kv-cache";
 import { resetPlaybackRate } from "~/lib/playback-rate";
-import { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, removeKey } from "~/lib/storage";
+import { CHANGELOG_PREFS_KEY, PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, removeKey } from "~/lib/storage";
 
-export { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY };
+export { CHANGELOG_PREFS_KEY, PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY };
 
 /** 退出登录时清掉本机上的每用户数据(练习草稿、背单词偏好、语速、输入栏模式、递增语法提示词版本、查词/翻译/语法缓存、朗读音频)。任何失败都不抛出。 */
 export function clearDeviceData(): void {
@@ -15,6 +15,7 @@ export function clearDeviceData(): void {
   }
   try {
     removeKey(WORDBOOK_PREFS_KEY);
+    removeKey(CHANGELOG_PREFS_KEY);
   } catch {
     /* ignore */
   }

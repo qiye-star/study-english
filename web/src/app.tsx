@@ -17,6 +17,7 @@ import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
+import { ChangelogPage } from "~/features/changelog";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -66,6 +67,7 @@ export function AppRoutes() {
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/practice/history" element={<HistoryPage />} />
             <Route path="/practice/list" element={<PracticeListPage />} />
+            <Route path="/practice/changelog" element={<ChangelogPage />} />
             <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
             <Route path="/chat" element={<ConversationsPage />} />
             <Route path="/chat/:id" element={<ConversationPage />} />

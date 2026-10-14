@@ -14,7 +14,7 @@ afterEach(() => setLinkFlags(ALL_OFF));
 
 describe("all-off / all-on matrix", () => {
   it("with every link off only core contributions remain (= today)", () => {
-    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add"]);
+    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "practiceHeaderActions/changelog.entry", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add"]);
     expect(routesFor(ALL_OFF)).toEqual([]);
   });
 
@@ -35,6 +35,7 @@ describe("all-off / all-on matrix", () => {
     expect(ids("meRows")).toEqual(["links.row"]);
     expect(ids("appEffects")).toEqual(["links.config"]);
     expect(ids("selectionActions")).toEqual(["chat.read-aloud"]);
+    expect(ids("practiceHeaderActions")).toEqual(["changelog.entry"]);
     expect(routesFor(allOn).map((r) => r.path).sort()).toEqual(["/links/mistakes", "/links/weak-words", "/me/links"]);
   });
 

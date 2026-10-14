@@ -67,7 +67,7 @@ describe("extension registry", () => {
 
   it("knows every point and keeps the vocabulary limits", async () => {
     expect(POINT_NAMES).toEqual(["wordActions", "wordActionsMenu", "dailyTasks", "practiceHome", "learningSources",
-      "wordDetailSections", "notebookViews", "meRows", "appEffects", "selectionActions"]);
+      "wordDetailSections", "notebookViews", "meRows", "appEffects", "selectionActions", "practiceHeaderActions"]);
     const { MAX_VOCAB_WORD, MAX_VOCAB_MEANING, MAX_VOCAB_EXAMPLE } = await import("~/features/vocabulary/vocabulary-api");
     expect(MAX_WORD_TARGET).toEqual({ word: MAX_VOCAB_WORD, meaning: MAX_VOCAB_MEANING, example: MAX_VOCAB_EXAMPLE });
   });

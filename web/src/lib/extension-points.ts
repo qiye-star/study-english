@@ -38,10 +38,12 @@ export interface PointProps {
   appEffects: Empty;
   /** 选词操作条里的动作(spec 2026-10-13 §3.3):`text` = 选中的文字;`testId` 由消费方给。 */
   selectionActions: { text: string; testId: string };
+  /** 练习页顶栏右侧的图标按钮(计划 2026-10-14-changelog R-2):排在「练习清单」图标之前;核心贡献 `changelog.entry`(更新日志入口)。 */
+  practiceHeaderActions: Empty;
 }
 export type PointName = keyof PointProps;
 export const POINT_NAMES: readonly PointName[] = ["wordActions", "wordActionsMenu", "dailyTasks", "practiceHome",
-  "learningSources", "wordDetailSections", "notebookViews", "meRows", "appEffects", "selectionActions"];
+  "learningSources", "wordDetailSections", "notebookViews", "meRows", "appEffects", "selectionActions", "practiceHeaderActions"];
 
 interface Gated { id: string; link?: LinkKey; requiresLinks?: boolean }
 export interface Contribution<N extends PointName> extends Gated { point: N; order?: number; component: ComponentType<PointProps[N]> }

@@ -1,0 +1,25 @@
+{
+  "web": {
+    "changelog": {
+      "title": "What's new",
+      "entry": "What's new",
+      "entryUnread_one": "What's new, 1 unread update",
+      "entryUnread_other": "What's new, {{count}} unread updates",
+      "hint_one": "1 new update",
+      "hint_other": "{{count}} new updates",
+      "filters": "Filter by type",
+      "all": "All",
+      "tag": { "new": "New", "improve": "Improved", "fix": "Fixed", "library": "Library", "other": "Other" },
+      "newBadge": "New",
+      "expandAll": "Show all {{count}}",
+      "collapse": "Show less",
+      "empty": "No updates yet",
+      "error": "Could not load the updates",
+      "offline": "Offline: showing the updates saved last time",
+      "loadMore": "Load more",
+      "loadMoreFailed": "Could not load more. Tap to retry",
+      "end": "That is everything",
+      "noMatch": "No updates of this type yet"
+    }
+  }
+}

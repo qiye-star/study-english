@@ -1,0 +1,25 @@
+{
+  "web": {
+    "changelog": {
+      "title": "更新日志",
+      "entry": "更新日志",
+      "entryUnread_one": "更新日志,1 条未读",
+      "entryUnread_other": "更新日志,{{count}} 条未读",
+      "hint_one": "有 1 条新更新",
+      "hint_other": "有 {{count}} 条新更新",
+      "filters": "按类型筛选",
+      "all": "全部",
+      "tag": { "new": "新功能", "improve": "改进", "fix": "修复", "library": "跟读库", "other": "其他" },
+      "newBadge": "新",
+      "expandAll": "展开全部 {{count}} 条",
+      "collapse": "收起",
+      "empty": "还没有更新日志",
+      "error": "没能加载更新日志",
+      "offline": "离线:显示上次保存的更新日志",
+      "loadMore": "加载更多",
+      "loadMoreFailed": "没能加载更多,点按重试",
+      "end": "已经是全部更新",
+      "noMatch": "这个类型还没有更新"
+    }
+  }
+}
