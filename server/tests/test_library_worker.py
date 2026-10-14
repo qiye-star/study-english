@@ -320,7 +320,7 @@ async def test_sweep_expires_uploads_purges_old_failures_and_orphan_staging(app)
 
 def test_fetch_interface_is_the_s2_contract():
     assert list(pipeline.FetchRequest.__dataclass_fields__) == ["item_id", "user_id", "url", "tmp_dir", "settings",
-                                                                "asr_available", "report"]
+                                                                "asr_available", "report", "system"]
     assert list(pipeline.FetchResult.__dataclass_fields__) == ["media_path", "title", "duration_ms", "subtitle_path",
                                                                "subtitle_auto", "source_host"]
 

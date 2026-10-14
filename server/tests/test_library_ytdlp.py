@@ -496,3 +496,27 @@ async def test_media_runner_runs_the_real_yt_dlp(tmp_path):
     assert proc.returncode == 0 and not proc.timed_out
     printed = [int(x) for x in proc.stdout.strip().split(".")[:3]]
     assert printed == [int(x) for x in ytdlp.installed_version().split(".")[:3]]
+
+
+# ---- system (curated catalog) requests ----
+
+async def test_a_system_request_ignores_the_user_link_switch_but_not_the_library_switch(tmp_path, monkeypatch):
+    from app.core import config as config_module
+    monkeypatch.setattr(config_module, "ytdlp_present", lambda: True)
+    runner = FakeRunner(files=["dl.mp4"])
+    req = replace(request(tmp_path, library_link_available=False, library_enabled=True), system=True)
+    result = await stage(runner).fetch(req)
+    assert result.media_path.name == "dl.mp4" and len(runner.calls) == 2
+    with pytest.raises(LibraryError) as e:
+        await stage(FakeRunner()).fetch(replace(request(tmp_path / "b", library_link_available=False,
+                                                        library_enabled=False), system=True))
+    assert e.value.kind == "link_disabled"
+    monkeypatch.setattr(config_module, "ytdlp_present", lambda: False)
+    with pytest.raises(LibraryError) as e:
+        await stage(FakeRunner()).fetch(replace(request(tmp_path / "c", library_link_available=False,
+                                                        library_enabled=True), system=True))
+    assert e.value.kind == "link_disabled"
+
+
+def test_fetch_request_defaults_to_a_user_request(tmp_path):
+    assert request(tmp_path).system is False

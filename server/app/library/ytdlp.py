@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.core import config as core_config
 from app.library import media, urlcheck
 from app.library.errors import LibraryError
 from app.library.pipeline import FetchRequest, FetchResult
@@ -417,7 +418,10 @@ class YtDlpFetch:
         cookies: Path | None = None
         exit_code: int | None = None
         try:
-            if not s.library_link_available:  # switched off (or yt-dlp gone) after the item was queued
+            # a user import needs the user switch; the curated catalog import (system=True, spec 2026-10-14 E5)
+            # needs only the library switch and yt-dlp itself
+            if not (s.library_link_available or (req.system and s.library_enabled and core_config.ytdlp_present())):
+                # switched off (or yt-dlp gone) after the item was queued
                 raise LibraryError("link_disabled")
             cached = load_cache(tmp)
             if cached is not None:

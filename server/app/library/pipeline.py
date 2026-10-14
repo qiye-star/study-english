@@ -48,6 +48,7 @@ class FetchRequest:
     settings: Any  # the current Settings (read the library_* limits from it)
     asr_available: bool  # transcription is possible: then skip platform auto-captions (E6)
     report: Callable[[int], Awaitable[None]]  # progress 0-100 inside the fetch stage; raises Aborted when canceled
+    system: bool = False  # curated catalog import (spec 2026-10-14-curated-library E5): no user's link switch
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,8 @@ class MediaTools(Protocol):
 
     async def normalize(self, src: Path, info: ProbeInfo, out_dir: Path, *, max_height: int, home: Path,
                         progress: Callable[[float], Awaitable[None]] | None = None) -> Any: ...
+
+    async def audio_only(self, src: Path, out_dir: Path, *, duration_ms: int, home: Path) -> Any: ...
 
     async def poster(self, media: Path, dst: Path, duration_ms: int, *, home: Path) -> bool: ...
 
@@ -218,12 +221,10 @@ def _untimed(transcribe: Callable[[bytes], Awaitable[str]]) -> Callable[[bytes],
     return timed
 
 
-async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, duration_ms: int, tmp: Path,
-                      progress: Progress, t0: int
-                      ) -> tuple[sentences_mod.Built, list[asr_chunks.Chunk], list[asr_chunks.Silence]]:
-    """Chunked recognition -> sentences with flags and the `low_confidence` verdict (plan v2: word times first), plus
-    the chunks and silences the caller keeps as the item's transcript."""
-    settings = deps.settings()
+async def prepare_chunks(deps: PipelineDeps, media: Path, duration_ms: int, tmp: Path
+                         ) -> tuple[list[asr_chunks.Chunk], list[asr_chunks.Silence], Path, Path]:
+    """The WAV, the silence table and the chunk plan, resumed from `_tmp` when present (shared with the catalog
+    import, plan 2026-10-14-curated-library SI). Returns (chunks, silences, wav, state_path)."""
     wav, state_path, silences_path = tmp / SPEECH_WAV, tmp / CHUNKS, tmp / SILENCES
     chunks = asr_chunks.load_state(state_path)
     silences: list[asr_chunks.Silence] | None = None
@@ -238,6 +239,28 @@ async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, durati
         overlap = limits.ASR_HARD_CUT_OVERLAP_MS if deps.timed_transcriber is not None else 0  # R-V5
         chunks = asr_chunks.plan_chunks(duration_ms, silences, overlap_ms=overlap)
         asr_chunks.save_state(state_path, chunks)
+    return chunks, silences, wav, state_path
+
+
+async def run_chunks(deps: PipelineDeps, chunks: list[asr_chunks.Chunk], wav: Path, state_path: Path,
+                     transcribe: Callable[[bytes], Awaitable[TimedText]],
+                     on_chunk: Callable[[int, int], Awaitable[None]]) -> int:
+    """Transcribe the chunks that have no text yet (checkpointed after each); returns the seconds spent."""
+    async def read(chunk: asr_chunks.Chunk) -> bytes:
+        return await asyncio.to_thread(asr_chunks.slice_wav, wav, chunk.start_ms, chunk.end_ms)
+
+    return await asr_chunks.transcribe_chunks_timed(
+        chunks, read=read, transcribe=transcribe, save=lambda c: asr_chunks.save_state(state_path, c),
+        progress=on_chunk, concurrency=limits.ASR_CONCURRENCY, retries=limits.ASR_CHUNK_RETRIES)
+
+
+async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, duration_ms: int, tmp: Path,
+                      progress: Progress, t0: int
+                      ) -> tuple[sentences_mod.Built, list[asr_chunks.Chunk], list[asr_chunks.Silence]]:
+    """Chunked recognition -> sentences with flags and the `low_confidence` verdict (plan v2: word times first), plus
+    the chunks and silences the caller keeps as the item's transcript."""
+    settings = deps.settings()
+    chunks, silences, wav, state_path = await prepare_chunks(deps, media, duration_ms, tmp)
     need = sum(c.seconds for c in chunks if c.text is None)
     uid, day = str(item.user_id), limits.day_of(deps.clock())
     async with deps.sessionmaker() as s:
@@ -252,18 +275,12 @@ async def _transcribe(deps: PipelineDeps, item: LibraryItem, media: Path, durati
     transcribe = (deps.timed_transcriber(item.user_id) if deps.timed_transcriber is not None
                   else _untimed(deps.transcriber(item.user_id)))
 
-    async def read(chunk: asr_chunks.Chunk) -> bytes:
-        return await asyncio.to_thread(asr_chunks.slice_wav, wav, chunk.start_ms, chunk.end_ms)
-
     async def on_chunk(done: int, total: int) -> None:
         await progress.set("transcribe", t0 + (t1 - t0) * done // max(1, total))
 
     await progress.set("transcribe", t0)
     try:
-        spent = await asr_chunks.transcribe_chunks_timed(
-            chunks, read=read, transcribe=transcribe,
-            save=lambda c: asr_chunks.save_state(state_path, c), progress=on_chunk,
-            concurrency=limits.ASR_CONCURRENCY, retries=limits.ASR_CHUNK_RETRIES)
+        spent = await run_chunks(deps, chunks, wav, state_path, transcribe, on_chunk)
     except BaseException:
         unspent = sum(c.seconds for c in chunks if c.text is None)
         async with deps.sessionmaker() as s:  # give back what was not transcribed (spec §6.4 step 7)
@@ -350,3 +367,11 @@ def _platform_cues(path: Path) -> list[subtitles.Cue]:
         return subtitles.parse(path.read_bytes())
     except LibraryError:
         return []  # unusable platform subtitles: fall through to transcription
+
+
+# public names for the curated catalog import (plan 2026-10-14-curated-library SI); the user pipeline keeps using
+# the private ones
+platform_cues = _platform_cues
+fragments = _fragments
+untimed = _untimed
+input_file = _input_file
