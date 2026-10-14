@@ -53,8 +53,8 @@ def utterances_of(result: object) -> list[dict]:
                 continue
             ws, we = base.number(w.get("start_time")), base.number(w.get("end_time"))
             wt = w.get("text")
-            if ws is None or we is None or not isinstance(wt, str):
-                continue
+            if ws is None or we is None or ws < 0 or we < 0 or not isinstance(wt, str):
+                continue  # the recognizer interleaves 1-char placeholders timed -1/-1: never a real word
             words.append((norm(wt), ws, we, any(not c.isalnum() and not c.isspace() for c in wt)))
         additions = item.get("additions")
         out.append({

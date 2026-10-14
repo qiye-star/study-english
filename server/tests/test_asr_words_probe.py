@@ -68,3 +68,22 @@ def test_helpers():
                                   ["--clip", "missing.mp3", "--yes"]])
 def test_it_refuses_without_yes_bad_seconds_or_a_missing_clip(argv):
     assert main(argv) == 2
+
+
+def test_placeholder_words_with_negative_times_are_dropped_before_any_statistic():
+    rows = []
+    for i, (t, s, e) in enumerate([("one", 1_000, 1_400), ("two", 1_440, 1_800), ("three", 1_840, 2_400)]):
+        rows += [(t, s, e), (" ", -1, -1)]
+    rows.insert(0, (",", -1, -1))  # a run may also start with a placeholder
+    result = {"utterances": [{"text": "one two three", "start_time": 1_000, "end_time": 2_400, "definite": True,
+                              "words": words(*rows)}]}
+    utts = utterances_of(result)
+    assert [w[1:3] for w in utts[0]["words"]] == [(1_000, 1_400), (1_440, 1_800), (1_840, 2_400)]
+    st = word_stats(utts)
+    assert st["words"] == 3 and st["words_inside_their_utterance"] == 3 and st["words_monotonic"] is True
+    assert st["dur_zero"] == 0 and st["gaps_over_1000"] == 0 and st["token_word_match"] == 1.0
+    assert st["inner_max_gap_max"] == 40
+    # a half-negative entry is dropped too
+    half = utterances_of({"utterances": [{"text": "a", "start_time": 0, "end_time": 10,
+                                          "words": words(("a", 0, 10), ("b", 5, -1), ("c", -1, 7))}]})
+    assert len(half[0]["words"]) == 1
