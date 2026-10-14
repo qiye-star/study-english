@@ -25,7 +25,7 @@ export const S = {
     submit: "开始导入", uploading: (p: string) => `上传中 ${p}`, cancel: "取消", tooLarge: (mb: number) => `文件超过 ${mb} MB 上限`,
   },
   detail: {
-    listen: "试听", sentences: "句子", edit: "编辑", save: "保存", meta: "元数据", translate: "补全译文",
+    listen: "试听", sentences: "句子", edit: "编辑", save: "保存", saveMeta: "保存元数据", meta: "元数据", translate: "补全译文",
     retry: "重试", cancelJob: "取消处理", publish: "发布", unpublish: "下架", del: "删除", purge: "强制删除",
     editLocked: "已发布的条目不能改句子:先下架,改好再发布。已加入的学习者副本不会随之更新。",
     text: "原文", zh: "译文", startMs: "开始(毫秒)", endMs: "结束(毫秒)", close: "关闭",

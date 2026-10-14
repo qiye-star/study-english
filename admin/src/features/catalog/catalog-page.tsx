@@ -8,6 +8,7 @@ import { StatusDot, type Tone } from "../../components/status-dot";
 import { errorText as apiErrorText, useAsync } from "../../hooks/use-async";
 import { formatDuration } from "../../lib/format";
 import { ACTIVE, fetchCatalog, publish, unpublish, type CatalogRow, type CatalogState } from "./api";
+import { CatalogDetail } from "./catalog-detail";
 import { ImportDialog } from "./import-dialog";
 import { S, errorText } from "./strings";
 import { UploadDialog } from "./upload-dialog";
@@ -96,6 +97,7 @@ export function CatalogPage() {
   const data = useAsync(fetchCatalog, []);
   const [importing, setImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const rows = data.data?.items;
@@ -136,7 +138,7 @@ export function CatalogPage() {
       header: S.cols.title,
       render: (r) => (
         <span className="block">
-          <span className="font-medium">{r.title}</span>
+          <button type="button" className="font-medium text-accent hover:underline" onClick={() => setOpenId(r.id)}>{r.title}</button>
           <Badges row={r} />
           {r.licenseNote && <span className="block text-2xs text-muted">{r.licenseNote}</span>}
         </span>
@@ -176,6 +178,7 @@ export function CatalogPage() {
             <DataTable columns={columns} rows={data.data.items} empty={S.empty} rowKey={(r) => r.id} caption={S.title} />
           </div>
           <ImportDialog open={importing} state={data.data.state} onClose={() => setImporting(false)} onDone={reload} />
+          {openId && <CatalogDetail id={openId} onClose={() => setOpenId(null)} onChanged={reload} />}
           <UploadDialog open={uploading} state={data.data.state} onClose={() => setUploading(false)} onDone={reload} />
         </>
       )}
