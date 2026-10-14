@@ -18,7 +18,7 @@ it("shows progress, kind and level; actions call back", () => {
   renderWithProviders(<TutorBar {...p} />);
   expect(screen.getByTestId("tutor-progress")).toHaveTextContent("第 2 / 5 题");
   expect(screen.getByTestId("tutor-bar")).toHaveTextContent("用词造句");
-  expect(screen.getByTestId("tutor-bar")).toHaveTextContent("B1");
+  expect(screen.getByTestId("tutor-bar")).toHaveTextContent("B1 · 中级");
   expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
   fireEvent.click(screen.getByRole("button", { name: "提示" }));
   fireEvent.click(screen.getByRole("button", { name: "跳过" }));

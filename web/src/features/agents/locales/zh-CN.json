@@ -138,7 +138,7 @@
         "kinds": { "ask": "提问", "words": "用词造句", "repeat": "跟读", "retell": "复述", "roleplay": "情景对话", "dictate": "听写" },
         "saveFailed": "没能保存,请重试。",
         "zhNote": "中文说明",
-        "zhNoteHint": "回复只用英文;中文说明默认折叠,点「中文」才显示,永远不朗读。自动 = 角色水平 A2 / B1 时附上。",
+        "zhNoteHint": "回复只用英文;中文说明默认折叠,点「中文」才显示,永远不朗读。自动 = 角色水平 A2(初级)/ B1(中级)时附上。",
         "zhNoteModes": { "auto": "自动", "always": "总是", "never": "从不" }
       },
       "note": { "show": "中文", "hide": "收起中文" },

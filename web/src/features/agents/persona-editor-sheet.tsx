@@ -7,7 +7,9 @@ import { ApiError } from "~/api/client";
 import { loadServerAiConfig, voicesFor, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { LevelHint } from "~/components/level-hint";
 import { cn } from "~/lib/cn";
+import { levelLabel } from "~/lib/levels";
 import { agentsApi, personaErrorKey } from "./agents-api";
 import { PERSONA_LEVELS, PERSONA_STYLES, TOOL_KEYS, type Persona, type PersonaDraft, type ToolKey } from "./types";
 import { useAgentsConfig } from "./use-agents-data";
@@ -149,11 +151,14 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
             className={cn(inputClass, "min-h-24 resize-none leading-body")} onChange={(e) => setDraft({ ...draft, prompt: e.target.value })} />
         </label>
         <div className={fieldClass}>
-          <span className={labelClass} id={`${uid}-level`}>{t("web.agents.editor.level")}</span>
-          <div role="radiogroup" aria-labelledby={`${uid}-level`} className="flex flex-wrap gap-1.5">
+          <span className={labelClass}>
+            <span id={`${uid}-level`}>{t("web.agents.editor.level")}</span>
+            <LevelHint code={draft.level} id={`${uid}-level-hint`} testId="agent-editor-level-hint" className="text-right" />
+          </span>
+          <div role="radiogroup" aria-labelledby={`${uid}-level`} aria-describedby={`${uid}-level-hint`} className="flex flex-wrap gap-1.5">
             {PERSONA_LEVELS.map((level) => (
               <button key={level} type="button" role="radio" aria-checked={draft.level === level} data-testid={`agent-editor-level-${level}`}
-                className={chipClass(draft.level === level)} onClick={() => setDraft({ ...draft, level })}>{level}</button>
+                className={chipClass(draft.level === level)} onClick={() => setDraft({ ...draft, level })}>{levelLabel(t, level)}</button>
             ))}
           </div>
         </div>

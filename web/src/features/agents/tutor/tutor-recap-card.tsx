@@ -4,6 +4,7 @@ import type { TFunction } from "i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { MAX_WORD_TARGET } from "~/lib/extension-points";
+import { levelLabel } from "~/lib/levels";
 import { WordActions } from "~/lib/extension-points-react";
 import type { TutorPoint, TutorRecap, TutorVerdict } from "./tutor-api";
 import { scoreBars } from "./tutor-model";
@@ -48,7 +49,7 @@ export function TutorRecapCard({ recap, showTitle = true }: { recap: TutorRecap;
         {bars.map((b) => <li key={b.verdict} data-testid={`tutor-score-${b.verdict}`}>{t(`web.agents.tutor.verdict.${b.verdict}`)} {b.count}</li>)}
       </ul>
       {recap.levelStart !== recap.levelEnd ? (
-        <p className="mt-2 text-sub text-ink">{t("web.agents.tutor.recap.level", { from: recap.levelStart, to: recap.levelEnd })}</p>
+        <p className="mt-2 text-sub text-ink">{t("web.agents.tutor.recap.level", { from: levelLabel(t, recap.levelStart), to: levelLabel(t, recap.levelEnd) })}</p>
       ) : null}
       <Points title={t("web.agents.tutor.recap.strengths")} points={recap.strengths} tone="green" testId="tutor-strengths" />
       <Points title={t("web.agents.tutor.recap.weaknesses")} points={recap.weaknesses} tone="amber" testId="tutor-weaknesses" />

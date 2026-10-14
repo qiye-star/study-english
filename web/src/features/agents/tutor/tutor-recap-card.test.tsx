@@ -15,7 +15,7 @@ it("shows counts, score distribution, level change, strengths and weaknesses", (
   expect(screen.getByTestId("tutor-recap-count")).toHaveTextContent("答了 4 / 5 题");
   expect(screen.getByTestId("tutor-score-good")).toHaveTextContent("很好 2");
   expect(screen.getByTestId("tutor-score-skip")).toHaveTextContent("跳过 1");
-  expect(screen.getByTestId("tutor-recap")).toHaveTextContent("难度 B1 → B2");
+  expect(screen.getByTestId("tutor-recap")).toHaveTextContent("难度 B1 · 中级 → B2 · 中高级");
   expect(screen.getByTestId("tutor-strengths")).toHaveTextContent("用词造句 · 今日词");
   expect(screen.getByTestId("tutor-weaknesses")).toHaveTextContent("听写 · 今日词");
 });

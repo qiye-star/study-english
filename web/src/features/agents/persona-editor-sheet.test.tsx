@@ -50,6 +50,15 @@ describe("PersonaEditorSheet (mockup 6, D2, D3)", () => {
     });
   });
 
+  it("labels the level chips and explains the chosen level (plan 2026-10-14-level-annotations W10)", async () => {
+    setup({}, MINE);
+    expect(await screen.findByTestId("agent-editor-level-B1")).toHaveTextContent("B1 · Intermediate");
+    expect(screen.getByTestId("agent-editor-level-hint")).toHaveTextContent("Copes with most everyday situations");
+    await userEvent.click(screen.getByTestId("agent-editor-level-B2"));
+    expect(screen.getByTestId("agent-editor-level-B2")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("agent-editor-level-hint")).toHaveTextContent("Talks fluently about familiar topics");
+  });
+
   it("tries a line without saving and shows the reply; a 404 hides trying for good", async () => {
     let available = true;
     const { mock } = setup({ "POST /api/agents/personas/try": () => (available ? json({ text: "Hello, I am Quiz." }) : json({ error: "Not Found" }, 404)) });

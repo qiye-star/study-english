@@ -2,8 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { LevelHint } from "~/components/level-hint";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
+import { levelLabel } from "~/lib/levels";
 import {
   CORRECTIONS, LEVELS, MEMORY_SERVER_ERRORS, PROFILE_KEYS, fetchProfile, patchProfile, type Profile, type ProfileKey,
   type ProfileValues,
@@ -52,7 +54,7 @@ export function ProfileTab() {
   const dirty = Object.keys(changes).length > 0;
   const label = (key: ProfileKey) => t(`${P}.${key}`);
   const show = (key: ProfileKey, value: unknown) =>
-    key === "correction" ? t(`${P}.corrections.${String(value)}`) : Array.isArray(value) ? value.join(", ") : String(value);
+    key === "correction" ? t(`${P}.corrections.${String(value)}`) : key === "level" ? levelLabel(t, value) : Array.isArray(value) ? value.join(", ") : String(value);
 
   const send = async (input: Parameters<typeof patchProfile>[1], done: string) => {
     setBusy(true);
@@ -99,10 +101,13 @@ export function ProfileTab() {
       ))}
       <SurfaceCard className="flex flex-col gap-3 p-3.5">
         {field("level", (
-          <select className={FIELD} value={draft.level} onChange={set("level")}>
-            <option value="">{t(`${P}.unset`)}</option>
-            {LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-          </select>
+          <>
+            <select className={FIELD} value={draft.level} onChange={set("level")} aria-describedby="profile-level-hint">
+              <option value="">{t(`${P}.unset`)}</option>
+              {LEVELS.map((level) => <option key={level} value={level}>{levelLabel(t, level)}</option>)}
+            </select>
+            <LevelHint code={draft.level} fallback={t("web.level.scale")} id="profile-level-hint" testId="profile-level-hint" className="mt-1" />
+          </>
         ))}
         {field("goals", <input className={FIELD} value={draft.goals} placeholder={t(`${P}.listHint`)} onChange={set("goals")} />)}
         {field("interests", <input className={FIELD} value={draft.interests} placeholder={t(`${P}.listHint`)} onChange={set("interests")} />)}

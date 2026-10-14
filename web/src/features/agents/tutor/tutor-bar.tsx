@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { ToneBadge } from "~/components/tone-badge";
 import { ZhNoteFold } from "~/components/zh-note-fold";
+import { levelLabel } from "~/lib/levels";
 import type { TutorSession } from "./tutor-api";
 
 export interface TutorBarProps {
@@ -63,7 +64,7 @@ export function TutorBar({ session, hint, hintZh, busy, onHint, onSkip, onListen
           {t("web.agents.tutor.bar.progress", { n: session.stepIndex, m: session.stepsTotal })}
         </span>
         {session.kind ? <span className="min-w-0 truncate text-sub text-ink-2">{t(`web.agents.tutor.kind.${session.kind}`)}</span> : null}
-        <span className="ml-auto whitespace-nowrap text-meta text-ink-2" title={t("web.agents.tutor.bar.level", { level: session.level })}>{session.level}</span>
+        <span className="ml-auto whitespace-nowrap text-meta text-ink-2" title={t("web.agents.tutor.bar.level", { level: session.level })}>{levelLabel(t, session.level)}</span>
         <button type="button" data-testid="tutor-end" onClick={end}
           className={cn("min-h-tap whitespace-nowrap rounded-button px-2 text-sub focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", confirming ? "font-semibold text-blue" : "text-ink-2")}>
           {confirming ? t("web.agents.tutor.bar.confirmEnd") : t("web.agents.tutor.bar.end")}

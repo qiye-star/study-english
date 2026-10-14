@@ -138,7 +138,7 @@
         "kinds": { "ask": "Ask", "words": "Use words", "repeat": "Repeat", "retell": "Retell", "roleplay": "Role-play", "dictate": "Dictation" },
         "saveFailed": "Could not save. Please try again.",
         "zhNote": "Chinese notes",
-        "zhNoteHint": "Replies are English only. A Chinese note stays folded until you tap Chinese and is never read aloud. Auto = for A2 / B1 personas.",
+        "zhNoteHint": "Replies are English only. A Chinese note stays folded until you tap Chinese and is never read aloud. Auto = for A2 (Elementary) / B1 (Intermediate) personas.",
         "zhNoteModes": { "auto": "Auto", "always": "Always", "never": "Never" }
       },
       "note": { "show": "Chinese", "hide": "Hide Chinese" },
