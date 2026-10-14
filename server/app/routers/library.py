@@ -5,6 +5,7 @@
 契约夹具里有一份给网页的 `LIBRARY_SERVER_ERRORS`)。创建类端点(上传开始、媒体票据)走 `limited_user`;
 分片与媒体读取不走每分钟限流。链接导入 `POST /imports` 在 `routers/library_import.py`(计划 S2)。
 日志只有条目 id、序号、字节数;标题、文件名、字幕、票据一律不记。"""
+import asyncio
 import logging
 import math
 from typing import Annotated
@@ -20,9 +21,9 @@ from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.core.quotas import effective
 from app.library import ai as library_ai
-from app.library import limits, paths, segment, store, subtitles
+from app.library import asr_chunks, limits, paths, segment, sentences, store, subtitles
 from app.library.errors import API_ERRORS, LibraryError, api_error, http_error
-from app.library.pipeline import UPLOADED_SUBS, INPUT_PREFIX
+from app.library.pipeline import TRANSCRIPT, UPLOADED_SUBS, INPUT_PREFIX
 from app.library.worker import LibraryWorker
 from app.models import Assessment, LibraryItem, User, utcnow
 from app.services.prompts import prompt_cache
@@ -352,6 +353,32 @@ async def reprocess_item(request: Request, item_id: ItemId, user: User = Depends
     return {"item": store.item_out(item)}
 
 
+@router.post("/items/{item_id}/rebuild")
+async def rebuild_item(request: Request, item_id: ItemId, user: User = Depends(limited_user),
+                       settings: Settings = Depends(require_library), session: AsyncSession = Depends(get_session)):
+    """plan v2 R-V16:用条目目录里保留的识别结果(transcript.json)按当前算法重新分句,不花识别额度、不排队。
+    手动改过的句子被替换;文字没变的句子保留译文与分析。日志只有条目 id 与数字。"""
+    item = await owned(session, user, item_id)
+    if item.status != "ready" or item.sub_source != "asr" or not item.rebuildable:
+        raise fail("not_rebuildable")
+    path = paths.item_dir(settings.resolved_data_dir, item.user_id, item.id) / TRANSCRIPT
+    async with runtime(request).upload_lock(item.id):
+        loaded = await asyncio.to_thread(asr_chunks.load_transcript, path)
+        if loaded is None:
+            raise fail("not_rebuildable")
+        built = await asyncio.to_thread(sentences.build, *loaded)
+        await session.refresh(item)
+        if not built.sentences or item.status != "ready":
+            raise fail("not_rebuildable")
+        await store.write_segments(session, item, built.sentences, flags=built.flags, keep_ai=True)
+        item.low_confidence, item.updated_at = built.low_confidence, utcnow()
+        await session.commit()
+    segs = await store.segments_of(session, item.id)
+    logger.info("library rebuilt item=%s algorithm=%s sentences=%d flagged=%d", item.id, built.algorithm,
+                len(built.sentences), sum(1 for f in built.flags if f))
+    return {"item": store.item_out(item), "segments": [store.segment_out(s) for s in segs]}
+
+
 @router.put("/items/{item_id}/subtitles")
 async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Depends(current_user),
                              settings: Settings = Depends(require_library),
@@ -371,7 +398,9 @@ async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Dep
     if item.status == "ready":
         await store.write_segments(session, item, sentences)
         item.sub_source, item.error_kind, item.low_confidence, item.updated_at = "uploaded", None, False, utcnow()
+        item.rebuildable = False  # the recognizer's output is no longer the source (R-V8): drop it
         await session.commit()
+        (paths.item_dir(settings.resolved_data_dir, item.user_id, item.id) / TRANSCRIPT).unlink(missing_ok=True)
         segs = await store.segments_of(session, item.id)
         return {"item": store.item_out(item), "segments": [store.segment_out(s) for s in segs]}
     tmp = paths.tmp_dir(settings.resolved_data_dir, item.id)
@@ -417,6 +446,8 @@ async def patch_segment(payload: SegmentPatch, item_id: ItemId, idx: int = PathP
     high = segs[idx + 1].start_ms if idx + 1 < len(segs) else (item.duration_ms or end)
     if not (low <= start < end <= high):
         raise fail("bad_times")
+    if (start, end) != (seg.start_ms, seg.end_ms):
+        seg.flags = None  # R-V14: the learner set the times by ear
     seg.start_ms, seg.end_ms = start, end
     item.updated_at = utcnow()
     await session.commit()
