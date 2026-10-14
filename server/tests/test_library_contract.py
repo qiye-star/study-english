@@ -72,9 +72,13 @@ async def test_library_contract(app, client, auth_headers, monkeypatch):
     use_fakes(app, asr=FakeAsr(["Hello there, my friend. How are you doing today?"]))
     asr_id = await upload(client, h, fake_media(6000, video=False), filename="Pod.m4a", title="Pod")
     await process(app)
+    out["rebuild"] = (await client.post(f"/api/library/items/{asr_id}/rebuild", headers=h)).json()
+    out["rebuild_error"] = (await client.post(f"/api/library/items/{item_id}/rebuild", headers=h)).json()
     out["reprocess_error"] = (await client.post(f"/api/library/items/{item_id}/reprocess", headers=h)).json()
     out["reprocess"] = (await client.post(f"/api/library/items/{asr_id}/reprocess", headers=h)).json()
     out["delete"] = (await client.delete(f"/api/library/items/{item_id}", headers=h)).json()
     assert out["item_detail"]["item"]["status"] == "ready" and out["error_example"] == {"error": "Item has not failed"}
     assert out["reprocess"]["item"]["status"] == "queued" and out["reprocess_error"] == {"error": "Item cannot be reprocessed"}
+    assert out["rebuild"]["item"]["rebuildable"] is True and out["rebuild"]["segments"]
+    assert out["rebuild_error"] == {"error": "Item cannot be rebuilt"}
     check_contract("library_contract", out)
