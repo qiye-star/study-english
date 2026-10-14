@@ -387,3 +387,55 @@ async def test_a_blank_proxy_does_not_count_as_a_proxy(app, client, auth_headers
     monkeypatch.setattr("app.library.urlcheck.system_resolve", fake_resolver("10.0.0.2"))
     r = await client.post("/api/library/imports", json={"url": LINK}, headers=auth_headers)
     assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})
+
+
+# ---- pasted share text ----
+SHARE = "https://youtu.be/SECRETVIDEO9?si=abc"
+
+
+@pytest.mark.parametrize("settings_overrides", [ON], indirect=True)
+@pytest.mark.parametrize("text, url", [
+    ("My talk title " + SHARE, SHARE),
+    (SHARE + " watch this", SHARE),
+    ("My talk\n" + SHARE + "\nmore", SHARE),
+    ("My talk\r\n\r\n" + SHARE, SHARE),
+    ("title (" + SHARE + "), nice", SHARE),
+    ("title " + SHARE + "。后面", SHARE),
+    ("title " + SHARE + "）", SHARE),
+    ("see https://www.youtube.com/watch?v=AAA and https://www.youtube.com/watch?v=BBB", "https://www.youtube.com/watch?v=AAA"),
+])
+async def test_import_extracts_the_link_from_pasted_share_text(app, client, auth_headers, available, dns, wakes, text, url):
+    r = await client.post("/api/library/imports", json={"url": text}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    [row] = await items_of(app)
+    assert row.source_url == url
+
+
+@pytest.mark.parametrize("settings_overrides", [ON], indirect=True)
+@pytest.mark.parametrize("text", ["just a title with spaces", "ftp://example.com/v and words", "title www.youtube.com/watch?v=x"])
+async def test_import_without_a_link_in_the_text_is_rejected(app, client, auth_headers, available, dns, wakes, text):
+    r = await client.post("/api/library/imports", json={"url": text}, headers=auth_headers)
+    assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})
+    assert await items_of(app) == [] and wakes == []
+
+
+@pytest.mark.parametrize("settings_overrides", [ON], indirect=True)
+@pytest.mark.parametrize("text", ["title http://localhost/v", "title http://127.0.0.1/v", "x https://user:pw@example.com/v",
+                                  "x https://example.com:8443/v"])
+async def test_an_extracted_link_still_goes_through_the_full_precheck(app, client, auth_headers, available, dns, wakes, text):
+    r = await client.post("/api/library/imports", json={"url": text}, headers=auth_headers)
+    assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})
+    assert await items_of(app) == [] and wakes == []
+
+
+@pytest.mark.parametrize("settings_overrides", [ON], indirect=True)
+async def test_an_extracted_link_must_still_resolve_publicly(app, client, auth_headers, available, wakes, monkeypatch):
+    monkeypatch.setattr("app.library.urlcheck.system_resolve", fake_resolver("10.0.0.2"))
+    r = await client.post("/api/library/imports", json={"url": "title " + SHARE}, headers=auth_headers)
+    assert (r.status_code, r.json()) == (400, {"error": "Invalid link"})
+
+
+def test_extract_link_leaves_strings_without_whitespace_alone():
+    assert urlcheck.extract_link("ftp://x") == "ftp://x"
+    assert urlcheck.extract_link("  https://a.com/v  ") == "  https://a.com/v  "
+    assert urlcheck.extract_link(5) == 5

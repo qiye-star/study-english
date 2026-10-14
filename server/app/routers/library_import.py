@@ -55,7 +55,7 @@ async def create_import(body: ImportIn, request: Request, user: User = Depends(i
                         settings: Settings = Depends(get_settings)) -> dict:
     try:
         # With a yt-dlp proxy the proxy resolves the host remotely (the local resolver may be poisoned): syntax only.
-        checked = await urlcheck.precheck(body.url, resolve=not (settings.library_ytdlp_proxy or "").strip())
+        checked = await urlcheck.precheck(urlcheck.extract_link(body.url), resolve=not (settings.library_ytdlp_proxy or "").strip())
     except urlcheck.UrlRejected as e:
         logger.info("library import rejected user=%s reason=%s", user.id, e.reason)
         raise HTTPException(400, BAD_URL) from None

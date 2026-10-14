@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
@@ -68,6 +69,27 @@ def _literal(host: str) -> bool:
 async def system_resolve(host: str) -> list[str]:
     infos = await asyncio.get_running_loop().getaddrinfo(host, None)
     return [info[4][0] for info in infos]
+
+
+# Full-width punctuation and closers end a pasted link (a share text has no space after a Chinese full stop).
+_LINK = re.compile(r"https?://[^\s<>\"“”‘’，。；、）】》」』！？]+",
+                   re.IGNORECASE)
+_TRAILING = ").,;:!?]}>'\"）】"
+
+
+def extract_link(raw: object) -> object:
+    """Pasted share text ("title + link"): when the trimmed string holds whitespace, the first `http(s)://...` piece
+    (trailing punctuation removed) stands in for it; nothing found means the string is returned unchanged (so `parse`
+    rejects it as `chars`). A string without whitespace is returned untouched. The result still goes through `precheck`."""
+    if not isinstance(raw, str):
+        return raw
+    stripped = raw.strip()
+    if not any(c.isspace() for c in stripped):
+        return raw
+    match = _LINK.search(stripped)
+    if match is None:
+        return raw
+    return match.group(0).rstrip(_TRAILING) or raw
 
 
 def parse(raw: object) -> CheckedUrl:
