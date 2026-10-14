@@ -213,6 +213,22 @@ describe("LibraryListPage · featured tab (curated library, R-W1)", () => {
     expect(screen.queryByTestId("catalog-view-stub")).toBeNull();
   });
 
+  it("deleting a featured copy explains that the catalog original stays (own body text)", async () => {
+    render([itemRaw({ source: "catalog", catalog_id: "c1", library_bytes: 0, sub_source: "asr" })], {
+      "DELETE /api/library/items/i1": () => new Response(null, { status: 204 }),
+    }, ON);
+    fireEvent.click(await screen.findByRole("button", { name: "删除" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/精选库里的原条目不受影响/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/媒体文件和句子会被删除/)).toBeNull();
+  });
+
+  it("deleting an own item keeps the original text", async () => {
+    render([itemRaw()], {}, ON);
+    fireEvent.click(await screen.findByRole("button", { name: "删除" }));
+    expect(within(await screen.findByRole("alertdialog")).getByText(/媒体文件和句子会被删除/)).toBeInTheDocument();
+  });
+
   it("switching to 精选 shows the catalog view", async () => {
     render([], {}, ON);
     fireEvent.click(await screen.findByTestId("library-tab-catalog"));

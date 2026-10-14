@@ -459,6 +459,10 @@
   background: linear-gradient(160deg, #1c2540, #3a2a55 55%, #124a52);
   color: rgba(255, 255, 255, 0.85);
 }
+/* 有封面的音频条目(精选副本,裁定 7):16:9,封面铺满,下沿压暗;没有封面时回到上面的 3:1 图标舞台 */
+.lib-stage-audio.has-poster { position: relative; aspect-ratio: 16 / 9; }
+.lib-stage-audio.has-poster::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%; pointer-events: none; background: linear-gradient(transparent, rgba(0, 0, 0, 0.45)); }
+.lib-stage-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 /* 压在视频上的顶栏:半透明填充 + 高光边,不模糊(视频上做 backdrop-filter 很贵,且全站底栏已占第三层,R-L26) */
 .lib-bar {
   position: absolute;

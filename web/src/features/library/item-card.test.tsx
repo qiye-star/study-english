@@ -26,6 +26,30 @@ beforeEach(async () => {
   await setUiLanguage("zh-CN");
 });
 
+describe("ItemCard · featured copy (curated library, R-W5)", () => {
+  const copy: LibraryItem = { ...base, source: "catalog", catalogId: "c1", libraryBytes: 0, kind: "audio", subSource: "asr", rebuildable: true, hasPoster: true };
+
+  it("shows the 精选 badge and 不占空间 instead of the size, status and subtitle badges", () => {
+    card({ item: copy, ...handlers(), onRebuild: vi.fn() });
+    expect(screen.getByText("精选")).toBeInTheDocument();
+    expect(screen.getByText("2:05 · 3 句 · 不占空间")).toBeInTheDocument();
+    expect(screen.queryByText("已就绪")).toBeNull();
+    expect(screen.queryByText("自动识别")).toBeNull();
+  });
+
+  it("has no ⋯ menu at all, even when the server allows re-recognition and the item looks re-splittable", () => {
+    card({ item: copy, ...handlers(), onRebuild: vi.fn() });
+    expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+    expect(screen.getByRole("button", { name: "删除" })).toBeInTheDocument();
+  });
+
+  it("a recognized own item still has the menu (control)", () => {
+    card({ item: { ...base, subSource: "asr" }, ...handlers() });
+    expect(screen.getByTestId("library-item-more-i1")).toBeInTheDocument();
+    expect(screen.queryByText("精选")).toBeNull();
+  });
+});
+
 describe("ItemCard (spec §11.2, R-L12)", () => {
   it("links a ready item to its player and shows duration, sentences, size and subtitle source", () => {
     card({ item: base, ...handlers() });
