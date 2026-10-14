@@ -48,6 +48,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app /app
 COPY server/dictionaries /app/dictionaries
+COPY docs/changelog /app/changelog
 COPY --from=web /repo/web/dist /web/dist
 COPY --from=admin /repo/admin/dist /admin/dist
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
