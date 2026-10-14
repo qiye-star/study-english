@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core import metering
-from app.library import limits, paths, pipeline, store
+from app.library import catalog_store, limits, paths, pipeline, store
 from app.library.errors import LINK, TRANSIENT, Aborted, LibraryError
 from app.library.media import Ffmpeg
 from app.library.pipeline import FetchStage, NoFetch, PipelineDeps
@@ -197,6 +197,13 @@ class LibraryWorker:
                 if name not in self.running and known.get(name) in (None, "ready", "canceled"):
                     paths.remove_tree(root / name)
                     orphans += 1
+        try:  # spec 2026-10-14-curated-library R1: retired catalog items nobody uses any more
+            async with self.deps.sessionmaker() as s:
+                collected = await catalog_store.collect_retired(s, data_dir)
+            if collected:
+                logger.info("library sweep catalog collected=%d", collected)
+        except Exception as e:  # noqa: BLE001 - the user library's sweep must not fail because of the catalog
+            logger.warning("library sweep catalog failed error=%s", type(e).__name__)
         counts = {"expired": len(expired), "purged": len(stale), "orphans": orphans}
         logger.info("library sweep expired=%d purged=%d orphans=%d", *counts.values())
         return counts

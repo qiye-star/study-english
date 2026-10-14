@@ -21,7 +21,7 @@ from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.core.quotas import effective
 from app.library import ai as library_ai
-from app.library import asr_chunks, limits, paths, segment, sentences, store, subtitles
+from app.library import asr_chunks, catalog_store, limits, paths, segment, sentences, store, subtitles
 from app.library.errors import API_ERRORS, LibraryError, api_error, http_error
 from app.library.pipeline import TRANSCRIPT, UPLOADED_SUBS, INPUT_PREFIX
 from app.library.worker import LibraryWorker
@@ -280,9 +280,12 @@ async def patch_item(payload: ItemPatch, item_id: ItemId, user: User = Depends(c
 
 @router.delete("/items/{item_id}")
 async def delete_item(request: Request, item_id: ItemId, user: User = Depends(current_user),
-                      _: Settings = Depends(require_library), session: AsyncSession = Depends(get_session)):
+                      settings: Settings = Depends(require_library), session: AsyncSession = Depends(get_session)):
     item = await owned(session, user, item_id)
+    catalog_id = item.catalog_id
     await store.delete_item(session, request.app, item)
+    if catalog_id:  # spec 2026-10-14-curated-library R1: the last copy of a retired catalog item lets it go
+        await catalog_store.collect_if_orphan(session, settings.resolved_data_dir, catalog_id)
     logger.info("library item deleted item=%s", item_id)
     return {"deleted": True}
 
@@ -328,6 +331,8 @@ async def reprocess_item(request: Request, item_id: ItemId, user: User = Depends
     """D7:重新识别一条 `ready` 的自动识别条目(裁定 R-R1…R-R6)。旧句子留到新句子写入(失败 / 取消回到原状);
     预检今天的识别额度(不扣,真实预留在流水线里);陈旧的 `_tmp`(chunks.json 等)在锁内清掉再入队。"""
     item = await owned(session, user, item_id)
+    if item.source == "catalog":
+        raise fail("catalog_locked")  # spec 2026-10-14-curated-library E9
     if item.status != "ready" or item.sub_source != "asr" or item.seg_count <= 0:
         raise fail("not_reprocessable")
     if not settings.library_available:
@@ -386,6 +391,8 @@ async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Dep
                              session: AsyncSession = Depends(get_session)):
     """ready → re-segment now from the new subtitles (R-SC21); failed(no_subtitles) → back to the queue."""
     item = await owned(session, user, item_id)
+    if item.source == "catalog":
+        raise fail("catalog_locked")  # spec 2026-10-14-curated-library E9
     if not (item.status == "ready" or (item.status == "failed" and item.error_kind == "no_subtitles")):
         raise fail("subs_state")
     data = await form_file(request, "file", limits.SUBTITLE_MAX_BYTES, "too_large", "file_required")

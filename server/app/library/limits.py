@@ -113,8 +113,9 @@ async def asr_seconds_left(session: AsyncSession, user_id: int, settings, now: d
 
 
 async def item_count(session: AsyncSession, user_id: int) -> int:
+    """Items that count against `library_max_items`; curated copies do not (spec 2026-10-14-curated-library E7)."""
     return int(await session.scalar(select(func.count()).select_from(LibraryItem).where(
-        LibraryItem.user_id == user_id, LibraryItem.status != "canceled")) or 0)
+        LibraryItem.user_id == user_id, LibraryItem.status != "canceled", LibraryItem.source != "catalog")) or 0)
 
 
 async def uploads_in_progress(session: AsyncSession, user_id: int) -> int:
