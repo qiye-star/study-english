@@ -98,6 +98,7 @@ async def config(request: Request, user: User = Depends(current_user), settings:
         "link_import": enabled and settings.library_link_available,
         "asr": enabled and settings.library_asr_available,
         "ai": enabled and settings.library_ai_available,  # D8:关 = 译文 / 分析接口 404,网页不显示「译」与「分析」
+        "catalog": enabled and settings.library_catalog_enabled,  # spec 2026-10-14-curated-library E12
         "limits": {
             "max_upload_mb": settings.library_max_upload_mb,
             "max_duration_minutes": settings.library_max_duration_minutes,

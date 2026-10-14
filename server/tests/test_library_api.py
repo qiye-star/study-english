@@ -41,7 +41,8 @@ async def test_everything_needs_a_login(client):
 
 async def test_config_reports_switches_limits_and_usage(app, client, auth_headers, monkeypatch):
     r = await client.get("/api/library/config", headers=auth_headers)
-    assert r.json() == {"enabled": True, "link_import": False, "asr": False, "ai": False, "limits": {
+    assert r.json() == {"enabled": True, "link_import": False, "asr": False, "ai": False, "catalog": False,
+                          "limits": {
         "max_upload_mb": 500, "max_duration_minutes": 90, "quota_mb": 2000, "used_bytes": 0, "max_items": 100,
         "chunk_bytes": CHUNK, "formats": list(limits.UPLOAD_EXTENSIONS)}}
     monkeypatch.setattr(config_module, "media_tools_present", lambda: False)

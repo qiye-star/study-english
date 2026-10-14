@@ -32,6 +32,9 @@ def _task_sets(app) -> list:
     library = getattr(state, "library", None)
     if library is not None:  # library jobs (spec 2026-10-13-video-import §6.1); its poll loop is never in here
         out.append(library.pending)
+    catalog = getattr(state, "catalog", None)
+    if catalog is not None:  # curated catalog import jobs (plan 2026-10-14-curated-library SI); no poll loop exists
+        out.append(catalog.pending)
     out.append(getattr(state, "realtime_drains", set()))
     return out
 

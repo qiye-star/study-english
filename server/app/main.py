@@ -31,7 +31,7 @@ from app.library.worker import install as install_library  # imported media libr
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     admin, admin_accounts, admin_agents, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -59,8 +59,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
+        # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         yield
         await _stop_tasks(tasks, exclude="metering")
+        # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.shutdown() goes on the next line ---
         await app_.state.library.shutdown()  # running jobs stay `processing`; recovered at the next start
         for task in list(agents_runtime(app_).tasks):  # after-turn hooks still running (memory extraction, plan A2)
             task.cancel()
@@ -103,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
     # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---
     library_import.install(app)  # plan S2: the worker's fetch stage becomes yt-dlp (spec 2026-10-13-video-import §7)
+    # --- anchor for plan SI (2026-10-14-curated-library-server-import): install_catalog(app) goes on the next line ---
     app.state.settings_hub = hub = SettingsHub(app.state)
     register_core_listeners(app, hub)
     _log_secrets(None, settings)
@@ -122,10 +125,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         library,  # /api/library/* (spec 2026-10-13-video-import §9); before stubs
         # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
         library_import,
+        library_catalog,  # /api/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
         admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents,
         # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
         admin_library,
+        # --- anchor for plan SI (2026-10-14-curated-library-server-import): admin_catalog, goes on the next line (before stubs) ---
         admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
         stubs, admin_web, web,
     ):
