@@ -30,7 +30,7 @@ from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan
 from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, admin_agents, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin, admin_accounts, admin_agents, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         admin_prompts, admin_wordbook, admin_links, admin_agents,
         # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
         admin_library,
+        admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
         stubs, admin_web, web,
     ):
         app.include_router(module.router)

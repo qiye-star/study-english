@@ -7,9 +7,12 @@
 """
 import re
 from datetime import date, datetime, timezone
+from typing import Any
 
 from sqlalchemy import and_, func, or_, select, update
 
+from app.admin import audit
+from app.admin.audit import Actor
 from app.core.db import insert_ignore
 from app.models import ChangelogEntry, ChangelogRead, iso_utc
 
@@ -17,6 +20,13 @@ TAGS = ("new", "improve", "fix", "library", "other")
 PAGE_SIZE = 20
 FIRST_VISIT_UNREAD = 3  # a user without a read row sees at most this many entries as unread (spec D3)
 CURSOR_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.(\d{1,9})$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # date.fromisoformat alone also takes 20261014 / 2026-W42-1
+VERSION_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+\-]*$")
+MAX_ITEMS = 20
+MAX_TEXT = 200
+MAX_TITLE = 80
+MAX_VERSION = 24
+ITEM_KEYS = {"tag", "zh", "en"}
 
 
 class ChangelogError(Exception):
@@ -99,3 +109,134 @@ async def mark_seen(session, user_id: int, upto_id: int) -> dict:
 
 
 # ---- admin (plan task S3 appends below) ----
+
+def _text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) else None
+
+
+def validate(data: dict) -> dict:
+    """Strict, key by key. Returns the column values; on failure raises ChangelogError(422, fields) whose keys and rules
+    never contain the offending text (plan R-8)."""
+    fields: dict[str, str] = {}
+    entry_date = None
+    raw_date = data.get("entry_date")
+    if isinstance(raw_date, str) and DATE_RE.match(raw_date.strip()):
+        try:
+            entry_date = date.fromisoformat(raw_date.strip())
+        except ValueError:
+            pass
+    if entry_date is None:
+        fields["entry_date"] = "must be a date like 2026-10-14"
+
+    version = data.get("version")
+    if version is None or (isinstance(version, str) and not version.strip()):
+        version = None
+    elif isinstance(version, str) and len(version.strip()) <= MAX_VERSION and VERSION_RE.match(version.strip()):
+        version = version.strip()
+    else:
+        fields["version"] = f"at most {MAX_VERSION} letters, digits or . _ + -"
+
+    title_zh = _text(data.get("title_zh"))
+    if not title_zh or len(title_zh) > MAX_TITLE:
+        fields["title_zh"] = f"1–{MAX_TITLE} characters"
+    raw_en = data.get("title_en")
+    title_en = "" if raw_en is None else _text(raw_en)
+    if title_en is None or len(title_en) > MAX_TITLE:
+        fields["title_en"] = f"at most {MAX_TITLE} characters"
+
+    clean: list[dict] = []
+    items = data.get("items")
+    if not isinstance(items, list) or not 1 <= len(items) <= MAX_ITEMS:
+        fields["items"] = f"1–{MAX_ITEMS} items"
+    else:
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                fields[f"items.{i}"] = "must be an object"
+                continue
+            if set(item) - ITEM_KEYS:
+                fields[f"items.{i}"] = "unknown key"  # the key itself is never echoed
+            tag = item.get("tag")
+            zh = _text(item.get("zh"))
+            raw_item_en = item.get("en")
+            en = "" if raw_item_en is None else _text(raw_item_en)
+            if not isinstance(tag, str) or tag not in TAGS:
+                fields[f"items.{i}.tag"] = "must be one of " + ", ".join(TAGS)
+            if not zh or len(zh) > MAX_TEXT:
+                fields[f"items.{i}.zh"] = f"1–{MAX_TEXT} characters"
+            if en is None or len(en) > MAX_TEXT:
+                fields[f"items.{i}.en"] = f"at most {MAX_TEXT} characters"
+            clean.append({"tag": tag, "zh": zh, "en": en})
+    if fields:
+        raise ChangelogError(422, "Invalid changelog entry", fields)
+    return {"entry_date": entry_date, "version": version, "title_zh": title_zh, "title_en": title_en, "items": clean}
+
+
+def admin_out(row: ChangelogEntry) -> dict:
+    return {"id": row.id, "status": "published" if row.published_at is not None else "draft",
+            "entry_date": row.entry_date.isoformat(), "version": row.version, "title_zh": row.title_zh,
+            "title_en": row.title_en, "items": row.items, "created_by": row.created_by,
+            "created_at": iso_utc(row.created_at), "updated_at": iso_utc(row.updated_at),
+            "published_at": iso_utc(row.published_at) if row.published_at is not None else None}
+
+
+async def admin_listing(session) -> list[dict]:
+    rows = (await session.scalars(select(ChangelogEntry).where(ChangelogEntry.archived_at.is_(None))
+                                  .order_by(ChangelogEntry.entry_date.desc(), ChangelogEntry.id.desc()).limit(500))).all()
+    return [admin_out(r) for r in rows]
+
+
+async def _get(session, entry_id: int) -> ChangelogEntry:
+    row = await session.get(ChangelogEntry, entry_id)
+    if row is None or row.archived_at is not None:
+        raise ChangelogError(404, "Not Found")
+    return row
+
+
+async def _record(session, actor: Actor, action: str, row: ChangelogEntry) -> None:
+    # id and action only: no summary, before/after or reason (spec §3, plan R-10)
+    await audit.record(session, actor, action, target_type="changelog", target_id=row.id)
+
+
+async def create(session, actor: Actor, data: dict) -> ChangelogEntry:
+    now = datetime.now(timezone.utc)
+    row = ChangelogEntry(**validate(data), created_by=actor.name[:64], created_at=now, updated_at=now)
+    session.add(row)
+    await session.flush()
+    await _record(session, actor, "changelog.create", row)
+    return row
+
+
+async def edit(session, actor: Actor, entry_id: int, data: dict) -> ChangelogEntry:
+    row = await _get(session, entry_id)
+    current = {"entry_date": row.entry_date.isoformat(), "version": row.version, "title_zh": row.title_zh,
+               "title_en": row.title_en, "items": row.items}
+    for key, value in validate({**current, **data}).items():
+        setattr(row, key, value)
+    row.updated_at = datetime.now(timezone.utc)
+    await _record(session, actor, "changelog.update", row)
+    return row
+
+
+async def publish(session, actor: Actor, entry_id: int) -> ChangelogEntry:
+    row = await _get(session, entry_id)
+    if row.published_at is None:
+        row.published_at = row.updated_at = datetime.now(timezone.utc)
+        await _record(session, actor, "changelog.publish", row)
+    return row
+
+
+async def unpublish(session, actor: Actor, entry_id: int) -> ChangelogEntry:
+    row = await _get(session, entry_id)
+    if row.published_at is not None:
+        row.published_at = None
+        row.updated_at = datetime.now(timezone.utc)
+        await _record(session, actor, "changelog.unpublish", row)
+    return row
+
+
+async def remove(session, actor: Actor, entry_id: int) -> ChangelogEntry:
+    """Soft delete (`archived_at`): the import command never revives it (plan R-9, R-12)."""
+    row = await _get(session, entry_id)
+    row.archived_at = row.updated_at = datetime.now(timezone.utc)
+    await _record(session, actor, "changelog.delete", row)
+    return row
