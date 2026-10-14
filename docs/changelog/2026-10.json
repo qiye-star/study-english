@@ -205,6 +205,11 @@
         "tag": "fix",
         "zh": "修复安卓浏览器里选中文字后点「查词/朗读/加入生词本」条会立刻消失、没有反应的问题。",
         "en": "Fixed the lookup bar vanishing on Android browsers when you tapped it after selecting text."
+      },
+      {
+        "tag": "improve",
+        "zh": "复习里的例句选词、听写和拼写题,答完后也会显示中文释义和学习内容,和其他题型一致。",
+        "en": "Fill-the-sentence, dictation and spelling questions in review now show the Chinese meaning and the study panel after you answer, like the other question types."
       }
     ]
   }
