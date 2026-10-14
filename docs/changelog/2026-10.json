@@ -228,6 +228,11 @@
         "tag": "improve",
         "zh": "所有出现 A1~C2 的地方(对话、联机创建房间的目标水平、智能体、排位、精选库)都标注了水平含义,例如「B1 · 中级」。",
         "en": "Everywhere a level like A1-C2 appears (chat, target level when creating a room, agents, rank, the featured library) now says what it means, e.g. 「B1 · Intermediate」."
+      },
+      {
+        "tag": "improve",
+        "zh": "底部导航栏改成悬浮的圆角透明玻璃条,不再贴满屏幕底边,内容透过它隐约可见。",
+        "en": "The bottom tab bar is now a floating, rounded, transparent glass pill instead of a full-width bar, with content faintly visible through it."
       }
     ]
   }
