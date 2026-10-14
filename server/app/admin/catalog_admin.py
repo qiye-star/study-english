@@ -251,3 +251,143 @@ async def set_published(session, app, actor, catalog_id: str, published: bool) -
                        target_type="catalog_item", target_id=row.id, after={"published": published})
     await session.commit()
     return {"item": await row_out(session, app, row)}
+
+
+def delete_phrase(catalog_id: str) -> str:
+    return f"DELETE {catalog_id[:8]}"
+
+
+def purge_phrase(catalog_id: str) -> str:
+    return f"PURGE {catalog_id[:8]}"
+
+
+async def retry(session, app, actor, catalog_id: str) -> dict:
+    row = await get_row(session, catalog_id)
+    if row.status != "failed":
+        raise _err(409, "Item has not failed")
+    row.status, row.stage, row.progress, row.error_kind, row.updated_at = "queued", None, 0, None, utcnow()
+    await audit.record(session, actor, "catalog.retry", target_type="catalog_item", target_id=row.id)
+    await session.commit()
+    jobs(app).kick()
+    return {"item": await row_out(session, app, row)}
+
+
+async def _stop(session, app, row: CatalogItem) -> bool:
+    """R-SI7. False = not active. A translate-only re-run goes back to ready and keeps its files."""
+    if row.status not in catalog_store.ACTIVE:
+        return False
+    restore = row.seg_count > 0
+    values = dict(status="ready", stage=None, progress=100) if restore else dict(status="canceled", stage=None)
+    done = await session.execute(update(CatalogItem).where(CatalogItem.id == row.id,
+                                                           CatalogItem.status.in_(catalog_store.ACTIVE))
+                                 .values(updated_at=utcnow(), **values))
+    await session.commit()
+    if done.rowcount != 1:
+        return False
+    await jobs(app).cancel(row.id)
+    paths.remove_tree(paths.catalog_tmp_dir(data_dir(app), row.id))
+    if not restore:
+        paths.remove_tree(paths.catalog_dir(data_dir(app), row.id))
+        await session.execute(update(CatalogItem).where(CatalogItem.id == row.id).values(
+            media_path=None, poster_path=None, media_bytes=0, source_url=None))
+        await session.commit()
+    await session.refresh(row)
+    return True
+
+
+async def cancel(session, app, actor, catalog_id: str) -> dict:
+    row = await get_row(session, catalog_id)
+    before = row.status
+    if not await _stop(session, app, row):
+        raise _err(409, "Item is not running")
+    await audit.record(session, actor, "catalog.cancel", target_type="catalog_item", target_id=row.id,
+                       before={"status": before})
+    await session.commit()
+    return {"item": await row_out(session, app, row)}
+
+
+async def translate(session, app, actor, catalog_id: str) -> dict:
+    """Spec R9: unpublished + ready + AI available -> queued; the job only translates what is missing."""
+    row = await get_row(session, catalog_id)
+    if row.published:
+        raise _err(409, "Item is published")
+    if row.status != "ready" or row.seg_count <= 0:
+        raise _err(409, "Item is not ready")
+    if not app.state.settings.library_ai_available:
+        raise _err(503, "AI is unavailable")
+    row.status, row.stage, row.progress, row.error_kind, row.updated_at = "queued", None, 0, None, utcnow()
+    await audit.record(session, actor, "catalog.translate", target_type="catalog_item", target_id=row.id)
+    await session.commit()
+    jobs(app).kick()
+    return {"item": await row_out(session, app, row)}
+
+
+async def patch_segment(session, app, actor, catalog_id: str, idx: int, changes: dict) -> dict:
+    """Spec R8, only while unpublished."""
+    row = await get_row(session, catalog_id)
+    if row.published:
+        raise _err(409, "Item is published")
+    if row.status != "ready":
+        raise _err(409, "Item is not ready")
+    segs = await catalog_store.segments_of(session, row.id)
+    if idx >= len(segs):
+        raise _err(404, "Sentence not found")
+    seg = segs[idx]
+    if "text" in changes:
+        text = " ".join((changes["text"] or "").split())
+        if not text or len(text) > limits.SEGMENT_TEXT_MAX or not any(c.isalpha() for c in text):
+            raise _err(400, "Invalid sentence text")
+        if not store.same_text(text, seg.text):
+            seg.analysis = seg.analysis_lang = None
+            if "zh" not in changes:
+                seg.zh = seg.zh_lang = None
+        seg.text = text
+    if "zh" in changes:
+        zh = " ".join((changes["zh"] or "").split())[:limits.TRANSLATION_MAX]
+        seg.zh, seg.zh_lang = (zh, row.ai_lang) if zh else (None, None)
+    start, end = changes.get("start_ms", seg.start_ms), changes.get("end_ms", seg.end_ms)
+    low = segs[idx - 1].end_ms if idx > 0 else 0
+    high = segs[idx + 1].start_ms if idx + 1 < len(segs) else (row.duration_ms or end)
+    if not (low <= start < end <= high):
+        raise _err(400, "Invalid sentence times")
+    if (start, end) != (seg.start_ms, seg.end_ms):
+        seg.flags = None
+    seg.start_ms, seg.end_ms = start, end
+    row.updated_at = utcnow()
+    await audit.record(session, actor, "catalog.segment.edit", target_type="catalog_item", target_id=row.id,
+                       after={"idx": idx, "fields": len(changes)})
+    await session.commit()
+    return {"segment": catalog_store.segment_admin_out(seg)}
+
+
+async def delete(session, app, actor, catalog_id: str, *, reason: str, confirm: str) -> dict:
+    """Spec R1: no copies -> rows + files go now; copies -> retired (unpublished, files kept, collected later)."""
+    row = await get_row(session, catalog_id)
+    if (confirm or "").strip() != delete_phrase(row.id):
+        raise _err(409, "Confirmation required", {"confirm": delete_phrase(row.id)})
+    await _stop(session, app, row)  # R-SI11
+    refs = await catalog_store.refs(session, row.id)
+    if refs == 0:
+        await catalog_store.delete_rows(session, row.id)
+        await audit.record(session, actor, "catalog.delete", target_type="catalog_item", target_id=catalog_id,
+                           after={"refs": 0}, reason=reason)
+        await session.commit()
+        paths.remove_catalog_files(data_dir(app), catalog_id)
+        return {"id": catalog_id, "outcome": "deleted", "refs": 0}
+    row.published, row.retired_at, row.updated_at = False, row.retired_at or utcnow(), utcnow()
+    await audit.record(session, actor, "catalog.retire", target_type="catalog_item", target_id=row.id,
+                       after={"refs": refs}, reason=reason)
+    await session.commit()
+    return {"id": row.id, "outcome": "retired", "refs": refs}
+
+
+async def purge(session, app, actor, catalog_id: str, *, reason: str, confirm: str) -> dict:
+    row = await get_row(session, catalog_id)
+    if (confirm or "").strip() != purge_phrase(row.id):
+        raise _err(409, "Confirmation required", {"confirm": purge_phrase(row.id)})
+    await _stop(session, app, row)
+    copies, users = await catalog_store.purge(session, app, row.id)
+    await audit.record(session, actor, "catalog.purge", target_type="catalog_item", target_id=catalog_id,
+                       after={"copies": copies, "users": users}, reason=reason)
+    await session.commit()
+    return {"id": catalog_id, "copies_deleted": copies, "users": users}

@@ -57,6 +57,20 @@ class Empty(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SegmentPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str | None = Field(default=None, max_length=2000)
+    zh: str | None = Field(default=None, max_length=2400)
+    start_ms: int | None = Field(default=None, ge=0)
+    end_ms: int | None = Field(default=None, ge=0)
+
+
+class ReasonIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=200)
+    confirm: str = Field("", max_length=40)
+
+
 async def _form_bytes(request: Request, field: str, limit: int) -> bytes | catalog_admin.CatalogAdminError:
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > limit + limits.CHUNK_SLACK:
@@ -154,6 +168,50 @@ async def catalog_unpublish(catalog_id: CatalogUuid, _body: Empty, request: Requ
                             ctx: AdminContext = Depends(require("operator")),
                             session: AsyncSession = Depends(get_session)):
     return await _guard(session, lambda: catalog_admin.set_published(session, request.app, ctx.actor, catalog_id, False))
+
+
+@router.post("/{catalog_id}/retry")
+async def catalog_retry(catalog_id: CatalogUuid, _body: Empty, request: Request,
+                        ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.retry(session, request.app, ctx.actor, catalog_id))
+
+
+@router.post("/{catalog_id}/cancel")
+async def catalog_cancel(catalog_id: CatalogUuid, _body: Empty, request: Request,
+                         ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.cancel(session, request.app, ctx.actor, catalog_id))
+
+
+@router.post("/{catalog_id}/translate")
+async def catalog_translate(catalog_id: CatalogUuid, _body: Empty, request: Request,
+                            ctx: AdminContext = Depends(require("operator")),
+                            session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.translate(session, request.app, ctx.actor, catalog_id))
+
+
+@router.patch("/{catalog_id}/segments/{idx}")
+async def catalog_segment(catalog_id: CatalogUuid, body: SegmentPatch, request: Request,
+                          idx: int = Path(ge=0, le=1_000_000), ctx: AdminContext = Depends(require("operator")),
+                          session: AsyncSession = Depends(get_session)):
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        return _error(catalog_admin.CatalogAdminError(400, "No changes"))
+    return await _guard(session, lambda: catalog_admin.patch_segment(session, request.app, ctx.actor, catalog_id,
+                                                                     idx, changes))
+
+
+@router.post("/{catalog_id}/delete")
+async def catalog_delete(catalog_id: CatalogUuid, body: ReasonIn, request: Request,
+                         ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.delete(session, request.app, ctx.actor, catalog_id,
+                                                              reason=body.reason.strip(), confirm=body.confirm))
+
+
+@router.post("/{catalog_id}/purge")
+async def catalog_purge(catalog_id: CatalogUuid, body: ReasonIn, request: Request,
+                        ctx: AdminContext = Depends(require_step_up), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.purge(session, request.app, ctx.actor, catalog_id,
+                                                             reason=body.reason.strip(), confirm=body.confirm))
 
 
 async def _file(session, request: Request, catalog_id: str, column: str, mime: str | None):
