@@ -45,6 +45,11 @@ describe("library.css (spec §11.4a, D11)", () => {
     expect(glass).toContain("backdrop-filter: blur(var(--lib-blur)) saturate(2);");
   });
 
+  it("reserves the global tab bar's space through the shared variable (plan 2026-10-14-floating-glass-bottom-bar R-F5)", () => {
+    expect(blockOf(css, /^\.library-root\s*\{/m)).toContain("--lib-tab: var(--tab-bar-space);");
+    expect(css).not.toContain("3.5rem");
+  });
+
   it("limits blur to three surfaces: .lib-glass, .lib-gblur and the add sheet (R-L26)", () => {
     expect((css.match(/^\s+-webkit-backdrop-filter:\s*blur/gm) ?? []).length).toBe(3); // 只数声明(缩进的行),不数 @supports 的条件
     expect(blockOf(css, /^\.lib-gblur\s*\{/m)).toContain("-webkit-backdrop-filter: blur(7px);");

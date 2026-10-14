@@ -25,8 +25,8 @@
   --lib-blob2: #b9f0e6;
   --lib-blob3: #ffd7b0;
   --lib-blur: 34px;
-  /* 全站底栏的高度(glass-tab-bar 的 TAB_BAR_HEIGHT)+ 安全区:页面延伸到底栏下面,浮层贴着底栏上沿 */
-  --lib-tab: calc(3.5rem + env(safe-area-inset-bottom));
+  /* 全站悬浮底栏占的空间(index.css 的 --tab-bar-space,含安全区与 8px 间距;计划 2026-10-14-floating-glass-bottom-bar):页面延伸到底栏下面,浮层贴着它上沿 */
+  --lib-tab: var(--tab-bar-space);
 }
 .dark .library-root {
   --lib-page: #0b0d14;

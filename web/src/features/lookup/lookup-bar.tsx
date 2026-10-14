@@ -31,7 +31,7 @@ export function LookupBar({ selection, suggested, entry, onOpen, onPress, onRele
   );
   return (
     <div role="toolbar" aria-label={t("web.lookup.barLabel")} data-testid="lookup-bar"
-      className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-surface p-1 shadow-lg select-none"
+      className="absolute bottom-[calc(var(--tab-bar-space)+0.5rem)] left-1/2 z-40 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-surface p-1 shadow-lg select-none"
       onPointerDown={(e) => { onPress?.(); keep(e); }} onMouseDown={keep}
       onTouchStart={() => onPress?.()}
       onPointerUp={() => onRelease?.()} onPointerCancel={() => onRelease?.()}
