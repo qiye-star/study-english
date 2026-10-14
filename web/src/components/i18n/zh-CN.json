@@ -1,5 +1,6 @@
 {
   "web": {
+    "level": { "name": { "A1": "入门", "A2": "初级", "B1": "中级", "B2": "中高级", "C1": "高级", "C2": "精通" }, "meaning": { "A1": "能听懂、会用最常用的词和简单句", "A2": "能进行简单的日常交流", "B1": "能应对大多数日常场景", "B2": "能流利地讨论熟悉的话题", "C1": "能自如地表达复杂的想法", "C2": "接近母语,几乎没有障碍" }, "scale": "A1–C2 是国际通用的英语水平分级(CEFR),A1 最低,C2 最高。" },
     "hold": { "label": "按住说话(也可按空格开始、再按一次发送)", "keyboardStop": "录音中——按空格发送,按 Esc 取消", "slideHint": "上滑取消 / 转文字", "slideHintCancel": "上滑取消", "cancel": "取消", "toText": "转文字", "releaseToCancel": "松开取消", "releaseToText": "松开转文字", "bar": "按住 说话", "barPressed": "松开 发送", "overlaySlide": "手指上滑,取消发送", "overlayCancel": "松开手指,取消发送", "overlayText": "松开 转文字" }
   }
 }

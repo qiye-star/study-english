@@ -1,5 +1,6 @@
 {
   "web": {
+    "level": { "name": { "A1": "Beginner", "A2": "Elementary", "B1": "Intermediate", "B2": "Upper intermediate", "C1": "Advanced", "C2": "Proficient" }, "meaning": { "A1": "Understands and uses the most common words and simple sentences", "A2": "Handles simple everyday conversations", "B1": "Copes with most everyday situations", "B2": "Talks fluently about familiar topics", "C1": "Expresses complex ideas with ease", "C2": "Near-native; almost no difficulty" }, "scale": "A1–C2 is the international scale of English levels (CEFR): A1 is the lowest, C2 the highest." },
     "hold": { "label": "Hold to talk (or press Space to start and again to send)", "keyboardStop": "Recording – press Space to send, Escape to cancel", "slideHint": "Slide up to cancel or convert to text", "slideHintCancel": "Slide up to cancel", "cancel": "Cancel", "toText": "To text", "releaseToCancel": "Release to cancel", "releaseToText": "Release to convert to text", "bar": "Hold to talk", "barPressed": "Release to send", "overlaySlide": "Slide up to cancel", "overlayCancel": "Release to cancel", "overlayText": "Release to convert to text" }
   }
 }

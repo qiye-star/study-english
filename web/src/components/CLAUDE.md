@@ -12,6 +12,7 @@ Shared presentational UI primitives for the redesign (glass bars, cards, sheets,
 - Feature switches: `feature-gate.tsx` (`FeatureGate`: loading / disabled / error + retry / ready; used by rank and rooms pages).
 - `zh-note-fold.tsx` — `ZhNoteFold`: folded "Chinese" note (note_zh / hint_zh). No copy of its own: callers pass already-translated `showLabel` / `hideLabel` from their lazy locales; 44 px toggle, `lang="zh-CN"` text, never read aloud.
 - `zh-toggle.tsx` — `ZhToggle`: stateless 「中文」 pill (`aria-pressed`, 44 px). No copy of its own (callers pass the label). Used by the wordbook after-answer panel and the lookup drawer (plan `2026-10-14-review-bilingual-longpress`).
+- `level-hint.tsx` — `LevelHint`: one-line meaning of a CEFR level (block `<span>`, safe inside `<label>`), shown next to every level picker and linked with `aria-describedby`; `fallback` when the code is unknown/empty. Strings `web.level.*` live in `components/i18n` (plan `2026-10-14-level-annotations`).
 - Semantics: `tone.ts` (one meaning per hue), `score-tone.ts` (≥85 / 70–84 / <70).
 - Hold-to-talk: `hold-to-talk-bar.tsx` (bar + overlay + drop zones + live region; stateful by necessity) and `use-hold-gesture.ts`, used by chat, realtime calls and rank matches; strings in `i18n/` (`web.hold.*`). `allowToText={false}` hides the 转文字 zone (voice-only: any slide-up cancels, never `fill`).
 
