@@ -7,6 +7,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
+import { levelLabel } from "~/lib/levels";
 import { fetchRoomsConfig, ROOMS_SERVER_ERRORS, type RoomsConfig } from "../rooms-api";
 import { ghostButton, primaryButton } from "../ui";
 import { joinByInvite, previewInvite, type InvitePreview } from "./invite-api";
@@ -101,7 +102,7 @@ export function RoomInvitePage() {
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <span className={cn(badge, "bg-blue-tint text-blue")}>{scenarioName(load.invite.scenario)}</span>
-                <span className={cn(badge, "bg-surface-2 text-ink-2")}>{t("web.rooms.extras.invite.level", { level: load.invite.level })}</span>
+                <span className={cn(badge, "bg-surface-2 text-ink-2")}>{t("web.rooms.extras.invite.level", { level: levelLabel(t, load.invite.level) })}</span>
                 <span className={cn(badge, "bg-surface-2 tabular-nums text-ink-2")}>
                   {t("web.rooms.extras.invite.members", { count: load.invite.memberCount, max: load.invite.maxMembers })}
                 </span>

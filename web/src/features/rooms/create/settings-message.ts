@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { RoomsConfig } from "../rooms-api";
+import { levelLabel } from "~/lib/levels";
 import { scenarioTitle } from "./scenario-picker";
 
 type Change = { field?: unknown; value?: unknown };
@@ -23,7 +24,7 @@ export function describeSettingsChanges(t: TFunction, meta: unknown, scenarios?:
     } else if (BOOLEAN_FIELDS.has(field) && typeof c.value === "boolean") {
       parts.push(t(`web.rooms.v2.system.${field}_${c.value ? "on" : "off"}`));
     } else if (VALUE_FIELDS.has(field) && (typeof c.value === "string" || typeof c.value === "number")) {
-      const value = field === "scenario" ? scenarioTitle(scenarios, String(c.value), language) : String(c.value);
+      const value = field === "scenario" ? scenarioTitle(scenarios, String(c.value), language) : field === "level" ? levelLabel(t, String(c.value)) : String(c.value);
       parts.push(t(`web.rooms.v2.system.${field}`, { value }));
     }
   }

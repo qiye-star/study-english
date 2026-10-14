@@ -6,6 +6,7 @@ import { useAuth } from "~/auth/auth-context";
 import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
+import { levelLabel } from "~/lib/levels";
 import type { RoomInfo } from "../protocol";
 import { fetchRoomsConfig, getRoom, type RoomsConfig } from "../rooms-api";
 import { ghostButton } from "../ui";
@@ -34,7 +35,7 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
         {room && (scenarioName || room.level) && (
           <div className="mb-2.5 flex flex-wrap gap-1.5">
             {room.memberCount > 0 && <span className={cn(badge, "bg-surface-2 tabular-nums text-ink-2")}>{t("web.rooms.extras.summary.people", { count: room.memberCount })}</span>}
-            <span className={cn(badge, "bg-blue-tint text-blue")}>{[scenarioName, room.level].filter(Boolean).join(" · ")}</span>
+            <span className={cn(badge, "bg-blue-tint text-blue")}>{[scenarioName, room.level ? levelLabel(t, room.level) : null].filter(Boolean).join(" · ")}</span>
           </div>
         )}
         <p className="whitespace-pre-wrap text-body leading-[1.55] text-ink">{summary.overviewZh}</p>
