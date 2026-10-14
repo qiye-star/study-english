@@ -10,6 +10,8 @@ import uuid
 from dataclasses import replace
 from datetime import timedelta
 
+import asyncio
+
 import pytest
 from sqlalchemy import select
 
@@ -21,7 +23,8 @@ from tests.admin_helpers import ADMIN_ENABLED, assert_no_secrets, login_as
 from tests.conftest import make_settings
 from tests.test_admin_doctor import OK
 
-LIBRARY_CODES = {"library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing"}
+LIBRARY_CODES = {"library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
+                 "library_link_proxy_missing", "library_link_dns_private"}
 NO_ASR = {"upstream_whisper_base_url": ""}  # make_settings 默认配了 Whisper;流式识别默认没开
 
 
@@ -50,7 +53,8 @@ def test_nothing_is_reported_while_the_library_is_off():
 
 
 def test_healthy_library_has_no_findings():
-    s = make_settings(library_enabled=True, library_link_import_enabled=True, library_asr_enabled=True)
+    s = make_settings(library_enabled=True, library_link_import_enabled=True, library_asr_enabled=True,
+                      library_ytdlp_proxy="http://proxy.invalid:3128")
     assert lib_codes(s) == {}
 
 
@@ -106,6 +110,96 @@ def test_cookie_findings_never_echo_the_path():
         messages.add(found["library_cookies_missing"].message_zh)
     assert len(messages) == 2  # 不存在与权限过宽是两种文案
     assert lib_codes(s, replace(OK, library_cookies="ok")) == {}
+
+
+# ---- 链接导入的代理 / DNS 诊断 ----
+
+LINK_ON = {"library_enabled": True, "library_link_import_enabled": True}
+PROXY = "http://user:secret@proxy.invalid:3128"
+
+
+def test_link_import_without_a_proxy_is_reported_as_info():
+    found = lib_codes(make_settings(**LINK_ON))
+    assert set(found) == {"library_link_proxy_missing"}
+    f = found["library_link_proxy_missing"]
+    assert f.level == "info" and f.keys == ("library_ytdlp_proxy",)
+
+
+def test_proxy_findings_need_the_link_switch_and_the_library():
+    assert lib_codes(make_settings(library_enabled=True, library_link_import_enabled=False),
+                     replace(OK, library_dns="private")) == {}
+    assert lib_codes(make_settings(library_enabled=False, library_link_import_enabled=True),
+                     replace(OK, library_dns="private")) == {}
+
+
+@pytest.mark.parametrize("state, word", [("private", "private/reserved"), ("unresolved", "cannot be resolved")])
+def test_a_poisoned_or_failing_dns_without_a_proxy_is_a_warning(state, word):
+    found = lib_codes(make_settings(**LINK_ON), replace(OK, library_dns=state))
+    assert set(found) == {"library_link_proxy_missing", "library_link_dns_private"}
+    f = found["library_link_dns_private"]
+    assert f.level == "warn" and f.keys == ("library_ytdlp_proxy",)
+    assert "www.youtube.com" in f.message_zh and (word in f.message_zh)
+
+
+@pytest.mark.parametrize("state", ["ok", "unchecked"])
+def test_a_healthy_or_unchecked_dns_is_not_reported(state):
+    assert "library_link_dns_private" not in lib_codes(make_settings(**LINK_ON), replace(OK, library_dns=state))
+
+
+def test_with_a_proxy_neither_finding_appears_and_the_proxy_is_never_named():
+    s = make_settings(**LINK_ON, library_ytdlp_proxy=PROXY)
+    assert lib_codes(s, replace(OK, library_dns="private")) == {}
+
+
+async def test_dns_state_classifies_and_never_raises():
+    from app.admin.doctor import dns_state
+
+    async def answer(*addresses):
+        return list(addresses)
+
+    async def public(host):
+        assert host == "www.youtube.com"
+        return ["142.250.1.1", "2607:f8b0::1"]
+
+    async def private(host):
+        return ["8.8.8.8", "10.0.0.7"]
+
+    async def empty(host):
+        return []
+
+    async def boom(host):
+        raise OSError("nodename nor servname provided")
+
+    async def slow(host):
+        await asyncio.sleep(10)
+        return ["8.8.8.8"]
+
+    assert await dns_state(public) == "ok"
+    assert await dns_state(private) == "private"
+    assert await dns_state(empty) == "unresolved"
+    assert await dns_state(boom) == "unresolved"
+    assert await dns_state(slow, timeout=0.05) == "unresolved"
+
+
+@pytest.mark.parametrize("overrides, expected, resolves", [
+    ({"library_link_import_enabled": True}, "private", 1),
+    ({"library_link_import_enabled": True, "library_ytdlp_proxy": PROXY}, "unchecked", 0),
+    ({"library_link_import_enabled": False}, "unchecked", 0),
+])
+async def test_gather_facts_resolves_only_when_it_matters(app, monkeypatch, overrides, expected, resolves):
+    from app.admin.doctor import gather_facts
+    calls: list[str] = []
+
+    async def fake(host):
+        calls.append(host)
+        return ["10.0.0.7"]
+
+    monkeypatch.setattr("app.library.urlcheck.system_resolve", fake)
+    for key, value in overrides.items():
+        setattr(app.state.settings, key, value)
+    async with app.state.sessionmaker() as s:
+        facts = await gather_facts(s, app)
+    assert facts.library_dns == expected and len(calls) == resolves and set(calls) <= {"www.youtube.com"}
 
 
 async def test_doctor_endpoint_gathers_library_facts(app, client, monkeypatch):

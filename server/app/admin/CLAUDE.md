@@ -29,7 +29,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `Managed by rank rules`) once a rank rules version is published
 - `doctor.py` – config doctor findings (`diagnose(settings, Facts)` pure + `gather_facts`; includes
   `missing_prices` from `usage.missing_prices`, `invite_without_codes`, `wordbook_data_missing`, `wordbook_ai_unavailable`,
-  `agents_unavailable` / `agents_native_unverified`, `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`; 跟读库 `library_ffmpeg_missing` / `library_ytdlp_missing` / `library_asr_unavailable` / `library_cookies_missing`, only while `LIBRARY_ENABLED`, cookies permissions checked on POSIX only, messages never include the path)
+  `agents_unavailable` / `agents_native_unverified`, `links_breaker_open` / `links_dropping` read from `app.state.learning_bus` without importing `app.links`; 跟读库 `library_ffmpeg_missing` / `library_ytdlp_missing` / `library_asr_unavailable` / `library_cookies_missing` / `library_link_proxy_missing` (info) / `library_link_dns_private` (warn: while link import is on and no `LIBRARY_YTDLP_PROXY`, `gather_facts` resolves only `www.youtube.com` with `urlcheck.system_resolve`, 5 s, via `doctor.dns_state`; never a user link, never the proxy value), only while `LIBRARY_ENABLED`, cookies permissions checked on POSIX only, messages never include the path)
 - `probes.py` – "test connection" per upstream (`UPSTREAMS`), SSRF-guarded (one DNS lookup, every address must be
   `is_global`, the connection is pinned to it; no HTTP or WebSocket redirects), returns only `{ok, status, ms, code}`.
   Probing unsaved values that would send the saved key to a new endpoint needs step-up + `confirm_pairs`

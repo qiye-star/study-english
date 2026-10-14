@@ -1,4 +1,5 @@
 """配置诊断(spec §3.10):纯函数 diagnose(settings, facts) + 事实收集 gather_facts。消息只含键名,不含值。"""
+import asyncio
 import importlib.util
 import os
 import shutil
@@ -14,6 +15,7 @@ from sqlalchemy.engine import make_url
 from app.admin import sessions, usage
 from app.core.config import asr_stream_usable, realtime_asr_configured, whisper_fallback_configured
 from app.core.secretbox import box_for, fingerprint
+from app.library import urlcheck
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
 from app.wordbook.books import book_by_id, enabled_books
 
@@ -26,6 +28,7 @@ CODES = (
     "retention_enabled", "invite_without_codes", "wordbook_data_missing", "wordbook_ai_unavailable",
     "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
     "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
+    "library_link_proxy_missing", "library_link_dns_private",
 )
 
 
@@ -57,6 +60,7 @@ class Facts:
     library_ffmpeg_ok: bool = True  # ffmpeg and ffprobe on PATH (video import spec §5.2)
     library_ytdlp_ok: bool = True  # the yt_dlp module can be found (link import)
     library_cookies: str = "unset"  # LIBRARY_YTDLP_COOKIES_FILE: unset | ok | missing | too_open
+    library_dns: str = "unchecked"  # www.youtube.com through the local resolver: unchecked | ok | private | unresolved
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -84,6 +88,14 @@ def _library_findings(s, f: Facts) -> list[Finding]:
     if getattr(s, "library_asr_enabled", False) and not (asr_stream_usable(s) or whisper_fallback_configured(s)):
         out.append(Finding("warn", "library_asr_unavailable", ("library_asr_enabled",),
                            "跟读库自动转写已打开,但没有可用的语音识别(流式识别或 Whisper):没有字幕的素材会失败"))
+    if getattr(s, "library_link_import_enabled", False) and not (getattr(s, "library_ytdlp_proxy", "") or "").strip():
+        out.append(Finding("info", "library_link_proxy_missing", ("library_ytdlp_proxy",),
+                           "链接导入已打开,但没有配置 LIBRARY_YTDLP_PROXY:服务器直连视频站点(在国内机房通常连不上)"))
+        if f.library_dns in ("private", "unresolved"):
+            why = ("解析到私网 / 保留地址(private/reserved,多半是 DNS 污染或 fake-IP)" if f.library_dns == "private"
+                   else "无法解析(cannot be resolved)")
+            out.append(Finding("warn", "library_link_dns_private", ("library_ytdlp_proxy",),
+                               f"本机解析 www.youtube.com {why}且没有配置 LIBRARY_YTDLP_PROXY:链接导入会被拒绝或失败"))
     if f.library_cookies == "missing":
         out.append(Finding("warn", "library_cookies_missing", ("library_ytdlp_cookies_file",),
                            "LIBRARY_YTDLP_COOKIES_FILE 已配置,但文件不存在或不是普通文件"))
@@ -212,6 +224,19 @@ def _cookies_state(path: str | None, *, stat_fn: Callable[[str], os.stat_result]
     return "ok"
 
 
+async def dns_state(resolver=None, *, timeout: float = urlcheck.RESOLVE_TIMEOUT) -> str:
+    """ok | private | unresolved for `www.youtube.com` through the local resolver (`urlcheck.system_resolve` unless a
+    test injects one). Never raises; only the host name above is ever resolved (no user link)."""
+    try:
+        async with asyncio.timeout(timeout):
+            addresses = await (resolver or urlcheck.system_resolve)("www.youtube.com")
+    except (OSError, UnicodeError, ValueError, TimeoutError):
+        return "unresolved"
+    if not addresses:
+        return "unresolved"
+    return "private" if any(urlcheck.blocked_address(a) for a in addresses) else "ok"
+
+
 def _backups(base) -> int:
     try:
         folder = base.resolved_backup_dir
@@ -247,6 +272,10 @@ async def gather_facts(session, app) -> Facts:
         InviteCode.revoked_at.is_(None), InviteCode.uses < InviteCode.max_uses,
         (InviteCode.expires_at.is_(None)) | (InviteCode.expires_at > now))) or 0
     links_open, links_dropped = _links_facts(app)
+    live = app.state.settings
+    check_dns = (getattr(live, "library_enabled", False) and getattr(live, "library_link_import_enabled", False)
+                 and not (getattr(live, "library_ytdlp_proxy", "") or "").strip())
+    library_dns = await dns_state() if check_dns else "unchecked"
     return Facts(
         encryption=box_for(base) is not None, superadmins_without_totp=int(without_totp), invalid=dict(hub.invalid),
         drift=tuple(sorted(drift)), pending_restart=tuple(sorted(hub.pending_restart)), login_alarm=alarm is not None,
@@ -257,4 +286,5 @@ async def gather_facts(session, app) -> Facts:
         agents_probe_ok=bool((getattr(app.state, "agents_tools_probe", None) or {}).get("ok")),
         library_ffmpeg_ok=_library_ffmpeg_ok(), library_ytdlp_ok=_library_ytdlp_ok(),
         library_cookies=_cookies_state(getattr(app.state.settings, "library_ytdlp_cookies_file", "")),
+        library_dns=library_dns,
     )
