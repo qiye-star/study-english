@@ -252,3 +252,7 @@ describe("CatalogView", () => {
 ## 未验证
 
 真机(iOS Safari / Android Chrome)上的精选网格滚动、封面懒加载、`SpotlightCard` 在长列表里的性能;共享 m4a 在 iOS 上的 Range 播放与单句循环精度(与上传条目同一机制,但音频编码不同)。
+
+## Addendum (2026-10-14,级别标注)
+
+计划 `2026-10-14-level-annotations.md` Task T7:精选的级别芯片与卡片徽标改为「B1 · 中级」(`~/lib/levels::levelLabel`),芯片行下一行说明(`~/components/level-hint::LevelHint`,选「全部」时是 CEFR 总说明)。取值与筛选逻辑(`levelsOf`、`LEVEL_ORDER`)不变。
