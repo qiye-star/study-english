@@ -117,6 +117,10 @@
 
 智能体对话输入条提示行右侧的「带我学」入口 → 开始面板(主题 / 场景 / 题数 5·8·12 / 回答方式)→ 导师先出题,你打字或语音回答,每题即时点评;带学条(`src/features/agents/tutor/`)显示第 n / m 题、难度、提示 / 跳过 / 听一遍 / 翻译、两次点击结束;答完最后一题或结束后弹出总结抽屉(得分分布、做得好、要加强、建议加入生词本的词,经 `<WordActions>` 扩展点)。语音回答走对话页现有的「按住说话 → 转写」路径,转写文字就是回合文本,带学条本身不录音。导师组件全部懒加载,经 `agents/chat-parts.tsx` 的 `TUTOR_SLOTS` 接入对话页。**未验证**:真机 iOS Safari / 安卓 Chrome 上的「听一遍」(TTS)与语音回答;真实上游模型对 META 协议的遵守率(回落率未实测);Postgres;反向代理下的 SSE;360 / 375 px 宽度只有结构性测试(英文标签长度),没有在真实浏览器里量过;刷新页面后不会自动回到进行中的带学(服务端会话保留,再点「带我学」会续上)。
 
+## 更新日志(计划 2026-10-14)
+
+练习页顶栏「练习清单」图标左边有「更新日志」入口(星花图标;没有已发布条目时不显示;有未读时红点 + 提示环,第一次出现未读时一条一次性小提示,「已显示」记在本机 `enjoy-web.changelog.prefs`,退出登录清除)。点开进入整页 `/practice/changelog`(懒加载):月份分组、类型筛选、首条展开、「新」角标、超过 2 条折叠、滚动 + 按钮分页、离线时显示上次保存的第一页。未读数与已读位置在服务端(`GET /api/changelog`、`POST /api/changelog/seen`,多设备同步),内容由管理后台的「更新日志」页写。**未验证**:真机 iPhone 上的入口红点与提示环、页面滚动与分页、`IntersectionObserver` 自动加载;清单见 `docs/superpowers/plans/2026-10-14-changelog-device-checklist.md`。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

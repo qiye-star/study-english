@@ -65,6 +65,8 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
   over `settings_service.save(action="maintenance.set")`; turning it on = step-up + reason + typed `MAINTENANCE_MODE`)
+- `changelog.py` – 更新日志(spec 2026-10-14-changelog-design;plan `2026-10-14-changelog.md`):用户侧 `public_page`(已发布、按 `entry_date` 倒序、游标 `YYYY-MM-DD.<id>`、`unread` / `latest_id` / 逐条 `is_new`)与 `mark_seen`(已读位置只前进、夹到最大已发布 id、新用户首次最多 `FIRST_VISIT_UNREAD = 3` 条未读);管理侧 `validate`(逐键、错误只回字段名)、`admin_listing`、`create` / `edit` / `publish` / `unpublish` / `remove`(软删除 `archived_at`),审计 `changelog.*` 只记条目 id 与动作(无 summary / before / after)。没有任何日志调用。路由 `routers/changelog.py`、`routers/admin_changelog.py`;已读按 **id** 比较(spec),id 较小的草稿在用户标记已读之后才发布不会再亮红点,所以导入命令按日期升序建草稿
+- `changelog_import.py` – `python -m app.admin.changelog_import [--dir DIR] [--dry-run]`:读 `*.json` 草稿(容器里 `/app/changelog`,检出里 `docs/changelog`),按 `(entry_date, title_zh)` 幂等建草稿(已发布 / 已编辑 / 已删除的都不动不复活;改标题 = 新草稿),全有或全无(失败退出 2,目录不存在退出 1),只打印数量;每条记审计 `changelog.import`(actor `cli`)。镜像靠 `COPY docs/changelog /app/changelog` 带上草稿,**重建容器只在用户要求时做**
 - `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings;
   its findings are computed locally, separate from `doctor.py`)
 - `housekeeping.py` – orphan recording scan/delete (token-guarded rescan), audit purge with anchor, `purge_expired`
@@ -84,7 +86,7 @@ Never import routers from here (room runtime lives in `routers/admin_rooms.py` v
 
 ## Tests
 `uv run pytest -q tests/test_admin_*.py tests/test_quotas*.py tests/test_architecture.py tests/test_usage*.py
-tests/test_announcements.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py
+tests/test_announcements.py tests/test_changelog_*.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py
 tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py tests/test_rank_rules*.py`
 (helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 

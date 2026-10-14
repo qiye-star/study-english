@@ -11,6 +11,7 @@ iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabul
 `wordbook` (/api/wordbook/*: config, books, enrollment, today, learn/review batches, answers (incl. `mode=free`), spell, cards, reports, explain, `learned/summary`, `learned/query`,
 `learned/card`, `free/start`: words and prefixes only in POST bodies, never in URLs), `dictionary` (`/api/dictionary/lookup`: 选词词典,词只在 POST 体,`limited_user`,不受 WORDBOOK_ENABLED 控制;逻辑在 `app/wordbook/lookup.py`;须在 `stubs` 之前), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
 `announcements` (public `GET /api/announcements`: active banners + maintenance state),
+`changelog` (`/api/changelog`: `GET ?cursor=&limit=` published entries by `entry_date` desc with `unread` / `latest_id` / per-entry `is_new`, `POST /seen` forward-only read position; login only; only ids, `cursor` and `limit` in URLs; before `stubs`), `admin_changelog` (`/api/admin/changelog`: viewer list, operator create / edit / publish / unpublish / soft delete via `app/admin/changelog.py`; audit carries ids and actions only; before `stubs`; new routes go into the pinned table in `tests/test_changelog_privacy.py`),
 `admin_accounts` (accounts, sessions, `/me/security`, audit list/verify), `admin_settings` (settings CRUD, revisions/revert,
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
 `admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions incl. reopen via
