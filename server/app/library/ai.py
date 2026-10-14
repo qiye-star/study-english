@@ -5,15 +5,19 @@
 - 分析 `analyze`:一次一句,只在用户点「分析」时调用;已存且语言一致的直接返回(`cached`),不计额度。
 - 大模型只经 `providers/llm.complete`;提示词按桌面端 `enjoy/src/shared/commands/{translate,analyze}.command.ts` 的原文,
   管理端可编辑(`library.translate` / `library.analyze`,注册在 `services/prompts.py`;没有发布版本时用本文件的默认值)。
+- 精选库(spec 2026-10-14-curated-library R3):`translate_texts`(导入时批量译,不计额度)与 `analyze_catalog`(目录句子上的
+  共享缓存,首次生成由系统付费:全站每日计数 `library_cat_ai` + `metering.system_scope`)。
 - 日志只有条目 id、失败种类与句数;句子、译文、分析、提示词正文永不进日志。计量记在 feature `lib_translate` /
   `lib_analysis`(`llm.complete` 自己 `metering.record` 成功与失败;feature 列只有 16 个字符,所以不叫 `library_translate`)。
 """
+import asyncio
 import logging
 import re
+import weakref
 from datetime import datetime
 
 from app.core import metering
-from app.library import limits, store
+from app.library import catalog_store, limits, store
 from app.models import LibrarySegment
 from app.providers import llm
 
@@ -170,3 +174,64 @@ async def analyze(session, http, settings, *, user_id: int, item_id: str, segmen
     body = raw.strip()[:limits.ANALYSIS_MAX]
     await store.set_analysis(session, item_id, idx, text, body, language)
     return body, False
+
+
+# ---- curated catalog (spec 2026-10-14-curated-library R3, R4) ----
+FEATURE_CAT_TRANSLATE, FEATURE_CAT_ANALYSIS = "cat_translate", "cat_analysis"
+_CATALOG_LOCKS: "weakref.WeakValueDictionary[tuple[str, int], asyncio.Lock]" = weakref.WeakValueDictionary()
+
+
+async def translate_texts(http, settings, *, template: str | None, language: str,
+                          texts: list[str]) -> dict[int, str]:
+    """One batch (<= 20) for the catalog import: {0-based index: translation}. No allowance (the admin's import pays;
+    the caller binds no user). AiUnavailable("upstream") when the model gave nothing usable."""
+    if not texts:
+        return {}
+    max_tokens = min(TRANSLATE_TOKENS_CAP, TRANSLATE_TOKENS_BASE + TRANSLATE_TOKENS_PER_SENTENCE * len(texts))
+    try:
+        with metering.feature_scope(FEATURE_CAT_TRANSLATE):
+            raw = await llm.complete(http, settings, render_translate(template, language, texts),
+                                     model=settings.default_llm_model, max_tokens=max_tokens,
+                                     temperature=TRANSLATE_TEMPERATURE)
+    except llm.LlmUnavailable as e:
+        logger.warning("library catalog translate unavailable kind=%s count=%d", e.kind, len(texts))
+        raise AiUnavailable("upstream") from None
+    parsed = parse_translations(raw, len(texts))
+    if not parsed:
+        logger.warning("library catalog translate empty count=%d", len(texts))
+        raise AiUnavailable("upstream")
+    return {n - 1: zh for n, zh in parsed.items()}
+
+
+async def analyze_catalog(session, http, settings, *, catalog_id: str, idx: int, text: str, language: str,
+                          template: str | None, now: datetime) -> tuple[str, bool]:
+    """(analysis, cached) for a catalog sentence in its catalog language. Generated once, shared by every copy,
+    paid by the system: the site-wide `library_cat_ai` count (AiUnavailable("global_cap") when full), upstream metered
+    with no user (`metering.system_scope`). A per-sentence lock makes concurrent first requests pay once."""
+    key = (catalog_id, idx)
+    lock = _CATALOG_LOCKS.get(key)
+    if lock is None:
+        lock = _CATALOG_LOCKS[key] = asyncio.Lock()
+    async with lock:
+        seg = await catalog_store.segment_at(session, catalog_id, idx)  # populate_existing: sees a concurrent writer
+        if seg is None or not store.same_text(seg.text, text):
+            raise AiUnavailable("upstream")  # the caller checked; a concurrent admin edit lands here
+        if seg.analysis and seg.analysis_lang == language:
+            return seg.analysis, True
+        seg_text = seg.text  # plain value: the commits below must not matter
+        day = limits.day_of(now)
+        if not await limits.reserve(session, limits.SCOPE_CATALOG_AI, limits.GLOBAL, day, 1,
+                                    settings.library_catalog_ai_daily):
+            raise AiUnavailable("global_cap")
+        try:
+            with metering.system_scope(), metering.feature_scope(FEATURE_CAT_ANALYSIS):
+                raw = await llm.complete(http, settings, render_analysis(template, language, seg_text),
+                                         model=settings.default_llm_model, max_tokens=ANALYZE_MAX_TOKENS,
+                                         temperature=ANALYZE_TEMPERATURE)
+        except llm.LlmUnavailable as e:
+            await limits.release(session, limits.SCOPE_CATALOG_AI, limits.GLOBAL, day, 1)
+            logger.warning("library catalog analysis unavailable catalog=%s kind=%s", catalog_id, e.kind)
+            raise AiUnavailable("upstream") from None
+        body = raw.strip()[:limits.ANALYSIS_MAX]
+        await catalog_store.set_analysis(session, catalog_id, idx, seg_text, body, language)
+        return body, False

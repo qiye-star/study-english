@@ -494,6 +494,10 @@ async def translate_segments(payload: TranslateIn, request: Request, item_id: It
     if item.status != "ready":
         raise fail("not_ready")
     segs = await store.segments_at(session, item.id, list(dict.fromkeys(payload.indices)))
+    if item.catalog_id:  # spec 2026-10-14-curated-library R3: the catalog's stored translations are free
+        if await catalog_store.fill_translations(session, item, segs, language):
+            for seg in segs:  # expire_on_commit=False: re-read the rows the UPDATEs changed (R-SC6)
+                await session.refresh(seg)
     _, template = await prompt_cache(request.app).get("library.translate")
     try:
         done, limited = await library_ai.translate(session, request.app.state.http, settings, user_id=user.id,
@@ -522,6 +526,20 @@ async def analyze_segment(payload: AnalysisIn, request: Request, item_id: ItemId
     if not segs:
         raise fail("segment_missing")
     _, template = await prompt_cache(request.app).get("library.analyze")
+    seg = segs[0]
+    if item.catalog_id and not (seg.analysis and seg.analysis_lang == language):  # R-SC5: shared, system-paid
+        cat = await catalog_store.get(session, item.catalog_id)
+        shared = await catalog_store.segment_at(session, item.catalog_id, idx) if cat is not None else None
+        if cat is not None and shared is not None and language == cat.ai_lang and store.same_text(shared.text, seg.text):
+            user_text = seg.text
+            try:
+                text, cached = await library_ai.analyze_catalog(
+                    session, request.app.state.http, settings, catalog_id=cat.id, idx=idx, text=user_text,
+                    language=language, template=template, now=utcnow())
+            except library_ai.AiUnavailable as e:
+                raise fail({"global_cap": "ai_global_cap"}.get(e.kind, "ai_unavailable")) from None
+            await store.set_analysis(session, item.id, idx, user_text, text, language)
+            return {"analysis": text, "cached": cached}
     try:
         text, cached = await library_ai.analyze(session, request.app.state.http, settings, user_id=user.id,
                                                 item_id=item.id, segment=segs[0], language=language,
