@@ -34,7 +34,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   Spell blanks carry `form` (sentence surface form, e.g. go → went) for the hint and TTS only; grading never trusts it.
 - Contract fixture `tests/fixtures/wordbook_contract.json` is read by the web contract test (never skipped): re-record with
   `CONTRACT_UPDATE=1` whenever a response shape changes.
-- `/answers` 对 `meaning` / `word` 选择题追加**可选**键 `option_info`(`[{option, word, defs_zh, defs_en}]`,与题面同序,网页按 `option` 文本匹配)、`phrases`(≤ 3)、`example`;只在判分后构造。`/answers` 无状态,所以 `option_info` 靠出题时的 `option_memo`(进程内,重启 / 淘汰 / 多 worker 取不到就省略,不是错误);`cloze`、打字题、自评与抽查答案不带这三个键。不要把备忘用于判分(P-W2),也不要把词或选项写进日志。
+- `/answers` 对 `meaning` / `word` / `cloze` 选择题追加**可选**键 `option_info`(`[{option, word, defs_zh, defs_en}]`,与题面同序,网页按 `option` 文本匹配)、`phrases`(≤ 3)、`example`;只在判分后构造。`/answers` 无状态,所以 `option_info` 靠出题时的 `option_memo`(进程内,重启 / 淘汰 / 多 worker 取不到就省略,不是错误);打字题、自评与抽查答案不带这三个键(cloze 的选项是词头,与 `word` 同构)。不要把备忘用于判分(P-W2),也不要把词或选项写进日志。
 - `def_lang` 默认值是 `store.DEFAULT_DEF_LANG = "en"`(无偏好行的用户);已存过偏好的用户读最新 `defpref` 事件,不受默认值影响。录制的 `def_lang_patch` 用 `"zh"`(PATCH 成默认值是空操作)。
 - Self-rating (`qtype=recall`): boxes, spot checks and the fuzzy streak are decided here, never by the client.
   `known:true` is an alias for an unpeeked `know`. Same-day follow-ups on a new word (round quiz, spot check,

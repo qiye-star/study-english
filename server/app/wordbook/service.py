@@ -240,7 +240,7 @@ async def today_out(session: AsyncSession, ds: DictionaryStore, user_id: int, se
 
 LEARN_DUE = timedelta(days=1)
 
-OPTION_INFO_QTYPES = ("meaning", "word")  # 答题后回填「选项 → 词」的题型(cloze 不改)
+OPTION_INFO_QTYPES = ("meaning", "word", "cloze")  # 答题后回填「选项 → 词」的题型(cloze 选项与 word 一样是词头)
 MAX_ANSWER_PHRASES = 3
 MAX_OPTION_DEFS_ZH = 4  # 与 lookup.MAX_ZH 相同
 
@@ -277,12 +277,12 @@ async def _active(session: AsyncSession, ds: DictionaryStore, user_id: int,
 
 
 def _option_text(qtype: str, card: WordCard) -> str:
-    """与 quiz.build_question 放进 options 的那一项逐字相同:meaning = 释义行,word = 词头。"""
+    """与 quiz.build_question 放进 options 的那一项逐字相同:meaning = 释义行,word / cloze = 词头。"""
     return meaning_line(card) if qtype == "meaning" else card.word
 
 
 async def _choice_extras(ds: DictionaryStore, user_id: int, p: AnswerInput, card: WordCard) -> dict:
-    """/answers 的追加字段(spec 2026-10-13-review-after-answer §2.2),只给 meaning / word 选择题,全部可选:
+    """/answers 的追加字段(spec 2026-10-13-review-after-answer §2.2),只给 meaning / word / cloze 选择题,全部可选:
     `phrases`(≤ 3)与 `example`(第一条例句)来自词卡,没有就省略键;`option_info` 来自出题时的备忘(R-A1),
     备忘取不到、你选的项或正确项不在其中、或有词卡读不出来时整个省略。只在判分之后调用:题面不泄露(R-A5)。"""
     if p.qtype not in OPTION_INFO_QTYPES:

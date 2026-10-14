@@ -73,13 +73,12 @@ async def test_a_word_answer_names_the_word_of_every_option(app, client, tmp_pat
     assert all(i["defs_zh"] for i in info)
 
 
-async def test_cloze_typed_and_rating_answers_keep_the_old_shape(app, client, tmp_path):
+async def test_typed_and_rating_answers_keep_the_old_shape(app, client, tmp_path):
     h = await login(app, client, tmp_path)
     await learn_batch(client, h)
-    cloze = (await ans(client, h, key="talk", mode="learn", qtype="cloze", choice="talk")).json()
     typed = (await ans(client, h, key="ability", mode="learn", qtype="spell", typed="ability")).json()
     rated = (await ans(client, h, key="able", mode="learn", qtype="recall", rating="know")).json()
-    for body in (cloze, typed, rated):
+    for body in (typed, rated):
         assert not EXTRA_KEYS & set(body)
 
 
@@ -139,3 +138,35 @@ async def test_option_info_is_not_logged(app, client, tmp_path, caplog):
     await learn_batch(client, h)
     await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=TALK_MEANING)
     assert "speak to someone" not in caplog.text and "谈论某事" not in caplog.text
+
+
+async def _cloze_review_question(app, client, h, monkeypatch) -> dict:
+    monkeypatch.setattr(service, "pick_qtype", lambda box, card, rng, *, tts=True: "cloze")
+    await ans(client, h, key="talk", mode="learn", qtype="meaning", choice=TALK_MEANING)
+    async with app.state.sessionmaker() as s:
+        await s.execute(update(VocabularyItem).where(VocabularyItem.word == "talk")
+                        .values(due_at=utcnow() - timedelta(hours=1)))
+        await s.commit()
+    (q,) = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "tz_offset_minutes": 480})).json()["questions"]
+    assert q["qtype"] == "cloze"
+    return q
+
+
+async def test_a_cloze_answer_names_the_word_of_every_option(app, client, tmp_path, monkeypatch):
+    h = await login(app, client, tmp_path)
+    q = await _cloze_review_question(app, client, h, monkeypatch)
+    wrong = next(o for o in q["options"] if o != "talk")
+    body = (await ans(client, h, key="talk", mode="review", qtype="cloze", choice=wrong)).json()
+    assert (body["correct"], body["correct_option"]) == (False, "talk")
+    info = body["option_info"]
+    assert [i["option"] for i in info] == q["options"] == [i["word"] for i in info]
+    assert all(set(i) == {"option", "word", "defs_zh", "defs_en"} and i["defs_zh"] for i in info)
+    assert body["phrases"] and body["example"]
+
+
+async def test_a_cloze_answer_without_a_memo_has_no_option_info(app, client, tmp_path, monkeypatch):
+    h = await login(app, client, tmp_path)
+    await _cloze_review_question(app, client, h, monkeypatch)
+    dictionary(app).option_memo.clear()
+    body = (await ans(client, h, key="talk", mode="review", qtype="cloze", choice="talk")).json()
+    assert "option_info" not in body and body["correct"] is True
