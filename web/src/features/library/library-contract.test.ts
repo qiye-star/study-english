@@ -31,11 +31,12 @@ const LIMITS: Record<keyof LibraryLimits, true> = {
 const ITEM: Record<keyof LibraryItem, true> = {
   id: true, kind: true, source: true, title: true, status: true, stage: true, progress: true, errorKind: true, durationMs: true,
   segCount: true, libraryBytes: true, subSource: true, resumeMs: true, resumeIdx: true, ratePct: true, hasPoster: true,
-  lowConfidence: true, createdAt: true, lastOpenedAt: true,
+  lowConfidence: true, rebuildable: true, createdAt: true, lastOpenedAt: true,
 };
 const DETAIL: Record<keyof LibraryItemDetail, true> = { ...ITEM, segments: true };
 const SEGMENT: Record<keyof LibrarySegment, true> = {
   idx: true, startMs: true, endMs: true, text: true, zh: true, zhLang: true, hasAnalysis: true, analysisLang: true,
+  flags: true,
 };
 const START: Record<keyof UploadStart, true> = { itemId: true, chunkBytes: true };
 const STATUS: Record<keyof UploadStatus, true> = { itemId: true, status: true, uploadReceived: true, uploadTotal: true, chunkBytes: true };
@@ -123,6 +124,15 @@ describe("library contract (server fixture)", () => {
     expect(queued.status).toBe("queued");
     expect(queued.lowConfidence).toBe(false);
     expect(c.reprocess_error).toEqual({ error: "Item cannot be reprocessed" });
+  });
+
+  it("rebuild returns the item with its new sentences, and refuses an item without a kept transcript (plan v2)", () => {
+    const rebuilt = unwrapDetail(cc<unknown>(c.rebuild));
+    expect(keysOf(rebuilt)).toEqual(keys(DETAIL));
+    expect(rebuilt.rebuildable).toBe(true);
+    expect(rebuilt.segments.length).toBeGreaterThan(0);
+    for (const seg of rebuilt.segments) expect(Array.isArray(seg.flags) && seg.flags.every((f) => typeof f === "string")).toBe(true);
+    expect(c.rebuild_error).toEqual({ error: "Item cannot be rebuilt" });
   });
 
   it("every item carries the low_confidence flag as a boolean", () => {

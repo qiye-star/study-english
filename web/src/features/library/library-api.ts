@@ -40,6 +40,8 @@ export interface LibraryItem {
   hasPoster: boolean;
   /** D5:句边界可能不准(服务端合理性检查;重新识别后重算) */
   lowConfidence: boolean;
+  /** plan v2 R-V8:服务端留着识别结果,可以「重新分句」(不花识别额度)。可选:旧夹具与测试里的条目不必带。 */
+  rebuildable?: boolean;
   createdAt: string;
   lastOpenedAt: string | null;
 }
@@ -62,6 +64,11 @@ export interface LibrarySegment {
    */
   hasAnalysis?: boolean;
   analysisLang?: string | null;
+  /**
+   * plan v2 R-V14:这一句时间可疑的原因码(`rate` / `pause` / `timing` / `estimated` / `seam`);空 = 没有。
+   * 用户手动改过时间后服务端清空。可选:旧服务端与测试里的句子没有。
+   */
+  flags?: string[];
 }
 
 export interface LibraryItemDetail extends LibraryItem {
@@ -150,6 +157,11 @@ export async function cancelItem(api: ApiClient, id: string): Promise<LibraryIte
 /** D7:重新识别一条自动识别的条目(旧句子保留到新句子写入;额度不足 429 / 不可重新识别 409 / 没开转写 503)。 */
 export async function reprocessItem(api: ApiClient, id: string): Promise<LibraryItem> {
   return unwrapItem(await api.request<unknown>("POST", `${itemPath(id)}/reprocess`));
+}
+
+/** plan v2 R-V16:用保留的识别结果按当前算法重新分句(不花额度、不排队);返回新的句子。旧素材没有识别结果 → 409。 */
+export async function rebuildItem(api: ApiClient, id: string): Promise<LibraryItemDetail> {
+  return unwrapDetail(await api.request<unknown>("POST", `${itemPath(id)}/rebuild`));
 }
 
 export async function putItemSubtitles(api: ApiClient, id: string, file: Blob, filename: string): Promise<LibraryItem> {
@@ -253,6 +265,7 @@ export const LIBRARY_SERVER_ERRORS: Record<string, string> = {
   "Item has not failed": "web.library.errors.invalidState",
   "Nothing left to retry": "web.library.errors.invalidState",
   "Item cannot be reprocessed": "web.library.errors.notReprocessable",
+  "Item cannot be rebuilt": "web.library.errors.notRebuildable",
   "Transcription is not available": "web.library.errors.asrUnavailable",
   "Daily transcription limit reached": "web.library.errors.asrLimited",
   "Item cannot be canceled": "web.library.errors.invalidState",

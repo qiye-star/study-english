@@ -26,6 +26,8 @@ export type SegmentWithAi = SavedSegment & {
   zhLang?: string | null;
   hasAnalysis?: boolean;
   analysisLang?: string | null;
+  /** plan v2 R-V14:时间可疑的原因码;服务端在时间被改后清空 */
+  flags?: string[];
 };
 
 export interface SegmentPatch {
@@ -87,6 +89,7 @@ export async function patchSegment(api: ApiClient, itemId: string, idx: number, 
   if ("zhLang" in r) saved.zhLang = typeof r.zhLang === "string" ? r.zhLang : null;
   if (typeof r.hasAnalysis === "boolean") saved.hasAnalysis = r.hasAnalysis;
   if ("analysisLang" in r) saved.analysisLang = typeof r.analysisLang === "string" ? r.analysisLang : null;
+  if (Array.isArray(r.flags)) saved.flags = r.flags.filter((f): f is string => typeof f === "string");
   return saved;
 }
 

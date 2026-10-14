@@ -41,6 +41,7 @@
         "menuTitle": "素材操作",
         "menuDescription": "对这条素材的更多操作。",
         "reprocess": "重新识别",
+        "rebuild": "重新分句(不用额度)",
         "lowConfidenceBadge": "边界可能不准",
         "reprocessFailed": "重新识别没有成功,原来的句子还在:{{reason}}"
       },
@@ -48,6 +49,11 @@
         "title": "删除这条素材?",
         "body": "媒体文件和句子会被删除。你的录音和成绩仍保留在练习记录里。",
         "confirm": "删除"
+      },
+      "confirmRebuild": {
+        "title": "重新分句这条素材?",
+        "body": "用已经识别好的结果按最新的方法重新切句子,不用自动转写额度。你对句子文字和时间的修改会被替换;文字没变的句子保留译文。",
+        "confirm": "重新分句"
       },
       "confirmReprocess": {
         "title": "重新识别这条素材?",
@@ -61,7 +67,8 @@
         "imported": "链接已添加,正在处理。",
         "subtitlesSaved": "字幕已添加,正在重新处理。",
         "retrying": "正在重试。",
-        "reprocessing": "已开始重新识别。"
+        "reprocessing": "已开始重新识别。",
+        "rebuilt": "已重新分句。"
       },
       "sheet": { "title": "添加素材", "tabs": "来源", "upload": "上传", "link": "链接" },
       "upload": {
@@ -122,6 +129,7 @@
         "mediaError": "媒体加载失败。",
         "audio": "音频",
         "noSegments": "还没有句子。",
+        "timingSuspect": "这句的时间可能不准,可微调",
         "translateShort": "译",
         "translateOn": "隐藏译文",
         "translateOff": "显示译文",
@@ -154,6 +162,7 @@
         "aiDisabled": "本服务器没有开启 AI 辅助。",
         "aiUnavailable": "AI 辅助暂时不可用,请稍后再试。",
         "notReprocessable": "这条素材现在不能重新识别。",
+        "notRebuildable": "这条素材是更早的版本识别的,没有保留识别结果;请用「重新识别」。",
         "asrUnavailable": "本服务器没有开启自动转写。",
         "asrLimited": "今天的自动转写额度已用完,明天再试。",
         "kind": {

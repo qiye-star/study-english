@@ -41,6 +41,7 @@
         "menuTitle": "Item actions",
         "menuDescription": "More actions for this item.",
         "reprocess": "Re-recognize",
+        "rebuild": "Re-split sentences (free)",
         "lowConfidenceBadge": "Boundaries may be off",
         "reprocessFailed": "Re-recognition did not work; your earlier sentences are still here: {{reason}}"
       },
@@ -48,6 +49,11 @@
         "title": "Delete this item?",
         "body": "The media and its sentences are removed. Your recordings and scores stay in your history.",
         "confirm": "Delete"
+      },
+      "confirmRebuild": {
+        "title": "Re-split this item's sentences?",
+        "body": "The sentences are cut again from the existing recognition with the latest method. This uses no transcription allowance. Your edits to sentence text and times are replaced; sentences whose text did not change keep their translations.",
+        "confirm": "Re-split"
       },
       "confirmReprocess": {
         "title": "Re-recognize this item?",
@@ -61,7 +67,8 @@
         "imported": "Link added. Processing now.",
         "subtitlesSaved": "Subtitles added. Processing again.",
         "retrying": "Trying again.",
-        "reprocessing": "Re-recognition started."
+        "reprocessing": "Re-recognition started.",
+        "rebuilt": "Sentences re-split."
       },
       "sheet": { "title": "Add material", "tabs": "Source", "upload": "Upload", "link": "Link" },
       "upload": {
@@ -122,6 +129,7 @@
         "mediaError": "Could not load the media.",
         "audio": "Audio only",
         "noSegments": "No sentences yet.",
+        "timingSuspect": "This sentence's timing may be off; you can fine-tune it",
         "translateShort": "Translate",
         "translateOn": "Hide translation",
         "translateOff": "Show translation",
@@ -154,6 +162,7 @@
         "aiDisabled": "AI help is turned off on this server.",
         "aiUnavailable": "AI help is unavailable right now. Try again later.",
         "notReprocessable": "This item cannot be re-recognized right now.",
+        "notRebuildable": "This item was recognized by an earlier version and has no kept recognition. Use Re-recognize instead.",
         "asrUnavailable": "Automatic transcription is not enabled on this server.",
         "asrLimited": "Today's transcription allowance is used up. Try again tomorrow.",
         "kind": {

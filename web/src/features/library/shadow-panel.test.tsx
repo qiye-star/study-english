@@ -216,3 +216,11 @@ describe("ShadowPanel (spec §11.4, D8; plan W2 R-SH03)", () => {
     expect(mergeSaved(base, { idx: 1, startMs: 1200, endMs: 3000, text: "Hello world." })).toEqual({ ...base, startMs: 1200 });
   });
 });
+
+describe("mergeSaved timing flags (plan v2 R-V14)", () => {
+  it("clears the timing flags when the times change, keeps them when only the text changes", () => {
+    const flagged = { ...SEG, flags: ["pause"] } as LibrarySegment;
+    expect(mergeSaved(flagged, { idx: SEG.idx, startMs: SEG.startMs + 100, endMs: SEG.endMs, text: SEG.text }).flags).toEqual([]);
+    expect(mergeSaved(flagged, { idx: SEG.idx, startMs: SEG.startMs, endMs: SEG.endMs, text: "Other words." }).flags).toEqual(["pause"]);
+  });
+});

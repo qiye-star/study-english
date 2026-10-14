@@ -84,9 +84,15 @@ export interface ShadowPanelProps {
   starter?: RecordingStarter;
 }
 
-/** 微调保存后的新句子:起止与文字取服务端回的;文字变了就清掉译文与分析(E11,R-SH34)。 */
+/**
+ * 微调保存后的新句子:起止与文字取服务端回的;文字变了就清掉译文与分析(E11,R-SH34);
+ * 起止变了就清掉时间可疑标记(plan v2 R-V14,与服务端同一规则)。
+ */
 export function mergeSaved(segment: LibrarySegment, saved: SavedSegment): LibrarySegment {
-  const next: LibrarySegment = { ...segment, startMs: saved.startMs, endMs: saved.endMs, text: saved.text };
+  const timesChanged = saved.startMs !== segment.startMs || saved.endMs !== segment.endMs;
+  const next: LibrarySegment = {
+    ...segment, startMs: saved.startMs, endMs: saved.endMs, text: saved.text, ...(timesChanged && segment.flags ? { flags: [] } : {}),
+  };
   const textChanged = saved.text !== segment.text;
   return textChanged ? { ...next, zh: null, zhLang: null, hasAnalysis: false, analysisLang: null } : next;
 }
