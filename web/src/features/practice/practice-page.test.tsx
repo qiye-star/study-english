@@ -5,6 +5,7 @@ import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { contribute } from "~/lib/extension-points";
 import { renderWithProviders } from "~/test/render";
 import { toast } from "sonner";
 import { PracticePage } from "./practice-page";
@@ -43,6 +44,14 @@ describe("PracticePage", () => {
     const { mock } = setup({ "GET /api/wordbook/config": () => json({ enabled: false }) });
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
     expect(screen.queryByTestId("wordbook-card")).toBeNull();
+  });
+
+  it("renders contributions of the practiceHeaderActions point left of the practice list link", () => {
+    contribute({ point: "practiceHeaderActions", id: "test.header", component: () => <button type="button" data-testid="test-header">x</button> });
+    setup({});
+    const mine = screen.getByTestId("test-header");
+    const list = screen.getByTestId("practice-list");
+    expect(mine.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("links to the progress page", () => {

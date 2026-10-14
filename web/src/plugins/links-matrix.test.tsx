@@ -35,6 +35,7 @@ describe("all-off / all-on matrix", () => {
     expect(ids("meRows")).toEqual(["links.row"]);
     expect(ids("appEffects")).toEqual(["links.config"]);
     expect(ids("selectionActions")).toEqual(["chat.read-aloud"]);
+    expect(ids("practiceHeaderActions")).toEqual([]); // W3 登记核心贡献 changelog.entry 后改成 ["changelog.entry"]
     expect(routesFor(allOn).map((r) => r.path).sort()).toEqual(["/links/mistakes", "/links/weak-words", "/me/links"]);
   });
 
