@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
+from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
                         UniqueConstraint, false, text, true)
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -502,6 +502,34 @@ class Announcement(Base):
     created_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ChangelogEntry(Base):
+    """更新日志条目(spec 2026-10-14-changelog-design §2.1):`published_at` 为空 = 草稿,`archived_at` = 软删除。
+    `items` = `[{"tag": new|improve|fix|library|other, "zh": str, "en": str}]`,由 `app/admin/changelog.py` 逐键校验。
+    内容是公开的发布说明;日志与审计里不记内容。"""
+    __tablename__ = "changelog_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    entry_date: Mapped[date] = mapped_column(Date, index=True)
+    version: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    title_zh: Mapped[str] = mapped_column(String(80))
+    title_en: Mapped[str] = mapped_column(String(80), default="")
+    items: Mapped[list] = mapped_column(JSON)
+    created_by: Mapped[str] = mapped_column(String(64))  # 管理员名或 "import",不是外键
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ChangelogRead(Base):
+    """每个用户读到哪一条(只前进):`last_seen_id` 是 changelog_entries.id,不是外键(条目可被软删除)。"""
+    __tablename__ = "changelog_reads"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    last_seen_id: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class UpstreamCall(Base):
