@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { CatalogState, NewMeta } from "./api";
+import { levelLong } from "../../lib/levels";
 import { S } from "./strings";
 
 /** 导入 / 上传对话框共用的元数据表单状态(标签是逗号分隔的原文)。 */
@@ -35,7 +36,7 @@ export function MetaFields({ draft, state, onChange }: { draft: MetaDraft; state
           <label htmlFor={`${id}-level`} className="block text-xs font-medium text-fg-2">{S.form.level}</label>
           <select id={`${id}-level`} className="field-sm" value={draft.level} onChange={(e) => set({ level: e.target.value })}>
             <option value="">{S.form.noLevel}</option>
-            {state.levels.map((l) => <option key={l} value={l}>{l}</option>)}
+            {state.levels.map((l) => <option key={l} value={l}>{levelLong(l)}</option>)}
           </select>
         </div>
         <div className="space-y-1">

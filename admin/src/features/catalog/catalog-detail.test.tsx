@@ -38,6 +38,7 @@ describe("CatalogDetail", () => {
     expect(await screen.findByText("Hello there.")).toBeInTheDocument();
     expect(screen.getByText("你好。")).toBeInTheDocument();
     expect(document.querySelector("audio")?.getAttribute("src")).toBe(api.mediaUrl(ID));
+    expect(screen.getByRole("option", { name: "B1 · 中级(能应对大多数日常场景)" })).toHaveAttribute("value", "B1");
   });
 
   it("edits a sentence while unpublished", async () => {
