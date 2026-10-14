@@ -212,5 +212,23 @@
         "en": "Fill-the-sentence, dictation and spelling questions in review now show the Chinese meaning and the study panel after you answer, like the other question types."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-14",
+    "version": null,
+    "title_zh": "精选库与等级说明",
+    "title_en": "Featured library and level notes",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "跟读库新增「精选」:内置的跟读素材,不用自己上传,点「添加到我的库」就能开始跟读;内置素材不占用你的空间,除跟读评分外不消耗额度。",
+        "en": "The shadowing library has a new 「精选」 tab with built-in material: tap 「添加到我的库」 and start shadowing without uploading anything. Built-in items take no storage, and only shadowing assessment uses your allowance."
+      },
+      {
+        "tag": "improve",
+        "zh": "所有出现 A1~C2 的地方(对话、联机创建房间的目标水平、智能体、排位、精选库)都标注了水平含义,例如「B1 · 中级」。",
+        "en": "Everywhere a level like A1-C2 appears (chat, target level when creating a room, agents, rank, the featured library) now says what it means, e.g. 「B1 · Intermediate」."
+      }
+    ]
   }
 ]
