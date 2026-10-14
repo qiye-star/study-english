@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>级别标注 设计稿 v1</title>
+<!--
+  设计稿(事后复核用):CEFR 级别标注(计划 docs/superpowers/plans/2026-10-14-level-annotations.md)。功能已上线,本页照着真实代码画:
+  web/src/lib/levels.ts(levelLabel「B1 · 中级」/ levelName / levelMeaning)、web/src/components/level-hint.tsx(一行说明,12px ink-2 行高 1.45)、
+  文案 web/src/components/i18n/{zh-CN,en}.json 的 web.level.*、rooms/create/i18n 的 levelShort / levelAuto、chat/i18n 的 levels.auto / settingsForm.levelHint。
+  画面:1 房间目标水平分段 · 2 精选芯片与卡片徽标 · 3 对话英语难度 · 4 带我学 / 角色 / 记忆 · 5 段位首页 · 6 管理后台(桌面)。
+  末尾「可以考虑的替代方案」两种都 **没有上线**,只供 owner 决定要不要改。
+  单文件、无外部请求;令牌照抄 web/src/styles/theme.css 与 web/src/features/library/library.css;admin 令牌照抄 admin/src/index.css。
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+button,select{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+html,body{background:#E4E6EC;color:#1b1d22;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+html.dark body{background:#0b0c10;color:#e8e9ee}
+.canvas{max-width:1900px;margin:0 auto;padding:32px 24px 90px}
+.canvas h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.canvas h2{font-size:15px;font-weight:600;margin-top:38px}
+.canvas h2 .tag{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:7px;font-size:11px;font-weight:700;vertical-align:2px}
+.tag.ship{background:#e4f6ea;color:#157a3b}.tag.alt{background:#fff0de;color:#9a4b00}
+html.dark .tag.ship{background:rgba(111,211,154,.14);color:#6fd39a}html.dark .tag.alt{background:rgba(242,176,86,.14);color:#f2b056}
+.lede{color:#5b6170;font-size:13px;margin-top:6px;max-width:100ch;line-height:1.65}
+html.dark .lede{color:#9aa0b0}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;background:linear-gradient(#E4E6EC 70%,transparent)}
+html.dark .toolbar{background:linear-gradient(#0b0c10 70%,transparent)}
+.tb{height:34px;padding:0 14px;border-radius:17px;font-size:13px;background:#fff;color:#1b1d22;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tb.on{background:#2456DB;color:#fff}
+html.dark .tb{background:#1d2028;color:#e8e9ee}html.dark .tb.on{background:#5b86ff;color:#0b0c10}
+.row{display:flex;flex-wrap:wrap;gap:30px;margin-top:20px;align-items:flex-start}
+.spec{width:390px}
+.spec>.cap{font-size:12px;color:#5b6170;margin:12px 2px 0;line-height:1.65}
+html.dark .spec>.cap{color:#9aa0b0}.spec>.cap b{color:inherit;font-weight:600}
+.cap .fx{display:block;margin-top:6px;padding:7px 9px;border-radius:10px;background:rgba(120,125,140,.12);font-size:11.5px}
+.cap .pro{color:#157a3b}.cap .con{color:#b0302f}
+html.dark .cap .pro{color:#6fd39a}html.dark .cap .con{color:#ff8a8a}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em}
+table.q{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1150px;width:100%}
+table.q td,table.q th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+table.q th{font-weight:600;color:#5b6170}html.dark table.q th{color:#9aa0b0}
+
+/* ============ 全站令牌(theme.css)============ */
+.phone,.fit,.admin{
+  --bg:255 255 255;--surface:255 255 255;--surface-2:245 246 248;--ink:17 19 24;--ink-2:91 97 112;--ink-3:138 144 160;
+  --blue:36 86 219;--teal:14 112 103;--amber:154 75 0;--green:21 122 59;--red:209 36 47;--ring:36 86 219;
+  --hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);--seg-track:#f5f6f8;--seg-on:#ffffff;
+  --blue-tint:#eaf0ff;--teal-tint:#e3f5f2;--amber-tint:#fff0de;--green-tint:#e4f6ea;
+}
+html.dark .phone,html.dark .fit,html.dark .admin{
+  --bg:15 16 19;--surface:23 25 30;--surface-2:30 33 39;--ink:243 244 246;--ink-2:166 171 184;--ink-3:110 116 130;
+  --blue:143 176 255;--teal:95 209 196;--amber:242 176 86;--green:111 211 154;--red:255 123 123;--ring:143 176 255;
+  --hair:rgba(255,255,255,.14);--hair-2:rgba(255,255,255,.08);--seg-track:rgba(255,255,255,.06);--seg-on:#2a2e36;
+  --blue-tint:rgba(143,176,255,.14);--teal-tint:rgba(95,209,196,.14);--amber-tint:rgba(242,176,86,.14);--green-tint:rgba(111,211,154,.14);
+}
+/* ============ 跟读库令牌(library.css)============ */
+.library-root{
+  --lib-page:#eef1f8;--lib-solid:#ffffff;--lib-glass-bg:rgba(255,255,255,.38);--lib-glass-bd:rgba(255,255,255,.85);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);--lib-card-sh:0 6px 18px -10px rgba(36,56,110,.3);
+  --lib-chip:rgba(255,255,255,.6);--lib-hair:rgba(17,19,24,.1);--lib-blue-tint:rgba(36,86,219,.12);
+  --lib-blob1:#9db8ff;--lib-blob2:#b9f0e6;--lib-blob3:#ffd7b0;
+}
+html.dark .library-root{
+  --lib-page:#0b0d14;--lib-solid:#1a1d25;--lib-glass-bg:rgba(150,170,255,.1);--lib-glass-bd:rgba(255,255,255,.26);
+  --lib-glass-hi:inset 0 1px 0 rgba(255,255,255,.38),inset 0 0 22px rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.08);
+  --lib-card-sh:0 6px 18px -10px rgba(0,0,0,.6);--lib-chip:rgba(255,255,255,.1);--lib-hair:rgba(255,255,255,.12);--lib-blue-tint:rgba(143,176,255,.18);
+  --lib-blob1:#4f6dff;--lib-blob2:#12b3a2;--lib-blob3:#8f5a3a;
+}
+
+/* ============ 手机框 ============ */
+.phone{color:rgb(var(--ink));background:rgb(var(--bg));position:relative;width:390px;height:780px;border-radius:46px;overflow:hidden;
+  border:.5px solid rgba(120,125,140,.4);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4}
+.phone.short{height:620px}
+.phone.library-root{background:var(--lib-page)}
+.i{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.125em}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px 32px;font-size:15px;font-weight:600;z-index:80}
+.scroll{position:absolute;inset:47px 0 0 0;overflow-y:auto;overflow-x:hidden;z-index:5;padding-bottom:40px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.hdr{display:flex;align-items:center;gap:6px;height:52px;padding:0 16px;font-size:20px;font-weight:700;letter-spacing:-.02em}
+.hdr.small{font-size:17px;justify-content:center;position:relative}
+.hdr.small .back{position:absolute;left:8px;width:44px;height:44px;display:grid;place-items:center;font-size:22px;color:rgb(var(--blue))}
+.ghost{opacity:.35;pointer-events:none}
+.dim{position:absolute;inset:0;background:rgba(17,19,24,.32);z-index:40}
+html.dark .dim{background:rgba(0,0,0,.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:50;background:rgb(var(--surface));border-radius:20px 20px 0 0;padding:8px 16px 28px;
+  box-shadow:0 -.5px 0 var(--hair),0 -12px 32px -16px rgba(17,19,24,.28);max-height:88%;overflow-y:auto;scrollbar-width:none}
+.sheet::-webkit-scrollbar{display:none}
+.grab{margin:0 auto 8px;height:5px;width:36px;border-radius:9px;background:var(--hair)}
+.sh-t{font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
+.sh-d{margin-top:4px;font-size:13px;color:rgb(var(--ink-2));line-height:1.45}
+.sh-head{margin-bottom:12px;padding-right:40px}
+
+/* 共享:LevelHint(level-hint.tsx:text-meta leading-[1.45] text-ink-2) */
+.lh{display:block;font-size:12px;line-height:1.45;color:rgb(var(--ink-2))}
+
+/* ===== 1 房间:Label + Segments(settings-fields.tsx)===== */
+.lbl{margin:14px 2px 6px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:13px;font-weight:600;color:rgb(var(--ink-2))}
+.lbl .as{font-weight:500}
+.input{height:44px;width:100%;border-radius:12px;border:.5px solid var(--hair);background:rgb(var(--surface));padding:0 12px;font-size:16px;display:flex;align-items:center;color:rgb(var(--ink))}
+.picker{display:flex;gap:6px;overflow:hidden}
+.picker span{flex:none;height:32px;padding:0 12px;border-radius:999px;font-size:13px;display:inline-flex;align-items:center;background:rgb(var(--surface-2));color:rgb(var(--ink-2))}
+.picker span.on{background:var(--blue-tint);color:rgb(var(--blue));font-weight:600}
+.seg{display:flex;gap:2px;border-radius:10px;background:var(--seg-track);padding:2px}
+.seg button{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;border-radius:8px;padding:0 4px;font-size:13px;font-weight:600;color:rgb(var(--ink-2));height:32px;transition:background-color .15s}
+.seg button.two{height:44px}
+.seg button.on{background:var(--seg-on);color:rgb(var(--ink));box-shadow:0 1px 2px rgba(17,19,24,.08)}
+.seg .stack{display:flex;flex-direction:column;align-items:center;min-width:0;max-width:100%;line-height:1.25}
+.seg .tr{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg .sub{font-size:12px;font-weight:500;color:rgb(var(--ink-2))}
+.mx{margin:6px 2px 0}
+.rows{margin-top:12px;border-radius:14px;background:rgb(var(--surface));box-shadow:inset 0 0 0 .5px var(--hair);overflow:hidden}
+.rows>div{display:flex;align-items:center;min-height:56px;padding:8px 12px 8px 14px;gap:12px;font-size:15px;font-weight:500}
+.rows>div+div{border-top:.5px solid var(--hair-2)}
+.rows small{display:block;font-size:12px;font-weight:400;color:rgb(var(--ink-2))}
+.sw{flex:none;margin-left:auto;width:44px;height:26px;border-radius:13px;background:rgb(var(--blue));position:relative}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.btn-primary{margin-top:16px;height:48px;width:100%;border-radius:12px;background:rgb(var(--blue));color:#fff;font-weight:600;font-size:16px}
+html.dark .btn-primary{color:#0f1013}
+
+/* 适配宽度证明 */
+.fits{display:flex;flex-wrap:wrap;gap:22px;margin-top:20px;align-items:flex-start}
+.fit{width:var(--w);background:rgb(var(--surface));color:rgb(var(--ink));border-radius:18px;padding:4px 16px 14px;border:.5px solid rgba(120,125,140,.4);font-size:15px;line-height:1.4}
+.fit .w{display:flex;justify-content:space-between;font-size:11px;color:rgb(var(--ink-2));margin:8px 2px 0;font-variant-numeric:tabular-nums}
+.ok{color:rgb(var(--green));font-weight:600}.bad{color:rgb(var(--red));font-weight:600}
+
+/* ===== 2 跟读库 · 精选(library.css .lib-*)===== */
+.lib-aurora{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.lib-aurora i{position:absolute;width:320px;height:320px;border-radius:50%;filter:blur(50px);opacity:.9}
+.lib-aurora i:nth-child(1){left:-80px;top:40px;background:var(--lib-blob1)}
+.lib-aurora i:nth-child(2){right:-100px;top:280px;background:var(--lib-blob2)}
+.lib-aurora i:nth-child(3){left:20px;bottom:-100px;background:var(--lib-blob3)}
+.lib-tint{background:var(--lib-glass-bg);border:1px solid var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),var(--lib-card-sh)}
+.lib-seg{display:flex;margin:2px 16px 10px;padding:3px;background:var(--lib-chip);border:.5px solid var(--lib-hair);border-radius:16px}
+.lib-seg span{flex:1;height:36px;border-radius:13px;font-size:14px;color:rgb(var(--ink-2));border:1px solid transparent;display:flex;align-items:center;justify-content:center}
+.lib-seg span.on{background:var(--lib-solid);color:rgb(var(--ink));font-weight:600;border-color:var(--lib-glass-bd);box-shadow:var(--lib-glass-hi),0 2px 6px -2px rgba(0,0,0,.35)}
+.lib-cat-levels{display:flex;gap:7px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none}
+.lib-cat-levels::-webkit-scrollbar{display:none}
+.lib-chip{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 14px;border-radius:17px;font-size:13px;
+  color:rgb(var(--ink));background:var(--lib-chip);border:.5px solid var(--lib-hair);white-space:nowrap}
+.lib-chip[aria-pressed=true]{color:rgb(var(--blue));font-weight:600;background:var(--lib-blue-tint)}
+.lib-hint{margin:6px 4px 8px}
+.lib-cat-grid{display:grid;grid-template-columns:1fr;gap:10px;padding:0 16px;list-style:none}
+.lib-cat-card{display:grid;grid-template-columns:96px minmax(0,1fr);grid-template-areas:"poster body" "act act";gap:8px 12px;padding:12px;border-radius:18px}
+.lib-cat-poster{grid-area:poster;align-self:start;aspect-ratio:16/9;border-radius:12px;overflow:hidden;display:grid;place-items:center;color:rgba(255,255,255,.85);font-size:24px;background:linear-gradient(160deg,#1c2540,#3a2a55 55%,#124a52)}
+.lib-cat-body{grid-area:body;display:flex;flex-direction:column;gap:5px;min-width:0}
+.lib-cat-title{font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.01em}
+.lib-cat-tags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.lib-cat-level,.lib-cat-tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:7px;font-size:11px;white-space:nowrap}
+.lib-cat-level{font-weight:700;letter-spacing:.02em;color:rgb(var(--blue));background:var(--lib-blue-tint)}
+.lib-cat-tag{color:rgb(var(--ink-2));background:var(--lib-chip);border:.5px solid var(--lib-hair)}
+.lib-cat-meta{font-size:12px;color:rgb(var(--ink-2));font-variant-numeric:tabular-nums}
+.lib-cat-license{font-size:11px;color:rgb(var(--ink-2));opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-cat-act{grid-area:act}
+.lib-spec{height:44px;width:100%;border-radius:999px;color:#fff;font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:linear-gradient(180deg,#4b78f0,#2456db);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 24px -8px rgba(36,86,219,.65)}
+html.dark .lib-spec{background:linear-gradient(180deg,#6d93ff,#3a63e0)}
+.z{position:relative;z-index:2}
+
+/* ===== 3 对话(sheet-form.tsx)===== */
+.card{border-radius:14px;border:.5px solid var(--hair);background:rgb(var(--surface))}
+.field{display:block;padding:12px 14px}
+.field>*+*{margin-top:6px}
+.flabel{display:block;font-size:13px;font-weight:600;color:rgb(var(--ink))}
+.fhint{display:block;font-size:12px;color:rgb(var(--ink-2))}
+.sel{height:44px;width:100%;border-radius:12px;border:.5px solid var(--hair);background:rgb(var(--surface));padding:0 12px;font-size:16px;color:rgb(var(--ink));appearance:auto}
+.grp{margin-top:22px}
+.grp>h4{margin:0 2px 6px;font-size:13px;font-weight:600;color:rgb(var(--ink-2))}
+.list>div{display:flex;align-items:center;min-height:56px;padding:10px 12px 10px 14px;font-size:15px;gap:12px}
+.list>div+div{border-top:.5px solid var(--hair-2)}
+.list .chev{margin-left:auto;color:rgb(var(--ink-3))}
+.subtitle{font-size:12px;color:rgb(var(--ink-2));text-align:center;margin-top:-8px}
+.bubble{max-width:78%;margin:10px 16px;padding:10px 13px;border-radius:14px;font-size:15px;line-height:1.5;background:rgb(var(--surface-2))}
+.bubble.me{margin-left:auto;background:rgb(var(--blue));color:#fff}
+html.dark .bubble.me{color:#0f1013}
+
+/* ===== 4 智能体 ===== */
+.tutor{margin:0 16px 8px;border-radius:14px;border:.5px solid var(--hair);background:rgb(var(--surface));padding:8px 12px 4px;box-shadow:0 1px 2px rgba(17,19,24,.03)}
+.tutor .top{display:flex;align-items:center;gap:8px;min-width:0}
+.tone{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:7px;font-size:11px;font-weight:600;white-space:nowrap}
+.tone.blue{color:rgb(var(--blue));background:var(--blue-tint)}.tone.gray{color:rgb(var(--ink-2));background:rgb(var(--surface-2))}
+.nowrap{white-space:nowrap}.trunc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t13{font-size:13px}.t12{font-size:12px}.b{font-weight:600}.c2{color:rgb(var(--ink-2))}.ml{margin-left:auto}
+.endb{min-height:44px;padding:0 8px;font-size:13px;color:rgb(var(--ink-2));white-space:nowrap}
+.pbar{height:4px;border-radius:9px;background:rgb(var(--surface-2));overflow:hidden}
+.pbar i{display:block;height:4px;border-radius:9px;background:rgb(var(--blue))}
+.acts{display:flex;gap:4px;margin-top:4px}
+.acts span{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 10px;font-size:13px;color:rgb(var(--ink-2))}
+.recap{margin:8px 16px;border-radius:14px;border:.5px solid var(--hair);background:rgb(var(--surface));padding:14px}
+.chipbtn{height:32px;border-radius:999px;padding:0 12px;font-size:13px;background:rgb(var(--surface-2));color:rgb(var(--ink-2))}
+.chipbtn[aria-checked=true]{background:var(--blue-tint);color:rgb(var(--blue));font-weight:600}
+.pe-field{display:block;margin-bottom:14px}
+.pe-label{margin-bottom:6px;display:flex;justify-content:space-between;gap:10px;font-size:12px;color:rgb(var(--ink-2))}
+.pe-input{width:100%;border-radius:12px;background:rgb(var(--surface-2));padding:10px 12px;font-size:16px;color:rgb(var(--ink))}
+.wrap{display:flex;flex-wrap:wrap;gap:6px}
+
+/* ===== 5 段位 ===== */
+.badge-lg{width:96px;height:96px;display:grid;place-items:center;border-radius:28px;background:linear-gradient(160deg,#cfe3ff,#8fb0ff 60%,#5f7fe0);color:#fff;font-size:46px;box-shadow:0 12px 30px -12px rgba(36,86,219,.6)}
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:6px}
+.task{display:flex;align-items:center;gap:10px;padding:12px 14px;font-size:15px}
+.task+.task{border-top:.5px solid var(--hair-2)}
+
+/* ===== 6 admin(admin/src/index.css)===== */
+.admin{--a-bg:245 246 248;--a-surface:255 255 255;--a-line:229 231 235;--a-fg:17 19 24;--a-fg2:91 97 112;--a-acc:36 86 219;--a-accsoft:234 240 255;
+  width:860px;background:rgb(var(--a-bg));color:rgb(var(--a-fg));border-radius:12px;border:.5px solid rgba(120,125,140,.4);overflow:hidden;font-size:14px;box-shadow:0 24px 48px -24px rgba(17,19,24,.3)}
+html.dark .admin{--a-bg:15 16 19;--a-surface:23 25 30;--a-line:44 47 54;--a-fg:243 244 246;--a-fg2:166 171 184;--a-acc:143 176 255;--a-accsoft:30 38 60}
+.admin .bar{display:flex;gap:6px;align-items:center;height:30px;padding:0 12px;background:rgb(var(--a-surface));border-bottom:1px solid rgb(var(--a-line))}
+.admin .bar i{width:10px;height:10px;border-radius:50%;background:rgba(120,125,140,.4)}
+.admin .body{display:grid;grid-template-columns:1fr 400px;gap:16px;padding:16px}
+.apanel{background:rgb(var(--a-surface));border:1px solid rgb(var(--a-line));border-radius:12px;padding:14px}
+.apanel h5{font-size:14px;font-weight:600;margin-bottom:10px}
+.alabel{display:block;font-size:12px;font-weight:500;color:rgb(var(--a-fg2));margin-bottom:4px}
+.afield{height:36px;width:100%;border-radius:8px;border:1px solid rgb(var(--a-line));background:rgb(var(--a-surface));padding:0 12px;font-size:14px;color:rgb(var(--a-fg));display:flex;align-items:center;justify-content:space-between}
+.afield.focus{border-color:rgb(var(--a-acc));box-shadow:0 0 0 3px rgb(var(--a-acc) / .25)}
+.ddl{margin-top:4px;border:1px solid rgb(var(--a-line));border-radius:8px;background:rgb(var(--a-surface));box-shadow:0 12px 24px -10px rgba(0,0,0,.3);padding:4px;font-size:13px}
+.ddl div{padding:6px 8px;border-radius:6px;white-space:nowrap}
+.ddl div.on{background:rgb(var(--a-accsoft));color:rgb(var(--a-acc));font-weight:600}
+.atable{width:100%;border-collapse:collapse;font-size:13px}
+.atable th{font-size:12px;font-weight:500;color:rgb(var(--a-fg2));text-align:left;padding:6px 8px;border-bottom:1px solid rgb(var(--a-line))}
+.atable td{padding:10px 8px;border-bottom:1px solid rgb(var(--a-line));white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ===== 替代方案(未上线)===== */
+.notship{position:absolute;top:56px;right:14px;z-index:90;padding:3px 9px;border-radius:8px;font-size:11px;font-weight:700;background:#fff0de;color:#9a4b00;border:1px dashed #9a4b00}
+html.dark .notship{background:rgba(242,176,86,.14);color:#f2b056;border-color:#f2b056}
+.info{flex:none;width:22px;height:22px;display:inline-grid;place-items:center;border-radius:50%;font-size:13px;color:rgb(var(--blue));position:relative}
+.info::before{content:"";position:absolute;inset:-11px}
+.pop{position:relative;margin-top:8px;border-radius:14px;background:rgb(var(--surface));border:.5px solid var(--hair);box-shadow:0 16px 36px -14px rgba(17,19,24,.45);padding:6px 0;z-index:3}
+html.dark .pop{background:#22252c}
+.pop::before{content:"";position:absolute;top:-6px;right:24px;width:12px;height:12px;transform:rotate(45deg);background:inherit;border-left:.5px solid var(--hair);border-top:.5px solid var(--hair)}
+.pop div{display:grid;grid-template-columns:30px auto 1fr;gap:8px;padding:7px 12px;font-size:12px;line-height:1.4;align-items:baseline}
+.pop div b{font-size:13px}
+.pop div.on{background:var(--blue-tint)}
+.pop div span:last-child{color:rgb(var(--ink-2))}
+.library-root .pop{background:var(--lib-solid)}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1 id="h1"></h1>
+  <p class="lede" id="lede"></p>
+  <div class="toolbar">
+    <button class="tb" data-theme="light">浅色</button><button class="tb" data-theme="dark">深色</button>
+    <span style="width:10px"></span>
+    <button class="tb" data-lang="zh">中文界面</button><button class="tb" data-lang="en">English UI</button>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+/* ======== 真实文案(逐字照抄 i18n 文件)======== */
+const L = {
+  zh: {
+    name:{A1:"入门",A2:"初级",B1:"中级",B2:"中高级",C1:"高级",C2:"精通"},
+    meaning:{A1:"能听懂、会用最常用的词和简单句",A2:"能进行简单的日常交流",B1:"能应对大多数日常场景",B2:"能流利地讨论熟悉的话题",C1:"能自如地表达复杂的想法",C2:"接近母语,几乎没有障碍"},
+    scale:"A1–C2 是国际通用的英语水平分级(CEFR),A1 最低,C2 最高。",
+    short:{A1:"入门",A2:"初级",B1:"中级",B2:"中高级",C1:"高级",C2:"精通"},
+    room:{title:"创建房间",name:"房间名",nameV:"小林的房间",scen:"场景",scenHint:"影响助手和 @ai",level:"目标水平",levelHint:"影响助手的难度",auto:"不选时按你的段位自动定。",join:"加入方式",jc:"凭房间号",ja:"需房主同意",jcHint:"知道房间号的人都能直接加入。",max:"人数上限",ai:"AI 公开回答",aiH:"@ai 的回答所有人可见",create:"创建",free:"自由聊",cafe:"咖啡店点单",intv:"求职面试"},
+    lib:{title:"跟读库",mine:"我的素材",cat:"精选",all:"全部",add:"添加到我的库",added:"已添加",open:"去学习",sent:"句"},
+    chat:{pick:"选择场景",pickD:"AI 扮演对方。预设场景会先说一句开场白。",level:"英语难度",auto:"自动(不限制)",presets:"场景",free:"自由对话",cafe:"咖啡店点单",interview:"求职面试",airport:"机场/出入境",
+      settings:"对话设置",grp:"对话",scenario:"场景",note:"场景会话使用场景的角色设定,不使用自定义指令。",levelHint:"AI 会把用词和句长控制在这个水平。",model:"模型",def:"服务器默认"},
+    tutor:{mode:"带学中",prog:"第 3 / 8 题",kind:"用词造句",end:"结束",hint:"提示",skip:"跳过",listen:"听一遍",recapT:"本次总结",count:"答了 8 / 8 题",lvl:"难度",
+      ed:"编辑角色",nm:"名称",intro:"简介",edLevel:"英文水平",style:"说话风格",styles:["温和","直接","幽默"],mem:"水平",unset:"未设置",q:"Could you describe your weekend in three sentences?"},
+    rank:{title:"段位",tier:"铂金",cefr:"对齐 CEFR ",prog:"240/420 段位点 · 再练 60 点到晋级门",tasks:"阶段练习",t1:"跟读 20 句",t2:"对话 15 轮",t3:"复习单词 50 次",promo:"晋级赛",target:"晋级到 钻石",start:"开始晋级赛"},
+    admin:{title:"精选库 · 上传条目",ftitle:"标题",level:"级别",noLevel:"不设",lang:"译文语言",tags:"话题标签(逗号分隔,最多 5 个)",lic:"来源与许可说明",cols:["标题","级别","时长","句数","状态"],pub:"已发布",list:"条目列表"},
+    seen:"无截断",trunc:"有截断",content:"内容宽",
+  },
+  en: {
+    name:{A1:"Beginner",A2:"Elementary",B1:"Intermediate",B2:"Upper intermediate",C1:"Advanced",C2:"Proficient"},
+    meaning:{A1:"Understands and uses the most common words and simple sentences",A2:"Handles simple everyday conversations",B1:"Copes with most everyday situations",B2:"Talks fluently about familiar topics",C1:"Expresses complex ideas with ease",C2:"Near-native; almost no difficulty"},
+    scale:"A1–C2 is the international scale of English levels (CEFR): A1 is the lowest, C2 the highest.",
+    short:{A1:"Basic",A2:"Elem.",B1:"Inter.",B2:"Upper",C1:"Adv.",C2:"Pro"},
+    room:{title:"Create a room",name:"Room name",nameV:"Lin's room",scen:"Scenario",scenHint:"Shapes the assistant and @ai",level:"Target level",levelHint:"Sets the assistant's difficulty",auto:"If you skip this, it follows your rank tier.",join:"Who can join",jc:"Anyone with the code",ja:"Owner approval",jcHint:"Anyone who knows the room code can join right away.",max:"Max members",ai:"Public AI answers",aiH:"Everyone sees @ai's answers",create:"Create",free:"Free talk",cafe:"Ordering coffee",intv:"Job interview"},
+    lib:{title:"Shadowing library",mine:"My material",cat:"Featured",all:"All",add:"Add to my library",added:"Added",open:"Study",sent:"sentences"},
+    chat:{pick:"Choose a scenario",pickD:"The AI plays the other person. Preset scenarios start with an opening line.",level:"English level",auto:"Auto (no limit)",presets:"Scenarios",free:"Free conversation",cafe:"Ordering coffee",interview:"Job interview",airport:"Airport & immigration",
+      settings:"Conversation settings",grp:"Conversation",scenario:"Scenario",note:"Scenario conversations use the scenario's role instead of your own instructions.",levelHint:"The AI keeps its vocabulary and sentence length at this level.",model:"Model",def:"Server default"},
+    tutor:{mode:"Lesson",prog:"Q 3 / 8",kind:"Use words",end:"End",hint:"Hint",skip:"Skip",listen:"Listen",recapT:"Recap",count:"Answered 8 / 8",lvl:"Level",
+      ed:"Edit persona",nm:"Name",intro:"Intro",edLevel:"English level",style:"Speaking style",styles:["Gentle","Direct","Playful"],mem:"Level",unset:"Not set",q:"Could you describe your weekend in three sentences?"},
+    rank:{title:"Rank",tier:"Platinum",cefr:"CEFR ",prog:"240/420 RP · 60 RP to the promotion gate",tasks:"Stage tasks",t1:"Read 20 sentences",t2:"15 chat turns",t3:"Review words 50 times",promo:"Promotion match",target:"Promote to Diamond",start:"Start promotion match"},
+    admin:null,
+    seen:"no truncation",trunc:"truncated",content:"content",
+  }
+};
+let lang = "zh";
+const D = () => L[lang];
+/* levels.ts 的同款函数 */
+const parse = c => { const m = /^([ABC][12])(\+)?$/.exec(String(c||"").trim().toUpperCase()); return m ? {base:m[1],plus:m[2]==="+"} : null; };
+const lName = c => { const p = parse(c); return p ? D().name[p.base] + (p.plus?"+":"") : null; };
+const lLabel = c => { const p = parse(c); return p ? `${p.base}${p.plus?"+":""} · ${lName(c)}` : String(c||"").trim(); };
+const lMeaning = c => { const p = parse(c); return p ? D().meaning[p.base] : null; };
+const hint = (code, fallback, cls="") => { const t = lMeaning(code) ?? fallback; return t ? `<span class="lh ${cls}">${t}</span>` : ""; };
+const ic = {
+  back:'<svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
+  plus:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  minus:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+  head:'<svg class="i" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1v-6h3zM3 19a2 2 0 002 2h1v-6H3z"/></svg>',
+  chev:'<svg class="i" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
+  info:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  bulb:'<svg class="i" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>',
+  skip:'<svg class="i" viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zM19 5v14"/></svg>',
+  vol:'<svg class="i" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 010 7"/></svg>',
+  hex:'<svg class="i" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/></svg>',
+  trophy:'<svg class="i" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
+};
+const sb = '<div class="sb"><span>9:41</span><span style="font-size:12px">●●● ▮</span></div>';
+
+/* ======== 状态(可点) ======== */
+const st = { room:"B1", roomEmpty:false, chip:"*", chatNew:"auto", chatSet:"B1", persona:"B1", mem:"B2", altSeg:"B1", altChip:"B1", popOpen:true };
+
+/* ---------- 1 房间分段 ---------- */
+const ROOM_LEVELS = ["A1","A2","B1","B2","C1"];
+function segments(value, key, opts={}) {
+  return `<div class="seg" role="radiogroup">${ROOM_LEVELS.map(l => {
+    const on = l === value;
+    const sub = opts.codeOnly ? "" : D().short[l];
+    return `<button class="${sub?"two":""} ${on?"on":""}" role="radio" aria-checked="${on}" data-set="${key}" data-v="${l}">${
+      sub ? `<span class="stack"><span class="tr">${l}</span><span class="tr sub">${sub}</span></span>` : `<span class="tr">${l}</span>`}</button>`;
+  }).join("")}</div>`;
+}
+function roomScreen() {
+  const d = D().room, v = st.roomEmpty ? undefined : st.room;
+  return `<div class="phone">${sb}
+    <div class="scroll ghost"><div class="hdr">${lang==="zh"?"联机":"Rooms"}</div></div>
+    <div class="dim"></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="sh-head"><div class="sh-t">${d.title}</div></div>
+      <div class="lbl" style="margin-top:4px"><span>${d.name}</span><span class="as">${[...d.nameV].length}/30</span></div>
+      <div class="input">${d.nameV}</div>
+      <div class="lbl"><span>${d.scen}</span><span class="as">${d.scenHint}</span></div>
+      <div class="picker"><span class="on">${d.free}</span><span>${d.cafe}</span><span>${d.intv}</span></div>
+      <div class="lbl"><span>${d.level}</span><span class="as">${d.levelHint}</span></div>
+      ${segments(v, "room")}
+      ${hint(v, d.auto, "mx")}
+      <div class="lbl"><span>${d.join}</span></div>
+      <div class="seg"><button class="on"><span class="tr">${d.jc}</span></button><button><span class="tr">${d.ja}</span></button></div>
+      <p class="lh mx">${d.jcHint}</p>
+      <div class="rows"><div>${d.max}<span class="ml" style="display:flex;align-items:center;gap:6px;color:rgb(var(--blue))">${ic.minus}<b style="width:34px;text-align:center;font-size:17px;color:rgb(var(--ink))">4</b>${ic.plus}</span></div>
+        <div><span>${d.ai}<small>${d.aiH}</small></span><span class="sw"></span></div></div>
+      <button class="btn-primary">${d.create}</button>
+    </div></div>`;
+}
+function fitStrip(lg, w) {
+  const keep = lang; lang = lg;
+  const d = D().room;
+  const html = `<div class="fit" style="--w:${w}px" data-fit>
+    <div class="w"><span>${w}px · ${lg==="zh"?"中文":"English"}</span><span>${L[lg].content} ${w-32}px · <span class="res"></span></span></div>
+    <div class="lbl"><span>${d.level}</span><span class="as">${d.levelHint}</span></div>
+    ${segments(st.room, "room")}${hint(st.room, d.auto, "mx")}</div>`;
+  lang = keep; return html;
+}
+
+/* ---------- 2 精选 ---------- */
+const CARDS = [
+  {lv:"A2",t:{zh:"在咖啡店点一杯拿铁",en:"Ordering a Latte at the Café"},tags:{zh:["日常","餐饮"],en:["daily","food"]},dur:"2:48",n:22,lic:"VOA Learning English · Public domain"},
+  {lv:"B1",t:{zh:"睡眠如何塑造记忆",en:"How Sleep Shapes Memory"},tags:{zh:["科学"],en:["science"]},dur:"4:12",n:36,lic:"TED-Ed · CC BY-NC-ND 4.0"},
+  {lv:"B2",t:{zh:"城市的经济学",en:"The Economics of Cities"},tags:{zh:["经济","城市"],en:["economy","cities"]},dur:"6:05",n:51,lic:"VOA Learning English · Public domain"},
+  {lv:"B1",t:{zh:"第一次面试前要准备什么",en:"Preparing for Your First Interview"},tags:{zh:["职场"],en:["work"]},dur:"3:30",n:29,lic:"VOA Learning English · Public domain"},
+];
+function catCard(c, added) {
+  const d = D().lib;
+  return `<li><div class="lib-cat-card lib-tint">
+    <div class="lib-cat-poster">${ic.head}</div>
+    <div class="lib-cat-body"><h3 class="lib-cat-title">${c.t[lang]}</h3>
+      <div class="lib-cat-tags"><span class="lib-cat-level">${lLabel(c.lv)}</span>${c.tags[lang].map(t=>`<span class="lib-cat-tag">${t}</span>`).join("")}</div>
+      <div class="lib-cat-meta">${c.dur} · ${c.n} ${d.sent}</div><div class="lib-cat-license">${c.lic}</div></div>
+    <div class="lib-cat-act">${added
+      ? `<button class="lib-spec" style="background:var(--lib-chip);color:rgb(var(--blue));box-shadow:var(--lib-glass-hi);border:1px solid var(--lib-glass-bd)"><span style="color:rgb(var(--green))">${ic.check}</span>${d.added} · ${d.open}${ic.chev}</button>`
+      : `<button class="lib-spec">${ic.plus}${d.add}</button>`}</div></div></li>`;
+}
+function libScreen(opts={}) {
+  const d = D().lib, lv = ["A2","B1","B2"], pick = opts.alt ? st.altChip : st.chip;
+  const shown = pick === "*" ? CARDS : CARDS.filter(c => c.lv === pick);
+  let chips, hintHtml;
+  if (opts.alt === "info") {
+    chips = ["*",...lv].map(l => `<button class="lib-chip" aria-pressed="${l===pick}" data-set="altChip" data-v="${l}">${l==="*"?d.all:l}</button>`).join("")
+      + `<button class="lib-chip" style="color:rgb(var(--blue))" data-toggle-pop>${ic.info}</button>`;
+    hintHtml = st.popOpen ? `<div class="pop" style="margin:0 16px 10px">${["A2","B1","B2"].map(l=>`<div class="${l===pick?"on":""}"><b>${l}</b><span>${D().name[l]}</span><span>${D().meaning[l]}</span></div>`).join("")}</div>` : "";
+  } else if (opts.alt === "inline") {
+    chips = ["*",...lv].map(l => `<button class="lib-chip" aria-pressed="${l===pick}" data-set="altChip" data-v="${l}">${l==="*"?d.all:l}</button>`).join("");
+    hintHtml = `<span class="lh lib-hint z" style="margin:0 20px 8px">${pick==="*" ? D().scale : `<b style="color:rgb(var(--ink));font-weight:600">${lLabel(pick)}</b> — ${lMeaning(pick)}`}</span>`;
+  } else {
+    chips = ["*",...lv].map(l => `<button class="lib-chip" aria-pressed="${l===pick}" data-set="chip" data-v="${l}">${l==="*"?d.all:lLabel(l)}</button>`).join("");
+    hintHtml = hint(pick==="*"?null:pick, D().scale, "lib-hint z").replace('class="lh lib-hint z"','class="lh lib-hint z" style="margin:6px 20px 8px"');
+  }
+  return `<div class="phone library-root">${sb}<div class="lib-aurora"><i></i><i></i><i></i></div>
+    ${opts.alt ? '<span class="notship">'+(lang==="zh"?"未上线 · 备选":"NOT shipped")+'</span>' : ""}
+    <div class="scroll"><div class="hdr z">${d.title}</div>
+      <div class="lib-seg z"><span>${d.mine}</span><span class="on">${d.cat}</span></div>
+      <div class="lib-cat-levels z">${chips}</div>${hintHtml}
+      <ul class="lib-cat-grid z">${shown.map((c,i)=>catCard(c, i===1 && !opts.alt)).join("")}</ul></div></div>`;
+}
+
+/* ---------- 3 对话 ---------- */
+const CHAT_LEVELS = ["auto","A2","B1","B2","C1"];
+const chatOpts = v => CHAT_LEVELS.map(l => `<option value="${l}" ${l===v?"selected":""}>${l==="auto"?D().chat.auto:lLabel(l)}</option>`).join("");
+function chatNew() {
+  const d = D().chat;
+  return `<div class="phone">${sb}<div class="scroll ghost"><div class="hdr">${lang==="zh"?"对话":"Chat"}</div></div><div class="dim"></div>
+    <div class="sheet"><div class="grab"></div><div class="sh-head"><div class="sh-t">${d.pick}</div><div class="sh-d">${d.pickD}</div></div>
+      <div class="card"><label class="field"><span class="flabel">${d.level}</span>
+        <select class="sel" data-sel="chatNew">${chatOpts(st.chatNew)}</select>${hint(st.chatNew)}</label></div>
+      <div class="grp"><h4>${d.presets}</h4><div class="card list">${["free","cafe","interview","airport"].map(k=>`<div>${d[k]}<span class="chev">${ic.chev}</span></div>`).join("")}</div></div>
+    </div></div>`;
+}
+function chatSettings() {
+  const d = D().chat;
+  return `<div class="phone">${sb}
+    <div class="scroll ghost"><div class="hdr small"><span class="back">${ic.back}</span>${d.cafe}</div>
+      <p class="subtitle">${d.cafe} · <span>${lLabel(st.chatSet)}</span></p></div>
+    <div class="dim"></div>
+    <div class="sheet"><div class="grab"></div><div class="sh-head"><div class="sh-t">${d.settings}</div></div>
+      <div class="grp" style="margin-top:4px"><h4>${d.grp}</h4><div class="card">
+        <div class="field" style="border-bottom:.5px solid var(--hair-2)"><span class="flabel">${d.scenario}</span><select class="sel"><option>${d.cafe}</option></select></div>
+        <p class="field fhint" style="border-bottom:.5px solid var(--hair-2)">${d.note}</p>
+        <label class="field" style="border-bottom:.5px solid var(--hair-2)"><span class="flabel">${d.level}</span>
+          <select class="sel" data-sel="chatSet">${chatOpts(st.chatSet)}</select>${hint(st.chatSet)}<span class="fhint">${d.levelHint}</span></label>
+        <label class="field"><span class="flabel">${d.model}</span><select class="sel"><option>${d.def}</option></select></label>
+      </div></div></div></div>`;
+}
+
+/* ---------- 4 智能体 ---------- */
+function tutorScreen() {
+  const d = D().tutor;
+  return `<div class="phone short">${sb}<div class="scroll">
+    <div class="hdr small"><span class="back">${ic.back}</span>${lang==="zh"?"老师 Mia":"Tutor Mia"}</div>
+    <div class="bubble">${d.q}</div><div class="bubble me">I went hiking with friends...</div>
+    <section class="tutor"><div class="top"><span class="tone blue">${d.mode}</span><span class="t13 b nowrap">${d.prog}</span><span class="t13 c2 trunc">${d.kind}</span>
+      <span class="ml t12 c2 nowrap">${lLabel("B1")}</span><button class="endb">${d.end}</button></div>
+      <div class="pbar"><i style="width:25%"></i></div>
+      <div class="acts"><span>${ic.bulb}${d.hint}</span><span>${ic.skip}${d.skip}</span><span>${ic.vol}${d.listen}</span></div></section>
+    <div class="recap"><div class="t13 b">${d.recapT}</div><p class="t12 c2" style="margin-top:4px">${d.count}</p>
+      <p class="t13" style="margin-top:8px">${d.lvl} ${lLabel("B1")} → ${lLabel("B2")}</p></div>
+  </div></div>`;
+}
+function personaScreen() {
+  const d = D().tutor;
+  return `<div class="phone short">${sb}<div class="scroll ghost"></div><div class="dim"></div>
+    <div class="sheet"><div class="grab"></div><div class="sh-head"><div class="sh-t">${d.ed}</div></div>
+      <label class="pe-field"><span class="pe-label">${d.nm}</span><div class="pe-input">Mia</div></label>
+      <div class="pe-field"><span class="pe-label"><span>${d.edLevel}</span>${hint(st.persona,null,"").replace('class="lh "','class="lh" style="text-align:right"')}</span>
+        <div class="wrap" role="radiogroup">${["A2","B1","B2","C1"].map(l=>`<button class="chipbtn" role="radio" aria-checked="${l===st.persona}" data-set="persona" data-v="${l}">${lLabel(l)}</button>`).join("")}</div></div>
+      <div class="pe-field"><span class="pe-label">${d.style}</span><div class="wrap">${d.styles.map((s,i)=>`<button class="chipbtn" aria-checked="${i===0}">${s}</button>`).join("")}</div></div>
+      <div style="border-top:.5px solid var(--hair-2);margin:6px -16px 0;padding:14px 16px 0">
+        <span class="t13 c2" style="font-weight:500">${lang==="zh"?"记忆 · ":"Memory · "}${d.mem}</span>
+        <select class="sel" style="margin-top:4px" data-sel="mem"><option value="">${d.unset}</option>${["A1","A2","B1","B2","C1","C2"].map(l=>`<option value="${l}" ${l===st.mem?"selected":""}>${lLabel(l)}</option>`).join("")}</select>
+        ${hint(st.mem, D().scale, "").replace('class="lh "','class="lh" style="margin-top:4px"')}</div>
+    </div></div>`;
+}
+
+/* ---------- 5 段位 ---------- */
+function rankScreen() {
+  const d = D().rank;
+  return `<div class="phone short">${sb}<div class="scroll" style="padding:0 16px 32px">
+    <div class="hdr small" style="margin:0 -16px"><span class="back">${ic.back}</span>${d.title}<span style="position:absolute;right:12px;color:rgb(var(--ink-2));font-size:20px">${ic.trophy}</span></div>
+    <section class="hero"><div class="badge-lg">${ic.hex}</div>
+      <h2 style="margin-top:18px;font-size:22px;font-weight:600">${d.tier} II</h2>
+      <p class="t12 c2" style="margin-top:2px">${d.cefr}${lLabel("B1+")}</p>
+      ${hint("B1+",null,"").replace('class="lh "','class="lh" style="margin-top:2px;max-width:260px"')}
+      <div class="pbar" style="margin-top:12px;height:6px;width:200px"><i style="width:57%;height:6px"></i></div>
+      <p class="t12 c2" style="margin-top:8px">${d.prog}</p></section>
+    <div class="grp"><h4 style="display:flex;justify-content:space-between">${d.tasks}<span style="font-weight:500">1/3</span></h4>
+      <div class="card"><div class="task"><span style="color:rgb(var(--green))">${ic.check}</span>${d.t1}</div><div class="task"><span style="color:rgb(var(--ink-3))">○</span>${d.t2}</div><div class="task"><span style="color:rgb(var(--ink-3))">○</span>${d.t3}</div></div></div>
+  </div></div>`;
+}
+
+/* ---------- 6 admin(中文-only 应用,与界面语言无关)---------- */
+function adminPanel() {
+  const a = L.zh.admin;
+  const long = c => `${c} · ${L.zh.name[c]}(${L.zh.meaning[c]})`;
+  const text = c => `${c} · ${L.zh.name[c]}`;
+  return `<div class="admin"><div class="bar"><i></i><i></i><i></i><span style="margin-left:10px;font-size:12px;color:rgb(var(--a-fg2))">admin · ${a.title}</span></div>
+    <div class="body">
+      <div class="apanel"><h5>${a.list}</h5><table class="atable"><tr>${a.cols.map(c=>`<th>${c}</th>`).join("")}</tr>
+        ${[["How Sleep Shapes Memory","B1","4:12",36],["Ordering a Latte at the Café","A2","2:48",22],["The Economics of Cities","B2","6:05",51],["Untitled upload",null,"1:57",14]].map(r=>`<tr><td>${r[0]}</td><td>${r[1]?text(r[1]):"—"}</td><td>${r[2]}</td><td>${r[3]}</td><td>${a.pub}</td></tr>`).join("")}</table></div>
+      <div class="apanel"><h5>${a.title}</h5>
+        <span class="alabel">${a.ftitle}</span><div class="afield">How Sleep Shapes Memory</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+          <div><span class="alabel">${a.level}</span><div class="afield focus"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${long("B1")}</span><span>▾</span></div></div>
+          <div><span class="alabel">${a.lang}</span><div class="afield">zh-CN<span>▾</span></div></div></div>
+        <div class="ddl" style="width:340px"><div>${a.noLevel}</div>${["A1","A2","B1","B2","C1","C2"].map(c=>`<div class="${c==="B1"?"on":""}">${long(c)}</div>`).join("")}</div>
+      </div></div></div>`;
+}
+
+/* ---------- 替代方案:分段 ---------- */
+function altSegInfo() {
+  const d = D().room, v = st.altSeg;
+  return `<div class="phone short">${sb}<span class="notship">${lang==="zh"?"未上线 · 备选":"NOT shipped"}</span>
+    <div class="scroll ghost"></div><div class="dim"></div>
+    <div class="sheet"><div class="grab"></div><div class="sh-head"><div class="sh-t">${d.title}</div></div>
+      <div class="lbl"><span style="display:inline-flex;align-items:center;gap:4px">${d.level}<button class="info" data-toggle-pop>${ic.info}</button></span><span class="as">${d.levelHint}</span></div>
+      ${segments(v, "altSeg", {codeOnly:true})}
+      ${st.popOpen ? `<div class="pop">${ROOM_LEVELS.map(l=>`<div class="${l===v?"on":""}"><b>${l}</b><span>${D().name[l]}</span><span>${D().meaning[l]}</span></div>`).join("")}</div>` : ""}
+      <div class="lbl"><span>${d.join}</span></div>
+      <div class="seg"><button class="on"><span class="tr">${d.jc}</span></button><button><span class="tr">${d.ja}</span></button></div>
+    </div></div>`;
+}
+function altSegInline() {
+  const d = D().room, v = st.altSeg;
+  return `<div class="phone short">${sb}<span class="notship">${lang==="zh"?"未上线 · 备选":"NOT shipped"}</span>
+    <div class="scroll ghost"></div><div class="dim"></div>
+    <div class="sheet"><div class="grab"></div><div class="sh-head"><div class="sh-t">${d.title}</div></div>
+      <div class="lbl"><span>${d.level}</span><span class="as">${d.levelHint}</span></div>
+      ${segments(v, "altSeg", {codeOnly:true})}
+      <span class="lh mx"><b style="color:rgb(var(--ink));font-weight:600">${lLabel(v)}</b> — ${lMeaning(v)}</span>
+      <div class="lbl"><span>${d.join}</span></div>
+      <div class="seg"><button class="on"><span class="tr">${d.jc}</span></button><button><span class="tr">${d.ja}</span></button></div>
+    </div></div>`;
+}
+
+/* ======== 页面 ======== */
+const T = {
+  zh: {
+    h1:"级别标注 · 设计稿 v1(按已上线代码复原)",
+    lede:"凡是出现 CEFR 级别代码的地方,都标成「代码 · 级别名」,并在可选的地方加一行「这个级别是什么意思」(LevelHint,12px 次要色)。只改显示,存储与提交的值不变。分段、芯片、下拉都可以点,说明行会跟着变。顶部可切换浅 / 深色和中 / 英界面(管理后台只有中文)。",
+    s1:"画面 1 · 联机创建房间:目标水平",
+    c1:"<b>已上线</b>(settings-fields.tsx):5 段等宽(A1–C1,服务端 rooms/rules.py),每段两行 —— 13px 半粗代码在上,12px 级别短名在下,段高 44(单行段是 32)。控件下一行 LevelHint:选中级别的意思;<b>没选时</b>显示「不选时按你的段位自动定。」(点下面的「清空」看)。英文用短名 Basic / Elem. / Inter. / Upper / Adv.(rooms/create/i18n 的 levelShort,C2 是「Pro」)。",
+    clear:"清空选择(看未选状态)", reset:"选回 B1",
+    s1b:"画面 1b · 宽度验证:360 / 375 / 390,中英各一组(页面内实测,每段文字是否被截断)",
+    c1b:"手机内容宽 = 屏宽 − 2×16 页边距。每段可用宽 ≈ (内容宽 − 4 内边距 − 8 间隙)÷ 5 − 8 段内边距;360 宽时约 55px。右上角是本页用浏览器实测的截断结果(scrollWidth 对比 clientWidth)。",
+    s2:"画面 2 · 跟读库「精选」:级别芯片 + 卡片徽标",
+    c2:"<b>已上线</b>(catalog-view.tsx / catalog-card.tsx / library.css):只有出现过 ≥2 个级别时才显示芯片行;芯片文字「B1 · 中级」,行可横向滑动(英文「B2 · Upper intermediate」较长,会滑出屏幕)。芯片下一行 LevelHint:选「全部」时是 CEFR 总说明,选某级时是该级的意思。卡片徽标 .lib-cat-level 同样是「B1 · 中级」(蓝色 11px 粗体)。",
+    s3:"画面 3 · 对话:英语难度(新对话 + 对话设置)",
+    c3a:"<b>新对话面板</b>(scenario-sheet.tsx):原生下拉,选项「自动(不限制)/ A2 · 初级 / … / C1 · 高级」;下方 LevelHint。<b>注意:选「自动」时没有说明行</b>(LevelHint 没给 fallback,什么都不渲染)—— 默认就是这个状态。改成 B1 看说明出现。",
+    c3b:"<b>对话设置</b>(conversation-settings-sheet.tsx):同一个下拉,LevelHint 在通用说明「AI 会把用词和句长控制在这个水平。」之上 —— 两行说明叠在一起。背后顶栏副标题是「咖啡店点单 · B1 · 中级」(conversation-page.tsx)。",
+    s4:"画面 4 · 智能体:带我学条、总结、角色编辑、记忆",
+    c4a:"<b>带我学</b>(tutor-bar.tsx):右侧可见文字「B1 · 中级」(12px,不换行),题型文字「用词造句」在它左边可截断。总结卡(tutor-recap-card.tsx):「难度 B1 · 中级 → B2 · 中高级」。这里不加说明行。",
+    c4b:"<b>编辑角色</b>(persona-editor-sheet.tsx):芯片「B1 · 中级」(A2–C1),标题行右侧是右对齐的 LevelHint。<b>记忆 · 水平</b>(memory/profile-tab.tsx):下拉 A1–C2 + 「未设置」,下方 LevelHint,未设置时显示 CEFR 总说明。(两处合画在一个面板里,真实页面是分开的。)",
+    s5:"画面 5 · 段位首页",
+    c5:"<b>已上线</b>(rank-home-page.tsx):段位名下一行「对齐 CEFR B1+ · 中级+」(铂金 = B1+,server rank/tiers.py),再下一行 LevelHint(带 + 的级别用基础级别 B1 的说明),最宽 260px、居中。",
+    s6:"画面 6 · 管理后台(仅桌面,只有中文)",
+    c6:"<b>已上线</b>(admin meta-fields.tsx / catalog-detail.tsx / catalog-page.tsx,文字来自 admin/src/lib/levels.ts,测试保证与网页 zh-CN 逐字一致):下拉选项是长格式「B1 · 中级(能应对大多数日常场景)」;下拉框本身较窄,收起时会截断(左侧框),展开的列表是完整的(这里画成展开状态,真实是系统原生下拉)。列表「级别」列是短格式「B1 · 中级」,未设显示「—」。",
+    sAlt:"可以考虑的替代方案(紧张的两处:分段控件与芯片)",
+    altLede:"下面两种 <b>都没有上线</b>,只是为了让你对比后决定要不要改。两种都同时套用在「房间目标水平分段」和「精选芯片」上。可点。",
+    a1:"备选 A · 只显示代码 + ⓘ 点开说明",
+    a1c:"分段回到单行 32 高、芯片只写「B1」;标题旁 ⓘ(44 命中区)点开一张小表:代码 · 名称 · 意思,当前选中的高亮。<span class='pro'>好处:</span>控件最省地方,英文也绝不截断;芯片一屏放得下,不用横滑;一次能对比所有级别。<span class='con'>坏处:</span>说明藏起来了,很多人不会点 ⓘ;多一个弹层要处理焦点与关闭;和你「一眼看懂」的初衷相反。",
+    a2:"备选 B · 控件只显示代码,说明行带上名称",
+    a2c:"分段 / 芯片只写代码,下面那一行变成「<b>B1 · 中级</b> — 能应对大多数日常场景」。<span class='pro'>好处:</span>仍然一眼可见,只是名称从按钮挪到说明行;控件单行、英文不截断、芯片不用滑;改动小(只改 label 与 LevelHint 的拼接)。<span class='con'>坏处:</span>选之前看不到每个代码叫什么,得点一下才知道;和卡片徽标「B1 · 中级」写法不完全一致。",
+    qTitle:"需要你决定",
+    q:[["保留已上线写法,还是换成备选 A / B?","分段 + 芯片两处一起定;其他地方(下拉、徽标、段位)不受影响。"],
+       ["英文短名 Basic / Elem. / Inter. / Upper / Adv. 可以吗?","画面 1b 实测在 360 宽下中英都不截断;要改词只动 rooms/create/i18n 的 levelShort。"],
+       ["对话里选「自动」时要不要也给一行说明?","现在是空的(画面 3 左)。可以给 fallback,例如「不限制用词难度。」—— 需要新文案。"],
+       ["对话设置里两行说明叠在一起(级别意思 + 通用说明)可以接受吗?","画面 3 右。备选:去掉通用说明,或把它挪到标题旁。"]],
+  },
+  en: null,
+};
+T.en = Object.assign({}, T.zh, {
+  lede:"Wherever a CEFR code appears it is labelled “code · level name”, and pickers get one extra line saying what the level means (LevelHint, 12px secondary). Display only; stored/submitted values unchanged. Segments, chips and selects are clickable. Toolbar switches light/dark and the zh/en UI (admin is Chinese-only). Captions stay in Chinese for the owner.",
+});
+const dict = () => T[lang];
+
+function render() {
+  const t = dict(), z = T.zh;
+  document.getElementById("h1").textContent = t.h1;
+  document.getElementById("lede").innerHTML = t.lede;
+  document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("on", document.documentElement.classList.contains("dark") === (b.dataset.theme === "dark")));
+  document.querySelectorAll("[data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
+  document.getElementById("app").innerHTML = `
+  <h2>${z.s1}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div class="spec">${roomScreen()}<p class="cap">${z.c1}<span class="fx"><button class="tb" data-act="clear">${z.clear}</button> <button class="tb" data-act="reset">${z.reset}</button></span></p></div></div>
+  <h2>${z.s1b}<span class="tag ship">已上线</span></h2>
+  <p class="lede">${z.c1b}</p>
+  <div class="fits">${["zh","en"].map(lg => [360,375,390].map(w => fitStrip(lg,w)).join("")).join("")}</div>
+  <h2>${z.s2}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div class="spec">${libScreen()}<p class="cap">${z.c2}</p></div></div>
+  <h2>${z.s3}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div class="spec">${chatNew()}<p class="cap">${z.c3a}</p></div><div class="spec">${chatSettings()}<p class="cap">${z.c3b}</p></div></div>
+  <h2>${z.s4}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div class="spec">${tutorScreen()}<p class="cap">${z.c4a}</p></div><div class="spec">${personaScreen()}<p class="cap">${z.c4b}</p></div></div>
+  <h2>${z.s5}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div class="spec">${rankScreen()}<p class="cap">${z.c5}</p></div></div>
+  <h2>${z.s6}<span class="tag ship">已上线</span></h2>
+  <div class="row"><div style="max-width:860px">${adminPanel()}<p class="cap" style="font-size:12px;color:inherit;opacity:.75;margin-top:12px;line-height:1.65">${z.c6}</p></div></div>
+  <h2>${z.sAlt}<span class="tag alt">未上线</span></h2>
+  <p class="lede">${z.altLede}</p>
+  <div class="row">
+    <div class="spec">${altSegInfo()}<p class="cap"><b>${z.a1}</b> — ${z.a1c}</p></div>
+    <div class="spec">${libScreen({alt:"info"})}<p class="cap"><b>${z.a1}</b>(${lang==="zh"?"精选芯片":"chips"})</p></div>
+  </div>
+  <div class="row">
+    <div class="spec">${altSegInline()}<p class="cap"><b>${z.a2}</b> — ${z.a2c}</p></div>
+    <div class="spec">${libScreen({alt:"inline"})}<p class="cap"><b>${z.a2}</b>(${lang==="zh"?"精选芯片":"chips"})</p></div>
+  </div>
+  <h2>${z.qTitle}</h2>
+  <table class="q"><tr><th>#</th><th>问题</th><th>说明</th></tr>${z.q.map((r,i)=>`<tr><td>${i+1}</td><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>`;
+  requestAnimationFrame(() => requestAnimationFrame(measure)); // 等排版 / 字体就绪后再量,避免首帧误报
+}
+window.addEventListener("load", measure);
+if (document.fonts) document.fonts.ready.then(measure);
+function measure() {
+  document.querySelectorAll("[data-fit]").forEach(f => {
+    const cut = [...f.querySelectorAll(".seg .tr")].filter(s => s.scrollWidth > s.clientWidth + 0.5);
+    const lg = f.querySelector(".w span").textContent.includes("中文") ? "zh" : "en";
+    f.querySelector(".res").innerHTML = cut.length ? `<span class="bad">${L[lg].trunc}: ${cut.map(s=>s.textContent).join(", ")}</span>` : `<span class="ok">${L[lg].seen} ✓</span>`;
+  });
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.theme) { document.documentElement.classList.toggle("dark", b.dataset.theme === "dark"); return render(); }
+  if (b.dataset.lang) { lang = b.dataset.lang; document.documentElement.lang = lang === "zh" ? "zh-CN" : "en"; return render(); }
+  if (b.dataset.set) { st[b.dataset.set] = b.dataset.v; if (b.dataset.set === "room") st.roomEmpty = false; return render(); }
+  if (b.dataset.act === "clear") { st.roomEmpty = true; return render(); }
+  if (b.dataset.act === "reset") { st.roomEmpty = false; st.room = "B1"; return render(); }
+  if (b.hasAttribute("data-toggle-pop")) { st.popOpen = !st.popOpen; return render(); }
+});
+document.addEventListener("change", e => { const s = e.target.closest("[data-sel]"); if (s) { st[s.dataset.sel] = s.value; render(); } });
+if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
+render();
+</script>
+</body>
+</html>
