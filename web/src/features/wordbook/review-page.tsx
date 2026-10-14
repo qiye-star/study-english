@@ -276,6 +276,8 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const after: AfterAnswer | undefined = afterQuestion && answer
     ? { info: answer.result.optionInfo }
     : undefined;
+  // 键入题(dictation / spell)答题后同样给学习内容:只用批次词卡(没有选项信息);词卡缺失 → 保持原样
+  const typedAfter = answer && question && !recall && !CHOICE.has(question.qtype) ? question : null;
   return (
     <div className="flex flex-1 flex-col">
       <SessionHeader title={free ? t("web.wordbook.learned.free.title") : t("web.wordbook.review.title")}
@@ -310,8 +312,8 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
               : choiceResult?.correctOption ? t("web.wordbook.quiz.wrong", { answer: choiceResult.correctOption }) : t("web.wordbook.quiz.wrongPlain")
             : answer ? t(`web.wordbook.outcome.${answer.result.outcome}`) : ""}
         </p>
-        {afterQuestion && answer ? (
-          <AfterAnswerPanel question={afterQuestion} result={answer.result} card={batch?.cards[afterQuestion.key]} defLang={defLang}
+        {(afterQuestion ?? typedAfter) && answer ? (
+          <AfterAnswerPanel question={(afterQuestion ?? typedAfter)!} result={answer.result} card={batch?.cards[(afterQuestion ?? typedAfter)!.key]} defLang={defLang}
             peek={peekSlot === slot} onPeek={() => setPeekSlot((s) => (s === slot ? null : slot))} {...listen} />
         ) : null}
         {actionError ? <p role="alert" className="mt-2 text-sub text-ink">{actionError}</p> : null}
