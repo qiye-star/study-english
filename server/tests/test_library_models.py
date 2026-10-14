@@ -10,10 +10,10 @@ from tests.test_migrations import _config, _tables
 LIBRARY_TABLES = {"library_items", "library_segments", "library_attempts"}
 
 
-def test_chain_through_0019_is_linear_and_head_is_0020(tmp_path, monkeypatch):
+def test_chain_through_0019_is_linear_and_head_is_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0020"]
+    assert script.get_heads() == ["0021"]
     assert script.get_revision("0019").down_revision == "0018"
     assert script.get_revision("0018").down_revision == "0017"
 
@@ -38,6 +38,32 @@ def test_0019_adds_low_confidence_keeps_rows_and_round_trips(tmp_path, monkeypat
     assert con.execute("select count(*) from library_items").fetchone() == (1,)
     assert {"ix_library_items_user_id_created_at", "ix_library_items_status_next_run_at"} <= {
         r[1] for r in con.execute("pragma index_list(library_items)")}
+    con.close()
+    command.upgrade(cfg, "head")
+
+
+def test_0021_adds_flags_and_rebuildable_keeps_rows_and_round_trips(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0020")
+    con = sqlite3.connect(db)
+    con.execute("insert into users (id, username, password_hash, created_at) values (12345678, 'u', 'x', '2026-10-14')")
+    con.execute("insert into library_items (id, user_id, kind, source, title, status, created_at, updated_at) "
+                "values ('i1', 12345678, 'video', 'upload', 't', 'ready', '2026-10-14', '2026-10-14')")
+    con.execute("insert into library_segments (item_id, idx, start_ms, end_ms, text) values ('i1', 0, 0, 900, 'Hi.')")
+    con.commit()
+    con.close()
+    command.upgrade(cfg, "0021")
+    con = sqlite3.connect(db)
+    assert con.execute("select rebuildable from library_items where id = 'i1'").fetchone() == (0,)
+    assert con.execute("select flags from library_segments where item_id = 'i1'").fetchone() == (None,)
+    con.close()
+    command.downgrade(cfg, "0020")
+    con = sqlite3.connect(db)
+    assert "rebuildable" not in {r[1] for r in con.execute("pragma table_info(library_items)")}
+    assert "flags" not in {r[1] for r in con.execute("pragma table_info(library_segments)")}
+    assert con.execute("select count(*) from library_segments").fetchone() == (1,)
+    seg_pk = [r[1] for r in sorted(con.execute("pragma table_info(library_segments)"), key=lambda r: r[5]) if r[5]]
+    assert seg_pk == ["item_id", "idx"]
     con.close()
     command.upgrade(cfg, "head")
 

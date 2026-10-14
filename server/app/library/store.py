@@ -56,7 +56,7 @@ def item_out(row: LibraryItem) -> dict:
         "stage": row.stage, "progress": progress, "error_kind": row.error_kind, "duration_ms": row.duration_ms,
         "seg_count": row.seg_count, "library_bytes": row.library_bytes, "sub_source": row.sub_source,
         "resume_ms": row.resume_ms, "resume_idx": row.resume_idx, "rate_pct": row.rate_pct,
-        "low_confidence": row.low_confidence,
+        "low_confidence": row.low_confidence, "rebuildable": row.rebuildable,
         "has_poster": row.poster_path is not None, "created_at": iso_utc(row.created_at),
         "last_opened_at": iso_utc(row.last_opened_at) if row.last_opened_at else None,
     }
@@ -66,7 +66,8 @@ def segment_out(row: LibrarySegment) -> dict:
     """D8:列表里带译文 `zh`(+ `zh_lang`,网页拿它和当前母语比,不一致就当没有);分析正文最长 4000 字、只在点「分析」时
     才取,列表只告诉有没有(`has_analysis` + `analysis_lang`)。"""
     return {"idx": row.idx, "start_ms": row.start_ms, "end_ms": row.end_ms, "text": row.text, "zh": row.zh,
-            "zh_lang": row.zh_lang, "has_analysis": bool(row.analysis), "analysis_lang": row.analysis_lang}
+            "zh_lang": row.zh_lang, "has_analysis": bool(row.analysis), "analysis_lang": row.analysis_lang,
+            "flags": row.flags.split(",") if row.flags else []}
 
 
 # ---- create / read ----
@@ -117,11 +118,25 @@ async def segments_of(session: AsyncSession, item_id: str) -> list[LibrarySegmen
                                        .order_by(LibrarySegment.idx))).all())
 
 
-async def write_segments(session: AsyncSession, item: LibraryItem, sentences: list[Sentence]) -> None:
-    """Replace every sentence of the item (caller commits). Old attempts stay; their text hash decides (R-SC14)."""
+async def write_segments(session: AsyncSession, item: LibraryItem, sentences: list[Sentence], *,
+                         flags: list[tuple[str, ...]] | None = None, keep_ai: bool = False) -> None:
+    """Replace every sentence of the item (caller commits). Old attempts stay; their text hash decides (R-SC14).
+    `flags` (plan v2 R-V14): one tuple of codes per sentence. `keep_ai` (rebuild, R-V16): a new sentence whose text is
+    the same as an old one keeps that one's translation and analysis."""
+    kept: dict[str, tuple] = {}
+    if keep_ai:
+        for old in await segments_of(session, item.id):
+            kept.setdefault(" ".join(old.text.split()), (old.zh, old.zh_lang, old.analysis, old.analysis_lang))
+            session.expunge(old)
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item.id))
-    session.add_all(LibrarySegment(item_id=item.id, idx=i, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text)
-                    for i, s in enumerate(sentences))
+    rows = []
+    for i, s in enumerate(sentences):
+        codes = flags[i] if flags is not None and i < len(flags) else ()
+        zh, zh_lang, analysis, analysis_lang = kept.get(" ".join(s.text.split()), (None, None, None, None))
+        rows.append(LibrarySegment(item_id=item.id, idx=i, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text,
+                                   flags=",".join(codes) or None, zh=zh, zh_lang=zh_lang, analysis=analysis,
+                                   analysis_lang=analysis_lang))
+    session.add_all(rows)
     item.seg_count = len(sentences)
     item.resume_idx = min(item.resume_idx, max(0, len(sentences) - 1))
 
