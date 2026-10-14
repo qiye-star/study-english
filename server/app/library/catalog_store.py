@@ -271,3 +271,110 @@ def media_missing(data_dir: Path, row: CatalogItem) -> bool:
         return not paths.absolute(data_dir, row.media_path).is_file()
     except ValueError:
         return True
+
+
+# ---- copy-on-add (spec D6, E8) ----
+
+async def _copy_of(session: AsyncSession, user_id: int, catalog_id: str) -> LibraryItem | None:
+    return await session.scalar(select(LibraryItem).where(LibraryItem.user_id == user_id,
+                                                          LibraryItem.catalog_id == catalog_id))
+
+
+async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int, catalog_id: str,
+                         now: datetime) -> tuple[LibraryItem, bool]:
+    """(the user's copy, created). A second add returns the existing copy; a racing add loses on the unique index
+    and reads the winner back. LookupError when the item is not published / ready / has no media. Commits."""
+    existing = await _copy_of(session, user_id, catalog_id)
+    if existing is not None:
+        return existing, False
+    row = await get_published(session, catalog_id)
+    if row is None or media_missing(data_dir, row):
+        raise LookupError(catalog_id)
+    segs = await segments_of(session, row.id)
+    item = LibraryItem(id=new_uuid(), user_id=user_id, kind="audio", source="catalog", title=row.title,
+                       status="ready", stage=None, progress=100, duration_ms=row.duration_ms,
+                       media_path=row.media_path, poster_path=row.poster_path, media_mime=row.media_mime,
+                       library_bytes=0, upload_total=0, upload_received=0, sub_source=row.sub_source,
+                       seg_count=len(segs), low_confidence=row.low_confidence, rebuildable=False,
+                       catalog_id=row.id, created_at=now, updated_at=now)
+    session.add(item)
+    session.add_all(LibrarySegment(item_id=item.id, idx=s.idx, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text,
+                                   zh=s.zh, zh_lang=s.zh_lang, analysis=s.analysis, analysis_lang=s.analysis_lang,
+                                   flags=s.flags) for s in segs)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        existing = await _copy_of(session, user_id, catalog_id)
+        if existing is None:
+            raise
+        return existing, False
+    logger.info("library catalog added item=%s catalog=%s sentences=%d", item.id, row.id, len(segs))
+    return item, True
+
+
+async def fill_translations(session: AsyncSession, item: LibraryItem, segs: list[LibrarySegment],
+                            language: str) -> int:
+    """Spec R3: copy the catalog's stored translations onto the user's copy for sentences that have none in
+    `language`, only in the catalog's language and only where the user did not edit the text. Commits; returns how
+    many were stored. The caller refreshes the rows it holds (expire_on_commit=False; never expire_all, R-SC6)."""
+    if not item.catalog_id:
+        return 0
+    row = await get(session, item.catalog_id)
+    if row is None or row.ai_lang != language:
+        return 0
+    want = {s.idx: s.text for s in segs if not (s.zh and s.zh_lang == language)}
+    if not want:
+        return 0
+    found = [c for c in await segments_of(session, row.id)
+             if c.idx in want and c.zh and c.zh_lang == language and store.same_text(c.text, want[c.idx])]
+    if not found:
+        return 0
+    return len(await store.set_translations(session, item.id, [(c.idx, want[c.idx], c.zh) for c in found], language))
+
+
+# ---- deletion (spec R1) ----
+
+async def delete_rows(session: AsyncSession, catalog_id: str) -> None:
+    """Explicit child delete (SQLite has no FK cascade); caller commits, then removes the files."""
+    await session.execute(delete(CatalogSegment).where(CatalogSegment.catalog_id == catalog_id))
+    await session.execute(delete(CatalogItem).where(CatalogItem.id == catalog_id))
+
+
+async def collect_if_orphan(session: AsyncSession, data_dir: Path, catalog_id: str) -> bool:
+    """A retired catalog item nobody uses any more: rows and files go. Commits."""
+    row = await get(session, catalog_id)
+    if row is None or row.retired_at is None or await refs(session, catalog_id) > 0:
+        return False
+    await delete_rows(session, catalog_id)
+    await session.commit()
+    paths.remove_catalog_files(data_dir, catalog_id)
+    logger.info("library catalog collected catalog=%s", catalog_id)
+    return True
+
+
+async def collect_retired(session: AsyncSession, data_dir: Path) -> int:
+    ids = list((await session.scalars(select(CatalogItem.id).where(CatalogItem.retired_at.is_not(None)))).all())
+    done = 0
+    for catalog_id in ids:
+        done += await collect_if_orphan(session, data_dir, catalog_id)
+    return done
+
+
+async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
+    """Spec R1 forced delete: every user's copy (rows, sentences, attempts; tickets revoked, copy dirs removed), then
+    the catalog rows and files. Assessments in the practice history stay. Returns (copies, users). Commits.
+    A running import job must be canceled by the caller first (plan SI)."""
+    data_dir = app.state.library.deps.data_dir
+    copies = [(r[0], r[1]) for r in (await session.execute(select(LibraryItem.id, LibraryItem.user_id).where(
+        LibraryItem.catalog_id == catalog_id))).all()]
+    for item_id, _user_id in copies:
+        await store.delete_item_rows(session, item_id)
+    await delete_rows(session, catalog_id)
+    await session.commit()
+    for item_id, user_id in copies:
+        app.state.library.tickets.revoke_item(item_id)
+        paths.remove_item_files(data_dir, user_id, item_id)
+    paths.remove_catalog_files(data_dir, catalog_id)
+    logger.info("library catalog purged catalog=%s copies=%d", catalog_id, len(copies))
+    return len(copies), len({u for _i, u in copies})
