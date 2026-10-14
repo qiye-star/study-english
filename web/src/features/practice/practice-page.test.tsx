@@ -54,6 +54,19 @@ describe("PracticePage", () => {
     expect(mine.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("shows the changelog entry left of the practice list when something is published", async () => {
+    setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 2, latest_id: 5 }) });
+    const entry = await screen.findByTestId("changelog-entry", {}, { timeout: 10_000 });
+    expect(entry).toHaveAttribute("href", "/practice/changelog");
+    expect(entry.compareDocumentPosition(screen.getByTestId("practice-list")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }, 20_000);
+
+  it("has no changelog entry when nothing is published", async () => {
+    const { mock } = setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 0, latest_id: null }) });
+    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/changelog")).toBe(true), { timeout: 10_000 });
+    expect(screen.queryByTestId("changelog-entry")).toBeNull();
+  }, 20_000);
+
   it("links to the progress page", () => {
     setup({});
     const link = screen.getByTestId("practice-progress");
