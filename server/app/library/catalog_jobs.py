@@ -115,8 +115,12 @@ class CatalogJobs:
             logger.warning("library catalog cancel slow catalog=%s", catalog_id)
 
     async def recover(self) -> int:
-        async with self.deps.sessionmaker() as s:
-            count = await catalog_store.recover(s, self.deps.clock())
+        try:
+            async with self.deps.sessionmaker() as s:
+                count = await catalog_store.recover(s, self.deps.clock())
+        except Exception as e:  # noqa: BLE001 - an unmigrated schema must not kill the lifespan; class name only
+            logger.warning("library catalog recovery failed error=%s", type(e).__name__)
+            return 0
         logger.info("library catalog recovered=%d", count)
         self.kick()
         return count

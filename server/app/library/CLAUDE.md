@@ -81,3 +81,4 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 目录的标题、许可说明、句子与用户内容一样不进日志 / 审计 / 计量。
 - 链接预检(`urlcheck.precheck`):配置了 `LIBRARY_YTDLP_PROXY`(非空白)时 `resolve=False`——只做语法检查(协议 / 长度 / 字符 / userinfo / 端口 / 黑名单名与后缀 / 字面 IP),**不做本地 DNS 与解析地址检查**(代理在远端解析,本地解析器可能被污染);无代理时行为不变。路由 `library_import` 与取回阶段 `ytdlp.fetch` 的复查用同一规则。永远不记录代理值。
 - 粘贴分享文本:`urlcheck.extract_link` 在导入接口里先于预检运行——去空白后仍含空白的字符串取第一个 `https?://\S+`(去掉尾部标点与全角收尾符),没找到就原样交给预检(仍是 `chars`);无空白的字符串不动。提取出的链接照常走完整预检。
+- 启动恢复不能让 lifespan 崩:`CatalogJobs.recover()` 在 lifespan 里被 await(库 worker 的恢复在自己的任务里,失败只死任务),所以它自己吞掉异常、只记 `error=<类名>`(无 SQL / id / 文本)并返回 0;测试常在应用启动**之后**才 `create_all`,启动时表还不存在。

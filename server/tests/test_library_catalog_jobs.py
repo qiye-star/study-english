@@ -84,6 +84,18 @@ async def test_recover_requeues_processing_items_and_runs_them(app, monkeypatch)
     assert (await row_of(app, cid)).status == "ready"
 
 
+async def test_recover_tolerates_an_unmigrated_schema(app, caplog):
+    from sqlalchemy import text
+    async with app.state.engine.begin() as conn:  # a database the catalog migration has not reached yet
+        await conn.execute(text("DROP TABLE catalog_segments"))
+        await conn.execute(text("DROP TABLE catalog_items"))
+    with caplog.at_level("WARNING"):
+        assert await app.state.catalog.recover() == 0  # startup must continue (like the library worker's recovery)
+    text_ = " ".join(r.getMessage() for r in caplog.records)
+    assert "catalog recovery failed error=OperationalError" in text_
+    assert "SELECT" not in text_ and "UPDATE" not in text_ and "catalog_items" not in text_
+
+
 async def test_cancel_stops_a_running_job(app, monkeypatch):
     enable(monkeypatch)
     gate, reached = asyncio.Event(), asyncio.Event()
