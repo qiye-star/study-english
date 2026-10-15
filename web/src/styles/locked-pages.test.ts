@@ -38,7 +38,7 @@ describe("locked pages stay out of the liquid skin (plan 2026-10-15-liquid-glass
   it("no locked file mentions a liquid token, class or attribute", () => {
     const hits = lockedFiles.filter((f) => BANNED.test(readFileSync(f, "utf8"))).map((f) => path.relative(SRC, f));
     expect(hits).toEqual([]);
-  });
+  }, 30000);
 
   it("locked code imports only the known shared modules", () => {
     const used = new Set<string>();

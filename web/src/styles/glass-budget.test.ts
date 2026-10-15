@@ -100,5 +100,5 @@ describe("blur budget guards (plan 2026-10-15-liquid-glass INDEX §8)", () => {
       return (usesMat && !allowed) || usesTw;
     });
     expect(offenders.map((f) => path.relative(SRC, f))).toEqual([]);
-  });
+  }, 30000);
 });

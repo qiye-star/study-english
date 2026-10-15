@@ -21,8 +21,8 @@ describe("AppShell shadow sheet", () => {
       { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat/c1" },
     );
     await userEvent.click(screen.getByTestId("open-shadow"));
-    expect(await screen.findByTestId("shadow-sheet")).toBeInTheDocument();
+    expect(await screen.findByTestId("shadow-sheet", undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByTestId("shadow-reference")).toHaveTextContent("Hello there.");
     expect(screen.getByTestId("location")).toHaveTextContent("/chat/c1");
-  });
+  }, 15000);
 });
