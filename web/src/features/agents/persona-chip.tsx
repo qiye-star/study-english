@@ -21,7 +21,7 @@ export function PersonaChip({ persona, pendingId = null, disabled = false, onCli
   return (
     <button type="button" data-testid="agent-persona-chip" data-persona={persona?.id ?? pendingId ?? ""} aria-label={label} title={label}
       disabled={disabled} onClick={onClick}
-      className="hit-expand inline-flex h-8 max-w-[132px] flex-none items-center gap-1.5 rounded-full bg-surface-2 pl-1 pr-2 text-sub font-medium text-ink transition-colors duration-fast disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      className="hit-expand inline-flex h-8 max-w-[132px] flex-none items-center gap-1.5 rounded-full bg-surface-2 pl-1 pr-2 text-sub font-medium text-ink plate transition-colors duration-fast disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       {name ? (
         <span aria-hidden className="flex-none"><Avatar name={name} className="h-6 w-6 text-label" /></span>
       ) : (

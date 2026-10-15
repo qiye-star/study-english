@@ -1,6 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
+import { setLiquid, textOutsidePlates } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { TutorBar, type TutorBarProps } from "./tutor-bar";
 import { rawSession, toSession } from "./tutor-fixtures";
@@ -88,4 +89,15 @@ it("keeps English labels short enough for four equal cells at 360 px", async () 
     expect((screen.getByTestId(id).textContent ?? "").length, id).toBeLessThanOrEqual(9);
   }
   expect(screen.getByTestId("tutor-end").textContent!.length).toBeLessThanOrEqual(10);
+});
+
+it("liquid: the whole tutor bar sits on a plate (Rule 4, plan 2026-10-15-liquid-glass R-L6-3)", () => {
+  setLiquid(true);
+  try {
+    const { container } = renderWithProviders(<div className="mat-chrome-bar"><TutorBar {...props({ hint: "Try a longer sentence" })} /></div>);
+    expect(screen.getByTestId("tutor-bar").className).toContain("plate");
+    expect(textOutsidePlates(container.querySelector(".mat-chrome-bar")!)).toEqual([]);
+  } finally {
+    setLiquid(false);
+  }
 });
