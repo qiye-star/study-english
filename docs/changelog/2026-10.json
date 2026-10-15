@@ -200,7 +200,15 @@
         "tag": "new",
         "zh": "学习内容和查词卡片里新增「中文」按钮:默认只看英文释义,需要时点一下显示中文释义和短语翻译。",
         "en": "The study panel and the lookup card now have a 「中文」 button: English definitions by default, tap to show the Chinese meanings and phrase translations."
-      },
+      }
+    ]
+  },
+  {
+    "entry_date": "2026-10-14",
+    "version": null,
+    "title_zh": "查词修复与复习完善",
+    "title_en": "Lookup fix and review polish",
+    "items": [
       {
         "tag": "fix",
         "zh": "修复安卓浏览器里选中文字后点「查词/朗读/加入生词本」条会立刻消失、没有反应的问题。",
