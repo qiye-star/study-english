@@ -16,6 +16,7 @@ import { CreateRoomSheet } from "./create-room-sheet";
 import type { RoomInfo } from "./protocol";
 import { fetchRoomsConfig, myRoomsOverview, normalizeCode, type MyRoom, type RoomsConfig } from "./rooms-api";
 import { ghostButton, primaryButton, smallGhostButton } from "./ui";
+import { LQ_ICON_WELL, LQ_PAGE, LQ_TILE } from "~/components/liquid";
 
 const formatCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
@@ -77,16 +78,16 @@ export function RoomsLobbyPage() {
   }
   return (
     <>
-      <PageHeader title={t("web.rooms.title")} />
+      <PageHeader large title={t("web.rooms.title")} />
       <FeatureGate state={state} disabledText={t("web.rooms.disabled")} onRetry={() => setAttempt((n) => n + 1)}>
-        <div className="px-gutter pb-8">
+        <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
           <section aria-labelledby="room-code-label" className="pt-1">
             <h2 id="room-code-label" className="mx-0.5 mb-2 text-sub font-semibold tracking-[0.01em] text-ink-2">{t("web.rooms.lobby.codeLabel")}</h2>
             <CodeInput value={code} onChange={(v) => { setCode(v); setError(null); }} onSubmit={() => void join()} />
             <p role="alert" className={cn("text-sub text-ink-2", error ? "mt-2" : "sr-only")}>{error}</p>
             <div role="status" aria-live="polite">
               {waiting.request && (
-                <div data-testid="room-join-pending" className="mt-3 flex items-center gap-3 rounded-card bg-surface py-1.5 pl-3.5 pr-1.5 shadow-hair">
+                <div data-testid="room-join-pending" className={`mt-3 flex items-center gap-3 rounded-card bg-surface py-1.5 pl-3.5 pr-1.5 shadow-hair ${LQ_TILE}`}>
                   <HourglassIcon aria-hidden className="size-[18px] flex-none text-ink-2" />
                   <span className="min-w-0 flex-1 text-sub text-ink">{t("web.rooms.v2.lobby.pending", { name: waiting.request.roomName })}</span>
                   <button type="button" data-testid="room-join-cancel" className={cn(smallGhostButton, "flex-none")} onClick={() => void withdraw()}>
@@ -95,7 +96,7 @@ export function RoomsLobbyPage() {
                 </div>
               )}
               {waiting.outcome && (
-                <div data-testid="room-join-outcome" className="mt-3 flex items-center gap-3 rounded-card bg-surface py-1.5 pl-3.5 pr-1.5 shadow-hair">
+                <div data-testid="room-join-outcome" className={`mt-3 flex items-center gap-3 rounded-card bg-surface py-1.5 pl-3.5 pr-1.5 shadow-hair ${LQ_TILE}`}>
                   <span className="min-w-0 flex-1 text-sub text-ink">{t(`web.rooms.v2.lobby.${waiting.outcome}`)}</span>
                   <button type="button" className={cn(smallGhostButton, "flex-none")} onClick={waiting.dismiss}>{t("web.rooms.v2.lobby.dismiss")}</button>
                 </div>
@@ -115,8 +116,8 @@ export function RoomsLobbyPage() {
             {rooms.map((room) => {
               return (
                 <Link key={room.id} to={`/rooms/r/${encodeURIComponent(room.id)}`} data-testid="my-room" data-status={room.status}
-                  className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                  <span aria-hidden className="inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue">
+                  className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring liquid:active:bg-wash liquid:px-4">
+                  <span aria-hidden className={`inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue ${LQ_ICON_WELL}`}>
                     <UsersRoundIcon className="size-[19px]" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -134,7 +135,7 @@ export function RoomsLobbyPage() {
           </SectionGroup>
           {endedCount > 0 && (
             <Link to="/rooms/ended" data-testid="rooms-ended-link"
-              className="mt-3 flex min-h-row items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5 pr-3 shadow-hair transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+              className={`mt-3 flex min-h-row items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5 pr-3 shadow-hair transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${LQ_TILE} liquid:mt-4`}>
               <ArchiveIcon aria-hidden className="size-[19px] flex-none text-ink-2" />
               <span className="min-w-0 flex-1 truncate text-body text-ink">{t("web.rooms.ended.entry", { count: endedCount })}</span>
               <ChevronRightIcon aria-hidden className="size-[18px] flex-none text-ink-3" />

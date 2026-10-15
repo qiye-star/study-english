@@ -7,6 +7,7 @@ import { useAuth } from "~/auth/auth-context";
 import { cn } from "~/lib/cn";
 import { smallGhostButton, smallPrimaryButton } from "../ui";
 import { ROOM_AGENTS_ALL_ERRORS, startRoomTutor, type RoomAgent } from "./room-agents-api";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 
 /** 与服务端 tutor_rotation.MIN_STEPS / MAX_STEPS / DEFAULT_STEPS 相同(测试读服务端文件核对)。 */
 export const TUTOR_STEPS = { min: 3, max: 12, initial: 8 } as const;
@@ -40,7 +41,7 @@ export function TutorStart({ roomId, agents, onStarted }: { roomId: string; agen
         <div role="radiogroup" aria-label={t("web.rooms.agents.tutor.persona")} className="mt-2 flex flex-wrap gap-1.5">
           {usable.map((a) => (
             <button key={a.id} type="button" role="radio" aria-checked={a.id === chosen} onClick={() => setPersonaId(a.id)}
-              className={cn("min-h-tap max-w-full truncate rounded-full px-3 text-sub", a.id === chosen ? "bg-blue text-on-blue" : "bg-surface-2 text-ink")}>{a.name}</button>
+              className={cn("min-h-tap max-w-full truncate rounded-full px-3 text-sub", a.id === chosen ? `bg-blue text-on-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink ${LQ_CHIP}`)}>{a.name}</button>
           ))}
         </div>
       )}

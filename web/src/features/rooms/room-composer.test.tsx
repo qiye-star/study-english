@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
+import { setLiquid, textOutsidePlates } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
+import { ActivityLine } from "./extras/activity-line";
+import { QuoteBar } from "./extras/quote-block";
 import { RoomComposer, type RoomComposerProps } from "./room-composer";
 
 function setup(over: Partial<RoomComposerProps> = {}) {
@@ -195,5 +198,21 @@ describe("RoomComposer @ autocomplete (spec addressing §3.2 #4)", () => {
     fireEvent.click(screen.getByTestId("room-at-ai"));
     expect(screen.getByRole("combobox")).toHaveValue("@");
     expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
+  it("liquid: one blurred composer, text only on plates (Rule 4, R-L7-1)", () => {
+    setLiquid(true);
+    try {
+      setup({
+        banner: "连接中",
+        above: <QuoteBar quote={{ seq: 3, kind: "text", name: "bob", text: "What snacks do you like" }} onClear={vi.fn()} />,
+      });
+      const composer = screen.getByTestId("room-composer");
+      expect(composer.className).toContain("mat-chrome-bar");
+      expect(composer.className).toContain("liquid:rounded-float");
+      expect(screen.getByTestId("room-input-box").className).toContain("plate");
+      expect(textOutsidePlates(composer)).toEqual([]);
+    } finally {
+      setLiquid(false);
+    }
   });
 });

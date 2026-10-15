@@ -25,6 +25,7 @@ import { TranslateQueue } from "./voice/translate-queue";
 import { VoiceBubble } from "./voice/voice-bubble";
 import { describeSettingsChanges } from "./create/settings-message";
 import { fetchRoomsConfig, type RoomsConfig } from "./rooms-api";
+import { LQ_TILE } from "~/components/liquid";
 
 /** 操作行的 id(「更多操作」的 aria-controls) */
 const actionsId = (messageId: string) => `room-actions-${messageId}`;
@@ -41,7 +42,7 @@ function MessageText({ text }: { text: string }) {
   if (!m) return <span {...lookupContext} className="whitespace-pre-wrap break-words">{text}</span>;
   return (
     <span {...lookupContext} className="whitespace-pre-wrap break-words">
-      <span className="font-semibold text-blue">{m[1].trim()}</span>{text.slice(m[1].length)}
+      <span className="font-semibold text-blue liquid:text-ink">{m[1].trim()}</span>{text.slice(m[1].length)}
     </span>
   );
 }
@@ -247,7 +248,7 @@ export const RoomMessageList = memo(function RoomMessageList({
           {agent?.handoffFrom && <HandoffLine from={agent.handoffFrom.name} to={agent.agent.name} />}
           <div className="flex max-w-[92%] gap-1">
           <div data-testid="room-message" data-kind="ai_answer" {...selectable(m)}
-            className="min-w-0 rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
+            className={`min-w-0 rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 ${LQ_TILE}`}>
             {agent ? <AgentName agent={agent.agent} onOpen={onOpenAgent} />
               : <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>}
             {agent?.asker && !askedByMe && <AnsweredFor name={agent.agent.name} asker={agent.asker.name} />}
@@ -277,14 +278,15 @@ export const RoomMessageList = memo(function RoomMessageList({
           {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
           <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
             className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em]",
-              mine ? "rounded-tr-inline bg-blue-tint" : "rounded-tl-inline border-[0.5px] border-hair bg-surface")}>
+              mine ? "rounded-tr-inline bg-blue-tint liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite liquid:[&_.text-ink-2]:text-on-graphite/75 liquid:[&_.text-blue]:text-on-graphite"
+                : "rounded-tl-inline border-[0.5px] border-hair bg-surface mat-surface liquid:rounded-tile liquid:rounded-tl-tail")}>
             {!mine && <span className="block text-meta font-semibold text-ink-2">{name}</span>}
             {m.quote && <QuoteBlock quote={m.quote} onJump={jump} />}
             {voice ? (
               <VoiceBubble message={m} mine={mine} roomId={roomId} autoText={autoText} onTranslate={onTranslateVoice} onRetry={onRetryVoice} queue={translateQueue} />
             ) : <MessageText text={m.text} />}
             {m.assisted && (
-              <span className="mt-0.5 flex items-center gap-[3px] text-label font-semibold text-blue">
+              <span className="mt-0.5 flex items-center gap-[3px] text-label font-semibold text-blue liquid:text-ink">
                 <LanguagesIcon aria-hidden className="size-[13px]" />{t("web.rooms.room.assisted")}
               </span>
             )}
@@ -317,7 +319,7 @@ export const RoomMessageList = memo(function RoomMessageList({
         <div key={p.clientId} className="flex w-full flex-col items-end">
           <div className="flex max-w-[88%] flex-row-reverse gap-2">
             <div data-testid="room-pending" aria-busy="true"
-              className="min-w-0 rounded-card rounded-tr-inline bg-blue-tint px-3 py-2 text-body leading-dialogue tracking-[-0.005em] opacity-60">
+              className="min-w-0 rounded-card rounded-tr-inline bg-blue-tint px-3 py-2 text-body leading-dialogue tracking-[-0.005em] opacity-60 liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite">
               <MessageText text={p.text} />
             </div>
             <span data-testid="room-pending-slot" aria-hidden="true" className="size-7 flex-none" />

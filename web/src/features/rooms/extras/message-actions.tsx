@@ -6,7 +6,7 @@ import { REACTION_GLYPHS, REACTION_KEYS, type ReactionKey, type RoomMessage } fr
 
 const tool = "inline-flex min-h-tap flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] px-2 text-meta font-semibold text-ink "
   + "transition-colors duration-fast hover:bg-surface-2 active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring "
-  + "aria-pressed:bg-blue-tint aria-pressed:text-blue [&_svg]:size-4 [&_svg]:text-ink-2 aria-pressed:[&_svg]:text-blue";
+  + "aria-pressed:bg-blue-tint aria-pressed:text-blue [&_svg]:size-4 [&_svg]:text-ink-2 aria-pressed:[&_svg]:text-blue liquid:aria-pressed:bg-wash";
 
 function Tool({ testId, label, pressed, onClick, children }: { testId: string; label: string; pressed?: boolean; onClick(): void; children: ReactNode }) {
   return (
@@ -43,7 +43,7 @@ export function MessageActions({
             <button key={key} type="button" data-testid={`react-${key}`} aria-pressed={on} aria-label={t(`web.rooms.extras.reactionNames.${key}`)}
               onClick={() => onReact(key, !on)}
               className={cn("flex h-tap w-tap flex-none items-center justify-center rounded-[10px] text-[21px] leading-none transition-colors duration-fast",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on ? "bg-blue-tint" : "hover:bg-surface-2 active:bg-surface-2")}>
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on ? "bg-blue-tint liquid:bg-wash" : "hover:bg-surface-2 active:bg-surface-2")}>
               <span aria-hidden>{REACTION_GLYPHS[key]}</span>
             </button>
           );

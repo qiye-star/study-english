@@ -11,6 +11,7 @@ import { levelLabel } from "~/lib/levels";
 import { fetchRoomsConfig, ROOMS_SERVER_ERRORS, type RoomsConfig } from "../rooms-api";
 import { ghostButton, primaryButton } from "../ui";
 import { joinByInvite, previewInvite, type InvitePreview } from "./invite-api";
+import { LQ_CHIP, LQ_ICON_WELL, LQ_PAGE, LQ_PANEL } from "~/components/liquid";
 
 type Load = { status: "loading" } | { status: "ready"; invite: InvitePreview } | { status: "expired" } | { status: "error"; error: string };
 
@@ -69,7 +70,7 @@ export function RoomInvitePage() {
   return (
     <>
       <PageHeader title={t("web.rooms.extras.invite.pageTitle")} back="/rooms" />
-      <div className="px-gutter pb-8 pt-1">
+      <div className={`px-gutter pb-8 pt-1 ${LQ_PAGE}`}>
         {load.status === "loading" && (
           <p role="status" className="flex items-center justify-center gap-2 py-16 text-sub text-ink-2">
             <LoaderIcon aria-hidden className="size-4 animate-spin" />{t("web.common.loading")}
@@ -77,7 +78,7 @@ export function RoomInvitePage() {
         )}
         {(load.status === "expired" || load.status === "error") && (
           <div className="flex flex-col items-center py-12 text-center">
-            <span aria-hidden className="inline-flex size-12 items-center justify-center rounded-card bg-surface-2 text-ink-2"><LinkIcon className="size-6" /></span>
+            <span aria-hidden className="inline-flex size-12 items-center justify-center rounded-card bg-surface-2 text-ink-2 liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well"><LinkIcon className="size-6" /></span>
             <p role="alert" className="mt-3 text-title font-semibold text-ink">
               {load.status === "expired" ? t("web.rooms.extras.invite.expired") : load.error}
             </p>
@@ -90,9 +91,9 @@ export function RoomInvitePage() {
         )}
         {load.status === "ready" && (
           <>
-            <section className="rounded-card bg-surface p-4 shadow-hair">
+            <section className={`rounded-card bg-surface p-4 shadow-hair ${LQ_PANEL}`}>
               <div className="flex items-center gap-3">
-                <span aria-hidden className="inline-flex size-[42px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue">
+                <span aria-hidden className={`inline-flex size-[42px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue ${LQ_ICON_WELL}`}>
                   <UsersRoundIcon className="size-[22px]" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -101,7 +102,7 @@ export function RoomInvitePage() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <span className={cn(badge, "bg-blue-tint text-blue")}>{scenarioName(load.invite.scenario)}</span>
+                <span className={cn(badge, "bg-blue-tint text-blue", LQ_CHIP)}>{scenarioName(load.invite.scenario)}</span>
                 <span className={cn(badge, "bg-surface-2 text-ink-2")}>{t("web.rooms.extras.invite.level", { level: levelLabel(t, load.invite.level) })}</span>
                 <span className={cn(badge, "bg-surface-2 tabular-nums text-ink-2")}>
                   {t("web.rooms.extras.invite.members", { count: load.invite.memberCount, max: load.invite.maxMembers })}

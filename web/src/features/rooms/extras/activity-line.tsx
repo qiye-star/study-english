@@ -38,9 +38,9 @@ export function ActivityLine({ activity, members, meId }: {
   }
   const speaking = active.some((x) => x.state === "recording");
   return (
-    <div data-testid="room-activity" className="flex min-w-0 items-center gap-1.5 px-1.5 pb-[7px] text-meta text-ink-2">
+    <div data-testid="room-activity" className="flex min-w-0 items-center gap-1.5 px-1.5 pb-[7px] text-meta text-ink-2 plate liquid:mb-1.5 liquid:rounded-full liquid:px-3 liquid:py-1">
       {speaking ? (
-        <MicIcon aria-hidden className="size-3.5 flex-none text-blue" />
+        <MicIcon aria-hidden className="size-3.5 flex-none text-blue liquid:text-ink" />
       ) : (
         <span aria-hidden className="inline-flex flex-none gap-0.5">
           <i className="block size-1 rounded-full bg-ink-3" /><i className="block size-1 rounded-full bg-ink-3" /><i className="block size-1 rounded-full bg-ink-3" />

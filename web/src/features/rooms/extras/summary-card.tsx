@@ -4,8 +4,9 @@ import { Link } from "react-router-dom";
 import { cn } from "~/lib/cn";
 import { smallGhostButton } from "../ui";
 import { useRoomSummary } from "./use-room-summary";
+import { LQ_ICON_WELL, LQ_PANEL } from "~/components/liquid";
 
-const card = "mb-3 flex items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5 pr-2 shadow-hair";
+const card = `mb-3 flex items-center gap-3 rounded-card bg-surface py-2.5 pl-3.5 pr-2 shadow-hair ${LQ_PANEL}`;
 
 /**
  * 已结束房间列表顶部的「学习小结」卡片(spec §6.1):
@@ -21,7 +22,7 @@ export function SummaryCard({ roomId, justClosed = false }: {
   const { summary, error, timedOut, retrying, retry } = useRoomSummary(roomId, { waitForStart: justClosed });
   if (error || !summary) return null;
   const icon = (
-    <span aria-hidden className="inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue">
+    <span aria-hidden className={`inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-blue-tint text-blue ${LQ_ICON_WELL}`}>
       <NotebookPenIcon className="size-[19px]" />
     </span>
   );

@@ -12,6 +12,7 @@ import { ROOMS_ALL_SERVER_ERRORS } from "../create/rooms-v2-api";
 import { reopenRoom, type MyRoom } from "../rooms-api";
 import { smallGhostButton } from "../ui";
 import { useEndedRooms } from "./use-ended-rooms";
+import { LQ_ICON_WELL, LQ_PAGE } from "~/components/liquid";
 
 const SUMMARY_LINK = new Set(["done", "pending", "failed"]);
 
@@ -44,7 +45,7 @@ export function RoomsEndedPage() {
     <>
       <PageHeader title={t("web.rooms.ended.title")} back="/rooms" />
       <FeatureGate state={state} disabledText={t("web.rooms.disabled")} onRetry={reload}>
-        <div className="px-gutter pb-8">
+        <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
           <p role="alert" className={cn("text-sub text-ink-2", error ? "mb-2" : "sr-only")}>{error}</p>
           {rooms.length === 0 ? (
             <p className="px-3.5 py-10 text-center text-sub text-ink-2">{t("web.rooms.ended.empty")}</p>
@@ -57,8 +58,8 @@ export function RoomsEndedPage() {
                 return (
                   <div key={room.id} className="flex items-center">
                     <Link to={`/rooms/r/${encodeURIComponent(room.id)}${summary ? "/summary" : ""}`} data-testid="ended-room" data-status="closed"
-                      className="flex min-h-row min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 pr-2 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                      <span aria-hidden className="inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-surface-2 text-ink-2">
+                      className="flex min-h-row min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 pr-2 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring liquid:active:bg-wash">
+                      <span aria-hidden className={`inline-flex size-[34px] flex-none items-center justify-center rounded-badge bg-surface-2 text-ink-2 ${LQ_ICON_WELL}`}>
                         <ArchiveIcon className="size-[19px]" />
                       </span>
                       <span className="min-w-0 flex-1">

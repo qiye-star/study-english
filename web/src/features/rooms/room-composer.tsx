@@ -67,7 +67,7 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
   /** 「问助手 ×」胶囊:文字模式在输入框左内侧;语音模式在长条之上(松手会发给助手,不是群里,review m10) */
   const assistPill = assist ? (
     <span data-testid="room-target-assist"
-      className={cn("inline-flex h-[26px] flex-none items-center gap-px rounded-[8px] bg-blue-tint pl-2 pr-0.5 text-meta font-semibold text-blue", voiceMode ? "mb-1 self-start" : "mr-2")}>
+      className={cn("inline-flex h-[26px] flex-none items-center gap-px rounded-[8px] bg-blue-tint pl-2 pr-0.5 text-meta font-semibold text-blue plate liquid:rounded-full liquid:text-ink", voiceMode ? "mb-1 self-start" : "mr-2")}>
       {voiceMode ? t("web.rooms.room.voiceToAssist") : t("web.rooms.room.askAssist")}
       <button type="button" data-testid="room-target-clear" aria-label={t("web.rooms.room.backToGroup")}
         onClick={() => { onClearTarget(); inputRef.current?.focus(); }}
@@ -77,9 +77,9 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
     </span>
   ) : null;
   return (
-    <div ref={ref} data-testid="room-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-2">
+    <div ref={ref} data-testid="room-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float">
       {banner && (
-        <div role="status" className="mx-1 mb-2 flex min-h-8 items-center gap-1 rounded-badge bg-surface-2 pl-3 text-sub text-ink">
+        <div role="status" className="mx-1 mb-2 flex min-h-8 items-center gap-1 rounded-badge bg-surface-2 pl-3 text-sub text-ink plate liquid:rounded-full">
           <span className="min-w-0 flex-1 py-1.5">{banner}</span>
           {onDismiss && (
             <IconButton label={t("web.rooms.room.dismiss")} className="h-8 text-ink-2 hit-expand [&_svg]:size-4" onClick={onDismiss}><XIcon /></IconButton>
@@ -98,7 +98,7 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
           <div data-testid="room-voice-box" className="flex min-w-0 flex-1 flex-col">{assistPill}{voice.input}</div>
         ) : (
           <div data-testid="room-input-box"
-            className={cn("relative flex h-tap min-w-0 flex-1 items-center rounded-button bg-surface pr-1.5 transition-shadow duration-fast",
+            className={cn("relative flex h-tap min-w-0 flex-1 items-center rounded-button bg-surface pr-1.5 transition-shadow duration-fast plate liquid:rounded-full",
               assist ? "border border-blue/40 pl-1.5" : "border-[0.5px] border-hair pl-3",
               "focus-within:border-blue focus-within:ring-[3px] focus-within:ring-blue/15")}>
             {assistPill}
@@ -126,11 +126,11 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
               className="h-full min-w-0 flex-1 truncate bg-transparent text-base text-ink placeholder:text-ink-2 focus-visible:outline-none disabled:opacity-60" />
             {open && (
               <ul id={listId} role="listbox" aria-label={t("web.rooms.agents.mention.list")} data-testid="room-mention-list"
-                className="absolute inset-x-0 bottom-full z-40 mb-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface py-1 shadow-card dark:shadow-none">
+                className="absolute inset-x-0 bottom-full z-40 mb-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface py-1 shadow-card dark:shadow-none mat-float liquid:rounded-tile">
                 {options.map((o, i) => (
                   <li key={o.key} id={`${listId}-${i}`} role="option" aria-selected={i === current} data-testid="room-mention-option"
                     onMouseDown={(e) => e.preventDefault()} onClick={() => pick(o)}
-                    className={cn("flex min-h-tap cursor-pointer items-center gap-2 px-3 text-body text-ink", i === current && "bg-surface-2")}>
+                    className={cn("flex min-h-tap cursor-pointer items-center gap-2 px-3 text-body text-ink", i === current && "bg-surface-2 liquid:bg-wash")}>
                     <AtSignIcon aria-hidden className="size-4 flex-none text-ink-3" />
                     <span className="min-w-0 truncate">{o.label}</span>
                   </li>
@@ -152,7 +152,7 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
         )}
         {!voiceMode && (
           <button type="button" data-testid="room-send" aria-label={t("web.rooms.room.send")} disabled={disabled || offline || !value.trim()} onClick={onSend}
-            className={cn(keyClass, "bg-blue text-on-blue active:bg-blue/90")}><SendIcon aria-hidden /></button>
+            className={cn(keyClass, "bg-blue text-on-blue active:bg-blue/90", "liquid:rounded-full")}><SendIcon aria-hidden /></button>
         )}
       </div>
     </div>

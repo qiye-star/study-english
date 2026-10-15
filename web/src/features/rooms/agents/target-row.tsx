@@ -4,6 +4,7 @@ import { cn } from "~/lib/cn";
 import { ROOM_AGENTS } from "../protocol";
 import type { RoomAgent } from "./room-agents-api";
 import type { Recipient, TargetBlock } from "./target";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 
 export interface TargetRowProps {
   agents: readonly RoomAgent[];
@@ -28,7 +29,7 @@ export function TargetRow({ agents, activeId, on, block, recipient, disabled, on
   const status = block ? t(`web.rooms.agents.target.off.${block}`, { name: blockedName })
     : recipient ? t(recipient.via === "reply" ? "web.rooms.agents.target.replying" : "web.rooms.agents.target.goesTo", { name: recipient.name }) : "";
   return (
-    <div data-testid="room-target-row" className="mx-1 mb-1.5 flex min-h-8 min-w-0 items-center gap-1.5">
+    <div data-testid="room-target-row" className="mx-1 mb-1.5 flex min-h-8 min-w-0 items-center gap-1.5 plate liquid:rounded-full liquid:px-1.5">
       {agents.slice(0, ROOM_AGENTS.max).map((a) => {
         const pressed = on && !block && a.id === activeId;
         return (
@@ -36,13 +37,13 @@ export function TargetRow({ agents, activeId, on, block, recipient, disabled, on
             onClick={() => onToggle(a.id)}
             className={cn("hit-expand relative inline-flex h-7 max-w-[132px] flex-none items-center rounded-full px-2.5 text-meta font-semibold",
               "transition-colors duration-fast motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
-              pressed ? "bg-blue text-on-blue" : "bg-surface-2 text-ink-2")}>
+              pressed ? `bg-blue text-on-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink-2 ${LQ_CHIP}`)}>
             <span className="truncate">{t("web.rooms.agents.target.to", { name: a.name })}</span>
           </button>
         );
       })}
       <span role="status" aria-live="polite" data-testid="room-target-status"
-        className={cn("min-w-0 flex-1 truncate text-meta", block ? "text-ink-2" : "text-blue")}>{status}</span>
+        className={cn("min-w-0 flex-1 truncate text-meta", block ? "text-ink-2" : "text-blue liquid:text-ink-2")}>{status}</span>
     </div>
   );
 }

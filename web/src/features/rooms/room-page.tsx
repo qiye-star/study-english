@@ -327,7 +327,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
           </>
         ) : undefined} />
       {isOwner && !ended && joinRequests.length > 0 && (
-        <div className="absolute inset-x-0 z-20 px-gutter" style={{ top: "calc(52px + env(safe-area-inset-top) + 4px)" }}>
+        <div className="absolute inset-x-0 z-20 px-gutter liquid:px-frame" style={{ top: "calc(52px + env(safe-area-inset-top) + 4px)" }}>
           <JoinRequestBanner roomId={roomId} requests={joinRequests} onDecided={(id) => setDecided((cur) => new Set(cur).add(id))} />
         </div>
       )}
@@ -336,7 +336,7 @@ function RoomView({ roomId, config }: { roomId: string; config: RoomsConfig }) {
         {announceText}
       </div>
       <div ref={listRef} data-testid="room-messages" onScroll={onScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-gutter"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-gutter liquid:px-frame"
         style={{ paddingTop: listTop, paddingBottom: listBottom, scrollPaddingTop: listTop, scrollPaddingBottom: listBottom }}>
         <div aria-hidden className="mt-auto" />
         <div ref={contentRef} className="flex flex-col">

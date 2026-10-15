@@ -41,7 +41,7 @@ function Countdown({ seconds, urgent }: { seconds: number; urgent: boolean }) {
         <circle cx="11" cy="11" r={r} fill="none" strokeWidth="2" className="stroke-hair" />
         <circle data-testid="room-tutor-ring" cx="11" cy="11" r={r} fill="none" strokeWidth="2" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={offset}
-          className={cn(urgent && seconds <= 10 ? "stroke-red" : "stroke-blue",
+          className={cn(urgent && seconds <= 10 ? "stroke-red" : "stroke-blue liquid:stroke-ink",
             "motion-safe:transition-[stroke-dashoffset] motion-safe:duration-1000 motion-safe:ease-linear")} />
       </svg>
       <span aria-hidden className="text-label tabular-nums text-ink">{seconds}</span>
@@ -91,11 +91,11 @@ export function TutorBar({ tutor, receivedAt, meId, isOwner, roomId, disabled, m
     }
   }
   return (
-    <div data-testid="room-tutor-bar" className={cn("mb-1.5 flex min-h-row flex-wrap items-center gap-x-2 gap-y-1 rounded-card border-[0.5px] px-3 py-1.5 text-sub",
-      mine ? "border-blue bg-blue-tint" : "border-hair bg-surface")}>
+    <div data-testid="room-tutor-bar" className={cn("mb-1.5 flex min-h-row flex-wrap items-center gap-x-2 gap-y-1 rounded-card border-[0.5px] px-3 py-1.5 text-sub plate liquid:rounded-tile",
+      mine ? "border-blue bg-blue-tint liquid:border-[1.5px] liquid:border-ink" : "border-hair bg-surface")}>
       <span className="flex-none font-semibold text-ink">{t("web.rooms.agents.tutor.title")}</span>
       <span className="flex-none tabular-nums text-ink-2">{t("web.rooms.agents.tutor.progress", { step: tutor.stepIndex, total: tutor.stepsTotal })}</span>
-      <span role="status" aria-live="polite" className={cn("min-w-0 flex-1 basis-28 break-words", mine ? "font-semibold text-blue" : "text-ink")}>
+      <span role="status" aria-live="polite" className={cn("min-w-0 flex-1 basis-28 break-words", mine ? "font-semibold text-blue liquid:text-ink" : "text-ink")}>
         {mine && <span aria-hidden className="mr-1 inline-block size-1.5 rounded-full bg-blue align-middle motion-safe:animate-pulse" />}{label}
       </span>
       {left !== null && <Countdown seconds={left} urgent={mine} />}

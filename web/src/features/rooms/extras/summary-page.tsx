@@ -13,8 +13,9 @@ import { ghostButton } from "../ui";
 import type { RoomSummaryView } from "./summary-api";
 import { useRoomSummary } from "./use-room-summary";
 import { lookupContext } from "~/lib/lookup-context";
+import { LQ_CHIP, LQ_PAGE, LQ_PANEL } from "~/components/liquid";
 
-const list = "overflow-hidden rounded-card bg-surface shadow-hair";
+const list = `overflow-hidden rounded-card bg-surface shadow-hair ${LQ_PANEL}`;
 const badge = "inline-flex h-5 items-center rounded-[7px] px-[7px] text-label font-semibold whitespace-nowrap";
 const REASONS = new Set(["few_messages", "disabled", "quota"]);
 
@@ -36,7 +37,7 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
         {room && (scenarioName || room.level) && (
           <div className="mb-2.5 flex flex-wrap gap-1.5">
             {room.memberCount > 0 && <span className={cn(badge, "bg-surface-2 tabular-nums text-ink-2")}>{t("web.rooms.extras.summary.people", { count: room.memberCount })}</span>}
-            <span className={cn(badge, "bg-blue-tint text-blue")}>{[scenarioName, room.level ? levelLabel(t, room.level) : null].filter(Boolean).join(" · ")}</span>
+            <span className={cn(badge, "bg-blue-tint text-blue", LQ_CHIP)}>{[scenarioName, room.level ? levelLabel(t, room.level) : null].filter(Boolean).join(" · ")}</span>
           </div>
         )}
         <p className="whitespace-pre-wrap text-body leading-[1.55] text-ink">{summary.overviewZh}</p>
@@ -51,7 +52,7 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
               <li key={f.seq} className="px-3.5 py-3 [&+&]:border-t-[0.5px] [&+&]:border-hair-2">
                 <p {...lookupContext} className="text-sub leading-[1.45] text-ink-2">{f.original}</p>
                 <p className="mt-[3px] flex gap-1.5 text-body font-medium leading-[1.45] text-ink">
-                  <ArrowRightIcon aria-hidden className="mt-[3px] size-4 flex-none text-blue" />
+                  <ArrowRightIcon aria-hidden className="mt-[3px] size-4 flex-none text-blue liquid:text-ink" />
                   <span {...lookupContext} className="min-w-0">{f.better}</span>
                 </p>
                 {f.noteZh && <p className="mt-[3px] text-meta text-ink-2">{f.noteZh}</p>}
@@ -71,7 +72,7 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
                   {w.example && <p {...lookupContext} className="mt-0.5 text-meta text-ink-2">{w.example}</p>}
                 </div>
                 {/* 青色 = 词汇(redesign-v3 一色一义);已加入后按钮自己变灰勾 */}
-                <span className="flex-none [&_button:not(:disabled)]:text-teal">
+                <span className="flex-none [&_button:not(:disabled)]:text-teal liquid:[&_button:not(:disabled)]:text-ink">
                   <WordActions testId={`summary-word-add-${i}`} variant="icon" target={{ word: w.en, meaning: w.zh, example: w.example, source: "recap" }} />
                 </span>
               </li>
@@ -137,7 +138,7 @@ export function RoomSummaryPage() {
   return (
     <>
       <PageHeader title={t("web.rooms.extras.summary.title")} subtitle={subtitle} back={`/rooms/r/${encodeURIComponent(roomId)}`} />
-      <div className="px-gutter pb-10 pt-1">
+      <div className={`px-gutter pb-10 pt-1 ${LQ_PAGE}`}>
         {body}
         <button type="button" className={cn(ghostButton, "mt-[18px]")} onClick={() => navigate(`/rooms/r/${encodeURIComponent(roomId)}`)}>
           {t("web.rooms.extras.summary.backToChat")}

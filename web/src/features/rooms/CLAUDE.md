@@ -72,3 +72,4 @@ AW-1(2026-10-12,addressing web C3):`room-page.tsx` 只增加「对象」接线(`
   `reopened`(轮询、房主本人、将来的推送)都经 reducer 的 `reopenSignal` 触发 `reset` + 重连,别在别处直接 `connect()`。
 - 「已结束的房间」页是懒加载的(`lazy-ended.tsx`),不要从 `index.ts` 静态导出 `ended/ended-rooms-page`;大厅只列开放房间,`endedCount` 来自 `GET /mine`。
 - 重新开启入口由 `closeReason` 决定:`admin` 关闭的不显示(只有管理后台能开);409「Room is not closed」按成功处理并重读房间。
+- 液态玻璃(计划 2026-10-15-liquid-glass L7):输入条是一块 `mat-chrome-bar`,状态行/输入框/引用条/活动行/目标行/带练条都在 `plate` 上(规则 4);助手面板是 E1(`mat-surface`,永不模糊,预算 = 顶栏胶囊 + 输入条 + 底部导航);「我」= 石墨(气泡、语音播放键、表情回应、已选带练角色)。

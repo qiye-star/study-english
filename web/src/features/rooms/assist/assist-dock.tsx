@@ -7,6 +7,7 @@ import { assistMeta } from "./assist-meta";
 import { DOCK_ROW_PX, dragHeight, nearestSnap, snapHeights, stepSnap, type DockSnap } from "./dock-snap";
 import { SuggestionCard } from "./suggestion-card";
 import { lookupContext } from "~/lib/lookup-context";
+import { LQ_CHIP, LQ_ICON_WELL } from "~/components/liquid";
 
 export type { DockSnap } from "./dock-snap";
 
@@ -149,7 +150,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
   return (
     <section ref={rootRef} data-testid="assist-dock" aria-label={`${t("web.rooms.dock.name")} · ${t("web.rooms.dock.private")}`}
       style={{ height, bottom }}
-      className={cn("absolute inset-x-0 z-[29] flex flex-col overflow-hidden rounded-t-[16px] bg-surface",
+      className={cn("absolute inset-x-0 z-[29] flex flex-col overflow-hidden rounded-t-[16px] bg-surface mat-surface liquid:inset-x-2 liquid:rounded-t-float",
         "shadow-[inset_0_0.5px_0_var(--hair),0_-10px_28px_-18px_rgba(17,19,24,.35)] dark:shadow-[inset_0_0.5px_0_var(--hair),0_-10px_28px_-18px_rgba(0,0,0,.8)]",
         dragged === null && "transition-[height] duration-fast ease-standard motion-reduce:transition-none")}>
       {/* 抓手:盖住标题行左侧(不含右边两个键),44px 高;拖动、↑/↓、Enter 与双击都可以 */}
@@ -160,7 +161,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
         className="absolute left-0 right-[92px] top-0 z-10 h-tap cursor-row-resize touch-none rounded-tl-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
       {!row && <div aria-hidden className="mx-auto mt-1.5 h-[5px] w-9 flex-none rounded-full bg-hair" />}
       <div className={cn("flex flex-none items-center gap-2 pl-3.5 pr-1", row ? "h-[52px]" : "h-11")}>
-        <span aria-hidden className="inline-flex size-[26px] flex-none items-center justify-center rounded-[8px] bg-blue-tint text-blue [&_svg]:size-4">
+        <span aria-hidden className={`inline-flex size-[26px] flex-none items-center justify-center rounded-[8px] bg-blue-tint text-blue [&_svg]:size-4 ${LQ_ICON_WELL}`}>
           <LanguagesIcon />
         </span>
         {row ? (
@@ -174,7 +175,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
           </>
         )}
         {newCount > 0 && (
-          <span className="inline-flex h-5 flex-none items-center whitespace-nowrap rounded-[7px] bg-amber-tint px-[7px] text-label font-semibold text-amber">
+          <span className={`inline-flex h-5 flex-none items-center whitespace-nowrap rounded-[7px] bg-amber-tint px-[7px] text-label font-semibold text-amber ${LQ_CHIP}`}>
             {t("web.rooms.dock.newSuggestions", { count: newCount })}
           </span>
         )}
@@ -195,7 +196,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
             return (
               <div key={entry.requestId ?? replyId ?? `h${i}`} ref={i === entries.length - 1 ? lastRef : undefined} className="flex flex-col gap-2">
                 {entry.request && (
-                  <p className="max-w-[85%] self-end whitespace-pre-wrap break-words rounded-button rounded-tr-[6px] bg-blue-tint px-3 py-[7px] text-body text-ink">{entry.request}</p>
+                  <p className="max-w-[85%] self-end whitespace-pre-wrap break-words rounded-button rounded-tr-[6px] bg-blue-tint px-3 py-[7px] text-body text-ink liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite">{entry.request}</p>
                 )}
                 {entry.status === "waiting" && <p role="status" className="text-meta text-ink-2">{t("web.rooms.assist.waiting")}</p>}
                 {entry.status === "failed" && (
@@ -203,7 +204,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
                     <p role="alert" className="min-w-0 flex-1 text-meta text-ink-2">{t(`web.rooms.errors.assist_${entry.error ?? "upstream"}`)}</p>
                     {entry.request && (
                       <button type="button" disabled={disabled || offline} onClick={() => onAsk(entry.request)}
-                        className="hit-expand inline-flex h-9 flex-none items-center gap-1 rounded-badge px-2.5 text-sub font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:size-4">
+                        className="hit-expand inline-flex h-9 flex-none items-center gap-1 rounded-badge px-2.5 text-sub font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 liquid:rounded-full [&_svg]:size-4">
                         <RotateCwIcon aria-hidden />{t("web.rooms.dock.retry")}
                       </button>
                     )}
@@ -215,7 +216,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
                     {meta.glossary.length > 0 && (
                       <p className="flex flex-wrap gap-1.5">
                         {meta.glossary.map((g) => (
-                          <span key={`${g.src}-${g.en}`} {...lookupContext} className="rounded-inline bg-surface-2 px-2 py-[3px] text-meta text-ink">{`${g.src} → ${g.en}`}</span>
+                          <span key={`${g.src}-${g.en}`} {...lookupContext} className="rounded-inline bg-surface-2 px-2 py-[3px] text-meta text-ink well liquid:rounded-full">{`${g.src} → ${g.en}`}</span>
                         ))}
                       </p>
                     )}

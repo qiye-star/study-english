@@ -27,7 +27,7 @@ export function QuoteBar({ quote, onClear }: { quote: QuoteInfo; onClear(): void
   const { t } = useTranslation();
   const name = quote.kind === "ai_answer" || quote.name === null ? t("web.rooms.room.aiName") : quote.name;
   return (
-    <div data-testid="quote-bar" className="mx-0.5 mb-2 flex items-center gap-2 rounded-[10px] bg-surface-2 py-1 pl-2.5 pr-1 text-meta text-ink-2">
+    <div data-testid="quote-bar" className="mx-0.5 mb-2 flex items-center gap-2 rounded-[10px] bg-surface-2 py-1 pl-2.5 pr-1 text-meta text-ink-2 plate liquid:rounded-full">
       <span className="min-w-0 flex-1 truncate">
         {t("web.rooms.extras.replyTo")} <b className="font-semibold text-ink">{name}</b>{t("web.rooms.extras.replySep")}{quote.text || t(emptyKey(quote))}
       </span>

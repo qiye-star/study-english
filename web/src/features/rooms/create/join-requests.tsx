@@ -7,12 +7,13 @@ import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
 import type { JoinRequestInfo } from "../protocol";
 import { decideJoinRequest, ROOMS_ALL_SERVER_ERRORS } from "./rooms-v2-api";
+import { LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 
 /** 视觉稿 `.sbtn`:视觉 34–36 高、圆角 10、13px 半粗;命中区扩到 ≥44。 */
 const sbtn = "hit-expand inline-flex h-[34px] flex-none items-center justify-center rounded-badge px-3 text-sub font-semibold transition-colors duration-fast "
   + "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
-const sbtnPrimary = `${sbtn} bg-blue text-on-blue active:bg-blue/90`;
-const sbtnGhost = `${sbtn} bg-surface text-ink shadow-hair active:bg-surface-2`;
+const sbtnPrimary = `${sbtn} bg-blue text-on-blue active:bg-blue/90 ${LQ_PRIMARY}`;
+const sbtnGhost = `${sbtn} bg-surface text-ink shadow-hair active:bg-surface-2 ${LQ_SECONDARY}`;
 
 /**
  * 房主同意 / 拒绝一条加入请求。成功 → onDecided(id);请求已不存在(别处已处理、已过期)也算处理完。
@@ -76,7 +77,7 @@ export function JoinRequestBanner({ roomId, requests, onDecided }: { roomId: str
   const many = requests.length > 1;
   return (
     <div role="status" data-testid="room-join-banner"
-      className="overflow-hidden rounded-button bg-surface text-sub text-ink shadow-[inset_0_0_0_0.5px_var(--hair),0_6px_18px_-10px_rgba(17,19,24,0.3)]">
+      className="overflow-hidden rounded-button bg-surface text-sub text-ink shadow-[inset_0_0_0_0.5px_var(--hair),0_6px_18px_-10px_rgba(17,19,24,0.3)] mat-float liquid:rounded-tile">
       <div className="flex min-h-[46px] items-center gap-2 py-1.5 pl-3 pr-1.5">
         <span className="min-w-0 flex-1 truncate">
           {many ? t("web.rooms.v2.requests.many", { name: first.name, count: requests.length, others: requests.length - 1 })
