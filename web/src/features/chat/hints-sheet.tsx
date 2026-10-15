@@ -30,7 +30,7 @@ export function HintsSheet({ open, onOpenChange, state, onRetry, onFill, onSpeak
             <div className="flex justify-center py-6 text-ink-2"><LoaderIcon className="h-5 w-5 animate-spin" aria-label={t("web.common.loading")} /></div>
           )}
           {state.status === "error" && (
-            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
+            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red well liquid:rounded-inset">
               <p role="alert" className="flex-1">{translateServerError(t, state.error, HINTS_SERVER_ERRORS)}</p>
               <button type="button" data-testid="hints-retry" onClick={onRetry}
                 className="inline-flex min-h-tap items-center rounded-button px-3 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

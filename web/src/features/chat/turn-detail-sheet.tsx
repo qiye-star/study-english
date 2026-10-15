@@ -8,6 +8,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail, MobileScoreResult, savePracticeItem, useShadowSheet } from "~/features/practice";
+import { LQ_MARK, LQ_WELL } from "~/components/liquid";
 import type { UiMessage } from "./ui-message";
 import { poorWords } from "./voice-words";
 import { lookupContext } from "~/lib/lookup-context";
@@ -72,13 +73,13 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
         <BottomSheetHeader title={t("web.chat.voice.details")} description={t("web.chat.voice.detailsDescription")} srOnlyDescription />
         {message && (
           <div className="space-y-4 pb-1">
-            <p data-lookup-context className="select-text break-words rounded-card bg-blue-tint px-3.5 py-3 text-title font-medium leading-dialogue text-ink">{message.content}</p>
+            <p data-lookup-context className={`select-text break-words rounded-card bg-blue-tint px-3.5 py-3 text-title font-medium leading-dialogue text-ink ${LQ_WELL} liquid:text-ink`}>{message.content}</p>
             {assessmentId && (
               <section data-testid="turn-detail-assessment" className={loadingDetail ? "min-h-72 space-y-3" : "space-y-3"}>
                 {scores ? <MobileScoreResult scores={scores} /> : error ? null : <Skeleton className="h-32" />}
                 {weak.length > 0 && (
                   <p data-testid="detail-weak-words" className="text-sub text-ink">
-                    <span className="text-ink-2">{t("web.chat.voice.weakWords")}</span> <span {...lookupContext} className="font-medium text-amber">{weak.join(", ")}</span>
+                    <span className="text-ink-2">{t("web.chat.voice.weakWords")}</span> <span {...lookupContext} className={`font-medium text-amber ${LQ_MARK}`}>{weak.join(", ")}</span>
                   </p>
                 )}
                 {detail ? (

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "~/lib/cn";
+import { LQ_FIELD, LQ_FIELD_MULTI } from "~/components/liquid";
 
 /*
  * 抽屉里的表单件(对话设置、场景选择、复盘):分组 = 13px 次要色标题 + 圆角 14 的发丝线列表,
@@ -9,14 +10,14 @@ import { cn } from "~/lib/cn";
 export const fieldClass = "block space-y-1.5 px-3.5 py-3";
 export const labelClass = "block text-sub font-semibold text-ink";
 export const hintClass = "block text-meta text-ink-2";
-export const selectClass = "h-11 w-full rounded-button border-[0.5px] border-hair bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-export const textareaClass = "rounded-button border-[0.5px] border-hair bg-surface text-base text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-0";
+export const selectClass = `h-11 w-full rounded-button border-[0.5px] border-hair bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${LQ_FIELD}`;
+export const textareaClass = `rounded-button border-[0.5px] border-hair bg-surface text-base text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-0 ${LQ_FIELD_MULTI}`;
 
 export function Group({ title, children, className }: { title: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={className}>
       <h3 className="mx-0.5 mb-2 text-sub font-semibold tracking-[0.01em] text-ink-2">{title}</h3>
-      <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">{children}</div>
+      <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface well liquid:rounded-inset liquid:border-0">{children}</div>
     </section>
   );
 }
@@ -37,7 +38,7 @@ export function SwitchRow({ id, testId, title, hint, checked, onChange }: {
         {hint ? <span id={`${id}-hint`} className="mt-0.5 block text-meta text-ink-2">{hint}</span> : null}
       </span>
       <Switch id={id} aria-describedby={hint ? `${id}-hint` : undefined} data-testid={testId} checked={checked}
-        className={cn("hit-expand h-[26px] w-11 data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair",
+        className={cn("hit-expand h-[26px] w-11 data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2",
           "[&>span]:h-[22px] [&>span]:w-[22px] [&>span]:bg-white [&>span]:shadow-[0_1px_2px_rgba(17,19,24,0.2)] [&>span]:data-[state=checked]:translate-x-[18px]")}
         onCheckedChange={onChange} />
     </div>

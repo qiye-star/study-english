@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "~/lib/cn";
 import { translateServerError } from "~/api/error-messages";
+import { LQ_INK2 } from "~/components/liquid";
+import { ScoreDot } from "~/components/score-dot";
 import { scoreBadgeTone } from "~/components/score-tone";
 import { TONE_CLASS, type Tone } from "~/components/tone";
 import { CHAT_SERVER_ERRORS } from "./chat-api";
@@ -11,11 +13,11 @@ import { mayHaveMixedVoices } from "./mixed-voices";
 import type { AssessmentView, GrammarView } from "./ui-message";
 
 /** 22px 高的徽标;按钮命中区向上下各扩 11px 到 44px,不撑高气泡。 */
-const badgeButton = "relative inline-flex items-center rounded-[7px] before:absolute before:inset-x-0 before:-inset-y-[11px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default";
+const badgeButton = "relative inline-flex items-center rounded-[7px] liquid:rounded-full before:absolute before:inset-x-0 before:-inset-y-[11px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default";
 
 function Badge({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <span className={cn("inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-meta font-semibold tracking-[0.01em] num", TONE_CLASS[tone])}>
+    <span className={cn("inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-meta font-semibold tracking-[0.01em] num", TONE_CLASS[tone], "liquid:rounded-full liquid:bg-wash liquid:font-medium liquid:text-ink-2")}>
       {children}
     </span>
   );
@@ -38,10 +40,10 @@ export function PronunciationBadge({ view, transcript, onOpen }: { view?: Assess
         disabled={view.status !== "done"} onClick={onOpen} className={badgeButton}>
         <Badge tone={score === null ? "gray" : scoreBadgeTone(score)}>
           {view.status === "pending" && <LoaderIcon className="h-3 w-3 animate-spin" aria-hidden />}
-          {label}
+          {score !== null ? <ScoreDot score={score} /> : null}{label}
         </Badge>
       </button>
-      {mixed && <span data-testid="voice-mixed-hint" role="note" className="basis-full text-meta text-amber">{t("web.chat.voice.mixedVoices")}</span>}
+      {mixed && <span data-testid="voice-mixed-hint" role="note" className={`basis-full text-meta text-amber ${LQ_INK2}`}>{t("web.chat.voice.mixedVoices")}</span>}
     </>
   );
 }
