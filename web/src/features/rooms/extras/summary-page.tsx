@@ -12,6 +12,7 @@ import { fetchRoomsConfig, getRoom, type RoomsConfig } from "../rooms-api";
 import { ghostButton } from "../ui";
 import type { RoomSummaryView } from "./summary-api";
 import { useRoomSummary } from "./use-room-summary";
+import { lookupContext } from "~/lib/lookup-context";
 
 const list = "overflow-hidden rounded-card bg-surface shadow-hair";
 const badge = "inline-flex h-5 items-center rounded-[7px] px-[7px] text-label font-semibold whitespace-nowrap";
@@ -48,10 +49,10 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
           <ul className={list}>
             {summary.myFixes.map((f) => (
               <li key={f.seq} className="px-3.5 py-3 [&+&]:border-t-[0.5px] [&+&]:border-hair-2">
-                <p className="text-sub leading-[1.45] text-ink-2">{f.original}</p>
+                <p {...lookupContext} className="text-sub leading-[1.45] text-ink-2">{f.original}</p>
                 <p className="mt-[3px] flex gap-1.5 text-body font-medium leading-[1.45] text-ink">
                   <ArrowRightIcon aria-hidden className="mt-[3px] size-4 flex-none text-blue" />
-                  <span className="min-w-0">{f.better}</span>
+                  <span {...lookupContext} className="min-w-0">{f.better}</span>
                 </p>
                 {f.noteZh && <p className="mt-[3px] text-meta text-ink-2">{f.noteZh}</p>}
               </li>
@@ -66,8 +67,8 @@ function Done({ summary, room, config }: { summary: RoomSummaryView; room: RoomI
             {summary.words.map((w, i) => (
               <li key={`${w.en}-${i}`} data-testid={`summary-word-${i}`} className="flex items-center gap-2.5 py-2.5 pl-3.5 pr-2 [&+&]:border-t-[0.5px] [&+&]:border-hair-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-body font-semibold text-ink">{w.en}<small className="ml-1.5 text-sub font-medium text-ink-2">{w.zh}</small></p>
-                  {w.example && <p className="mt-0.5 text-meta text-ink-2">{w.example}</p>}
+                  <p {...lookupContext} className="text-body font-semibold text-ink">{w.en}<small className="ml-1.5 text-sub font-medium text-ink-2">{w.zh}</small></p>
+                  {w.example && <p {...lookupContext} className="mt-0.5 text-meta text-ink-2">{w.example}</p>}
                 </div>
                 {/* 青色 = 词汇(redesign-v3 一色一义);已加入后按钮自己变灰勾 */}
                 <span className="flex-none [&_button:not(:disabled)]:text-teal">

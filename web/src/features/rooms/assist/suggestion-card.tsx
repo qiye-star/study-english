@@ -1,5 +1,6 @@
 import { CheckIcon, SendIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { lookupContext } from "~/lib/lookup-context";
 
 const action = "hit-expand inline-flex h-9 min-w-9 flex-none items-center justify-center gap-1 rounded-badge px-2.5 text-sub font-semibold "
   + "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4";
@@ -15,7 +16,7 @@ export function SuggestionCard({ en, note, used, disabled, onSend, onEdit }: {
   const { t } = useTranslation();
   return (
     <div data-testid="assist-suggestion" className="flex flex-none flex-col rounded-button py-[9px] pl-3 pr-2 shadow-hair">
-      <p className="pr-1 text-body font-medium leading-[1.4] text-ink">{en}</p>
+      <p {...lookupContext} className="pr-1 text-body font-medium leading-[1.4] text-ink">{en}</p>
       <div className="mt-1.5 flex items-center gap-1.5">
         <p className="min-w-0 flex-1 truncate text-meta text-ink-2">{note}</p>
         {used ? (

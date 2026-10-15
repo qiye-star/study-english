@@ -15,6 +15,7 @@ import type { Match } from "./rank-api";
 import { formatCountdown, userTurns } from "./tiers";
 import { CARD, GHOST_BUTTON, PRIMARY_BUTTON } from "./ui";
 import { MAX_HOLD_MS, useMatch } from "./use-match";
+import { lookupContext } from "~/lib/lookup-context";
 
 const LIVE_PHASES = new Set(["ai_speaking", "your_turn", "recording", "uploading"]);
 /** 服务端仍视为"进行中"的场次(rank/match.py 的 OPEN):可以继续、重新打分或放弃 */
@@ -37,7 +38,7 @@ function ScenarioCard({ match }: { match: Match }) {
       </div>
       <ul className="mt-2 grid gap-1 text-sub text-ink-2">
         {match.scenario.functions.map((f) => (
-          <li key={f} className="flex items-center gap-1.5"><CircleIcon aria-hidden className="size-3.5 flex-none" />{f}</li>
+          <li key={f} {...lookupContext} className="flex items-center gap-1.5"><CircleIcon aria-hidden className="size-3.5 flex-none" />{f}</li>
         ))}
       </ul>
     </div>
@@ -98,10 +99,10 @@ export function MatchPage() {
               {i === lastIndex && phase === "ai_speaking" ? <Volume2Icon aria-hidden className="size-3.5" /> : <UserRoundIcon aria-hidden className="size-3.5" />}
               {i === lastIndex && phase === "ai_speaking" ? `${t("web.rank.match.partner")} · ${t("web.rank.match.speaking")}` : t("web.rank.match.partner")}
             </div>
-            {showText || i < lastIndex ? <p>{item.text}</p> : <p aria-hidden className="tracking-[0.3em] text-ink-2">· · ·</p>}
+            {showText || i < lastIndex ? <p {...lookupContext}>{item.text}</p> : <p aria-hidden className="tracking-[0.3em] text-ink-2">· · ·</p>}
           </div>
         ) : (
-          <div key={i} data-testid="match-user-line"
+          <div key={i} data-testid="match-user-line" {...lookupContext}
             className="max-w-[88%] self-end break-words rounded-card rounded-tr-inline bg-blue-tint px-3 py-2.5 text-body leading-dialogue text-ink">
             {item.text}
           </div>
@@ -165,7 +166,7 @@ export function MatchPage() {
                 <p className="text-sub font-semibold text-ink-2">{t("web.rank.match.goals")}</p>
                 <ul className="mt-2 grid gap-1.5 text-body">
                   {match.scenario.functions.map((f) => (
-                    <li key={f} className="flex items-center gap-2"><CircleIcon aria-hidden className="size-3.5 flex-none text-ink-3" />{f}</li>
+                    <li key={f} {...lookupContext} className="flex items-center gap-2"><CircleIcon aria-hidden className="size-3.5 flex-none text-ink-3" />{f}</li>
                   ))}
                 </ul>
                 <p className="mt-3 text-meta text-ink-2">{t("web.rank.match.rules", { turns: match.turnLimit, minutes: matchMinutes(match) })}</p>

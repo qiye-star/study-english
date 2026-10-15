@@ -10,6 +10,7 @@ import type { Match, Verdict } from "./rank-api";
 import { TierBadge } from "./tier-badge";
 import { divisionLabel, formatCountdown } from "./tiers";
 import { CARD, GHOST_BUTTON } from "./ui";
+import { lookupContext } from "~/lib/lookup-context";
 
 const DIMS = ["task", "accuracy", "range", "interaction"] as const;
 
@@ -95,7 +96,7 @@ export function MatchResult({ match, verdict, onDrill }: { match: Match; verdict
             return (
               <div key={f} data-testid="goal" data-met={String(met)} className="flex min-h-11 items-center gap-2 px-3.5 text-sub">
                 {met ? <CheckIcon aria-hidden className="size-4 flex-none text-green" /> : <CircleIcon aria-hidden className="size-4 flex-none text-ink-3" />}
-                <span className={met ? "text-ink" : "text-ink-2"}>{f}</span>
+                <span {...lookupContext} className={met ? "text-ink" : "text-ink-2"}>{f}</span>
               </div>
             );
           })}
@@ -117,7 +118,7 @@ export function MatchResult({ match, verdict, onDrill }: { match: Match; verdict
         verdict.drillEn && (
           <SectionGroup title={t("web.rank.result.drill")} bare>
             <div className={cn("p-3.5", CARD)}>
-              <p className="text-title font-medium leading-[1.45]">{verdict.drillEn}</p>
+              <p {...lookupContext} className="text-title font-medium leading-[1.45]">{verdict.drillEn}</p>
               <button type="button" data-testid="match-drill" className={cn(GHOST_BUTTON, "mt-3 h-tap text-sub")} onClick={() => onDrill(verdict.drillEn)}>
                 <MicIcon aria-hidden />{t("web.rank.result.practiceDrill")}
               </button>
