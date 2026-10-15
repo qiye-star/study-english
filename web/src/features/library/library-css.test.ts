@@ -165,6 +165,20 @@ describe("library.css (spec §11.4a, D11)", () => {
     expect(css).toMatch(/\.library-root \.lib-spec\[aria-busy="true"\]\s*\{[^}]*color: #fff;/);
   });
 
+  it("the 取消入库 control is a 44px ghost button beside 去学习, wraps under it in two columns, no blur / keyframes / transition (R-C5)", () => {
+    const section = sectionAfter(css, "精选(.lib-cat-*");
+    const undo = blockOf(css, /^\.lib-cat-undo\s*\{/m);
+    expect(undo).toContain("height: 44px;");
+    expect(undo).toContain("flex: none;");
+    expect(undo).not.toContain("transition");
+    expect(undo).not.toContain("backdrop-filter");
+    expect(blockOf(css, /^\.lib-cat-act\s*\{/m)).toContain("display: flex;");
+    const wide = blockOf(section, /@media \(min-width: 430px\)\s*\{/);
+    expect(wide).toMatch(/\.lib-cat-act\s*\{[^}]*flex-wrap: wrap;/);
+    expect(wide).toMatch(/\.lib-cat-undo\s*\{[^}]*flex-basis: 100%;/);
+    expect(section).not.toContain("@keyframes");
+  });
+
   it("drops the add-sheet transitions under reduced motion and on low-end devices (R-L28)", () => {
     const reduced = blockOf(css, /@media \(prefers-reduced-motion: reduce\)\s*\{/);
     const lite = sectionAfter(css, "降级:低端机");

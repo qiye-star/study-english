@@ -225,7 +225,7 @@ export function LibraryListPage() {
             ]} />
         </div>
       ) : null}
-      {tab === "catalog" ? <div className="pb-24"><CatalogView /></div> : <>
+      {tab === "catalog" ? <div className="pb-24"><CatalogView onCopyRemoved={list.remove} /></div> : <>
       <div data-testid="library-usage" className="lib-quota">
         <span className="num">
           {t("web.library.usedLabel")} <CountUp to={usedBytes} format={formatBytes} /> / {formatBytes(quotaBytes)}

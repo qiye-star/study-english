@@ -8,7 +8,14 @@ import { LibraryListPage } from "./library-list-page";
 import { CONFIG_OFF_RAW, CONFIG_RAW, itemRaw } from "./test-fixtures";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
-vi.mock("./catalog-view", () => ({ CatalogView: () => <p data-testid="catalog-view-stub">catalog view</p> }));
+vi.mock("./catalog-view", () => ({
+  CatalogView: ({ onCopyRemoved }: { onCopyRemoved?: (id: string) => void }) => (
+    <div>
+      <p data-testid="catalog-view-stub">catalog view</p>
+      <button type="button" onClick={() => onCopyRemoved?.("i1")}>stub-remove</button>
+    </div>
+  ),
+}));
 
 beforeEach(async () => {
   await setUiLanguage("zh-CN");
@@ -183,6 +190,16 @@ describe("LibraryListPage (spec §11.2)", () => {
 
 describe("LibraryListPage · featured tab (curated library, R-W1)", () => {
   const ON = { ...CONFIG_RAW, catalog: true };
+
+  it("a copy removed in 精选 is gone from 我的素材 without a reload (R-C6)", async () => {
+    const mock = render([itemRaw({ source: "catalog", catalog_id: "c1", library_bytes: 0 })], {}, ON, "/library?tab=catalog");
+    await screen.findByTestId("catalog-view-stub");
+    await waitFor(() => expect(mock.calls.some((c) => c.method === "GET" && c.url.pathname === "/api/library/items")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "stub-remove" }));
+    fireEvent.click(screen.getByTestId("library-tab-mine"));
+    await waitFor(() => expect(screen.queryByTestId("catalog-view-stub")).toBeNull());
+    expect(screen.queryByTestId("library-item-i1")).toBeNull();
+  });
 
   it("has no switch and ignores ?tab=catalog when config.catalog is off", async () => {
     render([], {}, { ...CONFIG_RAW, catalog: false }, "/library?tab=catalog");
