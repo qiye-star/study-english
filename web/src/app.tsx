@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { lazy, Suspense, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -27,6 +27,10 @@ import { InstallPage } from "~/pages/install-page";
 import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
 import { SettingsProvider } from "~/settings/settings-context";
+import { TOAST_CLASSNAMES } from "~/components/toast-classes";
+
+/** 外观与主题(计划 2026-10-15-liquid-glass L3):懒加载,不进主包;液态开关关闭时页面自己跳回 /me。 */
+const AppearancePage = lazy(() => import("~/pages/appearance/appearance-page").then((m) => ({ default: m.AppearancePage })));
 
 /**
  * 公告横幅放在所有页面的顶部;下方区域把 --app-height 改成 100%,应用壳因此让出横幅的高度。
@@ -92,6 +96,7 @@ export function AppRoutes() {
             <Route path="/me" element={<MePage />} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
+            <Route path="/me/appearance" element={<Suspense fallback={null}><AppearancePage /></Suspense>} />
             {routes}
           </Route>
         </Route>
@@ -105,15 +110,7 @@ export function ThemedToaster() {
   return <Toaster position="top-center" closeButton theme={useIsDark() ? "dark" : "light"}
       toastOptions={{
         unstyled: false,
-        classNames: {
-          toast: "!rounded-card !border-0 !bg-surface/90 !text-ink !shadow-hair backdrop-blur-xl backdrop-saturate-150",
-          description: "!text-ink-2",
-          closeButton: "!border-0 !bg-surface-2 !text-ink-2 !shadow-hair",
-          success: "[&_[data-icon]]:!text-green",
-          error: "[&_[data-icon]]:!text-red",
-          warning: "[&_[data-icon]]:!text-amber",
-          info: "[&_[data-icon]]:!text-blue",
-        },
+        classNames: TOAST_CLASSNAMES,
       }} />;
 }
 

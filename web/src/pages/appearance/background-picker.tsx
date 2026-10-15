@@ -22,8 +22,8 @@ export function BackgroundPicker({ initialMode }: { initialMode: ColorMode }) {
     <div data-testid="appearance-background">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-sub font-semibold text-ink-2">{t("web.appearance.background")}</h2>
-        <SegmentedControl label={t("web.appearance.editing")} value={mode} onChange={setMode}
-          options={[{ value: "light", label: t("web.appearance.mode.light") }, { value: "dark", label: t("web.appearance.mode.dark") }]} />
+        <SegmentedControl<ColorMode> label={t("web.appearance.editing")} value={mode} onChange={setMode}
+          options={(["light", "dark"] as const).map((m) => ({ value: m, label: t(`web.appearance.mode.${m}`) }))} />
       </div>
       <div className="grid grid-cols-4 gap-x-2 gap-y-2.5">
         {SWATCHES[mode].map((s, i) => (
