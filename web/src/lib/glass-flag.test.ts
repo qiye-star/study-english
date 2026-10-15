@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  GLASS_ATTR, GLASS_FLAG_KEY, initGlassFlag, isGlassOn, isLiquid, isPinnedPath, readGlassFlag, setGlassPinned, useLiquid,
+  GLASS_ATTR, initGlassFlag, isGlassOn, isLiquid, isPinnedPath, setGlassPinned, useLiquid,
 } from "./glass-flag";
 
 const fakeWin = (search: string): Window =>
@@ -11,25 +11,14 @@ const root = () => document.documentElement;
 describe("glass flag (plan 2026-10-15-liquid-glass L0, INDEX §4.1)", () => {
   afterEach(() => {
     root().removeAttribute(GLASS_ATTR);
-    window.localStorage.removeItem(GLASS_FLAG_KEY);
+    window.localStorage.removeItem("enjoy-web.dev.glass");
   });
 
-  it("is off by default and stays off without the query parameter", () => {
-    expect(readGlassFlag(fakeWin(""))).toBe(false);
-    expect(initGlassFlag(fakeWin(""))).toBe(false);
-    expect(root().hasAttribute(GLASS_ATTR)).toBe(false);
-    expect(isGlassOn()).toBe(false);
-    expect(isLiquid()).toBe(false);
-  });
-
-  it("?glass=v2 turns it on and remembers it; ?glass=off forgets it", () => {
-    expect(initGlassFlag(fakeWin("?glass=v2"))).toBe(true);
+  it("is on for everyone and forgets the old development switch (plan 2026-10-15-liquid-glass L12)", () => {
+    window.localStorage.setItem("enjoy-web.dev.glass", "v2");
+    expect(initGlassFlag(fakeWin("?glass=off"))).toBe(true);
     expect(root().getAttribute(GLASS_ATTR)).toBe("v2");
-    expect(window.localStorage.getItem(GLASS_FLAG_KEY)).toBe("v2");
-    expect(initGlassFlag(fakeWin(""))).toBe(true);
-    expect(initGlassFlag(fakeWin("?glass=off"))).toBe(false);
-    expect(root().hasAttribute(GLASS_ATTR)).toBe(false);
-    expect(window.localStorage.getItem(GLASS_FLAG_KEY)).toBeNull();
+    expect(window.localStorage.getItem("enjoy-web.dev.glass")).toBeNull();
   });
 
   it("pins only the locked routes", () => {

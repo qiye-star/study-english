@@ -12,7 +12,7 @@ import { installAudioUnlock } from "./audio/capture";
 import { registerServiceWorker } from "./pwa/register-sw";
 
 initColorScheme();
-initGlassFlag(); // 液态玻璃开发开关(?glass=v2),默认关(计划 2026-10-15-liquid-glass)
+initGlassFlag(); // 液态玻璃皮肤(计划 2026-10-15-liquid-glass);跟读库 / 更新日志路由由 GlassRoutePin 钉回经典
 initGlassQuality();
 initGlassTheme(); // 主题自定义 → :root 变量(开关打开时;计划 2026-10-15-liquid-glass)
 installAudioUnlock(); // R31:第一次 click/touchend 时解锁页面级 AudioContext(语音消息的 PCM 采集要求它已 running)

@@ -1,38 +1,22 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Liquid-glass switch (plan 2026-10-15-liquid-glass, INDEX §4.1).
- * <html data-glass="v2"> = new skin; "pin" = switch on but a locked route (library, changelog) keeps the classic skin;
- * absent = classic. The dev switch is read once before the first render (main.tsx). GLASS_FLAG_KEY goes away in L12.
+ * Liquid-glass attribute (plan 2026-10-15-liquid-glass, INDEX §4.1; on for everyone since L12).
+ * <html data-glass="v2"> = new skin; "pin" = a locked route (library, changelog) keeps the classic skin;
+ * absent = only before main.tsx ran (tests). The old development switch is gone.
  */
 export const GLASS_ATTR = "data-glass";
-export const GLASS_FLAG_KEY = "enjoy-web.dev.glass";
 export const PINNED_PATH_PREFIXES = ["/library", "/practice/changelog"] as const;
 
-/** ?glass=v2 remembers the switch on this device, ?glass=off forgets it; then reads it. Storage errors → URL only. */
-export function readGlassFlag(win: Window = window): boolean {
-  let param: string | null = null;
-  try {
-    param = new URLSearchParams(win.location.search).get("glass");
-  } catch {
-    param = null;
-  }
-  try {
-    if (param === "v2") win.localStorage.setItem(GLASS_FLAG_KEY, "v2");
-    else if (param === "off") win.localStorage.removeItem(GLASS_FLAG_KEY);
-    return win.localStorage.getItem(GLASS_FLAG_KEY) === "v2";
-  } catch {
-    return param === "v2";
-  }
-}
-
-/** main.tsx, before render: sets or removes data-glass="v2" on <html>. */
+/** main.tsx, before render: the liquid skin is on for everyone (L12); removes the old development switch. */
 export function initGlassFlag(win: Window = window): boolean {
-  const on = readGlassFlag(win);
-  const root = win.document.documentElement;
-  if (on) root.setAttribute(GLASS_ATTR, "v2");
-  else root.removeAttribute(GLASS_ATTR);
-  return on;
+  try {
+    win.localStorage.removeItem("enjoy-web.dev.glass");
+  } catch {
+    /* storage unavailable: nothing to clean */
+  }
+  win.document.documentElement.setAttribute(GLASS_ATTR, "v2");
+  return true;
 }
 
 export function isPinnedPath(pathname: string): boolean {
