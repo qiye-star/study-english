@@ -15,6 +15,7 @@ import { loadRankMe } from "./rank-me";
 import { StageTasks } from "./stage-tasks";
 import { TierBadge } from "./tier-badge";
 import { divisionLabel, pointsToGate, progressRatio } from "./tiers";
+import { LQ_BAR_TRACK, LQ_INK, LQ_PAGE } from "~/components/liquid";
 import { ICON_LINK } from "./ui";
 
 const DAY = 86_400_000;
@@ -83,7 +84,7 @@ export function RankHomePage() {
         ) : undefined} />
       <FeatureGate state={state} disabledText={t("web.rank.disabled")} onRetry={() => setAttempt((n) => n + 1)}>
         {me && (
-          <div className="px-gutter pb-8">
+          <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
             <section data-testid="rank-hero" className="flex flex-col items-center pt-1.5 text-center">
               <TierBadge tier={me.tier} division={me.division} size="lg" />
               <h2 className="mt-[18px] text-headline font-semibold" aria-label={`${t(`web.rank.tiers.${me.tier}`)} ${divisionLabel(me.division)}`.trim()}>
@@ -92,7 +93,7 @@ export function RankHomePage() {
               {cefr && <p data-testid="rank-cefr" className="mt-0.5 text-meta text-ink-2">{t("web.rank.cefr", { level: levelLabel(t, cefr) })}</p>}
               {cefr && <LevelHint code={cefr} testId="rank-cefr-hint" className="mt-0.5 max-w-[260px]" />}
               <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
-                className="mt-3 h-1.5 w-[200px] overflow-hidden rounded-full bg-surface-2">
+                className={`mt-3 h-1.5 w-[200px] overflow-hidden rounded-full bg-surface-2 ${LQ_BAR_TRACK}`}>
                 <div className="h-full rounded-full bg-blue" style={{ width: `${ratio * 100}%` }} />
               </div>
               <p className="mt-2 text-meta tabular-nums text-ink-2">
@@ -120,7 +121,7 @@ export function RankHomePage() {
                 {me.recentEvents.slice(0, 5).map((e, i) => (
                   <div key={i} data-testid="rank-event" className="flex min-h-11 items-center justify-between gap-3 px-3.5 text-sub">
                     <span>{t(`web.rank.recent.${RECENT_KINDS.has(e.kind) ? e.kind : "other"}`)}</span>
-                    <span className="font-semibold tabular-nums text-blue">+{e.points}</span>
+                    <span className={`font-semibold tabular-nums text-blue ${LQ_INK}`}>+{e.points}</span>
                   </div>
                 ))}
               </SectionGroup>

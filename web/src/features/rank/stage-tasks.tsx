@@ -1,6 +1,7 @@
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { LQ_CHIP_ON, LQ_ICON_WELL } from "~/components/liquid";
 import { cn } from "~/lib/cn";
 import type { StageTask, StageTaskKind } from "./rank-api";
 import { CARD } from "./ui";
@@ -21,7 +22,7 @@ export function StageTasks({ tasks }: { tasks: StageTask[] }) {
           : t(`web.rank.tasks.${task.kind}`, { target: task.target });
         const body = (
           <>
-            <span aria-hidden className={cn("flex size-6 flex-none items-center justify-center rounded-full", task.complete ? "bg-blue text-on-blue" : "bg-surface-2")}>
+            <span aria-hidden className={cn("flex size-6 flex-none items-center justify-center rounded-full", task.complete ? cn("bg-blue text-on-blue", LQ_CHIP_ON) : cn("bg-surface-2", LQ_ICON_WELL))}>
               {task.complete && <CheckIcon className="size-[15px]" strokeWidth={2.5} />}
             </span>
             <span className="min-w-0 flex-1 text-body">{label}</span>

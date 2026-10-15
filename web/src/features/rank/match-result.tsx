@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { IconChip } from "~/components/icon-chip";
 import { SectionGroup } from "~/components/section-group";
 import { ToneBadge } from "~/components/tone-badge";
+import { LQ_BAR_TRACK, LQ_PAGE } from "~/components/liquid";
 import { cn } from "~/lib/cn";
 import type { Match, Verdict } from "./rank-api";
 import { TierBadge } from "./tier-badge";
@@ -51,10 +52,11 @@ export function MatchResult({ match, verdict, onDrill }: { match: Match; verdict
     { key: "improve", items: verdict.improveZh },
   ].filter((n) => n.items.length > 0);
   return (
-    <div data-testid="match-result" data-passed={String(verdict.passed)} className="px-gutter pb-8">
+    <div data-testid="match-result" data-passed={String(verdict.passed)} className={`px-gutter pb-8 ${LQ_PAGE}`}>
       <section className="flex flex-col items-center pt-1 text-center">
         <TierBadge tier={tier} division={division} size="lg" />
-        <h2 className={cn("mt-[18px] text-headline font-semibold", verdict.passed ? "text-green" : "text-ink")}>
+        <h2 className={cn("mt-[18px] inline-flex items-center gap-1.5 text-headline font-semibold", verdict.passed ? "text-green liquid:text-ink" : "text-ink")}>
+          {verdict.passed && <CheckIcon aria-hidden className="hidden size-4 flex-none text-green liquid:inline" />}
           {t(verdict.passed ? "web.rank.result.passed" : "web.rank.result.failed")}
         </h2>
         <p className="mt-1 text-sub text-ink-2">
@@ -79,7 +81,7 @@ export function MatchResult({ match, verdict, onDrill }: { match: Match; verdict
           {rows.map((r) => (
             <li key={r.key} data-testid="dimension" className="grid grid-cols-[86px_1fr_34px] items-center gap-2.5 text-sub">
               <span className="text-ink-2">{t(`web.rank.result.dimensions.${r.key}`)}</span>
-              <span className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+              <span className={`h-1.5 overflow-hidden rounded-full bg-surface-2 ${LQ_BAR_TRACK}`}>
                 <span className="block h-full rounded-full bg-blue" style={{ width: `${Math.round(Math.min(1, Math.max(0, r.ratio)) * 100)}%` }} />
               </span>
               <span className="text-right tabular-nums text-ink-2">{r.label}</span>

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { LQ_ICON_WELL } from "~/components/liquid";
 import { cn } from "~/lib/cn";
 import type { TierKey } from "./rank-api";
 import { divisionLabel, TIER_ICONS } from "./tiers";
@@ -18,7 +19,7 @@ export function TierBadge({ tier, division, size = "md" }: { tier: TierKey; divi
   const s = SIZES[size];
   return (
     <span data-testid="tier-badge" data-tier={tier} role="img" aria-label={`${t(`web.rank.tiers.${tier}`)} ${roman}`.trim()}
-      className={cn("relative inline-flex flex-none items-center justify-center rounded-full bg-surface-2 text-ink shadow-hair", s.disc)}>
+      className={cn("relative inline-flex flex-none items-center justify-center rounded-full bg-surface-2 text-ink shadow-hair", LQ_ICON_WELL, s.disc)}>
       <Icon aria-hidden strokeWidth={1.75} className={s.icon} />
       {roman && (
         <span aria-hidden className={cn("absolute left-1/2 -translate-x-1/2 rounded-inline bg-surface text-center font-semibold tabular-nums tracking-[0.02em] text-ink shadow-hair", s.roman)}>
