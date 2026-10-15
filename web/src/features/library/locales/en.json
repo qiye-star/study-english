@@ -64,7 +64,10 @@
         "noSpace": "Uses no space",
         "empty": "Featured items are on the way",
         "emptyHint": "They will appear here once the administrator publishes them.",
-        "deleteCopyBody": "This only removes your copy. The featured original stays and you can add it again later. Your recordings and scores stay in your practice history."
+        "deleteCopyBody": "This only removes your copy. The featured original stays and you can add it again later. Sentence scores and progress on this copy are deleted too, so adding it again starts fresh; your recordings and assessments stay in your practice history.",
+        "remove": "Remove",
+        "removeLabel": "Remove from my library: {{title}}",
+        "removed": "Removed from your library"
       },
       "confirmRebuild": {
         "title": "Re-split this item's sentences?",

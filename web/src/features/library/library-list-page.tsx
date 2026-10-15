@@ -14,6 +14,7 @@ import { PageHeader } from "~/layout/page-header";
 import { AddSheet } from "./add-sheet";
 import { CatalogView } from "./catalog-view";
 import { fetchLibraryConfig, type LibraryConfig } from "./config";
+import { DeleteItemDialog } from "./delete-item-dialog";
 import { CountUp } from "./fx/count-up";
 import { formatBytes } from "./format";
 import { ItemCard } from "./item-card";
@@ -260,22 +261,7 @@ export function LibraryListPage() {
       <input ref={resumeInput} type="file" accept={["audio/*", "video/*", ...formats.map((f) => `.${f}`)].join(",")} hidden
         data-testid="library-resume-input" onChange={onResumeChosen} />
       <AddSheet open={sheetOpen} onOpenChange={setSheetOpen} config={config} onUpload={onUpload} onImported={onImported} />
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
-        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-title font-semibold text-ink">{t("web.library.confirmDelete.title")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-sub text-ink-2">
-              {t(pendingDelete?.source === "catalog" ? "web.library.catalog.deleteCopyBody" : "web.library.confirmDelete.body")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction className="h-11 rounded-button" onClick={() => void confirmDelete()}>
-              {t("web.library.confirmDelete.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteItemDialog open={!!pendingDelete} copy={pendingDelete?.source === "catalog"} onCancel={() => setPendingDelete(null)} onConfirm={() => void confirmDelete()} />
       <AlertDialog open={!!pendingReprocess} onOpenChange={(open) => { if (!open) setPendingReprocess(null); }}>
         <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
           <AlertDialogHeader>

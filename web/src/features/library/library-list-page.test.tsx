@@ -220,6 +220,7 @@ describe("LibraryListPage · featured tab (curated library, R-W1)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "删除" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(/精选库里的原条目不受影响/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/逐句跟读分数和进度也会一起删除/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/媒体文件和句子会被删除/)).toBeNull();
   });
 

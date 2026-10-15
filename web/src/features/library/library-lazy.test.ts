@@ -10,7 +10,7 @@ const src = (rel: string) => readFileSync(path.join(here, rel), "utf8");
 const MAIN = ["index.ts", "lazy-pages.tsx", "use-library-enabled.ts", "config.ts", "page-status.tsx"];
 const LAZY_ONLY = [
   "locales", "library-api", "library-list-page", "player-page", "upload-store", "upload-client", "use-media-player", "library-root", "library.css",
-  "catalog-api", "catalog-view", "catalog-card", "use-catalog",
+  "catalog-api", "catalog-view", "catalog-card", "use-catalog", "delete-item-dialog",
 ];
 const staticImports = (s: string) =>
   [...s.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?\sfrom\s*["']\.\/([^"']+)["']|(?:^|\n)\s*import\s*["']\.\/([^"']+)["']/g)]
