@@ -289,5 +289,33 @@
         "en": "When AI translation is unavailable, the player shows one notice with a retry button instead of repeating requests."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-15",
+    "version": null,
+    "title_zh": "全新的液态玻璃外观",
+    "title_en": "A new liquid glass look",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "全应用换成大圆角的透明玻璃风格,板块像悬浮的卡片一层层叠起来,颜色更克制、对比更柔和。",
+        "en": "The whole app now has large rounded, transparent glass cards that float in layers, with calmer colours and softer contrast."
+      },
+      {
+        "tag": "new",
+        "zh": "「我的 → 外观与主题」可以调透明度、模糊、饱和度、圆角、边缘高光和阴影,选预设,并自由切换背景颜色。",
+        "en": "In Me > Appearance & theme you can tune transparency, blur, saturation, corner size, edge highlight and shadow, pick a preset, and choose any background colour."
+      },
+      {
+        "tag": "improve",
+        "zh": "对话列表新增「继续」卡片和悬浮的新对话按钮;单词本首页改成「今天」卡片。",
+        "en": "The chat list has a continue card and a floating new-chat button; the wordbook home is now a Today card."
+      },
+      {
+        "tag": "improve",
+        "zh": "跟读库和更新日志页保持原来的样式。",
+        "en": "The shadowing library and this updates page keep their previous look."
+      }
+    ]
   }
 ]
