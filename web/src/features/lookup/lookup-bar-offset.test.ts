@@ -12,4 +12,8 @@ describe("LookupBar offset", () => {
     expect(src).not.toContain("4.5rem");
     expect(src).not.toContain("safe-area-inset-bottom");
   });
+  it("is a floating rounded glass pill above the tab bar (plan 2026-10-15 R-G1, R-G2)", () => {
+    for (const cls of ["glass-pop", "pop-halo", "h-[54px]", "rounded-[27px]", "p-1", "z-40", "select-none"]) expect(src).toContain(cls);
+    for (const cls of ["bg-surface", "shadow-lg", "border-border", "rounded-full border"]) expect(src).not.toContain(cls);
+  });
 });
