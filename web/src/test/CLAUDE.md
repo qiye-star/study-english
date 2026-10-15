@@ -5,7 +5,7 @@ Shared vitest helpers (not tests themselves, except `e2e-upstream-guard.test.ts`
 ## What lives here
 - `setup.ts` — jest-dom, i18n, observers, cleanup (vitest `setupFiles`).
 - `render.tsx` — `renderWithProviders` (router, settings, auth with an injected `ApiClient`).
-- `fetch-mock.ts` — route-table fetch mock; `fake-media.ts`, `fake-audio.ts` — fake mic/recorder/AudioContext; `hold.ts` — pointer-hold helpers.
+- `fetch-mock.ts` — route-table fetch mock; `fake-media.ts`, `fake-audio.ts` — fake mic/recorder/AudioContext; `hold.ts` — pointer-hold helpers; `tap-lookup.ts` — `TestPointerEvent`, `installHighlightStub`, `stubCaret`, `tapAt` for tap-to-lookup tests.
 - `fixtures/` — sample payloads (e.g. `assessment-good.json`).
 
 ## Allowed dependencies

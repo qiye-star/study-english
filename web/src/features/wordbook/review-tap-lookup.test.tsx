@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { LookupLayer } from "~/features/lookup";
@@ -9,6 +9,7 @@ import i18n from "~/i18n";
 import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
 import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
+import { TestPointerEvent, installHighlightStub, stubCaret, tapAt, unstubCaret } from "~/test/tap-lookup";
 import { WordbookReviewPage } from "./review-page";
 import { CONFIG, ENROLLED_TODAY, PLAN, defsCard } from "./test-fixtures";
 
@@ -53,7 +54,12 @@ function setup() {
 const rows = () => screen.getAllByTestId("choice-option");
 const sleep = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
 
+beforeAll(() => { vi.stubGlobal("PointerEvent", TestPointerEvent); });
+afterAll(() => { vi.unstubAllGlobals(); });
+
+let highlights: ReturnType<typeof installHighlightStub>;
 beforeEach(() => {
+  highlights = installHighlightStub();
   localStorage.clear();
   resetServerAiConfigCache();
   localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
@@ -61,6 +67,7 @@ beforeEach(() => {
   setLiquid(true);
 });
 afterEach(() => {
+  unstubCaret();
   vi.restoreAllMocks();
   setLiquid(false);
   window.getSelection()?.removeAllRanges();
@@ -74,21 +81,72 @@ const collapseNative = () => {
   document.dispatchEvent(new Event("selectionchange"));
 };
 
-async function longPressOption() {
+async function answerQuestion() {
   const user = userEvent.setup();
   setup();
   await user.click(await screen.findByRole("button", { name: "开始复习 2" }));
   await user.click(await screen.findByRole("button", { name: /v\. 放弃；抛弃/ }));
   await screen.findAllByTestId("choice-option");
-  fireEvent.pointerDown(rows()[2], { pointerId: 1, pointerType: "touch", clientX: 10, clientY: 10, button: 0, isPrimary: true });
-  await waitFor(() => expect(window.getSelection()?.toString()).toBe("carry"), { timeout: 1500 });
-  fireEvent.pointerUp(rows()[2], { pointerId: 1, pointerType: "touch" });
+  return user;
+}
+/** Tap the English word of option row `i` (rows 0-3 here are meaning rows: word on the small line). */
+function tapOptionWord(i: number) {
+  const word = within(rows()[i]).getByTestId("option-word");
+  stubCaret(word.firstChild!, 2);
+  tapAt(word);
+}
+
+async function lookupBarFromTaps() {
+  await answerQuestion();
+  tapOptionWord(2);
+  tapOptionWord(2);
+  expect(window.getSelection()?.toString()).toBe("carry");
   return screen.findByTestId("lookup-bar");
 }
 
-describe("review page: tapping the lookup bar after an own long press (owner report)", () => {
+describe("review page: tap-to-lookup on the answered options", () => {
+  it("one tap underlines the word (marker only, no selection, no bar); the question does not advance", async () => {
+    await answerQuestion();
+    tapOptionWord(2);
+    expect(highlights.rangesOf("lookup-pending").map((r) => r.toString())).toEqual(["carry"]);
+    expect(window.getSelection()?.toString()).toBe("");
+    expect(screen.queryByTestId("lookup-bar")).toBeNull();
+    expect(screen.getAllByTestId("choice-option")).toHaveLength(4);
+  });
+
+  it("the second tap on the same word selects it and the lookup bar appears for a word, the marker is gone", async () => {
+    const bar = await lookupBarFromTaps();
+    expect(within(bar).getByTestId("lookup-trigger")).toBeTruthy();
+    expect(highlights.registry.has("lookup-pending")).toBe(false);
+  });
+
+  it("tapping another option's word moves the marker", async () => {
+    await answerQuestion();
+    tapOptionWord(2);
+    tapOptionWord(3);
+    expect(highlights.rangesOf("lookup-pending").map((r) => r.toString())).toEqual(["stop"]);
+    expect(screen.queryByTestId("lookup-bar")).toBeNull();
+  });
+
+  it("before answering nothing is marked or looked up: the options are buttons and the prompt is not a lookup context", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 2" }));
+    const option = await screen.findByRole("button", { name: /v\. 放弃；抛弃/ });
+    const prompt = screen.getByTestId("question-word");
+    stubCaret(prompt.firstChild!, 2);
+    tapAt(prompt);
+    tapAt(prompt);
+    stubCaret(option.firstChild ?? option, 0);
+    tapAt(option);
+    expect(highlights.registry.has("lookup-pending")).toBe(false);
+    expect(screen.queryByTestId("lookup-bar")).toBeNull();
+  });
+});
+
+describe("review page: tapping the lookup bar after a tap-selected word (owner report)", () => {
   it("a touch tap whose touchstart collapses the selection still opens the drawer, and the question does not advance", async () => {
-    const bar = await longPressOption();
+    const bar = await lookupBarFromTaps();
     const trigger = within(bar).getByTestId("lookup-trigger");
     // finger down on the bar: pointerdown, touchstart, then the OS collapses the selection
     fireEvent.pointerDown(trigger, { pointerId: 2, pointerType: "touch", isPrimary: true });
@@ -109,7 +167,7 @@ describe("review page: tapping the lookup bar after an own long press (owner rep
   });
 
   it("the bar is not unmounted by the grace timer while a click is still on its way (slow Android click, 550 ms after release)", async () => {
-    const bar = await longPressOption();
+    const bar = await lookupBarFromTaps();
     const trigger = within(bar).getByTestId("lookup-trigger");
     fireEvent.pointerDown(trigger, { pointerId: 2, pointerType: "touch", isPrimary: true });
     fireEvent.touchStart(trigger);
@@ -124,7 +182,7 @@ describe("review page: tapping the lookup bar after an own long press (owner rep
 
 describe("review page: bar vs DOCK vs tab bar stacking (class tokens; jsdom has no layout)", () => {
   it("the bar's z-index is above the DOCK's and the tab bar's", async () => {
-    const bar = await longPressOption();
+    const bar = await lookupBarFromTaps();
     const z = (el: Element) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(el.className)?.[1] ?? "0");
     const dock = screen.getByRole("button", { name: "继续" }).parentElement!;
     expect(z(bar)).toBeGreaterThan(z(dock));

@@ -16,7 +16,7 @@ import { dictToLookup, lookupDictionary, type DictEntry } from "./dictionary";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { LookupBar } from "./lookup-bar";
 import { useDictionaryPrefetch } from "./use-dictionary-prefetch";
-import { useLongPressLookup } from "./use-long-press-lookup";
+import { useTapLookup } from "./use-tap-lookup";
 import { useTextSelection, type TextSelectionInfo } from "./use-text-selection";
 import { wordTargetFromLookup } from "./word-target";
 
@@ -39,8 +39,8 @@ export function LookupLayer() {
   const [mode, setMode] = useState<LookupMode>("lookup");
   const [state, setState] = useState<LookupState>({ status: "loading" });
   const [ai, setAi] = useState<AiState>({ status: "idle" });
-  // 全站长按查词(计划 2026-10-15 R-L3):抽屉打开时停用;选中后立刻读选区,操作条马上出现
-  useLongPressLookup({ enabled: !open, onSelect: readNow });
+  // 全站点词查词:点一下标记、再点一下选中并出操作条;抽屉打开时停用
+  useTapLookup({ enabled: !open, onSelect: readNow });
   const native = nativeLanguageCode(language);
   const controller = useRef<AbortController | null>(null);
   const aiController = useRef<AbortController | null>(null);
