@@ -6,6 +6,7 @@ import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import i18n from "~/i18n";
 import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
+import { setLiquid, textOutsidePlates } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { WordbookReviewPage } from "./review-page";
 import { CONFIG, ENROLLED_TODAY, PLAN, card } from "./test-fixtures";
@@ -395,5 +396,20 @@ describe("WordbookReviewPage · quick recall (spec recall §4)", () => {
     await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole("button", { name: "继续" }));
     expect(await screen.findByTestId("session-summary")).toHaveTextContent("一次答对 1");
+  });
+});
+describe("WordbookReviewPage · liquid skin (plan 2026-10-15-liquid-glass R-L9-4)", () => {
+  afterEach(() => setLiquid(false));
+  it("the session dock is a mat-chrome-bar carrying only plate / solid accent buttons (Rule 4)", async () => {
+    setLiquid(true);
+    setup();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt. 接受；承认/ }));
+    await screen.findByRole("button", { name: "继续" });
+    const dock = document.querySelector(".mat-chrome-bar")!;
+    expect(dock).not.toBeNull();
+    const accent = dock.querySelector(".bg-blue")?.textContent ?? "";
+    expect(textOutsidePlates(dock).filter((text) => !accent.includes(text))).toEqual([]);
   });
 });

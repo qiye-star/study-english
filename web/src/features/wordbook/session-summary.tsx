@@ -9,7 +9,7 @@ import { NewAchievements } from "~/features/rank";
 import { PlanRing } from "./plan-ring";
 import type { Rating } from "./session-machine";
 import { lookupContext } from "~/lib/lookup-context";
-import { DOCK, GHOST, PRIMARY } from "./ui";
+import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
 
 export interface SessionStats {
@@ -30,7 +30,7 @@ export interface SessionStats {
   checks?: { total: number; passed: number };
 }
 
-const SPLIT: [Rating, string][] = [["know", "bg-green"], ["fuzzy", "bg-amber"], ["unknown", "bg-ink-3"]];
+const SPLIT: [Rating, string][] = [["know", "bg-green liquid:bg-ink/85"], ["fuzzy", "bg-amber liquid:bg-wash-2"], ["unknown", "bg-ink-3 liquid:bg-wash"]];
 
 /**
  * 会话小结(spec §11.2,视觉稿 10):正确率环(绿)、三张统计卡(段位点只在段位开启时显示,标「估算」)、
@@ -49,7 +49,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, note, homeL
   ].join(" · ");
   return (
     <>
-      <div data-testid="session-summary" className="px-gutter pb-6">
+      <div data-testid="session-summary" className="px-gutter liquid:px-frame pb-6">
         <SurfaceCard className="mt-2 px-4 py-[18px] text-center">
           <PlanRing done={stats.firstTry} target={stats.total} size={96} tone="green" label={`${rate}%`} className="mx-auto" />
           <h2 className="mt-3.5 text-headline font-semibold">{t(`web.wordbook.summary.${stats.kind}.title`)}</h2>
@@ -97,7 +97,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, note, homeL
         ) : null}
       </div>
       <div className={DOCK}>
-        <button type="button" className={cn(GHOST, "h-12 flex-1")} onClick={onHome}>{homeLabel ?? t("web.wordbook.summary.home")}</button>
+        <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} onClick={onHome}>{homeLabel ?? t("web.wordbook.summary.home")}</button>
         {onAgain ? <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={onAgain}>{againLabel ?? t("web.wordbook.summary.again")}</button> : null}
       </div>
     </>

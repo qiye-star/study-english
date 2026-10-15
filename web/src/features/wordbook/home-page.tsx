@@ -7,13 +7,16 @@ import { Link, Navigate } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { IconChip } from "~/components/icon-chip";
+import { LQ_PAGE } from "~/components/liquid";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { PageHeader } from "~/layout/page-header";
+import { useLiquid } from "~/lib/glass-flag";
 import { GoalsSheet } from "./goals-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { PlanRing } from "./plan-ring";
+import { WordbookTodayLiquid } from "./today-liquid";
 import { GHOST, ICON_LINK, PRIMARY, bookTitle, fmt } from "./ui";
 import { useGoals } from "./use-goals";
 import { useLearnedSummary } from "./use-learned";
@@ -103,9 +106,10 @@ export function WordbookHomePage() {
   // 「已学 N 词」只在有选中的书时才问;失败时不显示数字,入口仍在
   const learnedSummary = useLearnedSummary(Boolean(today?.enrollment)).summary;
   const [sheet, setSheet] = useState<null | "all" | "bonus">(null);
+  const liquid = useLiquid();
   const editable = Boolean(config?.enabled !== false && !error && today?.enrollment && today.plan && today.book && today.progress);
   const header = (
-    <PageHeader title={t("web.wordbook.title")} back="/practice"
+    <PageHeader large title={t("web.wordbook.title")} subtitle={liquid && today?.book ? bookTitle(today.book, i18n.language) : undefined} back="/practice"
       actions={editable ? (
         <button type="button" aria-label={t("web.wordbook.goals.open")} className={ICON_LINK} onClick={() => setSheet("all")}>
           <Settings2Icon aria-hidden />
@@ -152,6 +156,22 @@ export function WordbookHomePage() {
     // 老版本服务端没有 streak:按 0 天显示
     const streak = today.streak ?? { current: 0, todayMet: false };
     const done = <span className="text-meta text-ink-2">{t("web.wordbook.home.finished")}</span>;
+    if (liquid) {
+      body = (
+        <WordbookTodayLiquid plan={plan} progress={progress} tomorrowDue={today.tomorrowDue} streak={streak}
+          learnedCount={learnedSummary ? <span className="num block text-meta text-ink-2">{t("web.wordbook.learned.row.count", { n: learnedSummary.total, count: learnedSummary.total })}</span> : null}
+          extra={plan.goalMet && plan.newLeft === 0 && limits.bonusMax > 0 ? (
+            <SurfaceCard className="mt-4 flex items-center gap-3 p-4">
+              <FlameIcon aria-hidden className="h-5 w-5 flex-none text-amber" />
+              <div className="min-w-0 flex-1">
+                <b className="block text-body font-semibold">{t("web.wordbook.goals.goalMet.title")}</b>
+                <span className="text-meta text-ink-2">{t("web.wordbook.goals.goalMet.body")}</span>
+              </div>
+              <button type="button" className={cn(GHOST, "h-11")} onClick={() => setSheet("bonus")}>{t("web.wordbook.goals.goalMet.action")}</button>
+            </SurfaceCard>
+          ) : null} />
+      );
+    } else
     body = (
       <>
         <div className="mt-2"><BookCard book={book} progress={progress} enrollment={enrollment} /></div>
@@ -184,7 +204,7 @@ export function WordbookHomePage() {
               to="/wordbook/learned" />
           </div>
           {plan.backlogGuard ? (
-            <p role="note" className="mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber">
+            <p role="note" className="mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber liquid:rounded-inset liquid:bg-wash liquid:text-ink liquid:shadow-well">
               <CircleAlertIcon aria-hidden className="mt-px h-[17px] w-[17px] flex-none" />
               <span>{t("web.wordbook.home.backlog")}</span>
             </p>
@@ -196,7 +216,7 @@ export function WordbookHomePage() {
   return (
     <div>
       {header}
-      <div className="px-gutter pb-6">{body}</div>
+      <div className={`px-gutter pb-6 ${LQ_PAGE}`}>{body}</div>
       {editable && today ? (
         <GoalsSheet open={sheet !== null} onOpenChange={(o) => { if (!o) setSheet(null); }} today={today} limits={limits} goals={goals}
           focus={sheet === "bonus" ? "bonus" : undefined} />

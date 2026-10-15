@@ -33,7 +33,7 @@ export function HighlightedSentence({ text, word }: { text: string; word: string
   return (
     <>
       {text.slice(0, match.index)}
-      <mark className="rounded-[4px] bg-amber-tint px-[3px] font-semibold text-amber">{match[0]}</mark>
+      <mark className="rounded-[4px] bg-amber-tint px-[3px] font-semibold text-amber liquid:bg-transparent liquid:px-0 liquid:font-semibold liquid:text-ink liquid:underline liquid:decoration-ink-2 liquid:decoration-[1.5px] liquid:underline-offset-[3px]">{match[0]}</mark>
       {text.slice(match.index + match[0].length)}
     </>
   );
@@ -120,7 +120,7 @@ export function WordCardView({
           <ListenButton key={accent} id={`${card.key}:${accent}`} text={card.word} accent={accent === "uk" ? "gb" : "us"}
             label={t(`web.wordbook.word.listen.${accent}`)} {...listenProps}
             className="h-tap bg-surface-2 pl-1.5 pr-3 text-body text-ink">
-            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-surface text-blue shadow-hair">
+            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-surface text-blue shadow-hair liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well">
               <Volume2Icon className="h-[18px] w-[18px]" />
             </span>
             <small aria-hidden className="text-label font-semibold tracking-[0.04em] text-ink-2">{t(`web.wordbook.word.accent.${accent}`)}</small>
@@ -128,7 +128,7 @@ export function WordCardView({
           </ListenButton>
         )) : (
           <ListenButton id={`${card.key}:word`} text={card.word} label={t("web.wordbook.word.listen.word")} {...listenProps}
-            className="h-tap w-tap justify-center bg-blue-tint text-blue" />
+            className="h-tap w-tap justify-center bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         )}
       </div>
       {covered ? (

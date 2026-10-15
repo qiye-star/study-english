@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
@@ -79,9 +80,9 @@ export function FreeReviewSheet({ open, onOpenChange, summary }: { open: boolean
         <div className="mt-1.5 grid grid-cols-2 gap-2">
           {SCOPES.map((s) => (
             <button key={s} type="button" aria-pressed={scope === s} disabled={scopeCount(summary, s) === 0} onClick={() => setScope(s)}
-              className={cn("min-h-tap rounded-button border-[0.5px] px-3 text-body font-medium transition-colors duration-fast",
+              className={cn("min-h-tap rounded-button border-[0.5px] px-3 text-body font-medium transition-colors duration-fast liquid:rounded-full",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
-                scope === s ? "border-blue bg-blue-tint text-blue" : "border-hair bg-surface text-ink active:bg-surface-2")}>
+                scope === s ? cn("border-blue bg-blue-tint text-blue", LQ_CHIP_ON) : cn("border-hair bg-surface text-ink active:bg-surface-2", LQ_CHIP))}>
               {t(`web.wordbook.learned.free.scope.${s}`)}
             </button>
           ))}

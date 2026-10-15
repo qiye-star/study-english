@@ -44,6 +44,7 @@ Other directories import only `~/features/wordbook`.
 ## Pitfalls
 - Card, recap, defs, phrases, after-answer, summary and spell-result English text is marked with `lookupContext`. Quiz prompts only after the answer (`lookupContextIf(result !== null)`); never the recall front, the covered headword or the spelling cloze (plan 2026-10-15 R-M3, guarded by `src/lookup-marks.test.ts`). Answered option rows spread `ownLongPress`. `word-card-legacy.test.tsx` strips `data-lookup-context` before comparing (R-M4).
 - Teal is the wordbook identity colour; blue only for primary actions and the active blank; wrong answers are neutral, never red.
+- Liquid glass (plan 2026-10-15-liquid-glass L9): home = `today-liquid.tsx` (`WordbookTodayLiquid`, rendered only under `useLiquid()`, same test ids); docks = `mat-chrome-bar` with `GHOST_DOCK` plate pills (Rule 4); quiz after-answer = ink ring + green 正确 mark / red ✕ 你的选择; no teal under liquid (progress = ink, plan ring arc = accent); the reset confirm keeps the red fill; word-card-legacy snapshot regenerated deliberately (only added tokens).
 - `/answers` returns `expected` = the headword and `correctOption` = the exact correct option text (choice questions;
   null for typed / known). `correctOptionOf` uses it verbatim; never rebuild the server's meaning line (Ruling Z-e).
 - Grading happens on the server; never grade or reveal answers client-side beyond what the response returns.

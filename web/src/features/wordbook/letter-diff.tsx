@@ -9,7 +9,7 @@ import type { DiffOp } from "./wordbook-api";
  */
 export function LetterDiff({ diff, expected, className }: { diff: DiffOp[]; expected: string; className?: string }) {
   const { t } = useTranslation();
-  const U = "font-semibold text-amber underline decoration-2 underline-offset-[3px]";
+  const U = "font-semibold text-amber underline decoration-2 underline-offset-[3px] liquid:text-ink";
   const S = "text-ink-2 line-through";
   return (
     <span role="img" aria-label={t("web.wordbook.diff.label", { word: expected })}

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
+import { setLiquid } from "~/test/glass";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { WordbookHomePage } from "./home-page";
@@ -140,5 +141,21 @@ describe("WordbookHomePage", () => {
     expect(await screen.findByTestId("wordbook-streak")).toHaveTextContent("连续—");
     await userEvent.click(screen.getByRole("button", { name: "每日目标设置" }));
     expect(await screen.findByRole("dialog", { name: "每日目标" })).toHaveTextContent("还没有连续达标");
+  });
+});
+
+describe("wordbook home in the liquid skin (plan 2026-10-15-liquid-glass L9-2)", () => {
+  afterEach(() => setLiquid(false));
+  it("today hero with one accent CTA, ink band, plan wells and two half panels; test ids once each", async () => {
+    setLiquid(true);
+    setup(GOALS_TODAY);
+    const review = await screen.findByTestId("wordbook-action-review");
+    expect(review.className).toContain("liquid:shadow-accent");
+    for (const id of ["wordbook-action-learn", "wordbook-action-spell", "wordbook-action-learned", "wordbook-tomorrow", "wordbook-streak", "wordbook-legend"]) {
+      expect(screen.getAllByTestId(id), id).toHaveLength(1);
+    }
+    expect(screen.getByTestId("wordbook-action-learn").className).not.toContain("liquid:shadow-accent");
+    expect(screen.getByRole("progressbar").innerHTML).not.toMatch(/teal/);
+    expect(screen.getByTestId("wordbook-action-learned")).toHaveAttribute("href", "/wordbook/learned");
   });
 });

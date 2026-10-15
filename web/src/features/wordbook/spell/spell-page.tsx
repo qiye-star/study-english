@@ -10,6 +10,7 @@ import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
+import { LQ_CHIP_ON, LQ_ON_BLUR, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
@@ -46,15 +47,17 @@ const BTN = cn(
   "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
   "disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-5",
 );
-const PRIMARY = cn(BTN, "bg-blue text-on-blue active:opacity-90");
-const GHOST = cn(BTN, "border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2");
+const PRIMARY = cn(BTN, "bg-blue text-on-blue active:opacity-90", LQ_PRIMARY);
+const GHOST = cn(BTN, "border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2", LQ_SECONDARY);
+/** 规则 4:模糊底栏上的次要按钮是托板胶囊 */
+const GHOST_DOCK = cn(GHOST, LQ_ON_BLUR);
 /** 工具行(视觉稿 .tools):32px 视觉 / 44px 命中 */
 const TOOL = cn(
   "relative inline-flex h-8 items-center gap-[5px] rounded-[9px] bg-surface-2 px-2.5 text-sub font-semibold text-ink-2",
   "before:absolute before:inset-x-0 before:inset-y-[-6px] before:content-['']",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:h-4 [&_svg]:w-4",
 );
-const TOOL_ON = "bg-blue-tint text-blue";
+const TOOL_ON = `bg-blue-tint text-blue ${LQ_CHIP_ON}`;
 const ROW = cn(
   "flex min-h-row w-full items-center gap-3 rounded-[10px] px-3 text-left text-body text-ink",
   "transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
@@ -292,7 +295,7 @@ export function WordbookSpellPage() {
           </IconButton>
         }
       />
-      <div className="flex-1 px-gutter pb-6 pt-1">
+      <div className="flex-1 px-gutter liquid:px-frame pb-6 pt-1">
         {phase === "loading" ? (
           <p className="py-10 text-center text-sub text-ink-2">{t("web.wordbookSpell.loading")}</p>
         ) : null}
@@ -325,7 +328,7 @@ export function WordbookSpellPage() {
             </div>
             <ClozeBoard set={set} state={cloze} showLength={prefs.showLength} showZh={showZh} onFocusBlank={onFocusBlank} focused={focused} />
             <div className="-mx-1 mt-1.5 flex flex-wrap gap-1">
-              <button type="button" className={cn(TOOL, "bg-amber-tint text-amber")} onMouseDown={keepFocus} onClick={hint}>
+              <button type="button" className={cn(TOOL, "bg-amber-tint text-amber", LQ_SECONDARY)} onMouseDown={keepFocus} onClick={hint}>
                 <LightbulbIcon aria-hidden />{t("web.wordbookSpell.hint")}
               </button>
               <button type="button" className={TOOL} onMouseDown={keepFocus} onClick={listenLine} disabled={!canListen}
@@ -379,15 +382,15 @@ export function WordbookSpellPage() {
       ) : null}
 
       {phase === "typing" ? (
-        <div className="glass glass-edge-t sticky bottom-0 z-30 px-gutter py-2.5">
+        <div className="glass glass-edge-t sticky bottom-0 z-30 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
           <button type="button" className={PRIMARY} disabled={submitting} onMouseDown={keepFocus} onClick={() => void submit()}>
             {submitting ? t("web.wordbookSpell.submitting") : t("web.wordbookSpell.submit")}
           </button>
         </div>
       ) : null}
       {phase === "results" ? (
-        <div className="glass glass-edge-t sticky bottom-0 z-30 flex gap-2 px-gutter py-2.5">
-          <button type="button" className={GHOST} onClick={() => set && start(set, { retry: true })}>{t("web.wordbookSpell.again")}</button>
+        <div className="glass glass-edge-t sticky bottom-0 z-30 flex gap-2 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
+          <button type="button" className={GHOST_DOCK} onClick={() => set && start(set, { retry: true })}>{t("web.wordbookSpell.again")}</button>
           <button type="button" className={PRIMARY} onClick={next}>
             {index + 1 < sets.length ? t("web.wordbookSpell.next") : t("web.wordbookSpell.finish")}
           </button>
@@ -426,7 +429,7 @@ export function WordbookSpellPage() {
               <span className="block font-medium">{t("web.wordbookSpell.showLength")}</span>
               <span className="mt-0.5 block text-meta text-ink-2">{t("web.wordbookSpell.showLengthNote")}</span>
             </span>
-            <span aria-hidden className={cn("relative h-[26px] w-11 flex-none rounded-full transition-colors duration-fast", prefs.showLength ? "bg-blue" : "bg-surface-2 shadow-hair")}>
+            <span aria-hidden className={cn("relative h-[26px] w-11 flex-none rounded-full transition-colors duration-fast", prefs.showLength ? "bg-blue" : "bg-surface-2 shadow-hair liquid:bg-wash-2")}>
               {/* 关时的圆钮也用白色 + 发丝线阴影:深色模式下 bg-surface 圆钮在 surface-2 轨道上看不见(review m9) */}
               <span data-testid="switch-knob" className={cn("absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow-hair transition-[left] duration-fast",
                 prefs.showLength ? "left-[20px]" : "left-0.5")} />

@@ -25,7 +25,7 @@ export function StepBar({ done, total, current = true }: { done: number; total: 
     <div role="progressbar" aria-label={t("web.wordbook.session.progress")} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
       className="flex gap-1 pb-2.5 pt-1">
       {Array.from({ length: total }, (_, i) => (
-        <i key={i} className={cn("block h-1 flex-1 rounded-sm", i < done ? "bg-teal" : i === done && current ? "bg-blue" : "bg-surface-2")} />
+        <i key={i} className={cn("block h-1 flex-1 rounded-sm", i < done ? "bg-teal liquid:bg-ink/85" : i === done && current ? "bg-blue" : "bg-surface-2")} />
       ))}
     </div>
   );

@@ -53,7 +53,14 @@
         "spellHint": "今天学过的词放回例句里拼",
         "finished": "已完成",
         "backlog": "复习积压,今天少学新词",
-        "switchBook": "换一本"
+        "switchBook": "换一本",
+        "todayHero": "今天",
+        "dueCount": "待复习",
+        "newCount": "新词",
+        "startReview": "开始复习 {{n}}",
+        "learnNew": "学新词 {{n}}",
+        "plan": "计划",
+        "bandLegend": "已掌握 · 学习中 · 未学"
       },
       "books": {
         "title": "选择词书",

@@ -15,7 +15,7 @@ export interface GoalsToday { newDone: number; reviewDone: number; reviewDue: nu
 const NEW_OPTIONS = [10, 20, 30, 50];
 const REVIEW_OPTIONS = [50, 100, 200];
 const LABEL = "mb-1.5 text-sub font-semibold text-ink-2";
-const NOTE = "mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber";
+const NOTE = "mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber liquid:rounded-inset liquid:bg-wash liquid:text-ink liquid:shadow-well";
 
 const inRange = (n: number, r: { min: number; max: number }) => n >= r.min && n <= r.max;
 const presetAllowed = (p: GoalPreset, l: GoalLimits) =>

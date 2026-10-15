@@ -96,7 +96,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
             </span>
             <ListenButton id={`${question.key}:q`} text={prompt.word ?? ""} label={t("web.wordbook.word.listen.word")}
               onListen={onListen} listening={listening} canListen={canListen}
-              className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue" />
+              className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
           </div>
           {prompt.us ? <p lang="en" className="mt-0.5 text-sub text-ink-2">{prompt.us}</p> : null}
         </>
@@ -108,21 +108,21 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
           {prompt.zh ? <p className="mt-1 text-sub text-ink-2">{prompt.zh}</p> : null}
         </>
       )}
-      <ul className="mt-4 flex flex-col gap-2">
+      <ul className="mt-4 flex flex-col gap-2 liquid:gap-2.5">
         {(question.options ?? []).map((option, i) => {
           const state: OptionState = !result ? "idle"
             : option === result.correctOption || (result.correct && option === result.choice) ? "correct"
             : option === result.choice ? "wrong" : "idle";
           const badge = (
             <span aria-hidden className={cn(
-              "flex h-6 w-6 flex-none items-center justify-center rounded-[7px] text-meta font-semibold",
-              state === "correct" ? "bg-green text-on-blue" : "bg-surface-2 text-ink-2",
+              "flex h-6 w-6 flex-none items-center justify-center rounded-[7px] text-meta font-semibold liquid:size-7 liquid:rounded-full",
+              state === "correct" ? "bg-green text-on-blue liquid:bg-ink liquid:text-surface" : "bg-surface-2 text-ink-2 liquid:bg-wash",
             )}>
               {state === "correct" ? <CheckIcon className="h-[15px] w-[15px]" strokeWidth={3} /> : LETTERS[i]}
             </span>
           );
-          const icon = state === "correct" ? <CircleCheckIcon aria-hidden className="h-5 w-5 flex-none" />
-            : state === "wrong" ? <XIcon aria-hidden className="h-5 w-5 flex-none text-ink-2" /> : null;
+          const icon = state === "correct" ? <span aria-hidden className="flex flex-none items-center gap-1 text-meta font-semibold text-green"><CircleCheckIcon className="h-5 w-5 liquid:h-[18px] liquid:w-[18px]" /><span className="hidden liquid:inline">{t("web.wordbookDefs.after.correct")}</span></span>
+            : state === "wrong" ? <span aria-hidden className="flex flex-none items-center gap-1 text-meta font-semibold text-ink-2 liquid:text-red"><XIcon className="h-5 w-5 liquid:h-[18px] liquid:w-[18px]" /><span className="hidden liquid:inline">{t("web.wordbookDefs.after.yours")}</span></span> : null;
           if (answered) {
             const row = optionRowView(qtype, option, infoFor(after?.info, option));
             const lookupProps = row.word ? {
@@ -135,9 +135,9 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
               <li key={`${i}:${option}`}>
                 <div data-testid="choice-option" data-state={state} {...lookupProps}
                   className={cn(
-                    "flex min-h-[52px] w-full touch-manipulation items-center gap-2.5 rounded-button border-[0.5px] px-3.5 text-left text-body transition-colors duration-fast",
+                    "flex min-h-[52px] w-full touch-manipulation items-center gap-2.5 rounded-button border-[0.5px] px-3.5 text-left text-body transition-colors duration-fast liquid:min-h-[60px] liquid:rounded-tile liquid:border-0 liquid:bg-[rgb(var(--mat-1-rgb)/var(--mat-1-alpha))] liquid:shadow-e1",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    state === "correct" ? "border-transparent bg-green-tint font-semibold text-green"
+                    state === "correct" ? "border-transparent bg-green-tint font-semibold text-green liquid:text-ink liquid:shadow-[inset_0_0_0_1.5px_rgb(var(--ink)),var(--mat-sh-1)]"
                       : state === "wrong" ? "border-hair bg-surface text-ink-2" : "border-hair bg-surface text-ink",
                     row.word && "cursor-pointer select-none [-webkit-touch-callout:none]",
                   )}>
@@ -168,9 +168,9 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
               <button type="button" data-state={state} disabled={busy || result !== null} onClick={() => onAnswer(option)}
                 lang={qtype === "meaning" ? undefined : "en"}
                 className={cn(
-                  "flex min-h-[52px] w-full items-center gap-2.5 rounded-button border-[0.5px] px-3.5 text-left text-body transition-colors duration-fast",
+                  "flex min-h-[52px] w-full items-center gap-2.5 rounded-button border-[0.5px] px-3.5 text-left text-body transition-colors duration-fast liquid:min-h-[60px] liquid:rounded-tile liquid:border-0 liquid:bg-[rgb(var(--mat-1-rgb)/var(--mat-1-alpha))] liquid:shadow-e1",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
-                  state === "correct" ? "border-transparent bg-green-tint font-semibold text-green"
+                  state === "correct" ? "border-transparent bg-green-tint font-semibold text-green liquid:text-ink liquid:shadow-[inset_0_0_0_1.5px_rgb(var(--ink)),var(--mat-sh-1)]"
                     : state === "wrong" ? "border-hair bg-surface text-ink-2" : "border-hair bg-surface text-ink active:bg-surface-2",
                 )}>
                 {badge}

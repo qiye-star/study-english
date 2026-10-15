@@ -24,7 +24,7 @@ function LevelBar({ level }: { level: number }) {
   return (
     <span role="img" aria-label={t("web.wordbook.books.level", { n: level, max: MAX_LEVEL })} className="mt-1.5 flex gap-[3px]">
       {Array.from({ length: MAX_LEVEL }, (_, i) => (
-        <i key={i} className={cn("block h-1 w-3 rounded-[2px]", i < level ? "bg-teal" : "bg-surface-2")} />
+        <i key={i} className={cn("block h-1 w-3 rounded-[2px]", i < level ? "bg-teal liquid:bg-ink/85" : "bg-surface-2 liquid:bg-wash-2")} />
       ))}
     </span>
   );
@@ -126,7 +126,7 @@ export function WordbookBooksPage() {
     <div>
       {/* 还没选书时 /wordbook 会立刻跳回本页(home-page 的 Navigate),返回就成了死循环:回练习页(review web M5) */}
       <PageHeader title={t("web.wordbook.books.title")} back={enrollment ? "/wordbook" : "/practice"} />
-      <div className="px-gutter pb-6">{body}</div>
+      <div className="px-gutter liquid:px-frame pb-6">{body}</div>
       <BottomSheet open={picked !== null} onOpenChange={(o) => { if (!o && !saving) setPicked(null); }}>
         {picked ? (
           <BottomSheetContent className="max-h-[88vh] overflow-y-auto" {...sheetFocus}>

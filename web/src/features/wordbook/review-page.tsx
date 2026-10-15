@@ -18,7 +18,7 @@ import { SessionHeader, StepBar } from "./session-header";
 import { answerCurrent, clampElapsed, isFinished, progressOf, startSession, type Rating, type SessionState } from "./session-machine";
 import { SessionSummary, type SessionStats } from "./session-summary";
 import { TypingQuestion } from "./typing-question";
-import { DOCK, GHOST, PRIMARY } from "./ui";
+import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
 import { useRankEnabled } from "./use-rank-enabled";
 import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
@@ -197,9 +197,9 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={t("web.wordbook.review.title")} />
-        <div className="px-gutter pb-4">
+        <div className="px-gutter liquid:px-frame pb-4">
           <SurfaceCard className="mt-2 flex flex-col items-center px-4 py-6 text-center">
-            <span aria-hidden className="flex h-tap w-tap items-center justify-center rounded-button bg-blue-tint text-blue">
+            <span aria-hidden className="flex h-tap w-tap items-center justify-center rounded-button bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well">
               <RefreshCwIcon className="h-6 w-6" />
             </span>
             <p className="mt-3 text-title font-semibold">{today?.plan ? t("web.wordbook.review.due", { n: due, count: due }) : t("web.wordbook.review.title")}</p>
@@ -282,7 +282,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
     <div className="flex flex-1 flex-col">
       <SessionHeader title={free ? t("web.wordbook.learned.free.title") : t("web.wordbook.review.title")}
         subtitle={t("web.wordbook.session.count", { n: Math.min(progress.done + 1, progress.total), total: progress.total })} />
-      <div className="px-gutter pb-4">
+      <div className="px-gutter liquid:px-frame pb-4">
         <StepBar done={progress.done} total={progress.total} />
         {question && recall ? (
           check ? (
@@ -322,7 +322,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
       {answer ? (
         <div className={DOCK}>
           {recall && answer.result.rating === "know" ? (
-            <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={busy} onClick={() => void iWasWrong()}>
+            <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} disabled={busy} onClick={() => void iWasWrong()}>
               <RotateCcwIcon aria-hidden />{t("web.wordbook.learn.iWasWrong")}
             </button>
           ) : null}

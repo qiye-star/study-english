@@ -15,7 +15,7 @@ import {
   type QuizSlot, type RatedWord, type Rating, type SessionState,
 } from "./session-machine";
 import { SessionSummary, type SessionStats } from "./session-summary";
-import { DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
+import { DOCK, GHOST_DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
 import { useRankEnabled } from "./use-rank-enabled";
 import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
@@ -264,7 +264,7 @@ export function WordbookLearnPage() {
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={t("web.wordbook.learn.title")} />
-        <div className="px-gutter pb-4">
+        <div className="px-gutter liquid:px-frame pb-4">
           <StepBar done={index} total={batch.cards.length} />
           <WordCardView key={current.key} card={current} defLang={defLang} phrasesOpen="auto" {...listen} covered={!card.revealed} onReveal={reveal} regionRef={regionRef}
             showExample={showExample} badge={card.rating ? <RatingBadge rating={card.rating} check={spot} /> : null}
@@ -275,7 +275,7 @@ export function WordbookLearnPage() {
         {card.rating ? (
           <div className={DOCK}>
             {card.rating === "know" ? (
-              <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={busy} onClick={() => void sendRating("unknown", true)}>
+              <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} disabled={busy} onClick={() => void sendRating("unknown", true)}>
                 <RotateCcwIcon aria-hidden />{t("web.wordbook.learn.iWasWrong")}
               </button>
             ) : null}
@@ -298,7 +298,7 @@ export function WordbookLearnPage() {
   return (
     <div className="flex flex-1 flex-col">
       <SessionHeader title={t("web.wordbook.learn.quiz")} subtitle={t("web.wordbook.session.count", { n: Math.min(progress.done + 1, progress.total), total: progress.total })} />
-      <div className="px-gutter pb-4">
+      <div className="px-gutter liquid:px-frame pb-4">
         <StepBar done={progress.done} total={progress.total} />
         {spotSlot ? <SpotBar title={t("web.wordbook.learn.spotEyebrow")} hint={t("web.wordbook.learn.spotHint")} /> : null}
         {slot?.qtype === "word" ? <p className="eyebrow mb-2 px-1">{t("web.wordbook.learn.drillEyebrow")}</p> : null}
