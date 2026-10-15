@@ -1,11 +1,12 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { contribute } from "~/lib/extension-points";
+import { blurLayers, setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { toast } from "sonner";
 import { PracticePage } from "./practice-page";
@@ -333,5 +334,24 @@ describe("PracticePage listen first", () => {
     await userEvent.click(screen.getByTestId("record-toggle"));
     await userEvent.click(screen.getByTestId("record-toggle"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice/assessments/a9"));
+  });
+});
+
+describe("practice home in the liquid skin (plan 2026-10-15-liquid-glass L4)", () => {
+  afterEach(() => setLiquid(false));
+
+  it("large title, studio hero first, one accent pill, recent scores, no own blur", async () => {
+    setLiquid(true);
+    setup({
+      "GET /api/wordbook/config": () => json({ enabled: false }),
+      "GET /api/assessments": () => json({ assessments: [], next: null }),
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: /练习|Read aloud/ })).toHaveClass("text-large");
+    const hero = screen.getByTestId("reference-input").closest(".mat-surface-strong")!;
+    expect(hero).not.toBeNull();
+    expect(hero.parentElement!.closest(".liquid\\:order-first")).not.toBeNull();
+    expect(screen.getByTestId("record-toggle").className).toContain("liquid:shadow-accent");
+    expect(screen.getByTestId("practice-listen").className).toContain("liquid:bg-wash");
+    expect(blurLayers(document.body).length).toBeLessThanOrEqual(2);
   });
 });

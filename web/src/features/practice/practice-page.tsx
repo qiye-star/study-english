@@ -12,14 +12,17 @@ import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { IconChip } from "~/components/icon-chip";
 import { ListRow, SectionGroup } from "~/components/section-group";
+import { LQ_FIELD_MULTI, LQ_NOTE, LQ_PAGE, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 import { SurfaceCard } from "~/components/surface-card";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { RankCard } from "~/features/rank";
 import { WordbookCard } from "~/features/wordbook";
 import { PageHeader } from "~/layout/page-header";
+import { useLiquid } from "~/lib/glass-flag";
 import { Slot } from "~/lib/extension-points-react";
 import { formatClock } from "~/lib/format-clock";
 import { PRACTICE_DRAFT_KEY as DRAFT_KEY, readJson, writeJson } from "~/lib/storage";
+import { RecentScores } from "./recent-scores";
 import { useShadowSession } from "./use-shadow-session";
 
 const isString = (v: unknown): v is string => typeof v === "string";
@@ -34,6 +37,7 @@ const BUTTON = cn(
 const ICON_LINK = cn(
   "relative inline-flex h-tap w-tap flex-none items-center justify-center rounded-button text-ink transition-colors duration-fast",
   "hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:h-[22px] [&_svg]:w-[22px]",
+  "well liquid:rounded-full",
 );
 
 /** 顶栏副标题:今天的日期(随界面语言) */
@@ -52,6 +56,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   const navigate = useNavigate();
   const location = useLocation();
   const today = useToday(i18n.language);
+  const liquid = useLiquid();
   const [reference, setReference] = useState(
     () => (location.state as { reference?: string } | null)?.reference ?? readJson(DRAFT_KEY, isString) ?? "",
   );
@@ -102,6 +107,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader
+        large
         title={t("web.practice.title")}
         subtitle={today}
         actions={
@@ -113,17 +119,18 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
           </>
         }
       />
-      <div className="px-gutter pb-6">
+      <div className={`px-gutter pb-6 ${LQ_PAGE} liquid:flex liquid:flex-col`}>
         <RankCard className="mt-2" />
         <WordbookCard className="mt-2" />
         <Slot point="practiceHome" props={{}} />
+        <div className="liquid:order-first">
         <SectionGroup title={t("web.practice.home.shadowing")} bare>
           <div id="shadowing" />
-          <SurfaceCard className="p-3.5">
+          <SurfaceCard strong className="p-3.5 liquid:p-4">
             <Slot point="learningSources" props={{ pick: setReference }} />
             <label htmlFor="reference" className="eyebrow">{t("web.practice.referenceLabel")}</label>
             <Textarea id="reference" data-testid="reference-input" rows={4} maxLength={2000}
-              className="mt-1.5 min-h-[96px] resize-none rounded-button border-0 bg-surface-2 px-3 py-2.5 text-[17px] font-medium leading-dialogue tracking-[-0.01em] text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0"
+              className={`mt-1.5 min-h-[96px] resize-none rounded-button border-0 bg-surface-2 px-3 py-2.5 text-[17px] font-medium leading-dialogue tracking-[-0.01em] text-ink placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 ${LQ_FIELD_MULTI}`}
               placeholder={t("web.practice.referencePlaceholder")} value={reference} disabled={recording || busy}
               onChange={(e) => setReference(e.target.value)} />
             {!reference.trim() && <p className="mt-2 text-meta text-ink-2">{t("web.practice.referenceHint")}</p>}
@@ -137,7 +144,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
               </div>
               <div className="mt-3.5 flex gap-2">
                 <button type="button" data-testid="practice-listen" data-state={listenState}
-                  className={`${BUTTON} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2`}
+                  className={`${BUTTON} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2 ${LQ_SECONDARY}`}
                   disabled={!reference.trim() || !ai?.defaultTts.model || recorderState !== "idle" || busy}
                   onClick={() => void tts.play("reference", reference, ai!.defaultTts.model, ai!.defaultTts.voice)}>
                   {listenState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
@@ -146,14 +153,14 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
                 </button>
                 <button type="button" data-testid="record-toggle" onClick={toggle} disabled={!canRecord}
                   aria-label={recording ? t("web.recorder.stop") : t("web.recorder.start")}
-                  className={`${BUTTON} bg-blue text-on-blue active:bg-blue/90`}>
+                  className={`${BUTTON} bg-blue text-on-blue active:bg-blue/90 ${LQ_PRIMARY}`}>
                   {busy ? <LoaderIcon aria-hidden className="animate-spin" /> : recording ? <SquareIcon aria-hidden className="fill-current" /> : <MicIcon aria-hidden />}
                   <span aria-hidden>{busy ? t("web.practice.assessing") : recording ? t("web.recorder.stop") : t("web.recorder.start")}</span>
                 </button>
               </div>
               {aiFailed && <p data-testid="practice-listen-unavailable" className="mt-2 text-meta text-ink-2">{t("web.practice.listenUnavailable")}</p>}
               {kept && !busy && (
-                <div className="mt-3 space-y-2 rounded-button bg-surface-2 p-3 text-sub">
+                <div className={`mt-3 space-y-2 rounded-button bg-surface-2 p-3 text-sub ${LQ_NOTE}`}>
                   {(kept.stoppedBy === "background" || kept.stoppedBy === "track_ended") && (
                     <p>{t(kept.stoppedBy === "background" ? "web.recorder.background" : "web.recorder.trackEnded", { seconds: Math.round(kept.durationMs / 1000) })}</p>
                   )}
@@ -167,6 +174,8 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
             </div>
           </SurfaceCard>
         </SectionGroup>
+        </div>
+        {liquid && <RecentScores />}
         <SectionGroup title={t("web.practice.home.more")}>
           <ListRow icon={<IconChip tone="gray" icon={HistoryIcon} />} title={t("web.practice.historyTitle")} to="/practice/history" testId="practice-history" />
           <ListRow icon={<IconChip tone="gray" icon={BarChart3Icon} />} title={t("web.me.progress")} to="/progress" testId="practice-progress" />
