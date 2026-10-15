@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { applyColorScheme, initColorScheme, resolveDark } from "./color-scheme";
+import { applyColorScheme, initColorScheme, resolveDark, setThemeColorOverride } from "./color-scheme";
 
 const html = document.documentElement;
 
@@ -100,5 +100,24 @@ describe("applyColorScheme / initColorScheme", () => {
     expect(html.classList.contains("dark")).toBe(true);
     expect(() => applyColorScheme("system", bare)).not.toThrow();
     expect(html.classList.contains("dark")).toBe(false);
+  });
+});
+
+describe("setThemeColorOverride (liquid glass, owner Q2)", () => {
+  afterEach(() => setThemeColorOverride(null));
+
+  it("wins over system / fixed schemes, survives re-applies and restores the originals when cleared", () => {
+    const { win } = fakeWindow(false);
+    applyColorScheme("system", win);
+    setThemeColorOverride("#e8eaed", win);
+    expect(metas().map((m) => m.getAttribute("content"))).toEqual(["#e8eaed", "#e8eaed"]);
+    expect(metas().every((m) => !m.hasAttribute("media"))).toBe(true);
+    applyColorScheme("dark", win);
+    expect(metas().map((m) => m.getAttribute("content"))).toEqual(["#e8eaed", "#e8eaed"]);
+    setThemeColorOverride(null, win);
+    expect(metas().map((m) => m.getAttribute("content"))).toEqual(["#0F1013", "#0F1013"]);
+    applyColorScheme("system", win);
+    expect(metas().map((m) => m.getAttribute("content"))).toEqual(["#ffffff", "#0F1013"]);
+    expect(metas()[0].getAttribute("media")).toBe("(prefers-color-scheme: light)");
   });
 });
