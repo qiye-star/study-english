@@ -112,7 +112,7 @@ export function PracticePage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
         subtitle={today}
         actions={
           <>
-            <Slot point="practiceHeaderActions" props={{}} />
+            <span data-testid="practice-header-slot" className="contents liquid:[&_[data-testid=changelog-dot]]:bg-blue"><Slot point="practiceHeaderActions" props={{}} /></span>
             <Link to="/practice/list" data-testid="practice-list" aria-label={t("web.practice.list.title")} className={ICON_LINK}>
               <ListChecksIcon aria-hidden />
             </Link>

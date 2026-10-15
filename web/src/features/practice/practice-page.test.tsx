@@ -62,6 +62,13 @@ describe("PracticePage", () => {
     expect(entry.compareDocumentPosition(screen.getByTestId("practice-list")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   }, 20_000);
 
+  it("liquid: the unread dot is recoloured to cobalt by the header slot wrapper (red stays classic)", async () => {
+    setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 2, latest_id: 5 }) });
+    const dot = await screen.findByTestId("changelog-dot", {}, { timeout: 10_000 });
+    expect(dot.className).toContain("bg-red");
+    expect(dot.closest("[data-testid=practice-header-slot]")!.className).toContain("liquid:[&_[data-testid=changelog-dot]]:bg-blue");
+  });
+
   it("has no changelog entry when nothing is published", async () => {
     const { mock } = setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 0, latest_id: null }) });
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/changelog")).toBe(true), { timeout: 10_000 });
