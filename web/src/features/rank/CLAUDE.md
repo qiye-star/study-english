@@ -27,3 +27,4 @@ Spec: `docs/superpowers/specs/2026-10-09-rank-and-rooms-design.md` §2–4, §10
 - iOS:`useMatch` 在「开始」点击与松手的同步阶段调用 `tts.prime()` 预热播放。
 - 测试默认语言是英文;断言中文文案的测试在 describe 里调用 `inChinese()`(写设置 + 切语言,SettingsProvider 才不会切回去)。
 - 不要从一个 `*.test.tsx` 引入另一个测试文件(会把它的用例再跑一遍);共享样例放 `test-contract.ts`。
+- Liquid glass (plan 2026-10-15-liquid-glass L8):`ui.ts` 常量携带 liquid 令牌;成就全部单色(已得 = 墨色图标 + well,未得 = ink-3);段位卡进度条是卡片上唯一的强调色。
