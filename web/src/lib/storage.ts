@@ -35,3 +35,6 @@ export const WORDBOOK_PREFS_KEY = "enjoy-web.wordbook.prefs";
 
 /** 更新日志的本机偏好(一次性小提示是否已显示,计划 2026-10-14-changelog R-15);登出时由 auth/device-data 清除。 */
 export const CHANGELOG_PREFS_KEY = "enjoy-web.changelog.prefs";
+
+/** 液态玻璃「主题自定义」的本机偏好(计划 2026-10-15-liquid-glass INDEX §4.4);登出时由 auth/device-data 清除。 */
+export const GLASS_THEME_KEY = "enjoy-web.appearance.glass";

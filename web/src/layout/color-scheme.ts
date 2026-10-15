@@ -10,6 +10,8 @@ const DARK_QUERY = "(prefers-color-scheme: dark)";
 const THEME_COLOR = { light: "#ffffff", dark: "#0F1013" } as const;
 
 let preference: ColorScheme = DEFAULT_COLOR_SCHEME;
+/** 液态玻璃打开时,layout/glass-theme.ts 把用户选的背景色放这里:theme-color(iOS 状态栏)跟随它(计划 2026-10-15-liquid-glass L1,Q2)。 */
+let themeColorOverride: string | null = null;
 
 export function resolveDark(scheme: ColorScheme, systemDark: boolean): boolean {
   return scheme === "dark" || (scheme === "system" && systemDark);
@@ -26,7 +28,10 @@ function syncThemeColor(doc: Document, scheme: ColorScheme, dark: boolean): void
       meta.setAttribute("data-enjoy-original", JSON.stringify({ content: meta.getAttribute("content"), media: meta.getAttribute("media") }));
     }
     const original = JSON.parse(meta.getAttribute("data-enjoy-original") ?? "{}") as { content?: string | null; media?: string | null };
-    if (scheme === "system") {
+    if (themeColorOverride) {
+      meta.setAttribute("content", themeColorOverride);
+      meta.removeAttribute("media");
+    } else if (scheme === "system") {
       if (original.content != null) meta.setAttribute("content", original.content);
       if (original.media != null) meta.setAttribute("media", original.media);
       else meta.removeAttribute("media");
@@ -46,6 +51,17 @@ export function applyColorScheme(scheme: ColorScheme, win: Window = window): voi
   root.classList.toggle("dark", dark);
   root.style.setProperty("color-scheme", scheme === "system" ? "" : dark ? "dark" : "light");
   syncThemeColor(win.document, scheme, dark);
+}
+
+/**
+ * 设置 / 清除 theme-color 覆盖色(null = 回到上面的规则)。覆盖时两条 meta 都取该色并去掉 media,
+ * 当前明暗由调用方(随 .dark 重新计算后再调用)负责;立即按当前偏好重写 meta。
+ */
+export function setThemeColorOverride(color: string | null, win: Window = window): void {
+  if (themeColorOverride === color) return;
+  themeColorOverride = color;
+  const root = win.document.documentElement;
+  syncThemeColor(win.document, preference, root.classList.contains("dark"));
 }
 
 /** main.tsx 渲染前调用:读存储里的偏好并应用,同时监听系统主题变化。返回清理函数。 */

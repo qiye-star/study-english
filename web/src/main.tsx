@@ -4,6 +4,7 @@ import "./index.css";
 import "./i18n";
 import { initColorScheme } from "./layout/color-scheme";
 import { initGlassQuality } from "./layout/glass-quality";
+import { initGlassTheme } from "./layout/glass-theme";
 import { initGlassFlag } from "./lib/glass-flag";
 import "./plugins"; // 组合层:登记全部扩展点贡献(spec 2026-10-11-learning-links §8.3)
 import { App } from "./app";
@@ -13,6 +14,7 @@ import { registerServiceWorker } from "./pwa/register-sw";
 initColorScheme();
 initGlassFlag(); // 液态玻璃开发开关(?glass=v2),默认关(计划 2026-10-15-liquid-glass)
 initGlassQuality();
+initGlassTheme(); // 主题自定义 → :root 变量(开关打开时;计划 2026-10-15-liquid-glass)
 installAudioUnlock(); // R31:第一次 click/touchend 时解锁页面级 AudioContext(语音消息的 PCM 采集要求它已 running)
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

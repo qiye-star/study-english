@@ -9,6 +9,8 @@ import { COMPOSER_MODE_KEY } from "~/features/chat/composer-mode";
 import { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, clearDeviceData } from "./device-data";
 import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "~/lib/playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "~/lib/kv-cache";
+import { GLASS_THEME_KEY } from "~/lib/storage";
+import { getGlassTheme, resetGlassThemeMemory } from "~/settings/glass-theme-store";
 
 describe("clearDeviceData", () => {
   it("empties the practice draft, lookup cache and TTS blobs, and never throws", async () => {
@@ -59,6 +61,15 @@ describe("clearDeviceData", () => {
     localStorage.setItem(WORDBOOK_PREFS_KEY, JSON.stringify({ showLetterCount: true }));
     clearDeviceData();
     expect(localStorage.getItem(WORDBOOK_PREFS_KEY)).toBeNull();
+  });
+
+  it("clears the glass theme prefs and resets the in-memory copy (plan 2026-10-15-liquid-glass R-LG9)", () => {
+    localStorage.setItem(GLASS_THEME_KEY, JSON.stringify({ v: 1, radius: 0.6 }));
+    resetGlassThemeMemory();
+    expect(getGlassTheme().radius).toBe(0.6);
+    clearDeviceData();
+    expect(localStorage.getItem(GLASS_THEME_KEY)).toBeNull();
+    expect(getGlassTheme().radius).toBe(1);
   });
 
   it("forgets the composer mode (text / hold to talk) at logout", () => {
