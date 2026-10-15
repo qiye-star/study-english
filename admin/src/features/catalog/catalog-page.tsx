@@ -6,7 +6,7 @@ import { RoleGate } from "../../components/role-gate";
 import { ErrorState, Skeleton } from "../../components/states";
 import { StatusDot, type Tone } from "../../components/status-dot";
 import { errorText as apiErrorText, useAsync } from "../../hooks/use-async";
-import { formatDuration } from "../../lib/format";
+import { formatBytes, formatDuration } from "../../lib/format";
 import { levelText } from "../../lib/levels";
 import { ACTIVE, fetchCatalog, publish, unpublish, type CatalogRow, type CatalogState } from "./api";
 import { CatalogDetail } from "./catalog-detail";
@@ -149,6 +149,7 @@ export function CatalogPage() {
     { key: "tags", header: S.cols.tags, render: (r) => (r.tags.length ? r.tags.join(" · ") : "—") },
     { key: "status", header: S.cols.status, render: (r) => <StatusCell row={r} /> },
     { key: "duration", header: S.cols.duration, numeric: true, render: (r) => (r.durationMs === null ? "—" : formatDuration(r.durationMs)) },
+    { key: "media", header: S.cols.media, render: (r) => (r.mediaBytes > 0 ? `${S.kind[r.kind] ?? r.kind} · ${formatBytes(r.mediaBytes)}` : "—") },
     { key: "sentences", header: S.cols.sentences, numeric: true, render: (r) => n(r.segCount) },
     { key: "translated", header: S.cols.translated, numeric: true, render: (r) => n(r.translated) },
     { key: "refs", header: S.cols.refs, numeric: true, render: (r) => n(r.refs) },

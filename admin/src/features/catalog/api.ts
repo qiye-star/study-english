@@ -2,13 +2,14 @@
 import { request } from "../../api/client";
 
 export type CatalogStatus = "uploading" | "queued" | "processing" | "ready" | "failed" | "canceled";
+export type CatalogKind = "video" | "audio";
 export const ACTIVE: CatalogStatus[] = ["uploading", "queued", "processing"];
 
 export interface CatalogRow {
   id: string; title: string; level: string | null; tags: string[]; licenseNote: string | null;
   source: "upload" | "link"; sourceHost: string | null; status: CatalogStatus; stage: string | null; progress: number;
   errorKind: string | null; durationMs: number | null; segCount: number; translated: number; subSource: string | null;
-  lowConfidence: boolean; mediaBytes: number; hasPoster: boolean; mediaMissing: boolean; aiLang: string;
+  lowConfidence: boolean; kind: CatalogKind; mediaBytes: number; hasPoster: boolean; mediaMissing: boolean; aiLang: string;
   published: boolean; publishedAt: string | null; retired: boolean; refs: number; uploadReceived: number;
   uploadTotal: number; createdAt: string; updatedAt: string;
 }
@@ -66,6 +67,9 @@ export const putSubtitles = async (id: string, file: Blob, name: string) => {
   return camel<{ cueCount: number }>(await request(`${BASE}/uploads/${enc(id)}/subtitles`, { method: "PUT", form }));
 };
 export const completeUpload = (id: string) => itemOf(request(`${BASE}/uploads/${enc(id)}/complete`, { method: "POST", json: {} }));
+/** plan 2026-10-15-catalog-keep-video R-KV5:同一条目重新上传媒体;分片与 complete 复用上传的接口。 */
+export const startReplace = async (id: string, filename: string, size: number) =>
+  camel<{ catalogId: string; chunkBytes: number }>(await request(`${BASE}/${enc(id)}/replace-media`, { json: { filename, size } }));
 export const patchMeta = (id: string, meta: CatalogMeta) => itemOf(request(`${BASE}/${enc(id)}`, { method: "PATCH", json: snakeMeta(meta) }));
 const action = (name: string) => (id: string) => itemOf(request(`${BASE}/${enc(id)}/${name}`, { method: "POST", json: {} }));
 export const publish = action("publish");

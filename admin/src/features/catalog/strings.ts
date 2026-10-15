@@ -12,10 +12,11 @@ export const S = {
     shared: (today: string, cap: string) => `共享句子分析:今日 ${today} / ${cap} 句`,
   },
   actions: { importLink: "按链接导入", upload: "上传文件", refresh: "刷新" },
-  cols: { title: "标题", level: "级别", tags: "标签", status: "状态", duration: "时长", sentences: "句数", translated: "已译", refs: "副本", published: "发布" },
+  cols: { title: "标题", level: "级别", tags: "标签", status: "状态", duration: "时长", sentences: "句数", translated: "已译", refs: "副本", published: "发布", media: "媒体" },
   status: { uploading: "上传中", queued: "排队中", processing: "处理中", ready: "就绪", failed: "失败", canceled: "已取消" },
   stage: { fetch: "下载", probe: "检查", transcode: "转码", subtitles: "字幕", transcribe: "识别", segment: "分句", translate: "翻译" } as Record<string, string>,
   badges: { retired: "已退役", mediaMissing: "媒体缺失", partial: "部分未译", lowConfidence: "句界可能不准" },
+  kind: { video: "视频", audio: "音频" } as Record<string, string>,
   empty: "还没有精选条目",
   form: {
     url: "视频页面链接", urlHint: "可直接粘贴分享文本;服务器在大陆时需要配置代理才能访问 YouTube。",
@@ -28,6 +29,10 @@ export const S = {
     listen: "试听", sentences: "句子", edit: "编辑", save: "保存", saveMeta: "保存元数据", meta: "元数据", translate: "补全译文",
     retry: "重试", cancelJob: "取消处理", publish: "发布", unpublish: "下架", del: "删除", purge: "强制删除",
     editLocked: "已发布的条目不能改句子:先下架,改好再发布。已加入的学习者副本不会随之更新。",
+    replace: "替换媒体文件",
+    replaceHint: "上传同一素材的视频(时长需一致):句子与译文保留,已加入的学习者副本自动改用新文件。只能在下架状态替换。",
+    replacing: (p: string) => `上传中 ${p}`,
+    replaceFailed: (why: string) => `上次替换媒体失败:${why}`,
     text: "原文", zh: "译文", startMs: "开始(毫秒)", endMs: "结束(毫秒)", close: "关闭",
   },
   confirm: {
@@ -52,7 +57,7 @@ export const S = {
     "Upload is incomplete": "文件还没传完", "Subtitles cannot be changed now": "现在不能补传字幕",
     "Invalid subtitle file": "字幕文件无法解析", "File is required": "没有选择文件", "Invalid title": "标题不合法",
   } as Record<string, string>,
-  errorKinds: { no_subtitles: "没有字幕且自动识别不可用:补传字幕后会自动重试", upstream: "上游服务失败", blocked: "站点拒绝了服务器(试试配置代理,或本机下载后上传)", drm: "受 DRM 保护,无法导入" } as Record<string, string>,
+  errorKinds: { no_subtitles: "没有字幕且自动识别不可用:补传字幕后会自动重试", upstream: "上游服务失败", blocked: "站点拒绝了服务器(试试配置代理,或本机下载后上传)", drm: "受 DRM 保护,无法导入", unsupported_format: "格式不支持,或与原素材时长不一致" } as Record<string, string>,
 };
 
 export const errorText = (message: string) => S.errors[message] ?? message;

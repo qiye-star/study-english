@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { camel, deletePhrase, fetchCatalog, importLink, patchMeta, purgePhrase, putChunk } from "./api";
+import { camel, deletePhrase, fetchCatalog, importLink, patchMeta, purgePhrase, putChunk, startReplace } from "./api";
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 function stub(body: unknown) {
@@ -36,6 +36,14 @@ describe("catalog admin api", () => {
     const state = await putChunk(ID, 0, new Blob([new Uint8Array([1, 2, 3])]));
     expect(calls[0].init.body).toBeInstanceOf(FormData);
     expect(state.uploadReceived).toBe(3);
+  });
+  it("starts a media replacement on the same item", async () => {
+    const calls = stub({ catalog_id: ID, chunk_bytes: 8388608 });
+    const out = await startReplace(ID, "talk.mp4", 1234);
+    expect(calls[0].url).toBe(`/api/admin/library/catalog/${ID}/replace-media`);
+    expect(calls[0].init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ filename: "talk.mp4", size: 1234 });
+    expect(out).toEqual({ catalogId: ID, chunkBytes: 8388608 });
   });
   it("camel keeps arrays", () => expect(camel({ a_b: [{ c_d: 1 }] })).toEqual({ aB: [{ cD: 1 }] }));
 });
