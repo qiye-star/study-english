@@ -6,7 +6,7 @@ import { GLASS_ATTR } from "~/lib/glass-flag";
 import { GlassRoutePin } from "./glass-route-pin";
 
 let go: (path: string) => void = () => {};
-function Nav() {
+function Nav(): null {
   const navigate = useNavigate();
   go = navigate;
   return null;

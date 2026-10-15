@@ -33,6 +33,7 @@ export const BLUR_OWNERS: Record<string, string> = {
   "features/lookup/lookup-layer.tsx": "frozen lookup drawer (BottomSheetContent glass prop)",
   "features/agents/persona-editor-sheet.tsx": "classic .glass action bar (existing)",
   "features/wordbook/spell/spell-page.tsx": "classic .glass action bars (existing)",
+  "test/glass.ts": "test helper that lists the blur class names (not a user)",
   "lib/glass-flag.ts": "false positive: the \"glass\" query parameter name, not a class",
   "features/library": "locked library (own rules)",
   "features/practice/shadow": "locked shadow sheet (own rules)",
