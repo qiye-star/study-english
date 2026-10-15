@@ -101,7 +101,7 @@ export function ManageTab() {
         <button type="button" role="switch" aria-checked={enabled} aria-labelledby="memory-remember-label" disabled={busy}
           onClick={() => void toggle()}
           className={cn("hit-expand relative h-7 w-12 flex-none rounded-full transition-colors duration-fast",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", enabled ? "bg-blue" : "bg-surface-2")}>
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", enabled ? "bg-blue" : "bg-surface-2 liquid:bg-wash-2")}>
           <span aria-hidden className={cn("absolute left-0 top-0.5 h-6 w-6 rounded-full bg-surface shadow-card transition-transform duration-fast",
             enabled ? "translate-x-[22px]" : "translate-x-0.5")} />
         </button>

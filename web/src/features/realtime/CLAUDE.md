@@ -22,3 +22,4 @@ Public (`index.ts`): `fetchRealtimeConfig`, `RealtimeConfig`, `CallEnding`, `Rea
 - `prepareCallAudio` must run synchronously in the tap (iOS).
 - Every end path releases mic, VAD, player and own AudioContext; page hidden = hang up.
 - `protocol.test.ts` reads the server file; change both sides together.
+- Liquid glass (plan 2026-10-15-liquid-glass L6): dock / text draft / more panel are `mat-float` (unblurred: they carry key labels, INDEX D-3) with `liquid:backdrop-filter-none` over the classic `.glass`; no blue wash (page-bg instead); keys are wells; hang-up keeps its red fill; the live dot is green.

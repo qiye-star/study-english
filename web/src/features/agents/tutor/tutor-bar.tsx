@@ -58,7 +58,7 @@ export function TutorBar({ session, hint, hintZh, busy, onHint, onSkip, onListen
   };
   return (
     <section data-testid="tutor-bar" aria-label={t("web.agents.tutor.bar.region")}
-      className="mx-gutter mb-2 rounded-card border-[0.5px] border-hair bg-surface px-3 pb-1 pt-2 shadow-card dark:shadow-none">
+      className="mx-gutter mb-2 rounded-card border-[0.5px] border-hair bg-surface px-3 pb-1 pt-2 shadow-card dark:shadow-none plate liquid:rounded-[18px] liquid:px-3 liquid:py-2">
       <div className="flex min-w-0 items-center gap-2">
         <ToneBadge tone="blue">{t("web.agents.tutor.bar.mode")}</ToneBadge>
         <span data-testid="tutor-progress" className="whitespace-nowrap text-sub font-semibold tabular-nums text-ink">
@@ -72,10 +72,10 @@ export function TutorBar({ session, hint, hintZh, busy, onHint, onSkip, onListen
         </button>
       </div>
       <div role="progressbar" aria-label={t("web.agents.tutor.bar.region")} aria-valuemin={0} aria-valuemax={session.stepsTotal} aria-valuenow={answered}
-        className="h-1 overflow-hidden rounded-full bg-surface-2">
+        className="h-1 overflow-hidden rounded-full bg-surface-2 liquid:bg-wash-2">
         <div className="h-1 rounded-full bg-blue transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${pct}%` }} />
       </div>
-      {hint ? <p data-testid="tutor-hint" {...lookupContext} role="status" className="mt-2 rounded-[10px] bg-amber-tint px-2.5 py-1.5 text-sub text-amber">{hint}</p> : null}
+      {hint ? <p data-testid="tutor-hint" {...lookupContext} role="status" className="mt-2 rounded-[10px] bg-amber-tint px-2.5 py-1.5 text-sub text-amber liquid:bg-transparent liquid:px-0 liquid:text-ink-2">{hint}</p> : null}
       {hint && hintZh ? (
         <ZhNoteFold text={hintZh} showLabel={t("web.agents.tutor.bar.zhShow")} hideLabel={t("web.agents.tutor.bar.zhHide")} testId="tutor-hint-zh" className="mt-1" />
       ) : null}

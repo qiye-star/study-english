@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_PRIMARY } from "~/components/liquid";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -63,7 +64,7 @@ export function ReportPersonaSheet({ persona, onClose, onReported }: ReportPerso
         </div>
         {failed && <p role="alert" className="mt-2 text-sub text-red">{t("web.agents.report.failed")}</p>}
         <button type="button" data-testid="agent-report-submit" disabled={!reason || busy} onClick={() => void submit()}
-          className="mt-3.5 h-12 w-full rounded-button bg-blue text-body font-semibold text-on-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          className={`mt-3.5 h-12 w-full rounded-button bg-blue text-body font-semibold text-on-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_PRIMARY}`}>
           {t("web.agents.report.submit")}
         </button>
       </BottomSheetContent>

@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP, LQ_CHIP_ON, LQ_NOTE } from "~/components/liquid";
 import { AlertTriangleIcon, CheckIcon, PencilIcon, PlusIcon, SparklesIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,7 +31,7 @@ const focusClass = "focus-visible:outline-none focus-visible:ring-2 focus-visibl
 function Badge({ builtin }: { builtin: boolean }) {
   const { t } = useTranslation();
   return (
-    <span className={cn("flex-none rounded-[5px] px-1.5 text-label font-medium", builtin ? "bg-surface-2 text-ink-2" : "bg-blue-tint text-blue")}>
+    <span className={cn("flex-none rounded-[5px] px-1.5 text-label font-medium", builtin ? "bg-surface-2 text-ink-2" : "bg-blue-tint text-blue", LQ_CHIP, "liquid:h-auto")}>
       {t(builtin ? "web.agents.picker.builtin" : "web.agents.picker.mine")}
     </span>
   );
@@ -38,8 +39,8 @@ function Badge({ builtin }: { builtin: boolean }) {
 
 function Check({ on }: { on: boolean }) {
   return (
-    <span aria-hidden className={cn("flex h-[22px] w-[22px] flex-none items-center justify-center rounded-full border-[1.5px]",
-      on ? "border-blue bg-blue text-on-blue" : "border-hair")}>
+    <span aria-hidden className={cn("flex h-[22px] w-[22px] flex-none items-center justify-center rounded-full border-[1.5px] liquid:rounded-tile",
+      on ? `border-blue bg-blue text-on-blue ${LQ_CHIP_ON}` : "border-hair liquid:border-transparent liquid:bg-wash")}>
       {on && <CheckIcon className="h-3.5 w-3.5" />}
     </span>
   );
@@ -108,7 +109,7 @@ export function PersonaPicker({ open, onOpenChange, selectedId, onSelect, allowN
                       <span className="flex items-center gap-1.5 text-body font-semibold text-ink">
                         <span className="truncate">{p.name}</span>
                         <Badge builtin={builtin} />
-                        {disabled && <span className="flex-none rounded-[5px] bg-amber-tint px-1.5 text-label font-medium text-amber">{t("web.agents.chip.disabled")}</span>}
+                        {disabled && <span className={cn("flex-none rounded-[5px] bg-amber-tint px-1.5 text-label font-medium text-amber", LQ_CHIP, "liquid:h-auto")}>{t("web.agents.chip.disabled")}</span>}
                       </span>
                       <span className="block truncate text-meta text-ink-2">{p.intro}</span>
                     </span>
@@ -131,7 +132,7 @@ export function PersonaPicker({ open, onOpenChange, selectedId, onSelect, allowN
               {full && <span className="ml-auto text-meta font-normal text-ink-2">{t("web.agents.picker.limit", { max })}</span>}
             </button>
           )}
-          <p className="mt-3.5 flex gap-2 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber">
+          <p className={`mt-3.5 flex gap-2 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber ${LQ_NOTE}`}>
             <AlertTriangleIcon aria-hidden className="mt-px h-4 w-4 flex-none" />{t("web.agents.picker.note")}
           </p>
         </BottomSheetContent>

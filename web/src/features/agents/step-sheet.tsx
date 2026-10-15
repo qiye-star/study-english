@@ -1,4 +1,5 @@
 import { RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
+import { LQ_NOTE, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 import { useTranslation } from "react-i18next";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { formatParams, stepLabel } from "./step-labels";
@@ -25,17 +26,17 @@ export function StepSheet({ step, onClose, onRegenerate }: { step: AgentStep | n
             </div>
           ))}
         </dl>
-        <p className="mt-2.5 flex gap-2 rounded-[10px] bg-blue-tint px-3 py-2 text-meta text-blue">
+        <p className={`mt-2.5 flex gap-2 rounded-[10px] bg-blue-tint px-3 py-2 text-meta text-blue ${LQ_NOTE}`}>
           <ShieldCheckIcon aria-hidden className="mt-px h-4 w-4 flex-none" />{t("web.agents.process.privacy")}
         </p>
         <div className="mt-3.5 flex gap-2.5">
           <button type="button" onClick={onClose}
-            className="h-11 flex-1 rounded-button bg-surface-2 text-body font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className={`h-11 flex-1 rounded-button bg-surface-2 text-body font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_SECONDARY}`}>
             {t("web.agents.common.close")}
           </button>
           {onRegenerate && (
             <button type="button" data-testid="agent-regenerate" onClick={() => { onClose(); onRegenerate(); }}
-              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-button bg-blue text-body font-semibold text-on-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              className={`inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-button bg-blue text-body font-semibold text-on-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_PRIMARY}`}>
               <RefreshCwIcon aria-hidden className="h-4 w-4" />{t("web.agents.process.regenerate")}
             </button>
           )}

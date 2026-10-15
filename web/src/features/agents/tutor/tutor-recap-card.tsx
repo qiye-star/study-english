@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_INK, LQ_MARK } from "~/components/liquid";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@renderer/lib/utils";
@@ -10,7 +11,7 @@ import { lookupContext } from "~/lib/lookup-context";
 import type { TutorPoint, TutorRecap, TutorVerdict } from "./tutor-api";
 import { scoreBars } from "./tutor-model";
 
-const BAR: Record<TutorVerdict, string> = { good: "bg-green", ok: "bg-blue", weak: "bg-amber", skip: "bg-ink-2 opacity-40" };
+const BAR: Record<TutorVerdict, string> = { good: "bg-green liquid:bg-ink/85", ok: "bg-blue liquid:bg-ink/55", weak: "bg-amber liquid:bg-ink/30", skip: "bg-ink-2 opacity-40" };
 const KNOWN_FOCUS = new Set(["free", "today_words", "weak_words", "restaurant", "travel", "interview", "shopping", "small_talk"]);
 
 function focusLabel(t: TFunction, focus: string): string {
@@ -21,7 +22,7 @@ function Points({ title, points, tone, testId }: { title: string; points: TutorP
   const { t } = useTranslation();
   return (
     <div data-testid={testId} className="mt-3">
-      <h4 className={cn("text-sub font-semibold", tone === "green" ? "text-green" : "text-amber")}>{title}</h4>
+      <h4 className={cn("text-sub font-semibold", tone === "green" ? "text-green" : "text-amber", LQ_INK)}>{title}</h4>
       {points.length ? (
         <ul className="mt-1 flex flex-col gap-0.5 text-body text-ink">
           {points.map((p) => <li key={`${p.kind}:${p.focus}`}>{t(`web.agents.tutor.kind.${p.kind}`)} · {focusLabel(t, p.focus)}</li>)}
@@ -60,7 +61,7 @@ export function TutorRecapCard({ recap, showTitle = true }: { recap: TutorRecap;
           <ul className="mt-1 flex flex-col">
             {recap.words.map((w) => (
               <li key={w} className="flex min-h-tap items-center justify-between gap-2 border-b-[0.5px] border-hair last:border-0">
-                <span {...lookupContext} className="min-w-0 truncate text-body text-teal">{w}</span>
+                <span {...lookupContext} className={`min-w-0 truncate text-body text-teal ${LQ_MARK}`}>{w}</span>
                 <WordActions target={{ word: w.slice(0, MAX_WORD_TARGET.word), source: "recap" }} testId={`tutor-word-${w}`} variant="icon" />
               </li>
             ))}

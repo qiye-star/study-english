@@ -106,7 +106,7 @@ export function TutorEntry({ personaId, conversationId, disabled, onStarted }: T
   return (
     <>
       <button type="button" data-testid="agent-tutor-entry" disabled={disabled} onClick={() => setOpen(true)}
-        className="hit-expand ml-2 inline-flex h-8 flex-none items-center gap-1 whitespace-nowrap rounded-full bg-blue-tint px-2.5 text-sub font-semibold text-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="hit-expand ml-2 inline-flex h-8 flex-none items-center gap-1 whitespace-nowrap rounded-full bg-blue-tint px-2.5 text-sub font-semibold text-blue plate liquid:text-ink disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <GraduationCapIcon aria-hidden className="h-4 w-4" />{t("web.agents.tutor.entry")}
       </button>
       {open && (

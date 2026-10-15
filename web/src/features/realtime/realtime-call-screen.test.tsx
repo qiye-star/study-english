@@ -7,6 +7,7 @@ import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { FakeAudioContext, asContext } from "~/test/fake-audio";
 import { holdMic, pressKey } from "~/test/hold"; // 也是 jsdom 的 PointerEvent 补丁(带 button)
 import { renderWithProviders } from "~/test/render";
+import { setLiquid } from "~/test/glass";
 import { INITIAL_CALL, type CallModel } from "./call-machine";
 import type { RealtimeEnv } from "./realtime-call";
 import { RealtimeCallDialog, RealtimeCallScreen, prepareCallAudio } from "./realtime-call-screen";
@@ -206,7 +207,7 @@ describe("RealtimeCallScreen", () => {
       expect(ptt.className).toMatch(/\bflex-1\b/);
       expect(ptt.className).toMatch(/\bh-11\b/);
       expect(ptt.className).toMatch(/rounded-button/);
-      expect(ptt.className).not.toMatch(/rounded-full|h-key|w-key/);
+      expect(ptt.className).not.toMatch(/(?<![w:-])(rounded-full|h-key|w-key)/);
       expect(ptt.className).toMatch(/bg-blue-tint/); // 设计稿 v3:静止 blue-tint / blue
       expect(ptt).toHaveAttribute("data-hold-to-talk");
       expect(ptt.style.touchAction).toBe("none");
@@ -555,6 +556,21 @@ describe("RealtimeCallScreen", () => {
       for (const id of ids) {
         expect(screen.getByTestId(id!).className).toMatch(/min-h-11/);
         expect(screen.getByTestId(id!).className).toMatch(/min-w-11/);
+      }
+    });
+
+    it("liquid: dock is an unblurred floating panel, wash hidden, hang-up still red (plan 2026-10-15-liquid-glass R-L6-4)", () => {
+      setLiquid(true);
+      try {
+        render({ phase: "listening" });
+        const dock = screen.getByTestId("call-dock");
+        expect(dock.className).toContain("mat-float");
+        expect(dock.className).toContain("liquid:backdrop-filter-none");
+        expect(screen.getByTestId("call-screen").className).toContain("page-bg");
+        expect(screen.getByTestId("call-screen").querySelector("[class*=\"liquid:hidden\"]")).not.toBeNull();
+        expect(screen.getByTestId("call-hangup").innerHTML).toContain("liquid:bg-red-solid");
+      } finally {
+        setLiquid(false);
       }
     });
 

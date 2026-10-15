@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { PersonaPicker } from "./persona-picker";
 import { resetAgentsCaches } from "./use-agents-data";
@@ -66,5 +67,17 @@ describe("PersonaPicker (mockup 5)", () => {
     const editor = await screen.findByTestId("agent-persona-editor");
     expect(within(editor).getByTestId("agent-editor-name")).toHaveValue("Quiz");
     expect(screen.queryByTestId("agent-persona-picker")).toBeNull();
+  });
+
+  it("liquid: the chosen persona is a graphite chip (plan 2026-10-15-liquid-glass R-L6-1)", async () => {
+    setLiquid(true);
+    try {
+      setup();
+      const chosen = await screen.findByTestId("agent-persona-builtin:coach");
+      expect(chosen.innerHTML).toContain("liquid:bg-graphite");
+      expect(screen.getByTestId("agent-persona-p1").innerHTML).not.toContain("liquid:bg-graphite");
+    } finally {
+      setLiquid(false);
+    }
   });
 });

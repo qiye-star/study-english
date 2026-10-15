@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP, LQ_CHIP_ON, LQ_FIELD, LQ_FIELD_MULTI, LQ_ICON_WELL, LQ_NOTE, LQ_PRIMARY } from "~/components/liquid";
 import { ShieldCheckIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,14 +34,15 @@ export function validateDraft(d: PersonaDraft, promptMax: number): "name" | "pro
 
 const fieldClass = "mb-3.5 block";
 const labelClass = "mb-1.5 flex justify-between text-meta text-ink-2";
-const inputClass = "w-full rounded-[12px] border-0 bg-surface-2 px-3 py-2.5 text-base text-ink placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30";
+const inputBase = `w-full rounded-[12px] border-0 bg-surface-2 px-3 py-2.5 text-base text-ink placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30`;
+const inputClass = `${inputBase} ${LQ_FIELD}`;
 const chipClass = (on: boolean) => cn(
   "hit-expand h-8 rounded-full px-3 text-sub transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-  on ? "bg-blue-tint font-semibold text-blue" : "bg-surface-2 text-ink-2",
+  on ? `bg-blue-tint font-semibold text-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink-2 ${LQ_CHIP}`,
 );
 const TOOL_TONE: Record<ToolKey, string> = {
-  lookup: "bg-teal-tint text-teal", learned_words: "bg-amber-tint text-amber", weak_words: "bg-amber-tint text-amber",
-  due_words: "bg-amber-tint text-amber", memory: "bg-amber-tint text-amber",
+  lookup: `bg-teal-tint text-teal ${LQ_ICON_WELL}`, learned_words: `bg-amber-tint text-amber ${LQ_ICON_WELL}`, weak_words: `bg-amber-tint text-amber ${LQ_ICON_WELL}`,
+  due_words: `bg-amber-tint text-amber ${LQ_ICON_WELL}`, memory: `bg-amber-tint text-amber ${LQ_ICON_WELL}`,
 };
 
 export interface PersonaEditorSheetProps {
@@ -149,7 +151,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
             </span>
           </span>
           <textarea data-testid="agent-editor-prompt" rows={4} maxLength={promptMax} aria-describedby={`${uid}-count`} value={draft.prompt}
-            className={cn(inputClass, "min-h-24 resize-none leading-body")} onChange={(e) => setDraft({ ...draft, prompt: e.target.value })} />
+            className={cn(inputBase, "min-h-24 resize-none leading-body", LQ_FIELD_MULTI)} onChange={(e) => setDraft({ ...draft, prompt: e.target.value })} />
         </label>
         <div className={fieldClass}>
           <span className={labelClass}>
@@ -192,7 +194,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
                 <span className="block text-meta text-ink-2">{t(`web.agents.toolHints.${key}`)}</span>
               </label>
               <Switch id={`${uid}-${key}`} data-testid={`agent-editor-tool-${key}`} checked={draft.tools.includes(key)} onCheckedChange={(on) => toggleTool(key, on)}
-                className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+                className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
             </div>
           ))}
           <div className="flex min-h-row items-center gap-2.5 py-1.5">
@@ -201,10 +203,10 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
               <span className="block text-meta text-ink-2">{t("web.agents.editor.promptPublicHint")}</span>
             </label>
             <Switch id={`${uid}-public`} data-testid="agent-editor-prompt-public" checked={draft.promptPublic} onCheckedChange={(promptPublic) => setDraft({ ...draft, promptPublic })}
-              className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+              className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
           </div>
         </div>
-        <p className="mt-2.5 flex gap-2 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber">
+        <p className={`mt-2.5 flex gap-2 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber ${LQ_NOTE}`}>
           <ShieldCheckIcon aria-hidden className="mt-px h-4 w-4 flex-none" />{t("web.agents.editor.safety")}
         </p>
         <label className="mt-3.5 block">
@@ -233,7 +235,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
             {t("web.agents.editor.tryButton")}
           </button>
           <button type="button" data-testid="agent-editor-save" disabled={!!invalid || saving} onClick={() => void save()}
-            className="h-11 flex-1 whitespace-nowrap rounded-button bg-blue text-body font-semibold text-on-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className={`h-11 flex-1 whitespace-nowrap rounded-button bg-blue text-body font-semibold text-on-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_PRIMARY}`}>
             {t("web.agents.editor.save")}
           </button>
         </div>
