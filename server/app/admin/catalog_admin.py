@@ -9,6 +9,7 @@ from sqlalchemy import update
 from app.admin import audit
 from app.core import config as core_config
 from app.library import ai, catalog_store, limits, paths, store, subtitles, urlcheck
+from app.library.catalog_import import REPLACE_MARK
 from app.library.errors import LibraryError
 from app.library.pipeline import INPUT_PREFIX, UPLOADED_SUBS
 from app.models import CatalogItem, utcnow
@@ -182,8 +183,9 @@ async def put_chunk(session, app, catalog_id: str, n: int, data: bytes) -> dict:
 async def put_subtitles(session, app, catalog_id: str, data: bytes) -> dict:
     """While uploading, or to retry a `failed(no_subtitles)` item (then it is queued again)."""
     row = await get_row(session, catalog_id)
-    if not (row.status == "uploading" or (row.status == "failed" and row.error_kind == "no_subtitles")):
-        raise _err(409, "Subtitles cannot be changed now")
+    if not ((row.status == "uploading" and row.seg_count == 0)
+            or (row.status == "failed" and row.error_kind == "no_subtitles")):
+        raise _err(409, "Subtitles cannot be changed now")  # R-KV8: a media replacement keeps its sentences
     try:
         cues = subtitles.parse(data)
     except LibraryError:
@@ -214,6 +216,43 @@ async def complete_upload(session, app, catalog_id: str) -> dict:
         await session.commit()
     jobs(app).kick()
     return {"item": await row_out(session, app, row)}
+
+
+async def start_replace(session, app, actor, catalog_id: str, *, filename: str, size: int) -> dict:
+    """R-KV5: re-upload the media of a ready, unpublished item that has sentences (e.g. the video of an item imported
+    as audio only). The chunk / complete endpoints of the upload are reused; the job keeps the sentences."""
+    s = app.state.settings
+    if not s.library_available:
+        raise _err(503, "Media tools are not installed")
+    row = await get_row(session, catalog_id)
+    cid = row.id
+    if row.retired_at is not None:
+        raise _err(409, "Item is retired")
+    if row.published:
+        raise _err(409, "Item is published")
+    if row.status != "ready" or row.seg_count <= 0:
+        raise _err(409, "Item is not ready")
+    ext = store.extension_of(filename)
+    if ext not in limits.UPLOAD_EXTENSIONS:
+        raise _err(400, "Unsupported file type")
+    if size > s.library_max_upload_mb * limits.MB:
+        raise _err(413, "File is too large")
+    done = await session.execute(update(CatalogItem).where(CatalogItem.id == cid, CatalogItem.status == "ready")
+                                 .values(status="uploading", stage=None, progress=0, error_kind=None,
+                                         upload_total=size, upload_received=0, updated_at=utcnow()))
+    if done.rowcount != 1:
+        await session.rollback()
+        raise _err(409, "Item is not ready")
+    tmp = paths.catalog_tmp_dir(data_dir(app), cid)
+    paths.remove_tree(tmp)
+    tmp.mkdir(parents=True, exist_ok=True)
+    (tmp / f"upload.{ext}.part").write_bytes(b"")
+    (tmp / REPLACE_MARK).write_bytes(b"")
+    await audit.record(session, actor, "catalog.replace_media", target_type="catalog_item", target_id=cid,
+                       after={"bytes": size})
+    await session.commit()
+    logger.info("library catalog media replace started catalog=%s bytes=%d", cid, size)
+    return {"catalog_id": cid, "chunk_bytes": limits.CHUNK_BYTES}
 
 
 async def patch_meta(session, app, actor, catalog_id: str, changes: dict) -> dict:

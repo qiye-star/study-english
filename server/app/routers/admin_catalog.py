@@ -53,6 +53,12 @@ class UploadIn(Meta):
     ai_lang: str | None = Field(default=None, max_length=16)
 
 
+class ReplaceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: str = Field(min_length=1, max_length=255)
+    size: int = Field(ge=1)
+
+
 class Empty(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -146,6 +152,14 @@ async def catalog_subtitles(catalog_id: CatalogUuid, request: Request, _: AdminC
 async def catalog_complete(catalog_id: CatalogUuid, request: Request, _: AdminContext = Depends(require("operator")),
                            session: AsyncSession = Depends(get_session)):
     return await _guard(session, lambda: catalog_admin.complete_upload(session, request.app, catalog_id))
+
+
+@router.post("/{catalog_id}/replace-media")
+async def catalog_replace_media(catalog_id: CatalogUuid, body: ReplaceIn, request: Request,
+                                ctx: AdminContext = Depends(require("operator")),
+                                session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.start_replace(session, request.app, ctx.actor, catalog_id,
+                                                                     filename=body.filename, size=body.size))
 
 
 @router.patch("/{catalog_id}")

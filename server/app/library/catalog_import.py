@@ -131,6 +131,73 @@ async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress
     return info.duration_ms
 
 
+def _fresh_name(current_rel: str | None, wanted: str) -> str:
+    """R-KV6: never write over the file copies are streaming; alternate media.mp4 <-> media-2.mp4."""
+    if (current_rel or "").rsplit("/", 1)[-1] != wanted:
+        return wanted
+    stem, ext = wanted.rsplit(".", 1)
+    return f"{stem}-2.{ext}"
+
+
+def _same_length(new_ms: int, old_ms: int) -> bool:
+    return abs(new_ms - old_ms) <= max(2000, old_ms // 50)  # R-KV7: 2 s or 2 %
+
+
+async def _replace_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress: Progress) -> None:
+    """R-KV5: new media for an item that keeps its sentences; the catalog row and every copy move in one commit,
+    then the old file goes. A failure before the commit leaves the old media and the copies untouched."""
+    src = pipeline.input_file(tmp)
+    if src is None:
+        raise LibraryError("corrupt")
+    await progress.set("probe", 0)
+    info = await deps.tools.probe(src, home=tmp)
+    if not info.has_audio:
+        raise LibraryError("no_audio")
+    if not _same_length(info.duration_ms, row.duration_ms or 0):
+        raise LibraryError("unsupported_format")
+    if paths.disk_free(tmp) < 2 * paths.file_bytes(src):
+        raise LibraryError("disk_full")
+    await progress.set("transcode", 5)
+    out_dir = tmp / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    poster = out_dir / "poster.jpg"
+    has_poster = info.has_video and await deps.tools.poster(src, poster, info.duration_ms, home=tmp)
+    normalized = await _transcode(deps, src, info, out_dir, tmp)
+    await progress.set("transcode", 80)
+    final = paths.catalog_dir(deps.data_dir, row.id)
+    rel = paths.catalog_rel(row.id)
+    name = _fresh_name(row.media_path, normalized.path.name)
+    media_dst = final / name
+    paths.replace(normalized.path, media_dst)
+    poster_rel = row.poster_path
+    if has_poster:
+        paths.replace(poster, final / "poster.jpg")
+        poster_rel = f"{rel}/poster.jpg"
+    size = paths.file_bytes(media_dst) + (paths.file_bytes(final / "poster.jpg") if poster_rel else 0)
+    old_rel = row.media_path
+    async with deps.sessionmaker() as s:
+        done = await s.execute(update(CatalogItem).where(CatalogItem.id == row.id,
+                                                         CatalogItem.status == "processing").values(
+            duration_ms=info.duration_ms, media_path=f"{rel}/{name}", poster_path=poster_rel,
+            media_mime=normalized.mime, media_bytes=size, updated_at=deps.clock()))
+        if done.rowcount != 1:
+            await s.rollback()
+            media_dst.unlink(missing_ok=True)  # only the new file: copies still read the old one (never the tree)
+            raise Aborted()
+        fresh = await s.get(CatalogItem, row.id)
+        copies = await catalog_store.sync_copies(s, fresh, deps.clock())
+        await s.commit()
+    (tmp / REPLACE_MARK).unlink(missing_ok=True)
+    if old_rel and old_rel != f"{rel}/{name}":
+        try:
+            paths.absolute(deps.data_dir, old_rel).unlink(missing_ok=True)
+        except (ValueError, OSError):
+            pass  # an unreferenced leftover; removed with the catalog directory (R-KV6)
+    src.unlink(missing_ok=True)
+    logger.info("library catalog media replaced catalog=%s kind=%s duration_ms=%d bytes=%d copies=%d", row.id,
+                normalized.kind, info.duration_ms, size, copies)
+
+
 async def _add_asr_seconds(deps: PipelineDeps, catalog_id: str, seconds: int) -> None:
     if seconds > 0:
         async with deps.sessionmaker() as s:
@@ -233,6 +300,8 @@ async def process(deps: PipelineDeps, catalog_id: str, *, http, translate_templa
             await catalog_store.write_segments(s, fresh, built, flags=flags)
             fresh.sub_source, fresh.low_confidence, fresh.updated_at = sub_source, low, deps.clock()
             await s.commit()
+    elif (tmp / REPLACE_MARK).is_file():
+        await _replace_stage(deps, row, tmp, progress)
     _stored, failed = await _translate(deps, http, catalog_id, row.ai_lang, translate_template, progress)
     async with deps.sessionmaker() as s:
         done = await s.execute(update(CatalogItem).where(CatalogItem.id == catalog_id,

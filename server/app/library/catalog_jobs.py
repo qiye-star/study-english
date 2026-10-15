@@ -97,8 +97,9 @@ class CatalogJobs:
     async def _failed(self, catalog_id: str, kind: str) -> None:
         async with self.deps.sessionmaker() as s:
             await catalog_store.fail(s, catalog_id, kind, self.deps.clock())
-        if kind in DROP_STAGING:
-            paths.remove_tree(paths.catalog_tmp_dir(self.deps.data_dir, catalog_id))
+        tmp = paths.catalog_tmp_dir(self.deps.data_dir, catalog_id)
+        if kind in DROP_STAGING or (tmp / catalog_import.REPLACE_MARK).is_file():  # R-KV9
+            paths.remove_tree(tmp)
         logger.info("library catalog job failed catalog=%s kind=%s", catalog_id, kind)
 
     async def cancel(self, catalog_id: str) -> None:
