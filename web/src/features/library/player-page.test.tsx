@@ -178,6 +178,19 @@ describe("LibraryPlayerPage (spec §11.4)", () => {
     expect(mock.calls.some((c) => c.url.pathname === "/api/library/items/i1/poster")).toBe(true);
   });
 
+  it("a featured copy of a video plays in a <video> with its cover (plan 2026-10-15-catalog-keep-video)", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:poster-v");
+    URL.revokeObjectURL = vi.fn();
+    render(detailRaw({ kind: "video", source: "catalog", catalog_id: "c1", has_poster: true, library_bytes: 0 }), {
+      "GET /api/library/items/i1/poster": () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/jpeg" } }),
+    });
+    const video = await screen.findByTestId("library-media");
+    expect(video.tagName).toBe("VIDEO");
+    await waitFor(() => expect(video).toHaveAttribute("src", TICKET));
+    await waitFor(() => expect(video).toHaveAttribute("poster", "blob:poster-v"));
+    expect(document.querySelector(".lib-stage-audio")).toBeNull();
+  });
+
   it("an audio item without a cover keeps the icon stage and asks for no poster", async () => {
     const mock = render(detailRaw({ kind: "audio", has_poster: false }));
     await screen.findByTestId("library-media");

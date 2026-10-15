@@ -43,6 +43,13 @@ describe("ItemCard · featured copy (curated library, R-W5)", () => {
     expect(screen.getByRole("button", { name: "删除" })).toBeInTheDocument();
   });
 
+  it("a copy of a video keeps the badge, 不占空间 and has no ⋯ menu", () => {
+    card({ item: { ...copy, kind: "video" }, ...handlers(), onRebuild: vi.fn() });
+    expect(screen.getByText("精选")).toBeInTheDocument();
+    expect(screen.getByText("2:05 · 3 句 · 不占空间")).toBeInTheDocument();
+    expect(screen.queryByTestId("library-item-more-i1")).toBeNull();
+  });
+
   it("a recognized own item still has the menu (control)", () => {
     card({ item: { ...base, subSource: "asr" }, ...handlers() });
     expect(screen.getByTestId("library-item-more-i1")).toBeInTheDocument();
