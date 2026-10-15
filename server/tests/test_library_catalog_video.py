@@ -66,7 +66,6 @@ async def test_a_catalog_copy_streams_decodable_audio(app, client, tmp_path):
     assert mime in ("audio/mp4", "video/mp4")
 
 
-@pytest.mark.xfail(strict=True, reason="plan 2026-10-15-catalog-keep-video: Task 3 removes this marker")
 async def test_a_catalog_copy_of_a_video_keeps_the_picture(app, client, tmp_path):
     _cid, item, h, _admin = await import_and_add(app, client, tiny_video(tmp_path / "src.mp4", vcodec="mpeg4"))
     assert (await client.get(f"/api/library/items/{item}", headers=h)).json()["item"]["kind"] == "video"

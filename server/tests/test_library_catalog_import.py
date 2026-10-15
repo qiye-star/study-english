@@ -69,7 +69,7 @@ def reply(text):
 
 
 @respx.mock
-async def test_upload_with_subtitles_becomes_a_ready_unpublished_audio_item_with_translations(app):
+async def test_a_video_upload_keeps_the_picture_with_translations(app):
     tools = use_fakes(app)
     respx.post(LLM).mock(return_value=reply("1. 你好,我的朋友。\n2. 你今天好吗?"))
     cid = await queued(app)
@@ -77,14 +77,48 @@ async def test_upload_with_subtitles_becomes_a_ready_unpublished_audio_item_with
     await run(app, cid)
     row = await row_of(app, cid)
     assert (row.status, row.published, row.sub_source, row.seg_count, row.media_mime) == (
-        "ready", False, "uploaded", 2, "audio/mp4")
-    assert row.media_path == f"{paths.catalog_rel(cid)}/media.m4a" and row.poster_path.endswith("poster.jpg")
+        "ready", False, "uploaded", 2, "video/mp4")
+    assert row.media_path == f"{paths.catalog_rel(cid)}/media.mp4" and row.poster_path.endswith("poster.jpg")
     data_dir = app.state.library.deps.data_dir
-    assert (paths.catalog_dir(data_dir, cid) / "media.m4a").is_file()
+    assert (paths.catalog_dir(data_dir, cid) / "media.mp4").is_file()
     assert not paths.catalog_tmp_dir(data_dir, cid).exists()
-    assert "audio_only" in tools.calls and "normalize" not in tools.calls
+    assert "normalize" in tools.calls and "audio_only" not in tools.calls
+    assert tools.normalize_kwargs == {"max_height": 720, "max_kbps": catalog_import.VIDEO_MAX_KBPS}
     async with app.state.sessionmaker() as s:
         assert [x.zh for x in await catalog_store.segments_of(s, cid)] == ["你好,我的朋友。", "你今天好吗?"]
+
+
+async def test_an_audio_source_stays_mono_audio(app):
+    tools = use_fakes(app)
+    app.state.settings = app.state.settings.model_copy(update={"library_ai_enabled": False})
+    cid = await queued(app)
+    staged_upload(app, cid, fake_media(6000, video=False), SRT)
+    await run(app, cid)
+    row = await row_of(app, cid)
+    assert (row.media_mime, row.media_path) == ("audio/mp4", f"{paths.catalog_rel(cid)}/media.m4a")
+    assert "audio_only" in tools.calls and "normalize" not in tools.calls
+    assert catalog_store.kind_of(row) == "audio"
+
+
+async def test_the_video_height_follows_a_lower_admin_setting(app):
+    tools = use_fakes(app)
+    app.state.settings = app.state.settings.model_copy(update={"library_ai_enabled": False,
+                                                               "library_transcode_max_height": 480})
+    cid = await queued(app)
+    staged_upload(app, cid, fake_media(6000, video=True), SRT)
+    await run(app, cid)
+    assert tools.normalize_kwargs["max_height"] == 480
+
+
+async def test_media_log_lines_carry_only_the_id_kind_and_numbers(app, caplog):
+    caplog.set_level(logging.INFO)
+    use_fakes(app)
+    app.state.settings = app.state.settings.model_copy(update={"library_ai_enabled": False})
+    cid = await queued(app, title="Secret talk title")
+    staged_upload(app, cid, fake_media(6000, video=True), SRT)
+    await run(app, cid)
+    assert f"catalog={cid}" in caplog.text and "kind=video" in caplog.text
+    assert "Secret talk title" not in caplog.text and "Hello there" not in caplog.text
 
 
 async def test_audio_source_has_no_poster(app):

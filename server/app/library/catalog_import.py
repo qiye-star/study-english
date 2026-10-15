@@ -1,6 +1,6 @@
 """精选库一条目录条目的导入(spec 2026-10-14-curated-library §7;INDEX §7)。
 
-取回(链接,`FetchRequest.system=True`)→ 探测 → 封面(视频源)→ `audio_only` → 上传的字幕 > 平台字幕 > 识别(系统付费,
+取回(链接,`FetchRequest.system=True`)→ 探测 → 封面(视频源)→ 转码(视频源 `normalize` ≤ 720p / ≤ 1600 kbps,音频源 `audio_only`)→ 上传的字幕 > 平台字幕 > 识别(系统付费,
 不预留每日额度)→ 分句 → 写 `catalog_segments` → 逐句翻译(`ai.translate_texts`,系统付费;失败不让导入失败)→ ready(未发布)。
 已有句子的条目(补全译文,spec R9)只跑翻译。复用用户流水线的零件,不复用 `pipeline.process`(它绑定 LibraryItem 与用户额度)。
 日志只有目录 id、阶段、种类与数字。"""
@@ -16,6 +16,7 @@ from app.core import metering
 from app.library import ai, catalog_store, paths, pipeline, segment, sentences as sentences_mod, store, subtitles
 from app.library.errors import Aborted, LibraryError
 from app.library.limits import AI_BATCH_MAX
+from app.library.media import Normalized
 from app.library.pipeline import FetchRequest, PipelineDeps
 from app.models import CatalogItem
 
@@ -23,6 +24,17 @@ logger = logging.getLogger(__name__)
 
 FEATURE = "cat_import"  # metering feature of the import job (<= 16 chars)
 SYSTEM_USER = 0  # FetchRequest.user_id / transcriber argument for system jobs (R-SI1)
+VIDEO_MAX_HEIGHT = 720  # plan 2026-10-15-catalog-keep-video R-KV2 (and never above library_transcode_max_height)
+VIDEO_MAX_KBPS = 1600  # total; copy only below it, re-encode capped at it
+REPLACE_MARK = "replace.flag"  # in the catalog _tmp dir: this upload replaces the media of an item with sentences
+
+
+async def _transcode(deps: PipelineDeps, src: Path, info, out_dir: Path, tmp: Path) -> Normalized:
+    """R-KV1: a video source keeps its picture (the user pipeline's normalizer, capped); audio stays mono 64 kbps."""
+    if info.has_video:
+        height = min(deps.settings().library_transcode_max_height, VIDEO_MAX_HEIGHT)
+        return await deps.tools.normalize(src, info, out_dir, max_height=height, home=tmp, max_kbps=VIDEO_MAX_KBPS)
+    return await deps.tools.audio_only(src, out_dir, duration_ms=info.duration_ms, home=tmp)
 
 
 class Progress:
@@ -94,10 +106,10 @@ async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress
     out_dir.mkdir(parents=True, exist_ok=True)
     poster = out_dir / "poster.jpg"
     has_poster = info.has_video and await deps.tools.poster(src, poster, info.duration_ms, home=tmp)  # R-SI2
-    normalized = await deps.tools.audio_only(src, out_dir, duration_ms=info.duration_ms, home=tmp)
+    normalized = await _transcode(deps, src, info, out_dir, tmp)
     await progress.set("transcode", t1)
     final = paths.catalog_dir(deps.data_dir, row.id)
-    media_dst = final / "media.m4a"
+    media_dst = final / normalized.path.name
     paths.replace(normalized.path, media_dst)
     if has_poster:
         paths.replace(poster, final / "poster.jpg")
@@ -106,7 +118,7 @@ async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress
     async with deps.sessionmaker() as s:
         done = await s.execute(update(CatalogItem).where(CatalogItem.id == row.id,
                                                          CatalogItem.status == "processing").values(
-            duration_ms=info.duration_ms, media_path=f"{rel}/media.m4a",
+            duration_ms=info.duration_ms, media_path=f"{rel}/{media_dst.name}",
             poster_path=f"{rel}/poster.jpg" if has_poster else None, media_mime=normalized.mime,
             media_bytes=size, updated_at=deps.clock()))
         await s.commit()
@@ -114,8 +126,8 @@ async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress
         paths.remove_tree(final)
         raise Aborted()
     src.unlink(missing_ok=True)  # the original download / upload is not kept
-    logger.info("library catalog media ready catalog=%s duration_ms=%d bytes=%d poster=%s", row.id,
-                info.duration_ms, size, "yes" if has_poster else "no")
+    logger.info("library catalog media ready catalog=%s kind=%s duration_ms=%d bytes=%d poster=%s", row.id,
+                normalized.kind, info.duration_ms, size, "yes" if has_poster else "no")
     return info.duration_ms
 
 
