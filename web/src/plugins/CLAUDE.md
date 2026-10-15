@@ -32,3 +32,4 @@
 - 注册文件在启动时执行:只导入轻组件,重组件 / 页面用 `lazy()` + `Suspense`(见 `links/index.ts`);主包增长有验收上限(≤ 8 kB gzip)。
 - 联动文案放各插件 `i18n/`(键 `web.links.<x>.*`),即使由 feature 的注册文件渲染;中英两份键一致。
 - 旗标未加载前全关;任何贡献都不能假设旗标已到。服务端错误用 `LINKS_SERVER_ERRORS` 翻译。
+- 液态玻璃(计划 2026-10-15-liquid-glass L10):插件 UI 跟随共享的 `LQ_*` 映射(`~/components/liquid`),只追加 `liquid:` 类,不再用色调;分数用 `ScoreDot` + 墨色数字。
