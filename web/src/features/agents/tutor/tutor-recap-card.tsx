@@ -6,6 +6,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { MAX_WORD_TARGET } from "~/lib/extension-points";
 import { levelLabel } from "~/lib/levels";
 import { WordActions } from "~/lib/extension-points-react";
+import { lookupContext } from "~/lib/lookup-context";
 import type { TutorPoint, TutorRecap, TutorVerdict } from "./tutor-api";
 import { scoreBars } from "./tutor-model";
 
@@ -59,7 +60,7 @@ export function TutorRecapCard({ recap, showTitle = true }: { recap: TutorRecap;
           <ul className="mt-1 flex flex-col">
             {recap.words.map((w) => (
               <li key={w} className="flex min-h-tap items-center justify-between gap-2 border-b-[0.5px] border-hair last:border-0">
-                <span className="min-w-0 truncate text-body text-teal">{w}</span>
+                <span {...lookupContext} className="min-w-0 truncate text-body text-teal">{w}</span>
                 <WordActions target={{ word: w.slice(0, MAX_WORD_TARGET.word), source: "recap" }} testId={`tutor-word-${w}`} variant="icon" />
               </li>
             ))}

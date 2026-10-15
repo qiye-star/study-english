@@ -10,6 +10,7 @@ import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components
 import { PRACTICE_SERVER_ERRORS, briefWords, getAssessment, type AssessmentDetail, MobileScoreResult, savePracticeItem, useShadowSheet } from "~/features/practice";
 import type { UiMessage } from "./ui-message";
 import { poorWords } from "./voice-words";
+import { lookupContext } from "~/lib/lookup-context";
 
 /** 点开语音/文字气泡的徽标:评测分数与弱词(列表里已有摘要则立即显示)、完整结果(打开时才请求)、语法详情(children)、"跟读这句"、收藏。 */
 export function TurnDetailSheet({ message, onClose, children }: { message: UiMessage | null; onClose(): void; children?: ReactNode }) {
@@ -77,7 +78,7 @@ export function TurnDetailSheet({ message, onClose, children }: { message: UiMes
                 {scores ? <MobileScoreResult scores={scores} /> : error ? null : <Skeleton className="h-32" />}
                 {weak.length > 0 && (
                   <p data-testid="detail-weak-words" className="text-sub text-ink">
-                    <span className="text-ink-2">{t("web.chat.voice.weakWords")}</span> <span className="font-medium text-amber">{weak.join(", ")}</span>
+                    <span className="text-ink-2">{t("web.chat.voice.weakWords")}</span> <span {...lookupContext} className="font-medium text-amber">{weak.join(", ")}</span>
                   </p>
                 )}
                 {detail ? (

@@ -14,6 +14,7 @@ import { RECAP_SERVER_ERRORS, computeRecapFacts, generateRecap, isRecapStale } f
 import { BubbleAction } from "./message-bubble";
 import type { UiMessage } from "./ui-message";
 import type { TtsState } from "./use-tts-player";
+import { lookupContext } from "~/lib/lookup-context";
 
 /** Task 5.3 用它在条目上追加"加入词汇本"按钮 */
 export interface RecapExtraActions {
@@ -161,7 +162,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                   <ul className="flex flex-wrap gap-2">
                     {facts.poorWords.map((w, i) => (
                       <li key={w} data-testid="recap-poor-word" className="flex items-center rounded-card border-[0.5px] border-hair bg-surface pl-3">
-                        <span className="mr-1 rounded-[4px] bg-amber-tint px-[3px] text-body font-medium text-amber">{w}</span>
+                        <span {...lookupContext} className="mr-1 rounded-[4px] bg-amber-tint px-[3px] text-body font-medium text-amber">{w}</span>
                         {speakButton("recap-poor-word-speak", recapSpeakKey("word", i), w)}
                         <IconAction testId="recap-poor-word-practice" label={t("web.chat.recap.practice")} onClick={() => practice(w, "chat")}><MicIcon aria-hidden /></IconAction>
                         <IconAction testId="recap-poor-word-save" label={t("web.chat.recap.save")} onClick={() => void savePracticeItem(api, t, w, "chat")}><StarIcon aria-hidden /></IconAction>

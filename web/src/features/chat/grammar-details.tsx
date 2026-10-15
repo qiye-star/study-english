@@ -5,6 +5,7 @@ import { Button } from "@renderer/components/ui/button";
 import { useAuth } from "~/auth/auth-context";
 import type { GrammarResult } from "~/features/grammar";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
+import { lookupContext } from "~/lib/lookup-context";
 
 export function GrammarDetails({ result, onClose }: { result: GrammarResult; onClose(): void }) {
   const { api } = useAuth();
@@ -39,9 +40,9 @@ export function GrammarDetails({ result, onClose }: { result: GrammarResult; onC
             {result.errors.map((e, i) => (
               <li key={`${i}-${e.original}`} data-testid="grammar-issue" className="px-3.5 py-3 text-body">
                 <p>
-                  <span className="text-ink-2 line-through">{e.original}</span>
+                  <span {...lookupContext} className="text-ink-2 line-through">{e.original}</span>
                   {" → "}
-                  <span className="font-semibold text-ink">{e.corrected || "∅"}</span>
+                  <span {...lookupContext} className="font-semibold text-ink">{e.corrected || "∅"}</span>
                   <span className="ml-2 inline-flex h-[22px] items-center whitespace-nowrap rounded-[7px] bg-surface-2 px-2 align-middle text-meta font-semibold text-ink-2">{t(`web.grammar.categories.${e.category}`, { defaultValue: t("web.grammar.categories.other") })}</span>
                 </p>
                 {e.explanation && <p className="mt-1 text-sub text-ink-2">{e.explanation}</p>}
