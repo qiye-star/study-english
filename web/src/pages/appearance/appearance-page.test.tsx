@@ -66,3 +66,12 @@ describe("AppearancePage (plan 2026-10-15-liquid-glass L3)", () => {
     expect(getGlassTheme()).toEqual(GLASS_DEFAULTS);
   });
 });
+
+describe("AppearancePage layout classes", () => {
+  it("reserves the shared tab-bar space under the last row", () => {
+    setLiquid(true);
+    const { container } = renderWithProviders(<AppearancePage />);
+    expect(container.innerHTML).toContain("pb-[calc(var(--tab-bar-space)+2rem)]");
+    setLiquid(false);
+  });
+});

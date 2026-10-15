@@ -10,7 +10,7 @@ import { useIsDark } from "~/layout/color-scheme";
 import { isLowMemory } from "~/layout/glass-quality";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
-import { useLiquid } from "~/lib/glass-flag";
+import { isGlassOn } from "~/lib/glass-flag";
 import { RADIUS_PRESETS, computeGlassVars, sliderToTint, tintToSlider, type GlassPreset } from "~/lib/glass-theme";
 import { COLOR_SCHEMES, type ColorScheme } from "~/settings/color-scheme-pref";
 import { useGlassTheme } from "~/settings/glass-theme-store";
@@ -30,7 +30,6 @@ const reducedTransparency = () => typeof window !== "undefined" && !!window.matc
 /** 我的 → 外观与主题(spec §6.4,设计稿 themeScreen;计划 2026-10-15-liquid-glass L3)。只在液态皮肤下可达。 */
 export function AppearancePage() {
   const { t } = useTranslation();
-  const liquid = useLiquid();
   const dark = useIsDark();
   const { colorScheme, setColorScheme } = useSettings();
   const { theme, update, applyPreset, reset } = useGlassTheme();
@@ -38,14 +37,15 @@ export function AppearancePage() {
   const lite = lowMemory || theme.reduced;
   const computed = useMemo(() => computeGlassVars(theme, { dark, lite }), [theme, dark, lite]);
   const rt = reducedTransparency();
-  if (!liquid) return <Navigate to="/me" replace />;
+  // App-wide switch, not the per-route pin: entering from a pinned route still has data-glass="pin" for one commit.
+  if (!isGlassOn()) return <Navigate to="/me" replace />;
   const radiusPreset = (Object.keys(RADIUS_PRESETS) as (keyof typeof RADIUS_PRESETS)[]).find((k) => RADIUS_PRESETS[k] === theme.radius) ?? "";
   const section = "mt-4 p-4";
   const title = "mb-3 flex items-center justify-between text-sub font-semibold text-ink-2";
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.appearance.title")} back="/me" />
-      <div className="px-frame pb-8">
+      <div className="px-frame pb-[calc(var(--tab-bar-space)+2rem)]">
         <SurfaceCard strong className="mt-2 p-4">
           <PreviewCard />
           <p className="mt-2.5 text-meta text-ink-2">{t("web.appearance.previewNote")}</p>
