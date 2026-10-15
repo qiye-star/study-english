@@ -45,7 +45,7 @@ export function AnnouncementFrame() {
     );
   }
   return (
-    <div className="flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
+    <div className="page-bg flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
       <AnnouncementBanner />
       <div className="relative min-h-0 flex-1 overflow-y-auto" style={{ "--app-height": "100%" } as CSSProperties}>
         <Outlet />
