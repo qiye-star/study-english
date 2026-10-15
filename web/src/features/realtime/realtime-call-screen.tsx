@@ -16,7 +16,7 @@ import { transcribeHeldAudio } from "./realtime-api";
 import { useRealtimeCall } from "./use-realtime-call";
 
 /** 浮动控制台 / 结束卡:玻璃 + 发丝线 + 28px 圆角,左右 16px,底部 max(12px, 安全区)。 */
-const DOCK = "glass relative z-30 mx-4 mb-[max(12px,env(safe-area-inset-bottom))] flex-none rounded-dock border-[0.5px] border-hair";
+const DOCK = "glass relative z-30 mx-4 mb-[max(12px,env(safe-area-inset-bottom))] flex-none rounded-dock border-[0.5px] border-hair mat-float liquid:backdrop-filter-none liquid:rounded-float liquid:mx-2";
 
 export interface RealtimeCallScreenProps {
   model: CallModel;
@@ -235,7 +235,7 @@ export function RealtimeCallScreen({
   const basicDetection = !ended && model.vadUnavailable && !ptt;
   const notices = (model.degraded || model.notice || basicDetection) && (
     <div className="mt-2 flex flex-col items-center gap-0.5 text-meta">
-      {model.degraded && <p data-testid="call-degraded" role="status" className="text-amber">{t("web.realtime.degraded")}</p>}
+      {model.degraded && <p data-testid="call-degraded" role="status" className="text-amber liquid:text-ink-2">{t("web.realtime.degraded")}</p>}
       {model.notice && <p data-testid="call-notice" role="status" className="text-ink-2">{text(model.notice)}</p>}
       {basicDetection && <p data-testid="call-basic-detection" className="text-ink-2">{t("web.realtime.basicDetection")}</p>}
     </div>
@@ -244,10 +244,10 @@ export function RealtimeCallScreen({
   // 渲染到 body 下:背后整页都是对话框的兄弟节点,才能整体设为 inert
   return createPortal(
     <div ref={dialogRef} data-testid="call-screen" role="dialog" aria-modal="true" aria-label={t("web.realtime.title")} onKeyDown={onKeyDown}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] text-ink">
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] text-ink page-bg">
       {/* 唯一的径向蓝色光晕:标记"通话中" */}
       <div aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[52%] bg-[radial-gradient(120%_80%_at_50%_0%,var(--blue-wash),transparent_70%)]" />
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[52%] bg-[radial-gradient(120%_80%_at_50%_0%,var(--blue-wash),transparent_70%)] liquid:hidden" />
       <CallHeader phase={model.phase} />
       <CallHero name={name} phase={model.phase}
         subtitle={ended ? undefined : <MicIndicator live={micLive} />}
@@ -264,7 +264,7 @@ export function RealtimeCallScreen({
         <div data-testid="call-end" className={cn(DOCK, "flex flex-col items-center gap-3 p-4")}>
           {model.error && <p data-testid="call-error" role="alert" className="text-center text-body text-ink">{text(model.error)}</p>}
           <button ref={closeRef} type="button" data-testid="call-close"
-            className="inline-flex min-h-11 min-w-11 w-full items-center justify-center gap-1.5 rounded-button bg-blue px-4 text-body font-semibold text-on-blue transition-opacity duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:opacity-80"
+            className="inline-flex min-h-11 min-w-11 w-full items-center justify-center gap-1.5 rounded-button bg-blue px-4 text-body font-semibold text-on-blue liquid:rounded-full liquid:shadow-accent transition-opacity duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:opacity-80"
             onClick={onClose}>
             <XIcon className="h-4 w-4" aria-hidden="true" />{t("web.realtime.close")}
           </button>
@@ -274,7 +274,7 @@ export function RealtimeCallScreen({
           {draft && <CallTextDraft draft={draft} onChange={(text) => setDraft((d) => (d ? { ...d, text } : d))} onSend={sendDraft} onDiscard={discardDraft} />}
           {moreOpen && (
             <div id={moreId} data-testid="call-more-panel" role="group" aria-label={t("web.realtime.more")}
-              className="relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-card border-[0.5px] border-hair bg-surface p-2 shadow-card">
+              className="relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-card border-[0.5px] border-hair bg-surface p-2 shadow-card mat-float liquid:rounded-tile liquid:mx-2">
               {holdInPanel && (
                 <CallPttButton disabled={model.muted || tapOn} onDown={onPttDown} onUp={onPttUp} onHeldChange={setHoldOn}
                   label={t("web.realtime.holdToInterrupt")} />

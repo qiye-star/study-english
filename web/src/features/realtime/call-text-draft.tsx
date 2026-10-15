@@ -38,7 +38,7 @@ export function CallTextDraft({ draft, onChange, onSend, onDiscard }: {
   const canSend = !busy && draft.text.trim().length > 0;
   return (
     <div data-testid="call-text-draft" role="group" aria-labelledby={titleId} data-status={draft.status}
-      className="glass relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-sheet border-[0.5px] border-hair p-3">
+      className="glass relative z-30 mx-4 mb-2 flex flex-none flex-col gap-2 rounded-sheet border-[0.5px] border-hair p-3 mat-float liquid:backdrop-filter-none liquid:rounded-tile liquid:mx-2">
       <div className="flex min-h-5 items-center justify-between gap-2">
         <p id={titleId} className="text-sub font-semibold text-ink">{t("web.realtime.textDraft.title")}</p>
         <p data-testid="call-text-draft-status" role="status"

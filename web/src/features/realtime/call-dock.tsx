@@ -15,14 +15,14 @@ import { cn } from "~/lib/cn";
 export type DockKeyTone = "off" | "on" | "end";
 
 const KEY_BUTTON = "group flex min-h-11 min-w-11 select-none flex-col items-center gap-1 text-label font-medium leading-[1.2] tracking-[.01em] focus-visible:outline-none disabled:opacity-50";
-const KEY_CIRCLE = "relative flex h-key w-key items-center justify-center rounded-full border-[0.5px] transition-colors duration-fast ease-standard group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background [&>svg]:h-6 [&>svg]:w-6";
+const KEY_CIRCLE = "relative flex h-key w-key items-center justify-center rounded-full border-[0.5px] transition-colors duration-fast ease-standard group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background [&>svg]:h-6 [&>svg]:w-6 liquid:border-transparent liquid:bg-wash liquid:shadow-well";
 
 export function dockKeyClasses(tone: DockKeyTone): { button: string; circle: string } {
   switch (tone) {
     case "on":
-      return { button: cn(KEY_BUTTON, "font-semibold text-blue"), circle: cn(KEY_CIRCLE, "border-transparent bg-blue text-on-blue") };
+      return { button: cn(KEY_BUTTON, "font-semibold text-blue"), circle: cn(KEY_CIRCLE, "border-transparent bg-blue text-on-blue liquid:bg-blue liquid:shadow-none") };
     case "end":
-      return { button: cn(KEY_BUTTON, "text-red"), circle: cn(KEY_CIRCLE, "border-transparent bg-red-solid text-white") };
+      return { button: cn(KEY_BUTTON, "text-red"), circle: cn(KEY_CIRCLE, "border-transparent bg-red-solid text-white liquid:bg-red-solid liquid:shadow-none") };
     default:
       return { button: cn(KEY_BUTTON, "text-ink-2"), circle: cn(KEY_CIRCLE, "border-hair bg-key text-ink") };
   }
@@ -124,7 +124,7 @@ const isHoldKey = (key: string) => key === " " || key === "Enter";
 /** 更多面板里的整行按钮(44px,对应设计稿的 holdbar) */
 const BAR = "flex min-h-11 min-w-11 w-full select-none items-center justify-center gap-1.5 rounded-button border-[0.5px] text-body font-semibold tracking-[.02em] transition-colors duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&>svg]:h-5 [&>svg]:w-5";
 const barTone = (active: boolean) =>
-  active ? "border-transparent bg-blue text-on-blue" : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,.04)]";
+  active ? "border-transparent bg-blue text-on-blue liquid:bg-blue" : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,.04)] liquid:border-transparent liquid:bg-wash liquid:shadow-well";
 
 /**
  * 更多面板里的"按住插话"(免提 + 自动模式:机器人说话时半双工,声音打断不了):按下即开始,松开即结束这句;
@@ -243,7 +243,7 @@ export function MicIndicator({ live }: { live: boolean }) {
   const { t } = useTranslation();
   return (
     <span data-testid="call-mic-indicator" data-live={String(live)} className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={cn("h-2 w-2 flex-none rounded-full", live ? "bg-blue motion-safe:animate-pulse" : "bg-ink-3")} />
+      <span aria-hidden="true" className={cn("h-2 w-2 flex-none rounded-full", live ? "bg-blue liquid:bg-green motion-safe:animate-pulse" : "bg-ink-3")} />
       {live ? t("web.realtime.micInUse") : t("web.realtime.micOffHold")}
     </span>
   );

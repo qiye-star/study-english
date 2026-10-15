@@ -1,8 +1,10 @@
 import { MicIcon, Volume2Icon } from "lucide-react";
+import { LQ_TILE } from "~/components/liquid";
 import { forwardRef, type ReactNode, type UIEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { TONE_CLASS } from "~/components/tone";
 import { scoreBadgeTone } from "~/components/score-tone";
+import { ScoreDot } from "~/components/score-dot";
 import type { ApiClient } from "~/api/client";
 import type { Caption } from "./call-machine";
 import { CallCaptionTranslation } from "./call-caption-translation";
@@ -21,8 +23,8 @@ function CaptionCard({ you, who, live, children, header }: {
 }) {
   return (
     <div data-caption-role={you ? "user" : "assistant"} data-live={live ? "true" : undefined}
-      className="flex-none rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5">
-      <div className={cn("mb-1 flex min-h-[13px] items-center gap-1.5 text-label font-semibold uppercase tracking-[.06em]", you ? "text-blue" : "text-ink-2")}>
+      className={`flex-none rounded-card border-[0.5px] border-hair bg-surface px-3 py-2.5 ${LQ_TILE}`}>
+      <div className={cn("mb-1 flex min-h-[13px] items-center gap-1.5 text-label font-semibold uppercase tracking-[.06em]", you ? "text-blue liquid:text-ink" : "text-ink-2")}>
         {you ? <MicIcon className="h-[13px] w-[13px] flex-none" aria-hidden="true" /> : <Volume2Icon className="h-[13px] w-[13px] flex-none" aria-hidden="true" />}
         <span className="min-w-0 truncate">{who}</span>
         {header && <span className="ml-auto flex items-center gap-1 normal-case tracking-normal">{header}</span>}
@@ -71,8 +73,8 @@ export const CallCaptions = forwardRef<HTMLDivElement, CallCaptionsProps>(functi
           if (user) {
             const score = typeof c.score === "number" ? (
               <span data-testid="call-score" data-score={c.score}
-                className={cn("num inline-flex h-[22px] items-center whitespace-nowrap rounded-badge px-2 text-label font-semibold", TONE_CLASS[scoreBadgeTone(c.score)])}>
-                {t("web.chat.voice.score", { score: c.score })}
+                className={cn("num inline-flex h-[22px] items-center whitespace-nowrap rounded-badge px-2 text-label font-semibold", TONE_CLASS[scoreBadgeTone(c.score)], "liquid:gap-1 liquid:rounded-full liquid:bg-wash liquid:text-ink-2")}>
+                <ScoreDot score={c.score} />{t("web.chat.voice.score", { score: c.score })}
               </span>
             ) : undefined;
             return <CaptionCard key={c.key} you who={you} header={score}>{body}</CaptionCard>;

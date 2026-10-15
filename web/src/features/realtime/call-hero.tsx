@@ -27,7 +27,7 @@ export function LevelBar({ level }: { level(): number }) {
   return (
     <div data-testid="call-level" aria-hidden="true"
       className="mt-3 h-1 w-40 flex-none overflow-hidden rounded-sm bg-surface-2 [@media(max-height:700px)]:mt-0 [@media(max-height:700px)]:w-12">
-      <div ref={bar} className="h-full rounded-sm bg-blue" style={{ width: "0%" }} />
+      <div ref={bar} className="h-full rounded-sm bg-blue liquid:bg-ink/85" style={{ width: "0%" }} />
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function CallHero({ name, phase, subtitle, level, children }: {
   children?: ReactNode;
 }) {
   const ended = phase === "ended";
-  const ring = "pointer-events-none absolute rounded-full border-[1.5px] border-blue [@media(max-height:700px)]:hidden";
+  const ring = "pointer-events-none absolute rounded-full border-[1.5px] border-blue liquid:border-ink-3 [@media(max-height:700px)]:hidden";
   const breathing = phase === "speaking" && "motion-safe:animate-breathe";
   return (
     <div className="relative z-[1] flex-none px-4 pt-6 text-center [@media(max-height:700px)]:pt-2">
