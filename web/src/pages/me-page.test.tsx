@@ -1,10 +1,11 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { PLAYBACK_RATE_KEY, resetPlaybackRateForTests } from "~/lib/playback-rate";
 import { MePage } from "./me-page";
@@ -159,5 +160,39 @@ describe("MePage", () => {
       "GET /api/agents/config": () => json({ enabled: true, tutor_enabled: true, memory_enabled: true, rooms_enabled: true, prompt_max_chars: 800, personas_max: 10 }) });
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     expect(await screen.findByTestId("me-agents")).toHaveAttribute("href", "/me/agents");
+  });
+});
+
+describe("Me in the liquid skin (plan 2026-10-15-liquid-glass L11)", () => {
+  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
+  afterEach(() => setLiquid(false));
+
+  it("profile hero with stat wells, appearance row instead of the colour select, red well logout", async () => {
+    setLiquid(true);
+    const daily = ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"].map((date) => ({
+      date, active: true, userMessages: 3, assessments: 1, speakingSeconds: 600, avgPronunciation: 88,
+    }));
+    const stats = {
+      days: 7, tzOffsetMinutes: 480, today: "2026-10-08", daily, activeDays: 7, streakDays: 5, userMessages: 18,
+      assessments: 6, speakingSeconds: 3600, avgPronunciation: 88.44, grammarTop: [] as unknown[], poorWords: [] as unknown[], truncated: false,
+    };
+    const mock = createFetchMock({ ...ROUTES, "GET /api/stats": () => json(stats) });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const hero = await screen.findByTestId("me-hero");
+    expect(hero.className).toContain("mat-surface-strong");
+    expect(hero).toContainElement(screen.getByTestId("me-username"));
+    expect(hero).toContainElement(await screen.findByTestId("me-stats"));
+    expect(screen.queryByTestId("me-color-scheme")).toBeNull();
+    const row = screen.getByTestId("me-appearance");
+    expect(row).toHaveAttribute("href", "/me/appearance");
+    expect(row).toHaveTextContent(/磨砂|Frosted|preset/);
+    expect(screen.getByTestId("me-logout").className).toContain("liquid:text-red");
+  });
+
+  it("keeps the classic structure when the switch is off", () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    expect(screen.queryByTestId("me-hero")).toBeNull();
+    expect(screen.queryByTestId("me-appearance")).toBeNull();
+    expect(screen.getByTestId("me-color-scheme")).toBeInTheDocument();
   });
 });

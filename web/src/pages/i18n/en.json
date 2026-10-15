@@ -2,6 +2,7 @@
   "web": {
     "me": {
       "groups": { "learning": "Learning", "voice": "Voice", "general": "General", "server": "Account & server" },
+      "appearance": "Appearance",
       "stats": {
         "streak": "Streak", "speaking": "Speaking", "avg": "Avg score",
         "days": "d", "minutes": "min"

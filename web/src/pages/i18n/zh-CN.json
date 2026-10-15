@@ -2,6 +2,7 @@
   "web": {
     "me": {
       "groups": { "learning": "学习", "voice": "语音", "general": "通用", "server": "账户与服务器" },
+      "appearance": "外观与主题",
       "stats": {
         "streak": "连续", "speaking": "口语时长", "avg": "平均发音",
         "days": "天", "minutes": "分钟"
