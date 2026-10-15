@@ -5,6 +5,7 @@ import { cn } from "~/lib/cn";
 import type { RoomMessage } from "../protocol";
 import { TRANSLATE_STALL_MS, TranslateQueue } from "./translate-queue";
 import { useVoicePlayer } from "./use-voice-player";
+import { lookupContext } from "~/lib/lookup-context";
 
 /** 「转写失败」最多重试到第几次(服务端 voice_attempts,视觉稿 V8「最多 3 次」) */
 export const VOICE_MAX_ATTEMPTS = 3;
@@ -105,7 +106,7 @@ export function VoiceBubble({ message, mine, roomId, autoText, onTranslate, onRe
     return () => clearTimeout(timer);
   }, [retrying]);
 
-  if (!voice) return <span className="whitespace-pre-wrap break-words">{message.text}</span>;
+  if (!voice) return <span {...lookupContext} className="whitespace-pre-wrap break-words">{message.text}</span>;
 
   const toggleTranslation = () => {
     if (showTr) return setTrOpen(false);
@@ -176,7 +177,7 @@ export function VoiceBubble({ message, mine, roomId, autoText, onTranslate, onRe
       {!voice.audio && <p className="mt-0.5 text-meta text-ink-2">{t("web.rooms.voice.audioRemoved")}</p>}
       {player.state === "error" && player.error && <p role="alert" className="mt-0.5 text-meta text-red">{player.error}</p>}
       {showText && (done ? (
-        <p className="mt-1.5 whitespace-pre-wrap break-words border-t-[0.5px] border-hair-2 pt-[7px] text-body leading-dialogue">{voice.transcript}</p>
+        <p {...lookupContext} className="mt-1.5 whitespace-pre-wrap break-words border-t-[0.5px] border-hair-2 pt-[7px] text-body leading-dialogue">{voice.transcript}</p>
       ) : status)}
       {showTr && done && translation}
       <div className="-mx-1.5 -mb-1.5 mt-0.5 flex gap-0.5">

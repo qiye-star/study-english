@@ -18,6 +18,7 @@ import { QuoteBlock } from "./extras/quote-block";
 import { ReactionBar } from "./extras/reaction-bar";
 import { TextTranslation } from "./extras/text-translation";
 import { isMostlyNative, speakable, spokenText } from "./extras/text-tools";
+import { lookupContext } from "~/lib/lookup-context";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
 import { TranslateQueue } from "./voice/translate-queue";
@@ -37,9 +38,9 @@ const AT_AI = /^(\s*@(?:ai|助手))(?=$|[\s:：,，])/i;
 /** 成员消息正文:开头的 @ai / @助手 用钴蓝半粗标出(视觉稿 M2 的 .at)。 */
 function MessageText({ text }: { text: string }) {
   const m = AT_AI.exec(text);
-  if (!m) return <span className="whitespace-pre-wrap break-words">{text}</span>;
+  if (!m) return <span {...lookupContext} className="whitespace-pre-wrap break-words">{text}</span>;
   return (
-    <span className="whitespace-pre-wrap break-words">
+    <span {...lookupContext} className="whitespace-pre-wrap break-words">
       <span className="font-semibold text-blue">{m[1].trim()}</span>{text.slice(m[1].length)}
     </span>
   );
@@ -53,7 +54,7 @@ function AiAnswer({ text }: { text: string }) {
   const zh = zhAt < 0 ? "" : lines.slice(zhAt).join("\n").trim();
   return (
     <>
-      {en && <p className="mt-1.5 whitespace-pre-wrap break-words text-body leading-dialogue">{en}</p>}
+      {en && <p {...lookupContext} className="mt-1.5 whitespace-pre-wrap break-words text-body leading-dialogue">{en}</p>}
       {zh && <p className="mt-1 whitespace-pre-wrap break-words text-sub leading-dialogue text-ink-2">{zh}</p>}
     </>
   );
@@ -251,7 +252,7 @@ export const RoomMessageList = memo(function RoomMessageList({
               : <span className="block text-label font-semibold uppercase tracking-eyebrow text-ink-2">{t("web.rooms.room.aiName")}</span>}
             {agent?.asker && !askedByMe && <AnsweredFor name={agent.agent.name} asker={agent.asker.name} />}
             {question && (
-              <p className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
+              <p {...lookupContext} className="mt-1.5 line-clamp-2 border-l-2 border-hair pl-2 text-meta text-ink-2">{question.sender.name}: {question.text}</p>
             )}
             <AiAnswer text={m.text} />
             {agent?.noteZh && (

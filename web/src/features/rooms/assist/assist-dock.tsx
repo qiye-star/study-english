@@ -6,6 +6,7 @@ import type { AssistEntry } from "../room-state";
 import { assistMeta } from "./assist-meta";
 import { DOCK_ROW_PX, dragHeight, nearestSnap, snapHeights, stepSnap, type DockSnap } from "./dock-snap";
 import { SuggestionCard } from "./suggestion-card";
+import { lookupContext } from "~/lib/lookup-context";
 
 export type { DockSnap } from "./dock-snap";
 
@@ -214,7 +215,7 @@ export function AssistDock({ open, snap, keyboardOpen, entries, disabled, offlin
                     {meta.glossary.length > 0 && (
                       <p className="flex flex-wrap gap-1.5">
                         {meta.glossary.map((g) => (
-                          <span key={`${g.src}-${g.en}`} className="rounded-inline bg-surface-2 px-2 py-[3px] text-meta text-ink">{`${g.src} → ${g.en}`}</span>
+                          <span key={`${g.src}-${g.en}`} {...lookupContext} className="rounded-inline bg-surface-2 px-2 py-[3px] text-meta text-ink">{`${g.src} → ${g.en}`}</span>
                         ))}
                       </p>
                     )}
