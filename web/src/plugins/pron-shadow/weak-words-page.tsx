@@ -11,6 +11,7 @@ import { IconButton } from "~/components/icon-button";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import { scoreToneClass } from "~/components/score-tone";
 import { PageHeader } from "~/layout/page-header";
+import { lookupContext } from "~/lib/lookup-context";
 import { LINKS_SERVER_ERRORS } from "~/plugins/links/links-api";
 import { dismissWeakWord, fetchWeakWords, type WeakWordItem } from "./pron-api";
 
@@ -88,7 +89,7 @@ export function WeakWordsPage() {
               {state.items.map((item) => (
                 <li key={item.word} data-testid={`weak-${item.word}`} className="flex min-h-row items-center gap-1 py-1.5 pl-3.5 pr-1.5">
                   <span className="min-w-0 flex-1">
-                    <b lang="en" className="block truncate text-body font-semibold text-ink">{item.word}</b>
+                    <b {...lookupContext} lang="en" className="block truncate text-body font-semibold text-ink">{item.word}</b>
                     <span className="num mt-0.5 block text-meta text-ink-2">
                       {item.lastScore === null
                         ? <span>{t("web.links.pron.unscored")}</span>

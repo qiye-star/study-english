@@ -14,6 +14,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
+import { lookupContext } from "~/lib/lookup-context";
 import { ScoreChart } from "./score-chart";
 import { STATS_PERIODS, getStats, type Stats, type StatsPeriod } from "./stats-api";
 
@@ -133,7 +134,7 @@ export function ProgressPage() {
                   <SectionGroup title={t("web.progress.words")}>
                     {shown.poorWords.map((w) => (
                       <div key={w.word} data-testid="progress-word" className="flex min-h-row items-center gap-1 pl-3.5 pr-1">
-                        <span className="min-w-0 flex-1 truncate text-body font-medium text-ink">
+                        <span {...lookupContext} className="min-w-0 flex-1 truncate text-body font-medium text-ink">
                           {w.word} <span className="num text-meta font-normal text-ink-2">×{w.count}</span>
                         </span>
                         <IconButton label={`${t("web.progress.practice")}: ${w.word}`} tone="blue" data-testid="progress-word-practice"

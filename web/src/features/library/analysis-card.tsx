@@ -10,6 +10,7 @@ import { useAuth } from "~/auth/auth-context";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { SHADOW_SERVER_ERRORS, type SegmentWithAi } from "./attempts-api";
 import { analyzeSegment } from "./library-api";
+import { lookupContext } from "~/lib/lookup-context";
 import "./locales";
 import { BlurText, GlassSurface } from "./shadow-fx";
 
@@ -161,7 +162,7 @@ export function AnalysisCard({ itemId, segment }: AnalysisCardProps) {
             </div>
           )}
           {state.status === "done" && (
-            <div className="select-text">
+            <div {...lookupContext} className="select-text">
               {parseAnalysis(state.text).map((section, i) => (
                 <section key={i} className="mt-2.5 first:mt-0">
                   {section.title && <h4 className="text-meta font-semibold text-teal">{section.title}</h4>}
