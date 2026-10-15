@@ -7,6 +7,7 @@ App chrome around authenticated routes.
 - `bottom-nav.tsx` (练习 · 对话 · 联机 · 跟读库 · 我的; rooms and library tabs are controlled by `useRoomsEnabled()` / `useLibraryEnabled()`, at most 5 tabs), `page-header.tsx`.
 - `glass-route-pin.tsx` — `GlassRoutePin` (in `AppShell`): `data-glass="pin"` on `/library*` and `/practice/changelog` so shared components keep the classic skin there (plan `2026-10-15-liquid-glass`). The shell paints `page-bg` (E0 background, liquid only).
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
+- `glass-theme.ts` — `initGlassTheme` (main.tsx, only when `data-glass` is set) / `applyGlassTheme`: writes the computed vars inline on `<html>`, `data-bg`, `.lite` (device memory or 减弱), and the `theme-color` metas via `setThemeColorOverride` (colour-scheme.ts; follows the chosen background on `data-glass="v2"` only).
 - `color-scheme.ts` (`initColorScheme` applies the stored appearance preference to `html.dark` before first render and follows the system; `applyColorScheme`, `useApplyColorScheme`, `useIsDark`), `color-scheme-sync.tsx` (`ColorSchemeSync`, applies the "Me > Appearance" choice inside `SettingsProvider`), `glass-quality.ts` (`.lite` on low-memory devices).
 
 ## Allowed dependencies

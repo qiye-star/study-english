@@ -4,6 +4,7 @@
 
 ## What lives here
 - `color-scheme-pref.ts`: `ColorScheme` type, `readStoredColorScheme` (no React; `layout/color-scheme.ts` reads it before first render).
+- `glass-theme-store.ts`: liquid-glass 主题自定义 store (`getGlassTheme`, `setGlassTheme` with 300 ms persistence, `subscribeGlassTheme`, `resetGlassThemeMemory`, `useGlassTheme()`), key `enjoy-web.appearance.glass`, separate from `enjoy-web.settings`; cleared at logout. Pure maths in `lib/glass-theme.ts`.
 
 ## Allowed dependencies
 - `i18n/`, `lib/`. No features.

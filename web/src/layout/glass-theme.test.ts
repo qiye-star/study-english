@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GLASS_ATTR } from "~/lib/glass-flag";
-import { GLASS_DEFAULTS } from "~/lib/glass-theme";
+import { GLASS_DEFAULTS, guardBackground, withBg } from "~/lib/glass-theme";
 import { GLASS_THEME_KEY } from "~/lib/storage";
 import { resetGlassThemeMemory, setGlassTheme } from "~/settings/glass-theme-store";
 import { setThemeColorOverride } from "./color-scheme";
@@ -104,10 +104,13 @@ describe("glass theme writer (plan 2026-10-15-liquid-glass L1)", () => {
 
     it("a clamped custom background colours the status bar with the clamped value", () => {
       root.setAttribute(GLASS_ATTR, "v2");
-      const t = { ...GLASS_DEFAULTS, bg: { ...GLASS_DEFAULTS.bg, light: { swatch: null, h: 0, s: 0, l: 20, second: null } } };
+      const t = withBg(GLASS_DEFAULTS, "light", { h: 0, s: 0, l: 20 });
       applyGlassTheme(t, fakeWin(8));
-      // lightness 20 is clamped up by the guard; the meta must never show the unclamped dark colour
-      expect(metas()[0].getAttribute("content")).not.toBe("#333333");
+      // lightness 20 breaks AA for ink-2, so the guard lifts it; the meta must carry the lifted colour
+      const g = guardBackground(t.bg.light, "light");
+      expect(g.clampedFrom).toBe(20);
+      const hex = "#" + g.top.map((c) => c.toString(16).padStart(2, "0")).join("");
+      expect(metas()[0].getAttribute("content")).toBe(hex);
     });
   });
 });
