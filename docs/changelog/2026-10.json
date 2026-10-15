@@ -235,5 +235,28 @@
         "en": "The bottom tab bar is now a floating, rounded, transparent glass pill instead of a full-width bar, with content faintly visible through it."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-15",
+    "version": null,
+    "title_zh": "长按查词全局可用、精选视频与更多改进",
+    "title_en": "Long-press lookup everywhere, featured video and more",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "所有英文内容(学新词的释义、例句、对话、房间、排位等)都可以长按查词,选择条和查词面板改成圆角透明玻璃效果。",
+        "en": "Long-press any English text (definitions and examples in learning, chat, rooms, rank and more) to look it up. The selection bar and lookup panel are now rounded, transparent glass."
+      },
+      {
+        "tag": "improve",
+        "zh": "精选里的视频素材现在保留画面,入库后可以直接看视频跟读,不再只有声音。",
+        "en": "Featured library videos now keep their picture, so after adding one you can watch it while shadowing, not just listen."
+      },
+      {
+        "tag": "new",
+        "zh": "精选里已添加的素材可以点「取消入库」撤回,你在这个副本上的跟读成绩会一并删除。",
+        "en": "Added featured items can be removed with 「取消入库」; your shadowing scores on that copy are deleted with it."
+      }
+    ]
   }
 ]
