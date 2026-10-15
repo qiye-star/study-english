@@ -1,11 +1,12 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { blurLayers, setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { ConversationsPage } from "./conversations-page";
 import { PRESET_SCENARIOS } from "./scenarios";
@@ -316,5 +317,35 @@ describe("ConversationsPage", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chat/c9"));
     expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname === "/api/conversations")).toHaveLength(1);
     expect(mock.calls.filter((c) => c.method === "POST" && c.url.pathname.endsWith("/messages"))).toHaveLength(1);
+  });
+});
+
+describe("chat list in the liquid skin (plan 2026-10-15-liquid-glass L5-1)", () => {
+  beforeEach(() => resetServerAiConfigCache());
+  afterEach(() => setLiquid(false));
+  const render = (mock: ReturnType<typeof createFetchMock>) =>
+    renderWithProviders(<ConversationsPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+
+  it("hero continues the latest conversation; one grouped panel; unblurred new-chat pill", async () => {
+    setLiquid(true);
+    render(createFetchMock({
+      ...CONFIG_ROUTES,
+      "GET /api/conversations": () => json({ conversations: [conv("c1", "Trip"), conv("c2", "Coffee")], page: 1, next: null }),
+    }));
+    const cont = await screen.findByTestId("conversation-continue");
+    expect(cont).toHaveAttribute("href", "/chat/c1");
+    expect(cont.className).toContain("liquid:shadow-accent");
+    expect(screen.getAllByTestId("conversation-item").length).toBeGreaterThanOrEqual(2);
+    const fab = screen.getByTestId("conversation-new");
+    expect(fab.className).toContain("mat-float");
+    expect(screen.getAllByTestId("conversation-new")).toHaveLength(1);
+    expect(blurLayers(document.body).filter((el) => el.contains(fab))).toHaveLength(0);
+  });
+
+  it("empty state uses the shared EmptyState panel", async () => {
+    setLiquid(true);
+    render(createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) }));
+    expect(await screen.findByTestId("conversations-empty")).toHaveTextContent(/./);
+    expect(screen.getByTestId("conversations-empty").className).toContain("mat-surface");
   });
 });
