@@ -1,7 +1,8 @@
 """精选库的数据库读写(spec 2026-10-14-curated-library §5、R1、E8):系统所有的目录条目与句子、输出形状、
 任务队列,以及(Task 4)复制到用户库、引用数、回收与强制删除。
 
-标题、许可说明、句子、译文只给界面;日志只有 id 与数字。目录只缓存 `ai_lang` 一种语言的译文与分析(E11)。"""
+标题、许可说明、句子、译文只给界面;日志只有 id 与数字。目录只缓存 `ai_lang` 一种语言的译文与分析(E11)。
+种类由 `media_mime` 推出(`kind_of`);媒体替换后 `sync_copies` 让副本跟随。"""
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -65,6 +66,11 @@ def tags_of(row: CatalogItem) -> list[str]:
     return [t for t in (row.tags or "").split(",") if t]
 
 
+def kind_of(row: CatalogItem) -> str:
+    """video / audio, from the stored mime (plan 2026-10-15-catalog-keep-video R-KV3: no column, one source of truth)."""
+    return "video" if (row.media_mime or "").startswith("video/") else "audio"
+
+
 # ---- output shapes (INDEX §6) ----
 
 def public_out(row: CatalogItem, added_item_id: str | None) -> dict:
@@ -83,7 +89,7 @@ def admin_out(row: CatalogItem, *, refs: int, translated: int, media_missing: bo
         "source": row.source, "source_host": row.source_host, "status": row.status, "stage": row.stage,
         "progress": progress, "error_kind": row.error_kind, "duration_ms": row.duration_ms, "seg_count": row.seg_count,
         "translated": translated, "sub_source": row.sub_source, "low_confidence": row.low_confidence,
-        "media_bytes": row.media_bytes, "has_poster": row.poster_path is not None, "media_missing": media_missing,
+        "kind": kind_of(row), "media_bytes": row.media_bytes, "has_poster": row.poster_path is not None, "media_missing": media_missing,
         "ai_lang": row.ai_lang, "published": row.published,
         "published_at": iso_utc(row.published_at) if row.published_at else None,
         "retired": row.retired_at is not None, "refs": refs, "upload_received": row.upload_received,
@@ -291,7 +297,7 @@ async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int,
     if row is None or media_missing(data_dir, row):
         raise LookupError(catalog_id)
     segs = await segments_of(session, row.id)
-    item = LibraryItem(id=new_uuid(), user_id=user_id, kind="audio", source="catalog", title=row.title,
+    item = LibraryItem(id=new_uuid(), user_id=user_id, kind=kind_of(row), source="catalog", title=row.title,
                        status="ready", stage=None, progress=100, duration_ms=row.duration_ms,
                        media_path=row.media_path, poster_path=row.poster_path, media_mime=row.media_mime,
                        library_bytes=0, upload_total=0, upload_received=0, sub_source=row.sub_source,
@@ -378,3 +384,12 @@ async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
     paths.remove_catalog_files(data_dir, catalog_id)
     logger.info("library catalog purged catalog=%s copies=%d", catalog_id, len(copies))
     return len(copies), len({u for _i, u in copies})
+
+
+async def sync_copies(session: AsyncSession, row: CatalogItem, now: datetime) -> int:
+    """R-KV5: after a media replacement every user's copy follows the catalog's media (kind, file, mime, poster,
+    duration). Sentences, titles, progress and `library_bytes` (0) stay. Caller commits; returns the copy count."""
+    result = await session.execute(update(LibraryItem).where(LibraryItem.catalog_id == row.id).values(
+        kind=kind_of(row), media_path=row.media_path, media_mime=row.media_mime, poster_path=row.poster_path,
+        duration_ms=row.duration_ms, updated_at=now))
+    return result.rowcount or 0
