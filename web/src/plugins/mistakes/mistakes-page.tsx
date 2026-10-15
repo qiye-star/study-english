@@ -12,6 +12,7 @@ import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import { PageHeader } from "~/layout/page-header";
 import { MAX_WORD_TARGET } from "~/lib/extension-points";
 import { WordActions } from "~/lib/extension-points-react";
+import { lookupContext } from "~/lib/lookup-context";
 import { LINKS_SERVER_ERRORS } from "../links/links-api";
 import { dismissMistake, fetchMistakes, type MistakeItem } from "./mistakes-api";
 
@@ -133,7 +134,7 @@ export function MistakesPage() {
             {state.items.map((item) => (
               <li key={item.word} data-testid={`mistake-${item.word}`} className="flex min-h-row items-center gap-1 pl-3.5 pr-1">
                 <div className="min-w-0 flex-1 py-2.5">
-                  <p lang="en" className="truncate text-body font-semibold tracking-[-0.005em] text-ink">{item.word}</p>
+                  <p {...lookupContext} lang="en" className="truncate text-body font-semibold tracking-[-0.005em] text-ink">{item.word}</p>
                   {item.meaning ? <p className="mt-0.5 truncate text-sub text-ink-2">{item.meaning}</p> : null}
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-2">
                     <span className="tabular-nums">

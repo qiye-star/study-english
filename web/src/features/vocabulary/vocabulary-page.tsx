@@ -20,6 +20,7 @@ import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
 import { PageHeader } from "~/layout/page-header";
 import { Slot } from "~/lib/extension-points-react";
+import { lookupContext } from "~/lib/lookup-context";
 import { ReviewCard } from "./review-card";
 import {
   REVIEW_BATCH, VOCABULARY_SERVER_ERRORS, deleteVocabularyItem, listVocabulary, reviewVocabularyItem,
@@ -282,7 +283,7 @@ export function VocabularyPage() {
                   {items.map((i) => (
                     <li key={i.id} data-testid="vocab-item" className="flex min-h-row items-center gap-2 pl-3.5 pr-1">
                       <div className="min-w-0 flex-1 py-2.5">
-                        <p className="truncate text-body font-medium tracking-[-0.005em] text-ink">{i.word}</p>
+                        <p {...lookupContext} className="truncate text-body font-medium tracking-[-0.005em] text-ink">{i.word}</p>
                         <p className="mt-0.5 truncate text-sub text-ink-2">{i.meaning || t("web.vocabulary.noMeaning")}</p>
                         <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-ink-2">
                           <ToneBadge tone={isDue(i) ? "teal" : "gray"}>{t("web.vocabulary.box", { value: i.box })}</ToneBadge>
