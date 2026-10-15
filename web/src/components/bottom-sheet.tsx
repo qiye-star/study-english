@@ -26,7 +26,7 @@ const SCRIM = "fixed inset-0 z-50 data-[state=open]:animate-in data-[state=close
 export const BottomSheetContent = forwardRef<ElementRef<typeof DialogPrimitive.Content>, ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { glass?: boolean }>(
   ({ className, children, glass = false, ...props }, ref) => {
     const { t } = useTranslation();
-    const liquid = useLiquid() && !glass;
+    const liquid = useLiquid() && glass === false;
     return (
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
