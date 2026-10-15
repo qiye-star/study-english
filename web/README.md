@@ -129,6 +129,12 @@
 
 凡是显示 CEFR 级别代码的地方都带上中文级别名(「B1 · 中级」;英文界面「B1 · Intermediate」),让人选级别的地方(对话「英语难度」、房间「目标水平」、角色「英文水平」、记忆页「水平」、精选「按级别筛选」)旁边有一行说明这个级别的意思(如「能应对大多数日常场景」),读屏经 `aria-describedby` 读到。房间目标水平的分段控件改为两行(代码 + 级别名),不选时说明「不选时按你的段位自动定」。段位首页「对齐 CEFR」下也有一行说明。存储与提交的值不变。共用 `src/lib/levels.ts` + `src/components/level-hint.tsx`,文案 `web.level.*` 在 `src/components/i18n`;管理后台的级别下拉 / 列 / 详情用同样的中文(`admin/src/lib/levels.ts`,测试逐字比对)。**未在真机验证:** 360–390 px 宽下分段控件两行字是否截断(英文界面「Upper intermediate」等短标签在 375 px 宽的 5 段里必然被省略号截断,是否可接受待看真机截图)、精选芯片与角色芯片换行后的排布、对话顶栏副标题与带我学条的截断位置、读屏是否读出说明行、深色模式下说明行的对比度;清单见计划「真机 / 视觉清单」。**主包体积未测:** `components/i18n` 是急切文案(每种语言 +13 键、chat 里 −4 键),`lib/levels.ts` 与 `LevelHint` 可能进主包,`yarn web:build` 与 `scripts/main-bundle.mjs` 未运行(超出预算再议把说明句移到懒加载)。E2E 未运行。
 
+## 液态玻璃皮肤(计划 2026-10-15-liquid-glass)
+
+全应用换上液态玻璃外观:`<html data-glass="v2">` 在 `main.tsx` 里对所有人设置(`lib/glass-flag.ts`;旧的开发开关 `?glass=v2` / `enjoy-web.dev.glass` 已移除,首次加载会清掉它);`/library*`(跟读库)与 `/practice/changelog`(更新日志)由 `GlassRoutePin` 钉成 `data-glass="pin"`,继续使用经典皮肤,这些页面用到的共享组件因此永远保留经典分支。外观设置在「我的 → 外观与主题」(`/me/appearance`):预设(清透 / 磨砂 / 实色)、透明度、模糊、圆角、边缘高光、阴影、浅色 / 深色各一套背景(渐变、颗粒、纯色、自定义颜色,过深或过浅会自动调整以保证文字可读)、玻璃效果「减弱」。设置只保存在本机(`settings/glass-theme-store.ts`),退出登录时清除。`theme-color` 随所选背景变化(`layout/color-scheme.ts`)。类名约定:在原有类名后追加 `liquid:` 变体与 `components/liquid.ts` 的 `LQ_*` 常量,不改已有令牌的值;守卫测试在 `src/styles/`(`glass-budget`、`locked-pages`、`liquid-colour-guard` 等)。经典分支仍留在代码里(回滚只需还原一次提交);删除它们是后续工作。
+
+**未在真机验证(液态玻璃):** 低端安卓上 3 层模糊的真实模糊质量与帧率;iOS Safari 底部弹窗进入时的模糊闪烁;顶部胶囊淡入与模糊的配合;自定义背景在户外的可读性;石墨色气泡上的查词高亮;单色答题反馈是否一眼可辨;320–360px 宽度下的大标题;iOS 的 `prefers-reduced-transparency`;不支持 `:is()` / `rgb(r g b / a)` 的旧 WebView。清单见 `docs/superpowers/plans/2026-10-15-liquid-glass-device-checklist.md`。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

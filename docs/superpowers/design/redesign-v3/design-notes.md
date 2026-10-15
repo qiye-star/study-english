@@ -1,3 +1,5 @@
+> 2026-10-15: superseded for every in-scope page by the liquid-glass skin (spec 2026-10-15-liquid-glass-overall-design-proposal, design liquid-glass-v2, plans 2026-10-15-liquid-glass-*). The tokens here still drive the library, shadow sheet, lookup, tab bar and changelog, which are pinned.
+
 # Redesign v3 — design notes (rev 2, after review-1)
 
 Mockup: `mockup.html`. Frames: Practice home at rest + scrolled, Chat, Call 375×812, Call 375×667,

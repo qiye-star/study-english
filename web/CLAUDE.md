@@ -22,3 +22,4 @@ Mobile-first PWA for practice: login, read-aloud assessment, AI chat (text, voic
 - Realtime ticket is a secret in the WebSocket URL: never log it.
 - `public/vad/` is generated and git-ignored; `scripts/copy-vad-assets.mjs` runs before dev/build.
 - README.md documents behaviour and what is unverified on devices; keep it in sync with behaviour changes.
+- Liquid glass (plan 2026-10-15-liquid-glass): append liquid: / LQ_* classes, never re-value tokens; Rule 4 (only titles and icons on blurred layers, other text on .plate); ≤ 3 resident blur layers + 1 transient (styles/glass-budget.test.ts); library/changelog routes are pinned to the classic skin.
