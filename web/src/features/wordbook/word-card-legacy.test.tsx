@@ -31,6 +31,7 @@ describe("word card legacy DOM (golden recorded before the definitions work)", (
     ["without the example block", { showExample: false }],
   ])("%s", (_name, props) => {
     const { container } = renderWithProviders(<WordCardView card={TALK} {...props} />);
-    expect(normalizeIds(container.innerHTML)).toMatchSnapshot();
+    // 计划 2026-10-15 R-M4:查词标记是后加的属性,比对金标准前去掉,金标准文件不重录
+    expect(normalizeIds(container.innerHTML).replaceAll(' data-lookup-context=""', "")).toMatchSnapshot();
   });
 });
