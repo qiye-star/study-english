@@ -266,5 +266,28 @@
         "en": "Added featured items can be removed with 「取消入库」; your shadowing scores on that copy are deleted with it."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-15",
+    "version": null,
+    "title_zh": "跟读库逐句播放与稳定性",
+    "title_en": "Sentence-by-sentence playback and stability",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "跟读库播放新增「单句播完暂停」:每句只播一遍就暂停,再按播放继续下一句。",
+        "en": "The library player has a new one-sentence-then-pause mode: each sentence plays once and pauses; press play for the next one."
+      },
+      {
+        "tag": "fix",
+        "zh": "素材在别处被删除后,播放页会提示「这条素材已不存在」并返回,列表回到前台时自动刷新。",
+        "en": "If an item was deleted elsewhere, the player now says it no longer exists and returns, and the list refreshes when you come back."
+      },
+      {
+        "tag": "fix",
+        "zh": "AI 翻译不可用时,播放页只提示一次并可重试,不再反复请求。",
+        "en": "When AI translation is unavailable, the player shows one notice with a retry button instead of repeating requests."
+      }
+    ]
   }
 ]
