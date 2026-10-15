@@ -5,6 +5,8 @@ import { Button } from "@renderer/components/ui/button";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { cn } from "~/lib/cn";
+import { LQ_INK, LQ_MARK, LQ_NOTE } from "~/components/liquid";
+import { ScoreDot } from "~/components/score-dot";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { scoreToneClass } from "~/components/score-tone";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
@@ -125,8 +127,9 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                 <div className="rounded-card border-[0.5px] border-hair-2 bg-surface-2 px-3 pb-2.5 pt-3">
                   <p className="text-meta font-medium text-ink-2">{t("web.chat.recap.avgScore")}</p>
                   <p data-testid="recap-avg-score"
-                    className={cn("num mt-2 text-stat font-semibold", facts.avgPronunciation == null ? "text-ink-2" : scoreToneClass(facts.avgPronunciation))}>
+                    className={cn("num mt-2 text-stat font-semibold", facts.avgPronunciation == null ? "text-ink-2" : scoreToneClass(facts.avgPronunciation), LQ_INK)}>
                     {facts.avgPronunciation ?? "—"}
+                    {facts.avgPronunciation != null && <ScoreDot score={facts.avgPronunciation} className="ml-1.5 align-middle" />}
                   </p>
                 </div>
               </div>
@@ -162,7 +165,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
                   <ul className="flex flex-wrap gap-2">
                     {facts.poorWords.map((w, i) => (
                       <li key={w} data-testid="recap-poor-word" className="flex items-center rounded-card border-[0.5px] border-hair bg-surface pl-3">
-                        <span {...lookupContext} className="mr-1 rounded-[4px] bg-amber-tint px-[3px] text-body font-medium text-amber">{w}</span>
+                        <span {...lookupContext} className={`mr-1 rounded-[4px] bg-amber-tint px-[3px] text-body font-medium text-amber ${LQ_MARK}`}>{w}</span>
                         {speakButton("recap-poor-word-speak", recapSpeakKey("word", i), w)}
                         <IconAction testId="recap-poor-word-practice" label={t("web.chat.recap.practice")} onClick={() => practice(w, "chat")}><MicIcon aria-hidden /></IconAction>
                         <IconAction testId="recap-poor-word-save" label={t("web.chat.recap.save")} onClick={() => void savePracticeItem(api, t, w, "chat")}><StarIcon aria-hidden /></IconAction>
@@ -178,7 +181,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
         <section aria-live="polite" className="mt-section space-y-2.5 pb-1">
           <h3 className={sectionTitle}>{t("web.chat.recap.summary")}</h3>
           {status === "error" && (
-            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
+            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red well liquid:rounded-inset">
               <p role="alert" data-testid="recap-error" className="flex-1">{error}</p>
               <button type="button" data-testid="recap-retry" className={outlineAction} onClick={() => void generate()}>{t("web.common.retry")}</button>
             </div>
@@ -191,7 +194,7 @@ export function RecapSheet({ open, onOpenChange, messages, stored, level, scenar
           {status !== "loading" && recap && (
             <>
               {stale && (
-                <div data-testid="recap-stale" className="flex items-center gap-2 rounded-card bg-amber-tint py-1 pl-3.5 pr-1 text-sub text-ink">
+                <div data-testid="recap-stale" className={`flex items-center gap-2 rounded-card bg-amber-tint py-1 pl-3.5 pr-1 text-sub text-ink ${LQ_NOTE}`}>
                   <span className="flex-1">{t("web.chat.recap.stale")}</span>
                   <button type="button" data-testid="recap-regenerate" className={outlineAction} onClick={() => void generate()}>{t("web.chat.recap.regenerate")}</button>
                 </div>

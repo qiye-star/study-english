@@ -10,6 +10,7 @@ import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_SECONDARY } from "~/components/liquid";
 import { bumpGrammarRev } from "./grammar-api";
 import { GRAMMAR_PROMPT_SERVER_ERRORS, getGrammarPrompt, resetGrammarPrompt, saveGrammarPrompt, type GrammarPromptState } from "./grammar-prompt-api";
 
@@ -107,14 +108,14 @@ export function GrammarPromptEditor() {
         </>
       )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
-        <AlertDialogContent>
+        <AlertDialogContent className={LQ_DIALOG}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("web.grammarPrompt.resetConfirm")}</AlertDialogTitle>
             <AlertDialogDescription>{t("web.grammarPrompt.resetDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="grammar-prompt-reset-confirm" className="h-11"
+            <AlertDialogCancel className={`h-11 ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="grammar-prompt-reset-confirm" className={`h-11 ${LQ_DANGER_TEXT}`}
               onClick={() => { setConfirming(false); void run(() => resetGrammarPrompt(api), "web.grammarPrompt.restored"); }}>
               {t("web.grammarPrompt.reset")}
             </AlertDialogAction>

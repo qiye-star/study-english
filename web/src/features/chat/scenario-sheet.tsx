@@ -122,7 +122,7 @@ export function ScenarioSheet({ open, onOpenChange, onCreated, onDiscarded }: {
             </label>
           </div>
           {error && (
-            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
+            <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red well liquid:rounded-inset">
               <p role="alert" data-testid="scenario-error" className="flex-1">{error.text}</p>
               {error.opening && (
                 <button type="button" data-testid="scenario-retry" disabled={busy} onClick={retry}

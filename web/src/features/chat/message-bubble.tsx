@@ -22,9 +22,9 @@ export const BubbleAction = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<H
     return (
       <button ref={ref} type={type}
         className={cn(
-          "inline-flex h-tap min-w-tap items-center justify-center gap-1 rounded-[9px] px-2 text-meta font-medium transition-colors duration-fast",
+          "inline-flex h-tap min-w-tap items-center justify-center gap-1 rounded-[9px] px-2 text-meta font-medium transition-colors duration-fast liquid:rounded-full",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:h-[17px] [&_svg]:w-[17px]",
-          on ? "bg-blue-tint text-blue" : "text-ink-2 hover:bg-surface-2",
+          on ? "bg-blue-tint text-blue liquid:bg-wash" : "text-ink-2 hover:bg-surface-2 liquid:hover:bg-wash",
           className,
         )}
         {...rest} />
@@ -63,7 +63,7 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
   const bubble = (
     <div className={cn(
       "min-w-0 rounded-card px-3 pb-2 pt-2.5 text-body leading-dialogue tracking-[-0.005em] text-ink",
-      isUser ? "rounded-tr-[6px] bg-blue-tint" : "rounded-tl-[6px] border-[0.5px] border-hair bg-surface shadow-card dark:shadow-none",
+      isUser ? "rounded-tr-[6px] bg-blue-tint liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite liquid:[&_.text-ink-2]:text-on-graphite/75 liquid:[&_.text-blue]:text-on-graphite" : "rounded-tl-[6px] border-[0.5px] border-hair bg-surface shadow-card dark:shadow-none mat-surface liquid:rounded-tile liquid:rounded-tl-tail",
       error && "border-[0.5px] border-red/40 bg-surface text-red",
     )}>
       {voice && (
@@ -120,7 +120,7 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
       {!isUser && message.status === "done" && actions}
       {error && onRetry && (
         <button type="button" data-testid="message-retry"
-          className="-mb-1.5 -ml-2 mt-0.5 inline-flex min-h-tap items-center rounded-button px-2 text-sub font-medium text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-mb-1.5 -ml-2 mt-0.5 inline-flex min-h-tap items-center rounded-button px-2 text-sub font-medium text-blue liquid:rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onRetry}>
           {t("web.common.retry")}
         </button>

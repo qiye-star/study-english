@@ -11,7 +11,10 @@ import { useAuth } from "~/auth/auth-context";
 import { Avatar } from "~/components/avatar";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_SECONDARY } from "~/components/liquid";
+import { useLiquid } from "~/lib/glass-flag";
 import { PageHeader } from "~/layout/page-header";
+import { ConversationListLiquid } from "./conversation-list-liquid";
 import { CHAT_SERVER_ERRORS, deleteConversation, listConversations, type Conversation } from "./chat-api";
 import { displayName } from "./chat-request";
 import { ScenarioSheet } from "./scenario-sheet";
@@ -26,6 +29,7 @@ export function ConversationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const liquid = useLiquid();
 
   // 用 ref 读取最新的 t:切换语言不应让 load 变化,否则会重置已加载的分页。
   const tRef = useRef(t);
@@ -67,27 +71,34 @@ export function ConversationsPage() {
     }
   };
 
+  const errorBox = error ? (
+    <div role="alert" className="mb-2 flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
+      <span className="flex-1">{error}</span>
+      {!items.length && (
+        <button type="button" onClick={() => void load(1)}
+          className="inline-flex min-h-tap items-center rounded-button px-3 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {t("web.common.retry")}
+        </button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="flex flex-1 flex-col">
-      <PageHeader title={t("web.chat.title")} actions={
-        <button type="button" data-testid="conversation-new" onClick={() => setPickerOpen(true)}
-          className="hit-expand mr-1 inline-flex h-8 items-center gap-1 rounded-full bg-blue pl-2.5 pr-3 text-sub font-semibold text-on-blue transition-opacity duration-fast hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          <PlusIcon aria-hidden className="h-4 w-4" />{t("web.chat.new")}
-        </button>
-      } />
+      {liquid ? (
+        <PageHeader large title={t("web.chat.title")} subtitle={items.length ? t("web.chat.listCount", { count: items.length }) : undefined} />
+      ) : (
+        <PageHeader title={t("web.chat.title")} actions={
+          <button type="button" data-testid="conversation-new" onClick={() => setPickerOpen(true)}
+            className="hit-expand mr-1 inline-flex h-8 items-center gap-1 rounded-full bg-blue pl-2.5 pr-3 text-sub font-semibold text-on-blue transition-opacity duration-fast hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <PlusIcon aria-hidden className="h-4 w-4" />{t("web.chat.new")}
+          </button>
+        } />
+      )}
+      {liquid ? <ConversationListLiquid items={items} loaded={loaded} error={error} next={next} loadingMore={loadingMore} onLoadMore={() => next && void load(next)} onDelete={setPendingDelete} onNew={() => setPickerOpen(true)} errorBox={errorBox} /> : (
       <div className="px-gutter pb-6 pt-1">
         {!loaded && <p className="py-10 text-center text-sub text-ink-2">{t("web.common.loading")}</p>}
-        {error && (
-          <div role="alert" className="mb-2 flex items-center gap-2 rounded-card bg-surface-2 py-1 pl-3.5 pr-1 text-sub text-red">
-            <span className="flex-1">{error}</span>
-            {!items.length && (
-              <button type="button" onClick={() => void load(1)}
-                className="inline-flex min-h-tap items-center rounded-button px-3 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {t("web.common.retry")}
-              </button>
-            )}
-          </div>
-        )}
+        {errorBox}
         {loaded && !items.length && !error && (
           <div className="flex flex-col items-center gap-3 py-14 text-center">
             <IconChip tone="blue" icon={MessagesSquareIcon} />
@@ -123,6 +134,7 @@ export function ConversationsPage() {
           </button>
         )}
       </div>
+      )}
       <ScenarioSheet open={pickerOpen} onOpenChange={setPickerOpen}
         onCreated={(id, openingId) => {
           setPickerOpen(false);
@@ -130,11 +142,11 @@ export function ConversationsPage() {
         }}
         onDiscarded={() => void load(1)} />
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+        <AlertDialogContent className={`rounded-sheet border-[0.5px] border-hair bg-surface ${LQ_DIALOG}`}>
           <AlertDialogHeader><AlertDialogTitle className="text-title font-semibold text-ink">{t("web.chat.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="conversation-delete-confirm" className="h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90"
+            <AlertDialogCancel className={`h-11 rounded-button ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="conversation-delete-confirm" className={`h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90 ${LQ_DANGER_TEXT} liquid:hover:bg-wash-2`}
               onClick={() => pendingDelete && void remove(pendingDelete)}>{t("web.common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

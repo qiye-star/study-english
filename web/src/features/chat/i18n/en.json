@@ -1,7 +1,7 @@
 {
   "web": {
     "chat": {
-      "title": "Chat", "new": "New", "empty": "No conversations yet. Start one!", "untitled": "Untitled conversation",
+      "title": "Chat", "new": "New", "listCount": "{{count}} conversations", "continue": "Continue", "continueAction": "Continue", "all": "All conversations", "empty": "No conversations yet. Start one!", "untitled": "Untitled conversation",
       "deleteConfirm": "Delete this conversation and its messages?", "placeholder": "Message in English…",
       "send": "Send", "settings": "Conversation settings", "notSaved": "The reply was shown but could not be saved.",
       "handoffFailed": "Could not send this voice message. Tap send to try again.", "noSpeech": "No speech was recognized.", "mic": "Record a voice message", "transcribing": "Transcribing…",

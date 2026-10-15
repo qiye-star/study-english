@@ -5,6 +5,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Textarea } from "@renderer/components/ui/textarea";
 import { cn } from "~/lib/cn";
+import { useLiquid } from "~/lib/glass-flag";
+import { LQ_PAGE } from "~/components/liquid";
 import { levelLabel } from "~/lib/levels";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
 import { IconButton } from "~/components/icon-button";
@@ -163,6 +165,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const { id = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const liquid = useLiquid();
   const { open: openShadow } = useShadowSheet();
   // 加载 effect 经 ref 调用 navigate:navigate 的引用可能随位置变化,不能放进加载 effect 的依赖(否则会重新加载会话)
   const navigateRef = useRef(navigate);
@@ -1201,7 +1204,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
     <div className="relative flex min-h-0 flex-1 flex-col">
       <GlassTopBar className="absolute inset-x-0 top-0" scrolled={listScrolled}
         title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")}
-        subtitle={subtitle}
+        subtitle={liquid ? undefined : subtitle}
         leading={(
           <>
             <IconButton label={t("web.common.back")} onClick={() => navigate("/chat")}>
@@ -1224,9 +1227,10 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         } />
       {/* 底部锚定:内容少时贴着输入条(最新一条在输入条上方 14px),多时正常滚动;顶栏、输入条都浮在列表上 */}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll}
-        className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain px-gutter"
-        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 }}>
+        className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain px-gutter ${LQ_PAGE}`}
+        style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 + (liquid ? 8 : 0) }}>
         <div aria-hidden className="mt-auto" />
+        {liquid && subtitle ? <p data-testid="conversation-subtitle-line" className="text-center text-meta text-ink-2">{subtitle}</p> : null}
         {loadError && <p role="alert" className="text-sub text-red">{loadError}</p>}
         {messages.map((m) => {
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
@@ -1277,12 +1281,12 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         })}
       </div>
       {/* 输入条(仿微信):提示行(琥珀,在玻璃里)+ 键盘/语音切换 + 按住说话长条或文本框 + 发送/丢弃 */}
-      <div ref={composerRef} data-testid="chat-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2">
+      <div ref={composerRef} data-testid="chat-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float liquid:pt-0.5">
         {holdHint && (
-          <div data-testid="hold-hint" role="status" className="mx-1 mt-2 rounded-[10px] bg-surface-2 px-3 py-2 text-center text-sub font-medium text-ink">{holdHint.text}</div>
+          <div data-testid="hold-hint" role="status" className="mx-1 mt-2 rounded-[10px] bg-surface-2 px-3 py-2 text-center text-sub font-medium text-ink plate liquid:rounded-[18px]">{holdHint.text}</div>
         )}
         {autoSpeak.blocked && (
-          <div data-testid="autospeak-blocked" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink">
+          <div data-testid="autospeak-blocked" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink plate liquid:rounded-[18px]">
             <span className="min-w-0 flex-1">{t("web.chat.autoSpeak.blocked")}</span>
             <button type="button" data-testid="autospeak-tap"
               className="inline-flex min-h-tap flex-none items-center gap-1 rounded-button px-2 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1295,7 +1299,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
           </div>
         )}
         {conversation?.config.agentPersonaId && (agentsOff || turnDisabled) && (
-          <div data-testid="agent-off-notice" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink">
+          <div data-testid="agent-off-notice" role="status" className="mx-1 mt-2 flex items-center gap-1 rounded-[10px] bg-surface-2 pl-3 text-sub text-ink plate liquid:rounded-[18px]">
             <span className="min-w-0 flex-1">{t("web.chat.agentOff.message")}</span>
             <button type="button" disabled={sending || !!call || settling} onClick={switchToNormalChat}
               className="inline-flex min-h-tap flex-none items-center rounded-button px-2 font-semibold text-blue disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -1317,7 +1321,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             hintsUnavailable ? "mt-0 h-0 overflow-hidden opacity-0" : "mt-1.5 min-h-8 opacity-100")}>
           <button type="button" data-testid="chat-hints" disabled={hintsUnavailable} onClick={openHints}
             title={t("web.chat.hints.button")}
-            className="hit-expand flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-inline text-sub font-semibold text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="hit-expand flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-inline text-sub font-semibold text-amber plate liquid:h-9 liquid:rounded-full liquid:px-3 liquid:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <LightbulbIcon aria-hidden className="h-[17px] w-[17px] flex-none" />
             <span>{t("web.chat.hints.row")}</span>
             {hintCount > 0 && <span className="font-medium text-ink-2">· {t("web.chat.hints.available", { count: hintCount })}</span>}
@@ -1367,7 +1371,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
             // 16px 字号:iOS 上小于 16px 的输入框获得焦点会自动放大页面
             <Textarea ref={inputRef} data-testid="chat-input" rows={1} maxLength={20000} value={input} placeholder={t("web.chat.placeholder")}
               disabled={voice.blocksTyping}
-              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-button border-[0.5px] border-hair bg-surface px-3.5 py-[10px] text-base leading-body text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-0"
+              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-button border-[0.5px] border-hair bg-surface px-3.5 py-[10px] text-base leading-body text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] placeholder:text-ink-2 focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-0 plate liquid:rounded-field liquid:border-0"
               onChange={(e) => setInput(e.target.value)} />
           )}
           {voiceBusy && (

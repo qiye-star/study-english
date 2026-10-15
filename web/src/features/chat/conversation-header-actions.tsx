@@ -10,7 +10,7 @@ import { formatPlaybackRate, nextPlaybackRate, setPlaybackRate, usePlaybackRate 
 function SwitchVisual({ on }: { on: boolean }) {
   return (
     <span aria-hidden className={cn("relative h-[26px] w-11 flex-none rounded-full transition-colors duration-fast",
-      on ? "bg-blue" : "bg-surface-2 shadow-hair")}>
+      on ? "bg-blue" : "bg-surface-2 shadow-hair liquid:bg-wash-2")}>
       <span className={cn("absolute top-0.5 h-[22px] w-[22px] rounded-full transition-[left] duration-fast",
         on ? "left-[20px] bg-white" : "left-0.5 bg-surface shadow-[0_1px_2px_rgba(17,19,24,0.2)]")} />
     </span>
@@ -18,7 +18,7 @@ function SwitchVisual({ on }: { on: boolean }) {
 }
 
 const rowClass = cn(
-  "flex min-h-row w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left transition-colors duration-fast",
+  "flex min-h-row w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left transition-colors duration-fast liquid:rounded-tile liquid:hover:bg-wash",
   "hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
 );
 
@@ -98,7 +98,7 @@ export function ConversationHeaderActions({
               event.preventDefault();
             }}
             className={cn(
-              "z-40 w-[min(300px,calc(100vw-16px))] rounded-card border-[0.5px] border-hair bg-surface p-1 text-ink",
+              "z-40 w-[min(300px,calc(100vw-16px))] rounded-card border-[0.5px] border-hair bg-surface p-1 text-ink mat-sheet liquid:rounded-tile liquid:p-1",
               "shadow-[0_12px_32px_-12px_rgba(17,19,24,0.3)] focus:outline-none",
               "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
             )}>

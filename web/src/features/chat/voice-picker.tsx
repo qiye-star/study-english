@@ -86,7 +86,7 @@ export function VoicePicker({ voices, model, value, onChange, cache, createAudio
                 <button type="button" data-testid={`voice-preview-${v.value}`} data-state={state} disabled={!api}
                   aria-label={t(active ? "web.chat.voicePicker.stopPreview" : "web.chat.voicePicker.preview", { name: name(v) })}
                   className={cn("flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
-                    active ? "bg-blue-tint text-blue" : "text-ink-2 hover:bg-surface-2")}
+                    active ? "bg-blue-tint text-blue liquid:bg-wash" : "text-ink-2 hover:bg-surface-2")}
                   onClick={() => void player.play(key, PREVIEW_SENTENCE, model, v.value)}>
                   {state === "loading" ? <LoaderIcon className="size-[18px] animate-spin" aria-hidden />
                     : state === "playing" ? <SquareIcon className="size-4 fill-current" aria-hidden /> : <PlayIcon className="size-[18px] fill-current" aria-hidden />}

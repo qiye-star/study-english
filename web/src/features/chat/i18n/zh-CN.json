@@ -1,7 +1,7 @@
 {
   "web": {
     "chat": {
-      "title": "对话", "new": "新建", "empty": "还没有对话,开始一个吧!", "untitled": "未命名对话",
+      "title": "对话", "new": "新建", "listCount": "{{count}} 个对话", "continue": "继续", "continueAction": "继续对话", "all": "全部对话", "empty": "还没有对话,开始一个吧!", "untitled": "未命名对话",
       "deleteConfirm": "删除这个对话及其消息?", "placeholder": "用英文输入…",
       "send": "发送", "settings": "对话设置", "notSaved": "回复已显示,但未能保存。",
       "handoffFailed": "这条语音没能发送出去,请点发送重试。", "noSpeech": "没有识别到语音。", "mic": "录一条语音消息", "transcribing": "正在转写…",
