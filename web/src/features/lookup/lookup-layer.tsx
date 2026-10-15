@@ -11,6 +11,7 @@ import { MAX_PRACTICE_TEXT, savePracticeItem, useShadowSheet, useShadowSheetOpen
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import { DictionaryResult } from "./dictionary-result";
+import { LOOKUP_SOURCE_CHIP, LOOKUP_WELL } from "./glass";
 import { dictToLookup, lookupDictionary, type DictEntry } from "./dictionary";
 import { LOOKUP_SERVER_ERRORS, cachedLookup, cachedTranslate, classifySelection, normalizeSelection, type LookupMode, type LookupResult } from "./lookup";
 import { LookupBar } from "./lookup-bar";
@@ -160,21 +161,21 @@ export function LookupLayer() {
     <>
       {selection && suggested && !open && <LookupBar selection={selection} suggested={suggested} entry={prefetched} onOpen={openFor} onPress={press} onRelease={release} />}
       <BottomSheet open={open} onOpenChange={onOpenChange}>
-        <BottomSheetContent data-testid="lookup-drawer"
-          className="max-h-[70dvh] overflow-y-auto rounded-t-xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <BottomSheetContent data-testid="lookup-drawer" glass
+          className="max-h-[70dvh] overflow-y-auto">
           <div className="-mt-3 mb-2 flex h-6 touch-none justify-center" aria-hidden="true" data-testid="lookup-grabber"
             onTouchStart={(e) => { touchStart.current = e.touches[0].clientY; }} onTouchEnd={onTouchEnd}>
             <span className="mt-2 h-1 w-10 rounded-full bg-muted-foreground/40" />
           </div>
           <SheetHeader>
-            <SheetTitle className="line-clamp-3 text-left">{target?.text}</SheetTitle>
+            <SheetTitle className="line-clamp-3 pr-10 text-left text-[22px] font-semibold tracking-[-0.015em]">{target?.text}</SheetTitle>
             <SheetDescription className="sr-only">{t("web.lookup.drawerDescription")}</SheetDescription>
           </SheetHeader>
           <div data-testid="lookup-result" data-status={state.status} aria-live="polite" className="mt-3 select-text space-y-2 text-base">
             {state.status === "loading" && <LoaderIcon className="h-5 w-5 animate-spin" aria-label={t("web.common.loading")} />}
             {state.status === "error" && <p role="alert" className="text-destructive">{state.error}</p>}
             {done?.source && (
-              <p data-testid="lookup-source" data-source={done.source} className="text-xs text-muted-foreground">
+              <p data-testid="lookup-source" data-source={done.source} className={LOOKUP_SOURCE_CHIP}>
                 {done.source === "dict" ? t("web.lookup.sourceDict") : t("web.lookup.sourceAi")}
               </p>
             )}
@@ -185,7 +186,7 @@ export function LookupLayer() {
           {done?.dict && (
             <div className="mt-3">
               {ai.status === "idle" && (
-                <Button variant="outline" data-testid="lookup-ai-explain" className="h-11 w-full" onClick={() => void explain()}>
+                <Button variant="outline" data-testid="lookup-ai-explain" className={`h-11 w-full ${LOOKUP_WELL}`} onClick={() => void explain()}>
                   <SparklesIcon className="mr-2 h-4 w-4" />{t("web.lookup.aiExplain")}
                 </Button>
               )}
@@ -193,7 +194,7 @@ export function LookupLayer() {
               {ai.status === "error" && (
                 <div className="space-y-2">
                   <p role="alert" className="text-destructive">{ai.error}</p>
-                  <Button variant="outline" data-testid="lookup-ai-retry" className="h-11 w-full" onClick={() => void explain()}>{t("web.common.retry")}</Button>
+                  <Button variant="outline" data-testid="lookup-ai-retry" className={`h-11 w-full ${LOOKUP_WELL}`} onClick={() => void explain()}>{t("web.common.retry")}</Button>
                 </div>
               )}
               {ai.status === "done" && (
@@ -205,13 +206,13 @@ export function LookupLayer() {
             </div>
           )}
           <div className="mt-4 flex gap-2">
-            <Button variant="outline" data-testid="lookup-switch-mode" className="h-11 flex-1"
+            <Button variant="outline" data-testid="lookup-switch-mode" className={`h-11 flex-1 ${LOOKUP_WELL}`}
               disabled={!target || state.status === "loading"}
               onClick={() => target && void run(target, mode === "lookup" ? "translate" : "lookup")}>
               {mode === "lookup" ? t("web.lookup.translateInstead") : t("web.lookup.lookupInstead")}
             </Button>
             {state.status === "error" && target && (
-              <Button data-testid="lookup-retry" className="h-11 flex-1" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
+              <Button data-testid="lookup-retry" className="h-11 flex-1 rounded-full" onClick={() => void run(target, mode)}>{t("web.common.retry")}</Button>
             )}
           </div>
           {addSource && isWordOrPhrase && target && (
@@ -223,11 +224,11 @@ ${target.context}`} testId="lookup-vocab" variant="labeled" target={wordTargetFr
           {isPassage && (
             <div className="mt-2">
               <div className="flex gap-2">
-                <Button variant="outline" data-testid="lookup-practice" className="h-11 min-w-11 flex-1" disabled={tooLong}
+                <Button variant="outline" data-testid="lookup-practice" className={`h-11 min-w-11 flex-1 ${LOOKUP_WELL}`} disabled={tooLong}
                   onClick={() => { onOpenChange(false); openShadow({ text: passageText, source: "lookup" }); }}>
                   <MicIcon className="mr-2 h-4 w-4" />{t("web.lookup.practice")}
                 </Button>
-                <Button variant="outline" data-testid="lookup-save" className="h-11 min-w-11 flex-1" disabled={tooLong || saving}
+                <Button variant="outline" data-testid="lookup-save" className={`h-11 min-w-11 flex-1 ${LOOKUP_WELL}`} disabled={tooLong || saving}
                   onClick={() => void save()}>
                   <StarIcon className="mr-2 h-4 w-4" />{t("web.lookup.save")}
                 </Button>
