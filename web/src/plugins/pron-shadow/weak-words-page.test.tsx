@@ -111,3 +111,12 @@ it("notebook row is absent when the link is off", async () => {
   expect(container.querySelector("[data-testid=notebook-weak-words]")).toBeNull();
   expect(mock.calls).toHaveLength(0);
 });
+
+it("liquid: last score in ink with a dot (plan 2026-10-15-liquid-glass L10)", async () => {
+  renderWithProviders(<WeakWordsPage />, { api: api(listing()) });
+  const rural = await screen.findByTestId("weak-rural");
+  const score = within(rural).getByText("最近 90 分");
+  expect(score.className).toContain("liquid:text-ink");
+  expect(score.querySelector("[data-score-dot]")!.className).toContain("bg-green");
+  expect(within(screen.getByTestId("weak-three")).getByText("最近 52 分").querySelector("[data-score-dot]")).toBeNull();
+});

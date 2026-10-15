@@ -9,6 +9,8 @@ import { useAuth } from "~/auth/auth-context";
 import { useShadowSheet } from "~/features/practice";
 import { IconButton } from "~/components/icon-button";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { LQ_INK, LQ_PAGE } from "~/components/liquid";
+import { ScoreDot } from "~/components/score-dot";
 import { scoreToneClass } from "~/components/score-tone";
 import { PageHeader } from "~/layout/page-header";
 import { lookupContext } from "~/lib/lookup-context";
@@ -58,7 +60,7 @@ export function WeakWordsPage() {
     <div>
       <PageHeader title={t("web.links.pron.title")} back="/practice"
         subtitle={state.status === "ready" && state.total > 0 ? t("web.links.pron.count", { count: state.total }) : undefined} />
-      <div className="px-gutter pb-6">
+      <div className={`px-gutter pb-6 ${LQ_PAGE}`}>
         <p className="flex items-start gap-2 px-0.5 pt-1 text-sub text-ink-2">
           <InfoIcon aria-hidden className="mt-0.5 h-4 w-4 flex-none" />
           <span>{t("web.links.pron.lede")}</span>
@@ -93,7 +95,7 @@ export function WeakWordsPage() {
                     <span className="num mt-0.5 block text-meta text-ink-2">
                       {item.lastScore === null
                         ? <span>{t("web.links.pron.unscored")}</span>
-                        : <span className={scoreToneClass(item.lastScore)}>{t("web.links.pron.score", { score: item.lastScore })}</span>}
+                        : <span className={cn(scoreToneClass(item.lastScore), LQ_INK, "liquid:inline-flex liquid:items-center liquid:gap-1")}><ScoreDot score={item.lastScore} />{t("web.links.pron.score", { score: item.lastScore })}</span>}
                       {" · "}
                       {t("web.links.pron.hits", { hits: item.hits })}
                     </span>

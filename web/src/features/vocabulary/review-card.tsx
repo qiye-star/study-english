@@ -2,6 +2,7 @@ import { LoaderIcon, SquareIcon, Volume2Icon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@renderer/components/ui/button";
+import { LQ_ICON_WELL } from "~/components/liquid";
 import { SurfaceCard } from "~/components/surface-card";
 import type { TtsState } from "~/features/chat";
 import type { VocabularyGrade, VocabularyItem } from "./vocabulary-api";
@@ -33,7 +34,7 @@ export function ReviewCard({ item, position, total, flipped, grading, speakState
       <div className="flex items-center gap-2">
         <p data-testid="vocab-card-word" data-lookup-context className="min-w-0 flex-1 select-text break-words text-headline font-semibold text-ink">{item.word}</p>
         <button type="button" data-testid="vocab-card-speak" data-state={speakState} aria-label={t("web.vocabulary.speak")} disabled={!canSpeak} onClick={onSpeak}
-          className="flex h-tap w-tap flex-none items-center justify-center rounded-full bg-teal-tint text-teal transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:h-5 [&_svg]:w-5">
+          className={`flex h-tap w-tap flex-none items-center justify-center rounded-full bg-teal-tint text-teal transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 [&_svg]:h-5 [&_svg]:w-5 ${LQ_ICON_WELL}`}>
           {speakState === "loading" ? <LoaderIcon className="animate-spin" /> : speakState === "playing" ? <SquareIcon /> : <Volume2Icon />}
         </button>
       </div>

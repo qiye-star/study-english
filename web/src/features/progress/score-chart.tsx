@@ -39,7 +39,7 @@ export function ScoreChart({ daily, label, description }: { daily: StatsDay[]; l
   const descId = `${id}-desc`;
   return (
     <svg data-testid="progress-chart" data-points={points} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}
-      aria-describedby={description ? descId : undefined} className="h-32 w-full text-blue" preserveAspectRatio="none">
+      aria-describedby={description ? descId : undefined} className="h-32 w-full text-blue liquid:text-ink" preserveAspectRatio="none">
       <title id={titleId}>{label}</title>
       {description && <desc id={descId}>{description}</desc>}
       {[60, 80].map((s) => (
@@ -57,6 +57,14 @@ export function ScoreChart({ daily, label, description }: { daily: StatsDay[]; l
         <line key={`p${i}`} x1={p.x} y1={p.y} x2={p.x} y2={p.y} stroke="currentColor" strokeWidth={6} strokeLinecap="round"
           vectorEffect="non-scaling-stroke" />
       ))}
+      {/* 液态皮肤:最新一点用强调色(整页唯一强调);经典皮肤 hidden,像素不变 */}
+      {(() => {
+        const last = segments.flat().at(-1);
+        return last ? (
+          <line data-testid="progress-chart-last" x1={last.x} y1={last.y} x2={last.x} y2={last.y} stroke="currentColor" strokeWidth={8}
+            strokeLinecap="round" vectorEffect="non-scaling-stroke" className="hidden liquid:inline liquid:text-blue" />
+        ) : null;
+      })()}
     </svg>
   );
 }

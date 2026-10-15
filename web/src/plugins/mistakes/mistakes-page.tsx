@@ -9,6 +9,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { IconButton } from "~/components/icon-button";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { LQ_PAGE } from "~/components/liquid";
 import { PageHeader } from "~/layout/page-header";
 import { MAX_WORD_TARGET } from "~/lib/extension-points";
 import { WordActions } from "~/lib/extension-points-react";
@@ -36,7 +37,7 @@ function BoxDots({ box, label }: { box: number; label: string }) {
   return (
     <span role="img" aria-label={label} className="inline-flex items-center gap-[3px]">
       {Array.from({ length: BOXES }, (_, i) => (
-        <span key={i} className={cn("size-1.5 rounded-full", i <= box ? "bg-teal" : "bg-hair")} />
+        <span key={i} className={cn("size-1.5 rounded-full", i <= box ? "bg-teal liquid:bg-ink/85" : "bg-hair")} />
       ))}
     </span>
   );
@@ -109,7 +110,7 @@ export function MistakesPage() {
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.links.mistakes.title")} back="/vocabulary"
         subtitle={state.status === "ready" && state.total > 0 ? t("web.links.mistakes.total", { count: state.total }) : undefined} />
-      <div className="space-y-3 px-gutter pb-6 pt-1">
+      <div className={`space-y-3 px-gutter pb-6 pt-1 ${LQ_PAGE}`}>
         <p className="flex items-start gap-2 px-0.5 text-sub text-ink-2">
           <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
           <span>{t("web.links.mistakes.lede")}</span>

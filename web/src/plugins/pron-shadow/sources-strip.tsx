@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
 import { useAuth } from "~/auth/auth-context";
+import { LQ_CHIP } from "~/components/liquid";
 import type { PointProps } from "~/lib/extension-points";
 import { fetchTodayWords, fetchWeakWords, type TodayWord } from "./pron-api";
 
@@ -27,7 +28,7 @@ export function WeakWordsChip() {
   }, [api]);
   if (total <= 0) return null;
   return (
-    <Link to="/links/weak-words" data-testid="source-chip-weak" className={cn(CHIP, "bg-amber-tint text-amber")}>
+    <Link to="/links/weak-words" data-testid="source-chip-weak" className={cn(CHIP, "bg-amber-tint text-amber", LQ_CHIP)}>
       <MicIcon aria-hidden className="h-4 w-4" />
       <span className="num">{t("web.links.pron.weakChip", { total })}</span>
     </Link>
@@ -52,7 +53,7 @@ export function TodayWordsChip({ pick }: PointProps["learningSources"]) {
   return (
     <>
       <button type="button" data-testid="source-chip-today" aria-haspopup="dialog" onClick={() => setOpen(true)}
-        className={cn(CHIP, "bg-teal-tint text-teal")}>
+        className={cn(CHIP, "bg-teal-tint text-teal", LQ_CHIP)}>
         <SparklesIcon aria-hidden className="h-4 w-4" />
         <span className="num">{t("web.links.pron.todayChip", { count: items.length })}</span>
       </button>

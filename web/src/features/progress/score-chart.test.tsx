@@ -29,3 +29,17 @@ describe("score chart", () => {
     expect(svg).toHaveAttribute("aria-describedby", desc.id);
   });
 });
+
+describe("ScoreChart liquid (plan 2026-10-15-liquid-glass L10)", () => {
+  it("ink line with an accent last point; hidden in classic", () => {
+    render(<ScoreChart daily={[day(70), day(80), day(90)]} label="chart" />);
+    expect(screen.getByTestId("progress-chart").getAttribute("class")).toContain("liquid:text-ink");
+    const last = screen.getByTestId("progress-chart-last");
+    expect(last.getAttribute("class")).toContain("liquid:text-blue");
+    expect(last.getAttribute("class")).toMatch(/(^|\s)hidden(\s|$)/);
+  });
+  it("draws no last point without scores", () => {
+    render(<ScoreChart daily={[day(null)]} label="chart" />);
+    expect(screen.queryByTestId("progress-chart-last")).toBeNull();
+  });
+});
