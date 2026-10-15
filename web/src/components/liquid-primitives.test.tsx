@@ -121,3 +121,53 @@ describe("mono chips, badges, avatars (L2-3, R-L2-1)", () => {
     expect(screen.getByRole("radio", { name: "B" }).className).not.toContain("liquid:text-blue");
   });
 });
+
+import { act } from "react";
+import { GlassTopBar, ScrollRootProvider } from "./glass-top-bar";
+import { PageHeader } from "~/layout/page-header";
+import { blurLayers, textOutsidePlates } from "~/test/glass";
+
+function scroller(top: number) {
+  const el = document.createElement("div");
+  Object.defineProperty(el, "scrollTop", { value: top, writable: true });
+  return el;
+}
+
+describe("capsule and large title (L2-4, R-L2-3/4, Rule 4)", () => {
+  it("sub-page capsule: title + icons only, subtitle is screen-reader text, blur only when scrolled", () => {
+    setLiquid(true);
+    const { container, rerender } = render(<GlassTopBar title="设置" subtitle="次要说明" scrolled={false} actions={<button type="button" aria-label="更多">…</button>} />);
+    expect(blurLayers(container)).toHaveLength(0);
+    rerender(<GlassTopBar title="设置" subtitle="次要说明" scrolled actions={<button type="button" aria-label="更多">…</button>} />);
+    const capsule = container.querySelector(".mat-chrome-bar")!;
+    expect(capsule).not.toBeNull();
+    expect(textOutsidePlates(capsule)).toEqual(["…"]); // the fake icon text; real icons are <svg>
+    expect(screen.getByText("次要说明").className).toContain("sr-only");
+  });
+
+  it("classic GlassTopBar is unchanged", () => {
+    const { container } = render(<GlassTopBar title="设置" scrolled />);
+    expect(container.querySelector("header")!.className).toContain("glass-bar");
+    expect(container.querySelector(".mat-chrome-bar")).toBeNull();
+  });
+
+  it("large title at rest, capsule after 60px; actions render once", () => {
+    setLiquid(true);
+    const root = scroller(0);
+    const ui = (
+      <MemoryRouter>
+        <ScrollRootProvider value={root}>
+          <PageHeader large title="练习" subtitle="周三" actions={<button type="button" data-testid="act">h</button>} />
+        </ScrollRootProvider>
+      </MemoryRouter>
+    );
+    render(ui);
+    expect(screen.getByRole("heading", { level: 1, name: "练习" }).className).toContain("text-large");
+    expect(screen.getAllByTestId("act")).toHaveLength(1);
+    expect(document.querySelector("[data-capsule]")!.getAttribute("data-capsule")).toBe("hidden");
+    act(() => { (root as unknown as { scrollTop: number }).scrollTop = 80; root.dispatchEvent(new Event("scroll")); });
+    expect(document.querySelector("[data-capsule]")!.getAttribute("data-capsule")).toBe("shown");
+    expect(screen.getAllByTestId("act")).toHaveLength(1);
+    expect(document.querySelector(".mat-chrome-bar")).not.toBeNull();
+  });
+});
