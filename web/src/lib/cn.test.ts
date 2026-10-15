@@ -11,4 +11,7 @@ describe("cn", () => {
     expect(cn("text-ink", "text-blue")).toBe("text-blue");
     expect(cn("p-2", "p-4")).toBe("p-4");
   });
+  it("treats text-large as a font size, not a colour (plan 2026-10-15-liquid-glass)", () => {
+    expect(cn("text-large", "text-ink")).toBe("text-large text-ink");
+  });
 });

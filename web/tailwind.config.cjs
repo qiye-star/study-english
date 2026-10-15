@@ -5,6 +5,16 @@ const { createRequire } = require("node:module");
 const ENJOY_CONFIG = path.resolve(__dirname, "../enjoy/tailwind.config.js");
 const webRequire = createRequire(__filename);
 const noopPlugin = webRequire("tailwindcss/plugin")(() => {});
+/**
+ * 液态玻璃皮肤(计划 2026-10-15-liquid-glass INDEX §4.2):liquid:x 只在 html[data-glass="v2"] 下生效。
+ * 选择器带 html 标签:特异度 (0,2,1) > dark: / hover: / data-[…]: 的 (0,2,0)。Tailwind 把 liquid: 排在 dark: 之前
+ * (实测),若只写 [data-glass="v2"] * 则暗色下会被 dark: 平手反超(INDEX K1 的预案)。
+ */
+const liquidVariant = webRequire("tailwindcss/plugin")(({ addVariant }) => {
+  addVariant("liquid", '&:is(html[data-glass="v2"] *)');
+});
+/** 圆角随用户的「圆角」倍数缩放(--gx-radius,0.5–1.3);胶囊与圆形不缩放 */
+const gx = (px) => `calc(${px}px * var(--gx-radius, 1))`;
 
 function loadEnjoyConfig() {
   const source = fs.readFileSync(ENJOY_CONFIG, "utf8");
@@ -51,6 +61,12 @@ const colors = {
   amber: { DEFAULT: rgb("amber"), tint: "var(--amber-tint)" },
   green: { DEFAULT: rgb("green"), tint: "var(--green-tint)" },
   red: { DEFAULT: rgb("red"), tint: "var(--red-tint)", solid: rgb("red-solid") },
+  // 液态玻璃(计划 2026-10-15-liquid-glass INDEX §5.2)
+  wash: { DEFAULT: "var(--ink-wash)", 2: "var(--ink-wash-2)" },
+  graphite: rgb("graphite"),
+  "on-graphite": rgb("on-graphite"),
+  plate: "var(--plate)",
+  scrim: "var(--scrim)",
 };
 
 const SYSTEM_SANS = [
@@ -68,6 +84,7 @@ const SYSTEM_SANS = [
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   ...enjoy,
+  plugins: [...(enjoy.plugins ?? []), liquidVariant],
   content: [
     "./index.html",
     "./src/**/*.{ts,tsx}",
@@ -92,6 +109,7 @@ module.exports = {
         headline: ["22px", { lineHeight: "1.15", letterSpacing: "-0.02em" }],
         stat: ["28px", { lineHeight: "1", letterSpacing: "-0.03em" }],
         hero: ["34px", { lineHeight: "1", letterSpacing: "-0.03em" }],
+        large: ["30px", { lineHeight: "1.15", letterSpacing: "-0.025em", fontWeight: "700" }],
       },
       letterSpacing: { heading: "-0.015em", numeral: "-0.02em", tightest: "-0.03em", eyebrow: "0.06em" },
       lineHeight: { body: "1.4", dialogue: "1.5" },
@@ -104,15 +122,30 @@ module.exports = {
         card: "14px",
         sheet: "20px",
         dock: "28px",
+        // 液态玻璃:分区 26、小卡 / 气泡 22、悬浮输入条 26、底部弹层 32、对话框 30、多行输入 20、面板内井;tail = 气泡尖角 8(不缩放)
+        panel: gx(26),
+        tile: gx(22),
+        float: gx(26),
+        "sheet-xl": gx(32),
+        dialog: gx(30),
+        field: gx(20),
+        inset: "max(10px, calc(26px * var(--gx-radius, 1) - 12px))",
+        tail: "8px",
       },
       // 4pt 栅格沿用 tailwind 默认;tap = 44 触控目标、row = 56 列表行、gutter = 16 页边距、section = 22 分组标题前
-      spacing: { tap: "44px", row: "56px", gutter: "16px", section: "22px", key: "52px" },
+      spacing: { tap: "44px", row: "56px", gutter: "16px", section: "22px", key: "52px", frame: "12px" },
       boxShadow: {
         "hair-b": "inset 0 -0.5px 0 var(--hair)",
         "hair-t": "inset 0 0.5px 0 var(--hair)",
         hair: "inset 0 0 0 0.5px var(--hair)",
         card: "0 1px 2px rgba(17, 19, 24, 0.03)",
         seg: "0 1px 2px rgba(17, 19, 24, 0.08)",
+        well: "inset 0 0 0 .5px var(--hair-2)",
+        plate: "inset 0 0 0 .5px var(--hair-2), inset 0 1px 2px rgba(17, 19, 24, .06)",
+        e1: "var(--mat-sh-1)",
+        e2: "var(--mat-sh-2)",
+        e3: "var(--mat-sh-3)",
+        accent: "0 8px 20px -12px rgb(var(--blue))",
       },
       transitionDuration: { fast: "150ms", base: "200ms" },
       transitionTimingFunction: { standard: "cubic-bezier(0.2, 0, 0, 1)" },
