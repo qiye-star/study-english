@@ -30,9 +30,9 @@
 - `pipeline.py` – 一个条目的流水线(`PipelineDeps.timed_transcriber` 给带时间的转写);取回阶段接口 `FetchRequest` / `FetchResult` / `FetchStage`(默认 `NoFetch`,S2 注册 yt-dlp)
 - `catalog_store.py` – 精选库(spec `2026-10-14-curated-library-design.md`):系统所有的 `catalog_items` / `catalog_segments`、
   输出形状(`public_out` / `admin_out`)、导入队列(`claim_next` / `fail` / `recover`)、**添加即复制** `add_to_library`(幂等,
-  唯一索引 `(user_id, catalog_id)`)、`fill_translations`、引用数 `refs`(查询算,不存计数)、退役回收 `collect_*`、强制删除 `purge`
-- `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → `audio_only` → 字幕 / 识别 →
-  分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布)
+  唯一索引 `(user_id, catalog_id)`)、`fill_translations`、`kind_of`(由 `media_mime` 推出,无列)、`sync_copies`、引用数 `refs`(查询算,不存计数)、退役回收 `collect_*`、强制删除 `purge`
+- `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → 转码(视频源 `normalize` ≤ 720p / ≤ 1600 kbps 保留画面,音频源 `audio_only`)→ 字幕 / 识别 →
+  分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布);有句子且暂存里有 `replace.flag` → 只替换媒体(`_replace_stage`)
 - `catalog_jobs.py` – (计划 SI)`CatalogJobs`(`app.state.catalog`):一次一个、无轮询、`kick()` 触发、启动恢复;`pending` 在 `tests/background.py`
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
@@ -75,6 +75,7 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 精选库:共享文件在 `library/_catalog/<id>/`,暂存在 `library/_catalog/_tmp/<id>/`(不在 `library/_tmp/`)。副本 `source="catalog"`、
   `library_bytes=0`、`media_path` 指向共享文件;**删副本 / 删用户只删 `library/<uid>/…`**,永远不按 `media_path` 删文件。
   目录文件只在「退役且引用数为 0」或强制删除时删除(spec R1)。副本不能重新识别、不能换字幕(`catalog_locked`),且不计入 `item_count`。
+  替换媒体绝不覆盖副本正在读的文件(`media.mp4` ↔ `media-2.mp4`),写库成功后才删旧文件;中途失败只删新文件,绝不删目录(plan 2026-10-15-catalog-keep-video R-KV6)。
 - 精选库计费:导入的识别与译文、共享分析都是系统的(`metering.system_scope()` / `bind_user(None)`,feature `cat_import` /
   `cat_translate` / `cat_analysis`);共享分析受 `library_cat_ai`(`*`)每日上限(`LIBRARY_CATALOG_AI_DAILY`);其他母语或改过字的句子走用户自己的额度。
 - 目录的标题、许可说明、句子与用户内容一样不进日志 / 审计 / 计量。
