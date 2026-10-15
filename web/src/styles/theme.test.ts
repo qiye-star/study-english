@@ -36,6 +36,7 @@ const COLOR_TOKENS = [
   "--blue-tint", "--blue-wash", "--teal-tint", "--amber-tint", "--green-tint", "--red-tint",
   "--glass", "--glass-solid", "--glass-bar", "--glass-lite", "--glass-shadow",
   "--glass-float", "--glass-float-lite", "--glass-float-bd", "--glass-float-hi", "--glass-float-sh", "--tab-on", "--tab-halo",
+  "--glass-pop", "--glass-sheet", "--glass-sheet-lite", "--glass-sheet-sh", "--glass-well", "--glass-well-bd", "--lookup-scrim",
 ];
 /** 与主题无关、只在 :root 定义的令牌。 */
 const SCALAR_TOKENS = ["--radius", "--dur-fast", "--dur-base", "--ease-standard"];
