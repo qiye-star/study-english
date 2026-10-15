@@ -11,6 +11,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_PAGE, LQ_SECONDARY } from "~/components/liquid";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
 import type { Tone } from "~/components/tone";
 import { PageHeader } from "~/layout/page-header";
@@ -114,7 +115,7 @@ export function PracticeListPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.practice.list.title")} back="/practice" />
-      <div className="px-gutter pb-6 pt-2">
+      <div className={`px-gutter pb-6 pt-2 ${LQ_PAGE}`}>
         {error && (
           <div role="alert" className="mb-3 flex items-center gap-2 text-sub text-destructive">
             <span className="flex-1">{error}</span>
@@ -134,7 +135,7 @@ export function PracticeListPage() {
               return (
                 <li key={item.id} className="flex items-center">
                   <button type="button" data-testid="practice-item"
-                    className="flex min-h-row min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 pr-1 text-left transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="flex min-h-row min-w-0 flex-1 items-center gap-3 py-2.5 pl-3.5 pr-1 text-left transition-colors duration-fast active:bg-surface-2 liquid:active:bg-wash liquid:pl-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={() => goPractice(navigate, item.text)}>
                     <IconChip tone={source.tone} icon={source.icon} />
                     <span className="min-w-0 flex-1">
@@ -158,11 +159,11 @@ export function PracticeListPage() {
         )}
       </div>
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={LQ_DIALOG}>
           <AlertDialogHeader><AlertDialogTitle>{t("web.practice.list.deleteConfirm")}</AlertDialogTitle></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11" disabled={deleting}>{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="practice-item-delete-confirm" className="h-11" disabled={deleting}
+            <AlertDialogCancel className={`h-11 ${LQ_SECONDARY}`} disabled={deleting}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="practice-item-delete-confirm" className={`h-11 ${LQ_DANGER_TEXT}`} disabled={deleting}
               onClick={(e) => { e.preventDefault(); if (pendingDelete) void remove(pendingDelete); }}>{t("web.common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

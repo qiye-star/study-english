@@ -7,6 +7,8 @@ import { cn, formatDateTime } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { LQ_INK, LQ_PAGE } from "~/components/liquid";
+import { ScoreDot } from "~/components/score-dot";
 import { scoreToneClass } from "~/components/score-tone";
 import { PageHeader } from "~/layout/page-header";
 import { listAssessments, type AssessmentSummary } from "./assessment-api";
@@ -51,7 +53,7 @@ export function HistoryPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.practice.historyTitle")} back="/practice" />
-      <div className="px-gutter pb-6 pt-2">
+      <div className={`px-gutter pb-6 pt-2 ${LQ_PAGE}`}>
         {error && (
           <div role="alert" className="mb-3 flex items-center gap-2 text-sub text-destructive">
             <span className="flex-1">{error}</span>
@@ -69,9 +71,10 @@ export function HistoryPage() {
               return (
                 <li key={a.id}>
                   <Link to={`/practice/assessments/${a.id}`} data-testid="assessment-item"
-                    className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                    <span className={`num w-10 flex-none text-center text-headline font-semibold tracking-tightest ${scored ? scoreToneClass(score) : "text-ink-2"}`}>
+                    className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast active:bg-surface-2 liquid:active:bg-wash liquid:px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                    <span className={`num flex w-12 flex-none items-center justify-center gap-1 text-headline font-semibold tracking-tightest ${scored ? scoreToneClass(score) : "text-ink-2"} ${LQ_INK}`}>
                       {scored ? Math.round(score) : "—"}
+                      {scored ? <ScoreDot score={score} /> : null}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-body font-medium tracking-[-0.005em] text-ink">{a.referenceText}</span>

@@ -1,9 +1,10 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import i18n from "~/i18n";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { HistoryPage } from "./history-page";
 
@@ -13,6 +14,19 @@ const item = (id: string, text: string) => ({
 });
 
 describe("HistoryPage", () => {
+  afterEach(() => setLiquid(false));
+
+  it("liquid: score in ink with a dot (plan 2026-10-15-liquid-glass R-L4-4)", async () => {
+    setLiquid(true);
+    const mock = createFetchMock({
+      "GET /api/assessments": () => json({ assessments: [item("a1", "First")], page: 1, next: null }),
+    });
+    renderWithProviders(<HistoryPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice/history" });
+    const row = (await screen.findAllByTestId("assessment-item"))[0];
+    expect(row.querySelector(".num")!.className).toContain("liquid:text-ink");
+    expect(row.querySelector("[data-score-dot]")!.className).toContain("bg-amber");
+  });
+
   it("lists records and loads more", async () => {
     const mock = createFetchMock({
       "GET /api/assessments": (call) =>
