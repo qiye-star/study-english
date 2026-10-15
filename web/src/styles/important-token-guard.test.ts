@@ -12,12 +12,13 @@ const walk = (dir: string): string[] =>
   });
 
 /**
- * Tailwind scans source text for class candidates. A JS negation written next to one of our material utilities
- * (`!glass`, `!well`, ...) is read as the important modifier `!glass`, which makes Tailwind emit a rule with an
- * EMPTY selector (esbuild then warns "Unexpected {" while minifying CSS). Write `x === false` instead.
+ * Tailwind scans source text for class candidates (test files too, so this comment must not contain the literal
+ * tokens). A JS negation written right in front of one of our material utility names (the glass, mat-*, well and
+ * plate utilities) is read as Tailwind's important modifier, which makes it emit a rule with an EMPTY selector
+ * (esbuild then warns "Unexpected {" while minifying CSS). Write `x === false` instead of negating.
  */
 describe("no accidental important-modifier candidates", () => {
-  it("no non-test source has !glass / !mat-* / !well / !plate", () => {
+  it("no non-test source negates a material utility name directly", () => {
     const re = /(?<![\w!])!(?:glass|mat-|well\b|plate\b)/;
     const bad = walk(SRC)
       .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f))
