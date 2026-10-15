@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GLASS_DEFAULTS } from "~/lib/glass-theme";
+import { GLASS_DEFAULTS, GLASS_PRESETS } from "~/lib/glass-theme";
 import { GLASS_THEME_KEY } from "~/lib/storage";
 import { getGlassTheme, resetGlassThemeMemory, subscribeGlassTheme, useGlassTheme } from "./glass-theme-store";
 
@@ -15,6 +15,21 @@ describe("glass theme store (plan 2026-10-15-liquid-glass INDEX §4.3)", () => {
     window.localStorage.setItem(GLASS_THEME_KEY, "{not json");
     resetGlassThemeMemory();
     expect(getGlassTheme()).toEqual(GLASS_DEFAULTS);
+  });
+
+  it("a user with nothing stored is on 清透; a stored 磨砂 theme stays 磨砂; reset goes back to 清透", () => {
+    expect(getGlassTheme()).toMatchObject({ preset: "clear", tint: 0.7, blur: 1.25, saturate: 1.8, rim: 1.3, shadow: 0.8 });
+    window.localStorage.setItem(GLASS_THEME_KEY, JSON.stringify({ ...GLASS_DEFAULTS, ...GLASS_PRESETS.frosted, preset: "frosted", radius: 0.6 }));
+    resetGlassThemeMemory();
+    expect(getGlassTheme()).toMatchObject({ preset: "frosted", tint: 1, blur: 1, radius: 0.6 });
+    const { result } = renderHook(() => useGlassTheme());
+    act(() => result.current.reset());
+    expect(result.current.theme.preset).toBe("clear");
+    expect(window.localStorage.getItem(GLASS_THEME_KEY)).toBeNull();
+    act(() => result.current.applyPreset("frosted"));
+    expect(result.current.theme.preset).toBe("frosted");
+    act(() => result.current.applyPreset("clear"));
+    expect(result.current.theme).toMatchObject({ preset: "clear", ...GLASS_PRESETS.clear });
   });
 
   it("notifies at once and persists 300 ms after the last change", () => {

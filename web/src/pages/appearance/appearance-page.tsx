@@ -11,7 +11,7 @@ import { isLowMemory } from "~/layout/glass-quality";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
 import { isGlassOn } from "~/lib/glass-flag";
-import { RADIUS_PRESETS, computeGlassVars, sliderToTint, tintToSlider, type GlassPreset } from "~/lib/glass-theme";
+import { GLASS_PRESETS, RADIUS_PRESETS, computeGlassVars, sliderToTint, tintToSlider, type GlassPreset } from "~/lib/glass-theme";
 import { COLOR_SCHEMES, type ColorScheme } from "~/settings/color-scheme-pref";
 import { useGlassTheme } from "~/settings/glass-theme-store";
 import { useSettings } from "~/settings/settings-context";
@@ -36,6 +36,8 @@ export function AppearancePage() {
   const lowMemory = isLowMemory();
   const lite = lowMemory || theme.reduced;
   const computed = useMemo(() => computeGlassVars(theme, { dark, lite }), [theme, dark, lite]);
+  /** 默认 / 清透预设本身就落在可读下限上,那不是「用户拖过头」:只在比清透还透时提示 */
+  const atFloor = computed.floorHit && theme.tint < (GLASS_PRESETS.clear.tint ?? 0) - 1e-9;
   const rt = reducedTransparency();
   // App-wide switch, not the per-route pin: entering from a pinned route still has data-glass="pin" for one commit.
   if (!isGlassOn()) return <Navigate to="/me" replace />;
@@ -86,7 +88,7 @@ export function AppearancePage() {
           <GlassSlider id="glass-tint" label={t("web.appearance.tint")} value={Math.round(tintToSlider(theme.tint))} min={0} max={100} step={1}
             format={(v) => String(Math.round(v))} disabled={rt}
             onChange={(v) => update({ tint: sliderToTint(v) })}
-            hint={computed.floorHit ? t("web.appearance.floor") : t("web.appearance.tintHint")} warn={computed.floorHit} />
+            hint={atFloor ? t("web.appearance.floor") : t("web.appearance.tintHint")} warn={atFloor} />
           <GlassSlider id="glass-blur" label={t("web.appearance.blur")} value={theme.blur} min={0} max={1.5} step={0.05} disabled={rt}
             format={() => `${computed.blurPx.chrome} px`} onChange={(blur) => update({ blur })}
             hint={lite ? t("web.appearance.effectHint") : undefined} />

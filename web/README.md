@@ -131,7 +131,7 @@
 
 ## 液态玻璃皮肤(计划 2026-10-15-liquid-glass)
 
-全应用换上液态玻璃外观:`<html data-glass="v2">` 在 `main.tsx` 里对所有人设置(`lib/glass-flag.ts`;旧的开发开关 `?glass=v2` / `enjoy-web.dev.glass` 已移除,首次加载会清掉它);`/library*`(跟读库)与 `/practice/changelog`(更新日志)由 `GlassRoutePin` 钉成 `data-glass="pin"`,继续使用经典皮肤,这些页面用到的共享组件因此永远保留经典分支。外观设置在「我的 → 外观与主题」(`/me/appearance`):预设(清透 / 磨砂 / 实色)、透明度、模糊、圆角、边缘高光、阴影、浅色 / 深色各一套背景(渐变、颗粒、纯色、自定义颜色,过深或过浅会自动调整以保证文字可读)、玻璃效果「减弱」。设置只保存在本机(`settings/glass-theme-store.ts`),退出登录时清除。`theme-color` 随所选背景变化(`layout/color-scheme.ts`)。类名约定:在原有类名后追加 `liquid:` 变体与 `components/liquid.ts` 的 `LQ_*` 常量,不改已有令牌的值;守卫测试在 `src/styles/`(`glass-budget`、`locked-pages`、`liquid-colour-guard` 等)。经典分支仍留在代码里(回滚只需还原一次提交);删除它们是后续工作。
+全应用换上液态玻璃外观:`<html data-glass="v2">` 在 `main.tsx` 里对所有人设置(`lib/glass-flag.ts`;旧的开发开关 `?glass=v2` / `enjoy-web.dev.glass` 已移除,首次加载会清掉它);`/library*`(跟读库)与 `/practice/changelog`(更新日志)由 `GlassRoutePin` 钉成 `data-glass="pin"`,继续使用经典皮肤,这些页面用到的共享组件因此永远保留经典分支。外观设置在「我的 → 外观与主题」(`/me/appearance`):预设(清透 / 磨砂 / 实色;默认是清透,从未自定义过的设备没有存储,直接得到它;已存主题保持原值,「恢复默认」回到清透)、透明度、模糊、圆角、边缘高光、阴影、浅色 / 深色各一套背景(渐变、颗粒、纯色、自定义颜色,过深或过浅会自动调整以保证文字可读)、玻璃效果「减弱」。设置只保存在本机(`settings/glass-theme-store.ts`),退出登录时清除。`theme-color` 随所选背景变化(`layout/color-scheme.ts`)。类名约定:在原有类名后追加 `liquid:` 变体与 `components/liquid.ts` 的 `LQ_*` 常量,不改已有令牌的值;守卫测试在 `src/styles/`(`glass-budget`、`locked-pages`、`liquid-colour-guard` 等)。经典分支仍留在代码里(回滚只需还原一次提交);删除它们是后续工作。
 
 **未在真机验证(液态玻璃):** 低端安卓上 3 层模糊的真实模糊质量与帧率;iOS Safari 底部弹窗进入时的模糊闪烁;顶部胶囊淡入与模糊的配合;自定义背景在户外的可读性;石墨色气泡上的查词高亮;单色答题反馈是否一眼可辨;320–360px 宽度下的大标题;iOS 的 `prefers-reduced-transparency`;不支持 `:is()` / `rgb(r g b / a)` 的旧 WebView。清单见 `docs/superpowers/plans/2026-10-15-liquid-glass-device-checklist.md`。
 

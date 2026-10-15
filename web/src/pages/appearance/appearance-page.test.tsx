@@ -35,6 +35,18 @@ describe("AppearancePage (plan 2026-10-15-liquid-glass L3)", () => {
     expect(blurLayers(container).length).toBeLessThanOrEqual(2);
   });
 
+  it("a fresh user sees 清透 selected, named, and no readability-floor warning", () => {
+    renderWithProviders(<AppearancePage />);
+    expect(screen.getByRole("button", { name: /清透/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /磨砂/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("appearance-preset-name")).toHaveTextContent("清透");
+    expect(screen.queryByText("已到可读下限")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /磨砂/ }));
+    expect(getGlassTheme().preset).toBe("frosted");
+    fireEvent.click(screen.getByRole("button", { name: "恢复默认" }));
+    expect(screen.getByRole("button", { name: /清透/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("presets: 实色 sets solid values and the solid background; a slider move makes it custom", () => {
     renderWithProviders(<AppearancePage />);
     fireEvent.click(screen.getByRole("button", { name: /实色/ }));
