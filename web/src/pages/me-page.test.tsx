@@ -185,7 +185,7 @@ describe("Me in the liquid skin (plan 2026-10-15-liquid-glass L11)", () => {
     expect(screen.queryByTestId("me-color-scheme")).toBeNull();
     const row = screen.getByTestId("me-appearance");
     expect(row).toHaveAttribute("href", "/me/appearance");
-    expect(row).toHaveTextContent(/磨砂|Frosted|preset/);
+    expect(row).toHaveTextContent(/清透|Clear|preset/);
     expect(screen.getByTestId("me-logout").className).toContain("liquid:text-red");
   });
 

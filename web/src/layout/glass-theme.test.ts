@@ -31,7 +31,7 @@ describe("glass theme writer (plan 2026-10-15-liquid-glass L1)", () => {
 
   it("writes the computed variables and the background style on <html>", () => {
     applyGlassTheme({ ...GLASS_DEFAULTS, bgStyle: "grain" }, fakeWin(8));
-    expect(v("--mat-2-filter")).toBe("blur(24px) saturate(1.6)");
+    expect(v("--mat-2-filter")).toBe("blur(30px) saturate(1.8)");
     expect(v("--page-top")).toBe("rgb(246, 247, 248)");
     expect(root.getAttribute("data-bg")).toBe("grain");
     expect(root.classList.contains("lite")).toBe(false);
@@ -40,7 +40,7 @@ describe("glass theme writer (plan 2026-10-15-liquid-glass L1)", () => {
   it("减弱 or a low-memory device forces html.lite and caps blur", () => {
     applyGlassTheme({ ...GLASS_DEFAULTS, reduced: true }, fakeWin(8));
     expect(root.classList.contains("lite")).toBe(true);
-    expect(v("--mat-3-filter")).toBe("blur(12px) saturate(1.6)");
+    expect(v("--mat-3-filter")).toBe("blur(12px) saturate(1.8)");
     applyGlassTheme(GLASS_DEFAULTS, fakeWin(2));
     expect(root.classList.contains("lite")).toBe(true);
     applyGlassTheme(GLASS_DEFAULTS, fakeWin(8));
@@ -50,7 +50,7 @@ describe("glass theme writer (plan 2026-10-15-liquid-glass L1)", () => {
   it("uses the dark values when html.dark is set", () => {
     root.classList.add("dark");
     applyGlassTheme(GLASS_DEFAULTS, fakeWin(8));
-    expect(Number(v("--mat-1-alpha"))).toBeCloseTo(0.055);
+    expect(Number(v("--mat-1-alpha"))).toBeCloseTo(0.04);
     expect(v("--page-bottom")).toBe("rgb(9, 10, 11)");
   });
 

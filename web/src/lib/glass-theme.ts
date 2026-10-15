@@ -54,16 +54,21 @@ const swatchBg = (mode: ColorMode, i: number): BgPref => {
   return { swatch: i, h: s.h, s: s.s, l: s.l, second: null };
 };
 
-export const GLASS_DEFAULTS: GlassTheme = Object.freeze({
-  v: 1, preset: "frosted", tint: 1, blur: 1, saturate: 1.6, radius: 1, rim: 1, shadow: 1, bgStyle: "gradient", reduced: false,
-  bg: { light: swatchBg("light", 0), dark: swatchBg("dark", 0) },
-}) as GlassTheme;
-
 export const GLASS_PRESETS: Record<Exclude<GlassPreset, "custom">, GlassPatch> = {
   clear: { tint: 0.7, blur: 1.25, saturate: 1.8, rim: 1.3, shadow: 0.8 },
   frosted: { tint: 1, blur: 1, saturate: 1.6, rim: 1, shadow: 1 },
   solid: { tint: 1.35, blur: 0, saturate: 1, rim: 0.6, shadow: 1, bgStyle: "solid" },
 };
+/**
+ * 默认主题 = 清透(2026-10-15 owner:默认就是透明玻璃)。材质数值取自 GLASS_PRESETS.clear,不写第二份;可读下限在 computeGlassVars 里
+ * 照常施加(清透在浅色下 T1/T2/bar/T3 都会落在下限上,所以「透明」其实是下限允许的最透)。从未自定义过的用户本机没有存储,直接得到它;
+ * 存过主题的用户继续用自己存的值(含 preset 名),存储结构 v:1 不变。
+ */
+export const GLASS_DEFAULTS: GlassTheme = Object.freeze({
+  v: 1, preset: "clear", ...GLASS_PRESETS.clear, radius: 1, bgStyle: "gradient", reduced: false,
+  bg: { light: swatchBg("light", 0), dark: swatchBg("dark", 0) },
+}) as GlassTheme;
+
 export const RADIUS_PRESETS = { compact: 0.6, standard: 1, round: 1.25 } as const;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));

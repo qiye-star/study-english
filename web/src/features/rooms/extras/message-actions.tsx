@@ -6,6 +6,7 @@ import { REACTION_GLYPHS, REACTION_KEYS, type ReactionKey, type RoomMessage } fr
 
 const tool = "inline-flex min-h-tap flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] px-2 text-meta font-semibold text-ink "
   + "transition-colors duration-fast hover:bg-surface-2 active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring "
+  + "liquid:rounded-full liquid:hover:bg-wash liquid:active:bg-wash-2 "
   + "aria-pressed:bg-blue-tint aria-pressed:text-blue [&_svg]:size-4 [&_svg]:text-ink-2 aria-pressed:[&_svg]:text-blue liquid:aria-pressed:bg-wash";
 
 function Tool({ testId, label, pressed, onClick, children }: { testId: string; label: string; pressed?: boolean; onClick(): void; children: ReactNode }) {
@@ -35,14 +36,14 @@ export function MessageActions({
   const mineOn = (key: ReactionKey) => meId !== null && !!message.reactions?.find((r) => r.key === key)?.userIds.includes(meId);
   return (
     <div role="group" aria-label={t("web.rooms.extras.actions")} data-testid="msg-actions"
-      className="flex max-w-full flex-col gap-0.5 rounded-card bg-surface p-1 shadow-[inset_0_0_0_0.5px_var(--hair),0_10px_24px_-14px_rgba(17,19,24,0.35)] dark:shadow-[inset_0_0_0_0.5px_var(--hair),0_10px_24px_-12px_rgba(0,0,0,0.7)]">
+      className="mat-sheet flex max-w-full flex-col gap-0.5 rounded-card bg-surface p-1 liquid:rounded-tile liquid:p-0 shadow-[inset_0_0_0_0.5px_var(--hair),0_10px_24px_-14px_rgba(17,19,24,0.35)] dark:shadow-[inset_0_0_0_0.5px_var(--hair),0_10px_24px_-12px_rgba(0,0,0,0.7)]">
       <div className="flex gap-0.5">
         {REACTION_KEYS.map((key) => {
           const on = mineOn(key);
           return (
             <button key={key} type="button" data-testid={`react-${key}`} aria-pressed={on} aria-label={t(`web.rooms.extras.reactionNames.${key}`)}
               onClick={() => onReact(key, !on)}
-              className={cn("flex h-tap w-tap flex-none items-center justify-center rounded-[10px] text-[21px] leading-none transition-colors duration-fast",
+              className={cn("flex h-tap w-tap flex-none items-center justify-center rounded-[10px] liquid:rounded-full text-[21px] leading-none transition-colors duration-fast",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on ? "bg-blue-tint liquid:bg-wash" : "hover:bg-surface-2 active:bg-surface-2")}>
               <span aria-hidden>{REACTION_GLYPHS[key]}</span>
             </button>
