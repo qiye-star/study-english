@@ -1,23 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { setLiquid } from "~/test/glass";
 import { ChoiceQuestion, type AfterAnswer, type ChoiceResult } from "./choice-question";
 import type { OptionInfo, Question } from "./wordbook-api";
-
-// jsdom has no PointerEvent: without one, fireEvent builds a plain Event and drops clientX / button / pointerId (same stub as use-long-press.test.tsx).
-class TestPointerEvent extends MouseEvent {
-  pointerId: number;
-  isPrimary: boolean;
-  constructor(type: string, init: PointerEventInit = {}) {
-    super(type, init);
-    this.pointerId = init.pointerId ?? 0;
-    this.isPrimary = init.isPrimary ?? true;
-  }
-}
-beforeAll(() => { vi.stubGlobal("PointerEvent", TestPointerEvent); });
-afterAll(() => { vi.unstubAllGlobals(); });
 
 const OPT_TALK = "v. 说话；谈话；n. 交谈";
 const meaning: Question = { key: "talk", qtype: "meaning", prompt: { word: "talk", us: "tɔk" }, options: [OPT_TALK, "n. 事故", "v. 放弃"], length: null };
@@ -42,8 +28,6 @@ const rows = () => screen.getAllByTestId("choice-option");
 const wordOf = (row: HTMLElement) => within(row).getByTestId("option-word").textContent;
 const mainOf = (row: HTMLElement) => within(row).getByTestId("option-main").textContent;
 const selected = () => window.getSelection()?.toString() ?? "";
-const press = (el: HTMLElement, x = 10, y = 10) =>
-  fireEvent.pointerDown(el, { pointerId: 1, clientX: x, clientY: y, button: 0, isPrimary: true });
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,7 +45,7 @@ describe("ChoiceQuestion before the answer / without `after`", () => {
     view(meaning, null, after());
     expect(screen.getAllByRole("button").filter((b) => b.closest("li") !== null && b.getAttribute("data-state"))).toHaveLength(3);
     expect(screen.queryByTestId("choice-option")).toBeNull();
-    expect(screen.queryByTestId("long-press-hint")).toBeNull();
+    expect(screen.queryByTestId("tap-lookup-hint")).toBeNull();
   });
 
   it("leaves the learn page / spot-check rendering alone: no `after` means disabled buttons after the answer", () => {
@@ -91,7 +75,7 @@ describe("ChoiceQuestion · cloze, after the answer", () => {
     expect(rows().map(wordOf)).toEqual(["stop", "carry"]);
     expect(rows()[1]).toHaveTextContent("vt. 携带；搬运");
     expect(rows().map((r) => r.getAttribute("data-state"))).toEqual(["wrong", "correct"]);
-    expect(screen.getByTestId("long-press-hint")).toBeTruthy();
+    expect(screen.getByTestId("tap-lookup-hint")).toBeTruthy();
   });
 });
 
@@ -110,15 +94,16 @@ describe("ChoiceQuestion · meaning, after the answer (R-Z1: bilingual rows)", (
     expect(screen.queryByTestId("option-peek")).toBeNull();
   });
 
-  it("is not a disabled button: a div with touch-action manipulation, no native callout, and a selectable, lookup-ready word", () => {
+  it("is not a disabled button: a non-interactive div with touch-action manipulation and a selectable, tap-lookup-ready word", () => {
     view(meaning, wrongPick, after());
     for (const row of rows()) {
       expect(row.tagName).toBe("DIV");
       expect(row.className).toMatch(/\btouch-manipulation\b/);
-      expect(row.className).toMatch(/\bselect-none\b/);
-      expect(row.className).toContain("[-webkit-touch-callout:none]");
-      expect(row).toHaveAttribute("role", "button");
-      expect(row).toHaveAttribute("tabindex", "0");
+      expect(row.className).not.toMatch(/\bselect-none\b/);
+      expect(row.className).not.toContain("touch-callout");
+      expect(row).not.toHaveAttribute("role");
+      expect(row).not.toHaveAttribute("tabindex");
+      expect(row).not.toHaveAttribute("data-lookup-press");
       const word = within(row).getByTestId("option-word");
       expect(word).toHaveAttribute("data-lookup-context");
       expect(word).toHaveAttribute("lang", "en");
@@ -140,7 +125,7 @@ describe("ChoiceQuestion · meaning, after the answer (R-Z1: bilingual rows)", (
     view(meaning, wrongPick, after({ info: undefined }));
     expect(rows().map((r) => r.textContent?.replace(/正确答案|你选的/g, ""))).toEqual([expect.stringContaining(OPT_TALK), expect.stringContaining("n. 事故"), expect.stringContaining("v. 放弃")]);
     expect(rows()[1].querySelector("s")).not.toBeNull();
-    expect(screen.queryByTestId("long-press-hint")).toBeNull();
+    expect(screen.queryByTestId("tap-lookup-hint")).toBeNull();
     expect(rows().every((r) => !r.hasAttribute("role"))).toBe(true);
   });
 
@@ -167,104 +152,47 @@ describe("ChoiceQuestion · word, after the answer (spec D3)", () => {
   it("still lets you look a word up when there is no info (the option is the word)", () => {
     view(wordQ, picked, after({ info: undefined }));
     expect(rows().map(wordOf)).toEqual(["accept", "talk", "stop"]);
-    expect(screen.getByTestId("long-press-hint")).toBeTruthy();
+    expect(screen.getByTestId("tap-lookup-hint")).toBeTruthy();
   });
 });
 
-describe("ChoiceQuestion · long press picks the word for the lookup bar (R-L1–R-L5)", () => {
+describe("ChoiceQuestion · no own long-press any more (tap-to-lookup is global)", () => {
   beforeEach(() => vi.useFakeTimers());
 
-  it("selects the row's English word after holding for 450 ms", () => {
-    view(meaning, wrongPick, after());
-    press(rows()[1]);
-    vi.advanceTimersByTime(449);
-    expect(selected()).toBe("");
-    vi.advanceTimersByTime(1);
-    expect(selected()).toBe("accident");
-  });
-
-  it("works on word questions too (the word is the main line)", () => {
-    view(wordQ, { choice: "stop", correct: false, correctOption: "talk" }, after({ info: WORD_INFO }));
-    press(rows()[0]);
-    vi.advanceTimersByTime(450);
-    expect(selected()).toBe("accept");
-  });
-
-  it("does nothing for a plain tap, a move beyond 8 px, a pointercancel or a scroll", () => {
-    view(meaning, wrongPick, after());
-    fireEvent.click(rows()[1], { detail: 1 });
-    press(rows()[1]);
-    fireEvent.pointerMove(rows()[1], { pointerId: 1, clientX: 30, clientY: 10 });
-    vi.advanceTimersByTime(600);
-    press(rows()[1]);
-    fireEvent.pointerCancel(rows()[1], { pointerId: 1 });
-    vi.advanceTimersByTime(600);
-    press(rows()[1]);
-    fireEvent.scroll(document);
-    vi.advanceTimersByTime(600);
-    expect(selected()).toBe("");
-  });
-
-  it("swallows the click after the release and suppresses the native context menu", () => {
+  it("holding a row selects nothing, the click is not swallowed and the native context menu is left alone", () => {
     const outer = vi.fn();
     render(<div onClick={outer}><ChoiceQuestion question={meaning} result={wrongPick} onAnswer={vi.fn()} onListen={vi.fn()} after={after()} /></div>);
-    press(rows()[1]);
-    vi.advanceTimersByTime(450);
-    fireEvent.pointerUp(rows()[1], { pointerId: 1 });
-    fireEvent.click(rows()[1], { detail: 1 });
-    expect(outer).not.toHaveBeenCalled();
-    fireEvent.click(rows()[1], { detail: 1 });
-    expect(outer).toHaveBeenCalledTimes(1);
-    expect(fireEvent.contextMenu(rows()[1])).toBe(false);
-  });
-
-  it("looks up at once from the keyboard (Enter / Space) and from an assistive-technology click (detail 0)", () => {
-    view(meaning, wrongPick, after());
-    fireEvent.keyDown(rows()[0], { key: "Enter" });
-    expect(selected()).toBe("talk");
-    window.getSelection()?.removeAllRanges();
-    fireEvent.keyDown(rows()[1], { key: " " });
-    expect(selected()).toBe("accident");
-    window.getSelection()?.removeAllRanges();
-    fireEvent.click(rows()[2], { detail: 0 });
-    expect(selected()).toBe("abandon");
-  });
-
-  it("does not override text the user selected by hand elsewhere", () => {
-    view(meaning, wrongPick, after());
-    const elsewhere = document.createElement("p");
-    elsewhere.textContent = "some text";
-    document.body.appendChild(elsewhere);
-    const range = document.createRange();
-    range.selectNodeContents(elsewhere);
-    window.getSelection()?.removeAllRanges();
-    window.getSelection()?.addRange(range);
-    press(rows()[1]);
-    vi.advanceTimersByTime(450);
-    expect(selected()).toBe("some text");
-    elsewhere.remove();
-  });
-
-  it("is not active before the answer: holding an option and letting go just answers (R-L1)", () => {
-    const onAnswer = vi.fn();
-    render(<ChoiceQuestion question={meaning} result={null} onAnswer={onAnswer} onListen={vi.fn()} after={after()} />);
-    const option = screen.getByRole("button", { name: /n\. 事故/ });
-    press(option);
+    fireEvent.pointerDown(rows()[1], { pointerId: 1, pointerType: "touch", clientX: 10, clientY: 10, button: 0, isPrimary: true });
     vi.advanceTimersByTime(600);
     expect(selected()).toBe("");
-    fireEvent.pointerUp(option, { pointerId: 1 });
-    fireEvent.click(option);
+    fireEvent.pointerUp(rows()[1], { pointerId: 1 });
+    fireEvent.click(rows()[1], { detail: 1 });
+    expect(outer).toHaveBeenCalledTimes(1);
+    expect(fireEvent.contextMenu(rows()[1])).toBe(true);
+  });
+
+  it("does not react to the keyboard either: the rows are not buttons", () => {
+    view(meaning, wrongPick, after());
+    fireEvent.keyDown(rows()[0], { key: "Enter" });
+    fireEvent.click(rows()[2], { detail: 0 });
+    expect(selected()).toBe("");
+  });
+
+  it("before the answer the options are still plain answer buttons", () => {
+    const onAnswer = vi.fn();
+    render(<ChoiceQuestion question={meaning} result={null} onAnswer={onAnswer} onListen={vi.fn()} after={after()} />);
+    fireEvent.click(screen.getByRole("button", { name: /n\. 事故/ }));
     expect(onAnswer).toHaveBeenCalledWith("n. 事故");
   });
 });
 
-describe("ChoiceQuestion · one-time long-press hint (R-L6)", () => {
+describe("ChoiceQuestion · one-time tap-lookup hint", () => {
   it("shows once after the first answered question and not on the next one", () => {
     const first = view(meaning, wrongPick, after());
-    expect(screen.getByTestId("long-press-hint")).toHaveTextContent("长按选项里的单词可查询");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词会出现横线,再点一次查词");
     first.unmount();
     view(wordQ, { choice: "stop", correct: false, correctOption: "talk" }, after({ info: WORD_INFO }));
-    expect(screen.queryByTestId("long-press-hint")).toBeNull();
+    expect(screen.queryByTestId("tap-lookup-hint")).toBeNull();
   });
 });
 

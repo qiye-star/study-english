@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
@@ -112,7 +112,7 @@ describe("review page · after the answer (meaning)", () => {
     expect(panel).not.toHaveTextContent("接受；承认");
     expect(panel).not.toHaveTextContent("认输");
     expect(within(panel).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByTestId("long-press-hint")).toHaveTextContent("长按选项里的单词可查询");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词会出现横线,再点一次查词");
     const sent = JSON.parse(String(mock.calls.find((c) => c.url.pathname === "/api/wordbook/answers")?.body)) as Record<string, unknown>;
     expect(Object.keys(sent).sort()).toEqual(["book_id", "choice", "key", "mode", "qtype", "tz_offset_minutes"]);
   });
@@ -131,7 +131,7 @@ describe("review page · after the answer (meaning)", () => {
     const wc = screen.getByTestId("word-card");
     expect(within(wc).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false"); // 换题复位
     expect(wc).not.toHaveTextContent("携带；搬运");
-    expect(screen.queryByTestId("long-press-hint")).toBeNull(); // 只提示一次
+    expect(screen.queryByTestId("tap-lookup-hint")).toBeNull(); // 只提示一次
   });
 
   it("honours def_lang 'zh': Chinese rows (as always), no chip, Chinese in the panel", async () => {
@@ -152,7 +152,7 @@ describe("review page · after the answer (meaning)", () => {
     expect(rows()[0]).toHaveTextContent("v. 放弃；抛弃");
     expect(rows()[0].querySelector("s")).not.toBeNull();
     expect(screen.queryByTestId("option-word")).toBeNull();
-    expect(screen.queryByTestId("long-press-hint")).toBeNull();
+    expect(screen.queryByTestId("tap-lookup-hint")).toBeNull();
     expect(screen.getByTestId("after-answer-panel")).toHaveTextContent("agree to take something offered");
   });
 });
@@ -206,18 +206,5 @@ describe("review page · after the answer (word and cloze)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /go/ })).toHaveAttribute("data-state", "correct"));
     expect(screen.queryByTestId("choice-option")).toBeNull();
     expect(screen.queryByTestId("word-card")).toBeNull();
-  });
-});
-
-describe("review page · long press opens the lookup bar", () => {
-  it("selects the option's word after a hold and the global selection bar appears", async () => {
-    const user = userEvent.setup();
-    setup();
-    await startAndAnswer(user, /v\. 放弃；抛弃/);
-    fireEvent.pointerDown(rows()[2], { pointerId: 1, clientX: 10, clientY: 10, button: 0, isPrimary: true });
-    await waitFor(() => expect(window.getSelection()?.toString()).toBe("carry"), { timeout: 1500 });
-    fireEvent.pointerUp(rows()[2], { pointerId: 1 });
-    expect(await screen.findByTestId("lookup-bar")).toBeTruthy();
-    expect(screen.getByTestId("lookup-trigger")).toBeTruthy();
   });
 });

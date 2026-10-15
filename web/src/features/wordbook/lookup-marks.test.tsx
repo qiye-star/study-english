@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
+import { lookupTapContext } from "~/lib/lookup-context";
 import { renderWithProviders } from "~/test/render";
 import { DEFS_EN, card } from "./test-fixtures";
 import { ChoiceQuestion } from "./choice-question";
@@ -72,8 +73,17 @@ describe("wordbook quiz prompts become lookup-able only after the answer (R-M3)"
     expect(marked(sentence())).toBe(true);
   });
 
-  it("answered option rows own their long-press, so the global recogniser skips them (R-L6)", () => {
-    render(<ChoiceQuestion question={meaningQ} result={{ choice: "n. 事故", correct: false, correctOption: "v. 说话" }} onAnswer={vi.fn()} after={{ info: INFO }} />);
-    for (const row of screen.getAllByTestId("choice-option")) expect(row).toHaveAttribute("data-lookup-press", "own");
+  it("answered option rows are plain divs whose English word is a tap-lookup target; before the answer the buttons are not (no peeking)", () => {
+    const { rerender } = render(<ChoiceQuestion question={meaningQ} result={null} onAnswer={vi.fn()} after={{ info: INFO }} />);
+    for (const button of screen.getAllByRole("button").filter((b) => b.closest("li"))) expect(lookupTapContext(button)).toBeNull();
+    expect(screen.queryByTestId("option-word")).toBeNull();
+    rerender(<ChoiceQuestion question={meaningQ} result={{ choice: "n. 事故", correct: false, correctOption: "v. 说话" }} onAnswer={vi.fn()} after={{ info: INFO }} />);
+    for (const row of screen.getAllByTestId("choice-option")) {
+      expect(row.tagName).toBe("DIV");
+      expect(row).not.toHaveAttribute("role");
+      expect(row).not.toHaveAttribute("data-lookup-press");
+      const word = within(row).getByTestId("option-word");
+      expect(lookupTapContext(word)).toBe(word);
+    }
   });
 });

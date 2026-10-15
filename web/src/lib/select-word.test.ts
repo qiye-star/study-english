@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { selectWord, selectWordAt } from "./select-word";
+import { selectWord, selectWordAt, wordRangeAt } from "./select-word";
 
 function mount(html: string): HTMLElement {
   const root = document.createElement("div");
@@ -103,5 +103,51 @@ describe("selectWordAt (plan 2026-10-15 R-L3)", () => {
     delete (document as CaretDoc).caretRangeFromPoint;
     expect(selectWordAt(1, 1)).toBe(false);
     expect(String(document.getSelection())).toBe("");
+  });
+});
+
+describe("wordRangeAt (tap-to-lookup marker)", () => {
+  afterEach(() => {
+    delete (document as CaretDoc).caretRangeFromPoint;
+    delete (document as CaretDoc).caretPositionFromPoint;
+    document.body.innerHTML = "";
+  });
+
+  it("returns a Range inside one text node around the word, with inner apostrophes and hyphens", () => {
+    document.body.innerHTML = `<p id="p">it's a well-known fact</p>`;
+    const text = document.getElementById("p")!.firstChild!;
+    caretAt(text, 2);
+    const a = wordRangeAt(1, 1)!;
+    expect(a.toString()).toBe("it's");
+    expect(a.startContainer).toBe(text);
+    expect(a.endContainer).toBe(text);
+    caretAt(text, 12);
+    expect(wordRangeAt(1, 1)!.toString()).toBe("well-known");
+  });
+
+  it("does not change the selection", () => {
+    document.body.innerHTML = `<p id="p">say hello</p>`;
+    caretAt(document.getElementById("p")!.firstChild!, 5);
+    wordRangeAt(1, 1);
+    expect(String(document.getSelection())).toBe("");
+  });
+
+  it("is null on whitespace, punctuation, digits-only, CJK, outside `within`, an element caret, or without a caret API", () => {
+    document.body.innerHTML = `<p id="p">a, 123 你好 ok</p><div id="other"></div>`;
+    const text = document.getElementById("p")!.firstChild!;
+    caretAt(text, 1);
+    expect(wordRangeAt(1, 1)!.toString()).toBe("a");
+    caretAt(text, 2);
+    expect(wordRangeAt(1, 1)).toBeNull(); // the comma / space between words
+    caretAt(text, 4);
+    expect(wordRangeAt(1, 1)).toBeNull(); // 123
+    caretAt(text, 8);
+    expect(wordRangeAt(1, 1)).toBeNull(); // 你好
+    caretAt(text, 11);
+    expect(wordRangeAt(1, 1, document, document.getElementById("other")!)).toBeNull();
+    caretAt(document.getElementById("p")!, 0);
+    expect(wordRangeAt(1, 1)).toBeNull();
+    delete (document as CaretDoc).caretRangeFromPoint;
+    expect(wordRangeAt(1, 1)).toBeNull();
   });
 });

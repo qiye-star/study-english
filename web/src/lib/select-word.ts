@@ -39,17 +39,14 @@ function caretAt(doc: Document, x: number, y: number): { node: Node; offset: num
 }
 
 /**
- * Select the English word under (x, y) (global long-press, plan 2026-10-15-global-longpress-glass-lookup R-L3).
- * Does nothing when a selection already exists (the browser's own long-press wins), when the point is not on a Latin word,
- * when the caret lies outside `within`, or when the browser has no caret-from-point API. Returns whether the selection changed.
+ * The Range of the English word under (x, y), or null (tap-to-lookup marker and lookup, plan 2026-10-15 tap-lookup).
+ * The range lies inside ONE text node (and inside `within` when given); whitespace, punctuation, digits-only and CJK text
+ * give null, as does a browser without caretPositionFromPoint / caretRangeFromPoint. Apostrophes and hyphens count inside a word.
  */
-export function selectWordAt(x: number, y: number, doc: Document = document, within?: Element): boolean {
-  const sel = doc.getSelection();
-  if (!sel) return false;
-  if (!sel.isCollapsed && sel.toString().trim()) return false;
+export function wordRangeAt(x: number, y: number, doc: Document = document, within?: Element): Range | null {
   const caret = caretAt(doc, x, y);
-  if (!caret || caret.node.nodeType !== Node.TEXT_NODE) return false;
-  if (within && !within.contains(caret.node)) return false;
+  if (!caret || caret.node.nodeType !== Node.TEXT_NODE) return null;
+  if (within && !within.contains(caret.node)) return null;
   const text = caret.node.textContent ?? "";
   let start = caret.offset;
   let end = caret.offset;
@@ -57,10 +54,24 @@ export function selectWordAt(x: number, y: number, doc: Document = document, wit
   while (end < text.length && WORD_CHAR.test(text[end])) end += 1;
   while (start < end && EDGE_PUNCT.test(text[start])) start += 1;
   while (end > start && EDGE_PUNCT.test(text[end - 1])) end -= 1;
-  if (!LATIN.test(text.slice(start, end))) return false;
+  if (!LATIN.test(text.slice(start, end))) return null;
   const range = doc.createRange();
   range.setStart(caret.node, start);
   range.setEnd(caret.node, end);
+  return range;
+}
+
+/**
+ * Select the English word under (x, y) (second tap of tap-to-lookup).
+ * Does nothing when a selection already exists (the browser's own long-press wins) or when `wordRangeAt` finds no word.
+ * Returns whether the selection changed.
+ */
+export function selectWordAt(x: number, y: number, doc: Document = document, within?: Element): boolean {
+  const sel = doc.getSelection();
+  if (!sel) return false;
+  if (!sel.isCollapsed && sel.toString().trim()) return false;
+  const range = wordRangeAt(x, y, doc, within);
+  if (!range) return false;
   sel.removeAllRanges();
   sel.addRange(range);
   return true;

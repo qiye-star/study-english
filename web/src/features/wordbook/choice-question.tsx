@@ -1,13 +1,10 @@
 import { CheckIcon, CircleCheckIcon, XIcon } from "lucide-react";
-import type { KeyboardEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
-import { lookupContextIf, ownLongPress } from "~/lib/lookup-context";
-import { selectWord } from "~/lib/select-word";
-import { LongPressHint } from "./long-press-hint";
+import { lookupContextIf } from "~/lib/lookup-context";
 import { infoFor, optionRowView } from "./option-view";
-import { useLongPress } from "./use-long-press";
+import { TapLookupHint } from "./tap-lookup-hint";
 import { ListenButton, type ListenProps } from "./word-card";
 import type { AnswerResult, OptionInfo, Question } from "./wordbook-api";
 import "./locales";
@@ -17,7 +14,7 @@ export interface ChoiceResult { choice: string; correct: boolean; correctOption:
 
 /**
  * 答题后界面的开关(计划 2026-10-13-review-after-answer R-A7):只有复习页在答题后传它。传了(cloze 还须有选项信息)才把选项换成
- * 非禁用的普通容器 + 长按查词 + 一次性提示;没传(学新词页、抽查题)逐字节保持原来的禁用按钮。
+ * 非禁用的普通容器(非交互 div,单词 span 带 data-lookup-context,点词查词由全局 tap-to-lookup 负责)+ 一次性提示;没传(学新词页、抽查题)逐字节保持原来的禁用按钮。
  * 选项行本身就是双语的(计划 2026-10-14-review-bilingual-longpress R-Z1),「中文」按钮在「学习内容」区,不在这里。
  */
 export interface AfterAnswer {
@@ -55,7 +52,7 @@ type OptionState = "idle" | "correct" | "wrong";
  * 选择题(meaning / word / cloze;spec §6.4,视觉稿 05 / 05b):题面 + 4 个 ≥ 52px 选项。
  * 结果到达后:正确项绿底 + 勾,你选错的项中性删除线 + ×,其余不变;选项不再可点。
  * 复习页答题后传 `after`:选项换成普通容器;meaning 题 = 中文原文 + 小字英文单词,word 题 = 英文单词 + 小字词性与中文(R-Z1);
- * 长按 450 ms → 程序化选中该行的英文单词 → 全局选词操作条(R-L1–R-L5,只在答题后)。
+ * 点一下英文单词出横线、再点一次出选词操作条(全局 tap-to-lookup,只在答题后;答题前选项是按钮,不参与)。
  */
 export function ChoiceQuestion({ question, onAnswer, result, busy = false, onListen, listening, canListen, after }: ListenProps & {
   question: Question; onAnswer: (choice: string) => void; result: ChoiceResult | null; busy?: boolean; after?: AfterAnswer;
@@ -66,22 +63,6 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
   // cloze 没有选项信息(老服务端 / 备忘取不到)时保持原样:禁用的按钮
   const answered = result !== null && after !== undefined && (qtype !== "cloze" || hasInfo);
   const tappable = answered && (qtype === "word" || qtype === "cloze" || hasInfo);
-
-  const lookUp = (row: HTMLElement) => {
-    const el = row.querySelector<HTMLElement>("[data-option-word]");
-    if (el) selectWord(el);
-  };
-  // 长按查词:hook 无条件调用,处理器只展开到答题后有单词的行上(R-L1)
-  const press = useLongPress(lookUp);
-  // detail === 0:键盘 / 读屏「激活」产生的合成点击,一次就查;真实点按(detail ≥ 1)什么也不做(R-L5)
-  const onRowClick = (e: MouseEvent<HTMLElement>) => {
-    if (e.detail === 0) lookUp(e.currentTarget);
-  };
-  const onRowKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    lookUp(e.currentTarget);
-  };
 
   return (
     <SurfaceCard data-testid="choice-question" className="px-4 py-[18px]">
@@ -125,21 +106,17 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
             : state === "wrong" ? <span aria-hidden className="flex flex-none items-center gap-1 text-meta font-semibold text-ink-2 liquid:text-red"><XIcon className="h-5 w-5 liquid:h-[18px] liquid:w-[18px]" /><span className="hidden liquid:inline">{t("web.wordbookDefs.after.yours")}</span></span> : null;
           if (answered) {
             const row = optionRowView(qtype, option, infoFor(after?.info, option));
-            const lookupProps = row.word ? {
-              role: "button" as const, tabIndex: 0, ...ownLongPress, ...press(String(i)), onClick: onRowClick, onKeyDown: onRowKeyDown,
-            } : {};
             const wordSpan = row.word ? (
               <span data-testid="option-word" data-option-word="" data-lookup-context lang="en" className="select-text break-words">{row.word}</span>
             ) : null;
             return (
               <li key={`${i}:${option}`}>
-                <div data-testid="choice-option" data-state={state} {...lookupProps}
+                <div data-testid="choice-option" data-state={state}
                   className={cn(
                     "flex min-h-[52px] w-full touch-manipulation items-center gap-2.5 rounded-button border-[0.5px] px-3.5 text-left text-body transition-colors duration-fast liquid:min-h-[60px] liquid:rounded-tile liquid:border-0 liquid:bg-[rgb(var(--mat-1-rgb)/var(--mat-1-alpha))] liquid:shadow-e1",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     state === "correct" ? "border-transparent bg-green-tint font-semibold text-green liquid:text-ink liquid:shadow-[inset_0_0_0_1.5px_rgb(var(--ink)),var(--mat-sh-1)]"
                       : state === "wrong" ? "border-hair bg-surface text-ink-2" : "border-hair bg-surface text-ink",
-                    row.word && "cursor-pointer select-none [-webkit-touch-callout:none]",
                   )}>
                   {badge}
                   <span className="min-w-0 flex-1 py-2">
@@ -181,7 +158,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
           );
         })}
       </ul>
-      {tappable ? <LongPressHint /> : null}
+      {tappable ? <TapLookupHint /> : null}
     </SurfaceCard>
   );
 }
