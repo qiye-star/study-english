@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquid glass · mockup v2</title>
+<!--
+  Visual mockup for docs/superpowers/specs/2026-10-15-liquid-glass-overall-design-proposal.md (Rev 3, approved).
+  Self-contained: no network, no external fonts, no images; icons are inline SVG (lucide paths).
+  Every effect is hand-written CSS/JS in this file (no reactbits source copied; see picks.md).
+  Material numbers = proposal §4.1 / §4.5 「磨砂」 defaults; customiser model = §6.1; background picker = Rev 3.
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--pg:#E6E8ED;--pg-ink:#111318;--pg-ink-2:#5B6170;--tb:#fff;--tb-on:#22252B;--tb-on-ink:#fff;color-scheme:light}
+body[data-theme=dark]{--pg:#0b0c0f;--pg-ink:#F3F4F6;--pg-ink-2:#A6ABB8;--tb:#1d2028;--tb-on:#E9EBEF;--tb-on-ink:#111318;color-scheme:dark}
+html,body{background:var(--pg);color:var(--pg-ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+.canvas{max-width:2000px;margin:0 auto;padding:28px 16px 90px}
+@media(min-width:700px){.canvas{padding:36px 340px 90px 32px}}
+body[data-panel=off] .canvas{padding-right:32px}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+h2{font-size:16px;font-weight:600;margin-top:40px;letter-spacing:-.01em}
+h3.scr{font-size:14px;margin-top:30px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lede{color:var(--pg-ink-2);font-size:13px;margin-top:6px;max-width:110ch;line-height:1.65}
+.lede code,.cap code,td code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.toolbar{position:sticky;top:0;z-index:99;display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;margin-top:16px;padding:10px 0;background:linear-gradient(var(--pg) 80%,transparent)}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.grp>span{font-size:12px;color:var(--pg-ink-2);margin-right:2px}
+.tbtn{border:0;cursor:pointer;min-height:34px;padding:0 13px;border-radius:17px;font-size:13px;background:var(--tb);color:var(--pg-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:inherit}
+.tbtn[aria-pressed=true]{background:var(--tb-on);color:var(--tb-on-ink)}
+.tbtn:focus-visible{outline:2px solid #2456DB;outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:28px;margin-top:14px;align-items:flex-start}
+.spec{width:390px;max-width:100%}
+.spec h3{font-size:13px;font-weight:600;margin:0 2px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:rgba(120,125,140,.18);color:var(--pg-ink-2)}
+.tag.new{background:#22252B;color:#fff}
+body[data-theme=dark] .tag.new{background:#E9EBEF;color:#111318}
+.tag.blur{background:transparent;border:1px solid rgba(120,125,140,.4)}
+.cap{font-size:12px;color:var(--pg-ink-2);margin:10px 2px 0;line-height:1.65}
+table{border-collapse:collapse;margin-top:12px;font-size:12.5px;max-width:1200px;width:100%}
+td,th{border-bottom:.5px solid rgba(120,125,140,.35);padding:7px 10px;text-align:left;vertical-align:top;line-height:1.55}
+th{font-weight:600;color:var(--pg-ink-2);white-space:nowrap}
+.tablewrap{overflow-x:auto}
+body[data-show=light] .phone-wrap[data-slot=dark],body[data-show=dark] .phone-wrap[data-slot=light]{display:none}
+
+/* ================= ink tokens per computed mode (mode follows the background's luminance) ================= */
+[data-mode=light]{
+  --ink:#111318;--ink-2:#5B6170;--ink-3:#8A90A0;
+  --hair:rgba(17,19,24,.12);--hair-2:rgba(17,19,24,.07);--wash:rgba(17,19,24,.05);--wash-2:rgba(17,19,24,.09);
+  --graphite:#22252B;--on-graphite:#FFFFFF;--surface:#ffffff;
+  --accent:#2456DB;--on-accent:#ffffff;
+  --m1-rgb:255,255,255;--m2-rgb:255,255,255;--m3-rgb:255,255,255;--rim-rgb:255,255,255;
+  --spot:rgba(255,255,255,.55);--edge:rgba(36,86,219,.35);
+  --red:#D1242F;--green:#157A3B;--amber:#9A4B00;
+  --gi-top:rgba(255,255,255,.95);--gi-bot:rgba(255,255,255,.5);--gi-in:inset 0 -2px 6px rgba(17,19,24,.06);
+  --scrim:rgba(17,19,24,.24);--sheen-a:.85;--sheen-rgb:255,255,255;
+  --tab-bg:rgba(255,255,255,.10);--tab-bd:rgba(255,255,255,.55);--tab-hi:inset 0 1px 0 rgba(255,255,255,.7);
+  --tab-sh:0 10px 28px -10px rgba(17,19,24,.30),0 1px 2px rgba(17,19,24,.06);--tab-on:rgba(36,86,219,.14);--tab-on-ink:#2456DB;--halo:rgba(255,255,255,.9);
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .1 0 0 0 0 .12 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-mode=dark]{
+  --ink:#F3F4F6;--ink-2:#A6ABB8;--ink-3:#6E7482;
+  --hair:rgba(255,255,255,.14);--hair-2:rgba(255,255,255,.08);--wash:rgba(255,255,255,.06);--wash-2:rgba(255,255,255,.10);
+  --graphite:#E9EBEF;--on-graphite:#111318;--surface:#17191E;
+  --accent:#8FB0FF;--on-accent:#0F1013;
+  --m1-rgb:255,255,255;--m2-rgb:28,30,36;--m3-rgb:24,26,32;--rim-rgb:255,255,255;
+  --spot:rgba(255,255,255,.09);--edge:rgba(143,176,255,.45);
+  --red:#FF7B7B;--green:#6FD39A;--amber:#F2B056;
+  --gi-top:rgba(255,255,255,.16);--gi-bot:rgba(255,255,255,.04);--gi-in:inset 0 -2px 6px rgba(0,0,0,.25);
+  --scrim:rgba(0,0,0,.5);--sheen-a:.04;--sheen-rgb:255,255,255;
+  --tab-bg:rgba(23,25,30,.10);--tab-bd:rgba(255,255,255,.16);--tab-hi:inset 0 1px 0 rgba(255,255,255,.14);
+  --tab-sh:0 12px 32px -10px rgba(0,0,0,.65),0 1px 2px rgba(0,0,0,.3);--tab-on:rgba(143,176,255,.20);--tab-on-ink:#8FB0FF;--halo:rgba(0,0,0,.6);
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* radii = base × --gx-radius (proposal §3); pills and circles never scale; tab bar pinned at 28 */
+[data-mode]{--r-sec:calc(26px*var(--gx,1));--r-tile:calc(22px*var(--gx,1));--r-bub:calc(22px*var(--gx,1));--r-dock:calc(26px*var(--gx,1));--r-sheet:calc(32px*var(--gx,1));--r-dlg:calc(30px*var(--gx,1));--r-in:max(10px,calc(26px*var(--gx,1) - 12px));--r-field:calc(20px*var(--gx,1))}
+
+/* ================= E0 base: page background (vars per slot written by JS) ================= */
+.bgpage{background:radial-gradient(120% 50% at 50% -10%,rgba(var(--sheen-rgb),var(--sheen-a)),transparent 60%),linear-gradient(180deg,var(--page-top),var(--page-bottom))}
+body[data-bgstyle=grain] .bgpage{background:var(--grain),radial-gradient(120% 50% at 50% -10%,rgba(var(--sheen-rgb),var(--sheen-a)),transparent 60%),linear-gradient(180deg,var(--page-top),var(--page-bottom))}
+body[data-bgstyle=solid] .bgpage{background:var(--page-flat)}
+body[data-lite=on][data-bgstyle=grain] .bgpage{background:radial-gradient(120% 50% at 50% -10%,rgba(var(--sheen-rgb),var(--sheen-a)),transparent 60%),linear-gradient(180deg,var(--page-top),var(--page-bottom))}
+
+/* ================= tiers (computed vars from JS #live) ================= */
+/* E1 section = T1, never blurs */
+.m1{background:rgba(var(--m1-rgb),var(--a1));border:1px solid rgba(var(--rim-rgb),var(--rim1));box-shadow:inset 0 1px 0 rgba(var(--rim-rgb),var(--hi)),var(--sh1);border-radius:var(--r-sec)}
+.m1.strong{background:rgba(var(--m1-rgb),var(--a1s))}
+/* E2 floating = T2 chrome / T3 sheet, blurs */
+.m2{background:rgba(var(--m2-rgb),var(--a2));border:1px solid rgba(var(--rim-rgb),var(--rim2));box-shadow:inset 0 1px 0 rgba(var(--rim-rgb),var(--hi)),var(--sh2);-webkit-backdrop-filter:blur(var(--blur2)) saturate(var(--sat));backdrop-filter:blur(var(--blur2)) saturate(var(--sat))}
+.m2.capbar{background:rgba(var(--m2-rgb),var(--a2bar));-webkit-backdrop-filter:blur(var(--blur2)) saturate(var(--satbar));backdrop-filter:blur(var(--blur2)) saturate(var(--satbar))}
+.m3{background:rgba(var(--m3-rgb),var(--a3));border:1px solid rgba(var(--rim-rgb),var(--rim3));box-shadow:inset 0 1px 0 rgba(var(--rim-rgb),var(--hi)),var(--sh3);border-radius:var(--r-sheet);-webkit-backdrop-filter:blur(var(--blur3)) saturate(var(--sat));backdrop-filter:blur(var(--blur3)) saturate(var(--sat))}
+body[data-rt=on] .m1,body[data-rt=on] .m2,body[data-rt=on] .m3{background:var(--surface)!important;border-color:var(--hair)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.well{background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2)}
+/* RULE 4 (v2): blurred layers carry only titles (≥17px semibold) and icons. Any sentence, hint, label or button text on a
+   blurred layer sits on a PLATE: a recessed well with a fixed ≥ .90 surface fill (not user-adjustable), so AA holds over any backdrop. */
+[data-mode=light]{--plate:rgba(255,255,255,.90)}
+[data-mode=dark]{--plate:rgba(23,25,30,.90)}
+.plate{background:var(--plate);box-shadow:inset 0 0 0 .5px var(--hair-2),inset 0 1px 2px rgba(17,19,24,.06)}
+body[data-rt=on] .plate{background:var(--surface)}
+/* unblurred floating panel (E1 material, E2 shadow): 新对话 */
+.fabp{position:absolute;right:12px;bottom:var(--space);z-index:30;height:48px;padding:0 18px;border-radius:999px;display:flex;align-items:center;gap:6px;font-weight:600;font-size:15px;color:var(--ink);border:1px solid rgba(var(--rim-rgb),var(--rim1));background:rgba(var(--m1-rgb),var(--a1s));box-shadow:inset 0 1px 0 rgba(var(--rim-rgb),var(--hi)),var(--sh2)}
+[data-mode=dark] .fabp{background:rgba(40,43,50,.96)}
+body[data-rt=on] .fabp{background:var(--surface)}
+/* quiz */
+.qword{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-top:4px}
+.qph{font-size:14px;color:var(--ink-2);font-family:ui-monospace,Menlo,Consolas,monospace;display:flex;gap:8px;align-items:center}
+.opt{display:flex;gap:12px;align-items:center;min-height:60px;padding:10px 14px;border-radius:var(--r-tile);position:relative}
+.opt+.opt{margin-top:10px}
+.opt .l{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--ink-2);background:var(--wash);flex:none}
+.opt .tx{flex:1;font-size:15px}.opt .tx small{display:block;font-size:12.5px;color:var(--ink-2);margin-top:1px}
+.opt.ok{box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh1)}.opt.ok .l{background:var(--ink);color:var(--surface)}
+[data-mode=dark] .opt.ok .l{color:#111318}
+.opt.bad .tx{color:var(--ink-2)}
+.opt .mk{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600}
+.opt .mk.g{color:var(--green)}.opt .mk.r{color:var(--red)}
+.study p{font-size:14.5px;line-height:1.55}.study p+p{margin-top:4px}
+.study .k{font-size:12.5px;font-weight:600;color:var(--ink-2);margin-top:12px}
+.study .k:first-child{margin-top:0}
+.dock{position:absolute;left:8px;right:8px;bottom:var(--space);z-index:30;padding:8px;border-radius:var(--r-dock);display:flex;gap:8px}
+.dock .pill{flex:1;height:48px}
+.pill.pl{background:var(--plate);box-shadow:inset 0 0 0 .5px var(--hair-2)}
+.qprog{height:4px;border-radius:2px;background:var(--wash-2);margin:0 4px 14px;overflow:hidden}
+.qprog i{display:block;height:100%;width:15%;background:var(--accent)}
+/* sampler */
+.smp-h{font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 10px;letter-spacing:.02em}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.inp{height:44px;border-radius:999px;padding:0 16px;display:flex;align-items:center;font-size:15px;width:100%}
+.inp.ph{color:var(--ink-2)}
+.inp.focus{box-shadow:inset 0 0 0 .5px var(--hair-2),0 0 0 2px rgba(36,86,219,.35)}
+[data-mode=dark] .inp.focus{box-shadow:inset 0 0 0 .5px var(--hair-2),0 0 0 2px rgba(143,176,255,.4)}
+.inp.err{box-shadow:inset 0 0 0 1.5px var(--red)}
+.errt{font-size:13px;color:var(--red);display:flex;gap:6px;align-items:center;margin-top:6px}
+.flabel{font-size:13px;font-weight:600;color:var(--ink-2);margin:12px 0 6px}
+.flabel:first-child{margin-top:0}
+.empty{text-align:center;padding:26px 16px}
+.empty .ew{width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;color:var(--ink-3)}
+.empty .ew svg{width:40px;height:40px;stroke-width:1.6}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-tile);font-size:14px;line-height:1.5}
+.banner .ic{color:var(--amber);flex:none;margin-top:1px}
+.toast{position:absolute;left:50%;top:104px;transform:translateX(-50%);z-index:70;height:44px;padding:0 18px;border-radius:999px;display:flex;align-items:center;gap:8px;font-size:14px;white-space:nowrap;box-shadow:inset 0 0 0 .5px var(--hair-2),var(--sh2)}
+.toast .ic{color:var(--green)}
+.dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,calc(100% - 32px));z-index:61;padding:8px;border-radius:var(--r-dlg)}
+.dialog .plate{border-radius:calc(var(--r-dlg) - 8px);padding:18px 16px 16px}
+.dialog h5{font-size:17px;font-weight:600}
+.dialog p{font-size:15px;line-height:1.5;color:var(--ink-2);margin-top:6px}
+.sheet .plate{border-radius:calc(var(--r-sheet) - 8px);padding:4px 14px}
+.phone.ovl .scrim{display:block}
+
+/* ================= phone frame ================= */
+.phone{position:relative;width:390px;max-width:100%;height:844px;border-radius:46px;overflow:hidden;color:var(--ink);border:.5px solid rgba(120,125,140,.4);box-shadow:0 2px 6px rgba(17,19,24,.06),0 24px 48px -24px rgba(17,19,24,.3);font-size:15px;line-height:1.4;--space:98px}
+.sb{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px 30px;font-size:15px;font-weight:600;z-index:80;pointer-events:none}
+.home{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);opacity:.8;z-index:90;pointer-events:none}
+.scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding:47px 12px calc(var(--space) + 20px);scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.scroll{-webkit-mask-image:linear-gradient(transparent 30px,#000 58px);mask-image:linear-gradient(transparent 30px,#000 58px)}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s16{width:16px;height:16px}svg.i.s18{width:18px;height:18px}svg.i.s20{width:20px;height:20px}
+
+/* large title on E0 (only text that sits on the page) */
+.lt{display:flex;align-items:flex-end;gap:10px;padding:14px 8px 18px}
+.lt .tt{flex:1;min-width:0}
+.large{font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.025em}
+.ltsub{font-size:13px;color:var(--ink-2);margin-top:4px}
+.cbtn{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink);flex:none;border:0;font:inherit;cursor:pointer;background:none}
+/* floating title capsule (E2, radius 22 = pill at 44px). Root tabs: appears on scroll. Sub-pages: always, glass after 4px. */
+.capsule{position:absolute;left:12px;right:12px;top:51px;height:44px;z-index:40;border-radius:22px;display:flex;align-items:center;gap:4px;padding:0 4px;border:1px solid transparent;transition:opacity .15s}
+.capsule h4{flex:1;font-size:17px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capsule .side{width:44px;flex:none}
+.capsule .act{font-size:15px;color:var(--accent);font-weight:600;width:auto;padding:0 12px}
+.capsule.root{visibility:hidden;opacity:0}
+.capsule.root.show{visibility:visible;opacity:1}
+
+/* E1 panels */
+.sec{padding:16px;position:relative}
+.sec+.sec,.sec+.pair,.pair+.sec{margin-top:16px}
+.sec.g28,.g28{margin-top:28px}
+.ptitle{font-size:13px;font-weight:600;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.ptitle a{color:var(--accent);text-decoration:none;font-weight:600}
+.t15{font-size:15px;font-weight:600}.sub{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 22px;border-radius:999px;font-weight:600;font-size:15px;border:0;font-family:inherit;cursor:pointer;position:relative;overflow:hidden;color:var(--ink);flex:none}
+.pill.full{display:flex;width:100%}
+.pill.acc{background:var(--accent);color:var(--on-accent);box-shadow:0 8px 20px -12px var(--accent)}
+.pill.gh{background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2)}
+.pill.sm{height:38px;padding:0 15px;font-size:14px}
+.pill.red{color:var(--red)}
+.prow{display:flex;gap:10px;margin-top:14px}
+.prow .pill{flex:1}
+.chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:999px;font-size:12.5px;color:var(--ink-2);background:var(--wash)}
+.chip.ol{background:none;box-shadow:inset 0 0 0 1px var(--hair)}
+.dot{width:6px;height:6px;border-radius:3px;display:inline-block;flex:none}
+.dot.g{background:var(--green)}.dot.a{background:var(--amber)}.dot.acc{background:var(--accent);width:8px;height:8px;border-radius:4px}
+.wells{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.wl{border-radius:var(--r-in);padding:10px 12px}
+.wl b{display:block;font-size:22px;font-weight:700;letter-spacing:-.03em}
+.wl span{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:5px}
+.field{border-radius:var(--r-field);padding:12px 14px;font-size:16px;line-height:1.5;min-height:104px}
+.field u{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;text-decoration-color:var(--ink-2);font-weight:600}
+
+/* glare sweep (Glare Hover, adapted: one pass on press / hover) */
+.glare::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 50%,transparent 65%);transform:translateX(-120%);pointer-events:none}
+.glare:hover::after,.glare:active::after{transform:translateX(120%);transition:transform .7s cubic-bezier(.2,.7,.2,1)}
+/* glass icon (Glass Icons, adapted: mono, no refraction) */
+.gi{width:44px;height:44px;border-radius:15px;display:grid;place-items:center;color:var(--ink);flex:none;background:linear-gradient(180deg,var(--gi-top),var(--gi-bot));border:1px solid rgba(var(--rim-rgb),calc(var(--rim1) * .9));box-shadow:inset 0 1px 0 rgba(var(--rim-rgb),var(--hi)),var(--gi-in),0 4px 10px -6px rgba(17,19,24,.25)}
+.gi.c{border-radius:50%}
+.iw{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--ink);background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2)}
+.iw svg{width:20px;height:20px}
+/* spotlight + edge light */
+.spot{overflow:hidden}
+.spot::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(180px circle at var(--mx,50%) var(--my,50%),var(--spot),transparent 70%)}
+.spot.lit::before{opacity:1}
+.edge::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;padding:1px;opacity:0;transition:opacity .25s;background:radial-gradient(140px circle at var(--mx,50%) var(--my,50%),var(--edge),transparent 70%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.edge.lit::after{opacity:1}
+body[data-lite=on] .spot::before,body[data-rt=on] .spot::before,body[data-lite=on] .edge::after,body[data-rt=on] .edge::after{display:none}
+.press{transition:transform .15s}
+.press:active{transform:scale(.985)}
+/* half-width pair */
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.half{position:relative;padding:14px 16px;border-radius:var(--r-tile);display:flex;align-items:center;gap:10px;min-height:64px}
+.half .t15{flex:1}
+/* list rows */
+.grpl{padding:6px 0;overflow:hidden}
+.grpl .ptitle{padding:8px 16px 0;margin-bottom:4px}
+.lr{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 16px;position:relative}
+.lr.tall{min-height:64px}
+.lr+.lr::before{content:"";position:absolute;top:0;left:62px;right:0;border-top:.5px solid var(--hair-2)}
+.lr .m{flex:1;min-width:0}
+.lr .m .t{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr .m .s{font-size:12px;color:var(--ink-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr .v{font-size:14px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex:none}
+.chev{color:var(--ink-3);display:flex}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--ink);background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2);flex:none}
+.av.lg{width:44px;height:44px;font-size:16px}
+.av.xl{width:60px;height:60px;font-size:22px}
+/* segmented / pill nav */
+.seg{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;height:40px;padding:3px;border-radius:999px;background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2)}
+.seg .th{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/var(--n,3));border-radius:999px;background:var(--surface);box-shadow:0 2px 8px -3px rgba(17,19,24,.25);transform:translateX(calc(var(--i,0)*100%));transition:transform .28s cubic-bezier(.3,1.3,.5,1)}
+[data-mode=dark] .seg .th{background:rgba(255,255,255,.16)}
+.seg button{position:relative;border:0;background:none;font:inherit;font-size:13.5px;font-weight:500;color:var(--ink-2);cursor:pointer;border-radius:999px}
+.seg button[aria-pressed=true]{color:var(--accent);font-weight:600}
+.sw{width:50px;height:30px;border-radius:15px;background:var(--wash-2);position:relative;flex:none;cursor:pointer;border:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:13px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2);transition:transform .2s}
+.sw.on{background:var(--accent)}.sw.on::after{transform:translateX(20px)}
+/* range sliders (native, pill well track, glass thumb) */
+.sl{display:block;padding:8px 0}
+.sl .h{display:flex;justify-content:space-between;font-size:14px}
+.sl .h b{font-weight:500}.sl .h span{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.sl input{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:none;cursor:pointer;display:block}
+.sl input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--trk,linear-gradient(90deg,var(--ink-2) var(--p,50%),var(--wash-2) var(--p,50%)))}
+.sl input::-moz-range-track{height:6px;border-radius:3px;background:var(--trk,linear-gradient(90deg,var(--ink-2) var(--p,50%),var(--wash-2) var(--p,50%)))}
+.sl input::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:14px;margin-top:-11px;background:#fff;border:.5px solid rgba(17,19,24,.08);box-shadow:0 3px 10px -2px rgba(17,19,24,.35);transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.sl input:active::-webkit-slider-thumb{transform:scale(1.15,.9)}
+.sl input::-moz-range-thumb{width:28px;height:28px;border-radius:14px;background:#fff;border:.5px solid rgba(17,19,24,.08);box-shadow:0 3px 10px -2px rgba(17,19,24,.35)}
+.sl input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:14px}
+.sl input:disabled{opacity:.4;cursor:not-allowed}
+.sl small{display:block;font-size:11.5px;color:var(--ink-2)}
+.sl small.floor-hit{color:var(--amber)}
+/* background swatches */
+.sws{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px}
+.swb{border:0;background:none;font:inherit;color:var(--ink-2);font-size:11.5px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.swb i{width:44px;height:44px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--hair),0 2px 6px -3px rgba(0,0,0,.3)}
+.swb[aria-pressed=true] i{box-shadow:inset 0 0 0 1px var(--hair),0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.swb[aria-pressed=true]{color:var(--ink);font-weight:600}
+.sw2row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw2row .swb i{width:30px;height:30px}
+.sw2row .auto i{display:grid;place-items:center;background:var(--wash)}
+.hint{font-size:12px;line-height:1.5;color:var(--ink-2);margin-top:8px;display:flex;gap:6px;align-items:flex-start}
+.hint.warn{color:var(--amber)}
+.note{font-size:12px;line-height:1.6;color:var(--ink-2);margin:10px 8px 0}
+/* chat */
+.msgs{display:flex;flex-direction:column;gap:12px;padding:58px 4px 0}
+.b{max-width:80%;padding:10px 14px;font-size:15px;line-height:1.5;border-radius:var(--r-bub)}
+.b.ai{align-self:flex-start;border-top-left-radius:8px}
+.b.me{align-self:flex-end;background:var(--graphite);color:var(--on-graphite);border-top-right-radius:8px}
+.b .zh{display:block;font-size:13px;color:var(--ink-2);margin-top:4px}
+.b u{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;text-decoration-color:var(--ink-2);font-weight:600}
+.composer{position:absolute;left:8px;right:8px;bottom:var(--space);z-index:30;padding:8px;border-radius:var(--r-dock)}
+.composer .hint2{font-size:13px;color:var(--ink-2);padding:8px 12px;border-radius:calc(var(--r-dock) - 8px);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.composer .r{display:flex;gap:6px;align-items:center}
+.hold{flex:1;height:44px;border-radius:999px;display:grid;place-items:center;font-size:15px;font-weight:600}
+.fab{position:absolute;right:12px;bottom:var(--space);z-index:30;height:48px;padding:0 18px;border-radius:999px;display:flex;align-items:center;gap:6px;font-weight:600;font-size:15px;color:var(--ink)}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:60;display:none}
+.sheet{position:absolute;left:8px;right:8px;bottom:26px;z-index:61;padding:8px;display:none}
+.phone.sheet-open .scrim,.phone.sheet-open .sheet{display:block}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--hair);margin:0 auto 10px}
+/* wordbook band */
+.band{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;margin-top:14px}
+.band .k1{background:var(--ink);opacity:.85}.band .k2{background:var(--wash-2);box-shadow:inset 0 0 0 .5px var(--hair)}.band .k3{background:var(--wash)}
+.rankbar{height:6px;border-radius:3px;background:var(--wash-2);overflow:hidden;margin-top:8px}
+.rankbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.week{display:flex;gap:6px;align-items:center}
+.week i{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--hair)}
+.week i.d{background:var(--ink);opacity:.85;box-shadow:none}.week i.t{box-shadow:inset 0 0 0 2px var(--accent)}
+/* floating tab bar — PINNED copy of floating-glass-bar-v1 (frozen, not driven by the customiser, D9) */
+.tab{position:absolute;z-index:50;left:12px;right:12px;bottom:26px;height:64px;padding:3px;border-radius:28px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--tab-bg);border:1px solid var(--tab-bd);box-shadow:var(--tab-hi),var(--tab-sh);-webkit-backdrop-filter:blur(28px) saturate(1.8);backdrop-filter:blur(28px) saturate(1.8)}
+body[data-lite=on] .tab{background:rgba(var(--m2-rgb),.62);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-rt=on] .tab{background:var(--surface);border-color:var(--hair);-webkit-backdrop-filter:none;backdrop-filter:none}
+.tab a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:24px;font-size:11px;font-weight:500;color:var(--ink-2);text-decoration:none;text-shadow:0 0 6px var(--halo),0 0 2px var(--halo)}
+.tab a svg{width:24px;height:24px;filter:drop-shadow(0 0 3px var(--halo))}
+.tab a.on{background:var(--tab-on);color:var(--tab-on-ink);font-weight:600}
+body[data-rt=on] .tab a,body[data-rt=on] .tab a svg{text-shadow:none;filter:none}
+/* customiser preview */
+.pv{position:relative;height:196px;border-radius:var(--r-in);overflow:hidden}
+.pv .ptxt{position:absolute;left:12px;right:12px;top:10px;font-size:13px;line-height:1.55;color:var(--ink-2);animation:drift 14s linear infinite alternate}
+@keyframes drift{to{transform:translateY(-60px)}}
+.pv .pcard{position:absolute;left:10px;right:10px;top:58px;padding:10px 14px;border-radius:var(--r-tile);display:flex;align-items:center;gap:10px;font-size:14px}
+.pv .pstrip{position:absolute;left:10px;right:10px;bottom:10px;height:48px;padding:0 6px;border-radius:999px;display:flex;gap:4px;align-items:center}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.preset{border:0;font:inherit;color:var(--ink);cursor:pointer;padding:8px 8px 10px;border-radius:var(--r-tile);background:var(--wash);box-shadow:inset 0 0 0 .5px var(--hair-2);display:flex;flex-direction:column;gap:6px;align-items:center;font-size:13.5px;font-weight:600;min-height:44px}
+.preset[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--accent)}
+.preset .pw{width:100%;height:50px;border-radius:calc(var(--r-tile) - 8px);background:repeating-linear-gradient(135deg,var(--ink-3) 0 6px,transparent 6px 14px);position:relative;overflow:hidden}
+.preset .pw i{position:absolute;inset:11px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.8)}
+.preset small{font-weight:400;font-size:11px;color:var(--ink-2)}
+.rv{animation:rv .42s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--d,0)*60ms)}
+@keyframes rv{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rv,.pv .ptxt{animation:none}*{transition:none!important}}
+
+/* ================= page-level live panel ================= */
+.lp{position:fixed;right:16px;top:16px;z-index:120;width:300px;max-height:calc(100vh - 32px);overflow:auto;padding:14px 16px;border-radius:24px;color:var(--ink);scrollbar-width:thin}
+.lp h5{font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.lp .grpt{font-size:12px;font-weight:600;color:var(--ink-2);margin:14px 0 6px}
+.lp[hidden]{display:none}
+@media(max-width:700px){.lp{left:8px;right:8px;width:auto;top:auto;bottom:8px;max-height:55vh}}
+
+/* ================= gallery ================= */
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;margin-top:18px}
+.gcell .stage{position:relative;height:240px;border-radius:28px;overflow:hidden;padding:18px;color:var(--ink);border:.5px solid rgba(120,125,140,.35)}
+.gcell .cap b{color:var(--pg-ink)}
+.verdict{font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;margin-left:6px}
+.v-use{background:rgba(31,138,76,.16);color:#157A3B}.v-adapt{background:rgba(36,86,219,.14);color:#2456DB}.v-skip{background:rgba(120,125,140,.2);color:var(--pg-ink-2)}
+body[data-theme=dark] .v-use{color:#6FD39A}body[data-theme=dark] .v-adapt{color:#8FB0FF}
+.stripes{position:absolute;inset:0;background:repeating-linear-gradient(120deg,var(--ink-3) 0 8px,transparent 8px 20px);opacity:.35}
+.bigword{position:absolute;left:18px;top:40px;font-size:64px;font-weight:800;letter-spacing:-.04em;opacity:.55}
+.replay{position:absolute;right:12px;top:12px;z-index:5}
+.btxt{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.btxt span{display:inline-block;transition:filter .5s,opacity .5s,transform .5s}
+.btxt.pre span{filter:blur(8px);opacity:0;transform:translateY(6px)}
+.elastic{position:relative;height:44px;margin-top:20px;touch-action:none;cursor:pointer}
+.elastic .trk{position:absolute;left:0;right:0;top:18px;height:8px;border-radius:4px;background:var(--wash-2);transform-origin:left center}
+.elastic .fil{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--ink-2)}
+.elastic .kn{position:absolute;top:9px;width:26px;height:26px;margin-left:-13px;border-radius:13px;background:#fff;box-shadow:0 3px 10px -2px rgba(17,19,24,.35)}
+.elastic.rel .trk{transition:transform .5s cubic-bezier(.34,1.8,.5,1)}
+.gfade{position:absolute;left:0;right:0;bottom:0;height:90px;pointer-events:none;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);-webkit-mask-image:linear-gradient(transparent,#000 75%);mask-image:linear-gradient(transparent,#000 75%)}
+.glist{position:absolute;inset:0;overflow-y:auto;padding:14px;scrollbar-width:none}
+.glist.fadeonly{-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+.alist{position:relative}
+.alist .hl{position:absolute;left:0;right:0;height:46px;border-radius:16px;background:var(--wash-2);transition:transform .3s cubic-bezier(.3,1.3,.5,1)}
+.alist .ar{position:relative;height:46px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:14px;cursor:pointer;transition:opacity .35s,transform .45s cubic-bezier(.3,1.4,.5,1)}
+.alist.pre .ar{opacity:0;transform:translateY(10px) scale(.98)}
+</style>
+<style id="live"></style>
+</head>
+<body data-theme="light" data-show="both" data-lite="off" data-rt="off" data-bgstyle="gradient" data-panel="on">
+<div class="canvas">
+  <h1>Liquid glass · 整体视觉稿 v2</h1>
+  <p class="lede"><b>v2 相对 v1:</b>① 规则 4 成为硬规则:模糊层上只放标题(≥ 17px 半粗)和图标;任何句子、提示、标签、按钮文字都放在<b>托板</b>(凹井,固定 ≥ 90% 实底,不随透明度滑块变)上 —— 输入条提示、「按住 说话」、弹层 / 对话框内容、DOCK 次要按钮;提示(toast)与公告横幅干脆不模糊。② 对话列表「新对话」改为不模糊的悬浮面板。③ 新增:单词复习选择题(答后)、组件样张、对话框 + 提示、底部弹层。v1 保持不变(<code>../liquid-glass-v1/</code>)。</p>
+  <p class="lede">克制的瓷白 / 石墨液态玻璃:近单色、大圆角、低对比的材质,唯一强调色是钴蓝(Rev 3 已定)。三级深度 <b>E0 底(页面背景)→ E1 分区(每块内容一块悬浮玻璃,不模糊)→ E2 悬浮(标题胶囊、输入条、浮动按钮、弹层、底栏,模糊)</b>。所有玻璃参数和<b>页面背景色</b>都是 CSS 变量,由「我的 › 外观与主题」实时驱动:手机里那一页和右侧「主题面板」是同一份状态,拖任何一个,整页的组件和手机一起变。数值见提案 <code>2026-10-15-liquid-glass-overall-design-proposal.md</code> §3 / §4 / §6 与 Rev 3;偏差见 <code>picks.md</code>。</p>
+
+  <div class="toolbar" role="toolbar" aria-label="mockup 开关">
+    <div class="grp" data-key="show"><span>手机</span><button class="tbtn" data-v="both">浅色 + 深色模式</button><button class="tbtn" data-v="light">只看浅色</button><button class="tbtn" data-v="dark">只看深色</button></div>
+    <div class="grp" data-key="theme"><span>组件区 / 面板</span><button class="tbtn" data-v="light">浅色</button><button class="tbtn" data-v="dark">深色</button></div>
+    <div class="grp" data-key="lite"><span>低端机 html.lite</span><button class="tbtn" data-v="off">关</button><button class="tbtn" data-v="on">开</button></div>
+    <div class="grp" data-key="rt"><span>系统减少透明度</span><button class="tbtn" data-v="off">关</button><button class="tbtn" data-v="on">开</button></div>
+    <div class="grp"><button class="tbtn" id="replay">重播入场动效</button><button class="tbtn" id="lpbtn" aria-pressed="true">主题面板</button></div>
+  </div>
+
+  <h2>A · 组件挑选(reactbits.dev 候选,用本页自己的 CSS/JS 重做成单色克制版)</h2>
+  <p class="lede">每格都是实时效果:能拖、点、悬停。<span class="verdict v-use">use</span> 直接复用仓库 <code>web/src/features/library/fx/</code> 里已有的手写实现,<span class="verdict v-adapt">adapt</span> 改成克制版再用,<span class="verdict v-skip">skip</span> 不用。组件区跟随上面「组件区 / 面板」的浅 / 深,也跟随主题面板里的背景色与玻璃参数。</p>
+  <div class="gal" id="gal"></div>
+
+  <h2>B · 外观与主题(新页面:我的 › 外观与主题,提案 §6.4)<span class="tag new" style="margin-left:6px">新页面</span></h2>
+  <p class="lede">这一页的控件<b>真的驱动整页</b>。背景:8 个低饱和色板(浅色模式、深色模式各一套)、自定义色(色相 + 亮度,饱和度上限 30%)、可选第二颜色(渐变下沿)、样式(渐变 / 颗粒 / 纯色)。文字和玻璃底色按背景亮度自动切浅 / 深墨色;若选的颜色会让正文对比度低于 4.5:1,亮度被夹到最近的可读值并给出提示。两种颜色模式各存一份背景(「正在编辑」切换)。底栏是已定稿的悬浮玻璃底栏,<b>不跟随</b>玻璃滑块(D9),但跟随背景亮度切浅 / 深墨色。</p>
+  <div class="row" id="row-theme"></div>
+
+  <h2>C · 重新设计的页面(每页浅色模式 + 深色模式)</h2>
+  <h3 class="scr">C1 · 练习首页 <span class="tag new">新布局 §5.2</span></h3>
+  <div class="row" id="row-practice"></div>
+  <h3 class="scr">C2 · 对话列表 <span class="tag new">新布局 §5.2</span></h3>
+  <div class="row" id="row-chatlist"></div>
+  <h3 class="scr">C2b · 对话页 <span class="tag">换皮:结构不变,输入条改悬浮,标题改胶囊</span> <button class="tbtn" id="sheetbtn" aria-pressed="false">打开一个 T3 弹层(3 + 1 模糊)</button></h3>
+  <div class="row" id="row-convo"></div>
+  <h3 class="scr">C3 · 单词本首页 <span class="tag new">新布局 §5.2</span></h3>
+  <div class="row" id="row-wordbook"></div>
+  <h3 class="scr">C4 · 我的 / 设置 <span class="tag new">新布局 §5.2</span></h3>
+  <div class="row" id="row-me"></div>
+  <h3 class="scr">C5 · 单词复习 · 选择题(答后)<span class="tag new">v2 新增 · 新布局</span></h3>
+  <div class="row" id="row-quiz"></div>
+
+  <h2>F · 共享组件样张(v2 新增)</h2>
+  <h3 class="scr">F1 · 页内组件</h3>
+  <div class="row" id="row-sampler"></div>
+  <h3 class="scr">F2 · 对话框 + 提示(toast)</h3>
+  <div class="row" id="row-overlays"></div>
+  <h3 class="scr">F3 · 底部弹层(表单)</h3>
+  <div class="row" id="row-sheetdemo"></div>
+
+  <h2>D · 对比度(随主题面板实时计算)</h2>
+  <div class="tablewrap"><table id="contrast"></table></div>
+  <p class="lede" style="margin-top:10px">WCAG 2.x 相对亮度。E0 = 正文直接在背景上(只有大标题与副标题);E1 分区不模糊,按背景最不利的一端合成;E2 / T3 会模糊任何内容,按<b>最坏情况</b>合成(浅色模式背后纯黑,深色模式背后纯白),真实情况因模糊平均更好。地板来自提案 §6.1(T1 .50 / .04,T2 .55 / .50,顶栏 .62 / .58,T3 .62 / .58,模糊 &lt; 8px 时地板 +.20,低端机 .80)。E2 / T3 玻璃本身在严格最坏情况下撑不住次要文字(表中 ✗),所以 <b>v2 规则 4</b>:玻璃上只放 17px 半粗标题(按提案 §2.6 要求 ≥ 3:1)与图标,其余文字都在「托板」上,托板一行在任何背景下都 ≥ 4.5。</p>
+
+  <h2>E · 待 owner 决定</h2>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>问题</th><th>本稿取值 / 建议</th></tr>
+    <tr><td>已定</td><td>v1 的 Q1–Q5</td><td>14 个组件通过;背景按颜色模式各存一份;色板通过;规则 4 成为硬规则;新对话改为不模糊面板。</td></tr>
+    <tr><td>V1</td><td>托板的可见度</td><td>托板是 90% 实底 + 内阴影,在「清透」预设下会比周围玻璃明显更实。建议接受(可读性优先);备选:托板只在背后有内容滚过时出现(实现更复杂,不推荐)。</td></tr>
+    <tr><td>V2</td><td>深色模式胶囊标题</td><td>深色顶栏地板 .58 时,17px 标题在背后整块纯白的最坏情况约 3.8:1(≥ 3,符合提案 §2.6)。是否要求胶囊标题也 ≥ 4.5(需把深色顶栏地板提到 ~.72)。建议不需要。</td></tr>
+    <tr><td>V3</td><td>公告横幅</td><td>提案写的是 T2 玻璃条;按规则 4 它是整句文字,本稿改为不模糊的 E1 面板 + 琥珀 16px 图标。请确认。</td></tr>
+  </table></div>
+  <p class="lede" style="margin-top:14px">只在桌面 Chromium 里看过。真机上的模糊质量、低端安卓帧率、iOS Safari 的模糊闪烁、OLED 上深色 E1 是否太平、自定义背景色在户外强光下的可读性都<b>未验证</b>。</p>
+</div>
+
+<aside class="lp m3" id="lp" data-slot="light" aria-label="主题面板"></aside>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+    chat: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+    rooms: '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
+    lib: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    me: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    check2: '<path d="M20 6 9 17l-5-5"/>',
+    back: '<path d="m15 18-6-6 6-6"/>', chev: '<path d="m9 18 6-6-6-6"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    kb: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+    book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+    pen: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+    palette: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+    play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+    layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    spark: '<path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/>',
+    news: '<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    vol: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+    shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+    phone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+    server: '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+    chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+    alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
+  };
+  function ic(k, c) { return '<svg class="i ' + (c || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + I[k] + "</svg>"; }
+  var TABS = [["mic", "练习"], ["chat", "对话"], ["rooms", "联机"], ["lib", "跟读库"], ["me", "我的"]];
+  function tabbar(active) {
+    return '<nav class="tab" aria-label="主导航">' + TABS.map(function (t, i) {
+      return '<a href="#" class="' + (i === active ? "on" : "") + '"' + (i === active ? ' aria-current="page"' : "") + ">" + ic(t[0]) + t[1] + "</a>";
+    }).join("") + "</nav>";
+  }
+  function seg(items, on, key) {
+    return '<div class="seg" style="--n:' + items.length + ";--i:" + on + '"' + (key ? ' data-k="' + key + '"' : "") + '><span class="th"></span>' +
+      items.map(function (x, i) { var v = Array.isArray(x) ? x : [x, x]; return '<button type="button" data-v="' + v[1] + '" aria-pressed="' + (i === on) + '">' + v[0] + "</button>"; }).join("") + "</div>";
+  }
+  function d(n) { return ' style="--d:' + n + '"'; }
+
+  /* ================= colour helpers ================= */
+  function hsl(h, s, l) { s /= 100; l /= 100; var a = s * Math.min(l, 1 - l); function f(n) { var k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1))); } return [f(0), f(8), f(4)].map(function (x) { return Math.round(x * 255); }); }
+  function rgb(c) { return "rgb(" + c.join(",") + ")"; }
+  function hex(h) { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+  function mix(fg, a, bg) { return fg.map(function (c, i) { return c * a + bg[i] * (1 - a); }); }
+  function Lum(c) { var v = c.map(function (x) { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; }
+  function cr(a, b) { var x = Lum(a), y = Lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function clamp(x, a, b) { return Math.min(b, Math.max(a, x)); }
+  var INK = { light: { ink: hex("#111318"), ink2: hex("#5B6170") }, dark: { ink: hex("#F3F4F6"), ink2: hex("#A6ABB8") } };
+
+  /* ================= background model (Rev 3) ================= */
+  var SW = {
+    light: [["雾灰", 220, 14, 95], ["暖灰", 35, 12, 93], ["冷灰", 210, 18, 93], ["纸白", 45, 30, 96], ["鼠尾草", 110, 12, 91], ["雾蓝", 215, 25, 92], ["藕粉", 350, 18, 93], ["燕麦", 32, 22, 89]],
+    dark: [["石墨", 225, 12, 7], ["暖炭", 30, 8, 9], ["冷夜", 215, 20, 9], ["墨绿", 150, 12, 8], ["深海", 215, 28, 11], ["酒灰", 345, 14, 10], ["纯黑", 0, 0, 3], ["茶褐", 25, 16, 10]]
+  };
+  function defBg(slot) { var s = SW[slot][0]; return { sw: 0, h: s[1], s: s[2], l: s[3], c2: -1 }; }
+  /* guard: choose ink side by best ink-2 contrast; clamp lightness until ink-2 ≥ 4.5 on the worse gradient end */
+  function guardColor(h, s, l, mode) {
+    var dir = mode === "light" ? 1 : -1, l0 = l, check = function (L) { return cr(INK[mode].ink2, hsl(h, s, clamp(L + (mode === "light" ? -3 : 2), 0, 100))); };
+    while (check(l) < 4.5 && l >= 0 && l <= 100) l += dir;
+    return { l: clamp(l, 0, 100), moved: l !== l0, from: l0 };
+  }
+  function bgSlot(slot) {
+    var b = S.bg[slot], s = Math.min(30, b.s);
+    /* ink side = the one that needs the smaller lightness change to reach AA (ties → better contrast) */
+    var gl = guardColor(b.h, s, b.l, "light"), gd = guardColor(b.h, s, b.l, "dark");
+    var ml = Math.abs(gl.l - b.l), md = Math.abs(gd.l - b.l), c = hsl(b.h, s, b.l);
+    var mode = ml < md ? "light" : md < ml ? "dark" : (cr(INK.light.ink2, c) >= cr(INK.dark.ink2, c) ? "light" : "dark");
+    var g = mode === "light" ? gl : gd, hints = [];
+    if (g.moved) hints.push("亮度 " + g.from + " → " + g.l + ",以保证正文对比度 ≥ 4.5:1");
+    var top, bot, flat = hsl(b.h, s, g.l);
+    if (b.c2 >= 0) {
+      var c2 = SW[slot][b.c2], g2 = guardColor(c2[1], c2[2], c2[3], mode);
+      if (g2.moved) hints.push("第二颜色亮度 " + g2.from + " → " + g2.l);
+      top = flat; bot = hsl(c2[1], c2[2], g2.l);
+    } else { top = hsl(b.h, s, clamp(g.l + 2, 0, 100)); bot = hsl(b.h, s, clamp(g.l - 3, 0, 100)); }
+    var worst = mode === "light" ? (Lum(top) < Lum(bot) ? top : bot) : (Lum(top) > Lum(bot) ? top : bot);
+    return { mode: mode, top: top, bot: bot, flat: flat, worst: worst, hints: hints, lUsed: g.l };
+  }
+
+  /* ================= glass model (proposal §6.1) ================= */
+  var DEF = { tv: 43.75, blur: 1, sat: 1.6, gx: 1, rim: 1, shadow: 1, bgStyle: "gradient", fx: "std" };
+  var PRESETS = {
+    clear: { tv: 81.25, blur: 1.25, sat: 1.8, rim: 1.3, shadow: 0.8, bgStyle: null },
+    frosted: { tv: 43.75, blur: 1, sat: 1.6, rim: 1, shadow: 1, bgStyle: null },
+    solid: { tv: 0, blur: 0, sat: 1, rim: 0.6, shadow: 1, bgStyle: "solid" }
+  };
+  var S = Object.assign({}, DEF, { bg: { light: defBg("light"), dark: defBg("dark") }, edit: "light" });
+  var BASE = { light: { a1: .70, a1s: .86, a2: .62, bar: .74, a3: .68 }, dark: { a1: .055, a1s: .085, a2: .58, bar: .70, a3: .64 } };
+  var FLOOR = { light: { a1: .50, a2: .55, bar: .62, a3: .62 }, dark: { a1: .04, a2: .50, bar: .58, a3: .58 } };
+  var CEIL = { light: .94, dark: .94 };
+  function isLite() { return document.body.getAttribute("data-lite") === "on"; }
+  function mat(mode) {
+    var tint = 1.35 - S.tv * 0.008, B = BASE[mode], F = Object.assign({}, FLOOR[mode]), k = S.shadow, r = S.rim, lite = isLite(), hit = false;
+    var blur2 = Math.round(24 * S.blur), blur3 = Math.round(32 * S.blur);
+    if (lite) { blur2 = Math.min(12, blur2); blur3 = Math.min(12, blur3); }
+    if (blur2 < 8) { F.a2 += .2; F.bar += .2; } if (blur3 < 8) F.a3 += .2;
+    if (lite) { F.a2 = Math.max(F.a2, .8); F.bar = Math.max(F.bar, .8); F.a3 = Math.max(F.a3, .8); }
+    function A(key, fk) { var v = B[key] * tint, f = F[fk], c = mode === "dark" && (key === "a1" || key === "a1s") ? .2 : CEIL[mode]; if (v < f) hit = true; return clamp(v, f, Math.max(c, f)); }
+    var m = { a1: A("a1", "a1"), a1s: A("a1s", "a1"), a2: A("a2", "a2"), a2bar: A("bar", "bar"), a3: A("a3", "a3"), blur2: blur2, blur3: blur3, hit: hit };
+    if (mode === "light") {
+      m.rim1 = clamp(.85 * r, 0, 1); m.rim2 = clamp(.60 * r, 0, 1); m.rim3 = clamp(.70 * r, 0, 1); m.hi = clamp(.9 * r, 0, 1);
+      m.sh1 = "0 1px 1px rgba(17,19,24," + (.03 * k).toFixed(3) + "),0 12px 32px -18px rgba(17,19,24," + (.16 * k).toFixed(3) + ")";
+      m.sh2 = "0 18px 40px -16px rgba(17,19,24," + (.24 * k).toFixed(3) + ")"; m.sh3 = "0 24px 48px -16px rgba(17,19,24," + (.40 * k).toFixed(3) + ")";
+    } else {
+      m.rim1 = clamp(.10 * r, 0, .3); m.rim2 = clamp(.12 * r, 0, .3); m.rim3 = clamp(.14 * r, 0, .3); m.hi = clamp(.08 * r, 0, .25);
+      m.sh1 = "0 12px 32px -18px rgba(0,0,0," + clamp(.55 * k, 0, 1).toFixed(3) + ")"; m.sh2 = "0 18px 44px -14px rgba(0,0,0," + clamp(.65 * k, 0, 1).toFixed(3) + ")"; m.sh3 = "0 24px 48px -16px rgba(0,0,0," + clamp(.70 * k, 0, 1).toFixed(3) + ")";
+    }
+    if (lite) m.sh1 = mode === "light" ? "0 1px 1px rgba(17,19,24,.05)" : "0 1px 1px rgba(0,0,0,.4)";
+    return m;
+  }
+  function modeCss(mode) {
+    var m = mat(mode);
+    return "[data-mode=" + mode + "]{--a1:" + m.a1.toFixed(3) + ";--a1s:" + m.a1s.toFixed(3) + ";--a2:" + m.a2.toFixed(3) + ";--a2bar:" + m.a2bar.toFixed(3) + ";--a3:" + m.a3.toFixed(3) +
+      ";--blur2:" + m.blur2 + "px;--blur3:" + m.blur3 + "px;--sat:" + S.sat + ";--satbar:" + Math.min(S.sat, 1.3) + ";--rim1:" + m.rim1.toFixed(3) + ";--rim2:" + m.rim2.toFixed(3) + ";--rim3:" + m.rim3.toFixed(3) + ";--hi:" + m.hi.toFixed(3) +
+      ";--sh1:" + m.sh1 + ";--sh2:" + m.sh2 + ";--sh3:" + m.sh3 + ";--gx:" + S.gx + "}";
+  }
+  function slotCss(slot, b) { return "[data-slot=" + slot + "]{--page-top:" + rgb(b.top) + ";--page-bottom:" + rgb(b.bot) + ";--page-flat:" + rgb(b.flat) + "}"; }
+
+  /* ================= customiser controls ================= */
+  var SL = [
+    ["tv", "透明度", 0, 100, 0.25, function (v) { return Math.round(v); }, "右边更透;到可读下限会停住"],
+    ["blur", "模糊", 0, 1.5, 0.05, function (v) { return Math.round(24 * v) + " px"; }, "E2 胶囊 / 输入条;弹层 = 32 × 倍数"],
+    ["sat", "饱和度", 1, 2, 0.05, function (v) { return v.toFixed(2); }, ""],
+    ["gx", "圆角", 0.5, 1.3, 0.05, function (v) { return Math.round(26 * v) + " px"; }, "分区 26 × 倍数;胶囊按钮不缩放"],
+    ["rim", "边缘高光", 0, 1.5, 0.05, function (v) { return Math.round(v * 100) + "%"; }, ""],
+    ["shadow", "阴影", 0, 1.5, 0.05, function (v) { return Math.round(v * 100) + "%"; }, ""]
+  ];
+  var BGSL = [["h", "色相", 0, 360, 1], ["s", "浓度", 0, 30, 1], ["l", "亮度", 0, 100, 1]];
+  function slider(s) {
+    return '<label class="sl"><span class="h"><b>' + s[1] + '</b><span data-o="' + s[0] + '"></span></span><input type="range" data-k="' + s[0] + '" min="' + s[2] + '" max="' + s[3] + '" step="' + s[4] + '" aria-label="' + s[1] + '">' + (s[6] ? '<small data-sm="' + s[0] + '">' + s[6] + "</small>" : "") + "</label>";
+  }
+  function bgSlider(s) {
+    return '<label class="sl"><span class="h"><b>' + s[1] + '</b><span data-bo="' + s[0] + '"></span></span><input type="range" data-bk="' + s[0] + '" min="' + s[2] + '" max="' + s[3] + '" step="' + s[4] + '" aria-label="背景' + s[1] + '"></label>';
+  }
+  function presetBtns() {
+    return '<div class="presets">' + [["clear", "清透", "通透 · 强模糊"], ["frosted", "磨砂", "默认"], ["solid", "实色", "无模糊 · 纯色"]].map(function (p) {
+      var st = p[0] === "clear" ? "background:rgba(255,255,255,.2);backdrop-filter:blur(3px)" : p[0] === "frosted" ? "background:rgba(255,255,255,.62);backdrop-filter:blur(3px)" : "background:var(--surface)";
+      return '<button type="button" class="preset" data-preset="' + p[0] + '"><span class="pw"><i style="' + st + '"></i></span>' + p[1] + "<small>" + p[2] + "</small></button>";
+    }).join("") + "</div>";
+  }
+  function bgBlock() {
+    return '<div class="ptitle" style="margin-bottom:8px">背景<span style="width:150px;font-weight:500">' + seg([["浅色模式", "light"], ["深色模式", "dark"]], 0, "edit") + "</span></div>" +
+      '<div class="sws" data-swgrid></div>' +
+      '<div class="sub" style="margin:14px 0 0">自定义(饱和度上限 30%)</div>' + BGSL.map(bgSlider).join("") +
+      '<div class="sub" style="margin:6px 0 8px">第二颜色(渐变下沿,可选)</div><div class="sw2row" data-sw2></div>' +
+      '<div class="sub" style="margin:14px 0 8px">样式</div>' + seg([["渐变", "gradient"], ["颗粒", "grain"], ["纯色", "solid"]], 0, "bgStyle") +
+      '<div class="hint" data-bghint></div>';
+  }
+  function panelHTML() {
+    return '<h5>主题面板(与手机里的设置页同步)<button class="cbtn" id="lpclose" aria-label="关闭面板" style="width:32px;height:32px">' + ic("x", "s18") + "</button></h5>" +
+      '<div class="grpt">预设</div>' + presetBtns() + '<div class="grpt">玻璃</div>' + SL.slice(0, 3).map(slider).join("") +
+      '<div class="grpt">形状与光影</div>' + SL.slice(3).map(slider).join("") +
+      '<div class="grpt" style="margin-top:16px"></div>' + bgBlock() +
+      '<div class="grpt">玻璃效果</div>' + seg([["标准", "std"], ["减弱", "lite"]], 0, "fx") +
+      '<button class="pill gh full sm" data-reset style="margin-top:14px">' + ic("reset", "s16") + "恢复默认</button>" +
+      '<p class="note" data-cshort style="margin:10px 0 0"></p>';
+  }
+
+  /* ================= screens ================= */
+  function capsule(title, opts) {
+    opts = opts || {};
+    return '<div class="capsule' + (opts.root ? " root m2 capbar" : "") + '" data-capsule' + (opts.sub ? " data-sub" : "") + '>' + (opts.back ? '<button class="cbtn">' + ic("back") + "</button>" : '<span class="side"></span>') + "<h4>" + title + "</h4>" + (opts.right || '<span class="side"></span>') + "</div>";
+  }
+  function themeScreen() {
+    return '<div class="scroll" data-scroll>' +
+      '<div style="height:60px"></div>' +
+      '<section class="sec m1 strong rv"' + d(0) + '><div class="pv bgpage"><div class="ptxt">The view from the top was breathtaking. We took the same trail back down and stopped by the lake for sandwiches. 山顶的景色美得令人窒息。我们原路下山,在湖边吃了三明治。Then we drove home slowly, listening to old songs.</div>' +
+        '<div class="pcard m1"><span class="iw">' + ic("target") + '</span><span style="flex:1">每日目标</span><span class="sub" style="margin:0">15 分钟</span><span class="chev">' + ic("chev", "s18") + "</span></div>" +
+        '<div class="pstrip m2"><button class="cbtn" style="width:40px;height:40px">' + ic("clock", "s20") + '</button><button class="cbtn" style="width:40px;height:40px">' + ic("spark", "s20") + '</button><span style="flex:1"></span><button class="pill acc sm">主按钮</button></div></div>' +
+        '<p class="sub" style="margin-top:10px">背景 + E1 卡片 + E2 小条(真实模糊,压在滚动的文字上)。底栏与跟读库使用固定样式。</p></section>' +
+      '<section class="sec m1 rv"' + d(1) + '><div class="ptitle">颜色模式</div>' + seg(["跟随系统", "浅色", "深色"], 0) + "</section>" +
+      '<section class="sec m1 rv"' + d(2) + '><div class="ptitle">预设<span class="sub" data-pname style="margin:0;font-weight:500"></span></div>' + presetBtns() + "</section>" +
+      '<section class="sec m1 rv"' + d(3) + '><div class="ptitle">玻璃</div><p class="hint warn" data-rtnote style="display:none;margin:0 0 6px">' + ic("info", "s16") + "系统已开启降低透明度:玻璃一律实色,滑块暂不可用</p>" + SL.slice(0, 3).map(slider).join("") + "</section>" +
+      '<section class="sec m1 rv"' + d(4) + '><div class="ptitle">形状与光影</div>' + seg(["紧凑", "标准", "圆润"], 1, "gxp") + SL.slice(3).map(slider).join("") + "</section>" +
+      '<section class="sec m1 rv"' + d(5) + ">" + bgBlock() + "</section>" +
+      '<section class="sec m1 rv"' + d(6) + '><div class="ptitle">玻璃效果</div>' + seg([["标准", "std"], ["减弱", "lite"]], 0, "fx") + '<p class="sub" style="margin-top:8px">低端设备自动减弱(模糊 ≤ 12px,底色 ≥ 80%)</p></section>' +
+      '<p class="note" data-cshort></p>' +
+      '<div style="text-align:center;margin-top:20px"><button class="pill gh" data-reset>' + ic("reset", "s18") + "恢复默认</button></div>" +
+      "</div>" +
+      capsule("外观与主题", { back: 1, sub: 1 }) + tabbar(4);
+  }
+  function practice() {
+    return '<div class="scroll" data-scroll data-root>' +
+      '<header class="lt"><div class="tt"><div class="large">练习</div><div class="ltsub">周三 · 10 月 15 日 · 今日 9 / 15 分钟</div></div><button class="cbtn well" aria-label="历史">' + ic("clock") + "</button></header>" +
+      '<section class="sec m1 strong rv"' + d(0) + '><div class="ptitle">参考文本<span class="chip">中文</span></div>' +
+        '<div class="field well">The view from the top was <u>breathtaking</u>, so we stayed until the sun went down.</div>' +
+        '<div class="prow"><button class="pill gh">' + ic("play", "s18") + '先听范读</button><button class="pill acc glare">' + ic("mic", "s18") + "开始朗读</button></div></section>" +
+      '<section class="sec m1 spot press rv"' + d(1) + '><div class="ptitle">今日</div><div style="display:flex;align-items:center;gap:14px">' +
+        '<svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style="flex:none"><circle cx="28" cy="28" r="23" fill="none" stroke="var(--wash-2)" stroke-width="6"/><circle cx="28" cy="28" r="23" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="86.7 144.5" transform="rotate(-90 28 28)"/></svg>' +
+        '<div style="flex:1"><div class="t15 num">9 / 15 分钟</div><div class="sub" style="display:flex;gap:6px;align-items:center">' + ic("flame", "s16") + '连续 12 天</div></div>' +
+        '<div class="week" aria-label="本周"><i class="d"></i><i class="d"></i><i class="t"></i><i></i><i></i><i></i><i></i></div></div></section>' +
+      '<section class="sec m1 rv"' + d(2) + '><div class="ptitle">最近评分<a href="#">全部 ›</a></div><div class="wells">' +
+        [["92", "g", "今天"], ["78", "a", "昨天"], ["64", "", "周一"]].map(function (w) { return '<div class="wl well"><b class="num">' + w[0] + "</b><span>" + (w[1] ? '<i class="dot ' + w[1] + '"></i>' : "") + w[2] + "</span></div>"; }).join("") + "</div></section>" +
+      '<section class="m1 grpl rv"' + d(3) + '><div class="lr"><span class="iw">' + ic("list") + '</span><div class="m"><div class="t">练习清单</div></div><span class="v num">12<span class="chev">' + ic("chev", "s18") + "</span></span></div></section>" +
+      '<section class="m1 grpl g28 rv"' + d(4) + '><div class="ptitle">每日任务</div>' +
+        '<div class="lr"><span class="iw">' + ic("chat") + '</span><div class="m"><div class="t">完成一次 AI 对话</div><div class="s">0 / 1</div></div><span class="chev">' + ic("chev", "s18") + "</span></div>" +
+        '<div class="lr"><span class="iw">' + ic("pen") + '</span><div class="m"><div class="t">拼写 10 个词</div><div class="s">6 / 10</div></div><span class="chev">' + ic("chev", "s18") + "</span></div>" +
+        '<div class="lr"><span class="iw">' + ic("book") + '</span><div class="m"><div class="t">复习到期单词</div><div class="s">12 个</div></div><span class="chev">' + ic("chev", "s18") + "</span></div></section>" +
+      "</div>" + capsule("练习", { root: 1, right: '<button class="cbtn">' + ic("clock", "s20") + "</button>" }) + tabbar(0);
+  }
+  var CONVS = [["J", "Job interview", "Tell me about a challenge you solved.", "昨天"], ["A", "Airport check-in", "Window or aisle seat?", "周一"], ["S", "Small talk", "How long have you lived there?", "10/09"], ["G", "Grammar coach", "Try the past perfect: “I had already…”", "10/08"], ["M", "Movie club", "What did you think of the ending?", "10/06"], ["R", "Restaurant", "Would you like anything to drink?", "10/03"]];
+  function chatlist() {
+    return '<div class="scroll" data-scroll data-root style="padding-bottom:calc(var(--space) + 76px)">' +
+      '<header class="lt"><div class="tt"><div class="large">对话</div><div class="ltsub">3 个进行中</div></div></header>' +
+      '<section class="sec m1 strong spot rv"' + d(0) + '><div class="ptitle">继续<span class="sub" style="margin:0;font-weight:400">3 分钟前</span></div><div style="display:flex;gap:12px;align-items:center"><span class="av lg">E</span><div style="flex:1;min-width:0"><div class="t15">Emma · 咖啡店点单</div><div class="sub">第 12 轮 · 发音 86</div></div></div>' +
+        '<div class="well" style="margin-top:12px;padding:10px 12px;border-radius:var(--r-in);font-size:14px;line-height:1.5">“Sure, would you like oat milk with that?”<span class="sub" style="display:block">当然,要加燕麦奶吗?</span></div>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="pill acc sm glare">继续对话' + ic("chev", "s16") + "</button></div></section>" +
+      '<section class="m1 grpl rv"' + d(1) + '><div class="ptitle">全部对话</div>' + CONVS.map(function (c) {
+        return '<div class="lr tall"><span class="av">' + c[0] + '</span><div class="m"><div class="t">' + c[1] + '</div><div class="s">' + c[2] + '</div></div><span class="v" style="font-size:12px">' + c[3] + '<span class="chev">' + ic("chev", "s18") + "</span></span></div>";
+      }).join("") + "</section>" +
+      "</div>" + capsule("对话", { root: 1 }) + '<button class="fabp">' + ic("plus", "s20") + "新对话</button>" + tabbar(1);
+  }
+  function convo() {
+    var m = [["ai", "Hi! Welcome to Bean There. What can I get you today?", "欢迎光临,今天想喝点什么?"], ["me", "Could I get a large latte, please?"], ["ai", "Of course. Hot or iced?", "当然,热的还是冰的?"], ["me", "Hot, please. And could I have it to go?"], ["ai", "Sure! Try saying: “Could I get a <u>refill</u> later?”", "试着说:我待会儿能续杯吗?"], ["me", "Could I get a refill later?"], ["ai", "Perfect. Anything to eat? We have fresh croissants.", "很好。要吃点什么吗?有新鲜的可颂。"], ["me", "Just the coffee, thanks."], ["ai", "Sure, would you like oat milk with that?", "当然,要加燕麦奶吗?"]].map(function (x) {
+      return '<div class="b ' + x[0] + (x[0] === "ai" ? " m1" : "") + '">' + x[1] + (x[2] ? '<span class="zh">' + x[2] + "</span>" : "") + "</div>";
+    }).join("");
+    return '<div class="scroll" data-scroll data-bottom style="padding-bottom:calc(var(--space) + 130px)"><div class="msgs">' + m + "</div></div>" +
+      capsule("Emma · 咖啡店点单", { back: 1, sub: 1, right: '<button class="cbtn">' + ic("more") + "</button>" }) +
+      '<div class="composer m2 capbar"><div class="hint2 plate">' + ic("spark", "s16") + "试着说:Just the coffee, thanks.</div>" +
+        '<div class="r"><button class="cbtn">' + ic("kb") + '</button><span class="hold plate">按住 说话</span><button class="cbtn">' + ic("plus") + "</button></div></div>" + tabbar(1) +
+      '<div class="scrim"></div><div class="sheet m3"><div class="grab"></div><div style="display:flex;align-items:center;padding:0 8px"><div class="t15" style="flex:1;font-size:17px">对话设置</div><button class="cbtn">' + ic("x") + "</button></div>" +
+        '<div class="plate"><div class="grpl" style="padding:0"><div class="lr" style="padding:8px 0"><span class="iw">' + ic("vol") + '</span><div class="m"><div class="t">自动朗读回复</div></div><button class="sw on" aria-pressed="true" aria-label="自动朗读"></button></div>' +
+        '<div class="lr" style="padding:8px 0"><span class="iw">' + ic("globe") + '</span><div class="m"><div class="t">显示中文翻译</div></div><button class="sw on" aria-pressed="true" aria-label="显示翻译"></button></div>' +
+        '<div class="lr" style="padding:8px 0"><span class="iw">' + ic("bot") + '</span><div class="m"><div class="t">角色设定</div><div class="s">咖啡店店员 · 友好</div></div><span class="chev">' + ic("chev", "s18") + "</span></div></div></div>" +
+        '<button class="pill acc full" style="margin-top:8px">完成</button></div>';
+  }
+  function wordbook() {
+    return '<div class="scroll" data-scroll data-root>' +
+      '<header class="lt"><div class="tt"><div class="large">单词本</div><div class="ltsub">四级核心 · 第 18 天</div></div><button class="cbtn well" aria-label="设置">' + ic("gear") + "</button></header>" +
+      '<section class="sec m1 strong rv"' + d(0) + '><div class="ptitle">今天</div><div style="display:flex;gap:28px">' +
+        '<div><span class="num" style="font-size:28px;font-weight:700;letter-spacing:-.03em" data-count="12">12</span><span class="sub" style="display:inline;margin-left:6px">待复习</span></div>' +
+        '<div><span class="num" style="font-size:28px;font-weight:700;letter-spacing:-.03em">8</span><span class="sub" style="display:inline;margin-left:6px">新词</span></div></div>' +
+        '<div class="band" aria-hidden="true"><i class="k1" style="flex:1204"></i><i class="k2" style="flex:620"></i><i class="k3" style="flex:2720"></i></div>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--ink-2)"><span>已掌握 · 学习中 · 未学</span><span class="num">1,204 / 4,544</span></div>' +
+        '<button class="pill acc full glare" style="margin-top:16px">开始复习 12</button>' +
+        '<div class="prow" style="margin-top:10px"><button class="pill gh sm">学新词 8</button><button class="pill gh sm">' + ic("pen", "s16") + "拼写</button></div></section>" +
+      '<section class="sec m1 rv"' + d(1) + '><div class="ptitle">计划</div><div style="display:flex;gap:10px;align-items:center">' +
+        '<div class="wells" style="flex:1"><div class="wl well"><b class="num" style="font-size:17px">4/16</b><span>复习</span></div><div class="wl well"><b class="num" style="font-size:17px">23</b><span>明天</span></div><div class="wl well"><b class="num" style="font-size:17px">6 天</b><span>连续</span></div></div>' +
+        '<svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true" style="flex:none"><circle cx="26" cy="26" r="21" fill="none" stroke="var(--wash-2)" stroke-width="6"/><circle cx="26" cy="26" r="21" fill="none" stroke="var(--ink)" stroke-opacity=".85" stroke-width="6" stroke-linecap="round" stroke-dasharray="33 132" transform="rotate(-90 26 26)"/></svg></div></section>' +
+      '<div class="pair rv" style="--d:2;margin-top:16px"><div class="half m1 spot edge press"><span class="iw">' + ic("book") + '</span><span class="t15">已学单词</span><span class="chev">' + ic("chev", "s18") + '</span></div><div class="half m1 spot edge press"><span class="iw">' + ic("layers") + '</span><span class="t15">换书</span><span class="chev">' + ic("chev", "s18") + "</span></div></div>" +
+      '<section class="m1 grpl g28 rv"' + d(3) + '><div class="ptitle">最近学过</div>' +
+        [["breathtaking", "adj. 令人惊叹的", "已掌握"], ["refill", "n. 续杯 v. 再装满", "学习中"], ["croissant", "n. 羊角面包", "新词"], ["aisle", "n. 过道", "学习中"]].map(function (w) {
+          return '<div class="lr"><div class="m" style="padding-left:0"><div class="t" style="font-weight:600">' + w[0] + '</div><div class="s">' + w[1] + '</div></div><span class="chip ol" style="height:24px;font-size:11.5px">' + w[2] + "</span></div>";
+        }).join("") + "</section>" +
+      "</div>" + capsule("单词本", { root: 1 }) + tabbar(0);
+  }
+  function me() {
+    function row(icn, t, v, extra) { return '<div class="lr"><span class="iw">' + ic(icn) + '</span><div class="m"><div class="t">' + t + "</div></div>" + (extra || '<span class="v">' + v + '<span class="chev">' + ic("chev", "s18") + "</span></span>") + "</div>"; }
+    function swr(icn, t, s, on) { return '<div class="lr"><span class="iw">' + ic(icn) + '</span><div class="m"><div class="t">' + t + "</div>" + (s ? '<div class="s">' + s + "</div>" : "") + '</div><button class="sw' + (on ? " on" : "") + '" aria-pressed="' + !!on + '" aria-label="' + t + '"></button></div>'; }
+    return '<div class="scroll" data-scroll data-root>' +
+      '<header class="lt"><div class="tt"><div class="large">我的</div></div></header>' +
+      '<section class="sec m1 strong spot press rv"' + d(0) + '><div style="display:flex;gap:14px;align-items:center"><span class="av xl">L</span><div style="flex:1;min-width:0"><div style="font-size:22px;font-weight:600;letter-spacing:-.02em">Lin</div><div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:4px"><span class="chip ol" style="height:22px;font-size:11.5px">B1</span>已加入 42 天</div></div><span class="chev">' + ic("chev", "s18") + "</span></div>" +
+        '<div class="wells" style="margin-top:14px"><div class="wl well"><b class="num" data-count="12">12</b><span>连续天数</span></div><div class="wl well"><b class="num">86</b><span>本周分钟</span></div><div class="wl well"><b class="num">81</b><span><i class="dot g"></i>平均分</span></div></div></section>' +
+      '<section class="sec m1 press rv"' + d(1) + '><div style="display:flex;align-items:center;gap:12px"><span class="iw">' + ic("shield") + '</span><div style="flex:1"><div style="display:flex;justify-content:space-between"><span class="t15">段位 · 黄金 II</span><span class="sub num" style="margin:0">62 / 100</span></div><div class="rankbar"><i style="width:62%"></i></div></div><span class="chev">' + ic("chev", "s18") + "</span></div></section>" +
+      '<section class="m1 grpl g28 rv"' + d(2) + '><div class="ptitle">学习</div>' + row("chart", "进度", "") + row("book", "单词本", "四级核心") + row("target", "每日目标", "15 分钟") + swr("bell", "学习提醒", "每天 20:30", true) + "</section>" +
+      '<section class="m1 grpl rv" style="margin-top:16px;--d:3"><div class="ptitle">语音与对话</div>' + row("vol", "声音", "Emma") + swr("play", "自动朗读", "", false) + row("spark", "提示词", "") + row("bot", "智能体", "3 个") + "</section>" +
+      '<section class="m1 grpl rv" style="margin-top:16px;--d:4"><div class="ptitle">通用</div>' + row("palette", '外观与主题 <span class="chip" style="height:20px;font-size:11px;margin-left:4px">新</span>', '<span data-pname-short>磨砂</span>') + row("globe", "语言", "中文") + row("phone", "安装到主屏幕", "") + row("news", "更新日志", "") + "</section>" +
+      '<section class="m1 grpl rv" style="margin-top:16px;--d:5"><div class="ptitle">账户</div>' + row("server", "服务器", "已连接") + row("info", "关于", "v0.9") + "</section>" +
+      '<div style="text-align:center;margin-top:32px"><button class="pill gh red">' + ic("out", "s18") + "退出登录</button></div>" +
+      "</div>" + capsule("我的", { root: 1 }) + tabbar(4);
+  }
+
+  function quiz() {
+    var opts = [["A", "n. 城市", "city", "bad"], ["B", "n. 国家;乡村", "country", "ok"], ["C", "n. 海岸", "coast", ""], ["D", "n. 法院", "court", ""]];
+    return '<div class="scroll" data-scroll style="padding-bottom:calc(var(--space) + 84px)"><div style="height:60px"></div>' +
+      '<div class="qprog" aria-hidden="true"><i></i></div>' +
+      '<section class="sec m1 strong rv"' + d(0) + '><div class="ptitle" style="margin-bottom:4px">看单词选中文<span class="chip ol" style="height:24px;font-size:11.5px">学习中</span></div><div class="qword">country</div><div class="qph">/ˈkʌntri/<button class="cbtn" style="width:36px;height:36px">' + ic("vol", "s18") + "</button></div></section>" +
+      '<div class="rv" style="margin-top:16px;--d:1">' + opts.map(function (o) {
+        var mk = o[3] === "ok" ? '<span class="mk g">' + ic("check2", "s18") + "正确</span>" : o[3] === "bad" ? '<span class="mk r">' + ic("x", "s18") + "你的选择</span>" : "";
+        return '<div class="opt m1 ' + o[3] + '"><span class="l">' + (o[3] === "ok" ? ic("check2", "s16") : o[0]) + '</span><span class="tx">' + o[1] + "<small>" + o[2] + "</small></span>" + mk + "</div>";
+      }).join("") + "</div>" +
+      '<section class="sec m1 study rv" style="margin-top:16px;--d:2"><div class="ptitle">学习内容<span style="width:120px">' + seg(["EN", "中文"], 1) + "</span></div>" +
+        '<p class="k">释义</p><p>1. 国家;国土</p><p>2. 乡下;农村(the country)</p>' +
+        '<p class="k">短语</p><p>across the country 全国各地 · country music 乡村音乐</p>' +
+        '<p class="k">例句</p><p>She has lived in this country for ten years.<span class="sub" style="display:block">她在这个国家住了十年。</span></p>' +
+        '<p>They moved to the country to get away from the noise.<span class="sub" style="display:block">他们搬到乡下,远离喧嚣。</span></p></section>' +
+      "</div>" + capsule("复习 · 3 / 20", { back: 1, sub: 1, right: '<button class="cbtn">' + ic("more") + "</button>" }) +
+      '<div class="dock m2 capbar"><button class="pill pl">查看单词</button><button class="pill acc glare">继续</button></div>' + tabbar(0);
+  }
+  function sampler() {
+    function rowx(icn, t, s, right) { return '<div class="lr"><span class="iw">' + ic(icn) + '</span><div class="m"><div class="t">' + t + "</div>" + (s ? '<div class="s">' + s + "</div>" : "") + "</div>" + right + "</div>"; }
+    var chev = '<span class="chev">' + ic("chev", "s18") + "</span>";
+    return '<div class="scroll" data-scroll data-root>' +
+      '<header class="lt"><div class="tt"><div class="large">组件样张</div><div class="ltsub">共享组件 · 单色</div></div></header>' +
+      '<section class="sec m1 rv"' + d(0) + '><div class="smp-h">横幅 · 公告(E1,不模糊:整句文字)</div><div class="banner well"><span class="ic">' + ic("alert", "s18") + '</span><span>今晚 23:00–23:30 服务器维护,期间无法登录。<a href="#" style="color:var(--accent);font-weight:600;text-decoration:none">详情</a></span></div></section>' +
+      '<section class="sec m1 rv"' + d(1) + '><div class="smp-h">按钮</div><button class="pill acc full glare">主按钮 · 开始复习</button><div class="prow"><button class="pill gh">次要</button><button class="pill gh red">' + ic("out", "s18") + "删除</button></div>" +
+        '<div class="btns" style="margin-top:12px"><button class="pill gh sm">' + ic("play", "s16") + '小号</button><button class="pill gh sm" disabled style="opacity:.45">不可用</button><button class="cbtn well" aria-label="图标按钮">' + ic("plus") + "</button></div></section>" +
+      '<section class="sec m1 rv"' + d(2) + '><div class="smp-h">标签 / 徽章 / 分数点</div><div class="btns"><span class="chip ol">B1</span><span class="chip">中文</span><span class="chip">已掌握</span><span class="chip" style="color:var(--ink)">' + ic("flame", "s16") + '12 天</span><span class="chip"><i class="dot g"></i>92</span><span class="chip"><i class="dot a"></i>78</span><span class="chip">64</span><span class="chip" style="height:20px;font-size:11px">新</span><span class="dot acc" style="align-self:center"></span></div></section>' +
+      '<section class="sec m1 rv"' + d(3) + '><div class="smp-h">分段控件</div>' + seg(["全部", "角色", "收藏"], 0) + "</section>" +
+      '<section class="sec m1 rv"' + d(4) + '><div class="smp-h">输入</div><div class="flabel">邮箱</div><div class="inp well ph">you@example.com</div>' +
+        '<div class="flabel">昵称(聚焦)</div><div class="inp well focus">Lin<span style="width:1.5px;height:20px;background:var(--accent);margin-left:2px"></span></div>' +
+        '<div class="flabel">邀请码(错误)</div><div class="inp well err">ABCD-12</div><div class="errt">' + ic("alert", "s16") + "邀请码格式不对:应为 8 位</div>" +
+        '<div class="flabel">参考文本(多行,圆角 20)</div><div class="field well" style="min-height:76px;font-size:15px">Paste or type English to read…</div></section>' +
+      '<section class="m1 grpl rv"' + d(5) + '><div class="ptitle">列表行</div>' + rowx("target", "每日目标", "", '<span class="v">15 分钟' + chev + "</span>") + rowx("bell", "学习提醒", "每天 20:30", '<button class="sw on" aria-pressed="true" aria-label="学习提醒"></button>') + rowx("book", "四级核心", "1,204 / 4,544", chev) + "</section>" +
+      '<section class="sec m1 rv"' + d(6) + '><div class="empty"><div class="ew well">' + ic("chat") + '</div><div class="t15">还没有对话</div><div class="sub" style="margin-top:4px">选一个角色,开始第一次练习</div><button class="pill gh sm" style="margin-top:14px">' + ic("plus", "s16") + "新对话</button></div></section>" +
+      '<section class="sec m1 rv"' + d(7) + '><div class="smp-h">维护页(空状态样式)</div><div class="empty" style="padding:12px 8px"><div class="ew well">' + ic("server") + '</div><div class="t15">正在维护</div><div class="sub" style="margin-top:4px">预计 23:30 恢复,学习记录不会丢失</div></div></section>' +
+      "</div>" + capsule("组件样张", { root: 1 }) + tabbar(4);
+  }
+  function overlays() {
+    return '<div class="scroll" data-scroll><div style="height:60px"></div>' +
+      '<section class="m1 grpl"><div class="ptitle">学习</div>' + ["进度", "单词本", "每日目标", "学习提醒"].map(function (t) { return '<div class="lr"><span class="iw">' + ic("target") + '</span><div class="m"><div class="t">' + t + '</div></div><span class="chev">' + ic("chev", "s18") + "</span></div>"; }).join("") + "</section>" +
+      '<section class="m1 grpl" style="margin-top:16px"><div class="ptitle">账户</div><div class="lr"><span class="iw">' + ic("server") + '</span><div class="m"><div class="t">服务器</div></div></div><div class="lr"><span class="iw">' + ic("out") + '</span><div class="m"><div class="t" style="color:var(--red)">重置单词进度</div></div></div></section>' +
+      "</div>" + capsule("设置", { back: 1, sub: 1 }) + tabbar(4) +
+      '<div class="toast plate">' + '<span class="ic">' + ic("check2", "s16") + "</span>已保存 · 已恢复默认主题</div>" +
+      '<div class="scrim"></div><div class="dialog m3"><div class="plate"><h5>重置单词进度?</h5><p>四级核心的 1,204 个已掌握单词会回到「未学」。这一步不能撤销。</p>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="pill full" style="background:var(--red);color:var(--surface)">重置</button><button class="pill gh full">取消</button></div></div></div>';
+  }
+  function sheetDemo() {
+    return '<div class="scroll" data-scroll><div style="height:60px"></div>' +
+      '<section class="sec m1 strong"><div class="ptitle">继续</div><div class="t15">Emma · 咖啡店点单</div><div class="sub">第 12 轮</div></section>' +
+      '<section class="m1 grpl" style="margin-top:16px"><div class="ptitle">全部对话</div>' + CONVS.slice(0, 4).map(function (c) { return '<div class="lr tall"><span class="av">' + c[0] + '</span><div class="m"><div class="t">' + c[1] + '</div><div class="s">' + c[2] + "</div></div></div>"; }).join("") + "</section>" +
+      "</div>" + capsule("对话", { back: 1, sub: 1 }) + tabbar(1) +
+      '<div class="scrim"></div><div class="sheet m3" style="display:block"><div class="grab"></div><div style="display:flex;align-items:center;padding:0 8px"><div class="t15" style="flex:1;font-size:17px">新对话</div><button class="cbtn" aria-label="关闭">' + ic("x") + "</button></div>" +
+        '<div class="plate" style="padding:14px"><div class="flabel">场景</div><div class="inp well">咖啡店点单</div><div class="flabel">难度</div>' + seg(["A2", "B1", "B2"], 1) +
+        '<div class="flabel">角色</div><div class="btns"><span class="chip" style="background:var(--graphite);color:var(--on-graphite)">Emma</span><span class="chip">Tom</span><span class="chip">Mia</span><span class="chip">+ 自定义</span></div></div>' +
+        '<div class="prow" style="margin-top:8px"><button class="pill pl">取消</button><button class="pill acc">开始</button></div></div>';
+  }
+  var SCREENS = {
+    theme: [themeScreen, "外观与主题", "新页面", "§6.4 结构:预览(背景 + E1 卡片 + E2 小条压在滚动文字上)→ 颜色模式 → 预设 → 玻璃 → 形状与光影 → 背景(色板 / 自定义 / 第二颜色 / 样式 / 可读性提示)→ 玻璃效果 → 恢复默认。", "标题胶囊 + 预览小条 + 底栏 = 3"],
+    practice: [practice, "练习首页", "新布局", "「工作室」英雄面板(参考文本井 + 先听范读 + 唯一的强调色按钮)→ 今日(墨色环 + 强调色弧、连续天数、本周点)→ 最近评分三个井(分数墨色,绿 / 琥珀只是 6px 圆点)→ 练习清单单行 → 每日任务组。", "底栏;滚动后 + 标题胶囊 = 2"],
+    chatlist: [chatlist, "对话列表", "新布局", "「继续」英雄面板(唯一强调色按钮)+ 一个「全部对话」分组面板;头像一律中性井;<b>v2:</b>新对话改为<b>不模糊</b>的悬浮面板(E1 材质 + E2 阴影,底色 ≥ 86%),省掉第 3 层模糊。", "底栏;滚动后 + 标题胶囊 = 2"],
+    convo: [convo, "对话页", "换皮", "AI 气泡 = E1 玻璃,自己的气泡 = 石墨色;标题改为悬浮胶囊(只有标题与图标);输入条为离边 8px 的 E2 圆角 26。<b>v2 规则 4:</b>提示行与「按住 说话」放在实底托板(≥ 90%)上;弹层的设置行也在托板上。", "标题胶囊 + 输入条 + 底栏 = 3(+1 临时弹层)"],
+    quiz: [quiz, "单词复习 · 选择题(答后)", "新布局", "题目英雄面板(词 + 音标 + 发音)→ 四个双语选项行(E1 行卡片,22):正确 = 墨色 1.5px 描边 + 实心勾 + 绿色「正确」标记,你的错选 = 红色 ✕「你的选择」+ 文字降为次要色,其余不变 → 学习内容面板(EN / 中文 分段,中文选中)。底部会话 DOCK 是 E2,里面只有按钮:次要按钮用托板填充,主按钮实心。", "标题胶囊 + DOCK + 底栏 = 3"],
+    sampler: [sampler, "组件样张", "新组件", "横幅(公告:整句文字 → E1 不模糊,琥珀只给 16px 图标)、按钮(主 / 次 / 危险 / 小号 / 不可用 / 圆形图标)、标签与分数点、分段控件、输入(占位 / 聚焦 2px 强调色环 / 错误红描边 + 红字 / 多行 20)、列表行、空状态、维护页(空状态样式)。", "底栏;滚动后 + 标题胶囊 = 2"],
+    overlays: [overlays, "对话框 + 提示", "新组件", "对话框 = T3 圆角 30,玻璃只做 8px 外框,标题与正文在托板上;危险确认用红色实心(提案 §2.4 只允许这里和挂断键)。提示(toast)= 单行胶囊,<b>托板填充、不模糊</b>(整句文字,规则 4)。遮罩不模糊。", "标题胶囊 + 底栏 = 2(+1 临时对话框;toast 0)"],
+    sheetdemo: [sheetDemo, "底部弹层", "新组件", "T3 悬浮弹层:离边 8、圆角 32、抓手 36×5、标题 17 + 关闭圆钮;表单内容在托板上(标签、输入、分段、选择 chip:选中 = 石墨实心);底部按钮:次要 = 托板胶囊,主 = 强调色。", "标题胶囊 + 底栏 = 2(+1 临时弹层)"],
+    wordbook: [wordbook, "单词本首页", "新布局", "「今天」英雄面板就是全部决定:两个数字 + 墨色掌握带(已掌握 85% 墨 / 学习中 浅井 + 发丝线 / 未学 井)+ 唯一强调色按钮 + 两个次要胶囊;计划面板(井 + 墨色环);两个半宽面板(Magic Bento 边缘光)。青绿色已去掉。", "底栏;滚动后 + 标题胶囊 = 2"],
+    me: [me, "我的 / 设置", "新布局", "个人英雄面板里放 3 个统计井(不是卡片);一行段位面板(强调色进度);四个重新分组的面板,「外观与主题」显示当前预设名;退出登录 = 红字 + 井胶囊,离上方 32px。", "底栏;滚动后 + 标题胶囊 = 2"]
+  };
+  function build() {
+    Object.keys(SCREENS).forEach(function (key) {
+      var s = SCREENS[key], row = document.getElementById("row-" + key), html = "";
+      ["light", "dark"].forEach(function (slot) {
+        html += '<div class="spec phone-wrap" data-slot="' + slot + '"><h3><span class="tag ' + (s[2] === "换皮" ? "" : "new") + '">' + s[2] + "</span>" + s[1] + " · " + (slot === "light" ? "浅色模式" : "深色模式") +
+          '<span class="tag blur" data-blurcount>模糊 ?</span></h3><div class="phone bgpage' + (key === "overlays" || key === "sheetdemo" ? " ovl" : "") + '" data-key="' + key + '"><div class="sb"><span>9:41</span><span>5G</span></div>' + s[0]() + '<div class="home"></div></div>' +
+          '<p class="cap">' + s[3] + "<br><b>模糊层:</b>" + s[4] + "(常驻上限 3 + 临时 1)。</p></div>";
+      });
+      row.innerHTML = html;
+    });
+    document.querySelectorAll("[data-bottom]").forEach(function (el) { el.scrollTop = el.scrollHeight; });
+  }
+
+  /* ================= gallery ================= */
+  var G = [
+    ["Glass Surface", "Components", "adapt", "三级深度都从这里来:只要磨砂,不要 SVG 位移折射(只在 Chromium 生效,Safari / Firefox 要 WebGL + 传入背景图)。仓库已有 fx/GlassSurface(.lib-glass,跟读库专用)。性能:E1 0 模糊;每块 E2 / T3 1 层 backdrop-filter。",
+      function () { return '<div class="stripes"></div><div class="bigword">Glass</div><div class="well" style="position:absolute;left:16px;top:18px;padding:6px 12px;border-radius:999px;font-size:12px">井 well</div><div class="m1" style="position:absolute;left:16px;top:92px;width:120px;height:110px;padding:12px;font-size:12px">E1 分区<br><span class="sub">不模糊</span></div><div class="m2" style="position:absolute;left:96px;top:46px;width:130px;height:92px;padding:12px;border-radius:var(--r-dock);font-size:12px">E2 悬浮<br><span class="sub">blur 24</span></div><div class="m3" style="position:absolute;right:16px;top:116px;width:130px;height:100px;padding:12px;font-size:12px">T3 弹层<br><span class="sub">blur 32</span></div>'; }],
+    ["Glass Icons", "Components", "adapt", "单色玻璃图标:白色渐变 + 高光描边 + 底部内阴影,图标墨色。不要折射、倾斜、色散。用在空状态、引导页的大图标;列表里仍用平的圆形井(提案 §5.1)。性能:纯 CSS,0 模糊。",
+      function () { return '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px;justify-items:center">' + ["mic", "chat", "book", "rooms", "palette", "target", "bell", "layers"].map(function (k, i) { return '<span class="gi' + (i > 3 ? " c" : "") + '" style="width:52px;height:52px;border-radius:' + (i > 3 ? "50%" : "18px") + '">' + ic(k) + "</span>"; }).join("") + "</div>"; }],
+    ["Magic Bento", "Components", "adapt", "只取「边缘光跟手、相邻格一起亮」:用在单词本的两个半宽面板、我的页的统计井。去掉星星粒子、倾斜、磁吸、点击波纹、gsap。仓库 SpotlightCard 可加 edge 变体。性能:pointermove 只写 CSS 变量,0 模糊;低端机 / 减少透明度关闭。",
+      function () { return '<div class="pair" data-bento style="margin-top:30px"><div class="half m1 spot edge"><span class="iw">' + ic("book") + '</span><span class="t15">已学单词</span></div><div class="half m1 spot edge"><span class="iw">' + ic("layers") + '</span><span class="t15">换书</span></div><div class="half m1 spot edge"><span class="iw">' + ic("chart") + '</span><span class="t15">进度</span></div><div class="half m1 spot edge"><span class="iw">' + ic("target") + '</span><span class="t15">目标</span></div></div>'; }],
+    ["Spotlight Card", "Components", "use", "按住 / 悬停时一团很淡的白光跟手(深色 9% 白)。仓库已有 fx/SpotlightCard,直接用在英雄面板。性能:无 rAF,只写 --mx / --my。",
+      function () { return '<div class="sec m1 strong spot" style="height:100%"><div class="ptitle">把指针放上来</div><div style="font-size:20px;font-weight:700">还差 6 分钟</div><div class="sub">光只在按住 / 悬停时出现</div></div>'; }],
+    ["Pill Nav", "Components", "adapt", "分段控件:胶囊井轨道 + 滑动的白色拇指,轻微回弹。去掉 logo、移动端菜单与 gsap。仓库 SegmentedControl 换成这个样子。性能:只动 transform。",
+      function () { return '<div style="margin-top:40px">' + seg(["跟随系统", "浅色", "深色"], 0) + '</div><div style="margin-top:16px">' + seg(["紧凑", "标准", "圆润"], 1) + "</div>"; }],
+    ["Elastic Slider", "Components", "use", "主题滑块的手感:拖出两端时轨道被拉长,松手回弹。仓库已有 fx/ElasticSlider(分档吸附);外观页要连续值,提案 §6.4 先用原生 range + 玻璃拇指(本页右侧面板即是),弹性是可选增强。性能:只动 transform。",
+      function () { return '<div class="t15" style="margin-top:30px">透明度 <span class="sub" data-elv style="display:inline">44</span></div><div class="elastic" data-elastic><div class="trk"><div class="fil" style="width:44%"></div></div><div class="kn" style="left:44%"></div></div><p class="sub">往两端外面拖一点试试</p>'; }],
+    ["Gradual Blur", "Animations", "adapt", "跟读库列表底部的渐进模糊算一层模糊。新页面默认改成「只淡出」(mask,0 模糊),省出预算给胶囊 / 输入条。仓库已有 fx/GradualBlur。点按钮在两者间切换。",
+      function () { return '<div class="glist" data-glist>' + CONVS.map(function (c) { return '<div class="lr m1" style="margin-bottom:8px;border-radius:18px;min-height:48px"><span class="av">' + c[0] + '</span><div class="m"><div class="t" style="font-size:14px">' + c[1] + "</div></div></div>"; }).join("") + '</div><div class="gfade" data-gfade></div><button class="pill gh sm replay" data-gtoggle>切到「只淡出」</button>'; }],
+    ["Fade Content / Animated Content", "Animations", "adapt", "分区入场:淡入 + 上移 10px,每块晚 60ms,不开 blur(filter 动画很贵)。纯 CSS 动画 + fx/motion.ts 的开关,不用 gsap。性能:只动 opacity / transform,一次性。",
+      function () { return '<button class="pill gh sm replay" data-replay-g>重播</button><div data-fade><div class="m1 rv" style="height:50px;margin-top:30px;--d:0"></div><div class="m1 rv" style="height:50px;margin-top:12px;--d:1"></div><div class="m1 rv" style="height:50px;margin-top:12px;--d:2"></div></div>'; }],
+    ["Blur Text", "Text Animations", "adapt", "只给空状态标语 / 首次引导用一次,逐词由糊变清;大标题不用(每次切换页面都动会烦)。仓库已有 fx/BlurText(超过阈值只整体淡入)。性能:filter 动画,词少才用;低端机直接显示。",
+      function () { return '<button class="pill gh sm replay" data-btr>重播</button><div class="btxt" data-btxt style="margin-top:56px">' + "Every glass is yours to tune.".split(" ").map(function (w) { return "<span>" + w + "</span>"; }).join(" ") + "</div>"; }],
+    ["Count Up", "Text Animations", "use", "统计井 / 待复习数字从旧值滚到新值。仓库已有 fx/CountUp(ease-out,减少动态效果时直接给终值)。Counter(逐位滚轮)skip:每位 10 个节点,太重。性能:rAF 约 0.9 秒一次性。",
+      function () { return '<button class="pill gh sm replay" data-cur>重播</button><div style="margin-top:56px"><div class="num" style="font-size:52px;font-weight:700;letter-spacing:-.04em" data-cu="1204">1,204</div><div class="sub">已掌握词</div></div>'; }],
+    ["Noise", "Animations", "adapt", "背景样式「颗粒」:静态 SVG feTurbulence 噪点平铺(约 400 字节 data-URI,只栅格化一次),不要 24fps 画布噪点动画。仓库无。性能:静态,0 rAF;低端机自动回到渐变。",
+      function () { return '<div style="position:absolute;inset:0;background:var(--grain),linear-gradient(180deg,var(--page-top),var(--page-bottom))"></div><div class="m1" style="position:absolute;left:20px;right:20px;top:70px;padding:16px"><div class="t15">颗粒背景上的分区</div><div class="sub">噪点 5–7% 不透明度</div></div>'; }],
+    ["Glare Hover", "Animations", "adapt", "主按钮按下 / 悬停时一道斜光扫过一次,不循环(仓库 fx/SpecularButton 是周期扫光,只留给跟读库)。性能:一个伪元素 transform。",
+      function () { return '<div style="display:flex;flex-direction:column;gap:12px;margin-top:40px"><button class="pill acc full glare">开始朗读</button><button class="pill gh full glare">先听范读</button></div>'; }],
+    ["Animated List", "Components", "adapt", "行依次弹入 + 选中高亮滑动跟随(点一行)。只用于弹层里的短列表(换书、选角色);长列表不用。去掉 motion 依赖,CSS transition 即可。性能:只动 transform。",
+      function () { return '<button class="pill gh sm replay" data-alr>重播</button><div class="alist" data-alist style="margin-top:44px"><span class="hl"></span>' + ["四级核心 4544", "雅思核心 3000", "生活口语 800"].map(function (t) { return '<div class="ar"><span class="iw">' + ic("book") + "</span>" + t + "</div>"; }).join("") + "</div>"; }],
+    ["Dock", "Components", "skip", "放大效果依赖鼠标悬停,手机上没有;已有定稿的悬浮玻璃底栏(下图,冻结不变)。reactbits 版依赖 motion。",
+      function () { return '<div style="position:absolute;inset:0"><div class="stripes"></div><div style="position:absolute;inset:0;--space:0px">' + tabbar(0) + "</div></div>"; }]
+  ];
+  function buildGallery() {
+    document.getElementById("gal").innerHTML = G.map(function (g, i) {
+      return '<div class="gcell"><div class="stage bgpage" data-slot="light" data-mode="light" data-g="' + i + '">' + g[4]() + '</div><p class="cap"><b>' + g[0] + "</b> · " + g[1] + '<span class="verdict v-' + g[2] + '">' + g[2] + "</span><br>" + g[3] + "</p></div>";
+    }).join("");
+    wireGallery();
+  }
+
+  /* ================= interactions ================= */
+  function lightUp(e) {
+    var el = e.target.closest && e.target.closest(".spot,.edge"); if (!el) return;
+    var host = el.parentElement && el.parentElement.closest("[data-bento],.pair");
+    (host ? host.querySelectorAll(".spot,.edge") : [el]).forEach(function (t) { var r = t.getBoundingClientRect(); t.style.setProperty("--mx", (e.clientX - r.left) + "px"); t.style.setProperty("--my", (e.clientY - r.top) + "px"); t.classList.add("lit"); });
+  }
+  document.addEventListener("pointermove", lightUp);
+  document.addEventListener("pointerdown", lightUp);
+  document.addEventListener("pointerout", function (e) {
+    var el = e.target.closest && e.target.closest(".spot,.edge"); if (!el || (e.relatedTarget && el.contains(e.relatedTarget))) return;
+    var host = el.parentElement && el.parentElement.closest("[data-bento],.pair");
+    (host ? host.querySelectorAll(".spot,.edge") : [el]).forEach(function (t) { t.classList.remove("lit"); });
+  });
+  var GXP = [0.6, 1, 1.25];
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest(".seg button");
+    if (b) {
+      var s = b.parentElement, idx = Array.prototype.indexOf.call(s.querySelectorAll("button"), b), k = s.getAttribute("data-k");
+      if (k === "gxp") { S.gx = GXP[idx]; apply(); return; }
+      if (k === "fx") { setOpt("lite", b.getAttribute("data-v") === "lite" ? "on" : "off"); return; }
+      if (k) { S[k] = b.getAttribute("data-v"); apply(); return; }
+      s.style.setProperty("--i", idx); s.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      return;
+    }
+    var p = e.target.closest("[data-preset]");
+    if (p) { var P = PRESETS[p.getAttribute("data-preset")]; Object.keys(P).forEach(function (q) { if (P[q] !== null) S[q] = P[q]; }); if (P.bgStyle === null && S.bgStyle === "solid" && p.getAttribute("data-preset") !== "solid") S.bgStyle = "gradient"; apply(); return; }
+    if (e.target.closest("[data-reset]")) { S = Object.assign(S, DEF, { bg: { light: defBg("light"), dark: defBg("dark") } }); setOpt("lite", "off"); return; }
+    var sw = e.target.closest("[data-swi]");
+    if (sw) { var i = +sw.getAttribute("data-swi"), c = SW[S.edit][i]; S.bg[S.edit] = { sw: i, h: c[1], s: c[2], l: c[3], c2: S.bg[S.edit].c2 }; apply(); return; }
+    var s2 = e.target.closest("[data-sw2i]");
+    if (s2) { S.bg[S.edit].c2 = +s2.getAttribute("data-sw2i"); apply(); return; }
+    var t = e.target.closest(".sw"); if (t) { t.classList.toggle("on"); t.setAttribute("aria-pressed", String(t.classList.contains("on"))); }
+    if (e.target.closest("#lpclose")) toggleLP(false);
+  });
+  var raf = 0;
+  document.addEventListener("input", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-k"), bk = e.target.getAttribute && e.target.getAttribute("data-bk");
+    if (k) S[k] = parseFloat(e.target.value);
+    else if (bk) { S.bg[S.edit][bk] = parseFloat(e.target.value); S.bg[S.edit].sw = -1; }
+    else return;
+    if (!raf) raf = requestAnimationFrame(function () { raf = 0; apply(e.target); });
+  });
+
+  function wireGallery() {
+    var el = document.querySelector("[data-elastic]");
+    if (el) {
+      var fil = el.querySelector(".fil"), kn = el.querySelector(".kn"), trk = el.querySelector(".trk"), out = document.querySelector("[data-elv]"), drag = false;
+      var at = function (x) {
+        var r = el.getBoundingClientRect(), p = (x - r.left) / r.width, over = 0;
+        if (p < 0) { over = -p * r.width; p = 0; trk.style.transformOrigin = "right center"; } else if (p > 1) { over = (p - 1) * r.width; p = 1; trk.style.transformOrigin = "left center"; }
+        trk.style.transform = "scaleX(" + (1 + Math.min(over, 60) / 500) + ")";
+        fil.style.width = kn.style.left = (p * 100) + "%"; out.textContent = Math.round(p * 100);
+      };
+      el.addEventListener("pointerdown", function (e) { drag = true; el.classList.remove("rel"); el.setPointerCapture(e.pointerId); at(e.clientX); });
+      el.addEventListener("pointermove", function (e) { if (drag) at(e.clientX); });
+      el.addEventListener("pointerup", function () { drag = false; el.classList.add("rel"); trk.style.transform = "scaleX(1)"; });
+    }
+    var gt = document.querySelector("[data-gtoggle]");
+    if (gt) gt.addEventListener("click", function () {
+      var gf = document.querySelector("[data-gfade]"), gl = document.querySelector("[data-glist]"), on = gl.classList.toggle("fadeonly");
+      gf.style.display = on ? "none" : ""; gt.textContent = on ? "切到「真模糊」" : "切到「只淡出」";
+    });
+    document.querySelector("[data-replay-g]").addEventListener("click", function () { replay(document.querySelector("[data-fade]")); });
+    document.querySelector("[data-btr]").addEventListener("click", blurText);
+    document.querySelector("[data-cur]").addEventListener("click", function () { countUp(document.querySelector("[data-cu]")); });
+    var al = document.querySelector("[data-alist]");
+    al.querySelectorAll(".ar").forEach(function (r, i) { r.style.transitionDelay = (i * 70) + "ms"; r.addEventListener("click", function () { al.querySelector(".hl").style.transform = "translateY(" + (i * 46) + "px)"; }); });
+    document.querySelector("[data-alr]").addEventListener("click", function () { al.classList.add("pre"); void al.offsetWidth; requestAnimationFrame(function () { requestAnimationFrame(function () { al.classList.remove("pre"); }); }); });
+    setTimeout(blurText, 300);
+  }
+  function blurText() {
+    var b = document.querySelector("[data-btxt]"); if (!b) return;
+    b.querySelectorAll("span").forEach(function (s, i) { s.style.transitionDelay = (i * 110) + "ms"; });
+    b.classList.add("pre"); void b.offsetWidth; requestAnimationFrame(function () { requestAnimationFrame(function () { b.classList.remove("pre"); }); });
+  }
+  function countUp(el) {
+    var to = parseInt(el.getAttribute("data-cu") || el.getAttribute("data-count"), 10), t0 = performance.now();
+    function step(t) { var p = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(to * e).toLocaleString("en-US"); if (p < 1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
+  function replay(root) { (root || document).querySelectorAll(".rv").forEach(function (el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }); }
+  document.getElementById("replay").addEventListener("click", function () { replay(); document.querySelectorAll("[data-count],[data-cu]").forEach(countUp); });
+  document.getElementById("sheetbtn").addEventListener("click", function () {
+    var on = this.getAttribute("aria-pressed") !== "true"; this.setAttribute("aria-pressed", String(on));
+    document.querySelectorAll('.phone[data-key="convo"]').forEach(function (p) { p.classList.toggle("sheet-open", on); });
+    countBlur();
+  });
+
+  function countBlur() {
+    document.querySelectorAll(".phone-wrap").forEach(function (w) {
+      var n = 0, tr = 0;
+      w.querySelectorAll(".phone *").forEach(function (el) {
+        var cs = getComputedStyle(el), bf = cs.backdropFilter || cs.webkitBackdropFilter;
+        if (bf && bf !== "none" && cs.visibility !== "hidden" && el.offsetParent !== null && !el.closest(".preset")) { if (el.classList.contains("sheet") || el.classList.contains("dialog")) tr++; else n++; }
+      });
+      var tag = w.querySelector("[data-blurcount]"); if (tag) tag.textContent = "模糊 " + n + (tr ? " + " + tr + " 临时" : "") + " / 3";
+    });
+  }
+  function wireScroll() {
+    document.querySelectorAll("[data-scroll]").forEach(function (sc) {
+      var cap = sc.parentElement.querySelector("[data-capsule]"); if (!cap) return;
+      var sub = cap.hasAttribute("data-sub");
+      var upd = function () {
+        if (sub) { var g = sc.scrollTop > 4; if (cap.classList.contains("m2") !== g) { cap.classList.toggle("m2", g); cap.classList.toggle("capbar", g); countBlur(); } }
+        else { var on = sc.scrollTop > 60; if (cap.classList.contains("show") !== on) { cap.classList.toggle("show", on); countBlur(); } }
+      };
+      sc.addEventListener("scroll", upd, { passive: true }); upd();
+    });
+  }
+
+  /* ================= apply ================= */
+  var NAMES = { clear: "清透", frosted: "磨砂", solid: "实色" };
+  function presetName() {
+    for (var k in PRESETS) { var P = PRESETS[k], ok = Math.abs(S.gx - 1) < 1e-6; for (var q in P) { if (P[q] === null) continue; if (typeof P[q] === "number" ? Math.abs(P[q] - S[q]) > 1e-6 : P[q] !== S[q]) ok = false; } if (k !== "solid" && S.bgStyle === "solid") ok = false; if (ok) return k; }
+    return null;
+  }
+  var BGS = {};
+  function apply(src) {
+    BGS.light = bgSlot("light"); BGS.dark = bgSlot("dark");
+    document.getElementById("live").textContent = modeCss("light") + modeCss("dark") + slotCss("light", BGS.light) + slotCss("dark", BGS.dark);
+    document.body.setAttribute("data-bgstyle", S.bgStyle);
+    // ink mode follows the slot's background luminance
+    document.querySelectorAll(".phone-wrap").forEach(function (w) { w.querySelector(".phone").setAttribute("data-mode", BGS[w.getAttribute("data-slot")].mode); });
+    var gs = document.body.getAttribute("data-theme");
+    document.querySelectorAll(".gcell .stage").forEach(function (s) { s.setAttribute("data-slot", gs); s.setAttribute("data-mode", BGS[gs].mode); });
+    var lp = document.getElementById("lp"); lp.setAttribute("data-slot", gs); lp.setAttribute("data-mode", BGS[gs].mode);
+    var rt = document.body.getAttribute("data-rt") === "on", lite = isLite(), mm = { light: mat("light"), dark: mat("dark") };
+    SL.forEach(function (s) {
+      document.querySelectorAll('input[data-k="' + s[0] + '"]').forEach(function (inp) {
+        if (inp !== src) inp.value = S[s[0]];
+        inp.style.setProperty("--p", ((S[s[0]] - s[2]) / (s[3] - s[2]) * 100) + "%");
+        inp.disabled = rt && ["tv", "blur", "sat"].indexOf(s[0]) >= 0;
+      });
+      document.querySelectorAll('[data-o="' + s[0] + '"]').forEach(function (o) { o.textContent = s[5](S[s[0]]); });
+    });
+    var hit = mm.light.hit || mm.dark.hit;
+    document.querySelectorAll('[data-sm="tv"]').forEach(function (x) { x.textContent = hit ? "已到可读下限(" + (mm.light.hit ? "浅" : "") + (mm.light.hit && mm.dark.hit ? " / " : "") + (mm.dark.hit ? "深" : "") + ")" : "右边更透;到可读下限会停住"; x.classList.toggle("floor-hit", hit); });
+    document.querySelectorAll('[data-sm="blur"]').forEach(function (x) { x.textContent = lite ? "低端机模式:模糊上限 12px" : "E2 胶囊 / 输入条;弹层 = 32 × 倍数"; });
+    document.querySelectorAll("[data-rtnote]").forEach(function (x) { x.style.display = rt ? "flex" : "none"; });
+    // background controls (edit slot)
+    var eb = S.bg[S.edit], ebs = BGS[S.edit];
+    BGSL.forEach(function (s) {
+      document.querySelectorAll('input[data-bk="' + s[0] + '"]').forEach(function (inp) {
+        if (inp !== src) inp.value = s[0] === "l" ? ebs.lUsed : eb[s[0]];
+        if (s[0] === "h") inp.style.setProperty("--trk", "linear-gradient(90deg," + [0, 60, 120, 180, 240, 300, 360].map(function (h) { return rgb(hsl(h, 30, S.edit === "light" ? 80 : 40)); }).join(",") + ")");
+        else if (s[0] === "s") inp.style.setProperty("--trk", "linear-gradient(90deg," + rgb(hsl(eb.h, 0, 60)) + "," + rgb(hsl(eb.h, 30, 60)) + ")");
+        else inp.style.setProperty("--trk", "linear-gradient(90deg,#000," + rgb(hsl(eb.h, Math.min(30, eb.s), 50)) + ",#fff)");
+      });
+      document.querySelectorAll('[data-bo="' + s[0] + '"]').forEach(function (o) { o.textContent = s[0] === "h" ? Math.round(eb.h) + "°" : s[0] === "s" ? Math.round(Math.min(30, eb.s)) + "%" : Math.round(ebs.lUsed) + "%"; });
+    });
+    document.querySelectorAll("[data-swgrid]").forEach(function (g) {
+      g.innerHTML = SW[S.edit].map(function (c, i) { return '<button type="button" class="swb" data-swi="' + i + '" aria-pressed="' + (eb.sw === i) + '"><i style="background:' + rgb(hsl(c[1], c[2], c[3])) + '"></i>' + c[0] + "</button>"; }).join("");
+    });
+    document.querySelectorAll("[data-sw2]").forEach(function (g) {
+      g.innerHTML = '<button type="button" class="swb auto" data-sw2i="-1" aria-pressed="' + (eb.c2 < 0) + '"><i>' + ic("x", "s16") + "</i>自动</button>" +
+        SW[S.edit].map(function (c, i) { return '<button type="button" class="swb" data-sw2i="' + i + '" aria-pressed="' + (eb.c2 === i) + '" aria-label="' + c[0] + '"><i style="background:' + rgb(hsl(c[1], c[2], c[3])) + '"></i></button>'; }).join("");
+    });
+    document.querySelectorAll("[data-bghint]").forEach(function (h) {
+      var other = S.edit === "light" ? "dark" : "light";
+      var txt = ebs.hints.length ? ic("alert", "s16") + "<span>" + ebs.hints.join(";") + "</span>" : ic("info", "s16") + "<span>文字自动用" + (ebs.mode === "light" ? "深色墨" : "浅色墨") + ",正文对比度 " + cr(INK[ebs.mode].ink2, ebs.worst).toFixed(1) + ":1</span>";
+      h.innerHTML = txt; h.classList.toggle("warn", !!ebs.hints.length);
+      if (other) h.setAttribute("data-other", other);
+    });
+    ["bgStyle", "edit"].forEach(function (k) {
+      document.querySelectorAll('.seg[data-k="' + k + '"]').forEach(function (sg) {
+        sg.querySelectorAll("button").forEach(function (b, i) { var on = b.getAttribute("data-v") === S[k]; b.setAttribute("aria-pressed", String(on)); if (on) sg.style.setProperty("--i", i); });
+      });
+    });
+    document.querySelectorAll('.seg[data-k="gxp"]').forEach(function (sg) { var i = GXP.indexOf(S.gx); sg.querySelectorAll("button").forEach(function (b, j) { b.setAttribute("aria-pressed", String(j === i)); }); sg.style.setProperty("--i", i < 0 ? 1 : i); sg.querySelector(".th").style.opacity = i < 0 ? 0 : 1; });
+    document.querySelectorAll('.seg[data-k="fx"]').forEach(function (sg) { sg.style.setProperty("--i", lite ? 1 : 0); sg.querySelectorAll("button").forEach(function (b, j) { b.setAttribute("aria-pressed", String(j === (lite ? 1 : 0))); }); });
+    var pn = presetName();
+    document.querySelectorAll("[data-preset]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-preset") === pn)); });
+    document.querySelectorAll("[data-pname]").forEach(function (x) { x.textContent = pn ? NAMES[pn] : "自定义 •"; });
+    document.querySelectorAll("[data-pname-short]").forEach(function (x) { x.textContent = pn ? NAMES[pn] : "自定义"; });
+    renderContrast(mm, rt);
+    countBlur();
+  }
+  function renderContrast(mm, rt) {
+    var W = [255, 255, 255], K = [0, 0, 0], out = [], short = [];
+    out.push("<tr><th>层(当前值)</th><th>浅色模式 底色 α</th><th>ink</th><th>ink-2</th><th>深色模式 底色 α</th><th>ink</th><th>ink-2</th></tr>");
+    function c(v, t) { t = t || 4.5; return '<td class="num">' + v.toFixed(1) + ":1" + (v >= t ? " ✓" : " ✗") + "</td>"; }
+    function rowFor(name, key, rgbFill, over, thr) {
+      var cells = "<td>" + name + "</td>";
+      ["light", "dark"].forEach(function (slot) {
+        var b = BGS[slot], mode = b.mode, m = mm[mode], a = key ? m[key] : 1, bg;
+        var fillRgb = mode === "light" ? W : rgbFill;
+        if (rt && key) bg = mode === "light" ? W : hex("#17191E");
+        else if (!key) bg = b.worst;
+        else bg = mix(fillRgb, a, over === "page" ? b.worst : (mode === "light" ? K : W));
+        cells += '<td class="num">' + (key ? a.toFixed(2) : "—") + "</td>" + c(cr(INK[mode].ink, bg), thr) + (thr ? "<td>—(不放次要字)</td>" : c(cr(INK[mode].ink2, bg)));
+        if (key === "a1") short.push((slot === "light" ? "浅" : "深") + " E1 次要文字 " + cr(INK[mode].ink2, bg).toFixed(1) + ":1");
+      });
+      out.push("<tr>" + cells + "</tr>");
+    }
+    rowFor("E0 背景(大标题、副标题)", null);
+    rowFor("E1 分区(背后是背景)", "a1", W, "page");
+    rowFor("E2 胶囊 / 输入条(最坏情况)", "a2", [28, 30, 36]);
+    rowFor("T3 弹层(最坏情况)", "a3", [24, 26, 32]);
+    rowFor("E2 标题胶囊 / 输入条 / DOCK(只放 17px 标题,目标 ≥ 3)", "a2bar", [28, 30, 36], null, 3);
+    var pc = "<td>托板(规则 4,固定 90%,最坏情况)</td>";
+    ["light", "dark"].forEach(function (slot) {
+      var mode = BGS[slot].mode, bg = mode === "light" ? mix(W, 0.9, K) : mix([23, 25, 30], 0.9, W);
+      if (rt) bg = mode === "light" ? W : hex("#17191E");
+      pc += '<td class="num">0.90</td>' + c(cr(INK[mode].ink, bg)) + c(cr(INK[mode].ink2, bg));
+    });
+    out.push("<tr>" + pc + "</tr>");
+    document.getElementById("contrast").innerHTML = out.join("");
+    document.querySelectorAll("[data-cshort]").forEach(function (x) { x.textContent = "可读性地板:透明度滑块到头时 E1 底色不低于 50%(深色 4%),E2 不低于 55%(深色 50%),模糊 < 8px 时再 +20%。当前 " + short.join(" · ") + "。"; });
+  }
+
+  /* ================= toolbar ================= */
+  function setOpt(key, v) {
+    document.body.setAttribute("data-" + key, v);
+    document.querySelectorAll('.grp[data-key="' + key + '"] .tbtn').forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+    apply();
+    setTimeout(countBlur, 60);
+  }
+  document.querySelectorAll(".grp[data-key]").forEach(function (g) {
+    var key = g.getAttribute("data-key");
+    g.addEventListener("click", function (e) { var b = e.target.closest(".tbtn"); if (b) setOpt(key, b.getAttribute("data-v")); });
+  });
+  function toggleLP(on) { document.getElementById("lp").hidden = !on; document.body.setAttribute("data-panel", on ? "on" : "off"); document.getElementById("lpbtn").setAttribute("aria-pressed", String(on)); }
+  document.getElementById("lpbtn").addEventListener("click", function () { toggleLP(document.getElementById("lp").hidden); });
+
+  document.getElementById("lp").innerHTML = panelHTML();
+  build(); buildGallery();
+  var init = { show: "both", theme: "light", lite: "off", rt: "off" };
+  try { var q = new URLSearchParams(location.search); Object.keys(init).forEach(function (k) { if (q.get(k)) init[k] = q.get(k); }); if (q.get("panel") === "off") toggleLP(false); } catch (e) { /* defaults */ }
+  Object.keys(init).forEach(function (k) { document.body.setAttribute("data-" + k, init[k]); document.querySelectorAll('.grp[data-key="' + k + '"] .tbtn').forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === init[k])); }); });
+  apply(); wireScroll();
+  window.__mock = { S: S, apply: apply, countBlur: countBlur, BGS: BGS };
+})();
+</script>
+</body>
+</html>
