@@ -68,10 +68,11 @@ describe("AppearancePage (plan 2026-10-15-liquid-glass L3)", () => {
 });
 
 describe("AppearancePage layout classes", () => {
-  it("reserves the shared tab-bar space under the last row", () => {
+  it("adds only a small gap under the last row (AppShell main already reserves the tab-bar space)", () => {
     setLiquid(true);
     const { container } = renderWithProviders(<AppearancePage />);
-    expect(container.innerHTML).toContain("pb-[calc(var(--tab-bar-space)+2rem)]");
+    expect(container.innerHTML).toContain("pb-8");
+    expect(container.innerHTML).not.toContain("tab-bar-space");
     setLiquid(false);
   });
 });

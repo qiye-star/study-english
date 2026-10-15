@@ -45,7 +45,7 @@ export function AppearancePage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.appearance.title")} back="/me" />
-      <div className="px-frame pb-[calc(var(--tab-bar-space)+2rem)]">
+      <div className="px-frame pb-8">
         <SurfaceCard strong className="mt-2 p-4">
           <PreviewCard />
           <p className="mt-2.5 text-meta text-ink-2">{t("web.appearance.previewNote")}</p>
