@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { selectWord } from "./select-word";
+import { selectWord, selectWordAt } from "./select-word";
 
 function mount(html: string): HTMLElement {
   const root = document.createElement("div");
@@ -45,5 +45,63 @@ describe("selectWord (same contract as features/library/word-tap.ts)", () => {
     expect(selectWord(el)).toBe(true);
     expect(selectWord(el)).toBe(true);
     expect(window.getSelection()?.toString()).toBe("talk");
+  });
+});
+
+type CaretDoc = Document & { caretRangeFromPoint?: unknown; caretPositionFromPoint?: unknown };
+const caretAt = (node: Node, offset: number) => {
+  (document as CaretDoc).caretRangeFromPoint = () => {
+    const r = document.createRange();
+    r.setStart(node, offset);
+    r.collapse(true);
+    return r;
+  };
+};
+
+describe("selectWordAt (plan 2026-10-15 R-L3)", () => {
+  afterEach(() => {
+    delete (document as CaretDoc).caretRangeFromPoint;
+    delete (document as CaretDoc).caretPositionFromPoint;
+    document.getSelection()?.removeAllRanges();
+    document.body.innerHTML = "";
+  });
+
+  it("selects the English word under the point", () => {
+    document.body.innerHTML = `<p id="p">say hello there</p>`;
+    caretAt(document.getElementById("p")!.firstChild!, 6);
+    expect(selectWordAt(1, 1)).toBe(true);
+    expect(String(document.getSelection())).toBe("hello");
+  });
+
+  it("prefers caretPositionFromPoint and trims a trailing apostrophe", () => {
+    document.body.innerHTML = `<p id="p">the dogs' bowl</p>`;
+    const text = document.getElementById("p")!.firstChild!;
+    (document as CaretDoc).caretPositionFromPoint = () => ({ offsetNode: text, offset: 5 });
+    (document as CaretDoc).caretRangeFromPoint = () => { throw new Error("must not be used"); };
+    expect(selectWordAt(1, 1)).toBe(true);
+    expect(String(document.getSelection())).toBe("dogs");
+  });
+
+  it("keeps a selection that already exists (the browser's own long-press wins)", () => {
+    document.body.innerHTML = `<p id="p">say hello there</p>`;
+    const text = document.getElementById("p")!.firstChild!;
+    const r = document.createRange();
+    r.setStart(text, 10);
+    r.setEnd(text, 15);
+    document.getSelection()!.addRange(r);
+    caretAt(text, 6);
+    expect(selectWordAt(1, 1)).toBe(false);
+    expect(String(document.getSelection())).toBe("there");
+  });
+
+  it("does nothing on Chinese text, outside `within`, or without a caret API", () => {
+    document.body.innerHTML = `<p id="zh">你好世界</p><p id="en">hello</p><div id="other"></div>`;
+    caretAt(document.getElementById("zh")!.firstChild!, 1);
+    expect(selectWordAt(1, 1)).toBe(false);
+    caretAt(document.getElementById("en")!.firstChild!, 2);
+    expect(selectWordAt(1, 1, document, document.getElementById("other")!)).toBe(false);
+    delete (document as CaretDoc).caretRangeFromPoint;
+    expect(selectWordAt(1, 1)).toBe(false);
+    expect(String(document.getSelection())).toBe("");
   });
 });
