@@ -2,6 +2,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { renderWithProviders } from "~/test/render";
+import { blurLayers, setLiquid, textOutsidePlates } from "~/test/glass";
 import type { RoomMessage } from "../protocol";
 import { MessageActions } from "./message-actions";
 import { isMostlyNative, speakable } from "./text-tools";
@@ -51,6 +52,22 @@ describe("MessageActions", () => {
     expect(onSpeak).toHaveBeenCalled();
     expect(screen.queryByTestId("room-report")).toBeNull();
     expect(screen.getByText("已举报")).toBeTruthy();
+  });
+
+  it("is one transient glass popup under the liquid skin, with its text on the sheet plate (rule 4)", () => {
+    setLiquid(true);
+    try {
+      renderWithProviders(<MessageActions message={m} mine={false} meId={11} canReport reported={false} onReact={vi.fn()} onQuote={vi.fn()} onReport={vi.fn()}
+        onTranslate={vi.fn()} onSpeak={vi.fn()} />);
+      const popup = screen.getByTestId("msg-actions");
+      expect(blurLayers()).toEqual([popup]);
+      expect(popup.className).toContain("mat-sheet");
+      expect(popup.className).toContain("liquid:rounded-tile");
+      expect(textOutsidePlates(popup)).toEqual([]);
+      expect(screen.getByTestId("msg-quote").className).toContain("liquid:rounded-full");
+    } finally {
+      setLiquid(false);
+    }
   });
 
   it("knows when a message is already in the native language", () => {
