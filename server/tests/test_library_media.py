@@ -198,3 +198,51 @@ async def test_fake_tools_audio_only_writes_the_file(tmp_path):
     tools = FakeTools()
     out = await tools.audio_only(src, tmp_path, duration_ms=6000, home=tmp_path)
     assert out.path.read_bytes() == src.read_bytes() and tools.calls == ["audio_only"]
+
+
+H264_720 = ProbeInfo(10_000, True, True, "h264", "aac", "mov,mp4,m4a,3gp,3g2,mj2", 720)
+
+
+@pytest.mark.parametrize("src_kbps, copies", [(None, False), (900, True), (1600, True), (1601, False)],
+                         ids=["unknown-rate", "small", "at-cap", "over-cap"])
+def test_normalize_plan_copies_only_under_the_rate_cap(tmp_path, src_kbps, copies):
+    args, out = normalize_plan(H264_720, tmp_path, 720, src_kbps=src_kbps, max_kbps=1600)
+    assert ("copy" in args) is copies and out.kind == "video" and args[-1] == str(tmp_path / "media.mp4")
+    assert "+faststart" in args
+    if not copies:
+        assert args[args.index("-maxrate") + 1] == "1472k" and args[args.index("-bufsize") + 1] == "2944k"
+        assert "libx264" in args and "-crf" in args
+
+
+def test_normalize_plan_without_a_cap_is_unchanged(tmp_path):
+    args, _ = normalize_plan(H264_720, tmp_path, 720)
+    assert "copy" in args and "-maxrate" not in args
+    args, _ = normalize_plan(ProbeInfo(1000, True, True, "vp9", "opus", "matroska,webm", 720), tmp_path, 720)
+    assert "-maxrate" not in args
+
+
+async def test_fake_tools_normalize_records_the_caps(tmp_path):
+    from tests.library_helpers import FakeTools, fake_media
+    src = tmp_path / "in.mp4"
+    src.write_bytes(fake_media())
+    tools = FakeTools()
+    info = await tools.probe(src, home=tmp_path)
+    out = await tools.normalize(src, info, tmp_path, max_height=480, home=tmp_path, max_kbps=1600)
+    assert out.kind == "video" and tools.normalize_kwargs == {"max_height": 480, "max_kbps": 1600}
+
+
+@needs_ffmpeg
+async def test_real_normalize_with_a_cap_reencodes_a_heavy_h264(tmp_path):
+    src = tmp_path / "in.mp4"
+    _make(src, "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=3", "-f", "lavfi", "-i", SPEECHY,
+          "-shortest", "-c:v", "libx264", "-b:v", "6000k", "-minrate", "6000k", "-maxrate", "6000k",
+          "-bufsize", "6000k", "-x264-params", "nal-hrd=cbr:filler=1", "-c:a", "aac")  # padded to ~5.8 Mbit/s
+    tool = Ffmpeg()
+    info = await tool.probe(src, home=tmp_path)
+    assert src.stat().st_size * 8 // info.duration_ms > 3000  # really heavy: the copy path must not be taken
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    result = await tool.normalize(src, info, out_dir, max_height=720, home=tmp_path, max_kbps=1600)
+    again = await tool.probe(result.path, home=tmp_path)
+    assert (result.mime, again.vcodec, again.acodec) == ("video/mp4", "h264", "aac")
+    assert result.path.stat().st_size * 8 // again.duration_ms <= 1600 + 200  # kbit/s; small encoder overshoot
