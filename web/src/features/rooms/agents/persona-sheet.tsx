@@ -7,10 +7,11 @@ import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components
 import { levelLabel } from "~/lib/levels";
 import { ghostButton } from "../ui";
 import { reportRoomAgent, ROOM_AGENTS_ALL_ERRORS, type AgentReportReason, type RoomAgent } from "./room-agents-api";
+import { LQ_CHIP } from "~/components/liquid";
 
 const REASONS: AgentReportReason[] = ["spam", "abuse", "other"];
 // One meaning per hue: teal = vocabulary, amber = private data, red = failure; these facts are neutral chips.
-const chip = "rounded-full bg-surface-2 px-2 py-0.5 text-ink-2";
+const chip = `rounded-full bg-surface-2 px-2 py-0.5 text-ink-2 ${LQ_CHIP}`;
 
 /**
  * 角色信息(spec D3 / §9.1):名字、简介、水平、风格;创建者公开时显示人设原文(纯文本,React 转义),否则说明「没有公开」。

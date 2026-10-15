@@ -10,6 +10,7 @@ import { PersonaSheet } from "./persona-sheet";
 import { ROOM_AGENTS_ALL_ERRORS, updateRoomAgents, type RoomAgent } from "./room-agents-api";
 import { TutorStart } from "./tutor-start";
 import { useRoomAgents } from "./use-room-agents";
+import { LQ_CHIP } from "~/components/liquid";
 
 /**
  * 房间设置里的「智能体」(spec §9.2):房主最多选 ROOM_AGENTS.max 个角色(PersonaPicker 来自 ~/features/agents,只能选内置与自己的),
@@ -55,7 +56,7 @@ export function RoomAgentsSection({ room, owner, live, tutorAvailable, onChanged
   return (
     <section data-testid="room-agents-section" className="mt-section">
       <h3 className="mx-0.5 mb-2 text-sub font-semibold tracking-[0.01em] text-ink-2">{t("web.rooms.agents.section.title")}</h3>
-      <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">
+      <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface well liquid:rounded-inset liquid:border-0">
         {slots.map((slot) => {
           const id = ids[slot];
           if (!id) {
@@ -73,13 +74,13 @@ export function RoomAgentsSection({ room, owner, live, tutorAvailable, onChanged
               <button type="button" className="min-h-tap min-w-0 flex-1 text-left" disabled={!agent} onClick={() => agent && setOpen(agent)}>
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-body font-medium text-ink">{agent?.name ?? "…"}</span>
-                  {agent?.disabled && <span className="flex-none rounded-full bg-surface-2 px-1.5 text-label text-ink-2">{t("web.rooms.agents.sheet.disabled")}</span>}
+                  {agent?.disabled && <span className={`flex-none rounded-full bg-surface-2 px-1.5 text-label text-ink-2 ${LQ_CHIP}`}>{t("web.rooms.agents.sheet.disabled")}</span>}
                 </span>
                 {agent?.intro && <span className="mt-0.5 block truncate text-meta text-ink-2">{agent.intro}</span>}
               </button>
               {editable && (
                 <button type="button" data-testid={`room-agent-remove-${slot}`} aria-label={t("web.rooms.agents.section.remove")} disabled={busy}
-                  className="inline-flex h-tap min-w-tap flex-none items-center justify-center rounded-[9px] px-2.5 text-ink-2 hover:bg-surface-2 disabled:opacity-40"
+                  className="inline-flex h-tap min-w-tap flex-none items-center justify-center rounded-[9px] px-2.5 text-ink-2 hover:bg-surface-2 disabled:opacity-40 liquid:rounded-full liquid:hover:bg-wash"
                   onClick={() => void save(ids.filter((x) => x !== id))}>
                   <XIcon aria-hidden className="size-4" />
                 </button>

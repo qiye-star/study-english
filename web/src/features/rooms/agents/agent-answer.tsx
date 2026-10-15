@@ -6,6 +6,7 @@ import { cn } from "~/lib/cn";
 import type { AgentStepWire } from "../protocol";
 import type { AgentRun } from "../room-state";
 import type { AgentRef } from "./agent-meta";
+import { LQ_CHIP } from "~/components/liquid";
 
 /** 智能体回复卡片头部:角色名(点按看角色信息)+ 统一的中性「智能体」标签(R-RA12,spec 没有职称字段;青色留给词汇)。 */
 export function AgentName({ agent, onOpen }: { agent: AgentRef; onOpen?(personaId: string): void }) {
@@ -14,7 +15,7 @@ export function AgentName({ agent, onOpen }: { agent: AgentRef; onOpen?(personaI
     <span className="flex min-w-0 items-center gap-1.5">
       <button type="button" data-testid="room-agent-name" disabled={!onOpen} onClick={() => onOpen?.(agent.personaId)}
         className="min-w-0 truncate text-label font-semibold text-ink enabled:hover:underline">{agent.name}</button>
-      <span className="flex-none rounded-full bg-surface-2 px-1.5 text-label text-ink-2">{t("web.rooms.agents.tag")}</span>
+      <span className={`flex-none rounded-full bg-surface-2 px-1.5 text-label text-ink-2 ${LQ_CHIP}`}>{t("web.rooms.agents.tag")}</span>
     </span>
   );
 }
@@ -59,7 +60,7 @@ export function PrivateProcess({ name, run, trace, generating, align }: {
   const stored = useMemo(() => (trace ? normalizeTrace(trace) : null), [trace]);
   return (
     <div data-testid="room-agent-process" className={cn("mt-1 max-w-[92%]", align === "end" ? "self-end" : "self-start")}>
-      <span className="mb-0.5 flex items-center gap-1 text-label font-semibold text-amber">
+      <span className="mb-0.5 flex items-center gap-1 text-label font-semibold text-amber liquid:text-ink-2">
         <LockIcon aria-hidden className="size-3 flex-none" />{t("web.rooms.agents.privateOnly")}
       </span>
       <ProcessCapsule live={live} trace={stored} generating={generating}

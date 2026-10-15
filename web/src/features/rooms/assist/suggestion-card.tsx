@@ -1,6 +1,7 @@
 import { CheckIcon, SendIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { lookupContext } from "~/lib/lookup-context";
+import { LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 
 const action = "hit-expand inline-flex h-9 min-w-9 flex-none items-center justify-center gap-1 rounded-badge px-2.5 text-sub font-semibold "
   + "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4";
@@ -24,12 +25,12 @@ export function SuggestionCard({ en, note, used, disabled, onSend, onEdit }: {
             <CheckIcon aria-hidden />{t("web.rooms.dock.sent")}
           </span>
         ) : (
-          <button type="button" data-testid="assist-send" disabled={disabled} onClick={onSend} className={`${action} bg-blue text-on-blue active:bg-blue/90`}>
+          <button type="button" data-testid="assist-send" disabled={disabled} onClick={onSend} className={`${action} bg-blue text-on-blue active:bg-blue/90 ${LQ_PRIMARY}`}>
             <SendIcon aria-hidden />{t("web.rooms.dock.send")}
           </button>
         )}
         <button type="button" data-testid="assist-edit" onClick={onEdit}
-          className={`${action} bg-surface text-ink shadow-hair active:bg-surface-2`}>{t("web.rooms.dock.edit")}</button>
+          className={`${action} bg-surface text-ink shadow-hair active:bg-surface-2 ${LQ_SECONDARY}`}>{t("web.rooms.dock.edit")}</button>
       </div>
     </div>
   );

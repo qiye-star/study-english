@@ -1,6 +1,7 @@
 import { LanguagesIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "~/lib/cn";
+import { LQ_CHIP_ON } from "~/components/liquid";
 
 /**
  * 输入条最左侧的圆形助手入口(spec §5.2,视觉稿 .aibtn):44px 圆、主色实底 + on-blue 的 language 图标(与「助手润色」标同一图形);
@@ -15,7 +16,7 @@ export function AssistEntry({ open, unread, disabled, onToggle }: { open: boolea
       className={cn("relative flex size-tap flex-none items-center justify-center rounded-full transition-colors duration-fast",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-[22px]",
-        open ? "bg-blue-tint text-blue" : "bg-blue text-on-blue shadow-[0_4px_10px_-4px_rgb(var(--blue)/0.55)] active:bg-blue/90")}>
+        open ? `bg-blue-tint text-blue ${LQ_CHIP_ON}` : "bg-blue text-on-blue shadow-[0_4px_10px_-4px_rgb(var(--blue)/0.55)] active:bg-blue/90")}>
       <LanguagesIcon aria-hidden />
       {unread && (
         <span data-testid="assist-unread" aria-hidden

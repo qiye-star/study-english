@@ -133,7 +133,7 @@ export function VoiceBubble({ message, mine, roomId, autoText, onTranslate, onRe
 
   const translation = voice.translation ? (
     <p className="mt-1 flex gap-1.5 text-sub text-ink-2">
-      <span aria-hidden className={cn("mt-px inline-flex h-[18px] flex-none items-center rounded-[5px] px-[5px] text-label font-semibold text-ink-2", mine ? "bg-surface" : "bg-surface-2")}>
+      <span aria-hidden className={cn("mt-px inline-flex h-[18px] flex-none items-center rounded-[5px] px-[5px] text-label font-semibold text-ink-2", mine ? "bg-surface liquid:bg-on-graphite/15" : "bg-surface-2")}>
         {t("web.rooms.voice.trTag")}
       </span>
       <span className="sr-only">{t("web.rooms.voice.trTagLong")}</span>
@@ -160,12 +160,12 @@ export function VoiceBubble({ message, mine, roomId, autoText, onTranslate, onRe
         <button type="button" data-testid="room-voice-play" data-state={player.state} disabled={!voice.audio || player.state === "loading"}
           aria-label={playing ? t("web.rooms.voice.pause") : t("web.rooms.voice.play")} onClick={player.toggle}
           className="-ml-[5px] flex size-tap flex-none items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
-          <span className={cn("flex size-[34px] items-center justify-center rounded-full [&_svg]:size-[17px]", mine ? "bg-blue text-on-blue" : "bg-surface-2 text-ink")}>
+          <span className={cn("flex size-[34px] items-center justify-center rounded-full [&_svg]:size-[17px]", mine ? "bg-blue text-on-blue liquid:bg-on-graphite liquid:text-graphite" : "bg-surface-2 text-ink liquid:bg-wash")}>
             {player.state === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
               : playing ? <PauseIcon aria-hidden className="fill-current" /> : <PlayIcon aria-hidden className="fill-current" />}
           </span>
         </button>
-        <span aria-hidden className={cn("flex h-5 flex-1 items-center gap-0.5", mine ? "text-blue" : "text-ink")}>
+        <span aria-hidden className={cn("flex h-5 flex-1 items-center gap-0.5", mine ? "text-blue liquid:text-on-graphite" : "text-ink")}>
           {waveFor(voice.durationMs).map((h, i) => (
             <i key={i} className="block w-[3px] rounded-[2px] bg-current opacity-[.55]" style={{ height: h }} />
           ))}

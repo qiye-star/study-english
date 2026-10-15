@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import type { RoomMessage } from "../protocol";
 import type { AssistEntry } from "../room-state";
@@ -175,5 +176,17 @@ describe("AssistDock", () => {
     expect(screen.getByText("See you!")).toBeTruthy();
     rerender({ snap: "mid", entries: [...entries, { requestId: "r4", request: "再见", reply: next, status: "done", error: null }] });
     expect(screen.queryByText(/条新建议/)).toBeNull();
+  });
+  it("liquid: the dock is an E1 panel without blur (R-L7-2)", () => {
+    setLiquid(true);
+    try {
+      setup();
+      const dock = screen.getByTestId("assist-dock");
+      expect(dock.className).toContain("mat-surface");
+      expect(dock.className).not.toContain("backdrop");
+      expect(dock.className).not.toMatch(/mat-chrome|mat-sheet|\bglass\b/);
+    } finally {
+      setLiquid(false);
+    }
   });
 });
