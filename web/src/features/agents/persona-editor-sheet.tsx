@@ -13,6 +13,7 @@ import { levelLabel } from "~/lib/levels";
 import { agentsApi, personaErrorKey } from "./agents-api";
 import { PERSONA_LEVELS, PERSONA_STYLES, TOOL_KEYS, type Persona, type PersonaDraft, type ToolKey } from "./types";
 import { useAgentsConfig } from "./use-agents-data";
+import { lookupContext } from "~/lib/lookup-context";
 
 export const NAME_MAX = 20;
 export const INTRO_MAX = 60;
@@ -212,7 +213,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona, onSaved, onDel
             onChange={(e) => setTrial({ ...trial, text: e.target.value })} />
         </label>
         {trial.state === "done" && trial.reply && (
-          <p data-testid="agent-editor-try-reply" className="mt-2 whitespace-pre-wrap rounded-card border-[0.5px] border-hair bg-surface px-3 py-2 text-body text-ink">{trial.reply}</p>
+          <p data-testid="agent-editor-try-reply" {...lookupContext} className="mt-2 whitespace-pre-wrap rounded-card border-[0.5px] border-hair bg-surface px-3 py-2 text-body text-ink">{trial.reply}</p>
         )}
         {trial.state === "error" && <p role="status" className="mt-2 text-sub text-ink-2">{t("web.agents.editor.tryFailed")}</p>}
         {trial.state === "unavailable" && <p role="status" className="mt-2 text-sub text-ink-2">{t("web.agents.editor.tryUnavailable")}</p>}
