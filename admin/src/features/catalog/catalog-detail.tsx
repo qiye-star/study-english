@@ -9,6 +9,7 @@ import {
   purgeItem, purgePhrase, retry, translateMissing, unpublish, type CatalogRow, type CatalogSegment,
 } from "./api";
 import { levelLong } from "../../lib/levels";
+import { ReplaceMedia } from "./replace-media";
 import { S, errorText } from "./strings";
 
 const clock = (ms: number) => {
@@ -205,9 +206,15 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
                   {item.lowConfidence && <span className="badge bg-warn-soft text-warn">{S.badges.lowConfidence}</span>}
                 </div>
                 {item.status === "failed" && item.errorKind && <p className="text-bad">{S.errorKinds[item.errorKind] ?? item.errorKind}</p>}
-                {!item.mediaMissing && (
-                  <audio controls preload="none" src={mediaUrl(id)} className="w-full" aria-label={S.detail.listen} />
+                {item.status === "ready" && item.errorKind && item.errorKind !== "upstream" && (
+                  <p className="text-warn">{S.detail.replaceFailed(S.errorKinds[item.errorKind] ?? item.errorKind)}</p>
                 )}
+                {!item.mediaMissing && (item.kind === "video" ? (
+                  <video controls preload="none" src={mediaUrl(id)} poster={item.hasPoster ? posterUrl(id) : undefined}
+                    className="max-h-64 w-full rounded-lg bg-black" aria-label={S.detail.listen} />
+                ) : (
+                  <audio controls preload="none" src={mediaUrl(id)} className="w-full" aria-label={S.detail.listen} />
+                ))}
               </div>
             </div>
 
@@ -217,6 +224,9 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
                 {active && <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => run(() => cancel(id))}>{S.detail.cancelJob}</button>}
                 {missing && !item.published && (
                   <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => run(() => translateMissing(id))}>{S.detail.translate}</button>
+                )}
+                {item.status === "ready" && !item.published && !item.retired && item.segCount > 0 && !item.mediaMissing && (
+                  <ReplaceMedia id={id} disabled={busy} onDone={refresh} onError={(e) => setError(errorText(apiErrorText(e)))} />
                 )}
                 {item.published && <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => run(() => unpublish(id))}>{S.detail.unpublish}</button>}
                 {!item.published && item.status === "ready" && !item.retired && !item.mediaMissing && (

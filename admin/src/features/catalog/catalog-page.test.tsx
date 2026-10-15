@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as session from "../../api/session";
+import { formatBytes } from "../../lib/format";
 import * as api from "./api";
 import { CatalogPage } from "./catalog-page";
 import { S } from "./strings";
@@ -47,6 +48,11 @@ describe("CatalogPage", () => {
     expect(await screen.findByText("Talk one")).toBeInTheDocument();
     expect(screen.getByText(S.backup)).toBeInTheDocument();
     expect(screen.getByText(S.state.shared("4", "300"))).toBeInTheDocument();
+  });
+
+  it("shows the media kind and size", async () => {
+    setup("viewer", [{ ...ROW, kind: "video" }]);
+    expect(await screen.findByText(`${S.kind.video} · ${formatBytes(500000)}`)).toBeInTheDocument();
   });
 
   it("publishes a ready row from the toggle", async () => {

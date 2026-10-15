@@ -15,7 +15,7 @@ afterEach(() => {
   session.resetSessionForTests();
 });
 
-vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn() }));
+vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn(), startReplace: vi.fn() }));
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 const ITEM = { id: ID, title: "Talk", level: "B1", tags: [], licenseNote: null, source: "upload", sourceHost: null, status: "ready",
@@ -39,6 +39,30 @@ describe("CatalogDetail", () => {
     expect(screen.getByText("你好。")).toBeInTheDocument();
     expect(document.querySelector("audio")?.getAttribute("src")).toBe(api.mediaUrl(ID));
     expect(screen.getByRole("option", { name: "B1 · 中级(能应对大多数日常场景)" })).toHaveAttribute("value", "B1");
+  });
+
+  it("plays a video item in a <video> element", async () => {
+    vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: { ...ITEM, kind: "video", hasPoster: true }, segments: SEGS });
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    await screen.findByText("Hello there.");
+    expect(document.querySelector("video")?.getAttribute("src")).toBe(api.mediaUrl(ID));
+    expect(document.querySelector("audio")).toBeNull();
+  });
+
+  it("offers media replacement only for a ready, unpublished, live item", async () => {
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    expect(await screen.findByLabelText(S.detail.replace)).toBeInTheDocument();
+    cleanup();
+    vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: { ...ITEM, published: true }, segments: SEGS });
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    await screen.findByText("Hello there.");
+    expect(screen.queryByLabelText(S.detail.replace)).toBeNull();
+  });
+
+  it("shows why the last replacement failed on a ready item", async () => {
+    vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: { ...ITEM, errorKind: "unsupported_format" }, segments: SEGS });
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    expect(await screen.findByText(S.detail.replaceFailed(S.errorKinds.unsupported_format))).toBeInTheDocument();
   });
 
   it("edits a sentence while unpublished", async () => {
