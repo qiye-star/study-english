@@ -14,6 +14,7 @@ import { useAuth } from "~/auth/auth-context";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_ICON_WELL, LQ_PAGE, LQ_SECONDARY } from "~/components/liquid";
 import { SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
@@ -244,7 +245,7 @@ export function VocabularyPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.vocabulary.title")} back="/me" />
-      <div className="space-y-3 px-gutter pb-6 pt-1">
+      <div className={`space-y-3 px-gutter pb-6 pt-1 ${LQ_PAGE}`}>
         {error && <p role="alert" data-testid="vocab-error" className="text-sub text-destructive">{error}</p>}
         {card && review && (
           <ReviewCard item={card} position={review.index + 1} total={review.queue.length} flipped={review.flipped} grading={busy}
@@ -255,7 +256,7 @@ export function VocabularyPage() {
         )}
         {review?.done && (
           <SurfaceCard data-testid="vocab-review-done" className="space-y-3 p-5 text-center">
-            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-teal-tint text-teal" aria-hidden>
+            <span className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-teal-tint text-teal ${LQ_ICON_WELL}`} aria-hidden>
               <CheckIcon className="h-6 w-6" />
             </span>
             <p className="text-body font-medium text-ink">{t("web.vocabulary.done")}</p>
@@ -307,14 +308,14 @@ export function VocabularyPage() {
         )}
       </div>
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={LQ_DIALOG}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("web.vocabulary.deleteConfirm")}</AlertDialogTitle>
             <AlertDialogDescription className="break-words">{pendingDelete?.word}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="vocab-item-delete-confirm" className="h-11"
+            <AlertDialogCancel className={`h-11 ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="vocab-item-delete-confirm" className={`h-11 ${LQ_DANGER_TEXT}`}
               onClick={(e) => { e.preventDefault(); if (pendingDelete) void remove(pendingDelete); }}>{t("web.common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

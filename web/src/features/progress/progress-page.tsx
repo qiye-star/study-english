@@ -8,6 +8,7 @@ import { useAuth } from "~/auth/auth-context";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
 import { LIST_CARD, PAGE_NOTE } from "~/components/list-card";
+import { LQ_PAGE } from "~/components/liquid";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
@@ -51,7 +52,7 @@ export function ProgressPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.progress.title")} back="/me" />
-      <div className="px-gutter pb-6 pt-1">
+      <div className={`px-gutter pb-6 pt-1 ${LQ_PAGE}`}>
         {/* 分段外观(轨道 + 选中片),保留 aria-pressed 按钮语义 */}
         <div className="flex rounded-badge bg-seg-track p-[3px]" role="group" aria-label={t("web.progress.period")}>
           {STATS_PERIODS.map((p) => (
