@@ -86,3 +86,38 @@ describe("panels and lists in the liquid skin (L2-2)", () => {
     expect(container.firstElementChild!.className).toContain("well");
   });
 });
+
+import { BookIcon } from "lucide-react";
+import { Avatar } from "./avatar";
+import { IconButton } from "./icon-button";
+import { IconChip } from "./icon-chip";
+import { SegmentedControl } from "./segmented-control";
+import { ToneBadge } from "./tone-badge";
+
+describe("mono chips, badges, avatars (L2-3, R-L2-1)", () => {
+  it("IconChip keeps its tone class and adds the round mono well", () => {
+    const { container } = render(<IconChip tone="teal" icon={BookIcon} />);
+    const chip = container.firstElementChild!;
+    expect(chip.className).toContain("bg-teal-tint");
+    expect(chip.className).toContain("liquid:bg-wash");
+    expect(chip.className).toContain("liquid:rounded-full");
+  });
+
+  it("ToneBadge becomes a pill and can carry a score dot", () => {
+    const { container } = render(<ToneBadge tone="green" dot="green">92</ToneBadge>);
+    const badge = container.firstElementChild!;
+    expect(badge.className).toContain("liquid:rounded-full");
+    expect(badge.querySelector("i")!.className).toContain("bg-green");
+  });
+
+  it("Avatar, IconButton and SegmentedControl add their liquid shapes", () => {
+    render(<Avatar name="Lin" tone="blue" />);
+    expect(screen.getByRole("img", { name: "Lin" }).className).toContain("liquid:bg-wash");
+    render(<IconButton label="返回">x</IconButton>);
+    expect(screen.getByRole("button", { name: "返回" }).className).toContain("liquid:rounded-full");
+    render(<SegmentedControl label="模式" value="a" onChange={() => {}} options={[{ value: "a", label: "A" }, { value: "b", label: "B" }]} />);
+    expect(screen.getByRole("radiogroup", { name: "模式" }).className).toContain("liquid:rounded-full");
+    expect(screen.getByRole("radio", { name: "A" }).className).toContain("liquid:text-blue");
+    expect(screen.getByRole("radio", { name: "B" }).className).not.toContain("liquid:text-blue");
+  });
+});

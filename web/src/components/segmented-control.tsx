@@ -12,6 +12,7 @@ export interface SegmentedOption<T extends string> {
 /**
  * 分段控件(radiogroup):轨道 surface-2(暗色下 seg-track),选中片 seg-on + 发丝线;
  * 视觉 32px、命中 44px(.hit-expand)。←/→ 循环切换,Home/End 到首尾。
+ * 液态皮肤(设计稿 .seg):井胶囊轨道 + 白色胶囊滑块,选中字是强调色。
  *   <SegmentedControl label="输入方式" value={mode} onChange={setMode}
  *     options={[{ value: "auto", label: "自动" }, { value: "ptt", label: "按住说话" }]} />
  */
@@ -63,7 +64,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={label}
       aria-disabled={disabled || undefined}
-      className={cn("inline-flex gap-0.5 rounded-badge bg-seg-track p-[3px]", disabled && "opacity-50", className)}
+      className={cn("inline-flex gap-0.5 rounded-badge bg-seg-track p-[3px] liquid:rounded-full liquid:bg-wash liquid:shadow-well", disabled && "opacity-50", className)}
     >
       {options.map((option, index) => {
         const checked = index === current;
@@ -83,10 +84,10 @@ export function SegmentedControl<T extends string>({
             onClick={() => select(index)}
             onKeyDown={onKeyDown}
             className={cn(
-              "hit-expand inline-flex h-8 min-w-14 items-center justify-center rounded-lg border-[0.5px] px-3 text-sub transition-colors duration-fast ease-standard",
+              "hit-expand inline-flex h-8 min-w-14 items-center justify-center rounded-lg border-[0.5px] px-3 text-sub transition-colors duration-fast ease-standard liquid:rounded-full",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               checked
-                ? "border-hair-2 bg-seg-on font-semibold text-ink shadow-seg"
+                ? "border-hair-2 bg-seg-on font-semibold text-ink shadow-seg liquid:border-transparent liquid:bg-surface liquid:text-blue liquid:shadow-[0_2px_8px_-3px_rgba(17,19,24,.25)] liquid:dark:bg-white/[.16]"
                 : "border-transparent bg-transparent font-medium text-ink-2",
               optionClassName,
             )}

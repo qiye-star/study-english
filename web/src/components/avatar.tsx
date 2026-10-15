@@ -14,6 +14,7 @@ const SIZE = {
 
 /**
  * 圆形首字头像。tone="neutral" 用于对话伙伴(对话与通话一致),"blue" 只用于用户本人。
+ * 液态皮肤:所有人都是中性井 + 墨色字母(.av)。
  * <Avatar name="Emma" size="sm" /> · <Avatar name={user.name} size="md" tone="blue" />
  */
 export function Avatar({
@@ -34,6 +35,7 @@ export function Avatar({
       className={cn(
         "inline-flex flex-none items-center justify-center rounded-full border-[0.5px] border-hair-2 font-semibold tracking-tightest",
         tone === "blue" ? "bg-blue-tint text-blue" : "bg-surface-2 text-ink",
+        "liquid:border-0 liquid:bg-wash liquid:text-ink liquid:shadow-well",
         SIZE[size],
         className,
       )}

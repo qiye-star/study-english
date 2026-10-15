@@ -21,7 +21,7 @@ export const IconButton = forwardRef<
       type={type}
       aria-label={label}
       className={cn(
-        "relative inline-flex h-tap w-tap flex-none items-center justify-center rounded-button transition-colors duration-fast",
+        "relative inline-flex h-tap w-tap flex-none items-center justify-center rounded-button transition-colors duration-fast liquid:rounded-full liquid:hover:bg-wash",
         "hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:h-[22px] [&_svg]:w-[22px]",
         tone === "blue" ? "text-blue" : "text-ink",
