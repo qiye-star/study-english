@@ -4,6 +4,7 @@ import { ScrollRootProvider } from "~/components/glass-top-bar";
 import { LookupLayer } from "~/features/lookup";
 import { ShadowSheetHost, ShadowSheetProvider } from "~/features/practice";
 import { BottomNav } from "./bottom-nav";
+import { GlassRoutePin } from "./glass-route-pin";
 import { useAppHeight } from "./use-app-height";
 
 /**
@@ -11,13 +12,15 @@ import { useAppHeight } from "./use-app-height";
  * 悬浮玻璃底栏浮在其上,main 底部留出 --tab-bar-space(index.css,计划 2026-10-14-floating-glass-bottom-bar R-F5),内容从玻璃下穿过;
  * DOCK / 输入条 sticky 或 absolute 在 main 的内容框下沿,因此自动停在胶囊上方 8px,不需要各自改。
  * 弹窗(ShadowSheetHost)与查词层并列,Provider 包住整个壳,各页面经 useShadowSheet() 打开。
+ * 液态玻璃(计划 2026-10-15-liquid-glass):外壳画 page-bg(只在 html[data-glass="v2"] 下生效);GlassRoutePin 给跟读库 / 更新日志路由钉回经典皮肤。
  */
 export function AppShell() {
   useAppHeight();
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
   return (
     <ShadowSheetProvider>
-      <div className="relative flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
+      <div className="page-bg relative flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
+        <GlassRoutePin />
         <ScrollRootProvider value={scrollRoot}>
           <main
             ref={setScrollRoot}
