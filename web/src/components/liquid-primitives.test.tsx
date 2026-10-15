@@ -171,3 +171,34 @@ describe("capsule and large title (L2-4, R-L2-3/4, Rule 4)", () => {
     expect(document.querySelector(".mat-chrome-bar")).not.toBeNull();
   });
 });
+
+import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "./bottom-sheet";
+
+describe("T3 sheet (L2-5, R-L2-5)", () => {
+  const sheet = (glass?: boolean) => (
+    <BottomSheet open>
+      <BottomSheetContent glass={glass} data-testid="sheet"><BottomSheetHeader title="对话设置" description="说明" /></BottomSheetContent>
+    </BottomSheet>
+  );
+
+  it("floats as a bezel + plate card with an unblurred scrim under liquid", () => {
+    setLiquid(true);
+    render(sheet());
+    const content = screen.getByTestId("sheet");
+    expect(content.className).toContain("mat-sheet");
+    expect(content.className).toContain("rounded-sheet-xl");
+    expect(content.className).toContain("inset-x-2");
+    expect(content.className).not.toContain("bg-surface");
+    expect(screen.getByTestId("sheet-overlay").className).toContain("bg-scrim");
+    expect(textOutsidePlates(content)).toEqual([]);
+  });
+
+  it("keeps the lookup glass branch byte-identical under liquid", () => {
+    setLiquid(true);
+    render(sheet(true));
+    const content = screen.getByTestId("sheet");
+    expect(content.className).toContain("glass-sheet");
+    expect(content.className).not.toContain("mat-sheet");
+    expect(screen.getByTestId("sheet-overlay").className).toContain("bg-[color:var(--lookup-scrim)]");
+  });
+});
