@@ -16,6 +16,7 @@ import {
 } from "./session-machine";
 import { SessionSummary, type SessionStats } from "./session-summary";
 import { DOCK, GHOST_DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
+import { Dock } from "~/components/dock";
 import { useRankEnabled } from "./use-rank-enabled";
 import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
@@ -273,7 +274,7 @@ export function WordbookLearnPage() {
           {actionError ? <p role="alert" className="mt-3 text-sub text-ink">{actionError}</p> : null}
         </div>
         {card.rating ? (
-          <div className={DOCK}>
+          <Dock className={DOCK}>
             {card.rating === "know" ? (
               <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} disabled={busy} onClick={() => void sendRating("unknown", true)}>
                 <RotateCcwIcon aria-hidden />{t("web.wordbook.learn.iWasWrong")}
@@ -283,7 +284,7 @@ export function WordbookLearnPage() {
               {last ? t("web.wordbook.learn.startQuiz") : t("web.wordbook.learn.next")}
               <ArrowRightIcon aria-hidden />
             </button>
-          </div>
+          </Dock>
         ) : (
           <RecallRatingBar busy={busy} peeked={card.peeked} onRate={(r) => void sendRating(r)} />
         )}
@@ -314,9 +315,9 @@ export function WordbookLearnPage() {
         {actionError ? <p role="alert" className="mt-3 text-sub text-ink">{actionError}</p> : null}
       </div>
       {result ? (
-        <div className={DOCK}>
+        <Dock className={DOCK}>
           <button ref={continueRef} type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
-        </div>
+        </Dock>
       ) : null}
     </div>
   );

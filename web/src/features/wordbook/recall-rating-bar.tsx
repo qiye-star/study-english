@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import type { Rating } from "./session-machine";
 import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
+import { Dock } from "~/components/dock";
 
 /**
  * 三档自评操作条(学新词与快速回忆共用;spec recall §3.1 / §8.2,视觉稿 01 / 02 / 05):
@@ -14,7 +15,7 @@ export function RecallRatingBar({ onRate, busy, peeked = false }: { onRate: (rat
   const { t } = useTranslation();
   const note = useId();
   return (
-    <div className={cn(DOCK, "flex-col")}>
+    <Dock className={cn(DOCK, "flex-col")}>
       {peeked ? (
         <p id={note} className="flex items-center gap-1.5 px-0.5 text-meta text-ink-2 plate liquid:rounded-full liquid:px-3 liquid:py-1">
           <EyeIcon aria-hidden className="h-[15px] w-[15px] flex-none text-amber" />{t("web.wordbook.learn.peekedNote")}
@@ -32,7 +33,7 @@ export function RecallRatingBar({ onRate, busy, peeked = false }: { onRate: (rat
           <CircleCheckIcon aria-hidden />{t("web.wordbook.learn.rate.know")}
         </button>
       </div>
-    </div>
+    </Dock>
   );
 }
 

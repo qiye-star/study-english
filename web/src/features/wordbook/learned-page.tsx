@@ -14,6 +14,7 @@ import { FreeReviewSheet } from "./free-review-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
 import { LQ_CHIP_ON } from "~/components/liquid";
 import { DOCK, GHOST_DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
+import { Dock } from "~/components/dock";
 import { useDebounced, useLearnedList, useLearnedSummary } from "./use-learned";
 import { useDefLangValue } from "./use-def-lang";
 import { useReturnFocus } from "./use-return-focus";
@@ -179,9 +180,9 @@ export function WordbookLearnedPage() {
         )}
       </div>
       {library ? (
-        <div className={DOCK}>
+        <Dock className={DOCK}>
           <button type="button" onClick={() => setFreeOpen(true)} className={cn(PRIMARY, "h-12 flex-1")}><PlayIcon aria-hidden />{t("web.wordbook.learned.free.title")}</button>
-        </div>
+        </Dock>
       ) : null}
       <CardSheet item={opened} onClose={() => setOpened(null)} />
       {library ? <FreeReviewSheet open={freeOpen} onOpenChange={setFreeOpen} summary={summary} /> : null}

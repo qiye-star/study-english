@@ -10,6 +10,7 @@ import { PlanRing } from "./plan-ring";
 import type { Rating } from "./session-machine";
 import { lookupContext } from "~/lib/lookup-context";
 import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
+import { Dock } from "~/components/dock";
 import { ListenButton, type ListenProps } from "./word-card";
 
 export interface SessionStats {
@@ -96,10 +97,10 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, note, homeL
           </SectionGroup>
         ) : null}
       </div>
-      <div className={DOCK}>
+      <Dock className={DOCK}>
         <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} onClick={onHome}>{homeLabel ?? t("web.wordbook.summary.home")}</button>
         {onAgain ? <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={onAgain}>{againLabel ?? t("web.wordbook.summary.again")}</button> : null}
-      </div>
+      </Dock>
     </>
   );
 }

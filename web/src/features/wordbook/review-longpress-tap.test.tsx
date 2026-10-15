@@ -131,3 +131,15 @@ describe("review page: bar vs DOCK vs tab bar stacking (class tokens; jsdom has 
     expect(z(bar)).toBeGreaterThan(30); // GlassTabBar is z-30
   });
 });
+
+describe("review page: the DOCK registers its space so the lookup bar lifts above it", () => {
+  it("--dock-space is set while the answered question's DOCK is mounted and removed afterwards", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 66, top: 0, bottom: 66, left: 0, right: 0, width: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+    const bar = await longPressOption();
+    expect(document.documentElement.style.getPropertyValue("--dock-space")).toBe("66px");
+    expect(bar.className).toContain("var(--dock-space,0px)");
+    await userEvent.setup().click(screen.getByRole("button", { name: "继续" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "继续" })).toBeNull());
+    expect(document.documentElement.style.getPropertyValue("--dock-space")).toBe("");
+  });
+});

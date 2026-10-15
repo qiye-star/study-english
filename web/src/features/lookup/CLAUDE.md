@@ -37,3 +37,4 @@ Public (`index.ts`): `LookupLayer`, `cachedTranslate`, `normalizeSelection`, `LO
 - Mark new English learning text with `{...lookupContext}` from `~/lib/lookup-context`, and list it in a `src/lookup-marks.<lane>.test.ts`.
 - Elements with their own long-press spread `ownLongPress`.
 - The bar is `.glass-pop`, and the drawer is `BottomSheetContent glass` (`.glass-sheet`); on library screens both are solid (`:has`, R-G5).
+- The bar sits above any visible bottom dock: `bottom-[calc(var(--tab-bar-space)+var(--dock-space,0px)+0.5rem)]`. `--dock-space` is written on `<html>` by `useDockSpace` / `<Dock>` (`~/components`); a NEW sticky/absolute bottom bar that the bar can overlap must register itself there (or the bar lands on its buttons), and locked pages (/library*, /practice/changelog) have no dock so the variable stays unset (plan `2026-10-15-lookup-bar-dock-space`).

@@ -8,6 +8,7 @@ import { translateServerError } from "~/api/error-messages";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { Dock } from "~/components/dock";
 import { IconButton } from "~/components/icon-button";
 import { IconChip } from "~/components/icon-chip";
 import { LQ_CHIP_ON, LQ_ON_BLUR, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
@@ -382,19 +383,19 @@ export function WordbookSpellPage() {
       ) : null}
 
       {phase === "typing" ? (
-        <div className="glass glass-edge-t sticky bottom-0 z-30 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
+        <Dock className="glass glass-edge-t sticky bottom-0 z-30 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
           <button type="button" className={PRIMARY} disabled={submitting} onMouseDown={keepFocus} onClick={() => void submit()}>
             {submitting ? t("web.wordbookSpell.submitting") : t("web.wordbookSpell.submit")}
           </button>
-        </div>
+        </Dock>
       ) : null}
       {phase === "results" ? (
-        <div className="glass glass-edge-t sticky bottom-0 z-30 flex gap-2 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
+        <Dock className="glass glass-edge-t sticky bottom-0 z-30 flex gap-2 px-gutter py-2.5 mat-chrome-bar liquid:mx-2 liquid:mb-2 liquid:rounded-float liquid:p-2">
           <button type="button" className={GHOST_DOCK} onClick={() => set && start(set, { retry: true })}>{t("web.wordbookSpell.again")}</button>
           <button type="button" className={PRIMARY} onClick={next}>
             {index + 1 < sets.length ? t("web.wordbookSpell.next") : t("web.wordbookSpell.finish")}
           </button>
-        </div>
+        </Dock>
       ) : null}
 
       {whyKey ? (

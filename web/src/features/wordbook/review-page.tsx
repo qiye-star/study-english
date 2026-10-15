@@ -19,6 +19,7 @@ import { answerCurrent, clampElapsed, isFinished, progressOf, startSession, type
 import { SessionSummary, type SessionStats } from "./session-summary";
 import { TypingQuestion } from "./typing-question";
 import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
+import { Dock } from "~/components/dock";
 import { useRankEnabled } from "./use-rank-enabled";
 import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
@@ -206,11 +207,11 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
             <p className="mt-1 text-sub text-ink-2">{t("web.wordbook.review.intro")}</p>
           </SurfaceCard>
         </div>
-        <div className={DOCK}>
+        <Dock className={DOCK}>
           <button type="button" className={cn(PRIMARY, "h-12 flex-1")} disabled={speaker.loading} onClick={() => void start()}>
             {due > 0 ? t("web.wordbook.card.review", { n: due }) : t("web.wordbook.review.start")}
           </button>
-        </div>
+        </Dock>
       </div>
     );
   }
@@ -320,14 +321,14 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
       </div>
       {recall && !answer && !check ? <RecallRatingBar busy={busy} onRate={rateRecall} /> : null}
       {answer ? (
-        <div className={DOCK}>
+        <Dock className={DOCK}>
           {recall && answer.result.rating === "know" ? (
             <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} disabled={busy} onClick={() => void iWasWrong()}>
               <RotateCcwIcon aria-hidden />{t("web.wordbook.learn.iWasWrong")}
             </button>
           ) : null}
           <button ref={continueRef} disabled={busy} type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={proceed}>{t("web.wordbook.quiz.continue")}</button>
-        </div>
+        </Dock>
       ) : null}
     </div>
   );

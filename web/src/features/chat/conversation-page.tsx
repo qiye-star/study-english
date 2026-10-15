@@ -9,6 +9,7 @@ import { useLiquid } from "~/lib/glass-flag";
 import { LQ_PAGE } from "~/components/liquid";
 import { levelLabel } from "~/lib/levels";
 import { GlassTopBar, useScrolled } from "~/components/glass-top-bar";
+import { useDockSpace } from "~/components/use-dock-space";
 import { IconButton } from "~/components/icon-button";
 import { streamChatCompletion } from "~/api/ai";
 import { ApiError } from "~/api/client";
@@ -267,6 +268,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   const listScrolled = useScrolled(listRef);
   // 输入条浮在列表上(玻璃,内容从下面穿过):列表底部留出它的实际高度(提示行折叠、文本框变高都会变)
   const composerRef = useRef<HTMLDivElement>(null);
+  // 同时把输入条的占位登记到 --dock-space,选词操作条据此抬到它上方
+  const dockRef = useDockSpace();
+  const setComposer = useCallback((el: HTMLDivElement | null) => { composerRef.current = el; dockRef(el); }, [dockRef]);
   const [composerHeight, setComposerHeight] = useState(0);
   useEffect(() => {
     const el = composerRef.current;
@@ -1281,7 +1285,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         })}
       </div>
       {/* 输入条(仿微信):提示行(琥珀,在玻璃里)+ 键盘/语音切换 + 按住说话长条或文本框 + 发送/丢弃 */}
-      <div ref={composerRef} data-testid="chat-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float liquid:pt-0.5">
+      <div ref={setComposer} data-testid="chat-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float liquid:pt-0.5">
         {holdHint && (
           <div data-testid="hold-hint" role="status" className="mx-1 mt-2 rounded-[10px] bg-surface-2 px-3 py-2 text-center text-sub font-medium text-ink plate liquid:rounded-[18px]">{holdHint.text}</div>
         )}

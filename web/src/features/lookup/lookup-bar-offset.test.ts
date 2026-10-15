@@ -8,9 +8,12 @@ const src = readFileSync(fileURLToPath(new URL("./lookup-bar.tsx", import.meta.u
 
 describe("LookupBar offset", () => {
   it("sits above the floating tab bar through the shared variable, not a hard-coded height", () => {
-    expect(src).toContain("bottom-[calc(var(--tab-bar-space)+0.5rem)]");
+    expect(src).toContain("bottom-[calc(var(--tab-bar-space)+var(--dock-space,0px)+0.5rem)]");
     expect(src).not.toContain("4.5rem");
     expect(src).not.toContain("safe-area-inset-bottom");
+  });
+  it("lifts above any visible dock through --dock-space (unset = unchanged resting offset)", () => {
+    expect(src).toContain("var(--dock-space,0px)");
   });
   it("is a floating rounded glass pill above the tab bar (plan 2026-10-15 R-G1, R-G2)", () => {
     for (const cls of ["glass-pop", "pop-halo", "h-[54px]", "rounded-[27px]", "p-1", "z-40", "select-none"]) expect(src).toContain(cls);

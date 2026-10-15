@@ -1,8 +1,9 @@
 import { AtSignIcon, KeyboardIcon, MicIcon, SendIcon, XIcon } from "lucide-react";
 import "./agents/locales";
-import { forwardRef, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { IconButton } from "~/components/icon-button";
+import { useDockSpace } from "~/components/use-dock-space";
 import { cn } from "~/lib/cn";
 import { applyMention, mentionOptions, mentionQuery, type MentionAgent, type MentionOption } from "./agents/mention-suggest";
 import { mentionsAi, ROOM_LIMITS } from "./protocol";
@@ -39,6 +40,13 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
   { disabled, offline = false, value, ai, banner, onDismiss, onChange, onSend, leading, target, onClearTarget, voice, above, mentions, groupPlaceholder }, ref) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
+  // 把输入条的占位登记到 --dock-space(选词操作条抬到它上方);外部 ref 照旧转发
+  const dockRef = useDockSpace();
+  const setRoot = useCallback((el: HTMLDivElement | null) => {
+    dockRef(el);
+    if (typeof ref === "function") ref(el);
+    else if (ref) ref.current = el;
+  }, [dockRef, ref]);
   const mention = mentionsAi(value).ai || /^@ai\s/i.test(value);
   const assist = target === "assist";
   const voiceMode = voice.available && voice.mode === "voice";
@@ -77,7 +85,7 @@ export const RoomComposer = forwardRef<HTMLDivElement, RoomComposerProps>(functi
     </span>
   ) : null;
   return (
-    <div ref={ref} data-testid="room-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float">
+    <div ref={setRoot} data-testid="room-composer" className="glass glass-edge-t absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-2 mat-chrome-bar liquid:inset-x-2 liquid:bottom-2 liquid:rounded-float">
       {banner && (
         <div role="status" className="mx-1 mb-2 flex min-h-8 items-center gap-1 rounded-badge bg-surface-2 pl-3 text-sub text-ink plate liquid:rounded-full">
           <span className="min-w-0 flex-1 py-1.5">{banner}</span>

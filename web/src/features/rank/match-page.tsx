@@ -6,6 +6,7 @@ import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { FeatureGate } from "~/components/feature-gate";
 import { HoldToTalkBar } from "~/components/hold-to-talk-bar";
+import { Dock } from "~/components/dock";
 import { ToneBadge } from "~/components/tone-badge";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { PageHeader } from "~/layout/page-header";
@@ -128,7 +129,7 @@ export function MatchPage() {
         )}
       </div>
       {match && live && (
-        <div data-testid="match-dock" className="glass glass-edge-t sticky bottom-0 z-30 px-3 pb-2 pt-1.5">
+        <Dock data-testid="match-dock" className="glass glass-edge-t sticky bottom-0 z-30 px-3 pb-2 pt-1.5">
           {m.micError && <p role="alert" data-testid="match-mic-error" className="mb-1 px-1 text-sub text-ink">{m.micError}</p>}
           {!m.micError && speakFailed && (phase === "your_turn" || phase === "recording") && (
             <p role="status" data-testid="match-speak-failed" className="mb-1 px-1 text-meta text-ink-2">{t("web.rank.match.speakFailed")}</p>
@@ -156,7 +157,7 @@ export function MatchPage() {
               onDiscard={() => m.cancel()}
               onRelease={m.prime} />
           </div>
-        </div>
+        </Dock>
       )}
       <BottomSheet open={phase === "briefing" && !!match} onOpenChange={(open) => { if (!open) navigate("/rank"); }}>
         <BottomSheetContent>
