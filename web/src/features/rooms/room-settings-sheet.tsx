@@ -17,6 +17,7 @@ import { SettingsFields } from "./create/settings-fields";
 import type { JoinRequestInfo, RoomInfo } from "./protocol";
 import type { RoomState } from "./room-state";
 import { closeRoom, fetchRoomsConfig, kickMember, leaveRoom, type RoomsConfig } from "./rooms-api";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_SECONDARY } from "~/components/liquid";
 
 interface Confirm { title: string; action: string; run(): Promise<void> }
 type SettingKey = keyof RoomSettingsInput;
@@ -25,7 +26,7 @@ function Group({ title, children, bare = false }: { title: string; children: Rea
   return (
     <section className="mt-section first:mt-0">
       <h3 className="mx-0.5 mb-2 text-sub font-semibold tracking-[0.01em] text-ink-2">{title}</h3>
-      {bare ? children : <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">{children}</div>}
+      {bare ? children : <div className="divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface well liquid:rounded-inset liquid:border-0">{children}</div>}
     </section>
   );
 }
@@ -132,11 +133,11 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
             <RoomAgentsSection room={room} owner={owner} live={live} tutorAvailable={!!config?.agentTutorAvailable} onChanged={onChanged} />
           )}
           {owner && (
-            <div className="mt-2 divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">
+            <div className="mt-2 divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface well liquid:rounded-inset liquid:border-0">
               <div className="flex min-h-row items-center justify-between gap-3 px-3.5 py-2.5">
                 <label htmlFor="room-lock" className="min-w-0 text-body font-medium text-ink">{t("web.rooms.settings.locked")}</label>
                 <Switch id="room-lock" data-testid="room-lock" checked={!!value.locked} onCheckedChange={(locked) => save({ locked })}
-                  className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+                  className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
               </div>
             </div>
           )}
@@ -162,7 +163,7 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
                 </span>
                 {owner && m.userId !== state.me?.userId && (
                   <button type="button" data-testid={`room-kick-${m.userId}`} disabled={busy}
-                    className="inline-flex h-tap flex-none items-center rounded-[9px] px-3 text-sub font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-40"
+                    className="inline-flex h-tap flex-none items-center rounded-[9px] px-3 text-sub font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-40 liquid:rounded-full liquid:hover:bg-wash"
                     onClick={() => setConfirm({ title: t("web.rooms.settings.kickConfirm", { name: m.name }), action: t("web.rooms.settings.kick"),
                       run: () => act(() => kickMember(api, room.id, m.userId)) })}>
                     {t("web.rooms.settings.kick")}
@@ -172,7 +173,7 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
             ))}
           </Group>
           {live && (
-            <div className="mt-section divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface">
+            <div className="mt-section divide-y-[0.5px] divide-hair-2 rounded-card border-[0.5px] border-hair bg-surface well liquid:rounded-inset liquid:border-0">
               <button type="button" data-testid="room-leave" disabled={busy} className="flex min-h-row w-full items-center justify-center text-body font-medium text-ink"
                 onClick={() => setConfirm({ title: t("web.rooms.settings.leaveConfirm"), action: t("web.rooms.settings.leave"),
                   run: () => act(async () => { await leaveRoom(api, room.id); navigate("/rooms"); }) })}>
@@ -190,14 +191,14 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
         </BottomSheetContent>
       </BottomSheet>
       <AlertDialog open={!!confirm} onOpenChange={(v) => { if (!v) setConfirm(null); }}>
-        <AlertDialogContent className="rounded-sheet border-[0.5px] border-hair bg-surface">
+        <AlertDialogContent className={`rounded-sheet border-[0.5px] border-hair bg-surface ${LQ_DIALOG}`}>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-title font-semibold text-ink">{confirm?.title}</AlertDialogTitle>
             <AlertDialogDescription className="sr-only">{t("web.rooms.settings.confirmHint")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11 rounded-button">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="room-confirm" className="h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90"
+            <AlertDialogCancel className={`h-11 rounded-button ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="room-confirm" className={`h-11 rounded-button bg-red-solid text-white hover:bg-red-solid/90 ${LQ_DANGER_TEXT}`}
               onClick={() => { const c = confirm; setConfirm(null); if (c) void c.run(); }}>{confirm?.action}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

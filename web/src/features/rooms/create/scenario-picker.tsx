@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "~/lib/cn";
 import type { RoomsConfig } from "../rooms-api";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 
 /** 场景名按界面语言取中文或英文(情景池由服务端下发,brief 不下发)。 */
 export function scenarioTitle(scenarios: RoomsConfig["scenarios"] | undefined, key: string, language: string): string {
@@ -26,7 +27,7 @@ export function ScenarioPicker({ scenarios, value, onChange, label, disabled = f
             onClick={() => { if (!on) onChange(s.key); }}
             className={cn("hit-expand inline-flex h-[34px] items-center rounded-badge px-3 text-sub transition-colors duration-fast",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
-              on ? "bg-blue-tint font-semibold text-blue" : "bg-surface-2 font-medium text-ink-2")}>
+              on ? `bg-blue-tint font-semibold text-blue ${LQ_CHIP_ON}` : `bg-surface-2 font-medium text-ink-2 ${LQ_CHIP}`)}>
             {scenarioTitle(scenarios, s.key, i18n.language)}
           </button>
         );

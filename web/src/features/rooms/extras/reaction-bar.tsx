@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "~/lib/cn";
 import { REACTION_GLYPHS, type ReactionInfo, type ReactionKey } from "../protocol";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 
 /**
  * 气泡下方的回应片「👍 2」(spec §6.4,视觉稿 V12 .rx):26px 高、13px、等宽数字;自己点过的片 blue-tint + 蓝字,点击切换。
@@ -22,7 +23,7 @@ export function ReactionBar({ reactions, meId, onToggle }: {
             onClick={() => onToggle(r.key, !mine)}
             className={cn("relative inline-flex h-[26px] items-center gap-1 rounded-[13px] px-[9px] text-sub tabular-nums transition-colors duration-fast",
               "before:absolute before:inset-x-0 before:-inset-y-[9px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              mine ? "bg-blue-tint font-semibold text-blue" : "bg-surface-2 text-ink")}>
+              mine ? `bg-blue-tint font-semibold text-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink ${LQ_CHIP}`)}>
             <span aria-hidden>{REACTION_GLYPHS[r.key]}</span>
             <span aria-hidden>{r.userIds.length}</span>
           </button>

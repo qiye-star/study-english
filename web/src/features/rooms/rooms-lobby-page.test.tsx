@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { ROOM } from "./room-fixtures";
 import { RoomsLobbyPage } from "./rooms-lobby-page";
@@ -159,5 +160,17 @@ describe("RoomsLobbyPage", () => {
       expect(polls()).toBe(after);
       visibility.mockRestore();
     });
+  });
+  it("liquid: large title and E1 row cards (plan 2026-10-15-liquid-glass L7)", async () => {
+    setLiquid(true);
+    try {
+      setup();
+      expect(await screen.findByRole("heading", { level: 1 })).toHaveClass("text-large");
+      const row = await screen.findByTestId("my-room");
+      expect(row.className).toContain("liquid:active:bg-wash");
+      expect((await screen.findByTestId("rooms-ended-link")).className).toContain("mat-surface");
+    } finally {
+      setLiquid(false);
+    }
   });
 });

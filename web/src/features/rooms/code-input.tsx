@@ -23,8 +23,8 @@ export function CodeInput({ value, onChange, onSubmit }: { value: string; onChan
       <span aria-hidden className="grid grid-cols-6 gap-2">
         {digits.map((d, i) => (
           <span key={i} data-testid="code-cell"
-            className={cn("flex h-14 items-center justify-center rounded-button border-[0.5px] border-hair bg-surface text-headline font-semibold tabular-nums text-ink",
-              focused && i === value.length && "shadow-[inset_0_0_0_1.5px_rgb(var(--blue))]")}>{d.trim()}</span>
+            className={cn("flex h-14 items-center justify-center rounded-button border-[0.5px] border-hair bg-surface text-headline font-semibold tabular-nums text-ink liquid:rounded-tile liquid:border-0 liquid:bg-wash",
+              focused && i === value.length ? "shadow-[inset_0_0_0_1.5px_rgb(var(--blue))] liquid:shadow-[inset_0_0_0_1.5px_rgb(var(--blue))]" : "liquid:shadow-well")}>{d.trim()}</span>
         ))}
       </span>
     </label>

@@ -9,6 +9,7 @@ import type { RoomsConfig } from "../rooms-api";
 import { fieldInput } from "../ui";
 import type { RoomSettingsInput } from "./rooms-v2-api";
 import { ScenarioPicker } from "./scenario-picker";
+import { LQ_ICON_WELL } from "~/components/liquid";
 
 /** 站点上限之外,房间人数上限永远 ≤ 8(spec §3.1)。 */
 export const ROOM_MAX_MEMBERS_CAP = 8;
@@ -47,15 +48,15 @@ function Segments<T extends string>({ labelledBy, describedBy, value, options, o
   };
   return (
     <div role="radiogroup" aria-labelledby={labelledBy} aria-describedby={describedBy} data-testid={testId} aria-disabled={disabled || undefined}
-      className={cn("flex gap-0.5 rounded-badge bg-seg-track p-0.5", disabled && "opacity-50")}>
+      className={cn("flex gap-0.5 rounded-badge bg-seg-track p-0.5 liquid:rounded-full liquid:bg-wash liquid:shadow-well", disabled && "opacity-50")}>
       {options.map((o, i) => {
         const on = i === current;
         return (
           <button key={o.value} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on}
             tabIndex={on || (current < 0 && i === 0) ? 0 : -1} disabled={disabled} onClick={() => pick(i)} onKeyDown={(e) => onKeyDown(e, i)}
-            className={cn("hit-expand flex min-w-0 flex-1 items-center justify-center rounded-lg px-1 text-sub font-semibold transition-colors duration-fast",
+            className={cn("hit-expand flex min-w-0 flex-1 items-center justify-center rounded-lg px-1 text-sub font-semibold transition-colors duration-fast liquid:rounded-full",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              on ? "bg-seg-on text-ink shadow-seg" : "text-ink-2", o.sub ? "h-11" : "h-8")}>
+              on ? "bg-seg-on text-ink shadow-seg liquid:bg-surface liquid:text-blue liquid:shadow-[0_2px_8px_-3px_rgba(17,19,24,.25)]" : "text-ink-2", o.sub ? "h-11" : "h-8")}>
             {o.sub ? (
               <span className="flex min-w-0 flex-col items-center leading-tight">
                 <span className="truncate">{o.label}</span>
@@ -80,7 +81,7 @@ function SwitchRow({ id, label, hint, checked, disabled, onChange }: {
         {hint && <span className="mt-0.5 block text-meta text-ink-2">{hint}</span>}
       </label>
       <Switch id={id} data-testid={id} checked={checked} disabled={disabled} onCheckedChange={onChange}
-        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
     </div>
   );
 }
@@ -141,7 +142,7 @@ export function SettingsFields({ value, onChange, config, mode, namePlaceholder,
         {t(joinMode === "approval" ? "web.rooms.v2.create.joinApprovalHint" : "web.rooms.v2.create.joinCodeHint")}
       </p>
 
-      <div className="mt-3 divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card bg-surface shadow-hair">
+      <div className="mt-3 divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card bg-surface shadow-hair well liquid:rounded-inset liquid:border-0">
         <div className="flex min-h-row items-center gap-3 py-1.5 pl-3.5 pr-1.5">
           <span id="room-max-members-label" className="min-w-0 flex-1 text-body font-medium text-ink">{t("web.rooms.v2.create.maxMembers")}</span>
           <div role="group" aria-labelledby="room-max-members-label" className="flex flex-none items-center">
@@ -168,7 +169,7 @@ function StepButton({ testId, label, disabled, onClick, children }: { testId: st
   return (
     <button type="button" data-testid={testId} aria-label={label} disabled={disabled} onClick={onClick}
       className="group inline-flex size-tap items-center justify-center rounded-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
-      <span aria-hidden className="inline-flex size-9 items-center justify-center rounded-badge bg-surface-2 text-ink transition-colors duration-fast group-active:bg-hair-2 [&_svg]:size-[18px]">
+      <span aria-hidden className={`inline-flex size-9 items-center justify-center rounded-badge bg-surface-2 text-ink transition-colors duration-fast group-active:bg-hair-2 [&_svg]:size-[18px] ${LQ_ICON_WELL}`}>
         {children}
       </span>
     </button>

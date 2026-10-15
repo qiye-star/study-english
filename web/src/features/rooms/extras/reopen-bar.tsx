@@ -9,6 +9,7 @@ import { ROOMS_ALL_SERVER_ERRORS } from "../create/rooms-v2-api";
 import type { RoomInfo } from "../protocol";
 import { getRoom, reopenRoom } from "../rooms-api";
 import { primaryButton } from "../ui";
+import { LQ_PANEL } from "~/components/liquid";
 
 /** 房主且不是管理员关闭的(管理员关闭的只有后台能重新开启);刚在房间里结束时,原因来自 closed 事件(closeReason)。 */
 export function canReopen(room: RoomInfo | null, closeReason: string | null, isOwner: boolean): boolean {
@@ -43,7 +44,7 @@ export function ReopenBar({ roomId, onReopened }: { roomId: string; onReopened: 
     }
   }
   return (
-    <section aria-label={t("web.rooms.reopen.title")} className="my-3 rounded-card bg-surface p-3.5 shadow-hair">
+    <section aria-label={t("web.rooms.reopen.title")} className={`my-3 rounded-card bg-surface p-3.5 shadow-hair ${LQ_PANEL}`}>
       <p className="text-sub text-ink-2">{t("web.rooms.reopen.hint")}</p>
       <button type="button" data-testid="room-reopen" disabled={busy} className={cn(primaryButton, "mt-3")} onClick={() => void go()}>
         <RotateCcwIcon aria-hidden />{busy ? t("web.rooms.ended.reopening") : t("web.rooms.reopen.action")}
