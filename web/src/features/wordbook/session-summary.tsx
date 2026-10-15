@@ -8,6 +8,7 @@ import { SurfaceCard } from "~/components/surface-card";
 import { NewAchievements } from "~/features/rank";
 import { PlanRing } from "./plan-ring";
 import type { Rating } from "./session-machine";
+import { lookupContext } from "~/lib/lookup-context";
 import { DOCK, GHOST, PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
 
@@ -84,7 +85,7 @@ export function SessionSummary({ stats, onAgain, againLabel, onHome, note, homeL
               <div key={m.key} className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-1.5">
                 <IconChip tone="gray" icon={RotateCcwIcon} />
                 <span className="min-w-0 flex-1">
-                  <span lang="en" className="block text-body font-medium">{m.word}</span>
+                  <span lang="en" {...lookupContext} className="block text-body font-medium">{m.word}</span>
                   <span className="mt-0.5 block truncate text-meta text-ink-2">{t("web.wordbook.summary.missedHint", { meaning: m.meaning })}</span>
                 </span>
                 <ListenButton id={`${m.key}:sum`} text={m.word} label={t("web.wordbook.word.listen.word")}

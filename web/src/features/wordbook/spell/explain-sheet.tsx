@@ -6,6 +6,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 import { cn } from "~/lib/cn";
+import { lookupContext } from "~/lib/lookup-context";
 import { useWordbookConfig } from "../use-wordbook-config";
 import { type Card, explainWord, WORDBOOK_SERVER_ERRORS } from "../wordbook-api";
 
@@ -81,7 +82,7 @@ export function ExplainSheet({ wordKey, open, onClose, card, note }: {
         ) : null}
         {ai.status === "ok" ? (
           <>
-            <p className="mt-2.5 whitespace-pre-wrap break-words text-body leading-[1.6] text-ink">{ai.text}</p>
+            <p {...lookupContext} className="mt-2.5 whitespace-pre-wrap break-words text-body leading-[1.6] text-ink">{ai.text}</p>
             <p className="mt-3 flex items-center gap-1.5 text-meta text-ink-2">
               <SparklesIcon aria-hidden className="h-3.5 w-3.5" />
               {t("web.wordbookSpell.aiSource")}
