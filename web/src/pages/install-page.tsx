@@ -13,9 +13,9 @@ export function InstallPage() {
   return (
     <div className="min-h-[100dvh]">
       <PageHeader title={t("web.install.title")} back="/me" />
-      <div className="px-gutter pb-6 pt-1">
+      <div className="px-gutter pb-6 pt-1 liquid:px-frame">
         <div className="flex items-center gap-3.5 px-0.5 pb-1">
-          <span aria-hidden className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-sheet bg-blue-tint text-blue">
+          <span aria-hidden className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-sheet bg-blue-tint text-blue well liquid:rounded-full liquid:text-ink">
             <SmartphoneIcon className="h-7 w-7" />
           </span>
           <p className="text-body text-ink-2">{t("web.install.lede")}</p>
@@ -23,7 +23,7 @@ export function InstallPage() {
         <ol className={`${LIST_CARD} mt-section`}>
           {steps.map((step, i) => (
             <li key={i} className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 text-body text-ink">
-              <span aria-hidden className="num flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-blue-tint text-sub font-semibold text-blue">
+              <span aria-hidden className="num flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-blue-tint text-sub font-semibold text-blue well liquid:text-ink">
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1">{step}</span>

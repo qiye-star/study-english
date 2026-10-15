@@ -11,7 +11,7 @@ import { validateCredentials } from "~/auth/validation";
 
 const LABEL = "text-[13px] font-medium text-ink-2"; // 经 cn 合并:用任意值字号,避免与颜色类冲突
 /** 48px 输入框:surface-2 底、无边框,聚焦时蓝色描边;16px 字号避免 iOS 聚焦缩放 */
-const FIELD = "h-12 rounded-button border-0 bg-surface-2 px-3.5 text-base text-ink shadow-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-0";
+const FIELD = "h-12 rounded-button border-0 bg-surface-2 px-3.5 text-base text-ink shadow-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-0 liquid:h-11 liquid:rounded-full liquid:border-0 liquid:bg-wash liquid:shadow-well liquid:focus-visible:ring-blue/35";
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -49,16 +49,16 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col justify-center bg-background px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+    <div className="flex min-h-[100dvh] flex-col justify-center bg-background px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] page-bg">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span aria-hidden className="flex h-[60px] w-[60px] items-center justify-center rounded-sheet bg-blue-tint text-blue">
+          <span aria-hidden className="flex h-[60px] w-[60px] items-center justify-center rounded-sheet bg-blue-tint text-blue well liquid:rounded-full liquid:text-ink">
             <MicIcon className="h-7 w-7" />
           </span>
           <h1 className="mt-4 text-headline font-semibold text-ink">{t("web.appName")}</h1>
           <p className="mt-1 text-sub text-ink-2">{t("web.login.tagline")}</p>
         </div>
-        <form onSubmit={submit} className="space-y-4" noValidate>
+        <form onSubmit={submit} className="space-y-4 mat-surface-strong liquid:rounded-panel liquid:p-4" noValidate>
           <div className="space-y-1.5">
             <Label htmlFor="username" className={LABEL}>{t("web.login.username")}</Label>
             <Input id="username" data-testid="login-username" autoComplete="username" autoCapitalize="none"
@@ -82,7 +82,7 @@ export function LoginPage() {
           {error && (
             <p role="alert" data-testid="login-error" className="text-sub text-destructive">{error}</p>
           )}
-          <Button type="submit" data-testid="login-submit" className="!mt-6 h-12 w-full rounded-button text-[15px] font-semibold" disabled={busy}>
+          <Button type="submit" data-testid="login-submit" className="!mt-6 h-12 w-full rounded-button text-[15px] font-semibold liquid:!rounded-full liquid:shadow-accent" disabled={busy}>
             {mode === "login" ? t("web.login.submit") : t("web.login.registerSubmit")}
           </Button>
         </form>
