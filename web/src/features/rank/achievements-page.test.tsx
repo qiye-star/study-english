@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { AchievementsPage } from "./achievements-page";
 import { CONTRACT, inChinese } from "./test-contract";
@@ -65,5 +66,19 @@ describe("AchievementsPage", () => {
   it("shows the disabled note when rank is off", async () => {
     setup([], false);
     expect(await screen.findByText("段位赛未开启。")).toBeTruthy();
+  });
+
+  it("liquid: earned tiles are ink icons in a well, still without red", async () => {
+    setLiquid(true);
+    try {
+      setup([{ key: "streak_3", group: "streak", icon: "flame", unlocked_at: "2026-11-05T08:00:00+00:00" }]);
+      const cell = (await screen.findAllByTestId("achievement"))[0];
+      const disc = cell.querySelector("[data-testid=achievement-icon]")!.className;
+      expect(disc).toContain("liquid:bg-wash");
+      expect(cell.className).toContain("mat-surface");
+      expect(cell.innerHTML).not.toMatch(/text-red|bg-red/);
+    } finally {
+      setLiquid(false);
+    }
   });
 });

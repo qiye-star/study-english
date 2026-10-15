@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
+import { LQ_BAR_TRACK, LQ_PANEL } from "~/components/liquid";
 import { cn } from "~/lib/cn";
 import { fetchRankConfig, type RankMe } from "./rank-api";
 import { loadRankMe } from "./rank-me";
@@ -33,7 +34,7 @@ export function RankCard({ className }: { className?: string }) {
   const name = `${t(`web.rank.tiers.${me.tier}`)} ${divisionLabel(me.division)}`.trim();
   return (
     <Link to="/rank" data-testid="rank-card" aria-label={`${t("web.rank.card.open")}: ${name}`}
-      className={cn("flex min-h-row items-center gap-3.5 rounded-card border-[0.5px] border-hair bg-surface p-3.5 pb-4 shadow-card transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-none", className)}>
+      className={cn("flex min-h-row items-center gap-3.5 rounded-card border-[0.5px] border-hair bg-surface p-3.5 pb-4 shadow-card transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-none liquid:px-4", LQ_PANEL, className)}>
       <TierBadge tier={me.tier} division={me.division} />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
@@ -41,7 +42,7 @@ export function RankCard({ className }: { className?: string }) {
           <span className="text-meta tabular-nums text-ink-2">{t("web.rank.card.progress", { rp: me.rp, size: me.divisionRp })}</span>
         </span>
         <span role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
-          className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-2">
+          className={cn("mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-2", LQ_BAR_TRACK)}>
           <span className="block h-full rounded-full bg-blue" style={{ width: `${ratio * 100}%` }} />
         </span>
         <span className={cn("mt-1.5 block text-meta", eligible ? "font-semibold text-blue" : "text-ink-2")}>{hint}</span>

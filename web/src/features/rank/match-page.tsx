@@ -9,6 +9,7 @@ import { HoldToTalkBar } from "~/components/hold-to-talk-bar";
 import { ToneBadge } from "~/components/tone-badge";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { PageHeader } from "~/layout/page-header";
+import { LQ_PAGE, LQ_TILE } from "~/components/liquid";
 import { cn } from "~/lib/cn";
 import { MatchResult } from "./match-result";
 import type { Match } from "./rank-api";
@@ -87,14 +88,14 @@ export function MatchPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title={t("web.rank.match.title")} back="/rank" subtitle={subtitle} />
-      <div data-testid="match-turns" data-phase={phase} className="flex flex-1 flex-col justify-end gap-3 px-gutter pb-3.5 pt-2">
+      <div data-testid="match-turns" data-phase={phase} className={`flex flex-1 flex-col justify-end gap-3 px-gutter pb-3.5 pt-2 ${LQ_PAGE}`}>
         {phase === "loading" && (
           <p className="flex justify-center py-16 text-ink-2"><LoaderIcon className="size-5 animate-spin" aria-label={t("web.common.loading")} /></p>
         )}
         {match && phase !== "briefing" && <ScenarioCard match={match} />}
         {match && phase !== "briefing" && match.turns.map((item, i) => item.role === "ai" ? (
           <div key={i} data-testid="match-ai-line"
-            className="max-w-[88%] self-start break-words rounded-card rounded-tl-inline border-[0.5px] border-hair bg-surface px-3 py-2.5 text-body leading-dialogue">
+            className={`max-w-[88%] self-start break-words rounded-card rounded-tl-inline border-[0.5px] border-hair bg-surface px-3 py-2.5 text-body leading-dialogue ${LQ_TILE} liquid:rounded-tl-tail`}>
             <div className="mb-[3px] flex items-center gap-1.5 text-label font-semibold uppercase tracking-eyebrow text-ink-2">
               {i === lastIndex && phase === "ai_speaking" ? <Volume2Icon aria-hidden className="size-3.5" /> : <UserRoundIcon aria-hidden className="size-3.5" />}
               {i === lastIndex && phase === "ai_speaking" ? `${t("web.rank.match.partner")} · ${t("web.rank.match.speaking")}` : t("web.rank.match.partner")}
@@ -103,7 +104,7 @@ export function MatchPage() {
           </div>
         ) : (
           <div key={i} data-testid="match-user-line" {...lookupContext}
-            className="max-w-[88%] self-end break-words rounded-card rounded-tr-inline bg-blue-tint px-3 py-2.5 text-body leading-dialogue text-ink">
+            className="max-w-[88%] self-end break-words rounded-card rounded-tr-inline bg-blue-tint px-3 py-2.5 text-body leading-dialogue text-ink liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite">
             {item.text}
           </div>
         ))}

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "~/auth/auth-context";
 import { FeatureGate, type GateState } from "~/components/feature-gate";
+import { LQ_ICON_WELL, LQ_PAGE, LQ_TILE } from "~/components/liquid";
 import { SectionGroup } from "~/components/section-group";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
@@ -22,8 +23,8 @@ const ICONS: Record<string, LucideIcon> = {
   "shield-star": ShieldCheckIcon, diamond: DiamondIcon, crown: CrownIcon, book: LibraryBigIcon,
 };
 /** 一色一义(设计稿 R5):连续 = amber、发音 = green、词汇 = teal、段位图形 = 墨色,其余(段位、对话、联机、赛季)= blue。 */
-const TONES: Record<string, string> = { streak: "bg-amber-tint text-amber", vocab: "bg-teal-tint text-teal", speech: "bg-green-tint text-green" };
-const TIER_TONE = "bg-surface-2 text-ink";
+const TONES: Record<string, string> = { streak: `bg-amber-tint text-amber ${LQ_ICON_WELL}`, vocab: `bg-teal-tint text-teal ${LQ_ICON_WELL}`, speech: `bg-green-tint text-green ${LQ_ICON_WELL}` };
+const TIER_TONE = `bg-surface-2 text-ink ${LQ_ICON_WELL}`;
 const SEASON = /^season_(\d+)_([a-z]+)$/;
 const TIER_ACHIEVEMENT = /^tier_[a-z]+$/;
 
@@ -45,7 +46,7 @@ export function iconFor(item: AchievementItem): LucideIcon {
 
 export function toneFor(item: AchievementItem): string {
   if (SEASON.test(item.key) || TIER_ACHIEVEMENT.test(item.key)) return TIER_TONE;
-  return TONES[item.group] ?? "bg-blue-tint text-blue";
+  return TONES[item.group] ?? `bg-blue-tint text-blue ${LQ_ICON_WELL}`;
 }
 
 function formatDay(iso: string, language: string): string {
@@ -84,7 +85,7 @@ export function AchievementsPage() {
       <PageHeader title={t("web.rank.achievements.title")} back="/rank"
         subtitle={state === "ready" ? <span data-testid="achievements-count" className="tabular-nums">{`${unlocked}/${items.length}`}</span> : undefined} />
       <FeatureGate state={state} disabledText={t("web.rank.disabled")} onRetry={() => setAttempt((n) => n + 1)}>
-        <div className="px-gutter pb-8">
+        <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
           {groups.filter((g) => items.some((i) => i.group === g)).map((group, index) => (
             <SectionGroup key={group} title={t(`web.rank.achievements.groups.${group}`, { defaultValue: group })} bare className={index === 0 ? "-mt-[18px]" : undefined}>
               <ul className="grid grid-cols-3 gap-2">
@@ -94,9 +95,9 @@ export function AchievementsPage() {
                   const condition = achievementCondition(t, item.key);
                   return (
                     <li key={item.key} data-testid="achievement" data-unlocked={String(on)}
-                      className="flex min-h-[112px] flex-col items-center rounded-card border-[0.5px] border-hair bg-surface px-1.5 pb-2.5 pt-3 text-center">
+                      className={cn("flex min-h-[112px] flex-col items-center rounded-card border-[0.5px] border-hair bg-surface px-1.5 pb-2.5 pt-3 text-center", LQ_TILE)}>
                       <span data-testid="achievement-icon" aria-hidden
-                        className={cn("flex size-11 items-center justify-center rounded-full", on ? toneFor(item) : "bg-surface-2 text-ink-3")}>
+                        className={cn("flex size-11 items-center justify-center rounded-full", on ? toneFor(item) : cn("bg-surface-2 text-ink-3", LQ_ICON_WELL, "liquid:text-ink-3"))}>
                         <Icon className="size-[22px]" />
                       </span>
                       <b className={cn("mt-2 text-sub font-semibold tracking-[-0.005em]", on ? "text-ink" : "text-ink-2")}>{achievementTitle(t, item.key)}</b>

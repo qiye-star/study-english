@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { RankCard } from "./rank-card";
 import { CONTRACT, inChinese } from "./test-contract";
@@ -58,5 +59,17 @@ describe("RankCard", () => {
   it("shows the points still needed when locked", async () => {
     setup(true, { ...CONTRACT.me, division: 2, rp: 30, promotion: { ...CONTRACT.me.promotion, state: "locked", reason: "rp" } });
     expect((await screen.findByTestId("rank-card")).textContent).toContain("再练 210 点到晋级门");
+  });
+
+  it("liquid: E1 panel with the accent progress bar on a wash track (plan 2026-10-15-liquid-glass L8)", async () => {
+    setLiquid(true);
+    try {
+      setup(true);
+      const bar = await screen.findByRole("progressbar");
+      expect(bar.className).toContain("liquid:bg-wash-2");
+      expect(bar.closest("a")!.className).toContain("mat-surface");
+    } finally {
+      setLiquid(false);
+    }
   });
 });
