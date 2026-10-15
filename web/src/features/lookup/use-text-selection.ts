@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LOOKUP_CONTEXT_SELECTOR } from "~/lib/lookup-context";
 import { normalizeSelection } from "./lookup";
 
 export interface TextSelectionInfo {
@@ -6,7 +7,7 @@ export interface TextSelectionInfo {
   context: string;
 }
 
-export const LOOKUP_CONTEXT_SELECTOR = "[data-lookup-context]";
+export { LOOKUP_CONTEXT_SELECTOR }; // 唯一来源在 ~/lib/lookup-context(计划 2026-10-15 R-M1)
 const EDITABLE_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 const MAX_TEXT = 1000;
 const MAX_CONTEXT = 300;
@@ -100,6 +101,11 @@ export function useTextSelection(debounceMs = 300, doc: Document = document) {
     clearTimeout(graceTimer.current);
     graceTimer.current = setTimeout(() => setSelection(readSelection(doc.getSelection())), PRESS_GRACE_MS + 20);
   }, [doc]);
+  /** 立刻读一次选区(全站长按选中词之后用,不等 300 ms 防抖);按住操作条期间与其后的宽限期内不读(R-L8)。 */
+  const readNow = useCallback(() => {
+    if (held()) return;
+    setSelection(readSelection(doc.getSelection()));
+  }, [doc]); // eslint-disable-line react-hooks/exhaustive-deps
   const clear = useCallback(() => {
     pressing.current = false;
     graceUntil.current = 0;
@@ -107,5 +113,5 @@ export function useTextSelection(debounceMs = 300, doc: Document = document) {
     setSelection(null);
     doc.getSelection()?.removeAllRanges();
   }, [doc]);
-  return { selection, clear, press, release };
+  return { selection, clear, press, release, readNow };
 }
