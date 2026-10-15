@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { cn } from "@renderer/lib/utils";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
+import { LQ_PAGE } from "~/components/liquid";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { PageHeader } from "~/layout/page-header";
 import { flagsFromConfig, setLinkFlags, type LinkKey } from "~/lib/extension-points";
@@ -58,7 +59,7 @@ export function LinksSettingsPage() {
   return (
     <div>
       <PageHeader title={t("web.links.settings.title")} back="/me" />
-      <div className="px-gutter pb-6">
+      <div className={`px-gutter pb-6 ${LQ_PAGE}`}>
         <p className="px-0.5 pt-1 text-sub text-ink-2">{t("web.links.settings.lede")}</p>
         {state.status === "loading" && (
           <div data-testid="links-settings-loading" className="flex justify-center py-16 text-ink-2">
@@ -84,7 +85,7 @@ export function LinksSettingsPage() {
                       aria-label={title} data-testid={`link-switch-${item.key}`} onClick={() => void toggle(item)}
                       className={cn(
                         "hit-expand relative inline-flex h-[26px] w-11 flex-none items-center rounded-full transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        item.effective ? "bg-blue" : "bg-surface-2 shadow-hair",
+                        item.effective ? "bg-blue" : "bg-surface-2 shadow-hair liquid:bg-wash-2",
                         !item.global && "cursor-not-allowed opacity-50",
                       )}>
                       <span aria-hidden className={cn(

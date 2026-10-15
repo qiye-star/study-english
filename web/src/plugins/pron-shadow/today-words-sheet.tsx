@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
+import { LQ_INK } from "~/components/liquid";
 import type { TodayWord } from "./pron-api";
 
 /** 「今日新词例句」面板:每行 = 词 + 例句(英)+ 中文小字;没有例句的词禁用。懒加载。 */
@@ -22,7 +23,7 @@ export function TodayWordsSheet({ items, open, onOpenChange, onPick }: {
                 <button type="button" data-testid={`today-word-${item.key}`} disabled={!example}
                   onClick={() => example && onPick(example.en)}
                   className="flex min-h-tap w-full flex-col items-start gap-0.5 py-2.5 text-left transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed">
-                  <span lang="en" className="text-body font-semibold text-teal">{item.word}</span>
+                  <span lang="en" className={`text-body font-semibold text-teal ${LQ_INK}`}>{item.word}</span>
                   {example ? (
                     <>
                       <span lang="en" className="text-body text-ink">{example.en}</span>
