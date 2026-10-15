@@ -1,0 +1,133 @@
+import "fake-indexeddb/auto";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiClient } from "~/api/client";
+import { resetServerAiConfigCache } from "~/api/server-config";
+import { LookupLayer } from "~/features/lookup";
+import i18n from "~/i18n";
+import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
+import { renderWithProviders } from "~/test/render";
+import { WordbookReviewPage } from "./review-page";
+import { CONFIG, ENROLLED_TODAY, PLAN, defsCard } from "./test-fixtures";
+
+vi.mock("~/features/chat/use-tts-player", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/features/chat/use-tts-player")>()),
+  useTtsPlayer: () => ({ states: {}, play: vi.fn(), playQueue: vi.fn(), stop: vi.fn(), prime: vi.fn() }),
+}));
+
+const TTS = {
+  "GET /api/config/gpt_providers": () => json({ enjoyai: { models: [] } }),
+  "GET /api/config/default_gpt_preset": () => json({ configuration: {} }),
+  "GET /api/config/tts_providers_v2": () => json({ enjoyai: { models: ["openai/tts-1"], voices: {} } }),
+  "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }),
+};
+const OPT = "vt. 接受；承认";
+const Q1 = { key: "accept", qtype: "meaning", prompt: { word: "accept", us: "x" }, options: ["v. 放弃；抛弃", OPT, "v. 携带；搬运", "v. 停止"], length: null as number | null };
+const Q2 = { key: "carry", qtype: "word", prompt: { meaning: "v. 携带；搬运" }, options: ["stop", "carry", "go", "child"], length: null as number | null };
+const BATCH = { book_id: "cet4", questions: [Q1, Q2], cards: [defsCard("accept", { senses: [{ pos: "vt", text: "接受" }] }), defsCard("carry", { senses: [{ pos: "vt", text: "携带" }] })] };
+const info = (option: string, word: string) => ({ option, word, defs_zh: [{ pos: "v", text: "释义" }], defs_en: [] as unknown[] });
+const OPTION_INFO = [info("v. 放弃；抛弃", "abandon"), info(OPT, "accept"), info("v. 携带；搬运", "carry"), info("v. 停止", "stop")];
+
+function answerRoute(call: RecordedCall) {
+  const body = JSON.parse(String(call.body)) as { key: string; choice?: string };
+  const ok = body.choice === OPT;
+  return json({ correct: ok, outcome: ok ? "correct" : "wrong", grade: ok ? "good" : "forgot", expected: body.key, correct_option: OPT, diff: null, item: { box: 2, due_at: "x" }, applied: true, rating: null, spot_check: false, check: null, option_info: OPTION_INFO });
+}
+
+function setup() {
+  const mock = createFetchMock({
+    ...TTS,
+    "GET /api/wordbook/config": () => json(CONFIG),
+    "GET /api/wordbook/today": () => json({ ...ENROLLED_TODAY, plan: { ...PLAN, review_due: 2, review_left: 2 } }),
+    "POST /api/wordbook/review/batch": () => json(BATCH),
+    "POST /api/wordbook/answers": answerRoute,
+    "POST /api/dictionary/lookup": () => json({ hit: false }),
+    "POST /api/lookup": () => json({ word: "carry", definition: "d", translation: "t" }),
+  });
+  renderWithProviders(<><WordbookReviewPage /><LookupLayer /></>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/wordbook/review" });
+  return mock;
+}
+
+const rows = () => screen.getAllByTestId("choice-option");
+const sleep = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
+
+beforeEach(() => {
+  localStorage.clear();
+  resetServerAiConfigCache();
+  localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
+  void i18n.changeLanguage("zh-CN");
+  setLiquid(true);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  setLiquid(false);
+  window.getSelection()?.removeAllRanges();
+  localStorage.removeItem("enjoy-web.settings");
+  void i18n.changeLanguage("en");
+});
+
+/** The browser collapses the selection when a finger lands on non-selected content (Android). */
+const collapseNative = () => {
+  window.getSelection()?.removeAllRanges();
+  document.dispatchEvent(new Event("selectionchange"));
+};
+
+async function longPressOption() {
+  const user = userEvent.setup();
+  setup();
+  await user.click(await screen.findByRole("button", { name: "开始复习 2" }));
+  await user.click(await screen.findByRole("button", { name: /v\. 放弃；抛弃/ }));
+  await screen.findAllByTestId("choice-option");
+  fireEvent.pointerDown(rows()[2], { pointerId: 1, pointerType: "touch", clientX: 10, clientY: 10, button: 0, isPrimary: true });
+  await waitFor(() => expect(window.getSelection()?.toString()).toBe("carry"), { timeout: 1500 });
+  fireEvent.pointerUp(rows()[2], { pointerId: 1, pointerType: "touch" });
+  return screen.findByTestId("lookup-bar");
+}
+
+describe("review page: tapping the lookup bar after an own long press (owner report)", () => {
+  it("a touch tap whose touchstart collapses the selection still opens the drawer, and the question does not advance", async () => {
+    const bar = await longPressOption();
+    const trigger = within(bar).getByTestId("lookup-trigger");
+    // finger down on the bar: pointerdown, touchstart, then the OS collapses the selection
+    fireEvent.pointerDown(trigger, { pointerId: 2, pointerType: "touch", isPrimary: true });
+    fireEvent.touchStart(trigger);
+    collapseNative();
+    await sleep(350); // longer than the 300 ms debounce: the bar must survive the held press
+    expect(screen.queryByTestId("lookup-bar")).not.toBeNull();
+    fireEvent.pointerUp(trigger, { pointerId: 2, pointerType: "touch" });
+    fireEvent.touchEnd(trigger);
+    await sleep(100);
+    fireEvent.mouseDown(trigger);
+    fireEvent.mouseUp(trigger);
+    fireEvent.click(trigger);
+    expect(await screen.findByTestId("lookup-drawer")).toBeTruthy();
+    expect(screen.getByTestId("lookup-drawer")).toHaveTextContent("carry");
+    expect(screen.getAllByTestId("choice-option")).toHaveLength(4); // still on the answered question
+    expect(screen.getByRole("button", { name: "继续", hidden: true })).toBeTruthy(); // Radix hides the page behind the open drawer
+  });
+
+  it("the bar is not unmounted by the grace timer while a click is still on its way (slow Android click, 550 ms after release)", async () => {
+    const bar = await longPressOption();
+    const trigger = within(bar).getByTestId("lookup-trigger");
+    fireEvent.pointerDown(trigger, { pointerId: 2, pointerType: "touch", isPrimary: true });
+    fireEvent.touchStart(trigger);
+    collapseNative();
+    fireEvent.pointerUp(trigger, { pointerId: 2, pointerType: "touch" });
+    fireEvent.touchEnd(trigger);
+    await sleep(550);
+    fireEvent.click(trigger);
+    expect(await screen.findByTestId("lookup-drawer")).toBeTruthy();
+  });
+});
+
+describe("review page: bar vs DOCK vs tab bar stacking (class tokens; jsdom has no layout)", () => {
+  it("the bar's z-index is above the DOCK's and the tab bar's", async () => {
+    const bar = await longPressOption();
+    const z = (el: Element) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(el.className)?.[1] ?? "0");
+    const dock = screen.getByRole("button", { name: "继续" }).parentElement!;
+    expect(z(bar)).toBeGreaterThan(z(dock));
+    expect(z(bar)).toBeGreaterThan(30); // GlassTabBar is z-30
+  });
+});
