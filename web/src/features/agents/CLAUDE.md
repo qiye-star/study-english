@@ -45,3 +45,4 @@ agents 全部懒加载;主包净增量预算 ≤ 0.2 kB gzip(`yarn web:build && 
 - SSE `meta` 事件省略 null 键(导师的 `verdict` / `say` 等):`TurnMeta` 里都是可选键,缺省当作 null。
 - 文案键一律 `web.agents.*`;服务端步骤标签 `agents.step.<key>` 映射到 `web.agents.step.<key>`,未知键回落 `web.agents.step.unknown`。
 - 一色一义:蓝 = 操作/进行中,青 = 词汇与查词工具,琥珀 = 读个人数据 / 仅你可见,绿 = 完成,红 = 失败(跳过是中性)。
+- Liquid glass (plan 2026-10-15-liquid-glass L6): selection = graphite chip (`LQ_CHIP_ON`), notes = neutral wells (`LQ_NOTE`), status icons keep their 16px colour; the tutor entry / tutor bar / persona chip inside the chat composer sit on `plate` (Rule 4). Only `liquid:` classes are appended; the classic look is unchanged.
