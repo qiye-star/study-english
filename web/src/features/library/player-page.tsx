@@ -247,7 +247,7 @@ function Player({ detail, ai }: { detail: LibraryItemDetail; ai: boolean }) {
           <button type="button" data-testid="library-loop" className="lib-chip" disabled={!controller} aria-pressed={loop !== "off"}
             aria-label={t(`web.library.player.loop.${loop}`)} onClick={() => controller?.setLoop(nextLoop(loop))}>
             {loop === 3 || loop === 5 ? <Repeat1Icon aria-hidden /> : <RepeatIcon aria-hidden />}
-            <span aria-hidden className="num">{loop === "infinite" ? "∞" : loop === "off" ? t("web.library.player.chipLoop") : `×${loop}`}</span>
+            <span aria-hidden className="num">{loop === "infinite" ? "∞" : loop === "off" ? t("web.library.player.chipLoop") : loop === "once" ? "1⏸" : `×${loop}`}</span>
           </button>
           <button type="button" ref={rateButton} data-testid="library-rate" className="lib-chip" disabled={!controller} aria-expanded={rateOpen}
             aria-label={t("web.library.player.rate", { rate })} onClick={() => setRateOpen((open) => !open)}>

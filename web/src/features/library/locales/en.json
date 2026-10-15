@@ -139,7 +139,8 @@
           "off": "Loop off",
           "infinite": "Loop this sentence",
           "3": "Loop each sentence 3 times",
-          "5": "Loop each sentence 5 times"
+          "5": "Loop each sentence 5 times",
+          "once": "Play one sentence, then pause"
         },
         "rate": "Speed {{rate}}x",
         "blind": "Hide text",

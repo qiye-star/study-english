@@ -10,8 +10,9 @@ export const PAD_AFTER_MS = 250;
 /** 库自己的速度档位(不碰全局 PLAYBACK_RATES,那是给 TTS 的;spec §11.4)。 */
 export const RATES = [0.5, 0.75, 1, 1.25] as const;
 export type Rate = (typeof RATES)[number];
-export type LoopMode = "off" | "infinite" | 3 | 5;
-export const LOOP_MODES: readonly LoopMode[] = ["off", "infinite", 3, 5];
+/** "once" = 每句只播一遍,播完暂停;再按播放接着下一句(逐句模式)。排在最后,保持 关→单句循环→×3→×5 的原有点按顺序。 */
+export type LoopMode = "off" | "infinite" | 3 | 5 | "once";
+export const LOOP_MODES: readonly LoopMode[] = ["off", "infinite", 3, 5, "once"];
 
 export interface Seg { idx: number; startMs: number; endMs: number }
 
@@ -185,7 +186,13 @@ export class PlayerController {
         this.media.pause();
         return;
       }
-      const total = loop === "infinite" ? Number.POSITIVE_INFINITY : (loop as number);
+      if (loop === "once") {
+        // 逐句模式:播完(含尾巴)就停;released 让续播时不再钉在这句,自然进入下一句并再次钉住。
+        this.released = index;
+        this.media.pause();
+        return;
+      }
+      const total = loop === "infinite" ? Number.POSITIVE_INFINITY : loop === "off" ? 1 : loop;
       if (repeats + 1 < total) {
         this.patch({ repeats: repeats + 1 });
         this.media.currentTime = startOf(this.segs, index);

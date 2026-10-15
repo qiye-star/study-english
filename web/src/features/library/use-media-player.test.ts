@@ -71,7 +71,7 @@ describe("pure helpers", () => {
     expect(rateFromPct(200)).toBe(1.25);
     expect(rateFromPct(null)).toBe(1);
     expect(pctFromRate(0.75)).toBe(75);
-    expect(["off", "infinite", 3, 5, "off"].slice(1)).toEqual([nextLoop("off"), nextLoop("infinite"), nextLoop(3), nextLoop(5)]);
+    expect(["infinite", 3, 5, "once", "off"]).toEqual([nextLoop("off"), nextLoop("infinite"), nextLoop(3), nextLoop(5), nextLoop("once")]);
     expect([nextRate(0.5), nextRate(0.75), nextRate(1), nextRate(1.25)]).toEqual([0.75, 1, 1.25, 0.5]);
   });
 });
@@ -165,6 +165,63 @@ describe("PlayerController (spec §11.4, R-L13)", () => {
     at(6250);
     expect(media.pause).toHaveBeenCalled();
     expect(c.getState()).toMatchObject({ once: false, playing: false });
+  });
+
+  it("once mode: a sentence plays to its end (+ tail), pauses, and a resume goes on into the next one", () => {
+    const { media, c, at } = setup();
+    c.setLoop("once");
+    c.seekTo(0);
+    at(3000);
+    expect(media.pause).not.toHaveBeenCalled();
+    at(3200);
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    expect(c.getState()).toMatchObject({ index: 0, playing: false, loop: "once" });
+    c.play();
+    at(3200);
+    expect(c.getState().index).toBe(1);
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    at(6249);
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    at(6250);
+    expect(media.pause).toHaveBeenCalledTimes(2);
+    expect(c.getState()).toMatchObject({ index: 1, playing: false });
+    c.play();
+    at(6250);
+    at(8000);
+    expect(media.pause).toHaveBeenCalledTimes(2);
+    expect(c.getState().index).toBe(1);
+    at(9100);
+    expect(c.getState().index).toBe(2);
+    at(11250);
+    expect(media.pause).toHaveBeenCalledTimes(3);
+  });
+
+  it("once mode: seekTo(idx) and prev() play only that sentence, then pause", () => {
+    const { media, c, at } = setup();
+    c.setLoop("once");
+    c.seekTo(1);
+    at(6250);
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    expect(c.getState().index).toBe(1);
+    c.prev();
+    expect(c.getState()).toMatchObject({ index: 0, playing: true });
+    at(3200);
+    expect(media.pause).toHaveBeenCalledTimes(2);
+    expect(c.getState().index).toBe(0);
+  });
+
+  it("switching away from once mode resumes the normal flow", () => {
+    const { media, c, at } = setup();
+    c.setLoop("once");
+    c.seekTo(0);
+    at(3200);
+    expect(c.getState().playing).toBe(false);
+    c.setLoop("off");
+    c.play();
+    at(3300);
+    at(6250);
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    expect(c.getState().index).toBe(1);
   });
 
   it("schedules frames only while playing", () => {

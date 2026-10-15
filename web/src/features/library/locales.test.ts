@@ -32,7 +32,7 @@ describe("library locales (R-L3: lazy, outside the eager i18n glob)", () => {
     for (const s of ["uploading", "queued", "processing", "ready", "failed", "canceled"]) expect(a).toHaveProperty([`web.library.status.${s}`]);
     for (const s of ["probe", "fetch", "transcode", "subtitles", "transcribe", "segment"]) expect(a).toHaveProperty([`web.library.stage.${s}`]);
     for (const s of ["uploaded", "platform", "asr"]) expect(a).toHaveProperty([`web.library.sub.${s}`]);
-    for (const s of ["off", "infinite", "3", "5"]) expect(a).toHaveProperty([`web.library.player.loop.${s}`]);
+    for (const s of ["off", "infinite", "3", "5", "once"]) expect(a).toHaveProperty([`web.library.player.loop.${s}`]);
   });
 
   it("keeps the spec §7.4 DRM notice and the §6.2 no-subtitles text word for word in Chinese", () => {

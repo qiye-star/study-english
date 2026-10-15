@@ -162,6 +162,15 @@ describe("LibraryPlayerPage (spec §11.4)", () => {
     expect(loop).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(loop);
     expect(loop).toHaveAccessibleName("每句循环 3 遍");
+    fireEvent.click(loop);
+    expect(loop).toHaveAccessibleName("每句循环 5 遍");
+    fireEvent.click(loop);
+    expect(loop).toHaveAccessibleName("单句播完暂停");
+    expect(loop).toHaveAttribute("aria-pressed", "true");
+    expect(loop).toHaveTextContent("1⏸");
+    fireEvent.click(loop);
+    expect(loop).toHaveAccessibleName("关闭循环");
+    expect(loop).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(screen.getByTestId("library-blind"));
     expect(screen.queryByText("Hello there.")).toBeNull();
     expect(screen.getAllByRole("button", { name: "显示这句" })).toHaveLength(3);
