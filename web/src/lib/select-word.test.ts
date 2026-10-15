@@ -48,7 +48,7 @@ describe("selectWord (same contract as features/library/word-tap.ts)", () => {
   });
 });
 
-type CaretDoc = Document & { caretRangeFromPoint?: unknown; caretPositionFromPoint?: unknown };
+type CaretDoc = Omit<Document, "caretRangeFromPoint" | "caretPositionFromPoint"> & { caretRangeFromPoint?: unknown; caretPositionFromPoint?: unknown };
 const caretAt = (node: Node, offset: number) => {
   (document as CaretDoc).caretRangeFromPoint = () => {
     const r = document.createRange();
