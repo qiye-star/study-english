@@ -24,7 +24,7 @@ vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), f
 const ROW: api.CatalogRow = {
   id: "3f2a9c1e-0000-4000-8000-000000000001", title: "Talk one", level: "B1", tags: ["news"], licenseNote: "VOA",
   source: "upload", sourceHost: null, status: "ready", stage: null, progress: 100, errorKind: null, durationMs: 61000,
-  segCount: 12, translated: 12, subSource: "uploaded", lowConfidence: false, mediaBytes: 500000, hasPoster: true,
+  segCount: 12, translated: 12, subSource: "uploaded", lowConfidence: false, kind: "audio", mediaBytes: 500000, hasPoster: true,
   mediaMissing: false, aiLang: "zh-CN", published: false, publishedAt: null, retired: false, refs: 0,
   uploadReceived: 0, uploadTotal: 0, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
 };

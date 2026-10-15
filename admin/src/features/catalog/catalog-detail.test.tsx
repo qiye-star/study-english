@@ -19,7 +19,7 @@ vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), f
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 const ITEM = { id: ID, title: "Talk", level: "B1", tags: [], licenseNote: null, source: "upload", sourceHost: null, status: "ready",
-  stage: null, progress: 100, errorKind: null, durationMs: 6000, segCount: 2, translated: 1, subSource: "uploaded", lowConfidence: false,
+  stage: null, progress: 100, errorKind: null, durationMs: 6000, segCount: 2, translated: 1, subSource: "uploaded", lowConfidence: false, kind: "audio",
   mediaBytes: 1, hasPoster: false, mediaMissing: false, aiLang: "zh-CN", published: false, publishedAt: null, retired: false, refs: 2,
   uploadReceived: 0, uploadTotal: 0, createdAt: "", updatedAt: "" } as api.CatalogRow;
 const SEGS: api.CatalogSegment[] = [
