@@ -8,6 +8,7 @@ import { LevelHint } from "~/components/level-hint";
 import { levelLabel } from "~/lib/levels";
 import type { CatalogCard } from "./catalog-api";
 import { CatalogItemCard } from "./catalog-card";
+import { DeleteItemDialog } from "./delete-item-dialog";
 import { LIBRARY_SERVER_ERRORS } from "./library-api";
 import "./locales";
 import { PageError, PageLoading } from "./page-status";
@@ -26,12 +27,14 @@ export function levelsOf(cards: readonly CatalogCard[]): string[] {
 /**
  * 「精选」页签的内容(`/library?tab=catalog`,spec 2026-10-14-curated-library §10;R-W2、R-W3):级别芯片(客户端筛选)+ 卡片网格 + 空状态。
  * 添加 = 幂等,成功(含「已添加过」)就进入播放页;404(条目已下架)= 吐司 + 卡片从列表里去掉(裁定 4)。
+ * 已添加的卡片有「取消入库」:确认后删副本,成功再通过 `onCopyRemoved(itemId)` 让「我的素材」列表去掉该条(R-C4、R-C6)。
  */
-export function CatalogView() {
+export function CatalogView({ onCopyRemoved }: { onCopyRemoved?(itemId: string): void } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const catalog = useCatalog(true);
   const [picked, setPicked] = useState(ALL);
+  const [pendingRemove, setPendingRemove] = useState<CatalogCard | null>(null);
   const levels = levelsOf(catalog.items);
   const level = levels.includes(picked) ? picked : ALL; // 选中的级别没有卡片了(下架)就回到「全部」
   const shown = level === ALL ? catalog.items : catalog.items.filter((c) => c.level === level);
@@ -44,6 +47,18 @@ export function CatalogView() {
   };
   const onOpen = (card: CatalogCard) => {
     if (card.addedItemId) go(card.addedItemId);
+  };
+  const confirmRemove = () => {
+    const target = pendingRemove;
+    setPendingRemove(null);
+    const itemId = target?.addedItemId;
+    if (!target || !itemId) return;
+    catalog.remove(target.id, itemId).then(() => {
+      toast.success(t("web.library.catalog.removed"));
+      onCopyRemoved?.(itemId);
+    }, (err: unknown) => {
+      toast.error(translateServerError(t, err, LIBRARY_SERVER_ERRORS));
+    });
   };
 
   if (catalog.error && catalog.items.length === 0) {
@@ -75,9 +90,11 @@ export function CatalogView() {
       ) : null}
       <ul className="lib-cat-grid" data-testid="catalog-list">
         {shown.map((card, i) => (
-          <CatalogItemCard key={card.id} card={card} index={i} adding={catalog.adding.has(card.id)} onAdd={onAdd} onOpen={onOpen} />
+          <CatalogItemCard key={card.id} card={card} index={i} adding={catalog.adding.has(card.id)} removing={catalog.removing.has(card.id)}
+            onAdd={onAdd} onOpen={onOpen} onRemove={setPendingRemove} />
         ))}
       </ul>
+      <DeleteItemDialog open={!!pendingRemove} copy onCancel={() => setPendingRemove(null)} onConfirm={confirmRemove} />
     </div>
   );
 }

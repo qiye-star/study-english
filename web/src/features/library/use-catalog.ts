@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import { addCatalogItem, listCatalog, type CatalogAdd, type CatalogCard } from "./catalog-api";
+import { deleteItem } from "./library-api";
 
 export interface CatalogState {
   items: CatalogCard[];
@@ -9,15 +10,26 @@ export interface CatalogState {
   error: unknown;
 }
 
+/** 404 只有 `Not Found`(条目不在了)才算已删除;`Library is disabled` 等其他 404 照抛(R-C4)。 */
+const isGone = (err: unknown) => err instanceof ApiError && err.status === 404 && err.message === "Not Found";
+const without = (id: string) => (s: ReadonlySet<string>) => {
+  const next = new Set(s);
+  next.delete(id);
+  return next;
+};
+
 /**
  * 精选目录(R-W3:一次取完,级别筛选在客户端)。`add(id)`:并发点同一张卡只发一次;成功后把该卡的 `addedItemId`
  * 就地改成新副本 id(不重取列表);404(条目已下架)时把这张卡从列表里立即去掉,错误照抛给调用方弹吐司(裁定 4)。
+ * `remove(catalogId, itemId)`:取消入库(R-C4)。
  */
 export function useCatalog(enabled: boolean) {
   const { api } = useAuth();
   const [state, setState] = useState<CatalogState>({ items: [], loading: true, error: null });
   const [adding, setAdding] = useState<ReadonlySet<string>>(new Set());
   const inflight = useRef(new Map<string, Promise<CatalogAdd>>());
+  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+  const removals = useRef(new Map<string, Promise<void>>());
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -51,15 +63,31 @@ export function useCatalog(enabled: boolean) {
       },
     ).finally(() => {
       inflight.current.delete(id);
-      setAdding((s) => {
-        const next = new Set(s);
-        next.delete(id);
-        return next;
-      });
+      setAdding(without(id));
     });
     inflight.current.set(id, run);
     return run;
   }, [api]);
 
-  return { ...state, adding, add, reload: () => reload() };
+  const remove = useCallback((catalogId: string, itemId: string): Promise<void> => {
+    const running = removals.current.get(catalogId);
+    if (running) return running;
+    setRemoving((s) => new Set(s).add(catalogId));
+    const run = deleteItem(api, itemId)
+      .catch((err: unknown) => { if (!isGone(err)) throw err; })
+      .then(() => {
+        setState((s) => ({
+          ...s,
+          items: s.items.map((c) => (c.id === catalogId && c.addedItemId === itemId ? { ...c, addedItemId: null } : c)),
+        }));
+      })
+      .finally(() => {
+        removals.current.delete(catalogId);
+        setRemoving(without(catalogId));
+      });
+    removals.current.set(catalogId, run);
+    return run;
+  }, [api]);
+
+  return { ...state, adding, add, removing, remove, reload: () => reload() };
 }

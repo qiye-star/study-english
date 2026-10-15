@@ -18,6 +18,7 @@ const card = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
 
 beforeEach(async () => {
   vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.success).mockClear();
   await setUiLanguage("zh-CN");
 });
 
@@ -111,5 +112,69 @@ describe("levelsOf", () => {
   it("is unique and ordered", () => {
     const c = (level: string | null) => ({ level }) as CatalogCard;
     expect(levelsOf([c("B2"), c(null), c("A2"), c("B2"), c("X1")])).toEqual(["A2", "B2", "X1"]);
+  });
+});
+
+function renderAdded(del: Handler, onCopyRemoved = vi.fn()) {
+  const mock = createFetchMock({
+    "GET /api/library/catalog": () => json({ items: [card({ added_item_id: "i1" }), card({ id: "c2", title: "Other" })] }),
+    "DELETE /api/library/items/i1": del,
+  });
+  renderWithProviders(<CatalogView onCopyRemoved={onCopyRemoved} />,
+    { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/library?tab=catalog", path: "/library" });
+  return { mock, onCopyRemoved };
+}
+
+describe("CatalogView · 取消入库", () => {
+  it("only added cards show it, labelled with the title", async () => {
+    renderAdded(() => json({ deleted: true }));
+    const c1 = await screen.findByTestId("catalog-card-c1");
+    expect(within(c1).getByRole("button", { name: "取消入库:VOA: Coffee" })).toHaveTextContent("取消入库");
+    expect(within(screen.getByTestId("catalog-card-c2")).queryByRole("button", { name: /取消入库/ })).toBeNull();
+  });
+
+  it("confirming deletes the copy, puts the card back, toasts and tells the page", async () => {
+    const { mock, onCopyRemoved } = renderAdded(() => json({ deleted: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "取消入库:VOA: Coffee" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/逐句跟读分数和进度也会一起删除/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "删除" }));
+    const c1 = screen.getByTestId("catalog-card-c1");
+    await waitFor(() => expect(within(c1).getByRole("button", { name: "添加到我的库" })).toBeInTheDocument());
+    expect(mock.calls.filter((c) => c.method === "DELETE").map((c) => c.url.pathname)).toEqual(["/api/library/items/i1"]);
+    expect(toast.success).toHaveBeenCalledWith("已取消入库");
+    expect(onCopyRemoved).toHaveBeenCalledWith("i1");
+    expect(screen.getByTestId("location")).toHaveTextContent("/library");
+  });
+
+  it("cancelling the dialog sends nothing", async () => {
+    const { mock } = renderAdded(() => json({ deleted: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "取消入库:VOA: Coffee" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(mock.calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
+  it("a failed delete toasts and keeps the card added", async () => {
+    const { onCopyRemoved } = renderAdded(() => json({ error: "boom" }, 500));
+    fireEvent.click(await screen.findByRole("button", { name: "取消入库:VOA: Coffee" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(within(screen.getByTestId("catalog-card-c1")).getByRole("button", { name: /已添加.*去学习/ })).toBeEnabled();
+    expect(onCopyRemoved).not.toHaveBeenCalled();
+  });
+
+  it("while removing, both buttons are disabled and 取消入库 is busy", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    renderAdded(async () => { await gate; return json({ deleted: true }); });
+    fireEvent.click(await screen.findByRole("button", { name: "取消入库:VOA: Coffee" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
+    const undo = await screen.findByRole("button", { name: "取消入库:VOA: Coffee" });
+    await waitFor(() => expect(undo).toHaveAttribute("aria-busy", "true"));
+    expect(undo).toBeDisabled();
+    expect(screen.getByRole("button", { name: /已添加.*去学习/ })).toBeDisabled();
+    release();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "添加到我的库" })).toHaveLength(2));
   });
 });
