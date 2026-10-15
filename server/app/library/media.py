@@ -168,17 +168,24 @@ def _is_mp4(format_name: str) -> bool:
     return bool({"mov", "mp4", "m4a"} & set(format_name.split(",")))
 
 
-def normalize_plan(info: ProbeInfo, out_dir: Path, max_height: int) -> tuple[list[str], Normalized]:
-    """ffmpeg output arguments (after `-i src`) and the result, by the rules of spec §5.1."""
+def normalize_plan(info: ProbeInfo, out_dir: Path, max_height: int, *, src_kbps: int | None = None,
+                   max_kbps: int | None = None) -> tuple[list[str], Normalized]:
+    """ffmpeg output arguments (after `-i src`) and the result, by the rules of spec §5.1. `max_kbps` (curated catalog,
+    plan 2026-10-15-catalog-keep-video R-KV2): copy only when the source's average rate is known and <= the cap, and
+    cap the re-encode with -maxrate / -bufsize. The user pipeline passes neither."""
     if info.has_video:
         out = out_dir / "media.mp4"
+        light = max_kbps is None or (src_kbps is not None and src_kbps <= max_kbps)
         if (info.vcodec == "h264" and info.acodec == "aac" and _is_mp4(info.format_name)
-                and (info.height or 0) <= max_height):
+                and (info.height or 0) <= max_height and light):
             args = ["-map", "0:v:0", "-map", "0:a:0", "-c", "copy"]
         else:
-            args = ["-map", "0:v:0", "-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-                    "-pix_fmt", "yuv420p", "-vf", f"scale=-2:'trunc(min({max_height},ih)/2)*2'",
-                    "-c:a", "aac", "-b:a", "128k", "-ac", "2"]
+            args = ["-map", "0:v:0", "-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
+            if max_kbps is not None:
+                video_kbps = max(200, max_kbps - 128)
+                args += ["-maxrate", f"{video_kbps}k", "-bufsize", f"{2 * video_kbps}k"]
+            args += ["-pix_fmt", "yuv420p", "-vf", f"scale=-2:'trunc(min({max_height},ih)/2)*2'",
+                     "-c:a", "aac", "-b:a", "128k", "-ac", "2"]
         return args + ["-movflags", "+faststart", "-f", "mp4", str(out)], Normalized(out, "video/mp4", "video")
     if info.acodec == "mp3" and "mp3" in info.format_name.split(","):
         out = out_dir / "media.mp3"
@@ -214,8 +221,10 @@ class Ffmpeg:
         return parse_probe(result.stdout)
 
     async def normalize(self, src: Path, info: ProbeInfo, out_dir: Path, *, max_height: int, home: Path,
-                        progress: Callable[[float], Awaitable[None]] | None = None) -> Normalized:
-        args, result = normalize_plan(info, out_dir, max_height)
+                        progress: Callable[[float], Awaitable[None]] | None = None,
+                        max_kbps: int | None = None) -> Normalized:
+        src_kbps = src.stat().st_size * 8 // max(1, info.duration_ms) if max_kbps is not None else None  # bits/ms
+        args, result = normalize_plan(info, out_dir, max_height, src_kbps=src_kbps, max_kbps=max_kbps)
         total_us = max(1, info.duration_ms * 1000)
 
         async def on_line(line: str) -> None:

@@ -41,7 +41,8 @@ async def test_create_get_and_outputs(app):
         out = catalog_store.admin_out(row, refs=2, translated=0, media_missing=False)
         assert set(out) == {"id", "title", "level", "tags", "license_note", "source", "source_host", "status", "stage",
                             "progress", "error_kind", "duration_ms", "seg_count", "translated", "sub_source",
-                            "low_confidence", "media_bytes", "has_poster", "media_missing", "ai_lang", "published",
+                            "low_confidence", "kind", "media_bytes", "has_poster", "media_missing", "ai_lang",
+                            "published",
                             "published_at", "retired", "refs", "upload_received", "upload_total", "created_at",
                             "updated_at"}
         assert "source_url" not in out and out["refs"] == 2 and out["retired"] is False
@@ -238,3 +239,40 @@ async def test_purge_deletes_every_copy_then_the_catalog_item(app):
         assert await catalog_store.get(s, cid) is None
     assert app.state.library.tickets.resolve(token, ia.id) is None
     assert not media_file(app, cid).exists() and media_file(app, other).is_file()
+
+
+def test_kind_of_follows_the_media_mime():
+    from app.models import CatalogItem
+    assert catalog_store.kind_of(CatalogItem(media_mime=None)) == "audio"
+    assert catalog_store.kind_of(CatalogItem(media_mime="audio/mpeg")) == "audio"
+    assert catalog_store.kind_of(CatalogItem(media_mime="video/mp4")) == "video"
+
+
+async def test_a_video_catalog_item_is_copied_as_video(app):
+    cid = await make_catalog(app, kind="video")
+    uid = await _uid(app)
+    async with app.state.sessionmaker() as s:
+        row = await catalog_store.get(s, cid)
+        assert row.media_path.endswith("/media.mp4")
+        assert catalog_store.admin_out(row, refs=0, translated=0, media_missing=False)["kind"] == "video"
+        item, created = await catalog_store.add_to_library(s, data_dir_of(app), user_id=uid, catalog_id=cid,
+                                                           now=utcnow())
+        assert created and (item.kind, item.media_mime, item.media_path, item.library_bytes) == (
+            "video", "video/mp4", row.media_path, 0)
+
+
+async def test_sync_copies_moves_every_copy_to_the_catalog_media(app):
+    cid = await make_catalog(app)
+    a, b = await _uid(app, "alice"), await _uid(app, "bob")
+    async with app.state.sessionmaker() as s:
+        for uid in (a, b):
+            await catalog_store.add_to_library(s, data_dir_of(app), user_id=uid, catalog_id=cid, now=utcnow())
+        row = await catalog_store.get(s, cid)
+        row.media_path = row.media_path.replace("media.m4a", "media.mp4")
+        row.media_mime, row.duration_ms = "video/mp4", 6100
+        assert await catalog_store.sync_copies(s, row, utcnow()) == 2
+        await s.commit()
+        copies = (await s.scalars(select(LibraryItem).where(LibraryItem.catalog_id == cid)
+                                  .execution_options(populate_existing=True))).all()
+        assert {(c.kind, c.media_path, c.media_mime, c.poster_path, c.duration_ms, c.library_bytes) for c in copies} == {
+            ("video", row.media_path, "video/mp4", row.poster_path, 6100, 0)}

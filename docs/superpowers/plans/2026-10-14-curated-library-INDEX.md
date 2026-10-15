@@ -237,3 +237,8 @@ SC 自己的路由 `library_catalog` 放在元组里 `library_import,` 之后。
 ## 11. 未验证(汇总;各车道的结果节逐条写「已做 / 未做」)
 
 spec §13 的清单;另加:管理端浏览器上传数百 MB 文件的耗时;大陆服务器上 `LIBRARY_YTDLP_PROXY` 与 `system=True` 的真实取回;移动端「精选」页签的玻璃效果与真机滚动性能。
+
+## Addendum (2026-10-15):视频素材保留画面
+
+站长裁定:视频源不再只存音频。见 `2026-10-15-catalog-keep-video.md`(R-KV1–R-KV12),它覆盖本文 §7 `catalog_import` / `Ffmpeg.audio_only` 「只存音频」的部分:
+视频源走 `normalize`(≤ 720p、≤ 1600 kbps)存 `media.mp4`;`CatalogAdminRow` 追加 `kind`;新管理接口 `POST /{catalog_id}/replace-media`;审计动作追加 `catalog.replace_media`。无迁移。

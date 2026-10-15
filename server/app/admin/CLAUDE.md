@@ -61,7 +61,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `purge_failed`(操作员 + 输入确认 `DELETE <id 前 8 位>` / `PURGE <n> ITEMS`,不需要 step-up)只经 `_s1_delete` / `_s1_cancel` 调
   `app.library.store`,审计在 S1 调用之后(`library.item.delete {bytes}`、`library.item.cancel`、`library.purge_failed {count, bytes}`,
   summary 留空)。新增 `/api/admin/library*` 路由要同时改 `tests/test_admin_library.py::test_admin_library_urls_carry_only_ids`
-- `catalog_admin.py` – 精选库(spec 2026-10-14-curated-library):导入(链接 / 分片上传 + 字幕)、状态与列表、详情(含句子:目录是系统内容,R5)、元数据、发布 / 下架、重试 / 取消 / 补全译文、逐句编辑(未发布时)、删除(无副本即删,有副本则退役)与强制删除(superadmin + step-up,连同所有副本);审计只记 id、动作与数字。路由 `routers/admin_catalog.py`,任务 `app.state.catalog`(`library/catalog_jobs.py`)
+- `catalog_admin.py` – 精选库(spec 2026-10-14-curated-library):导入(链接 / 分片上传 + 字幕)、状态与列表、详情(含句子:目录是系统内容,R5)、元数据、发布 / 下架、重试 / 取消 / 补全译文、替换媒体(`POST /{id}/replace-media`,未发布 + 就绪 + 有句子;复用分片上传;审计 `catalog.replace_media`)、逐句编辑(未发布时)、删除(无副本即删,有副本则退役)与强制删除(superadmin + step-up,连同所有副本);审计只记 id、动作与数字。路由 `routers/admin_catalog.py`,任务 `app.state.catalog`(`library/catalog_jobs.py`)
 - `usage.py` – usage/estimated cost from `upstream_calls` (+ older `usage_daily`): `parse_prices`, `estimate`,
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper

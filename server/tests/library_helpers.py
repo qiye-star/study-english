@@ -36,6 +36,7 @@ class FakeTools:
         self.silences = silences or []
         self.fail = fail or {}  # step -> LibraryError kind
         self.calls: list[str] = []
+        self.normalize_kwargs: dict | None = None
 
     def _check(self, step: str) -> None:
         self.calls.append(step)
@@ -51,8 +52,9 @@ class FakeTools:
         return ProbeInfo(meta["duration_ms"], meta["audio"], meta["video"], "h264" if meta["video"] else None,
                          "aac" if meta["audio"] else None, "mov,mp4,m4a,3gp,3g2,mj2", 720 if meta["video"] else None)
 
-    async def normalize(self, src, info, out_dir, *, max_height, home, progress=None):
+    async def normalize(self, src, info, out_dir, *, max_height, home, progress=None, max_kbps=None):
         self._check("normalize")
+        self.normalize_kwargs = {"max_height": max_height, "max_kbps": max_kbps}
         if progress is not None:
             await progress(0.5)
             await progress(1.0)
