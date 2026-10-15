@@ -42,6 +42,7 @@ export const BLUR_OWNERS: Record<string, string> = {
   "features/wordbook/ui.ts": "classic .glass DOCK (existing)",
   "features/realtime": "classic .glass call dock (existing)",
   "features/rank": "classic .glass match composer (existing)",
+  "pages/appearance/preview-card.tsx": "appearance preview strip (E2, icons only)",
 };
 
 function walk(dir: string): string[] {
