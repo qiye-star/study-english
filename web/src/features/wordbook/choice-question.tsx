@@ -3,6 +3,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
+import { lookupContextIf, ownLongPress } from "~/lib/lookup-context";
 import { selectWord } from "~/lib/select-word";
 import { LongPressHint } from "./long-press-hint";
 import { infoFor, optionRowView } from "./option-view";
@@ -28,11 +29,11 @@ const LETTERS = ["A", "B", "C", "D", "E", "F"];
 const BLANK = "_____";
 
 /** 例句选词的题面:把 `_____` 画成下划线空(视觉稿 .mini .gap),读屏读「空」。 */
-function ClozeSentence({ sentence }: { sentence: string }) {
+function ClozeSentence({ sentence, marked = false }: { sentence: string; marked?: boolean }) {
   const { t } = useTranslation();
   const parts = sentence.split(BLANK);
   return (
-    <p lang="en" className="mt-2 text-title font-medium leading-dialogue">
+    <p lang="en" {...lookupContextIf(marked)} className="mt-2 text-title font-medium leading-dialogue">
       {parts.map((part, i) => (
         <span key={i}>
           {part}
@@ -89,7 +90,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
         <>
           <div className="mt-2 flex items-center gap-2.5">
             {/* min-w-0 + overflow-wrap:anywhere:长词(SAT/TOEFL)能折行,不把 375px 屏撑出横向滚动(review m6) */}
-            <span data-testid="question-word" lang="en"
+            <span data-testid="question-word" lang="en" {...lookupContextIf(result !== null)}
               className={cn("min-w-0 font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]", (prompt.word ?? "").length > 14 ? "text-[26px]" : "text-[30px]")}>
               {prompt.word}
             </span>
@@ -103,7 +104,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
         <p data-testid="question-meaning" className="mt-2 text-title font-medium leading-dialogue">{prompt.meaning}</p>
       ) : (
         <>
-          <ClozeSentence sentence={prompt.sentence ?? ""} />
+          <ClozeSentence sentence={prompt.sentence ?? ""} marked={result !== null} />
           {prompt.zh ? <p className="mt-1 text-sub text-ink-2">{prompt.zh}</p> : null}
         </>
       )}
@@ -125,7 +126,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
           if (answered) {
             const row = optionRowView(qtype, option, infoFor(after?.info, option));
             const lookupProps = row.word ? {
-              role: "button" as const, tabIndex: 0, ...press(String(i)), onClick: onRowClick, onKeyDown: onRowKeyDown,
+              role: "button" as const, tabIndex: 0, ...ownLongPress, ...press(String(i)), onClick: onRowClick, onKeyDown: onRowKeyDown,
             } : {};
             const wordSpan = row.word ? (
               <span data-testid="option-word" data-option-word="" data-lookup-context lang="en" className="select-text break-words">{row.word}</span>

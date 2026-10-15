@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { LetterDiff } from "./letter-diff";
+import { lookupContext } from "~/lib/lookup-context";
 import { PRIMARY } from "./ui";
 import { ListenButton, type ListenProps } from "./word-card";
 import { isOutcome, type AnswerResult, type Outcome, type Question } from "./wordbook-api";
@@ -114,7 +115,7 @@ export function TypingQuestion({ question, onSubmit, result, busy = false, onLis
           ) : null}
           {result.outcome !== "correct" ? (
             <p data-testid="typing-expected" className="text-sub text-ink-2">
-              {t("web.wordbook.quiz.expected")} <b lang="en" className="text-body font-semibold text-ink">{result.expected}</b>
+              {t("web.wordbook.quiz.expected")} <b lang="en" {...lookupContext} className="text-body font-semibold text-ink">{result.expected}</b>
             </p>
           ) : null}
         </div>
