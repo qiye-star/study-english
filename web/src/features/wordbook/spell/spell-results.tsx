@@ -4,6 +4,7 @@ import { IconButton } from "~/components/icon-button";
 import { scoreToneClass } from "~/components/score-tone";
 import { SurfaceCard } from "~/components/surface-card";
 import { cn } from "~/lib/cn";
+import { lookupContext } from "~/lib/lookup-context";
 import type { BlankResult, Outcome, SpellResult, SpellWordResult } from "../wordbook-api";
 import { LetterDiff } from "../letter-diff";
 import { OutcomeBadge } from "./outcome-badge";
@@ -31,7 +32,7 @@ function Yours({ blank }: { blank: BlankResult }) {
         <span className="text-ink-2">{t("web.wordbookSpell.notFilled")}</span>
       )}
       <span aria-hidden className="text-ink-2">→</span>
-      <b className="font-mono text-[17px] font-semibold tracking-[0.02em] text-ink" aria-label={t("web.wordbook.diff.label", { word: blank.expected })}>
+      <b {...lookupContext} className="font-mono text-[17px] font-semibold tracking-[0.02em] text-ink" aria-label={t("web.wordbook.diff.label", { word: blank.expected })}>
         {blank.expected}
       </b>
     </span>
@@ -74,7 +75,7 @@ export function SpellResults({ result, onWhy, onReport, onListen, canListen, rep
             return (
               <li key={w.key} data-testid={`spell-result-${w.key}`} className="border-t-[0.5px] border-hair-2 px-3.5 py-3 first:border-t-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-title font-semibold text-ink">{w.card.word || w.key}</span>
+                  <span lang="en" {...lookupContext} className="text-title font-semibold text-ink">{w.card.word || w.key}</span>
                   {phonetic ? <span className="text-meta text-ink-2">{phonetic}</span> : null}
                   <OutcomeBadge outcome={w.outcome} />
                   <IconButton

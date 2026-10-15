@@ -5,6 +5,7 @@ import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { ZhToggle } from "~/components/zh-toggle";
 import { Slot } from "~/lib/extension-points-react";
+import { lookupContext, lookupContextIf } from "~/lib/lookup-context";
 import { DEFAULT_DEF_LANG, zhReveal } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
 import { MAX_PHRASES, PhrasesSection, type PhrasesOpen } from "./phrases-section";
@@ -113,7 +114,7 @@ export function WordCardView({
           {peekButton ? <div className="flex items-center gap-1.5">{badge}{peekButton}</div> : badge}
         </div>
       ) : null}
-      <h2 lang="en" className="mt-1.5 break-words text-hero font-semibold tracking-[-0.02em]" style={{ lineHeight: 1.1 }}>{card.word}</h2>
+      <h2 lang="en" {...lookupContextIf(!covered)} className="mt-1.5 break-words text-hero font-semibold tracking-[-0.02em]" style={{ lineHeight: 1.1 }}>{card.word}</h2>
       <div className="mt-2.5 flex flex-wrap gap-2">
         {phonetics.length ? phonetics.map(([accent, value]) => (
           <ListenButton key={accent} id={`${card.key}:${accent}`} text={card.word} accent={accent === "uk" ? "gb" : "us"}
@@ -151,7 +152,7 @@ export function WordCardView({
           {onPeek && chip ? <ZhToggle pressed={peek} onToggle={onPeek} label={t("web.wordbookDefs.after.zh")} testId="after-zh" className="mt-2.5" /> : null}
           {showExample && example ? (
             <div className="mt-3.5 rounded-badge bg-surface-2 p-3">
-              <p lang="en" className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
+              <p lang="en" {...lookupContext} className="text-body leading-dialogue"><HighlightedSentence text={example.en} word={card.key} /></p>
               {showZh && example.zh ? <p className="mt-1 text-sub text-ink-2">{example.zh}</p> : null}
               <div className="-mx-2 -mb-2 mt-1.5 flex gap-1">
                 <ListenButton id={`${card.key}:ex`} text={example.en} label={t("web.wordbook.word.listenExample")} {...listenProps}
@@ -182,11 +183,11 @@ export function WordRecap({ card }: { card: Card }) {
   return (
     <div data-testid="word-recap" className="mt-3 rounded-badge bg-surface-2 p-3">
       <p className="flex items-baseline gap-2">
-        <b lang="en" className="text-title font-semibold">{card.word}</b>
+        <b lang="en" {...lookupContext} className="text-title font-semibold">{card.word}</b>
         {card.us || card.uk ? <span lang="en" className="text-meta text-ink-2">{card.us || card.uk}</span> : null}
       </p>
       <p className="mt-1 text-sub">{meaningLine(card.senses, 40)}</p>
-      {example ? <p lang="en" className="mt-1 text-sub text-ink-2"><HighlightedSentence text={example.en} word={card.key} /></p> : null}
+      {example ? <p lang="en" {...lookupContext} className="mt-1 text-sub text-ink-2"><HighlightedSentence text={example.en} word={card.key} /></p> : null}
     </div>
   );
 }

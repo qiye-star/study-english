@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { lookupContext } from "~/lib/lookup-context";
 import { readPhrasesPref, writePhrasesPref } from "./phrases-pref";
 
 export const MAX_PHRASES = 5;
@@ -38,7 +39,7 @@ export function PhrasesSection({ phrases, mode, showZh = true }: { phrases: read
       </summary>
       <ul className="space-y-1 pb-1 text-sub">
         {phrases.slice(0, MAX_PHRASES).map((p, i) => (
-          <li key={i}>{showZh ? <><span lang="en" className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></> : <span lang="en" className="font-medium text-ink">{p.en}</span>}</li>
+          <li key={i}>{showZh ? <><span lang="en" {...lookupContext} className="font-medium text-ink">{p.en}</span> <span className="text-ink-2">{p.zh}</span></> : <span lang="en" {...lookupContext} className="font-medium text-ink">{p.en}</span>}</li>
         ))}
       </ul>
     </details>

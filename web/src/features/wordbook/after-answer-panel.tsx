@@ -5,6 +5,7 @@ import { zhReveal } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
 import { cardForPanel } from "./option-view";
 import { PhrasesSection } from "./phrases-section";
+import { lookupContext } from "~/lib/lookup-context";
 import { ListenButton, WordCardView, posLabel, type ListenProps } from "./word-card";
 import type { AnswerResult, Card, DefLang, Question } from "./wordbook-api";
 import "./locales";
@@ -46,7 +47,7 @@ export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek
         <ListenButton id={`${shown.key}:after`} text={shown.word} label={t("web.wordbook.word.listen.word")} {...listen}
           className="-my-2.5 -mr-2 h-tap w-tap justify-center rounded-full bg-blue-tint text-blue" />
       </div>
-      <p lang="en" className="mt-1 break-words text-title font-semibold">{shown.word}</p>
+      <p lang="en" {...lookupContext} className="mt-1 break-words text-title font-semibold">{shown.word}</p>
       {view.showSenses ? (
         <ul className="mt-2 flex flex-col gap-1.5">
           {shown.senses.slice(0, MAX_SENSES).map((s, i) => (

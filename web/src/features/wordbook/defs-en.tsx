@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
+import { lookupContext } from "~/lib/lookup-context";
 import type { DefGroup } from "./def-lang";
 import "./locales";
 
@@ -12,7 +13,7 @@ export function DefinitionsEn({ groups, className }: { groups: readonly DefGroup
   return (
     <ul data-testid="word-defs-en" aria-label={t("web.wordbookDefs.label")} className={cn("flex flex-col gap-1", className)}>
       {groups.map((g) => (
-        <li key={g.pos} lang="en" className="text-sub leading-dialogue text-ink-2">
+        <li key={g.pos} lang="en" {...lookupContext} className="text-sub leading-dialogue text-ink-2">
           <em className="mr-1 font-mono text-meta font-semibold not-italic">{g.label}</em>{" "}
           <span className="break-words">{g.texts.join("; ")}</span>
         </li>
