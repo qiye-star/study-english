@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 import { fmt } from "./ui";
 import type { Tier } from "./wordbook-api";
 
 // 一色一义:新学 = 琥珀,巩固中 = 青浅底,熟练 = 青(与首页书卡「已掌握 / 已学」同色系)
 const SEGMENTS: { tier: Tier; swatch: string }[] = [
-  { tier: "learning", swatch: "bg-amber" },
-  { tier: "growing", swatch: "bg-teal-tint shadow-[inset_0_0_0_0.5px_rgb(var(--teal)/0.35)]" },
-  { tier: "mastered", swatch: "bg-teal" },
+  { tier: "learning", swatch: "bg-amber liquid:bg-wash" },
+  { tier: "growing", swatch: "bg-teal-tint shadow-[inset_0_0_0_0.5px_rgb(var(--teal)/0.35)] liquid:bg-wash-2" },
+  { tier: "mastered", swatch: "bg-teal liquid:bg-ink/85" },
 ];
 
 /**
@@ -34,7 +35,7 @@ export function BoxBar({ by, value, onChange }: { by: Record<Tier, number>; valu
               className={cn(
                 "min-h-tap rounded-button border-[0.5px] px-2.5 py-1.5 text-left transition-colors duration-fast",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                active ? "border-blue bg-blue-tint" : "border-hair bg-surface active:bg-surface-2",
+                active ? cn("border-blue bg-blue-tint", LQ_CHIP_ON) : cn("border-hair bg-surface active:bg-surface-2", LQ_CHIP),
               )}>
               <span className="flex items-center text-meta text-ink-2">
                 <i aria-hidden className={cn("mr-1 inline-block h-2 w-2 flex-none rounded-[2px]", swatch)} />

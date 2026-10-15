@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
+import { setLiquid } from "~/test/glass";
 import { ChoiceQuestion, type AfterAnswer, type ChoiceResult } from "./choice-question";
 import type { OptionInfo, Question } from "./wordbook-api";
 
@@ -264,5 +265,18 @@ describe("ChoiceQuestion · one-time long-press hint (R-L6)", () => {
     first.unmount();
     view(wordQ, { choice: "stop", correct: false, correctOption: "talk" }, after({ info: WORD_INFO }));
     expect(screen.queryByTestId("long-press-hint")).toBeNull();
+  });
+});
+
+describe("ChoiceQuestion · liquid skin (plan 2026-10-15-liquid-glass R-L9-3)", () => {
+  afterEach(() => setLiquid(false));
+  it("correct = ink ring + green mark, wrong = red mark", () => {
+    setLiquid(true);
+    view(meaning, wrongPick, after());
+    const correct = rows().find((r) => r.dataset.state === "correct")!;
+    const wrong = rows().find((r) => r.dataset.state === "wrong")!;
+    expect(correct.className).toContain("liquid:shadow-[inset_0_0_0_1.5px_rgb(var(--ink)),var(--mat-sh-1)]");
+    expect(correct.querySelector(".text-green [class*='liquid:inline']")).not.toBeNull();
+    expect(wrong.querySelector(".liquid\\:text-red")).not.toBeNull();
   });
 });

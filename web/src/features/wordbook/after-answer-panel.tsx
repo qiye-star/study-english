@@ -45,7 +45,7 @@ export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek
       <div className="flex min-h-[22px] items-center justify-between gap-2">
         <p className="eyebrow">{t("web.wordbookDefs.after.title")}</p>
         <ListenButton id={`${shown.key}:after`} text={shown.word} label={t("web.wordbook.word.listen.word")} {...listen}
-          className="-my-2.5 -mr-2 h-tap w-tap justify-center rounded-full bg-blue-tint text-blue" />
+          className="-my-2.5 -mr-2 h-tap w-tap justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
       </div>
       <p lang="en" {...lookupContext} className="mt-1 break-words text-title font-semibold">{shown.word}</p>
       {view.showSenses ? (

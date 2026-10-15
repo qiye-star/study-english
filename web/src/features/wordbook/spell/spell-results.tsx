@@ -2,6 +2,8 @@ import { CheckIcon, FlagIcon, HelpCircleIcon, Volume2Icon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { IconButton } from "~/components/icon-button";
 import { scoreToneClass } from "~/components/score-tone";
+import { LQ_INK } from "~/components/liquid";
+import { ScoreDot } from "~/components/score-dot";
 import { SurfaceCard } from "~/components/surface-card";
 import { cn } from "~/lib/cn";
 import { lookupContext } from "~/lib/lookup-context";
@@ -57,7 +59,7 @@ export function SpellResults({ result, onWhy, onReport, onListen, canListen, rep
   return (
     <>
       <SurfaceCard className="flex items-center gap-3.5 p-3.5" role="status" aria-live="polite">
-        <div className={cn("text-hero font-semibold tabular-nums", scoreToneClass(result.credit))}>{result.credit}</div>
+        <div className={cn("text-hero font-semibold tabular-nums", scoreToneClass(result.credit), LQ_INK)}>{result.credit}<ScoreDot score={result.credit} /></div>
         <div className="min-w-0 flex-1">
           <b className="block text-body font-semibold text-ink">
             {t("web.wordbookSpell.score", { n: result.credit })}

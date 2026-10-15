@@ -56,7 +56,7 @@ export function RecallCard({ question, card, face, rating, showExample = true, d
           style={{ lineHeight: 1.1, overflowWrap: "anywhere" }}>{word}</h2>
         <ListenButton id={`${question.key}:recall`} text={word} label={t("web.wordbook.word.listen.word")} {...listen}
           className="mt-2.5 h-tap bg-surface-2 pl-1.5 pr-3 text-body text-ink">
-          <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-surface text-blue shadow-hair">
+          <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-surface text-blue shadow-hair liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well">
             <Volume2Icon className="h-[18px] w-[18px]" />
           </span>
           {ipa ? <span lang="en" className="font-[CharisSIL,ui-serif,serif]">{ipa}</span> : null}

@@ -184,7 +184,7 @@ export function WordbookHomePage() {
               to="/wordbook/learned" />
           </div>
           {plan.backlogGuard ? (
-            <p role="note" className="mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber">
+            <p role="note" className="mt-2 flex items-start gap-2 rounded-badge bg-amber-tint px-3 py-2.5 text-sub font-medium text-amber liquid:rounded-inset liquid:bg-wash liquid:text-ink liquid:shadow-well">
               <CircleAlertIcon aria-hidden className="mt-px h-[17px] w-[17px] flex-none" />
               <span>{t("web.wordbook.home.backlog")}</span>
             </p>

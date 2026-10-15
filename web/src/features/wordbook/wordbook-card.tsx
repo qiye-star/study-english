@@ -27,7 +27,7 @@ export function WordbookCard({ className }: { className?: string }) {
     return (
       <SurfaceCard data-testid="wordbook-card" className={cn("p-3.5", className)}>
         <div className="flex items-center gap-3.5">
-          <span aria-hidden className="flex h-tap w-tap flex-none items-center justify-center rounded-button bg-teal-tint text-teal">
+          <span aria-hidden className="flex h-tap w-tap flex-none items-center justify-center rounded-button bg-teal-tint text-teal liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well">
             <LibraryBigIcon className="h-6 w-6" />
           </span>
           <div className="min-w-0 flex-1">
@@ -44,7 +44,7 @@ export function WordbookCard({ className }: { className?: string }) {
     return (
       <SurfaceCard data-testid="wordbook-card" className={cn("p-3.5", className)}>
         <div className="flex items-center gap-3.5">
-          <span aria-hidden className="flex h-tap w-tap flex-none items-center justify-center rounded-button bg-teal-tint text-teal">
+          <span aria-hidden className="flex h-tap w-tap flex-none items-center justify-center rounded-button bg-teal-tint text-teal liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well">
             <LibraryBigIcon className="h-6 w-6" />
           </span>
           <div className="min-w-0 flex-1">

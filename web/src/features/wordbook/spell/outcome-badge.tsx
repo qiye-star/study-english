@@ -12,9 +12,9 @@ export const OUTCOME_TEXT: Record<Outcome, string> = {
 };
 
 const BADGE: Record<Outcome, string> = {
-  correct: "bg-green-tint text-green",
-  typo: "bg-amber-tint text-amber",
-  inflection: "bg-amber-tint text-amber",
+  correct: "bg-green-tint text-green liquid:rounded-full liquid:bg-wash",
+  typo: "bg-amber-tint text-amber liquid:rounded-full liquid:bg-wash",
+  inflection: "bg-amber-tint text-amber liquid:rounded-full liquid:bg-wash",
   wrong: "bg-surface-2 text-ink-2",
 };
 

@@ -10,9 +10,9 @@ import { ListenButton, type ListenProps } from "./word-card";
 import { isOutcome, type AnswerResult, type Outcome, type Question } from "./wordbook-api";
 
 const OUTCOME_STYLE: Record<Outcome, { cls: string; Icon: typeof CheckIcon }> = {
-  correct: { cls: "bg-green-tint text-green", Icon: CheckIcon },
-  typo: { cls: "bg-amber-tint text-amber", Icon: PencilIcon },
-  inflection: { cls: "bg-amber-tint text-amber", Icon: ArrowLeftRightIcon },
+  correct: { cls: "bg-green-tint text-green liquid:rounded-full liquid:bg-wash", Icon: CheckIcon },
+  typo: { cls: "bg-amber-tint text-amber liquid:rounded-full liquid:bg-wash", Icon: PencilIcon },
+  inflection: { cls: "bg-amber-tint text-amber liquid:rounded-full liquid:bg-wash", Icon: ArrowLeftRightIcon },
   wrong: { cls: "bg-surface-2 text-ink-2", Icon: XIcon },
 };
 
@@ -86,7 +86,7 @@ export function TypingQuestion({ question, onSubmit, result, busy = false, onLis
       <div className="mt-3 flex items-center gap-2">
         {dictation ? (
           <ListenButton id={listenId} text={word} label={t("web.wordbook.word.listen.word")} onListen={onListen} listening={listening}
-            canListen={canListen} className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue" />
+            canListen={canListen} className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         ) : null}
         <input ref={inputRef} type="text" value={value} readOnly={result !== null} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown}
           aria-label={t(dictation ? "web.wordbook.quiz.dictationInput" : "web.wordbook.quiz.spellInput")}
@@ -95,7 +95,7 @@ export function TypingQuestion({ question, onSubmit, result, busy = false, onLis
           className="h-tap min-w-0 flex-1 rounded-button bg-surface-2 px-3 text-title tracking-[0.02em] text-ink placeholder:text-body placeholder:tracking-normal placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring read-only:opacity-80" />
         {!result ? (
           <button type="button" onClick={hint} disabled={busy || hinted} aria-pressed={hinted}
-            className="inline-flex h-tap flex-none items-center gap-1 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+            className="inline-flex h-tap flex-none items-center gap-1 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold text-amber liquid:rounded-full liquid:border-0 liquid:bg-wash liquid:text-ink liquid:shadow-well liquid:active:bg-wash-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
             <LightbulbIcon aria-hidden className="h-4 w-4" />{t("web.wordbook.quiz.hint")}
           </button>
         ) : null}

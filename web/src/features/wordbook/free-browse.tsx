@@ -5,7 +5,7 @@ import { cn } from "@renderer/lib/utils";
 import { PageNote } from "./page-status";
 import { RecallCard } from "./recall-card";
 import { SessionHeader, StepBar } from "./session-header";
-import { DOCK, GHOST, PRIMARY } from "./ui";
+import { DOCK, GHOST_DOCK, PRIMARY } from "./ui";
 import { useDefLangValue } from "./use-def-lang";
 import { useSpeaker } from "./use-speaker";
 import { useWordbookConfig } from "./use-wordbook-config";
@@ -35,9 +35,9 @@ export function FreeBrowse({ set }: { set: FreeSet }) {
     return (
       <div className="flex flex-1 flex-col">
         <SessionHeader title={title} />
-        <div className="px-gutter"><PageNote>{t("web.wordbook.learned.free.browse.done")}</PageNote></div>
+        <div className="px-gutter liquid:px-frame"><PageNote>{t("web.wordbook.learned.free.browse.done")}</PageNote></div>
         <div className={DOCK}>
-          <button type="button" className={cn(GHOST, "h-12 flex-1")} onClick={() => navigate("/wordbook/learned")}>{t("web.wordbook.learned.free.summary.back")}</button>
+          <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} onClick={() => navigate("/wordbook/learned")}>{t("web.wordbook.learned.free.summary.back")}</button>
           <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={() => { setIndex(0); setFlipped(false); setFinished(false); }}>
             {t("web.wordbook.learned.free.browse.again")}
           </button>
@@ -50,12 +50,12 @@ export function FreeBrowse({ set }: { set: FreeSet }) {
   return (
     <div className="flex flex-1 flex-col">
       <SessionHeader title={title} subtitle={t("web.wordbook.learned.free.browse.progress", { n: index + 1, total: items.length })} />
-      <div className="px-gutter pb-4">
+      <div className="px-gutter liquid:px-frame pb-4">
         <StepBar done={index} total={items.length} />
         <RecallCard key={item.card.key} question={question} card={item.card} defLang={defLang} face={flipped ? "back" : "front"} rating={null} showExample={showExample} {...listen} />
       </div>
       <div className={DOCK}>
-        <button type="button" className={cn(GHOST, "h-12 flex-1")} disabled={index === 0} onClick={() => go(index - 1)}>{t("web.wordbook.learned.free.browse.prev")}</button>
+        <button type="button" className={cn(GHOST_DOCK, "h-12 flex-1")} disabled={index === 0} onClick={() => go(index - 1)}>{t("web.wordbook.learned.free.browse.prev")}</button>
         {flipped ? (
           <button type="button" className={cn(PRIMARY, "h-12 flex-1")} onClick={() => (last ? setFinished(true) : go(index + 1))}>
             {last ? t("web.wordbook.learned.free.browse.finish") : t("web.wordbook.learned.free.browse.next")}

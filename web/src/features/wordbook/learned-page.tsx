@@ -12,7 +12,8 @@ import { PageHeader } from "~/layout/page-header";
 import { BoxBar } from "./box-bar";
 import { FreeReviewSheet } from "./free-review-sheet";
 import { PageError, PageLoading, PageNote } from "./page-status";
-import { DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
+import { LQ_CHIP_ON } from "~/components/liquid";
+import { DOCK, GHOST_DOCK, GHOST, PRIMARY, bookTitle } from "./ui";
 import { useDebounced, useLearnedList, useLearnedSummary } from "./use-learned";
 import { useDefLangValue } from "./use-def-lang";
 import { useReturnFocus } from "./use-return-focus";
@@ -115,7 +116,7 @@ export function WordbookLearnedPage() {
   return (
     <div className="flex flex-1 flex-col">
       {header}
-      <div className="px-gutter pb-4">
+      <div className="px-gutter liquid:px-frame pb-4">
         {library ? (
           <>
             <div className="mt-2"><BoxBar by={summary.byTier} value={tier} onChange={setTier} /></div>
@@ -133,7 +134,7 @@ export function WordbookLearnedPage() {
                 {books.map((b) => <option key={b.id} value={b.id}>{bookTitle(b, i18n.language)}</option>)}
               </select>
               <button type="button" aria-pressed={weak} onClick={() => setWeak((w) => !w)}
-                className={cn(GHOST, "h-11", weak && "border-blue bg-blue-tint")}>
+                className={cn(GHOST, "h-11", weak && cn("border-blue bg-blue-tint", LQ_CHIP_ON))}>
                 {t("web.wordbook.learned.filters.weak")}
               </button>
               <label className="text-meta text-ink-2">{t("web.wordbook.learned.filters.since")}

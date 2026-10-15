@@ -2,6 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
+import { LQ_DIALOG } from "~/components/liquid";
 import { DANGER, GHOST, PRIMARY } from "./ui";
 import { useReturnFocus } from "./use-return-focus";
 
@@ -35,6 +36,7 @@ export function GoalsConfirm({ open, onOpenChange, title, body, children, confir
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-[calc(100%-40px)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-sheet border-[0.5px] border-hair bg-surface p-5 text-ink",
             "shadow-[0_16px_40px_-12px_rgba(17,19,24,0.35)] focus:outline-none",
+            LQ_DIALOG,
           )}>
           <DialogPrimitive.Title className="text-title font-semibold text-ink">{title}</DialogPrimitive.Title>
           <DialogPrimitive.Description asChild>
