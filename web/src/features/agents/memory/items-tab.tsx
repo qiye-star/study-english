@@ -1,4 +1,5 @@
 import { PinIcon, Trash2Icon } from "lucide-react";
+import { LQ_CHIP, LQ_CHIP_ON } from "~/components/liquid";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
@@ -87,7 +88,7 @@ export function ItemsTab() {
           <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}
             className={cn("hit-expand h-8 flex-none whitespace-nowrap rounded-badge px-3 text-sub font-medium transition-colors duration-fast",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              filter === f ? "bg-blue-tint text-blue" : "bg-surface-2 text-ink-2")}>
+              filter === f ? `bg-blue-tint text-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink-2 ${LQ_CHIP}`)}>
             {t(`${M}.kinds.${f}`)}
           </button>
         ))}

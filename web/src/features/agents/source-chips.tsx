@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP } from "~/components/liquid";
 import { BookOpenIcon, BookmarkIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,7 +28,7 @@ export function SourceChips({ trace }: SourceChipsProps) {
           const Icon = s.key === "word_lookup" ? BookOpenIcon : BookmarkIcon;
           return (
             <button key={s.id} type="button" data-testid="agent-source" onClick={() => setDetail(s)}
-              className="hit-expand inline-flex h-7 items-center gap-1 rounded-full bg-teal-tint px-2.5 text-meta font-medium text-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              className={`hit-expand inline-flex h-7 items-center gap-1 rounded-full bg-teal-tint px-2.5 text-meta font-medium text-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_CHIP}`}>
               <Icon aria-hidden className="h-3.5 w-3.5" />
               {s.key === "word_lookup" && typeof word === "string" ? t("web.agents.sources.lookup", { word }) : stepLabel(t, s)}
             </button>

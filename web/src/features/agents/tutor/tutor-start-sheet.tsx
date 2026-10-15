@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP_ON } from "~/components/liquid";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -32,7 +33,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 const choice = (on: boolean) => cn(
   "min-h-tap rounded-button border-[0.5px] px-3 py-1.5 text-left transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-  on ? "border-blue bg-blue-tint text-blue" : "border-hair bg-surface text-ink hover:bg-surface-2",
+  on ? `border-blue bg-blue-tint text-blue ${LQ_CHIP_ON} liquid:rounded-tile` : "border-hair bg-surface text-ink hover:bg-surface-2 liquid:rounded-tile liquid:border-transparent liquid:bg-wash liquid:text-ink liquid:shadow-well",
 );
 
 /** 「带我学」开始面板:主题(四选一,场景再选一个)、题数 5 / 8 / 12、回答方式打字 / 语音。 */

@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP } from "~/components/liquid";
 import { ChevronRightIcon, LoaderIcon, SparklesIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,7 +36,7 @@ function useNow(active: boolean): number {
   return now;
 }
 
-const quietClass = "inline-flex items-center gap-1.5 self-start rounded-full bg-blue-tint px-2.5 py-1 text-meta font-medium text-blue";
+const quietClass = `inline-flex items-center gap-1.5 self-start rounded-full bg-blue-tint px-2.5 py-1 text-meta font-medium text-blue ${LQ_CHIP} liquid:h-auto`;
 
 /** 过程胶囊(spec §5、D1):生成中强制展开,结束后折叠成一行;点开看「上下文 → 工具 → 思路」。 */
 export function ProcessCapsule({ live = null, trace = null, generating, showProcess, onRegenerate, label, testId = "agent-capsule" }: ProcessCapsuleProps) {

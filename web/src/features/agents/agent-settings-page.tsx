@@ -1,4 +1,5 @@
 import "./locales";
+import { LQ_CHIP, LQ_CHIP_ON, LQ_NOTE } from "~/components/liquid";
 import {
   BookOpenIcon, BookmarkIcon, BrainIcon, CalendarClockIcon, EyeIcon, FlameIcon, GraduationCapIcon, LanguagesIcon, UsersIcon, UserRoundIcon, type LucideIcon,
 } from "lucide-react";
@@ -48,7 +49,7 @@ function SwitchRow({ id, testId, icon, tone, title, hint, checked, onChange }: {
         {hint ? <span id={`${id}-hint`} className="mt-0.5 block text-meta text-ink-2">{hint}</span> : null}
       </span>
       <Switch id={id} data-testid={testId} checked={checked} onCheckedChange={onChange} aria-describedby={hint ? `${id}-hint` : undefined}
-        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
     </div>
   );
 }
@@ -137,7 +138,7 @@ export function AgentSettingsPage() {
                 <SectionGroup title={t("web.agents.settings.groups.rooms")}>
                   <SwitchRow id={`${id}-share`} testId="agent-setting-share-in-rooms" icon={UsersIcon} tone="amber" title={t("web.agents.settings.shareInRooms")}
                     checked={settings.shareInRooms} onChange={(shareInRooms) => save({ shareInRooms })} />
-                  <p className="mx-3.5 mb-3 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber">{t("web.agents.settings.shareWarning")}</p>
+                  <p className={`mx-3.5 mb-3 rounded-[10px] bg-amber-tint px-3 py-2 text-meta text-amber ${LQ_NOTE}`}>{t("web.agents.settings.shareWarning")}</p>
                 </SectionGroup>
               )}
 
@@ -183,7 +184,7 @@ export function AgentSettingsPage() {
                         return (
                           <button key={kind} type="button" aria-pressed={on} disabled={last} data-testid={`agent-setting-kind-${kind}`}
                             className={cn("hit-expand h-8 rounded-full px-3 text-sub transition-colors duration-fast disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                              on ? "bg-blue-tint font-semibold text-blue" : "bg-surface-2 text-ink-2")}
+                              on ? `bg-blue-tint font-semibold text-blue ${LQ_CHIP_ON}` : `bg-surface-2 text-ink-2 ${LQ_CHIP}`)}
                             onClick={() => {
                               const mix = on ? settings.tutor.mix.filter((k) => k !== kind) : TUTOR_KINDS.filter((k) => k === kind || settings.tutor.mix.includes(k));
                               save({ tutor: { mix } });

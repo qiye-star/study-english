@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { LQ_INK, LQ_NOTE } from "~/components/liquid";
 import { useTranslation } from "react-i18next";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
@@ -83,8 +84,8 @@ export function ProfileTab() {
   return (
     <div className="flex flex-col gap-3">
       {proposals.map((key) => (
-        <SurfaceCard key={key} data-testid={`proposal-${key}`} className="flex flex-col gap-2 bg-amber-tint p-3.5">
-          <p className="break-words text-sub text-amber">
+        <SurfaceCard key={key} data-testid={`proposal-${key}`} className={`flex flex-col gap-2 bg-amber-tint p-3.5 ${LQ_NOTE}`}>
+          <p className={`break-words text-sub text-amber ${LQ_INK}`}>
             {t(`${P}.proposal`, { field: label(key), value: show(key, state.proposals[key]) })}
           </p>
           <div className="flex gap-2">
