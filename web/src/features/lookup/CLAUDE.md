@@ -3,7 +3,7 @@
 Select-to-lookup and translation layer over the whole app.
 
 ## What lives here
-- `lookup-layer.tsx` (sheet, mounted by `layout/app-shell.tsx`), `use-text-selection.ts` (also `readNow()`: read the selection at once, respects the press latch), `use-long-press-lookup.ts` (global touch long-press recogniser, mounted once by `LookupLayer`, disabled while the drawer is open).
+- `lookup-layer.tsx` (sheet, mounted by `layout/app-shell.tsx`), `use-text-selection.ts` (also `readNow()`: read the selection at once, respects the press latch), `use-long-press-lookup.ts` (global touch long-press recogniser, mounted once by `LookupLayer`, disabled while the drawer is open), `glass.ts` (well / source-chip classes for the drawer's inner controls, no blur).
 - `word-target.ts` (`wordTargetFromLookup`, R19: lookup result → `WordTarget` for the `<WordActions>` slot; moved from vocabulary's `vocabularyFromLookup`, same output).
 - `dictionary.ts` (local dictionary client + pure helpers: `lookupDictionary`, `visibleDefs`, `drawerDefs`, `dictToLookup`), `use-dictionary-prefetch.ts`, `dictionary-result.tsx`.
 - `lookup-bar.tsx` — the selection action bar: look up / translate, read aloud (extension point `selectionActions`), add to vocabulary (`<WordActions variant="icon">`).
@@ -22,7 +22,7 @@ Public (`index.ts`): `LookupLayer`, `cachedTranslate`, `normalizeSelection`, `LO
 
 ## Pitfalls
 - Prompts are read from enjoy source text with `?raw`; never copy or edit them in `enjoy/`.
-- Lookup is disabled inside realtime call captions.
+- Realtime call captions carry `data-lookup-context` (`realtime/call-captions.tsx`); the full-screen call (z-50) sits above the bar (z-40), see plan 2026-10-15 Q6.
 - Dictionary first: `run` calls `lookupDictionary` before the model; a miss or any error silently falls back to the AI path. Long selections never ask the dictionary. Dictionary results are not cached (they carry the user's `def_lang`).
 - Read aloud is contributed by chat (core contribution); lookup never imports chat.
 - The bar keeps `data-testid="lookup-trigger"` on its look up / translate button.
@@ -33,3 +33,7 @@ Public (`index.ts`): `LookupLayer`, `cachedTranslate`, `normalizeSelection`, `LO
 - Native long-press on Android is not reproducible in Chromium/Playwright; the fix is covered by jsdom event-sequence tests only (plan 2026-10-14-chat-longpress-lookup-fix, results doc).
 - 「中文」 chip in the drawer (plan `2026-10-14-review-bilingual-longpress` R-Z4): with `def_lang` en and English definitions, Chinese definitions and phrase translations hide behind `ZhToggle` (`data-testid="lookup-zh"`, from `~/components/zh-toggle`); the state is per lookup (keyed by the entry object), never stored. No chip when Chinese already shows or there is none; the AI fallback path is unchanged.
 - Global long-press (plan 2026-10-15-global-longpress-glass-lookup R-L2–R-L8): `useLongPressLookup` listens on the document (capture, touch primary pointer only). A press of 450 ms / <= 8 px inside a `[data-lookup-context]` (not on a link/button, not under `data-lookup-press="own"`) keeps the browser selection if there is one, else `selectWordAt` selects the word under the finger, then `readNow()` shows the bar. The first click within 400 ms inside the pressed text is swallowed. It never calls `preventDefault` on pointerdown/touchstart/contextmenu, never touches `user-select`/`touch-action`, never clears a selection (the OS menu may show next to the bar; the Android latch is unchanged). Eligibility is marks only (`~/lib/lookup-context`); unmarked English text is not a target.
+- Never `preventDefault` `contextmenu` in the recogniser (Android loses drag-select, R-L4).
+- Mark new English learning text with `{...lookupContext}` from `~/lib/lookup-context`, and list it in a `src/lookup-marks.<lane>.test.ts`.
+- Elements with their own long-press spread `ownLongPress`.
+- The bar is `.glass-pop`, and the drawer is `BottomSheetContent glass` (`.glass-sheet`); on library screens both are solid (`:has`, R-G5).

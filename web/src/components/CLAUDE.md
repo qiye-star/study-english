@@ -3,7 +3,7 @@
 Shared presentational UI primitives for the redesign (glass bars, cards, sheets, chips, tones).
 
 ## What lives here
-- Layout chrome: `glass-top-bar.tsx`, `glass-tab-bar.tsx` (floating rounded glass pill, `.glass-float` + `.tab-halo`; reserved space is the CSS variable `--tab-bar-space`, exported as `TAB_BAR_SPACE`; plan `2026-10-14-floating-glass-bottom-bar`), `bottom-sheet.tsx`.
+- Layout chrome: `glass-top-bar.tsx`, `glass-tab-bar.tsx` (floating rounded glass pill, `.glass-float` + `.tab-halo`; reserved space is the CSS variable `--tab-bar-space`, exported as `TAB_BAR_SPACE`; plan `2026-10-14-floating-glass-bottom-bar`), `bottom-sheet.tsx` (`glass` prop = floating glass card + light scrim, lookup drawer only).
 - Building blocks: `surface-card.tsx`, `section-group.tsx`, `list-card.ts`, `stat-tile.tsx`, `icon-button.tsx`, `icon-chip.tsx`, `segmented-control.tsx`, `avatar.tsx`, `tone-badge.tsx`, `markdown.tsx`.
 - Admin-driven notices: `announcement-banner.tsx` (`AnnouncementBanner`, shared `useAnnouncements` store polling the public
   `GET /api/announcements` every 5 min / on visibility / at once when an API call answers 503 `Maintenance`
