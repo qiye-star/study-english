@@ -43,3 +43,46 @@ describe("liquid vocabulary (plan 2026-10-15-liquid-glass INDEX §5.4)", () => {
     expect(TOAST_CLASSNAMES.toast).toContain("liquid:backdrop-filter-none");
   });
 });
+
+import { MemoryRouter } from "react-router-dom";
+import { ListRow, SectionGroup } from "./section-group";
+import { LIST_CARD } from "./list-card";
+import { StatTile } from "./stat-tile";
+import { SurfaceCard } from "./surface-card";
+
+describe("panels and lists in the liquid skin (L2-2)", () => {
+  it("SurfaceCard keeps the classic classes and adds the E1 material (strong for heroes)", () => {
+    const { container, rerender } = render(<SurfaceCard className="p-3.5">x</SurfaceCard>);
+    const el = container.firstElementChild!;
+    expect(el.className).toContain("rounded-card");
+    expect(el.className).toContain("mat-surface");
+    expect(el.className).toContain("liquid:rounded-panel");
+    rerender(<SurfaceCard strong>x</SurfaceCard>);
+    expect(container.firstElementChild!.className).toContain("mat-surface-strong");
+  });
+
+  it("SectionGroup puts the title inside one E1 panel under liquid, classic otherwise", () => {
+    const ui = (
+      <MemoryRouter>
+        <SectionGroup title="学习"><ListRow title="进度" to="/progress" testId="row" /></SectionGroup>
+      </MemoryRouter>
+    );
+    const classic = render(ui);
+    const group = screen.getByRole("group", { name: "学习" });
+    expect(group.className).not.toContain("mat-surface");
+    classic.unmount();
+    setLiquid(true);
+    render(ui);
+    const panel = screen.getByRole("group", { name: "学习" });
+    expect(panel.className).toContain("mat-surface");
+    expect(panel.querySelector("h2")).toHaveTextContent("学习");
+    expect(screen.getByTestId("row").className).toContain("liquid:active:bg-wash");
+  });
+
+  it("LIST_CARD and StatTile gain material classes", () => {
+    expect(LIST_CARD).toContain("mat-surface");
+    const { container } = render(<StatTile tone="amber" label="连续" value={12} />);
+    expect(container.firstElementChild!.className).toContain("bg-amber-tint");
+    expect(container.firstElementChild!.className).toContain("well");
+  });
+});

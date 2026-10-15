@@ -2,6 +2,8 @@ import { ChevronRightIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@renderer/lib/utils";
+import { useLiquid } from "~/lib/glass-flag";
+import { LQ_PANEL } from "./liquid";
 
 /**
  * 分组:13px 次要色标题(前距 22px)+ 圆角 14 的列表容器,行间 0.5px 分隔线。
@@ -23,6 +25,19 @@ export function SectionGroup({
   children: ReactNode;
 }) {
   const id = useId();
+  const liquid = useLiquid();
+  if (liquid && !bare) {
+    // 液态皮肤(设计稿 .grpl .ptitle):整组是一个 E1 面板,13px 标题在面板里面;bare 组保持经典结构(INDEX D-4)
+    return (
+      <section role="group" aria-labelledby={id} className={cn("mt-4 overflow-hidden py-1.5", LQ_PANEL, className)}>
+        <div className="flex min-h-[18px] items-center justify-between px-4 pb-1 pt-2 text-sub font-semibold tracking-[0.01em] text-ink-2">
+          <h2 id={id}>{title}</h2>
+          {action}
+        </div>
+        <div className="divide-y-[0.5px] divide-hair-2">{children}</div>
+      </section>
+    );
+  }
   return (
     <section role="group" aria-labelledby={id} className={className}>
       <div className="mx-0.5 mb-2 mt-section flex min-h-[18px] items-center justify-between text-sub font-semibold tracking-[0.01em] text-ink-2">
@@ -73,8 +88,8 @@ export function ListRow({
   const interactive = Boolean(target.to || target.onClick);
   const showChevron = chevron ?? interactive;
   const classes = cn(
-    "flex min-h-row w-full items-center gap-3 py-2.5 pl-3.5 pr-3 text-left",
-    interactive && "transition-colors duration-fast active:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+    "flex min-h-row w-full items-center gap-3 py-2.5 pl-3.5 pr-3 text-left liquid:px-4",
+    interactive && "transition-colors duration-fast active:bg-surface-2 liquid:active:bg-wash focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
     className,
   );
   const body = (

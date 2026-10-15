@@ -10,6 +10,7 @@ const TILE = {
 /**
  * 统计卡(我的页三联):彩色标签 + 28px 等宽数字 + 可选单位。放在 grid grid-cols-3 gap-2 里。
  * tone:amber 连续天数、blue 时长/目标、green 分数。
+ * 液态皮肤:面板里的井(.wl.well),标签次要色,不着色。
  *   <StatTile tone="amber" icon={FlameIcon} label="连续" value={12} unit="天" />
  */
 export function StatTile({
@@ -30,7 +31,7 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "flex min-h-[88px] flex-col justify-between rounded-card border-[0.5px] border-hair-2 px-3 pb-[11px] pt-3",
+        "flex min-h-[88px] flex-col justify-between rounded-card border-[0.5px] border-hair-2 px-3 pb-[11px] pt-3 well liquid:rounded-inset liquid:border-0 liquid:[&_[data-label]]:text-ink-2",
         TILE[tone],
         className,
       )}
