@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { isItemGone, resetGoneItems } from "./gone-items";
 import { LibraryPlayerPage } from "./player-page";
 import { CONFIG_OFF_RAW, CONFIG_RAW, SEGMENTS_RAW, detailRaw } from "./test-fixtures";
 import { resetUiLanguage, setUiLanguage } from "./test-i18n";
@@ -64,9 +65,22 @@ describe("LibraryPlayerPage (spec §11.4)", () => {
     expect(mock.calls.some((c) => c.url.pathname.endsWith("/media-ticket"))).toBe(false);
   });
 
-  it("shows a translated error for a missing item", async () => {
-    render(null);
-    expect(await screen.findByText("素材不存在或已删除。")).toBeInTheDocument();
+  it("shows a clear gone state for a deleted item, does not retry, and tells the list to drop it", async () => {
+    resetGoneItems();
+    const mock = render(null);
+    expect(await screen.findByTestId("library-gone")).toHaveTextContent("这条素材已不存在");
+    expect(screen.getByRole("link", { name: "回到跟读库" })).toHaveAttribute("href", "/library");
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mock.calls.filter((c) => c.url.pathname === "/api/library/items/i1")).toHaveLength(1);
+    expect(isItemGone("i1")).toBe(true);
+    resetGoneItems();
+  });
+
+  it("keeps the retry error for other failures", async () => {
+    render(null, { "GET /api/library/items/i1": () => json({ error: "boom" }, 500) });
+    expect(await screen.findByTestId("library-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("library-gone")).toBeNull();
   });
 
   it("plays a ready video inline from the ticket URL with its sentences and restores the position", async () => {

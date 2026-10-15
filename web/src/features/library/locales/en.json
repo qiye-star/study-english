@@ -130,6 +130,7 @@
         "notReady": "This item is still being processed.",
         "failed": "This item could not be processed.",
         "back": "Back to library",
+        "gone": "This item no longer exists",
         "prev": "Previous sentence",
         "next": "Next sentence",
         "play": "Play",

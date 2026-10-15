@@ -6,6 +6,7 @@ import { translateServerError } from "~/api/error-messages";
 import i18n from "~/i18n";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
+import { markItemGone, resetGoneItems } from "./gone-items";
 import { LIBRARY_SERVER_ERRORS } from "./library-api";
 import "./locales";
 import { itemRaw } from "./test-fixtures";
@@ -71,6 +72,27 @@ describe("useCatalog", () => {
     expect(caught).toBeInstanceOf(ApiError);
     expect(result.current.items.map((c) => c.id)).toEqual(["c2"]);
     expect(translateServerError(i18n.t.bind(i18n), caught, LIBRARY_SERVER_ERRORS)).toBe("这条精选素材已下架。");
+  });
+
+  it("clears addedItemId for a copy the player reported gone, and reloads quietly on foreground", async () => {
+    resetGoneItems();
+    let added: string | null = "i9";
+    const mock = createFetchMock({ "GET /api/library/catalog": () => json({ items: [card("c1", { added_item_id: added })] }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+    const { result } = renderHook(() => useCatalog(true), { wrapper });
+    await waitFor(() => expect(result.current.items[0]?.addedItemId).toBe("i9"));
+    added = null; // copy removed on another device
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(result.current.items[0].addedItemId).toBeNull());
+    expect(result.current.loading).toBe(false);
+    added = "i9";
+    markItemGone("i9"); // server list still stale, but the player already saw 404
+    result.current.reload();
+    await waitFor(() => expect(mock.calls.length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.items[0].addedItemId).toBeNull();
+    resetGoneItems();
   });
 
   it("other failures keep the card", async () => {

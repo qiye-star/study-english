@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import { addCatalogItem, listCatalog, type CatalogAdd, type CatalogCard } from "./catalog-api";
+import { isItemGone } from "./gone-items";
 import { deleteItem } from "./library-api";
+import { useOnForeground } from "./use-library-items";
 
 export interface CatalogState {
   items: CatalogCard[];
@@ -31,15 +33,18 @@ export function useCatalog(enabled: boolean) {
   const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
   const removals = useRef(new Map<string, Promise<void>>());
 
-  const reload = useCallback(async (signal?: AbortSignal) => {
-    setState((s) => ({ ...s, loading: true, error: null }));
+  const reload = useCallback(async (signal?: AbortSignal, quiet = false) => {
+    if (!quiet) setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const items = await listCatalog(api, signal);
+      // 播放器已经看到 404 的副本:列表即使还没反映出来,也不再让卡片指向它
+      const items = (await listCatalog(api, signal)).map((c) => (c.addedItemId && isItemGone(c.addedItemId) ? { ...c, addedItemId: null } : c));
       if (!signal?.aborted) setState({ items, loading: false, error: null });
     } catch (error) {
-      if (!signal?.aborted) setState((s) => ({ ...s, loading: false, error }));
+      if (!signal?.aborted && !quiet) setState((s) => ({ ...s, loading: false, error }));
     }
   }, [api]);
+  // 回到前台:静默重取,别处取消入库 / 下架后卡片的「已入库」状态随之更新
+  useOnForeground(enabled, () => reload(undefined, true));
 
   useEffect(() => {
     if (!enabled) return;

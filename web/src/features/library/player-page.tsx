@@ -12,7 +12,8 @@ import { useLibraryConfig } from "./config";
 import { ElasticSlider } from "./fx/elastic-slider";
 import { GlassSurface } from "./fx/glass-surface";
 import { GradualBlur } from "./fx/gradual-blur";
-import { LIBRARY_SERVER_ERRORS, getItem, patchItem, type LibraryItemDetail, type LibrarySegment, type TranslatedSegment } from "./library-api";
+import { markItemGone } from "./gone-items";
+import { LIBRARY_SERVER_ERRORS, getItem, isItemNotFound, patchItem, type LibraryItemDetail, type LibrarySegment, type TranslatedSegment } from "./library-api";
 import { LibraryRoot } from "./library-root";
 import "./locales";
 import { PageError, PageLoading } from "./page-status";
@@ -41,10 +42,27 @@ function PlayerScreen({ id, ai }: { id: string; ai: boolean }) {
   const [error, setError] = useState<unknown>(null);
   const load = useCallback(() => {
     setError(null);
-    getItem(api, id).then(setDetail, setError);
+    getItem(api, id).then(setDetail, (err: unknown) => {
+      if (isItemNotFound(err)) markItemGone(id); // 列表 / 精选目录据此立刻丢掉这条
+      setError(err);
+    });
   }, [api, id]);
   useEffect(load, [load]);
 
+  if (error && isItemNotFound(error)) {
+    return (
+      <LibraryRoot>
+        <PageHeader title={t("web.library.title")} back="/library" />
+        <div role="alert" data-testid="library-gone" className="flex flex-col items-center gap-3 px-6 py-12 text-center text-sub text-ink-2">
+          <p>{t("web.library.player.gone")}</p>
+          <Link to="/library"
+            className="inline-flex min-h-tap items-center rounded-button px-4 font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {t("web.library.player.back")}
+          </Link>
+        </div>
+      </LibraryRoot>
+    );
+  }
   if (error) {
     return (
       <LibraryRoot>

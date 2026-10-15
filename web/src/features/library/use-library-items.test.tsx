@@ -5,6 +5,7 @@ import { ApiClient } from "~/api/client";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
 import type { LibraryItem } from "./library-api";
+import { markItemGone, resetGoneItems } from "./gone-items";
 import { itemRaw } from "./test-fixtures";
 import { mergeFirstPage, useLibraryItems } from "./use-library-items";
 
@@ -68,6 +69,33 @@ describe("useLibraryItems polling (R-L11)", () => {
     expect(mock.calls).toHaveLength(2);
     await tick(3000);
     expect(mock.calls).toHaveLength(3);
+  });
+
+  it("revalidates on foreground and drops items deleted elsewhere", async () => {
+    let ids = ["i1", "i2"];
+    const mock = createFetchMock({ "GET /api/library/items": () => json({ items: ids.map((id) => itemRaw({ id })), next_cursor: null }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+    const { result } = renderHook(() => useLibraryItems(true), { wrapper });
+    await tick(0);
+    expect(result.current.items.map((i) => i.id)).toEqual(["i1", "i2"]);
+    ids = ["i1"];
+    window.dispatchEvent(new Event("focus"));
+    await tick(0);
+    expect(result.current.items.map((i) => i.id)).toEqual(["i1"]);
+    expect(result.current.loading).toBe(false);
+    document.dispatchEvent(new Event("visibilitychange")); // focus + visibility together: one request
+    await tick(0);
+    expect(mock.calls).toHaveLength(2);
+  });
+
+  it("never shows an item the player reported gone", async () => {
+    resetGoneItems();
+    markItemGone("i1");
+    const { result } = setup({ value: "ready" });
+    await tick(0);
+    expect(result.current.items).toEqual([]);
+    resetGoneItems();
   });
 
   it("does not poll for items that are only uploading", async () => {

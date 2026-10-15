@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "~/auth/auth-context";
+import { isItemGone } from "./gone-items";
 import { listItems, type LibraryItem } from "./library-api";
 
 export const POLL_MS = 3000;
@@ -51,6 +52,34 @@ export function usePolling(active: boolean, fn: () => Promise<unknown> | void, m
   }, [active, ms, doc]);
 }
 
+/** 页面回到前台(可见 / 获得焦点)时调一次 fn;两个事件常一起来,1 秒内只算一次。fn 的错误被吞掉。 */
+export function useOnForeground(active: boolean, fn: () => Promise<unknown> | void, doc: Document = document): void {
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  useEffect(() => {
+    if (!active) return;
+    let last = 0;
+    const run = () => {
+      const now = Date.now();
+      if (doc.visibilityState === "hidden" || now - last < 1000) return;
+      last = now;
+      try {
+        void Promise.resolve(fnRef.current()).catch(() => {});
+      } catch {
+        /* 同上 */
+      }
+    };
+    doc.addEventListener("visibilitychange", run);
+    window.addEventListener("focus", run);
+    return () => {
+      doc.removeEventListener("visibilitychange", run);
+      window.removeEventListener("focus", run);
+    };
+  }, [active, doc]);
+}
+
+const live = (items: LibraryItem[]) => items.filter((i) => !isItemGone(i.id));
+
 export interface LibraryItemsState {
   items: LibraryItem[];
   nextCursor: string | null;
@@ -71,7 +100,7 @@ export function useLibraryItems(enabled: boolean) {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const page = await listItems(api);
-      setState({ items: page.items, nextCursor: page.nextCursor, loading: false, loadingMore: false, error: null });
+      setState({ items: live(page.items), nextCursor: page.nextCursor, loading: false, loadingMore: false, error: null });
     } catch (error) {
       setState((s) => ({ ...s, loading: false, error }));
     }
@@ -83,8 +112,16 @@ export function useLibraryItems(enabled: boolean) {
 
   const refresh = useCallback(async () => {
     const page = await listItems(api);
-    setState((s) => ({ ...s, items: mergeFirstPage(s.items, page.items) }));
+    setState((s) => ({ ...s, items: live(mergeFirstPage(s.items, page.items)) }));
   }, [api]);
+
+  /** 回到前台时:用新取的第一页整个替换(在别处删掉的条目随之消失),不显示转圈。 */
+  const revalidate = useCallback(async () => {
+    const page = await listItems(api);
+    setState((s) => ({ ...s, items: live(page.items), nextCursor: page.nextCursor }));
+  }, [api]);
+  // 有处理中的条目时由上面的轮询在回到可见时先取一次,这里不重复
+  useOnForeground(enabled && !state.items.some(isActive), revalidate);
 
   usePolling(enabled && state.items.some(isActive), refresh);
 
@@ -96,7 +133,7 @@ export function useLibraryItems(enabled: boolean) {
       const page = await listItems(api, cursor);
       setState((s) => {
         const known = new Set(s.items.map((i) => i.id));
-        return { ...s, items: [...s.items, ...page.items.filter((i) => !known.has(i.id))], nextCursor: page.nextCursor, loadingMore: false };
+        return { ...s, items: [...s.items, ...live(page.items).filter((i) => !known.has(i.id))], nextCursor: page.nextCursor, loadingMore: false };
       });
     } catch (error) {
       setState((s) => ({ ...s, loadingMore: false, error }));
@@ -114,5 +151,5 @@ export function useLibraryItems(enabled: boolean) {
     setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) }));
   }, []);
 
-  return { ...state, reload, refresh, loadMore, replace, remove };
+  return { ...state, reload, refresh, revalidate, loadMore, replace, remove };
 }

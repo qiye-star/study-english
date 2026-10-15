@@ -233,6 +233,11 @@ export function analyzeSegment(api: ApiClient, id: string, idx: number, nativeLa
   return api.request<AnalysisResult>("POST", `${itemPath(id)}/segments/${idx}/analysis`, { json: { nativeLanguage }, signal });
 }
 
+/** 条目不在了(404 `Not Found`);`Library is disabled` 等其他 404 不算。 */
+export function isItemNotFound(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404 && err.message === "Not Found";
+}
+
 /** 额度满(429)。调用方显示一次固定提示,不逐句报错;播放与跟读不受影响。 */
 export function isAiLimited(err: unknown): boolean {
   return err instanceof ApiError && err.status === 429;

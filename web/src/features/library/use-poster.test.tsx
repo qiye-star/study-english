@@ -2,10 +2,10 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { createRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
-import { createFetchMock } from "~/test/fetch-mock";
+import { createFetchMock, json } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
 import { fetchCatalogPoster } from "./catalog-api";
-import { usePosterUrl } from "./use-poster";
+import { resetPosterMisses, usePosterUrl } from "./use-poster";
 
 let observed: ((entries: { isIntersecting: boolean }[]) => void) | null = null;
 class FakeIO {
@@ -16,6 +16,7 @@ class FakeIO {
 const original = { IO: globalThis.IntersectionObserver, create: URL.createObjectURL, revoke: URL.revokeObjectURL };
 
 beforeEach(() => {
+  resetPosterMisses();
   observed = null;
   globalThis.IntersectionObserver = FakeIO as unknown as typeof IntersectionObserver;
   URL.createObjectURL = vi.fn(() => "blob:poster-1");
@@ -60,6 +61,32 @@ describe("usePosterUrl (R-L18)", () => {
     const { result } = renderHook(() => usePosterUrl("c1", true, undefined, fetchCatalogPoster), { wrapper });
     await waitFor(() => expect(result.current).toBe("blob:poster-1"));
     expect(mock.calls[0].url.pathname).toBe("/api/library/catalog/c1/poster");
+  });
+
+  it("remembers a 404 poster for the session: no second request on re-render or remount", async () => {
+    const mock = createFetchMock({ "GET /api/library/items/gone/poster": () => json({ error: "Not Found" }, 404) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+    const first = renderHook(() => usePosterUrl("gone", true), { wrapper });
+    await waitFor(() => expect(mock.calls).toHaveLength(1));
+    first.rerender();
+    first.unmount();
+    const second = renderHook(() => usePosterUrl("gone", true), { wrapper });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(second.result.current).toBeNull();
+    expect(mock.calls).toHaveLength(1);
+  });
+
+  it("does not remember other poster failures", async () => {
+    let n = 0;
+    const mock = createFetchMock({ "GET /api/library/items/i2/poster": () => (++n === 1 ? json({ error: "boom" }, 500) : new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/jpeg" } })) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const wrapper = ({ children }: { children: ReactNode }) => <TestProviders api={api}>{children}</TestProviders>;
+    const first = renderHook(() => usePosterUrl("i2", true), { wrapper });
+    await waitFor(() => expect(mock.calls).toHaveLength(1));
+    first.unmount();
+    const second = renderHook(() => usePosterUrl("i2", true), { wrapper });
+    await waitFor(() => expect(second.result.current).toBe("blob:poster-1"));
   });
 
   it("does nothing when disabled", () => {
