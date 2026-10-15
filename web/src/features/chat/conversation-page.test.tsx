@@ -10,6 +10,7 @@ import i18n from "~/i18n";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFakeRecorderEnv } from "~/test/fake-media";
+import { blurLayers, setLiquid, textOutsidePlates } from "~/test/glass";
 import { holdMic, pressKey } from "~/test/hold";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import type { RecordedCall } from "~/test/fetch-mock";
@@ -4360,5 +4361,39 @@ describe("realtime call (plan 2026-10-07)", () => {
     await act(async () => {});
     expect(callsTo(mock, "POST", "/api/realtime/ticket")).toHaveLength(0);
     spy.mockRestore();
+  });
+});
+
+describe("conversation in the liquid skin (plan 2026-10-15-liquid-glass L5-2)", () => {
+  beforeEach(() => {
+    resetServerAiConfigCache();
+    localStorage.removeItem(COMPOSER_MODE_KEY);
+  });
+  afterEach(() => setLiquid(false));
+  const MESSAGES = { "GET /api/conversations/c1/messages": () => json({ messages: [
+    { id: "m0", conversation_id: "c1", role: "assistant", content: "Earlier reply" },
+    { id: "m1", conversation_id: "c1", role: "user", content: "My own words" },
+  ] }) };
+
+  it("composer is one blurred layer and every text on it is on a plate (Rule 4)", async () => {
+    setLiquid(true);
+    setup(routes(MESSAGES));
+    const composer = await screen.findByTestId("chat-composer");
+    expect(composer.className).toContain("mat-chrome-bar");
+    expect(textOutsidePlates(composer)).toEqual([]);
+    expect(blurLayers(document.body).length).toBeLessThanOrEqual(2); // capsule + composer; the tab bar (+1) is outside the page
+  });
+
+  it("own bubbles are graphite, AI bubbles are E1; the level line sits on the page, not in the capsule", async () => {
+    setLiquid(true);
+    setup(routes({
+      ...MESSAGES,
+      "GET /api/conversations/c1": () => json({ id: "c1", name: "Ordering coffee", config: { ...CONFIG, scenario: { id: "cafe" }, level: "B1" } }),
+    }));
+    expect(await screen.findByTestId("conversation-level")).toBeInTheDocument();
+    expect(screen.getAllByTestId("conversation-level")).toHaveLength(1);
+    expect(screen.getByTestId("conversation-subtitle-line")).toContainElement(screen.getByTestId("conversation-level"));
+    expect(document.querySelector(".liquid\\:bg-graphite")).not.toBeNull();
+    expect(document.querySelector(".mat-surface.liquid\\:rounded-tl-tail")).not.toBeNull();
   });
 });

@@ -29,6 +29,7 @@ export const BLUR_OWNERS: Record<string, string> = {
   "components/bottom-sheet.tsx": "T3 sheet (transient)",
   "components/glass-tab-bar.tsx": "frozen tab bar (.glass-float)",
   "components/liquid.ts": "LQ_DIALOG constant (T3)",
+  "features/chat/conversation-header-actions.tsx": "header menu popover (T3, transient)",
   "features/lookup/lookup-bar.tsx": "frozen lookup bar (.glass-pop)",
   "features/lookup/lookup-layer.tsx": "frozen lookup drawer (BottomSheetContent glass prop)",
   "features/agents/persona-editor-sheet.tsx": "classic .glass action bar (existing)",
