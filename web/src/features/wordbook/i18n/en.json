@@ -53,7 +53,14 @@
         "spellHint": "Put today's words back into example sentences",
         "finished": "Done",
         "backlog": "Reviews are piling up — fewer new words today",
-        "switchBook": "Pick another"
+        "switchBook": "Pick another",
+        "todayHero": "Today",
+        "dueCount": "to review",
+        "newCount": "new",
+        "startReview": "Start review {{n}}",
+        "learnNew": "Learn new {{n}}",
+        "plan": "Plan",
+        "bandLegend": "Mastered · learning · new"
       },
       "books": {
         "title": "Choose a book",
