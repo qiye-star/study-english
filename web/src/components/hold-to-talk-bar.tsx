@@ -117,15 +117,15 @@ export function HoldToTalkBar({
   const cancelArmed = model.state === "armed-cancel";
   const textArmed = model.state === "armed-text";
   const rest = tone === "blue"
-    ? "border-transparent bg-blue-tint text-blue hover:bg-blue-tint"
-    : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] hover:bg-surface-2";
+    ? "border-transparent bg-blue-tint text-blue hover:bg-blue-tint plate liquid:text-ink"
+    : "border-hair bg-surface text-ink shadow-[0_1px_2px_rgba(17,19,24,0.04)] hover:bg-surface-2 plate liquid:border-transparent";
   const down = tone === "blue" ? "border-transparent bg-blue text-on-blue" : "border-blue/40 bg-blue-tint text-blue";
   return (
     <>
       <button type="button" data-testid={testId} data-hold-to-talk="" data-hold={model.state} {...data}
         className={cn(
           // 设计稿 .holdbar:44 高、圆角 12、0.5px 发丝线、15px 600 字重
-          "relative inline-flex h-11 min-h-11 min-w-0 flex-1 select-none items-center justify-center gap-2 rounded-button border-[0.5px] px-3 text-body font-semibold tracking-[0.02em]",
+          "relative inline-flex h-11 min-h-11 min-w-0 flex-1 select-none items-center justify-center gap-2 rounded-button border-[0.5px] px-3 text-body font-semibold tracking-[0.02em] liquid:rounded-full",
           "transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
           pressed ? (cancelArmed ? "border-transparent bg-red-solid text-white" : down) : rest,
         )}

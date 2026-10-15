@@ -202,3 +202,14 @@ describe("T3 sheet (L2-5, R-L2-5)", () => {
     expect(screen.getByTestId("sheet-overlay").className).toContain("bg-[color:var(--lookup-scrim)]");
   });
 });
+
+import { MaintenanceScreen } from "./maintenance-screen";
+
+describe("frames (L2-6)", () => {
+  it("maintenance page uses the page background and an empty-state well", () => {
+    render(<MaintenanceScreen onRetry={() => {}} />);
+    const main = screen.getByRole("main");
+    expect(main.className).toContain("page-bg");
+    expect(main.querySelector(".well, [class*='liquid:bg-wash']")).not.toBeNull();
+  });
+});

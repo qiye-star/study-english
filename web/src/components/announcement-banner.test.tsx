@@ -50,6 +50,7 @@ it("uses an amber tone for warnings, a neutral one for info, and has no close bu
   });
   renderWithProviders(<AnnouncementBanner />);
   expect((await screen.findByText("提醒")).parentElement).toHaveClass("bg-amber-tint");
+  expect(screen.getByText("提醒").parentElement!.className).toContain("mat-surface");
   expect(screen.getByText("通知").parentElement).toHaveClass("bg-surface-2");
   expect(screen.getAllByRole("button", { name: "关闭公告" })).toHaveLength(1);
   expect(screen.queryByText(/暂时只能查看/)).toBeNull();

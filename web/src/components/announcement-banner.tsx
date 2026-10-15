@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchAnnouncements, type Announcement, type AnnouncementsState } from "~/api/announcements";
@@ -103,7 +103,8 @@ function saveDismissed(ids: number[]): void {
 
 function Row({ tone, children, onDismiss, dismissLabel }: { tone: "warning" | "info"; children: React.ReactNode; onDismiss?: () => void; dismissLabel: string }) {
   return (
-    <div className={`flex items-center gap-1 pl-4 text-[13px] leading-[18px] text-ink ${tone === "warning" ? "bg-amber-tint" : "bg-surface-2"}`}>
+    <div className={`flex items-center gap-1 pl-4 text-[13px] leading-[18px] text-ink ${tone === "warning" ? "bg-amber-tint" : "bg-surface-2"} mat-surface liquid:mx-frame liquid:mt-2 liquid:gap-2 liquid:rounded-tile liquid:pl-3.5 liquid:text-sub`}>
+      {tone === "warning" ? <TriangleAlert aria-hidden className="hidden h-4 w-4 flex-none text-amber liquid:block" /> : null}
       <p className="min-w-0 flex-1 whitespace-pre-wrap break-words py-2.5">{children}</p>
       {onDismiss ? (
         <button type="button" aria-label={dismissLabel} onClick={onDismiss} className="flex h-11 w-11 shrink-0 items-center justify-center text-ink-2">
@@ -118,6 +119,7 @@ function Row({ tone, children, onDismiss, dismissLabel }: { tone: "warning" | "i
 
 /**
  * 网页端公告横幅(redesign-v3 一色一义:warning = amber 色调,info = 中性底,文字 ink;不模糊)。
+ * 液态皮肤(Rev 4):不模糊的 E1 面板 + 16px 琥珀图标(设计稿 .banner)。
  * 可关闭的公告记在 localStorage["announcement.dismissed"];只读维护时追加一条"暂时只能查看"。
  */
 export function AnnouncementBanner() {
@@ -135,7 +137,7 @@ export function AnnouncementBanner() {
   };
   const message = pickText(i18n.language, data.maintenance.messageZh, data.maintenance.messageEn);
   return (
-    <section aria-label={t("web.announcements.label")} className="shrink-0 divide-y divide-black/5 pt-[env(safe-area-inset-top)] dark:divide-white/10">
+    <section aria-label={t("web.announcements.label")} className="shrink-0 divide-y divide-black/5 pt-[env(safe-area-inset-top)] dark:divide-white/10 liquid:divide-y-0">
       {readOnly && (
         <Row tone="warning" dismissLabel={t("web.announcements.dismiss")}>
           <span className="font-medium">{t("web.announcements.readOnly")}</span>
