@@ -11,6 +11,7 @@ from tests.background import drain_background
 from tests.library_helpers import SRT, library_settings
 from tests.test_admin_api import register
 from tests.test_admin_catalog import BASE, upload_catalog
+from tests.test_admin_catalog_replace import replace_media
 
 HAVE_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 pytestmark = pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg / ffprobe not installed")
@@ -72,3 +73,21 @@ async def test_a_catalog_copy_of_a_video_keeps_the_picture(app, client, tmp_path
     mime, info = await fetch_media(client, h, item, tmp_path)
     assert mime == "video/mp4" and info.has_video and info.has_audio
     assert (info.vcodec, info.acodec, info.height) == ("h264", "aac", 240)
+
+
+async def test_an_old_audio_only_item_gets_its_picture_back(app, client, tmp_path):
+    """The owner's case: an item stored as audio, a user's copy, then the admin replaces the media with the video."""
+    video = tiny_video(tmp_path / "src.mp4", vcodec="mpeg4")
+    audio = tmp_path / "src.m4a"
+    subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(tmp_path / "src.mp4"),
+                    "-vn", "-c:a", "copy", str(audio)], check=True, timeout=120)
+    cid, item, h, admin = await import_and_add(app, client, audio.read_bytes())
+    mime, info = await fetch_media(client, h, item, tmp_path)
+    assert mime == "audio/mp4" and not info.has_video  # a plain audio copy plays (Range, mime, decodable)
+    assert (await client.post(f"{BASE}/{cid}/unpublish", headers=admin, json={})).status_code == 200
+    await replace_media(client, admin, cid, video)
+    await drain_background(app, timeout=120)
+    copy = (await client.get(f"/api/library/items/{item}", headers=h)).json()["item"]
+    assert (copy["kind"], copy["library_bytes"], copy["has_poster"]) == ("video", 0, True)
+    mime, info = await fetch_media(client, h, item, tmp_path)
+    assert mime == "video/mp4" and info.has_video and info.has_audio and info.vcodec == "h264"
