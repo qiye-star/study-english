@@ -317,5 +317,28 @@
         "en": "The shadowing library and this updates page keep their previous look."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-15",
+    "version": null,
+    "title_zh": "查词改成点两下",
+    "title_en": "Look up words with two taps",
+    "items": [
+      {
+        "tag": "improve",
+        "zh": "点一下英文单词会出现横线,再点一次就查词,不再和手机自带的选词菜单打架。",
+        "en": "Tap an English word to underline it and tap again to look it up, so it no longer clashes with the phone's own selection menu."
+      },
+      {
+        "tag": "fix",
+        "zh": "查词条不再盖住底部的「继续」等按钮,会抬到它们上面。",
+        "en": "The lookup bar no longer covers bottom buttons such as Continue; it now sits above them."
+      },
+      {
+        "tag": "improve",
+        "zh": "默认外观改为更通透的「清透」玻璃,房间里的消息操作弹窗也换成了玻璃样式。",
+        "en": "The default look is now the clearer glass preset, and the room message action popup is glass too."
+      }
+    ]
   }
 ]
