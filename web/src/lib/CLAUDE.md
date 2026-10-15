@@ -4,6 +4,7 @@ Pure, framework-light helpers shared by every layer.
 
 ## What lives here
 - `storage.ts` (safe localStorage JSON, `PRACTICE_DRAFT_KEY`), `kv-cache.ts` (IndexedDB cache), `playback-rate.ts`.
+- `glass-flag.ts` — liquid-glass switch: `initGlassFlag` (main.tsx; `?glass=v2` / `?glass=off`, key `enjoy-web.dev.glass`, removed in L12), `isLiquid` / `useLiquid` (structure branches), `isPinnedPath`, `setGlassPinned`. Plan `2026-10-15-liquid-glass`.
 - `abortable.ts`, `latency.ts` (timing marks, `window.__enjoyLatency`), `model-json.ts` (strict LLM JSON parsing), `cn.ts` (class merge aware of design tokens), `format-clock.ts`.
 - `select-word.ts` — `selectWord(el)`: programmatic selection of an element's text so the global lookup bar appears (same contract as `features/library/word-tap.ts`; used by the wordbook review page's long-press). Also `selectWordAt(x, y, doc, within)`: selects the Latin word at a point (a native selection wins).
 - `lookup-context.ts` — lookup marks (`lookupContext`, `lookupContextIf`, `ownLongPress`) and `lookupPressContext`; features and plugins import only this file for lookup eligibility.

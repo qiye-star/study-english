@@ -13,3 +13,4 @@
 
 ## Pitfalls
 - Add tokens in both light and dark blocks and to `tailwind.config.cjs` if used as utilities.
+- Liquid glass (plan `2026-10-15-liquid-glass`): new tokens (`--graphite`, `--ink-wash*`, `--plate`, `--scrim`, `--page-*`, `--mat-*`, scalars `--gx-radius`, `--frame-x`) are read only by the section at the end of `index.css`, scoped `html[data-glass="v2"]`. Never re-value an existing token (locked pages read them). Guards: `liquid-tokens`, `liquid-variant`, `glass-budget` (blur owners + `BLUR_OWNERS` allowlist), `locked-pages`.
