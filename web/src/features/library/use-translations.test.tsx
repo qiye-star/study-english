@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient, ApiError } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { TestProviders } from "~/test/render";
 import { MAX_TRANSLATE_BATCH, type LibrarySegment, type TranslateResult, type TranslatedSegment } from "./library-api";
-import { NEAR_SENTENCES, TranslationBatcher, useTranslations, type TranslateNotice, type UseTranslationsArgs, type WindowRow } from "./use-translations";
+import { NEAR_SENTENCES, TranslationBatcher, resetUnavailable, useTranslations, type TranslateNotice, type UseTranslationsArgs, type WindowRow } from "./use-translations";
 
 type Translate = (indices: number[], signal: AbortSignal) => Promise<TranslateResult>;
 
@@ -252,6 +252,8 @@ function mount(handler: Handler, over: Partial<UseTranslationsArgs> = {}) {
 const bodyOf = (mock: ReturnType<typeof createFetchMock>, n = 0) => JSON.parse(mock.calls[n].body as string);
 
 describe("useTranslations (W1 seam)", () => {
+  beforeEach(resetUnavailable);
+
   it("asks for the sentences within 10 of the anchor, ids and language in the body only, and returns the batch", async () => {
     const { mock, onTranslated } = mount(() => reply(range(11)));
     await waitFor(() => expect(onTranslated).toHaveBeenCalledTimes(1));
@@ -314,6 +316,37 @@ describe("useTranslations (W1 seam)", () => {
     await waitFor(() => expect(quota.view.result.current.notice).toBe("limited"));
     const broken = mount(() => json({ error: "AI is unavailable" }, 503));
     await waitFor(() => expect(broken.view.result.current.notice).toBe("failed"));
+  });
+
+  it("treats 503 AI is unavailable as terminal after the first failure, even when the anchor moves on", async () => {
+    const { mock, view, base } = mount(() => json({ error: "AI is unavailable" }, 503));
+    await waitFor(() => expect(view.result.current.notice).toBe("failed"));
+    view.rerender({ ...base, anchorIdx: 20 });
+    view.rerender({ ...base, anchorIdx: 35 });
+    await settle(300);
+    expect(mock.calls).toHaveLength(1);
+    expect(view.result.current.notice).toBe("failed");
+  });
+
+  it("does not ask again after AI was found unavailable when the batcher is rebuilt (native change); retry() does", async () => {
+    const { mock, view, base } = mount(() => json({ error: "AI is unavailable" }, 503));
+    await waitFor(() => expect(view.result.current.notice).toBe("failed"));
+    view.rerender({ ...base, native: "es-ES" });
+    await settle(300);
+    expect(mock.calls).toHaveLength(1);
+    expect(view.result.current.notice).toBe("failed");
+    act(() => view.result.current.retry());
+    await waitFor(() => expect(mock.calls).toHaveLength(2));
+  });
+
+  it("still allows two attempts for other server failures", async () => {
+    const { mock, view, base } = mount(() => json({ error: "boom" }, 500));
+    await waitFor(() => expect(view.result.current.notice).toBe("failed"));
+    view.rerender({ ...base, anchorIdx: 20 });
+    await waitFor(() => expect(mock.calls).toHaveLength(2));
+    view.rerender({ ...base, anchorIdx: 35 });
+    await settle(300);
+    expect(mock.calls).toHaveLength(2);
   });
 
   it("does nothing for an empty sentence list", async () => {

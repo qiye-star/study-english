@@ -18,6 +18,8 @@ export const NEAR_SENTENCES = 10;
 /** 防抖:翻到下一句 / 一批结果回来之后,等这么久再发下一批。 */
 export const FLUSH_DELAY_MS = 150;
 const MAX_CONSECUTIVE_FAILURES = 2;
+/** 测试用:忘掉所有「AI 不可用」记录。 */
+export const resetUnavailable = () => unavailableItems.clear();
 
 export interface UseTranslationsArgs {
   itemId: string;
@@ -53,7 +55,17 @@ export interface BatcherOptions {
   /** 额度满 / 失败的固定提示;会话结束或重试时给 null */
   onNotice(notice: TranslateNotice | null): void;
   delayMs?: number;
+  /** 「AI 不可用」是否已判定(跨批处理器重建保留,重试 / 关「译」时清除) */
+  unavailable?: { get(): boolean; set(on: boolean): void };
 }
+
+/** 503「AI is unavailable」(服务端没配 LLM):再试也没用,第一次失败就终止(重试按钮才开新会话)。 */
+export function isAiUnavailable(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 503 && err.message === "AI is unavailable";
+}
+
+/** 按条目记住 AI 不可用,窗口重建(换母语 / 重新进入播放器)不会再发一轮请求;重试或关「译」清除。 */
+const unavailableItems = new Set<string>();
 
 const NONE: ReadonlySet<number> = new Set<number>();
 
@@ -74,7 +86,9 @@ export class TranslationBatcher {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private controller: AbortController | null = null;
 
-  constructor(private readonly opts: BatcherOptions) {}
+  constructor(private readonly opts: BatcherOptions) {
+    this.stopped = opts.unavailable?.get() === true;
+  }
 
   /** 用锚点附近的句子(升序)替换视野;有新的可取句子时排一次发送。 */
   sync(rows: readonly WindowRow[]): void {
@@ -96,6 +110,7 @@ export class TranslationBatcher {
     if (on === this.enabled || this.disposed) return;
     this.enabled = on;
     if (on) {
+      if (this.stopped) this.opts.onNotice("failed");
       this.schedule();
       return;
     }
@@ -127,6 +142,7 @@ export class TranslationBatcher {
     this.done.clear();
     this.stopped = false;
     this.failures = 0;
+    if (!this.disposed) this.opts.unavailable?.set(false);
     if (!this.disposed) this.opts.onPending(NONE);
   }
 
@@ -176,7 +192,8 @@ export class TranslationBatcher {
         }
         this.failures += 1;
         const limited = isAiLimited(err);
-        if (limited || (err instanceof ApiError && err.status === 404) || this.failures >= MAX_CONSECUTIVE_FAILURES) this.stopped = true;
+        if (isAiUnavailable(err)) this.opts.unavailable?.set(true);
+        if (limited || isAiUnavailable(err) || (err instanceof ApiError && err.status === 404) || this.failures >= MAX_CONSECUTIVE_FAILURES) this.stopped = true;
         this.opts.onPending(NONE);
         this.opts.onNotice(limited ? "limited" : "failed");
         return;
@@ -226,6 +243,10 @@ export function useTranslations({ itemId, enabled, segments, anchorIdx, native, 
       onResult: (items) => onTranslatedRef.current(items),
       onPending: setPending,
       onNotice: setNotice,
+      unavailable: {
+        get: () => unavailableItems.has(itemId),
+        set: (on) => { if (on) unavailableItems.add(itemId); else unavailableItems.delete(itemId); },
+      },
     });
     batcherRef.current = batcher;
     return () => {
