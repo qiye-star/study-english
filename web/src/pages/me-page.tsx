@@ -1,6 +1,6 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, SmartphoneIcon, SunMoonIcon, type LucideIcon,
+  LanguagesIcon, LogOutIcon, PaletteIcon, SmartphoneIcon, SunMoonIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,9 @@ import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "@renderer/lib/utils";
 import { Avatar } from "~/components/avatar";
 import { IconChip } from "~/components/icon-chip";
+import { LQ_DANGER_TEXT, LQ_PAGE, LQ_PANEL } from "~/components/liquid";
 import { ListRow, SectionGroup } from "~/components/section-group";
+import { ScoreDot } from "~/components/score-dot";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import type { Tone } from "~/components/tone";
@@ -25,10 +27,14 @@ import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
 import { PLAYBACK_RATES, formatPlaybackRate, setPlaybackRate, usePlaybackRate, type PlaybackRate } from "~/lib/playback-rate";
 import { PageHeader } from "~/layout/page-header";
+import { useLiquid } from "~/lib/glass-flag";
 import { Slot } from "~/lib/extension-points-react";
 import { shouldShowIosInstallHint } from "~/pwa/ios";
+import { useGlassTheme } from "~/settings/glass-theme-store";
 import { useSettings } from "~/settings/settings-context";
 import { COLOR_SCHEMES, type ColorScheme } from "~/settings/color-scheme-pref";
+
+const APPEARANCE_PATH = "/me/appearance";
 
 const oneDecimal = (n: number) => Math.round(n * 10) / 10;
 
@@ -50,7 +56,7 @@ function SelectRow({ id, testId, icon, tone = "gray", title, hint, display, valu
 }) {
   const hintId = `${id}-hint`;
   return (
-    <div className="relative flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring active:bg-surface-2">
+    <div className="relative flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 transition-colors duration-fast focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring active:bg-surface-2 liquid:px-4 liquid:active:bg-wash">
       <IconChip tone={tone} icon={icon} />
       <span className="min-w-0 flex-1">
         <label htmlFor={id} className="block text-body font-medium tracking-[-0.005em] text-ink">{title}</label>
@@ -75,14 +81,14 @@ function SwitchRow({ id, testId, icon, tone = "gray", title, hint, checked, onCh
 }) {
   const hintId = `${id}-hint`;
   return (
-    <div className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3">
+    <div className="flex min-h-row items-center gap-3 py-2.5 pl-3.5 pr-3 liquid:px-4">
       <IconChip tone={tone} icon={icon} />
       <span className="min-w-0 flex-1">
         <label htmlFor={id} className="block text-body font-medium tracking-[-0.005em] text-ink">{title}</label>
         {hint ? <span id={hintId} className="mt-0.5 block text-meta text-ink-2">{hint}</span> : null}
       </span>
       <Switch id={id} data-testid={testId} checked={checked} onCheckedChange={onChange} aria-describedby={hint ? hintId : undefined}
-        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair" />
+        className="hit-expand h-[26px] w-11 flex-none data-[state=checked]:bg-blue data-[state=unchecked]:bg-surface-2 data-[state=unchecked]:shadow-hair liquid:data-[state=unchecked]:bg-wash-2" />
     </div>
   );
 }
@@ -104,8 +110,8 @@ function WeekStrip({ stats }: { stats: Stats }) {
           return (
             <li key={d.date} data-active={d.active ? "true" : "false"} className="w-7 text-center text-label text-ink-2">
               <span aria-hidden className={cn(
-                "mx-auto mb-[3px] flex h-5 w-5 items-center justify-center rounded-inline text-blue",
-                d.active || today ? "bg-blue-tint" : "bg-surface-2",
+                "mx-auto mb-[3px] flex h-5 w-5 items-center justify-center rounded-inline text-blue liquid:rounded-full liquid:text-surface",
+                d.active ? "bg-blue-tint liquid:bg-ink/85" : today ? "bg-blue-tint liquid:bg-transparent" : "bg-surface-2 liquid:bg-wash",
                 today && "outline outline-[1.5px] -outline-offset-[1.5px] outline-blue",
               )}>
                 {d.active ? <CheckIcon className="h-3 w-3" strokeWidth={3} /> : null}
@@ -135,6 +141,8 @@ export function MePage() {
   const tRef = useRef(t);
   tRef.current = t;
   const id = useId();
+  const liquid = useLiquid();
+  const { theme } = useGlassTheme();
 
   useEffect(() => {
     let alive = true;
@@ -161,27 +169,45 @@ export function MePage() {
     window.matchMedia?.("(display-mode: standalone)").matches ?? false,
   );
 
+  const profile = (
+    <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
+      {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
+      <Avatar name={user?.name ?? ""} size="md" tone="blue" className="text-blue [font-size:22px] liquid:text-ink" />
+      <div className="min-w-0 flex-1">
+        <p className="text-meta text-ink-2">{t("web.me.username")}</p>
+        <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>
+      </div>
+    </div>
+  );
+
+  const statsBlock = (
+    <>
+    {stats && (
+      <div data-testid="me-stats" className="mt-4 grid grid-cols-3 gap-2">
+        <StatTile tone="amber" icon={FlameIcon} label={t("web.me.stats.streak")} value={stats.streakDays} unit={t("web.me.stats.days")} />
+        <StatTile tone="blue" icon={ClockIcon} label={t("web.me.stats.speaking")}
+          value={Math.round(stats.speakingSeconds / 60)} unit={t("web.me.stats.minutes")} />
+        <StatTile tone="green" icon={BarChart3Icon} label={t("web.me.stats.avg")}
+          value={stats.avgPronunciation === null ? "—" : <span className="inline-flex items-center gap-1.5">{oneDecimal(stats.avgPronunciation)}<ScoreDot score={stats.avgPronunciation} /></span>} />
+      </div>
+    )}
+    </>
+  );
+
   return (
     <div>
-      <PageHeader title={t("web.me.title")} />
-      <div className="px-gutter pb-6">
-        <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
-          {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
-          <Avatar name={user?.name ?? ""} size="md" tone="blue" className="text-blue [font-size:22px]" />
-          <div className="min-w-0 flex-1">
-            <p className="text-meta text-ink-2">{t("web.me.username")}</p>
-            <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>
-          </div>
-        </div>
-
-        {stats && (
-          <div data-testid="me-stats" className="mt-4 grid grid-cols-3 gap-2">
-            <StatTile tone="amber" icon={FlameIcon} label={t("web.me.stats.streak")} value={stats.streakDays} unit={t("web.me.stats.days")} />
-            <StatTile tone="blue" icon={ClockIcon} label={t("web.me.stats.speaking")}
-              value={Math.round(stats.speakingSeconds / 60)} unit={t("web.me.stats.minutes")} />
-            <StatTile tone="green" icon={BarChart3Icon} label={t("web.me.stats.avg")}
-              value={stats.avgPronunciation === null ? "—" : oneDecimal(stats.avgPronunciation)} />
-          </div>
+      <PageHeader large title={t("web.me.title")} />
+      <div className={`px-gutter pb-6 ${LQ_PAGE}`}>
+        {liquid ? (
+          <SurfaceCard strong data-testid="me-hero" className="mt-2 p-4 [&_[data-testid=me-stats]]:mt-3.5">
+            {profile}
+            {statsBlock}
+          </SurfaceCard>
+        ) : (
+          <>
+            {profile}
+            {statsBlock}
+          </>
         )}
 
         <RankCard className="mt-4" />
@@ -210,12 +236,17 @@ export function MePage() {
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.general")} bare>
-          <div className="divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface">
-            <SelectRow id={`${id}-color-scheme`} testId="me-color-scheme" icon={SunMoonIcon} title={t("web.me.colorScheme")}
-              hint={t("web.me.colorSchemeHint")} display={t(`web.me.colorSchemeOptions.${colorScheme}`)} value={colorScheme}
-              onChange={(v) => setColorScheme(v as ColorScheme)}>
-              {COLOR_SCHEMES.map((s) => <option key={s} value={s}>{t(`web.me.colorSchemeOptions.${s}`)}</option>)}
-            </SelectRow>
+          <div className={`divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface ${LQ_PANEL}`}>
+            {liquid ? (
+              <ListRow icon={<IconChip tone="gray" icon={PaletteIcon} />} title={t("web.me.appearance")} to={APPEARANCE_PATH} testId="me-appearance"
+                value={<span>{t(`web.appearance.preset.${theme.preset}`)}</span>} />
+            ) : (
+              <SelectRow id={`${id}-color-scheme`} testId="me-color-scheme" icon={SunMoonIcon} title={t("web.me.colorScheme")}
+                hint={t("web.me.colorSchemeHint")} display={t(`web.me.colorSchemeOptions.${colorScheme}`)} value={colorScheme}
+                onChange={(v) => setColorScheme(v as ColorScheme)}>
+                {COLOR_SCHEMES.map((s) => <option key={s} value={s}>{t(`web.me.colorSchemeOptions.${s}`)}</option>)}
+              </SelectRow>
+            )}
             <SelectRow id={`${id}-language`} testId="me-language" icon={LanguagesIcon} title={t("web.me.language")}
               hint={t("web.me.languageHint")} display={t(`web.languages.${language}`)} value={language}
               onChange={(v) => setLanguage(v as UiLanguage)}>
@@ -252,7 +283,7 @@ export function MePage() {
         </SectionGroup>
 
         <button type="button" data-testid="me-logout" onClick={() => logout(true)}
-          className="mt-[18px] flex h-12 w-full items-center justify-center gap-1.5 rounded-button text-body font-semibold text-red transition-colors duration-fast active:bg-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          className={`mt-[18px] flex h-12 w-full items-center justify-center gap-1.5 rounded-button text-body font-semibold text-red transition-colors duration-fast active:bg-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_DANGER_TEXT} liquid:mx-auto liquid:mt-8 liquid:w-auto liquid:px-6`}>
           <LogOutIcon aria-hidden className="h-5 w-5" />
           {t("web.me.logout")}
         </button>

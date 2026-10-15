@@ -16,3 +16,6 @@ Screens that are not owned by a single feature: `login-page.tsx`, `install-page.
 ## Pitfalls
 - New feature screens belong in `features/<name>/`, not here.
 - Login form must never log credentials.
+
+## Liquid glass
+- Liquid glass (plan 2026-10-15-liquid-glass L11): Me = profile hero (`me-hero`) + 外观与主题 row (`me-appearance`, liquid only, links to `/me/appearance`; the colour select stays for classic); login form is an E1 panel.

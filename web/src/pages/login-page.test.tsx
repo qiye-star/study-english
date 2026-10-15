@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { setLiquid } from "~/test/glass";
 import { LoginPage } from "./login-page";
 
 const USER = { id: "12345678", name: "alice", created_at: "t", access_token: "tok" };
@@ -79,5 +80,18 @@ describe("LoginPage", () => {
     setup({});
     expect(screen.getByTestId("login-username").className).toMatch(/\bh-(11|12)\b/);
     expect(screen.getByTestId("login-username").className).toMatch(/\btext-base\b/);
+  });
+
+  it("liquid: form panel, pill fields, accent submit (plan 2026-10-15-liquid-glass L11-2)", () => {
+    setLiquid(true);
+    try {
+      setup({});
+      expect(screen.getByTestId("login-submit").className).toContain("liquid:shadow-accent");
+      expect(screen.getByTestId("login-username").className).toMatch(/\bh-(11|12)\b/);
+      expect(screen.getByTestId("login-username").className).toContain("liquid:rounded-full");
+      expect(screen.getByTestId("login-username").closest("form")!.className).toContain("mat-surface-strong");
+    } finally {
+      setLiquid(false);
+    }
   });
 });
