@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ZhToggle } from "~/components/zh-toggle";
 import { drawerDefs, enPosLabel, type DictEntry } from "./dictionary";
+import { LOOKUP_WELL } from "./glass";
 
 /**
  * 抽屉里词典命中的显示:词 / 音标 / 原形 / 中文释义 / 英文释义(遵守 def_lang)/ 最多 3 条短语。
@@ -37,7 +38,7 @@ export function DictionaryResult({ entry }: { entry: DictEntry }) {
         </ul>
       )}
       {canPeek && (
-        <ZhToggle pressed={peek} onToggle={() => setPeekOf(peek ? null : entry)} label={t("web.lookup.zh")} testId="lookup-zh" />
+        <ZhToggle pressed={peek} onToggle={() => setPeekOf(peek ? null : entry)} label={t("web.lookup.zh")} testId="lookup-zh" className={peek ? undefined : LOOKUP_WELL} />
       )}
       {entry.phrases.length > 0 && (
         <div data-testid="lookup-dict-phrases">
