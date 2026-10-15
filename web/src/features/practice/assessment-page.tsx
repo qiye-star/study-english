@@ -13,6 +13,7 @@ import { WavesurferPlayer } from "@renderer/components/misc/wavesurfer-player";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { IconButton } from "~/components/icon-button";
+import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_PAGE, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 import { SurfaceCard } from "~/components/surface-card";
 import { PageHeader } from "~/layout/page-header";
 import { PRACTICE_SERVER_ERRORS, deleteAssessment, getAssessment, getAssessmentAudio, type AssessmentDetail } from "./assessment-api";
@@ -77,8 +78,8 @@ export function AssessmentPage() {
       {error && <p role="alert" className="px-gutter py-3 text-sub text-destructive">{error}</p>}
       {!detail && !error && <Skeleton className="mx-gutter mt-2 h-40 rounded-card" />}
       {detail && (
-        <div className="space-y-2 px-gutter pb-6 pt-2">
-          <SurfaceCard className="p-3.5">
+        <div className={`space-y-2 px-gutter pb-6 pt-2 ${LQ_PAGE} liquid:space-y-4`}>
+          <SurfaceCard strong className="p-3.5">
             <p className="eyebrow">{t("web.practice.referenceLabel")}</p>
             <p data-testid="assessment-reference" data-lookup-context
               className="mt-1.5 select-text text-title font-medium leading-dialogue tracking-[-0.01em] text-ink">
@@ -103,21 +104,21 @@ export function AssessmentPage() {
                 currentTime={currentTime} src={audioUrl ?? undefined} />
             </div>
           </SurfaceCard>
-          <Button data-testid="assessment-again" className="!mt-4 h-12 w-full rounded-button text-[15px] font-semibold"
+          <Button data-testid="assessment-again" className={`!mt-4 h-12 w-full rounded-button text-[15px] font-semibold ${LQ_PRIMARY}`}
             onClick={() => navigate("/practice", { state: { reference: detail.referenceText } })}>
             <RotateCcwIcon className="mr-2 h-5 w-5" />{t("web.practice.result.again")}
           </Button>
         </div>
       )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
-        <AlertDialogContent>
+        <AlertDialogContent className={LQ_DIALOG}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("web.practice.result.deleteConfirm")}</AlertDialogTitle>
             <AlertDialogDescription>{t("web.practice.result.deleteDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-11">{t("web.common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction data-testid="assessment-delete-confirm" className="h-11" onClick={() => void remove()}>
+            <AlertDialogCancel className={`h-11 ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction data-testid="assessment-delete-confirm" className={`h-11 ${LQ_DANGER_TEXT}`} onClick={() => void remove()}>
               {t("web.common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
