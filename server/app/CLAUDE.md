@@ -9,7 +9,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `models.py` | SQLAlchemy ORM schema (peer of core; imports only `core`) |
 | `providers/` | vendor clients: Volcengine, Azure Speech, iFlytek (xfyun) |
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
-| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames) |
+| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames), avatars (Pillow re-encode, `DATA_DIR/avatars/` storage, reports) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
 | `rooms/` | practice rooms (create/join/close/reopen): codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
@@ -63,6 +63,7 @@ its poll loop as `tasks["library"]` and calls `shutdown()` before the engine clo
 - Logger names follow `__name__`, except the pinned `app.timing` and
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
+- Avatar files live in `DATA_DIR/avatars/` and are outside the SQLite backup. Only `services/avatars.py` writes or deletes them; read `avatar_id` through the services, never build a path by hand.
 - Migrations: `alembic/versions/` is linear (head `0025`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
   `0016_agent_memory` is shared with A3 (A3 appends `agent_tutor_sessions`).
