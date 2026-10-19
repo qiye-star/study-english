@@ -183,6 +183,8 @@ async def register(
     password_hash = await asyncio.to_thread(hash_password, payload.password)  # before any lookup (R-F7)
     if settings.email_registration_required:
         return await _register_with_email(payload, request, session, settings, password_hash, db_code)
+    if await _get_by_username(session, payload.username) is not None:  # before any invite is looked at (no oracle)
+        raise HTTPException(409, "Username already taken")
     user_cap = _user_cap(request, session)
     for _ in range(5):
         code_row = None

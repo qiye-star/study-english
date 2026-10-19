@@ -46,6 +46,10 @@ def _invalid() -> VerificationError:
     return VerificationError("invalid")
 
 
+async def _username_taken(session: AsyncSession, username: str) -> bool:
+    return (await session.execute(select(User.id).where(User.username == username))).first() is not None
+
+
 async def register_with_email(
     session: AsyncSession, settings: Settings, *, username: str, password_hash: str,
     nickname: str, email: str, code: str, invite_code: str | None, new_user_id: Callable[[], int], now: datetime,
@@ -59,6 +63,10 @@ async def register_with_email(
     target = identities.subject_hmac(settings.identity_pepper, email)
     for _ in range(_ID_ATTEMPTS):
         row_id = (await verification.verify(session, settings, target, "register", code, now)).id
+        if await _username_taken(session, username):  # before the invite use: a taken name answers alike for any code
+            await session.rollback()
+            await verification.release_attempt(session, row_id)
+            raise UsernameTaken()
         code_row = None
         if invite_code is not None:
             try:

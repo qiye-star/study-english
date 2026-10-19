@@ -183,3 +183,121 @@ async def test_email_path_bad_and_used_up_codes_answer_as_before_and_count_per_i
     r = await _post(client, register_body("mail_six@example.com", code, username="mail_six", invite_code=ADMIN_CODE))
     assert r.status_code == 403 and r.json() == {"error": "Invite code used up"}
     assert await _users(app) == 1 and len(await _redemptions(app)) == 1  # only mail_five was created
+
+# ---- a taken username is answered before any invite code is looked at (no oracle for valid codes) ----
+
+USED_CODE = "USED-CODE-CCCC"
+NOPE_CODE = "NOPE-NOPE-NOPE"
+
+async def _taken_codes_are_not_revealed(app, client, make_request, taken: str, codes: list[str]):
+    """Every code answers the same 409 for a taken name; none is redeemed, counted or throttled."""
+    for code in codes:
+        r = await make_request(code)
+        assert r.status_code == 409 and r.json() == {"error": "Username already taken"}, (code, r.text)
+    assert (await _row(app, ADMIN_CODE)).uses == 0
+    assert (await _row(app, USED_CODE)).uses == 1  # untouched
+    assert await _redemptions(app) == []
+
+async def test_legacy_taken_name_answers_409_for_valid_invalid_and_used_up_codes_alike(app, client):
+    await _owner(app, "taken_oracle")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    await _code(app, USED_CODE, max_uses=1, uses=1)
+    await _taken_codes_are_not_revealed(app, client,
+                                        lambda code: _post(client, _legacy("taken_oracle", code)),
+                                        "taken_oracle", [ADMIN_CODE, NOPE_CODE, USED_CODE])
+
+async def test_legacy_taken_name_never_reaches_the_per_ip_throttle(app, client):
+    await _owner(app, "taken_throttle")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    for n in range(6):  # the allowance is five bad codes per IP per hour: six would block the next request
+        assert (await _post(client, _legacy("taken_throttle", NOPE_CODE))).status_code == 409, n
+    r = await _post(client, _legacy("free_after_taken", NOPE_CODE))
+    assert r.status_code == 403 and r.json() == {"error": "Invalid invite code"}  # counted once, not blocked
+    assert (await _post(client, _legacy("free_valid", ADMIN_CODE))).status_code == 200  # and the code still works
+
+async def test_legacy_free_name_keeps_the_403_messages_and_the_redemption(app, client):
+    await _code(app, ADMIN_CODE, max_uses=1)
+    assert (await _post(client, _legacy("free_one", ADMIN_CODE))).status_code == 200
+    assert (await _post(client, _legacy("free_two", ADMIN_CODE))).json() == {"error": "Invite code used up"}
+    assert (await _post(client, _legacy("free_three", NOPE_CODE))).json() == {"error": "Invalid invite code"}
+    assert len(await _redemptions(app)) == 1 and (await _row(app, ADMIN_CODE)).uses == 1
+
+async def test_legacy_username_race_at_commit_is_409_and_gives_the_use_back(app, client, monkeypatch):
+    from app.routers import sessions as sessions_router
+
+    await _owner(app, "race_legacy")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    real = sessions_router._get_by_username
+    seen = []
+
+    async def pre_check_misses_once(session, username):  # the name is taken only at commit (the unique constraint)
+        if not seen:
+            seen.append(username)
+            return None
+        return await real(session, username)
+
+    monkeypatch.setattr(sessions_router, "_get_by_username", pre_check_misses_once)
+    r = await _post(client, _legacy("race_legacy", ADMIN_CODE))
+    assert r.status_code == 409 and r.json() == {"error": "Username already taken"}
+    assert (await _row(app, ADMIN_CODE)).uses == 0 and await _redemptions(app) == []
+
+async def test_email_taken_name_answers_409_for_valid_invalid_and_used_up_codes_alike(app, client):
+    _email_on(app)
+    await _owner(app, "taken_mail_oracle")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    await _code(app, USED_CODE, max_uses=1, uses=1)
+    for n, code in enumerate([ADMIN_CODE, NOPE_CODE, USED_CODE]):
+        mailed = await mail_code(app, client, f"oracle_{n}@example.com")
+        r = await _post(client, register_body(f"oracle_{n}@example.com", mailed, username="taken_mail_oracle",
+                                              invite_code=code))
+        assert r.status_code == 409 and r.json() == {"error": "Username already taken"}, (code, r.text)
+    assert (await _row(app, ADMIN_CODE)).uses == 0 and (await _row(app, USED_CODE)).uses == 1
+    assert await _redemptions(app) == []
+
+async def test_email_wrong_code_with_a_taken_name_is_still_the_400(app, client):
+    _email_on(app)
+    await _owner(app, "taken_wrong_mail")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    await mail_code(app, client, "wrong_code@example.com")
+    r = await _post(client, register_body("wrong_code@example.com", "000000", username="taken_wrong_mail",
+                                          invite_code=ADMIN_CODE))
+    assert r.status_code == 400
+    assert (await _row(app, ADMIN_CODE)).uses == 0
+
+async def test_email_taken_name_never_reaches_the_per_ip_throttle(app, client):
+    _email_on(app)
+    await _owner(app, "taken_mail_throttle")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    for n in range(6):
+        mailed = await mail_code(app, client, f"throttle_{n}@example.com")
+        r = await _post(client, register_body(f"throttle_{n}@example.com", mailed, username="taken_mail_throttle",
+                                              invite_code=NOPE_CODE))
+        assert r.status_code == 409, (n, r.text)
+    mailed = await mail_code(app, client, "throttle_free@example.com")
+    r = await _post(client, register_body("throttle_free@example.com", mailed, username="free_mail_after",
+                                          invite_code=NOPE_CODE))
+    assert r.status_code == 403 and r.json() == {"error": "Invalid invite code"}
+
+async def test_email_username_race_at_commit_is_409_and_gives_the_use_back(app, client, monkeypatch):
+    from app.services import email_accounts
+
+    _email_on(app)
+    await _owner(app, "race_mail")
+    await _code(app, ADMIN_CODE, max_uses=2)
+    real = email_accounts._username_taken
+    seen = []
+
+    async def pre_check_misses_once(session, username):
+        if not seen:
+            seen.append(username)
+            return False
+        return await real(session, username)
+
+    monkeypatch.setattr(email_accounts, "_username_taken", pre_check_misses_once)
+    code = await mail_code(app, client, "race_mail@example.com")
+    r = await _post(client, register_body("race_mail@example.com", code, username="race_mail", invite_code=ADMIN_CODE))
+    assert r.status_code == 409 and r.json() == {"error": "Username already taken"}
+    assert (await _row(app, ADMIN_CODE)).uses == 0 and await _redemptions(app) == []
+    r = await _post(client, register_body("race_mail@example.com", code, username="race_mail_free",
+                                          invite_code=ADMIN_CODE))
+    assert r.status_code == 200, r.text
