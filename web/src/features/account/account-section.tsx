@@ -1,3 +1,4 @@
+import "./locales";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { UserProfile } from "~/api/types";

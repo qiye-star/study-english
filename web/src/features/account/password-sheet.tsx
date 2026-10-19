@@ -1,3 +1,4 @@
+import "./locales";
 import { useId, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { translateServerError } from "~/api/error-messages";

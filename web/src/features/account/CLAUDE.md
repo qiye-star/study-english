@@ -9,7 +9,7 @@ Account settings shown on the 「我的」(me) page: nickname and password chang
 - `nickname-row.tsx` — nickname input and save; 422 maps to a fixed localized message, the input is never echoed.
 - `password-sheet.tsx` — change-password bottom sheet; validates 8–128 characters locally, then calls `useAuth().changePassword`.
 - `account-api.ts` — the only place that builds account requests (`fetchProfile`, `saveNickname`). Calls go through `ApiClient`; components never call `fetch`.
-- `i18n/{en,zh-CN}.json` — strings under `web.account.*` (merged automatically).
+- `locales/{en,zh-CN}.json` — strings under `web.account.*`, merged lazily by `locales.ts` (`ensureAccountI18n`, called from every lazy entry; X37). Not under `i18n/`, so the eager glob never sees them.
 
 ## Allowed dependencies (INDEX X35)
 - Shared layers only: `~/api`, `~/auth` (`useAuth`), `~/components`, `~/i18n`, `~/lib`, `@renderer/*`.

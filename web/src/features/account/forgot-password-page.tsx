@@ -1,3 +1,4 @@
+import "./locales";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useNavigate } from "react-router-dom";
