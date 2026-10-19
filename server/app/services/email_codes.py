@@ -50,3 +50,27 @@ async def request_code(session: AsyncSession, settings: Settings, mailer: Mailer
     await session.commit()  # the mail goes out only after the row is durable
     if kind is not None:
         mailer.enqueue(kind, email, code=code, lang=lang)
+
+
+async def request_bound_code(session: AsyncSession, settings: Settings, mailer: Mailer, user_id: int, email: str,
+                             purpose: str, now: datetime, lang: str) -> None:
+    """Code for the signed-in user's `bind` / `change_email` (R-F6). `email` is normalised; the caller has checked
+    the purpose against the account state and, for a change, the password. An address that ANOTHER account owns gets
+    a hidden row and a "someone tried to link your email" notice instead of a code, so the answer is the same.
+    Commits; raises VerificationError (cooldown / target_daily / global_daily) with nothing written."""
+    if purpose not in ("bind", "change_email"):
+        raise ValueError("unsupported purpose")
+    target = identities.subject_hmac(settings.identity_pepper, email)
+    holder = await identities.find_user_by_email(session, settings, email)
+    code = None
+    if holder is None or holder.id == user_id:  # free, or another spelling of the user's own address
+        code, _ = await verification.issue(session, settings, target, purpose, now, user_id=user_id)
+        kind = "bind_code"
+    else:
+        await verification.hidden_issue(session, settings, target, purpose, now)
+        if not await verification.claim_global_quota(session, settings.email_daily_global,
+                                                     now.astimezone(timezone.utc).date()):  # the notice is a real mail
+            raise VerificationError("global_daily")
+        kind = "bind_conflict"
+    await session.commit()  # the mail goes out only after the row is durable
+    mailer.enqueue(kind, email, code=code, lang=lang)

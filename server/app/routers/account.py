@@ -9,13 +9,14 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.deps import auth_rate_limit, client_ip, current_user, get_session, get_settings
+from app.core.deps import (auth_rate_limit, client_ip, current_user, current_user_unbound, get_session,
+                           get_settings)
 from app.core.security import hash_password, verify_password
 from app.models import User, display_of, utcnow
 from app.routers.live_connections import cut_connections
 from app.services import email_accounts, email_codes, identities
 from app.services.email_domains import domain_allowed
-from app.services.identities import email_ready, normalize_email
+from app.services.identities import email_ready, mask_email, normalize_email
 from app.services.email_accounts import INVALID_CODE
 from app.services.verification import COOLDOWN, VerificationError
 from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
@@ -61,6 +62,21 @@ class PasswordResetIn(BaseModel):
     @classmethod
     def _normalise(cls, value: str) -> str:
         return normalize_email(value)  # fixed message, never echoes the address
+
+
+class BindCodeIn(BaseModel):
+    email: str = Field(max_length=254)
+    purpose: Literal["bind", "change_email"] | None = None  # optional: the account state decides; a mismatch is a 409
+    current_password: str | None = Field(None, max_length=128)  # required for change_email
+
+    @field_validator("email")
+    @classmethod
+    def _normalise(cls, value: str) -> str:
+        return normalize_email(value)  # fixed message, never echoes the address
+
+
+class BindIn(BindCodeIn):
+    code: str = Field(max_length=16)
 
 
 class PasswordChangeIn(BaseModel):
@@ -154,3 +170,67 @@ async def reset_password(
     except Exception as exc:  # the password is already reset: the answer stays 204
         logger.warning("cut_connections failed after a password reset: %s", type(exc).__name__)
     return Response(status_code=204)
+
+
+def _bind_purpose(user: User, declared: str | None) -> str:
+    """`change_email` when the account already has a verified email, else `bind`. A client that names the other one
+    gets a 409 (it concerns the caller's own account only)."""
+    purpose = "change_email" if user.email_verified_at is not None else "bind"
+    if declared is not None and declared != purpose:
+        raise HTTPException(409, "Email already bound" if purpose == "change_email" else "No email to change")
+    return purpose
+
+
+async def _require_password_for_change(user: User, purpose: str, password: str | None) -> None:
+    if purpose == "change_email" and (
+            password is None or not await asyncio.to_thread(verify_password, user.password_hash, password)):
+        raise HTTPException(403, "Wrong password")
+
+
+@router.post("/me/email/code", dependencies=[Depends(auth_rate_limit)])
+async def me_email_code(
+    payload: BindCodeIn,
+    request: Request,
+    user: User = Depends(current_user_unbound),  # a user who is forced to bind must reach this (INDEX X3)
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    """Mail a code to the address the signed-in user wants to bind or switch to. An address another account owns
+    gets a notice instead and the same answer (R-F6)."""
+    if not email_ready(settings):
+        raise HTTPException(503, "Email is not configured")
+    purpose = _bind_purpose(user, payload.purpose)
+    await _require_password_for_change(user, purpose, payload.current_password)
+    if not request.app.state.email_ip_limiter.allow(client_ip(request)):
+        raise HTTPException(429, TOO_MANY_CODES)
+    if not domain_allowed(settings, payload.email):
+        raise HTTPException(422, "Email domain not allowed")
+    try:
+        await email_codes.request_bound_code(session, settings, request.app.state.mailer, user.id, payload.email,
+                                             purpose, utcnow(), _mail_language(request))
+    except VerificationError as exc:
+        if exc.kind == "global_daily":
+            raise HTTPException(503, "Email temporarily unavailable") from None
+        raise HTTPException(429, TOO_MANY_CODES, headers={"Retry-After": str(exc.retry_after or 60)}) from None
+    return {"ok": True, "cooldown_seconds": int(COOLDOWN.total_seconds())}
+
+
+@router.post("/me/email", dependencies=[Depends(auth_rate_limit)])
+async def me_email(
+    payload: BindIn,
+    request: Request,
+    user: User = Depends(current_user_unbound),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    """Attach (or switch to) the verified address. Other logins stay signed in. The address is masked in the answer."""
+    if not email_ready(settings):
+        raise HTTPException(503, "Email is not configured")
+    purpose = _bind_purpose(user, payload.purpose)
+    await _require_password_for_change(user, purpose, payload.current_password)
+    try:
+        await email_accounts.bind_with_code(session, request.app.state.sessionmaker, settings, user,
+                                            email=payload.email, code=payload.code, purpose=purpose, now=utcnow())
+    except VerificationError:
+        raise HTTPException(400, INVALID_CODE) from None
+    return {"email_masked": mask_email(payload.email), "email_verified": True}

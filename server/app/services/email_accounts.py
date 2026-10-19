@@ -88,3 +88,23 @@ async def reset_password(session: AsyncSession, sessions: async_sessionmaker, se
     await identities.revoke_sessions(session, user.id)
     await session.commit()
     return user.id
+
+
+async def bind_with_code(session: AsyncSession, sessions: async_sessionmaker, settings: Settings, user: User, *,
+                         email: str, code: str, purpose: str, now: datetime) -> None:
+    """S20: verify a `bind` / `change_email` code issued to THIS user and attach the address (replacing the old
+    one), in one commit with the consumed code. Raises VerificationError("invalid") for every failure, also when
+    another account owns the address (R-F6: the hidden rows carry no user, so they can never be redeemed)."""
+    if purpose not in ("bind", "change_email"):
+        raise ValueError("unsupported purpose")
+    target = identities.subject_hmac(settings.identity_pepper, email)
+    row = await verification.verify(session, sessions, settings, target, purpose, code, now)
+    if row.user_id != user.id:
+        await session.rollback()
+        raise _invalid()
+    try:
+        await identities.bind_email(session, settings, user, email, now)
+        await session.commit()
+    except (identities.EmailTaken, IntegrityError):
+        await session.rollback()
+        raise _invalid() from None
