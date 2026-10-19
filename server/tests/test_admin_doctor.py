@@ -35,6 +35,50 @@ def test_security_and_ops_warnings():
     assert set(found) <= set(CODES)
 
 
+def _email_findings(**kw):
+    base = dict(registration_mode="closed", email_registration_required=False)
+    return {f.code: f for f in diagnose(make_settings(**{**base, **kw}), OK)
+            if f.code in ("email_not_configured", "email_console_backend", "binding_without_deadline")}
+
+
+def _email_keys():
+    from cryptography.fernet import Fernet
+    from tests.accounts_helpers import PEPPER
+    return dict(identity_pepper=PEPPER, settings_encryption_key=Fernet.generate_key().decode())
+
+
+def test_email_backend_without_keys_is_an_error():
+    found = _email_findings(email_backend="smtp")
+    assert found["email_not_configured"].level == "error" and "email_backend" in found["email_not_configured"].keys
+    assert "email_not_configured" not in _email_findings()  # backend off: nothing to configure
+
+
+def test_ready_email_backend_is_fine_and_console_warns():
+    keys = _email_keys()
+    assert _email_findings(email_backend="smtp", **keys) == {}
+    found = _email_findings(email_backend="console", **keys)
+    assert list(found) == ["email_console_backend"] and found["email_console_backend"].level == "warn"
+
+
+def test_forced_binding_needs_a_ready_email_and_a_deadline():
+    found = _email_findings(email_binding_required=True, email_binding_deadline="2026-12-01T00:00+08:00")
+    assert found["email_not_configured"].level == "error"
+    assert "email_binding_required" in found["email_not_configured"].keys
+    found = _email_findings(email_binding_required=True, **_email_keys(), email_backend="smtp")
+    assert list(found) == ["binding_without_deadline"]
+    assert found["binding_without_deadline"].level == "warn"
+    assert found["binding_without_deadline"].keys == ("email_binding_deadline",)
+    assert "binding_without_deadline" not in _email_findings()  # not forced: no warning
+
+
+def test_email_diagnostic_codes_are_registered_and_messages_hold_no_values():
+    for code in ("email_not_configured", "email_console_backend", "binding_without_deadline"):
+        assert code in CODES
+    found = _email_findings(email_backend="smtp", smtp_host="smtp.secret-host.test", smtp_password="pw-secret",
+                            email_binding_required=True)
+    assert "secret-host" not in repr(found) and "pw-secret" not in repr(found)
+
+
 def test_findings_sorted_by_severity():
     found = diagnose(make_settings(realtime_enabled=True, registration_mode="open"), OK)
     order = {"error": 0, "warn": 1, "info": 2}

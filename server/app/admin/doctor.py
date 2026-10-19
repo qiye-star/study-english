@@ -16,6 +16,7 @@ from app.admin import sessions, usage
 from app.core.config import asr_stream_usable, realtime_asr_configured, whisper_fallback_configured
 from app.core.secretbox import box_for, fingerprint
 from app.library import urlcheck
+from app.services.identities import email_ready
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
 from app.wordbook.books import book_by_id, enabled_books
 
@@ -29,6 +30,7 @@ CODES = (
     "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
     "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
     "library_link_proxy_missing", "library_link_dns_private",
+    "email_not_configured", "email_console_backend", "binding_without_deadline",
 )
 
 
@@ -105,6 +107,23 @@ def _library_findings(s, f: Facts) -> list[Finding]:
     return out
 
 
+def _email_findings(s) -> list[Finding]:
+    """账号邮箱(计划 A1):消息只写键名,不写主机、账号或密码。"""
+    out: list[Finding] = []
+    if (s.email_backend != "off" or s.email_binding_required) and not email_ready(s):
+        keys = (("email_backend",) if s.email_backend != "off" else ()) + (
+            ("email_binding_required",) if s.email_binding_required else ())
+        out.append(Finding("error", "email_not_configured", keys,
+                           "邮箱功能需要发信方式、IDENTITY_PEPPER 与加密主密钥同时就绪:现在缺其中之一,验证码发不出去"))
+    if s.email_backend == "console":
+        out.append(Finding("warn", "email_console_backend", ("email_backend",),
+                           "发信方式是 console:只记录「已发送」,用户收不到验证码,仅供开发使用"))
+    if s.email_binding_required and not s.email_binding_deadline.strip():
+        out.append(Finding("warn", "binding_without_deadline", ("email_binding_deadline",),
+                           "已开启强制绑定邮箱,但没有设置截止时间:现在就会要求所有未绑定的用户绑定"))
+    return out
+
+
 def diagnose(s, f: Facts) -> list[Finding]:
     out: list[Finding] = []
     if s.realtime_enabled and not s.realtime_available:
@@ -167,6 +186,7 @@ def diagnose(s, f: Facts) -> list[Finding]:
                            "AGENTS_TOOLS_MODE=native,但函数调用探测未通过或未运行:按 prefetch 运行(在「智能体」页运行探测)"))
     if getattr(s, "library_enabled", False):
         out.extend(_library_findings(s, f))
+    out.extend(_email_findings(s))
     rank = {"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 

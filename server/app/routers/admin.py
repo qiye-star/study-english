@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import recordings
-from app.admin import service
+from app.admin import service, user_email_admin
 from app.admin.perms import require
 from app.core.config import Settings
 from app.core.deps import get_session, get_settings
@@ -40,14 +40,20 @@ async def users(
     per_page: PerPage = 20,
     status: Annotated[Literal["all", "active", "disabled"], Query()] = "all",
     sort: Annotated[Literal["recent", "created", "storage"], Query()] = "recent",
+    email: Annotated[Literal["all", "bound", "unbound"], Query()] = "all",
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
-    return await service.list_users(session, q, page, per_page, status=status, sort=sort)
+    result = await service.list_users(session, q, page, per_page, status=status, sort=sort, email=email)
+    await user_email_admin.attach_masked(session, settings, result["users"])
+    return result
 
 
 @guarded.get("/users/{user_id}")
-async def user_detail(user_id: UserId, session: AsyncSession = Depends(get_session)):
-    return _found(await service.get_user(session, user_id), "User")
+async def user_detail(user_id: UserId, session: AsyncSession = Depends(get_session),
+                      settings: Settings = Depends(get_settings)):
+    row = _found(await service.get_user(session, user_id), "User")
+    return await user_email_admin.attach_masked_one(session, settings, row)
 
 
 @guarded.get("/users/{user_id}/conversations")

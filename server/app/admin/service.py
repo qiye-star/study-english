@@ -98,6 +98,7 @@ def _escape_like(text: str) -> str:
 async def list_users(
     session: AsyncSession, q: str, page: int, per_page: int, *,
     status: Literal["all", "active", "disabled"] = "all", sort: Literal["recent", "created", "storage"] = "recent",
+    email: Literal["all", "bound", "unbound"] = "all",
 ) -> dict:
     columns = _user_stats_columns()
     _, _, recording_bytes, last_conv, last_assess = columns
@@ -115,6 +116,10 @@ async def list_users(
         conds.append(User.disabled_at.is_(None))
     elif status == "disabled":
         conds.append(User.disabled_at.is_not(None))
+    if email == "bound":
+        conds.append(User.email_verified_at.is_not(None))
+    elif email == "unbound":
+        conds.append(User.email_verified_at.is_(None))
     if conds:
         stmt, count_stmt = stmt.where(*conds), count_stmt.where(*conds)
     if sort == "storage":
