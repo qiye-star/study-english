@@ -97,3 +97,29 @@ describe("RoomSettingsSheet", () => {
     expect(mock.calls).toHaveLength(0);
   });
 });
+
+describe("RoomSettingsSheet avatars (W3)", () => {
+  const AV = "/api/avatars/00000000000000000000000000000000";
+  beforeEach(() => { localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); });
+  afterEach(async () => { vi.clearAllMocks(); localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+
+  it("shows member avatars, and lets a member report someone else's avatar (never their own)", async () => {
+    const mock = setup({ "POST /api/avatar-reports": () => new Response(null, { status: 204 }) }, {
+      members: [
+        { userId: 1, name: "alice", role: "owner", online: true, avatarUrl: AV },
+        { userId: 2, name: "bob", role: "member", online: true, avatarUrl: AV },
+        { userId: 3, name: "carol", role: "member", online: false, avatarUrl: null },
+      ],
+    });
+    const rows = await screen.findAllByTestId("room-member");
+    expect(rows[1].querySelector("img")).toHaveAttribute("src", AV);
+    expect(rows[2].querySelector("img")).toBeNull();
+    expect(screen.queryByTestId("room-avatar-report-1")).toBeNull();
+    expect(screen.queryByTestId("room-avatar-report-3")).toBeNull();
+    fireEvent.click(screen.getByTestId("room-avatar-report-2"));
+    fireEvent.click(await screen.findByRole("radio", { name: "冒充他人" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交举报" }));
+    await waitFor(() => expect(mock.calls.find((c) => c.method === "POST")?.body).toBe('{"user_id":2,"reason":"impersonation"}'));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("已收到,管理员会处理。"));
+  });
+});

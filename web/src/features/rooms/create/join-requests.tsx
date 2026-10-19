@@ -51,7 +51,7 @@ export function JoinRequestRows({ roomId, requests, onDecided }: { roomId: strin
     <>
       {requests.map((r) => (
         <div key={r.id} data-testid="room-join-request" className="flex min-h-row items-center gap-3 py-2 pl-3.5 pr-2.5">
-          <Avatar name={r.name} size="sm" tone="neutral" />
+          <Avatar name={r.name} size="sm" tone="neutral" src={r.avatarUrl} />
           <span className="min-w-0 flex-1 truncate text-body font-medium text-ink">{r.name}</span>
           <button type="button" className={sbtnGhost} disabled={busy.has(r.id)} aria-label={t("web.rooms.v2.requests.denyName", { name: r.name })}
             onClick={() => void decide(r, false)}>{t("web.rooms.v2.requests.deny")}</button>

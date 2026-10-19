@@ -155,3 +155,17 @@ describe("RoomMessageList bubble layout (short own messages wrapped per letter)"
     expect(line.parentElement!.className.split(/\s+/)).toContain("w-full");
   });
 });
+
+describe("RoomMessageList avatars (W3)", () => {
+  const AV = "/api/avatars/00000000000000000000000000000000";
+  it("shows the sender's avatar image, or the initial when there is none", () => {
+    setup([
+      msg(1, "with photo", { sender: { kind: "user", id: 22, name: "bob", avatarUrl: AV } }),
+      msg(2, "no photo", { sender: { kind: "user", id: 23, name: "carol", avatarUrl: null } }),
+    ]);
+    const imgs = document.querySelectorAll("img");
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]).toHaveAttribute("src", AV);
+    expect(screen.getByRole("img", { name: "carol" })).toHaveTextContent("C");
+  });
+});
