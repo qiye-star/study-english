@@ -23,10 +23,10 @@ def _cols(con, table: str) -> set[str]:
     return {row[1] for row in con.execute(f"pragma table_info({table})")}
 
 
-def test_head_is_0024_and_chain_is_linear(tmp_path, monkeypatch):
+def test_head_is_0025_and_chain_is_linear(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0024"]
+    assert script.get_heads() == ["0025"]
     assert script.get_revision("0024").down_revision == "0023"
     assert script.get_revision("0023").down_revision == "0022"
 
