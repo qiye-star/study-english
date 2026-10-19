@@ -95,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # outbound mail: settings are read when the mail goes out; tests inject a FakeSender via email_sender_override
     app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
     app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
+    app.state.invite_fail_limiter = RateLimiter(settings.invite_failures_per_ip_hourly, window=3600.0)  # bad invite codes per IP (invites v2 R-I5)
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
@@ -187,6 +188,8 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
                   keys={"ai_rate_limit_per_minute"})
     hub.subscribe("email_ip_limiter", lambda o, n: setattr(state.email_ip_limiter, "limit", n.email_codes_per_ip_hourly),
                   keys={"email_codes_per_ip_hourly"})
+    hub.subscribe("invite_fail_limiter", lambda o, n: setattr(state.invite_fail_limiter, "limit", n.invite_failures_per_ip_hourly),
+                  keys={"invite_failures_per_ip_hourly"})
     hub.subscribe("realtime_tickets", lambda o, n: state.realtime_tickets.set_ttl(n.realtime_ticket_ttl_seconds),
                   keys={"realtime_ticket_ttl_seconds"})
     hub.subscribe("realtime_registry", lambda o, n: state.realtime_registry.set_max(n.realtime_max_sessions),

@@ -31,7 +31,11 @@ class UsernameTaken(Exception):
 
 
 class InviteRejected(Exception):
-    pass
+    """`reason` is "invalid" or "used_up" (the `invites.RedeemError` reasons; the router maps them to two messages)."""
+
+    def __init__(self, reason: str = "invalid"):
+        super().__init__(reason)
+        self.reason = reason
 
 
 class IdAllocationFailed(Exception):
@@ -45,6 +49,7 @@ def _invalid() -> VerificationError:
 async def register_with_email(
     session: AsyncSession, settings: Settings, *, username: str, password_hash: str,
     nickname: str, email: str, code: str, invite_code: str | None, new_user_id: Callable[[], int], now: datetime,
+    user_cap: invites.UserCap,
 ) -> tuple[User, str]:
     """R-F7: verify the code -> take the invite use (`invite_code=None` = no invite needed) -> new user + email
     identity + verified flag + code consumed + one login token, in ONE commit. Returns `(user, token)`.
@@ -54,14 +59,20 @@ async def register_with_email(
     target = identities.subject_hmac(settings.identity_pepper, email)
     for _ in range(_ID_ATTEMPTS):
         row_id = (await verification.verify(session, settings, target, "register", code, now)).id
-        if invite_code is not None and not await invites.consume(session, invite_code, now):
-            await session.rollback()
-            await verification.release_attempt(session, row_id)
-            raise InviteRejected()
+        code_row = None
+        if invite_code is not None:
+            try:
+                code_row = await invites.redeem(session, invite_code, now, user_cap=user_cap)
+            except invites.RedeemError as e:
+                await session.rollback()
+                await verification.release_attempt(session, row_id)
+                raise InviteRejected(e.reason) from None
         user = User(id=new_user_id(), username=username, password_hash=password_hash, nickname=nickname)
         session.add(user)
         try:
             await identities.bind_email(session, settings, user, email, now)
+            if code_row is not None:  # who invited whom: the same transaction as the user (invites v2 R-I4)
+                invites.record_redemption(session, code_row, user.id, now)
             token = identities.issue_token(session, user.id, settings, now)
             await session.commit()
             return user, token
