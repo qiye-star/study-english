@@ -120,6 +120,10 @@ _ALL: tuple[SettingSpec, ...] = (
        help_zh="开启后,截止时间之后未绑定邮箱的用户只能访问绑定页;截止前只显示横幅"),
     _s("email_binding_deadline", "accounts", "str", "绑定截止时间",
        help_zh="带时区的 ISO 8601,例:2026-10-28T00:00+08:00;留空且开关打开 = 立即强制"),
+    # 头像(计划 S3,R-V3):热改;改动影响陌生人可见的头像上传与展示
+    _s("avatar_upload_enabled", "accounts", "bool", "允许上传头像",
+       help_zh="关闭 = 不能上传、头像读取返回 404;已有头像与载荷保留,网页回落首字;删除自己的头像仍允许",
+       danger="头像是陌生人可见的用户生成内容,开关变更需要确认"),
     _s("rate_limit_per_minute", "limits", "int", "登录/注册每分钟次数(按 IP)", min=1, max=10000,
        danger=_WEAKER_LOGIN),
     _s("ai_rate_limit_per_minute", "limits", "int", "AI 接口每分钟次数(按用户)", min=1, max=10000),

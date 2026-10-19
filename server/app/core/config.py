@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     email_domain_list: str = ""
     email_binding_required: bool = False
     email_binding_deadline: str = ""  # 空或带时区的 ISO 8601 日期时间,例如 2026-10-28T00:00+08:00
+    # 账号 v2 · 头像(计划 S3;R-V3):总开关,热改。关 = 不能上传、读取 404;已存文件与载荷照常
+    avatar_upload_enabled: bool = True
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
     ai_rate_limit_per_minute: int = 60

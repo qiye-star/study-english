@@ -1,18 +1,26 @@
 """头像图片处理(计划 S1、R-V1):字节进、字节出,纯函数。
 
-不碰数据库、设置或文件系统(存储在 S3 的同一模块里另加)。路由在 `asyncio.to_thread` 里调用 `process`,
-因为 Pillow 解码是 CPU 密集操作。错误只用 `AvatarError.kind` 表达,不带图片内容或路径。
+`process` 不碰数据库、设置或文件系统;文件存取(`store`、`path_for`、`remove`)只接受 `Settings` 参数,
+不读 `app.state`。路由在 `asyncio.to_thread` 里调用 `process` 与 `store`(Pillow 解码与磁盘写入都是阻塞操作)。
+错误只用 `AvatarError.kind` 表达,不带图片内容、文件名或路径。
 """
 import io
+import os
+import re
+import secrets
 import warnings
+from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+from app.core.config import Settings
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 OUTPUT_SIDE = 256
 MAX_SIDE = 8000
 MAX_PIXELS = 20_000_000
 _ALLOWED_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
+_ID_RE = re.compile(r"[0-9a-f]{32}")
 
 # 解压炸弹防护与 `process` 自己的像素检查取同一上限(R-V1)。
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
@@ -75,3 +83,50 @@ def process(data: bytes) -> bytes:
 
 def _has_alpha(img: Image.Image) -> bool:
     return img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+
+
+# ---- 文件存储(R-V2):DATA_DIR/avatars/<32 位十六进制随机 id>.webp ----
+
+def _check_id(avatar_id: object) -> str:
+    """只接受 32 位小写十六进制;拼路径之前校验,杜绝路径遍历。"""
+    if not isinstance(avatar_id, str) or _ID_RE.fullmatch(avatar_id) is None:
+        raise ValueError("invalid avatar id")
+    return avatar_id
+
+
+def path_for(settings: Settings, avatar_id: str) -> Path:
+    return settings.resolved_data_dir / "avatars" / f"{_check_id(avatar_id)}.webp"
+
+
+def store(settings: Settings, data: bytes) -> str:
+    """原子写入一张已处理好的头像,返回新的随机 id。先写临时文件再 `os.replace`;失败时不留临时文件。
+    数据库的提交由调用方负责(提交失败时调用 `remove` 删除这里写出的新文件)。"""
+    avatar_id = secrets.token_hex(16)
+    final = path_for(settings, avatar_id)
+    final.parent.mkdir(parents=True, exist_ok=True)
+    tmp = final.with_name(f"{avatar_id}.webp.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, final)
+    except BaseException:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    return avatar_id
+
+
+def remove(settings: Settings, avatar_id: str | None) -> None:
+    """删除一个头像文件;不存在、或 id 不合法时静默返回。绝不在数据库提交之前调用。"""
+    try:
+        path_for(settings, avatar_id).unlink(missing_ok=True)
+    except (ValueError, OSError):
+        pass
+
+
+def avatar_url(avatar_id: str | None) -> str | None:
+    """网页使用的相对地址(X17)。没有头像时为 None。"""
+    if avatar_id is None:
+        return None
+    return f"/api/avatars/{_check_id(avatar_id)}"
