@@ -175,14 +175,14 @@ async def verify(session: AsyncSession, settings: Settings, target_hmac: str, pu
     await session.commit()  # an attempt is claimed atomically, and it stays counted whatever the caller does next
     if claim.rowcount != 1 or not hmac.compare_digest(row.code_hmac, expected):
         raise VerificationError("invalid")
-    await session.execute(  # a correct code is not a failed attempt: give the claim back, in the caller's transaction
-        update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.attempts > 0)
-        .values(attempts=VerificationCode.attempts - 1).execution_options(synchronize_session=False))
-    consumed = await session.execute(
+    consumed = await session.execute(  # consume first: a lost race must not give an attempt back
         update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.consumed_at.is_(None))
         .values(consumed_at=now).execution_options(synchronize_session=False))
     if consumed.rowcount != 1:
         raise VerificationError("invalid")
+    await session.execute(  # a correct code is not a failed attempt: give the claim back, in the caller's transaction
+        update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.attempts > 0)
+        .values(attempts=VerificationCode.attempts - 1).execution_options(synchronize_session=False))
     await session.refresh(row)
     return row
 

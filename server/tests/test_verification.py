@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models import EmailDailyCount, User, VerificationCode
 from app.services import verification
@@ -472,3 +472,34 @@ async def test_verify_refuses_to_run_after_a_pending_write(app):
         s.add(User(id=22222222, username="pending", password_hash="x"))
         with pytest.raises(RuntimeError, match="verify must run before any pending write"):
             await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
+
+
+async def test_a_lost_race_does_not_refund_an_attempt_even_if_the_caller_commits_anyway(app):
+    """Two requests use the same correct code. The loser's consume matches 0 rows: it must raise before giving the
+    attempt back, so a caller that catches the error and commits cannot lower `attempts` (G2)."""
+    settings = _settings()
+    async with app.state.sessionmaker() as s:
+        code, _ = await issue(s, settings, TARGET, "register", T0)
+        await s.commit()
+    (issued,) = await _rows(app)
+    async with app.state.sessionmaker() as loser:
+        real_commit = loser.commit
+        raced: list[bool] = []
+
+        async def commit_then_lose_the_race():
+            await real_commit()  # the attempt claim is committed here
+            if not raced:
+                raced.append(True)
+                async with app.state.sessionmaker() as winner:  # the rival request consumes the code first
+                    await winner.execute(update(VerificationCode).where(VerificationCode.id == issued.id)
+                                         .values(consumed_at=T0 + timedelta(seconds=11)))
+                    await winner.commit()
+
+        loser.commit = commit_then_lose_the_race
+        with pytest.raises(VerificationError) as info:
+            await verify(loser, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
+        assert info.value.kind == "invalid" and raced == [True]
+        await loser.commit()  # a future caller that catches VerificationError and commits
+    (row,) = await _rows(app)
+    assert row.attempts == 1  # the claim stands: the losing request did not refund an attempt
+    assert row.consumed_at is not None
