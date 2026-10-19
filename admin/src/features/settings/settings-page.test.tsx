@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as session from "../../api/session";
 import * as api from "./api";
 import { SettingsPage } from "./settings-page";
-import { fixtureList } from "./test-fixtures";
+import { fixtureList, smtpHostItem } from "./test-fixtures";
 
 vi.mock("./api");
 beforeEach(() => {
@@ -71,4 +71,12 @@ it("shows the doctor summary, the restart bar and flag availability", async () =
   expect(await screen.findByText(/1 个错误 · 0 个提醒/)).toBeInTheDocument();
   expect(screen.getByText("1 项设置等待重启生效")).toBeInTheDocument();
   expect(screen.getByTestId("flag-realtime_enabled")).toHaveTextContent("缺少或无效:VOLCENGINE_TTS_KEY");
+});
+
+it("offers the SMTP probe on the smtp_host row", async () => {
+  const list = fixtureList();
+  vi.mocked(api.listSettings).mockResolvedValue({ ...list, groups: [...list.groups, ["accounts", "账号与邮件"]], items: [...list.items, smtpHostItem()] });
+  renderAt("/settings/accounts");
+  const row = await screen.findByTestId("setting-smtp_host");
+  expect(within(row).getByRole("button", { name: "测试连接" })).toBeInTheDocument();
 });

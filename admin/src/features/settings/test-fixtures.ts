@@ -61,3 +61,11 @@ export function fixtureList(): SettingsList {
     rankRulesManaged: true,
   };
 }
+
+/** SMTP 主机:kind str,服务端 pair = smtp_password(改主机未带新授权码 → 409 pairs)。 */
+export function smtpHostItem(): SettingItem {
+  return item({
+    key: "smtp_host", group: "accounts", kind: "str", label: "SMTP 主机", pair: "smtp_password",
+    danger: "改主机会把 SMTP 密码发送到新地址", envValue: "smtp.qq.com", effective: "smtp.qq.com", default: "",
+  });
+}
