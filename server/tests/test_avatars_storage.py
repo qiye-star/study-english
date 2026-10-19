@@ -80,6 +80,8 @@ def test_upload_switch_is_a_hot_accounts_setting_on_by_default(tmp_path):
     assert spec.kind == "bool"
     assert spec.apply == "hot"
     assert spec.env_only is False and spec.secret is False
+    # a kill switch must be quick: no step-up or typed confirmation
+    assert not spec.danger
 
 
 def test_env_example_documents_the_switch_with_a_chinese_comment():
