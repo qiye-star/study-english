@@ -91,7 +91,14 @@ _ALL: tuple[SettingSpec, ...] = (
        danger="关闭后跟读库接口返回 404;素材与记录保留"),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
-    _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册"),
+    _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册",
+       help_zh="不推荐:无归属、不可单独撤销;请用管理后台的邀请码"),
+    _s("invites_user_code_max_uses", "registration", "int", "用户邀请码累计上限", min=0, max=1000,
+       help_zh="每个用户码最多被用几次;可按人覆盖,0 = 收回邀请权"),
+    _s("invites_user_min_account_days", "registration", "int", "生成邀请码所需账号天数", min=0, max=365,
+       help_zh="注册满几天且邮箱已验证才能生成用户邀请码"),
+    _s("invite_failures_per_ip_hourly", "registration", "int", "同一 IP 每小时邀请码错误上限", min=1, max=1000,
+       help_zh="超过即暂时拒绝该 IP 的带码注册(不再查码)"),
     # accounts(计划 S2)
     _s("access_token_ttl_days", "accounts", "int", "登录有效天数", min=1, max=365,
        help_zh="每次使用时滑动续期;改动只影响之后签发的登录", danger=_LONGER_SESSIONS),
