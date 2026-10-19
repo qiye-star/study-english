@@ -9,9 +9,7 @@
     "nav": { "label": "主导航", "practice": "练习", "chat": "对话", "rooms": "联机", "me": "我的" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
-      "username": "用户名", "password": "密码", "submit": "登录", "registerSubmit": "注册",
-      "switchToRegister": "没有账号?注册", "switchToLogin": "已有账号?登录",
-      "inviteCode": "邀请码(如服务器要求)", "inviteHint": "服务器开放注册时可留空。",
+      "password": "密码", "submit": "登录",
       "required": "请输入用户名和密码。",
       "usernameInvalid": "用户名为 3–32 位小写字母、数字或下划线。",
       "passwordLength": "密码长度为 8–128 位。"

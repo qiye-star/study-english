@@ -18,6 +18,7 @@ import {
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { ChangelogPage } from "~/features/changelog";
+import { RegisterPage } from "~/features/account";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -65,6 +66,7 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AnnouncementFrame />}>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/install" element={<InstallPage />} />
         <Route element={<RequireAuth />}>
           <Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>

@@ -107,3 +107,36 @@ describe("AuthProvider account actions", () => {
     expect(loadAuth()?.user).toEqual({ id: "12345678", name: "alice" });
   });
 });
+
+describe("AuthProvider sign-in and registration", () => {
+  beforeEach(() => {
+    clearAuth();
+  });
+
+  it("sends an email typed into the username field trimmed and lowercased; usernames are unchanged", async () => {
+    const { result, mock } = setup({
+      "POST /api/sessions": () => json({ id: "12345678", name: "alice", created_at: "t", access_token: "tok" }),
+    });
+    await act(async () => {
+      await result.current.login(" Alice@Example.COM ", "password123");
+    });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice@example.com", password: "password123" });
+    await act(async () => {
+      await result.current.login(" Alice_1 ", "password123");
+    });
+    expect(JSON.parse(mock.calls[1].body as string).username).toBe("alice_1");
+  });
+
+  it("registers with the email, code and nickname and stores the new session", async () => {
+    const { result, mock } = setup({
+      "POST /api/users": () => json({ id: "12345678", name: "dan", created_at: "t", access_token: "new-token" }),
+    });
+    await act(async () => {
+      await result.current.register({ username: "Dan", password: "password123", email: "dan@example.com", emailCode: "654321", nickname: "Dan" });
+    });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({
+      username: "dan", password: "password123", email: "dan@example.com", email_code: "654321", nickname: "Dan",
+    });
+    expect(loadAuth()?.token).toBe("new-token");
+  });
+});

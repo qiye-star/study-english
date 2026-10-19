@@ -14,7 +14,7 @@
       "colorScheme": "Appearance", "colorSchemeHint": "Follow the system, or always use light or dark",
       "colorSchemeOptions": { "system": "Follow system", "light": "Light", "dark": "Dark" }
     },
-    "login": { "tagline": "Speak English every day." },
+    "login": { "usernameOrEmail": "Username or email", "forgotPassword": "Forgot password?", "createAccount": "Create account", "passwordReset": "Password reset. Log in with your new password.", "tagline": "Speak English every day." },
     "install": { "lede": "Open Enjoy like an app, full screen and one tap away." }
   }
 }

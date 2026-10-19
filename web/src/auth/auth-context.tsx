@@ -1,16 +1,16 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { clearAuth, loadAuth, saveAuth, type StoredAuth } from "~/api/auth-storage";
 import { ApiClient } from "~/api/client";
-import type { AuthUser } from "~/api/types";
+import type { AuthUser, RegisterInput } from "~/api/types";
 import { clearDeviceData } from "~/auth/device-data";
 import { noteMaintenance } from "~/components/announcement-banner";
-import { normalizeUsername } from "./validation";
+import { normalizeLoginName, normalizeUsername } from "./validation";
 
 export interface AuthContextValue {
   user: StoredAuth["user"] | null;
   api: ApiClient;
   login(username: string, password: string): Promise<void>;
-  register(username: string, password: string, inviteCode?: string): Promise<void>;
+  register(input: RegisterInput): Promise<void>;
   /** `byUser`:用户主动退出,重新登录后不再回到退出前的页面(会话过期则会回到)。 */
   logout(byUser?: boolean): void;
   /** 改密:服务端轮换 token,这里换掉本机存储的 token(用户不需要重新登录)。测试替身可不提供。 */
@@ -72,12 +72,11 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   }, []);
 
   const login = useCallback(
-    async (username: string, password: string) => accept(await api.login(normalizeUsername(username), password)),
+    async (username: string, password: string) => accept(await api.login(normalizeLoginName(username), password)),
     [api, accept],
   );
   const register = useCallback(
-    async (username: string, password: string, inviteCode?: string) =>
-      accept(await api.register({ username: normalizeUsername(username), password, inviteCode })),
+    async (input: RegisterInput) => accept(await api.register({ ...input, username: normalizeUsername(input.username) })),
     [api, accept],
   );
 
