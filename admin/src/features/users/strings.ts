@@ -105,6 +105,37 @@ export const S = {
       confirm: "清除邮箱",
     },
   },
+  avatars: {
+    title: "头像举报",
+    status: "状态",
+    statuses: { open: "待处理", resolved: "已处理" } as Record<string, string>,
+    columns: { avatar: "头像", user: "用户", reports: "举报数", reason: "最近原因", time: "最近举报", actions: "操作" },
+    reasons: { inappropriate: "不当内容", impersonation: "冒充他人", other: "其他" } as Record<string, string>,
+    empty: { open: "暂无待处理的头像举报", resolved: "还没有处理过的头像举报" } as Record<string, string>,
+    remove: "移除头像",
+    dismiss: "忽略举报",
+    prev: "上一页",
+    next: "下一页",
+    done: {
+      removed: (n: number) => `已移除头像,处理了 ${n} 条举报`,
+      dismissed: (n: number) => `已忽略,处理了 ${n} 条举报`,
+    },
+    removeDialog: {
+      title: "移除头像",
+      body: (name: string) =>
+        `将删除 ${name} 的头像文件,并把他未处理的举报标记为已处理。${name} 的账号与其他数据保留,之后可以重新上传头像。`,
+      confirm: "移除头像",
+    },
+    dismissDialog: {
+      title: "忽略举报",
+      body: (name: string) => `忽略 ${name} 的头像举报,头像保留不变,未处理的举报标记为已处理。`,
+    },
+    card: {
+      title: "头像",
+      hint: "管理员可以移除违规头像;账号与其他数据保留。",
+      remove: "移除头像",
+    },
+  },
   invites: {
     title: "邀请码",
     hint: "注册模式为「邀请」时,.env 里的 INVITE_CODE 与这里的有效邀请码都可以注册。邀请码明文只在创建时显示一次。",

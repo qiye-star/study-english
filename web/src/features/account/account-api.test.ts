@@ -3,7 +3,7 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { ApiClient, ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { ACCOUNT_ERROR_KEYS, bindEmail, requestBindCode, requestEmailCode, resetPassword } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, bindEmail, removeAvatar, requestBindCode, requestEmailCode, resetPassword, uploadAvatar } from "./account-api";
 import "./locales";
 
 const make = (routes: Parameters<typeof createFetchMock>[0], extra: Partial<ConstructorParameters<typeof ApiClient>[0]> = {}) => {
@@ -67,5 +67,21 @@ describe("account email api", () => {
       expect(i18n.t(key, { lng: "zh-CN" }), key).toBe(zh);
     }
     expect(translateServerError(t, new ApiError(422, "Email must not contain user@example.com"), ACCOUNT_ERROR_KEYS)).toBe("Something went wrong.");
+  });
+});
+
+describe("avatar api", () => {
+  it("uploads the picked image as multipart field file and removes it with DELETE", async () => {
+    const { api, mock } = make({
+      "POST /api/me/avatar": () => json({ avatar_url: "/api/avatars/00000000000000000000000000000000" }),
+      "DELETE /api/me/avatar": () => new Response(null, { status: 204 }),
+    });
+    const blob = new Blob(["jpg"], { type: "image/jpeg" });
+    expect(await uploadAvatar(api, blob)).toEqual({ avatarUrl: "/api/avatars/00000000000000000000000000000000" });
+    const body = mock.calls[0].body as FormData;
+    expect(body.get("file")).toBeInstanceOf(Blob);
+    expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
+    await expect(removeAvatar(api)).resolves.toBeUndefined();
+    expect(mock.calls[1].method).toBe("DELETE");
   });
 });

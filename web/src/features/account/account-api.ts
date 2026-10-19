@@ -50,3 +50,15 @@ export async function bindEmail(api: ApiClient, input: { email: string; code: st
 export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }): Promise<void> {
   await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false });
 }
+
+/** 上传头像(已在浏览器里缩好的 JPEG;字段名 file)。不设 Content-Type:multipart 边界由浏览器带上。 */
+export async function uploadAvatar(api: ApiClient, image: Blob): Promise<{ avatarUrl: string }> {
+  const form = new FormData();
+  form.append("file", image, "avatar.jpg");
+  return api.request("POST", "/api/me/avatar", { form });
+}
+
+/** 移除自己的头像。 */
+export async function removeAvatar(api: ApiClient): Promise<void> {
+  await api.request("DELETE", "/api/me/avatar");
+}

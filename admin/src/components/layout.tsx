@@ -9,6 +9,7 @@ import { LinkIcon } from "../features/links/link-icon";
 import { S as LINKS_STRINGS } from "../features/links/strings";
 import { AgentIcon } from "../features/agents/agent-icon";
 import { S as AGENTS_STRINGS } from "../features/agents/strings";
+import { S as USERS_STRINGS } from "../features/users/strings";
 import { CatalogIcon } from "../features/catalog/catalog-icon";
 import { S as CATALOG_STRINGS } from "../features/catalog/strings";
 import { LibraryIcon } from "../features/library/library-icon";
@@ -68,6 +69,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     group: G.content,
     items: [
       { to: "/users", label: I.users, icon: UsersIcon, min: "viewer" },
+      { to: "/avatar-reports", label: USERS_STRINGS.avatars.title, icon: FlagIcon, min: "viewer" },
       { to: "/assessments", label: I.recordings, icon: MicIcon, min: "viewer" },
       { to: "/invites", label: I.invites, icon: TicketIcon, min: "operator" },
       { to: "/wordbook", label: WORDBOOK_STRINGS.title, icon: BookIcon, min: "viewer" },

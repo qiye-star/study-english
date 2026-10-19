@@ -43,6 +43,21 @@ describe("ApiClient", () => {
     expect(mock.calls[0].headers.has("Content-Type")).toBe(false);
   });
 
+  it("uploads an avatar as multipart with the bearer token and no JSON content type", async () => {
+    const { api, mock } = make({
+      "POST /api/me/avatar": () => json({ avatar_url: "/api/avatars/00000000000000000000000000000000" }),
+      "DELETE /api/me/avatar": () => new Response(null, { status: 204 }),
+    });
+    const form = new FormData();
+    form.append("file", new Blob(["x"], { type: "image/jpeg" }), "avatar.jpg");
+    expect(await api.request("POST", "/api/me/avatar", { form })).toEqual({ avatarUrl: "/api/avatars/00000000000000000000000000000000" });
+    expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
+    expect(mock.calls[0].headers.has("Content-Type")).toBe(false);
+    expect(mock.calls[0].body).toBe(form);
+    expect(await api.request("DELETE", "/api/me/avatar")).toEqual({});
+    expect(mock.calls[1].method).toBe("DELETE");
+  });
+
   it("throws ApiError carrying the server message", async () => {
     const { api } = make({ "POST /api/sessions": () => json({ error: "Invalid username or password" }, 401) });
     await expect(api.request("POST", "/api/sessions", { json: {}, auth: false })).rejects.toMatchObject({

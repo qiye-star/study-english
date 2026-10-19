@@ -32,10 +32,11 @@ const wireKeys = (v: unknown) => Object.keys(camel(v)).sort();
 const ROOM: Record<keyof RoomInfo, true> = { id: true, code: true, topic: true, status: true, locked: true, aiPublic: true, aiMuted: true, ownerId: true,
   myRole: true, memberCount: true, onlineCount: true, createdAt: true, closedAt: true, closeReason: true,
   name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true, agentIds: true };
-const MEMBER: Record<keyof RoomMemberInfo, true> = { userId: true, name: true, role: true, online: true };
+// avatarUrl (INDEX X29) is excluded until S9 re-records the fixtures with it.
+const MEMBER: Record<Exclude<keyof RoomMemberInfo, "avatarUrl">, true> = { userId: true, name: true, role: true, online: true };
 const MESSAGE: Record<keyof RoomMessage, true> = { seq: true, id: true, lane: true, kind: true, sender: true, text: true, assisted: true,
   replyTo: true, aiStatus: true, meta: true, createdAt: true, hidden: true, quote: true, voice: true, reactions: true };
-const SENDER: Record<keyof RoomSender, true> = { kind: true, id: true, name: true };
+const SENDER: Record<Exclude<keyof RoomSender, "avatarUrl">, true> = { kind: true, id: true, name: true };
 const CONFIG: Record<keyof RoomsConfig, true> = { enabled: true, aiAvailable: true, maxMembers: true, maxText: true,
   scenarios: true, levels: true, defaultMaxMembers: true, nameMax: true, voiceAvailable: true, maxVoiceMs: true, summaryAvailable: true, reactions: true,
   agentsAvailable: true, agentTutorAvailable: true, maxAgents: true };

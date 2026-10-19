@@ -35,7 +35,8 @@ const C = recorded ?? SPEC;
 const camel = (v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as Record<string, unknown>;
 const keys = (r: Record<string, true>) => Object.keys(r).sort();
 
-const REQUEST: Record<keyof JoinRequestInfo, true> = { id: true, roomId: true, roomName: true, userId: true, name: true, status: true, createdAt: true };
+// avatarUrl(W3, INDEX X29) is additive and not in the recorded fixtures until S9 re-records them; it is excluded here until then.
+const REQUEST: Record<Exclude<keyof JoinRequestInfo, "avatarUrl">, true> = { id: true, roomId: true, roomName: true, userId: true, name: true, status: true, createdAt: true };
 const PREVIEW: Record<keyof InvitePreview, true> = { roomId: true, name: true, scenario: true, level: true, memberCount: true, maxMembers: true, joined: true };
 const ROOM_V2: Partial<Record<keyof RoomInfo, true>> = { name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
 

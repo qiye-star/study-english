@@ -19,7 +19,8 @@ export const REACTION_GLYPHS: Record<ReactionKey, string> = { like: "👍", love
 export type ActivityState = "typing" | "recording" | "idle";
 const TERMINAL = new Set<number>([ROOM_CLOSE.DISABLED, ROOM_CLOSE.NOT_FOUND, ROOM_CLOSE.KICKED, ROOM_CLOSE.PROTOCOL]);
 
-export interface RoomSender { kind: "user" | "ai" | "system"; id: number | null; name: string | null }
+/** avatarUrl:用户消息的头像相对路径(/api/avatars/<id>);系统 / AI 为 null;旧服务端没有时缺省。 */
+export interface RoomSender { kind: "user" | "ai" | "system"; id: number | null; name: string | null; avatarUrl?: string | null }
 export interface AssistMeta { replyZh: string; suggestions: { en: string; noteZh: string }[]; glossary: { src: string; en: string }[] }
 /** 语音消息的共享状态(转写一次、翻译懒生成,全房共享;spec §4)。audio=false:音频已被管理员清理。 */
 export interface VoiceInfo {
@@ -30,7 +31,7 @@ export interface VoiceInfo {
 export interface QuoteInfo { seq: number; name: string | null; kind: string; text: string }
 export interface ReactionInfo { key: ReactionKey; userIds: number[] }
 export interface JoinRequestInfo {
-  id: string; roomId: string; roomName: string; userId: number; name: string;
+  id: string; roomId: string; roomName: string; userId: number; name: string; avatarUrl?: string | null;
   status: "pending" | "approved" | "denied" | "expired" | "cancelled"; createdAt: string;
 }
 export interface RoomMessage {
@@ -52,7 +53,7 @@ export interface RoomInfo {
   /** 房主选的智能体角色 id(最多 ROOM_AGENTS.max 个;名字等经 GET /api/rooms/{id}/agents 读取)。旧服务端没有时为 undefined */
   agentIds?: string[];
 }
-export interface RoomMemberInfo { userId: number; name: string; role: "owner" | "member"; online: boolean }
+export interface RoomMemberInfo { userId: number; name: string; role: "owner" | "member"; online: boolean; avatarUrl?: string | null }
 /** 智能体过程的一步(只发给提问者;spec §4.4 的 step 形状,camelCase)。private = 读了个人数据,界面标「仅你可见」。 */
 export interface AgentStepWire {
   id: string; group: "context" | "tool"; key: string; status: "run" | "done" | "fail" | "skip"; labelKey: string;

@@ -16,7 +16,7 @@ import { ReportsPage, RoomDetailPage, RoomsPage } from "./features/rooms";
 import { SecurityPage } from "./features/security";
 import { SettingsPage } from "./features/settings";
 import { UsagePage } from "./features/usage";
-import { InvitesPage } from "./features/users";
+import { AvatarReportsPage, InvitesPage } from "./features/users";
 import { WordbookPage } from "./features/wordbook";
 import { AssessmentDetailPage } from "./pages/assessment-detail-page";
 import { AssessmentsPage } from "./pages/assessments-page";
@@ -74,6 +74,7 @@ export function AppRoutes() {
           <Route path="rooms" element={<RoomsPage />} />
           <Route path="rooms/:id" element={<RoomDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="avatar-reports" element={<AvatarReportsPage />} />
           <Route path="invites" element={<InvitesPage />} />
           <Route path="usage" element={<UsagePage />} />
           <Route path="system" element={<SystemPage />} />

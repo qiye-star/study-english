@@ -275,7 +275,7 @@ export const RoomMessageList = memo(function RoomMessageList({
       // 行占满列表宽(w-full),气泡的 max-w-[88%] 才按列表宽算;行若随内容收缩(self-end),百分比按气泡自身宽度算,短消息会被逐字折行
       <div key={m.id} data-seq={m.seq} data-message-id={m.id} className={cn("flex w-full flex-col", mine ? "items-end" : "items-start")}>
         <div className={cn("flex max-w-[88%] gap-2", mine && "flex-row-reverse")}>
-          {!mine && <Avatar name={name} size="sm" className="mt-0.5" />}
+          {!mine && <Avatar name={name} size="sm" className="mt-0.5" src={m.sender.avatarUrl} />}
           <div data-testid="room-message" data-kind={voice ? "voice" : "text"} data-mine={mine ? "true" : "false"} {...selectable(m)}
             className={cn("min-w-0 rounded-card px-3 py-2 text-body leading-dialogue tracking-[-0.005em]",
               mine ? "rounded-tr-inline bg-blue-tint liquid:rounded-tile liquid:rounded-tr-tail liquid:bg-graphite liquid:text-on-graphite liquid:[&_.text-ink-2]:text-on-graphite/75 liquid:[&_.text-blue]:text-on-graphite"

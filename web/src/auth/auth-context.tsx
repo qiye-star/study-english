@@ -26,6 +26,8 @@ export interface AuthContextValue {
   bindingRequired?: boolean;
   /** 重新读取 /api/me,更新邮箱状态与强制绑定标记(绑定成功后调用)。测试替身可不提供。 */
   refreshProfile?(): Promise<void>;
+  /** 头像的相对路径(来自 /api/me,内存中保存,不写进本机存储);没有头像为 null。测试替身可不提供。 */
+  avatarUrl?: string | null;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -38,6 +40,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   const [signedOutByUser, setSignedOutByUser] = useState(false);
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [bindingRequired, setBindingRequired] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   // 每收到一次 403 email_binding_required 就加一:读 /api/me 期间若出现过 403,读到的结果不能把它清掉。
   const bindingSignals = useRef(0);
 
@@ -70,6 +73,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     tokenRef.current = null;
     setEmailStatus(null);
     setBindingRequired(false);
+    setAvatarUrl(null);
     setAuth(null);
   }, [api]);
   logoutRef.current = logout;
@@ -88,6 +92,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     setSignedOutByUser(false);
     setEmailStatus(null);
     setBindingRequired(false);
+    setAvatarUrl(null);
     setAuth(next);
   }, []);
 
@@ -99,6 +104,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     if (tokenRef.current !== token) return; // 读取期间已退出或换了账号
     const status = emailStatusOf(profile);
     setEmailStatus(status);
+    setAvatarUrl(profile.avatarUrl ?? null);
     setBindingRequired(bindingSignals.current !== signalsBefore || bindingRequiredOf(status));
   }, [api]);
 
@@ -144,9 +150,9 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   const value = useMemo<AuthContextValue>(
     () => ({
       user: auth?.user ?? null, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser,
-      emailStatus, bindingRequired, refreshProfile,
+      emailStatus, bindingRequired, refreshProfile, avatarUrl,
     }),
-    [auth, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser, emailStatus, bindingRequired, refreshProfile],
+    [auth, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser, emailStatus, bindingRequired, refreshProfile, avatarUrl],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

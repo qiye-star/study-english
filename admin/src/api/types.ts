@@ -58,6 +58,8 @@ export interface UserDetail {
   username: string;
   created_at: string;
   grammar_prompt: string | null;
+  /** /api/avatars/<id>,没有头像为 null(管理端只读) */
+  avatar_url?: string | null;
   counts: { conversations: number; messages: number; assessments: number; practice_items: number; vocabulary: number };
   recording_bytes: number;
   last_active_at: string | null;

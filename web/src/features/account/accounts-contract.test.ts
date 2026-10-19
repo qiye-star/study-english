@@ -24,7 +24,7 @@ const KEYS = ["me", "me_unbound", "register", "login", "email_code", "password_c
 // 编译期守卫:新增或删除 UserProfile / AuthUser / EmailBindingInfo 字段时,这里必须同步改。
 const PROFILE: Record<keyof UserProfile, true> = {
   id: true, name: true, createdAt: true, nickname: true, displayName: true,
-  emailMasked: true, emailVerified: true, emailBinding: true,
+  emailMasked: true, emailVerified: true, emailBinding: true, avatarUrl: true,
 };
 const AUTH_USER: Record<keyof AuthUser, true> = { id: true, name: true, createdAt: true, accessToken: true, nickname: true, displayName: true };
 const BINDING: Record<keyof EmailBindingInfo, true> = { state: true, deadline: true };

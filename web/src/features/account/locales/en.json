@@ -83,6 +83,22 @@
         "maskedVerified": "{{email}} · Verified",
         "bind": "Bind email",
         "change": "Change email"
+      },
+      "avatar": {
+        "title": "Avatar",
+        "hint": "JPEG, PNG or WebP, up to 2 MB. Other people in rooms see it.",
+        "change": "Change avatar",
+        "remove": "Remove avatar",
+        "confirmRemove": "Confirm removal",
+        "updated": "Avatar updated",
+        "removed": "Avatar removed",
+        "errors": {
+          "disabled": "The administrator has turned off avatar uploads for now.",
+          "tooLarge": "The image is too large. Choose a smaller one.",
+          "invalid": "This image can't be used. Choose a JPEG, PNG or WebP.",
+          "unsupported": "This image format isn't supported on this device. Choose a JPEG or PNG.",
+          "tooMany": "Too many uploads. Try again later."
+        }
       }
     }
   }

@@ -104,3 +104,9 @@ export async function closeRoom(api: ApiClient, id: string): Promise<RoomInfo> {
 export async function reportMessage(api: ApiClient, id: string, messageId: string, reason: "spam" | "abuse" | "other"): Promise<void> {
   await api.request("POST", `${rid(id)}/messages/${encodeURIComponent(messageId)}/report`, { json: { reason } });
 }
+
+/** 举报别人的头像(R-V6 的三种原因之一;只能举报同房间成员;重复举报同一张照片只记一次)。 */
+export type AvatarReportReason = "inappropriate" | "impersonation" | "other";
+export async function reportAvatar(api: ApiClient, userId: number, reason: AvatarReportReason): Promise<void> {
+  await api.request("POST", "/api/avatar-reports", { json: { userId, reason } });
+}
