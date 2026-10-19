@@ -18,6 +18,16 @@ export function requestEmailCode(api: ApiClient, email: string, purpose: "regist
   return api.sendEmailCode(normalizeEmail(email), purpose);
 }
 
+/** 已登录用户的绑定 / 换绑发码(强制绑定期间也可用)。 */
+export function requestBindCode(api: ApiClient, email: string, purpose: "bind" | "change_email") {
+  return api.sendMyEmailCode(normalizeEmail(email), purpose);
+}
+
+/** 绑定 / 换绑邮箱;换绑必须带当前密码。 */
+export function bindEmail(api: ApiClient, input: { email: string; code: string; password?: string }) {
+  return api.bindEmail({ ...input, email: normalizeEmail(input.email) });
+}
+
 /** 找回密码:成功后不返回 token,页面跳回登录页。 */
 export function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }) {
   return api.resetPassword({ ...input, email: normalizeEmail(input.email) });

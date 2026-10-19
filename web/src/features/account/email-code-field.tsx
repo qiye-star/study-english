@@ -5,7 +5,7 @@ import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { isEmailShape } from "~/auth/validation";
-import { requestEmailCode } from "./account-api";
+import { requestBindCode, requestEmailCode } from "./account-api";
 
 const LABEL = "text-[13px] font-medium text-ink-2";
 const COOLDOWN_SECONDS = 60;
@@ -18,7 +18,7 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
   id: string;
   value: string;
   onChange(value: string): void;
-  purpose: "register" | "reset";
+  purpose: "register" | "reset" | "bind" | "change_email";
   /** 已经发过码:按钮文案改为「重新发送」。 */
   sent: boolean;
   onSent(): void;
@@ -43,7 +43,9 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
     }
     setBusy(true);
     try {
-      const receipt = await requestEmailCode(api, value, purpose);
+      const receipt = purpose === "bind" || purpose === "change_email"
+        ? await requestBindCode(api, value, purpose)
+        : await requestEmailCode(api, value, purpose);
       setCooldown(receipt.cooldownSeconds || COOLDOWN_SECONDS);
       onSent();
     } catch (err) {

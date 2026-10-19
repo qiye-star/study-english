@@ -48,11 +48,13 @@ describe("AuthProvider account actions", () => {
     await act(async () => {
       await result.current.changePassword!("old-password", "new-password1");
     });
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ current_password: "old-password", new_password: "new-password1" });
+    const change = mock.calls.find((c) => c.url.pathname === "/api/me/password")!;
+    expect(JSON.parse(change.body as string)).toEqual({ current_password: "old-password", new_password: "new-password1" });
     expect(loadAuth()?.token).toBe("rotated-token");
     expect(loadAuth()?.user).toEqual({ id: "12345678", name: "alice" });
     await result.current.api.me();
-    expect(mock.calls[1].headers.get("Authorization")).toBe("Bearer rotated-token");
+    const last = mock.calls.filter((c) => c.url.pathname === "/api/me").at(-1)!;
+    expect(last.headers.get("Authorization")).toBe("Bearer rotated-token");
   });
   it("a 401 answering the user's own logout keeps the signed-out-by-user state", async () => {
     let release!: () => void;
@@ -120,11 +122,12 @@ describe("AuthProvider sign-in and registration", () => {
     await act(async () => {
       await result.current.login(" Alice@Example.COM ", "password123");
     });
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice@example.com", password: "password123" });
+    const sessions = () => mock.calls.filter((c) => c.url.pathname === "/api/sessions");
+    expect(JSON.parse(sessions()[0].body as string)).toEqual({ provider: "password", username: "alice@example.com", password: "password123" });
     await act(async () => {
       await result.current.login(" Alice_1 ", "password123");
     });
-    expect(JSON.parse(mock.calls[1].body as string).username).toBe("alice_1");
+    expect(JSON.parse(sessions()[1].body as string).username).toBe("alice_1");
   });
 
   it("registers with the email, code and nickname and stores the new session", async () => {

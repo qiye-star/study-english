@@ -54,6 +54,21 @@
         "newPassword": "New password",
         "submit": "Reset password",
         "back": "Back to log in"
+      },
+      "bind": {
+        "title": "Bind email",
+        "changeTitle": "Change email",
+        "required": "Bind an email to keep using your account.",
+        "deadline": "Bind by {{time}}.",
+        "changeNote": "Current email: {{email}}. Changing it needs your password.",
+        "passwordRequired": "Enter your current password.",
+        "submit": "Bind email",
+        "submitChange": "Change email"
+      },
+      "binding": {
+        "pending": "Bind an email to keep your account.",
+        "pendingUntil": "Bind an email by {{time}} to keep your account.",
+        "bindNow": "Bind now"
       }
     }
   }

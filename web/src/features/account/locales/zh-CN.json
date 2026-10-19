@@ -54,6 +54,21 @@
         "newPassword": "新密码",
         "submit": "重置密码",
         "back": "返回登录"
+      },
+      "bind": {
+        "title": "绑定邮箱",
+        "changeTitle": "更换邮箱",
+        "required": "绑定邮箱后才能继续使用账号。",
+        "deadline": "请在 {{time}} 前绑定。",
+        "changeNote": "当前邮箱:{{email}}。更换需要输入当前密码。",
+        "passwordRequired": "请输入当前密码。",
+        "submit": "绑定",
+        "submitChange": "更换邮箱"
+      },
+      "binding": {
+        "pending": "请绑定邮箱,以免账号受限。",
+        "pendingUntil": "请在 {{time}} 前绑定邮箱,以免账号受限。",
+        "bindNow": "去绑定"
       }
     }
   }

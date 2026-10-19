@@ -18,7 +18,7 @@ import {
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { ChangelogPage } from "~/features/changelog";
-import { ForgotPasswordPage, RegisterPage } from "~/features/account";
+import { BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -52,6 +52,7 @@ export function AnnouncementFrame() {
   return (
     <div className="page-bg flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
       <AnnouncementBanner />
+      <BindingBanner />
       <div className="relative min-h-0 flex-1 overflow-y-auto" style={{ "--app-height": "100%" } as CSSProperties}>
         <Outlet />
       </div>
@@ -96,6 +97,7 @@ export function AppRoutes() {
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/library" element={<LibraryListPage />} />
             <Route path="/library/:id" element={<LibraryPlayerPage />} />
+            <Route path="/account/email" element={<BindEmailPage />} />
             <Route path="/me" element={<MePage />} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />

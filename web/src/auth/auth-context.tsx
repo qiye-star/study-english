@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { clearAuth, loadAuth, saveAuth, type StoredAuth } from "~/api/auth-storage";
 import { ApiClient } from "~/api/client";
 import type { AuthUser, RegisterInput } from "~/api/types";
 import { clearDeviceData } from "~/auth/device-data";
 import { noteMaintenance } from "~/components/announcement-banner";
+import { bindingRequiredOf, emailStatusOf, type EmailStatus } from "./email-binding";
 import { normalizeLoginName, normalizeUsername } from "./validation";
 
 export interface AuthContextValue {
@@ -19,6 +20,12 @@ export interface AuthContextValue {
   updateDisplayName?(displayName: string | undefined): void;
   /** 最近一次退出是用户主动发起的。 */
   signedOutByUser?: boolean;
+  /** 账号邮箱状态(来自 /api/me,登录后与启动时各取一次)。测试替身可不提供。 */
+  emailStatus?: EmailStatus | null;
+  /** 强制绑定(X26):开启且未验证邮箱时为 true,RequireAuth 据此跳到绑定页。测试替身可不提供。 */
+  bindingRequired?: boolean;
+  /** 重新读取 /api/me,更新邮箱状态与强制绑定标记(绑定成功后调用)。测试替身可不提供。 */
+  refreshProfile?(): Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -29,6 +36,10 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   tokenRef.current = auth?.token ?? null;
 
   const [signedOutByUser, setSignedOutByUser] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [bindingRequired, setBindingRequired] = useState(false);
+  // 每收到一次 403 email_binding_required 就加一:读 /api/me 期间若出现过 403,读到的结果不能把它清掉。
+  const bindingSignals = useRef(0);
 
   // api 与 logout 互相引用:401 经 logoutRef 回到最新的 logout。
   const logoutRef = useRef<(byUser?: boolean) => void>(() => {});
@@ -40,6 +51,11 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
         if (rejected === tokenRef.current) logoutRef.current();
       },
       onMaintenance: noteMaintenance,
+      // X26:只有当前会话被要求绑定邮箱时才置位;回调不导入 features/account。
+      onBindingRequired: () => {
+        bindingSignals.current += 1;
+        if (tokenRef.current) setBindingRequired(true);
+      },
       fetchImpl,
     }),
     [fetchImpl],
@@ -52,6 +68,8 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     clearAuth();
     clearDeviceData();
     tokenRef.current = null;
+    setEmailStatus(null);
+    setBindingRequired(false);
     setAuth(null);
   }, [api]);
   logoutRef.current = logout;
@@ -68,8 +86,28 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     saveAuth(next);
     tokenRef.current = next.token;
     setSignedOutByUser(false);
+    setEmailStatus(null);
+    setBindingRequired(false);
     setAuth(next);
   }, []);
+
+  const refreshProfile = useCallback(async (): Promise<void> => {
+    const token = tokenRef.current;
+    if (!token) return;
+    const signalsBefore = bindingSignals.current;
+    const profile = await api.me();
+    if (tokenRef.current !== token) return; // 读取期间已退出或换了账号
+    const status = emailStatusOf(profile);
+    setEmailStatus(status);
+    setBindingRequired(bindingSignals.current !== signalsBefore || bindingRequiredOf(status));
+  }, [api]);
+
+  // 登录后与启动时各读一次 /api/me(X26);失败静默,此时不影响页面本身。
+  const userId = auth?.user.id ?? null;
+  useEffect(() => {
+    if (userId === null) return;
+    refreshProfile().catch((): void => undefined);
+  }, [userId, refreshProfile]);
 
   const login = useCallback(
     async (username: string, password: string) => accept(await api.login(normalizeLoginName(username), password)),
@@ -104,8 +142,11 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user: auth?.user ?? null, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser }),
-    [auth, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser],
+    () => ({
+      user: auth?.user ?? null, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser,
+      emailStatus, bindingRequired, refreshProfile,
+    }),
+    [auth, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser, emailStatus, bindingRequired, refreshProfile],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
