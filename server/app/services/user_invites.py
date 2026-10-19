@@ -102,6 +102,7 @@ async def invitees(session, user_id: int) -> list[dict]:
     """Who joined through any of the user's codes: display name and time only, newest first (INDEX X34)."""
     rows = (await session.execute(
         select(display_name(), InviteRedemption.redeemed_at)
+        .select_from(InviteRedemption)
         .join(InviteCode, InviteCode.id == InviteRedemption.code_id)
         .join(User, User.id == InviteRedemption.user_id)
         .where(InviteCode.kind == "user", InviteCode.owner_user_id == user_id)
@@ -170,10 +171,11 @@ async def _insert(session, user_id: int, cap: int, uses: int, box: SecretBox, no
 
 
 async def replace_code(session, settings, user_id: int, box: SecretBox | None, now: datetime, *,
-                       created_by: str) -> str:
+                       created_by: str, commit: bool = True) -> str:
     """Revoke the live code (its plain copy is wiped) and create a random one that inherits the cumulative uses.
-    Used by the owner (after the eligibility check, see `rotate`) and by the admin console. Commits.
-    Returns the new plain code: the caller must not put it anywhere but the owner's own response."""
+    Used by the owner (after the eligibility check, see `rotate`) and by the admin console, which passes
+    `commit=False` to write its audit row in the same transaction. Returns the new plain code: the caller must not put
+    it anywhere but the owner's own response (the admin caller discards it)."""
     if box is None:
         raise InvitesNotConfigured()
     row = await live_row(session, user_id)
@@ -184,7 +186,8 @@ async def replace_code(session, settings, user_id: int, box: SecretBox | None, n
     row.revoked_at, row.code_enc = now, None
     await session.flush()  # the old row leaves the partial unique index before the new one enters it
     code = await _insert(session, user_id, cap, uses, box, now, created_by=created_by)
-    await session.commit()
+    if commit:
+        await session.commit()
     return code
 
 

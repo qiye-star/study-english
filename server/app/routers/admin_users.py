@@ -4,17 +4,19 @@
 并以 4010 断开该用户的房间连接(`app.state.rooms` 存在时;admin 包不导入 routers)。
 """
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin import invites, user_email_admin, users_admin
 from app.admin.perms import AdminContext, deny, require, require_operator_step_up, require_step_up, step_up_until
-from app.core.deps import get_session
+from app.core.config import Settings
+from app.core.deps import get_session, get_settings
 from app.core.quotas import QUOTA_KEYS, quota_cache
+from app.core.secretbox import box_for
 from app.models import utcnow
 from app.rooms.protocol import CLOSE_NOT_FOUND, event
 from app.routers.live_connections import cut_connections
@@ -189,8 +191,16 @@ class InviteIn(BaseModel):
 
 
 @router.get("/invites")
-async def list_invites(_: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
-    return {"invites": await invites.listing(session)}
+async def list_invites(
+    kind: Literal["admin", "user"] | None = None,
+    owner: str | None = Query(None, max_length=64),  # a login name or a user id
+    state: Literal["active", "used_up", "expired", "revoked"] | None = None,
+    _: AdminContext = Depends(require("operator")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    return {"invites": await invites.listing(session, settings, kind=kind, owner=owner, state_filter=state,
+                                             now=utcnow())}
 
 
 @router.post("/invites", status_code=201)
@@ -214,6 +224,76 @@ async def revoke_invite(invite_id: Annotated[int, Path(ge=1, le=2**31 - 1)],
                         session: AsyncSession = Depends(get_session)):
     try:
         await invites.revoke(session, ctx.actor, invite_id)
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    return Response(status_code=204)
+
+
+class BatchIn(BaseModel):
+    count: int = Field(ge=1, le=invites.BATCH_MAX)
+    label: str = Field("", max_length=64)
+    expires_at: datetime | None = None
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
+
+@router.post("/invites/batch", status_code=201)
+async def create_invite_batch(payload: BatchIn, ctx: AdminContext = Depends(require("operator")),
+                              session: AsyncSession = Depends(get_session)):
+    """One-off codes, shown once here (no-store). The CSV is built in the admin browser (INDEX X21)."""
+    try:
+        rows, codes = await invites.create_batch(session, ctx.actor, count=payload.count, label=payload.label,
+                                                 expires_at=_aware(payload.expires_at), now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    now = utcnow()
+    return JSONResponse({"invites": [invites.invite_out(row, now) for row in rows], "codes": codes},
+                        status_code=201, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/invites/{invite_id}/redemptions")
+async def invite_redemptions(invite_id: Annotated[int, Path(ge=1, le=2**31 - 1)],
+                             _: AdminContext = Depends(require("operator")),
+                             session: AsyncSession = Depends(get_session)):
+    try:
+        return {"redemptions": await invites.redemptions(session, invite_id)}
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+
+
+@router.get("/users/{user_id}/invite")
+async def user_invite_status(user_id: UserId, _: AdminContext = Depends(require("operator")),
+                             session: AsyncSession = Depends(get_session),
+                             settings: Settings = Depends(get_settings)):
+    """The user's code usage and counts. The code itself is never part of an operator view."""
+    try:
+        return await invites.user_status(session, settings, user_id, now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+
+
+@router.post("/users/{user_id}/invite/revoke", status_code=204)
+async def revoke_user_invite(user_id: UserId, payload: ReasonIn,
+                             ctx: AdminContext = Depends(require_operator_step_up),
+                             session: AsyncSession = Depends(get_session)):
+    try:
+        await invites.revoke_user_code(session, ctx.actor, user_id, reason=payload.reason, now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    return Response(status_code=204)
+
+
+@router.post("/users/{user_id}/invite/rotate", status_code=204)
+async def rotate_user_invite(user_id: UserId, payload: ReasonIn, request: Request,
+                             ctx: AdminContext = Depends(require_operator_step_up),
+                             session: AsyncSession = Depends(get_session),
+                             settings: Settings = Depends(get_settings)):
+    """The owner's old code stops working; the new one (with the cumulative uses) is shown only to the owner."""
+    try:
+        await invites.rotate_user_code(session, ctx.actor, settings, box_for(settings), user_id,
+                                       reason=payload.reason, now=utcnow())
     except invites.InviteError as e:
         raise HTTPException(e.status, e.error) from None
     return Response(status_code=204)
