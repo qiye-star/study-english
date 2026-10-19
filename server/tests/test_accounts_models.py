@@ -23,10 +23,11 @@ def _cols(con, table: str) -> set[str]:
     return {row[1] for row in con.execute(f"pragma table_info({table})")}
 
 
-def test_head_is_0023_and_chain_is_linear(tmp_path, monkeypatch):
+def test_head_is_0024_and_chain_is_linear(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0023"]
+    assert script.get_heads() == ["0024"]
+    assert script.get_revision("0024").down_revision == "0023"
     assert script.get_revision("0023").down_revision == "0022"
 
 
@@ -65,6 +66,66 @@ def test_0023_round_trips_and_backfills_token_expiry(tmp_path, monkeypatch):
     con = sqlite3.connect(db)
     assert "user_identities" in _tables(db)
     con.close()
+
+
+def test_0024_round_trips(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "0023")
+    assert not ({"verification_codes", "email_daily_counts"} & _tables(db))
+
+    command.upgrade(cfg, "0024")
+    con = sqlite3.connect(db)
+    assert {"verification_codes", "email_daily_counts"} <= _tables(db)
+    assert _cols(con, "verification_codes") == {
+        "id", "channel", "purpose", "target_hmac", "user_id", "code_hmac", "expires_at", "attempts",
+        "consumed_at", "created_at"}
+    assert _cols(con, "email_daily_counts") == {"day", "sent"}
+    con.execute("insert into email_daily_counts (day, sent) values ('2026-10-19', 3)")
+    con.execute(
+        "insert into verification_codes (channel, purpose, target_hmac, code_hmac, expires_at, attempts, created_at)"
+        " values ('email', 'register', 't', 'c', '2026-10-19', 0, '2026-10-19')")
+    con.commit()
+    con.close()
+
+    command.downgrade(cfg, "0023")
+    assert not ({"verification_codes", "email_daily_counts"} & _tables(db))
+    con = sqlite3.connect(db)
+    assert {"nickname", "email_verified_at"} <= _cols(con, "users")  # 0023 stays intact
+    con.close()
+
+    command.upgrade(cfg, "0024")
+    assert {"verification_codes", "email_daily_counts"} <= _tables(db)
+
+
+def test_verification_codes_indexes(tmp_path, monkeypatch):
+    cfg, db = _config(tmp_path, monkeypatch)
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(db)
+    indexes = {row[1]: row[2] for row in con.execute("pragma index_list(verification_codes)")}
+    assert "ix_verification_codes_target_purpose_created" in indexes
+    columns = [row[2] for row in con.execute("pragma index_info(ix_verification_codes_target_purpose_created)")]
+    assert columns == ["target_hmac", "purpose", "created_at"]
+    assert "ix_verification_codes_user_id" in indexes
+    con.close()
+
+
+async def test_deleting_user_removes_their_verification_codes(app, client):
+    from app.models import VerificationCode
+
+    uid, _ = await register(client, "jane")
+    now = datetime.now(timezone.utc)
+    async with app.state.sessionmaker() as s:
+        s.add(VerificationCode(channel="email", purpose="bind", target_hmac="t" * 64, user_id=uid,
+                               code_hmac="c" * 64, expires_at=now + timedelta(minutes=10), created_at=now))
+        await s.commit()
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "jane", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    async with app.state.sessionmaker() as s:
+        left = await s.scalar(select(func.count()).select_from(VerificationCode))
+    assert left == 0
 
 
 async def test_user_identities_unique_per_provider_subject_and_per_user(app):

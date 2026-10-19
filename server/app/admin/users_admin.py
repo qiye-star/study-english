@@ -24,7 +24,7 @@ from app.models import (
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
     AgentTutorSession,
     LibraryAttempt, LibraryItem, LibrarySegment,
-    ChangelogRead,
+    ChangelogRead, VerificationCode,
 )
 from app.library import paths as library_paths
 from app.services import recordings
@@ -39,7 +39,7 @@ _ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 # fails when a new table that references users is missing here). Rooms they own are released first (R-6).
 USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items includes source "wordbook:<book>")
     (Conversation, "user_id"), (Assessment, "user_id"), (PracticeItem, "user_id"), (VocabularyItem, "user_id"),
-    (AccessToken, "user_id"), (SpeechToken, "user_id"), (UserIdentity, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
+    (AccessToken, "user_id"), (SpeechToken, "user_id"), (UserIdentity, "user_id"), (VerificationCode, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
     (PromotionMatch, "user_id"), (UserAchievement, "user_id"), (UserQuotaOverride, "user_id"),
     (RoomMember, "user_id"), (RoomReport, "reporter_id"), (RoomJoinRequest, "user_id"),
     (WordbookEnrollment, "user_id"), (WordbookEvent, "user_id"),

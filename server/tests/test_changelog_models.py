@@ -12,10 +12,10 @@ ENTRY_COLUMNS = {"id", "published_at", "entry_date", "version", "title_zh", "tit
 READ_COLUMNS = {"user_id", "last_seen_id", "updated_at"}
 
 
-def test_head_is_0023_and_the_chain_is_linear(tmp_path, monkeypatch):
+def test_head_is_0024_and_the_chain_is_linear(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0023"]
+    assert script.get_heads() == ["0024"]
     assert script.get_revision("0020").down_revision == "0019"
 
 
