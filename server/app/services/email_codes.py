@@ -67,6 +67,7 @@ async def request_bound_code(session: AsyncSession, settings: Settings, mailer: 
     target = identities.subject_hmac(settings.identity_pepper, email)
     holder = await identities.find_user_by_email(session, settings, email)
     code = None
+    recipient = email  # only the bind_code mail goes to the typed address (the caller proved it); a notice never does
     if holder is None or holder.id == user_id:  # free, or another spelling of the user's own address
         code, _ = await verification.issue(session, settings, target, purpose, now, user_id=user_id)
         kind = "bind_code"
@@ -76,5 +77,7 @@ async def request_bound_code(session: AsyncSession, settings: Settings, mailer: 
                                                      now.astimezone(timezone.utc).date()):  # the notice is a real mail
             raise VerificationError("global_daily")
         kind = "bind_conflict"
+        recipient = await identities.stored_email(session, settings, holder.id)  # the holder's mailbox, F1 spelling
     await session.commit()  # the mail goes out only after the row is durable
-    mailer.enqueue(kind, email, code=code, lang=lang)
+    if recipient is not None:  # None: the stored copy is unreadable, send nothing
+        mailer.enqueue(kind, recipient, code=code, lang=lang)

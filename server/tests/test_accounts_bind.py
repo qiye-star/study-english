@@ -290,3 +290,18 @@ async def test_bind_logs_nothing_sensitive(app, client, fresh, caplog):
     token = headers["Authorization"].split(" ", 1)[1]
     for secret in (NEW, "taken@example.com", "fresh.mail", code, PASSWORD, token, PEPPER):
         assert secret not in caplog.text
+
+
+async def test_the_conflict_notice_goes_to_the_holders_stored_address_not_the_typed_variant(app, client, fresh):
+    _uid, headers = fresh
+    owner, _ = await register(client, "victim")
+    await bind(app, owner, "victim@x.test")
+    free = await _ask(client, headers, NEW)
+    typed = await _ask(client, headers, "victim+x@x.test")  # same identity key, another mailbox spelling
+    assert free.status_code == typed.status_code == 200
+    assert free.content == typed.content
+    await drain_background(app)
+    notices = [m for m in fake_sender(app).outbox if m[0] != NEW]
+    assert [m[0] for m in notices] == ["victim@x.test"]
+    assert fake_sender(app).purposes == ["bind", "notice_bind"]
+    assert not re.search(r"\d{6}", " ".join(notices[0][1:]))
