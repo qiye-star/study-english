@@ -71,3 +71,20 @@ async def register_with_email(
                 raise _invalid() from None  # lost the race for the address: indistinguishable from a wrong code
             # otherwise a random user id collided: try again with a new one
     raise IdAllocationFailed()
+
+
+async def reset_password(session: AsyncSession, sessions: async_sessionmaker, settings: Settings, *, email: str,
+                         code: str, password_hash: str, now: datetime) -> int:
+    """S19: verify a `reset` code issued to the address's CURRENT owner, set the new hash and drop every login token
+    (`identities.revoke_sessions`), in one commit with the consumed code. Returns the user id so the caller can cut
+    the live connections. Raises VerificationError("invalid") for every failure, including an address nobody owns."""
+    target = identities.subject_hmac(settings.identity_pepper, email)
+    row = await verification.verify(session, sessions, settings, target, "reset", code, now)
+    user = await identities.find_user_by_email(session, settings, email)
+    if user is None or row.user_id != user.id:  # the code was issued to someone else (the address changed hands)
+        await session.rollback()
+        raise _invalid()
+    user.password_hash = password_hash
+    await identities.revoke_sessions(session, user.id)
+    await session.commit()
+    return user.id

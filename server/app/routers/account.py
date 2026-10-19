@@ -4,7 +4,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,9 +13,10 @@ from app.core.deps import auth_rate_limit, client_ip, current_user, get_session,
 from app.core.security import hash_password, verify_password
 from app.models import User, display_of, utcnow
 from app.routers.live_connections import cut_connections
-from app.services import email_codes, identities
+from app.services import email_accounts, email_codes, identities
 from app.services.email_domains import domain_allowed
 from app.services.identities import email_ready, normalize_email
+from app.services.email_accounts import INVALID_CODE
 from app.services.verification import COOLDOWN, VerificationError
 from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
 
@@ -49,6 +50,17 @@ def _mail_language(request: Request) -> str:
     """`zh` or `en` from the first Accept-Language tag; anything else gets Chinese (the default)."""
     first = request.headers.get("accept-language", "").split(",")[0].strip().lower()
     return "en" if first == "en" or first.startswith("en-") else "zh-CN"
+
+
+class PasswordResetIn(BaseModel):
+    email: str = Field(max_length=254)
+    code: str = Field(max_length=16)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _normalise(cls, value: str) -> str:
+        return normalize_email(value)  # fixed message, never echoes the address
 
 
 class PasswordChangeIn(BaseModel):
@@ -117,3 +129,28 @@ async def email_code(
             raise HTTPException(503, "Email temporarily unavailable") from None
         raise HTTPException(429, TOO_MANY_CODES, headers={"Retry-After": str(exc.retry_after or 60)}) from None
     return {"ok": True, "cooldown_seconds": int(COOLDOWN.total_seconds())}
+
+
+@router.post("/password/reset", status_code=204, dependencies=[Depends(auth_rate_limit)])
+async def reset_password(
+    payload: PasswordResetIn,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    """Forgot password: an emailed code sets a new one. Every login is signed out and nobody is logged in (no token).
+    Every failure, an address nobody owns included, is the same 400."""
+    if not email_ready(settings):
+        raise HTTPException(503, "Email is not configured")
+    password_hash = await asyncio.to_thread(hash_password, payload.new_password)  # before any lookup: equal work
+    try:
+        user_id = await email_accounts.reset_password(
+            session, request.app.state.sessionmaker, settings, email=payload.email, code=payload.code,
+            password_hash=password_hash, now=utcnow())
+    except VerificationError:
+        raise HTTPException(400, INVALID_CODE) from None
+    try:
+        await cut_connections(request.app, user_id)
+    except Exception as exc:  # the password is already reset: the answer stays 204
+        logger.warning("cut_connections failed after a password reset: %s", type(exc).__name__)
+    return Response(status_code=204)
