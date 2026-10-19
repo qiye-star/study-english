@@ -1,6 +1,5 @@
 """Invite code management (admin console v2 §7). The plain code is returned once, at creation; listings and
 the audit only ever see the label, counters and dates."""
-import secrets
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -8,10 +7,8 @@ from sqlalchemy import select
 from app.admin import audit
 from app.admin.audit import Actor
 from app.models import InviteCode, iso_utc
-from app.services.invites import hash_code
+from app.services.invites import generate_code, hash_code
 
-# No look-alikes (0/O, 1/I/L), so codes survive being read out or copied by hand.
-_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 MAX_USES = 1000
 
 
@@ -20,10 +17,6 @@ class InviteError(Exception):
         super().__init__(error)
         self.status = status
         self.error = error
-
-
-def new_code() -> str:
-    return "-".join("".join(secrets.choice(_ALPHABET) for _ in range(4)) for _ in range(3))
 
 
 def _utc(value: datetime) -> datetime:
@@ -55,7 +48,7 @@ async def create(session, actor: Actor, *, label: str, max_uses: int, expires_at
     if expires_at is not None and _utc(expires_at) <= now:
         raise InviteError(422, "Expiry must be in the future")
     for _ in range(5):
-        code = new_code()
+        code = generate_code()
         if await session.scalar(select(InviteCode.id).where(InviteCode.code_hash == hash_code(code))) is None:
             break
     else:  # pragma: no cover - 31^12 codes

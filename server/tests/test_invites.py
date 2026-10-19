@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from app.admin.invites import new_code
+from app.services.invites import generate_code
 from app.models import InviteCode
 from app.services.invites import consume, hash_code, normalise
 from tests.admin_helpers import ADMIN_ENABLED, login_as
@@ -19,8 +19,8 @@ async def _register(client, name, code):
 
 
 def test_codes_are_normalised_and_unambiguous():
-    code = new_code()
-    assert len(code) == 14 and code.count("-") == 2 and not set(code) & set("01OIL")
+    code = generate_code()
+    assert len(code) == 11 and code.count("-") == 1 and not set(code) & set("01OILU")  # 10 characters, XXXXX-XXXXX (INDEX X18)
     assert normalise(" abcd - efgh-jkmn ") == "ABCDEFGHJKMN"
     assert hash_code("abcd-efgh") == hash_code("ABCD EFGH")
 
