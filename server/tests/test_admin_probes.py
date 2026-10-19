@@ -138,3 +138,116 @@ def test_websocket_redirects_are_never_followed():
     exc = InvalidStatus(Response(302, "Found", Headers({"Location": "ws://169.254.169.254/latest"})))
     conn = probes_mod._connect_no_redirect("wss://ise-api.xfyun.cn/v2/open-ise")
     assert conn.process_redirect(exc) is exc
+
+
+# ---- plan A2: SMTP probe (connect + TLS + login only, never sends mail) -------------------------------------------
+
+SMTP_PASSWORD = "authcode-SECRET-123"
+
+
+def smtp_settings(**kw):
+    base = dict(email_backend="smtp", smtp_host="smtp.mailhost.test", smtp_port=465, smtp_security="ssl",
+                smtp_user="noreply@mailhost.test", smtp_password=SMTP_PASSWORD)
+    return make_settings(**{**base, **kw})
+
+
+@pytest.fixture
+def fake_smtp(monkeypatch):
+    import smtplib
+
+    from tests.test_email_provider import FakeSmtp
+
+    FakeSmtp.instances, FakeSmtp.plan = [], {}
+    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSmtp)
+    monkeypatch.setattr(smtplib, "SMTP", FakeSmtp)
+    return FakeSmtp
+
+
+def test_smtp_is_a_probe_upstream():
+    assert "smtp" in probes_mod.UPSTREAMS
+
+
+async def test_smtp_probe_not_configured_without_a_host(fake_smtp):
+    r = await probe(smtp_settings(smtp_host=""), "smtp", resolver=public)
+    assert (r.ok, r.code) == (False, "not_configured") and fake_smtp.instances == []
+
+
+async def test_smtp_probe_blocks_private_hosts_before_connecting(fake_smtp):
+    async def private(host):
+        return ["10.0.0.8"]
+
+    r = await probe(smtp_settings(), "smtp", resolver=private)
+    assert (r.ok, r.code) == (False, "blocked_private") and fake_smtp.instances == []
+    assert (await probe(smtp_settings(smtp_host="127.0.0.1"), "smtp")).code == "blocked_private"
+    assert fake_smtp.instances == []
+
+
+async def test_smtp_probe_ok_logs_in_but_never_sends(fake_smtp):
+    r = await probe(smtp_settings(), "smtp", resolver=public)
+    assert (r.ok, r.code) == (True, "ok")
+    conn = fake_smtp.instances[0]
+    assert [c[0] for c in conn.calls] == ["login"] and conn.sent == []
+    assert not any(c[0] == "send_message" for c in conn.calls)
+
+
+async def test_smtp_probe_starttls_mode_secures_before_login(fake_smtp):
+    r = await probe(smtp_settings(smtp_security="starttls", smtp_port=587), "smtp", resolver=public)
+    assert r.ok and [c[0] for c in fake_smtp.instances[0].calls] == ["ehlo", "starttls", "ehlo", "login"]
+
+
+async def test_smtp_probe_failure_codes(fake_smtp):
+    import smtplib
+    import socket
+    import ssl
+
+    cases = [
+        ({"login": smtplib.SMTPAuthenticationError(535, b"bad credentials for noreply@mailhost.test")}, "auth", 535),
+        ({"connect": socket.timeout("timed out")}, "timeout", 0),
+        ({"connect": ssl.SSLError("CERTIFICATE_VERIFY_FAILED smtp.mailhost.test")}, "tls", 0),
+        ({"connect": ConnectionRefusedError("smtp.mailhost.test refused")}, "network", 0),
+    ]
+    for plan, code, status in cases:
+        fake_smtp.plan = plan
+        r = await probe(smtp_settings(), "smtp", resolver=public)
+        assert (r.ok, r.code, r.status) == (False, code, status)
+        assert set(r.out()) == {"ok", "status", "ms", "code"}
+        blob = repr(r)
+        assert "mailhost" not in blob and SMTP_PASSWORD not in blob and "credentials" not in blob
+
+
+async def test_smtp_probe_has_an_eight_second_budget(monkeypatch):
+    async def hang(settings):
+        await asyncio.sleep(60)
+
+    import asyncio
+
+    monkeypatch.setattr(probes_mod.email_provider, "check", hang)
+    monkeypatch.setattr(probes_mod, "SMTP_TIMEOUT", 0.05)
+    r = await probe(smtp_settings(), "smtp", resolver=public)
+    assert (r.ok, r.code) == (False, "timeout")
+
+
+async def test_smtp_probe_endpoint_audit_and_logs_hold_no_host_or_password(app, client, fake_smtp, monkeypatch, caplog):
+    import logging
+
+    async def resolve(host, resolver=None):
+        return "93.184.216.34"
+
+    monkeypatch.setattr(probes_mod, "resolve_public", resolve)
+    app.state.settings = app.state.settings.model_copy(update=dict(
+        email_backend="smtp", smtp_host="smtp.mailhost.test", smtp_user="noreply@mailhost.test",
+        smtp_password=SMTP_PASSWORD))
+    h = await login_as(app, client, "superadmin")
+    caplog.set_level(logging.DEBUG, logger="app")
+    fake_smtp.plan = {"login": __import__("smtplib").SMTPAuthenticationError(535, b"nope")}
+    r = await client.post("/api/admin/probes/smtp", headers=h, json={})
+    assert r.status_code == 200 and r.json()["code"] == "auth" and set(r.json()) == {"ok", "status", "ms", "code"}
+    fake_smtp.plan = {}
+    r = await client.post("/api/admin/probes/smtp", headers=h, json={})
+    assert r.json()["ok"] is True
+    async with app.state.sessionmaker() as s:
+        rows = (await s.scalars(select(AdminAudit).where(AdminAudit.action == "probe.run"))).all()
+    assert [(a.target_id, a.summary) for a in rows] == [("smtp", "auth"), ("smtp", "ok")]
+    blob = json.dumps([[a.summary, a.after, a.before, a.target_id] for a in rows], default=str) + caplog.text + r.text
+    assert "mailhost" not in blob and SMTP_PASSWORD not in blob
+    assert all(not any(c[0] == "send_message" for c in i.calls) for i in fake_smtp.instances)
