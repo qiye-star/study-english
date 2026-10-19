@@ -1,7 +1,7 @@
 import asyncio
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -59,9 +59,13 @@ async def _get_by_username(session: AsyncSession, username: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def _issue_token(session: AsyncSession, user: User) -> str:
+async def _issue_token(session: AsyncSession, user: User, settings: Settings) -> str:
     token = new_token()
-    session.add(AccessToken(user_id=user.id, token_hash=hash_token(token)))
+    now = utcnow()
+    session.add(AccessToken(
+        user_id=user.id, token_hash=hash_token(token), created_at=now,
+        expires_at=now + timedelta(days=settings.access_token_ttl_days), last_used_at=now,
+    ))
     await session.commit()
     return token
 
@@ -106,7 +110,7 @@ async def register(
     else:
         raise HTTPException(500, "Could not allocate a user id")
 
-    return _user_out(user, await _issue_token(session, user))
+    return _user_out(user, await _issue_token(session, user, settings))
 
 
 @router.post(
@@ -115,7 +119,11 @@ async def register(
     response_model_exclude_none=True,
     dependencies=[Depends(auth_rate_limit)],
 )
-async def login(payload: LoginIn, session: AsyncSession = Depends(get_session)):
+async def login(
+    payload: LoginIn,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
     if payload.provider != "password":
         raise HTTPException(400, "Unsupported login provider")
     user = await _get_by_username(session, payload.username.strip().lower())
@@ -126,7 +134,7 @@ async def login(payload: LoginIn, session: AsyncSession = Depends(get_session)):
         raise HTTPException(401, INVALID_LOGIN)
     if user.disabled_at is not None:  # after the password check: wrong passwords learn nothing about the account
         raise HTTPException(403, "Account disabled")
-    return _user_out(user, await _issue_token(session, user))
+    return _user_out(user, await _issue_token(session, user, settings))
 
 
 @router.get("/me", response_model=UserOut, response_model_exclude_none=True)
