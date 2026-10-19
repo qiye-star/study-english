@@ -7,7 +7,7 @@ import { ChevronIcon } from "../components/icons";
 import { Chips, Screen, TOP_BAR_H, TopBar, UnderlineTabs } from "../components/layout";
 import { UserLibraryUsage } from "../features/library";
 import { UserRankPanel } from "../features/rank";
-import { UserAdminPanel, UserEmailCard } from "../features/users";
+import { UserAdminPanel, UserEmailCard, UserInviteCard } from "../features/users";
 import { ErrorState, PagedList, Skeleton } from "../components/states";
 import { useAsync } from "../hooks/use-async";
 import { usePaged } from "../hooks/use-paged";
@@ -175,6 +175,8 @@ export function UserDetailPage() {
             </section>
 
             <UserEmailCard userId={id} emailMasked={u.email_masked ?? null} emailVerified={!!u.email_verified} onChanged={reload} />
+
+            <UserInviteCard userId={id} />
 
             <UserLibraryUsage userId={id} />
 

@@ -2,3 +2,4 @@
 export { InvitesPage } from "./invites-page";
 export { UserAdminPanel } from "./user-admin-panel";
 export { UserEmailCard } from "./user-email-card";
+export { UserInviteCard } from "./user-invite-card";

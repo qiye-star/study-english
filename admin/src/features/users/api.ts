@@ -127,22 +127,41 @@ export async function clearQuota(id: Id, key: string): Promise<void> {
 }
 
 export type InviteState = "active" | "used_up" | "expired" | "revoked";
+export type InviteKind = "admin" | "user";
+
+/** 用户码的所有者(登录名为主;昵称只作辅助显示,X6)。管理员码没有所有者。 */
+export interface InviteOwner {
+  id: number;
+  username: string;
+  nickname: string | null;
+}
+
+/** 兑换人数是精确计数;名字最多 5 个(最新在前)。 */
+export interface InviteRedeemers {
+  total: number;
+  usernames: string[];
+}
 
 export interface Invite {
   id: number;
   label: string;
+  kind: InviteKind;
   uses: number;
+  /** 管理员码为本码上限;用户码为该用户的累计上限(实时配额)。 */
   maxUses: number;
   expiresAt: string | null;
   revokedAt: string | null;
   createdBy: string;
   createdAt: string;
   state: InviteState;
+  owner: InviteOwner | null;
+  redeemers: InviteRedeemers;
 }
 
 interface InviteWire {
   id: number;
   label: string;
+  kind: InviteKind;
   uses: number;
   max_uses: number;
   expires_at: string | null;
@@ -150,15 +169,36 @@ interface InviteWire {
   created_by: string;
   created_at: string;
   state: InviteState;
+  /** 只有列表(GET /api/admin/invites)返回;新建接口不带。 */
+  owner?: { id: number; username: string; nickname: string | null } | null;
+  redeemers?: InviteRedeemers;
 }
 
+const NO_REDEEMERS: InviteRedeemers = { total: 0, usernames: [] };
+
 const inviteIn = (w: InviteWire): Invite => ({
-  id: w.id, label: w.label, uses: w.uses, maxUses: w.max_uses, expiresAt: w.expires_at, revokedAt: w.revoked_at,
-  createdBy: w.created_by, createdAt: w.created_at, state: w.state,
+  id: w.id, label: w.label, kind: w.kind, uses: w.uses, maxUses: w.max_uses, expiresAt: w.expires_at,
+  revokedAt: w.revoked_at, createdBy: w.created_by, createdAt: w.created_at, state: w.state,
+  owner: w.owner ?? null, redeemers: w.redeemers ?? NO_REDEEMERS,
 });
 
-export async function listInvites(): Promise<Invite[]> {
-  return (await request<{ invites: InviteWire[] }>("/api/admin/invites")).invites.map(inviteIn);
+export interface InviteFilter {
+  /** 缺省或 "all" 不筛选。 */
+  kind?: InviteKind | "all";
+  /** 登录名或用户 id;空白不筛选。 */
+  owner?: string;
+  state?: InviteState | "all";
+}
+
+export async function listInvites(filter: InviteFilter = {}): Promise<Invite[]> {
+  const r = await request<{ invites: InviteWire[] }>("/api/admin/invites", {
+    query: {
+      kind: filter.kind && filter.kind !== "all" ? filter.kind : undefined,
+      owner: filter.owner?.trim() || undefined,
+      state: filter.state && filter.state !== "all" ? filter.state : undefined,
+    },
+  });
+  return r.invites.map(inviteIn);
 }
 
 /** 明文码只在这次响应里出现一次。 */
@@ -170,6 +210,65 @@ export async function createInvite(body: { label: string; maxUses: number; expir
   return { invite: inviteIn(r.invite), code: r.code };
 }
 
+/** 批量一次性码(1–100,每个 max_uses = 1)。明文码只在这次响应里出现;CSV 在浏览器里生成,服务端不导出。 */
+export async function createInviteBatch(body: { count: number; label: string; expiresAt: string | null }): Promise<{ invites: Invite[]; codes: string[] }> {
+  const r = await request<{ invites: InviteWire[]; codes: string[] }>("/api/admin/invites/batch", {
+    method: "POST",
+    json: { count: body.count, label: body.label, expires_at: body.expiresAt },
+  });
+  return { invites: r.invites.map(inviteIn), codes: r.codes };
+}
+
 export async function revokeInvite(id: number): Promise<void> {
   await request(`/api/admin/invites/${id}`, { method: "DELETE", as: "none" });
 }
+
+export interface Redemption {
+  userId: number | null;
+  username: string | null;
+  nickname: string | null;
+  redeemedAt: string;
+  disabled: boolean;
+}
+
+/** 谁用过这个码(新在前)。已删除的兑换者保留一行,身份字段为空(R-I11)。 */
+export async function listRedemptions(id: number): Promise<Redemption[]> {
+  const r = await request<{ redemptions: Array<{ user_id: number | null; username: string | null; nickname: string | null; redeemed_at: string; disabled: boolean }> }>(
+    `/api/admin/invites/${id}/redemptions`,
+  );
+  return r.redemptions.map((x) => ({ userId: x.user_id, username: x.username, nickname: x.nickname, redeemedAt: x.redeemed_at, disabled: x.disabled }));
+}
+
+/** 用户的邀请码状态:只有用量与计数,从不包含码本身(R-I10)。 */
+export interface UserInviteStatus {
+  current: { uses: number; cap: number; createdAt: string; revokedAt: string | null; state: InviteState } | null;
+  historyCodes: number;
+  redemptions: number;
+  disabledInvitees: number;
+  invitees: Array<{ displayName: string; redeemedAt: string; disabled: boolean }>;
+}
+
+export async function getUserInvite(id: Id): Promise<UserInviteStatus> {
+  const r = await request<{
+    current: { uses: number; cap: number; created_at: string; revoked_at: string | null; state: InviteState } | null;
+    history_codes: number;
+    redemptions: number;
+    disabled_invitees: number;
+    invitees: Array<{ display_name: string; redeemed_at: string; disabled: boolean }>;
+  }>(`/api/admin/users/${enc(id)}/invite`);
+  return {
+    current: r.current && { uses: r.current.uses, cap: r.current.cap, createdAt: r.current.created_at, revokedAt: r.current.revoked_at, state: r.current.state },
+    historyCodes: r.history_codes,
+    redemptions: r.redemptions,
+    disabledInvitees: r.disabled_invitees,
+    invitees: r.invitees.map((x) => ({ displayName: x.display_name, redeemedAt: x.redeemed_at, disabled: x.disabled })),
+  };
+}
+
+/** 收回用户当前的码(operator + 二次验证;原因必填,写入审计)。 */
+export const revokeUserInvite = (id: Id, reason: string) =>
+  request(`/api/admin/users/${enc(id)}/invite/revoke`, { method: "POST", json: { reason }, as: "none" });
+
+/** 更换用户的码:旧码立即失效,新码沿用已用次数且只显示给用户本人(管理员看不到)。 */
+export const rotateUserInvite = (id: Id, reason: string) =>
+  request(`/api/admin/users/${enc(id)}/invite/rotate`, { method: "POST", json: { reason }, as: "none" });
