@@ -12,6 +12,7 @@ from app.services import verification
 from app.services.identities import EmailNotConfigured, subject_hmac
 from app.services.verification import (MAX_ATTEMPTS, VerificationError, claim_global_quota, hidden_issue, issue,
                                        release_attempt, verify)
+from tests.accounts_helpers import contains_code
 from tests.conftest import make_settings
 
 PEPPER = "p" * 40
@@ -45,7 +46,7 @@ async def test_issue_returns_a_six_digit_code_and_stores_only_the_hmac(app):
         assert code != getattr(stored, column)
     assert stored.code_hmac != hashlib.sha256(code.encode()).hexdigest()  # keyed, not a plain hash
     assert len(stored.code_hmac) == 64
-    assert code not in stored.code_hmac
+    assert not contains_code(stored.code_hmac, code)
 
 
 async def test_code_hmac_binds_purpose_target_and_code(app):

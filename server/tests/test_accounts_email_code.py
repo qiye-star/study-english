@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.core.metering import METER
 from app.models import EmailDailyCount, UserIdentity, VerificationCode
-from tests.accounts_helpers import PEPPER, age_codes, bind, enable_email, fake_sender, last_code
+from tests.accounts_helpers import PEPPER, age_codes, bind, contains_code, enable_email, fake_sender, last_code
 from tests.background import drain_background
 from tests.test_admin_api import register
 
@@ -275,10 +275,15 @@ async def test_the_database_never_holds_the_address_or_the_code(app, client):
         rows = (await s.execute(select(VerificationCode))).scalars().all()
         identities = (await s.execute(select(UserIdentity))).scalars().all()
     dump = " ".join(str(vars(r)) for r in rows + identities)
-    assert code not in dump
+    assert not contains_code(dump, code)
     for plain in ("newcomer", "second.person", "known.user", "example.com"):
         assert plain not in dump
     assert PEPPER not in dump
+
+
+def test_contains_code_matches_whole_tokens_only():
+    assert contains_code("code=123456", "123456") and contains_code('"123456"', "123456")
+    assert not contains_code("hmac 9a1234567b", "123456") and not contains_code("ab123456cd", "123456")
 
 
 async def test_every_send_is_metered_with_status_only(app, client):
@@ -304,7 +309,7 @@ async def test_email_code_logs_no_email_or_code(app, client, caplog):
     await drain_background(app)
     code = last_code(app, NEW)
     text = caplog.text
-    assert code not in text and "example.com" not in text and "mailinator" not in text
+    assert not contains_code(text, code) and "example.com" not in text and "mailinator" not in text
     for plain in ("newcomer", "known.user", "ghost", PEPPER):
         assert plain not in text
 

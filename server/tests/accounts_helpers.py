@@ -12,6 +12,12 @@ from app.models import User, VerificationCode, utcnow
 PEPPER = "test-pepper-" + "x" * 32
 
 
+def contains_code(text: str, code: str) -> bool:
+    """True when the 6-digit `code` occurs as a whole token. A bare `code in text` also matches inside hex digests
+    (HMACs) or longer numbers, which made privacy assertions flaky."""
+    return re.search(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])", text) is not None
+
+
 def enable_email(app, **overrides) -> FakeSender:
     """Both keys, a backend and a FakeSender behind `app.state.email_sender_override` (INDEX X9, X15).
     Extra keyword arguments override other settings (for example `email_codes_per_target_daily=2`)."""
