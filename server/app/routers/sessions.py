@@ -15,7 +15,7 @@ from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
-from app.services import email_accounts, identities, invites
+from app.services import avatars, email_accounts, identities, invites
 from app.services.email_accounts import INVALID_CODE
 from app.services.email_domains import domain_allowed
 from app.services.identities import email_ready, normalize_email
@@ -75,6 +75,7 @@ class UserOut(BaseModel):
     access_token: str | None = None
     nickname: str | None = None  # absent when unset
     display_name: str
+    avatar_url: str | None = None  # relative /api/avatars/<id> (INDEX X17); absent when there is no avatar
     email_masked: str | None = None  # only on /api/me, absent when there is no email
     email_verified: bool | None = None  # only on /api/me
     email_binding: EmailBindingOut | None = None  # only on /api/me
@@ -82,7 +83,8 @@ class UserOut(BaseModel):
 
 def _user_out(user: User, token: str | None = None) -> UserOut:
     return UserOut(id=str(user.id), name=user.username, created_at=user.created_at, access_token=token,
-                   nickname=user.nickname, display_name=display_of(user))
+                   nickname=user.nickname, display_name=display_of(user),
+                   avatar_url=avatars.avatar_url(user.avatar_id))
 
 
 async def _get_by_username(session: AsyncSession, username: str) -> User | None:

@@ -10,7 +10,8 @@
         "sender": {
           "kind": "user",
           "id": 60496590,
-          "name": "alice"
+          "name": "alice",
+          "avatar_url": null
         },
         "text": "",
         "assisted": false,
@@ -45,7 +46,8 @@
         "sender": {
           "kind": "user",
           "id": 60496590,
-          "name": "alice"
+          "name": "alice",
+          "avatar_url": null
         },
         "text": "",
         "assisted": false,

@@ -224,3 +224,19 @@ S1 → S2 → … → S9;W1(可与 S1 并行,fetch 模拟)→ W2(S4 后)→ W3(S
 ## 后续(本期不做)
 
 孤儿头像文件扫描(崩溃窗口);自动内容审核;桌面端显示头像(需要绝对 URL,X17)。
+
+## 执行结果(Z1 服务端,2026-10-19,分支 feat/av-s)
+
+**提交**:`8f0c2269 test(server): avatar privacy sweep`;docs 提交见 `git log`(`docs(server): avatars — setup, limits and results`)。
+
+**定向测试**(`cd server && .venv\Scripts\python.exe -m pytest -q tests/test_avatars_*.py tests/test_admin_avatars.py tests/test_rooms_avatars.py tests/test_web_contract.py tests/test_rooms_*contract*.py tests/test_architecture.py tests/test_admin_routes_guarded.py tests/test_migrations.py tests/test_admin_users.py tests/test_settings_registry.py`):**148 passed,0 failed**(67 s)。其中 `tests/test_avatars_privacy_sweep.py` 2 passed(全流程隐私扫描 + 头像路由只含 `avatar_id` / `user_id` 路径参数)。没有跑全量套件,没有跑网页测试。
+
+**偏差**:隐私测试文件名为 `test_avatars_privacy_sweep.py`(对齐 `test_accounts_privacy_sweep.py`,计划写的是 `test_avatars_privacy.py`)。扫描结果未发现真实泄露,没有 xfail。两个有意的例外写在测试模块文档里:管理端移除头像的原因会进审计行(操作者自己的备注,设计如此);`user.delete` 审计的 summary 是被删账号的用户名(既有行为,不属于头像改动)。举报原因是固定枚举,不作「独特值」检查。
+
+**未验证**:Postgres;多 worker(限流、头像上传配额都在进程内);真机选图与 HEIC;Docker 镜像里的 Pillow 安装(只在本地 `uv sync` 过);内容审核(没有:只有举报、管理员移除与总开关)。
+
+**已知限制**:
+- 头像读取带 `public, max-age=31536000, immutable`,被移除的头像可能在浏览器或代理缓存里残留,直到用户的头像 id 变化。
+- 崩溃遗留的临时文件与未被引用的头像文件不做清扫(计划「后续」)。
+- 开关关闭时读取返回 404,已有头像保留;删除自己的头像仍允许。
+- 举报只限现在或曾经同过房间的成员,且每人每张头像只记一次。

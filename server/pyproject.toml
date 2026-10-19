@@ -18,6 +18,7 @@ dependencies = [
   "cryptography>=43",
   "lameenc>=1.7",
   "yt-dlp[default]>=2025.11.12",
+  "pillow>=13.0.0",
 ]
 
 [dependency-groups]

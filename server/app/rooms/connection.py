@@ -18,7 +18,8 @@ from app.rooms.protocol import (
 )
 from app.rooms.rules import MAX_TEXT, RoomLimits, clean_text, mention
 from app.rooms.scenarios import brief
-from app.rooms.store import RoomStore, message_out, room_out
+from app.rooms.store import RoomStore, message_out, room_out, sender_avatar
+from app.services.avatars import avatar_url
 
 logger = logging.getLogger(__name__)
 GLOBAL = "*"
@@ -89,7 +90,8 @@ class ConnDeps:
 
 
 def members_out(members, online: set[int]) -> list[dict]:
-    return [{"user_id": m.user_id, "name": m.name, "role": m.role, "online": m.user_id in online} for m in members]
+    return [{"user_id": m.user_id, "name": m.name, "role": m.role, "online": m.user_id in online,
+             "avatar_url": avatar_url(m.avatar_id)} for m in members]
 
 
 class RoomConnection:
@@ -122,7 +124,7 @@ class RoomConnection:
             "welcome", room=room_out(room, my_role=role, member_count=len(members), online_count=len(online)),
             me={"user_id": self.user_id, "role": role}, members=members_out(members, online),
             last_seq=room.last_seq, truncated=truncated,
-            assist_history=[message_out(m, n) for m, n in history],
+            assist_history=[message_out(m, n, avatar_id=sender_avatar(m)) for m, n in history],
             protocol=PROTOCOL_VERSION, reactions=await d.store.recent_reactions(self.room_id),
             join_requests=await d.store.pending_requests(self.room_id) if role == "owner" else []))
         for message in rows:

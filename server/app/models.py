@@ -36,6 +36,10 @@ class User(Base):
     # 账号 v2(计划 S1):昵称在服务层校验(X8),列留余量
     nickname: Mapped[str | None] = mapped_column(String(32), nullable=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 账号 v2 · 头像(计划 S2):32 位十六进制随机 id,唯一(NULL 不冲突)
+    avatar_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    __table_args__ = (Index("uq_users_avatar_id", "avatar_id", unique=True),)
 
 
 class AccessToken(Base):
@@ -1174,3 +1178,17 @@ class EmailDailyCount(Base):
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     sent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class AvatarReport(Base):
+    """头像举报(计划 S2;R-V6):举报人对同一头像只记一次;被举报者或举报人删除时一并级联删除。"""
+    __tablename__ = "avatar_reports"
+    __table_args__ = (UniqueConstraint("reporter_id", "avatar_id", name="uq_avatar_reports_reporter_avatar"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    avatar_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    avatar_id: Mapped[str] = mapped_column(String(32))
+    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(String(16))  # inappropriate / impersonation / other
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

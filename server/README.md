@@ -120,6 +120,8 @@ docker compose exec server python -m app.admin.recover rotate-key               
 
 **备份与清理**(「数据与备份」页,超级管理员):SQLite 用 `VACUUM INTO` 生成一致性快照到 `BACKUP_DIR`(默认 `DATA_DIR/backups`),保留最近 `BACKUP_KEEP` 份;`BACKUP_HOUR_UTC`(0–23)每天自动备份一次,`-1` = 关。下载链接一次性、60 秒有效并绑定当前会话。录音目录与 `SETTINGS_ENCRYPTION_KEY` 不在快照里,需另外备份;Postgres 请用 `pg_dump`。清理工具:孤立录音文件(先扫描再删除)、早于保留期的审计日志(`ADMIN_AUDIT_RETENTION_DAYS`,清理后哈希链从保留的第一条起校验)。
 
+**头像**(`AVATAR_UPLOAD_ENABLED`,默认 `true`,热改):用户上传 JPEG / PNG / WebP(≤ 2 MiB),服务端用 Pillow 重新编码为 256×256 WebP 并去掉 EXIF / ICC / XMP 等元数据,文件存 `DATA_DIR/avatars/<32 位随机十六进制 id>.webp`。开关关闭 = 不能上传(403)、头像读取返回 404;已有头像与载荷里的 `avatar_url` 保留(网页回落为首字),删除自己的头像仍允许,重新打开即恢复。**`DATA_DIR/avatars/` 不在应用内备份里**:「数据与备份」只复制数据库,必须像录音目录一样单独备份该目录,并与数据库快照成对还原;只还原数据库时,头像显示为首字。头像读取带一年 `public, immutable` 缓存,被移除的头像可能在浏览器或代理缓存中残留,直到用户的头像 id 变化。Pillow 是运行依赖(`pyproject.toml`);它的安装只在本地 `uv sync` 验证过,镜像构建尚未验证。
+
 **系统状态与日志**:系统页显示版本(`BUILD_SHA`)、运行时间、数据库与迁移版本、后台任务、待重启项与诊断;日志页是进程内的脱敏日志环形缓冲(票据、Bearer、密钥值、Cookie 等一律替换),查看会写审计。
 
 **部署注意**:单 worker(审计哈希链的锁、限流、配额缓存、备份下载令牌、房间运行时都在进程内;设置与提示词的跨进程同步只靠 5 秒一次的修订号轮询);反向代理需转发 `/admin` 与 `/api/admin/*`,Cookie 路径为 `/`。**未在真实 HTTPS 反向代理后验证**(见 `docs/superpowers/plans/e2e-results.md`「2026-10-09 管理后台 v2」)。

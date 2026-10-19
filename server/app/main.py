@@ -32,7 +32,7 @@ from app.library.catalog_jobs import install as install_catalog  # curated catal
 from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    account, admin, admin_accounts, admin_agents, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -92,6 +92,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
     app.state.nickname_limiter = RateLimiter(10, window=3600.0)  # PATCH /api/me: per user per hour (plan S6, R-F12)
+    app.state.avatar_upload_limiter = RateLimiter(10, window=3600.0)  # POST /api/me/avatar: per user per hour (R-V5)
+    app.state.avatar_report_limiter = RateLimiter(20, window=86400.0)  # POST /api/avatar-reports: per user per day (R-V6)
     # outbound mail: settings are read when the mail goes out; tests inject a FakeSender via email_sender_override
     app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
     app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
@@ -127,7 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
-        health, announcements, changelog, sessions, account, grammar_prompt, config_api, speech, conversations, assessments,
+        health, announcements, changelog, sessions, account, avatars, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
         links, agents, agents_tutor,
@@ -142,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): admin_catalog, goes on the next line (before stubs) ---
         admin_catalog,  # /api/admin/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
         admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
+        admin_avatars,  # /api/admin/avatar-reports, /api/admin/users/{id}/avatar (plan avatar S7); before stubs
         stubs, admin_web, web,
     ):
         app.include_router(module.router)

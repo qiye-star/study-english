@@ -24,10 +24,10 @@ from app.models import (
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
     AgentTutorSession,
     LibraryAttempt, LibraryItem, LibrarySegment,
-    ChangelogRead, VerificationCode,
+    ChangelogRead, VerificationCode, AvatarReport,
 )
 from app.library import paths as library_paths
-from app.services import recordings
+from app.services import avatars, recordings
 from app.services.identities import EMAIL_PROVIDER
 
 TEMP_PASSWORD_LEN = 16
@@ -51,6 +51,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (AgentMemoryTombstone, "user_id"), (AgentTutorSession, "user_id"),
     (LibraryAttempt, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
     (ChangelogRead, "user_id"),  # per-user changelog read position (plan 2026-10-14-changelog R-20)
+    (AvatarReport, "reporter_id"), (AvatarReport, "avatar_user_id"),  # avatar reports, both roles (plan avatar R-V10)
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
@@ -172,6 +173,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     user = await _user(session, user_id)
     if confirm_username.strip().lower() != user.username:
         raise UserAdminError(409, "Confirmation required")
+    avatar_id = user.avatar_id  # read before the commit expires the row; the file goes after it (R-V10)
     recording_bytes = await recordings.used_bytes(session, user_id)
     closed, transferred, orphaned = await _release_rooms(session, user_id, now)
     conversations = select(Conversation.id).where(Conversation.user_id == user_id)
@@ -206,6 +208,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.commit()
     _remove_recordings(settings, user_id)
     library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    avatars.remove(settings, avatar_id)  # the avatar file; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 
