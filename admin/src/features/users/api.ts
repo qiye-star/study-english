@@ -126,6 +126,72 @@ export async function clearQuota(id: Id, key: string): Promise<void> {
   await request(`/api/admin/users/${enc(id)}/quotas/${encodeURIComponent(key)}`, { method: "DELETE", as: "none" });
 }
 
+export type AvatarReportStatus = "open" | "resolved";
+export type AvatarReportReason = "inappropriate" | "impersonation" | "other";
+
+export interface AvatarReportRow {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  /** /api/avatars/<id>,没有头像为 null */
+  avatarUrl: string | null;
+  reports: number;
+  lastReason: AvatarReportReason | null;
+  lastReportedAt: string | null;
+}
+
+interface AvatarReportRowWire {
+  user_id: number | string;
+  username: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  reports: number;
+  last_reason: AvatarReportReason | null;
+  last_reported_at: string | null;
+}
+
+/** 头像举报队列(viewer):open = 当前头像上未处理的举报(最早在前);resolved = 最近处理的在前。 */
+export async function listAvatarReports(status: AvatarReportStatus, page: number): Promise<{ users: AvatarReportRow[]; page: number; next: number | null }> {
+  const r = await request<{ users: AvatarReportRowWire[]; page: number; next: number | null }>("/api/admin/avatar-reports", {
+    query: { status, page },
+  });
+  return {
+    page: r.page,
+    next: r.next,
+    users: r.users.map((u) => ({
+      userId: String(u.user_id),
+      username: u.username,
+      nickname: u.nickname,
+      avatarUrl: u.avatar_url,
+      reports: u.reports,
+      lastReason: u.last_reason,
+      lastReportedAt: u.last_reported_at,
+    })),
+  };
+}
+
+export interface AvatarRemoveResult {
+  userId: string;
+  reportsResolved: number;
+}
+
+/** 移除头像(operator + 二次验证 + 理由):删除头像文件,用户保留账号;未处理举报一并标记为已处理。 */
+export async function removeUserAvatar(id: Id, reason: string): Promise<AvatarRemoveResult> {
+  const r = await request<{ user_id: number | string; removed: boolean; reports_resolved: number }>(`/api/admin/users/${enc(id)}/avatar`, {
+    method: "DELETE",
+    json: { reason },
+  });
+  return { userId: String(r.user_id), reportsResolved: r.reports_resolved };
+}
+
+/** 忽略举报(operator,无理由):头像保留,未处理举报标记为已处理。 */
+export async function dismissAvatarReports(id: Id): Promise<AvatarRemoveResult> {
+  const r = await request<{ user_id: number | string; reports_resolved: number }>(`/api/admin/avatar-reports/${enc(id)}/dismiss`, {
+    method: "POST",
+  });
+  return { userId: String(r.user_id), reportsResolved: r.reports_resolved };
+}
+
 export type InviteState = "active" | "used_up" | "expired" | "revoked";
 
 export interface Invite {
