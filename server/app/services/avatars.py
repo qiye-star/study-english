@@ -11,14 +11,17 @@ import os
 import re
 import secrets
 import warnings
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.config import Settings
-from app.models import User
+from app.models import AvatarReport, RoomMember, User
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 OUTPUT_SIDE = 256
@@ -185,3 +188,51 @@ async def public_path(session: AsyncSession, settings: Settings, avatar_id: str)
         return None
     path = path_for(settings, avatar_id)
     return path if path.is_file() else None
+
+
+class ReportError(Exception):
+    """`kind`:`not_found`(用户不存在、自己、或两人从未同在一个房间)或 `no_avatar`(被举报者当前没有头像)。"""
+
+    def __init__(self, kind: str):
+        super().__init__(kind)
+        self.kind = kind
+
+
+async def report(session: AsyncSession, reporter: User, target_id: str, reason: str, now: datetime) -> bool:
+    """R-V6:同过房间(现在或曾经)的人可以举报对方当前的头像;同一人对同一头像只记一次。
+    返回 True 表示新记了一行,False 表示重复。日志与错误都不带用户名、头像 id 或文件路径。"""
+    try:
+        target_pk = int(target_id)
+    except (TypeError, ValueError):
+        raise ReportError("not_found") from None
+    if target_pk == reporter.id:
+        raise ReportError("not_found")
+    target = await session.get(User, target_pk)
+    if target is None:
+        raise ReportError("not_found")
+    mine, theirs = aliased(RoomMember), aliased(RoomMember)  # left_at keeps the row: "ever" counts
+    shared = (await session.execute(
+        select(mine.id)
+        .join(theirs, theirs.room_id == mine.room_id)
+        .where(mine.user_id == reporter.id, theirs.user_id == target.id)
+        .limit(1)
+    )).first()
+    if shared is None:
+        raise ReportError("not_found")
+    if target.avatar_id is None:
+        raise ReportError("no_avatar")
+    existing = (await session.execute(
+        select(AvatarReport.id).where(AvatarReport.reporter_id == reporter.id,
+                                      AvatarReport.avatar_id == target.avatar_id)
+    )).first()
+    if existing is not None:
+        return False
+    session.add(AvatarReport(avatar_user_id=target.id, avatar_id=target.avatar_id, reporter_id=reporter.id,
+                             reason=reason, created_at=now))
+    try:
+        await session.commit()
+    except IntegrityError:  # a concurrent duplicate: the unique constraint keeps one row
+        await session.rollback()
+        return False
+    logger.debug("avatar report recorded")
+    return True

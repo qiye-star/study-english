@@ -1,12 +1,15 @@
 """头像端点(计划 S4–S6):上传 / 删除自己的头像。路由只做 HTTP,逻辑在 services/avatars.py(INDEX X31)。"""
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
 
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
-from app.models import User
+from app.models import User, utcnow
 from app.services import avatars
 from app.services.uploads import parse_buffered_form
 
@@ -87,3 +90,26 @@ async def read_avatar(
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Security-Policy": "default-src 'none'",
     })
+
+
+class ReportIn(BaseModel):
+    user_id: str = Field(max_length=20)  # the reported user's id, as /api/rooms members show it
+    reason: Literal["inappropriate", "impersonation", "other"]
+
+
+@router.post("/avatar-reports")
+async def report_avatar(
+    payload: ReportIn,
+    request: Request,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Report a fellow room member's current avatar. 201 when recorded, 200 when this reporter already did."""
+    if not request.app.state.avatar_report_limiter.allow(str(user.id)):
+        raise HTTPException(429, "Too many requests, please try again later")
+    try:
+        created = await avatars.report(session, user, payload.user_id, payload.reason, utcnow())
+    except avatars.ReportError as exc:
+        message = "No avatar to report" if exc.kind == "no_avatar" else "User not found"
+        raise HTTPException(404, message) from None
+    return JSONResponse({"ok": True}, status_code=201 if created else 200)
