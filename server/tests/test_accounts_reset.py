@@ -5,7 +5,8 @@ import pytest
 from sqlalchemy import select
 
 from app.models import AccessToken, VerificationCode
-from tests.accounts_helpers import PEPPER, bind, enable_email, fake_sender, mail_code
+from tests.background import drain_background
+from tests.accounts_helpers import PEPPER, bind, enable_email, fake_sender, last_code, mail_code
 from tests.test_admin_api import register
 
 EMAIL = "forgetful@example.com"
@@ -59,7 +60,10 @@ async def test_reset_changes_the_password_and_revokes_every_token(app, client, a
 
 
 async def test_the_address_is_matched_in_any_spelling(app, client, account):
-    code = await mail_code(app, client, "Forgetful+x@EXAMPLE.com", "reset")
+    r = await client.post("/api/email/code", json={"email": "Forgetful+x@EXAMPLE.com", "purpose": "reset"})
+    assert r.status_code == 200
+    await drain_background(app)  # mailed to the stored address (F1)
+    code = last_code(app, EMAIL)
     assert (await _reset(client, " forgetful@example.com ", code)).status_code == 204
 
 
