@@ -132,7 +132,7 @@ function WeekStrip({ stats }: { stats: Stats }) {
 
 export function MePage() {
   const { t } = useTranslation();
-  const { user, api, logout } = useAuth();
+  const { user, api, logout, avatarUrl } = useAuth();
   const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText, colorScheme, setColorScheme } = useSettings();
   const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
@@ -174,7 +174,7 @@ export function MePage() {
   const profile = (
     <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
       {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
-      <Avatar name={user ? displayNameOf(user) : ""} size="md" tone="blue" className="text-blue [font-size:22px] liquid:text-ink" />
+      <Avatar name={user ? displayNameOf(user) : ""} size="md" tone="blue" src={avatarUrl} className="text-blue [font-size:22px] liquid:text-ink" />
       <div className="min-w-0 flex-1">
         <p className="text-meta text-ink-2">{t("web.me.username")}</p>
         <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>

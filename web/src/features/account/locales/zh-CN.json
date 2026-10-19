@@ -83,6 +83,22 @@
         "maskedVerified": "{{email}} · 已验证",
         "bind": "绑定邮箱",
         "change": "更换邮箱"
+      },
+      "avatar": {
+        "title": "头像",
+        "hint": "支持 JPEG、PNG、WebP,2 MB 以内。房间里的其他人会看到它。",
+        "change": "更换头像",
+        "remove": "移除头像",
+        "confirmRemove": "确认移除",
+        "updated": "头像已更新",
+        "removed": "头像已移除",
+        "errors": {
+          "disabled": "管理员暂时关闭了头像上传。",
+          "tooLarge": "图片太大了,请换一张小一点的。",
+          "invalid": "这张图片无法使用,请选择 JPEG、PNG 或 WebP。",
+          "unsupported": "这台设备无法识别这种图片格式,请选择 JPEG 或 PNG。",
+          "tooMany": "上传太频繁,请稍后再试。"
+        }
       }
     }
   }

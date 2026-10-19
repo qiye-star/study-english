@@ -6,6 +6,7 @@ import { useAuth } from "~/auth/auth-context";
 import { EMAIL_BINDING_PATH, emailStatusOf } from "~/auth/email-binding";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { fetchProfile } from "./account-api";
+import { AvatarPicker } from "./avatar-picker";
 import { NicknameRow } from "./nickname-row";
 import { PasswordSheet } from "./password-sheet";
 
@@ -27,6 +28,7 @@ export function AccountSection() {
 
   return (
     <SectionGroup title={t("web.account.title")} className="mt-4">
+      <AvatarPicker />
       <NicknameRow nickname={profile?.nickname} onSaved={(nickname) => setProfile((p) => (p ? { ...p, nickname } : p))} />
       {email ? (
         <ListRow
