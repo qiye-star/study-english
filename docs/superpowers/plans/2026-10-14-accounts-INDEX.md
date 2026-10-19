@@ -107,6 +107,8 @@
 - **X35 网页:** `features/account` 只依赖共享层(`~/api`、`~/auth`、`~/components`、`~/i18n`、`~/lib`),对外只经 `index.ts` / `lazy.tsx` 暴露;`auth-context` 不导入 `features/account`——强制绑定通过 `ApiClient.onBindingRequired` 回调与 `AuthProvider` 状态传递(X26);`rooms` 等其他 feature 不导入 `account`,头像走共享的 `components/avatar.tsx`。组件不直接 `fetch`,一律经 `account-api.ts` → `ApiClient`。
 - **X36 每个提交范围内聚:** 一个提交只做该任务列出的事;顺手重构另开提交;禁止为了方便把无关函数塞进已有大文件(`deps.py`、`sessions.py`、`models.py` 只改任务点名的位置)。
 
+- **X37 账号页面文案不进主包(修正 X24;2026-10-19 实测依据):** W3–W5 实测主包 +2.31 kB gzip(预算 1.5 kB),主因是 `features/account/i18n/*.json` 被 `i18n/index.ts` 的 `../**/i18n/*.json` glob 急切并入。沿用智能体已有的做法(`features/agents/locales.ts`,R-W3):账号页面的文案放 `features/account/locales/{en,zh-CN}.json`(**不在** `**/i18n/` 目录下,不被 glob 捕获),新增 `features/account/locales.ts` 导出 `ensureAccountI18n()`(`addResourceBundle` 深合并、不覆盖已有键、只执行一次),每个懒加载入口(注册页、找回密码页、绑定页、横幅、账号区块)在模块求值时调用。**只有登录页本身用到的键**留在 `pages/i18n/`(`web.login.*`)。不放宽预算、不改共享的 `i18n/index.ts`。`web.errors.*` 里新增的邮箱相关错误文案同样移进账号 `locales/`(`translateServerError` 在账号页面内调用时,文案已并入)。
+
 ## 5. 对 spec 的修正建议(spec 文件不改;计划按本表执行,待用户确认)
 
 | 位置 | 问题(已核对代码) | 本组计划的做法 |
