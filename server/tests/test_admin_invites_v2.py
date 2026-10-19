@@ -247,15 +247,51 @@ async def test_viewers_cannot_touch_any_of_the_new_routes(app, client):
     assert (await client.get("/api/admin/invites/1/redemptions", headers=h)).status_code == 403
 
 
-async def test_admin_single_revoke_also_wipes_a_user_codes_plain_copy(app, client):
+async def test_generic_revoke_refuses_a_user_code_and_leaves_it_live(app, client):
     enable_email(app)
+    _set(app, registration_mode="invite", invite_code="ENV-CODE-999")
     h = await login_as(app, client, "operator")
-    owner_headers, owner_id = await _owner(app, client, "wiped_owner")
-    await client.post("/api/me/invite", headers=owner_headers)
+    owner_headers, owner_id = await _owner(app, client, "generic_owner")
+    code = (await client.post("/api/me/invite", headers=owner_headers)).json()["code"]
     async with app.state.sessionmaker() as s:
-        row = await s.scalar(select(InviteCode).where(InviteCode.owner_user_id == owner_id))
-        invite_id = row.id
-    assert (await client.delete(f"/api/admin/invites/{invite_id}", headers=h)).status_code == 204
+        invite_id = (await s.scalar(select(InviteCode).where(InviteCode.owner_user_id == owner_id))).id
+
+    refused = await client.delete(f"/api/admin/invites/{invite_id}", headers=h)
+    unknown = await client.delete("/api/admin/invites/9999", headers=h)
+    assert refused.status_code == 404 and refused.json() == {"error": "Invite not found"}
+    assert (refused.status_code, refused.json()) == (unknown.status_code, unknown.json())  # reveals nothing
     async with app.state.sessionmaker() as s:
         row = await s.get(InviteCode, invite_id)
+        assert row.revoked_at is None and row.code_enc is not None  # still live, plain copy kept
+    assert (await _join(client, code, "still_redeems")).status_code == 200
+    listed = (await client.get("/api/admin/invites?kind=user", headers=h)).json()["invites"]
+    assert [(i["id"], i["kind"]) for i in listed] == [(invite_id, "user")]  # read only: still listed
+
+
+async def test_generic_revoke_still_revokes_an_admin_code_and_clears_its_copy(app, client):
+    h = await login_as(app, client, "operator")
+    created = (await client.post("/api/admin/invites", headers=h, json={"label": "generic", "max_uses": 3})).json()
+    assert (await client.delete(f"/api/admin/invites/{created['invite']['id']}", headers=h)).status_code == 204
+    async with app.state.sessionmaker() as s:
+        row = await s.get(InviteCode, created["invite"]["id"])
         assert row.revoked_at is not None and row.code_enc is None
+    states = {i["label"]: i["state"] for i in (await client.get("/api/admin/invites", headers=h)).json()["invites"]}
+    assert states["generic"] == "revoked"
+
+
+async def test_per_user_routes_need_step_up_after_a_refused_generic_revoke(app, client):
+    enable_email(app)
+    _set(app, registration_mode="invite", invite_code="ENV-CODE-999")
+    h = await login_as(app, client, "operator")
+    owner_headers, owner_id = await _owner(app, client, "routes_owner")
+    await client.post("/api/me/invite", headers=owner_headers)
+    async with app.state.sessionmaker() as s:
+        invite_id = (await s.scalar(select(InviteCode).where(InviteCode.owner_user_id == owner_id))).id
+    assert (await client.delete(f"/api/admin/invites/{invite_id}", headers=h)).status_code == 404
+
+    body = {"reason": "routes"}
+    assert (await client.post(f"/api/admin/users/{owner_id}/invite/revoke", headers=h, json=body)).status_code == 403
+    assert (await client.post(f"/api/admin/users/{owner_id}/invite/rotate", headers=h, json=body)).status_code == 403
+    await _step_up(client, h)
+    assert (await client.post(f"/api/admin/users/{owner_id}/invite/rotate", headers=h, json=body)).status_code == 204
+    assert (await client.post(f"/api/admin/users/{owner_id}/invite/revoke", headers=h, json=body)).status_code == 204

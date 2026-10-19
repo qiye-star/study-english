@@ -168,11 +168,11 @@ async def listing(session, settings, *, kind: str | None = None, owner: str | No
 async def revoke(session, actor: Actor, invite_id: int, now: datetime | None = None) -> None:
     now = now or datetime.now(timezone.utc)
     row = await session.get(InviteCode, invite_id)
-    if row is None:
-        raise InviteError(404, "Invite not found")
+    if row is None or row.kind == "user":  # user codes are revoked only through the per-user routes (step-up)
+        raise InviteError(404, "Invite not found")  # the same answer as an unknown id: reveals nothing
     if row.revoked_at is None:
         row.revoked_at = now
-        row.code_enc = None  # a user code's plain copy goes with it (R-I8)
+        row.code_enc = None
         await audit.record(session, actor, "invite.revoke", target_type="invite", target_id=row.id,
                            summary=row.label, after={"uses": row.uses})
     await session.commit()
