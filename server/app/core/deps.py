@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 
@@ -6,10 +7,13 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import learning_events, metering
+from app.core.account_policy import binding_state
 from app.core.config import Settings
 from app.core.quotas import quota_cache
 from app.models import AccessToken, User, utcnow
 from app.core.security import hash_token
+
+logger = logging.getLogger(__name__)
 
 # Sliding renewal (INDEX X4, plan R-F8): a token used again within this window keeps its expiry; otherwise
 # the first use after the window moves expires_at to now + access_token_ttl_days (one write per hour at most).
@@ -68,6 +72,10 @@ async def current_user(
     request: Request, session: AsyncSession = Depends(get_session)
 ) -> User:
     user, _ = await _authenticate(request, session)
+    state = binding_state(request.app.state.settings, utcnow())  # per request: a hot settings change applies at once
+    if state == "enforced" and user.email_verified_at is None:
+        logger.debug("email binding required: request blocked state=%s", state)
+        raise HTTPException(403, "email_binding_required")
     return user
 
 

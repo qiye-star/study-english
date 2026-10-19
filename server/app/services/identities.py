@@ -115,6 +115,20 @@ async def find_user_by_email(session: AsyncSession, settings: Settings, email: s
         .where(UserIdentity.provider == EMAIL_PROVIDER, UserIdentity.subject_hmac == key))).scalar_one_or_none()
 
 
+async def masked_email(session: AsyncSession, settings: Settings, user: User) -> str | None:
+    """The user's address in masked form for /api/me, or None (no email, or the keys are gone: never raises)."""
+    if user.email_verified_at is None:
+        return None
+    token = (await session.execute(select(UserIdentity.subject_enc).where(
+        UserIdentity.provider == EMAIL_PROVIDER, UserIdentity.user_id == user.id))).scalar_one_or_none()
+    if token is None:
+        return None
+    try:
+        return mask_email(decrypt_email(_box(settings), token))
+    except Exception:  # noqa: BLE001 - a wrong key or a damaged copy must not break /api/me; nothing is logged
+        return None
+
+
 async def bind_email(session: AsyncSession, settings: Settings, user: User, email: str, now: datetime) -> None:
     """Attach the verified email to the user (replacing the user's current one) and set `users.email_verified_at`.
     Does not commit. Raises EmailTaken when another account owns it (a concurrent bind trips the unique

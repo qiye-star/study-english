@@ -2,6 +2,7 @@ import asyncio
 import re
 import secrets
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
@@ -9,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.account_policy import binding_deadline, binding_state
 from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, display_of, utcnow
@@ -61,6 +63,11 @@ class RegisterIn(BaseModel):
         return value
 
 
+class EmailBindingOut(BaseModel):
+    state: Literal["none", "pending", "enforced"]
+    deadline: str | None  # always present (null when not applicable)
+
+
 class UserOut(BaseModel):
     id: str
     name: str  # the login name (INDEX X7: kept for the desktop client)
@@ -68,6 +75,9 @@ class UserOut(BaseModel):
     access_token: str | None = None
     nickname: str | None = None  # absent when unset
     display_name: str
+    email_masked: str | None = None  # only on /api/me, absent when there is no email
+    email_verified: bool | None = None  # only on /api/me
+    email_binding: EmailBindingOut | None = None  # only on /api/me
 
 
 def _user_out(user: User, token: str | None = None) -> UserOut:
@@ -203,9 +213,20 @@ async def login(
     return _user_out(user, await _issue_token(session, user, settings))
 
 
-@router.get("/me", response_model=UserOut, response_model_exclude_none=True)
-async def me(user: User = Depends(current_user_unbound)):
-    return _user_out(user)
+@router.get("/me", response_model=None)  # a dict: the nested deadline must stay a real null
+async def me(
+    request: Request,
+    user: User = Depends(current_user_unbound),  # must keep working while binding is enforced (INDEX X3)
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    out = _user_out(user)
+    out.email_verified = user.email_verified_at is not None
+    out.email_masked = await identities.masked_email(session, settings, user)
+    body = out.model_dump(mode="json", exclude_none=True)  # an unset nickname / email_masked is absent ...
+    body["email_binding"] = EmailBindingOut(state=binding_state(settings, utcnow()),
+                                            deadline=binding_deadline(settings)).model_dump()  # ... deadline is a real null
+    return body
 
 
 @router.delete("/sessions/current", status_code=204)
