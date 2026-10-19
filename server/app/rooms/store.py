@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import (
     RankProfile, Room, RoomJoinRequest, RoomMember, RoomMessage, RoomReaction, RoomReport, RoomSummary, RoomVoice, User,
-    iso_utc, new_uuid,
+    display_name, iso_utc, new_uuid,
 )
 from app.rooms.codes import generate_code
 from app.rooms.protocol import REACTION_KEYS
@@ -174,8 +174,8 @@ class RoomStore:
             await self._check_slots(s, owner_id, max_owned)
             name = settings.get("name") or clean_text(topic or "", NAME_MAX)
             if not name:
-                username = await s.scalar(select(User.username).where(User.id == owner_id)) or ""
-                name = f"{username}的房间"[:NAME_MAX]
+                owner = await s.scalar(select(display_name()).where(User.id == owner_id)) or ""
+                name = f"{owner}的房间"[:NAME_MAX]
             level = settings.get("level")
             if level is None:
                 level = default_level(await s.scalar(select(RankProfile.tier).where(RankProfile.user_id == owner_id)))
@@ -382,7 +382,7 @@ class RoomStore:
 
     async def _requests_out(self, *conds) -> list[dict]:
         async with self._sm() as s:
-            rows = (await s.execute(select(RoomJoinRequest, User.username, Room.name, Room.topic)
+            rows = (await s.execute(select(RoomJoinRequest, display_name(), Room.name, Room.topic)
                                     .join(User, User.id == RoomJoinRequest.user_id)
                                     .join(Room, Room.id == RoomJoinRequest.room_id)
                                     .where(*conds)
@@ -454,9 +454,9 @@ class RoomStore:
         async with self._sm() as s:
             return await s.get(Room, room_id)
 
-    async def username(self, user_id: int) -> str:
+    async def display_name(self, user_id: int) -> str:
         async with self._sm() as s:
-            return await s.scalar(select(User.username).where(User.id == user_id)) or ""
+            return await s.scalar(select(display_name()).where(User.id == user_id)) or ""
 
     async def user_level(self, user_id: int) -> str | None:
         async with self._sm() as s:
@@ -467,7 +467,7 @@ class RoomStore:
 
     async def members(self, room_id: str) -> list[MemberView]:
         async with self._sm() as s:
-            rows = (await s.execute(select(RoomMember.user_id, User.username, RoomMember.role)
+            rows = (await s.execute(select(RoomMember.user_id, display_name(), RoomMember.role)
                                     .join(User, User.id == RoomMember.user_id)
                                     .where(RoomMember.room_id == room_id, *_ACTIVE)
                                     .order_by(RoomMember.joined_at, RoomMember.id))).all()
@@ -727,7 +727,7 @@ class RoomStore:
             return [(m, n) for m, n in (await s.execute(stmt)).all()]
 
     def _select(self):
-        return select(RoomMessage, User.username).outerjoin(User, User.id == RoomMessage.sender_id)
+        return select(RoomMessage, display_name()).outerjoin(User, User.id == RoomMessage.sender_id)
 
     async def replay(self, room_id: str, user_id: int, after_seq: int, limit: int):
         rows = await self._named(self._select().where(*self._visible(room_id, user_id), RoomMessage.seq > after_seq)

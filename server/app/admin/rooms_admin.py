@@ -114,7 +114,7 @@ async def room_detail(session, room_id: str, online: set[int]) -> dict | None:
         return None
     room, owner, m, n, rep = row
     people = (await session.execute(
-        select(RoomMember, User.username).outerjoin(User, User.id == RoomMember.user_id)
+        select(RoomMember, User.username, User.nickname).outerjoin(User, User.id == RoomMember.user_id)
         .where(RoomMember.room_id == room_id).order_by(RoomMember.joined_at, RoomMember.id))).all()
     total_reports = await session.scalar(select(func.count()).select_from(RoomReport)
                                          .where(RoomReport.room_id == room_id))
@@ -122,9 +122,10 @@ async def room_detail(session, room_id: str, online: set[int]) -> dict | None:
             "settings": settings_out(room),
             "agents": await _agents_out(session, room), "tutor": _tutor_out(room),
             "report_count": int(total_reports or 0),
-            "members": [{"user_id": mm.user_id, "name": name, "role": mm.role, "joined_at": iso_utc(mm.joined_at),
+            "members": [{"user_id": mm.user_id, "name": name, "nickname": nickname, "role": mm.role,
+                         "joined_at": iso_utc(mm.joined_at),
                          "left_at": _iso(mm.left_at), "kicked": bool(mm.kicked), "online": mm.user_id in online}
-                        for mm, name in people]}
+                        for mm, name, nickname in people]}
 
 
 def settings_out(room: Room) -> dict:
@@ -141,10 +142,11 @@ def admin_voice_out(v: RoomVoice) -> dict:
             "audio": v.audio_path is not None, "purged_at": _iso(v.purged_at)}
 
 
-def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None, voice: RoomVoice | None = None) -> dict:
+def admin_message_out(m: RoomMessage, sender: str | None, audience: str | None, voice: RoomVoice | None = None, *,
+                      sender_nickname: str | None = None) -> dict:
     """Admin view: the full text, also of hidden messages (shown struck through with a badge)."""
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
-            "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": sender},
+            "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": sender, "nickname": sender_nickname},
             "audience": None if m.audience_id is None else {"id": m.audience_id, "name": audience},
             "text": m.text, "meta": None if m.kind == "agent_trace" else m.meta,  # traces stay private (R-RA6)
              "assisted": bool(m.assisted), "reply_to": m.reply_to,
@@ -208,7 +210,7 @@ async def voice_audio(session, room_id: str, message_id: str) -> RoomVoice | Non
 async def room_messages(session, room_id: str, *, lane: Literal["public", "all"], before_seq: int | None,
                         limit: int) -> dict:
     sender, audience = aliased(User), aliased(User)
-    stmt = (select(RoomMessage, sender.username, audience.username)
+    stmt = (select(RoomMessage, sender.username, audience.username, sender.nickname)
             .outerjoin(sender, sender.id == RoomMessage.sender_id)
             .outerjoin(audience, audience.id == RoomMessage.audience_id)
             .where(RoomMessage.room_id == room_id))
@@ -219,11 +221,11 @@ async def room_messages(session, room_id: str, *, lane: Literal["public", "all"]
     rows = (await session.execute(stmt.order_by(RoomMessage.seq.desc()).limit(limit + 1))).all()
     more = len(rows) > limit
     rows = list(reversed(rows[:limit]))
-    voice_ids = [m.id for m, _, _ in rows if m.kind == "voice"]
+    voice_ids = [m.id for m, _, _, _ in rows if m.kind == "voice"]
     voices = {} if not voice_ids else {
         v.message_id: v for v in (await session.scalars(select(RoomVoice)
                                                         .where(RoomVoice.message_id.in_(voice_ids)))).all()}
-    return {"messages": [admin_message_out(m, s, a, voices.get(m.id)) for m, s, a in rows],
+    return {"messages": [admin_message_out(m, s, a, voices.get(m.id), sender_nickname=n) for m, s, a, n in rows],
             "next_before_seq": rows[0][0].seq if more and rows else None}
 
 

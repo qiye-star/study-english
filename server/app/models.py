@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
-                        UniqueConstraint, false, text, true)
+                        UniqueConstraint, false, func, text, true)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -33,6 +33,9 @@ class User(Base):
     grammar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 账号 v2(计划 S1):昵称在服务层校验(X8),列留余量
+    nickname: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AccessToken(Base):
@@ -42,6 +45,9 @@ class AccessToken(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # 账号 v2(X4):NULL = 有效,第一次使用时由滑动续期写上;撤销 = 删除本行
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SpeechToken(Base):
@@ -1111,3 +1117,34 @@ class CatalogSegment(Base):
     analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+
+
+# ---- 账号 v2 ----
+
+
+class UserIdentity(Base):
+    """登录身份(邮箱):只存 HMAC 查找键与可解密副本;一个用户每个 provider 至多一条(计划 S1 / X9)。"""
+    __tablename__ = "user_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "subject_hmac", name="uq_user_identities_provider_subject"),
+        UniqueConstraint("user_id", "provider", name="uq_user_identities_user_provider"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(16))
+    subject_hmac: Mapped[str] = mapped_column(String(64))
+    subject_enc: Mapped[str] = mapped_column(Text)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+def display_name():
+    """给其他用户看的名字的 SQL 表达式:昵称优先,否则登录名(X6)。
+    运营身份、审计、登录名仍用 `User.username`;与之对应的 Python 侧写法见 `display_of`。"""
+    return func.coalesce(User.nickname, User.username)
+
+
+def display_of(user: "User") -> str:
+    """`display_name()` 的 Python 版本(对已加载的 User 对象)。"""
+    return user.nickname or user.username

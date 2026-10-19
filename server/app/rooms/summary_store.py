@@ -14,7 +14,7 @@ from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core import metering
-from app.models import RoomMessage, RoomSummary, RoomVoice, User
+from app.models import RoomMessage, RoomSummary, RoomVoice, User, display_name
 from app.rooms import assistant
 from app.rooms.rules import RoomLimits
 from app.rooms.store import AI_NAME
@@ -145,7 +145,7 @@ class SummaryStore:
     async def lines(self, room_id: str, limit: int) -> list[Line]:
         """The last `limit` public, visible member texts, transcribed voice messages and @ai answers, oldest
         first. Private assistant content and system messages never enter the summary."""
-        stmt = (select(RoomMessage, User.username)
+        stmt = (select(RoomMessage, display_name())
                 .outerjoin(User, User.id == RoomMessage.sender_id)
                 .outerjoin(RoomVoice, RoomVoice.message_id == RoomMessage.id)
                 .where(RoomMessage.room_id == room_id, RoomMessage.lane == "public", RoomMessage.hidden_at.is_(None),

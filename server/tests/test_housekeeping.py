@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.admin import audit, housekeeping
 from app.admin.audit import CLI_ACTOR
-from app.models import AdminAudit, AdminLoginState, AdminSession, SpeechToken
+from app.models import AccessToken, AdminAudit, AdminLoginState, AdminSession, SpeechToken
 from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, login_as
 from tests.test_admin_api import register, seed_assessment
 
@@ -99,4 +99,23 @@ async def test_purge_expired(app, client):
         ])
         await s.commit()
         assert await housekeeping.purge_expired(s, now) == {"admin_sessions": 1, "admin_login_state": 1,
-                                                            "speech_tokens": 1, "rank_profile_snapshots": 0}
+                                                            "speech_tokens": 1, "access_tokens": 0,
+                                                            "rank_profile_snapshots": 0}
+
+
+async def test_purge_removes_tokens_expired_over_7_days(app, client):
+    uid, _ = await register(client, "alice")
+    now = datetime.now(timezone.utc)
+    async with app.state.sessionmaker() as s:
+        s.add_all([
+            AccessToken(user_id=uid, token_hash="1" * 64, expires_at=now - timedelta(days=8)),  # removed
+            AccessToken(user_id=uid, token_hash="2" * 64, expires_at=now - timedelta(days=1)),  # kept: recently expired
+            AccessToken(user_id=uid, token_hash="3" * 64, expires_at=None),  # kept: legacy, no expiry yet
+            AccessToken(user_id=uid, token_hash="4" * 64, expires_at=now + timedelta(days=20)),  # kept: live
+        ])
+        await s.commit()
+        counts = await housekeeping.purge_expired(s, now)
+        await s.commit()
+        assert counts["access_tokens"] == 1
+        left = {t.token_hash for t in (await s.scalars(select(AccessToken))).all()}
+    assert "1" * 64 not in left and {"2" * 64, "3" * 64, "4" * 64} <= left  # the login token of alice is kept too

@@ -65,6 +65,9 @@ class Settings(BaseSettings):
 
     registration_mode: Literal["open", "invite", "closed"] = "open"
     invite_code: str = ""
+    # 账号 v2(计划 S2):登录有效天数(每次使用滑动续期,热改);身份 HMAC 密钥(只读环境变量,等同密钥)
+    access_token_ttl_days: int = Field(30, ge=1, le=365)
+    identity_pepper: str = ""  # env-only secret;丢失或更换 = 所有邮箱登录与唯一性失效
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
     ai_rate_limit_per_minute: int = 60
@@ -309,6 +312,14 @@ class Settings(BaseSettings):
         value = value.strip().lower()
         if value and not re.fullmatch(r"[a-z0-9]{2,32}", value):
             raise ValueError("invalid Azure region (letters and digits only, e.g. eastus)")
+        return value
+
+    @field_validator("identity_pepper")
+    @classmethod
+    def _identity_pepper(cls, value: str) -> str:
+        """Empty is allowed (email features stay off); otherwise long enough to be a real key. The value is never echoed."""
+        if value and len(value) < 32:
+            raise ValueError("IDENTITY_PEPPER must be at least 32 characters")
         return value
 
     @field_validator("admin_ip_allowlist")
