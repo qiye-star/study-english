@@ -57,9 +57,8 @@ async def change_password(
     """Every other login is signed out; the caller gets one fresh token. Live calls and rooms are cut."""
     if not await asyncio.to_thread(verify_password, user.password_hash, payload.current_password):
         raise HTTPException(403, "Wrong password")
-    user.password_hash = await asyncio.to_thread(hash_password, payload.new_password)
-    await identities.revoke_sessions(session, user.id)
-    token = identities.issue_token(session, user.id, settings, utcnow())
+    new_hash = await asyncio.to_thread(hash_password, payload.new_password)
+    token = await identities.change_password(session, user, new_hash, settings, utcnow())
     await session.commit()  # one transaction: the new password and the rotated tokens land together
     await cut_connections(request.app, user.id)
     return JSONResponse({"access_token": token}, headers={"Cache-Control": "no-store"})

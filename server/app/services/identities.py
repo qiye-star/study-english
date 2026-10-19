@@ -19,6 +19,14 @@ async def revoke_sessions(session: AsyncSession, user_id: int) -> int:
     return access.rowcount or 0
 
 
+async def change_password(session: AsyncSession, user, password_hash: str, settings: Settings, now: datetime) -> str:
+    """Set the new password hash, drop every login and return one fresh token. Does not commit: the caller commits,
+    so the new hash and the rotated tokens land in one transaction."""
+    user.password_hash = password_hash
+    await revoke_sessions(session, user.id)
+    return issue_token(session, user.id, settings, now)
+
+
 def issue_token(session: AsyncSession, user_id: int, settings: Settings, now: datetime) -> str:
     """Add a login token row (the caller commits) and return the plaintext token, which is never stored."""
     token = new_token()

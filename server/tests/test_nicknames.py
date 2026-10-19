@@ -49,3 +49,12 @@ def test_rejection_message_never_echoes_the_input():
     with pytest.raises(ValueError) as info:
         clean_nickname("@SecretNick")
     assert "SecretNick" not in str(info.value)
+
+
+def test_reserved_names_match_the_rooms_constants():
+    """services cannot import rooms (layering), so the set is copied; this test keeps the two in sync."""
+    from app.rooms.agent_config import RESERVED_NAMES
+    from app.rooms.store import AI_NAME
+    from app.services.nicknames import RESERVED
+
+    assert RESERVED == frozenset(RESERVED_NAMES) | {AI_NAME.casefold()}
