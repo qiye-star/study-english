@@ -57,3 +57,20 @@ async def age_codes(app, *, seconds: int = 0, hours: int = 0) -> None:
             row.created_at = row.created_at - delta
             row.expires_at = row.expires_at - delta
         await s.commit()
+
+
+async def mail_code(app, client, email: str, purpose: str = "register") -> str:
+    """Ask `POST /api/email/code`, wait for the background mail and return the 6-digit code that was mailed."""
+    from tests.background import drain_background  # local: keeps this module importable without the app fixtures
+
+    r = await client.post("/api/email/code", json={"email": email, "purpose": purpose})
+    assert r.status_code == 200, r.text
+    await drain_background(app)
+    return last_code(app, email)
+
+
+def register_body(email: str, code: str | None, **overrides) -> dict:
+    """A complete email registration request (INDEX X11); override a field, or drop it by passing None."""
+    body = {"username": "newbie", "password": "password123", "nickname": "Newbie", "email": email, "email_code": code}
+    body.update(overrides)
+    return {k: v for k, v in body.items() if v is not None}

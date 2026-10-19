@@ -23,6 +23,7 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `verification.py` – email codes: `issue` / `hidden_issue` / `verify` (HMAC-stored, purpose + target bound, cooldown, per-target cap, atomic global daily claim `claim_global_quota`, attempts claimed in separate transactions via the passed `async_sessionmaker`); `VerificationError(kind, retry_after)`; never logs
 - `mailer.py` – `Mailer` (`app.state.mailer`): `enqueue(kind, to, code=, lang=)` returns at once, sends in a background task (`pending` set, waited by `tests/background.py`), templates in zh-CN / en, failures counted (`failures`, log `email send failed code=…`), `metering.record("email", …)` status only; settings and sender come from injected callables
 - `email_codes.py` – `request_code(...)`: the orchestration behind `POST /api/email/code` (same steps for registered and unknown addresses; hidden rows, notices, quota); takes the mailer as a parameter
+- `email_accounts.py` – the flows a verified code unlocks, each ending in ONE commit: `register_with_email` (code -> invite use -> user + identity + verified flag + token); every code failure is the same `VerificationError("invalid")`, also when the address was taken in a race; never logs
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`. Never speech/realtime/rank/rooms/routers (enforced by

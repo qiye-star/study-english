@@ -13,8 +13,12 @@ from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
-from app.services import identities, invites
+from app.services import email_accounts, identities, invites
+from app.services.email_accounts import INVALID_CODE
+from app.services.email_domains import domain_allowed
+from app.services.identities import email_ready, normalize_email
 from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
+from app.services.verification import VerificationError
 
 router = APIRouter(prefix="/api")
 
@@ -35,6 +39,13 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     invite_code: str | None = None
     nickname: str | None = None
+    email: str | None = Field(None, max_length=254)  # used only while EMAIL_REGISTRATION_REQUIRED is on (INDEX X11)
+    email_code: str | None = Field(None, max_length=16)
+
+    @field_validator("email")
+    @classmethod
+    def _normalise_email(cls, value: str | None) -> str | None:
+        return None if value is None else normalize_email(value)  # fixed message, never echoes the address
 
     @field_validator("nickname")
     @classmethod
@@ -79,6 +90,38 @@ def _new_user_id() -> int:
     return secrets.randbelow(90_000_000) + 10_000_000
 
 
+def _require_email_fields(payload: RegisterIn, settings: Settings) -> None:
+    """INDEX X11 / R-F7: the checks that need no lookup. Nothing here depends on whether an address is registered."""
+    if payload.email is None:
+        raise HTTPException(400, "Email verification required: please register in the web app")  # desktop-visible text
+    if not email_ready(settings):
+        raise HTTPException(503, "Email is not configured")
+    if payload.nickname is None:
+        raise HTTPException(422, "nickname: Field required")
+    if payload.email_code is None:
+        raise HTTPException(422, "email_code: Field required")
+    if not domain_allowed(settings, payload.email):
+        raise HTTPException(422, "Email domain not allowed")
+
+
+async def _register_with_email(payload: RegisterIn, request: Request, session: AsyncSession, settings: Settings,
+                               password_hash: str, db_code: bool) -> UserOut:
+    try:
+        user, token = await email_accounts.register_with_email(
+            session, request.app.state.sessionmaker, settings, username=payload.username, password_hash=password_hash,
+            nickname=payload.nickname, email=payload.email, code=payload.email_code,
+            invite_code=(payload.invite_code or "") if db_code else None, new_user_id=_new_user_id, now=utcnow())
+    except VerificationError:
+        raise HTTPException(400, INVALID_CODE) from None
+    except email_accounts.InviteRejected:
+        raise HTTPException(403, "Invalid invite code") from None
+    except email_accounts.UsernameTaken:
+        raise HTTPException(409, "Username already taken") from None
+    except email_accounts.IdAllocationFailed:
+        raise HTTPException(500, "Could not allocate a user id") from None
+    return _user_out(user, token)
+
+
 @router.post(
     "/users",
     response_model=UserOut,
@@ -87,11 +130,16 @@ def _new_user_id() -> int:
 )
 async def register(
     payload: RegisterIn,
+    request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
     if settings.registration_mode == "closed":
         raise HTTPException(403, "Registration is closed")
+    response.headers["Cache-Control"] = "no-store"  # the body carries a login token
+    if settings.email_registration_required:
+        _require_email_fields(payload, settings)
     # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
     if (payload.nickname is not None and payload.nickname.casefold() != payload.username
             and await nickname_taken_by_login(session, payload.nickname, None)):
@@ -102,7 +150,9 @@ async def register(
         settings.invite_code and secrets.compare_digest((payload.invite_code or "").encode(),
                                                         settings.invite_code.encode()))
 
-    password_hash = await asyncio.to_thread(hash_password, payload.password)
+    password_hash = await asyncio.to_thread(hash_password, payload.password)  # before any lookup (R-F7)
+    if settings.email_registration_required:
+        return await _register_with_email(payload, request, session, settings, password_hash, db_code)
     for _ in range(5):
         if db_code and not await invites.consume(session, payload.invite_code or "", utcnow()):
             await session.rollback()
