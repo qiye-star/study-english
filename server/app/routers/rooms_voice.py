@@ -15,7 +15,7 @@ from app.core.config import Settings
 from app.core.deps import current_user, limited_user
 from app.core.quotas import effective
 from app.core.ratelimit import RateLimiter
-from app.models import User, utcnow
+from app.models import User, display_of, utcnow
 from app.providers import llm
 from app.rooms import audio
 from app.rooms.protocol import MAX_ID, MAX_SEQ
@@ -157,7 +157,7 @@ async def upload_voice(room_id: str, request: Request, user: User = Depends(limi
             raise HTTPException(400, "Invalid to_agent")
     wav = await file.read()
     try:
-        message = await service.upload(room, user.id, user.username, wav, client_id, reply_to, to_agent)
+        message = await service.upload(room, user.id, display_of(user), wav, client_id, reply_to, to_agent)
     except VoiceError as e:
         status, text = VOICE_ERRORS.get(e.code, (400, "Invalid request"))
         raise HTTPException(status, text) from None
