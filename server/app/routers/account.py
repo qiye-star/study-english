@@ -161,7 +161,7 @@ async def reset_password(
     password_hash = await asyncio.to_thread(hash_password, payload.new_password)  # before any lookup: equal work
     try:
         user_id = await email_accounts.reset_password(
-            session, request.app.state.sessionmaker, settings, email=payload.email, code=payload.code,
+            session, settings, email=payload.email, code=payload.code,
             password_hash=password_hash, now=utcnow())
     except VerificationError:
         raise HTTPException(400, INVALID_CODE) from None
@@ -229,7 +229,7 @@ async def me_email(
     purpose = _bind_purpose(user, payload.purpose)
     await _require_password_for_change(user, purpose, payload.current_password)
     try:
-        await email_accounts.bind_with_code(session, request.app.state.sessionmaker, settings, user,
+        await email_accounts.bind_with_code(session, settings, user,
                                             email=payload.email, code=payload.code, purpose=purpose, now=utcnow())
     except VerificationError:
         raise HTTPException(400, INVALID_CODE) from None

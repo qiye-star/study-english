@@ -118,7 +118,7 @@ async def _register_with_email(payload: RegisterIn, request: Request, session: A
                                password_hash: str, db_code: bool) -> UserOut:
     try:
         user, token = await email_accounts.register_with_email(
-            session, request.app.state.sessionmaker, settings, username=payload.username, password_hash=password_hash,
+            session, settings, username=payload.username, password_hash=password_hash,
             nickname=payload.nickname, email=payload.email, code=payload.email_code,
             invite_code=(payload.invite_code or "") if db_code else None, new_user_id=_new_user_id, now=utcnow())
     except VerificationError:

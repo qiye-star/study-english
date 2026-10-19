@@ -5,14 +5,17 @@
 
 所有「码不对」的情形都是同一个 `VerificationError("invalid")`:没有码 / 过期 / 次数用完 / 别的用途或目标 / 不匹配,
 以及码对但邮箱已被别的账号占用(唯一约束兜底)。调用方把它映射成同一个 400,所以状态码、响应体都不泄露邮箱是否已注册。
-验证码只在**调用方的事务里**被消费:之后任何一步失败并回滚,码仍可再用(失败的猜测次数已在独立事务里提交,见 verification.verify)。
+验证码只在**调用方的事务里**被消费:之后任何一步失败并回滚,码仍可再用(失败的猜测次数已提交,见 verification.verify)。
+码有效、但失败的原因不是码本身(用户名占用、邀请码被拒、随机用户 id 撞车)时,调用方回滚后用
+`verification.release_attempt` 把这次认领还回去;邮箱被占用的情形仍像错误码一样计数。
+意外异常发生在码有效之后,则这一次尝试仍计入(见 verification 模块文档)。
 """
 from collections.abc import Callable
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.models import User
@@ -40,18 +43,20 @@ def _invalid() -> VerificationError:
 
 
 async def register_with_email(
-    session: AsyncSession, sessions: async_sessionmaker, settings: Settings, *, username: str, password_hash: str,
+    session: AsyncSession, settings: Settings, *, username: str, password_hash: str,
     nickname: str, email: str, code: str, invite_code: str | None, new_user_id: Callable[[], int], now: datetime,
 ) -> tuple[User, str]:
     """R-F7: verify the code -> take the invite use (`invite_code=None` = no invite needed) -> new user + email
     identity + verified flag + code consumed + one login token, in ONE commit. Returns `(user, token)`.
     Raises VerificationError("invalid"), InviteRejected, UsernameTaken or IdAllocationFailed; a failure rolls the
-    session back, so the code and the invite use are untouched."""
+    session back, so the code and the invite use are untouched. The attempt is given back for the failures that
+    are not about the code (InviteRejected, UsernameTaken, a random id collision); EmailTaken answers like a wrong code."""
     target = identities.subject_hmac(settings.identity_pepper, email)
     for _ in range(_ID_ATTEMPTS):
-        await verification.verify(session, sessions, settings, target, "register", code, now)
+        row_id = (await verification.verify(session, settings, target, "register", code, now)).id
         if invite_code is not None and not await invites.consume(session, invite_code, now):
             await session.rollback()
+            await verification.release_attempt(session, row_id)
             raise InviteRejected()
         user = User(id=new_user_id(), username=username, password_hash=password_hash, nickname=nickname)
         session.add(user)
@@ -66,20 +71,21 @@ async def register_with_email(
         except IntegrityError:
             await session.rollback()
             if (await session.execute(select(User.id).where(User.username == username))).first() is not None:
+                await verification.release_attempt(session, row_id)
                 raise UsernameTaken() from None
             if await identities.find_user_by_email(session, settings, email) is not None:
                 raise _invalid() from None  # lost the race for the address: indistinguishable from a wrong code
-            # otherwise a random user id collided: try again with a new one
+            await verification.release_attempt(session, row_id)  # otherwise a random user id collided: try again
     raise IdAllocationFailed()
 
 
-async def reset_password(session: AsyncSession, sessions: async_sessionmaker, settings: Settings, *, email: str,
+async def reset_password(session: AsyncSession, settings: Settings, *, email: str,
                          code: str, password_hash: str, now: datetime) -> int:
     """S19: verify a `reset` code issued to the address's CURRENT owner, set the new hash and drop every login token
     (`identities.revoke_sessions`), in one commit with the consumed code. Returns the user id so the caller can cut
     the live connections. Raises VerificationError("invalid") for every failure, including an address nobody owns."""
     target = identities.subject_hmac(settings.identity_pepper, email)
-    row = await verification.verify(session, sessions, settings, target, "reset", code, now)
+    row = await verification.verify(session, settings, target, "reset", code, now)
     user = await identities.find_user_by_email(session, settings, email)
     if user is None or row.user_id != user.id:  # the code was issued to someone else (the address changed hands)
         await session.rollback()
@@ -90,7 +96,7 @@ async def reset_password(session: AsyncSession, sessions: async_sessionmaker, se
     return user.id
 
 
-async def bind_with_code(session: AsyncSession, sessions: async_sessionmaker, settings: Settings, user: User, *,
+async def bind_with_code(session: AsyncSession, settings: Settings, user: User, *,
                          email: str, code: str, purpose: str, now: datetime) -> None:
     """S20: verify a `bind` / `change_email` code issued to THIS user and attach the address (replacing the old
     one), in one commit with the consumed code. Raises VerificationError("invalid") for every failure, also when
@@ -98,7 +104,7 @@ async def bind_with_code(session: AsyncSession, sessions: async_sessionmaker, se
     if purpose not in ("bind", "change_email"):
         raise ValueError("unsupported purpose")
     target = identities.subject_hmac(settings.identity_pepper, email)
-    row = await verification.verify(session, sessions, settings, target, purpose, code, now)
+    row = await verification.verify(session, settings, target, purpose, code, now)
     if row.user_id != user.id:
         await session.rollback()
         raise _invalid()

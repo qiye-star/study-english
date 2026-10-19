@@ -5,9 +5,14 @@
 - 6 位数字码用 `secrets` 生成,库里只存 `HMAC-SHA256(pepper, "<purpose>:<target_hmac>:<code>")`:码绑定到用途与目标,
   拿去别的用途或别的邮箱校验必然失败;比较用 `hmac.compare_digest`。
 - 同一 `(target, purpose)` 新码生成时旧码作废;有效期 10 分钟、最多 5 次试错、同目标重发冷却 60 秒。
-- 试错次数先在**独立事务**里原子认领并提交(`attempts < 5` 的条件 UPDATE,并发猜码也不能超过上限),
-  再比较;比较成功立刻在独立事务里把这次认领还回去,所以「只有错误才计数」,调用方后续失败回滚时码仍可再用。
-  验证成功只在调用方的事务里置 `consumed_at`(条件 UPDATE:同一个码不会被并发消费两次)。
+- 只用调用方的那一个连接(F2:不再开第二个会话,池耗尽时不会卡死整个应用)。试错次数先在调用方的 session 上
+  原子认领并**立即提交**(`attempts < 5` 的条件 UPDATE,并发猜码也不能超过上限),再比较;比较成功则在调用方的
+  事务里把这次认领还回去,与 `consumed_at` 一起提交,所以「只有错误才计数」。调用方在验证之后回滚时,错误计数仍在,
+  正确的码则要靠 `release_attempt` 归还(调用方的失败路径上,码仍应可再用时才调用)。验证成功只在调用方的事务里置
+  `consumed_at`(条件 UPDATE:同一个码不会被并发消费两次)。
+- 调用方必须在任何未提交的写入之前调用 `verify`(session 里有 new / dirty / deleted 对象时直接 RuntimeError),
+  否则认领的提交会把那些写入一起提交。
+- 已知代价:认领提交之后、调用方提交之前若进程崩溃或发生未预期异常,这一次尝试仍计入(最多多计一次)。
 - 「没有码 / 过期 / 次数用完 / 已消费 / 别的用途或目标 / 不匹配」得到同一个 `VerificationError("invalid")`。
 - `hidden_issue`(X10):已注册邮箱的注册码、未注册邮箱的重置码也写一行从不发送的随机码,
   使冷却与每日上限对所有邮箱一视同仁,发码接口因此可以如实返回 429 而不泄露「是否已注册」。
@@ -21,7 +26,7 @@ import secrets
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.db import insert_ignore
@@ -144,11 +149,14 @@ async def hidden_issue(session: AsyncSession, settings: Settings, target_hmac: s
     await _write(session, settings, target_hmac, purpose, now, None)
 
 
-async def verify(session: AsyncSession, sessions: async_sessionmaker, settings: Settings, target_hmac: str,
-                 purpose: str, code: str, now: datetime) -> VerificationCode:
-    """Check `code` for `(target, purpose)`. On success the row is marked consumed in `session` (NOT committed: the
-    caller commits it together with whatever the code unlocks). Failures raise `VerificationError("invalid")`; a
-    wrong guess has already been counted and committed in its own transaction (R-F3)."""
+async def verify(session: AsyncSession, settings: Settings, target_hmac: str, purpose: str, code: str,
+                 now: datetime) -> VerificationCode:
+    """Check `code` for `(target, purpose)` on the caller's session (one connection, F2). The attempt is claimed and
+    committed first; a correct code gives the claim back in the caller's transaction and marks the row consumed
+    there (NOT committed: the caller commits it together with whatever the code unlocks). Every failure raises
+    `VerificationError("invalid")`. Must run before any pending write on `session`."""
+    if session.new or session.dirty or session.deleted:
+        raise RuntimeError("verify must run before any pending write")
     _purpose(purpose)
     expected = code_hmac(_pepper(settings), purpose, target_hmac, code.strip() if isinstance(code, str) else "")
     row = (await session.execute(
@@ -159,20 +167,17 @@ async def verify(session: AsyncSession, sessions: async_sessionmaker, settings: 
     if row is None:
         hmac.compare_digest(expected, expected)  # keep the no-code path from being noticeably cheaper
         raise VerificationError("invalid")
-    async with sessions() as own:  # an attempt is claimed atomically before the comparison
-        claim = await own.execute(
-            update(VerificationCode).where(
-                VerificationCode.id == row.id, VerificationCode.consumed_at.is_(None),
-                VerificationCode.attempts < MAX_ATTEMPTS, VerificationCode.expires_at > now)
-            .values(attempts=VerificationCode.attempts + 1).execution_options(synchronize_session=False))
-        await own.commit()
+    claim = await session.execute(
+        update(VerificationCode).where(
+            VerificationCode.id == row.id, VerificationCode.consumed_at.is_(None),
+            VerificationCode.attempts < MAX_ATTEMPTS, VerificationCode.expires_at > now)
+        .values(attempts=VerificationCode.attempts + 1).execution_options(synchronize_session=False))
+    await session.commit()  # an attempt is claimed atomically, and it stays counted whatever the caller does next
     if claim.rowcount != 1 or not hmac.compare_digest(row.code_hmac, expected):
         raise VerificationError("invalid")
-    async with sessions() as own:  # a correct code is not a failed attempt: give the claim back
-        await own.execute(
-            update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.attempts > 0)
-            .values(attempts=VerificationCode.attempts - 1).execution_options(synchronize_session=False))
-        await own.commit()
+    await session.execute(  # a correct code is not a failed attempt: give the claim back, in the caller's transaction
+        update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.attempts > 0)
+        .values(attempts=VerificationCode.attempts - 1).execution_options(synchronize_session=False))
     consumed = await session.execute(
         update(VerificationCode).where(VerificationCode.id == row.id, VerificationCode.consumed_at.is_(None))
         .values(consumed_at=now).execution_options(synchronize_session=False))
@@ -180,3 +185,12 @@ async def verify(session: AsyncSession, sessions: async_sessionmaker, settings: 
         raise VerificationError("invalid")
     await session.refresh(row)
     return row
+
+
+async def release_attempt(session: AsyncSession, row_id: int) -> None:
+    """Give back the attempt that a correct `verify` claimed, for a caller that failed afterwards for a reason that is
+    not the code (the code must stay usable). Call it after the caller's rollback. Commits."""
+    await session.execute(
+        update(VerificationCode).where(VerificationCode.id == row_id, VerificationCode.attempts > 0)
+        .values(attempts=VerificationCode.attempts - 1).execution_options(synchronize_session=False))
+    await session.commit()

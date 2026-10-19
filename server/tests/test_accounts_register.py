@@ -135,7 +135,8 @@ async def test_invite_failure_rolls_back_code_consumption(app, client):
     code = await mail_code(app, client, EMAIL)
     r = await _post(client, register_body(EMAIL, code, invite_code="WRONG-CODE"))
     assert r.status_code == 403 and r.json() == {"error": "Invalid invite code"}
-    assert (await _last_code_row(app)).consumed_at is None and await _users(app) == 0
+    row = await _last_code_row(app)
+    assert row.consumed_at is None and row.attempts == 0 and await _users(app) == 0  # a rejected invite is not a guess
     ok = await _post(client, register_body(EMAIL, code, invite_code=INVITE))
     assert ok.status_code == 200, ok.text
     assert await _invite_uses(app) == 1
@@ -149,7 +150,8 @@ async def test_username_taken_rolls_back_and_keeps_code_and_invite(app, client):
     code = await mail_code(app, client, EMAIL)
     r = await _post(client, register_body(EMAIL, code, username="taken", invite_code=INVITE))
     assert r.status_code == 409 and r.json() == {"error": "Username already taken"}
-    assert (await _last_code_row(app)).consumed_at is None
+    row = await _last_code_row(app)
+    assert row.consumed_at is None and row.attempts == 0  # a taken username is not a wrong code either
     assert await _invite_uses(app) == 0
     async with app.state.sessionmaker() as s:
         assert (await s.execute(select(UserIdentity))).first() is None

@@ -11,7 +11,7 @@ from app.models import EmailDailyCount, User, VerificationCode
 from app.services import verification
 from app.services.identities import EmailNotConfigured, subject_hmac
 from app.services.verification import (MAX_ATTEMPTS, VerificationError, claim_global_quota, hidden_issue, issue,
-                                       verify)
+                                       release_attempt, verify)
 from tests.conftest import make_settings
 
 PEPPER = "p" * 40
@@ -69,10 +69,10 @@ async def test_issuing_a_new_code_voids_the_older_one(app):
     assert rows[0].consumed_at is not None and rows[1].consumed_at is None
     async with app.state.sessionmaker() as s:
         with pytest.raises(VerificationError) as info:
-            await verify(s, app.state.sessionmaker, settings, TARGET, "register", first, T0 + timedelta(seconds=62))
+            await verify(s, settings, TARGET, "register", first, T0 + timedelta(seconds=62))
         assert info.value.kind == "invalid"
     async with app.state.sessionmaker() as s:
-        await verify(s, app.state.sessionmaker, settings, TARGET, "register", second, T0 + timedelta(seconds=63))
+        await verify(s, settings, TARGET, "register", second, T0 + timedelta(seconds=63))
 
 
 async def test_other_purposes_and_targets_are_not_voided(app):
@@ -203,16 +203,16 @@ async def test_verify_consumes_without_committing(app):
         code, _ = await issue(s, settings, TARGET, "register", T0)
         await s.commit()
     async with app.state.sessionmaker() as s:
-        row = await verify(s, app.state.sessionmaker, settings, TARGET, "register", code, T0 + timedelta(minutes=1))
+        row = await verify(s, settings, TARGET, "register", code, T0 + timedelta(minutes=1))
         assert row.consumed_at is not None
         await s.rollback()  # the caller failed later: the code can be used again
     async with app.state.sessionmaker() as s:
-        row = await verify(s, app.state.sessionmaker, settings, TARGET, "register", code, T0 + timedelta(minutes=2))
+        row = await verify(s, settings, TARGET, "register", code, T0 + timedelta(minutes=2))
         assert row.consumed_at is not None
         await s.commit()
     async with app.state.sessionmaker() as s:
         with pytest.raises(VerificationError):  # one-shot
-            await verify(s, app.state.sessionmaker, settings, TARGET, "register", code, T0 + timedelta(minutes=3))
+            await verify(s, settings, TARGET, "register", code, T0 + timedelta(minutes=3))
 
 
 async def test_a_wrong_code_counts_an_attempt_in_its_own_committed_transaction(app):
@@ -223,22 +223,24 @@ async def test_a_wrong_code_counts_an_attempt_in_its_own_committed_transaction(a
     wrong = "000000" if code != "000000" else "000001"
     async with app.state.sessionmaker() as s:
         with pytest.raises(VerificationError) as info:
-            await verify(s, app.state.sessionmaker, settings, TARGET, "register", wrong, T0 + timedelta(minutes=1))
+            await verify(s, settings, TARGET, "register", wrong, T0 + timedelta(minutes=1))
         assert info.value.kind == "invalid"
         await s.rollback()  # even if the caller rolls back, the attempt stays counted
     (row,) = await _rows(app)
     assert row.attempts == 1 and row.consumed_at is None
 
 
-async def test_a_correct_code_does_not_burn_an_attempt_when_the_caller_rolls_back(app):
+async def test_a_correct_code_does_not_burn_an_attempt_when_the_caller_rolls_back_and_releases(app):
     settings = _settings()
     async with app.state.sessionmaker() as s:
         code, _ = await issue(s, settings, TARGET, "register", T0)
         await s.commit()
     for i in range(MAX_ATTEMPTS + 2):  # more successful verifications than the failure limit
         async with app.state.sessionmaker() as s:
-            await verify(s, app.state.sessionmaker, settings, TARGET, "register", code, T0 + timedelta(seconds=10 + i))
+            row = await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10 + i))
+            row_id = row.id
             await s.rollback()
+            await release_attempt(s, row_id)  # the caller failed after a valid code: the code stays usable
     (row,) = await _rows(app)
     assert row.attempts == 0 and row.consumed_at is None
 
@@ -252,10 +254,10 @@ async def test_the_fifth_failure_kills_the_code_even_for_the_right_one(app):
     for i in range(MAX_ATTEMPTS):
         async with app.state.sessionmaker() as s:
             with pytest.raises(VerificationError):
-                await verify(s, app.state.sessionmaker, settings, TARGET, "register", wrong, T0 + timedelta(seconds=i))
+                await verify(s, settings, TARGET, "register", wrong, T0 + timedelta(seconds=i))
     async with app.state.sessionmaker() as s:
         with pytest.raises(VerificationError) as info:
-            await verify(s, app.state.sessionmaker, settings, TARGET, "register", code, T0 + timedelta(seconds=30))
+            await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=30))
     assert info.value.kind == "invalid"
     (row,) = await _rows(app)
     assert row.attempts == MAX_ATTEMPTS  # no more counting once it is dead
@@ -277,7 +279,7 @@ async def test_expired_consumed_wrong_purpose_wrong_target_and_missing_all_look_
     for target, purpose, attempt, now in cases:
         async with app.state.sessionmaker() as s:
             with pytest.raises(VerificationError) as info:
-                await verify(s, app.state.sessionmaker, settings, target, purpose, attempt, now)
+                await verify(s, settings, target, purpose, attempt, now)
         assert info.value.kind == "invalid"
         messages.add((str(info.value), info.value.retry_after))
     assert len(messages) == 1
@@ -289,11 +291,11 @@ async def test_a_code_cannot_be_used_after_expiry_even_with_attempts_left(app):
         code, _ = await issue(s, settings, TARGET, "bind", T0)
         await s.commit()
     async with app.state.sessionmaker() as s:
-        await verify(s, app.state.sessionmaker, settings, TARGET, "bind", code, T0 + timedelta(minutes=9, seconds=59))
+        await verify(s, settings, TARGET, "bind", code, T0 + timedelta(minutes=9, seconds=59))
         await s.rollback()
     async with app.state.sessionmaker() as s:
         with pytest.raises(VerificationError):
-            await verify(s, app.state.sessionmaker, settings, TARGET, "bind", code, T0 + timedelta(minutes=10))
+            await verify(s, settings, TARGET, "bind", code, T0 + timedelta(minutes=10))
 
 
 async def test_hidden_issue_writes_a_row_nobody_can_satisfy(app):
@@ -307,7 +309,7 @@ async def test_hidden_issue_writes_a_row_nobody_can_satisfy(app):
     for guess in ("000000", "123456", "111111"):  # a hidden code is random: guesses only burn attempts
         async with app.state.sessionmaker() as s:
             with pytest.raises(VerificationError):
-                await verify(s, app.state.sessionmaker, settings, TARGET, "reset", guess, T0 + timedelta(seconds=1))
+                await verify(s, settings, TARGET, "reset", guess, T0 + timedelta(seconds=1))
 
 
 async def test_hidden_and_real_rows_have_the_same_shape(app):
@@ -360,3 +362,112 @@ async def test_global_quota_left_is_read_only(app):
         assert await global_quota_left(s, 1, date(2026, 10, 20))
         await s.commit()
         assert (await s.execute(select(EmailDailyCount))).scalar_one().sent == 1  # reading never claims
+
+
+async def test_verify_takes_no_session_factory_and_works_on_a_one_connection_pool(app, tmp_path):
+    """F2: the caller's connection is the only one verify may hold (a second checkout would starve the pool)."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.db import Base
+
+    assert "sessions" not in inspect.signature(verify).parameters
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'pool.db'}", pool_size=1, max_overflow=0,
+                                 pool_timeout=2)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        settings = _settings()
+        async with maker() as s:
+            code, _ = await issue(s, settings, TARGET, "register", T0)
+            await s.commit()
+        async with maker() as s:
+            row = await verify(s, settings, TARGET, "register", code, T0 + timedelta(minutes=1))
+            assert row.consumed_at is not None
+            await s.commit()
+        async with maker() as s:
+            with pytest.raises(VerificationError):  # a wrong guess also needs only the one connection
+                await verify(s, settings, TARGET, "register", "000000", T0 + timedelta(minutes=1))
+    finally:
+        await engine.dispose()
+
+
+async def test_parallel_wrong_guesses_cannot_exceed_the_attempt_limit(tmp_path):
+    """Real separate connections (a file database): the StaticPool test connection would mix the transactions."""
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.db import Base
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'race.db'}", pool_size=10)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        settings = _settings()
+        async with maker() as s:
+            code, _ = await issue(s, settings, TARGET, "register", T0)
+            await s.commit()
+        wrong = "000000" if code != "000000" else "000001"
+
+        async def guess():
+            async with maker() as s:
+                try:
+                    await verify(s, settings, TARGET, "register", wrong, T0 + timedelta(seconds=5))
+                except VerificationError:
+                    return False
+                return True
+
+        results = await asyncio.gather(*(guess() for _ in range(MAX_ATTEMPTS + 1)))
+        assert not any(results)
+        async with maker() as s:
+            (row,) = (await s.execute(select(VerificationCode))).scalars().all()
+            assert row.attempts == MAX_ATTEMPTS
+            with pytest.raises(VerificationError):  # the right code is dead as well
+                await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
+    finally:
+        await engine.dispose()
+
+
+async def test_a_correct_code_leaves_attempts_unchanged_once_the_caller_commits(app):
+    settings = _settings()
+    async with app.state.sessionmaker() as s:
+        code, _ = await issue(s, settings, TARGET, "register", T0)
+        await s.commit()
+    wrong = "000000" if code != "000000" else "000001"
+    async with app.state.sessionmaker() as s:
+        with pytest.raises(VerificationError):
+            await verify(s, settings, TARGET, "register", wrong, T0 + timedelta(seconds=5))
+    (before,) = await _rows(app)
+    async with app.state.sessionmaker() as s:
+        await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
+        await s.commit()
+    (after,) = await _rows(app)
+    assert after.attempts == before.attempts == 1 and after.consumed_at is not None
+
+
+async def test_a_caller_rollback_keeps_the_claim_until_release_attempt(app):
+    settings = _settings()
+    async with app.state.sessionmaker() as s:
+        code, _ = await issue(s, settings, TARGET, "register", T0)
+        await s.commit()
+    async with app.state.sessionmaker() as s:
+        row = await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
+        row_id = row.id
+        await s.rollback()
+        assert (await _rows(app))[0].attempts == 1  # the refund went with the rollback
+        await release_attempt(s, row_id)
+    (row,) = await _rows(app)
+    assert row.attempts == 0 and row.consumed_at is None
+
+
+async def test_verify_refuses_to_run_after_a_pending_write(app):
+    settings = _settings()
+    async with app.state.sessionmaker() as s:
+        code, _ = await issue(s, settings, TARGET, "register", T0)
+        await s.commit()
+    async with app.state.sessionmaker() as s:
+        s.add(User(id=22222222, username="pending", password_hash="x"))
+        with pytest.raises(RuntimeError, match="verify must run before any pending write"):
+            await verify(s, settings, TARGET, "register", code, T0 + timedelta(seconds=10))
