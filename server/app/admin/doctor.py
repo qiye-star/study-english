@@ -30,7 +30,7 @@ CODES = (
     "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
     "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
     "library_link_proxy_missing", "library_link_dns_private",
-    "email_not_configured", "email_console_backend", "binding_without_deadline",
+    "email_not_configured", "email_console_backend", "binding_without_deadline", "legacy_invite_code",
 )
 
 
@@ -145,6 +145,9 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if s.registration_mode == "invite" and not s.invite_code and not f.live_invites:
         out.append(Finding("warn", "invite_without_codes", ("registration_mode", "invite_code"),
                            "邀请注册已开启,但既没有 INVITE_CODE 也没有可用的邀请码:现在没人能注册"))
+    if s.invite_code:  # the env code is unlimited and has no owner (invites v2 R-I1 / §6.1): flagged, not removed
+        out.append(Finding("info", "legacy_invite_code", ("invite_code",),
+                           "INVITE_CODE 是不限次数的旧式单码:无归属、不可单独撤销,不推荐;改用管理员批量码或用户码"))
     if not f.encryption:
         out.append(Finding("warn", "no_encryption_key", ("settings_encryption_key",),
                            "未设置加密主密钥,后台不能修改密钥,也不能绑定 TOTP"))

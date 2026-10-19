@@ -108,3 +108,13 @@ async def test_doctor_endpoint_gathers_facts(app, client):
     assert {"registration_open", "no_encryption_key", "superadmin_without_totp", "insecure_cookie"} <= set(found)
     assert set(found) <= set(CODES)
     assert_no_secrets(r.json(), app.state.settings)
+
+
+def test_legacy_env_invite_code_is_an_info_notice_that_never_shows_the_code():
+    """invites v2 S8: the unlimited INVITE_CODE is kept, but flagged as not recommended (no attribution, no revoke)."""
+    found = {f.code: f for f in diagnose(make_settings(registration_mode="invite", invite_code="ENV-CODE-123"), OK)}
+    notice = found["legacy_invite_code"]
+    assert notice.level == "info" and notice.keys == ("invite_code",)
+    assert "不推荐" in notice.message_zh and "无归属" in notice.message_zh
+    assert "ENV-CODE-123" not in notice.message_zh
+    assert "legacy_invite_code" not in codes(diagnose(make_settings(registration_mode="invite", invite_code=""), OK))

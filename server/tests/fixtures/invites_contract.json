@@ -1,0 +1,139 @@
+{
+  "my_invite_none": {
+    "eligible": true,
+    "reason": null,
+    "available_at": null,
+    "code": null,
+    "uses": 0,
+    "cap": 10,
+    "invitees": []
+  },
+  "my_invite": {
+    "eligible": true,
+    "reason": null,
+    "available_at": null,
+    "code": "REDACTED",
+    "uses": 1,
+    "cap": 10,
+    "invitees": [
+      {
+        "display_name": "guest_contract",
+        "joined_at": "2026-01-01T00:00:00Z"
+      }
+    ]
+  },
+  "admin_batch": {
+    "invites": [
+      {
+        "id": 3,
+        "label": "contract",
+        "kind": "admin",
+        "uses": 0,
+        "max_uses": 1,
+        "expires_at": null,
+        "revoked_at": null,
+        "created_by": "operator1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "active"
+      },
+      {
+        "id": 4,
+        "label": "contract",
+        "kind": "admin",
+        "uses": 0,
+        "max_uses": 1,
+        "expires_at": null,
+        "revoked_at": null,
+        "created_by": "operator1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "active"
+      }
+    ],
+    "codes": [
+      "REDACTED",
+      "REDACTED"
+    ]
+  },
+  "admin_list": {
+    "invites": [
+      {
+        "id": 4,
+        "label": "contract",
+        "kind": "admin",
+        "uses": 0,
+        "max_uses": 1,
+        "expires_at": null,
+        "revoked_at": null,
+        "created_by": "operator1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "active",
+        "owner": null,
+        "redeemers": {
+          "total": 0,
+          "usernames": []
+        }
+      },
+      {
+        "id": 3,
+        "label": "contract",
+        "kind": "admin",
+        "uses": 0,
+        "max_uses": 1,
+        "expires_at": null,
+        "revoked_at": null,
+        "created_by": "operator1",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "active",
+        "owner": null,
+        "redeemers": {
+          "total": 0,
+          "usernames": []
+        }
+      },
+      {
+        "id": 2,
+        "label": "",
+        "kind": "user",
+        "uses": 1,
+        "max_uses": 10,
+        "expires_at": null,
+        "revoked_at": null,
+        "created_by": "user",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "active",
+        "owner": {
+          "id": 10000001,
+          "username": "owner_contract",
+          "nickname": null
+        },
+        "redeemers": {
+          "total": 0,
+          "usernames": []
+        }
+      },
+      {
+        "id": 1,
+        "label": "",
+        "kind": "user",
+        "uses": 1,
+        "max_uses": 10,
+        "expires_at": null,
+        "revoked_at": "2026-01-01T00:00:00Z",
+        "created_by": "user",
+        "created_at": "2026-01-01T00:00:00Z",
+        "state": "revoked",
+        "owner": {
+          "id": 10000001,
+          "username": "owner_contract",
+          "nickname": null
+        },
+        "redeemers": {
+          "total": 1,
+          "usernames": [
+            "guest_contract"
+          ]
+        }
+      }
+    ]
+  }
+}
