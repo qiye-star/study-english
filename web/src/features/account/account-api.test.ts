@@ -3,7 +3,7 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { ApiClient, ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { ACCOUNT_ERROR_KEYS, bindEmail, requestBindCode, requestEmailCode, resetPassword } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, bindEmail, createMyInvite, fetchMyInvite, requestBindCode, requestEmailCode, resetPassword, rotateMyInvite } from "./account-api";
 import "./locales";
 
 const make = (routes: Parameters<typeof createFetchMock>[0], extra: Partial<ConstructorParameters<typeof ApiClient>[0]> = {}) => {
@@ -67,5 +67,43 @@ describe("account email api", () => {
       expect(i18n.t(key, { lng: "zh-CN" }), key).toBe(zh);
     }
     expect(translateServerError(t, new ApiError(422, "Email must not contain user@example.com"), ACCOUNT_ERROR_KEYS)).toBe("Something went wrong.");
+  });
+});
+
+describe("my invite api (W1; server shapes per plan S6, not yet built)", () => {
+  it("GET returns an ineligible shape without a code", async () => {
+    const { api, mock } = make({
+      "GET /api/me/invite": () => json({ eligible: false, reason: "too_new", available_at: "2026-10-20T00:00:00+08:00" }),
+    });
+    expect(await fetchMyInvite(api)).toEqual({ eligible: false, reason: "too_new", availableAt: "2026-10-20T00:00:00+08:00" });
+    expect(mock.calls[0].method).toBe("GET");
+    expect(mock.calls[0].url.search).toBe("");
+  });
+
+  it("GET returns the eligible shape with the code, cumulative uses and display-name invitees", async () => {
+    const { api } = make({
+      "GET /api/me/invite": () => json({
+        eligible: true, code: "ABCDE-FGHJK", uses: 3, cap: 10,
+        invitees: [{ display_name: "小明", joined_at: "2026-10-18T09:00:00+08:00" }],
+      }),
+    });
+    expect(await fetchMyInvite(api)).toEqual({
+      eligible: true, code: "ABCDE-FGHJK", uses: 3, cap: 10,
+      invitees: [{ displayName: "小明", joinedAt: "2026-10-18T09:00:00+08:00" }],
+    });
+  });
+
+  it("POST creates the permanent code and rotate sends confirm true", async () => {
+    const eligible = { eligible: true, code: "KMNPQ-RSTVW", uses: 0, cap: 10, invitees: [] as Array<{ displayName: string; joinedAt: string }> };
+    const { api, mock } = make({
+      "POST /api/me/invite": () => json(eligible),
+      "POST /api/me/invite/rotate": () => json(eligible),
+    });
+    expect(await createMyInvite(api)).toMatchObject({ eligible: true, code: "KMNPQ-RSTVW", cap: 10 });
+    expect(mock.calls[0].method).toBe("POST");
+    expect(await rotateMyInvite(api)).toMatchObject({ eligible: true, code: "KMNPQ-RSTVW" });
+    expect(mock.calls[1].url.pathname).toBe("/api/me/invite/rotate");
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ confirm: true });
+    expect(mock.calls[1].headers.get("Authorization")).toBe("Bearer tok");
   });
 });

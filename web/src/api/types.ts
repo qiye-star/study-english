@@ -49,3 +49,27 @@ export interface RegisterInput {
 }
 
 export type Paged<K extends string, T> = { page: number; next: number | null } & Record<K, T[]>;
+
+/** 「我的邀请码」的一位被邀请者:只有显示名与兑换时间(无邮箱、无 id;INDEX X34 显示名来自服务端)。 */
+export interface InviteeInfo {
+  displayName: string;
+  /** 带时区的 ISO 字符串(X12)。 */
+  joinedAt: string;
+}
+
+/** 不合格原因(R-I6):`invites_disabled` = 管理员把该用户的上限覆盖为 0(邀请权已收回)。 */
+export type MyInviteReason = "too_new" | "email_unverified" | "disabled_by_admin" | "invites_disabled";
+
+/** `GET/POST /api/me/invite`、`POST /api/me/invite/rotate` 的形状(R-I6、R-I9)。 */
+export type MyInvite =
+  | { eligible: false; reason: MyInviteReason; availableAt: string | null }
+  | {
+      eligible: true;
+      /** 没有码时缺省或为 null。 */
+      code?: string | null;
+      /** 累计使用次数(更换不清零,R-I8)。 */
+      uses: number;
+      /** 累计上限。 */
+      cap: number;
+      invitees: InviteeInfo[];
+    };

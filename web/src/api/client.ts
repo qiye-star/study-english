@@ -1,6 +1,6 @@
 import camelcaseKeys from "camelcase-keys";
 import decamelizeKeys from "decamelize-keys";
-import type { AuthUser, RegisterInput, UserProfile } from "./types";
+import type { AuthUser, MyInvite, RegisterInput, UserProfile } from "./types";
 
 export class ApiError extends Error {
   /** 429 等响应的 Retry-After(秒);没有或无法解析时为 undefined。 */
@@ -143,6 +143,21 @@ export class ApiClient {
   /** 改昵称:`nickname: null` 清除昵称。 */
   updateMe(patch: { nickname: string | null }): Promise<{ nickname: string | null; displayName: string }> {
     return this.request("PATCH", "/api/me", { json: patch });
+  }
+
+  /** 我的邀请码:返回当前资格与(有码时)码本身。响应含码,服务端标 no-store。 */
+  myInvite(): Promise<MyInvite> {
+    return this.request("GET", "/api/me/invite");
+  }
+
+  /** 生成永久邀请码(幂等:已有有效码则返回它)。 */
+  createMyInvite(): Promise<MyInvite> {
+    return this.request("POST", "/api/me/invite");
+  }
+
+  /** 更换邀请码:旧码立即失效,新码继承累计次数。必须带 confirm: true。 */
+  rotateMyInvite(): Promise<MyInvite> {
+    return this.request("POST", "/api/me/invite/rotate", { json: { confirm: true } });
   }
 
   getConfig<T>(key: string): Promise<T> {

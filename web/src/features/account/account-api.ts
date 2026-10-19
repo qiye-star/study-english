@@ -1,5 +1,5 @@
 import type { ApiClient } from "~/api/client";
-import type { UserProfile } from "~/api/types";
+import type { MyInvite, UserProfile } from "~/api/types";
 import { normalizeEmail } from "~/auth/validation";
 
 /** 发码接口的回执(注册 / 找回与绑定共用):无论邮箱是否已注册,形状相同。 */
@@ -49,4 +49,19 @@ export async function bindEmail(api: ApiClient, input: { email: string; code: st
 /** 找回密码:成功后不返回 token,页面跳回登录页。 */
 export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }): Promise<void> {
   await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false });
+}
+
+/** 「我的邀请码」:查看资格、码与被邀请者(X35:组件经这里,不直接 fetch)。 */
+export function fetchMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.myInvite();
+}
+
+/** 生成永久邀请码(已有则返回原码)。 */
+export function createMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.createMyInvite();
+}
+
+/** 更换邀请码(调用方必须先经过确认步骤)。 */
+export function rotateMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.rotateMyInvite();
 }
