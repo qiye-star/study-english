@@ -159,3 +159,63 @@ describe("RegisterPage", () => {
     expect(within(document.body).getByRole("link", { name: "Already have an account? Log in" })).toHaveAttribute("href", "/login");
   });
 });
+
+describe("RegisterPage invite fragment (W3, X27)", () => {
+  beforeEach(() => {
+    clearAuth();
+    localStorage.clear();
+    window.history.replaceState(null, "", "/register");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("normalises a lower-case fragment to upper case and clears the fragment", async () => {
+    window.history.replaceState(null, "", "/register#invite=abcde-fghjk");
+    setup({});
+    await waitFor(() => expect(screen.getByLabelText("Invite code (optional)")).toHaveValue("ABCDE-FGHJK"));
+    expect(window.location.hash).toBe("");
+  });
+
+  it("ignores an invalid fragment value, leaves the field empty and still clears the fragment", async () => {
+    window.history.replaceState(null, "", "/register#invite=%3Cscript%3E");
+    setup({});
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    expect(screen.getByLabelText("Invite code (optional)")).toHaveValue("");
+  });
+
+  it("keeps the path and query when it clears the fragment", async () => {
+    window.history.replaceState(null, "", "/register?from=share#invite=ABCDE-FGHJK");
+    setup({});
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    expect(window.location.pathname).toBe("/register");
+    expect(window.location.search).toBe("?from=share");
+  });
+
+  it("never prints the code to the console", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => undefined));
+    window.history.replaceState(null, "", "/register#invite=ABCDE-FGHJK");
+    setup({});
+    await waitFor(() => expect(screen.getByLabelText("Invite code (optional)")).toHaveValue("ABCDE-FGHJK"));
+    for (const spy of spies) {
+      for (const call of spy.mock.calls) expect(JSON.stringify(call)).not.toContain("ABCDE-FGHJK");
+    }
+  });
+
+  it("shows a clear message when the code has been used up", async () => {
+    window.history.replaceState(null, "", "/register#invite=ABCDE-FGHJK");
+    setup({
+      "POST /api/email/code": () => json(CODE_OK),
+      "POST /api/users": () => json({ error: "Invite code used up" }, 403),
+    });
+    await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Send code" }));
+    await screen.findByLabelText("Verification code");
+    await userEvent.type(screen.getByLabelText("Verification code"), "654321");
+    await userEvent.type(screen.getByLabelText("Username"), "dan");
+    await userEvent.type(screen.getByLabelText("Nickname"), "Dan");
+    await userEvent.type(screen.getByLabelText("Password"), "password123");
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByTestId("register-error")).toHaveTextContent("This invite code has been used up.");
+  });
+});
