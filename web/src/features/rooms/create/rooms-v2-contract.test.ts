@@ -21,7 +21,7 @@ type Contract = { http: Record<string, any>; ws: Record<string, any> };
 const recorded: Contract | null = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, "utf8")) : null;
 
 /** spec §8 的形状;服务端样例(SC6 录制)合入前用它跑行为测试,合入后两者都跑。 */
-const REQUEST_WIRE = { id: "q1", room_id: "r1", room_name: "美食角", user_id: 22222222, name: "bob", status: "pending", created_at: "2026-10-10T09:00:00+00:00" };
+const REQUEST_WIRE = { id: "q1", room_id: "r1", room_name: "美食角", user_id: 22222222, name: "bob", status: "pending", created_at: "2026-10-10T09:00:00+00:00", avatar_url: null as string | null };
 const SPEC: Contract = {
   http: {
     create: { room: { ...ROOM, name: "alice的房间", scenario: "cafe", level: "A2", join_mode: "approval", max_members: 4, allow_voice: true } },
@@ -35,8 +35,7 @@ const C = recorded ?? SPEC;
 const camel = (v: unknown) => camelcaseKeys(v as Record<string, unknown>, { deep: true }) as Record<string, unknown>;
 const keys = (r: Record<string, true>) => Object.keys(r).sort();
 
-// avatarUrl(W3, INDEX X29) is additive and not in the recorded fixtures until S9 re-records them; it is excluded here until then.
-const REQUEST: Record<Exclude<keyof JoinRequestInfo, "avatarUrl">, true> = { id: true, roomId: true, roomName: true, userId: true, name: true, status: true, createdAt: true };
+const REQUEST: Record<keyof JoinRequestInfo, true> = { id: true, roomId: true, roomName: true, userId: true, name: true, status: true, createdAt: true, avatarUrl: true };
 const PREVIEW: Record<keyof InvitePreview, true> = { roomId: true, name: true, scenario: true, level: true, memberCount: true, maxMembers: true, joined: true };
 const ROOM_V2: Partial<Record<keyof RoomInfo, true>> = { name: true, scenario: true, level: true, joinMode: true, maxMembers: true, allowVoice: true };
 
