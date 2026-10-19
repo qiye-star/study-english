@@ -8,28 +8,24 @@ from sqlalchemy import select
 from app.core import quotas
 from app.models import InviteCode, InviteRedemption, User, UserQuotaOverride
 from app.services import invites
-from app.services.invites import RedeemError, consume, generate_code, hash_code, record_redemption, redeem
+from app.services.invites import RedeemError, generate_code, hash_code, record_redemption, redeem
 
 NOW = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
 NEW_FORMAT = re.compile(r"^[A-HJKMNP-TV-Z2-9]{5}-[A-HJKMNP-TV-Z2-9]{5}$")
 
-
 @pytest.fixture
 def settings_overrides():
     return {"invites_user_code_max_uses": 10}
-
 
 def _cap(session, app, key="invites_user_code_max_uses"):
     async def cap(owner_id: int) -> int:
         return await quotas.effective(session, app, owner_id, key)
     return cap
 
-
 async def _user(session, uid: int, name: str, *, disabled: bool = False) -> None:
     session.add(User(id=uid, username=name, password_hash="x",
                      disabled_at=NOW if disabled else None))
     await session.flush()
-
 
 async def _code(session, *, code: str, kind: str = "admin", max_uses: int = 1, uses: int = 0,
                 owner: int | None = None, expires_at=None, revoked_at=None) -> InviteCode:
@@ -39,13 +35,11 @@ async def _code(session, *, code: str, kind: str = "admin", max_uses: int = 1, u
     await session.flush()
     return row
 
-
 def test_generated_codes_use_the_unambiguous_alphabet_and_do_not_repeat():
     codes = [generate_code() for _ in range(1000)]
     assert all(NEW_FORMAT.match(c) for c in codes)
     assert not any(set(c) & set("I L O U 0 1".split()) for c in codes)
     assert len(set(codes)) == 1000
-
 
 async def test_old_twelve_character_admin_codes_still_redeem(app):
     async with app.state.sessionmaker() as s:
@@ -55,7 +49,6 @@ async def test_old_twelve_character_admin_codes_still_redeem(app):
         row = await redeem(s, " abcd efgh - jkmn ", NOW, user_cap=_cap(s, app))
         assert row.kind == "admin"
         await s.commit()
-
 
 async def test_admin_code_is_single_use_and_expiry_and_revocation_are_invalid(app):
     async with app.state.sessionmaker() as s:
@@ -74,7 +67,6 @@ async def test_admin_code_is_single_use_and_expiry_and_revocation_are_invalid(ap
             with pytest.raises(RedeemError) as bad:
                 await redeem(s, dead, NOW, user_cap=_cap(s, app))
             assert bad.value.reason == "invalid"
-
 
 async def test_user_code_caps_follow_the_live_quota(app):
     async with app.state.sessionmaker() as s:
@@ -105,7 +97,6 @@ async def test_user_code_caps_follow_the_live_quota(app):
         row = await s.scalar(select(InviteCode).where(InviteCode.code_hash == hash_code("USER-CODE-AA")))
         assert row.uses == 12
 
-
 async def test_user_cap_of_zero_is_used_up_at_once(app):
     async with app.state.sessionmaker() as s:
         await _user(s, 20000002, "owner_b")
@@ -118,7 +109,6 @@ async def test_user_cap_of_zero_is_used_up_at_once(app):
             await redeem(s, "ZERO-CODE-AA", NOW, user_cap=_cap(s, app))
         assert zero.value.reason == "used_up"
 
-
 async def test_disabled_or_deleted_owner_makes_the_user_code_invalid(app):
     async with app.state.sessionmaker() as s:
         await _user(s, 20000003, "owner_c", disabled=True)
@@ -130,7 +120,6 @@ async def test_disabled_or_deleted_owner_makes_the_user_code_invalid(app):
             with pytest.raises(RedeemError) as bad:
                 await redeem(s, dead, NOW, user_cap=_cap(s, app))
             assert bad.value.reason == "invalid"
-
 
 async def test_two_redemptions_of_the_last_use_cannot_both_win(app, monkeypatch):
     """The race: our pre-check reads uses == 0, a competitor takes the last use and commits, then our conditional
@@ -162,7 +151,6 @@ async def test_two_redemptions_of_the_last_use_cannot_both_win(app, monkeypatch)
         row = await s.scalar(select(InviteCode).where(InviteCode.code_hash == hash_code("RACE-CODE-AA")))
         assert row.uses == 1  # the competitor's use only
 
-
 async def test_redeem_does_not_commit_so_a_rollback_gives_the_use_back(app):
     async with app.state.sessionmaker() as s:
         await _code(s, code="HOLD-CODE-AA", max_uses=1)
@@ -173,7 +161,6 @@ async def test_redeem_does_not_commit_so_a_rollback_gives_the_use_back(app):
     async with app.state.sessionmaker() as s:
         row = await s.scalar(select(InviteCode).where(InviteCode.code_hash == hash_code("HOLD-CODE-AA")))
         assert row.uses == 0
-
 
 async def test_record_redemption_only_adds_to_the_session(app):
     async with app.state.sessionmaker() as s:
@@ -188,15 +175,3 @@ async def test_record_redemption_only_adds_to_the_session(app):
     async with app.state.sessionmaker() as s:
         assert (await s.scalars(select(InviteRedemption))).all() == []
 
-
-async def test_legacy_consume_still_takes_admin_uses_but_never_user_codes(app):
-    async with app.state.sessionmaker() as s:
-        await _user(s, 20000005, "owner_e")
-        await _code(s, code="LEG-CODE-AAA", max_uses=1)
-        await _code(s, code="LEG-USER-AAA", kind="user", max_uses=10, owner=20000005)
-        await s.commit()
-    async with app.state.sessionmaker() as s:
-        assert await consume(s, "LEG-CODE-AAA", NOW) is True
-        assert await consume(s, "LEG-CODE-AAA", NOW) is False
-        assert await consume(s, "LEG-USER-AAA", NOW) is False
-        await s.rollback()

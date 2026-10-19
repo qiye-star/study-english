@@ -93,14 +93,3 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-async def _no_user_codes(_owner_id: int) -> int:
-    return 0  # the legacy `consume` predates user codes: they are never redeemable through it
-
-
-async def consume(session, code: str, now: datetime) -> bool:
-    """Legacy wrapper over `redeem` (kept until the registration paths all call `redeem`, S4). True = one use taken."""
-    try:
-        await redeem(session, code, now, user_cap=_no_user_codes)
-    except RedeemError:
-        return False
-    return True

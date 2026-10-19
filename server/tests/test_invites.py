@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.services.invites import generate_code
 from app.models import InviteCode
-from app.services.invites import consume, hash_code, normalise
+from app.services.invites import RedeemError, hash_code, normalise, redeem
 from tests.admin_helpers import ADMIN_ENABLED, login_as
 
 
@@ -72,14 +72,26 @@ async def test_expired_codes_and_bad_input(app, client):
     assert (await client.delete("/api/admin/invites/9999", headers=h)).status_code == 404
 
 
+async def _take(session, code, now) -> bool:
+    try:
+        await redeem(session, code, now, user_cap=_no_user_codes)
+    except RedeemError:
+        return False
+    return True
+
+
+async def _no_user_codes(_owner_id):
+    return 0
+
+
 async def test_consume_is_one_conditional_update(app, client):
     h = await login_as(app, client, "operator")
     code = (await client.post("/api/admin/invites", headers=h, json={"label": "c", "max_uses": 1})).json()["code"]
     now = datetime.now(timezone.utc)
     async with app.state.sessionmaker() as s1, app.state.sessionmaker() as s2:
-        assert await consume(s1, code, now) is True
+        assert await _take(s1, code, now) is True
         await s1.commit()
-        assert await consume(s2, code, now) is False
+        assert await _take(s2, code, now) is False
         await s2.rollback()
         assert (await s2.scalar(select(InviteCode.uses))) == 1
 
