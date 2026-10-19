@@ -14,8 +14,8 @@ from sqlalchemy import delete, func, or_, select
 from app.admin import audit
 from app.admin.audit import Actor
 from app.admin.rank_ops import UNDO_DAYS
-from app.models import (AdminAudit, AdminLoginState, AdminSession, Assessment, RankProfileSnapshot, Room, RoomVoice,
-                        SpeechToken)
+from app.models import (AccessToken, AdminAudit, AdminLoginState, AdminSession, Assessment, RankProfileSnapshot, Room,
+                        RoomVoice, SpeechToken)
 from app.rooms.rules import RoomLimits
 
 MAX_SAMPLES = 20
@@ -244,7 +244,12 @@ async def purge_expired(session, now: datetime) -> dict:
         AdminLoginState.updated_at < now - timedelta(days=30),
         or_(AdminLoginState.locked_until.is_(None), AdminLoginState.locked_until < now)))
     tokens = await session.execute(delete(SpeechToken).where(SpeechToken.created_at < now - timedelta(days=1)))
+    # X4: a sliding token past its expiry is dead; the row is kept a week so a clock skew or a late write never
+    # looks like a revoke. NULL expiry (legacy, not yet used) is never purged.
+    access = await session.execute(delete(AccessToken).where(
+        AccessToken.expires_at.is_not(None), AccessToken.expires_at < now - timedelta(days=7)))
     snapshots = await session.execute(delete(RankProfileSnapshot).where(  # spec §5.6: gone after the undo window
         RankProfileSnapshot.at < now - timedelta(days=UNDO_DAYS)))
     return {"admin_sessions": sessions.rowcount or 0, "admin_login_state": login.rowcount or 0,
-            "speech_tokens": tokens.rowcount or 0, "rank_profile_snapshots": snapshots.rowcount or 0}
+            "speech_tokens": tokens.rowcount or 0, "access_tokens": access.rowcount or 0,
+            "rank_profile_snapshots": snapshots.rowcount or 0}
