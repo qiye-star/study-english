@@ -123,6 +123,21 @@ export class ApiClient {
     return this.request("GET", "/api/me");
   }
 
+  /** 登出:只撤销当前 token(服务端 204)。调用方负责吞掉网络错误并清本地会话。 */
+  async logout(): Promise<void> {
+    await this.request("DELETE", "/api/sessions/current");
+  }
+
+  /** 改密:服务端轮换所有 token,返回新的 access token(调用方要换掉存储的 token)。 */
+  changePassword(currentPassword: string, newPassword: string): Promise<{ accessToken: string }> {
+    return this.request("POST", "/api/me/password", { json: { currentPassword, newPassword } });
+  }
+
+  /** 改昵称:`nickname: null` 清除昵称。 */
+  updateMe(patch: { nickname: string | null }): Promise<UserProfile> {
+    return this.request("PATCH", "/api/me", { json: patch });
+  }
+
   getConfig<T>(key: string): Promise<T> {
     return this.request("GET", `/api/config/${encodeURIComponent(key)}`, { auth: false });
   }

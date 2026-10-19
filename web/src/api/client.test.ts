@@ -132,4 +132,40 @@ describe("ApiClient", () => {
     expect(await api.getConfig("tts_providers_v2")).toEqual({ enjoyai: { models: ["openai/tts-1"] } });
     expect(mock.calls[4].headers.has("Authorization")).toBe(false);
   });
+
+  it("logout deletes the current server session with the bearer token and accepts an empty 204", async () => {
+    const { api, mock } = make({ "DELETE /api/sessions/current": () => new Response(null, { status: 204 }) });
+    await expect(api.logout()).resolves.toBeUndefined();
+    expect(mock.calls[0].method).toBe("DELETE");
+    expect(mock.calls[0].url.pathname).toBe("/api/sessions/current");
+    expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("changePassword posts snake_case keys and returns the rotated access token", async () => {
+    const { api, mock } = make({ "POST /api/me/password": () => json({ access_token: "rotated" }) });
+    const res = await api.changePassword("old-password", "new-password1");
+    expect(res).toEqual({ accessToken: "rotated" });
+    expect(mock.calls[0].method).toBe("POST");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ current_password: "old-password", new_password: "new-password1" });
+  });
+
+  it("updateMe patches the nickname (null clears it) and returns the profile", async () => {
+    const { api, mock } = make({
+      "PATCH /api/me": () => json({ id: "12345678", name: "alice", created_at: "t", nickname: "小明", display_name: "小明" }),
+    });
+    const me = await api.updateMe({ nickname: "小明" });
+    expect(me).toEqual({ id: "12345678", name: "alice", createdAt: "t", nickname: "小明", displayName: "小明" });
+    expect(mock.calls[0].method).toBe("PATCH");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ nickname: "小明" });
+    await api.updateMe({ nickname: null });
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ nickname: null });
+  });
+
+  it("me() tolerates a response without nickname or display_name (fields are optional)", async () => {
+    const { api } = make({ "GET /api/me": () => json({ id: "12345678", name: "alice", created_at: "t" }) });
+    const me = await api.me();
+    expect(me.nickname).toBeUndefined();
+    expect(me.displayName).toBeUndefined();
+    expect(me.name).toBe("alice");
+  });
 });
