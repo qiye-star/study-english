@@ -31,6 +31,7 @@ QUOTA_KEYS: dict[str, str] = {
     "agents_memory_extract_daily_per_user": "agents_memory_extract_daily_per_user",
     "library_quota_mb": "library_quota_mb",
     "library_max_items": "library_max_items",
+    "invites_user_code_max_uses": "invites_user_code_max_uses",
 }
 
 

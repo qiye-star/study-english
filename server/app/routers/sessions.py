@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.account_policy import binding_deadline, binding_state
 from app.core.config import Settings
-from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
+from app.core import quotas
+from app.core.deps import auth_rate_limit, client_ip, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
 from app.services import avatars, email_accounts, identities, invites
@@ -116,17 +117,32 @@ def _require_email_fields(payload: RegisterIn, settings: Settings) -> None:
         raise HTTPException(422, "Email domain not allowed")
 
 
+def _user_cap(request: Request, session: AsyncSession):
+    """The live per-owner cap of a user code (invites v2 X19): read at each redemption, passed into the service."""
+    async def cap(owner_id: int) -> int:
+        return await quotas.effective(session, request.app, owner_id, "invites_user_code_max_uses")
+    return cap
+
+
+def _invite_rejected(request: Request, reason: str) -> HTTPException:
+    """A failed invite attempt counts against its IP (invites v2 R-I5). The two answers are the existing pair:
+    'invalid' and 'used up'; nothing else says whether a code exists."""
+    request.app.state.invite_fail_limiter.allow(client_ip(request))
+    return HTTPException(403, "Invite code used up" if reason == "used_up" else "Invalid invite code")
+
+
 async def _register_with_email(payload: RegisterIn, request: Request, session: AsyncSession, settings: Settings,
                                password_hash: str, db_code: bool) -> UserOut:
     try:
         user, token = await email_accounts.register_with_email(
             session, settings, username=payload.username, password_hash=password_hash,
             nickname=payload.nickname, email=payload.email, code=payload.email_code,
-            invite_code=(payload.invite_code or "") if db_code else None, new_user_id=_new_user_id, now=utcnow())
+            invite_code=(payload.invite_code or "") if db_code else None, new_user_id=_new_user_id, now=utcnow(),
+            user_cap=_user_cap(request, session))
     except VerificationError:
         raise HTTPException(400, INVALID_CODE) from None
-    except email_accounts.InviteRejected:
-        raise HTTPException(403, "Invalid invite code") from None
+    except email_accounts.InviteRejected as e:
+        raise _invite_rejected(request, e.reason) from None
     except email_accounts.UsernameTaken:
         raise HTTPException(409, "Username already taken") from None
     except email_accounts.IdAllocationFailed:
@@ -150,6 +166,10 @@ async def register(
     if settings.registration_mode == "closed":
         raise HTTPException(403, "Registration is closed")
     response.headers["Cache-Control"] = "no-store"  # the body carries a login token
+    # invites v2 R-I5: an IP that has used up its bad-code allowance is refused before any code is looked at
+    if settings.registration_mode == "invite" and payload.invite_code and request.app.state.invite_fail_limiter.exhausted(
+            client_ip(request)):
+        raise HTTPException(429, "Too many requests, please try again later")
     if settings.email_registration_required:
         _require_email_fields(payload, settings)
     # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
@@ -165,13 +185,22 @@ async def register(
     password_hash = await asyncio.to_thread(hash_password, payload.password)  # before any lookup (R-F7)
     if settings.email_registration_required:
         return await _register_with_email(payload, request, session, settings, password_hash, db_code)
+    if await _get_by_username(session, payload.username) is not None:  # before any invite is looked at (no oracle)
+        raise HTTPException(409, "Username already taken")
+    user_cap = _user_cap(request, session)
     for _ in range(5):
-        if db_code and not await invites.consume(session, payload.invite_code or "", utcnow()):
-            await session.rollback()
-            raise HTTPException(403, "Invalid invite code")
+        code_row = None
+        if db_code:
+            try:
+                code_row = await invites.redeem(session, payload.invite_code or "", utcnow(), user_cap=user_cap)
+            except invites.RedeemError as e:
+                await session.rollback()
+                raise _invite_rejected(request, e.reason) from None
         user = User(id=_new_user_id(), username=payload.username, password_hash=password_hash,
                     nickname=payload.nickname)
         session.add(user)
+        if code_row is not None:  # the attribution row goes in the same commit as the user (invites v2 R-I4)
+            invites.record_redemption(session, code_row, user.id, utcnow())
         try:
             await session.commit()
             break

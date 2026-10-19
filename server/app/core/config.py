@@ -65,6 +65,11 @@ class Settings(BaseSettings):
 
     registration_mode: Literal["open", "invite", "closed"] = "open"
     invite_code: str = ""
+    # 邀请码 v2(计划 2026-10-14-invites-v2 S2;热改):用户码累计上限(可按人覆盖,0 = 收回邀请权)、注册满几天且邮箱已验证才能生成、
+    # 同一 IP 每小时的邀请码错误次数
+    invites_user_code_max_uses: int = Field(10, ge=0, le=1000)
+    invites_user_min_account_days: int = Field(7, ge=0, le=365)
+    invite_failures_per_ip_hourly: int = Field(5, ge=1, le=1000)
     # 账号 v2(计划 S2):登录有效天数(每次使用滑动续期,热改);身份 HMAC 密钥(只读环境变量,等同密钥)
     access_token_ttl_days: int = Field(30, ge=1, le=365)
     identity_pepper: str = ""  # env-only secret;丢失或更换 = 所有邮箱登录与唯一性失效

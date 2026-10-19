@@ -46,7 +46,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   system user; owned rooms pass to the earliest other member, a room
   nobody else joined is kept closed with `owner_id = NULL` — rooms and room messages are never deleted),
   per-user quota overrides (`quota.set|clear`; above `operator_ceiling` = 10x the site value only superadmin + step-up)
-- `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
+- `invites.py` – admin invite codes (single and batch, `max_uses` 1–1000, batch up to 100; SHA-256 only, the plain code is returned once with `no-store`); listing with `kind`/`owner`/`state` filters and the exact redeemer count (usernames: first 5), revoke, redemptions per code, and the per-user code (`user_status`, `revoke_user_code`, `rotate_user_code`: the new plain code is created and discarded here, so the operator never sees it); audit actions `invite.create`, `invite.batch_create` (count only), `invite.revoke`, `invite.user.revoke`, `invite.user.rotate` (never a code); consumption in `services/invites.py`, the owner's code in `services/user_invites.py`
 - `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
   `routers/admin_rooms.py`
 - `wordbook_admin.py` – word books (spec 2026-10-10-wordbook §9): `overview` (enabled books: file bytes + sha256 vs
@@ -89,7 +89,7 @@ Never import routers from here (room runtime lives in `routers/admin_rooms.py` v
 ## Tests
 `uv run pytest -q tests/test_admin_*.py tests/test_quotas*.py tests/test_architecture.py tests/test_usage*.py
 tests/test_announcements.py tests/test_changelog_*.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py
-tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py tests/test_rank_rules*.py`
+tests/test_invites*.py tests/test_invite_mode_db_codes.py tests/test_user_invites.py tests/test_admin_invites_v2.py tests/test_prompts*.py tests/test_rank_rules*.py`
 (helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 
 ## Pitfalls

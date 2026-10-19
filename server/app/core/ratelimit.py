@@ -34,3 +34,13 @@ class RateLimiter:
             return False
         self._hits[key].append(now)
         return True
+
+    def exhausted(self, key: str, limit: int | None = None) -> bool:
+        """True when `key` already has `limit` hits in the window. Read only: nothing is recorded, so a caller can
+        refuse before doing any work and then count only the failures (invites v2 R-I5)."""
+        effective = self.limit if limit is None else limit
+        now = self._clock()
+        hits = self._hits.get(key)
+        if not hits:
+            return effective <= 0
+        return sum(1 for t in hits if now - t < self.window) >= effective
