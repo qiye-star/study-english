@@ -31,6 +31,8 @@ export interface UserProfile {
   emailVerified?: boolean;
   /** 可缺省,缺省视为 `none`。 */
   emailBinding?: EmailBindingInfo;
+  /** 头像的相对路径(/api/avatars/<id>,同源,X17);没有头像时缺省或为 null。 */
+  avatarUrl?: string | null;
 }
 
 /** 网页上显示的名字:`displayName ?? name`。全站只用这一处回退逻辑。 */
