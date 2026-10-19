@@ -17,6 +17,7 @@
       "passwordLength": "密码长度为 8–128 位。"
     },
     "errors": {
+      "invalidCode": "验证码无效或已过期。", "tooManyCodes": "验证码发送过于频繁,请稍后再试。", "emailUnavailable": "邮件服务暂时不可用,请稍后再试。", "emailDomainNotAllowed": "该邮箱域名不支持。", "emailNotConfigured": "服务器未配置邮件服务。", "wrongPassword": "当前密码不正确", "emailAlreadyBound": "该账号已绑定邮箱。", "emailVerificationRequired": "需要邮箱验证,请在网页端注册。",
       "accountDisabled": "该账号已被停用。", "invalidLogin": "用户名或密码错误。", "usernameTaken": "用户名已被占用。",
       "registrationClosed": "该服务器已关闭注册。", "invalidInvite": "邀请码无效。",
       "tooManyRequests": "请求过于频繁,请稍后再试。", "network": "网络错误,请检查连接。",

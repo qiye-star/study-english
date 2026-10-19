@@ -25,4 +25,20 @@ export function displayNameOf(user: { name: string; displayName?: string | null 
   return user.displayName || user.name;
 }
 
+/** 发码接口的回执(同时适用于注册 / 找回与绑定):无论邮箱是否已注册,形状相同。 */
+export interface EmailCodeReceipt {
+  ok: boolean;
+  cooldownSeconds: number;
+}
+
+export interface RegisterInput {
+  username: string;
+  password: string;
+  inviteCode?: string;
+  /** 邮箱必填(开关开启时):与 `emailCode` 一起提交。 */
+  email?: string;
+  emailCode?: string;
+  nickname?: string;
+}
+
 export type Paged<K extends string, T> = { page: number; next: number | null } & Record<K, T[]>;

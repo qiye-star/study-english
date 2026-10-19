@@ -124,9 +124,9 @@ describe("ApiClient", () => {
     });
     expect(await api.login("alice", "pw")).toEqual({ id: "12345678", name: "alice", createdAt: "t", accessToken: "new" });
     expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice", password: "pw" });
-    await api.register("bob", "password1", "inv");
+    await api.register({ username: "bob", password: "password1", inviteCode: "inv" });
     expect(JSON.parse(mock.calls[1].body as string)).toEqual({ username: "bob", password: "password1", invite_code: "inv" });
-    await api.register("carol", "password1");
+    await api.register({ username: "carol", password: "password1" });
     expect(JSON.parse(mock.calls[2].body as string)).toEqual({ username: "carol", password: "password1" });
     expect((await api.me()).name).toBe("alice");
     expect(await api.getConfig("tts_providers_v2")).toEqual({ enjoyai: { models: ["openai/tts-1"] } });
@@ -167,5 +167,62 @@ describe("ApiClient", () => {
     expect(me.nickname).toBeUndefined();
     expect(me.displayName).toBeUndefined();
     expect(me.name).toBe("alice");
+  });
+
+  it("a 403 email_binding_required calls onBindingRequired once and not onUnauthorized", async () => {
+    const onUnauthorized = vi.fn();
+    const onBindingRequired = vi.fn();
+    const { api } = make(
+      { "GET /api/conversations": () => json({ error: "email_binding_required" }, 403) },
+      { onUnauthorized, onBindingRequired },
+    );
+    await expect(api.request("GET", "/api/conversations")).rejects.toMatchObject({ status: 403 });
+    expect(onBindingRequired).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("registers with email, code, nickname as snake_case keys", async () => {
+    const user = { id: "12345678", name: "dan", created_at: "t", access_token: "new" };
+    const { api, mock } = make({ "POST /api/users": () => json(user) });
+    await api.register({ username: "dan", password: "password1", email: "dan@example.com", emailCode: "123456", nickname: "Dan", inviteCode: "inv" });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({
+      username: "dan", password: "password1", email: "dan@example.com", email_code: "123456", nickname: "Dan", invite_code: "inv",
+    });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+  });
+
+  it("sends email codes and resets the password on the documented endpoints", async () => {
+    const { api, mock } = make({
+      "POST /api/email/code": () => json({ ok: true, cooldown_seconds: 60 }),
+      "POST /api/password/reset": () => new Response(null, { status: 204 }),
+      "POST /api/me/email/code": () => json({ ok: true, cooldown_seconds: 60 }),
+      "POST /api/me/email": () => new Response(null, { status: 204 }),
+    });
+    expect(await api.sendEmailCode("a@example.com", "register")).toEqual({ ok: true, cooldownSeconds: 60 });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ email: "a@example.com", purpose: "register" });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+
+    await expect(api.resetPassword({ email: "a@example.com", code: "123456", newPassword: "new-password1" })).resolves.toBeUndefined();
+    expect(mock.calls[1].url.pathname).toBe("/api/password/reset");
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ email: "a@example.com", code: "123456", new_password: "new-password1" });
+
+    expect(await api.sendMyEmailCode("b@example.com", "bind")).toEqual({ ok: true, cooldownSeconds: 60 });
+    expect(JSON.parse(mock.calls[2].body as string)).toEqual({ email: "b@example.com", purpose: "bind" });
+    expect(mock.calls[2].headers.get("Authorization")).toBe("Bearer tok");
+
+    await expect(api.bindEmail({ email: "b@example.com", code: "654321" })).resolves.toBeUndefined();
+    expect(JSON.parse(mock.calls[3].body as string)).toEqual({ email: "b@example.com", code: "654321" });
+    expect(mock.calls[3].headers.get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("exposes Retry-After on a 429 so the UI can count down", async () => {
+    const { api } = make({
+      "POST /api/email/code": () => new Response(JSON.stringify({ error: "Too many codes, please wait" }), {
+        status: 429, headers: { "Content-Type": "application/json", "Retry-After": "42" },
+      }),
+    });
+    await expect(api.sendEmailCode("a@example.com", "reset")).rejects.toMatchObject({
+      status: 429, message: "Too many codes, please wait", retryAfter: 42,
+    });
   });
 });

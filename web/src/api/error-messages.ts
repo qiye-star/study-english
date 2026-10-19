@@ -13,6 +13,14 @@ const COMMON: Record<string, string> = {
   "AI response timed out": "web.errors.timeout",
   "Request aborted": "web.errors.aborted",
   Maintenance: "web.errors.maintenance", // 503 from the server's maintenance mode (admin console)
+  "Invalid or expired code": "web.errors.invalidCode",
+  "Too many codes, please wait": "web.errors.tooManyCodes",
+  "Email temporarily unavailable": "web.errors.emailUnavailable",
+  "Email domain not allowed": "web.errors.emailDomainNotAllowed",
+  "Email is not configured": "web.errors.emailNotConfigured",
+  "Wrong password": "web.errors.wrongPassword",
+  "Email already bound": "web.errors.emailAlreadyBound",
+  "Email verification required: please register in the web app": "web.errors.emailVerificationRequired",
 };
 
 export function translateServerError(t: TFunction, err: unknown, extra: Record<string, string> = {}): string {

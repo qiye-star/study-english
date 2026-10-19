@@ -77,7 +77,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   );
   const register = useCallback(
     async (username: string, password: string, inviteCode?: string) =>
-      accept(await api.register(normalizeUsername(username), password, inviteCode)),
+      accept(await api.register({ username: normalizeUsername(username), password, inviteCode })),
     [api, accept],
   );
 

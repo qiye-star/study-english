@@ -17,6 +17,7 @@
       "passwordLength": "Password must be 8–128 characters."
     },
     "errors": {
+      "invalidCode": "The code is invalid or has expired.", "tooManyCodes": "Too many codes. Please wait before trying again.", "emailUnavailable": "Email is temporarily unavailable. Try again later.", "emailDomainNotAllowed": "This email domain can't be used.", "emailNotConfigured": "Email is not set up on this server.", "wrongPassword": "Current password is incorrect", "emailAlreadyBound": "This account already has an email.", "emailVerificationRequired": "Email verification is required. Please register in the web app.",
       "accountDisabled": "This account has been disabled.", "invalidLogin": "Invalid username or password.", "usernameTaken": "This username is already taken.",
       "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
       "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",

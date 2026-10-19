@@ -1,9 +1,10 @@
 import camelcaseKeys from "camelcase-keys";
 import decamelizeKeys from "decamelize-keys";
-import type { AuthUser, UserProfile } from "./types";
+import type { AuthUser, EmailCodeReceipt, RegisterInput, UserProfile } from "./types";
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  /** 429 等响应的 Retry-After(秒);没有或无法解析时为 undefined。 */
+  constructor(public readonly status: number, message: string, public readonly retryAfter?: number) {
     super(message);
     this.name = "ApiError";
   }
@@ -25,6 +26,8 @@ export interface ApiClientOptions {
   onUnauthorized?: (token: string) => void;
   /** 503 "Maintenance":服务端进入维护模式,应用据此立即刷新维护状态(不用等下一次轮询) */
   onMaintenance?: () => void;
+  /** 403 `email_binding_required`:强制绑定开启且本账号未绑定邮箱。网页据此跳到绑定页。 */
+  onBindingRequired?: () => void;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
 }
@@ -52,6 +55,11 @@ function withTimeout(ms: number, outer?: AbortSignal) {
       outer?.removeEventListener("abort", abort);
     },
   };
+}
+
+function retryAfterSeconds(response: Response): number | undefined {
+  const seconds = Number(response.headers.get("Retry-After"));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 async function errorMessage(response: Response): Promise<string> {
@@ -98,7 +106,8 @@ export class ApiClient {
         // An account disabled by an admin: the token is useless, so sign out like a 401 (logging in again shows why).
         if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.(token);
         if (response.status === 503 && message === "Maintenance") this.options.onMaintenance?.();
-        throw new ApiError(response.status, message);
+        if (response.status === 403 && message === "email_binding_required") this.options.onBindingRequired?.();
+        throw new ApiError(response.status, message, retryAfterSeconds(response));
       }
       if (as === "raw") return response as unknown as T;
       if (as === "blob") return (await response.blob()) as unknown as T;
@@ -113,11 +122,28 @@ export class ApiClient {
     return this.request("POST", "/api/sessions", { json: { provider: "password", username, password }, auth: false });
   }
 
-  register(username: string, password: string, inviteCode?: string): Promise<AuthUser> {
-    return this.request("POST", "/api/users", {
-      json: { username, password, ...(inviteCode ? { inviteCode } : {}) },
-      auth: false,
-    });
+  register(input: RegisterInput): Promise<AuthUser> {
+    return this.request("POST", "/api/users", { json: input, auth: false });
+  }
+
+  /** 注册 / 找回密码的发码。响应与邮箱是否已注册无关。 */
+  sendEmailCode(email: string, purpose: "register" | "reset"): Promise<EmailCodeReceipt> {
+    return this.request("POST", "/api/email/code", { json: { email, purpose }, auth: false });
+  }
+
+  /** 找回密码:成功 204,不返回 token(不自动登录)。 */
+  async resetPassword(input: { email: string; code: string; newPassword: string }): Promise<void> {
+    await this.request("POST", "/api/password/reset", { json: input, auth: false });
+  }
+
+  /** 已登录用户的绑定 / 换绑发码(强制绑定期间也可用)。 */
+  sendMyEmailCode(email: string, purpose: "bind" | "change_email"): Promise<EmailCodeReceipt> {
+    return this.request("POST", "/api/me/email/code", { json: { email, purpose } });
+  }
+
+  /** 绑定 / 换绑邮箱;换绑需要当前密码。 */
+  async bindEmail(input: { email: string; code: string; password?: string }): Promise<void> {
+    await this.request("POST", "/api/me/email", { json: input });
   }
 
   me(): Promise<UserProfile> {
