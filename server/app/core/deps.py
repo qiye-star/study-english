@@ -30,9 +30,8 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def current_user(
-    request: Request, session: AsyncSession = Depends(get_session)
-) -> User:
+async def _authenticate(request: Request, session: AsyncSession) -> tuple[User, AccessToken]:
+    """Bearer token -> live user and its token row (INDEX X3). Shared by every auth dependency."""
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(401, "Unauthorized")
@@ -59,8 +58,24 @@ async def current_user(
             .values(last_used_at=now, expires_at=now + timedelta(days=ttl))
         )
         await session.commit()  # expire_on_commit=False: `user` stays readable after this
+    request.state.access_token_id = access.id  # logout deletes this row (routers/sessions.py)
     metering.bind_user(user.id)
     learning_events.bind(getattr(request.app.state, "learning_bus", None))  # learning-links spec §4.3
+    return user, access
+
+
+async def current_user(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> User:
+    user, _ = await _authenticate(request, session)
+    return user
+
+
+async def current_user_unbound(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> User:
+    """Same authentication as current_user; for the account endpoints that must work while binding is pending."""
+    user, _ = await _authenticate(request, session)
     return user
 
 

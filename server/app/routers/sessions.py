@@ -3,14 +3,14 @@ import re
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.deps import auth_rate_limit, current_user, get_session, get_settings
+from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, utcnow
 from app.core.security import hash_password, hash_token, new_token, verify_password
 from app.services import invites
@@ -138,5 +138,17 @@ async def login(
 
 
 @router.get("/me", response_model=UserOut, response_model_exclude_none=True)
-async def me(user: User = Depends(current_user)):
+async def me(user: User = Depends(current_user_unbound)):
     return _user_out(user)
+
+
+@router.delete("/sessions/current", status_code=204)
+async def logout(
+    request: Request,
+    _: User = Depends(current_user_unbound),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete only the token this request used; other devices stay signed in."""
+    await session.execute(delete(AccessToken).where(AccessToken.id == request.state.access_token_id))
+    await session.commit()
+    return Response(status_code=204)
