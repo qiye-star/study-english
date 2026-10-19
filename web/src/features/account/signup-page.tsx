@@ -63,9 +63,9 @@ export function RegisterPage() {
   }
 
   function firstProblem(): string | null {
-    if (sentEmail === null) return t("web.account.register.errors.emailInvalid");
-    if (normalizeEmail(email) !== sentEmail) return t("web.account.register.errors.emailChanged");
-    if (!/^\d{6}$/.test(code)) return t("web.account.register.errors.codeInvalid");
+    if (sentEmail === null) return t("web.account.code.emailInvalid");
+    if (normalizeEmail(email) !== sentEmail) return t("web.account.code.emailChanged");
+    if (!/^\d{6}$/.test(code)) return t("web.account.code.codeInvalid");
     const credentials = validateCredentials("register", username, password);
     if (credentials) return t(credentials);
     const name = nickname.trim();
@@ -95,7 +95,7 @@ export function RegisterPage() {
           {sent ? (
             <>
               <div className="space-y-1.5">
-                <label htmlFor="register-code" className={LABEL}>{t("web.account.register.code")}</label>
+                <label htmlFor="register-code" className={LABEL}>{t("web.account.code.codeInput")}</label>
                 <input id="register-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
                   onChange={(e) => setCode(e.target.value)} className={FIELD} />
               </div>

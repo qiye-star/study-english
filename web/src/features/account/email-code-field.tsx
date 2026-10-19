@@ -37,7 +37,7 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
   async function send() {
     onError(null);
     if (!isEmailShape(value)) {
-      onError(t("web.account.register.errors.emailInvalid"));
+      onError(t("web.account.code.emailInvalid"));
       return;
     }
     setBusy(true);
@@ -55,12 +55,12 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
   }
 
   const label = cooldown > 0
-    ? t("web.account.register.resendIn", { seconds: cooldown })
-    : t(sent ? "web.account.register.resend" : "web.account.register.sendCode");
+    ? t("web.account.code.resendIn", { seconds: cooldown })
+    : t(sent ? "web.account.code.resend" : "web.account.code.send");
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className={`block ${LABEL}`}>{t("web.account.register.email")}</label>
+      <label htmlFor={id} className={`block ${LABEL}`}>{t("web.account.code.email")}</label>
       <div className="flex items-stretch gap-2">
         <input
           id={id}
