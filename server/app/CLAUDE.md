@@ -9,7 +9,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `models.py` | SQLAlchemy ORM schema (peer of core; imports only `core`) |
 | `providers/` | vendor clients: Volcengine, Azure Speech, iFlytek (xfyun) |
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
-| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes, versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames) |
+| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes (admin and per-user, `services/invites.py` and `services/user_invites.py`), versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
 | `rooms/` | practice rooms (create/join/close/reopen): codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
