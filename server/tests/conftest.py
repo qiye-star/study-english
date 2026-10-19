@@ -46,6 +46,9 @@ def make_settings(**overrides) -> Settings:
         upstream_whisper_key="wh-secret",
         azure_speech_key="az-secret",
         azure_speech_region="eastus",
+        # accounts v2 (INDEX X11): most tests register with username + password; the email-registration tests
+        # switch it on explicitly
+        email_registration_required=False,
     )
     values.update(overrides)
     return Settings(_env_file=None, **values)
