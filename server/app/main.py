@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.http = http
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
+    app.state.nickname_limiter = RateLimiter(10, window=3600.0)  # PATCH /api/me: per user per hour (plan S6, R-F12)
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
