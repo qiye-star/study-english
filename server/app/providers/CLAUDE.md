@@ -23,8 +23,9 @@ Clients for external vendors. Pure I/O + protocol code; no web framework.
 `synthesize`, `synthesize_stream`, `AzureSpeech`, `XfyunIse`, `to_assessment`.
 
 ## Tests
-`uv run pytest -q tests/test_volcengine_tts.py tests/test_tts_stream.py tests/test_azure.py tests/test_xfyun.py tests/test_xfyun_result.py tests/test_llm_stream.py tests/test_llm_probe_tools.py`
+`uv run pytest -q tests/test_volcengine_tts.py tests/test_tts_stream.py tests/test_azure.py tests/test_xfyun.py tests/test_xfyun_result.py tests/test_llm_stream.py tests/test_llm_probe_tools.py tests/test_email_provider.py`
 
 ## Pitfalls
 - Keys and signed URLs are secrets: never log them; log error kinds/status codes only.
+- `email.py` never logs the recipient address, subject, body, SMTP user or password (the only log line is `email sent purpose=<kind>`); `EmailError` carries a fixed code only. The SMTP host is not DNS-pinned: `smtplib` resolves it again on connect (the admin probe checks the address first; see the email notes in `server/README.md`).
 - Tests mock HTTP with respx / fake sockets; never hit real vendors in pytest.

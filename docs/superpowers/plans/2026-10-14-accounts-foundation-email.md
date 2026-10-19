@@ -575,3 +575,37 @@ admin/src/
 ## 未验证(本计划范围)
 
 真实 QQ SMTP 发信 / 到达率 / 垃圾箱 / 限额;Postgres 上的 `0021`、`0022`;反向代理后的 `client_ip`;多进程下的进程内限流;iOS / Android 上的 `one-time-code` 自动填充与键盘;360 px 英文标签(模拟以外);桌面端 `enjoy/` 的实际提示文案显示。
+
+## 执行结果(Z 车道,服务端;2026-10-19)
+
+分支 `feat/acct-s`,服务端车道。网页车道与全量测试本次未跑(用户要求只跑定向测试)。
+
+**提交**
+- `f4fd267f test(server): accounts privacy sweep`:新增 `server/tests/test_accounts_privacy_sweep.py`(计划原名 `test_accounts_privacy.py`,按任务单改名)。
+- `docs(server): accounts v2 email setup, rollout and results`:本提交(README、各 `CLAUDE.md`、本节)。
+
+**定向测试(实际运行)**
+- `cd server && .venv/Scripts/python.exe -m pytest -q tests/test_verification.py tests/test_accounts_*.py tests/test_email_*.py tests/test_identities.py tests/test_mailer.py tests/test_nicknames.py tests/test_architecture.py tests/test_admin_user_email.py tests/test_admin_doctor.py tests/test_admin_routes_guarded.py tests/test_migrations.py` → **404 passed**, 0 failed(88 s)。其中隐私总扫为 1 个测试,通过。
+- 隐私总扫的语料非空(运行时检查过):发出 4 个验证码,收集到 7 个错误响应体,审计表与设置修订表都有行。
+- 未运行:`web/src/architecture.test.ts`、网页测试、迁移在 Postgres 上的测试、全量 `pytest`。
+
+**隐私总扫发现**:没有真实泄漏。未放宽 `tests/test_architecture.py`。
+
+**与计划 / 指示不一致之处**
+- 计划与 INDEX §10 写的是「部署后」跑 SMTP 体检;用户指示与 `.env.example` 写的是「部署前」。SMTP 体检只存在于本分支(`main` 上没有 `smtp` 上游),所以只能在新版本运行后执行。`server/README.md` 的做法是:新版本已运行、`EMAIL_BACKEND` 仍为 `off` 时体检,通过后才开启发信。这个顺序需要用户确认。
+- 隐私总扫没有覆盖邀请码注册路径(`REGISTRATION_MODE=invite`):现有辅助函数无法简单地复用它。
+
+**已知限制(如实记录)**
+1. 同一邮箱的冷却与每日上限可能被并发请求抢先突破;此时仍受全站每日上限(`EMAIL_DAILY_GLOBAL`)与按 IP 限流(`EMAIL_CODES_PER_IP_HOURLY` 等)约束。
+2. 强制绑定开始时,已经打开的 WebSocket 不会被断开。
+3. 绑定邮箱不需要密码(规格 §4.3);换绑才需要当前密码。
+4. SMTP 体检会在公网地址检查之后再次解析 DNS(`smtplib` 按主机名连接),不是 DNS 钉住;保存的 `smtp_host` 在真实发信器上不做公网地址检查(只有超级管理员能改)。
+5. 验证码通过之后,若调用方在失败路径上异常退出且没有走 `release_attempt`,这一次尝试仍会计入(至多多计一次)。
+
+**未验证(本次不能验证,照实标注)**
+- 真实 SMTP 发信与到达率(包括 QQ、163、126)。
+- Postgres 上的迁移与行为;真正多连接数据库上的并发。
+- SMTP 体检的 DNS 再解析时间窗口。
+- QQ / 163 / 126 是否把 `+` 当作子地址。
+- 桌面端 `enjoy/` 的实际行为(未运行)。
+- 360–375 px 的版面(未在浏览器中检查)。
