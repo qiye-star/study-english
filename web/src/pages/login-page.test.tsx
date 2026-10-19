@@ -53,19 +53,36 @@ describe("LoginPage", () => {
     expect(mock.calls).toHaveLength(0);
   });
 
-  it("registers with an optional invite code", async () => {
-    const mock = setup({ "POST /api/users": () => json(USER) });
-    await userEvent.click(screen.getByTestId("login-mode-toggle"));
-    await userEvent.type(screen.getByTestId("login-username"), "ab");
+  it("accepts an email in the username field and sends it trimmed and lowercased", async () => {
+    const mock = setup({ "POST /api/sessions": () => json(USER) });
+    await userEvent.type(screen.getByTestId("login-username"), " Alice@Example.COM ");
     await userEvent.type(screen.getByTestId("login-password"), "password123");
     await userEvent.click(screen.getByTestId("login-submit"));
-    expect(screen.getByTestId("login-error")).toHaveTextContent("Username: 3–32");
-    expect(mock.calls).toHaveLength(0);
-    await userEvent.type(screen.getByTestId("login-username"), "c");
-    await userEvent.type(screen.getByTestId("register-invite"), "invite-1");
-    await userEvent.click(screen.getByTestId("login-submit"));
     expect(await screen.findByText("practice home")).toBeInTheDocument();
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ username: "abc", password: "password123", invite_code: "invite-1" });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice@example.com", password: "password123" });
+  });
+
+  it("no longer has a register mode, and links to registration and password reset", () => {
+    setup({});
+    expect(screen.queryByTestId("login-mode-toggle")).toBeNull();
+    expect(screen.queryByTestId("register-invite")).toBeNull();
+    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/register");
+    expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByLabelText("Username or email")).toBeInTheDocument();
+  });
+
+  it("shows a notice after a password reset, asking the user to log in with the new password", () => {
+    const mock = createFetchMock({});
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/login", state: { notice: "passwordReset" } }]}>
+        <AuthProvider fetchImpl={mock.fetch}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("login-notice")).toHaveTextContent("Password reset. Log in with your new password.");
   });
 
   it("shows a friendly error when a 2xx response is not JSON", async () => {

@@ -1,9 +1,10 @@
 import camelcaseKeys from "camelcase-keys";
 import decamelizeKeys from "decamelize-keys";
-import type { AuthUser, UserProfile } from "./types";
+import type { AuthUser, RegisterInput, UserProfile } from "./types";
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  /** 429 等响应的 Retry-After(秒);没有或无法解析时为 undefined。 */
+  constructor(public readonly status: number, message: string, public readonly retryAfter?: number) {
     super(message);
     this.name = "ApiError";
   }
@@ -21,9 +22,12 @@ export interface RequestOptions {
 
 export interface ApiClientOptions {
   getToken: () => string | null;
-  onUnauthorized?: () => void;
+  /** 带着 `token` 的请求被拒(401,或已停用的 403):调用方据此判断这个 token 是否仍是当前会话。 */
+  onUnauthorized?: (token: string) => void;
   /** 503 "Maintenance":服务端进入维护模式,应用据此立即刷新维护状态(不用等下一次轮询) */
   onMaintenance?: () => void;
+  /** 403 `email_binding_required`:强制绑定开启且本账号未绑定邮箱。网页据此跳到绑定页。 */
+  onBindingRequired?: () => void;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
 }
@@ -51,6 +55,11 @@ function withTimeout(ms: number, outer?: AbortSignal) {
       outer?.removeEventListener("abort", abort);
     },
   };
+}
+
+function retryAfterSeconds(response: Response): number | undefined {
+  const seconds = Number(response.headers.get("Retry-After"));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 async function errorMessage(response: Response): Promise<string> {
@@ -91,13 +100,14 @@ export class ApiClient {
       throw new ApiError(0, aborted ? (signal?.aborted ? "Request aborted" : "Request timed out") : "Network error");
     }
     try {
-      if (response.status === 401 && token) this.options.onUnauthorized?.();
+      if (response.status === 401 && token) this.options.onUnauthorized?.(token);
       if (!response.ok) {
         const message = await errorMessage(response);
         // An account disabled by an admin: the token is useless, so sign out like a 401 (logging in again shows why).
-        if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.();
+        if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.(token);
         if (response.status === 503 && message === "Maintenance") this.options.onMaintenance?.();
-        throw new ApiError(response.status, message);
+        if (response.status === 403 && message === "email_binding_required") this.options.onBindingRequired?.();
+        throw new ApiError(response.status, message, retryAfterSeconds(response));
       }
       if (as === "raw") return response as unknown as T;
       if (as === "blob") return (await response.blob()) as unknown as T;
@@ -112,11 +122,8 @@ export class ApiClient {
     return this.request("POST", "/api/sessions", { json: { provider: "password", username, password }, auth: false });
   }
 
-  register(username: string, password: string, inviteCode?: string): Promise<AuthUser> {
-    return this.request("POST", "/api/users", {
-      json: { username, password, ...(inviteCode ? { inviteCode } : {}) },
-      auth: false,
-    });
+  register(input: RegisterInput): Promise<AuthUser> {
+    return this.request("POST", "/api/users", { json: input, auth: false });
   }
 
   me(): Promise<UserProfile> {

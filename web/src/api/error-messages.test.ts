@@ -17,4 +17,7 @@ describe("translateServerError", () => {
     expect(translateServerError(t, new ApiError(403, "Account disabled"))).toBe("This account has been disabled.");
     expect(i18n.t("web.errors.accountDisabled", { lng: "zh-CN" })).toBe("该账号已被停用。");
   });
+  it("keeps an unknown account-style message generic (account messages live in the account feature)", () => {
+    expect(translateServerError(t, new ApiError(422, "Email must not contain user@example.com"))).toBe("Something went wrong.");
+  });
 });

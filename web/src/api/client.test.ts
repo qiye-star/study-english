@@ -124,9 +124,9 @@ describe("ApiClient", () => {
     });
     expect(await api.login("alice", "pw")).toEqual({ id: "12345678", name: "alice", createdAt: "t", accessToken: "new" });
     expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice", password: "pw" });
-    await api.register("bob", "password1", "inv");
+    await api.register({ username: "bob", password: "password1", inviteCode: "inv" });
     expect(JSON.parse(mock.calls[1].body as string)).toEqual({ username: "bob", password: "password1", invite_code: "inv" });
-    await api.register("carol", "password1");
+    await api.register({ username: "carol", password: "password1" });
     expect(JSON.parse(mock.calls[2].body as string)).toEqual({ username: "carol", password: "password1" });
     expect((await api.me()).name).toBe("alice");
     expect(await api.getConfig("tts_providers_v2")).toEqual({ enjoyai: { models: ["openai/tts-1"] } });
@@ -167,5 +167,27 @@ describe("ApiClient", () => {
     expect(me.nickname).toBeUndefined();
     expect(me.displayName).toBeUndefined();
     expect(me.name).toBe("alice");
+  });
+
+  it("a 403 email_binding_required calls onBindingRequired once and not onUnauthorized", async () => {
+    const onUnauthorized = vi.fn();
+    const onBindingRequired = vi.fn();
+    const { api } = make(
+      { "GET /api/conversations": () => json({ error: "email_binding_required" }, 403) },
+      { onUnauthorized, onBindingRequired },
+    );
+    await expect(api.request("GET", "/api/conversations")).rejects.toMatchObject({ status: 403 });
+    expect(onBindingRequired).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("registers with email, code, nickname as snake_case keys", async () => {
+    const user = { id: "12345678", name: "dan", created_at: "t", access_token: "new" };
+    const { api, mock } = make({ "POST /api/users": () => json(user) });
+    await api.register({ username: "dan", password: "password1", email: "dan@example.com", emailCode: "123456", nickname: "Dan", inviteCode: "inv" });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({
+      username: "dan", password: "password1", email: "dan@example.com", email_code: "123456", nickname: "Dan", invite_code: "inv",
+    });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
   });
 });

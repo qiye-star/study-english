@@ -1,0 +1,89 @@
+{
+  "web": {
+    "account": {
+      "title": "账号",
+      "nickname": {
+        "label": "昵称",
+        "hint": "房间里其他人看到的名字。留空则显示登录名。",
+        "save": "保存",
+        "saved": "昵称已保存"
+      },
+      "password": {
+        "open": "修改密码",
+        "title": "修改密码",
+        "current": "当前密码",
+        "new": "新密码",
+        "hint": "至少 8 位。",
+        "tooShort": "至少需要 8 位。",
+        "wrong": "当前密码不正确",
+        "submit": "更新密码",
+        "changed": "密码已修改,其他设备已退出登录。"
+      },
+      "errors": {
+        "invalidCode": "验证码无效或已过期。",
+        "tooManyCodes": "验证码发送过于频繁,请稍后再试。",
+        "emailUnavailable": "邮件服务暂时不可用,请稍后再试。",
+        "emailDomainNotAllowed": "该邮箱域名不支持。",
+        "emailNotConfigured": "服务器未配置邮件服务。",
+        "emailAlreadyBound": "该账号已绑定邮箱。",
+        "emailVerificationRequired": "需要邮箱验证,请在网页端注册。",
+        "nicknameInvalid": "这个昵称不能使用",
+        "unknown": "出了点问题,请再试一次。"
+      },
+      "register": {
+        "title": "注册账号",
+        "codeSent": "如果这个邮箱可以收信,验证码会发送过去。",
+        "username": "用户名",
+        "nickname": "昵称",
+        "nicknameHint": "1–20 个字,房间里其他人看到的名字。",
+        "password": "密码",
+        "passwordHint": "至少 8 位。",
+        "invite": "邀请码(可选)",
+        "submit": "注册",
+        "login": "已有账号?去登录",
+        "errors": {
+          "nicknameInvalid": "昵称需要 1–20 个字。"
+        }
+      },
+      "code": {
+        "email": "邮箱",
+        "send": "发送验证码",
+        "resendIn": "{{seconds}} 秒后可重发",
+        "resend": "重新发送",
+        "codeInput": "验证码",
+        "emailInvalid": "请输入正确的邮箱地址。",
+        "emailChanged": "邮箱已修改,请重新发送验证码。",
+        "codeInvalid": "请输入 6 位验证码。"
+      },
+      "forgot": {
+        "title": "重置密码",
+        "note": "如果该邮箱已注册,你会收到验证码。",
+        "newPassword": "新密码",
+        "submit": "重置密码",
+        "back": "返回登录"
+      },
+      "bind": {
+        "title": "绑定邮箱",
+        "changeTitle": "更换邮箱",
+        "required": "绑定邮箱后才能继续使用账号。",
+        "deadline": "请在 {{time}} 前绑定。",
+        "changeNote": "当前邮箱:{{email}}。更换需要输入当前密码。",
+        "passwordRequired": "请输入当前密码。",
+        "submit": "绑定",
+        "submitChange": "更换邮箱"
+      },
+      "binding": {
+        "pending": "请绑定邮箱,以免账号受限。",
+        "pendingUntil": "请在 {{time}} 前绑定邮箱,以免账号受限。",
+        "bindNow": "去绑定"
+      },
+      "email": {
+        "title": "邮箱",
+        "unbound": "未绑定",
+        "maskedVerified": "{{email}} · 已验证",
+        "bind": "绑定邮箱",
+        "change": "更换邮箱"
+      }
+    }
+  }
+}

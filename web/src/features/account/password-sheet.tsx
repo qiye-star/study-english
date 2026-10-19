@@ -1,6 +1,8 @@
+import "./locales";
 import { useId, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { translateServerError } from "~/api/error-messages";
+import { ACCOUNT_ERROR_KEYS } from "./account-api";
 import { useAuth } from "~/auth/auth-context";
 import { BottomSheet, BottomSheetContent, BottomSheetHeader } from "~/components/bottom-sheet";
 
@@ -34,7 +36,7 @@ export function PasswordSheet({ open, onOpenChange, onChanged }: { open: boolean
       onChanged();
       onOpenChange(false);
     } catch (err) {
-      setError(translateServerError(t, err, { "Wrong password": "web.account.password.wrong" }));
+      setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
     } finally {
       setBusy(false);
     }

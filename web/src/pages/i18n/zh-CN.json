@@ -14,7 +14,7 @@
       "colorScheme": "外观", "colorSchemeHint": "跟随系统,或固定为浅色、深色",
       "colorSchemeOptions": { "system": "跟随系统", "light": "浅色", "dark": "深色" }
     },
-    "login": { "tagline": "每天开口说英语。" },
+    "login": { "usernameOrEmail": "用户名或邮箱", "forgotPassword": "忘记密码?", "createAccount": "注册账号", "passwordReset": "密码已重置,请用新密码登录。", "tagline": "每天开口说英语。" },
     "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
   }
 }

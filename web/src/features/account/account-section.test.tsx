@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearAuth, saveAuth } from "~/api/auth-storage";
+import { clearAuth, loadAuth, saveAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { AccountSection } from "./account-section";
@@ -11,7 +12,11 @@ const ME = { id: "12345678", name: "alice", created_at: "t", nickname: "小明",
 
 function renderSection(routes: Parameters<typeof createFetchMock>[0]) {
   const mock = createFetchMock({ "GET /api/me": () => json(ME), ...routes });
-  const wrapper = ({ children }: { children: ReactNode }) => <AuthProvider fetchImpl={mock.fetch}>{children}</AuthProvider>;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <MemoryRouter>
+      <AuthProvider fetchImpl={mock.fetch}>{children}</AuthProvider>
+    </MemoryRouter>
+  );
   render(<AccountSection />, { wrapper });
   return mock;
 }
@@ -24,7 +29,10 @@ describe("AccountSection", () => {
 
   it("shows the current nickname and saves a new one with PATCH /api/me", async () => {
     const mock = renderSection({
-      "PATCH /api/me": (call) => json({ ...ME, nickname: JSON.parse(call.body as string).nickname }),
+      "PATCH /api/me": (call) => {
+        const nickname = JSON.parse(call.body as string).nickname as string;
+        return json({ nickname, display_name: nickname });
+      },
     });
     const input = await screen.findByLabelText("Nickname");
     await waitFor(() => expect(input).toHaveValue("小明"));
@@ -35,6 +43,7 @@ describe("AccountSection", () => {
     const patch = mock.calls.find((c) => c.method === "PATCH");
     expect(JSON.parse(patch?.body as string)).toEqual({ nickname: "Emma Lee" });
     expect(patch?.headers.get("Authorization")).toBe("Bearer tok");
+    expect(loadAuth()?.user.displayName).toBe("Emma Lee");
   });
 
   it("shows a localized message when the server rejects the nickname (422), without echoing the input", async () => {
@@ -84,5 +93,27 @@ describe("AccountSection", () => {
     renderSection({});
     const save = await screen.findByRole("button", { name: "Save" });
     expect(save.className).toContain("whitespace-nowrap");
+  });
+
+  it("shows the masked email and its verified state, and links to the bind page to change it", async () => {
+    renderSection({
+      "GET /api/me": () => json({ ...ME, email_masked: "a***@example.com", email_verified: true, email_binding: { state: "none", deadline: null } }),
+    });
+    const row = await screen.findByTestId("account-email-open");
+    expect(row).toHaveTextContent("a***@example.com");
+    expect(row).toHaveTextContent("Verified");
+    expect(row).toHaveTextContent("Change email");
+    expect(row).toHaveAttribute("href", "/account/email");
+  });
+
+  it("offers to bind an email when none is bound, without showing any address", async () => {
+    renderSection({
+      "GET /api/me": () => json({ ...ME, email_verified: false, email_binding: { state: "none", deadline: null } }),
+    });
+    const row = await screen.findByTestId("account-email-open");
+    expect(row).toHaveTextContent("Not bound");
+    expect(row).toHaveTextContent("Bind email");
+    expect(row).toHaveAttribute("href", "/account/email");
+    expect(row.textContent).not.toMatch(/@/);
   });
 });
