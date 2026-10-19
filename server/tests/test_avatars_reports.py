@@ -111,12 +111,12 @@ async def test_reason_must_be_from_the_list(client, shared_room):
     assert r.status_code == 422
 
 
-async def test_reporting_yourself_or_a_bad_id_is_404(client, shared_room):
+async def test_reporting_yourself_is_404_and_a_malformed_id_is_422(client, shared_room):
     own = await report(client, shared_room["bob"], shared_room["bob_id"])
     bad = await client.post("/api/avatar-reports", json={"user_id": "abc", "reason": "other"},
                             headers=shared_room["alice"])
     assert own.status_code == 404 and own.json() == NOT_FOUND
-    assert bad.status_code == 404 and bad.json() == NOT_FOUND
+    assert bad.status_code == 422 and set(bad.json()) == {"error"}
 
 
 async def test_reporting_needs_a_token(client, shared_room):
@@ -136,3 +136,55 @@ async def test_report_logs_never_carry_the_avatar_id(client, shared_room, caplog
     assert (await report(client, shared_room["alice"], shared_room["bob_id"])).status_code == 201
     assert any("report" in record.getMessage() for record in caplog.records)
     assert shared_room["avatar"] not in caplog.text
+
+
+async def test_the_member_id_as_a_number_works_like_a_string(app, client, shared_room):
+    # The web client sends the room member's id as a JSON number.
+    created = await client.post("/api/avatar-reports", json={"user_id": shared_room["bob_id"], "reason": "other"},
+                                headers=shared_room["alice"])
+    assert created.status_code == 201, created.text
+    assert created.json() == {"ok": True}
+    again = await client.post("/api/avatar-reports", json={"user_id": shared_room["bob_id"], "reason": "other"},
+                              headers=shared_room["alice"])
+    assert again.status_code == 200
+    assert await report_rows(app) == 1
+
+
+async def test_a_numeric_and_a_string_id_store_the_same_report(app, client, shared_room):
+    carol_headers = shared_room["carol"]
+    await join(client, carol_headers, shared_room["room"])
+    as_number = await client.post("/api/avatar-reports", json={"user_id": shared_room["bob_id"], "reason": "other"},
+                                  headers=shared_room["alice"])
+    as_string = await report(client, carol_headers, shared_room["bob_id"], reason="other")
+    assert as_number.status_code == 201 and as_string.status_code == 201
+    async with app.state.sessionmaker() as session:
+        rows = (await session.execute(select(AvatarReport).order_by(AvatarReport.id))).scalars().all()
+    assert len(rows) == 2
+    assert {row.avatar_user_id for row in rows} == {shared_room["bob_id"]}
+    assert len({row.avatar_id for row in rows}) == 1
+    assert {row.reason for row in rows} == {"other"}
+
+
+@pytest.mark.parametrize("bad", [True, 1.5, "abc", "1; drop", -3, 0, "0", "-3", 123456789012, "123456789012",
+                                 2**31, None, [1], {"id": 1}, " 2", "2\n"])
+async def test_an_invalid_member_id_is_422_and_never_echoed(client, shared_room, bad):
+    r = await client.post("/api/avatar-reports", json={"user_id": bad, "reason": "other"},
+                          headers=shared_room["alice"])
+    assert r.status_code == 422, r.text
+    assert set(r.json()) == {"error"}
+    assert "drop" not in r.text and "abc" not in r.text and "1.5" not in r.text
+    assert "123456789012" not in r.text and "12345678901" not in r.text
+
+
+async def test_unknown_outside_and_self_are_the_same_404_for_numbers_and_strings(client, shared_room):
+    cases = [
+        (shared_room["alice"], 987654321),           # unknown user
+        (shared_room["alice"], shared_room["carol_id"]),  # exists, but shares no room with alice
+        (shared_room["bob"], shared_room["bob_id"]),      # reporting yourself
+    ]
+    for headers, uid in cases:
+        by_number = await client.post("/api/avatar-reports", json={"user_id": uid, "reason": "other"},
+                                      headers=headers)
+        by_string = await report(client, headers, uid)
+        assert by_number.status_code == 404 and by_number.json() == NOT_FOUND
+        assert by_string.status_code == 404 and by_string.json() == NOT_FOUND

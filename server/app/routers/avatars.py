@@ -1,9 +1,10 @@
 """头像端点(计划 S4–S6):上传 / 删除自己的头像。路由只做 HTTP,逻辑在 services/avatars.py(INDEX X31)。"""
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, StrictInt, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
 
@@ -92,9 +93,24 @@ async def read_avatar(
     })
 
 
+_MAX_USER_ID = 2**31 - 1
+_DIGITS = re.compile(r"[0-9]{1,10}")
+
+
 class ReportIn(BaseModel):
-    user_id: str = Field(max_length=20)  # the reported user's id, as /api/rooms members show it
+    # The reported user's id, as /api/rooms members show it: the web client sends a JSON number, others a string.
+    # StrictInt rejects bools and floats; the str branch never coerces numbers. Both forms are range-checked.
+    user_id: StrictInt | str
     reason: Literal["inappropriate", "impersonation", "other"]
+
+    @field_validator("user_id", mode="after")
+    @classmethod
+    def _id_in_range(cls, value: int | str) -> int | str:
+        if isinstance(value, str) and not _DIGITS.fullmatch(value):
+            raise ValueError("invalid user id")
+        if not 1 <= int(value) <= _MAX_USER_ID:
+            raise ValueError("invalid user id")
+        return value
 
 
 @router.post("/avatar-reports")
@@ -108,7 +124,7 @@ async def report_avatar(
     if not request.app.state.avatar_report_limiter.allow(str(user.id)):
         raise HTTPException(429, "Too many requests, please try again later")
     try:
-        created = await avatars.report(session, user, payload.user_id, payload.reason, utcnow())
+        created = await avatars.report(session, user, str(payload.user_id), payload.reason, utcnow())
     except avatars.ReportError as exc:
         message = "No avatar to report" if exc.kind == "no_avatar" else "User not found"
         raise HTTPException(404, message) from None
