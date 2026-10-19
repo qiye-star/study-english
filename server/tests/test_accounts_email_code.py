@@ -67,8 +67,43 @@ async def test_plus_tag_and_case_variants_count_as_the_registered_email(app, cli
     assert (await _post(client, "Known.User+promo@EXAMPLE.com")).status_code == 200
     await drain_background(app)
     (to, _s, body), = fake_sender(app).outbox
-    assert to == "known.user+promo@example.com"  # mailed to what the user typed (normalised), as a notice
+    assert to == KNOWN  # the notice goes to the STORED address, never to the typed variant (F1)
     assert not re.search(r"\d{6}", body)
+
+
+async def test_reset_code_goes_to_the_stored_address_not_the_typed_variant(app, client, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    enable_email(app)
+    await _known_user(app, client, email="bob@x.test", name="bob")
+    good = await _post(client, "bob@x.test", "reset")
+    await drain_background(app)
+    await age_codes(app, seconds=61)
+    typed = "bob+x@x.test"  # on another mail system `+` is an ordinary character: someone else's mailbox
+    variant = await _post(client, typed, "reset")
+    assert variant.status_code == good.status_code == 200 and variant.content == good.content
+    await drain_background(app)
+    assert [m[0] for m in fake_sender(app).outbox] == ["bob@x.test", "bob@x.test"]
+    assert fake_sender(app).purposes == ["reset", "reset"]
+    assert typed not in caplog.text and "bob@x.test" not in caplog.text
+
+
+async def test_registered_notice_goes_to_the_stored_address_not_the_typed_variant(app, client):
+    enable_email(app)
+    await _known_user(app, client, email="bob@x.test", name="bob")
+    assert (await _post(client, "bob+x@x.test", "register")).status_code == 200
+    await drain_background(app)
+    assert [m[0] for m in fake_sender(app).outbox] == ["bob@x.test"]
+    assert fake_sender(app).purposes == ["notice_registered"]
+
+
+async def test_unknown_reset_address_sends_nothing(app, client):
+    enable_email(app)
+    await _known_user(app, client, email="bob@x.test", name="bob")
+    known = await _post(client, "bob@x.test", "reset")
+    unknown = await _post(client, "carol+x@x.test", "reset")
+    assert unknown.status_code == 200 and unknown.content == known.content
+    await drain_background(app)
+    assert [m[0] for m in fake_sender(app).outbox] == ["bob@x.test"]
 
 
 async def test_reset_code_for_known_email_is_sent_and_for_unknown_nothing_but_the_same_answer(app, client):

@@ -10,6 +10,7 @@
 | reset | 已注册 | 真码 | `reset_code` |
 | reset | 未注册 | 隐藏码 | 无(只读检查全局额度,耗尽时同样 503,不占额度) |
 
+reset 与「已注册」通知发到库里存的那个地址(`+tag` 变体只用来查人,F1),绝不发到请求里输入的写法。
 会话、设置、发信器与时钟都由调用方传入,本模块不读 `app.state`,不记录日志。
 """
 from datetime import datetime, timezone
@@ -32,6 +33,7 @@ async def request_code(session: AsyncSession, settings: Settings, mailer: Mailer
     user = await identities.find_user_by_email(session, settings, email)
     cap, day = settings.email_daily_global, now.astimezone(timezone.utc).date()
     code = kind = None
+    recipient = email  # replaced by the STORED address below: only bind / change_email mail the typed one
     if purpose == "register" and user is None:
         code, _ = await verification.issue(session, settings, target, "register", now)
         kind = "register_code"
@@ -40,16 +42,18 @@ async def request_code(session: AsyncSession, settings: Settings, mailer: Mailer
         if not await verification.claim_global_quota(session, cap, day):  # the notice is a real mail
             raise VerificationError("global_daily")
         kind = "already_registered"
+        recipient = await identities.stored_email(session, settings, user.id)
     elif user is not None:
         code, _ = await verification.issue(session, settings, target, "reset", now, user_id=user.id)
         kind = "reset_code"
+        recipient = await identities.stored_email(session, settings, user.id)
     else:
         await verification.hidden_issue(session, settings, target, "reset", now)
         if not await verification.global_quota_left(session, cap, day):
             raise VerificationError("global_daily")
     await session.commit()  # the mail goes out only after the row is durable
-    if kind is not None:
-        mailer.enqueue(kind, email, code=code, lang=lang)
+    if kind is not None and recipient is not None:  # recipient None: the stored copy is unreadable, send nothing
+        mailer.enqueue(kind, recipient, code=code, lang=lang)
 
 
 async def request_bound_code(session: AsyncSession, settings: Settings, mailer: Mailer, user_id: int, email: str,

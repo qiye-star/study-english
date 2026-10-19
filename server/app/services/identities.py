@@ -2,7 +2,7 @@
 
 纯函数:会话、设置与时间都由调用方传入;不提交事务(调用方与其他写入同一次提交);不记录日志。
 邮箱:`subject_hmac` = HMAC-SHA256(pepper, "email:" + identity_key) 用于查找与唯一性,`subject_enc` 是 secretbox
-加密的规范化原值(保留 +标签,发信发到用户输入的地址)。邮箱、HMAC、密文都不进日志或异常信息。
+加密的规范化原值(保留 +标签;关于账号的信(找回、已注册通知)发到这个存下来的地址,绝不发到请求者输入的写法)。邮箱、HMAC、密文都不进日志或异常信息。
 """
 import hashlib
 import hmac
@@ -113,6 +113,19 @@ async def find_user_by_email(session: AsyncSession, settings: Settings, email: s
     return (await session.execute(
         select(User).join(UserIdentity, UserIdentity.user_id == User.id)
         .where(UserIdentity.provider == EMAIL_PROVIDER, UserIdentity.subject_hmac == key))).scalar_one_or_none()
+
+
+async def stored_email(session: AsyncSession, settings: Settings, user_id: int) -> str | None:
+    """The address stored for the user's email identity (decrypted), or None when there is none or the keys are
+    gone (never raises). Mail about an ACCOUNT goes here, never to a differently spelled address the requester typed."""
+    token = (await session.execute(select(UserIdentity.subject_enc).where(
+        UserIdentity.provider == EMAIL_PROVIDER, UserIdentity.user_id == user_id))).scalar_one_or_none()
+    if token is None:
+        return None
+    try:
+        return decrypt_email(_box(settings), token)
+    except Exception:  # noqa: BLE001 - a wrong key or a damaged copy: send nothing, log nothing
+        return None
 
 
 async def masked_email(session: AsyncSession, settings: Settings, user: User) -> str | None:
