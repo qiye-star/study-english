@@ -4,7 +4,9 @@
 不读 `app.state`。路由在 `asyncio.to_thread` 里调用 `process` 与 `store`(Pillow 解码与磁盘写入都是阻塞操作)。
 错误只用 `AvatarError.kind` 表达,不带图片内容、文件名或路径。
 """
+import asyncio
 import io
+import logging
 import os
 import re
 import secrets
@@ -12,8 +14,10 @@ import warnings
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.models import User
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 OUTPUT_SIDE = 256
@@ -21,6 +25,7 @@ MAX_SIDE = 8000
 MAX_PIXELS = 20_000_000
 _ALLOWED_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
 _ID_RE = re.compile(r"[0-9a-f]{32}")
+logger = logging.getLogger(__name__)
 
 # 解压炸弹防护与 `process` 自己的像素检查取同一上限(R-V1)。
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
@@ -130,3 +135,40 @@ def avatar_url(avatar_id: str | None) -> str | None:
     if avatar_id is None:
         return None
     return f"/api/avatars/{_check_id(avatar_id)}"
+
+
+# ---- 数据库逻辑(计划 S4、S5、S6):会话、设置、用户与时间都是参数,不读 app.state(INDEX X32) ----
+
+async def upload(session: AsyncSession, settings: Settings, user: User, raw: bytes) -> str:
+    """R-V1、R-V2:处理图片、写入新文件、提交数据库,提交成功后才删除旧文件。返回新的相对地址。
+    提交失败时删除刚写出的新文件并回滚,旧头像保持不变。"""
+    png = await asyncio.to_thread(process, raw)
+    new_id = await asyncio.to_thread(store, settings, png)
+    old_id = user.avatar_id
+    user.avatar_id = new_id
+    try:
+        await session.commit()
+    except BaseException:
+        await session.rollback()
+        remove(settings, new_id)
+        raise
+    remove(settings, old_id)  # after the commit; remove() never raises
+    logger.debug("avatar stored bytes=%d", len(png))
+    return avatar_url(new_id)
+
+
+async def clear(session: AsyncSession, settings: Settings, user: User) -> None:
+    """删除自己的头像;没有头像时什么也不做(幂等)。文件在提交之后删除。"""
+    old_id = user.avatar_id
+    if old_id is None:
+        return
+    user.avatar_id = None
+    try:
+        await session.commit()
+    except BaseException:
+        await session.rollback()
+        raise
+    remove(settings, old_id)
+    logger.debug("avatar removed")
+
+
