@@ -281,9 +281,12 @@ async def test_the_database_never_holds_the_address_or_the_code(app, client):
     assert PEPPER not in dump
 
 
-def test_contains_code_matches_whole_tokens_only():
+def test_contains_code_flags_codes_glued_to_letters_and_ignores_hex_digests():
     assert contains_code("code=123456", "123456") and contains_code('"123456"', "123456")
-    assert not contains_code("hmac 9a1234567b", "123456") and not contains_code("ab123456cd", "123456")
+    assert contains_code("code123456", "123456")  # glued to letters: still a leak
+    digest = "9a" * 10 + "123456" + "fe" * 19  # a 64-hex-char HMAC that happens to contain the code
+    assert len(digest) == 64 and not contains_code(digest, "123456")
+    assert not contains_code("1234567", "123456") and not contains_code("hmac 9a1234567b", "123456")
 
 
 async def test_every_send_is_metered_with_status_only(app, client):

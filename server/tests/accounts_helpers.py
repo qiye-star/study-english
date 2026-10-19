@@ -12,10 +12,15 @@ from app.models import User, VerificationCode, utcnow
 PEPPER = "test-pepper-" + "x" * 32
 
 
+_HEX_DIGEST = re.compile(r"[0-9a-fA-F]{32,}")
+
+
 def contains_code(text: str, code: str) -> bool:
-    """True when the 6-digit `code` occurs as a whole token. A bare `code in text` also matches inside hex digests
-    (HMACs) or longer numbers, which made privacy assertions flaky."""
-    return re.search(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])", text) is not None
+    """True when the 6-digit `code` occurs not adjacent to another digit, so a leak glued to letters (`code123456`)
+    is caught. Runs of 32+ hex characters (HMAC digests) are removed first, so a digest that happens to contain the
+    code is not a false failure. A bare `code in text` would also match inside longer numbers."""
+    scrubbed = _HEX_DIGEST.sub(" ", text)
+    return re.search(rf"(?<![0-9]){code}(?![0-9])", scrubbed) is not None
 
 
 def enable_email(app, **overrides) -> FakeSender:
