@@ -148,4 +148,61 @@ describe("MyInvitePanel", () => {
     renderPanel({ "GET /api/me/invite": () => json({ error: "Invites are not configured" }, 503) });
     expect(await screen.findByRole("alert")).toHaveTextContent("Invites are not available right now.");
   });
+
+  it("a live code that cannot be shown (rotate_required) asks to replace it, never offers a create", async () => {
+    const mock = renderPanel({
+      "GET /api/me/invite": () => json({ eligible: true, reason: "rotate_required", available_at: null, code: null, uses: 2, cap: 10, invitees: [] }),
+      "POST /api/me/invite/rotate": () => json(eligible({ code: "KMNPQ-RSTVW", uses: 2 })),
+    });
+    expect(await screen.findByTestId("my-invite-reason")).toHaveTextContent("Your current code can no longer be shown. Replace it to get a new one.");
+    expect(screen.queryByRole("button", { name: "Create my invite code" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Replace invite code" }));
+    await userEvent.click(within(await screen.findByTestId("my-invite-confirm")).getByRole("button", { name: "Replace code" }));
+    expect(await screen.findByTestId("my-invite-code")).toHaveTextContent("KMNPQ-RSTVW");
+    expect(JSON.parse(mock.calls.find((c) => c.method === "POST")?.body as string)).toEqual({ confirm: true });
+  });
+
+  it("a refused create (403 Not eligible) re-reads the state and explains the reason with its date", async () => {
+    const at = "2026-10-20T00:00:00Z";
+    let state = 0;
+    renderPanel({
+      "GET /api/me/invite": () => (state++ === 0
+        ? json(eligible())
+        : json({ eligible: false, reason: "too_new", available_at: at, code: null, uses: 0, cap: 10, invitees: [] })),
+      "POST /api/me/invite": () => json({ error: "Not eligible", reason: "too_new", available_at: at }, 403),
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Create my invite code" }));
+    expect(await screen.findByTestId("my-invite-reason")).toHaveTextContent(`You can create an invite code from ${dateOf(at)}.`);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("a replace that finds no code (409) re-reads the state and offers to create one", async () => {
+    let state = 0;
+    renderPanel({
+      "GET /api/me/invite": () => (state++ === 0
+        ? json(eligible({ code: CODE, uses: 1 }))
+        : json(eligible())),
+      "POST /api/me/invite/rotate": () => json({ error: "No invite code to replace" }, 409),
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Replace invite code" }));
+    await userEvent.click(within(await screen.findByTestId("my-invite-confirm")).getByRole("button", { name: "Replace code" }));
+    expect(await screen.findByRole("button", { name: "Create my invite code" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("my-invite-confirm")).toBeNull();
+  });
+
+  it("when the daily action budget is spent (429) it says to try again later", async () => {
+    renderPanel({
+      "GET /api/me/invite": () => json(eligible()),
+      "POST /api/me/invite": () => json({ error: "Too many requests, please try again later" }, 429),
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Create my invite code" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many invite changes today. Please try again later.");
+  });
+
+  it("explains that the replacement inherits the old used count and says so in the confirmation", async () => {
+    renderPanel({ "GET /api/me/invite": () => json(eligible({ code: CODE, uses: 4 })) });
+    await userEvent.click(await screen.findByRole("button", { name: "Replace invite code" }));
+    expect(await screen.findByTestId("my-invite-confirm")).toHaveTextContent("The new code inherits the 4 of 10 uses already counted");
+  });
 });

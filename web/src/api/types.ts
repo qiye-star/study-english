@@ -57,19 +57,29 @@ export interface InviteeInfo {
   joinedAt: string;
 }
 
-/** 不合格原因(R-I6):`invites_disabled` = 管理员把该用户的上限覆盖为 0(邀请权已收回)。 */
-export type MyInviteReason = "too_new" | "email_unverified" | "disabled_by_admin" | "invites_disabled";
+/**
+ * 「我的邀请码」的原因(server `user_invites`):`invites_disabled` = 上限为 0(邀请权已收回,码不显示);
+ * `rotate_required` = 有码但无法显示(密钥变更),资格仍为 true,需要更换。
+ */
+export type MyInviteReason =
+  | "too_new"
+  | "email_unverified"
+  | "disabled_by_admin"
+  | "invites_disabled"
+  | "rotate_required";
 
-/** `GET/POST /api/me/invite`、`POST /api/me/invite/rotate` 的形状(R-I6、R-I9)。 */
-export type MyInvite =
-  | { eligible: false; reason: MyInviteReason; availableAt: string | null }
-  | {
-      eligible: true;
-      /** 没有码时缺省或为 null。 */
-      code?: string | null;
-      /** 累计使用次数(更换不清零,R-I8)。 */
-      uses: number;
-      /** 累计上限。 */
-      cap: number;
-      invitees: InviteeInfo[];
-    };
+/** `GET/POST /api/me/invite`、`POST /api/me/invite/rotate` 的形状(服务端 `user_invites.view`,R-I6、R-I9)。 */
+export interface MyInvite {
+  eligible: boolean;
+  /** 不合格或需要更换时的原因;合格且正常时为 null。 */
+  reason: MyInviteReason | null;
+  /** 仅 `too_new` 时有:最早可以生成的时间(带时区 ISO)。 */
+  availableAt: string | null;
+  /** 没有码、或码不显示(不合格)时为 null。 */
+  code: string | null;
+  /** 累计使用次数(更换不清零,R-I8)。 */
+  uses: number;
+  /** 累计上限;0 表示邀请权已收回。 */
+  cap: number;
+  invitees: InviteeInfo[];
+}

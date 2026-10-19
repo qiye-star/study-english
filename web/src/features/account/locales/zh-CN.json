@@ -95,6 +95,8 @@
         "bindLink": "去绑定邮箱",
         "disabled": "此账号暂不能使用邀请码。",
         "withdrawn": "邀请权已被收回。如有疑问请联系管理员。",
+        "rotateRequired": "当前邀请码已无法显示。请更换以获得新码。",
+        "rateLimited": "今天的邀请码操作次数已达上限,请稍后再试。",
         "createHint": "生成一个永久邀请码用于分享。码不会变,可以多次使用,但有累计上限。",
         "create": "生成我的邀请码",
         "yourCode": "你的邀请码",
@@ -107,7 +109,7 @@
         "invitees": "已邀请",
         "noInvitees": "还没有人使用你的邀请码。",
         "replace": "更换邀请码",
-        "replaceConfirm": "旧码会立即失效。新码会延续已用 {{uses}} / {{cap}} 次,不会增加名额。",
+        "replaceConfirm": "旧码会立即失效。新码会继承已计入的 {{uses}} / {{cap}} 次使用,不增加名额。",
         "replaceButton": "确认更换",
         "cancel": "取消",
         "replaced": "已更换,旧码已失效。"

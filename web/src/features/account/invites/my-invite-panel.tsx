@@ -1,16 +1,16 @@
 import "../locales";
 import { useEffect, useState, type ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import type { MyInvite } from "~/api/types";
+import type { MyInvite, MyInviteReason } from "~/api/types";
 import { useAuth } from "~/auth/auth-context";
 import { EMAIL_BINDING_PATH } from "~/auth/email-binding";
 import { SectionGroup } from "~/components/section-group";
 import { ACCOUNT_ERROR_KEYS, createMyInvite, fetchMyInvite, rotateMyInvite } from "../account-api";
 import { inviteLink, shareInviteLink, type ShareOutcome } from "./invite-link";
-
-type Eligible = Extract<MyInvite, { eligible: true }>;
 
 const BUTTON = "h-10 flex-none whitespace-nowrap rounded-button bg-blue px-4 text-body font-semibold text-white transition-colors duration-fast disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const GHOST = "h-10 flex-none whitespace-nowrap rounded-button bg-surface-2 px-4 text-body font-medium text-ink transition-colors duration-fast disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -19,8 +19,14 @@ const dateOf = (iso: string, language: string) =>
   new Date(iso).toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" });
 
 /**
- * 「我的邀请码」面板(W2)。码只在本人页面显示,不写入任何存储;分享链接只用 `#` 片段(X27)。
- * 组件只经 account-api 与 ApiClient 通信,不直接 fetch。
+ * 服务端对生成 / 更换的拒绝(403 Not eligible、409 没有码 / 需先更换)只带 error 文案,原因要重新读取状态才拿得到,
+ * 所以面板在这两种情况下重读 GET,以服务端当前状态为准。
+ */
+const isStateRefusal = (err: unknown) => err instanceof ApiError && (err.status === 403 || err.status === 409);
+
+/**
+ * 「我的邀请码」面板(W2 / W-fix)。形状与服务端 `user_invites.view` 一致。码只在本人页面显示,不写入任何存储;
+ * 分享链接只用 `#` 片段(X27)。组件只经 account-api 与 ApiClient 通信,不直接 fetch。
  */
 export function MyInvitePanel() {
   const { t, i18n } = useTranslation();
@@ -47,7 +53,16 @@ export function MyInvitePanel() {
       setStatus(await action());
       onDone?.();
     } catch (err) {
-      setError(err);
+      if (isStateRefusal(err)) {
+        setConfirming(false);
+        try {
+          setStatus(await fetchMyInvite(api));
+        } catch (readErr) {
+          setError(readErr);
+        }
+      } else {
+        setError(err);
+      }
     } finally {
       setBusy(false);
     }
@@ -69,15 +84,37 @@ export function MyInvitePanel() {
     return null; // shared / cancelled:不另外提示
   }
 
-  const errorText = error ? translateServerError(t, error, ACCOUNT_ERROR_KEYS) : null;
+  const replaceProps = (uses: number, cap: number) => ({
+    uses,
+    cap,
+    busy,
+    confirming,
+    onAsk: () => { setNote(null); setConfirming(true); },
+    onCancel: () => setConfirming(false),
+    onConfirm: () => run(() => rotateMyInvite(api), () => {
+      setConfirming(false);
+      setNote(t("web.account.invite.replaced"));
+    }),
+  });
+
+  const errorText = error ? errorMessageFor(t, error) : null;
+  const eligible = status?.eligible === true;
 
   return (
     <SectionGroup title={t("web.account.invite.title")} className="mt-4">
       <div className="space-y-3 px-3.5 py-2.5">
         {errorText ? <p role="alert" className="text-sub text-destructive">{errorText}</p> : null}
         {status === null && !errorText ? <p aria-busy="true" className="text-meta text-ink-2">{t("web.account.invite.loading")}</p> : null}
-        {status !== null && status.eligible === false ? <IneligibleNote reason={status.reason} availableAt={status.availableAt} /> : null}
-        {status?.eligible && !status.code ? (
+        {status !== null && !status.eligible ? <IneligibleNote reason={status.reason} availableAt={status.availableAt} /> : null}
+
+        {status && eligible && status.reason === "rotate_required" ? (
+          <div className="space-y-3">
+            <p data-testid="my-invite-reason" className="text-sub text-ink-2">{t("web.account.invite.rotateRequired")}</p>
+            <ReplaceControl {...replaceProps(status.uses, status.cap)} />
+          </div>
+        ) : null}
+
+        {status && eligible && status.reason !== "rotate_required" && !status.code ? (
           <div className="space-y-2">
             <p className="text-meta text-ink-2">{t("web.account.invite.createHint")}</p>
             <button type="button" disabled={busy} onClick={() => run(() => createMyInvite(api))} className={BUTTON}>
@@ -85,21 +122,17 @@ export function MyInvitePanel() {
             </button>
           </div>
         ) : null}
-        {status?.eligible && status.code ? (
+
+        {status && eligible && status.code ? (
           <CodeBlock
-            eligible={status as Eligible & { code: string }}
+            code={status.code}
+            status={status}
             busy={busy}
-            confirming={confirming}
             note={note}
             language={i18n.language}
             onCopy={() => copyLink(status.code as string)}
             onShare={() => share(status.code as string)}
-            onAskReplace={() => { setNote(null); setConfirming(true); }}
-            onCancelReplace={() => setConfirming(false)}
-            onConfirmReplace={() => run(() => rotateMyInvite(api), () => {
-              setConfirming(false);
-              setNote(t("web.account.invite.replaced"));
-            })}
+            replace={replaceProps(status.uses, status.cap)}
           />
         ) : null}
       </div>
@@ -107,7 +140,13 @@ export function MyInvitePanel() {
   );
 }
 
-function IneligibleNote({ reason, availableAt }: { reason: Extract<MyInvite, { eligible: false }>["reason"]; availableAt: string | null }) {
+/** 按服务端文案取提示;429 是每日操作预算用尽,单独说明。 */
+function errorMessageFor(t: TFunction, err: unknown): string {
+  if (err instanceof ApiError && err.status === 429) return t("web.account.invite.rateLimited");
+  return translateServerError(t, err, ACCOUNT_ERROR_KEYS);
+}
+
+function IneligibleNote({ reason, availableAt }: { reason: MyInviteReason | null; availableAt: string | null }) {
   const { t, i18n } = useTranslation();
   let body: ReactNode;
   if (reason === "too_new") {
@@ -129,29 +168,53 @@ function IneligibleNote({ reason, availableAt }: { reason: Extract<MyInvite, { e
   return <p data-testid="my-invite-reason" className="text-sub text-ink-2">{body}</p>;
 }
 
-function CodeBlock({ eligible, busy, confirming, note, language, onCopy, onShare, onAskReplace, onCancelReplace, onConfirmReplace }: {
-  eligible: Eligible & { code: string };
+interface ReplaceProps {
+  uses: number;
+  cap: number;
   busy: boolean;
   confirming: boolean;
+  onAsk(): void;
+  onCancel(): void;
+  onConfirm(): void;
+}
+
+/** 更换:先显示确认框(说明旧码立即失效、新码继承已用次数),确认后才发请求。 */
+function ReplaceControl({ uses, cap, busy, confirming, onAsk, onCancel, onConfirm }: ReplaceProps) {
+  const { t } = useTranslation();
+  if (!confirming) {
+    return <button type="button" onClick={onAsk} disabled={busy} className={GHOST}>{t("web.account.invite.replace")}</button>;
+  }
+  return (
+    <div data-testid="my-invite-confirm" role="group" className="space-y-2 rounded-button bg-surface-2 p-3">
+      <p className="text-sub text-ink">{t("web.account.invite.replaceConfirm", { uses, cap })}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onCancel} disabled={busy} className={GHOST}>{t("web.account.invite.cancel")}</button>
+        <button type="button" onClick={onConfirm} disabled={busy} className={BUTTON}>{t("web.account.invite.replaceButton")}</button>
+      </div>
+    </div>
+  );
+}
+
+function CodeBlock({ code, status, busy, note, language, onCopy, onShare, replace }: {
+  code: string;
+  status: MyInvite;
+  busy: boolean;
   note: string | null;
   language: string;
   onCopy(): void;
   onShare(): void;
-  onAskReplace(): void;
-  onCancelReplace(): void;
-  onConfirmReplace(): void;
+  replace: ReplaceProps;
 }) {
   const { t } = useTranslation();
-  const usedUp = eligible.uses >= eligible.cap;
-  const counts = { uses: eligible.uses, cap: eligible.cap };
+  const usedUp = status.uses >= status.cap;
   return (
     <div className="space-y-3">
       <div>
         <p className="text-meta text-ink-2">{t("web.account.invite.yourCode")}</p>
         <p data-testid="my-invite-code" className="num select-all whitespace-nowrap font-mono text-title font-semibold tracking-wider text-ink">
-          {eligible.code}
+          {code}
         </p>
-        <p data-testid="my-invite-usage" className="text-meta text-ink-2">{t("web.account.invite.usage", counts)}</p>
+        <p data-testid="my-invite-usage" className="text-meta text-ink-2">{t("web.account.invite.usage", { uses: status.uses, cap: status.cap })}</p>
       </div>
 
       {usedUp ? (
@@ -166,11 +229,11 @@ function CodeBlock({ eligible, busy, confirming, note, language, onCopy, onShare
 
       <div>
         <p className="text-meta font-medium text-ink-2">{t("web.account.invite.invitees")}</p>
-        {eligible.invitees.length === 0 ? (
+        {status.invitees.length === 0 ? (
           <p className="text-meta text-ink-2">{t("web.account.invite.noInvitees")}</p>
         ) : (
           <ul data-testid="my-invite-invitees" className="mt-1 space-y-1">
-            {eligible.invitees.map((invitee) => (
+            {status.invitees.map((invitee) => (
               <li key={`${invitee.displayName}-${invitee.joinedAt}`} className="flex items-baseline justify-between gap-3 text-sub text-ink">
                 <span className="min-w-0 truncate">{invitee.displayName}</span>
                 <span className="flex-none whitespace-nowrap text-meta text-ink-2">{dateOf(invitee.joinedAt, language)}</span>
@@ -180,17 +243,7 @@ function CodeBlock({ eligible, busy, confirming, note, language, onCopy, onShare
         )}
       </div>
 
-      {confirming ? (
-        <div data-testid="my-invite-confirm" role="group" className="space-y-2 rounded-button bg-surface-2 p-3">
-          <p className="text-sub text-ink">{t("web.account.invite.replaceConfirm", counts)}</p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onCancelReplace} disabled={busy} className={GHOST}>{t("web.account.invite.cancel")}</button>
-            <button type="button" onClick={onConfirmReplace} disabled={busy} className={BUTTON}>{t("web.account.invite.replaceButton")}</button>
-          </div>
-        </div>
-      ) : (
-        <button type="button" onClick={onAskReplace} disabled={busy} className={GHOST}>{t("web.account.invite.replace")}</button>
-      )}
+      <ReplaceControl {...replace} />
     </div>
   );
 }

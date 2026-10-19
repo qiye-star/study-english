@@ -95,6 +95,8 @@
         "bindLink": "Bind email",
         "disabled": "Invites are not available for this account.",
         "withdrawn": "Your invite permission has been withdrawn. Contact the admin if this is unexpected.",
+        "rotateRequired": "Your current code can no longer be shown. Replace it to get a new one.",
+        "rateLimited": "Too many invite changes today. Please try again later.",
         "createHint": "Create one permanent code to share. It stays the same and can be used several times, up to a total limit.",
         "create": "Create my invite code",
         "yourCode": "Your code",
@@ -107,7 +109,7 @@
         "invitees": "Invited",
         "noInvitees": "No one has used your code yet.",
         "replace": "Replace invite code",
-        "replaceConfirm": "The old code stops working right away. The new code keeps the {{uses}} of {{cap}} uses already counted, so it adds none.",
+        "replaceConfirm": "The old code stops working right away. The new code inherits the {{uses}} of {{cap}} uses already counted and adds none.",
         "replaceButton": "Replace code",
         "cancel": "Cancel",
         "replaced": "Replaced. The old code no longer works."
