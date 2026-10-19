@@ -52,6 +52,9 @@ export async function prepareAvatar(file: File): Promise<Blob> {
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return fallback();
+  // JPEG 没有透明通道:先铺不透明白底,否则透明 PNG 的透明像素会变成黑色。
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
   return blob ?? fallback();

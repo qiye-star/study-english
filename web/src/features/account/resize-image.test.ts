@@ -51,7 +51,7 @@ describe("prepareAvatar", () => {
   it("re-encodes to JPEG with the long side at most 1024", async () => {
     stubUrls();
     vi.stubGlobal("Image", FakeImage);
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage: vi.fn(), fillRect: vi.fn() } as unknown as CanvasRenderingContext2D);
     const sizes: { w: number; h: number; type: string }[] = [];
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback, type?: string) {
       sizes.push({ w: this.width, h: this.height, type: type ?? "" });
@@ -60,6 +60,24 @@ describe("prepareAvatar", () => {
     const out = await prepareAvatar(new File(["png"], "a.png", { type: "image/png" }));
     expect(out.type).toBe("image/jpeg");
     expect(sizes).toEqual([{ w: 1024, h: 512, type: "image/jpeg" }]);
+  });
+
+  it("paints an opaque white background before drawing, so transparent PNGs do not turn black", async () => {
+    stubUrls();
+    vi.stubGlobal("Image", FakeImage);
+    const calls: string[] = [];
+    const ctx = {
+      set fillStyle(v: string) { calls.push(`fillStyle:${v}`); },
+      fillRect: vi.fn(() => { calls.push("fillRect"); }),
+      drawImage: vi.fn(() => { calls.push("drawImage"); }),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
+      cb(new Blob(["out"], { type: "image/jpeg" }));
+    });
+    await prepareAvatar(new File(["png"], "a.png", { type: "image/png" }));
+    expect(calls).toEqual(["fillStyle:#ffffff", "fillRect", "drawImage"]);
+    expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 1024, 512);
   });
 
   it("rejects an image type the browser cannot decode (e.g. HEIC where canvas fails)", async () => {
