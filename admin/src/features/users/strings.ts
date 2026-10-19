@@ -87,6 +87,24 @@ export const S = {
     sorts: { recent: "最近活跃", created: "注册时间", storage: "录音占用" },
     disabledBadge: "已停用",
   },
+  email: {
+    filter: "邮箱",
+    filters: { all: "全部", bound: "已绑定邮箱", unbound: "未绑定邮箱" } as Record<string, string>,
+    unbound: "未绑定",
+    verified: "已验证",
+    unverified: "未验证",
+    card: {
+      title: "绑定邮箱",
+      hint: "只显示脱敏地址,完整邮箱不在后台展示。",
+      clear: "清除邮箱",
+      cleared: "已清除邮箱",
+    },
+    clear: {
+      title: "清除邮箱",
+      body: "清除后用户的邮箱解绑,需要重新绑定邮箱才能使用依赖邮箱的功能。已签发的登录令牌不会被撤销,已登录的设备不会被退出。",
+      confirm: "清除邮箱",
+    },
+  },
   invites: {
     title: "邀请码",
     hint: "注册模式为「邀请」时,.env 里的 INVITE_CODE 与这里的有效邀请码都可以注册。邀请码明文只在创建时显示一次。",

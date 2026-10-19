@@ -8,16 +8,18 @@ const PER_PAGE = 20;
 
 export type UserStatusFilter = "all" | "active" | "disabled";
 export type UserSort = "recent" | "created" | "storage";
+export type UserEmailFilter = "all" | "bound" | "unbound";
 export type UserRow = UserSummary & { disabled_at?: string | null };
 
 export interface UserListFilters {
   status: UserStatusFilter;
   sort: UserSort;
+  email: UserEmailFilter;
 }
 
 export const listUsers = (q: string, page: number, filters: UserListFilters) =>
   request<{ users: UserRow[]; page: number; next: number | null; total: number }>("/api/admin/users", {
-    query: { q: q.trim() || undefined, page, per_page: PER_PAGE, status: filters.status, sort: filters.sort },
+    query: { q: q.trim() || undefined, page, per_page: PER_PAGE, status: filters.status, sort: filters.sort, email: filters.email },
   });
 
 export interface UserStatus {
@@ -55,6 +57,21 @@ export async function revokeTokens(id: Id): Promise<number> {
 /** 临时密码只在这次响应里出现;调用方只放进结果对话框,不记录、不缓存。 */
 export async function resetPassword(id: Id): Promise<string> {
   return (await request<{ password: string }>(`/api/admin/users/${enc(id)}/reset-password`, { method: "POST" })).password;
+}
+
+export interface EmailClearResult {
+  userId: number;
+  emailMasked: string | null;
+  emailVerified: boolean;
+}
+
+/** 清除用户邮箱(operator + 二次验证;不撤销现有登录令牌)。 */
+export async function clearUserEmail(id: Id, reason: string): Promise<EmailClearResult> {
+  const r = await request<{ user_id: number; email_masked: string | null; email_verified: boolean }>(
+    `/api/admin/users/${enc(id)}/email/clear`,
+    { method: "POST", json: { reason } },
+  );
+  return { userId: r.user_id, emailMasked: r.email_masked, emailVerified: r.email_verified };
 }
 
 /** 超级管理员 + 二次验证(服务端 403 Step-up required 时客户端弹框后重放)。 */
