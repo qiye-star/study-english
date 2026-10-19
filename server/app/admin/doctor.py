@@ -110,11 +110,14 @@ def _library_findings(s, f: Facts) -> list[Finding]:
 def _email_findings(s) -> list[Finding]:
     """账号邮箱(计划 A1):消息只写键名,不写主机、账号或密码。"""
     out: list[Finding] = []
-    if (s.email_backend != "off" or s.email_binding_required) and not email_ready(s):
+    needed = s.email_backend != "off" or s.email_binding_required or s.email_registration_required
+    if needed and not email_ready(s):
         keys = (("email_backend",) if s.email_backend != "off" else ()) + (
-            ("email_binding_required",) if s.email_binding_required else ())
+            ("email_binding_required",) if s.email_binding_required else ()) + (
+            ("email_registration_required",) if s.email_registration_required else ())
         out.append(Finding("error", "email_not_configured", keys,
-                           "邮箱功能需要发信方式、IDENTITY_PEPPER 与加密主密钥同时就绪:现在缺其中之一,验证码发不出去"))
+                           "邮箱功能需要发信方式、IDENTITY_PEPPER 与加密主密钥同时就绪:现在缺其中之一,验证码发不出去;"
+                           "EMAIL_REGISTRATION_REQUIRED=true 时所有注册都会返回 503"))
     if s.email_backend == "console":
         out.append(Finding("warn", "email_console_backend", ("email_backend",),
                            "发信方式是 console:只记录「已发送」,用户收不到验证码,仅供开发使用"))

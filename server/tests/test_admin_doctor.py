@@ -71,6 +71,16 @@ def test_forced_binding_needs_a_ready_email_and_a_deadline():
     assert "binding_without_deadline" not in _email_findings()  # not forced: no warning
 
 
+def test_registration_that_needs_email_is_an_error_until_email_is_ready():
+    """The shipped default (EMAIL_REGISTRATION_REQUIRED=true, EMAIL_BACKEND=off) answers every registration 503."""
+    found = _email_findings(email_registration_required=True)
+    assert found["email_not_configured"].level == "error"
+    assert "email_registration_required" in found["email_not_configured"].keys
+    assert "email_not_configured" not in _email_findings(email_registration_required=True, email_backend="smtp",
+                                                         **_email_keys())
+    assert "email_not_configured" not in _email_findings(email_registration_required=False)
+
+
 def test_email_diagnostic_codes_are_registered_and_messages_hold_no_values():
     for code in ("email_not_configured", "email_console_backend", "binding_without_deadline"):
         assert code in CODES
