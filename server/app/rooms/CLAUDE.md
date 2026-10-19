@@ -80,6 +80,7 @@ Contract fixtures (`CONTRACT_UPDATE=1` re-records): `tests/fixtures/rooms_contra
 - Owner-only events (`join_request`) are skipped for ownerless rooms (`owner_id` NULL after user deletion);
   `hub.broadcast(only_user=None)` would send them to everyone.
 - Protocol changes need the matching web change (`protocol.test.ts` reads this package's file).
+- Avatars (INDEX X29): members, member message `sender` and join requests carry `avatar_url` (a join on `User.avatar_id` in the existing queries; `RoomStore._named` hands the id to `message_out` on the instance, keeping the `(message, name)` pair shape). A connection does not cache its own avatar: every payload reads it live.
 - Admin moderation (admin v2 §6, endpoints in `routers/admin_rooms.py`): messages are never deleted (R-6);
   `hide` only sets `hidden_at` — `message_out` then withholds text/meta/quote/voice/reactions (`hidden: true`),
   `recent_public` skips them, and `message_hidden{seq}` is broadcast. `rooms.ai_muted` makes `@ai` and the assistant
