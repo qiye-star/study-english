@@ -126,7 +126,7 @@ def test_rooms_payloads_match_the_web_contract(tmp_path, monkeypatch):
             assert shape(body) == shape(contract[group][name]), f"{group}.{name} changed shape"
     # Pinned values the web client branches on
     ws = contract["ws"]
-    assert ws["message_ai_answer"]["message"]["sender"] == {"kind": "ai", "id": None, "name": None}
+    assert ws["message_ai_answer"]["message"]["sender"] == {"kind": "ai", "id": None, "name": None, "avatar_url": None}
     agent_meta = ws["message_ai_answer"]["message"]["meta"]
     assert agent_meta["agent"]["persona_id"] == "builtin:coach" and set(agent_meta) >= {"agent", "asker"}
     assert ws["room_update"]["room"]["my_role"] is None and contract["http"]["create"]["room"]["my_role"] == "owner"

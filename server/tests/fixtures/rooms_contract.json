@@ -184,13 +184,15 @@
           "user_id": 36075666,
           "name": "alice",
           "role": "owner",
-          "online": true
+          "online": true,
+          "avatar_url": null
         },
         {
           "user_id": 65619872,
           "name": "bob",
           "role": "member",
-          "online": true
+          "online": true,
+          "avatar_url": null
         }
       ]
     },
@@ -204,7 +206,8 @@
           "sender": {
             "kind": "system",
             "id": null,
-            "name": null
+            "name": null,
+            "avatar_url": null
           },
           "text": "joined",
           "assisted": false,
@@ -227,7 +230,8 @@
           "sender": {
             "kind": "user",
             "id": 36075666,
-            "name": "alice"
+            "name": "alice",
+            "avatar_url": null
           },
           "text": "I like 巧克力",
           "assisted": false,
@@ -248,7 +252,8 @@
           "sender": {
             "kind": "ai",
             "id": null,
-            "name": null
+            "name": null,
+            "avatar_url": null
           },
           "text": "巧克力是 chocolate。",
           "assisted": false,
@@ -278,7 +283,8 @@
           "sender": {
             "kind": "user",
             "id": 36075666,
-            "name": "alice"
+            "name": "alice",
+            "avatar_url": null
           },
           "text": "I like chocolate.",
           "assisted": false,
@@ -299,7 +305,8 @@
           "sender": {
             "kind": "user",
             "id": 65619872,
-            "name": "bob"
+            "name": "bob",
+            "avatar_url": null
           },
           "text": "@ai what does break the ice mean?",
           "assisted": false,
@@ -320,7 +327,8 @@
           "sender": {
             "kind": "ai",
             "id": null,
-            "name": null
+            "name": null,
+            "avatar_url": null
           },
           "text": "Sure, try: I never abandon a project halfway.",
           "assisted": false,
@@ -350,7 +358,8 @@
           "sender": {
             "kind": "system",
             "id": null,
-            "name": null
+            "name": null,
+            "avatar_url": null
           },
           "text": "settings",
           "assisted": false,
@@ -378,7 +387,8 @@
           "sender": {
             "kind": "user",
             "id": 36075666,
-            "name": "alice"
+            "name": "alice",
+            "avatar_url": null
           },
           "text": "@ai hello?",
           "assisted": false,
@@ -492,13 +502,15 @@
           "user_id": 36075666,
           "name": "alice",
           "role": "owner",
-          "online": true
+          "online": true,
+          "avatar_url": null
         },
         {
           "user_id": 65619872,
           "name": "bob",
           "role": "member",
-          "online": true
+          "online": true,
+          "avatar_url": null
         }
       ],
       "last_seq": 1,
@@ -518,7 +530,8 @@
         "sender": {
           "kind": "user",
           "id": 36075666,
-          "name": "alice"
+          "name": "alice",
+          "avatar_url": null
         },
         "text": "I like chocolate.",
         "assisted": false,
@@ -542,7 +555,8 @@
         "sender": {
           "kind": "system",
           "id": null,
-          "name": null
+          "name": null,
+          "avatar_url": null
         },
         "text": "joined",
         "assisted": false,
@@ -568,7 +582,8 @@
         "sender": {
           "kind": "ai",
           "id": null,
-          "name": null
+          "name": null,
+          "avatar_url": null
         },
         "text": "Sure, try: I never abandon a project halfway.",
         "assisted": false,
@@ -603,13 +618,15 @@
           "user_id": 36075666,
           "name": "alice",
           "role": "owner",
-          "online": true
+          "online": true,
+          "avatar_url": null
         },
         {
           "user_id": 65619872,
           "name": "bob",
           "role": "member",
-          "online": true
+          "online": true,
+          "avatar_url": null
         }
       ]
     },
@@ -628,7 +645,8 @@
         "sender": {
           "kind": "ai",
           "id": null,
-          "name": null
+          "name": null,
+          "avatar_url": null
         },
         "text": "巧克力是 chocolate。",
         "assisted": false,
