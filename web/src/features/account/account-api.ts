@@ -18,6 +18,8 @@ export const ACCOUNT_ERROR_KEYS: Record<string, string> = {
   "Wrong password": "web.account.password.wrong",
   "Email already bound": "web.account.errors.emailAlreadyBound",
   "Email verification required: please register in the web app": "web.account.errors.emailVerificationRequired",
+  "Invite code used up": "web.account.errors.inviteUsedUp",
+  "Invites are not configured": "web.account.invite.unavailable",
 };
 
 /** 「账号」区读取资料(昵称)。组件只经过这里与 ApiClient 打交道,不直接 fetch。 */

@@ -15,7 +15,7 @@ import { ScoreDot } from "~/components/score-dot";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import type { Tone } from "~/components/tone";
-import { AccountSection } from "~/features/account";
+import { AccountSection, MyInviteSection } from "~/features/account";
 import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
@@ -215,6 +215,7 @@ export function MePage() {
         <RankCard className="mt-4" />
 
         <AccountSection />
+        <MyInviteSection />
 
         <SectionGroup title={t("web.me.groups.learning")}>
           <ListRow icon={<IconChip tone="blue" icon={BarChart3Icon} />} title={t("web.me.progress")} to="/progress" testId="me-progress"
