@@ -33,7 +33,7 @@ from app.library.worker import install as install_library  # imported media libr
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     account, admin, admin_accounts, admin_agents, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -96,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
     app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
     app.state.invite_fail_limiter = RateLimiter(settings.invite_failures_per_ip_hourly, window=3600.0)  # bad invite codes per IP (invites v2 R-I5)
+    app.state.invite_action_limiter = RateLimiter(5, window=86400.0)  # generate + replace a user code, per user per day (invites v2 R-I6)
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
@@ -128,7 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
-        health, announcements, changelog, sessions, account, grammar_prompt, config_api, speech, conversations, assessments,
+        health, announcements, changelog, sessions, account, invites_me, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
         links, agents, agents_tutor,
