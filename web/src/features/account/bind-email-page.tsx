@@ -6,7 +6,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { EMAIL_BINDING_PATH } from "~/auth/email-binding";
 import { normalizeEmail } from "~/auth/validation";
-import { bindEmail } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, bindEmail } from "./account-api";
 import { formatDeadline } from "./binding-deadline";
 import { EmailCodeField } from "./email-code-field";
 
@@ -59,7 +59,7 @@ export function BindEmailPage() {
     bindEmail(api, { email, code, ...(verified ? { password } : {}) })
       .then(() => refreshProfile?.())
       .then(() => navigate(returnTo, { replace: true }))
-      .catch((err: unknown) => setError(translateServerError(t, err)))
+      .catch((err: unknown) => setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS)))
       .finally(() => setBusy(false));
   }
 

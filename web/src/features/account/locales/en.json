@@ -20,6 +20,13 @@
         "changed": "Password changed. Other devices are signed out."
       },
       "errors": {
+        "invalidCode": "The code is invalid or has expired.",
+        "tooManyCodes": "Too many codes. Please wait before trying again.",
+        "emailUnavailable": "Email is temporarily unavailable. Try again later.",
+        "emailDomainNotAllowed": "This email domain can't be used.",
+        "emailNotConfigured": "Email is not set up on this server.",
+        "emailAlreadyBound": "This account already has an email.",
+        "emailVerificationRequired": "Email verification is required. Please register in the web app.",
         "nicknameInvalid": "This nickname can't be used",
         "unknown": "Something went wrong. Try again."
       },

@@ -5,7 +5,7 @@ import { ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { isEmailShape } from "~/auth/validation";
-import { requestBindCode, requestEmailCode } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, requestBindCode, requestEmailCode } from "./account-api";
 
 const LABEL = "text-[13px] font-medium text-ink-2";
 const COOLDOWN_SECONDS = 60;
@@ -51,7 +51,7 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
     } catch (err) {
       // 429 带 Retry-After 时按服务端给的时间倒计时
       if (err instanceof ApiError && err.status === 429) setCooldown(err.retryAfter ?? COOLDOWN_SECONDS);
-      onError(translateServerError(t, err));
+      onError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
     } finally {
       setBusy(false);
     }

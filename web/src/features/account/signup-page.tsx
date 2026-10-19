@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
+import { ACCOUNT_ERROR_KEYS } from "./account-api";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail, validateCredentials } from "~/auth/validation";
 import { EmailCodeField } from "./email-code-field";
@@ -59,7 +60,7 @@ export function RegisterPage() {
       inviteCode: inviteCode.trim() || undefined,
     })
       .then(() => navigate("/practice", { replace: true }))
-      .catch((err: unknown) => setError(translateServerError(t, err)))
+      .catch((err: unknown) => setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS)))
       .finally(() => setBusy(false));
   }
 

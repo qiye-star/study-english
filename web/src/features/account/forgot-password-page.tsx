@@ -5,7 +5,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail } from "~/auth/validation";
-import { resetPassword } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, resetPassword } from "./account-api";
 import { EmailCodeField } from "./email-code-field";
 
 const LABEL = "block text-[13px] font-medium text-ink-2";
@@ -47,7 +47,7 @@ export function ForgotPasswordPage() {
     setError(null);
     resetPassword(api, { email, code, newPassword: password })
       .then(() => navigate("/login", { replace: true, state: { notice: "passwordReset" } }))
-      .catch((err: unknown) => setError(translateServerError(t, err)))
+      .catch((err: unknown) => setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS)))
       .finally(() => setBusy(false));
   }
 

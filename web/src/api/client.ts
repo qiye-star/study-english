@@ -1,6 +1,6 @@
 import camelcaseKeys from "camelcase-keys";
 import decamelizeKeys from "decamelize-keys";
-import type { AuthUser, EmailCodeReceipt, RegisterInput, UserProfile } from "./types";
+import type { AuthUser, RegisterInput, UserProfile } from "./types";
 
 export class ApiError extends Error {
   /** 429 等响应的 Retry-After(秒);没有或无法解析时为 undefined。 */
@@ -124,26 +124,6 @@ export class ApiClient {
 
   register(input: RegisterInput): Promise<AuthUser> {
     return this.request("POST", "/api/users", { json: input, auth: false });
-  }
-
-  /** 注册 / 找回密码的发码。响应与邮箱是否已注册无关。 */
-  sendEmailCode(email: string, purpose: "register" | "reset"): Promise<EmailCodeReceipt> {
-    return this.request("POST", "/api/email/code", { json: { email, purpose }, auth: false });
-  }
-
-  /** 找回密码:成功 204,不返回 token(不自动登录)。 */
-  async resetPassword(input: { email: string; code: string; newPassword: string }): Promise<void> {
-    await this.request("POST", "/api/password/reset", { json: input, auth: false });
-  }
-
-  /** 已登录用户的绑定 / 换绑发码(强制绑定期间也可用)。 */
-  sendMyEmailCode(email: string, purpose: "bind" | "change_email"): Promise<EmailCodeReceipt> {
-    return this.request("POST", "/api/me/email/code", { json: { email, purpose } });
-  }
-
-  /** 绑定 / 换绑邮箱;换绑需要当前密码。 */
-  async bindEmail(input: { email: string; code: string; password?: string }): Promise<void> {
-    await this.request("POST", "/api/me/email", { json: input });
   }
 
   me(): Promise<UserProfile> {
