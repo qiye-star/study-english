@@ -79,6 +79,13 @@ async def claim_global_quota(session: AsyncSession, cap: int, day: date) -> bool
     return result.rowcount == 1
 
 
+async def global_quota_left(session: AsyncSession, cap: int, day: date) -> bool:
+    """Read-only twin of `claim_global_quota`: is there still room today? Used by the paths that send nothing
+    (an unknown address asking for a reset) so that an exhausted quota answers them like everyone else (X10)."""
+    sent = await session.scalar(select(EmailDailyCount.sent).where(EmailDailyCount.day == day))
+    return (sent or 0) < cap
+
+
 async def _guard(session: AsyncSession, settings: Settings, target_hmac: str, purpose: str, now: datetime) -> None:
     """Cooldown (per target + purpose) and the per-target daily cap (all purposes, hidden rows included)."""
     last = await session.scalar(select(func.max(VerificationCode.created_at)).where(

@@ -346,3 +346,17 @@ async def test_unknown_purpose_and_missing_pepper_are_programming_errors(app):
 def test_module_never_logs():
     assert "logging" not in inspect.getsource(verification)
     assert "logger" not in inspect.getsource(verification)
+
+
+async def test_global_quota_left_is_read_only(app):
+    from app.services.verification import global_quota_left
+
+    day = date(2026, 10, 19)
+    async with app.state.sessionmaker() as s:
+        assert await global_quota_left(s, 1, day)
+        assert await claim_global_quota(s, 1, day)
+        assert not await global_quota_left(s, 1, day)
+        assert await global_quota_left(s, 2, day)
+        assert await global_quota_left(s, 1, date(2026, 10, 20))
+        await s.commit()
+        assert (await s.execute(select(EmailDailyCount))).scalar_one().sent == 1  # reading never claims

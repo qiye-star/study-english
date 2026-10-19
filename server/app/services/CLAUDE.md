@@ -22,6 +22,7 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `email_domains.py` – `domain_allowed(settings, email)`: any / allowlist / blocklist with built-in tables
 - `verification.py` – email codes: `issue` / `hidden_issue` / `verify` (HMAC-stored, purpose + target bound, cooldown, per-target cap, atomic global daily claim `claim_global_quota`, attempts claimed in separate transactions via the passed `async_sessionmaker`); `VerificationError(kind, retry_after)`; never logs
 - `mailer.py` – `Mailer` (`app.state.mailer`): `enqueue(kind, to, code=, lang=)` returns at once, sends in a background task (`pending` set, waited by `tests/background.py`), templates in zh-CN / en, failures counted (`failures`, log `email send failed code=…`), `metering.record("email", …)` status only; settings and sender come from injected callables
+- `email_codes.py` – `request_code(...)`: the orchestration behind `POST /api/email/code` (same steps for registered and unknown addresses; hidden rows, notices, quota); takes the mailer as a parameter
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`. Never speech/realtime/rank/rooms/routers (enforced by
