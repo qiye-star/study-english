@@ -97,6 +97,16 @@
 - **X28 新契约夹具** `server/tests/fixtures/accounts_contract.json`(F S23 录制:`me`、`me_unbound`、`register`、`login`、`email_code`、`password_changed`、`error_binding_required`),网页 `features/account/accounts-contract.test.ts` 逐键读取;`invites_contract.json`(I S8:`my_invite_none`、`my_invite`、`admin_batch`、`admin_list`)。样例里的 token、邀请码、邮箱写 `REDACTED` / `a***@example.com`。
 - **X29 房间 WS 载荷加 `avatar_url`(V S8、S9)**:只增不改,`PROTOCOL_VERSION` 仍为 2。`connection.members_out` 每项加 `avatar_url`(可空),消息 `sender` 加 `avatar_url`(可空,系统 / AI 为 `null`)。重录全部 `rooms_*_contract.json`(`rooms_contract`、`rooms_v2_core_contract`、`rooms_v2_voice_contract`、`rooms_v2_summary_contract`、`rooms_reopen_contract`、`rooms_agents_contract`),diff 只应多出 `avatar_url` 键;网页 `protocol.ts` 的 `RoomMemberInfo`、`RoomSender` 加可选 `avatarUrl?: string | null`。
 
+### 4.4 耦合约束(2026-10-19 用户要求"遵循项目规范、减少耦合";与 §4.1–4.3 冲突时以本节为准)
+
+- **X30 `cut_connections` 不让用户路由依赖管理路由。** 把 `routers/admin_users.py::cut_connections` 原样搬到新的非路由模块 `app/routers/live_connections.py`(不含 `APIRouter`,只有该函数及其所需常量),`admin_users` 与 `account` 都从它导入;**由 F S5 完成**(该搬迁是一个独立的前置提交 `refactor(server): move cut_connections to a shared live_connections module`,行为不变)。因此计划里「`routers.admin_users.cut_connections`」处(R-F9、S5 测试、S19)一律改为 `app.routers.live_connections.cut_connections`,测试在**使用处**打补丁:`monkeypatch.setattr("app.routers.account.cut_connections", ...)`。
+- **X31 路由只做 HTTP:** 校验入参、映射错误码、调用 services;业务规则、事务边界内的多步逻辑放 `services/*`。路由模块之间除 X30 外不互相导入。`sessions.py` 不再增长新端点:新端点进 `account.py`(已有规划),`sessions.py` 只改注册 / 登录 / 登出 / me 必须改的部分。
+- **X32 services 不读 `app.state`、不读全局设置:** 需要的东西(`session`、`Settings`、时钟 `now`、`EmailSender`、`secretbox`、pepper)作为**参数**传入,由路由 / `main.py` 负责从 `app.state` 取。这样纯逻辑可单测,不依赖 FastAPI。`Mailer` 的发送后端由构造函数注入。
+- **X33 core 只放无状态的策略与依赖:** 强制绑定的判定 `binding_state(settings, now)` 是纯函数,放新模块 `app/core/account_policy.py`(只依赖标准库与 `app.core.config.Settings`),`core/deps.py` 只调用它;`deps.py` 不导入 `services`、不知道邮箱细节。
+- **X34 显示名只有一个来源:** SQL 用 `models.display_name()`,Python 对象用 `models.display_of(user)`;任何位置不得手写 `COALESCE(nickname, username)` 或 `user.nickname or user.username` 的第二份。
+- **X35 网页:** `features/account` 只依赖共享层(`~/api`、`~/auth`、`~/components`、`~/i18n`、`~/lib`),对外只经 `index.ts` / `lazy.tsx` 暴露;`auth-context` 不导入 `features/account`——强制绑定通过 `ApiClient.onBindingRequired` 回调与 `AuthProvider` 状态传递(X26);`rooms` 等其他 feature 不导入 `account`,头像走共享的 `components/avatar.tsx`。组件不直接 `fetch`,一律经 `account-api.ts` → `ApiClient`。
+- **X36 每个提交范围内聚:** 一个提交只做该任务列出的事;顺手重构另开提交;禁止为了方便把无关函数塞进已有大文件(`deps.py`、`sessions.py`、`models.py` 只改任务点名的位置)。
+
 ## 5. 对 spec 的修正建议(spec 文件不改;计划按本表执行,待用户确认)
 
 | 位置 | 问题(已核对代码) | 本组计划的做法 |
