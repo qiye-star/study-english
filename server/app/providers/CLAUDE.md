@@ -11,6 +11,7 @@ Clients for external vendors. Pure I/O + protocol code; no web framework.
   `Delta` text / reasoning / usage, for agents; closing the iterator closes the upstream response; total deadline
   `STREAM_TOTAL_SECONDS` = 120 s -> `LlmUnavailable("timeout")`; an in-band `{"error": ...}` chunk -> `LlmUnavailable("upstream")`, body never logged), `probe_tools`
   (native function calling probe), `LlmUnavailable(kind, status)`
+- `email.py` – outbound mail: `EmailSender` protocol, `SmtpSender` (smtplib in a thread, 10 s timeout), `ConsoleSender`, `FakeSender` (tests), `sender_for(settings, override)`, `check(settings)` (connect + login, no send); `EmailError(code, status)` carries a fixed code only, never an address, body or password
 
 ## Allowed dependencies
 `app.core` only (plus stdlib/httpx/websockets). Never FastAPI/Starlette (enforced by
