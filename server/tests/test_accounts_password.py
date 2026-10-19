@@ -104,3 +104,16 @@ async def test_change_password_logs_no_secrets(app, client, monkeypatch, caplog)
 
 async def _noop_cut(_app, _user_id: int) -> None:
     return None
+
+
+async def test_cut_connections_failure_does_not_lose_the_new_token(client, monkeypatch, caplog):
+    async def boom(_app, _user_id):
+        raise RuntimeError("socket gone")
+
+    monkeypatch.setattr("app.routers.account.cut_connections", boom)
+    caplog.set_level(logging.DEBUG, logger="app")
+    _uid, headers = await register(client, "pwg")
+    r = await client.post("/api/me/password", headers=headers,
+                          json={"current_password": OLD, "new_password": NEW})
+    assert r.status_code == 200 and r.json()["access_token"]
+    assert NEW not in caplog.text and OLD not in caplog.text

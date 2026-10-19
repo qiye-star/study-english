@@ -1,5 +1,6 @@
 """账号端点:改密(P1);后续计划在此追加邮箱验证码、找回密码、绑定邮箱(INDEX X31:路由只做 HTTP,逻辑在 services/)。"""
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ from app.routers.live_connections import cut_connections
 from app.services import identities
 from app.services.nicknames import clean_nickname
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
@@ -60,5 +62,8 @@ async def change_password(
     new_hash = await asyncio.to_thread(hash_password, payload.new_password)
     token = await identities.change_password(session, user, new_hash, settings, utcnow())
     await session.commit()  # one transaction: the new password and the rotated tokens land together
-    await cut_connections(request.app, user.id)
+    try:
+        await cut_connections(request.app, user.id)
+    except Exception as exc:  # the password is already changed: the caller must still get the new token
+        logger.warning("cut_connections failed after a password change: %s", type(exc).__name__)
     return JSONResponse({"access_token": token}, headers={"Cache-Control": "no-store"})
