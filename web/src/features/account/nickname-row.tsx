@@ -23,7 +23,7 @@ export function NicknameRow({ nickname, onSaved }: { nickname?: string; onSaved:
     setStatus(null);
     try {
       const updated = await saveNickname(api, value);
-      onSaved(updated.nickname);
+      onSaved(updated.nickname ?? undefined);
       setStatus({ ok: true, text: t("web.account.nickname.saved") });
     } catch (err) {
       const text = err instanceof ApiError && err.status === 422

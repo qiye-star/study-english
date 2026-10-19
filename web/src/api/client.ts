@@ -134,7 +134,7 @@ export class ApiClient {
   }
 
   /** 改昵称:`nickname: null` 清除昵称。 */
-  updateMe(patch: { nickname: string | null }): Promise<UserProfile> {
+  updateMe(patch: { nickname: string | null }): Promise<{ nickname: string | null; displayName: string }> {
     return this.request("PATCH", "/api/me", { json: patch });
   }
 

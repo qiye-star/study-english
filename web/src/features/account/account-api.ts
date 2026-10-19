@@ -7,7 +7,7 @@ export function fetchProfile(api: ApiClient): Promise<UserProfile> {
 }
 
 /** 改昵称;去掉首尾空白,空白即清除昵称(服务端回到登录名)。 */
-export function saveNickname(api: ApiClient, value: string): Promise<UserProfile> {
+export function saveNickname(api: ApiClient, value: string): Promise<{ nickname: string | null; displayName: string }> {
   const nickname = value.trim();
   return api.updateMe({ nickname: nickname === "" ? null : nickname });
 }
