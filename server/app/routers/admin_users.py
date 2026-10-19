@@ -16,8 +16,8 @@ from app.admin.perms import AdminContext, deny, require, require_step_up, step_u
 from app.core.deps import get_session
 from app.core.quotas import QUOTA_KEYS, quota_cache
 from app.models import utcnow
-from app.realtime.realtime_protocol import CLOSE_UNAUTHORIZED
-from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, event
+from app.rooms.protocol import CLOSE_NOT_FOUND, event
+from app.routers.live_connections import cut_connections
 
 router = APIRouter(prefix="/api/admin")
 
@@ -42,19 +42,6 @@ class DeleteIn(ReasonIn):
 
 def _fail(e: users_admin.UserAdminError):
     raise HTTPException(e.status, e.error) from None
-
-
-async def cut_connections(app, user_id: int) -> None:
-    """Revoke unredeemed tickets, end a live realtime call (4001) and close the user's live room sockets with 4010."""
-    app.state.realtime_tickets.revoke_user(user_id)
-    await app.state.realtime_registry.end_user(user_id, CLOSE_UNAUTHORIZED)
-    rt = getattr(app.state, "rooms", None)
-    if rt is None:
-        return
-    rt.tickets.revoke_user(user_id)
-    for room_id in rt.hub.active_rooms():
-        if user_id in rt.hub.online(room_id):
-            await rt.hub.close_user(room_id, user_id, CLOSE_KICKED)
 
 
 async def _close_rooms(app, room_ids: list[str]) -> None:
