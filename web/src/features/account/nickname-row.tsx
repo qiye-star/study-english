@@ -8,7 +8,7 @@ import { saveNickname } from "./account-api";
 /** 昵称编辑:输入框 + 保存;422 显示固定的本地化文案,不回显输入。 */
 export function NicknameRow({ nickname, onSaved }: { nickname?: string; onSaved: (nickname?: string) => void }) {
   const { t } = useTranslation();
-  const { api } = useAuth();
+  const { api, updateDisplayName } = useAuth();
   const inputId = useId();
   const [value, setValue] = useState(nickname ?? "");
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,7 @@ export function NicknameRow({ nickname, onSaved }: { nickname?: string; onSaved:
     try {
       const updated = await saveNickname(api, value);
       onSaved(updated.nickname ?? undefined);
+      updateDisplayName?.(updated.displayName || undefined);
       setStatus({ ok: true, text: t("web.account.nickname.saved") });
     } catch (err) {
       const text = err instanceof ApiError && err.status === 422

@@ -21,7 +21,8 @@ export interface RequestOptions {
 
 export interface ApiClientOptions {
   getToken: () => string | null;
-  onUnauthorized?: () => void;
+  /** 带着 `token` 的请求被拒(401,或已停用的 403):调用方据此判断这个 token 是否仍是当前会话。 */
+  onUnauthorized?: (token: string) => void;
   /** 503 "Maintenance":服务端进入维护模式,应用据此立即刷新维护状态(不用等下一次轮询) */
   onMaintenance?: () => void;
   fetchImpl?: typeof fetch;
@@ -91,11 +92,11 @@ export class ApiClient {
       throw new ApiError(0, aborted ? (signal?.aborted ? "Request aborted" : "Request timed out") : "Network error");
     }
     try {
-      if (response.status === 401 && token) this.options.onUnauthorized?.();
+      if (response.status === 401 && token) this.options.onUnauthorized?.(token);
       if (!response.ok) {
         const message = await errorMessage(response);
         // An account disabled by an admin: the token is useless, so sign out like a 401 (logging in again shows why).
-        if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.();
+        if (response.status === 403 && token && message === "Account disabled") this.options.onUnauthorized?.(token);
         if (response.status === 503 && message === "Maintenance") this.options.onMaintenance?.();
         throw new ApiError(response.status, message);
       }

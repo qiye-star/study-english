@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearAuth, saveAuth } from "~/api/auth-storage";
+import { clearAuth, loadAuth, saveAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { AccountSection } from "./account-section";
@@ -24,7 +24,10 @@ describe("AccountSection", () => {
 
   it("shows the current nickname and saves a new one with PATCH /api/me", async () => {
     const mock = renderSection({
-      "PATCH /api/me": (call) => json({ ...ME, nickname: JSON.parse(call.body as string).nickname }),
+      "PATCH /api/me": (call) => {
+        const nickname = JSON.parse(call.body as string).nickname as string;
+        return json({ nickname, display_name: nickname });
+      },
     });
     const input = await screen.findByLabelText("Nickname");
     await waitFor(() => expect(input).toHaveValue("小明"));
@@ -35,6 +38,7 @@ describe("AccountSection", () => {
     const patch = mock.calls.find((c) => c.method === "PATCH");
     expect(JSON.parse(patch?.body as string)).toEqual({ nickname: "Emma Lee" });
     expect(patch?.headers.get("Authorization")).toBe("Bearer tok");
+    expect(loadAuth()?.user.displayName).toBe("Emma Lee");
   });
 
   it("shows a localized message when the server rejects the nickname (422), without echoing the input", async () => {

@@ -15,6 +15,8 @@ export interface AuthContextValue {
   logout(byUser?: boolean): void;
   /** 改密:服务端轮换 token,这里换掉本机存储的 token(用户不需要重新登录)。测试替身可不提供。 */
   changePassword?(currentPassword: string, newPassword: string): Promise<void>;
+  /** 改昵称后同步本机存储的显示名(用户不需要重新登录);`undefined` 表示回到登录名。测试替身可不提供。 */
+  updateDisplayName?(displayName: string | undefined): void;
   /** 最近一次退出是用户主动发起的。 */
   signedOutByUser?: boolean;
 }
@@ -31,7 +33,15 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   // api 与 logout 互相引用:401 经 logoutRef 回到最新的 logout。
   const logoutRef = useRef<(byUser?: boolean) => void>(() => {});
   const api = useMemo(
-    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logoutRef.current(), onMaintenance: noteMaintenance, fetchImpl }),
+    () => new ApiClient({
+      getToken: () => tokenRef.current,
+      // 只有被拒的 token 仍是当前 token 才退出:用户自己的退出请求、改密前发出的旧请求返回的 401 都不能再踢掉新会话。
+      onUnauthorized: (rejected) => {
+        if (rejected === tokenRef.current) logoutRef.current();
+      },
+      onMaintenance: noteMaintenance,
+      fetchImpl,
+    }),
     [fetchImpl],
   );
 
@@ -85,9 +95,18 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     [api],
   );
 
+  const updateDisplayName = useCallback((displayName: string | undefined) => {
+    const current = loadAuth();
+    if (!current) return;
+    const user: StoredAuth["user"] = { id: current.user.id, name: current.user.name, ...(displayName ? { displayName } : {}) };
+    const next: StoredAuth = { token: current.token, user };
+    saveAuth(next);
+    setAuth(next);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user: auth?.user ?? null, api, login, register, logout, changePassword, signedOutByUser }),
-    [auth, api, login, register, logout, changePassword, signedOutByUser],
+    () => ({ user: auth?.user ?? null, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser }),
+    [auth, api, login, register, logout, changePassword, updateDisplayName, signedOutByUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
