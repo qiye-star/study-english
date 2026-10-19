@@ -27,7 +27,7 @@ MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 OUTPUT_SIDE = 256
 MAX_SIDE = 8000
 MAX_PIXELS = 20_000_000
-_ALLOWED_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
+_ALLOWED_FORMATS = frozenset({"JPEG", "MPO", "PNG", "WEBP"})  # MPO: multi-picture JPEG from some phone cameras
 _ID_RE = re.compile(r"[0-9a-f]{32}")
 logger = logging.getLogger(__name__)
 

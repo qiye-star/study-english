@@ -144,3 +144,47 @@ def test_error_message_carries_only_the_kind():
     with pytest.raises(AvatarError) as info:
         process(b"not an image at all")
     assert str(info.value) == "invalid_image"
+
+
+def _mpo(first, second, **kwargs) -> bytes:
+    """A two-picture MPO (multi-picture JPEG, as some phone cameras write). Pillow writes MPO only for several frames."""
+    buf = io.BytesIO()
+    first.save(buf, format="MPO", save_all=True, append_images=[second], **kwargs)
+    return buf.getvalue()
+
+
+def test_mpo_multi_picture_jpeg_is_accepted_and_decodes_the_first_picture():
+    red, blue = _solid((320, 240), (220, 20, 20)), _solid((320, 240), (20, 20, 220))
+    data = _mpo(red, blue, quality=90)
+    with Image.open(io.BytesIO(data)) as probe:
+        assert probe.format == "MPO"  # the input really is a multi-picture JPEG
+        assert getattr(probe, "n_frames", 1) == 2
+
+    out = process(data)
+    assert _is_webp(out)
+    img = Image.open(io.BytesIO(out))
+    assert img.format == "WEBP"
+    assert img.size == (256, 256)
+    r, g, b = img.convert("RGB").getpixel((128, 128))
+    assert r > 180 and b < 80  # the first picture (red), not the second
+
+
+def test_mpo_output_carries_no_metadata():
+    red, blue = _solid((200, 200), (220, 20, 20)), _solid((200, 200), (20, 20, 220))
+    exif = Image.Exif()
+    exif[0x010F] = "ExampleCamera"  # Make
+    data = _mpo(red, blue, quality=90, exif=exif.tobytes())
+    out = process(data)
+    img = Image.open(io.BytesIO(out))
+    assert len(img.getexif()) == 0
+    assert "exif" not in img.info and "icc_profile" not in img.info and "xmp" not in img.info
+    assert b"ExampleCamera" not in out
+
+
+@pytest.mark.parametrize("data", [
+    _encode(_solid((20, 20), (1, 2, 3)), "TIFF"),
+], ids=["tiff"])
+def test_other_formats_stay_rejected_after_mpo_is_allowed(data):
+    with pytest.raises(AvatarError) as info:
+        process(data)
+    assert info.value.kind == "invalid_image"
