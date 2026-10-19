@@ -15,6 +15,7 @@ import { ScoreDot } from "~/components/score-dot";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import type { Tone } from "~/components/tone";
+import { AccountSection } from "~/features/account";
 import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
@@ -22,6 +23,7 @@ import { useRoomsEnabled } from "~/features/rooms";
 import { AgentsMeRow } from "~/features/agents";
 import { WordbookMeRow } from "~/features/wordbook";
 import { translateServerError } from "~/api/error-messages";
+import { displayNameOf } from "~/api/types";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
@@ -172,7 +174,7 @@ export function MePage() {
   const profile = (
     <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
       {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
-      <Avatar name={user?.name ?? ""} size="md" tone="blue" className="text-blue [font-size:22px] liquid:text-ink" />
+      <Avatar name={user ? displayNameOf(user) : ""} size="md" tone="blue" className="text-blue [font-size:22px] liquid:text-ink" />
       <div className="min-w-0 flex-1">
         <p className="text-meta text-ink-2">{t("web.me.username")}</p>
         <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>
@@ -211,6 +213,8 @@ export function MePage() {
         )}
 
         <RankCard className="mt-4" />
+
+        <AccountSection />
 
         <SectionGroup title={t("web.me.groups.learning")}>
           <ListRow icon={<IconChip tone="blue" icon={BarChart3Icon} />} title={t("web.me.progress")} to="/progress" testId="me-progress"

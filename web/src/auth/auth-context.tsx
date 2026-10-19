@@ -13,6 +13,8 @@ export interface AuthContextValue {
   register(username: string, password: string, inviteCode?: string): Promise<void>;
   /** `byUser`:用户主动退出,重新登录后不再回到退出前的页面(会话过期则会回到)。 */
   logout(byUser?: boolean): void;
+  /** 改密:服务端轮换 token,这里换掉本机存储的 token(用户不需要重新登录)。测试替身可不提供。 */
+  changePassword?(currentPassword: string, newPassword: string): Promise<void>;
   /** 最近一次退出是用户主动发起的。 */
   signedOutByUser?: boolean;
 }
@@ -26,25 +28,33 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
 
   const [signedOutByUser, setSignedOutByUser] = useState(false);
 
+  // api 与 logout 互相引用:401 经 logoutRef 回到最新的 logout。
+  const logoutRef = useRef<(byUser?: boolean) => void>(() => {});
+  const api = useMemo(
+    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logoutRef.current(), onMaintenance: noteMaintenance, fetchImpl }),
+    [fetchImpl],
+  );
+
   const logout = useCallback((byUser?: boolean) => {
+    // 用户主动退出:先让服务端撤销这个 token(请求在同步阶段就已带上 token);失败也照常清本地。
+    if (byUser && tokenRef.current) api.logout().catch(() => {});
     setSignedOutByUser(byUser === true);
     clearAuth();
     clearDeviceData();
     tokenRef.current = null;
     setAuth(null);
-  }, []);
-
-  const api = useMemo(
-    () => new ApiClient({ getToken: () => tokenRef.current, onUnauthorized: () => logout(), onMaintenance: noteMaintenance, fetchImpl }),
-    [logout, fetchImpl],
-  );
+  }, [api]);
+  logoutRef.current = logout;
 
   const accept = useCallback((user: AuthUser) => {
     // 防御:代理/网关可能返回形状不对的 2xx 响应,此时不要保存一个无效会话。
     if (!user || typeof user.accessToken !== "string" || !user.accessToken || typeof user.id !== "string") {
       throw new Error("Malformed auth response");
     }
-    const next: StoredAuth = { token: user.accessToken, user: { id: user.id, name: user.name } };
+    const next: StoredAuth = {
+      token: user.accessToken,
+      user: { id: user.id, name: user.name, ...(user.displayName ? { displayName: user.displayName } : {}) },
+    };
     saveAuth(next);
     tokenRef.current = next.token;
     setSignedOutByUser(false);
@@ -61,9 +71,23 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     [api, accept],
   );
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const { accessToken } = await api.changePassword(currentPassword, newPassword);
+      if (typeof accessToken !== "string" || !accessToken) throw new Error("Malformed auth response");
+      const current = loadAuth();
+      if (!current) return; // 改密期间已退出
+      const next: StoredAuth = { token: accessToken, user: current.user };
+      saveAuth(next);
+      tokenRef.current = accessToken;
+      setAuth(next);
+    },
+    [api],
+  );
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user: auth?.user ?? null, api, login, register, logout, signedOutByUser }),
-    [auth, api, login, register, logout, signedOutByUser],
+    () => ({ user: auth?.user ?? null, api, login, register, logout, changePassword, signedOutByUser }),
+    [auth, api, login, register, logout, changePassword, signedOutByUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

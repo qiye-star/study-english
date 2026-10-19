@@ -1,0 +1,6 @@
+{ "web": { "account": {
+  "title": "账号",
+  "nickname": { "label": "昵称", "hint": "房间里其他人看到的名字。留空则显示登录名。", "save": "保存", "saved": "昵称已保存" },
+  "password": { "open": "修改密码", "title": "修改密码", "current": "当前密码", "new": "新密码", "hint": "至少 8 位。", "tooShort": "至少需要 8 位。", "wrong": "当前密码不正确", "submit": "更新密码", "changed": "密码已修改,其他设备已退出登录。" },
+  "errors": { "nicknameInvalid": "这个昵称不能使用", "unknown": "出了点问题,请再试一次。" }
+} } }

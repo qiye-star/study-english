@@ -2,7 +2,7 @@ import { readJson, removeKey, writeJson } from "~/lib/storage";
 
 export interface StoredAuth {
   token: string;
-  user: { id: string; name: string };
+  user: { id: string; name: string; displayName?: string };
 }
 
 const KEY = "enjoy-web.auth";

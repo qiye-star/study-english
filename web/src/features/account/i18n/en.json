@@ -1,0 +1,6 @@
+{ "web": { "account": {
+  "title": "Account",
+  "nickname": { "label": "Nickname", "hint": "Shown to others in rooms. Leave empty to use your username.", "save": "Save", "saved": "Nickname saved" },
+  "password": { "open": "Change password", "title": "Change password", "current": "Current password", "new": "New password", "hint": "At least 8 characters.", "tooShort": "Use at least 8 characters.", "wrong": "Current password is incorrect", "submit": "Update password", "changed": "Password changed. Other devices are signed out." },
+  "errors": { "nicknameInvalid": "This nickname can't be used", "unknown": "Something went wrong. Try again." }
+} } }
