@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.library import paths as library_paths
 from app.services import recordings
+from app.services.identities import EMAIL_PROVIDER
 
 TEMP_PASSWORD_LEN = 16
 # Letters and digits without look-alikes (0/O/o, 1/l/I), so a password read out over the phone survives.
@@ -184,6 +185,11 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     library_items = list((await session.scalars(select(LibraryItem.id).where(LibraryItem.user_id == user_id))).all())
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id.in_(
         select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
+    # codes are found by their target: a hidden "already registered" row has no user_id. Before the identity goes.
+    await session.execute(delete(VerificationCode).where(
+        VerificationCode.channel == "email",
+        VerificationCode.target_hmac.in_(select(UserIdentity.subject_hmac).where(
+            UserIdentity.user_id == user_id, UserIdentity.provider == EMAIL_PROVIDER))))
     for model, column in USER_ROWS:
         await session.execute(delete(model).where(getattr(model, column) == user_id))
     for model, column in USER_REFS_NULLED:

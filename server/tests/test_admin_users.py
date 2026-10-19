@@ -247,3 +247,43 @@ async def test_delete_user_removes_wordbook_and_link_rows_but_not_other_users(ap
         reports = (await s.scalars(select(WordbookReport).order_by(WordbookReport.id))).all()
     # the report about the book's content stays for moderation, without the deleted user's id (ON DELETE SET NULL)
     assert [r.user_id for r in reports] == [None, other]
+
+
+async def test_delete_user_removes_their_email_identity_and_every_code_for_that_address(app, client):
+    """Plan S22: codes are deleted by target (a `reset` row has no user_id), other users' rows stay."""
+    from app.models import UserIdentity, VerificationCode
+    from tests.accounts_helpers import bind, enable_email, mail_code
+
+    enable_email(app)
+    mail = "erin.gone@example.com"
+    other_mail = "frank.stays@example.com"
+    uid, _ = await register(client, "erin")
+    other, _ = await register(client, "frank")
+    await bind(app, uid, mail)
+    await bind(app, other, other_mail)
+    await mail_code(app, client, mail, "reset")  # a real reset code (carries the user's id) ...
+    assert (await client.post("/api/email/code", json={"email": mail, "purpose": "register"})).status_code == 200
+    assert (await client.post("/api/email/code", json={"email": other_mail, "purpose": "register"})).status_code == 200
+    # ... and the hidden "already registered" row, which has no user_id and is found only by its target
+    async with app.state.sessionmaker() as s:
+        from app.services.identities import subject_hmac
+        gone = subject_hmac(app.state.settings.identity_pepper, mail)
+        kept = subject_hmac(app.state.settings.identity_pepper, other_mail)
+        assert await s.scalar(select(func.count()).select_from(VerificationCode).where(
+            VerificationCode.target_hmac == gone, VerificationCode.user_id.is_(None))) == 1
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "erin", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    async with app.state.sessionmaker() as s:
+        assert await s.scalar(select(func.count()).select_from(VerificationCode).where(
+            VerificationCode.target_hmac == gone)) == 0
+        assert await s.scalar(select(func.count()).select_from(VerificationCode).where(
+            VerificationCode.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(UserIdentity).where(UserIdentity.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(VerificationCode).where(
+            VerificationCode.target_hmac == kept)) >= 1
+        assert await s.scalar(select(func.count()).select_from(UserIdentity).where(UserIdentity.user_id == other)) == 1
+        audit = await s.scalar(select(AdminAudit).where(AdminAudit.action == "user.delete"))
+    assert mail not in repr(audit.after) and mail not in audit.summary and "gone" not in repr(audit.after)
