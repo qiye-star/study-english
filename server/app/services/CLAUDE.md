@@ -20,6 +20,7 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `usage.py` – persistent daily counters (`consume`, `remaining`, `refund`) for rank and rooms
 - `identities.py` – login sessions (`revoke_sessions`, `issue_token`, `change_password`) and email identities: `normalize_email` / `identity_key` (R-F1), `subject_hmac` (keyed HMAC, pepper passed in), `encrypt_email` / `decrypt_email`, `mask_email`, `email_ready` (pepper + encryption key + backend), `find_user_by_email`, `bind_email` / `clear_email` (no commit); never logs, errors never carry an address
 - `email_domains.py` – `domain_allowed(settings, email)`: any / allowlist / blocklist with built-in tables
+- `verification.py` – email codes: `issue` / `hidden_issue` / `verify` (HMAC-stored, purpose + target bound, cooldown, per-target cap, atomic global daily claim `claim_global_quota`, attempts claimed in separate transactions via the passed `async_sessionmaker`); `VerificationError(kind, retry_after)`; never logs
 
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`. Never speech/realtime/rank/rooms/routers (enforced by
