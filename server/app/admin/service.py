@@ -6,6 +6,7 @@ from typing import Literal
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.avatars import avatar_url
 from app.models import (
     Assessment, Conversation, Message, PracticeItem, User, VocabularyItem, iso_utc,
 )
@@ -155,6 +156,7 @@ async def get_user(session: AsyncSession, user_id: int) -> dict | None:
         "id": base["id"],
         "username": base["username"],
         "nickname": base["nickname"],
+        "avatar_url": avatar_url(row[0].avatar_id),
         "created_at": base["created_at"],
         "grammar_prompt": row[0].grammar_prompt,
         "counts": {

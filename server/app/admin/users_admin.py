@@ -27,7 +27,7 @@ from app.models import (
     ChangelogRead, VerificationCode, AvatarReport,
 )
 from app.library import paths as library_paths
-from app.services import recordings
+from app.services import avatars, recordings
 from app.services.identities import EMAIL_PROVIDER
 
 TEMP_PASSWORD_LEN = 16
@@ -173,6 +173,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     user = await _user(session, user_id)
     if confirm_username.strip().lower() != user.username:
         raise UserAdminError(409, "Confirmation required")
+    avatar_id = user.avatar_id  # read before the commit expires the row; the file goes after it (R-V10)
     recording_bytes = await recordings.used_bytes(session, user_id)
     closed, transferred, orphaned = await _release_rooms(session, user_id, now)
     conversations = select(Conversation.id).where(Conversation.user_id == user_id)
@@ -207,6 +208,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     await session.commit()
     _remove_recordings(settings, user_id)
     library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    avatars.remove(settings, avatar_id)  # the avatar file; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 

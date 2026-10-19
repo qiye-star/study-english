@@ -32,7 +32,7 @@ from app.library.catalog_jobs import install as install_catalog  # curated catal
 from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    account, admin, admin_accounts, avatars, admin_agents, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
     admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
@@ -144,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): admin_catalog, goes on the next line (before stubs) ---
         admin_catalog,  # /api/admin/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
         admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
+        admin_avatars,  # /api/admin/avatar-reports, /api/admin/users/{id}/avatar (plan avatar S7); before stubs
         stubs, admin_web, web,
     ):
         app.include_router(module.router)
