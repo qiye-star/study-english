@@ -14,6 +14,7 @@ import warnings
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -172,3 +173,15 @@ async def clear(session: AsyncSession, settings: Settings, user: User) -> None:
     logger.debug("avatar removed")
 
 
+
+
+async def public_path(session: AsyncSession, settings: Settings, avatar_id: str) -> Path | None:
+    """公开读取(R-V4):只认 `users.avatar_id` 里存在的 id。id 格式不对时在查库和拼路径之前就返回 None;
+    「不存在」「已删除」「不属于任何人」给出同一个答案,不泄露归属。"""
+    if not isinstance(avatar_id, str) or _ID_RE.fullmatch(avatar_id) is None:
+        return None
+    owner = (await session.execute(select(User.id).where(User.avatar_id == avatar_id))).scalar_one_or_none()
+    if owner is None:
+        return None
+    path = path_for(settings, avatar_id)
+    return path if path.is_file() else None

@@ -1,5 +1,6 @@
 """头像端点(计划 S4–S6):上传 / 删除自己的头像。路由只做 HTTP,逻辑在 services/avatars.py(INDEX X31)。"""
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
 
@@ -67,3 +68,22 @@ async def delete_avatar(
 ):
     """Remove your avatar. Allowed even while uploads are switched off (R-V3); idempotent."""
     await avatars.clear(session, settings, user)
+
+
+@router.get("/avatars/{avatar_id}")
+async def read_avatar(
+    avatar_id: str,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    """Public: <img> cannot send a Bearer token, so the 128-bit id is the only secret (R-V4)."""
+    path = None
+    if settings.avatar_upload_enabled:  # switched off: reads are 404 too (R-V3)
+        path = await avatars.public_path(session, settings, avatar_id)
+    if path is None:
+        raise HTTPException(404, "Not Found")
+    return FileResponse(path, media_type="image/webp", headers={
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Security-Policy": "default-src 'none'",
+    })

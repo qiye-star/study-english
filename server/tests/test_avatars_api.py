@@ -190,3 +190,76 @@ async def test_logs_never_carry_the_avatar_id_or_the_storage_path(client, auth_h
     assert avatar_id not in caplog.text
     assert str(tmp_path) not in caplog.text
     assert ".webp" not in caplog.text
+
+
+# ---- S5: public read ----
+
+PUBLIC_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Security-Policy": "default-src 'none'",
+}
+
+
+async def test_public_read_needs_no_token_and_serves_the_stored_bytes(client, auth_headers, tmp_path):
+    url = (await upload(client, auth_headers)).json()["avatar_url"]
+    r = await client.get(url)  # an <img> cannot send a Bearer token
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/webp"
+    assert r.content == avatar_file(tmp_path, url).read_bytes()
+    for name, value in PUBLIC_HEADERS.items():
+        assert r.headers[name] == value, name
+
+
+async def test_a_replaced_avatar_url_is_gone(client, auth_headers):
+    old = (await upload(client, auth_headers, image(color=(1, 2, 3)))).json()["avatar_url"]
+    await upload(client, auth_headers, image(color=(9, 9, 9)))
+    r = await client.get(old)
+    assert r.status_code == 404
+    assert r.json() == {"error": "Not Found"}
+
+
+async def test_a_deleted_avatar_url_is_gone(client, auth_headers):
+    url = (await upload(client, auth_headers)).json()["avatar_url"]
+    await client.delete("/api/me/avatar", headers=auth_headers)
+    r = await client.get(url)
+    assert r.status_code == 404
+    assert r.json() == {"error": "Not Found"}
+
+
+async def test_unknown_but_well_formed_id_looks_exactly_like_a_missing_one(client):
+    r = await client.get("/api/avatars/" + "f" * 32)
+    assert r.status_code == 404
+    assert r.json() == {"error": "Not Found"}
+
+
+async def test_malformed_ids_are_404_before_any_path_is_built(client, auth_headers, tmp_path):
+    await upload(client, auth_headers)
+    for bad in ["0" * 31, "0" * 33, "A" * 32, "g" * 32, "..%2F..%2Fetc%2Fpasswd", "%2e%2e%2fsecret"]:
+        r = await client.get(f"/api/avatars/{bad}")
+        assert r.status_code == 404, bad
+        assert r.json() == {"error": "Not Found"}, bad
+
+
+async def test_switch_off_hides_reads_but_keeps_the_file(app, client, auth_headers, tmp_path):
+    url = (await upload(client, auth_headers)).json()["avatar_url"]
+    app.state.settings = app.state.settings.model_copy(update={"avatar_upload_enabled": False})
+    assert (await client.get(url)).status_code == 404
+    assert avatar_file(tmp_path, url).exists()  # kept for when the switch is back on (R-V3)
+    app.state.settings = app.state.settings.model_copy(update={"avatar_upload_enabled": True})
+    assert (await client.get(url)).status_code == 200
+
+
+async def test_a_row_without_its_file_is_404(client, auth_headers, tmp_path):
+    url = (await upload(client, auth_headers)).json()["avatar_url"]
+    avatar_file(tmp_path, url).unlink()
+    assert (await client.get(url)).status_code == 404
+
+
+async def test_public_read_logs_never_carry_the_id(client, auth_headers, tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="app")
+    url = (await upload(client, auth_headers)).json()["avatar_url"]
+    assert (await client.get(url)).status_code == 200
+    assert (await client.get("/api/avatars/" + "e" * 32)).status_code == 404
+    assert ID_RE.fullmatch(url).group(1) not in caplog.text
+    assert str(tmp_path) not in caplog.text
