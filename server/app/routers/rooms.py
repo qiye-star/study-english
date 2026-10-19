@@ -24,7 +24,7 @@ from app.core.deps import auth_rate_limit, current_user, get_settings, limited_u
 from app.core.quotas import effective
 from app.core.ratelimit import RateLimiter
 from app.core.settings_registry import SPECS
-from app.models import User, iso_utc, utcnow
+from app.models import User, display_of, iso_utc, utcnow
 from app.providers import llm
 from app.rooms.codes import normalize_code
 from app.rooms.connection import ConnDeps, RoomConnection, members_out
@@ -275,7 +275,7 @@ async def _request_closed(rt: RoomsRuntime, room_id: str, request_id: str, statu
 
 async def _admitted(rt: RoomsRuntime, room_id: str, user_ids: list[int]) -> None:
     for user_id in user_ids:
-        await system_message(rt, room_id, "joined", {"name": await rt.store.username(user_id)})
+        await system_message(rt, room_id, "joined", {"name": await rt.store.display_name(user_id)})
     if user_ids:
         await presence(rt, room_id)
 
@@ -352,7 +352,7 @@ async def join_room(payload: JoinIn, request: Request, user: User = Depends(curr
     except RoomError as e:
         _raise(e)
     if joined:
-        await system_message(rt, room.id, "joined", {"name": user.username})
+        await system_message(rt, room.id, "joined", {"name": display_of(user)})
         await presence(rt, room.id)
     return {"room": await _room_json(rt, room, member.role)}
 
@@ -599,7 +599,7 @@ async def kick_member(room_id: str, payload: KickIn, request: Request, user: Use
     except RoomError as e:
         _raise(e)
     await rt.hub.close_user(room_id, payload.user_id, CLOSE_KICKED)
-    await system_message(rt, room_id, "kicked", {"name": await rt.store.username(payload.user_id)})
+    await system_message(rt, room_id, "kicked", {"name": await rt.store.display_name(payload.user_id)})
     await presence(rt, room_id)
     return {"ok": True}
 
@@ -617,9 +617,9 @@ async def leave_room(room_id: str, request: Request, user: User = Depends(curren
     await rt.hub.close_user(room_id, user.id, CLOSE_NORMAL)
     room = await rt.store.room(room_id)
     if room is not None and room.status == "open":
-        await system_message(rt, room_id, "left", {"name": user.username})
+        await system_message(rt, room_id, "left", {"name": display_of(user)})
         if new_owner is not None:
-            await system_message(rt, room_id, "owner", {"name": await rt.store.username(new_owner)})
+            await system_message(rt, room_id, "owner", {"name": await rt.store.display_name(new_owner)})
             await rt.hub.broadcast(room_id, event("room_update", room=await _room_json(rt, room, None)))
         await presence(rt, room_id)
     return {"ok": True}
@@ -662,7 +662,7 @@ async def reopen_room(room_id: str, request: Request, user: User = Depends(curre
         _raise(e)
     logger.info("rooms reopened room=%s count=%d", room.id, room.reopen_count)
     try:  # the room is already open: a failed announcement must not turn the reopen into a 500
-        await announce_reopened(rt, room, "reopened", {"name": user.username})
+        await announce_reopened(rt, room, "reopened", {"name": display_of(user)})
     except Exception as e:
         logger.warning("rooms reopen announce failed room=%s error=%s", room.id, type(e).__name__)
     return {"room": await _room_json(rt, room, "owner")}
@@ -743,7 +743,7 @@ async def rooms_ws(websocket: WebSocket, ticket: str = ""):
             raise ProtocolError("expected hello")
         stage = "live"
         connection = RoomConnection(deps_for(app, rt, settings), room.id, grant.user_id,
-                                    await rt.store.username(grant.user_id), conn)
+                                    await rt.store.display_name(grant.user_id), conn)
         await connection.welcome(hello.last_seq)
         rt.hub.spawn(_presence_quietly(rt, room.id))
         while True:

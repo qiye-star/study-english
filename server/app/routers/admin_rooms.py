@@ -78,7 +78,7 @@ async def _kick(rt: RoomsRuntime, room_id: str, user_id: int) -> None:
     rt.tickets.revoke_user(user_id)
     room = await rt.store.room(room_id)
     if room is not None and room.status == "open":
-        await system_message(rt, room_id, "kicked", {"name": await rt.store.username(user_id)})
+        await system_message(rt, room_id, "kicked", {"name": await rt.store.display_name(user_id)})
         await rt.hub.broadcast(room_id, event("room_update", room=await _room_json(rt, room, None)))
         await presence(rt, room_id)
 
