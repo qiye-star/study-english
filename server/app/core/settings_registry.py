@@ -11,7 +11,8 @@ Apply = Literal["hot", "new_sessions", "restart"]
 Kind = Literal["str", "text", "int", "float", "bool", "enum", "csv", "url", "date", "json", "secret"]
 
 GROUPS: tuple[tuple[str, str], ...] = (
-    ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
+    ("features", "功能开关"), ("registration", "注册与访问"), ("accounts", "账号与邮箱"), ("limits", "限流与配额"),
+    ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
     ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
     ("links", "学习联动"), ("agents", "智能体"), ("library", "跟读库"),
@@ -91,6 +92,11 @@ _ALL: tuple[SettingSpec, ...] = (
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
     _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册"),
+    # accounts(计划 S2)
+    _s("access_token_ttl_days", "accounts", "int", "登录有效天数", min=1, max=365,
+       help_zh="每次使用时滑动续期;改动只影响之后签发的登录", danger=_LONGER_SESSIONS),
+    _env("identity_pepper", "secret", "身份 HMAC 密钥", group="accounts",
+         help_zh="只读环境变量;丢失或更换会让所有邮箱登录失效;与加密主密钥分开备份"),
     _s("rate_limit_per_minute", "limits", "int", "登录/注册每分钟次数(按 IP)", min=1, max=10000,
        danger=_WEAKER_LOGIN),
     _s("ai_rate_limit_per_minute", "limits", "int", "AI 接口每分钟次数(按用户)", min=1, max=10000),
