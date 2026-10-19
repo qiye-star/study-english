@@ -30,7 +30,7 @@ _DUMMY_HASH = hash_password("dummy-password")
 
 class LoginIn(BaseModel):
     provider: str = "password"
-    username: str = Field(max_length=64)
+    username: str = Field(max_length=254)  # a login name or an email address (spec 4.3)
     password: str = Field(max_length=128)
 
 
@@ -181,12 +181,18 @@ async def register(
 )
 async def login(
     payload: LoginIn,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
     if payload.provider != "password":
         raise HTTPException(400, "Unsupported login provider")
-    user = await _get_by_username(session, payload.username.strip().lower())
+    response.headers["Cache-Control"] = "no-store"  # the body carries a login token
+    typed = payload.username.strip().lower()
+    # login names cannot contain "@", so it only ever means an email; a malformed or unknown address takes the
+    # same dummy-hash path as an unknown user name (equal time, one 401 text)
+    user = (await identities.find_user_by_email(session, settings, typed) if "@" in typed
+            else await _get_by_username(session, typed))
     if user is None:
         await asyncio.to_thread(verify_password, _DUMMY_HASH, payload.password)
         raise HTTPException(401, INVALID_LOGIN)
