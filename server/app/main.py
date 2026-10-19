@@ -14,6 +14,7 @@ from app.core.db import make_engine
 from app.core.errors import install_error_handlers
 from app.core.learning_events import LearningBus
 from app.services.grammar import load_grammar_rules
+from app.services.mailer import Mailer
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.maintenance import MaintenanceMiddleware
@@ -91,6 +92,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
     app.state.nickname_limiter = RateLimiter(10, window=3600.0)  # PATCH /api/me: per user per hour (plan S6, R-F12)
+    # outbound mail: settings are read when the mail goes out; tests inject a FakeSender via email_sender_override
+    app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
