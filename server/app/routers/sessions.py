@@ -14,7 +14,7 @@ from app.core.deps import auth_rate_limit, current_user_unbound, get_session, ge
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
 from app.services import identities, invites
-from app.services.nicknames import clean_nickname
+from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
 
 router = APIRouter(prefix="/api")
 
@@ -92,6 +92,10 @@ async def register(
 ):
     if settings.registration_mode == "closed":
         raise HTTPException(403, "Registration is closed")
+    # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
+    if (payload.nickname is not None and payload.nickname.casefold() != payload.username
+            and await nickname_taken_by_login(session, payload.nickname, None)):
+        raise HTTPException(422, INVALID_DETAIL)
     # invite mode: the env INVITE_CODE (unlimited) or one use of a live DB code (admin v2 §7). The DB use is
     # taken in the same transaction as the new user, so a failed registration (409) does not consume it.
     db_code = settings.registration_mode == "invite" and not (

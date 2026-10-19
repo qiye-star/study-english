@@ -10,7 +10,9 @@ ALLOWED = [
     ("小明😀", "小明😀"),
     ("é", "é"),  # decomposed input is stored in NFC
     ("é", "é"),
-    ("一" * 20, "一" * 20),  # 20 code points is the limit
+    ("一" * 20, "一" * 20),
+    ("Admin Lee", "Admin Lee"),  # only an exact official word is refused
+    ("官方旗舰", "官方旗舰"),  # 20 code points is the limit
 ]
 
 REJECTED = [
@@ -28,6 +30,22 @@ REJECTED = [
     "助手",
     "AI 助手",
     "ai   助手",
+    # official words (S6b): casefolded, whitespace-trimmed
+    "admin",
+    "Admin",
+    "ADMINISTRATOR",
+    "  Root  ",
+    "system",
+    "Support",
+    "staff",
+    "Moderator",
+    "OFFICIAL",
+    "管理员",
+    "客服",
+    "官方",
+    "系统",
+    "运营",
+    "站长",
     "",  # private use (Co)
     "a b",  # line separator (Zl)
 ]
@@ -58,3 +76,10 @@ def test_reserved_names_match_the_rooms_constants():
     from app.services.nicknames import RESERVED
 
     assert RESERVED == frozenset(RESERVED_NAMES) | {AI_NAME.casefold()}
+
+
+def test_official_words_are_a_casefolded_frozenset():
+    from app.services.nicknames import OFFICIAL
+
+    assert OFFICIAL == frozenset({"admin", "administrator", "root", "system", "support", "staff", "moderator",
+                                  "official", "管理员", "客服", "官方", "系统", "运营", "站长"})

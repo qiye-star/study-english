@@ -13,7 +13,7 @@ from app.core.security import hash_password, verify_password
 from app.models import User, display_of, utcnow
 from app.routers.live_connections import cut_connections
 from app.services import identities
-from app.services.nicknames import clean_nickname
+from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -43,6 +43,8 @@ async def update_me(
     """Set or clear the display nickname (R-F12: 10 changes per user per hour). Returns the two name fields."""
     if not request.app.state.nickname_limiter.allow(str(user.id)):
         raise HTTPException(429, "Too many requests, please try again later")
+    if payload.nickname is not None and await nickname_taken_by_login(session, payload.nickname, user.id):
+        raise HTTPException(422, INVALID_DETAIL)  # same text as any invalid nickname: the rule is not revealed
     user.nickname = payload.nickname
     await session.commit()
     return {"nickname": user.nickname, "display_name": display_of(user)}
