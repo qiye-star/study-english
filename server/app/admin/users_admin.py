@@ -25,6 +25,7 @@ from app.models import (
     AgentTutorSession,
     LibraryAttempt, LibraryItem, LibrarySegment,
     ChangelogRead, VerificationCode, AvatarReport,
+    InviteCode, InviteRedemption,
 )
 from app.library import paths as library_paths
 from app.services import recordings
@@ -56,6 +57,8 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
     (WordbookReport, "user_id"),  # a content report stays for moderation
+    (InviteCode, "owner_user_id"),  # a user's invite code outlives them only as a revoked row (delete_user revokes it first)
+    (InviteRedemption, "user_id"),  # who invited whom stays; the invitee is gone (invites v2 R-I11)
 )
 
 
@@ -191,6 +194,10 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
         VerificationCode.channel == "email",
         VerificationCode.target_hmac.in_(select(UserIdentity.subject_hmac).where(
             UserIdentity.user_id == user_id, UserIdentity.provider == EMAIL_PROVIDER))))
+    # invites v2 (R-I11): the permanent user code stops working and its plain copy is wiped before the owner goes
+    await session.execute(update(InviteCode).where(InviteCode.owner_user_id == user_id,
+                                                   InviteCode.revoked_at.is_(None)).values(revoked_at=now))
+    await session.execute(update(InviteCode).where(InviteCode.owner_user_id == user_id).values(code_enc=None))
     for model, column in USER_ROWS:
         await session.execute(delete(model).where(getattr(model, column) == user_id))
     for model, column in USER_REFS_NULLED:

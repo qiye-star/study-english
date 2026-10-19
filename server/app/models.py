@@ -603,6 +603,15 @@ class InviteCode(Base):
     created_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # invites v2 (plan 2026-10-14-invites-v2 R-I1): admin codes are one-off/batch codes; user codes are one
+    # permanent random code per user. code_enc (secretbox) exists only for kind='user', so the owner can see it again.
+    kind: Mapped[str] = mapped_column(String(8), default="admin", server_default="admin")
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                      index=True)
+    code_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    __table_args__ = (Index("uq_invite_codes_owner_active", "owner_user_id", unique=True,
+                            sqlite_where=text("revoked_at IS NULL AND owner_user_id IS NOT NULL"),
+                            postgresql_where=text("revoked_at IS NULL AND owner_user_id IS NOT NULL")),)
 
 
 # ---- 联机练习 v2(设计文档 2026-10-10-rooms-v2 §7)----
@@ -1192,3 +1201,14 @@ class AvatarReport(Base):
     reason: Mapped[str] = mapped_column(String(16))  # inappropriate / impersonation / other
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InviteRedemption(Base):
+    """一次邀请码兑换(invites-v2 R-I1):被邀请者的 user_id 唯一(一人一条);用户被删除后记录保留、user_id 置空。"""
+    __tablename__ = "invite_redemptions"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_invite_redemptions_user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_id: Mapped[int] = mapped_column(ForeignKey("invite_codes.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    redeemed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
