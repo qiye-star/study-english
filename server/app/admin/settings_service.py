@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from sqlalchemy import delete, select
 
@@ -37,7 +37,14 @@ class SaveResult:
 
 DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
 # Non-URL settings that form the host their paired key is sent to (review M2).
-HOST_FORMING = {"azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/"}
+# The SMTP host and port decide where `smtp_password` is sent (plan A2b). The host is percent-encoded so that
+# `host@other`, `host:25` or `host/x` compare as a different endpoint instead of being parsed as userinfo/port/path;
+# the port gets a fixed placeholder host so only the port number differs.
+HOST_FORMING = {
+    "azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/",
+    "smtp_host": lambda host: f"smtp://{quote(str(host).strip(), safe='')}",
+    "smtp_port": lambda port: f"smtp://smtp-port:{port}",
+}
 
 
 def host_of(url: str) -> str:

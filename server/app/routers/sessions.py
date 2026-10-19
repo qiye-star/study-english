@@ -2,6 +2,7 @@ import asyncio
 import re
 import secrets
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
@@ -9,12 +10,17 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.account_policy import binding_deadline, binding_state
 from app.core.config import Settings
 from app.core.deps import auth_rate_limit, current_user_unbound, get_session, get_settings
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
-from app.services import identities, invites
-from app.services.nicknames import clean_nickname
+from app.services import email_accounts, identities, invites
+from app.services.email_accounts import INVALID_CODE
+from app.services.email_domains import domain_allowed
+from app.services.identities import email_ready, normalize_email
+from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
+from app.services.verification import VerificationError
 
 router = APIRouter(prefix="/api")
 
@@ -26,7 +32,7 @@ _DUMMY_HASH = hash_password("dummy-password")
 
 class LoginIn(BaseModel):
     provider: str = "password"
-    username: str = Field(max_length=64)
+    username: str = Field(max_length=254)  # a login name or an email address (spec 4.3)
     password: str = Field(max_length=128)
 
 
@@ -35,6 +41,13 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     invite_code: str | None = None
     nickname: str | None = None
+    email: str | None = Field(None, max_length=254)  # used only while EMAIL_REGISTRATION_REQUIRED is on (INDEX X11)
+    email_code: str | None = Field(None, max_length=16)
+
+    @field_validator("email")
+    @classmethod
+    def _normalise_email(cls, value: str | None) -> str | None:
+        return None if value is None else normalize_email(value)  # fixed message, never echoes the address
 
     @field_validator("nickname")
     @classmethod
@@ -50,6 +63,11 @@ class RegisterIn(BaseModel):
         return value
 
 
+class EmailBindingOut(BaseModel):
+    state: Literal["none", "pending", "enforced"]
+    deadline: str | None  # always present (null when not applicable)
+
+
 class UserOut(BaseModel):
     id: str
     name: str  # the login name (INDEX X7: kept for the desktop client)
@@ -57,6 +75,9 @@ class UserOut(BaseModel):
     access_token: str | None = None
     nickname: str | None = None  # absent when unset
     display_name: str
+    email_masked: str | None = None  # only on /api/me, absent when there is no email
+    email_verified: bool | None = None  # only on /api/me
+    email_binding: EmailBindingOut | None = None  # only on /api/me
 
 
 def _user_out(user: User, token: str | None = None) -> UserOut:
@@ -79,6 +100,38 @@ def _new_user_id() -> int:
     return secrets.randbelow(90_000_000) + 10_000_000
 
 
+def _require_email_fields(payload: RegisterIn, settings: Settings) -> None:
+    """INDEX X11 / R-F7: the checks that need no lookup. Nothing here depends on whether an address is registered."""
+    if payload.email is None:
+        raise HTTPException(400, "Email verification required: please register in the web app")  # desktop-visible text
+    if not email_ready(settings):
+        raise HTTPException(503, "Email is not configured")
+    if payload.nickname is None:
+        raise HTTPException(422, "nickname: Field required")
+    if payload.email_code is None:
+        raise HTTPException(422, "email_code: Field required")
+    if not domain_allowed(settings, payload.email):
+        raise HTTPException(422, "Email domain not allowed")
+
+
+async def _register_with_email(payload: RegisterIn, request: Request, session: AsyncSession, settings: Settings,
+                               password_hash: str, db_code: bool) -> UserOut:
+    try:
+        user, token = await email_accounts.register_with_email(
+            session, settings, username=payload.username, password_hash=password_hash,
+            nickname=payload.nickname, email=payload.email, code=payload.email_code,
+            invite_code=(payload.invite_code or "") if db_code else None, new_user_id=_new_user_id, now=utcnow())
+    except VerificationError:
+        raise HTTPException(400, INVALID_CODE) from None
+    except email_accounts.InviteRejected:
+        raise HTTPException(403, "Invalid invite code") from None
+    except email_accounts.UsernameTaken:
+        raise HTTPException(409, "Username already taken") from None
+    except email_accounts.IdAllocationFailed:
+        raise HTTPException(500, "Could not allocate a user id") from None
+    return _user_out(user, token)
+
+
 @router.post(
     "/users",
     response_model=UserOut,
@@ -87,18 +140,29 @@ def _new_user_id() -> int:
 )
 async def register(
     payload: RegisterIn,
+    request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
     if settings.registration_mode == "closed":
         raise HTTPException(403, "Registration is closed")
+    response.headers["Cache-Control"] = "no-store"  # the body carries a login token
+    if settings.email_registration_required:
+        _require_email_fields(payload, settings)
+    # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
+    if (payload.nickname is not None and payload.nickname.casefold() != payload.username
+            and await nickname_taken_by_login(session, payload.nickname, None)):
+        raise HTTPException(422, INVALID_DETAIL)
     # invite mode: the env INVITE_CODE (unlimited) or one use of a live DB code (admin v2 §7). The DB use is
     # taken in the same transaction as the new user, so a failed registration (409) does not consume it.
     db_code = settings.registration_mode == "invite" and not (
         settings.invite_code and secrets.compare_digest((payload.invite_code or "").encode(),
                                                         settings.invite_code.encode()))
 
-    password_hash = await asyncio.to_thread(hash_password, payload.password)
+    password_hash = await asyncio.to_thread(hash_password, payload.password)  # before any lookup (R-F7)
+    if settings.email_registration_required:
+        return await _register_with_email(payload, request, session, settings, password_hash, db_code)
     for _ in range(5):
         if db_code and not await invites.consume(session, payload.invite_code or "", utcnow()):
             await session.rollback()
@@ -127,12 +191,18 @@ async def register(
 )
 async def login(
     payload: LoginIn,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
     if payload.provider != "password":
         raise HTTPException(400, "Unsupported login provider")
-    user = await _get_by_username(session, payload.username.strip().lower())
+    response.headers["Cache-Control"] = "no-store"  # the body carries a login token
+    typed = payload.username.strip().lower()
+    # login names cannot contain "@", so it only ever means an email; a malformed or unknown address takes the
+    # same dummy-hash path as an unknown user name (equal time, one 401 text)
+    user = (await identities.find_user_by_email(session, settings, typed) if "@" in typed
+            else await _get_by_username(session, typed))
     if user is None:
         await asyncio.to_thread(verify_password, _DUMMY_HASH, payload.password)
         raise HTTPException(401, INVALID_LOGIN)
@@ -143,9 +213,20 @@ async def login(
     return _user_out(user, await _issue_token(session, user, settings))
 
 
-@router.get("/me", response_model=UserOut, response_model_exclude_none=True)
-async def me(user: User = Depends(current_user_unbound)):
-    return _user_out(user)
+@router.get("/me", response_model=None)  # a dict: the nested deadline must stay a real null
+async def me(
+    request: Request,
+    user: User = Depends(current_user_unbound),  # must keep working while binding is enforced (INDEX X3)
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    out = _user_out(user)
+    out.email_verified = user.email_verified_at is not None
+    out.email_masked = await identities.masked_email(session, settings, user)
+    body = out.model_dump(mode="json", exclude_none=True)  # an unset nickname / email_masked is absent ...
+    body["email_binding"] = EmailBindingOut(state=binding_state(settings, utcnow()),
+                                            deadline=binding_deadline(settings)).model_dump()  # ... deadline is a real null
+    return body
 
 
 @router.delete("/sessions/current", status_code=204)

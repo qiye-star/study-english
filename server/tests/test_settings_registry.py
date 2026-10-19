@@ -15,7 +15,7 @@ EXPECTED_SECRETS = {
     "database_url", "invite_code", "upstream_llm_key", "upstream_tts_key", "upstream_whisper_key", "upstream_grammar_key",
     "volcengine_tts_key", "volcengine_asr_key", "azure_speech_key", "xfyun_api_key", "xfyun_api_secret",
     "admin_password", "admin_session_secret", "admin_totp_secret", "settings_encryption_key",
-    "library_ytdlp_proxy", "identity_pepper",
+    "library_ytdlp_proxy", "identity_pepper", "smtp_password",
 }
 
 

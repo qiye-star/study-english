@@ -6,7 +6,12 @@ Foundation layer used by every other package.
 - `config.py` – `Settings` (pydantic-settings, env/.env) plus pure ASR config predicates
   (`effective_realtime_asr`, `realtime_asr_configured`, ...) that `Settings.realtime_available` needs
 - `db.py` – async engine factory and `Base`; patches SQLAlchemy's aiosqlite `_terminate_graceful_close` so cancelling a task mid-query cannot hang on a dead worker thread (`test_db_cancel.py`)
-- `deps.py` – FastAPI dependencies: `get_settings`, `get_session`, `current_user`, `limited_user`
+- `deps.py` – FastAPI dependencies, three tiers over one `_authenticate` (token lookup, disabled check, sliding renewal):
+  `current_user` (default; 403 `email_binding_required` while binding is enforced and the user has no verified email),
+  `current_user_unbound` (same authentication, no binding check; used only by the four endpoints that must work while binding
+  is enforced: `GET /api/me`, `DELETE /api/sessions/current`, `POST /api/me/email/code`, `POST /api/me/email`), and
+  `limited_user` (per-user rate limit on top of `current_user`); plus `get_settings`, `get_session`, `client_ip`, `auth_rate_limit`
+- `account_policy.py` – `binding_state(settings, now)` -> `none` / `pending` / `enforced` and `binding_deadline(settings)`: pure, stdlib + `Settings` only (INDEX X33); `deps.py` calls it per request, never caches the answer
 - `security.py` – password hashing, access tokens
 - `errors.py` – JSON error handlers (`{"error": ...}`)
 - `logging_setup.py` – `app` logger handler + `ticket=` redaction on uvicorn loggers
@@ -48,6 +53,7 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 
 ## Tests
 `uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py tests/test_maintenance.py tests/test_log_buffer.py`
+Binding gate: `uv run pytest -q tests/test_accounts_binding_gate.py`
 
 ## Pitfalls
 - Settings field names are the env contract (`.env.example`, docker-compose); renaming breaks deploys.

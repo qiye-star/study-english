@@ -14,6 +14,7 @@ from app.core.db import make_engine
 from app.core.errors import install_error_handlers
 from app.core.learning_events import LearningBus
 from app.services.grammar import load_grammar_rules
+from app.services.mailer import Mailer
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.maintenance import MaintenanceMiddleware
@@ -91,6 +92,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
     app.state.nickname_limiter = RateLimiter(10, window=3600.0)  # PATCH /api/me: per user per hour (plan S6, R-F12)
+    # outbound mail: settings are read when the mail goes out; tests inject a FakeSender via email_sender_override
+    app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
+    app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
@@ -181,6 +185,8 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
                   keys={"rate_limit_per_minute"})
     hub.subscribe("user_limiter", lambda o, n: setattr(state.user_limiter, "limit", n.ai_rate_limit_per_minute),
                   keys={"ai_rate_limit_per_minute"})
+    hub.subscribe("email_ip_limiter", lambda o, n: setattr(state.email_ip_limiter, "limit", n.email_codes_per_ip_hourly),
+                  keys={"email_codes_per_ip_hourly"})
     hub.subscribe("realtime_tickets", lambda o, n: state.realtime_tickets.set_ttl(n.realtime_ticket_ttl_seconds),
                   keys={"realtime_ticket_ttl_seconds"})
     hub.subscribe("realtime_registry", lambda o, n: state.realtime_registry.set_max(n.realtime_max_sessions),

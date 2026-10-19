@@ -362,7 +362,7 @@ ROOMS_V2_TABLES = {"room_voice", "room_reactions", "room_join_requests", "room_s
 
 def test_0011_rooms_v2_tables_columns_backfill_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0023"]  # one head after the admin v2 merge
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0024"]  # one head after the admin v2 merge
     previous = ScriptDirectory.from_config(cfg).get_revision("0011").down_revision
     assert previous == "0010"
     command.upgrade(cfg, previous)
@@ -429,7 +429,7 @@ LINK_TABLES = {"user_link_prefs", "link_mistake_words", "link_weak_words", "link
 
 def test_0013_learning_links_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0023"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0024"]
     command.upgrade(cfg, "0012")
     assert not LINK_TABLES & _tables(db)
     command.upgrade(cfg, "0013")
@@ -494,7 +494,7 @@ AGENT_TABLES = {"agent_personas", "agent_user_settings", "agent_persona_reports"
 
 def test_0015_agents_tables_trace_column_and_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0023"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0024"]
     command.upgrade(cfg, "0014")
     assert not AGENT_TABLES & _tables(db)
     con = sqlite3.connect(db)
@@ -545,7 +545,7 @@ AGENT_MEMORY_TABLES = {"agent_memory_items", "agent_profiles", "agent_thread_sta
 def test_0016_agent_memory_tables_round_trip(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0023"]
+    assert script.get_heads() == ["0024"]
     assert script.get_revision("0016").down_revision == "0015"
     command.upgrade(cfg, "0015")
     assert not AGENT_MEMORY_TABLES & _tables(db)
@@ -625,7 +625,7 @@ TUTOR_TABLE = "agent_tutor_sessions"
 def test_0016_agent_tutor_sessions_round_trip(tmp_path, monkeypatch):
     """A3 appends the tutor session table to A2's 0016 (plan 2026-10-12-agents-tutor R-T7)."""
     cfg, db = _config(tmp_path, monkeypatch)
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0023"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0024"]
     command.upgrade(cfg, "0015")
     assert TUTOR_TABLE not in _tables(db)
     command.upgrade(cfg, "0016")

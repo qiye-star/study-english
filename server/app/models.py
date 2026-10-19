@@ -1148,3 +1148,29 @@ def display_name():
 def display_of(user: "User") -> str:
     """`display_name()` 的 Python 版本(对已加载的 User 对象)。"""
     return user.nickname or user.username
+
+
+class VerificationCode(Base):
+    """邮箱验证码(计划 S10;R-F2、R-F3、X10):只存 HMAC;码绑定 purpose 与目标,同一行也记录从不发送的「隐藏码」。
+    不存邮箱、不存明文码。"""
+    __tablename__ = "verification_codes"
+    __table_args__ = (Index("ix_verification_codes_target_purpose_created", "target_hmac", "purpose", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel: Mapped[str] = mapped_column(String(8))  # email (sms later)
+    purpose: Mapped[str] = mapped_column(String(16))  # register / reset / bind / change_email
+    target_hmac: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    code_hmac: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class EmailDailyCount(Base):
+    """全局每日发信计数(R-F4):`UPDATE ... WHERE sent < cap` 原子认领额度,多进程也准确。"""
+    __tablename__ = "email_daily_counts"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

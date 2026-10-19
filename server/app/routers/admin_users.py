@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import invites, users_admin
-from app.admin.perms import AdminContext, deny, require, require_step_up, step_up_until
+from app.admin import invites, user_email_admin, users_admin
+from app.admin.perms import AdminContext, deny, require, require_operator_step_up, require_step_up, step_up_until
 from app.core.deps import get_session
 from app.core.quotas import QUOTA_KEYS, quota_cache
 from app.models import utcnow
@@ -97,6 +97,15 @@ async def reset_password(user_id: UserId, request: Request, ctx: AdminContext = 
         _fail(e)
     await cut_connections(request.app, user_id)
     return JSONResponse({"password": password}, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/users/{user_id}/email/clear")
+async def clear_user_email(user_id: UserId, payload: ReasonIn, ctx: AdminContext = Depends(require_operator_step_up),
+                           session: AsyncSession = Depends(get_session)):
+    try:
+        return await user_email_admin.clear_email(session, ctx.actor, user_id, reason=payload.reason, now=utcnow())
+    except user_email_admin.UserEmailError as e:
+        raise HTTPException(e.status, e.error) from None
 
 
 @router.delete("/users/{user_id}")

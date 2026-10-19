@@ -4,7 +4,7 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `app/main.py`.
 
 ## What lives here
-`health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
+`health` (/up), `sessions` (auth/users: password login by username or email; `POST /api/users` with `email_code` when email registration is on; `GET /api/me`; `DELETE /api/sessions/current`; the `/api/me` email fields are masked via `services/identities.py` and the binding state from `core/account_policy.py`), `account` (accounts v2, before `stubs`: `PATCH /api/me` nickname, `POST /api/me/password`, public `POST /api/email/code` (register / reset), `POST /api/password/reset`, signed-in `POST /api/me/email/code` and `POST /api/me/email` (bind / change); HTTP only, logic in `services/email_codes.py`, `services/email_accounts.py`, `services/identities.py`; `cut_connections` comes from `live_connections`), `live_connections` (NOT a router: a plain module with `cut_connections(app, user_id)`, shared by `admin_users` and `account`, so user routes never import each other: INDEX X30), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
 `realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, incl. `ended`, `{id}/reopen`; WS /api/rooms/ws),
@@ -45,6 +45,10 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 
 ## Pitfalls
 - Auth via `Depends(current_user)` / `limited_user` (rate-limited) from `app.core.deps`.
+- `current_user_unbound` is for exactly four endpoints that must work while email binding is enforced: `GET /api/me`,
+  `DELETE /api/sessions/current` (`sessions.py`), `POST /api/me/email/code`, `POST /api/me/email` (`account.py`). Every other
+  endpoint uses `current_user`, so a user who must still bind gets `403 email_binding_required` there (including
+  `PATCH /api/me` and `POST /api/me/password`). Adding a fifth unbound endpoint needs a decision, not a drive-by edit.
 - Every `/api/admin/*` route declares a role: `Depends(app.admin.perms.require("viewer"|"operator"|"superadmin"))`
   or a step-up dependency (`tests/test_admin_routes_guarded.py` walks FastAPI's included routers and also rejects
   duplicate method+path); writes audit in the same transaction. Keep admin routers thin: logic in `app/admin/`.

@@ -23,6 +23,9 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
   `library_contract.json` (recorded by `test_library_contract.py`; web `library-contract.test.ts` reads it; tickets written `REDACTED`);
   `changelog_contract.json` (recorded by `test_changelog_contract.py`; web `changelog-contract.test.ts` and admin `features/changelog/api.test.ts` read it; timestamps fixed);
   `agents_memory_contract.json` (web `memory-contract.test.ts`); `agents_tutor_contract.json` (recorded by `test_agents_tutor_contract.py`; helpers in `agents_tutor_helpers.py`)
+- `accounts_helpers.py` – accounts v2 email fakes: `enable_email(app, **overrides)` (both keys, console backend, `FakeSender` behind `app.state.email_sender_override`), `fake_sender`, `last_code` (6-digit code of the newest mail), `contains_code` (whole-token match: a bare `in` also hits hex digests), `bind`, `age_codes`, `mail_code`, `register_body`
+- `test_accounts_*.py` – one file per account area (register, login, bind, binding gate, reset, password, nicknames, settings, contract); `test_accounts_privacy_sweep.py` runs the main account and admin flows with distinctive values and asserts none of them reach DEBUG logs, error bodies, audit rows, settings revisions or the contract fixture (add a new account endpoint's flow there)
+- `fixtures/accounts_contract.json` – payload shapes the web client mirrors (recorded by `test_accounts_contract.py`; `CONTRACT_UPDATE=1` re-records; tokens, ids, times and the masked address are fixed placeholders)
 - `test_web_contract.py` – drives a real room session and pins every rooms HTTP/WS payload shape in
   `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional
   change with `CONTRACT_UPDATE=1` (tickets are written redacted)

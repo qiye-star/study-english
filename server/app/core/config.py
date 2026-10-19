@@ -2,7 +2,7 @@ import importlib.util
 import ipaddress
 import re
 import shutil
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -68,6 +68,22 @@ class Settings(BaseSettings):
     # 账号 v2(计划 S2):登录有效天数(每次使用滑动续期,热改);身份 HMAC 密钥(只读环境变量,等同密钥)
     access_token_ttl_days: int = Field(30, ge=1, le=365)
     identity_pepper: str = ""  # env-only secret;丢失或更换 = 所有邮箱登录与唯一性失效
+    # 账号 v2 邮箱(计划 S11;INDEX X11、X12):全部热改,每次请求读 app.state.settings
+    email_registration_required: bool = True  # 关 = 旧注册方式(应急开关)
+    email_backend: Literal["off", "console", "smtp"] = "off"
+    smtp_host: str = ""
+    smtp_port: int = Field(465, ge=1, le=65535)
+    smtp_security: Literal["ssl", "starttls"] = "ssl"
+    smtp_user: str = ""
+    smtp_password: str = ""  # secret(QQ 授权码):不进日志、审计、导出
+    smtp_from: str = ""  # 空 = smtp_user
+    email_codes_per_target_daily: int = Field(10, ge=1, le=100)
+    email_codes_per_ip_hourly: int = Field(10, ge=1, le=1000)
+    email_daily_global: int = Field(200, ge=1, le=100000)
+    email_domain_mode: Literal["any", "allowlist", "blocklist"] = "blocklist"
+    email_domain_list: str = ""
+    email_binding_required: bool = False
+    email_binding_deadline: str = ""  # 空或带时区的 ISO 8601 日期时间,例如 2026-10-28T00:00+08:00
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
     ai_rate_limit_per_minute: int = 60
@@ -322,6 +338,20 @@ class Settings(BaseSettings):
             raise ValueError("IDENTITY_PEPPER must be at least 32 characters")
         return value
 
+    @field_validator("email_binding_deadline")
+    @classmethod
+    def _binding_deadline(cls, value: str) -> str:
+        """Empty, or an ISO 8601 date-time that carries a UTC offset (a bare date is ambiguous). Never echoes the value."""
+        value = value.strip()
+        if value:
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                raise ValueError("EMAIL_BINDING_DEADLINE must be an ISO 8601 date-time with a UTC offset") from None
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("EMAIL_BINDING_DEADLINE must include a UTC offset")
+        return value
+
     @field_validator("admin_ip_allowlist")
     @classmethod
     def _cidrs(cls, value: str) -> str:
@@ -353,6 +383,11 @@ class Settings(BaseSettings):
         return value
 
     app_version: str = "0.7.9"
+
+    @property
+    def email_binding_deadline_at(self) -> datetime | None:
+        """The binding deadline as an aware datetime, or None when unset (validated above)."""
+        return datetime.fromisoformat(self.email_binding_deadline) if self.email_binding_deadline else None
 
     @property
     def admin_ip_networks(self) -> list:

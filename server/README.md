@@ -8,6 +8,7 @@
 Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /up                           健康检查
                                 ├ /api/sessions, /api/users, /api/me   认证
+                                ├ /api/email/code, /api/password/reset, /api/me/email*   邮箱验证码、找回密码、绑定 / 换绑(默认关,见「账号与邮箱」)
                                 ├ /api/config/{key}             配置快照
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
                                 ├ /api/ai/grammar               语法检查(登录 + 用户限流;请求 {text, context?};提示词与模型由服务端决定)
@@ -160,6 +161,63 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 - `closed`:关闭注册
 
 注册与登录接口按 IP 限流,上限由 `RATE_LIMIT_PER_MINUTE` 控制(每分钟次数)。
+
+邮箱注册开启时(`EMAIL_REGISTRATION_REQUIRED`,默认 true),`REGISTRATION_MODE` 仍然决定是否需要邀请码:`invite` 模式下邮箱注册也要邀请码。
+
+## 账号与邮箱
+
+计划 `docs/superpowers/plans/2026-10-14-accounts-foundation-email.md`。邮箱用于注册确认、找回密码与绑定;验证码是 6 位数字,有效 10 分钟、最多试错 5 次;同一邮箱两次发码之间至少间隔 60 秒。默认 `EMAIL_BACKEND=off`:邮箱相关接口返回 503。
+
+### 必需配置
+
+三项缺一,邮箱功能保持关闭,配置诊断报 `email_not_configured`:
+
+| 变量 | 说明 |
+|---|---|
+| `IDENTITY_PEPPER` | 邮箱身份的 HMAC 密钥,至少 32 字符,**只从环境变量读取**(不进后台)。生成示例:`python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `SETTINGS_ENCRYPTION_KEY` | 与上文「加密主密钥」相同;用来加密保存的邮箱地址与 SMTP 授权码 |
+| `EMAIL_BACKEND` | `smtp` 才真实发信。`console` 只在日志里记「已发送」,用户收不到,仅供开发 |
+| `SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURITY`、`SMTP_USER`、`SMTP_PASSWORD` | 发信服务器与账号。`SMTP_SECURITY=ssl` 配 465(默认),`starttls` 配 587。`SMTP_FROM` 留空即用 `SMTP_USER` |
+
+其他常用项(全部可热改,不用重启):`EMAIL_DAILY_GLOBAL`(全站每日发码上限)、`EMAIL_CODES_PER_TARGET_DAILY`(同一邮箱每日上限)、`EMAIL_CODES_PER_IP_HOURLY`(同一 IP 每小时上限)、`EMAIL_DOMAIN_MODE` 与 `EMAIL_DOMAIN_LIST`(域名策略,默认拒绝内置的临时邮箱域名)、`EMAIL_REGISTRATION_REQUIRED`(关 = 旧注册方式,应急用)、`EMAIL_BINDING_REQUIRED` 与 `EMAIL_BINDING_DEADLINE`(强制绑定)。
+
+### IDENTITY_PEPPER 备份(必读)
+
+- 丢失或更换 `IDENTITY_PEPPER` = **所有邮箱登录和「邮箱是否已被占用」的判断全部失效**(HMAC 对不上),而且无法从密文恢复。
+- 它必须与 `SETTINGS_ENCRYPTION_KEY` **分开备份**,并且不要放进数据库备份或管理后台。
+- 丢失 `SETTINGS_ENCRYPTION_KEY` 会让已加密的邮箱地址、后台保存的密钥与 TOTP 无法读取;它也要单独备份。
+- 不要为了「轮换」而改 pepper;它没有轮换流程。
+
+### 上线顺序
+
+与 `docs/superpowers/plans/2026-10-14-accounts-INDEX.md` §10 一致,并补充 SMTP 体检的位置:
+
+1. 备份数据库;确认两把密钥已设置,并且各自已单独备份。
+2. 设置 `SMTP_*`、`EMAIL_DAILY_GLOBAL`、`EMAIL_DOMAIN_MODE`,**`EMAIL_BINDING_REQUIRED=false`**。若暂时没有可用邮箱,先设 `EMAIL_REGISTRATION_REQUIRED=false`,注册保持旧方式。
+3. 部署新版本(由运维执行 `docker compose up -d --build`)。
+4. 在管理后台运行 **SMTP 体检**(上游 `smtp`):它只连接、加密并登录,不发信。通过后再把 `EMAIL_BACKEND` 设为 `smtp`。体检只存在于本版本,所以它在新版本已运行、`EMAIL_BACKEND` 仍为 `off` 时进行:不需要任何用户流量,也不必等到发信开启。
+5. 配置诊断中不应再有 `email_not_configured`。用自己的两个不同服务商的邮箱各走一遍注册与找回密码。
+6. 发公告与更新日志,按下方清单通知老用户。
+7. 公告约 7 天后:设置带时区的 `EMAIL_BINDING_DEADLINE`(例如 `2026-10-28T00:00+08:00`),再把 `EMAIL_BINDING_REQUIRED` 设为 `true`。没有截止时间就会立即强制;配置诊断会提示 `binding_without_deadline`。
+
+**回退**:`EMAIL_BINDING_REQUIRED=false` 立即解除强制;`EMAIL_REGISTRATION_REQUIRED=false` 恢复旧注册;`EMAIL_BACKEND=off` 关闭发信(此时若注册仍要求邮箱,注册会 503)。数据库迁移回退前先备份,迁移的 downgrade 没有在实际数据库上验证。
+
+### QQ 邮箱 SMTP 注意
+
+- `SMTP_PASSWORD` 填的是 QQ 邮箱的**授权码**,不是登录密码。
+- 服务商的日发信量、频率限制与临时封禁条件由服务商决定并可能变化,本文档不记录具体数字。`EMAIL_DAILY_GLOBAL` 请设在明显低于你自己实测到的限额处。
+- 被限流或封禁时,注册与找回密码都会失败,原因在服务商侧,本服务无法修复。
+- 到达率与垃圾箱行为因服务商与收件方而异,上线前用真实邮箱测试。
+- QQ 邮箱只适合小规模内测。公开开放前应换成事务邮件服务;接口已与 QQ 解耦,换服务商只需改 `SMTP_*`。
+
+### 通知老用户的清单
+
+- [ ] F-P2 部署后、强制前:管理后台用户列表用「未绑定邮箱」筛选,只看人数与用户名。
+- [ ] 公告横幅与更新日志:绑定截止时间、绑定入口,以及「桌面端请先在网页登录并绑定」。
+- [ ] 仍记得密码的用户:网页登录后顶部横幅引导绑定。
+- [ ] 忘了密码又没绑定邮箱的用户:公告写明「请联系管理员」。管理员在管理后台「重置密码」(临时密码只显示一次),用户登录后立即绑定邮箱并改密。
+- [ ] 截止前 1 天再发一次公告;截止后观察 `email_binding_required` 的 403 数量(只看状态码,不看内容)。
+- [ ] 截止后仍有人无法登录:管理员可临时关闭 `EMAIL_BINDING_REQUIRED`(热改),已绑定的用户不受影响。
 
 ## 上游服务选择
 
@@ -524,3 +582,4 @@ Docker 构建会在 Node 阶段运行 `yarn workspaces focus web` 与 `yarn work
 - 桌面客户端在创建 segment 后仍会把片段音频上传到 `storage.enjoy.bot`(`enjoy/src/main/db/models/segment.ts`、`main/storage.ts`)。这是上游既有行为,不在本后端覆盖范围内。
 - 练习清单(`practice_items`)与词汇本(`vocabulary_items`)的去重在应用层完成,没有唯一索引:两个并发的相同 POST 可能各插一行(见 `server/app/routers/practice_items.py` 的 "Known race" 注释)。词汇本沿用同一取舍。
 - 配置快照来自官方公开接口,需要时用 `fetch_config.py` 手动刷新。
+- 邮箱功能:同一邮箱的冷却与每日上限可能被并发请求抢先突破,此时仍受全站每日上限与按 IP 限流约束;强制绑定开始时,已经打开的 WebSocket 不会被断开;绑定邮箱不需要密码(规格 §4.3)。已知限制的完整列表与未验证项见 `docs/superpowers/plans/2026-10-14-accounts-foundation-email.md` 的「执行结果」。
