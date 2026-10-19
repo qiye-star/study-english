@@ -76,6 +76,13 @@
         "pending": "请绑定邮箱,以免账号受限。",
         "pendingUntil": "请在 {{time}} 前绑定邮箱,以免账号受限。",
         "bindNow": "去绑定"
+      },
+      "email": {
+        "title": "邮箱",
+        "unbound": "未绑定",
+        "maskedVerified": "{{email}} · 已验证",
+        "bind": "绑定邮箱",
+        "change": "更换邮箱"
       }
     }
   }

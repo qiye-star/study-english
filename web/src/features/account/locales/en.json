@@ -76,6 +76,13 @@
         "pending": "Bind an email to keep your account.",
         "pendingUntil": "Bind an email by {{time}} to keep your account.",
         "bindNow": "Bind now"
+      },
+      "email": {
+        "title": "Email",
+        "unbound": "Not bound",
+        "maskedVerified": "{{email}} · Verified",
+        "bind": "Bind email",
+        "change": "Change email"
       }
     }
   }
