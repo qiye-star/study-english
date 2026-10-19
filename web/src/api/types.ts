@@ -51,3 +51,37 @@ export interface RegisterInput {
 }
 
 export type Paged<K extends string, T> = { page: number; next: number | null } & Record<K, T[]>;
+
+/** 「我的邀请码」的一位被邀请者:只有显示名与兑换时间(无邮箱、无 id;INDEX X34 显示名来自服务端)。 */
+export interface InviteeInfo {
+  displayName: string;
+  /** 带时区的 ISO 字符串(X12)。 */
+  joinedAt: string;
+}
+
+/**
+ * 「我的邀请码」的原因(server `user_invites`):`invites_disabled` = 上限为 0(邀请权已收回,码不显示);
+ * `rotate_required` = 有码但无法显示(密钥变更),资格仍为 true,需要更换。
+ */
+export type MyInviteReason =
+  | "too_new"
+  | "email_unverified"
+  | "disabled_by_admin"
+  | "invites_disabled"
+  | "rotate_required";
+
+/** `GET/POST /api/me/invite`、`POST /api/me/invite/rotate` 的形状(服务端 `user_invites.view`,R-I6、R-I9)。 */
+export interface MyInvite {
+  eligible: boolean;
+  /** 不合格或需要更换时的原因;合格且正常时为 null。 */
+  reason: MyInviteReason | null;
+  /** 仅 `too_new` 时有:最早可以生成的时间(带时区 ISO)。 */
+  availableAt: string | null;
+  /** 没有码、或码不显示(不合格)时为 null。 */
+  code: string | null;
+  /** 累计使用次数(更换不清零,R-I8)。 */
+  uses: number;
+  /** 累计上限;0 表示邀请权已收回。 */
+  cap: number;
+  invitees: InviteeInfo[];
+}

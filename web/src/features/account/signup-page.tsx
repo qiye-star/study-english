@@ -7,6 +7,7 @@ import { ACCOUNT_ERROR_KEYS } from "./account-api";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail, validateCredentials } from "~/auth/validation";
 import { EmailCodeField } from "./email-code-field";
+import { readInviteFragment } from "./invites/invite-link";
 
 const LABEL = "block text-[13px] font-medium text-ink-2";
 const FIELD = "h-12 w-full rounded-button bg-surface-2 px-3.5 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -32,9 +33,11 @@ export function RegisterPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const invite = new URLSearchParams(window.location.hash.slice(1)).get("invite");
-    if (!invite) return;
-    setInviteCode(invite.trim());
+    // X27:只读片段;合法的码规范化后填入,无论是否合法都清掉片段(不进 query、日志或存储)。
+    const hash = window.location.hash;
+    if (!new URLSearchParams(hash.slice(1)).has("invite")) return;
+    const code = readInviteFragment(hash);
+    if (code) setInviteCode(code);
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
   }, []);
 

@@ -3,7 +3,7 @@ import i18n from "~/i18n";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { ApiClient, ApiError } from "~/api/client";
 import { translateServerError } from "~/api/error-messages";
-import { ACCOUNT_ERROR_KEYS, bindEmail, removeAvatar, requestBindCode, requestEmailCode, resetPassword, uploadAvatar } from "./account-api";
+import { ACCOUNT_ERROR_KEYS, bindEmail, createMyInvite, fetchMyInvite, removeAvatar, requestBindCode, requestEmailCode, resetPassword, rotateMyInvite, uploadAvatar } from "./account-api";
 import "./locales";
 
 const make = (routes: Parameters<typeof createFetchMock>[0], extra: Partial<ConstructorParameters<typeof ApiClient>[0]> = {}) => {
@@ -83,5 +83,66 @@ describe("avatar api", () => {
     expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
     await expect(removeAvatar(api)).resolves.toBeUndefined();
     expect(mock.calls[1].method).toBe("DELETE");
+  });
+});
+
+describe("my invite api (real server shapes: user_invites.view, R-I6/R-I9)", () => {
+  it("GET not eligible: flat shape, reason and available_at, no code", async () => {
+    const { api, mock } = make({
+      "GET /api/me/invite": () => json({
+        eligible: false, reason: "too_new", available_at: "2026-10-20T00:00:00+08:00",
+        code: null, uses: 0, cap: 10, invitees: [],
+      }),
+    });
+    expect(await fetchMyInvite(api)).toEqual({
+      eligible: false, reason: "too_new", availableAt: "2026-10-20T00:00:00+08:00",
+      code: null, uses: 0, cap: 10, invitees: [],
+    });
+    expect(mock.calls[0].method).toBe("GET");
+    expect(mock.calls[0].url.search).toBe("");
+  });
+
+  it("GET eligible with a code: cumulative uses, cap and display-name invitees", async () => {
+    const { api } = make({
+      "GET /api/me/invite": () => json({
+        eligible: true, reason: null, available_at: null, code: "ABCDE-FGHJK", uses: 3, cap: 10,
+        invitees: [{ display_name: "小明", joined_at: "2026-10-18T09:00:00+08:00" }],
+      }),
+    });
+    expect(await fetchMyInvite(api)).toEqual({
+      eligible: true, reason: null, availableAt: null, code: "ABCDE-FGHJK", uses: 3, cap: 10,
+      invitees: [{ displayName: "小明", joinedAt: "2026-10-18T09:00:00+08:00" }],
+    });
+  });
+
+  it("GET rotate_required: eligible, no code, the reason says the code must be replaced", async () => {
+    const { api } = make({
+      "GET /api/me/invite": () => json({ eligible: true, reason: "rotate_required", available_at: null, code: null, uses: 2, cap: 10, invitees: [] }),
+    });
+    expect(await fetchMyInvite(api)).toMatchObject({ eligible: true, reason: "rotate_required", code: null, uses: 2 });
+  });
+
+  it("POST creates the permanent code; rotate sends confirm true to the real path", async () => {
+    const body: Record<string, unknown> = { eligible: true, reason: null, available_at: null, code: "KMNPQ-RSTVW", uses: 0, cap: 10, invitees: [] };
+    const { api, mock } = make({
+      "POST /api/me/invite": () => json(body),
+      "POST /api/me/invite/rotate": () => json(body),
+    });
+    expect(await createMyInvite(api)).toMatchObject({ eligible: true, code: "KMNPQ-RSTVW", cap: 10 });
+    expect(mock.calls[0].method).toBe("POST");
+    expect(await rotateMyInvite(api)).toMatchObject({ eligible: true, code: "KMNPQ-RSTVW" });
+    expect(mock.calls[1].url.pathname).toBe("/api/me/invite/rotate");
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ confirm: true });
+    expect(mock.calls[1].headers.get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("a refused POST surfaces as ApiError with the server message (the reason comes from a re-read)", async () => {
+    const { api } = make({
+      "POST /api/me/invite": () => json({ error: "Not eligible", reason: "too_new", available_at: "2026-10-20T00:00:00+08:00" }, 403),
+    });
+    const err = await createMyInvite(api).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
+    expect((err as ApiError).message).toBe("Not eligible");
   });
 });

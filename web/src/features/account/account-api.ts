@@ -1,5 +1,5 @@
 import type { ApiClient } from "~/api/client";
-import type { UserProfile } from "~/api/types";
+import type { MyInvite, UserProfile } from "~/api/types";
 import { normalizeEmail } from "~/auth/validation";
 
 /** 发码接口的回执(注册 / 找回与绑定共用):无论邮箱是否已注册,形状相同。 */
@@ -18,6 +18,8 @@ export const ACCOUNT_ERROR_KEYS: Record<string, string> = {
   "Wrong password": "web.account.password.wrong",
   "Email already bound": "web.account.errors.emailAlreadyBound",
   "Email verification required: please register in the web app": "web.account.errors.emailVerificationRequired",
+  "Invite code used up": "web.account.errors.inviteUsedUp",
+  "Invites are not configured": "web.account.invite.unavailable",
 };
 
 /** 「账号」区读取资料(昵称)。组件只经过这里与 ApiClient 打交道,不直接 fetch。 */
@@ -61,4 +63,19 @@ export async function uploadAvatar(api: ApiClient, image: Blob): Promise<{ avata
 /** 移除自己的头像。 */
 export async function removeAvatar(api: ApiClient): Promise<void> {
   await api.request("DELETE", "/api/me/avatar");
+}
+
+/** 「我的邀请码」:查看资格、码与被邀请者(X35:组件经这里,不直接 fetch)。 */
+export function fetchMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.myInvite();
+}
+
+/** 生成永久邀请码(已有则返回原码)。 */
+export function createMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.createMyInvite();
+}
+
+/** 更换邀请码(调用方必须先经过确认步骤)。 */
+export function rotateMyInvite(api: ApiClient): Promise<MyInvite> {
+  return api.rotateMyInvite();
 }

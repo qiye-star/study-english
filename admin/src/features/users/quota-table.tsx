@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { errorText, useAsync } from "../../hooks/use-async";
 import { ErrorState, Skeleton } from "../../components/states";
 import { formatDateTime } from "../../lib/format";
@@ -80,6 +80,13 @@ export function QuotaTable({ userId }: { userId: string | number }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
+  // 从「邀请码」卡片的「调整上限」进来时带 #quota-<key>:滚动到那一行。
+  useEffect(() => {
+    if (!data) return;
+    const id = window.location.hash.slice(1);
+    if (id.startsWith("quota-")) document.getElementById(id)?.scrollIntoView?.({ block: "center" });
+  }, [data]);
+
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return <Skeleton rows={3} />;
 
@@ -118,7 +125,7 @@ export function QuotaTable({ userId }: { userId: string | number }) {
           {data.items.map((item) => {
             const live = item.override !== null;
             return (
-              <tr key={item.key} data-testid={`quota-${item.key}`}>
+              <tr key={item.key} id={`quota-${item.key}`} data-testid={`quota-${item.key}`}>
                 <td className="border-b border-line px-3 py-2.5">
                   <span className="font-medium">{Q.labels[item.key] ?? item.key}</span>
                   <span className="ml-2 font-mono text-2xs text-muted">{item.key}</span>

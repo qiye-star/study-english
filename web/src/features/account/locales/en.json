@@ -28,7 +28,8 @@
         "emailAlreadyBound": "This account already has an email.",
         "emailVerificationRequired": "Email verification is required. Please register in the web app.",
         "nicknameInvalid": "This nickname can't be used",
-        "unknown": "Something went wrong. Try again."
+        "unknown": "Something went wrong. Try again.",
+        "inviteUsedUp": "This invite code has been used up."
       },
       "register": {
         "title": "Create account",
@@ -99,6 +100,35 @@
           "unsupported": "This image format isn't supported on this device. Choose a JPEG or PNG.",
           "tooMany": "Too many uploads. Try again later."
         }
+      },
+      "invite": {
+        "title": "My invite code",
+        "loading": "Loading…",
+        "unavailable": "Invites are not available right now.",
+        "tooNew": "You can create an invite code from {{date}}.",
+        "tooNewUnknown": "You can create an invite code once your account is older.",
+        "emailUnverified": "Bind and verify an email first.",
+        "bindLink": "Bind email",
+        "disabled": "Invites are not available for this account.",
+        "withdrawn": "Your invite permission has been withdrawn. Contact the admin if this is unexpected.",
+        "rotateRequired": "Your current code can no longer be shown. Replace it to get a new one.",
+        "rateLimited": "Too many invite changes today. Please try again later.",
+        "createHint": "Create one permanent code to share. It stays the same and can be used several times, up to a total limit.",
+        "create": "Create my invite code",
+        "yourCode": "Your code",
+        "usage": "Used {{uses}} of {{cap}}",
+        "usedUp": "All uses taken. Ask the admin for more slots; replacing the code does not add uses.",
+        "copyLink": "Copy link",
+        "share": "Share",
+        "copied": "Copied",
+        "copyFailed": "Copy failed. Select the code and copy it by hand.",
+        "invitees": "Invited",
+        "noInvitees": "No one has used your code yet.",
+        "replace": "Replace invite code",
+        "replaceConfirm": "The old code stops working right away. The new code inherits the {{uses}} of {{cap}} uses already counted and adds none.",
+        "replaceButton": "Replace code",
+        "cancel": "Cancel",
+        "replaced": "Replaced. The old code no longer works."
       }
     }
   }

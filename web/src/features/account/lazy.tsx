@@ -7,6 +7,16 @@ const RegisterPageBody = lazy(() => import("./signup-page").then((m) => ({ defau
 const ForgotPasswordPageBody = lazy(() => import("./forgot-password-page").then((m) => ({ default: m.ForgotPasswordPage })));
 const BindEmailPageBody = lazy(() => import("./bind-email-page").then((m) => ({ default: m.BindEmailPage })));
 const PendingBindingBannerBody = lazy(() => import("./binding-banner").then((m) => ({ default: m.PendingBindingBanner })));
+const MyInvitePanelBody = lazy(() => import("./invites/my-invite-panel").then((m) => ({ default: m.MyInvitePanel })));
+
+/** 「我的邀请码」按需加载(W2);挂在「我的」页的账号区之后。 */
+export function MyInviteSection() {
+  return (
+    <Suspense fallback={<div aria-busy="true" className="mt-4 min-h-[120px]" />}>
+      <MyInvitePanelBody />
+    </Suspense>
+  );
+}
 
 export function AccountSection() {
   return (

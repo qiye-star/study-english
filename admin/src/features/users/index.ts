@@ -4,3 +4,4 @@ export { InvitesPage } from "./invites-page";
 export { UserAdminPanel } from "./user-admin-panel";
 export { UserAvatarCard } from "./user-avatar-card";
 export { UserEmailCard } from "./user-email-card";
+export { UserInviteCard } from "./user-invite-card";
