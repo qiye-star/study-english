@@ -32,6 +32,8 @@ describe("e2e upstream guard classification", () => {
     "/api/me/invite", "/api/me/invite/rotate", "/api/avatars/3f2a9c", "/api/avatar-reports",
     // 「我的」与底部导航加载时请求:跟读库配置与更新日志(只读数据库 / 设置;已读游标只写数据库)
     "/api/library/config", "/api/changelog", "/api/changelog/seen",
+    // 人机验证(captcha e2e):配置只读;挑战只签发
+    "/api/captcha/config", "/api/captcha/challenge",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -53,6 +55,8 @@ describe("e2e upstream guard classification", () => {
     // 账号 v2:只放行确切路径;相近的前缀与管理端路径不放行
     "/api/email/codex", "/api/email", "/api/avatars", "/api/avatars/a/b", "/api/password", "/api/password/reset/x",
     "/api/admin/avatar-reports", "/api/avatar-reports/u1/dismiss",
+    // 人机验证:只放行两条确切路径;相近路径与管理端写入不放行
+    "/api/captcha", "/api/captcha/challenge/x", "/api/captcha/config/x", "/api/captcha/verify", "/api/admin/settings",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });

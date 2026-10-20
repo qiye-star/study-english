@@ -32,7 +32,11 @@ const OWN_AGENTS = /^\/api\/agents\/(config|settings|personas|personas\/(?!try$)
 // /api/avatar-reports(举报)只写数据库。上游相关路径不在此列。
 const OWN_ACCOUNT = /^\/api\/(email\/code|password\/reset|avatar-reports|avatars\/[^/]+)$/;
 
+// 人机验证(ALTCHA):/config 只读设置;/challenge 只签发挑战(按 IP 限流,不碰上游、不写库)。
+// 挑战由网页组件自己取(同源,无查询串);载荷只进 X-Captcha 头,守卫看不到也不记录。
+const OWN_CAPTCHA = /^\/api\/captcha\/(config|challenge)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname)
-    || OWN_AGENTS.test(pathname) || OWN_ACCOUNT.test(pathname);
+    || OWN_AGENTS.test(pathname) || OWN_ACCOUNT.test(pathname) || OWN_CAPTCHA.test(pathname);
 }
