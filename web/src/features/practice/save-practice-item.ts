@@ -9,9 +9,9 @@ export function practiceReference(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, MAX_PRACTICE_TEXT);
 }
 
-/** 跳到跟读页并预填参考文本(跟读页从路由 state 读取 reference)。 */
+/** 跳到跟读页(/practice/shadow)并预填参考文本(跟读页从路由 state 读取 reference)。 */
 export function goPractice(navigate: NavigateFunction, text: string): void {
-  navigate("/practice", { state: { reference: practiceReference(text) } });
+  navigate("/practice/shadow", { state: { reference: practiceReference(text) } });
 }
 
 export async function savePracticeItem(api: ApiClient, t: TFunction, text: string, source: PracticeItemSource): Promise<boolean> {

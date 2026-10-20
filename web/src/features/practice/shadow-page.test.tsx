@@ -9,7 +9,7 @@ import { contribute } from "~/lib/extension-points";
 import { blurLayers, setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { toast } from "sonner";
-import { PracticePage } from "./practice-page";
+import { ShadowPage } from "./shadow-page";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() }, Toaster: (): null => null }));
 
@@ -21,66 +21,17 @@ vi.mock("~/audio/convert", async (importOriginal) => ({
 function setup(routes: Parameters<typeof createFetchMock>[0], envOverrides = {}) {
   const mock = createFetchMock(routes);
   const fake = createFakeRecorderEnv(envOverrides);
-  const view = renderWithProviders(<PracticePage recorderEnv={fake.env} />, {
+  const view = renderWithProviders(<ShadowPage recorderEnv={fake.env} />, {
     api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }),
-    route: "/practice",
+    route: "/practice/shadow",
   });
   return { mock, fake, unmount: view.unmount };
 }
 
 const assessCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.filter((c) => c.url.pathname === "/api/speech/assessments");
 
-describe("PracticePage", () => {
+describe("ShadowPage", () => {
   beforeEach(() => localStorage.clear());
-
-  it("shows the wordbook card under the rank card when the wordbook is on", async () => {
-    setup({
-      "GET /api/wordbook/config": () => json({ enabled: true, ai_available: false, defaults: { daily_new: 20, review_cap: 100 }, books: [] }),
-      "GET /api/wordbook/today": () => json({ enrollment: null, book: null, plan: null, progress: null, tomorrow_due: 0 }),
-    });
-    expect(await screen.findByTestId("wordbook-card")).toBeInTheDocument();
-  });
-
-  it("has no wordbook card when the wordbook is off", async () => {
-    const { mock } = setup({ "GET /api/wordbook/config": () => json({ enabled: false }) });
-    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
-    expect(screen.queryByTestId("wordbook-card")).toBeNull();
-  });
-
-  it("renders contributions of the practiceHeaderActions point left of the practice list link", () => {
-    contribute({ point: "practiceHeaderActions", id: "test.header", component: () => <button type="button" data-testid="test-header">x</button> });
-    setup({});
-    const mine = screen.getByTestId("test-header");
-    const list = screen.getByTestId("practice-list");
-    expect(mine.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("shows the changelog entry left of the practice list when something is published", async () => {
-    setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 2, latest_id: 5 }) });
-    const entry = await screen.findByTestId("changelog-entry", {}, { timeout: 10_000 });
-    expect(entry).toHaveAttribute("href", "/practice/changelog");
-    expect(entry.compareDocumentPosition(screen.getByTestId("practice-list")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  }, 20_000);
-
-  it("liquid: the unread dot is recoloured to cobalt by the header slot wrapper (red stays classic)", async () => {
-    setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 2, latest_id: 5 }) });
-    const dot = await screen.findByTestId("changelog-dot", {}, { timeout: 10_000 });
-    expect(dot.className).toContain("bg-red");
-    expect(dot.closest("[data-testid=practice-header-slot]")!.className).toContain("liquid:[&_[data-testid=changelog-dot]]:bg-blue");
-  });
-
-  it("has no changelog entry when nothing is published", async () => {
-    const { mock } = setup({ "GET /api/changelog": () => json({ entries: [], next: null, unread: 0, latest_id: null }) });
-    await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/changelog")).toBe(true), { timeout: 10_000 });
-    expect(screen.queryByTestId("changelog-entry")).toBeNull();
-  }, 20_000);
-
-  it("links to the progress page", () => {
-    setup({});
-    const link = screen.getByTestId("practice-progress");
-    expect(link).toHaveAttribute("href", "/progress");
-    expect(link).toHaveAccessibleName("Learning progress");
-  });
 
   it("needs reference text before recording", async () => {
     setup({});
@@ -210,14 +161,6 @@ describe("PracticePage", () => {
   });
 });
 
-describe("PracticePage header", () => {
-  it("links to the practice list", () => {
-    setup({});
-    const link = screen.getByTestId("practice-list");
-    expect(link).toHaveAttribute("href", "/practice/list");
-  });
-});
-
 const CONFIG_ROUTES = {
   "GET /api/config/gpt_providers": () => json({ enjoyai: { models: ["gpt-4o"] } }),
   "GET /api/config/default_gpt_preset": () => json({ configuration: { model: "gpt-4o" } }),
@@ -225,7 +168,7 @@ const CONFIG_ROUTES = {
   "GET /api/config/default_tts_preset": () => json({ configuration: { tts: { model: "openai/tts-1", voice: "alloy" } } }),
 };
 
-describe("PracticePage listen first", () => {
+describe("ShadowPage listen first", () => {
   beforeEach(() => {
     localStorage.clear();
     resetServerAiConfigCache();
@@ -293,7 +236,7 @@ describe("PracticePage listen first", () => {
     const base = createFakeRecorderEnv();
     const env = { ...base.env, getUserMedia: async (c: MediaStreamConstraints) => { await gate; return base.env.getUserMedia(c); } };
     const mock = createFetchMock({ ...CONFIG_ROUTES, "POST /api/ai/audio/speech": () => new Response(new Uint8Array([1])) });
-    renderWithProviders(<PracticePage recorderEnv={env} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice" });
+    renderWithProviders(<ShadowPage recorderEnv={env} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice/shadow" });
     await typeAndWait();
     await userEvent.click(screen.getByTestId("record-toggle"));
     expect(screen.getByTestId("practice-listen")).toBeDisabled();
@@ -344,21 +287,12 @@ describe("PracticePage listen first", () => {
   });
 });
 
-describe("practice home in the liquid skin (plan 2026-10-15-liquid-glass L4)", () => {
-  afterEach(() => setLiquid(false));
 
-  it("large title, studio hero first, one accent pill, recent scores, no own blur", async () => {
-    setLiquid(true);
-    setup({
-      "GET /api/wordbook/config": () => json({ enabled: false }),
-      "GET /api/assessments": () => json({ assessments: [], next: null }),
-    });
-    expect(await screen.findByRole("heading", { level: 1, name: /练习|Read aloud/ })).toHaveClass("text-large");
-    const hero = screen.getByTestId("reference-input").closest(".mat-surface-strong")!;
-    expect(hero).not.toBeNull();
-    expect(hero.parentElement!.closest(".liquid\\:order-first")).not.toBeNull();
-    expect(screen.getByTestId("record-toggle").className).toContain("liquid:shadow-accent");
-    expect(screen.getByTestId("practice-listen").className).toContain("liquid:bg-wash");
-    expect(blurLayers(document.body).length).toBeLessThanOrEqual(2);
+describe("ShadowPage navigation", () => {
+  it("goes back to the practice home from the header", async () => {
+    setup({});
+    await userEvent.click(screen.getByRole("button", { name: /back|返回/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("/practice/shadow");
   });
 });

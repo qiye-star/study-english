@@ -54,7 +54,7 @@ describe("useShadowSheet without a provider", () => {
   it("falls back to the practice page with the sentence as reference", async () => {
     renderWithProviders(<Opener input={{ text: "  Hello   there. ", source: "chat" }} />, { route: "/chat/c1" });
     await userEvent.click(screen.getByTestId("open"));
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice/shadow");
     expect(JSON.parse(screen.getByTestId("location").getAttribute("data-state")!)).toEqual({ reference: "Hello there." });
   });
 });

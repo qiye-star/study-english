@@ -82,7 +82,7 @@ describe("AssessmentPage", () => {
     setup({ "GET /api/assessments/a1": () => json(DETAIL), "GET /api/assessments/a1/audio": () => json({ error: "Recording not found" }, 404) });
     expect(await screen.findByText("The recording is unavailable.")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("assessment-again"));
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice/shadow");
   });
 
   it("shows the server error and keeps the page when delete fails", async () => {

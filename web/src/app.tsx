@@ -7,7 +7,7 @@ import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } 
 import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
 import { ConversationPage, ConversationsPage } from "~/features/chat";
-import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
+import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage, ShadowPage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
@@ -73,6 +73,7 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>
             <Route path="/practice" element={<PracticePage />} />
+            <Route path="/practice/shadow" element={<ShadowPage />} />
             <Route path="/practice/history" element={<HistoryPage />} />
             <Route path="/practice/list" element={<PracticeListPage />} />
             <Route path="/practice/changelog" element={<ChangelogPage />} />
