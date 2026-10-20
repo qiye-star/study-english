@@ -5,13 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { altchaCalls, resetFakeAltcha, solveCaptcha, widgetElement } from "~/test/captcha-element";
 import { RegisterPage } from "./signup-page";
+
+// 组件本体的 altcha 依赖在 jsdom 里替换(真实求解器需要浏览器 WebCrypto 与真实元素)。
+vi.mock("altcha", () => ({}));
+vi.mock("altcha/i18n/en", () => ({}));
+vi.mock("altcha/i18n/zh-cn", () => ({}));
 
 const USER = { id: "12345678", name: "dan", created_at: "t", access_token: "tok" };
 const CODE_OK = { ok: true, cooldown_seconds: 60 };
 
-function setup(routes: Parameters<typeof createFetchMock>[0]) {
-  const mock = createFetchMock({ "POST /api/email/code": () => json(CODE_OK), ...routes });
+function setup(routes: Parameters<typeof createFetchMock>[0], mode: "off" | "adaptive" | "always" = "off") {
+  const mock = createFetchMock({
+    "GET /api/captcha/config": () => json({ mode }),
+    "POST /api/email/code": () => json(CODE_OK),
+    ...routes,
+  });
   render(
     <MemoryRouter initialEntries={["/register"]}>
       <AuthProvider fetchImpl={mock.fetch}>
@@ -61,8 +71,9 @@ describe("RegisterPage", () => {
     await user.click(screen.getByRole("button", { name: "Send code" }));
     await screen.findByRole("button", { name: "Resend in 60s" });
     expect(screen.getByRole("button", { name: "Resend in 60s" })).toBeDisabled();
-    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ email: "dan@example.com", purpose: "register" });
-    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+    const send = mock.calls.find((c) => c.url.pathname === "/api/email/code")!;
+    expect(JSON.parse(send.body as string)).toEqual({ email: "dan@example.com", purpose: "register" });
+    expect(send.headers.has("Authorization")).toBe(false);
     for (let second = 0; second < 60; second += 1) {
       act(() => { vi.advanceTimersByTime(1000); });
     }
@@ -92,7 +103,7 @@ describe("RegisterPage", () => {
     await userEvent.type(screen.getByLabelText("Email"), "not-an-email");
     await userEvent.click(screen.getByRole("button", { name: "Send code" }));
     expect(screen.getByTestId("register-error")).toHaveTextContent("Enter a valid email address.");
-    expect(mock.calls).toHaveLength(0);
+    expect(mock.calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
   it("validates step two locally, then creates the account with email, code, nickname and invite", async () => {
@@ -157,6 +168,100 @@ describe("RegisterPage", () => {
     const submit = await screen.findByRole("button", { name: "Send code" });
     expect(submit.className).toContain("whitespace-nowrap");
     expect(within(document.body).getByRole("link", { name: "Already have an account? Log in" })).toHaveAttribute("href", "/login");
+  });
+});
+
+describe("RegisterPage human verification (W4, spec §10)", () => {
+  const P1 = "PAYLOAD-SEND-" + "a".repeat(24);
+  const P2 = "PAYLOAD-CREATE-" + "b".repeat(24);
+
+  beforeEach(() => {
+    clearAuth();
+    localStorage.clear();
+    resetFakeAltcha();
+    window.history.replaceState(null, "", "/register");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function sendButton() {
+    return screen.getByRole("button", { name: /Send code|Resend/ });
+  }
+
+  it("off: renders no widget and makes no challenge request", async () => {
+    const mock = setup({});
+    await sendCode();
+    expect(widgetElement()).toBeNull();
+    expect(mock.calls.some((c) => c.url.pathname.startsWith("/api/captcha/challenge"))).toBe(false);
+  });
+
+  it("adaptive: the send button stays disabled until the widget is solved, with a hint", async () => {
+    const mock = setup({}, "adaptive");
+    await waitFor(() => expect(widgetElement()).not.toBeNull());
+    expect(sendButton()).toBeDisabled();
+    expect(screen.getByText("Please complete the verification first.")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
+    expect(sendButton()).toBeDisabled();
+    expect(mock.calls.some((c) => c.url.pathname === "/api/email/code")).toBe(false);
+  });
+
+  it("adaptive: sends the code with the payload in X-Captcha only, then re-arms the widget", async () => {
+    const mock = setup({}, "adaptive");
+    await waitFor(() => expect(widgetElement()).not.toBeNull());
+    solveCaptcha(P1);
+    await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
+    await userEvent.click(sendButton());
+    await screen.findByLabelText("Verification code");
+    const send = mock.calls.find((c) => c.url.pathname === "/api/email/code")!;
+    expect(send.headers.get("X-Captcha")).toBe(P1);
+    expect(JSON.stringify(send.body)).not.toContain(P1);
+    expect(send.url.search).toBe("");
+    expect(altchaCalls.reset).toBeGreaterThanOrEqual(1);
+    expect(altchaCalls.verify).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Please complete the verification first.")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(P1);
+    const stored = Object.keys(localStorage).map((key) => `${key}=${localStorage.getItem(key)}`).join("\n");
+    expect(stored).not.toContain(P1);
+  });
+
+  it("adaptive: account creation uses a fresh payload and sends nothing without one", async () => {
+    const mock = setup({ "POST /api/users": () => json(USER) }, "adaptive");
+    await waitFor(() => expect(widgetElement()).not.toBeNull());
+    solveCaptcha(P1);
+    await sendCode();
+    await fillStepTwo();
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(screen.getByTestId("register-error")).toHaveTextContent("Please complete the verification first.");
+    expect(mock.calls.some((c) => c.url.pathname === "/api/users")).toBe(false);
+
+    solveCaptcha(P2);
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    const create = mock.calls.find((c) => c.url.pathname === "/api/users")!;
+    expect(create.headers.get("X-Captcha")).toBe(P2);
+    expect(JSON.stringify(create.body)).not.toContain(P2);
+  });
+
+  it("adaptive: a 428 captcha_invalid shows the fixed message and re-arms the widget", async () => {
+    setup({ "POST /api/email/code": () => json({ error: "captcha_invalid" }, 428) }, "adaptive");
+    await waitFor(() => expect(widgetElement()).not.toBeNull());
+    solveCaptcha(P1);
+    await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
+    await userEvent.click(sendButton());
+    expect(await screen.findByTestId("register-error")).toHaveTextContent("Verification expired or failed. Please try again.");
+    expect(altchaCalls.reset).toBeGreaterThanOrEqual(1);
+    expect(sendButton()).toBeDisabled();
+  });
+
+  it("off, then a 428 captcha_required from the server opens the widget and asks for verification", async () => {
+    setup({ "POST /api/users": () => json({ error: "captcha_required" }, 428) });
+    await sendCode();
+    expect(widgetElement()).toBeNull();
+    await fillStepTwo();
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByTestId("register-error")).toHaveTextContent("Please complete the verification first.");
+    await waitFor(() => expect(widgetElement()).not.toBeNull());
   });
 });
 

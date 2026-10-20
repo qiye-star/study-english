@@ -13,6 +13,19 @@ const make = (routes: Parameters<typeof createFetchMock>[0], extra: Partial<Cons
 };
 
 describe("account email api", () => {
+  it("sends the captcha payload only in X-Captcha on both code endpoints (W4)", async () => {
+    const { api, mock } = make({
+      "POST /api/email/code": () => json({ ok: true, cooldown_seconds: 60 }),
+      "POST /api/me/email/code": () => json({ ok: true, cooldown_seconds: 60 }),
+    });
+    await requestEmailCode(api, "a@example.com", "register", "CAP-1");
+    await requestBindCode(api, "b@example.com", "bind", "CAP-2");
+    expect(mock.calls[0].headers.get("X-Captcha")).toBe("CAP-1");
+    expect(mock.calls[1].headers.get("X-Captcha")).toBe("CAP-2");
+    expect(JSON.stringify(mock.calls.map((c) => c.body))).not.toContain("CAP-");
+    expect(mock.calls.every((c) => !c.url.search)).toBe(true);
+  });
+
   it("sends email codes and resets the password on the documented endpoints", async () => {
     const { api, mock } = make({
       "POST /api/email/code": () => json({ ok: true, cooldown_seconds: 60 }),
