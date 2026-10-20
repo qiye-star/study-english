@@ -1,30 +1,27 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, PaletteIcon, SmartphoneIcon, SunMoonIcon, type LucideIcon,
+  LanguagesIcon, PaletteIcon, SmartphoneIcon, SpellCheckIcon, SunMoonIcon, UserRoundIcon, Volume2Icon, type LucideIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@renderer/components/ui/button";
+import { Link } from "react-router-dom";
 import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "@renderer/lib/utils";
 import { Avatar } from "~/components/avatar";
 import { IconChip } from "~/components/icon-chip";
-import { LQ_DANGER_TEXT, LQ_PAGE, LQ_PANEL } from "~/components/liquid";
+import { LQ_PAGE } from "~/components/liquid";
 import { ListRow, SectionGroup } from "~/components/section-group";
 import { ScoreDot } from "~/components/score-dot";
 import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
+import { ToneBadge } from "~/components/tone-badge";
 import type { Tone } from "~/components/tone";
-import { AccountSection, MyInviteSection } from "~/features/account";
-import { GrammarPromptEditor } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
-import { RankCard } from "~/features/rank";
 import { useRoomsEnabled } from "~/features/rooms";
 import { AgentsMeRow } from "~/features/agents";
+import { useGrammarPromptStatus } from "~/features/grammar";
 import { WordbookMeRow } from "~/features/wordbook";
-import { translateServerError } from "~/api/error-messages";
 import { displayNameOf } from "~/api/types";
-import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
 import { PLAYBACK_RATES, formatPlaybackRate, setPlaybackRate, usePlaybackRate, type PlaybackRate } from "~/lib/playback-rate";
@@ -130,30 +127,21 @@ function WeekStrip({ stats }: { stats: Stats }) {
   );
 }
 
+/**
+ * 我的首页(只放高频项):一张个人卡(头像、用户名、邮箱绑定状态、三项统计,整张卡进入账号设置),
+ * 然后是 学习 / 偏好 / 设置 三组。账号、邀请码、退出登录、语法规则、语音服务与朗读音色都在二级页。
+ */
 export function MePage() {
   const { t } = useTranslation();
-  const { user, api, logout, avatarUrl } = useAuth();
+  const { user, api, emailStatus, avatarUrl } = useAuth();
   const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText, colorScheme, setColorScheme } = useSettings();
   const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
-  const [ai, setAi] = useState<ServerAiConfig | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
-  const tRef = useRef(t);
-  tRef.current = t;
   const id = useId();
   const liquid = useLiquid();
   const { theme } = useGlassTheme();
-
-  useEffect(() => {
-    let alive = true;
-    setAiError(null);
-    loadServerAiConfig(api)
-      .then((config): void => { if (alive) setAi(config); })
-      .catch((err): void => { if (alive) setAiError(translateServerError(tRef.current, err)); });
-    return () => { alive = false; };
-  }, [api, attempt]);
+  const grammarStatus = useGrammarPromptStatus();
 
   // 统计只用于概览(三张统计卡、进度行说明、本周条);失败时安静地不显示,详情在学习进度页
   useEffect(() => {
@@ -171,29 +159,37 @@ export function MePage() {
     window.matchMedia?.("(display-mode: standalone)").matches ?? false,
   );
 
+  // 邮箱状态未加载时不显示;未绑定显示「未绑定邮箱」,已绑定显示脱敏地址
+  const emailLine = emailStatus ? (emailStatus.masked ?? t("web.me.emailUnbound")) : null;
+
   const profile = (
     <div className="flex items-center gap-3.5 px-0.5 pb-0.5 pt-1.5">
       {/* Avatar 内部 cn 会让 text-headline(字号)挤掉 text-blue(颜色);这里显式补回两者 */}
       <Avatar name={user ? displayNameOf(user) : ""} size="md" tone="blue" src={avatarUrl} className="text-blue [font-size:22px] liquid:text-ink" />
       <div className="min-w-0 flex-1">
-        <p className="text-meta text-ink-2">{t("web.me.username")}</p>
-        <p data-testid="me-username" className="mt-0.5 truncate text-headline font-semibold">{user?.name}</p>
+        <p data-testid="me-username" className="truncate text-headline font-semibold">{user?.name}</p>
+        {emailLine !== null && <p data-testid="me-email" className="mt-0.5 truncate text-meta text-ink-2">{emailLine}</p>}
       </div>
+      <ChevronRightIcon aria-hidden className="h-[18px] w-[18px] flex-none text-ink-3" />
     </div>
   );
 
-  const statsBlock = (
-    <>
-    {stats && (
-      <div data-testid="me-stats" className="mt-4 grid grid-cols-3 gap-2">
-        <StatTile tone="amber" icon={FlameIcon} label={t("web.me.stats.streak")} value={stats.streakDays} unit={t("web.me.stats.days")} />
-        <StatTile tone="blue" icon={ClockIcon} label={t("web.me.stats.speaking")}
-          value={Math.round(stats.speakingSeconds / 60)} unit={t("web.me.stats.minutes")} />
-        <StatTile tone="green" icon={BarChart3Icon} label={t("web.me.stats.avg")}
-          value={stats.avgPronunciation === null ? "—" : <span className="inline-flex items-center gap-1.5">{oneDecimal(stats.avgPronunciation)}<ScoreDot score={stats.avgPronunciation} /></span>} />
-      </div>
-    )}
-    </>
+  const statsBlock = stats && (
+    <div data-testid="me-stats" className="mt-4 grid grid-cols-3 gap-2">
+      <StatTile tone="amber" icon={FlameIcon} label={t("web.me.stats.streak")} value={stats.streakDays} unit={t("web.me.stats.days")} />
+      <StatTile tone="blue" icon={ClockIcon} label={t("web.me.stats.speaking")}
+        value={Math.round(stats.speakingSeconds / 60)} unit={t("web.me.stats.minutes")} />
+      <StatTile tone="green" icon={BarChart3Icon} label={t("web.me.stats.avg")}
+        value={stats.avgPronunciation === null ? "—" : <span className="inline-flex items-center gap-1.5">{oneDecimal(stats.avgPronunciation)}<ScoreDot score={stats.avgPronunciation} /></span>} />
+    </div>
+  );
+
+  const card = (
+    <Link to="/me/account" data-testid="me-profile" aria-label={t("web.me.accountSettings")}
+      className="block rounded-card transition-colors duration-fast active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {profile}
+      {statsBlock}
+    </Link>
   );
 
   return (
@@ -201,21 +197,10 @@ export function MePage() {
       <PageHeader large title={t("web.me.title")} />
       <div className={`px-gutter pb-6 ${LQ_PAGE}`}>
         {liquid ? (
-          <SurfaceCard strong data-testid="me-hero" className="mt-2 p-4 [&_[data-testid=me-stats]]:mt-3.5">
-            {profile}
-            {statsBlock}
-          </SurfaceCard>
+          <SurfaceCard strong data-testid="me-hero" className="mt-2 p-4 [&_[data-testid=me-stats]]:mt-3.5">{card}</SurfaceCard>
         ) : (
-          <>
-            {profile}
-            {statsBlock}
-          </>
+          <div className="mt-2">{card}</div>
         )}
-
-        <RankCard className="mt-4" />
-
-        <AccountSection />
-        <MyInviteSection />
 
         <SectionGroup title={t("web.me.groups.learning")}>
           <ListRow icon={<IconChip tone="blue" icon={BarChart3Icon} />} title={t("web.me.progress")} to="/progress" testId="me-progress"
@@ -227,7 +212,7 @@ export function MePage() {
           <Slot point="meRows" props={{}} />
         </SectionGroup>
 
-        <SectionGroup title={t("web.me.groups.voice")}>
+        <SectionGroup title={t("web.me.groups.preferences")}>
           <SelectRow id={`${id}-rate`} testId="me-playback-rate" icon={FastForwardIcon} title={t("web.me.playbackRate")}
             hint={t("web.me.playbackRateHint")} display={formatPlaybackRate(rate)} value={String(rate)}
             onChange={(v) => setPlaybackRate(Number(v) as PlaybackRate)}>
@@ -238,60 +223,38 @@ export function MePage() {
               title={t("web.me.roomVoiceAutoText")} hint={t("web.me.roomVoiceAutoTextHint")}
               checked={roomVoiceAutoText} onChange={setRoomVoiceAutoText} />
           )}
-        </SectionGroup>
-
-        <SectionGroup title={t("web.me.groups.general")} bare>
-          <div className={`divide-y-[0.5px] divide-hair-2 overflow-hidden rounded-card border-[0.5px] border-hair bg-surface ${LQ_PANEL}`}>
-            {liquid ? (
-              <ListRow icon={<IconChip tone="gray" icon={PaletteIcon} />} title={t("web.me.appearance")} to={APPEARANCE_PATH} testId="me-appearance"
-                value={<span>{t(`web.appearance.preset.${theme.preset}`)}</span>} />
-            ) : (
-              <SelectRow id={`${id}-color-scheme`} testId="me-color-scheme" icon={SunMoonIcon} title={t("web.me.colorScheme")}
-                hint={t("web.me.colorSchemeHint")} display={t(`web.me.colorSchemeOptions.${colorScheme}`)} value={colorScheme}
-                onChange={(v) => setColorScheme(v as ColorScheme)}>
-                {COLOR_SCHEMES.map((s) => <option key={s} value={s}>{t(`web.me.colorSchemeOptions.${s}`)}</option>)}
-              </SelectRow>
-            )}
-            <SelectRow id={`${id}-language`} testId="me-language" icon={LanguagesIcon} title={t("web.me.language")}
-              hint={t("web.me.languageHint")} display={t(`web.languages.${language}`)} value={language}
-              onChange={(v) => setLanguage(v as UiLanguage)}>
-              {SUPPORTED_LANGUAGES.map((l) => <option key={l} value={l}>{t(`web.languages.${l}`)}</option>)}
+          {liquid ? (
+            <ListRow icon={<IconChip tone="gray" icon={PaletteIcon} />} title={t("web.me.appearance")} to={APPEARANCE_PATH} testId="me-appearance"
+              value={<span>{t(`web.appearance.preset.${theme.preset}`)}</span>} />
+          ) : (
+            <SelectRow id={`${id}-color-scheme`} testId="me-color-scheme" icon={SunMoonIcon} title={t("web.me.colorScheme")}
+              hint={t("web.me.colorSchemeHint")} display={t(`web.me.colorSchemeOptions.${colorScheme}`)} value={colorScheme}
+              onChange={(v) => setColorScheme(v as ColorScheme)}>
+              {COLOR_SCHEMES.map((s) => <option key={s} value={s}>{t(`web.me.colorSchemeOptions.${s}`)}</option>)}
             </SelectRow>
-            {showInstall && (
-              <ListRow icon={<IconChip tone="gray" icon={SmartphoneIcon} />} title={t("web.me.install")} to="/install" />
-            )}
-          </div>
-          {/* 提示词编辑器(grammar 目录)整块放进卡片;标题提到正文字号,与列表行标题一致 */}
-          <SurfaceCard className="mt-2 p-3.5 [&_[data-testid=grammar-prompt]>h2]:text-body [&_[data-testid=grammar-prompt]>h2]:font-medium [&_[data-testid=grammar-prompt]>h2]:text-ink">
-            <GrammarPromptEditor />
-          </SurfaceCard>
+          )}
+          <SelectRow id={`${id}-language`} testId="me-language" icon={LanguagesIcon} title={t("web.me.language")}
+            hint={t("web.me.languageHint")} display={t(`web.languages.${language}`)} value={language}
+            onChange={(v) => setLanguage(v as UiLanguage)}>
+            {SUPPORTED_LANGUAGES.map((l) => <option key={l} value={l}>{t(`web.languages.${l}`)}</option>)}
+          </SelectRow>
+          {showInstall && (
+            <ListRow icon={<IconChip tone="gray" icon={SmartphoneIcon} />} title={t("web.me.install")} to="/install" />
+          )}
         </SectionGroup>
 
-        <SectionGroup title={t("web.me.groups.server")}>
-          <div data-testid="me-services" className="flex min-h-row items-start gap-3 py-2.5 pl-3.5 pr-3">
-            <IconChip tone="gray" icon={AudioWaveformIcon} />
-            <div className="min-w-0 flex-1 pt-0.5">
-              <h3 className="text-body font-medium tracking-[-0.005em] text-ink">{t("web.me.services")}</h3>
-              <div className="mt-0.5 space-y-0.5 text-meta text-ink-2">
-                <p>{t("web.me.stt")}</p>
-                {ai && <p>{t("web.me.tts", { models: ai.ttsModels.join(", ") || "—" })}</p>}
-                {ai?.defaultTts.voice && <p>{t("web.me.ttsDefault", { voice: ai.defaultTts.voice })}</p>}
-              </div>
-              {aiError && (
-                <div data-testid="me-ai-error" role="alert" className="mt-1 flex items-center gap-2 text-sub text-destructive">
-                  <span className="flex-1">{aiError}</span>
-                  <Button variant="outline" size="sm" className="h-tap" onClick={() => setAttempt((n) => n + 1)}>{t("web.common.retry")}</Button>
-                </div>
-              )}
-            </div>
-          </div>
+        <SectionGroup title={t("web.me.groups.settings")}>
+          <ListRow icon={<IconChip tone="gray" icon={UserRoundIcon} />} title={t("web.me.accountSettings")} to="/me/account" testId="me-account"
+            value={emailStatus ? (
+              <ToneBadge tone={emailStatus.verified ? "green" : "amber"}>
+                {t(`web.me.emailBadge.${emailStatus.verified ? "bound" : "unbound"}`)}
+              </ToneBadge>
+            ) : undefined} />
+          <ListRow icon={<IconChip tone="gray" icon={SpellCheckIcon} />} title={t("web.me.grammarRule")} to="/me/grammar" testId="me-grammar"
+            value={grammarStatus ? t(`web.me.grammarState.${grammarStatus}`) : undefined} />
+          <ListRow icon={<IconChip tone="gray" icon={AudioWaveformIcon} />} title={t("web.me.servicesRow")} to="/me/services" testId="me-services-row" />
+          <ListRow icon={<IconChip tone="gray" icon={Volume2Icon} />} title={t("web.me.voiceRow")} to="/me/voice" testId="me-voice" />
         </SectionGroup>
-
-        <button type="button" data-testid="me-logout" onClick={() => logout(true)}
-          className={`mt-[18px] flex h-12 w-full items-center justify-center gap-1.5 rounded-button text-body font-semibold text-red transition-colors duration-fast active:bg-red-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${LQ_DANGER_TEXT} liquid:mx-auto liquid:mt-8 liquid:w-auto liquid:px-6`}>
-          <LogOutIcon aria-hidden className="h-5 w-5" />
-          {t("web.me.logout")}
-        </button>
       </div>
     </div>
   );

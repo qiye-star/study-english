@@ -73,9 +73,9 @@
 
 ## 段位赛与联机练习(计划 2026-10-09)
 
-两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页与「我的」没有段位卡,页面加载时只多请求一次 `GET /api/rank/config` 与 `GET /api/rooms/config`(`src/layout/feature-flags.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
+两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页没有段位卡,页面加载时只多请求一次 `GET /api/rank/config` 与 `GET /api/rooms/config`(`src/layout/feature-flags.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
 
-- **段位赛**(`src/features/rank`):练习页与「我的」顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
+- **段位赛**(`src/features/rank`):练习页顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
 - **联机练习**(`src/features/rooms`,底部第 3 个标签「联机」):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
 - 与服务端的契约:`src/features/rank/rank-contract.test.ts`、`src/features/rooms/rooms-contract.test.ts` 读取 `server/tests/fixtures/{rank,rooms}_contract.json`(由服务端测试对真实应用录制/核对),逐键绑定 TypeScript 类型。
 - **联机练习 v2**(spec `docs/superpowers/specs/2026-10-10-rooms-v2-design.md`;服务端见 `server/README.md`「联机练习 v2」):创建表单 7 项设置(房间名、场景、水平、加入方式、人数、AI 公开回答、允许语音);「需房主同意」的房间凭号申请、房主在横幅里同意后自动进房;邀请链接与本地生成的二维码(`/rooms/invite/:token`,直接进入);助手改为停靠在输入条上方的面板(三档高度,键盘弹出收成一行,不遮挡聊天);语音消息(与对话页同一手势,上传 16 kHz WAV,服务端存 MP3;转写与翻译全房共享,「转文字」「翻译」手动展开或在「我的」里开自动转文字);引用回复、6 个表情回应、正在输入/正在说话;房间结束后的学习小结(`/rooms/r/:roomId/summary`)。语音与小结各有服务端子开关(默认关)。语音配额为每人每天 200 MB + 100 条。
@@ -130,6 +130,8 @@
 凡是显示 CEFR 级别代码的地方都带上中文级别名(「B1 · 中级」;英文界面「B1 · Intermediate」),让人选级别的地方(对话「英语难度」、房间「目标水平」、角色「英文水平」、记忆页「水平」、精选「按级别筛选」)旁边有一行说明这个级别的意思(如「能应对大多数日常场景」),读屏经 `aria-describedby` 读到。房间目标水平的分段控件改为两行(代码 + 级别名),不选时说明「不选时按你的段位自动定」。段位首页「对齐 CEFR」下也有一行说明。存储与提交的值不变。共用 `src/lib/levels.ts` + `src/components/level-hint.tsx`,文案 `web.level.*` 在 `src/components/i18n`;管理后台的级别下拉 / 列 / 详情用同样的中文(`admin/src/lib/levels.ts`,测试逐字比对)。**未在真机验证:** 360–390 px 宽下分段控件两行字是否截断(英文界面「Upper intermediate」等短标签在 375 px 宽的 5 段里必然被省略号截断,是否可接受待看真机截图)、精选芯片与角色芯片换行后的排布、对话顶栏副标题与带我学条的截断位置、读屏是否读出说明行、深色模式下说明行的对比度;清单见计划「真机 / 视觉清单」。**主包体积未测:** `components/i18n` 是急切文案(每种语言 +13 键、chat 里 −4 键),`lib/levels.ts` 与 `LevelHint` 可能进主包,`yarn web:build` 与 `scripts/main-bundle.mjs` 未运行(超出预算再议把说明句移到懒加载)。E2E 未运行。
 
 ## 液态玻璃皮肤(计划 2026-10-15-liquid-glass)
+
+「我的」首页只留高频项:一张个人卡(头像、用户名、邮箱绑定状态、三项统计,整张卡进入 `/me/account`)、学习、偏好(播放速度、外观、语言、联机自动转文字、安装提示)与设置(账号设置 → `/me/account`:昵称、头像、邮箱、改密、邀请码、退出登录;语法检查规则 → `/me/grammar`,「恢复默认」在顶栏且仍先确认;语音服务 → `/me/services`,只读展示)。
 
 全应用换上液态玻璃外观:`<html data-glass="v2">` 在 `main.tsx` 里对所有人设置(`lib/glass-flag.ts`;旧的开发开关 `?glass=v2` / `enjoy-web.dev.glass` 已移除,首次加载会清掉它);`/library*`(跟读库)与 `/practice/changelog`(更新日志)由 `GlassRoutePin` 钉成 `data-glass="pin"`,继续使用经典皮肤,这些页面用到的共享组件因此永远保留经典分支。外观设置在「我的 → 外观与主题」(`/me/appearance`):预设(清透 / 磨砂 / 实色;默认是清透,从未自定义过的设备没有存储,直接得到它;已存主题保持原值,「恢复默认」回到清透)、透明度、模糊、圆角、边缘高光、阴影、浅色 / 深色各一套背景(渐变、颗粒、纯色、自定义颜色,过深或过浅会自动调整以保证文字可读)、玻璃效果「减弱」。设置只保存在本机(`settings/glass-theme-store.ts`),退出登录时清除。`theme-color` 随所选背景变化(`layout/color-scheme.ts`)。类名约定:在原有类名后追加 `liquid:` 变体与 `components/liquid.ts` 的 `LQ_*` 常量,不改已有令牌的值;守卫测试在 `src/styles/`(`glass-budget`、`locked-pages`、`liquid-colour-guard` 等)。经典分支仍留在代码里(回滚只需还原一次提交);删除它们是后续工作。
 

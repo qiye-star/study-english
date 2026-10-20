@@ -26,15 +26,21 @@ test.afterEach(() => {
   for (const m of guards.splice(0)) expect(m.unmocked, "requests that reached the upstream guard").toEqual([]);
 });
 
-/** 「我的」页的账号区(SectionGroup,标题「账号」/ Account)。 */
+/** 首页的个人卡进入账号设置(/me/account)。 */
+async function openAccountSettings(page: Page): Promise<void> {
+  await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-profile").click();
+}
+
+/** 账号设置页的账号区(SectionGroup,标题「账号」/ Account)。 */
 function accountGroup(page: Page) {
   return page.getByRole("group", { name: "Account", exact: true });
 }
 
-/** 「我的」页上的退出(对应 me-logout),回到登录页。 */
+/** 账号设置页底部的退出(对应 account-logout),回到登录页。 */
 async function logout(page: Page): Promise<void> {
-  await page.getByTestId("nav-me").click();
-  await page.getByTestId("me-logout").click();
+  await openAccountSettings(page);
+  await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
 }
 
@@ -86,7 +92,7 @@ test.describe("accounts", () => {
     await page.getByRole("button", { name: "Create account", exact: true }).click();
     await expect(page).toHaveURL(/\/practice$/);
 
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
     await expect(page.getByLabel("Nickname", { exact: true })).toHaveValue(a.nickname);
     const email = page.getByTestId("account-email-open");
     await expect(email).toContainText("Verified");
@@ -173,9 +179,9 @@ test.describe("accounts", () => {
     const other = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, a.username, a.password);
     await expect(page).toHaveURL(/\/practice$/);
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
 
-    // 「保存」按钮限定在昵称行里:页面上还有语法提示区的「保存」
+    // 「保存」按钮限定在昵称行里(账号页上可能还有其他「保存」)
     const nickname = page.getByLabel("Nickname", { exact: true });
     await expect(nickname).toHaveValue(a.nickname);
     const save = nickname.locator("xpath=..").getByRole("button", { name: "Save", exact: true });
@@ -202,7 +208,7 @@ test.describe("accounts", () => {
     // 显示名:账号区头像的可访问名称(「我的」页上方的英雄区头像也会一起更新,这里只看账号区)
     await expect(accountGroup(page).getByRole("img", { name: fresh, exact: true })).toBeVisible();
     await page.reload();
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
     await expect(page.getByLabel("Nickname", { exact: true })).toHaveValue(fresh);
 
     // 改密:另一台设备(提前签发的令牌)被登出,本机仍保持登录
@@ -214,7 +220,7 @@ test.describe("accounts", () => {
     await expect(page.getByTestId("account-password-status")).toHaveText("Password changed. Other devices are signed out.");
     expect((await request.get("/api/me", { headers: bearer(otherDevice) })).status()).toBe(401);
     await page.reload();
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
     await expect(page.getByLabel("Nickname", { exact: true })).toHaveValue(fresh);
     // 新旧密码以 API 复核
     expect((await request.post("/api/sessions", { data: { provider: "password", username: a.username, password: NEW_PASSWORD } })).status()).toBe(200);
@@ -226,7 +232,7 @@ test.describe("accounts", () => {
     const a = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, a.username, a.password);
     await expect(page).toHaveURL(/\/practice$/);
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
 
     const picker = page.getByTestId("avatar-file");
     const status = page.getByTestId("account-avatar-status");
@@ -254,7 +260,7 @@ test.describe("accounts", () => {
     const owner = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, owner.username, owner.password);
     await expect(page).toHaveURL(/\/practice$/);
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
 
     await page.getByRole("button", { name: "Create my invite code", exact: true }).click();
     const code = page.getByTestId("my-invite-code");
@@ -283,7 +289,7 @@ test.describe("accounts", () => {
 
     // 主人刷新后:已用 1 次,被邀请人显示名可见
     await page.reload();
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
     await expect(page.getByTestId("my-invite-usage")).toHaveText("Used 1 of 10");
     await expect(page.getByTestId("my-invite-invitees")).toContainText(inviteeA.nickname);
 
@@ -316,7 +322,7 @@ test.describe("accounts", () => {
     }
 
     await page.reload();
-    await page.getByTestId("nav-me").click();
+    await openAccountSettings(page);
     await expect(page.getByTestId("my-invite-usage")).toHaveText("Used 2 of 10");
     await expect(page.getByTestId("my-invite-code")).toHaveText(secondCode);
   });

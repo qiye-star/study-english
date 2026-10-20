@@ -2,6 +2,7 @@
   "web": {
     "account": {
       "title": "账号",
+      "pageTitle": "账号设置",
       "nickname": {
         "label": "昵称",
         "hint": "房间里其他人看到的名字。留空则显示登录名。",

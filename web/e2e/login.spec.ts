@@ -7,12 +7,14 @@ test("register in the UI (email code), log out and log back in by username or em
   const account = await registerInUi(page, newAccount());
   await page.getByTestId("nav-me").click();
   await expect(page.getByTestId("me-username")).toHaveText(account.username);
-  await page.getByTestId("me-logout").click();
+  await page.getByTestId("me-profile").click();
+  await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
   await loginViaUi(page, account.username, account.password);
   await expect(page).toHaveURL(/\/practice$/);
   await page.getByTestId("nav-me").click();
-  await page.getByTestId("me-logout").click();
+  await page.getByTestId("me-profile").click();
+  await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
   // 登录框同时接受用户名与邮箱
   await loginViaUi(page, account.email, account.password);

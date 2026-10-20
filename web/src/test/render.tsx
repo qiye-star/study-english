@@ -17,6 +17,7 @@ export interface RenderOptions {
   route?: string | { pathname: string; search?: string; state?: unknown };
   path?: string;
   logout?: () => void;
+  emailStatus?: AuthContextValue["emailStatus"];
 }
 
 /** 与 renderWithProviders 同一组 Provider(鉴权、设置、路由),供 renderHook 的 wrapper 使用。 */
@@ -40,8 +41,9 @@ export function renderWithProviders(ui: ReactElement, options: RenderOptions = {
     route = "/",
     path = "*",
     logout = vi.fn(),
+    emailStatus,
   } = options;
-  const value: AuthContextValue = { user, api, login: vi.fn(), register: vi.fn(), logout };
+  const value: AuthContextValue = { user, api, login: vi.fn(), register: vi.fn(), logout, emailStatus };
   return render(
     <AuthContext.Provider value={value}>
       <SettingsProvider>
