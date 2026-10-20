@@ -26,7 +26,7 @@ def _cols(con, table: str) -> set[str]:
 def test_head_is_0025_and_chain_is_linear(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0026"]
+    assert script.get_heads() == ["0027"]
     assert script.get_revision("0024").down_revision == "0023"
     assert script.get_revision("0023").down_revision == "0022"
 

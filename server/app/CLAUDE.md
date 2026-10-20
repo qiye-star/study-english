@@ -64,7 +64,7 @@ its poll loop as `tasks["library"]` and calls `shutdown()` before the engine clo
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
 - Avatar files live in `DATA_DIR/avatars/` and are outside the SQLite backup. Only `services/avatars.py` writes or deletes them; read `avatar_id` through the services, never build a path by hand.
-- Migrations: `alembic/versions/` is linear (head `0026`); `tests/test_migrations.py::test_models_match_migrations`
+- Migrations: `alembic/versions/` is linear (head `0027`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
   `0016_agent_memory` is shared with A3 (A3 appends `agent_tutor_sessions`).
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;
