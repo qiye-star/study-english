@@ -91,6 +91,17 @@ class Settings(BaseSettings):
     email_binding_deadline: str = ""  # 空或带时区的 ISO 8601 日期时间,例如 2026-10-28T00:00+08:00
     # 账号 v2 · 头像(计划 S3;R-V3):总开关,热改。关 = 不能上传、读取 404;已存文件与载荷照常
     avatar_upload_enabled: bool = True
+    # 人机验证(spec 2026-10-20-captcha-altcha §4):除 CAPTCHA_SECRET 外全部热改。
+    # off 不验;adaptive 注册 / 发码 / 找回必验、登录连续失败后才验;always 登录也必验(桌面端无法登录,应急用)。
+    captcha_mode: Literal["off", "adaptive", "always"] = "off"
+    captcha_secret: str = ""  # env-only secret;空 = 未配置(开着时失败即关闭,503)
+    captcha_ttl_seconds: int = Field(300, ge=60, le=1800)  # 挑战有效期
+    captcha_cost: int = Field(5000, ge=1, le=100000)  # PBKDF2 cost(调低会降低脚本成本)
+    captcha_counter_max: int = Field(10000, ge=10, le=1000000)  # 服务端选 counter 的上限(调低会降低脚本成本)
+    captcha_flagged_multiplier: int = Field(2, ge=1, le=10)  # 被登录失败标记的 IP 的 counter 倍数
+    captcha_login_failures: int = Field(5, ge=1, le=100)  # 同一 IP 或登录名在窗口内失败几次后要求验证
+    captcha_login_window_minutes: int = Field(15, ge=1, le=1440)  # 失败计数窗口
+    captcha_challenges_per_minute: int = Field(20, ge=1, le=1000)  # 同一 IP 每分钟可取几个挑战
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
     ai_rate_limit_per_minute: int = 60
@@ -343,6 +354,14 @@ class Settings(BaseSettings):
         """Empty is allowed (email features stay off); otherwise long enough to be a real key. The value is never echoed."""
         if value and len(value) < 32:
             raise ValueError("IDENTITY_PEPPER must be at least 32 characters")
+        return value
+
+    @field_validator("captcha_secret")
+    @classmethod
+    def _captcha_secret(cls, value: str) -> str:
+        """Empty is allowed (captcha off); otherwise long enough to be a real key. The value is never echoed."""
+        if value and len(value) < 32:
+            raise ValueError("CAPTCHA_SECRET must be at least 32 characters")
         return value
 
     @field_validator("email_binding_deadline")
