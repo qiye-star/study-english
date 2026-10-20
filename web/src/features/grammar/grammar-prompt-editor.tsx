@@ -73,7 +73,7 @@ export function useGrammarPromptEditor() {
     else void run(() => saveGrammarPrompt(api, draft), "web.grammarPrompt.saved");
   };
 
-  const restore = () => void run(() => resetGrammarPrompt(api), "web.grammarPrompt.restored");
+  const restore = (): void => { void run(() => resetGrammarPrompt(api), "web.grammarPrompt.restored"); };
 
   const custom = state?.prompt != null;
   const current = state ? state.prompt ?? state.defaultPrompt : "";

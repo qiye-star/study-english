@@ -1,7 +1,7 @@
 {
   "web": {
     "me": {
-      "groups": { "learning": "Learning", "voice": "Voice", "general": "General", "server": "Account & server", "preferences": "Preferences", "settings": "Settings" },
+      "groups": { "learning": "Learning", "preferences": "Preferences", "settings": "Settings" },
       "appearance": "Appearance",
       "stats": {
         "streak": "Streak", "speaking": "Speaking", "avg": "Avg score",

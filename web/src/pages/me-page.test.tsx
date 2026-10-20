@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { resetServerAiConfigCache } from "~/api/server-config";
@@ -20,19 +20,43 @@ const ROUTES = {
 
 describe("MePage", () => {
   beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
-  it("shows the profile and logs out", async () => {
+  it("shows the profile card linking to account settings, with no logout on the home", async () => {
     const mock = createFetchMock(ROUTES);
-    const logout = vi.fn();
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), logout });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     expect(screen.getByTestId("me-username")).toHaveTextContent("alice");
+    expect(screen.getByTestId("me-profile")).toHaveAttribute("href", "/me/account");
+    expect(screen.queryByTestId("me-logout")).toBeNull();
+    expect(screen.queryByTestId("me-services")).toBeNull(); // 服务器块已移到 /me/services
     await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
-    await userEvent.click(screen.getByTestId("me-logout"));
-    expect(logout).toHaveBeenCalled();
+  });
+
+  it("shows the email binding state on the profile and the account row", () => {
+    const unbound = renderWithProviders(<MePage />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }),
+      emailStatus: { masked: null, verified: false, binding: { state: "none", deadline: null } },
+    });
+    expect(screen.getByTestId("me-email")).toHaveTextContent("Email not bound");
+    expect(screen.getByTestId("me-account")).toHaveTextContent("Bind email");
+    unbound.unmount();
+    renderWithProviders(<MePage />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }),
+      emailStatus: { masked: "a***@example.com", verified: true, binding: { state: "none", deadline: null } },
+    });
+    expect(screen.getByTestId("me-email")).toHaveTextContent("a***@example.com");
+    expect(screen.getByTestId("me-account")).toHaveTextContent("Bound");
+    expect(screen.getByTestId("me-account")).not.toHaveTextContent("Bind email");
+  });
+
+  it("groups the home into learning, preferences and settings, without the rank card", () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    for (const title of ["Learning", "Preferences", "Settings"]) expect(screen.getByRole("group", { name: title })).toBeInTheDocument();
+    expect(screen.queryByTestId("rank-card")).toBeNull();
+    expect(screen.getByTestId("me-voice")).toHaveAttribute("href", "/me/voice");
   });
   it("changes the language", async () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     await userEvent.selectOptions(screen.getByTestId("me-language"), "zh-CN");
-    expect(await screen.findByText("退出登录")).toBeInTheDocument();
+    expect(await screen.findByText("偏好")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByTestId("me-language"), "en");
   });
   it("links the grammar rules row and shows whether a custom prompt is set", async () => {
@@ -81,7 +105,7 @@ describe("MePage", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     expect(screen.queryByTestId("me-stats")).toBeNull();
-    expect(screen.getByTestId("me-logout")).toBeInTheDocument();
+    expect(screen.getByTestId("me-account")).toBeInTheDocument();
   });
   it("offers the room voice auto-text switch only when rooms are on", async () => {
     localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
@@ -181,7 +205,7 @@ describe("Me in the liquid skin (plan 2026-10-15-liquid-glass L11)", () => {
     const row = screen.getByTestId("me-appearance");
     expect(row).toHaveAttribute("href", "/me/appearance");
     expect(row).toHaveTextContent(/清透|Clear|preset/);
-    expect(screen.getByTestId("me-logout").className).toContain("liquid:text-red");
+    expect(screen.getByTestId("me-profile")).toHaveAttribute("href", "/me/account");
   });
 
   it("keeps the classic structure when the switch is off", () => {

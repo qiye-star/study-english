@@ -1,7 +1,7 @@
 {
   "web": {
     "me": {
-      "groups": { "learning": "学习", "voice": "语音", "general": "通用", "server": "账户与服务器", "preferences": "偏好", "settings": "设置" },
+      "groups": { "learning": "学习", "preferences": "偏好", "settings": "设置" },
       "appearance": "外观与主题",
       "stats": {
         "streak": "连续", "speaking": "口语时长", "avg": "平均发音",
