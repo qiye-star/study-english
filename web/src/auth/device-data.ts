@@ -2,8 +2,9 @@ import { bumpGrammarRev } from "~/features/grammar";
 import { sharedTtsCache, clearHintsMemory, clearComposerMode } from "~/features/chat";
 import { kvClear } from "~/lib/kv-cache";
 import { resetPlaybackRate } from "~/lib/playback-rate";
-import { CHANGELOG_PREFS_KEY, GLASS_THEME_KEY, PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, removeKey } from "~/lib/storage";
+import { CHANGELOG_PREFS_KEY, GLASS_THEME_KEY, PRACTICE_DRAFT_KEY, TTS_VOICE_PREF_KEY, WORDBOOK_PREFS_KEY, removeKey } from "~/lib/storage";
 import { resetGlassThemeMemory } from "~/settings/glass-theme-store";
+import { resetTtsVoicePrefMemory } from "~/settings/tts-voice-pref";
 
 export { CHANGELOG_PREFS_KEY, PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY };
 
@@ -18,12 +19,14 @@ export function clearDeviceData(): void {
     removeKey(WORDBOOK_PREFS_KEY);
     removeKey(CHANGELOG_PREFS_KEY);
     removeKey(GLASS_THEME_KEY); // 主题自定义也是本机偏好(计划 2026-10-15-liquid-glass)
+    removeKey(TTS_VOICE_PREF_KEY); // 朗读音色偏好也是本机偏好
   } catch {
     /* ignore */
   }
   try {
     resetPlaybackRate(); // R24:语速是本机偏好,随登出清理
     resetGlassThemeMemory(); // 丢掉内存副本并通知 layout/glass-theme 重新应用默认值
+    resetTtsVoicePrefMemory();
   } catch {
     /* ignore */
   }
