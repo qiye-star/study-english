@@ -14,6 +14,7 @@ from app.core.account_policy import binding_deadline, binding_state
 from app.core.config import Settings
 from app.core import quotas
 from app.core.deps import auth_rate_limit, client_ip, current_user_unbound, get_session, get_settings
+from app.routers import captcha_guard
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
 from app.services import avatars, email_accounts, identities, invites
@@ -172,6 +173,7 @@ async def register(
         raise HTTPException(429, "Too many requests, please try again later")
     if settings.email_registration_required:
         _require_email_fields(payload, settings)
+    await captcha_guard.enforce(request, session, "register")
     # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
     if (payload.nickname is not None and payload.nickname.casefold() != payload.username
             and await nickname_taken_by_login(session, payload.nickname, None)):
