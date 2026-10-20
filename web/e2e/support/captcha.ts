@@ -64,7 +64,16 @@ export async function adminSession(): Promise<{ ctx: APIRequestContext; csrf: st
  * 已经是目标值就什么也不做。调用方必须在 finally 里把它恢复为 off。
  */
 export async function setCaptchaMode(admin: { ctx: APIRequestContext; csrf: string }, mode: CaptchaMode): Promise<void> {
-  const current = await admin.ctx.get("/api/captcha/config");
+  // 偶发的 keep-alive 断连(socket hang up)只重试读取,不重试写入。
+  let current;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      current = await admin.ctx.get("/api/captcha/config");
+      break;
+    } catch (err) {
+      if (attempt >= 3) throw err;
+    }
+  }
   expect(current.status()).toBe(200);
   if (((await current.json()) as { mode: string }).mode === mode) return;
   const headers = { "X-Admin-CSRF": admin.csrf };

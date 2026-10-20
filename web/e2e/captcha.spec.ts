@@ -50,8 +50,10 @@ const widget = (page: Page) => page.getByRole("group", { name: "Human verificati
 /** 勾选组件复选框,等它进入已验证状态(发码/提交按钮只在验证后可用)。 */
 async function solveWidget(page: Page): Promise<void> {
   // 原生复选框被组件的可见方框遮住(它不可点),所以点击可见的标签文字;状态以原生复选框的 checked 为准。
+  // 发码或失败之后组件会自己重新求解(标签暂时消失),此时只等待勾选,不点击。
   const box = widget(page).getByRole("checkbox");
-  await widget(page).getByText(/I'm not a robot|我不是机器人/).click();
+  const label = widget(page).getByText(/I'm not a robot|我不是机器人/);
+  if (!(await box.isChecked()) && (await label.isVisible())) await label.click();
   await expect(box).toBeChecked();
 }
 
@@ -142,8 +144,7 @@ test.describe("captcha", () => {
     expect(me.status()).not.toBe(428);
   });
 
-  // FIXME(真实缺陷,复现两次):网页组件在 verified 事件后立即被重置(见报告「发现 1」),UI 永远无法完成验证。
-  test.fixme("b. real widget in adaptive: register in the UI, same-origin requests, payload never stored", async ({ page }) => {
+  test("b. real widget in adaptive: register in the UI, same-origin requests, payload never stored", async ({ page }) => {
     await mode("adaptive");
     await guard(page);
     const seen = recordRequests(page);
@@ -164,6 +165,7 @@ test.describe("captcha", () => {
     await expect(page.getByTestId("register-error")).toBeVisible();
 
     await solveWidget(page);
+    await page.getByLabel("Verification code", { exact: true }).fill(real);
     await page.getByRole("button", { name: "Create account", exact: true }).click();
     await expect(page).toHaveURL(/\/practice$/);
 
@@ -215,8 +217,7 @@ test.describe("captcha", () => {
     expect(await r2.text()).toContain("captcha_required");
   });
 
-  // FIXME(真实缺陷,复现两次,见报告「发现 1」):UI 中的组件无法进入已验证状态,登录页的 UI 流程无法完成。
-  test.fixme("c-ui. login page in adaptive: the first submit shows the widget and the solved login succeeds", async ({ page, request }) => {
+  test("c-ui. login page in adaptive: the first submit shows the widget and the solved login succeeds", async ({ page, request }) => {
     await mode("adaptive");
     const user = await apiRegister(request);
     await guard(page);
@@ -230,8 +231,7 @@ test.describe("captcha", () => {
     await expect(page).toHaveURL(/\/practice$/);
   });
 
-  // FIXME(同上「发现 1」)。
-  test.fixme("d. forgot-password in adaptive: both steps pass through the widget", async ({ page, request }) => {
+  test("d. forgot-password in adaptive: both steps pass through the widget", async ({ page, request }) => {
     await mode("adaptive");
     const user = await apiRegister(request);
     await guard(page);
@@ -247,12 +247,15 @@ test.describe("captcha", () => {
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByTestId("login-notice")).toBeVisible();
+    // 本 IP 已被测试 c 标记,登录会先得到 428,页面显示组件;解出后再提交
     await loginViaUi(page, user.username, NEW_PASSWORD);
+    await expect(widget(page)).toBeVisible();
+    await solveWidget(page);
+    await page.getByTestId("login-submit").click();
     await expect(page).toHaveURL(/\/practice$/);
   });
 
-  // FIXME(同上「发现 1」)。
-  test.fixme("c2. always: the widget shows at once and login is blocked until solved", async ({ page, request }) => {
+  test("c2. always: the widget shows at once and login is blocked until solved", async ({ page, request }) => {
     await mode("adaptive");
     const user = await apiRegister(request);
     await mode("always");
