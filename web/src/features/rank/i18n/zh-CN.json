@@ -1,5 +1,5 @@
 { "web": { "rank": {
-  "title": "段位", "disabled": "段位赛未开启。",
+  "mini": { "empty": "完成一次跟读就会上榜" }, "title": "段位", "disabled": "段位赛未开启。",
   "tiers": { "bronze": "青铜", "silver": "白银", "gold": "黄金", "platinum": "铂金", "diamond": "钻石", "star": "星耀", "master": "王者" },
   "cefr": "对齐 CEFR {{level}}",
   "card": { "progress": "{{rp}}/{{size}} 段位点", "toGate": "再练 {{count}} 点到晋级门", "atGate": "已到晋级门", "eligible": "可以打晋级赛了", "open": "查看段位" },
