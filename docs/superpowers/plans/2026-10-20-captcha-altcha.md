@@ -576,4 +576,9 @@ docs/superpowers/plans/2026-10-20-captcha-altcha.md   Task 0 结果、执行结�
 
 ## 执行结果
 
+**W8(2026-10-20,`yarn web:build` + `node web/scripts/check-main-bundle.mjs --max-delta=0.65`,gzip -9,kB = 1000 字节):**
+- 主包(入口 + modulepreload):412.29 kB gzip,相对基线 411.67 kB 增量 **+0.62 kB**(预算 0.65 kB,由协调者修订;通过)。
+- 组件分块 `captcha-widget-*.js`(altcha + 语言包):**40.75 kB gzip**(原始 128.47 kB);外壳分块 `captcha-field-*.js`:**0.90 kB gzip**(原始 1.52 kB)。
+- 未验证:真机解题耗时、深色模式、360–375 px 布局(见 spec §10 与 `web/README.md`)。
+
 (执行者填写)

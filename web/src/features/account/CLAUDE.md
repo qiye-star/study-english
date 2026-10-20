@@ -12,6 +12,8 @@ Account settings shown on the 「我的」(me) page: nickname, email (masked, bi
 - `bind-email-page.tsx` — `/account/email` (X26, W6): bind when unbound, change with the current password when verified; `?required=1` from `RequireAuth`; success calls `refreshProfile()` and returns to `state.from`.
 - `binding-banner.tsx` — pending-binding banner (deadline + 「去绑定」 link); `BindingBanner` in `lazy.tsx` only loads it while `emailStatus.binding.state === "pending"`.
 - `accounts-contract.test.ts` — reads `server/tests/fixtures/accounts_contract.json` key by key (copied byte-identical from the server branch; INDEX X28) and checks every field against `UserProfile` / `AuthUser` / `EmailBindingInfo`, the email-status logic, and the real `ApiClient` parsers.
+- `captcha-contract.test.ts` — reads `server/tests/fixtures/captcha_contract.json` (copied byte-identical from `feat/cap-s`) and checks the captcha config, challenge shape, 428 / 503 / 404 errors against `ApiClient`, `useCaptchaGate` and `translateServerError`. Asserts shapes and key names only (fixture `cost` is a test value).
+- Captcha on the account pages (W4–W6): sign-up, forgot-password and bind-email code requests use `useCaptchaGate` + `CaptchaField` from `~/components/captcha`; the bind-email confirm step does not send a payload. Payloads are single use: each request calls `consumed()` afterwards.
 - `locales/{en,zh-CN}.json` — strings under `web.account.*`, merged lazily by `locales.ts` (`ensureAccountI18n`, called from every lazy entry; X37). Not under `i18n/`, so the eager glob never sees them.
 
 ## Allowed dependencies (INDEX X35)

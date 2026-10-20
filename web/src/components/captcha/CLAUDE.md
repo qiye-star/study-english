@@ -9,6 +9,10 @@ Shared human-verification (ALTCHA proof-of-work) widget. Spec `docs/superpowers/
 - `use-captcha-gate.ts` — `useCaptchaGate(api, scope)`: reads the mode once (`GET /api/captcha/config`, failure means `off`), says whether a captcha is `needed` (adaptive: all scopes except login until a 428; always: all), holds the payload in memory, `onServerError` (428 opens the widget) and `consumed()` (single use; re-arms the widget when still needed).
 - `index.ts` — public surface: `CaptchaField`, `CaptchaFieldProps`, `CaptchaHandle`, `useCaptchaGate`, `CaptchaScope`.
 
+## Measured (W8, `yarn web:build`, gzip -9, kB = 1000 bytes)
+- `captcha-widget-*.js` (the `altcha` chunk): 40.75 kB gzip. `captcha-field-*.js` (shell): 0.90 kB gzip. Main bundle delta: +0.62 kB against the 411.67 kB baseline (`check-main-bundle.mjs --max-delta=0.65`).
+- Re-measure after changing `altcha` or the language packs; do not edit the baseline to hide growth.
+
 ## Allowed dependencies
 - `~/api` (types only), `~/i18n`, `~/lib`, React, `react-i18next`, the `altcha` package.
 - Never a feature, `pages/`, `auth/` or `settings/` (`architecture.test.ts`).

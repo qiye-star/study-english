@@ -135,6 +135,24 @@
 
 **未在真机验证(液态玻璃):** 低端安卓上 3 层模糊的真实模糊质量与帧率;iOS Safari 底部弹窗进入时的模糊闪烁;顶部胶囊淡入与模糊的配合;自定义背景在户外的可读性;石墨色气泡上的查词高亮;单色答题反馈是否一眼可辨;320–360px 宽度下的大标题;iOS 的 `prefers-reduced-transparency`;不支持 `:is()` / `rgb(r g b / a)` 的旧 WebView。清单见 `docs/superpowers/plans/2026-10-15-liquid-glass-device-checklist.md`。
 
+## 人机验证(ALTCHA,计划 2026-10-20-captcha-altcha)
+
+注册、找回密码、绑定 / 换绑邮箱发码与登录页使用同一个共享组件(`src/components/captcha/`)。服务端模式由 `GET /api/captcha/config` 给出:
+
+- **`off`:** 不渲染组件,也不请求挑战(`GET /api/captcha/challenge`);网页只做一次配置探测。
+- **`adaptive`:** 注册、找回、发码都先验证;登录只在服务端回 `428 captcha_required` 之后才出现组件并提示,验证后重试。
+- **`always`:** 每个受保护页都显示组件。**会阻止桌面端(`enjoy/`)登录**,生产环境请用 `adaptive`。
+
+工作方式:组件只在需要时懒加载(`React.lazy`),主包只含外壳与门(`useCaptchaGate`)。组件用 ALTCHA 的复选框样式、`auto="off"`,用户勾选后在后台求解。每次带载荷的请求都用**新的一次性载荷**:请求结束(成功或失败)后门调用 `consumed()`,组件重置并在仍需要时重新求解,所以注册第二步、找回第二步都有新载荷。载荷只放在内存里,经请求头 `X-Captcha` 发送,不进 URL、JSON 体、存储或日志。
+
+错误映射:`428 captcha_required` / `428 captcha_invalid` 打开组件并提示;`503 Captcha is not configured` 显示「人机验证未配置」;`404 Captcha is off` 只出现在挑战端点,网页不会在 `off` 下请求它。
+
+**非安全上下文:** 组件要求安全上下文(HTTPS,或 `localhost`)。不满足时不加载组件分块,只显示提示。
+
+**实测(`yarn web:build` 与 `scripts/check-main-bundle.mjs`,gzip 级别 9,kB = 1000 字节):** 主包增量 +0.62 kB(基线 411.67 kB,预算 0.65 kB);组件分块 `captcha-widget` 40.75 kB、外壳分块 `captcha-field` 0.90 kB。设计稿里的「约 34 kB」是估计,以此为准。
+
+**未验证:** 真机解题(iOS Safari、安卓 Chrome、低端机)与解题耗时;移动端解题时长;深色模式下组件的对比度;360–375 px 宽度下的布局与按钮是否截断;组件的读屏与键盘操作;非安全上下文提示在真机上的表现;官方库与组件今后版本的格式兼容。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

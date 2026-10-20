@@ -9,6 +9,7 @@ Shared presentational UI primitives for the redesign (glass bars, cards, sheets,
   `GET /api/announcements` every 5 min / on visibility / at once when an API call answers 503 `Maintenance`
   (`noteMaintenance`, wired as `ApiClient.onMaintenance`, at most every 10 s); dismissals in `localStorage["announcement.dismissed"]`) and
   `maintenance-screen.tsx` (full-maintenance page). `app.tsx`'s `AnnouncementFrame` places the banner above every route.
+- Human verification (ALTCHA): `captcha/` — `CaptchaField` (lazy shell), `useCaptchaGate` (mode probe, 428 handling, single-use payloads), `CaptchaHandle`. The widget itself is a lazy chunk; see `captcha/CLAUDE.md`.
 - Feature switches: `feature-gate.tsx` (`FeatureGate`: loading / disabled / error + retry / ready; used by rank and rooms pages).
 - `zh-note-fold.tsx` — `ZhNoteFold`: folded "Chinese" note (note_zh / hint_zh). No copy of its own: callers pass already-translated `showLabel` / `hideLabel` from their lazy locales; 44 px toggle, `lang="zh-CN"` text, never read aloud.
 - `zh-toggle.tsx` — `ZhToggle`: stateless 「中文」 pill (`aria-pressed`, 44 px). No copy of its own (callers pass the label). Used by the wordbook after-answer panel and the lookup drawer (plan `2026-10-14-review-bilingual-longpress`).
