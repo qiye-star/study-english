@@ -62,6 +62,27 @@ export function fixtureList(): SettingsList {
   };
 }
 
+/** 有中文说明的枚举:captcha_mode(来自服务端 choice_info)。 */
+export function captchaModeItem(): SettingItem {
+  return item({
+    key: "captcha_mode", group: "registration", kind: "enum", label: "人机验证",
+    choices: ["off", "adaptive", "always"], envValue: "adaptive", effective: "adaptive", default: "off",
+    choiceInfo: {
+      off: { label: "关闭", help: "不要求验证码。默认值,升级时不影响现有用户和桌面端。" },
+      adaptive: { label: "自适应(推荐)", help: "注册、发邮箱验证码、找回密码总是要求;登录只有在同一个 IP 或登录名连续输错密码后才要求。" },
+      always: { label: "总是(应急)", help: "连登录也每次都要求。桌面端无法解验证码,会因此登不上;只在遭到攻击时临时使用。" },
+    },
+  });
+}
+
+/** 没有中文说明的枚举:log_level(行为与改动前相同)。 */
+export function logLevelItem(): SettingItem {
+  return item({
+    key: "log_level", group: "ops", kind: "enum", label: "日志级别",
+    choices: ["DEBUG", "INFO", "WARNING", "ERROR"], envValue: "INFO", effective: "INFO", default: "INFO",
+  });
+}
+
 /** SMTP 主机:kind str,服务端 pair = smtp_password(改主机未带新授权码 → 409 pairs)。 */
 export function smtpHostItem(): SettingItem {
   return item({

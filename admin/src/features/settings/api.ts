@@ -28,6 +28,8 @@ export interface SettingItem {
   min: number | null;
   max: number | null;
   choices: string[] | null;
+  /** 枚举值 -> 中文短名与一句说明;只有服务端定义了的设置才有 */
+  choiceInfo?: Record<string, { label: string; help: string }>;
   source: ValueSource;
   /** 非密钥 */
   default?: Scalar;
@@ -140,6 +142,7 @@ export function toItem(raw: Raw, pendingKeys: string[] = []): SettingItem {
     min: raw.min ?? null,
     max: raw.max ?? null,
     choices: raw.choices ?? null,
+    choiceInfo: raw.choice_info ?? undefined,
     source: raw.source,
     default: raw.default,
     envValue: raw.env_value,

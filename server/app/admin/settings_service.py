@@ -345,6 +345,8 @@ async def list_settings(session, app, *, role: str = "superadmin") -> dict:
             "invalid": hub.invalid.get(key),
             "drift": bool(row is not None and row.env_fp != _fp(app, env_value)),
         }
+        if spec.choice_info:
+            item["choice_info"] = {v: {"label": label, "help": text} for v, (label, text) in spec.choice_info.items()}
         if spec.secret:
             override_plain = _decrypt(box, row.value) if row is not None and row.secret else None
             item["env_state"] = _state(app, env_value, "env")

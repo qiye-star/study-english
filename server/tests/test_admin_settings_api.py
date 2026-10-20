@@ -232,3 +232,12 @@ async def test_captcha_secret_is_read_only_through_the_api(app, client):
     assert_no_secrets(listing.json(), app.state.settings)
     assert_no_secrets(exported.json(), app.state.settings)
     assert_no_secrets(revisions.json(), app.state.settings)
+
+
+async def test_choice_info_is_serialised_only_where_defined(app, client):
+    await login_as(app, client, "viewer")
+    items = {i["key"]: i for i in (await client.get("/api/admin/settings")).json()["items"]}
+    info = items["captcha_mode"]["choice_info"]
+    assert set(info) == {"off", "adaptive", "always"}
+    assert all(v["label"] and v["help"] for v in info.values())
+    assert "choice_info" not in items["rate_limit_per_minute"]
