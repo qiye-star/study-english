@@ -40,6 +40,14 @@ export function displayNameOf(user: { name: string; displayName?: string | null 
   return user.displayName || user.name;
 }
 
+/** 人机验证模式(服务端 `CAPTCHA_MODE`,spec §4)。 */
+export type CaptchaMode = "off" | "adaptive" | "always";
+
+/** `GET /api/captcha/config` 的形状。 */
+export interface CaptchaConfig {
+  mode: CaptchaMode;
+}
+
 export interface RegisterInput {
   username: string;
   password: string;

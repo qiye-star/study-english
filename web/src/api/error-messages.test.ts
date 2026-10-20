@@ -20,4 +20,13 @@ describe("translateServerError", () => {
   it("keeps an unknown account-style message generic (account messages live in the account feature)", () => {
     expect(translateServerError(t, new ApiError(422, "Email must not contain user@example.com"))).toBe("Something went wrong.");
   });
+
+  it("maps the captcha errors to the shared web.errors.captcha* keys in both languages", () => {
+    expect(translateServerError(t, new ApiError(428, "captcha_required"))).toBe("Please complete the verification first.");
+    expect(translateServerError(t, new ApiError(428, "captcha_invalid"))).toBe("Verification expired or failed. Please try again.");
+    expect(translateServerError(t, new ApiError(503, "Captcha is not configured"))).toBe("Verification is not configured on this server.");
+    expect(i18n.t("web.errors.captchaRequired", { lng: "zh-CN" })).toBe("请先完成人机验证。");
+    expect(i18n.t("web.errors.captchaInvalid", { lng: "zh-CN" })).toBe("人机验证已失效,请重试。");
+    expect(i18n.t("web.errors.captchaNotConfigured", { lng: "zh-CN" })).toBe("服务器暂未配置人机验证,请联系管理员。");
+  });
 });

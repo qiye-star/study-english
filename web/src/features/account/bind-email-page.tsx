@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
+import { CaptchaField, useCaptchaGate } from "~/components/captcha";
 import { useAuth } from "~/auth/auth-context";
 import { EMAIL_BINDING_PATH } from "~/auth/email-binding";
 import { normalizeEmail } from "~/auth/validation";
@@ -23,6 +24,8 @@ export function BindEmailPage() {
   const { t, i18n } = useTranslation();
   const { api, emailStatus, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  // 只有发码需要人机验证(spec §3:POST /api/me/email 不受保护,需要登录与邮件里的码)。
+  const gate = useCaptchaGate(api, "email_code");
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
@@ -77,6 +80,12 @@ export function BindEmailPage() {
         {deadline ? <p data-testid="bind-deadline" className={NOTE}>{t("web.account.bind.deadline", { time: deadline })}</p> : null}
       </div>
       <form onSubmit={submit} noValidate className="mt-6 space-y-4 mat-surface-strong liquid:rounded-panel liquid:p-4">
+        {gate.needed ? (
+          <div className="space-y-2">
+            <CaptchaField ref={gate.handleRef} onPayload={gate.setPayload} />
+            {gate.ready ? null : <p role="status" aria-live="polite" className="text-meta text-ink-2">{t("web.errors.captchaRequired")}</p>}
+          </div>
+        ) : null}
         <EmailCodeField
           id="bind-email"
           value={email}
@@ -88,6 +97,12 @@ export function BindEmailPage() {
             setError(null);
           }}
           onError={setError}
+          takeCaptcha={gate.take}
+          captchaReady={gate.ready}
+          onCaptchaUsed={(err) => {
+            gate.consumed();
+            gate.onServerError(err);
+          }}
         />
         {sent ? (
           <>

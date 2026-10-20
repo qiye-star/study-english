@@ -10,8 +10,10 @@ import { normalizeLoginName, normalizeUsername } from "./validation";
 export interface AuthContextValue {
   user: StoredAuth["user"] | null;
   api: ApiClient;
-  login(username: string, password: string): Promise<void>;
-  register(input: RegisterInput): Promise<void>;
+  /** `captcha`:人机验证载荷(只进 X-Captcha 请求头);模式关闭时不传。 */
+  login(username: string, password: string, captcha?: string): Promise<void>;
+  /** `captcha`:人机验证载荷(只进 X-Captcha 请求头);模式关闭时不传。 */
+  register(input: RegisterInput, captcha?: string): Promise<void>;
   /** `byUser`:用户主动退出,重新登录后不再回到退出前的页面(会话过期则会回到)。 */
   logout(byUser?: boolean): void;
   /** 改密:服务端轮换 token,这里换掉本机存储的 token(用户不需要重新登录)。测试替身可不提供。 */
@@ -116,11 +118,13 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   }, [userId, refreshProfile]);
 
   const login = useCallback(
-    async (username: string, password: string) => accept(await api.login(normalizeLoginName(username), password)),
+    async (username: string, password: string, captcha?: string) =>
+      accept(await api.login(normalizeLoginName(username), password, captcha)),
     [api, accept],
   );
   const register = useCallback(
-    async (input: RegisterInput) => accept(await api.register({ ...input, username: normalizeUsername(input.username) })),
+    async (input: RegisterInput, captcha?: string) =>
+      accept(await api.register({ ...input, username: normalizeUsername(input.username) }, captcha)),
     [api, accept],
   );
 

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
+import { CaptchaField, useCaptchaGate } from "~/components/captcha";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail } from "~/auth/validation";
 import { ACCOUNT_ERROR_KEYS, resetPassword } from "./account-api";
@@ -19,6 +20,7 @@ export function ForgotPasswordPage() {
   const { t } = useTranslation();
   const { api, user } = useAuth();
   const navigate = useNavigate();
+  const gate = useCaptchaGate(api, "reset");
   const [email, setEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -43,11 +45,24 @@ export function ForgotPasswordPage() {
       setError(t("web.login.passwordLength"));
       return;
     }
+    if (gate.needed && gate.payload === null) {
+      setError(t("web.errors.captchaRequired"));
+      return;
+    }
     setBusy(true);
     setError(null);
-    resetPassword(api, { email, code, newPassword: password })
-      .then(() => navigate("/login", { replace: true, state: { notice: "passwordReset" } }))
-      .catch((err: unknown) => setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS)))
+    const captcha = gate.take() ?? undefined;
+    resetPassword(api, { email, code, newPassword: password }, captcha)
+      .then(() => {
+        // 成功后页面即将卸载:不再求解新的载荷。
+        gate.consumed(false);
+        navigate("/login", { replace: true, state: { notice: "passwordReset" } });
+      })
+      .catch((err: unknown) => {
+        gate.onServerError(err);
+        gate.consumed();
+        setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
+      })
       .finally(() => setBusy(false));
   }
 
@@ -56,12 +71,24 @@ export function ForgotPasswordPage() {
       <div className="mx-auto w-full max-w-sm">
         <h1 className="truncate text-center text-headline font-semibold text-ink">{t("web.account.forgot.title")}</h1>
         <form onSubmit={submit} noValidate className="mt-6 space-y-4 mat-surface-strong liquid:rounded-panel liquid:p-4">
+          {gate.needed ? (
+            <div className="space-y-2">
+              <CaptchaField ref={gate.handleRef} onPayload={gate.setPayload} />
+              {gate.ready ? null : <p role="status" aria-live="polite" className="text-meta text-ink-2">{t("web.errors.captchaRequired")}</p>}
+            </div>
+          ) : null}
           <EmailCodeField
             id="forgot-email"
             value={email}
             onChange={setEmail}
             purpose="reset"
             sent={sentEmail !== null}
+            takeCaptcha={gate.take}
+            captchaReady={gate.ready}
+            onCaptchaUsed={(err) => {
+              gate.consumed();
+              gate.onServerError(err);
+            }}
             onSent={() => {
               setSentEmail(normalizeEmail(email));
               setNote(t("web.account.forgot.note"));

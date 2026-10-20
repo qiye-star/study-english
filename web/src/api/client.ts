@@ -1,6 +1,6 @@
 import camelcaseKeys from "camelcase-keys";
 import decamelizeKeys from "decamelize-keys";
-import type { AuthUser, MyInvite, RegisterInput, UserProfile } from "./types";
+import type { AuthUser, CaptchaConfig, MyInvite, RegisterInput, UserProfile } from "./types";
 
 export class ApiError extends Error {
   /** 429 等响应的 Retry-After(秒);没有或无法解析时为 undefined。 */
@@ -18,6 +18,8 @@ export interface RequestOptions {
   as?: "json" | "blob" | "raw";
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** 人机验证载荷(ALTCHA):只放进 `X-Captcha` 请求头(spec R-C3),不进 URL 与 JSON 体。 */
+  captcha?: string;
 }
 
 export interface ApiClientOptions {
@@ -76,10 +78,11 @@ export class ApiClient {
   constructor(private readonly options: ApiClientOptions) {}
 
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
-    const { json, form, query, auth = true, as = "json", timeoutMs = DEFAULT_TIMEOUT_MS, signal } = opts;
+    const { json, form, query, auth = true, as = "json", timeoutMs = DEFAULT_TIMEOUT_MS, signal, captcha } = opts;
     const headers: Record<string, string> = { Accept: "application/json" };
     const token = auth ? this.options.getToken() : null;
     if (token) headers.Authorization = `Bearer ${token}`;
+    if (captcha) headers["X-Captcha"] = captcha;
     let body: BodyInit | undefined;
     if (json !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -118,12 +121,17 @@ export class ApiClient {
     }
   }
 
-  login(username: string, password: string): Promise<AuthUser> {
-    return this.request("POST", "/api/sessions", { json: { provider: "password", username, password }, auth: false });
+  login(username: string, password: string, captcha?: string): Promise<AuthUser> {
+    return this.request("POST", "/api/sessions", { json: { provider: "password", username, password }, auth: false, captcha });
   }
 
-  register(input: RegisterInput): Promise<AuthUser> {
-    return this.request("POST", "/api/users", { json: input, auth: false });
+  register(input: RegisterInput, captcha?: string): Promise<AuthUser> {
+    return this.request("POST", "/api/users", { json: input, auth: false, captcha });
+  }
+
+  /** 人机验证模式(`off` | `adaptive` | `always`);公开接口,无需登录。 */
+  captchaConfig(): Promise<CaptchaConfig> {
+    return this.request("GET", "/api/captcha/config", { auth: false });
   }
 
   me(): Promise<UserProfile> {

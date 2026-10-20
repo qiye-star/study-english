@@ -19,7 +19,10 @@
       "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
       "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",
       "timeout": "The request timed out.", "aborted": "The request was cancelled.", "unknown": "Something went wrong.",
-      "maintenance": "The service is under maintenance. Please try again later."
+      "maintenance": "The service is under maintenance. Please try again later.",
+      "captchaRequired": "Please complete the verification first.",
+      "captchaInvalid": "Verification expired or failed. Please try again.",
+      "captchaNotConfigured": "Verification is not configured on this server."
     },
     "me": {
       "title": "Me", "username": "Account", "language": "Language",

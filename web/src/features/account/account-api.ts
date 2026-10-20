@@ -33,14 +33,14 @@ export function saveNickname(api: ApiClient, value: string): Promise<{ nickname:
   return api.updateMe({ nickname: nickname === "" ? null : nickname });
 }
 
-/** 注册 / 找回密码发码(邮箱规范化后发出;回执与邮箱是否已注册无关)。 */
-export function requestEmailCode(api: ApiClient, email: string, purpose: "register" | "reset"): Promise<EmailCodeReceipt> {
-  return api.request("POST", "/api/email/code", { json: { email: normalizeEmail(email), purpose }, auth: false });
+/** 注册 / 找回密码发码(邮箱规范化后发出;回执与邮箱是否已注册无关)。`captcha` 只进 X-Captcha 请求头。 */
+export function requestEmailCode(api: ApiClient, email: string, purpose: "register" | "reset", captcha?: string): Promise<EmailCodeReceipt> {
+  return api.request("POST", "/api/email/code", { json: { email: normalizeEmail(email), purpose }, auth: false, captcha });
 }
 
 /** 已登录用户的绑定 / 换绑发码(强制绑定期间也可用)。 */
-export function requestBindCode(api: ApiClient, email: string, purpose: "bind" | "change_email"): Promise<EmailCodeReceipt> {
-  return api.request("POST", "/api/me/email/code", { json: { email: normalizeEmail(email), purpose } });
+export function requestBindCode(api: ApiClient, email: string, purpose: "bind" | "change_email", captcha?: string): Promise<EmailCodeReceipt> {
+  return api.request("POST", "/api/me/email/code", { json: { email: normalizeEmail(email), purpose }, captcha });
 }
 
 /** 绑定 / 换绑邮箱;换绑必须带当前密码。 */
@@ -49,8 +49,8 @@ export async function bindEmail(api: ApiClient, input: { email: string; code: st
 }
 
 /** 找回密码:成功后不返回 token,页面跳回登录页。 */
-export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }): Promise<void> {
-  await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false });
+export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }, captcha?: string): Promise<void> {
+  await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false, captcha });
 }
 
 /** 上传头像(已在浏览器里缩好的 JPEG;字段名 file)。不设 Content-Type:multipart 边界由浏览器带上。 */

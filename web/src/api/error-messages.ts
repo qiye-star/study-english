@@ -13,6 +13,9 @@ const COMMON: Record<string, string> = {
   "AI response timed out": "web.errors.timeout",
   "Request aborted": "web.errors.aborted",
   Maintenance: "web.errors.maintenance", // 503 from the server's maintenance mode (admin console)
+  captcha_required: "web.errors.captchaRequired", // 428: the request needs a verification payload (spec §6.4)
+  captcha_invalid: "web.errors.captchaInvalid", // 428: the payload was expired, replayed, forged or malformed
+  "Captcha is not configured": "web.errors.captchaNotConfigured", // 503: captcha is on but CAPTCHA_SECRET is empty
 };
 
 export function translateServerError(t: TFunction, err: unknown, extra: Record<string, string> = {}): string {

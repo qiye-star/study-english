@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
+import { CaptchaField, useCaptchaGate } from "~/components/captcha";
 import { ACCOUNT_ERROR_KEYS } from "./account-api";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail, validateCredentials } from "~/auth/validation";
@@ -19,8 +20,9 @@ const NICKNAME_MAX = 20;
  */
 export function RegisterPage() {
   const { t } = useTranslation();
-  const { user, register } = useAuth();
+  const { user, register, api } = useAuth();
   const navigate = useNavigate();
+  const gate = useCaptchaGate(api, "register");
   const [email, setEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -52,8 +54,13 @@ export function RegisterPage() {
       setError(problem);
       return;
     }
+    if (gate.needed && gate.payload === null) {
+      setError(t("web.errors.captchaRequired"));
+      return;
+    }
     setBusy(true);
     setError(null);
+    const captcha = gate.take() ?? undefined;
     register({
       username,
       password,
@@ -61,9 +68,17 @@ export function RegisterPage() {
       emailCode: code,
       nickname: nickname.trim(),
       inviteCode: inviteCode.trim() || undefined,
-    })
-      .then(() => navigate("/practice", { replace: true }))
-      .catch((err: unknown) => setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS)))
+    }, captcha)
+      .then(() => {
+        // 成功后页面即将卸载:不再求解新的载荷。
+        gate.consumed(false);
+        navigate("/practice", { replace: true });
+      })
+      .catch((err: unknown) => {
+        gate.onServerError(err);
+        gate.consumed();
+        setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
+      })
       .finally(() => setBusy(false));
   }
 
@@ -83,12 +98,24 @@ export function RegisterPage() {
       <div className="mx-auto w-full max-w-sm">
         <h1 className="truncate text-center text-headline font-semibold text-ink">{t("web.account.register.title")}</h1>
         <form onSubmit={submit} noValidate className="mt-6 space-y-4 mat-surface-strong liquid:rounded-panel liquid:p-4">
+          {gate.needed ? (
+            <div className="space-y-2">
+              <CaptchaField ref={gate.handleRef} onPayload={gate.setPayload} />
+              {gate.ready ? null : <p role="status" aria-live="polite" className="text-meta text-ink-2">{t("web.errors.captchaRequired")}</p>}
+            </div>
+          ) : null}
           <EmailCodeField
             id="register-email"
             value={email}
             onChange={setEmail}
             purpose="register"
             sent={sent}
+            takeCaptcha={gate.take}
+            captchaReady={gate.ready}
+            onCaptchaUsed={(err) => {
+              gate.consumed();
+              gate.onServerError(err);
+            }}
             onSent={() => {
               setSentEmail(normalizeEmail(email));
               setNotice(t("web.account.register.codeSent"));

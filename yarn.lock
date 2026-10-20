@@ -12092,6 +12092,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"altcha@npm:3.4.1":
+  version: 3.4.1
+  resolution: "altcha@npm:3.4.1"
+  dependencies:
+    hash-wasm: "npm:^4.12.0"
+  checksum: 10c0/c66d425335c0c758eadd205b7008d52230d7db7a886b5baf225284b16890b54e2eaa53d6c6a77c7488c3ddf88cf6c71c8210651fd4ef7240c637f9ebb1e6b3ca
+  languageName: node
+  linkType: hard
+
 "ansi-colors@npm:^4.1.1, ansi-colors@npm:^4.1.3":
   version: 4.1.3
   resolution: "ansi-colors@npm:4.1.3"
@@ -18546,6 +18555,13 @@ __metadata:
   version: 2.0.1
   resolution: "has-unicode@npm:2.0.1"
   checksum: 10c0/ebdb2f4895c26bb08a8a100b62d362e49b2190bcfd84b76bc4be1a3bd4d254ec52d0dd9f2fbcc093fc5eb878b20c52146f9dfd33e2686ed28982187be593b47c
+  languageName: node
+  linkType: hard
+
+"hash-wasm@npm:^4.12.0":
+  version: 4.12.0
+  resolution: "hash-wasm@npm:4.12.0"
+  checksum: 10c0/6cb95055319810b6f673de755289960683a9831807690795f0e8918b2fd7e6ae5b82a9dc47cbace171cf2814b412ef68c315a0ead0b4d96bd3e56a05e4bde136
   languageName: node
   linkType: hard
 
@@ -29929,6 +29945,7 @@ __metadata:
     "@types/uuid": "npm:^10.0.0"
     "@uidotdev/usehooks": "npm:^2.4.1"
     "@vitejs/plugin-react": "npm:^4.3.4"
+    altcha: "npm:3.4.1"
     autoprefixer: "npm:^10.4.21"
     camelcase-keys: "npm:^9.1.3"
     chart.js: "npm:^4.4.8"
