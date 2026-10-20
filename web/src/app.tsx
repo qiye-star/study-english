@@ -33,6 +33,7 @@ import { TOAST_CLASSNAMES } from "~/components/toast-classes";
 
 /** 外观与主题(计划 2026-10-15-liquid-glass L3):懒加载,不进主包;液态开关关闭时页面自己跳回 /me。 */
 const AppearancePage = lazy(() => import("~/pages/appearance/appearance-page").then((m) => ({ default: m.AppearancePage })));
+const MeServicesPage = lazy(() => import("~/pages/me-services-page").then((m) => ({ default: m.MeServicesPage })));
 
 /**
  * 公告横幅放在所有页面的顶部;下方区域把 --app-height 改成 100%,应用壳因此让出横幅的高度。
@@ -102,6 +103,7 @@ export function AppRoutes() {
             <Route path="/me" element={<MePage />} />
             <Route path="/me/account" element={<AccountSettingsPage />} />
             <Route path="/me/grammar" element={<GrammarPromptPage />} />
+            <Route path="/me/services" element={<Suspense fallback={null}><MeServicesPage /></Suspense>} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
             <Route path="/me/appearance" element={<Suspense fallback={null}><AppearancePage /></Suspense>} />

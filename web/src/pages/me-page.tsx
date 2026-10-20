@@ -2,9 +2,8 @@ import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
   LanguagesIcon, LogOutIcon, PaletteIcon, SmartphoneIcon, SpellCheckIcon, SunMoonIcon, type LucideIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@renderer/components/ui/button";
 import { Switch } from "@renderer/components/ui/switch";
 import { cn } from "@renderer/lib/utils";
 import { Avatar } from "~/components/avatar";
@@ -22,9 +21,7 @@ import { RankCard } from "~/features/rank";
 import { useRoomsEnabled } from "~/features/rooms";
 import { AgentsMeRow } from "~/features/agents";
 import { WordbookMeRow } from "~/features/wordbook";
-import { translateServerError } from "~/api/error-messages";
 import { displayNameOf } from "~/api/types";
-import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { SUPPORTED_LANGUAGES, type UiLanguage } from "~/i18n";
 import { PLAYBACK_RATES, formatPlaybackRate, setPlaybackRate, usePlaybackRate, type PlaybackRate } from "~/lib/playback-rate";
@@ -136,25 +133,11 @@ export function MePage() {
   const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText, colorScheme, setColorScheme } = useSettings();
   const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
-  const [ai, setAi] = useState<ServerAiConfig | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
-  const tRef = useRef(t);
-  tRef.current = t;
   const id = useId();
   const liquid = useLiquid();
   const { theme } = useGlassTheme();
   const grammarStatus = useGrammarPromptStatus();
-
-  useEffect(() => {
-    let alive = true;
-    setAiError(null);
-    loadServerAiConfig(api)
-      .then((config): void => { if (alive) setAi(config); })
-      .catch((err): void => { if (alive) setAiError(translateServerError(tRef.current, err)); });
-    return () => { alive = false; };
-  }, [api, attempt]);
 
   // 统计只用于概览(三张统计卡、进度行说明、本周条);失败时安静地不显示,详情在学习进度页
   useEffect(() => {
@@ -267,26 +250,7 @@ export function MePage() {
         <SectionGroup title={t("web.me.groups.settings")}>
           <ListRow icon={<IconChip tone="gray" icon={SpellCheckIcon} />} title={t("web.me.grammarRule")} to="/me/grammar" testId="me-grammar"
             value={grammarStatus ? t(`web.me.grammarState.${grammarStatus}`) : undefined} />
-        </SectionGroup>
-
-        <SectionGroup title={t("web.me.groups.server")}>
-          <div data-testid="me-services" className="flex min-h-row items-start gap-3 py-2.5 pl-3.5 pr-3">
-            <IconChip tone="gray" icon={AudioWaveformIcon} />
-            <div className="min-w-0 flex-1 pt-0.5">
-              <h3 className="text-body font-medium tracking-[-0.005em] text-ink">{t("web.me.services")}</h3>
-              <div className="mt-0.5 space-y-0.5 text-meta text-ink-2">
-                <p>{t("web.me.stt")}</p>
-                {ai && <p>{t("web.me.tts", { models: ai.ttsModels.join(", ") || "—" })}</p>}
-                {ai?.defaultTts.voice && <p>{t("web.me.ttsDefault", { voice: ai.defaultTts.voice })}</p>}
-              </div>
-              {aiError && (
-                <div data-testid="me-ai-error" role="alert" className="mt-1 flex items-center gap-2 text-sub text-destructive">
-                  <span className="flex-1">{aiError}</span>
-                  <Button variant="outline" size="sm" className="h-tap" onClick={() => setAttempt((n) => n + 1)}>{t("web.common.retry")}</Button>
-                </div>
-              )}
-            </div>
-          </div>
+          <ListRow icon={<IconChip tone="gray" icon={AudioWaveformIcon} />} title={t("web.me.servicesRow")} to="/me/services" testId="me-services-row" />
         </SectionGroup>
 
         <button type="button" data-testid="me-logout" onClick={() => logout(true)}

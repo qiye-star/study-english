@@ -20,13 +20,12 @@ const ROUTES = {
 
 describe("MePage", () => {
   beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
-  it("shows the account, server services and logs out", async () => {
+  it("shows the profile and logs out", async () => {
     const mock = createFetchMock(ROUTES);
     const logout = vi.fn();
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), logout });
     expect(screen.getByTestId("me-username")).toHaveTextContent("alice");
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1, azure/speech"));
-    expect(screen.getByTestId("me-services")).toHaveTextContent("alloy");
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     await userEvent.click(screen.getByTestId("me-logout"));
     expect(logout).toHaveBeenCalled();
   });
@@ -35,16 +34,6 @@ describe("MePage", () => {
     await userEvent.selectOptions(screen.getByTestId("me-language"), "zh-CN");
     expect(await screen.findByText("退出登录")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByTestId("me-language"), "en");
-  });
-  it("shows a translated error with a retry button when the server config fails", async () => {
-    let fail = true;
-    const mock = createFetchMock({ ...ROUTES, "GET /api/config/gpt_providers": () => (fail ? json({ error: "boom" }, 500) : json({ enjoyai: { models: ["gpt-4o"] } })) });
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
-    expect(await screen.findByTestId("me-ai-error")).toHaveTextContent("Something went wrong.");
-    fail = false;
-    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1"));
-    expect(screen.queryByTestId("me-ai-error")).toBeNull();
   });
   it("links the grammar rules row and shows whether a custom prompt is set", async () => {
     const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
@@ -90,7 +79,7 @@ describe("MePage", () => {
     expect(mock.calls.find((c) => c.url.pathname === "/api/stats")?.url.searchParams.get("days")).toBe("7");
     unmount();
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     expect(screen.queryByTestId("me-stats")).toBeNull();
     expect(screen.getByTestId("me-logout")).toBeInTheDocument();
   });
@@ -109,7 +98,7 @@ describe("MePage", () => {
     localStorage.removeItem("enjoy-web.settings");
     await i18n.changeLanguage("en");
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock({ ...ROUTES, "GET /api/rooms/config": () => json({ enabled: false }) }).fetch }) });
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     expect(screen.queryByTestId("me-room-voice-auto-text")).toBeNull();
   });
   it("links to the vocabulary book", () => {
@@ -133,7 +122,7 @@ describe("MePage", () => {
       const off = createFetchMock({ ...ROUTES, "GET /api/wordbook/config": () => json({ enabled: false }) });
       renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: off.fetch }) });
       await waitFor(() => expect(off.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
-      await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+      await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("默认"));
       expect(screen.queryByTestId("me-wordbook")).toBeNull();
     } finally {
       localStorage.removeItem("enjoy-web.settings");
