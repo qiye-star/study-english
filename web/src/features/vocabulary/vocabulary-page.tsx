@@ -19,6 +19,7 @@ import { SectionGroup } from "~/components/section-group";
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { PageHeader } from "~/layout/page-header";
 import { Slot } from "~/lib/extension-points-react";
 import { lookupContext } from "~/lib/lookup-context";
@@ -252,7 +253,7 @@ export function VocabularyPage() {
             speakState={tts.states[speakKey] ?? "idle"} canSpeak={!!ai?.defaultTts.model}
             onFlip={() => setReview({ ...review, flipped: true })}
             onGrade={(g) => void grade(g)}
-            onSpeak={() => ai && void tts.play(speakKey, card.word, ai.defaultTts.model, ai.defaultTts.voice)} />
+            onSpeak={() => { if (ai) { const voice = resolveTtsVoice("word", ai); void tts.play(speakKey, card.word, voice.model, voice.voice); } }} />
         )}
         {review?.done && (
           <SurfaceCard data-testid="vocab-review-done" className="space-y-3 p-5 text-center">

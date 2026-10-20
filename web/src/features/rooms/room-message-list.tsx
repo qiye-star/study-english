@@ -10,6 +10,7 @@ import { ZhNoteFold } from "~/components/zh-note-fold";
 import { ttsErrorMessage, useMessageTranslations, useTtsPlayer } from "~/features/chat";
 import { cn } from "~/lib/cn";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { AgentName, AnsweredFor, HandoffLine, PrivateProcess } from "./agents/agent-answer";
 import { agentOf } from "./agents/agent-meta";
 import { mentionsAgent } from "./agents/mentions";
@@ -169,13 +170,15 @@ export const RoomMessageList = memo(function RoomMessageList({
   const speak = (m: RoomMessage) => {
     const text = spokenText(m); // the only text that reaches TTS: body only, no Chinese (R-AW9)
     if (ai) {
-      if (ai.defaultTts.model) void tts.play(m.id, text, ai.defaultTts.model, ai.defaultTts.voice);
+      const voice = resolveTtsVoice("message", ai);
+      if (voice.model) void tts.play(m.id, text, voice.model, voice.voice);
       else toast.error(t("web.rooms.extras.speakUnavailable"));
       return;
     }
     tts.prime(); // iOS:在点击的同步阶段解锁播放器,取到配置后再播
     void loadAi().then((c) => {
-      if (c?.defaultTts.model) void tts.play(m.id, text, c.defaultTts.model, c.defaultTts.voice);
+      const voice = resolveTtsVoice("message", c ?? null);
+      if (voice.model) void tts.play(m.id, text, voice.model, voice.voice);
       else toast.error(tRef.current("web.rooms.extras.speakUnavailable"));
     });
   };

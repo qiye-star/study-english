@@ -2,6 +2,7 @@
 export { ConversationPage } from "./lazy-pages"; // 路由懒加载(R-W2);不要在这里静态导出页面模块
 export { ConversationsPage } from "./conversations-page";
 export { primeAudioElement, sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer, type TtsState } from "./use-tts-player";
+export { PREVIEW_SENTENCE } from "./voice-picker"; // 朗读音色页的试听句
 export { useMessageTranslations, type TranslationState } from "./use-message-translations";
 // 登出清理(auth/device-data)
 export { sharedTtsCache } from "./tts";

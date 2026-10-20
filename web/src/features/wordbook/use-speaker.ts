@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { loadServerAiConfig, voicesFor, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { storedTtsVoice } from "~/settings/tts-voice-pref";
 
 /**
  * 背单词的朗读(spec §11.4):复用对话页的 useTtsPlayer 与共享缓存,默认 TTS 模型 / 声音取自服务端配置。
@@ -25,9 +26,12 @@ export function useSpeaker() {
   const model = ai?.defaultTts.model ?? "";
   const available = Boolean(model);
   const listen = (id: string, text: string, accent?: "us" | "gb") => {
-    if (!ai || !model || !text.trim()) return;
-    const voice = (accent ? voicesFor(ai, model, { accent })[0]?.value : undefined) ?? ai.defaultTts.voice;
-    void tts.play(id, text, model, voice);
+    if (!ai || !text.trim()) return;
+    // /me/voice 里为「单词」选过且仍有效的音色优先;否则美 / 英音取该口音的声音,再不行用服务端默认
+    const stored = storedTtsVoice("word", ai);
+    if (!stored && !model) return;
+    const picked = stored ?? { model, voice: (accent ? voicesFor(ai, model, { accent })[0]?.value : undefined) ?? ai.defaultTts.voice };
+    void tts.play(id, text, picked.model, picked.voice);
   };
   /** 正在加载或播放的朗读 id */
   const active = Object.entries(tts.states).find(([, s]) => s === "loading" || s === "playing")?.[0] ?? null;
