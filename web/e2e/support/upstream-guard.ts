@@ -11,8 +11,10 @@ const OWN_BACKEND = /^\/api\/(users|me|conversations|messages|config|stats|vocab
 // 段位/联机的配置与段位读数在练习页、「我的」和底部导航加载时就会请求(RANK_ENABLED / ROOMS_ENABLED),只读写数据库。
 // /api/rank/matches/*(考官、转写、评分)与 /api/rooms/ws(房间 AI)会触达上游,不放行。
 // /api/announcements:公告条(管理端 v2)每页加载时请求,只读数据库。
+// /api/library/config:跟读库的开关与限额(只读设置与配额);/api/changelog 与 /seen:更新日志(只读 / 只写已读游标,不碰上游)。
+// 「我的」页与底部导航加载时请求。
 const OWN_BACKEND_EXACT = new Set(["/api/realtime/config", "/api/rank/config", "/api/rank/me", "/api/rank/achievements", "/api/rooms/config",
-  "/api/announcements"]);
+  "/api/announcements", "/api/library/config", "/api/changelog", "/api/changelog/seen"]);
 
 // 背单词(WORDBOOK_ENABLED):只读写数据库与本地词典文件;/api/wordbook/explain(AI 讲解,LLM)不放行。
 const OWN_WORDBOOK = /^\/api\/wordbook\/(config|today|books|enrollment|enrollment\/(?:pause|resume|reset)|bonus|learn\/batch|review\/batch|answers|spell\/sets|spell\/submit|reports|cards\/[^/]+\/[^/]+)$/;
@@ -25,7 +27,12 @@ const OWN_LINKS = /^\/api\/links\/(config|prefs|today|mistakes|mistakes\/dismiss
 // /turn、/personas/try(LLM)与 /tutor/*(可能出题调用 LLM)不放行;记忆端点由 agents-memory 计划追加。
 const OWN_AGENTS = /^\/api\/agents\/(config|settings|personas|personas\/(?!try$)[^/]+|personas\/[^/]+\/report)$/;
 
+// 账号 v2(邮箱注册 / 找回密码 / 头像 / 邀请码):发码与重置只写数据库并走站内邮件后端(测试栈为 console,不发信);
+// 头像只读写本地媒体库。/api/me/*、/api/users、/api/sessions 已由 OWN_BACKEND 放行。/api/avatars/{id} 只读图片。
+// /api/avatar-reports(举报)只写数据库。上游相关路径不在此列。
+const OWN_ACCOUNT = /^\/api\/(email\/code|password\/reset|avatar-reports|avatars\/[^/]+)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname)
-    || OWN_AGENTS.test(pathname);
+    || OWN_AGENTS.test(pathname) || OWN_ACCOUNT.test(pathname);
 }
