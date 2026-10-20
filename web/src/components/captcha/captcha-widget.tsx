@@ -26,10 +26,11 @@ export interface CaptchaWidgetProps {
 
 /** 组件实例上我们用到的方法(altcha 3.x 的自定义元素导出)。 */
 interface AltchaElement extends HTMLElement {
-  configure(options: { hideFooter?: boolean }): void;
+  // 方法在元素升级(connectedCallback 之后的微任务)之前是 undefined,所以全部可选、按需调用。
+  configure?(options: { hideFooter?: boolean }): void;
   /** 注意:altcha 的 reset 第一个参数是状态名,不接受选项对象。 */
-  reset(): void;
-  verify(): Promise<unknown>;
+  reset?(): void;
+  verify?(): Promise<unknown>;
 }
 
 declare module "react" {
@@ -56,10 +57,10 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
         const el = elRef.current;
         if (!el) return;
         setFailed(false);
-        el.reset();
+        el.reset?.();
         // 失败会经 statechange 报告;这里不重复处理。
         if (again) {
-          el.verify().catch(() => {
+          el.verify?.()?.catch(() => {
             /* 失败已由 statechange 报告 */
           });
         }
@@ -71,7 +72,8 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    const hide = () => el.configure({ hideFooter: true });
+    // 元素未升级时 configure 可能还不存在:这里先尝试一次,之后由 load 事件(升级完成)再设置。
+    const hide = () => el.configure?.({ hideFooter: true });
     hide();
     el.addEventListener("load", hide);
     return () => el.removeEventListener("load", hide);

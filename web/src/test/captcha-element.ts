@@ -4,18 +4,28 @@ import { act } from "@testing-library/react";
  * 页面测试用的假 <altcha-widget>(计划 W4–W7)。真正的 altcha 在 jsdom 里不运行;
  * 测试文件自己 `vi.mock("altcha", ...)`(vi.mock 必须写在测试文件里),这里只提供元素与事件派发。
  */
-export const altchaCalls = { reset: 0, verify: 0 };
+export const altchaCalls = { reset: 0, verify: 0, upgraded: true };
 
+/**
+ * 真实 altcha 的导出方法是 getter,在元素升级之前返回 undefined(见 altcha.js 的 `this.$$c?.[name]`)。
+ * 设 `altchaCalls.upgraded = false` 即模拟“还没升级”。
+ */
 class FakeAltcha extends HTMLElement {
-  configure() {
-    /* 隐藏页脚等设置在这里不需要记录 */
+  get configure() {
+    return altchaCalls.upgraded ? () => {
+      /* 隐藏页脚等设置在这里不需要记录 */
+    } : undefined;
   }
-  reset() {
-    altchaCalls.reset += 1;
+  get reset() {
+    return altchaCalls.upgraded ? () => {
+      altchaCalls.reset += 1;
+    } : undefined;
   }
-  verify() {
-    altchaCalls.verify += 1;
-    return Promise.resolve(null);
+  get verify() {
+    return altchaCalls.upgraded ? () => {
+      altchaCalls.verify += 1;
+      return Promise.resolve(null);
+    } : undefined;
   }
 }
 if (!customElements.get("altcha-widget")) customElements.define("altcha-widget", FakeAltcha);

@@ -10,18 +10,19 @@ vi.mock("altcha/i18n/en", () => ({}));
 vi.mock("altcha/i18n/zh-cn", () => ({}));
 
 const calls = { configure: [] as unknown[], reset: 0, verify: 0 };
+// 未升级(upgraded=false)时导出的方法是 undefined,与真实 altcha 在 connectedCallback 的微任务之前一致。
+const upgrade = { done: true };
 
 /** 测试用的假 <altcha-widget>:记录对它的方法调用;事件由测试直接派发。 */
 class FakeAltcha extends HTMLElement {
-  configure(options: unknown) {
-    calls.configure.push(options);
+  get configure() {
+    return upgrade.done ? (options: unknown) => calls.configure.push(options) : undefined;
   }
-  reset() {
-    calls.reset += 1;
+  get reset() {
+    return upgrade.done ? () => { calls.reset += 1; } : undefined;
   }
-  verify() {
-    calls.verify += 1;
-    return Promise.resolve(null);
+  get verify() {
+    return upgrade.done ? () => { calls.verify += 1; return Promise.resolve(null); } : undefined;
   }
 }
 if (!customElements.get("altcha-widget")) customElements.define("altcha-widget", FakeAltcha);
@@ -96,6 +97,33 @@ describe("CaptchaWidget", () => {
     act(() => ref.current?.reset({ again: true }));
     expect(calls.reset).toBe(2);
     expect(calls.verify).toBe(1);
+  });
+
+  it("mounts without throwing while the element is not upgraded yet, and hides the footer on its load event", () => {
+    upgrade.done = false;
+    try {
+      const { el } = renderWidget();
+      expect(calls.configure).toHaveLength(0);
+      act(() => {
+        upgrade.done = true;
+        el.dispatchEvent(new Event("load"));
+      });
+      expect(calls.configure).toContainEqual({ hideFooter: true });
+    } finally {
+      upgrade.done = true;
+    }
+  });
+
+  it("reset() and reset({ again: true }) before the element is upgraded neither throw nor unmount the tree", () => {
+    upgrade.done = false;
+    try {
+      const { ref, el } = renderWidget();
+      expect(() => act(() => ref.current?.reset())).not.toThrow();
+      expect(() => act(() => ref.current?.reset({ again: true }))).not.toThrow();
+      expect(document.body.contains(el)).toBe(true);
+    } finally {
+      upgrade.done = true;
+    }
   });
 
   it("never shows the payload as text and never writes it to web storage", () => {
