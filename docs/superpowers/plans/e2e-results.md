@@ -461,3 +461,12 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 - Postgres 上的记忆接口(本环境无 Docker);多进程部署下记忆快照最长 5 分钟的不一致(计划 R-M5)。
 - 360 px 不溢出只由结构性测试守着(`layout-360.test.tsx`),没有在真实布局引擎里量过;计划要求的 375×812 浅色 / 深色截图没有做。
 - 主包增量:记忆页在主包里只加一个路由与一个 `React.lazy` 包装;`features/agents/lazy-parts.tsx` 的 `part()` 调用加了 `/* @__PURE__ */`,否则 `app.tsx` 经 `~/features/agents` 导入会把九个懒包装一并拉进主包(约 +0.9 kB)。
+
+## 账号 v2 端到端(2026-10-20,独立测试栈,零上游)
+
+- **环境**:独立栈 `docker compose -p enjoy-e2e`(端口 8100、独立数据卷),`EMAIL_BACKEND=console`、一次性的 `IDENTITY_PEPPER` 与加密密钥、所有付费上游密钥置空、限流调到各自合法上限、`INVITES_USER_MIN_ACCOUNT_DAYS=0`。覆盖文件与测试参数放在会话 scratchpad(不进仓库)。验证码由 `web/e2e/support/accounts.ts::codeFor` 从测试库还原(库里只存 HMAC,用测试栈的一次性 pepper 枚举 6 位数字;**只能用于一次性测试栈**)。
+- **规格与结果**(`--project=chromium-mobile`,实现者运行 + 协调者独立重跑,两次一致):`accounts.spec.ts` + `login.spec.ts` **12 通过**(独立重跑 1.8 分钟);`accounts-admin.spec.ts` **6 通过**(独立重跑 1.0 分钟);`src/test/e2e-upstream-guard.test.ts` 103 通过;`yarn typecheck` 通过。**没有发现应用缺陷**(各次失败都在测试代码里)。
+- **覆盖**:邮箱注册(含错码)、用户名与邮箱登录、找回密码(旧令牌 401)、注册码接口对已知 / 未知地址的响应逐字相同、昵称规则与保存、改密(其他设备 401)、头像上传 / 超限 / 非图片 / 移除、邀请码(生成、`#invite=` 分享链接、被邀请人注册、更换后旧码失效且次数继承);管理端:批量一次性码(只显示一次、CSV 带 BOM、不可重复使用、撤销后失效)、用户邀请卡片(永不显示码、撤销与更换)、邮箱脱敏与清除、**强制绑定**(enforced 时 403 `email_binding_required`、四个放行端点仍可用、已绑定用户不受影响;网页重定向到 `/account/email?required=1` 并绑定后放行;pending 只显示横幅不拦)、头像举报与管理员移除、各页面文本里没有明文码 / 邮箱 / 管理员密码 / pepper / 邀请码。
+- **守卫**:新增放行 `/api/email/code`、`/api/password/reset`、`/api/avatars/{id}`、`/api/avatar-reports`,以及每次进入「我的」页与导航都会请求的只读 `/api/library/config`、`/api/changelog`、`/api/changelog/seen`(已核对服务端代码:只读数据库,不调用上游)。
+- **约定**:`registerViaApi` 在测试栈上改走邮箱注册,所以每个需要登录的规格会各消耗一个验证码额度(测试栈额度已调到上限);`accounts.spec.ts` 的找回密码用例要等 61 秒(同一地址同一用途的发码冷却),总耗时约 1 分钟。
+- **未验证**:真实 QQ SMTP 的送达;WebKit(iOS)项目;绑定 / 换绑页面的独立用例(强制绑定流程在管理端规格里覆盖了绑定);分享按钮(原生分享面板);头像上传被管理员关闭、邀请码「账号太新」与每日动作预算分支;管理端用户列表在大数据量下的分页;Postgres;多 worker;其他既有规格(会调用付费上游,按规则没有跑)。
