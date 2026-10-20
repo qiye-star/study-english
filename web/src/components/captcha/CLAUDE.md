@@ -6,7 +6,8 @@ Shared human-verification (ALTCHA proof-of-work) widget. Spec `docs/superpowers/
 - `captcha-field.tsx` — `CaptchaField` (lazy shell). Renders a labelled group and loads `captcha-widget.tsx` with `React.lazy` only when it is rendered. In an insecure context (`window.isSecureContext === false`) it loads nothing and shows the HTTPS notice (spec R-C13).
 - `captcha-widget.tsx` — the widget itself: `import "altcha"`, the `en` and `zh-cn` language packs, and `<altcha-widget>` with `challenge="/api/captcha/challenge"`, `auto="off"`, `hideFooter`. Reports `onPayload(string | null)`. Exposes `CaptchaHandle.reset({ again })`.
 - `locales.ts` + `locales/{en,zh-CN}.json` — strings under `web.captcha.*`, merged by `ensureCaptchaI18n()`. Not under `i18n/`, so the eager glob never sees them (INDEX X37).
-- `index.ts` — public surface: `CaptchaField`, `CaptchaFieldProps`, `CaptchaHandle`.
+- `use-captcha-gate.ts` — `useCaptchaGate(api, scope)`: reads the mode once (`GET /api/captcha/config`, failure means `off`), says whether a captcha is `needed` (adaptive: all scopes except login until a 428; always: all), holds the payload in memory, `onServerError` (428 opens the widget) and `consumed()` (single use; re-arms the widget when still needed).
+- `index.ts` — public surface: `CaptchaField`, `CaptchaFieldProps`, `CaptchaHandle`, `useCaptchaGate`, `CaptchaScope`.
 
 ## Allowed dependencies
 - `~/api` (types only), `~/i18n`, `~/lib`, React, `react-i18next`, the `altcha` package.
