@@ -123,3 +123,11 @@ def test_agents_danger_only_in_the_costly_direction():
     assert not danger_reasons("agents_enabled", True, False)
     assert danger_reasons("agents_turns_global_daily", 3000, 4000)
     assert not danger_reasons("agents_turns_global_daily", 3000, 100)
+
+
+def test_account_captcha_and_invite_settings_have_help_text():
+    # owner feedback: admins could not tell what these settings do; env-only secrets are documented by their label
+    prefixes = ("captcha_", "email_", "smtp_", "invite", "avatar_", "access_token", "identity_")
+    missing = sorted(k for k, s in SPECS.items()
+                     if k.startswith(prefixes) and not (s.secret and s.env_only) and not s.help_zh)
+    assert missing == []
