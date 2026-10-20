@@ -49,8 +49,8 @@ export async function bindEmail(api: ApiClient, input: { email: string; code: st
 }
 
 /** 找回密码:成功后不返回 token,页面跳回登录页。 */
-export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }): Promise<void> {
-  await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false });
+export async function resetPassword(api: ApiClient, input: { email: string; code: string; newPassword: string }, captcha?: string): Promise<void> {
+  await api.request("POST", "/api/password/reset", { json: { ...input, email: normalizeEmail(input.email) }, auth: false, captcha });
 }
 
 /** 上传头像(已在浏览器里缩好的 JPEG;字段名 file)。不设 Content-Type:multipart 边界由浏览器带上。 */
