@@ -14,9 +14,9 @@ const COOLDOWN_SECONDS = 60;
  * 邮箱输入 + 发送验证码(60 秒冷却)。发码成功调用 `onSent`;失败调用 `onError` 给出固定文案(不回显输入)。
  * `onError(null)` 用来清除上一次的提示。
  * 人机验证(W4):`captchaReady === false` 时按钮禁用、不发请求;每次真正发出请求后(成功或失败)调用
- * `onCaptchaUsed(err?)`,由页面的 gate 消耗载荷并处理 428。载荷只经 `captcha` 进入 X-Captcha 请求头。
+ * `onCaptchaUsed(err?)`,由页面的 gate 消耗载荷并处理 428。载荷在请求开始时经 `takeCaptcha()` 取出(只取一次)进入 X-Captcha 请求头。
  */
-export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onError, captcha, captchaReady = true, onCaptchaUsed }: {
+export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onError, takeCaptcha, captchaReady = true, onCaptchaUsed }: {
   id: string;
   value: string;
   onChange(value: string): void;
@@ -25,8 +25,8 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
   sent: boolean;
   onSent(): void;
   onError(message: string | null): void;
-  /** 当前的人机验证载荷(单次使用);不需要验证时为 null / undefined。 */
-  captcha?: string | null;
+  /** 取出当前的人机验证载荷(单次使用,请求开始时调用);不需要验证时可不传。 */
+  takeCaptcha?: () => string | null;
   /** 需要验证但还没有载荷时为 false。 */
   captchaReady?: boolean;
   onCaptchaUsed?(err?: unknown): void;
@@ -50,7 +50,7 @@ export function EmailCodeField({ id, value, onChange, purpose, sent, onSent, onE
       return;
     }
     setBusy(true);
-    const payload = captcha ?? undefined;
+    const payload = takeCaptcha?.() ?? undefined;
     try {
       const receipt = purpose === "bind" || purpose === "change_email"
         ? await requestBindCode(api, value, purpose, payload)

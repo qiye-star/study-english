@@ -169,3 +169,19 @@ describe("CaptchaWidget", () => {
     setItem.mockRestore();
   });
 });
+
+describe("CaptchaWidget unmount (group 3)", () => {
+  beforeEach(() => {
+    calls.reset = 0;
+  });
+
+  it("unmounting resets the element, which aborts a running solve, and emits no payload afterwards", () => {
+    const onPayload = vi.fn();
+    const { unmount, el } = renderWidget(onPayload);
+    const before = onPayload.mock.calls.length;
+    unmount();
+    expect(calls.reset).toBe(1);
+    el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "LATE" } }));
+    expect(onPayload.mock.calls.length).toBe(before);
+  });
+});

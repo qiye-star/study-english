@@ -60,6 +60,7 @@ export function RegisterPage() {
     }
     setBusy(true);
     setError(null);
+    const captcha = gate.take() ?? undefined;
     register({
       username,
       password,
@@ -67,16 +68,18 @@ export function RegisterPage() {
       emailCode: code,
       nickname: nickname.trim(),
       inviteCode: inviteCode.trim() || undefined,
-    }, gate.payload ?? undefined)
-      .then(() => navigate("/practice", { replace: true }))
+    }, captcha)
+      .then(() => {
+        // 成功后页面即将卸载:不再求解新的载荷。
+        gate.consumed(false);
+        navigate("/practice", { replace: true });
+      })
       .catch((err: unknown) => {
         gate.onServerError(err);
+        gate.consumed();
         setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
       })
-      .finally(() => {
-        gate.consumed();
-        setBusy(false);
-      });
+      .finally(() => setBusy(false));
   }
 
   function firstProblem(): string | null {
@@ -107,7 +110,7 @@ export function RegisterPage() {
             onChange={setEmail}
             purpose="register"
             sent={sent}
-            captcha={gate.payload}
+            takeCaptcha={gate.take}
             captchaReady={gate.ready}
             onCaptchaUsed={(err) => {
               gate.consumed();

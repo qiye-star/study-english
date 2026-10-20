@@ -51,16 +51,19 @@ export function ForgotPasswordPage() {
     }
     setBusy(true);
     setError(null);
-    resetPassword(api, { email, code, newPassword: password }, gate.payload ?? undefined)
-      .then(() => navigate("/login", { replace: true, state: { notice: "passwordReset" } }))
+    const captcha = gate.take() ?? undefined;
+    resetPassword(api, { email, code, newPassword: password }, captcha)
+      .then(() => {
+        // 成功后页面即将卸载:不再求解新的载荷。
+        gate.consumed(false);
+        navigate("/login", { replace: true, state: { notice: "passwordReset" } });
+      })
       .catch((err: unknown) => {
         gate.onServerError(err);
+        gate.consumed();
         setError(translateServerError(t, err, ACCOUNT_ERROR_KEYS));
       })
-      .finally(() => {
-        gate.consumed();
-        setBusy(false);
-      });
+      .finally(() => setBusy(false));
   }
 
   return (
@@ -80,7 +83,7 @@ export function ForgotPasswordPage() {
             onChange={setEmail}
             purpose="reset"
             sent={sentEmail !== null}
-            captcha={gate.payload}
+            takeCaptcha={gate.take}
             captchaReady={gate.ready}
             onCaptchaUsed={(err) => {
               gate.consumed();

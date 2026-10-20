@@ -26,8 +26,14 @@ export function modeRequires(mode: CaptchaMode | null, scope: CaptchaScope): boo
 export function useCaptchaGate(api: ApiClient, scope: CaptchaScope) {
   const [mode, setMode] = useState<CaptchaMode | null>(null);
   const [serverRequired, setServerRequired] = useState(false);
-  const [payload, setPayload] = useState<string | null>(null);
+  const [payload, setState] = useState<string | null>(null);
+  // 同步的真值:同一次事件里连续两次 take() 也只能拿到一次(state 要等下一次渲染才变)。
+  const held = useRef<string | null>(null);
   const handleRef = useRef<CaptchaHandle>(null);
+  const setPayload = (next: string | null) => {
+    held.current = next;
+    setState(next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -55,10 +61,22 @@ export function useCaptchaGate(api: ApiClient, scope: CaptchaScope) {
     return true;
   };
 
-  const consumed = () => {
+  // 载荷在请求开始时交出(take),之后这里是 null,直到组件再次求解。
+  const take = (): string | null => {
+    const current = held.current;
     setPayload(null);
-    handleRef.current?.reset({ again: needed });
+    return current;
   };
 
-  return { needed, ready, payload, setPayload, handleRef, onServerError, consumed };
+  // again 默认跟随 needed;请求成功后调用方传 false(页面马上卸载,不必再求解)。元素可能还不可用,故 try。
+  const consumed = (again: boolean = needed) => {
+    setPayload(null);
+    try {
+      handleRef.current?.reset({ again });
+    } catch {
+      /* 元素尚未升级或已卸载:下一次请求会重新要求验证 */
+    }
+  };
+
+  return { needed, ready, payload, setPayload, take, handleRef, onServerError, consumed };
 }

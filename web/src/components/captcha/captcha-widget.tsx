@@ -101,6 +101,8 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
       el.removeEventListener("verified", onVerified);
       el.removeEventListener("expired", onExpired);
       el.removeEventListener("statechange", onState);
+      // 卸载时重置元素:altcha 的 reset 会中止正在进行的求解(控制器 abort),且监听器已先移除,不会再回传载荷。
+      el.reset?.();
     };
   }, [onPayload]);
 

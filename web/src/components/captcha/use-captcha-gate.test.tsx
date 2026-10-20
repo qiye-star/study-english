@@ -115,3 +115,43 @@ describe("useCaptchaGate", () => {
     expect(result.current.ready).toBe(true);
   });
 });
+
+describe("useCaptchaGate payload hand-out (group 3)", () => {
+  it("take() hands the payload out once: a second take before any response gets null", async () => {
+    const { result } = setup("adaptive", "register");
+    await flush();
+    act(() => result.current.setPayload("P"));
+    let first: string | null = null;
+    let second: string | null = "unset";
+    act(() => {
+      first = result.current.take();
+      second = result.current.take();
+    });
+    expect(first).toBe("P");
+    expect(second).toBeNull();
+    expect(result.current.payload).toBeNull();
+    expect(result.current.ready).toBe(false);
+  });
+
+  it("consumed() does not throw when the element cannot reset, and still drops the payload", async () => {
+    const { result } = setup("adaptive", "register");
+    await flush();
+    (result.current.handleRef as { current: CaptchaHandle | null }).current = {
+      reset: () => {
+        throw new Error("element not upgraded");
+      },
+    };
+    act(() => result.current.setPayload("P"));
+    expect(() => act(() => result.current.consumed())).not.toThrow();
+    expect(result.current.payload).toBeNull();
+  });
+
+  it("consumed(false) resets without starting a new solve (used after a successful request)", async () => {
+    const { result } = setup("adaptive", "register");
+    await flush();
+    const reset = vi.fn();
+    (result.current.handleRef as { current: CaptchaHandle | null }).current = { reset };
+    act(() => result.current.consumed(false));
+    expect(reset).toHaveBeenCalledWith({ again: false });
+  });
+});

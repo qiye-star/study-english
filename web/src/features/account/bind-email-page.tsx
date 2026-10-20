@@ -97,7 +97,7 @@ export function BindEmailPage() {
             setError(null);
           }}
           onError={setError}
-          captcha={gate.payload}
+          takeCaptcha={gate.take}
           captchaReady={gate.ready}
           onCaptchaUsed={(err) => {
             gate.consumed();

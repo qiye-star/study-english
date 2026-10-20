@@ -60,14 +60,16 @@ export function LoginPage() {
     }
     setBusy(true);
     setError(null);
+    const captcha = gate.take() ?? undefined;
     try {
-      await login(username, password, gate.payload ?? undefined);
+      await login(username, password, captcha);
+      gate.consumed(false);
       navigate(from, { replace: true });
     } catch (err) {
       gate.onServerError(err);
+      gate.consumed();
       setError(translateServerError(t, err));
     } finally {
-      gate.consumed();
       setBusy(false);
     }
   };
