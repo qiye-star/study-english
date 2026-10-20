@@ -26,21 +26,21 @@ test.afterEach(() => {
   for (const m of guards.splice(0)) expect(m.unmocked, "requests that reached the upstream guard").toEqual([]);
 });
 
-/** 「我的」页的账号区(SectionGroup,标题「账号」/ Account)。 */
 /** 首页的个人卡进入账号设置(/me/account)。 */
 async function openAccountSettings(page: Page): Promise<void> {
   await page.getByTestId("nav-me").click();
   await page.getByTestId("me-profile").click();
 }
 
+/** 账号设置页的账号区(SectionGroup,标题「账号」/ Account)。 */
 function accountGroup(page: Page) {
   return page.getByRole("group", { name: "Account", exact: true });
 }
 
-/** 「我的」页上的退出(对应 me-logout),回到登录页。 */
+/** 账号设置页底部的退出(对应 account-logout),回到登录页。 */
 async function logout(page: Page): Promise<void> {
   await openAccountSettings(page);
-  await page.getByTestId("me-logout").click();
+  await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
 }
 
