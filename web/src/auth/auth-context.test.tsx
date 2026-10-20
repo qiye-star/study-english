@@ -130,6 +130,25 @@ describe("AuthProvider sign-in and registration", () => {
     expect(JSON.parse(sessions()[1].body as string).username).toBe("alice_1");
   });
 
+  it("passes the captcha payload through login and register only as the X-Captcha header (W7)", async () => {
+    const { result, mock } = setup({
+      "POST /api/sessions": () => json({ id: "12345678", name: "alice", created_at: "t", access_token: "tok" }),
+      "POST /api/users": () => json({ id: "12345679", name: "dan", created_at: "t", access_token: "tok2" }),
+    });
+    await act(async () => {
+      await result.current.login("alice", "password123", "CAP-LOGIN");
+    });
+    const session = mock.calls.find((c) => c.url.pathname === "/api/sessions")!;
+    expect(session.headers.get("X-Captcha")).toBe("CAP-LOGIN");
+    expect(JSON.stringify(session.body)).not.toContain("CAP-LOGIN");
+    await act(async () => {
+      await result.current.register({ username: "dan", password: "password123" }, "CAP-REG");
+    });
+    const create = mock.calls.find((c) => c.url.pathname === "/api/users")!;
+    expect(create.headers.get("X-Captcha")).toBe("CAP-REG");
+    expect(JSON.stringify(create.body)).not.toContain("CAP-REG");
+  });
+
   it("registers with the email, code and nickname and stores the new session", async () => {
     const { result, mock } = setup({
       "POST /api/users": () => json({ id: "12345678", name: "dan", created_at: "t", access_token: "new-token" }),

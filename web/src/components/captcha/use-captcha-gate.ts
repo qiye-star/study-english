@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, type ApiClient } from "~/api/client";
 import type { CaptchaMode } from "~/api/types";
 import type { CaptchaHandle } from "./captcha-widget";
@@ -47,17 +47,18 @@ export function useCaptchaGate(api: ApiClient, scope: CaptchaScope) {
   const needed = serverRequired || modeRequires(mode, scope);
   const ready = !needed || payload !== null;
 
-  const onServerError = useCallback((err: unknown): boolean => {
+  // 普通函数即可:两者都不是 effect 的依赖,每次渲染重建的成本可忽略。
+  const onServerError = (err: unknown): boolean => {
     if (!(err instanceof ApiError) || err.status !== 428) return false;
     setServerRequired(true);
     setPayload(null);
     return true;
-  }, []);
+  };
 
-  const consumed = useCallback(() => {
+  const consumed = () => {
     setPayload(null);
     handleRef.current?.reset({ again: needed });
-  }, [needed]);
+  };
 
   return { needed, ready, payload, setPayload, handleRef, onServerError, consumed };
 }

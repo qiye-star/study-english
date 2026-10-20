@@ -1,11 +1,12 @@
 import { MicIcon } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { lazy, Suspense, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@renderer/components/ui/button";
 import { Input } from "@renderer/components/ui/input";
 import { Label } from "@renderer/components/ui/label";
 import { translateServerError } from "~/api/error-messages";
+import { useCaptchaGate } from "~/components/captcha/use-captcha-gate";
 import { useAuth } from "~/auth/auth-context";
 import { validateCredentials } from "~/auth/validation";
 
@@ -13,11 +14,15 @@ const LABEL = "text-[13px] font-medium text-ink-2"; // 经 cn 合并:用任意�
 /** 48px 输入框:surface-2 底、无边框,聚焦时蓝色描边;16px 字号避免 iOS 聚焦缩放 */
 const FIELD = "h-12 rounded-button border-0 bg-surface-2 px-3.5 text-base text-ink shadow-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-0 liquid:h-11 liquid:rounded-full liquid:border-0 liquid:bg-wash liquid:shadow-well liquid:focus-visible:ring-blue/35";
 const LINK = "tap-link whitespace-nowrap text-sub font-medium text-blue";
+// 外壳与其文案只在需要时加载(主包只保留 hook;W7 的 X37/预算做法)。组件本体再由外壳懒加载。
+const CaptchaField = lazy(() => import("~/components/captcha/captcha-field").then((m) => ({ default: m.CaptchaField })));
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { user, login } = useAuth();
+  const { user, login, api } = useAuth();
   const navigate = useNavigate();
+  // 登录:adaptive 只有收到 428 才出现组件;always 一开始就出现(spec R-C1、R-C12)。
+  const gate = useCaptchaGate(api, "login");
   const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -35,14 +40,20 @@ export function LoginPage() {
       setError(t(problem));
       return;
     }
+    if (gate.needed && gate.payload === null) {
+      setError(t("web.errors.captchaRequired"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await login(username, password);
+      await login(username, password, gate.payload ?? undefined);
       navigate(from, { replace: true });
     } catch (err) {
+      gate.onServerError(err);
       setError(translateServerError(t, err));
     } finally {
+      gate.consumed();
       setBusy(false);
     }
   };
@@ -72,6 +83,11 @@ export function LoginPage() {
             <Input id="password" data-testid="login-password" type="password" autoComplete="current-password"
               className={FIELD} value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
+          {gate.needed ? (
+            <Suspense fallback={null}>
+              <CaptchaField ref={gate.handleRef} onPayload={gate.setPayload} />
+            </Suspense>
+          ) : null}
           {error && (
             <p role="alert" data-testid="login-error" className="text-sub text-destructive">{error}</p>
           )}
