@@ -19,6 +19,7 @@ import {
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { ChangelogPage } from "~/features/changelog";
 import { AccountSettingsPage, BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
+import { GrammarPromptPage } from "~/features/grammar";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -100,6 +101,7 @@ export function AppRoutes() {
             <Route path="/account/email" element={<BindEmailPage />} />
             <Route path="/me" element={<MePage />} />
             <Route path="/me/account" element={<AccountSettingsPage />} />
+            <Route path="/me/grammar" element={<GrammarPromptPage />} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
             <Route path="/me/appearance" element={<Suspense fallback={null}><AppearancePage /></Suspense>} />

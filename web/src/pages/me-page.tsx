@@ -1,6 +1,6 @@
 import {
   AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
-  LanguagesIcon, LogOutIcon, PaletteIcon, SmartphoneIcon, SunMoonIcon, type LucideIcon,
+  LanguagesIcon, LogOutIcon, PaletteIcon, SmartphoneIcon, SpellCheckIcon, SunMoonIcon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,7 +16,7 @@ import { StatTile } from "~/components/stat-tile";
 import { SurfaceCard } from "~/components/surface-card";
 import type { Tone } from "~/components/tone";
 import { AccountSection, MyInviteSection } from "~/features/account";
-import { GrammarPromptEditor } from "~/features/grammar";
+import { useGrammarPromptStatus } from "~/features/grammar";
 import { getStats, type Stats } from "~/features/progress";
 import { RankCard } from "~/features/rank";
 import { useRoomsEnabled } from "~/features/rooms";
@@ -145,6 +145,7 @@ export function MePage() {
   const id = useId();
   const liquid = useLiquid();
   const { theme } = useGlassTheme();
+  const grammarStatus = useGrammarPromptStatus();
 
   useEffect(() => {
     let alive = true;
@@ -261,10 +262,11 @@ export function MePage() {
               <ListRow icon={<IconChip tone="gray" icon={SmartphoneIcon} />} title={t("web.me.install")} to="/install" />
             )}
           </div>
-          {/* 提示词编辑器(grammar 目录)整块放进卡片;标题提到正文字号,与列表行标题一致 */}
-          <SurfaceCard className="mt-2 p-3.5 [&_[data-testid=grammar-prompt]>h2]:text-body [&_[data-testid=grammar-prompt]>h2]:font-medium [&_[data-testid=grammar-prompt]>h2]:text-ink">
-            <GrammarPromptEditor />
-          </SurfaceCard>
+        </SectionGroup>
+
+        <SectionGroup title={t("web.me.groups.settings")}>
+          <ListRow icon={<IconChip tone="gray" icon={SpellCheckIcon} />} title={t("web.me.grammarRule")} to="/me/grammar" testId="me-grammar"
+            value={grammarStatus ? t(`web.me.grammarState.${grammarStatus}`) : undefined} />
         </SectionGroup>
 
         <SectionGroup title={t("web.me.groups.server")}>

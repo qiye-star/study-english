@@ -46,9 +46,15 @@ describe("MePage", () => {
     await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1"));
     expect(screen.queryByTestId("me-ai-error")).toBeNull();
   });
-  it("shows the grammar prompt editor", async () => {
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
-    expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue("RULES");
+  it("links the grammar rules row and shows whether a custom prompt is set", async () => {
+    const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const row = screen.getByTestId("me-grammar");
+    expect(row).toHaveAttribute("href", "/me/grammar");
+    await waitFor(() => expect(row).toHaveTextContent("Default"));
+    unmount();
+    const custom = createFetchMock({ ...ROUTES, "GET /api/me/grammar-prompt": () => json({ prompt: "Mine", default_prompt: "RULES", max_length: 2000 }) });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: custom.fetch }) });
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Customised"));
   });
   it("sets the read-aloud speed", async () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });

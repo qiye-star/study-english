@@ -6,7 +6,7 @@ import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { toast } from "sonner";
 import { grammarRev } from "./grammar-api";
-import { GrammarPromptEditor } from "./grammar-prompt-editor";
+import { GrammarPromptPage } from "./grammar-prompt-page";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }, Toaster: (): null => null }));
 
@@ -15,13 +15,13 @@ const state = (prompt: string | null) => ({ prompt, default_prompt: DEFAULT, max
 
 function setup(routes: Record<string, Handler>) {
   const mock = createFetchMock(routes);
-  renderWithProviders(<GrammarPromptEditor />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+  renderWithProviders(<GrammarPromptPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
   return mock;
 }
 const body = (mock: ReturnType<typeof createFetchMock>, method: string) =>
   JSON.parse(mock.calls.find((c) => c.method === method)!.body as string);
 
-describe("GrammarPromptEditor", () => {
+describe("GrammarPromptPage", () => {
   beforeEach(() => localStorage.clear());
 
   it("prefills the default rules and saves an edited version", async () => {
@@ -100,7 +100,7 @@ describe("GrammarPromptEditor", () => {
       "GET /api/me/grammar-prompt": () => json(state("My rules")),
       "DELETE /api/me/grammar-prompt": async () => { await gate; return json(state(null)); },
     });
-    const view = renderWithProviders(<GrammarPromptEditor />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const view = renderWithProviders(<GrammarPromptPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     await screen.findByTestId("grammar-prompt-input");
     await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
     await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
@@ -119,7 +119,7 @@ describe("GrammarPromptEditor", () => {
       "GET /api/me/grammar-prompt": () => json(state("My rules")),
       "DELETE /api/me/grammar-prompt": async () => { await gate; return json({ error: "boom" }, 500); },
     });
-    const view = renderWithProviders(<GrammarPromptEditor />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const view = renderWithProviders(<GrammarPromptPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     await screen.findByTestId("grammar-prompt-input");
     await userEvent.click(screen.getByTestId("grammar-prompt-reset"));
     await userEvent.click(await screen.findByTestId("grammar-prompt-reset-confirm"));
