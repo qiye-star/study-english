@@ -100,7 +100,7 @@ async def test_purge_expired(app, client):
         await s.commit()
         assert await housekeeping.purge_expired(s, now) == {"admin_sessions": 1, "admin_login_state": 1,
                                                             "speech_tokens": 1, "access_tokens": 0,
-                                                            "rank_profile_snapshots": 0}
+                                                            "rank_profile_snapshots": 0, "captcha_replays": 0}
 
 
 async def test_purge_removes_tokens_expired_over_7_days(app, client):

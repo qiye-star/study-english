@@ -17,6 +17,7 @@ from app.admin.rank_ops import UNDO_DAYS
 from app.models import (AccessToken, AdminAudit, AdminLoginState, AdminSession, Assessment, RankProfileSnapshot, Room,
                         RoomVoice, SpeechToken)
 from app.rooms.rules import RoomLimits
+from app.services import captcha_replay
 
 MAX_SAMPLES = 20
 # A recording is written to disk a moment before its row is committed: younger files are never orphans.
@@ -250,6 +251,8 @@ async def purge_expired(session, now: datetime) -> dict:
         AccessToken.expires_at.is_not(None), AccessToken.expires_at < now - timedelta(days=7)))
     snapshots = await session.execute(delete(RankProfileSnapshot).where(  # spec §5.6: gone after the undo window
         RankProfileSnapshot.at < now - timedelta(days=UNDO_DAYS)))
+    # 人机验证的已用挑战签名(spec 2026-10-20-captcha-altcha §5):过期即可删
+    captcha = await captcha_replay.purge(session, now)
     return {"admin_sessions": sessions.rowcount or 0, "admin_login_state": login.rowcount or 0,
             "speech_tokens": tokens.rowcount or 0, "access_tokens": access.rowcount or 0,
-            "rank_profile_snapshots": snapshots.rowcount or 0}
+            "rank_profile_snapshots": snapshots.rowcount or 0, "captcha_replays": captcha}
