@@ -205,4 +205,54 @@ describe("ApiClient", () => {
     });
     expect(mock.calls[0].headers.has("Authorization")).toBe(false);
   });
+
+  it("sends the captcha payload only in the X-Captcha header, never in the URL or the JSON body", async () => {
+    const { api, mock } = make({ "POST /api/email/code": () => json({ ok: true, cooldown_seconds: 60 }) });
+    await api.request("POST", "/api/email/code", { json: { email: "a@example.com", purpose: "register" }, auth: false, captcha: "CAP-PAYLOAD" });
+    const call = mock.calls[0];
+    expect(call.headers.get("X-Captcha")).toBe("CAP-PAYLOAD");
+    expect(call.url.toString()).not.toContain("CAP-PAYLOAD");
+    expect(String(call.body)).not.toContain("CAP-PAYLOAD");
+    expect(JSON.parse(call.body as string)).toEqual({ email: "a@example.com", purpose: "register" });
+  });
+
+  it("sends no X-Captcha header when no captcha is given", async () => {
+    const { api, mock } = make({ "GET /api/me": () => json({}) });
+    await api.request("GET", "/api/me");
+    expect(mock.calls[0].headers.has("X-Captcha")).toBe(false);
+  });
+
+  it("login sends the captcha header and keeps the body as provider, username, password", async () => {
+    const { api, mock } = make({ "POST /api/sessions": () => json({ id: "1", name: "alice", created_at: "t", access_token: "x" }) });
+    await api.login("alice", "pw", "P");
+    expect(mock.calls[0].headers.get("X-Captcha")).toBe("P");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice", password: "pw" });
+  });
+
+  it("register sends the captcha header and no captcha key in the body", async () => {
+    const { api, mock } = make({ "POST /api/users": () => json({ id: "1", name: "dan", created_at: "t", access_token: "x" }) });
+    await api.register({ username: "dan", password: "password1" }, "P");
+    expect(mock.calls[0].headers.get("X-Captcha")).toBe("P");
+    const body = JSON.parse(mock.calls[0].body as string);
+    expect(body).toEqual({ username: "dan", password: "password1" });
+    expect(Object.keys(body)).not.toContain("captcha");
+  });
+
+  it("captchaConfig reads the public mode without auth", async () => {
+    const { api, mock } = make({ "GET /api/captcha/config": () => json({ mode: "adaptive" }) });
+    expect(await api.captchaConfig()).toEqual({ mode: "adaptive" });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+  });
+
+  it("a 428 captcha_required is a plain ApiError: no sign-out and no binding redirect", async () => {
+    const onUnauthorized = vi.fn();
+    const onBindingRequired = vi.fn();
+    const { api } = make(
+      { "POST /api/sessions": () => json({ error: "captcha_required" }, 428) },
+      { onUnauthorized, onBindingRequired, getToken: () => null },
+    );
+    await expect(api.login("alice", "pw")).rejects.toMatchObject({ status: 428, message: "captcha_required" });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(onBindingRequired).not.toHaveBeenCalled();
+  });
 });
