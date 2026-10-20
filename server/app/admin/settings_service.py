@@ -124,6 +124,10 @@ def danger_reasons(key: str, old, new) -> list[str]:
         "captcha_cost": _up(new, old),
         "captcha_counter_max": _up(new, old),
         "captcha_login_failures": _up(old, new),
+        "captcha_ttl_seconds": _up(old, new),
+        "captcha_challenges_per_minute": _up(old, new),
+        "captcha_flagged_multiplier": _up(new, old),
+        "captcha_login_window_minutes": _up(new, old),
     }
     return [spec.danger] if rules.get(key, True) else []
 

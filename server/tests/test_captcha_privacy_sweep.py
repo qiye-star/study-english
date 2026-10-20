@@ -160,7 +160,7 @@ async def test_captcha_material_reaches_no_log_body_audit_or_revision(app, clien
     h = await login_as(app, client, "superadmin")
     assert (await client.post("/api/admin/step-up", headers=h, json={"password": ADMIN_PASSWORD})).status_code == 200
     r = keep(await client.patch("/api/admin/settings", headers=h, json={
-        "changes": {"captcha_ttl_seconds": 600}, "reason": "captcha sweep ttl"}))
+        "changes": {"captcha_ttl_seconds": 120}, "reason": "captcha sweep ttl"}))
     assert r.status_code == 200, r.text
 
     # --- purge: every row written by a successful verification expires and is deleted

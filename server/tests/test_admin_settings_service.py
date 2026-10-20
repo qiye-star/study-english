@@ -219,6 +219,10 @@ async def test_safe_mode_saves_without_applying(app):
     ("captcha_cost", 1000, 5000),
     ("captcha_counter_max", 5000, 10000),
     ("captcha_login_failures", 10, 5),
+    ("captcha_ttl_seconds", 1800, 60),
+    ("captcha_challenges_per_minute", 100, 5),
+    ("captcha_flagged_multiplier", 1, 5),
+    ("captcha_login_window_minutes", 5, 60),
 ])
 async def test_weakening_security_settings_needs_step_up_and_confirmation(app, key, weaker, stronger):
     """Review security m1: an idle superadmin session must not quietly remove brute-force or session protections."""
@@ -267,6 +271,13 @@ CAPTCHA_SECRET = "test-captcha-secret-" + "x" * 20
     ("captcha_login_failures", 5, 10, True),
     ("captcha_login_failures", 10, 5, False),
     ("captcha_ttl_seconds", 300, 60, False),
+    ("captcha_ttl_seconds", 300, 1800, True),
+    ("captcha_challenges_per_minute", 20, 100, True),
+    ("captcha_challenges_per_minute", 20, 5, False),
+    ("captcha_flagged_multiplier", 2, 1, True),
+    ("captcha_flagged_multiplier", 2, 5, False),
+    ("captcha_login_window_minutes", 15, 5, True),
+    ("captcha_login_window_minutes", 15, 60, False),
 ])
 def test_captcha_danger_direction(key, old, new, dangerous):
     assert bool(svc.danger_reasons(key, old, new)) is dangerous
@@ -281,7 +292,7 @@ async def test_captcha_secret_is_env_only_and_never_listed_exported_or_audited(a
     with pytest.raises(svc.SettingsError) as exc:
         await _save(app, {"captcha_secret": None}, reason="reset", stepped_up=True)
     assert exc.value.status == 400 and exc.value.error == "Setting is read-only"
-    await _save(app, {"captcha_ttl_seconds": 600}, reason="captcha ttl")  # writes an audit row and a revision
+    await _save(app, {"captcha_ttl_seconds": 120}, reason="captcha ttl")  # writes an audit row and a revision
     async with app.state.sessionmaker() as s:
         listing = await svc.list_settings(s, app)
         export = await svc.export_overrides(s, app)

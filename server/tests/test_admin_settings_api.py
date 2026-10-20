@@ -218,7 +218,7 @@ async def test_captcha_secret_is_read_only_through_the_api(app, client):
         "changes": {"captcha_secret": "y" * 40}, "reason": "try it", "confirm": "CAPTCHA_SECRET"})
     assert r.status_code == 400 and r.json()["error"] == "Setting is read-only"
     assert CAPTCHA_SECRET not in r.text and "y" * 40 not in r.text
-    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"captcha_ttl_seconds": 600}})
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"captcha_ttl_seconds": 120}})
     assert r.status_code == 200, r.text
     listing = await client.get("/api/admin/settings")
     exported = await client.get("/api/admin/settings/export")
