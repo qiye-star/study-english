@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, type ApiClient } from "~/api/client";
@@ -152,6 +153,63 @@ describe("useCaptchaGate payload hand-out (group 3)", () => {
     const reset = vi.fn();
     (result.current.handleRef as { current: CaptchaHandle | null }).current = { reset };
     act(() => result.current.consumed(false));
+    expect(reset).toHaveBeenCalledWith({ again: false });
+  });
+});
+
+describe("useCaptchaGate across parent re-renders (regression)", () => {
+  function setupWithParentState(scope: CaptchaScope) {
+    const { api } = fakeApi("adaptive");
+    return renderHook(() => {
+      const gate = useCaptchaGate(api, scope);
+      const [ticks, setTicks] = useState(0);
+      return { gate, ticks, bump: () => setTicks((n) => n + 1) };
+    });
+  }
+
+  it("a parent re-render after the payload arrives keeps gate.payload set until take()", async () => {
+    const { result } = setupWithParentState("register");
+    await flush();
+    act(() => result.current.gate.setPayload("P"));
+    act(() => result.current.bump());
+    act(() => result.current.bump());
+    expect(result.current.gate.payload).toBe("P");
+    expect(result.current.gate.ready).toBe(true);
+    let taken: string | null = null;
+    act(() => {
+      taken = result.current.gate.take();
+    });
+    expect(taken).toBe("P");
+    expect(result.current.gate.payload).toBeNull();
+  });
+
+  it("setPayload keeps its identity across parent re-renders (so it is safe as an effect dependency)", async () => {
+    const { result } = setupWithParentState("register");
+    await flush();
+    const first = result.current.gate.setPayload;
+    act(() => result.current.bump());
+    expect(result.current.gate.setPayload).toBe(first);
+  });
+
+  it("consumed(true) drops the payload and starts a fresh solve", async () => {
+    const { result } = setupWithParentState("register");
+    await flush();
+    const reset = vi.fn();
+    (result.current.gate.handleRef as { current: CaptchaHandle | null }).current = { reset };
+    act(() => result.current.gate.setPayload("P"));
+    act(() => result.current.gate.consumed(true));
+    expect(result.current.gate.payload).toBeNull();
+    expect(reset).toHaveBeenCalledWith({ again: true });
+  });
+
+  it("consumed(false) drops the payload and does not start a new solve", async () => {
+    const { result } = setupWithParentState("register");
+    await flush();
+    const reset = vi.fn();
+    (result.current.gate.handleRef as { current: CaptchaHandle | null }).current = { reset };
+    act(() => result.current.gate.setPayload("P"));
+    act(() => result.current.gate.consumed(false));
+    expect(result.current.gate.payload).toBeNull();
     expect(reset).toHaveBeenCalledWith({ again: false });
   });
 });

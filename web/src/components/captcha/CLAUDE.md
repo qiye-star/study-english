@@ -24,6 +24,7 @@ Shared human-verification (ALTCHA proof-of-work) widget. Spec `docs/superpowers/
 - Exported altcha methods (`configure`, `reset`, `verify`) are getters that return `undefined` until the element upgrades: call them with `?.` (`configure` is set again on the `load` event).
 - `reset()` on the element takes a state name, not an options object, so `CaptchaHandle.reset({ again: true })` calls `reset()` and then `verify()`.
 - The payload is single use (server R-C14): after each submission the caller calls `reset({ again })` again.
+- Pitfall: the listener effect must not depend on the callback; reset-on-unmount is a separate `[]`-effect. Callers pass a new `onPayload` identity on every render, so a `[onPayload]` listener effect with a `reset()` cleanup silently wipes the solved payload (the checkbox unticks, the send button stays disabled). Keep the latest callback in a ref. `useCaptchaGate.setPayload` is `useCallback`-stable for the same reason.
 - The `altcha` import must come before the language packs, because the packs write into `globalThis.$altcha` when they are evaluated.
 - `language` is `zh-cn` for `zh-CN` and `en` otherwise (altcha has no `es` pack).
 
