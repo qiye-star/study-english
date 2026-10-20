@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, type ApiClient } from "~/api/client";
 import type { CaptchaMode } from "~/api/types";
 import type { CaptchaHandle } from "./captcha-widget";
@@ -30,10 +30,11 @@ export function useCaptchaGate(api: ApiClient, scope: CaptchaScope) {
   // 同步的真值:同一次事件里连续两次 take() 也只能拿到一次(state 要等下一次渲染才变)。
   const held = useRef<string | null>(null);
   const handleRef = useRef<CaptchaHandle>(null);
-  const setPayload = (next: string | null) => {
+  // identity 必须稳定:调用方可能把它放进 effect 依赖;setState 与 held 本身都是稳定的。
+  const setPayload = useCallback((next: string | null) => {
     held.current = next;
     setState(next);
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

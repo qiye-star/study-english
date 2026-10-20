@@ -52,6 +52,9 @@ declare module "react" {
 export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(function CaptchaWidget({ onPayload }, ref) {
   const { i18n } = useTranslation();
   const elRef = useRef<AltchaElement>(null);
+  // 最新的回调:赋值在渲染期间完成(与 auth-context 的 logoutRef 同一做法),监听器通过它读取。
+  const onPayloadRef = useRef(onPayload);
+  onPayloadRef.current = onPayload;
 
   useImperativeHandle(
     ref,
@@ -81,12 +84,18 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
     return () => el.removeEventListener("load", hide);
   }, []);
 
+  // 监听器只订阅一次(依赖为空)。父组件每次渲染都会给出新的 onPayload 函数,所以这里总是调用最新的一个。
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    const give = (payload: unknown) => onPayload(typeof payload === "string" && payload ? payload : null);
+    // 清理函数会把 live 置为 false:之后到达的事件(包括卸载时 reset 回报的状态)不再回到调用方。
+    let live = true;
+    const give = (payload: string | null) => {
+      if (live) onPayloadRef.current(payload);
+    };
     const onVerified = (e: Event) => {
-      give((e as CustomEvent<{ payload?: unknown }>).detail?.payload);
+      const payload = (e as CustomEvent<{ payload?: unknown }>).detail?.payload;
+      give(typeof payload === "string" && payload ? payload : null);
     };
     const onExpired = () => give(null);
     // 失败时 altcha 自己的界面已经给出错误文字,这里不再重复显示。
@@ -98,13 +107,24 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
     el.addEventListener("expired", onExpired);
     el.addEventListener("statechange", onState);
     return () => {
+      live = false;
       el.removeEventListener("verified", onVerified);
       el.removeEventListener("expired", onExpired);
       el.removeEventListener("statechange", onState);
-      // 卸载时重置元素:altcha 的 reset 会中止正在进行的求解(控制器 abort),且监听器已先移除,不会再回传载荷。
+    };
+  }, []);
+
+  // 卸载时重置元素(一次):altcha 的 reset 会中止正在进行的求解。必须是独立的 []-effect,
+  // 不能挂在监听器 effect 上,否则每次父组件重渲染都会被当成卸载而把已求得的载荷清掉。
+  // 元素引用在清理时可能已经被 React 置空,所以在 effect 开始时就记下 el。
+  // 监听器 effect 先声明、先清理;即使 reset 同步回报 statechange,live 也已是 false。
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    return () => {
       el.reset?.();
     };
-  }, [onPayload]);
+  }, []);
 
   // altcha 只认 zh-cn / en;其它语言(包括 es)回退为英文。
   const language = i18n.resolvedLanguage === "zh-CN" ? "zh-cn" : "en";

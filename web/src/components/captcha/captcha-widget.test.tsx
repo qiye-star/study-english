@@ -1,5 +1,5 @@
 import { render, screen, act } from "@testing-library/react";
-import { createRef } from "react";
+import { createRef, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "~/i18n";
 import { CaptchaWidget, type CaptchaHandle } from "./captcha-widget";
@@ -9,17 +9,39 @@ vi.mock("altcha", () => ({}));
 vi.mock("altcha/i18n/en", () => ({}));
 vi.mock("altcha/i18n/zh-cn", () => ({}));
 
-const calls = { configure: [] as unknown[], reset: 0, verify: 0 };
+const calls = {
+  configure: [] as unknown[],
+  reset: 0,
+  verify: 0,
+  /** true 时假元素的 reset 会像真实 altcha 一样回报 statechange(unverified),用于验证卸载时不回传载荷。 */
+  emitStateOnReset: false,
+};
 // 未升级(upgraded=false)时导出的方法是 undefined,与真实 altcha 在 connectedCallback 的微任务之前一致。
 const upgrade = { done: true };
+/** 记录假元素上监听器的增删,用于断言 StrictMode 下“同时只有一套监听器”。 */
+const listenerLog: Array<{ op: "add" | "remove"; type: string }> = [];
+const TRACKED = ["verified", "expired", "statechange"];
 
 /** 测试用的假 <altcha-widget>:记录对它的方法调用;事件由测试直接派发。 */
 class FakeAltcha extends HTMLElement {
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+    if (TRACKED.includes(type)) listenerLog.push({ op: "add", type });
+    super.addEventListener(type, listener, options);
+  }
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions) {
+    if (TRACKED.includes(type)) listenerLog.push({ op: "remove", type });
+    super.removeEventListener(type, listener, options);
+  }
   get configure() {
     return upgrade.done ? (options: unknown) => calls.configure.push(options) : undefined;
   }
   get reset() {
-    return upgrade.done ? () => { calls.reset += 1; } : undefined;
+    return upgrade.done
+      ? () => {
+          calls.reset += 1;
+          if (calls.emitStateOnReset) this.dispatchEvent(new CustomEvent("statechange", { detail: { state: "unverified" } }));
+        }
+      : undefined;
   }
   get verify() {
     return upgrade.done ? () => { calls.verify += 1; return Promise.resolve(null); } : undefined;
@@ -173,6 +195,10 @@ describe("CaptchaWidget", () => {
 describe("CaptchaWidget unmount (group 3)", () => {
   beforeEach(() => {
     calls.reset = 0;
+    calls.emitStateOnReset = false;
+  });
+  afterEach(() => {
+    calls.emitStateOnReset = false;
   });
 
   it("unmounting resets the element, which aborts a running solve, and emits no payload afterwards", () => {
@@ -183,5 +209,97 @@ describe("CaptchaWidget unmount (group 3)", () => {
     expect(calls.reset).toBe(1);
     el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "LATE" } }));
     expect(onPayload.mock.calls.length).toBe(before);
+  });
+
+  it("unmount resets exactly once; the statechange that the reset reports, and any later verified or statechange, reach nobody", () => {
+    calls.emitStateOnReset = true;
+    const onPayload = vi.fn();
+    const { unmount, el } = renderWidget(onPayload);
+    const before = onPayload.mock.calls.length;
+    unmount();
+    expect(calls.reset).toBe(1);
+    el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "LATE" } }));
+    el.dispatchEvent(new CustomEvent("statechange", { detail: { state: "error" } }));
+    expect(onPayload.mock.calls.length).toBe(before);
+  });
+});
+
+describe("CaptchaWidget callback identity (regression: re-render must not reset the solve)", () => {
+  beforeEach(() => {
+    calls.reset = 0;
+    calls.verify = 0;
+    listenerLog.length = 0;
+  });
+
+  it("a re-render with a new onPayload identity neither resets the element nor clears the payload; the newest callback gets the next payload", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const ref = createRef<CaptchaHandle>();
+    const { el, rerender } = renderWidget(first, ref);
+    act(() => {
+      el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "P1" } }));
+    });
+    expect(first).toHaveBeenLastCalledWith("P1");
+
+    // 父组件每次渲染都会给出新的回调函数(与 use-captcha-gate 的 setPayload 行为一致)。
+    rerender(<CaptchaWidget ref={ref} onPayload={second} />);
+    expect(calls.reset).toBe(0);
+    expect(second).not.toHaveBeenCalledWith(null);
+    expect(first.mock.calls.filter(([value]) => value === null)).toHaveLength(0);
+
+    act(() => {
+      el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "P2" } }));
+    });
+    expect(second).toHaveBeenLastCalledWith("P2");
+    expect(first).not.toHaveBeenCalledWith("P2");
+    expect(calls.reset).toBe(0);
+  });
+
+  it("re-rendering a few times in a row still delivers the payload exactly once to the current callback", () => {
+    const first = vi.fn();
+    const ref = createRef<CaptchaHandle>();
+    const { el, rerender } = renderWidget(first, ref);
+    for (let i = 0; i < 3; i += 1) {
+      rerender(<CaptchaWidget ref={ref} onPayload={vi.fn()} />);
+    }
+    act(() => {
+      el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "P" } }));
+    });
+    expect(first).not.toHaveBeenCalled();
+    expect(calls.reset).toBe(0);
+  });
+});
+
+describe("CaptchaWidget StrictMode (dev double-invoked effects)", () => {
+  beforeEach(() => {
+    calls.reset = 0;
+    listenerLog.length = 0;
+  });
+
+  it("after StrictMode's mount, cleanup, mount there is exactly one active set of listeners and the payload still arrives once", () => {
+    const onPayload = vi.fn();
+    const ref = createRef<CaptchaHandle>();
+    const utils = render(
+      <StrictMode>
+        <CaptchaWidget ref={ref} onPayload={onPayload} />
+      </StrictMode>,
+    );
+    const el = utils.container.querySelector("altcha-widget") as HTMLElement;
+
+    // 每种事件:添加次数减去移除次数 = 当前有效的监听器数,必须正好为 1。
+    for (const type of TRACKED) {
+      const active = listenerLog.reduce((n, entry) => {
+        if (entry.type !== type) return n;
+        return entry.op === "add" ? n + 1 : n - 1;
+      }, 0);
+      expect(active, type).toBe(1);
+    }
+
+    act(() => {
+      el.dispatchEvent(new CustomEvent("verified", { detail: { payload: "STRICT" } }));
+    });
+    expect(onPayload).toHaveBeenCalledTimes(1);
+    expect(onPayload).toHaveBeenCalledWith("STRICT");
+    utils.unmount();
   });
 });
