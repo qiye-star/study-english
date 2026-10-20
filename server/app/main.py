@@ -13,6 +13,7 @@ from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
 from app.core.learning_events import LearningBus
+from app.core.login_failures import LoginFailures
 from app.services.grammar import load_grammar_rules
 from app.services.mailer import Mailer
 from app.core.logging_setup import configure_logging
@@ -99,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
     app.state.invite_fail_limiter = RateLimiter(settings.invite_failures_per_ip_hourly, window=3600.0)  # bad invite codes per IP (invites v2 R-I5)
     app.state.invite_action_limiter = RateLimiter(5, window=86400.0)  # generate + replace a user code, per user per day (invites v2 R-I6)
+    app.state.login_failures = LoginFailures(settings.captcha_login_failures, settings.captcha_login_window_minutes * 60)  # captcha R-C6/R-C8, in-process
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
@@ -194,6 +196,9 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
                   keys={"email_codes_per_ip_hourly"})
     hub.subscribe("invite_fail_limiter", lambda o, n: setattr(state.invite_fail_limiter, "limit", n.invite_failures_per_ip_hourly),
                   keys={"invite_failures_per_ip_hourly"})
+    hub.subscribe("login_failures",
+                  lambda o, n: state.login_failures.reconfigure(n.captcha_login_failures, n.captcha_login_window_minutes * 60),
+                  keys={"captcha_login_failures", "captcha_login_window_minutes"})
     hub.subscribe("realtime_tickets", lambda o, n: state.realtime_tickets.set_ttl(n.realtime_ticket_ttl_seconds),
                   keys={"realtime_ticket_ttl_seconds"})
     hub.subscribe("realtime_registry", lambda o, n: state.realtime_registry.set_max(n.realtime_max_sessions),
