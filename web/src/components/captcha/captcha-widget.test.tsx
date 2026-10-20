@@ -126,6 +126,37 @@ describe("CaptchaWidget", () => {
     }
   });
 
+  it("keeps altcha's hidden payload field out of the surrounding form's data and form owner", () => {
+    const form = document.createElement("form");
+    document.body.appendChild(form);
+    const root = render(<CaptchaWidget ref={createRef<CaptchaHandle>()} onPayload={vi.fn()} />, { container: form });
+    const el = form.querySelector("altcha-widget") as HTMLElement;
+    // altcha 没有 shadow DOM:隐藏字段渲染在组件的 light DOM 里,名称与 form 属性取自元素自身的属性。
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = el.getAttribute("name") ?? "altcha";
+    field.setAttribute("form", el.getAttribute("form") ?? "");
+    field.value = SECRET_PAYLOAD;
+    el.appendChild(field);
+    act(() => {
+      el.dispatchEvent(new CustomEvent("verified", { detail: { payload: SECRET_PAYLOAD } }));
+    });
+    const owner = el.getAttribute("form") ?? "";
+    expect(owner).not.toBe("");
+    expect(document.getElementById(owner)).toBeNull();
+    expect(el.getAttribute("name")).toBe("");
+    expect(field.form).toBeNull();
+    expect([...new FormData(form).values()]).not.toContain(SECRET_PAYLOAD);
+    for (const input of Array.from(form.querySelectorAll("input"))) {
+      if (input.value.includes(SECRET_PAYLOAD)) {
+        expect(input.form).toBeNull();
+        expect(input.name).toBe("");
+      }
+    }
+    root.unmount();
+    form.remove();
+  });
+
   it("never shows the payload as text and never writes it to web storage", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const { el } = renderWidget();

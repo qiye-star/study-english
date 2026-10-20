@@ -13,6 +13,8 @@ import "./locales";
 
 /** 同源挑战端点(服务端 GET /api/captcha/challenge,spec §6.2)。 */
 export const CHALLENGE_URL = "/api/captcha/challenge";
+/** 故意不存在的表单 id:隐藏字段借此脱离外层 <form>(见下方组件内注释)。 */
+const DETACHED_FORM_ID = "captcha-payload-detached";
 
 export interface CaptchaHandle {
   /** 清空当前载荷;`again: true` 时接着在后台重新求解(下一步要用新载荷)。 */
@@ -40,6 +42,8 @@ declare module "react" {
         challenge?: string;
         auto?: "off" | "onfocus" | "onload" | "onsubmit";
         language?: string;
+        name?: string;
+        form?: string;
       };
     }
   }
@@ -113,7 +117,19 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
 
   return (
     <div className="flex flex-col gap-2">
-      <altcha-widget ref={elRef} challenge={CHALLENGE_URL} auto="off" language={language} />
+      {/*
+        altcha 在组件内渲染 <input type="hidden" name form value=载荷>(它不用 shadow DOM,字段在 light DOM 里)。
+        name="" 让它不进表单数据;form 指向一个不存在的 id,让它不属于外层表单(没有 form owner)。
+        这样载荷不会被原生表单提交、自动填充或表单扩展读到。
+      */}
+      <altcha-widget
+        ref={elRef}
+        challenge={CHALLENGE_URL}
+        auto="off"
+        language={language}
+        name=""
+        form={DETACHED_FORM_ID}
+      />
       {failed ? (
         <p role="alert" className="break-words text-sm text-red">
           {t("web.captcha.failed")}

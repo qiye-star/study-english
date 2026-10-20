@@ -20,6 +20,8 @@ Shared human-verification (ALTCHA proof-of-work) widget. Spec `docs/superpowers/
 ## Rules
 - The widget fetches its challenge from the same origin (`/api/captcha/challenge`) by itself. That is the only request outside `ApiClient`, and it carries no user data. Components never call `fetch` for anything else.
 - The payload is only handed to the caller. Never put it in the DOM text, in storage, in a URL or in a log.
+- altcha renders one `<input type="hidden">` with the payload as its value, inside `<altcha-widget>` (no shadow DOM, and we never use `setCookie`). `captcha-widget.tsx` gives the widget `name=""` and `form=` a non-existent id, so that field is not form data and has no form owner: the native form, autofill and extensions that read form fields do not see it. Its `value` stays readable on that element, which is the one DOM place the payload lands. Removing the field needs a hack on altcha's DOM; we did not do that.
+- Exported altcha methods (`configure`, `reset`, `verify`) are getters that return `undefined` until the element upgrades: call them with `?.` (`configure` is set again on the `load` event).
 - `reset()` on the element takes a state name, not an options object, so `CaptchaHandle.reset({ again: true })` calls `reset()` and then `verify()`.
 - The payload is single use (server R-C14): after each submission the caller calls `reset({ again })` again.
 - The `altcha` import must come before the language packs, because the packs write into `globalThis.$altcha` when they are evaluated.
