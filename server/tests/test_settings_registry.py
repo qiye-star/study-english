@@ -131,3 +131,20 @@ def test_account_captcha_and_invite_settings_have_help_text():
     missing = sorted(k for k, s in SPECS.items()
                      if k.startswith(prefixes) and not (s.secret and s.env_only) and not s.help_zh)
     assert missing == []
+
+
+CHOICE_INFO_FULL = ("captcha_mode", "email_backend", "smtp_security", "email_domain_mode", "registration_mode",
+                    "maintenance_mode")
+
+
+def test_choice_info_keys_are_real_choices_with_text():
+    with_info = {k: s for k, s in SPECS.items() if s.choice_info}
+    assert set(CHOICE_INFO_FULL) <= set(with_info)
+    for key, spec in with_info.items():
+        assert set(spec.choice_info) <= set(choices_for(key)), key
+        assert all(label and help_text for label, help_text in spec.choice_info.values()), key
+
+
+def test_in_scope_enums_cover_all_their_choices():
+    for key in CHOICE_INFO_FULL:
+        assert set(SPECS[key].choice_info) == set(choices_for(key)), key

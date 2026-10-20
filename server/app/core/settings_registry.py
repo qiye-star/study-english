@@ -37,6 +37,7 @@ class SettingSpec:
     choices: tuple[str, ...] | None = None
     pair: str | None = None
     managed_by: str | None = None
+    choice_info: dict[str, tuple[str, str]] | None = None  # value -> (short Chinese name, one-sentence meaning)
 
 
 def _s(key: str, group: str, kind: Kind, label: str, **kw) -> SettingSpec:
@@ -90,7 +91,12 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("library_enabled", "features", "bool", "跟读库", help_zh="需要服务器装有 ffmpeg / ffprobe",
        danger="关闭后跟读库接口返回 404;素材与记录保留"),
     # registration / limits
-    _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度"),
+    _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度",
+       choice_info={
+           "open": ("开放注册", "任何人都能注册,邀请码被忽略。"),
+           "invite": ("需要邀请码", "注册必须有有效的邀请码。"),
+           "closed": ("关闭注册", "谁都不能注册。"),
+       }),
     _s("invite_code", "registration", "secret", "邀请码(env 单码)", danger="更换后旧邀请码立即失效,新码可让人注册",
        help_zh="不推荐:无归属、不可单独撤销;请用管理后台的邀请码"),
     _s("invites_user_code_max_uses", "registration", "int", "用户邀请码累计上限", min=0, max=1000,
@@ -102,7 +108,12 @@ _ALL: tuple[SettingSpec, ...] = (
     # 人机验证(spec 2026-10-20-captcha-altcha §4):除 captcha_secret 外全部热改
     _s("captcha_mode", "registration", "enum", "人机验证",
        danger="off 会去掉注册、发码与找回密码的人机验证;always 会让桌面端无法登录",
-       help_zh="adaptive 推荐:注册 / 发码 / 找回密码必验,登录连续失败后才验;always 登录也必验(应急)"),
+       help_zh="adaptive 推荐:注册 / 发码 / 找回密码必验,登录连续失败后才验;always 登录也必验(应急)",
+       choice_info={
+           "off": ("关闭", "不要求验证码。默认值,升级时不影响现有用户和桌面端。"),
+           "adaptive": ("自适应(推荐)", "注册、发邮箱验证码、找回密码总是要求;登录只有在同一个 IP 或登录名连续输错密码后才要求。"),
+           "always": ("总是(应急)", "连登录也每次都要求。桌面端无法解验证码,会因此登不上;只在遭到攻击时临时使用。"),
+       }),
     _env("captcha_secret", "secret", "人机验证签名密钥", group="registration",
          help_zh="只读环境变量,至少 32 个字符;更换只会让未用完的挑战失效"),
     _s("captcha_ttl_seconds", "registration", "int", "人机验证挑战有效期(秒)", min=60, max=1800,
@@ -134,12 +145,21 @@ _ALL: tuple[SettingSpec, ...] = (
     # accounts 邮箱(计划 S11)
     _s("email_registration_required", "accounts", "bool", "注册需要邮箱验证码",
        help_zh="关闭 = 旧注册方式(只要用户名 + 密码 + 邀请码);SMTP 故障时的应急开关"),
-    _s("email_backend", "accounts", "enum", "发信方式", help_zh="off 关闭邮箱功能;console 只记录「已发送」,不记录地址与内容"),
+    _s("email_backend", "accounts", "enum", "发信方式", help_zh="off 关闭邮箱功能;console 只记录「已发送」,不记录地址与内容",
+       choice_info={
+           "off": ("关闭", "关闭邮箱功能:注册、找回密码、绑定邮箱都会返回 503。"),
+           "console": ("仅记录(开发用)", "不真的发信,只在日志里记一句「已发送」,收不到邮件。"),
+           "smtp": ("真实发信", "通过下面配置的 SMTP 服务器真正发出邮件。"),
+       }),
     _s("smtp_host", "accounts", "str", "SMTP 主机", help_zh="例:smtp.qq.com", danger=_URL_DANGER, pair="smtp_password"),
     _s("smtp_port", "accounts", "int", "SMTP 端口", min=1, max=65535, help_zh="ssl 常用 465,starttls 常用 587",
        danger=_URL_DANGER, pair="smtp_password"),
     _s("smtp_security", "accounts", "enum", "SMTP 加密方式",
-       help_zh="连接 SMTP 服务器的加密方式。ssl = 一连上就加密(常配 465 端口);starttls = 先明文握手再升级为加密(常配 587 端口)。两种方式都会校验服务器证书,不会明文发送密码。需要和 SMTP 端口配套。"),
+       help_zh="连接 SMTP 服务器的加密方式。ssl = 一连上就加密(常配 465 端口);starttls = 先明文握手再升级为加密(常配 587 端口)。两种方式都会校验服务器证书,不会明文发送密码。需要和 SMTP 端口配套。",
+       choice_info={
+           "ssl": ("SSL 直连", "一连上就加密,常配 465 端口。"),
+           "starttls": ("STARTTLS", "先明文握手再升级为加密,常配 587 端口。"),
+       }),
     _s("smtp_user", "accounts", "str", "SMTP 账号", help_zh="发件邮箱账号"),
     _s("smtp_password", "accounts", "secret", "SMTP 密码 / 授权码", help_zh="QQ 邮箱用授权码;不进日志、审计与导出"),
     _s("smtp_from", "accounts", "str", "发件人", help_zh="留空 = SMTP 账号"),
@@ -150,7 +170,12 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("email_daily_global", "accounts", "int", "全站每日发信上限", min=1, max=100000,
        help_zh="必须小于邮件服务商的日限额(以服务商说明或实测为准)"),
     _s("email_domain_mode", "accounts", "enum", "邮箱域名策略",
-       help_zh="blocklist:拒绝临时邮箱;allowlist:只允许名单内(空名单 = 国内主流邮箱);any:不限"),
+       help_zh="blocklist:拒绝临时邮箱;allowlist:只允许名单内(空名单 = 国内主流邮箱);any:不限",
+       choice_info={
+           "blocklist": ("拒绝名单(默认)", "拒绝内置的常见临时邮箱域名,再加上你填的名单。"),
+           "allowlist": ("只允许名单", "只允许名单里的域名;名单留空时只允许国内主流邮箱。"),
+           "any": ("不限制", "任何域名都可以。"),
+       }),
     _s("email_domain_list", "accounts", "csv", "邮箱域名名单", help_zh="blocklist 时追加到内置临时邮箱表;allowlist 时为允许名单"),
     _s("email_binding_required", "accounts", "bool", "强制绑定邮箱",
        help_zh="开启后,截止时间之后未绑定邮箱的用户只能访问绑定页;截止前只显示横幅"),
@@ -188,16 +213,26 @@ _ALL: tuple[SettingSpec, ...] = (
     # asr
     _s("upstream_whisper_base_url", "asr", "url", "转写地址", danger=_URL_DANGER, pair="upstream_whisper_key"),
     _s("upstream_whisper_key", "asr", "secret", "转写密钥"),
-    _s("upstream_whisper_mode", "asr", "enum", "转写方式"),
+    _s("upstream_whisper_mode", "asr", "enum", "转写方式", choice_info={
+        "openai": ("OpenAI 接口(默认)", "multipart 透传到 /audio/transcriptions。"),
+        "chat": ("对话模型转写", "改用支持音频输入的对话模型转写(如火山方舟),需同时设置 UPSTREAM_WHISPER_MODEL。"),
+    }),
     _s("upstream_whisper_model", "asr", "str", "转写模型"),
-    _s("upstream_asr_mode", "asr", "enum", "识别方式"),
+    _s("upstream_asr_mode", "asr", "enum", "识别方式", choice_info={
+        "chat": ("沿用转写路径(默认)", "按 UPSTREAM_WHISPER_MODE 转写,行为不变。"),
+        "volc_stream": ("火山流式识别", "16 kHz 单声道 WAV 先走火山大模型流式识别;其他格式、并发已满、熔断中或失败时回退到 UPSTREAM_WHISPER_MODE 的路径。"),
+    }),
     _s("asr_stream_url", "asr", "url", "流式识别地址", danger=_URL_DANGER, pair="volcengine_asr_key"),
     _s("asr_stream_resource_id", "asr", "str", "流式识别资源 ID"),
     _s("asr_stream_timeout_seconds", "asr", "float", "流式识别超时秒", min=5, max=120),
     _s("asr_stream_max_concurrency", "asr", "int", "流式识别并发", min=1, max=32, apply="restart"),
     _s("volcengine_asr_key", "asr", "secret", "流式识别密钥"),
     _s("stt_max_tokens", "asr", "int", "chat 识别 max_tokens", min=32, max=4096),
-    _s("stt_disable_thinking", "asr", "enum", "识别关闭深度思考"),
+    _s("stt_disable_thinking", "asr", "enum", "识别关闭深度思考", choice_info={
+        "auto": ("自动(默认)", "仅当识别上游主机是 volces.com 时才发送 thinking 参数。"),
+        "true": ("总是发送", "总是发送 thinking 参数,关闭深度思考。"),
+        "false": ("从不发送", "从不发送 thinking 参数。"),
+    }),
     # assessment
     _s("azure_speech_key", "assessment", "secret", "Azure Speech 密钥"),
     _s("azure_speech_region", "assessment", "str", "Azure 区域", pair="azure_speech_key", danger=_URL_DANGER,
@@ -209,14 +244,21 @@ _ALL: tuple[SettingSpec, ...] = (
     # realtime
     _s("asr_realtime_url", "realtime", "url", "通话识别地址", apply="new_sessions", danger=_URL_DANGER,
        pair="volcengine_asr_key"),
-    _s("realtime_asr_mode", "realtime", "enum", "通话识别方式", apply="new_sessions"),
+    _s("realtime_asr_mode", "realtime", "enum", "通话识别方式", apply="new_sessions", choice_info={
+        "buffered": ("整句缓冲识别(默认)", "整句缓冲后再识别。"),
+        "stream": ("流式识别", "使用 bigmodel_async 流式识别。"),
+    }),
     _s("realtime_max_minutes", "realtime", "int", "单通时长上限(分钟)", apply="new_sessions"),
     _s("realtime_idle_timeout_seconds", "realtime", "int", "通话空闲超时秒", apply="new_sessions"),
     _s("realtime_max_sessions", "realtime", "int", "同时通话上限", danger="调高会增加并发上游费用"),
     _s("realtime_ticket_ttl_seconds", "realtime", "int", "通话票据有效秒"),
     _s("realtime_tts_model", "realtime", "str", "通话 TTS 模型", apply="new_sessions"),
     _s("realtime_tts_sample_rate", "realtime", "enum", "通话采样率", apply="new_sessions", choices=("16000", "24000")),
-    _s("realtime_llm_disable_thinking", "realtime", "enum", "通话关闭深度思考", apply="new_sessions"),
+    _s("realtime_llm_disable_thinking", "realtime", "enum", "通话关闭深度思考", apply="new_sessions", choice_info={
+        "auto": ("自动(默认)", "仅当 UPSTREAM_LLM_BASE_URL 的主机是 deepseek.com 或 volces.com(含子域)时发送。"),
+        "true": ("总是发送", "总是发送 thinking 参数,关闭深度思考。"),
+        "false": ("从不发送", "从不发送 thinking 参数。"),
+    }),
     # rank(将存在,S1)
     _s("rank_daily_rp_cap", "rank", "int", "每日段位点上限", managed_by="rank_rules"),
     _s("rank_match_daily_attempts", "rank", "int", "每人每日晋级赛次数", managed_by="rank_rules"),
@@ -247,7 +289,11 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("rooms_voice_quota_mb", "rooms", "int", "每人每天语音上传上限 MB", help_zh="按 UTC 日计(产品负责人确认);不占录音配额;可按用户覆盖"),
     _s("rooms_voice_concurrency", "rooms", "int", "语音转写并发", apply="restart"),
     _s("rooms_voice_store_format", "rooms", "enum", "语音存储格式", choices=("mp3", "wav"),
-       help_zh="mp3 = 24 kbps(约 WAV 的 1/10);wav 仅在 lameenc 不可用时使用"),
+       help_zh="mp3 = 24 kbps(约 WAV 的 1/10);wav 仅在 lameenc 不可用时使用",
+       choice_info={
+           "mp3": ("MP3(默认)", "16 kHz 单声道 24 kbps,需要 lameenc。"),
+           "wav": ("WAV(兜底)", "不压缩,约为 MP3 的 10 倍体积;仅作兜底。"),
+       }),
     _s("rooms_translate_global_daily", "rooms", "int", "全站每日语音翻译次数", danger=_COST),
     _s("rooms_summary_global_daily", "rooms", "int", "全站每日学习小结次数", danger=_COST),
     # wordbook(设计文档 2026-10-10-wordbook §10)
@@ -282,7 +328,12 @@ _ALL: tuple[SettingSpec, ...] = (
     # ops
     _s("log_level", "ops", "enum", "日志级别", choices=("DEBUG", "INFO", "WARNING", "ERROR"),
        danger="DEBUG 会产生大量日志"),
-    _s("maintenance_mode", "ops", "enum", "维护模式", danger="read_only/full 会拒绝用户写操作或全部 API"),
+    _s("maintenance_mode", "ops", "enum", "维护模式", danger="read_only/full 会拒绝用户写操作或全部 API",
+       choice_info={
+           "off": ("正常", "不做维护限制。"),
+           "read_only": ("只读维护", "/api/** 的写请求返回 503;登录、管理端与公告照常可用。"),
+           "full": ("完全维护", "除管理端与公告外,/api/** 全部返回 503;网页据公告显示维护页。"),
+       }),
     _s("maintenance_message_zh", "ops", "text", "维护说明(中文)", max=280),
     _s("maintenance_message_en", "ops", "text", "维护说明(英文)", max=280),
     _s("usage_prices_json", "ops", "json", "上游单价表(估算)"),
@@ -315,7 +366,12 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("agents_memory_enabled", "agents", "bool", "智能体记忆", help_zh="关闭后不读取也不整理记忆;已存记忆保留"),
     _s("agents_rooms_enabled", "agents", "bool", "联机里的智能体角色"),
     _s("agents_tools_mode", "agents", "enum", "工具方式",
-       help_zh="prefetch = 调模型前并行预取;native 需先通过「智能体」页的函数调用探测,否则按 prefetch;off = 不用学习数据工具"),
+       help_zh="prefetch = 调模型前并行预取;native 需先通过「智能体」页的函数调用探测,否则按 prefetch;off = 不用学习数据工具",
+       choice_info={
+           "prefetch": ("预取(默认)", "调模型前并行预取已学词、易错词、到期词与查词结果;每回合只调用一次模型。"),
+           "native": ("函数调用", "允许模型请求函数调用,但须先在管理端「智能体」页通过探测,否则按预取运行;本版本与预取行为相同。"),
+           "off": ("关闭", "不使用任何学习数据工具(记忆除外)。"),
+       }),
     _s("agents_model", "agents", "str", "智能体模型", help_zh="留空 = 默认模型"),
     _s("agents_memory_model", "agents", "str", "记忆整理模型", help_zh="留空 = 智能体模型"),
     _s("agents_turns_global_daily", "agents", "int", "全站每日回合上限", danger=_COST),
