@@ -5,11 +5,11 @@ The FastAPI application package. Layered; each layer may only import the ones be
 ## Layout
 | Package | Holds |
 |---|---|
-| `core/` | settings + settings registry, runtime overrides hub (`runtime_settings`), secret box, DB engine, FastAPI deps (auth; `current_user` / `current_user_unbound`), account binding policy (`account_policy.py`), per-user quotas, metering, maintenance middleware, log ring buffer, errors, logging, security, limits, timing |
+| `core/` | settings + settings registry, runtime overrides hub (`runtime_settings`), secret box, DB engine, FastAPI deps (auth; `current_user` / `current_user_unbound`), account binding policy (`account_policy.py`), per-user quotas, metering, maintenance middleware, log ring buffer, errors, logging, security, limits, timing, human verification (ALTCHA adapter `captcha.py`, pure policy `captcha_policy.py`, in-process login failure counters `login_failures.py`; see `core/CLAUDE.md`) |
 | `models.py` | SQLAlchemy ORM schema (peer of core; imports only `core`) |
 | `providers/` | vendor clients: Volcengine, Azure Speech, iFlytek (xfyun) |
 | `speech/` | ASR/STT: buffered + streaming recognizers, realtime recognizer choice, sentence split |
-| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes (admin and per-user, `services/invites.py` and `services/user_invites.py`), versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames), avatars (Pillow re-encode, `DATA_DIR/avatars/` storage, reports) |
+| `services/` | domain logic: assessments, recordings, uploads, grammar, stats, vocabulary, invite codes (admin and per-user, `services/invites.py` and `services/user_invites.py`), versioned prompts (`prompts.py`), accounts v2 email (identities, email domains, verification codes, code requests, email account flows, mailer, nicknames), avatars (Pillow re-encode, `DATA_DIR/avatars/` storage, reports), human-verification replay claims (`captcha_replay.py`) |
 | `realtime/` | realtime call protocol, session state machine, provider wiring, tickets |
 | `rank/` | rank ladder, RP sync, promotion matches, achievements, versioned rules (`rules.py`, `rules_store.py`) |
 | `rooms/` | practice rooms (create/join/close/reopen): codes, hub, assistant lane (admin-versioned templates), WS connection; v2 settings/scenarios, voice messages (`audio`, `voice_store`, `voice`), learning summary (`summary`, `summary_store`) |
@@ -34,7 +34,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - library -> core, models, providers, speech, services; only admin, routers and `main.py` import it
 - admin -> core, models, providers, speech, services, realtime, rank, rooms, wordbook, agents, library; only routers and `main.py` import admin
 - routers -> anything above (incl. rank, rooms, wordbook, links, agents, library); only `main.py` (and other routers) import routers
-- `core/learning_events.py` and `core/rank_sources.py` use the standard library only
+- `core/learning_events.py`, `core/rank_sources.py` and `core/captcha_policy.py` use the standard library only
 - Lazy/function-level imports count too. A new top-level module fails the test: pick a package.
 
 ## Runtime settings (admin v2)

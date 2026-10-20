@@ -29,6 +29,8 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 - `user_invites.py` – the owner's permanent code (one live row per user, partial unique index): `eligibility` (pure: disabled, cap 0 = `invites_disabled`, email unverified, account younger than `INVITES_USER_MIN_ACCOUNT_DAYS`), `view` / `generate` / `rotate` / `replace_code` (the old row is revoked and its copy wiped, the new code inherits the cumulative uses), `invitees` (display name and time, newest first, 50); the plain copy is `code_enc` (SecretBox, needs `SETTINGS_ENCRYPTION_KEY`; without it `InvitesNotConfigured`); a code that cannot be decrypted reports `rotate_required`; the caller passes the `SecretBox`, the clock and the settings in (X32)
 - `email_accounts.py` – the flows a verified code unlocks, each ending in ONE commit: `register_with_email` (code -> invite use -> user + identity + verified flag + token), `reset_password` (reset code -> new hash + every token revoked), `bind_with_code` (bind / change_email code issued to this user -> identity replaced); every code failure is the same `VerificationError("invalid")`, also when the address was taken in a race; the code is consumed only in the caller's transaction, so a rollback leaves it usable (`release_attempt` on the failure paths); never logs
 
+- `captcha_replay.py` – human-verification replay claims (spec 2026-10-20-captcha-altcha R-C7): `claim(session, signature, expires_at, now)` inserts the challenge signature with `insert_ignore` and returns `True` only for the first claim; `purge(session, now)` deletes rows with `expires_at < now` (called from `admin/housekeeping.purge_expired`). Neither commits: `captcha_guard.enforce` commits right after a successful claim, and a repeated signature gets `428 captcha_invalid`
+
 ## Allowed dependencies
 `app.core`, `app.models`, `app.providers`. Never speech/realtime/rank/rooms/routers (enforced by
 `tests/test_architecture.py`). If a router helper is needed by realtime, move it here.
@@ -42,6 +44,7 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
 `uv run pytest -q tests/test_assessment_store.py tests/test_chat_orphan_cleanup.py tests/test_grammar_rules.py tests/test_prompts.py tests/test_stats.py tests/test_vocabulary_rules.py`
 Accounts / email: `uv run pytest -q tests/test_verification.py tests/test_identities.py tests/test_email_domains.py tests/test_mailer.py tests/test_nicknames.py tests/test_email_provider.py`
 (the endpoint-level behaviour is in `tests/test_accounts_*.py`)
+Human verification: `uv run pytest -q tests/test_captcha_replay.py`
 
 ## Pitfalls
 - Commit DB rows first, delete files after; file removal must never raise after a commit.

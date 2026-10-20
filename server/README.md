@@ -189,6 +189,122 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 - 换码继承已用次数,不会多给次数。
 - 以上限制都不适用于 `open` 模式(那时邀请码被忽略)。
 
+## 人机验证(ALTCHA)
+
+人机验证是一道**工作量证明**挑战:浏览器要先算出一个答案才能提交注册、发邮箱验证码、找回密码或登录。挑战由本服务自己签发和校验(官方 Python 库 `altcha==2.3.0` 加上我们自己的严格检查),不连任何第三方主机,不设 Cookie,挑战也不进 URL。设计依据:`docs/superpowers/specs/2026-10-20-captcha-altcha-design.md`;计划与实测:`docs/superpowers/plans/2026-10-20-captcha-altcha.md`(「执行结果」)。
+
+**它不是什么:** 它不能防通用爬虫、慢速扫描或 DoS(那要靠反向代理限流或 WAF);它只提高廉价脚本的计算成本。
+
+### 保护哪些接口
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/users` | 注册 |
+| `POST /api/email/code` | 注册与找回密码时发邮箱验证码 |
+| `POST /api/me/email/code` | 已登录用户绑定 / 换绑邮箱时发验证码 |
+| `POST /api/password/reset` | 找回密码(提交新密码) |
+| `POST /api/sessions` | 登录;`adaptive` 下只在被标记时要求(见下) |
+
+`GET /api/captcha/challenge`(取挑战)按 IP 每分钟限流;`GET /api/captcha/config`(取模式)不计算、不限流。
+
+**有意不受保护:**
+
+- `POST /api/me/password`(改密):已登录且要求当前密码,已有 `auth_rate_limit` 限流。
+- `POST /api/me/email`(绑定 / 换绑):已登录且要求邮件里收到的验证码,验证码本身一次性。
+- 邀请码管理(`/api/me/invite*`、`/api/admin/invites*`)、头像上传(`POST /api/me/avatar`)、头像举报(`POST /api/avatar-reports`)、登出以及其他需要登录的业务接口:设计决定不对已登录的业务接口加人机验证。
+
+### 三种模式
+
+- **`off`(默认):** 不验证任何请求;挑战接口返回 404。升级后的默认值,桌面端与老用户不受影响。
+- **`adaptive`(推荐):** 注册、发邮箱验证码、找回密码总是要求验证。登录只在同一 IP 或同一登录名在 15 分钟内输错 5 次之后才要求(阈值可调)。
+- **`always`(应急):** 登录也每次都要求。桌面端没有验证组件,**无法登录**(配置诊断会警告)。只在遭到攻击时临时使用,之后切回 `adaptive`。
+
+### 开启步骤
+
+1. 生成并设置签名密钥 `CAPTCHA_SECRET`(只从环境变量读取,不进管理后台;至少 32 个字符;不进仓库、不进日志):
+
+   ```
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```
+
+   把输出写进 `server/.env`:`CAPTCHA_SECRET=<生成的值>`。像 `IDENTITY_PEPPER` 一样另存一份备份。丢失或更换它的后果只是未用完的挑战失效(最多 `CAPTCHA_TTL_SECONDS` 秒),不会丢数据。
+2. 重启服务(例如 `docker compose restart server`,服务名以你的 `docker-compose.yml` 为准)。
+3. 打开管理后台「设置」页的配置诊断,确认没有 `captcha_secret_missing`(错误)。
+4. 在管理后台「设置」里把 `captcha_mode` 改为 `adaptive`。这是危险设置:需要重新输入管理员密码(step-up)、填写理由并输入确认词 `CAPTCHA_MODE`;热改,立即生效。
+5. 用浏览器通过 HTTPS 打开注册页与找回密码页,确认出现「人机验证」复选框,勾选并等它通过后再提交。在测试账号上走一遍完整流程。
+6. 看日志:每次通过的受保护请求写一行 `timing event=captcha_verify scope=<register|email_code|reset|login> solve_ms=<毫秒>`(logger `app.timing`)。管理后台的日志查看器可搜索 `captcha_verify`。这一行只含作用域与解题毫秒数,没有载荷、签名或 IP。
+
+### 紧急关闭
+
+- 管理后台把 `captcha_mode` 改回 `off`(同样需要 step-up、理由与确认词 `CAPTCHA_MODE`);热改,立即生效。
+- 或在 `server/.env` 写 `CAPTCHA_MODE=off` 后重启。
+- `CAPTCHA_SECRET` 只能改环境变量,管理后台改不了。
+
+### 可调参数与哪个方向削弱防护
+
+管理后台的危险设置会要求确认(下表「削弱防护」列即管理后台的危险方向)。除 `captcha_secret` 外全部热改。
+
+| 设置 | 默认 | 范围 | 削弱防护的方向 |
+|---|---|---|---|
+| `captcha_mode` | `off` | `off` / `adaptive` / `always` | 任何改动都要确认;改成 `off` 即去掉验证 |
+| `captcha_secret` | 空 | 空或至少 32 字符 | 只读环境变量;更换只让未用完的挑战失效 |
+| `captcha_ttl_seconds` | 300 | 60–1800 | 调长(已解出的挑战可以囤积更久) |
+| `captcha_cost` | 5000 | 1–100000 | 调低(脚本的计算量降低) |
+| `captcha_counter_max` | 10000 | 10–1000000 | 调低(服务端选的答案序号上限降低) |
+| `captcha_flagged_multiplier` | 2 | 1–10 | 调低(被标记的 IP 的计算量倍数降低) |
+| `captcha_login_failures` | 5 | 1–100 | 调高(更多次失败才要求验证) |
+| `captcha_login_window_minutes` | 15 | 1–1440 | 调短(失败更快被忘记)。注:设计文档 §9 曾写作无确认,代码与帮助文字以调短为危险方向,本文以代码为准 |
+| `captcha_challenges_per_minute` | 20 | 1–1000 | 调高(同一 IP 更快取到挑战) |
+
+**默认值只是初始值,不是实测结论。** `captcha_cost` 与 `captcha_counter_max` 的默认值在桌面 Chromium 上的实测(计划「执行结果」Z1)中位数约 14 秒;同一台机器上 `captcha_cost=1000`、`captcha_counter_max=10000` 时约 2.5 秒。真机(iPhone、安卓)**未验证**,上线前请按上面的第 5–6 步在你自己的手机上测,再决定是否调整。
+
+### 反向代理
+
+- 经反向代理部署时必须设置 `TRUST_PROXY_HEADERS=true`,并且代理要**覆盖** `X-Forwarded-For`(见上文「必须使用 HTTPS」)。否则所有用户共用代理的 IP,一个人输错 5 次就会让所有人的登录都要验证;配置诊断会给出 `captcha_without_proxy_headers` 警告。同一出口 IP 的用户(公司、学校、移动网络 NAT)也会共用计数。
+- 人机验证**不能**替代反向代理层的限流。下面的 Nginx / OpenResty 示例**只是示例,数字需按自己的流量调整,未在真实 1Panel 上验证**,改完先 `nginx -t`:
+
+```nginx
+# http 块(1Panel:「网站 → 设置 → OpenResty 配置」或 conf.d 下的全局片段;limit_*_zone 只能放在 http 块)
+limit_req_zone  $binary_remote_addr zone=enjoy_auth:10m rate=10r/m;
+limit_req_zone  $binary_remote_addr zone=enjoy_api:10m  rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=enjoy_conn:10m;
+
+# server 块(站点配置)
+limit_conn enjoy_conn 30;            # 每个 IP 的并发连接(含 WebSocket)
+limit_req_status 429;
+limit_conn_status 429;
+
+location ~ ^/api/(sessions|users|email/code|me/email/code|password/reset|captcha/challenge)$ {
+    limit_req zone=enjoy_auth burst=10 nodelay;
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;   # 覆盖,而不是追加(见「必须使用 HTTPS」一节)
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /api/ {
+    limit_req zone=enjoy_api burst=40 nodelay;
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+# /api/realtime、/api/rooms/ws 的 WebSocket location 保持原样(Upgrade 头、读超时 ≥ 660s),它们同样受 limit_conn 约束
+```
+
+注意:正则 `location` 优先于前缀 `location /api/`;`^/api/sessions$` 不匹配 `DELETE /api/sessions/current`;注册流程一次大约 5 个请求落在 `enjoy_auth` 区(配置不算:config、challenge、email/code、challenge、users),`rate=10r/m burst=10` 留有余量。
+
+### 已知限制
+
+- **登录名可被用来触发验证。** 攻击者故意用某人的登录名连续输错 5 次,该登录名在 15 分钟内对任何 IP 都要求验证。受害者可以在网页上先通过验证再登录;**桌面端无法解验证,所以这 15 分钟内桌面端登不上**。
+- **失败计数在进程内。** 多个 worker 时阈值会相应放大(每个进程各计一份);重启清零;IPv6 用户可以轮换 /64 地址绕过按 IP 的计数。防重放表在数据库里,多进程下的防重放本身应当准确(**未验证**)。
+- **挑战接口每次请求做一次 PBKDF2 计算,** 在默认线程池(`asyncio.to_thread`)里执行。它按 IP 限流,但这只是缓解,不能代替反向代理限流。
+- **工作量证明只抬高廉价脚本的成本。** 有真实算力、原生实现、GPU 或打码平台的攻击者仍能通过。
+- **必须 HTTPS。** 组件依赖 WebCrypto,只在安全上下文可用;`http://localhost` 与 `*.localhost` 可以用,但用局域网 IP 的 `http://` 访问时不会出现组件,注册会得到 428 提示(需要 HTTPS 才能完成人机验证)。
+- **隐藏输入框的残留。** 组件把载荷放在一个隐藏的 `<input type="hidden">` 里(`name` 为空,不属于任何表单),所以载荷在提交前的页面 DOM 里可以被页面脚本或开发者工具读到。已用过的载荷不能再用,但未提交前被读到的载荷可以被抢先使用(设计文档 §7)。
+- **不防通用爬虫与 DoS。** 那要靠反向代理限流 / WAF。
+- **未验证:** 真机解题耗时(iOS Safari、安卓 Chrome、低端机);Postgres 与多 worker 下的行为;组件的无障碍声明;组件在运行时不向第三方主机发请求(只在桌面浏览器窗格抓过);桌面端 `enjoy/` 收到 `captcha_required` 时的实际显示(未运行);真实 1Panel / OpenResty 上的 nginx 示例。
+
 ## 账号与邮箱
 
 计划 `docs/superpowers/plans/2026-10-14-accounts-foundation-email.md`。邮箱用于注册确认、找回密码与绑定;验证码是 6 位数字,有效 10 分钟、最多试错 5 次;同一邮箱两次发码之间至少间隔 60 秒。默认 `EMAIL_BACKEND=off`:邮箱相关接口返回 503。

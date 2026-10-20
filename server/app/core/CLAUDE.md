@@ -41,6 +41,9 @@ Foundation layer used by every other package.
 - `rank_sources.py` – rank point source registry (learning-links spec §5.1; standard library only): `RankSource`,
   `register` (idempotent for an equal source; refuses `RESERVED_KINDS`, bad kinds, points outside 0–100),
   `registered`, `kinds`, `get`, `clear_for_tests`. Links register sources at startup; rank reads `LinkCredit`
+- `captcha.py` – ALTCHA v2 adapter (`altcha==2.3.0`, pinned; spec 2026-10-20-captcha-altcha R-C4/R-C5): `issue(secret, *, cost, counter, ttl, now)` is synchronous (the router runs it in a thread); `verify(header, secret, *, now)` runs our strict checks before the library and returns `Verified` or `None`, never raising or logging; `pick_counter` (server-side random counter, doubled for flagged IPs); `derived_keys` (HMAC-derived keys, the raw secret never reaches the library); `Verified.signature` is `repr=False`
+- `captcha_policy.py` – pure policy `captcha_required(mode, scope, flagged)` (standard library only, in `STDLIB_ONLY`): `off` never requires; `register` / `email_code` / `reset` always when on; `login` only when flagged, or always under `always`
+- `login_failures.py` – `LoginFailures`: two `RateLimiter`s (per IP, and per login name keyed with a per-process blake2b key, so no plain name is stored); `record` on a 401 only (unknown names too, R-C8), `flagged` for login, `ip_flagged` for the challenge multiplier, `reconfigure` from the settings hub; in process, not stored
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
@@ -54,6 +57,7 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 ## Tests
 `uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py tests/test_maintenance.py tests/test_log_buffer.py`
 Binding gate: `uv run pytest -q tests/test_accounts_binding_gate.py`
+Human verification: `uv run pytest -q tests/test_captcha_core.py tests/test_captcha_policy.py tests/test_captcha_login_failures.py tests/test_architecture.py`
 
 ## Pitfalls
 - Settings field names are the env contract (`.env.example`, docker-compose); renaming breaks deploys.
@@ -68,3 +72,4 @@ Binding gate: `uv run pytest -q tests/test_accounts_binding_gate.py`
 - `learning_events.publish(...)` goes strictly after the publisher's `await session.commit()`; publishers never
   check switches or import `app.links`. The bus logs only link key, event class and exception class — never words,
   message text, exception messages or user ids. `MessageSent.text` stays in memory (`repr=False`).
+- Human verification: never log or return the payload, `solution`, `nonce`, `salt`, signature, `derivedKey` or `CAPTCHA_SECRET`; `captcha_policy.py` stays standard-library only (`STDLIB_ONLY` in `tests/test_architecture.py`).

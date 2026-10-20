@@ -654,6 +654,15 @@ docs/superpowers/plans/2026-10-20-captcha-altcha.md   Task 0 结果、执行结�
 5. 结果不合适时,在管理后台降低 `captcha_cost`(会要求确认),重复第 2–4 步。
 6. 测完且不需要保持开启时,把 `captcha_mode` 改回 `off`。
 
+**Z2 文档(2026-10-20,只改文档,未改应用源码):**
+
+- **改动:** `server/README.md` 新增「人机验证(ALTCHA)」一节(保护的五个接口与有意不保护的接口及原因、三种模式、开启与紧急关闭步骤、可调参数与削弱防护的方向、反向代理与 nginx 示例(标注未在 1Panel 验证)、已知限制与未验证项);`server/app/CLAUDE.md`、`core/`、`routers/`、`services/`、`admin/`、`tests/` 的 CLAUDE.md 补齐验证码模块与测试。`server/.env.example` 的验证码注释逐条核对(范围、默认值、行为),与代码一致,未改动。
+- **定向测试:** 在 `server` 下直接调用共享 venv 的 `python -m pytest` 运行 `tests/test_captcha_*.py` 与 `tests/test_architecture.py`,**133 通过**(未 `uv sync`,未装任何包);全量未跑。
+- **核对时发现的不一致(本次未改代码,交负责人裁定):**
+  1. 设计 spec §9 写 `captcha_login_window_minutes` 不设危险提示;代码与该设置的帮助文字都以「调短」为危险方向。文档以代码为准。
+  2. `captcha_flagged_multiplier` 的帮助文字(`server/app/core/settings_registry.py`)写「被标记的 IP 或登录名」,但 `server/app/routers/captcha.py` 只按 IP 取倍数(`ip_flagged`)。`.env.example` 的注释只写 IP,与代码一致。
+  3. `web/README.md` 记录的组件分块 40.75 kB(W8)与本次 `gzip -9` 实测 40.70 kB(40695 字节)不同;`altcha` 自述的 34 kB 也与之不同。两者的原因未核对。
+
 ## 裁定补记(2026-10-20,协调者):网页主包预算 0.6 → 0.65 → **1.0 kB**
 
 - 依据实测:W7 登录页接线 +0.62 kB(超出估值 0.02);合并前评审要求的两项鲁棒性修复——登录页在懒加载块失败时不白屏(复用 `web.common.loadFailed` / `web.common.retry`,不加新字符串)、载荷在请求开始时一次性取走且忙碌状态一定结束——在主包里实测共 **+0.83 kB**(`check-main-bundle.mjs --max-delta=1.0`,基线 411.67 kB)。0.6 kB 是写计划时没有任何测量的估值。
