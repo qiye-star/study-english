@@ -55,8 +55,10 @@
 | `captcha_mode` | `Literal["off","adaptive","always"]` `"off"` | — | enum / hot | `off` 完全不验(升级后的默认,桌面端与老用户不受影响);`adaptive` 推荐;`always` 会让桌面端无法登录。danger:任何改动都确认 |
 | `captcha_secret` | str `""` | 空或 ≥ 32 字符 | **secret,env-only**,restart | 签名密钥。生成:`python -c "import secrets; print(secrets.token_urlsafe(48))"`。更换会让未用完的挑战全部失效(最多 `CAPTCHA_TTL_SECONDS`),无其他后果;校验器错误信息不含值 |
 | `captcha_ttl_seconds` | int `300` | 60–1800 | int / hot | 挑战有效期 |
-| `captcha_cost` | int `5000` | 1–100000 | int / hot | PBKDF2 的 cost(官方文档推荐 5000;其精确含义 Task 0 核对)。danger:调低会降低脚本成本(只在调低方向提示) |
+| `captcha_cost` | int `5000` | 1–100000 | int / hot | PBKDF2 的 cost(官方文档推荐 5000;其精确含义 Task 0 核对)。danger:调低会降低脚本成本(只在调低方向提示)。**修订(2026-10-20):默认改为 `1000`**,见下方修订 |
 | `captcha_counter_max` | int `10000` | 10–1000000 | int / hot | 服务端在 `[counter_max/2, counter_max]` 里均匀选 counter(官方推荐区间 5000–10000);danger:调低方向 |
+
+> **修订(2026-10-20):** `captcha_cost` 的默认值由 `5000` 改为 `1000`。原因:计划「执行结果」Z1 在桌面 Chromium(Intel i5-14400)上实测,`(cost=5000, counter_max=10000)` 中位数约 14.2 秒(8.7–16.9 秒),不可用;`(cost=1000, counter_max=10000)` 中位数约 2.5 秒(1.96–2.94 秒)。`captcha_counter_max` 的默认值 10000 不变。真机(手机)未验证。上文表格中的 `5000` 与「官方文档推荐 5000」保留为历史记录。
 | `captcha_flagged_multiplier` | int `2` | 1–10 | int / hot | 被标记 IP 的 counter 倍数(R-C15) |
 | `captcha_login_failures` | int `5` | 1–100 | int / hot | 登录失败几次后要求验证;danger:调高方向 |
 | `captcha_login_window_minutes` | int `15` | 1–1440 | int / hot | 失败计数窗口 |

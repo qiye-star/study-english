@@ -644,6 +644,7 @@ docs/superpowers/plans/2026-10-20-captcha-altcha.md   Task 0 结果、执行结�
 - 按这些数字,默认 `CAPTCHA_COST=5000`、`CAPTCHA_COUNTER_MAX=10000` **对中档手机不宜直接采用**:连桌面级 CPU 的中位数也已经是 14.2 s(最大 16.9 s),手机通常更慢(**真机未测,未验证**)。
 - 若真机明显超过几秒,先降 `CAPTCHA_COST`:cost 1000、counter_max 10000 时桌面中位数约 2.5 s;cost 5000、counter_max 5000 约 6.7 s。代价:脚本的计算成本按同一比例降低(cost 5000 → 1000 即 5 倍),这是有意的取舍。
 - 改默认值需另开任务并经用户同意。
+- **2026-10-20 负责人批准:** 默认 `captcha_cost` 由 5000 改为 1000(`captcha_counter_max` 仍为 10000)。依据即上面的桌面实测(中位数 2.5 s);真机仍未验证。配置、帮助文字、`server/.env.example`、`server/README.md` 与设计 spec 的修订行已同步。
 
 **需要用户在自己的 iPhone / 安卓上做的步骤(真机数字全部未验证):**
 

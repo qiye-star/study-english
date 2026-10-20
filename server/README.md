@@ -249,14 +249,14 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 | `captcha_mode` | `off` | `off` / `adaptive` / `always` | 任何改动都要确认;改成 `off` 即去掉验证 |
 | `captcha_secret` | 空 | 空或至少 32 字符 | 只读环境变量;更换只让未用完的挑战失效 |
 | `captcha_ttl_seconds` | 300 | 60–1800 | 调长(已解出的挑战可以囤积更久) |
-| `captcha_cost` | 5000 | 1–100000 | 调低(脚本的计算量降低) |
+| `captcha_cost` | 1000 | 1–100000 | 调低(脚本的计算量降低) |
 | `captcha_counter_max` | 10000 | 10–1000000 | 调低(服务端选的答案序号上限降低) |
 | `captcha_flagged_multiplier` | 2 | 1–10 | 调低(被标记的 IP 的计算量倍数降低) |
 | `captcha_login_failures` | 5 | 1–100 | 调高(更多次失败才要求验证) |
 | `captcha_login_window_minutes` | 15 | 1–1440 | 调短(失败更快被忘记)。注:设计文档 §9 曾写作无确认,代码与帮助文字以调短为危险方向,本文以代码为准 |
 | `captcha_challenges_per_minute` | 20 | 1–1000 | 调高(同一 IP 更快取到挑战) |
 
-**默认值只是初始值,不是实测结论。** `captcha_cost` 与 `captcha_counter_max` 的默认值在桌面 Chromium 上的实测(计划「执行结果」Z1)中位数约 14 秒;同一台机器上 `captcha_cost=1000`、`captcha_counter_max=10000` 时约 2.5 秒。真机(iPhone、安卓)**未验证**,上线前请按上面的第 5–6 步在你自己的手机上测,再决定是否调整。
+**默认值是桌面实测的结论,不是手机上的结论。** 默认 `captcha_cost=1000`、`captcha_counter_max=10000` 时,桌面浏览器实测中位数约 2.5 秒(Intel i5-14400,Chromium);手机未实测,请在自己的手机上试,再决定是否调整(计划「执行结果」Z1)。真机(iPhone、安卓)**未验证**,上线前请按上面的第 5–6 步在你自己的手机上测。
 
 ### 反向代理
 

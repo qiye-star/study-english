@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     captcha_mode: Literal["off", "adaptive", "always"] = "off"
     captcha_secret: str = ""  # env-only secret;空 = 未配置(开着时失败即关闭,503)
     captcha_ttl_seconds: int = Field(300, ge=60, le=1800)  # 挑战有效期
-    captcha_cost: int = Field(5000, ge=1, le=100000)  # PBKDF2 cost(调低会降低脚本成本)
+    captcha_cost: int = Field(1000, ge=1, le=100000)  # PBKDF2 cost(默认 1000:桌面实测约 2.5 秒;调低会降低脚本成本)
     captcha_counter_max: int = Field(10000, ge=10, le=1000000)  # 服务端选 counter 的上限(调低会降低脚本成本)
     captcha_flagged_multiplier: int = Field(2, ge=1, le=10)  # 被登录失败标记的 IP 的 counter 倍数
     captcha_login_failures: int = Field(5, ge=1, le=100)  # 同一 IP 或登录名在窗口内失败几次后要求验证
