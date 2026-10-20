@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 /**
  * 账号 v2 端到端辅助(邮箱注册 / 找回密码 / 绑定)。仅用于**隔离的测试栈**(`docker compose -p enjoy-e2e ...`)。
@@ -67,4 +67,30 @@ export async function registerWithEmailViaApi(request: APIRequestContext, invite
 
 export function bearer(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
+}
+
+/**
+ * 在注册页(两步)走完一次真实的 UI 注册:填邮箱 -> 发码 -> 还原码 -> 填验证码、用户名、昵称、密码、邀请码 -> 提交。
+ * 成功后停在 /practice(已登录)。表单标签与 signup-page.tsx 一致;页面没有 data-testid,用标签定位。
+ * 注意:会先 goto("/register"),所以带 #invite 片段的场景请用 spec 内的 registerFromLink。
+ */
+export async function registerInUi(page: Page, account = newAccount(), inviteCode: string | null = process.env.E2E_INVITE_CODE ?? ""): Promise<typeof account> {
+  await page.goto("/register");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByRole("button", { name: "Send code", exact: true }).click();
+  await expect(page.getByTestId("register-code-note")).toBeVisible();
+  // inviteCode 为 null 时不碰邀请码字段(供「从链接带入」的场景使用)
+  await fillRegisterStep2(page, { ...account, code: codeFor(account.email, "register"), invite: inviteCode ?? undefined });
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page).toHaveURL(/\/practice$/);
+  return account;
+}
+
+/** 第二步的字段(验证码、用户名、昵称、密码、邀请码)。只填不提交,供失败用例复用。 */
+export async function fillRegisterStep2(page: Page, v: { code: string; username: string; nickname: string; password: string; invite?: string }): Promise<void> {
+  await page.getByLabel("Verification code", { exact: true }).fill(v.code);
+  await page.getByLabel("Username", { exact: true }).fill(v.username);
+  await page.getByLabel("Nickname", { exact: true }).fill(v.nickname);
+  await page.getByLabel("Password", { exact: true }).fill(v.password);
+  if (v.invite !== undefined) await page.getByLabel("Invite code (optional)", { exact: true }).fill(v.invite);
 }
