@@ -141,6 +141,7 @@ describe("ForgotPasswordPage human verification (W5, spec §10)", () => {
     await waitFor(() => expect(widgetElement()).not.toBeNull());
     expect(sendButton()).toBeDisabled();
     expect(screen.getByText("Please complete the verification first.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Please complete the verification first.");
     solveCaptcha(P1);
     await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
     await userEvent.click(sendButton());

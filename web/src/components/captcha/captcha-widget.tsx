@@ -4,7 +4,7 @@
  * 挑战由组件按 `challenge` 属性的同源 URL 自取(这是 ApiClient 之外唯一的请求,不带任何用户数据)。
  * 载荷只通过 onPayload 交给调用方,不写 DOM 文本、不写存储、不进日志。
  */
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "altcha"; // 必须先于语言包:语言包在求值时写入 globalThis.$altcha
 import "altcha/i18n/en";
@@ -50,9 +50,8 @@ declare module "react" {
 }
 
 export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(function CaptchaWidget({ onPayload }, ref) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const elRef = useRef<AltchaElement>(null);
-  const [failed, setFailed] = useState(false);
 
   useImperativeHandle(
     ref,
@@ -60,7 +59,6 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
       reset({ again = false } = {}) {
         const el = elRef.current;
         if (!el) return;
-        setFailed(false);
         el.reset?.();
         // 失败会经 statechange 报告;这里不重复处理。
         if (again) {
@@ -88,19 +86,13 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
     if (!el) return;
     const give = (payload: unknown) => onPayload(typeof payload === "string" && payload ? payload : null);
     const onVerified = (e: Event) => {
-      setFailed(false);
       give((e as CustomEvent<{ payload?: unknown }>).detail?.payload);
     };
     const onExpired = () => give(null);
+    // 失败时 altcha 自己的界面已经给出错误文字,这里不再重复显示。
     const onState = (e: Event) => {
       const state = (e as CustomEvent<{ state?: string }>).detail?.state;
-      if (state === "error") {
-        setFailed(true);
-        give(null);
-      } else if (state === "verifying" || state === "unverified") {
-        setFailed(false);
-        give(null);
-      }
+      if (state === "error" || state === "verifying" || state === "unverified") give(null);
     };
     el.addEventListener("verified", onVerified);
     el.addEventListener("expired", onExpired);
@@ -130,11 +122,6 @@ export const CaptchaWidget = forwardRef<CaptchaHandle, CaptchaWidgetProps>(funct
         name=""
         form={DETACHED_FORM_ID}
       />
-      {failed ? (
-        <p role="alert" className="break-words text-sm text-red">
-          {t("web.captcha.failed")}
-        </p>
-      ) : null}
     </div>
   );
 });

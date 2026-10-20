@@ -80,13 +80,14 @@ describe("CaptchaWidget", () => {
     expect(onPayload).toHaveBeenLastCalledWith(null);
   });
 
-  it("clears the payload and shows the failure message on a statechange to error", () => {
+  it("clears the payload on a statechange to error and adds no second message (altcha shows its own error text)", () => {
     const { el, onPayload } = renderWidget();
     act(() => {
       el.dispatchEvent(new CustomEvent("statechange", { detail: { state: "error", payload: null } }));
     });
     expect(onPayload).toHaveBeenLastCalledWith(null);
-    expect(screen.getByRole("alert")).toHaveTextContent(i18n.t("web.captcha.failed"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(i18n.t("web.captcha.failed"))).toBeNull();
   });
 
   it("reset() resets the element without solving again; reset({ again: true }) also starts a new solve", () => {

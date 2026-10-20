@@ -98,7 +98,7 @@ export function RegisterPage() {
           {gate.needed ? (
             <div className="space-y-2">
               <CaptchaField ref={gate.handleRef} onPayload={gate.setPayload} />
-              {gate.ready ? null : <p className="text-meta text-ink-2">{t("web.errors.captchaRequired")}</p>}
+              {gate.ready ? null : <p role="status" aria-live="polite" className="text-meta text-ink-2">{t("web.errors.captchaRequired")}</p>}
             </div>
           ) : null}
           <EmailCodeField

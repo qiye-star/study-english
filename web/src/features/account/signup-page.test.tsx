@@ -201,6 +201,7 @@ describe("RegisterPage human verification (W4, spec §10)", () => {
     await waitFor(() => expect(widgetElement()).not.toBeNull());
     expect(sendButton()).toBeDisabled();
     expect(screen.getByText("Please complete the verification first.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Please complete the verification first.");
     await userEvent.type(screen.getByLabelText("Email"), "dan@example.com");
     expect(sendButton()).toBeDisabled();
     expect(mock.calls.some((c) => c.url.pathname === "/api/email/code")).toBe(false);
