@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.deps import (auth_rate_limit, client_ip, current_user, current_user_unbound, get_session,
                            get_settings)
 from app.core.security import hash_password, verify_password
+from app.routers import captcha_guard
 from app.models import User, display_of, utcnow
 from app.routers.live_connections import cut_connections
 from app.services import email_accounts, email_codes, identities
@@ -133,6 +134,7 @@ async def email_code(
     the mail is sent by a background task."""
     if not email_ready(settings):
         raise HTTPException(503, "Email is not configured")
+    await captcha_guard.enforce(request, session, "email_code")
     if not request.app.state.email_ip_limiter.allow(client_ip(request)):
         raise HTTPException(429, TOO_MANY_CODES)
     if not domain_allowed(settings, payload.email):
@@ -158,6 +160,7 @@ async def reset_password(
     Every failure, an address nobody owns included, is the same 400."""
     if not email_ready(settings):
         raise HTTPException(503, "Email is not configured")
+    await captcha_guard.enforce(request, session, "reset")
     password_hash = await asyncio.to_thread(hash_password, payload.new_password)  # before any lookup: equal work
     try:
         user_id = await email_accounts.reset_password(
@@ -199,6 +202,7 @@ async def me_email_code(
     gets a notice instead and the same answer (R-F6)."""
     if not email_ready(settings):
         raise HTTPException(503, "Email is not configured")
+    await captcha_guard.enforce(request, session, "email_code")
     purpose = _bind_purpose(user, payload.purpose)
     await _require_password_for_change(user, purpose, payload.current_password)
     if not request.app.state.email_ip_limiter.allow(client_ip(request)):

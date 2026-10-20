@@ -203,3 +203,32 @@ async def test_revert_cannot_switch_require_totp_on_for_a_superadmin_without_tot
                           json={"reason": "恢复强制 TOTP", "confirm": "ADMIN_REQUIRE_TOTP"})
     assert r.status_code == 409 and r.json()["error"] == "Bind TOTP first"
     assert app.state.settings.admin_require_totp is False
+
+
+# ---- captcha (plan A2): the env-only secret is neither editable nor readable through the admin API ----
+CAPTCHA_SECRET = "test-captcha-secret-" + "x" * 20
+
+
+@pytest.mark.parametrize("settings_overrides", [{"captcha_secret": CAPTCHA_SECRET, "captcha_mode": "adaptive"}],
+                         indirect=True)
+async def test_captcha_secret_is_read_only_through_the_api(app, client):
+    h = await login_as(app, client, "superadmin")
+    assert (await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})).status_code == 200
+    r = await client.patch("/api/admin/settings", headers=h, json={
+        "changes": {"captcha_secret": "y" * 40}, "reason": "try it", "confirm": "CAPTCHA_SECRET"})
+    assert r.status_code == 400 and r.json()["error"] == "Setting is read-only"
+    assert CAPTCHA_SECRET not in r.text and "y" * 40 not in r.text
+    r = await client.patch("/api/admin/settings", headers=h, json={"changes": {"captcha_ttl_seconds": 120}})
+    assert r.status_code == 200, r.text
+    listing = await client.get("/api/admin/settings")
+    exported = await client.get("/api/admin/settings/export")
+    revisions = await client.get("/api/admin/settings/revisions")
+    for name, resp in {"listing": listing, "export": exported, "revisions": revisions}.items():
+        assert resp.status_code == 200, name
+        assert CAPTCHA_SECRET not in resp.text, f"captcha secret in {name}"
+    item = next(i for i in listing.json()["items"] if i["key"] == "captcha_secret")
+    assert item["env_only"] is True and item["override_state"]["set"] is False
+    assert "captcha_secret" not in exported.json()["overrides"]
+    assert_no_secrets(listing.json(), app.state.settings)
+    assert_no_secrets(exported.json(), app.state.settings)
+    assert_no_secrets(revisions.json(), app.state.settings)

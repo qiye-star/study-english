@@ -19,6 +19,7 @@ dependencies = [
   "lameenc>=1.7",
   "yt-dlp[default]>=2025.11.12",
   "pillow>=13.0.0",
+  "altcha==2.3.0",
 ]
 
 [dependency-groups]

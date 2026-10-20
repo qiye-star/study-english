@@ -14,12 +14,13 @@ from app.core.account_policy import binding_deadline, binding_state
 from app.core.config import Settings
 from app.core import quotas
 from app.core.deps import auth_rate_limit, client_ip, current_user_unbound, get_session, get_settings
+from app.routers import captcha_guard
 from app.models import AccessToken, User, display_of, utcnow
 from app.core.security import hash_password, verify_password
 from app.services import avatars, email_accounts, identities, invites
 from app.services.email_accounts import INVALID_CODE
 from app.services.email_domains import domain_allowed
-from app.services.identities import email_ready, normalize_email
+from app.services.identities import email_ready, identity_key, normalize_email
 from app.services.nicknames import INVALID_DETAIL, clean_nickname, nickname_taken_by_login
 from app.services.verification import VerificationError
 
@@ -172,6 +173,7 @@ async def register(
         raise HTTPException(429, "Too many requests, please try again later")
     if settings.email_registration_required:
         _require_email_fields(payload, settings)
+    await captcha_guard.enforce(request, session, "register")
     # a nickname may equal this account's own new login name, but not anyone else's (same fixed 422 as any bad nickname)
     if (payload.nickname is not None and payload.nickname.casefold() != payload.username
             and await nickname_taken_by_login(session, payload.nickname, None)):
@@ -214,6 +216,17 @@ async def register(
     return _user_out(user, await _issue_token(session, user, settings))
 
 
+def _failure_name(typed: str) -> str:
+    """The name the failure counter keys on (R-C21): an email-shaped name counts by its identity key, so the
+    spellings of one address share a counter; anything else counts as typed (the counter hashes it, R-C6)."""
+    if "@" in typed:
+        try:
+            return identity_key(normalize_email(typed))
+        except ValueError:
+            return typed
+    return typed
+
+
 @router.post(
     "/sessions",
     response_model=UserOut,
@@ -222,6 +235,7 @@ async def register(
 )
 async def login(
     payload: LoginIn,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
@@ -230,14 +244,21 @@ async def login(
         raise HTTPException(400, "Unsupported login provider")
     response.headers["Cache-Control"] = "no-store"  # the body carries a login token
     typed = payload.username.strip().lower()
+    ip = client_ip(request)
+    name_key = _failure_name(typed)
+    # before the user lookup and the password check (R-C9); a captcha failure and a disabled account are not failures
+    await captcha_guard.enforce(request, session, "login",
+                                flagged=request.app.state.login_failures.flagged(ip, name_key))
     # login names cannot contain "@", so it only ever means an email; a malformed or unknown address takes the
     # same dummy-hash path as an unknown user name (equal time, one 401 text)
     user = (await identities.find_user_by_email(session, settings, typed) if "@" in typed
             else await _get_by_username(session, typed))
-    if user is None:
+    if user is None:  # an unknown name is counted too, or being flagged would reveal which names exist (R-C8)
         await asyncio.to_thread(verify_password, _DUMMY_HASH, payload.password)
+        request.app.state.login_failures.record(ip, name_key)
         raise HTTPException(401, INVALID_LOGIN)
     if not await asyncio.to_thread(verify_password, user.password_hash, payload.password):
+        request.app.state.login_failures.record(ip, name_key)
         raise HTTPException(401, INVALID_LOGIN)
     if user.disabled_at is not None:  # after the password check: wrong passwords learn nothing about the account
         raise HTTPException(403, "Account disabled")

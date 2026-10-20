@@ -1212,3 +1212,14 @@ class InviteRedemption(Base):
     code_id: Mapped[int] = mapped_column(ForeignKey("invite_codes.id"), index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     redeemed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- 人机验证 ----
+class CaptchaReplay(Base):
+    """已用过的人机验证挑战(spec 2026-10-20-captcha-altcha §5、R-C7):主键是挑战签名,一次性认领。
+    没有用户与 IP 列;过期行由每日清理删除(过期签名本来就过不了 expiresAt 检查,删掉不会让重放复活)。"""
+    __tablename__ = "captcha_replays"
+    __table_args__ = (Index("ix_captcha_replays_expires_at", "expires_at"),)
+
+    signature: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
