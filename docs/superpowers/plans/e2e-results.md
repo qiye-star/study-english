@@ -473,19 +473,23 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 
 ## 验证码端到端(2026-10-20,一次性栈,零上游)
 
-- **环境**:隔离栈 `enjoy-e2e`(端口 8100),`CAPTCHA_COST=1`、`CAPTCHA_COUNTER_MAX=10`、挑战限流 1000/分钟;解题在容器里用官方 `altcha==2.3.0` 完成(`web/e2e/support/captcha.ts`)。模式由管理端热改(step-up + 理由 + 确认词 `CAPTCHA_MODE`),每段结束恢复 `off`。**本次运行的耗时数字不是真实难度下的数字,不得据此估计用户等待时间。**
-- **规格与结果**(`--project=chromium-mobile`,`web/e2e/captcha.spec.ts`,串行):
-  - a. API(adaptive):无头 / 垃圾头 / 重放 / 伪造签名 / 注册无头 / `/api/me` 不受影响 — **通过**。
-  - c. 登录的 API 部分(五次失败后 428;未知用户名也 428)— **通过**(单独重跑一次)。
-  - e. 关闭模式:注册与登录页没有组件、没有 `/api/captcha/challenge` 请求 — **通过**。
-  - f. always 下懒加载分块失败:登录页仍显示表单与「Could not load / Retry」 — **通过**(需屏蔽服务工作线程,见下)。
-  - 标记为 `test.fixme`(复现两次,原因见「发现 1」):b(UI 注册)、c-ui(UI 登录)、d(找回密码)、c2(always 登录)。
-  - 回归:`accounts.spec.ts` + `login.spec.ts` + `accounts-admin.spec.ts`(off 模式)**18 通过 / 0 失败**。
-  - `yarn typecheck` 通过;`src/test/e2e-upstream-guard.test.ts` **110 通过**。
-- **发现 1(应用缺陷,阻断所有真实用户的网页验证)**:浏览器里组件确实解出了载荷,服务端也接受它(见下),但页面上的组件在 `verified` 事件之后立刻被重置(`statechange` 依次为 `verifying` → `verified` → `unverified` → `unverified`),界面回到未勾选,发码与登录按钮保持禁用。原因判断(源码级,未在运行时单独证实):`web/src/components/captcha/captcha-widget.tsx` 的effect 依赖 `[onPayload]`,而 `use-captcha-gate.ts` 里的 `setPayload` 每次渲染都是新函数;载荷到达 → 父组件重渲染 → effect 清理调用 `el.reset()` → 载荷被清空。预期:勾选后保持已验证。实际:立即回到未验证。证据:同一用例复现两次;`verified` 事件里取到的载荷键名为 `challenge{parameters,signature}`、`solution{counter,derivedKey,time}`,用 `POST /api/email/code` 带该载荷返回 **200**(协议兼容,问题在页面)。**未修改应用源码,按规则上报。**
-- **发现 2(测试环境,不是应用缺陷)**:应用的服务工作线程从缓存提供静态资源,`page.route` 拦不住分块请求;f 用例需 `serviceWorkers: "block"`。
-- **发现 3(设计,与任务说明的差异)**:`/register`、`/login` 在 off 模式下仍会请求一次 `GET /api/captcha/config`(用来得知模式),只是不渲染组件、不请求 `/api/captcha/challenge`。e 用例只断言后者。
-- **发现 4(设计,限制测试)**:登录失败计数同时按 IP 与登录名(R-C9);本 IP 一旦被标记,未知用户名的第一次尝试也返回同样的 428。因此单一 IP 下无法单独证明「只按名字计数」。失败计数窗口为 15 分钟,同一测试栈上**连续重跑 c 用例需要等窗口过期**。
-- **打印/存储检查**:载荷不出现在可见文本、localStorage、sessionStorage、cookie;请求 URL 与请求体也不含。注意:组件把载荷放在一个无 name、脱离表单的隐藏输入的 `value` 属性里(设计如此),所以 `page.content()` 的属性值里会出现它;断言只检查文本与 HTML 去掉属性值之后的内容。
-- **服务端日志**:`captcha_verify` 行只含 `scope` 与 `solve_ms`(本次 8 行,均来自 API 用例,`solve_ms=0`,因为官方库解出的载荷不带耗时字段)。
-- **未验证**:UI 注册 / 登录 / 找回密码的完整流程(被发现 1 阻断);WebKit / iOS;真机;真实难度(`CAPTCHA_COST` 默认值)下的解题耗时;深色模式;360–375 px 的布局;多 worker 下的失败计数。
+- **环境**:隔离栈 `enjoy-e2e`(端口 8100),`CAPTCHA_COST=1`、`CAPTCHA_COUNTER_MAX=10`、挑战限流 1000/分钟;解题在容器里用官方 `altcha==2.3.0` 完成(`web/e2e/support/captcha.ts`)。模式由管理端热改(step-up + 理由 + 确认词 `CAPTCHA_MODE`),每段结束恢复 `off`,本次结束时为 `off`。**本次运行的耗时数字不是真实难度下的数字,不得据此估计用户等待时间。**
+- **最终结果**(`--project=chromium-mobile`,`web/e2e/captcha.spec.ts`,串行,修复后的组件,**一次完整运行**):**8 通过 / 0 失败 / 0 跳过**。
+  - a. API adaptive(无头、垃圾头、重放、伪造签名、注册无头、`/api/me` 不受影响)— 通过。
+  - b. 真实组件 UI 注册(勾选后保持已验证、发码按钮可用、错码失败后组件重新求解并用新载荷、同源请求、载荷不出现在 URL / 请求体 / 存储 / cookie / 可见文本)— 通过。
+  - c. 登录 API:五次失败后同一用户名 428;未知用户名同样 428 — 通过。
+  - c-ui. 登录页:第一次提交出现组件,解出后登录成功 — 通过。
+  - d. 找回密码两步都经过组件,重置后登录(本 IP 已被标记,登录先 428,解出后成功)— 通过。
+  - c2. always:登录页立即出现组件,未解出时被拦截并提示,解出后登录成功 — 通过。
+  - f. always 下分块请求失败:登录表单仍可见,显示「Could not load」与重试按钮 — 通过(需屏蔽服务工作线程,见发现 2)。
+  - e. 关闭模式:注册与登录页没有组件,没有 `/api/captcha/challenge` 请求(只有 `GET /api/captcha/config`,见发现 3)— 通过。
+- **回归(关闭模式)**:`accounts.spec.ts` + `login.spec.ts` + `accounts-admin.spec.ts` **18 通过 / 0 失败**(上一次运行,之后未改动共享辅助;`support/captcha.ts` 只被本规格使用)。
+- `yarn typecheck` 通过(本次运行后);`src/test/e2e-upstream-guard.test.ts` 通过(守卫未改动)。
+- **发现 1(应用缺陷,已修复)**:组件在 `verified` 之后被立即重置(`statechange`:`verifying` → `verified` → `unverified` → `unverified`),发码与登录按钮保持禁用。原因:`captcha-widget.tsx` 的 effect 依赖 `[onPayload]`,而 `setPayload` 每次渲染都是新函数,清理函数调用 `el.reset()`。证据:同一用例复现两次;`verified` 事件里的载荷键名为 `challenge{parameters,signature}`、`solution{counter,derivedKey,time}`,带该载荷请求 `POST /api/email/code` 返回 **200**(协议兼容,问题在页面)。**修复:提交 `6430d4eb`(已合入 `main`,同一份代码已在生产与测试栈上重建)。修复后的重跑结果见上方「最终结果」(8/8 通过)。**
+- **发现 2(测试环境,不是应用缺陷)**:应用的服务工作线程从缓存提供静态资源,`page.route` 拦不住分块请求;f 用例需要 `serviceWorkers: "block"`。
+- **发现 3(设计,已接受)**:off 模式下页面仍请求一次 `GET /api/captcha/config` 以得知模式,但不渲染组件、不请求 `/api/captcha/challenge`。
+- **发现 4(设计,限制测试)**:登录失败计数同时按 IP 与登录名(R-C9);本 IP 一旦被标记,未知用户名的首次尝试也返回同样的 428,因此单一 IP 下无法单独证明「只按名字计数」。失败计数窗口为 15 分钟:同一测试栈上**重跑登录类用例需要等窗口过期或使用新栈**。
+- **发现 5(设计,记录在案)**:组件把载荷放在一个无 name、脱离表单的隐藏输入的 `value` 属性里。文本、存储、cookie、URL 与请求体里都没有;断言检查的是去掉属性值后的 HTML。
+- **服务端日志**:`captcha_verify` 行只含 `scope` 与 `solve_ms`(较早运行的 8 行,均来自 API 用例,`solve_ms=0`)。
+- **已在一次完整运行中覆盖的断言**:只有同源请求;挑战请求无查询串;带头的请求 URL 与请求体不含载荷;页面文本、localStorage、sessionStorage、cookie 不含载荷;错码失败后下一次请求使用新载荷。
+- **未验证**:WebKit / iOS;真机(iOS Safari、安卓 Chrome);真实难度(`CAPTCHA_COST` 默认值)下的解题耗时,本次只用 cost 1;深色模式;360–375 px 布局;多 worker 下的失败计数;真实 SMTP 送达。
