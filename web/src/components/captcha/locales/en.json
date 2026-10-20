@@ -4,7 +4,8 @@
       "label": "Human verification",
       "insecureContext": "Human verification needs HTTPS. Open this page over a secure connection to continue.",
       "failed": "Verification failed. Please try again.",
-      "loading": "Loading verification…"
+      "loading": "Loading verification…",
+      "reload": "Reload page"
     }
   }
 }

@@ -6,9 +6,12 @@
 import { forwardRef, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { CaptchaHandle } from "./captcha-widget";
+import { CaptchaLoadFailed } from "./load-failed";
+import { loadCaptchaWidget } from "./loaders";
 import "./locales";
 
-const CaptchaWidget = lazy(() => import("./captcha-widget").then((m) => ({ default: m.CaptchaWidget })));
+// 组件分块加载失败(404 / 断网)时显示提示与重新加载,而不是让整页因被拒绝的 import 空白。
+const CaptchaWidget = lazy(() => loadCaptchaWidget().catch(() => ({ default: CaptchaLoadFailed })));
 
 export interface CaptchaFieldProps {
   /** 求解完成时给出载荷;过期、失败或重置时给 null。调用方负责把载荷放进 X-Captcha 请求头。 */
