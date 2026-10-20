@@ -31,6 +31,7 @@ CODES = (
     "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
     "library_link_proxy_missing", "library_link_dns_private",
     "email_not_configured", "email_console_backend", "binding_without_deadline", "legacy_invite_code",
+    "captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers",
 )
 
 
@@ -127,6 +128,24 @@ def _email_findings(s) -> list[Finding]:
     return out
 
 
+def _captcha_findings(s) -> list[Finding]:
+    """人机验证(spec §9, 计划 A1):只写键名;开着但缺密钥时运行时对受保护接口返回 503(失败即关闭)。"""
+    out: list[Finding] = []
+    mode = getattr(s, "captcha_mode", "off")
+    if mode == "off":
+        return out
+    if not getattr(s, "captcha_secret", ""):
+        out.append(Finding("error", "captcha_secret_missing", ("captcha_mode", "captcha_secret"),
+                           "已开启人机验证,但没有设置 CAPTCHA_SECRET:注册、发验证码与找回密码全部返回 503"))
+    if mode == "always":
+        out.append(Finding("warn", "captcha_always_blocks_desktop", ("captcha_mode",),
+                           "CAPTCHA_MODE=always:桌面端无法登录;生产环境请用 adaptive"))
+    if not getattr(s, "trust_proxy_headers", False):
+        out.append(Finding("warn", "captcha_without_proxy_headers", ("trust_proxy_headers",),
+                           "已开启人机验证但未信任代理头:经反向代理时所有用户共用一个 IP,登录失败计数会波及所有人"))
+    return out
+
+
 def diagnose(s, f: Facts) -> list[Finding]:
     out: list[Finding] = []
     if s.realtime_enabled and not s.realtime_available:
@@ -193,7 +212,8 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if getattr(s, "library_enabled", False):
         out.extend(_library_findings(s, f))
     out.extend(_email_findings(s))
-    rank = {"error": 0, "warn": 1, "info": 2}
+    out.extend(_captcha_findings(s))
+    rank ={"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
 

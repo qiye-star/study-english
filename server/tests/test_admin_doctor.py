@@ -118,3 +118,49 @@ def test_legacy_env_invite_code_is_an_info_notice_that_never_shows_the_code():
     assert "不推荐" in notice.message_zh and "无归属" in notice.message_zh
     assert "ENV-CODE-123" not in notice.message_zh
     assert "legacy_invite_code" not in codes(diagnose(make_settings(registration_mode="invite", invite_code=""), OK))
+
+
+# ---- captcha (ALTCHA, plan A1; spec §9) ----
+from tests.captcha_helpers import SECRET as CAPTCHA_SECRET  # noqa: E402
+
+
+def _captcha_findings(**kw):
+    return {f.code: f for f in diagnose(make_settings(**kw), OK)
+            if f.code in ("captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers")}
+
+
+def test_captcha_secret_missing_is_an_error():
+    found = _captcha_findings(captcha_mode="adaptive", captcha_secret="")
+    assert found["captcha_secret_missing"].level == "error"
+    assert found["captcha_secret_missing"].keys == ("captcha_mode", "captcha_secret")
+    assert "captcha_secret_missing" not in _captcha_findings(captcha_mode="adaptive", captcha_secret=CAPTCHA_SECRET)
+    assert "captcha_secret_missing" not in _captcha_findings(captcha_mode="off", captcha_secret="")  # off: nothing
+
+
+def test_captcha_always_warns_about_desktop():
+    found = _captcha_findings(captcha_mode="always", captcha_secret=CAPTCHA_SECRET)
+    assert found["captcha_always_blocks_desktop"].level == "warn"
+    assert found["captcha_always_blocks_desktop"].keys == ("captcha_mode",)
+    assert "captcha_always_blocks_desktop" not in _captcha_findings(captcha_mode="adaptive",
+                                                                    captcha_secret=CAPTCHA_SECRET)
+
+
+def test_captcha_without_proxy_headers_warns():
+    found = _captcha_findings(captcha_mode="adaptive", captcha_secret=CAPTCHA_SECRET, trust_proxy_headers=False)
+    assert found["captcha_without_proxy_headers"].level == "warn"
+    assert found["captcha_without_proxy_headers"].keys == ("trust_proxy_headers",)
+    assert "captcha_without_proxy_headers" not in _captcha_findings(captcha_mode="adaptive",
+                                                                    captcha_secret=CAPTCHA_SECRET,
+                                                                    trust_proxy_headers=True)
+
+
+def test_captcha_off_has_no_captcha_findings():
+    assert _captcha_findings(captcha_mode="off", captcha_secret="", trust_proxy_headers=False) == {}
+
+
+def test_captcha_diagnostic_codes_are_registered_and_messages_hold_no_values():
+    for code in ("captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers"):
+        assert code in CODES
+    found = _captcha_findings(captcha_mode="always", captcha_secret=CAPTCHA_SECRET, trust_proxy_headers=False)
+    text = repr(found)
+    assert CAPTCHA_SECRET not in text and "test-captcha-secret" not in text
