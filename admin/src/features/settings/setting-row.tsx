@@ -26,16 +26,22 @@ function Control({ item, value, onDraft, disabled }: { item: SettingItem; value:
           <span>{value ? S.on : S.off}</span>
         </label>
       );
-    case "enum":
+    case "enum": {
+      const info = item.choiceInfo;
+      const selected = info?.[String(value ?? "")];
       return (
-        <select className="field-sm w-auto min-w-[160px]" value={String(value ?? "")} onChange={(e) => set(item.key === "realtime_tts_sample_rate" ? Number(e.target.value) : e.target.value)} {...common}>
-          {(item.choices ?? []).map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        <>
+          <select className="field-sm w-auto min-w-[160px]" value={String(value ?? "")} onChange={(e) => set(item.key === "realtime_tts_sample_rate" ? Number(e.target.value) : e.target.value)} {...common}>
+            {(item.choices ?? []).map((c) => (
+              <option key={c} value={c}>
+                {info?.[c] ? `${info[c].label} (${c})` : c}
+              </option>
+            ))}
+          </select>
+          {selected && <p className="text-2xs text-fg-2">{selected.help}</p>}
+        </>
       );
+    }
     case "int":
     case "float":
       return (
