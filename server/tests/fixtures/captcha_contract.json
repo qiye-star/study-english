@@ -1,0 +1,33 @@
+{
+  "config_off": {
+    "mode": "off"
+  },
+  "error_off": {
+    "error": "Captcha is off"
+  },
+  "config_adaptive": {
+    "mode": "adaptive"
+  },
+  "challenge": {
+    "parameters": {
+      "algorithm": "PBKDF2/SHA-256",
+      "cost": 1,
+      "keyLength": 32,
+      "keyPrefix": "REDACTED",
+      "nonce": "REDACTED",
+      "salt": "REDACTED",
+      "keySignature": "REDACTED",
+      "expiresAt": 0
+    },
+    "signature": "REDACTED"
+  },
+  "error_required": {
+    "error": "captcha_required"
+  },
+  "error_invalid": {
+    "error": "captcha_invalid"
+  },
+  "error_not_configured": {
+    "error": "Captcha is not configured"
+  }
+}
