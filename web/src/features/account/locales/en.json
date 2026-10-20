@@ -2,6 +2,7 @@
   "web": {
     "account": {
       "title": "Account",
+      "pageTitle": "Account settings",
       "nickname": {
         "label": "Nickname",
         "hint": "Shown to others in rooms. Leave empty to use your username.",

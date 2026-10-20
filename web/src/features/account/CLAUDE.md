@@ -3,8 +3,9 @@
 Account settings shown on the 「我的」(me) page: nickname, email (masked, bind / change), and password change. Accounts v2 plan (`docs/superpowers/plans/2026-10-14-accounts-foundation-email.md`, tasks W1–W7). Also holds the registration, forgot-password and bind-email pages and the forced-binding banner.
 
 ## What lives here
-- `index.ts` — public surface. Exports only `AccountSection` (the lazy entry). Nothing else is imported from outside.
-- `lazy.tsx` — `AccountSection` wrapper: `React.lazy` + `Suspense` placeholder, so the main bundle does not grow with the section body.
+- `index.ts` — public surface: `AccountSection`, `MyInviteSection`, `AccountSettingsPage` (all lazy entries) plus the auth-route pages. Nothing else is imported from outside.
+- `lazy.tsx` — lazy wrappers (`React.lazy` + `Suspense`), so the main bundle does not grow with the section bodies.
+- `account-settings-page.tsx` — `/me/account` (linked from the Me profile card and 账号设置 row): `AccountSection` + `MyInviteSection` + the logout button (`account-logout`) at the bottom. Logic lives in the reused sections; the page only composes.
 - `account-section.tsx` — the section body: loads the profile once, renders `NicknameRow`, the email row (`emailStatusOf(profile)`: masked address + verified state; the row links to `EMAIL_BINDING_PATH`, so bind and change reuse the bind page) and the change-password row. Only the masked address is ever rendered.
 - `nickname-row.tsx` — nickname input and save; 422 maps to a fixed localized message, the input is never echoed.
 - `password-sheet.tsx` — change-password bottom sheet; validates 8–128 characters locally, then calls `useAuth().changePassword`.

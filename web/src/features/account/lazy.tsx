@@ -8,6 +8,16 @@ const ForgotPasswordPageBody = lazy(() => import("./forgot-password-page").then(
 const BindEmailPageBody = lazy(() => import("./bind-email-page").then((m) => ({ default: m.BindEmailPage })));
 const PendingBindingBannerBody = lazy(() => import("./binding-banner").then((m) => ({ default: m.PendingBindingBanner })));
 const MyInvitePanelBody = lazy(() => import("./invites/my-invite-panel").then((m) => ({ default: m.MyInvitePanel })));
+const AccountSettingsPageBody = lazy(() => import("./account-settings-page").then((m) => ({ default: m.AccountSettingsPage })));
+
+/** 账号设置页(/me/account)按路由懒加载;页面本身只组合 AccountSection / MyInviteSection。 */
+export function AccountSettingsPage() {
+  return (
+    <Suspense fallback={<div aria-busy="true" className="min-h-[100dvh]" />}>
+      <AccountSettingsPageBody />
+    </Suspense>
+  );
+}
 
 /** 「我的邀请码」按需加载(W2);挂在「我的」页的账号区之后。 */
 export function MyInviteSection() {

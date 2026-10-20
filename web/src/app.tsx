@@ -18,7 +18,7 @@ import {
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { ChangelogPage } from "~/features/changelog";
-import { BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
+import { AccountSettingsPage, BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -99,6 +99,7 @@ export function AppRoutes() {
             <Route path="/library/:id" element={<LibraryPlayerPage />} />
             <Route path="/account/email" element={<BindEmailPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/me/account" element={<AccountSettingsPage />} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
             <Route path="/me/appearance" element={<Suspense fallback={null}><AppearancePage /></Suspense>} />
