@@ -1,0 +1,25 @@
+# web/src/components/captcha/
+
+Shared human-verification (ALTCHA proof-of-work) widget. Spec `docs/superpowers/specs/2026-10-20-captcha-altcha-design.md` §10, plan `docs/superpowers/plans/2026-10-20-captcha-altcha.md` W2–W3.
+
+## What lives here
+- `captcha-field.tsx` — `CaptchaField` (lazy shell). Renders a labelled group and loads `captcha-widget.tsx` with `React.lazy` only when it is rendered. In an insecure context (`window.isSecureContext === false`) it loads nothing and shows the HTTPS notice (spec R-C13).
+- `captcha-widget.tsx` — the widget itself: `import "altcha"`, the `en` and `zh-cn` language packs, and `<altcha-widget>` with `challenge="/api/captcha/challenge"`, `auto="off"`, `hideFooter`. Reports `onPayload(string | null)`. Exposes `CaptchaHandle.reset({ again })`.
+- `locales.ts` + `locales/{en,zh-CN}.json` — strings under `web.captcha.*`, merged by `ensureCaptchaI18n()`. Not under `i18n/`, so the eager glob never sees them (INDEX X37).
+- `index.ts` — public surface: `CaptchaField`, `CaptchaFieldProps`, `CaptchaHandle`.
+
+## Allowed dependencies
+- `~/api` (types only), `~/i18n`, `~/lib`, React, `react-i18next`, the `altcha` package.
+- Never a feature, `pages/`, `auth/` or `settings/` (`architecture.test.ts`).
+
+## Rules
+- The widget fetches its challenge from the same origin (`/api/captcha/challenge`) by itself. That is the only request outside `ApiClient`, and it carries no user data. Components never call `fetch` for anything else.
+- The payload is only handed to the caller. Never put it in the DOM text, in storage, in a URL or in a log.
+- `reset()` on the element takes a state name, not an options object, so `CaptchaHandle.reset({ again: true })` calls `reset()` and then `verify()`.
+- The payload is single use (server R-C14): after each submission the caller calls `reset({ again })` again.
+- The `altcha` import must come before the language packs, because the packs write into `globalThis.$altcha` when they are evaluated.
+- `language` is `zh-cn` for `zh-CN` and `en` otherwise (altcha has no `es` pack).
+
+## Test
+- `cd web && yarn vitest run src/components/captcha src/architecture.test.ts`
+- The widget tests replace `altcha` with a stub and a fake `<altcha-widget>` element; the real solver does not run under jsdom (not verified in a browser here).

@@ -1,0 +1,10 @@
+{
+  "web": {
+    "captcha": {
+      "label": "人机验证",
+      "insecureContext": "需要 HTTPS 才能完成人机验证,请通过安全连接打开本页。",
+      "failed": "人机验证失败,请重试。",
+      "loading": "正在加载人机验证…"
+    }
+  }
+}
