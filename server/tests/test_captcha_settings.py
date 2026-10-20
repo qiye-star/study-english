@@ -17,7 +17,9 @@ def test_defaults():
     s = Settings(_env_file=None)
     assert (s.captcha_mode, s.captcha_secret, s.captcha_ttl_seconds, s.captcha_cost, s.captcha_counter_max,
             s.captcha_flagged_multiplier, s.captcha_login_failures, s.captcha_login_window_minutes,
-            s.captcha_challenges_per_minute) == ("off", "", 300, 5000, 10000, 2, 5, 15, 20)
+            s.captcha_challenges_per_minute) == ("off", "", 300, 1000, 10000, 2, 5, 15, 20)
+    # 默认成本 1000 是桌面实测的结论(约 2.5 秒);工作量上限 10000 保持不变
+    assert s.captcha_counter_max == 10000
 
 
 def test_bounds():

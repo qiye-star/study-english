@@ -216,7 +216,7 @@ async def test_safe_mode_saves_without_applying(app):
     ("admin_idle_minutes", 240, 5),
     ("admin_token_ttl_minutes", 1440, 10),
     ("admin_audit_retention_days", 30, 3650),
-    ("captcha_cost", 1000, 5000),
+    ("captcha_cost", 500, 5000),  # weaker than the default 1000 (the default was 5000 before 2026-10-20)
     ("captcha_counter_max", 5000, 10000),
     ("captcha_login_failures", 10, 5),
     ("captcha_ttl_seconds", 1800, 60),
