@@ -72,6 +72,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
 - `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings;
   its findings are computed locally, separate from `doctor.py`)
 - `housekeeping.py` – orphan recording scan/delete (token-guarded rescan), audit purge with anchor, `purge_expired`
+- human verification (spec 2026-10-20-captcha-altcha §9): `doctor.py` reports `captcha_secret_missing` (error: mode not `off` and `captcha_secret` empty), `captcha_always_blocks_desktop` (warn: `always`) and `captcha_without_proxy_headers` (warn: `trust_proxy_headers` off). `settings_service.py` asks for the danger confirmation on any `captcha_mode` change, on lowering `captcha_cost`, `captcha_counter_max`, `captcha_flagged_multiplier` or `captcha_login_window_minutes`, and on raising `captcha_login_failures`, `captcha_ttl_seconds` or `captcha_challenges_per_minute` (these follow the code; spec §9 says the login window has no danger). The settings page shows them through the registry, so the admin front end is unchanged
 - `backups.py` – SQLite `VACUUM INTO` backups, prune, signed one-time download links, `daily_loop` (backup at
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
