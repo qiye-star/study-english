@@ -6,6 +6,7 @@ import { Button } from "@renderer/components/ui/button";
 import { loadServerAiConfig, type ServerAiConfig } from "~/api/server-config";
 import { useAuth } from "~/auth/auth-context";
 import type { PointProps } from "~/lib/extension-points";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { ttsErrorMessage, useTtsPlayer } from "./use-tts-player";
 
 const KEY = "selection";
@@ -35,7 +36,8 @@ export function ReadAloudAction({ text, testId }: PointProps["selectionActions"]
   const click = () => {
     if (busy) { tts.stop(); return; }
     if (!ai) return;
-    void tts.play(KEY, text, ai.defaultTts.model, ai.defaultTts.voice); // 同步段内 prime;不要在这之前 await
+    const voice = resolveTtsVoice("word", ai);
+    void tts.play(KEY, text, voice.model, voice.voice); // 同步段内 prime;不要在这之前 await
   };
   const label = busy ? t("web.chat.stopSpeaking") : t("web.chat.speak");
   const Icon = state === "loading" ? LoaderIcon : busy ? SquareIcon : Volume2Icon;
