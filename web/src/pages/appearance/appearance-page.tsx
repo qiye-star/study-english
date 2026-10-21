@@ -36,7 +36,7 @@ export function AppearancePage() {
   const lowMemory = isLowMemory();
   const lite = lowMemory || theme.reduced;
   const computed = useMemo(() => computeGlassVars(theme, { dark, lite }), [theme, dark, lite]);
-  /** 默认 / 清透预设本身就落在可读下限上,那不是「用户拖过头」:只在比清透还透时提示 */
+  /** 默认 / 清透预设本身就落在可读下限上,那不是「用户拖过头」:只在比清透还透时提示。floorHit 用的是当前 tint 的有效下限(0.30 处为放宽后的新下限) */
   const atFloor = computed.floorHit && theme.tint < (GLASS_PRESETS.clear.tint ?? 0) - 1e-9;
   const rt = reducedTransparency();
   // App-wide switch, not the per-route pin: entering from a pinned route still has data-glass="pin" for one commit.

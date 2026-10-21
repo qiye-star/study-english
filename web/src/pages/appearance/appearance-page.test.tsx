@@ -59,7 +59,7 @@ describe("AppearancePage (plan 2026-10-15-liquid-glass L3)", () => {
   it("shows the readability floor at full transparency", () => {
     renderWithProviders(<AppearancePage />);
     fireEvent.change(screen.getByRole("slider", { name: "透明度" }), { target: { value: "100" } });
-    expect(getGlassTheme().tint).toBeCloseTo(0.55);
+    expect(getGlassTheme().tint).toBeCloseTo(0.3);
     expect(screen.getByText("已到可读下限")).toBeInTheDocument();
   });
 

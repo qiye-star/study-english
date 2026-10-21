@@ -26,8 +26,11 @@ export type GlassPatch = Partial<Pick<GlassTheme, "tint" | "blur" | "saturate" |
 export interface Swatch { zh: string; en: string; h: number; s: number; l: number }
 
 export const SAT_CAP = 30;
+/** 透明度(tint)的可用范围。下限 0.30 是 2026-10-21 放宽的(原 0.55);0.55 以上的值与之前完全一致。 */
+export const TINT_MIN = 0.3;
+export const TINT_MAX = 1.35;
 export const GLASS_RANGES = {
-  tint: [0.55, 1.35], blur: [0, 1.5], saturate: [1, 2], radius: [0.5, 1.3], rim: [0, 1.5], shadow: [0, 1.5],
+  tint: [TINT_MIN, TINT_MAX], blur: [0, 1.5], saturate: [1, 2], radius: [0.5, 1.3], rim: [0, 1.5], shadow: [0, 1.5],
 } as const;
 type Material = keyof typeof GLASS_RANGES;
 const MATERIAL_KEYS: readonly Material[] = ["tint", "blur", "saturate", "rim", "shadow"];
@@ -150,8 +153,9 @@ export function withBg(theme: GlassTheme, mode: ColorMode, patch: Partial<BgPref
   return { ...theme, bg: { ...theme.bg, [mode]: next } };
 }
 
-export const tintToSlider = (tint: number) => (1.35 - tint) / 0.008;
-export const sliderToTint = (v: number) => clamp(1.35 - v * 0.008, 0.55, 1.35);
+/** 滑块 0..100(右 = 更透明)与 tint 线性互逆。 */
+export const tintToSlider = (tint: number) => ((TINT_MAX - tint) / (TINT_MAX - TINT_MIN)) * 100;
+export const sliderToTint = (v: number) => clamp(TINT_MAX - (v / 100) * (TINT_MAX - TINT_MIN), TINT_MIN, TINT_MAX);
 
 /* ---------- colour ---------- */
 export function hslToRgb(h: number, s: number, l: number): Rgb {
@@ -208,8 +212,25 @@ export function guardBackground(pref: BgPref, mode: ColorMode): GuardedBg {
 
 /* ---------- materials (mockup mat()) ---------- */
 const BASE = { light: { a1: 0.7, a1s: 0.86, a2: 0.62, bar: 0.74, a3: 0.68 }, dark: { a1: 0.055, a1s: 0.085, a2: 0.58, bar: 0.7, a3: 0.64 } };
+/** 经典下限:tint >= TINT_CLASSIC(0.55)时生效,预设与 0.55 以上的旧存储值都落在这里,数值不变。 */
 const FLOOR = { light: { a1: 0.5, a2: 0.55, bar: 0.62, a3: 0.62 }, dark: { a1: 0.04, a2: 0.5, bar: 0.58, a3: 0.58 } };
+const TINT_CLASSIC = 0.55;
+/**
+ * tint = TINT_MIN(0.30)时的下限。a1(卡片底,承载正文)不动;a2 / bar / a3 在浅色下放宽;深色 a2 保持 0.50
+ * (顶栏标题在 Rev 4 的最坏背景下的对比度约束,见 lib/glass-theme.test.ts),bar 与 a3 放宽(a3 只是 8px 外框,正文在托板上)。
+ * tint 在 [TINT_MIN, TINT_CLASSIC] 之间时线性过渡,所以下限随滑块连续变化、不会跳变。
+ */
+const FLOOR_MIN = { light: { a1: 0.5, a2: 0.4, bar: 0.42, a3: 0.36 }, dark: { a1: 0.04, a2: 0.5, bar: 0.52, a3: 0.4 } };
 const CEIL = 0.94;
+
+/** 当前 tint 下的有效下限(模式内):TINT_MIN 处取 FLOOR_MIN,TINT_CLASSIC 及以上取 FLOOR。 */
+function floorsFor(mode: ColorMode, tint: number): Record<"a1" | "a2" | "bar" | "a3", number> {
+  const w = clamp((tint - TINT_MIN) / (TINT_CLASSIC - TINT_MIN), 0, 1);
+  const hi = FLOOR[mode];
+  const lo = FLOOR_MIN[mode];
+  const mix = (a: number, b: number) => (w >= 1 ? b : a + (b - a) * w);
+  return { a1: mix(lo.a1, hi.a1), a2: mix(lo.a2, hi.a2), bar: mix(lo.bar, hi.bar), a3: mix(lo.a3, hi.a3) };
+}
 
 export interface ComputedGlass { vars: Record<string, string>; floorHit: boolean; bg: GuardedBg; blurPx: { chrome: number; sheet: number } }
 
@@ -220,7 +241,7 @@ const satCss = (x: number) => String(Math.round(x * 100) / 100);
 export function computeGlassVars(theme: GlassTheme, env: { dark: boolean; lite: boolean }): ComputedGlass {
   const mode: ColorMode = env.dark ? "dark" : "light";
   const B = BASE[mode];
-  const F = { ...FLOOR[mode] };
+  const F = floorsFor(mode, theme.tint);
   let chrome = Math.round(24 * theme.blur);
   let sheet = Math.round(32 * theme.blur);
   if (env.lite) {
