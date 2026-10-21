@@ -14,12 +14,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import re
 import sys
 import tempfile
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from app.storage import reconcile
 from app.storage.base import BlobNotFound, StorageError
 from app.storage.keys import ROOTS
 from app.storage.manifest import FAILED, PENDING, VERIFIED, Entry, append, load
@@ -192,13 +197,67 @@ def _summary(entries: list[Entry]) -> dict[str, int]:
     }
 
 
-async def migrate(settings, args: Args, *, out=print) -> int:
-    """The whole run. `settings` supplies the profiles (build_store). Returns the exit code; prints counts only."""
+BACKUP_RE = re.compile(r"^app-\d{8}-\d{6}\.db$")  # must equal app.admin.backups.BACKUP_RE (contract test)
+PG_HINT = ("PostgreSQL 请在服务器上用 pg_dump 备份,例如:docker compose exec postgres pg_dump -U enjoy enjoy > backup.sql"
+           "(完成后加 --pg-backup-done 再运行迁移)")
+
+
+async def backup_database(settings, *, now: datetime, pg_backup_done: bool) -> Path | None:
+    """SQLite: a consistent `VACUUM INTO` snapshot named like the admin backups (so the admin page lists it).
+    PostgreSQL: the application never dumps it; the operator must say so with --pg-backup-done (plan R12).
+    Any failure is a precondition failure: nothing has been written to the store yet."""
+    engine = create_async_engine(settings.database_url)
+    try:
+        if engine.dialect.name != "sqlite":
+            if not pg_backup_done:
+                raise MigrationError(PG_HINT)
+            return None
+        root = Path(settings.resolved_backup_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        stamp = now.astimezone(timezone.utc).replace(microsecond=0)
+        path = root / f"app-{stamp:%Y%m%d-%H%M%S}.db"
+        while path.exists():  # two runs in one second: move the timestamp on, as the admin backups do
+            stamp += timedelta(seconds=1)
+            path = root / f"app-{stamp:%Y%m%d-%H%M%S}.db"
+        assert BACKUP_RE.fullmatch(path.name)
+        async with engine.connect() as conn:
+            conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+            await conn.exec_driver_sql("VACUUM INTO ?", (str(path),))
+        return path
+    except MigrationError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - reported by class; the URL may hold a password and is never printed
+        raise MigrationError(f"database backup failed ({type(exc).__name__})") from None
+    finally:
+        await engine.dispose()
+
+
+async def _reconcile(settings, blobs, args: Args) -> dict:
+    engine = create_async_engine(settings.database_url)
+    try:
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with maker() as session:
+            return await reconcile.reconcile(session, blobs, prefixes=args.prefixes, report=args.report)
+    finally:
+        await engine.dispose()
+
+
+async def migrate(settings, args: Args, *, out=print, now: datetime | None = None) -> int:
+    """The whole run. `settings` supplies the profiles (build_store) and the database. Returns the exit code; prints
+    counts only."""
     from app.storage.config import build_store
 
     check_args(args)
     src = build_store(settings, args.source)
     dst = build_store(settings, args.target)
+    if args.reconcile_only:
+        diff = await _reconcile(settings, dst, args)
+        out(f"reconcile db_only={diff['db_only']} store_only={diff['store_only']}")
+        return EXIT_OK if not diff["db_only"] else EXIT_FAILED
+    if not (args.dry_run or args.verify_only):
+        backup = await backup_database(settings, now=now or datetime.now(timezone.utc),
+                                       pg_backup_done=args.pg_backup_done)
+        out("database backup " + ("written" if backup is not None else "left to pg_dump"))
     path = args.manifest or default_manifest(settings, args)
     with tempfile.TemporaryDirectory(prefix="storage-migrate-") as scratch:
         tmpdir = Path(scratch)
@@ -225,7 +284,9 @@ async def migrate(settings, args: Args, *, out=print) -> int:
     codes = sorted({e.error for e in results if e.state == FAILED})
     if codes:
         out("failure codes " + " ".join(codes))
-    return EXIT_OK if summary["failed"] == 0 else EXIT_FAILED
+    diff = await _reconcile(settings, dst, args)  # after the copy: the database against the target (never deletes)
+    out(f"reconcile db_only={diff['db_only']} store_only={diff['store_only']}")
+    return EXIT_OK if summary["failed"] == 0 and not diff["db_only"] else EXIT_FAILED
 
 
 def main(argv: list[str] | None = None) -> int:

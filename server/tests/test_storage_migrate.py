@@ -20,7 +20,22 @@ MEDIA = bytes(range(256)) * 64
 
 
 def _settings(tmp_path: Path, **extra) -> Settings:
-    base = dict(_env_file=None, data_dir=str(tmp_path / "data"), storage_backend="s3", s3_bucket=PRIMARY,
+    """Every run now takes a database backup and reconciles against the database: give the run a real SQLite file
+    with the schema in it (the default URL would write into the working directory)."""
+    from app.core.db import Base
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    url = f"sqlite+aiosqlite:///{tmp_path / 'app.db'}"
+
+    async def schema() -> None:
+        engine = create_async_engine(url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await engine.dispose()
+
+    asyncio.run(schema())
+    base = dict(_env_file=None, data_dir=str(tmp_path / "data"), database_url=url,
+                storage_backend="s3", s3_bucket=PRIMARY,
                 s3_access_key=FAKE_KEY, s3_secret_key=FAKE_KEY, s3_region=REGION,
                 s3_fallback_bucket=FALLBACK, s3_fallback_access_key=FAKE_KEY, s3_fallback_secret_key=FAKE_KEY,
                 s3_fallback_region=REGION)
@@ -55,7 +70,8 @@ def test_local_to_s3_copies_verifies_and_leaves_the_source_alone(tmp_path, bucke
 
     code, lines = _run(settings, "--from", "local", "--to", "s3")
     assert code == migrate.EXIT_OK
-    assert lines == ["migrate objects=2 bytes=%d verified=2 failed=0" % (len(MEDIA) + 4)]
+    assert "migrate objects=2 bytes=%d verified=2 failed=0" % (len(MEDIA) + 4) in lines
+    assert "database backup written" in lines
     primary = s3_store(PRIMARY)
     assert await_result(primary.get_bytes(f"library/{ITEM}/media.mp4")) == MEDIA
     assert await_result(primary.stat(f"library/{ITEM}/media.mp4")).sha256 is not None
