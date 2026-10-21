@@ -10,6 +10,7 @@ import { formatBytes, formatDuration } from "../../lib/format";
 import { levelText } from "../../lib/levels";
 import { ACTIVE, fetchCatalog, publish, unpublish, type CatalogRow, type CatalogState } from "./api";
 import { CatalogDetail } from "./catalog-detail";
+import { BundleDialog } from "./bundle-dialog";
 import { ImportDialog } from "./import-dialog";
 import { S, errorText } from "./strings";
 import { UploadDialog } from "./upload-dialog";
@@ -97,6 +98,7 @@ export function CatalogPage() {
   const canWrite = hasRole(session, "operator");
   const data = useAsync(fetchCatalog, []);
   const [importing, setImporting] = useState(false);
+  const [bundling, setBundling] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +166,7 @@ export function CatalogPage() {
           <button type="button" className="btn-ghost btn-sm" onClick={reload}>{S.actions.refresh}</button>
           <button type="button" className="btn-ghost btn-sm" onClick={() => setUploading(true)}>{S.actions.upload}</button>
           <button type="button" className="btn-primary btn-sm" onClick={() => setImporting(true)}>{S.actions.importLink}</button>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setBundling(true)}>{S.bundle.title}</button>
         </RoleGate>
       }
     >
@@ -180,6 +183,7 @@ export function CatalogPage() {
             <DataTable columns={columns} rows={data.data.items} empty={S.empty} rowKey={(r) => r.id} caption={S.title} />
           </div>
           <ImportDialog open={importing} state={data.data.state} onClose={() => setImporting(false)} onDone={reload} />
+          <BundleDialog open={bundling} onClose={() => setBundling(false)} onDone={reload} />
           {openId && <CatalogDetail id={openId} onClose={() => setOpenId(null)} onChanged={reload} />}
           <UploadDialog open={uploading} state={data.data.state} onClose={() => setUploading(false)} onDone={reload} />
         </>

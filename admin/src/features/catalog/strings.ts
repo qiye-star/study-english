@@ -34,6 +34,11 @@ export const S = {
     replacing: (p: string) => `上传中 ${p}`,
     replaceFailed: (why: string) => `上次替换媒体失败:${why}`,
     text: "原文", zh: "译文", startMs: "开始(毫秒)", endMs: "结束(毫秒)", close: "关闭",
+    exportBundle: "导出 bundle", bundleExported: (n: number) => `bundle 已导出到存储,共 ${n} 句`,
+  },
+  bundle: {
+    title: "从 bundle 导入", import: "导入", none: "没有可导入的 bundle(本库已有的条目不再列出)。",
+    pick: "选择 bundle", reason: "理由(必填,写入审计)",
   },
   confirm: {
     deleteTitle: "删除精选条目",
@@ -43,6 +48,9 @@ export const S = {
     purgeBody: (refs: number) => `会同时删除这 ${refs} 个学习者的副本(学习记录中的评测保留)。需要超级管理员与二次验证。`,
   },
   errors: {
+    "Unsupported bundle version": "bundle 版本过新,请先升级服务器", "Item exists": "本库已有这个条目",
+    "Bundle media is missing": "bundle 的媒体文件在存储里缺失", "Bundle is invalid": "bundle 内容无效或被改动",
+    "Bundle not found": "找不到这个 bundle", "Item is not ready to export": "只有已就绪、未退役的条目能导出",
     "Invalid link": "链接无效", "Link import is unavailable": "链接导入不可用(服务器没有 yt-dlp)",
     "Media tools are not installed": "服务器缺少 ffmpeg", "Unsupported file type": "不支持的文件类型",
     "File is too large": "文件太大", "Item is not ready": "条目还没处理完", "Item is published": "已发布的条目不能这样修改",
