@@ -9,6 +9,7 @@ const h = vi.hoisted(() => {
     stop: vi.fn(),
     dispose: vi.fn(),
     state: vi.fn(() => "idle"),
+    outcomes: vi.fn(() => []),
     result: vi.fn(() => null),
     subscribe: vi.fn((fn: (s: string) => void) => {
       h.listener = fn;

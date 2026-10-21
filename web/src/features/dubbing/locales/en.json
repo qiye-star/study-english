@@ -33,6 +33,34 @@
         "heading": "Choose your role",
         "sentenceRole": "Role of sentence {{n}}"
       },
+      "result": {
+        "saved": "Recording saved. Total score {{total}}."
+      },
+      "stage": {
+        "waiting": "Playing…",
+        "retry": "Video failed to load. Retry"
+      },
+      "rehearsal": {
+        "back": "Back",
+        "youAre": "You are {{role}}",
+        "play": "Rehearse",
+        "record": "Start recording"
+      },
+      "recording": {
+        "yourTurn": "Your turn",
+        "waiting": "Listen for your cue",
+        "progress": "Sentence progress",
+        "stop": "Stop",
+        "confirmTitle": "Stop this take?",
+        "confirmBody": "This run will be thrown away. Your earlier takes are kept.",
+        "keep": "Keep recording",
+        "abandon": "Stop and discard",
+        "interrupted": "Recording stopped (the app went to the background or the mic was taken). Start the take again."
+      },
+      "headphones": {
+        "hint": "Wear headphones for a better score. The other side's lines still play, and yours are muted while you speak.",
+        "ok": "Got it"
+      },
       "labels": {
         "suggest": "Smart suggest",
         "accept": "Use suggestion",

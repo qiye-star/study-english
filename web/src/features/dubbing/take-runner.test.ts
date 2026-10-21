@@ -106,6 +106,17 @@ describe("take runner (plan L5 W6)", () => {
     expect(deps.release).toHaveBeenCalled();
   });
 
+  it("live outcomes list each sentence as soon as it is scored", async () => {
+    const { runner, deps, sched } = fixture();
+    runner.start();
+    await vi.waitFor(() => expect(runner.state()).toBe("recording"));
+    expect(runner.outcomes()).toEqual([]);
+    sched().onOpen(0, 300);
+    sched().onClose(0, 900);
+    await vi.waitFor(() => expect(deps.post).toHaveBeenCalled());
+    await vi.waitFor(() => expect(runner.outcomes()).toEqual([{ idx: 0, status: "scored", line: LINE }]));
+  });
+
   it("subscribers hear every state change", async () => {
     const { runner } = fixture();
     const seen: string[] = [];

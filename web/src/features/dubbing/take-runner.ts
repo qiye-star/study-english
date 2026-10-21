@@ -51,6 +51,8 @@ export interface TakeRunner {
   stop(): void;
   dispose(): void;
   state(): TakeState;
+  /** 录制中已经给出结果的句子(逐句状态点用) */
+  outcomes(): LineOutcome[];
   result(): TakeResult | null;
   subscribe(fn: (s: TakeState) => void): () => void;
 }
@@ -182,6 +184,7 @@ export function createTakeRunner(opts: { windows: readonly LineWindow[]; clipSta
       listeners.clear();
     },
     state: () => st,
+    outcomes: () => queue?.outcomes() ?? [],
     result: () => res,
     subscribe(fn) {
       listeners.add(fn);

@@ -7,7 +7,7 @@ import { createTakeFrames, createTakeScheduler, type TakeMedia } from "./take-sc
 import { browserCaptureDeps, startTakeCapture } from "./take-capture";
 import { createTakeRunner, type TakeRunner, type TakeResult, type TakeState, type TakeRunnerDeps } from "./take-runner";
 import { createTake, finishTake, postLine, type RoleKey } from "./dubbing-api";
-import type { QueueItem } from "./line-queue";
+import type { LineOutcome, QueueItem } from "./line-queue";
 import type { LineWindow } from "./windows";
 
 /**
@@ -32,6 +32,8 @@ export interface UseDubTakeInput {
 export interface UseDubTake {
   state: TakeState;
   result: TakeResult | null;
+  /** 录制中已经给出结果的句子(每 500 ms 刷新一次) */
+  outcomes: LineOutcome[];
   start(): void;
   stop(): void;
 }
@@ -40,6 +42,7 @@ export function useDubTake(input: UseDubTakeInput): UseDubTake {
   const { api } = useAuth();
   const [state, setState] = useState<TakeState>("idle");
   const [result, setResult] = useState<TakeResult | null>(null);
+  const [outcomes, setOutcomes] = useState<LineOutcome[]>([]);
   const runnerRef = useRef<TakeRunner | null>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
@@ -48,6 +51,15 @@ export function useDubTake(input: UseDubTakeInput): UseDubTake {
     runnerRef.current?.dispose();
     runnerRef.current = null;
   }, []);
+
+  useEffect(() => {
+    if (state !== "recording" && state !== "finishing") return;
+    const id = setInterval(() => {
+      const r = runnerRef.current;
+      if (r) setOutcomes(r.outcomes());
+    }, 500);
+    return () => clearInterval(id);
+  }, [state]);
 
   const start = useCallback(() => {
     const cur = inputRef.current;
@@ -63,6 +75,7 @@ export function useDubTake(input: UseDubTakeInput): UseDubTake {
       if (s === "done") setResult(runner.result());
     });
     setResult(null);
+    setOutcomes([]);
     runner.start();
   }, [api]);
 
@@ -70,7 +83,7 @@ export function useDubTake(input: UseDubTakeInput): UseDubTake {
     runnerRef.current?.stop();
   }, []);
 
-  return { state, result, start, stop };
+  return { state, result, outcomes, start, stop };
 }
 
 /** 真实依赖:只在这里接触 API、音频与媒体元素。 */

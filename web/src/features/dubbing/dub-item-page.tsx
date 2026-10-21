@@ -9,13 +9,19 @@ import type { ClipSelection } from "./clip";
 import { useDubbingConfig } from "./config";
 import { getRoles, putRoles, type RoleKey, type RolesState, ROLE_KEYS } from "./dubbing-api";
 import { useDubKit } from "./kit-context";
+import { DubSession } from "./dub-session";
 import { RoleLabels } from "./role-labels";
 import { RolePicker } from "./role-picker";
+import type { TakeResult } from "./take-runner";
 
-/** `/dub/:itemId`:选片段 → 选角色 → (彩排与录制在 W9 接上)。 */
+/** `/dub/:itemId`:选片段 → 选角色 → 彩排 → 录制(会话在 dub-session.tsx)。 */
 type ItemDetail = Awaited<ReturnType<DubbingKit["getItem"]>>;
 
-const FALLBACK_LIMITS = { maxLines: 12, maxMs: 90_000 };
+/** 配置没到时的占位限值(服务端的数值为准,见 config)。 */
+const FALLBACK_LIMITS = {
+  maxLines: 12, maxMs: 90_000, windowBeforeMs: 300, windowAfterMs: 600, syncToleranceMs: 400,
+  weights: { pronunciation: 60, fluency: 20, sync: 20 }, maxRoles: 6,
+};
 
 export function DubItemPage() {
   const { itemId = "" } = useParams();
@@ -29,6 +35,8 @@ export function DubItemPage() {
   const [names, setNames] = useState<Partial<Record<RoleKey, string>>>({});
   const [selection, setSelection] = useState<ClipSelection | null>(null);
   const [role, setRole] = useState<RoleKey | null>(null);
+  const [inSession, setInSession] = useState(false);
+  const [done, setDone] = useState<TakeResult | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +88,23 @@ export function DubItemPage() {
               idx: s.idx, startMs: s.startMs, endMs: s.endMs, speaker: speakerOf(s.idx), text: s.text,
             }));
             const readiness = clipReadiness(segs, selection, role, limits);
+            if (inSession && selection && selection.to !== null && role !== null) {
+              const roleName = names[role] ?? t("web.dubbing.roles.role", { key: role });
+              return (
+                <DubSession
+                  itemId={itemId}
+                  segs={segs}
+                  from={selection.from}
+                  to={selection.to}
+                  role={role}
+                  roleName={roleName}
+                  beforeMs={limits.windowBeforeMs}
+                  afterMs={limits.windowAfterMs}
+                  onExit={() => setInSession(false)}
+                  onDone={setDone}
+                />
+              );
+            }
             const counts = Object.fromEntries(ROLE_KEYS.map((k) => [k, 0])) as Record<RoleKey, number>;
             if (selection && selection.to !== null) {
               for (let i = selection.from; i <= selection.to; i++) {
@@ -118,9 +143,13 @@ export function DubItemPage() {
                     onRename={rename}
                   />
                 </section>
+                {done ? (
+                  <p role="status" className="text-[14px]">{t("web.dubbing.result.saved", { total: done.take.totalScore ?? 0 })}</p>
+                ) : null}
                 <button
                   type="button"
                   disabled={!readiness.ok || role === null}
+                  onClick={() => setInSession(true)}
                   className="w-full rounded-2xl bg-white/30 py-3 text-[15px] font-semibold disabled:opacity-40"
                 >
                   {t("web.dubbing.clip.start")}
