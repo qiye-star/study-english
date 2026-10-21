@@ -69,6 +69,8 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
   最终的识别结果另存为条目目录里的 `transcript.json`(含转写文字:随条目 / 用户删除,换字幕时删除并清 `rebuildable`,不进备份,
   不计入 `library_bytes`)。
 - `low_confidence` 只对 ASR 条目有意义,换字幕时清。
+- 持久文件只经 `app.state.storage`(`app/storage`,`get_store(app)`):媒体、封面、`transcript.json`、精选库文件;删除用前缀 `delete_prefix`,在数据库提交之后做,从不抛出(`paths.drop_persistent`)。先 put、再写库;写库失败只删本次写入的键(`pipeline.forget_keys`)。暂存(`_tmp`、`chunks.json`、WAV)永远在本地;识别需要本地媒体时用 `download_to` 到暂存目录。
+- 精选库 bundle(`catalog_bundle.py`):导出只写 `bundles/<id>/manifest.json`,导入只建行、不跑流水线;导入前检查媒体键必须在 `library/_catalog/<id>/` 之下、大小与 sha256 一致。
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。
 - 重新分句(`POST /items/{id}/rebuild`):`ready` + `sub_source=asr` + `rebuildable`;不排队、不扣额度;文字没变的句子保留译文;
   每句标记 `library_segments.flags` 在手动改时间时清空。

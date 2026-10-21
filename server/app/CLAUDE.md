@@ -17,6 +17,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `agents/` | 智能体共用核心:角色、用户设置、上下文来源注册表与并行预取、提示词拼装、过程事件、一次流式调用的编排、每日上限与回合幂等;`memory/`(A2)、`tutor/`(A3)子包 (off unless `AGENTS_ENABLED`; see `agents/CLAUDE.md`) |
 | `links/` | 学习联动(顶层):订阅核心学习事件(`core/learning_events.py`),实现六个联动;只有 routers 与 `main.py` 导入 (off unless `LINKS_ENABLED`; see `links/CLAUDE.md`) |
 | `library/` | 跟读库:上传 / 链接导入的音视频、处理流水线与进程内队列、字幕解析与分句、媒体票据 (off unless `LIBRARY_ENABLED`; see `library/CLAUDE.md`) |
+| `storage/` | 对象存储(计划 2026-10-21-l1):`BlobStore` 协议、`LocalStore` / `S3Store` / `FallbackStore`、Range 代理 `http.py`、迁移命令 `migrate.py`(only boto3 lives in `s3.py` / `config.py`; see `storage/CLAUDE.md`) |
 | `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, changelog (entries, per-user read position, draft import), backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
@@ -31,7 +32,8 @@ The FastAPI application package. Layered; each layer may only import the ones be
 - wordbook -> core, models, providers, speech, services; only admin, routers and `main.py` import it (rank reads `wordbook_events` via models)
 - agents -> core, models, providers, speech, services; only rooms, links, admin, routers and `main.py` import it (never rank or realtime)
 - links -> core, models, providers, speech, services, rank, rooms, wordbook, agents; only routers and `main.py` import it (rank reads `link_credits` via models)
-- library -> core, models, providers, speech, services; only admin, routers and `main.py` import it
+- storage -> core, models (the bottom I/O layer; boto3 only in `storage/s3.py` and `storage/config.py`); imported by services, realtime, rooms, library, admin, routers and main
+- library -> core, models, providers, speech, services, storage; only admin, routers and `main.py` import it
 - admin -> core, models, providers, speech, services, realtime, rank, rooms, wordbook, agents, library; only routers and `main.py` import admin
 - routers -> anything above (incl. rank, rooms, wordbook, links, agents, library); only `main.py` (and other routers) import routers
 - `core/learning_events.py`, `core/rank_sources.py` and `core/captcha_policy.py` use the standard library only

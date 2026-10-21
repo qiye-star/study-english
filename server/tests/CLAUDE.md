@@ -35,6 +35,12 @@ pytest suite for the server (pytest-asyncio auto mode, respx for HTTP mocking).
   `fixtures/rooms_contract.json` (web reads it in `rooms-contract.test.ts`); regenerate after an intentional
   change with `CONTRACT_UPDATE=1` (tickets are written redacted)
 
+## Object storage (plan 2026-10-21-l1)
+- `storage_backend` fixture (default `"local"`): `@pytest.mark.parametrize("storage_backend", ["local", "s3"], indirect=True)` runs a test with `app.state.storage` = moto S3 (`tests/storage_helpers.py`: `moto_bucket`, `s3_store`, `put`/`read`/`exists`/`keys_under`). The `store` fixture is `get_store(app)`.
+- Contract suites: `storage_contract.py` (run by `test_storage_local.py`, `test_storage_s3.py`, `test_storage_fallback.py`); range behaviour in `test_storage_range.py`.
+- Tests that set `app.settings.data_dir` after `create_app` must also set `app.state.storage = LocalStore(tmp_path)`, since the default store is rooted at the data directory when the app is created.
+- Nothing here talks to a real endpoint; the moto tests never read `S3_*` from the environment.
+
 ## Allowed dependencies
 Anything in `app`, plus other test modules' helpers (`from tests.test_x import helper`).
 
