@@ -5,7 +5,7 @@
 `docs/superpowers/plans/2026-10-14-curated-library-admin-ui.md`;桌面 ≥ 1024px):`api.ts`(`/api/admin/library/catalog*`,snake → camel,
 `deletePhrase` / `purgePhrase` / `mediaUrl`)、`upload.ts`(8 MiB 分片串行、每片重试 2 次、可中止)、`strings.ts`(zh-CN,含备份提示;
 导航用 `S.title`)、`catalog-page.tsx`(状态条、表格、发布开关、3 秒轮询)、`import-dialog.tsx`、`upload-dialog.tsx`、`meta-fields.tsx`
-(两个对话框共用的元数据表单)、`catalog-detail.tsx`(试听、句子编辑、元数据、动作、删除 / 强制删除)、`replace-media.tsx`(同一条目重新上传媒体、保留句子;plan 2026-10-15-catalog-keep-video)、`catalog-icon.tsx`、`index.ts`。
+(两个对话框共用的元数据表单)、`catalog-detail.tsx`(试听、句子编辑、元数据、动作、删除 / 强制删除)、`replace-media.tsx`(同一条目重新上传媒体、保留句子;plan 2026-10-15-catalog-keep-video)、`role-labels.tsx`(句子说话人 A–F 与角色名;智能建议每次最多 40 句、只出草稿,「采用」后才随保存提交;L5 A1,接口 `/roles*`)、`catalog-icon.tsx`、`index.ts`。
 
 ## Allowed dependencies
 `../../api/*`、`../../components/*`、`../../hooks/*`、`../../lib/*`。不导入其他 feature(`camel` 复制了一份)。

@@ -10,6 +10,7 @@ import {
 } from "./api";
 import { levelLong } from "../../lib/levels";
 import { ReplaceMedia } from "./replace-media";
+import { RoleLabels } from "./role-labels";
 import { S, errorText } from "./strings";
 
 const clock = (ms: number) => {
@@ -260,6 +261,9 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
                 ))}
               </ul>
             </section>
+            {item.status === "ready" && item.segCount > 0 && (
+              <RoleLabels id={id} lines={data.data!.segments.map((s) => segments[s.idx] ?? s)} onError={setError} />
+            )}
           </>
         )}
       </Dialog>

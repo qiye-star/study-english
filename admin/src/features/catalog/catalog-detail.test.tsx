@@ -15,7 +15,7 @@ afterEach(() => {
   session.resetSessionForTests();
 });
 
-vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn(), startReplace: vi.fn(), exportBundle: vi.fn() }));
+vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn(), startReplace: vi.fn(), exportBundle: vi.fn(), fetchRoles: vi.fn() }));
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 const ITEM = { id: ID, title: "Talk", level: "B1", tags: [], licenseNote: null, source: "upload", sourceHost: null, status: "ready",
@@ -31,6 +31,7 @@ describe("CatalogDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: ITEM, segments: SEGS });
+    vi.mocked(api.fetchRoles).mockResolvedValue({ names: [], speakers: [], editable: true, locked: null });
   });
 
   it("plays the media through the admin route and lists sentences with translations", async () => {
