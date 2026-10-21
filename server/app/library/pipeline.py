@@ -191,7 +191,7 @@ async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progres
             written.append(poster_key)
             size += poster_info.size
     except StorageError as exc:
-        await _forget(blobs, written)
+        await forget_keys(blobs, written)
         raise LibraryError("network") from exc
     async with deps.sessionmaker() as s:
         done = await s.execute(update(LibraryItem).where(LibraryItem.id == item.id,
@@ -201,7 +201,7 @@ async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progres
             library_bytes=size, updated_at=deps.clock()))
         await s.commit()
     if done.rowcount != 1:
-        await _forget(blobs, written)  # only the keys this run wrote; never a prefix (a live copy may read them)
+        await forget_keys(blobs, written)  # only the keys this run wrote; never a prefix (a live copy may read them)
         raise Aborted()
     src.unlink(missing_ok=True)  # the original upload / download is not kept (spec §5.1)
     logger.info("library media ready item=%s kind=%s duration_ms=%d bytes=%d", item.id, normalized.kind,
@@ -209,7 +209,7 @@ async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progres
     return info.duration_ms, normalized.path
 
 
-async def _forget(blobs, keys: list[str]) -> None:
+async def forget_keys(blobs, keys: list[str]) -> None:
     """Remove objects this run wrote after a failed commit. Logs the code only; never raises."""
     for key in keys:
         try:
@@ -330,7 +330,7 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     progress = Progress(deps, item.id)
     blobs = deps.storage()
     local_media: Path | None = None
-    if not item.media_path or not await _stored(blobs, item.media_path):
+    if not item.media_path or not await is_stored(blobs, item.media_path):
         duration_ms, local_media = await _media_stage(deps, item, tmp, progress)
         async with deps.sessionmaker() as s:
             item = await s.get(LibraryItem, item_id)
@@ -352,7 +352,7 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     elif settings.library_asr_available:
         if local_media is None:  # a resumed item: recognition needs the media locally (R7); staging only, removed below
             local_media = tmp / f"media{Path(item.media_path).suffix}"
-            await _fetch_media(blobs, item.media_path, local_media)
+            await fetch_media(blobs, item.media_path, local_media)
         built, chunks, silences = await _transcribe(deps, item, local_media, duration_ms, tmp, progress, t0)
         sentences, flags, low_confidence = built.sentences, built.flags, built.low_confidence
         transcript = (chunks, silences)
@@ -385,19 +385,19 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
                 await s.execute(update(LibraryItem).where(LibraryItem.id == item_id).values(rebuildable=False))
                 await s.commit()
     else:
-        await _forget(blobs, [key])
+        await forget_keys(blobs, [key])
     paths.remove_tree(tmp)
     logger.info("library item ready item=%s sentences=%d sub_source=%s", item_id, len(sentences), sub_source)
 
 
-async def _stored(blobs, key: str) -> bool:
+async def is_stored(blobs, key: str) -> bool:
     try:
         return await blobs.stat(key) is not None
     except StorageError as exc:
         raise LibraryError("network") from exc
 
 
-async def _fetch_media(blobs, key: str, dst: Path) -> None:
+async def fetch_media(blobs, key: str, dst: Path) -> None:
     try:
         await blobs.download_to(key, dst)
     except StorageError as exc:

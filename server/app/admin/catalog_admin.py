@@ -63,7 +63,7 @@ async def row_out(session, app, row: CatalogItem) -> dict:
     refs = await catalog_store.refs(session, row.id)
     translated = (await catalog_store.translated_counts(session, [row]))[row.id]
     return catalog_store.admin_out(row, refs=refs, translated=translated,
-                                   media_missing=catalog_store.media_missing(data_dir(app), row))
+                                   media_missing=await catalog_store.media_missing_stored(get_store(app), row))
 
 
 async def state(session, app) -> dict:
@@ -83,8 +83,9 @@ async def list_items(session, app) -> dict:
     rows = await catalog_store.list_all(session)
     refs = await catalog_store.ref_counts(session, [r.id for r in rows])
     translated = await catalog_store.translated_counts(session, rows)
+    keys = await catalog_store.stored_keys(get_store(app))  # one listing for the whole page (plan L1 Task 11)
     return {"items": [catalog_store.admin_out(r, refs=refs.get(r.id, 0), translated=translated.get(r.id, 0),
-                                              media_missing=catalog_store.media_missing(data_dir(app), r))
+                                              media_missing=catalog_store.media_missing_in(keys, r))
                       for r in rows],
             "state": await state(session, app)}
 
@@ -281,7 +282,7 @@ async def set_published(session, app, actor, catalog_id: str, published: bool) -
             raise _err(409, "Item is retired")
         if row.status != "ready" or row.seg_count <= 0:
             raise _err(409, "Item is not ready")
-        if catalog_store.media_missing(data_dir(app), row):
+        if await catalog_store.media_missing_stored(get_store(app), row):
             raise _err(409, "Media is missing")
         row.published, row.published_at = True, row.published_at or utcnow()
     else:
@@ -327,7 +328,7 @@ async def _stop(session, app, row: CatalogItem) -> bool:
     await jobs(app).cancel(row.id)
     paths.remove_tree(paths.catalog_tmp_dir(data_dir(app), row.id))
     if not restore:
-        paths.remove_tree(paths.catalog_dir(data_dir(app), row.id))
+        await paths.drop_persistent(get_store(app), paths.catalog_prefix(row.id))
         await session.execute(update(CatalogItem).where(CatalogItem.id == row.id).values(
             media_path=None, poster_path=None, media_bytes=0, source_url=None))
         await session.commit()

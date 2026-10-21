@@ -267,16 +267,19 @@ async def translated_counts(session: AsyncSession, rows: list[CatalogItem]) -> d
     return out
 
 
-def media_missing(data_dir: Path, row: CatalogItem) -> bool:
+async def stored_keys(blobs, prefix: str = f"{paths.ROOT}/{paths.CATALOG}/") -> set[str]:
+    """Every stored key under the catalog prefix in ONE listing (plan L1 Task 11): the admin list checks media
+    against this set instead of one HEAD per item."""
+    return {info.key async for info in blobs.list(prefix)}
+
+
+def media_missing_in(keys: set[str], row: CatalogItem) -> bool:
     """Only a ready item can miss its media (e.g. the database was restored without the data volume, spec R10)."""
     if row.status != "ready":
         return False
     if not row.media_path:
         return True
-    try:
-        return not paths.absolute(data_dir, row.media_path).is_file()
-    except ValueError:
-        return True
+    return row.media_path not in keys
 
 
 # ---- copy-on-add (spec D6, E8) ----

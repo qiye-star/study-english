@@ -115,9 +115,11 @@ async def test_media_missing(app):
     cid = await make_catalog(app)
     async with app.state.sessionmaker() as s:
         row = await catalog_store.get(s, cid)
-        assert catalog_store.media_missing(data_dir_of(app), row) is False
+        assert await catalog_store.media_missing_stored(app.state.storage, row) is False
+        assert catalog_store.media_missing_in(await catalog_store.stored_keys(app.state.storage), row) is False
         media_file(app, cid).unlink()
-        assert catalog_store.media_missing(data_dir_of(app), row) is True
+        assert await catalog_store.media_missing_stored(app.state.storage, row) is True
+        assert catalog_store.media_missing_in(await catalog_store.stored_keys(app.state.storage), row) is True
 
 
 async def _uid(app, name="alice") -> int:
