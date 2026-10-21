@@ -3,7 +3,6 @@
 `absolute_path` 只给仍然读本地文件的少数位置用(房间语音与管理端房间,Task 13 之后移除);新代码一律用 store。
 """
 
-import os
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -27,30 +26,6 @@ def absolute_path(data_dir: Path, relpath: str) -> Path:
 async def write_recording(blobs, relpath: str, data: bytes) -> None:
     """Store the WAV under its key. Raises ValueError for a bad key and StorageError when the store fails."""
     await blobs.put_bytes(relpath, data, content_type="audio/wav")
-
-
-def write_local_recording(data_dir: Path, relpath: str, data: bytes) -> None:
-    """Room voice clips are still written to disk until plan L1 Task 13 moves them into the store; nothing else uses this."""
-    path = absolute_path(data_dir, relpath)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
-
-
-def delete_local_recording(data_dir: Path, relpath: str) -> None:
-    """Counterpart of `write_local_recording` (plan L1 Task 13 removes both)."""
-    try:
-        absolute_path(data_dir, relpath).unlink(missing_ok=True)
-    except (ValueError, OSError):
-        pass
 
 
 async def delete_recording(blobs, relpath: str) -> None:

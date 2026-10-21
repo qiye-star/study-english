@@ -48,15 +48,18 @@ def test_mp3_encoding_failure_falls_back_to_wav(monkeypatch, caplog):
     assert "RuntimeError" in caplog.text and "no encoder" not in caplog.text
 
 
-def test_paths_stay_inside_the_data_dir(tmp_path):
+async def test_paths_stay_inside_the_store(tmp_path):
+    from app.storage.local import LocalStore
+
+    store = LocalStore(tmp_path)
     rel = audio.audio_relpath("r1", "m1", "mp3")
     assert rel == "room_audio/r1/m1.mp3" and audio.staging_relpath("m1") == "room_audio/_staging/m1.wav"
     assert not rel.startswith("recordings/")  # R2-18: the orphan-recordings tool must never see room audio
-    audio.write_file(tmp_path, rel, b"abc")
-    assert audio.read_file(tmp_path, rel) == b"abc"
-    audio.delete_file(tmp_path, rel)
-    audio.delete_file(tmp_path, rel)  # idempotent
+    await audio.write_file(store, rel, b"abc")
+    assert await audio.read_file(store, rel) == b"abc"
+    await audio.delete_file(store, rel)
+    await audio.delete_file(store, rel)  # idempotent
     with pytest.raises(ValueError):
-        audio.write_file(tmp_path, "../escape.mp3", b"x")
+        await audio.write_file(store, "../escape.mp3", b"x")
     with pytest.raises(ValueError):
-        audio.read_file(tmp_path, "../escape.mp3")
+        await audio.read_file(store, "../escape.mp3")

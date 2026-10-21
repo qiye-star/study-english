@@ -1,5 +1,7 @@
 import asyncio
 import logging
+
+from app.storage.local import LocalStore
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -76,7 +78,7 @@ async def env(app, tmp_path):
         return None
 
     deps = VoiceDeps(store=store, voices=VoiceStore(app.state.sessionmaker), hub=hub, limits=RoomLimits,
-                     data_dir=tmp_path, store_format=lambda: "mp3", available=lambda: True, llm_available=lambda: True,
+                     storage=lambda: LocalStore(tmp_path), store_format=lambda: "mp3", available=lambda: True, llm_available=lambda: True,
                      transcribe=transcribe, complete=complete, consume=consume, refund=refund, quota_mb_for=per_user,
                      daily_for=daily, template=template, clock=lambda: NOW, gate=asyncio.Semaphore(2),
                      upload_limiter=RateLimiter(6, 60), translate_limiter=RateLimiter(20, 60),

@@ -179,29 +179,7 @@ async def test_write_and_delete_recording(tmp_path):
     await recordings.delete_recording(store, "../x.wav")   # 越界静默
 
 
-# The temp-file guarantees of the local writer now live in tests/test_storage_local.py (LocalStore); these two keep
-# the room-voice helper, which still writes to disk (plan L1 Task 13 removes it).
-def test_failed_replace_leaves_no_tmp_file(tmp_path, monkeypatch):
-    def boom(src, dst):
-        raise OSError("replace failed")
-
-    monkeypatch.setattr(recordings.os, "replace", boom)
-    with pytest.raises(OSError):
-        recordings.write_local_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
-    assert files_under(tmp_path) == []
-
-
-def test_failed_write_leaves_no_tmp_file(tmp_path, monkeypatch):
-    def boom(self, data):
-        self.touch()
-        raise OSError("disk full")
-
-    monkeypatch.setattr(Path, "write_bytes", boom)
-    with pytest.raises(OSError):
-        recordings.write_local_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
-    assert files_under(tmp_path) == []
-
-
+# The temp-file guarantees (failed replace / failed write leave no file) now live in tests/test_storage_local.py.
 async def test_commit_failure_deletes_file_and_leaves_no_row(app, client, auth_headers, fake, monkeypatch):
     async def boom(self):
         raise RuntimeError("db down")

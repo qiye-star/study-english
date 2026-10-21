@@ -11,7 +11,6 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.services.recordings import absolute_path, delete_local_recording as delete_recording, write_local_recording as write_recording
 from app.speech.asr_stream import wav_to_pcm
 
 logger = logging.getLogger(__name__)
@@ -96,15 +95,19 @@ def staging_relpath(message_id: str) -> str:
     return f"{ROOT}/_staging/{message_id}.wav"
 
 
-def write_file(data_dir: Path, relpath: str, data: bytes) -> None:
-    """Atomic write inside the data dir (ValueError on an escaping path)."""
-    write_recording(data_dir, relpath, data)
+async def write_file(blobs, relpath: str, data: bytes) -> None:
+    """Store the clip under its key (ValueError on an illegal key; StorageError when the store fails)."""
+    await blobs.put_bytes(relpath, data, content_type=MEDIA_TYPES["wav"] if relpath.endswith(".wav") else None)
 
 
-def read_file(data_dir: Path, relpath: str) -> bytes:
-    return absolute_path(data_dir, relpath).read_bytes()
+async def read_file(blobs, relpath: str) -> bytes:
+    """Missing objects raise BlobNotFound (a FileNotFoundError); bigger than a clip ever is: StorageError too_large."""
+    return await blobs.get_bytes(relpath, max_bytes=MAX_UPLOAD_BYTES)
 
 
-def delete_file(data_dir: Path, relpath: str) -> None:
-    """Never raises (missing file, escaping path)."""
-    delete_recording(data_dir, relpath)
+async def delete_file(blobs, relpath: str) -> None:
+    """Never raises (missing object, illegal key, store failure)."""
+    try:
+        await blobs.delete(relpath)
+    except (ValueError, OSError):
+        pass
