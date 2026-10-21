@@ -163,7 +163,9 @@ async def _check_object(blobs, key: str, expected: dict) -> None:
         raise BundleError(400, "Bundle is invalid")
 
 
-async def import_bundle(session, blobs, catalog_id: str, now: datetime) -> CatalogItem:
+async def import_bundle(session, blobs, catalog_id: str, now: datetime, *, audit=None) -> CatalogItem:
+    """Imports the bundle and commits once. `audit`, if given, is awaited with the new row before that commit, so the
+    caller's audit row and the import succeed or fail together (plan L1 T22). The library layer never imports admin."""
     try:
         raw = await blobs.get_bytes(manifest_key(catalog_id), max_bytes=MAX_MANIFEST_BYTES)
     except BlobNotFound:
@@ -234,6 +236,8 @@ async def import_bundle(session, blobs, catalog_id: str, now: datetime) -> Catal
     await session.flush()
     for seg in segments:
         session.add(CatalogSegment(catalog_id=catalog_id, **seg))
+    if audit is not None:
+        await audit(row)  # the audit row joins this transaction: it commits with the import or not at all
     await session.commit()
     logger.info("library catalog bundle imported catalog=%s segments=%d", catalog_id, len(segments))
     return row

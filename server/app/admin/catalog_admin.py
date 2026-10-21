@@ -446,14 +446,16 @@ async def bundle_list(session, app) -> dict:
 
 
 async def bundle_import(session, app, actor, catalog_id: str, *, reason: str, now: datetime) -> dict:
-    """Imports a bundle (no pipeline, no model spend). The import commits its own rows; the audit row follows."""
+    """Imports a bundle (no pipeline, no model spend). The audit row is written inside the import's own transaction,
+    so the item and its audit row commit together or not at all (plan L1 T22)."""
+    async def record(row) -> None:
+        await audit.record(session, actor, "catalog.bundle_import", target_type="catalog_item", target_id=catalog_id,
+                           after={"segments": row.seg_count}, reason=reason)
+
     try:
-        row = await catalog_bundle.import_bundle(session, get_store(app), catalog_id, now)
+        row = await catalog_bundle.import_bundle(session, get_store(app), catalog_id, now, audit=record)
     except catalog_bundle.BundleError as e:
         raise _err(e.status, e.message) from None
-    await audit.record(session, actor, "catalog.bundle_import", target_type="catalog_item", target_id=catalog_id,
-                       after={"segments": row.seg_count}, reason=reason)
-    await session.commit()
     return {"id": row.id, "segments": row.seg_count, "status": row.status, "published": row.published}
 
 

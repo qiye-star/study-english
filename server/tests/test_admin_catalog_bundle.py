@@ -64,3 +64,36 @@ async def test_export_list_and_import_round_trip_for_the_right_roles(app, client
     audit_text = " ".join(f"{r.action} {r.target_id} {r.summary or ''} {r.after or ''}" for r in rows)
     assert TITLE not in audit_text and TITLE not in caplog.text
     assert "bundles/" not in audit_text and "library/" not in audit_text
+
+
+async def test_the_import_and_its_audit_row_commit_in_one_transaction(app, client, monkeypatch):
+    """plan L1 T22: if the audit row cannot be written, the import must not survive it (and vice versa)."""
+    cid = await make_catalog(app, title=TITLE)
+    operator = await login_as(app, client, "operator")
+    assert (await client.post(f"{BASE}/{cid}/bundle", headers=operator)).status_code == 200
+    await _forget(app, cid)
+
+    from app.admin import audit, catalog_admin
+
+    real_record = audit.record
+
+    async def broken_after_recording(session, *args, **kwargs):
+        await real_record(session, *args, **kwargs)  # the row is written in the open transaction ...
+        raise RuntimeError("audit write failed")  # ... and then the write fails before the commit
+
+    monkeypatch.setattr(catalog_admin.audit, "record", broken_after_recording)
+    with pytest.raises(RuntimeError):
+        await client.post(f"{BASE}/bundles/{cid}/import", headers=operator, json={"reason": "restore"})
+
+    async with app.state.sessionmaker() as s:
+        assert await s.get(CatalogItem, cid) is None  # the import was rolled back with the audit row
+        rows = (await s.scalars(select(AdminAudit).where(AdminAudit.action == "catalog.bundle_import"))).all()
+    assert rows == []
+
+    monkeypatch.setattr(catalog_admin.audit, "record", real_record)
+    ok = await client.post(f"{BASE}/bundles/{cid}/import", headers=operator, json={"reason": "restore"})
+    assert ok.status_code == 200
+    async with app.state.sessionmaker() as s:
+        assert await s.get(CatalogItem, cid) is not None
+        rows = (await s.scalars(select(AdminAudit).where(AdminAudit.action == "catalog.bundle_import"))).all()
+    assert len(rows) == 1
