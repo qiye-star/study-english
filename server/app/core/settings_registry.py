@@ -317,6 +317,11 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("wordbook_recall_enabled", "wordbook", "bool", "复习题型「快速回忆」", help_zh="自评三档后翻面确认;进入已掌握的那次复习不出此题"),
     _s("wordbook_autoplay", "wordbook", "bool", "自动朗读词头", help_zh="新词卡出现、快速回忆翻面时;「不认识」总是朗读"),
     _s("wordbook_show_example", "wordbook", "bool", "翻开后显示例句"),
+    # L3 FSRS 灰度(计划 2026-10-21-l3-fsrs R9、R10)
+    _s("wordbook_fsrs_pct", "wordbook", "int", "FSRS 调度灰度比例(%)", min=0, max=100,
+       help_zh="按用户哈希分桶;0 = 全部用旧的盒子排期", danger="调低即回滚:被移出的用户下次复习起改回盒子排期"),
+    _s("wordbook_fsrs_retention_pct", "wordbook", "int", "FSRS 目标保持率(%)", min=85, max=95,
+       help_zh="越高复习越频繁;只对已切到 FSRS 的用户生效"),
     # admin
     _s("admin_token_ttl_minutes", "admin", "int", "会话有效分钟", danger=_LONGER_SESSIONS),
     _s("admin_idle_minutes", "admin", "int", "会话空闲超时分钟", danger=_LONGER_SESSIONS),

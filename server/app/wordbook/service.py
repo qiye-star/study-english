@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.models import WordbookEnrollment, WordbookEvent, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
+from app.services.scheduling import SchedulingPolicy, policy_for
 from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review, normalize_word
 from app.wordbook import plan as planning
 from app.wordbook import learned
@@ -362,15 +363,18 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c, ds) for c in cards]}
 
 
-async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now) -> tuple[bool, bool]:
+async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now,
+                     policy: SchedulingPolicy) -> tuple[bool, bool]:
     """(applied, due)。到期 → 一次复习(reps + 1,产生 vocab_review);未到期只有答错才改盒(R-W5),
-    且走 apply_lapse:不加 reps,不产生段位事件(review B1);盒 0 已是「忘了」,不写。"""
+    且走 apply_lapse:不加 reps,不产生段位事件(review B1);盒 0 已是「忘了」,不写。
+    排期引擎由 policy 决定(L3 R10:同一用户同一时刻只有一种引擎)。"""
     due = row.due_at <= now
     if due:
         return await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
-                                  grade=grade, now=now), True
+                                  grade=grade, now=now, policy=policy), True
     if grade == "forgot":
-        return await apply_lapse(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps, now=now), False
+        return await apply_lapse(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps, now=now,
+                                 policy=policy), False
     return False, False
 
 
@@ -475,7 +479,7 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
         item_id = await _create_learned(session, user_id, p.book_id, card, 0, now, ctx)
         applied = True
     elif p.mode == "review" and row is not None:
-        applied, due = await _write_srs(session, user_id, row, grade, now)
+        applied, due = await _write_srs(session, user_id, row, grade, now, policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
     elif p.mode == "learn" and row is not None and row.reps == 0 and p.qtype in CHOICE_QTYPES:
         applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now,
@@ -592,7 +596,8 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
             await session.commit()  # 只扣了作答次数;不写盒、不记事件(R-R6)
             return _answer_out(False, "pending", None, card, None, None, row, False, rating="know", spot_check=True,
                                check=question_out(q))
-        applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now)
+        applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now,
+                                        policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
     eff = recall.as_rating(outcome)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
@@ -740,7 +745,8 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         credit = round(sum(r.credit for r in results) / len(results))
         row, kind = known.get(card.key), "blank"
         if row is not None and card.key not in seen:  # 同一词在一次提交里只写一次盒子
-            applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now)
+            applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now,
+                                            policy_for(settings, user_id))
             kind = "review" if due and applied else "blank"
         seen.add(card.key)
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,
