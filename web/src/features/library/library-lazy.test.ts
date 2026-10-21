@@ -10,7 +10,7 @@ const src = (rel: string) => readFileSync(path.join(here, rel), "utf8");
 const MAIN = ["index.ts", "lazy-pages.tsx", "use-library-enabled.ts", "config.ts", "page-status.tsx"];
 const LAZY_ONLY = [
   "locales", "library-api", "library-list-page", "player-page", "upload-store", "upload-client", "use-media-player", "library-root", "library.css",
-  "catalog-api", "catalog-view", "catalog-card", "use-catalog", "delete-item-dialog",
+  "catalog-api", "catalog-view", "catalog-card", "use-catalog", "delete-item-dialog", "dubbing-kit",
 ];
 const staticImports = (s: string) =>
   [...s.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?\sfrom\s*["']\.\/([^"']+)["']|(?:^|\n)\s*import\s*["']\.\/([^"']+)["']/g)]
@@ -32,6 +32,13 @@ describe("library stays out of the main bundle (R-L23)", () => {
     expect(lazy).toContain('import("./player-page")');
     expect(src("index.ts")).toContain('from "./lazy-pages"');
     expect(src("index.ts")).toContain('from "./use-library-enabled"');
+  });
+
+  it("dubbing reaches library only through the lazy kit (R17)", () => {
+    const index = src("index.ts");
+    expect(index).toContain('import("./dubbing-kit")');
+    expect(index).toContain("export const loadDubbingKit");
+    expect(index).not.toMatch(/export\s+(\*|\{[^}]*\})\s+from\s+["']\.\/dubbing-kit["']/);
   });
 
   it("app.tsx mounts both routes", () => {

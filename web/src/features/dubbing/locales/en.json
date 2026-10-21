@@ -1,0 +1,111 @@
+{
+  "web": {
+    "dubbing": {
+      "entry": {
+        "title": "Film dubbing",
+        "hint": "Play a clip, take a role, record your lines"
+      },
+      "home": {
+        "title": "Dubbing",
+        "back": "Practice",
+        "empty": "No material to dub yet",
+        "emptyHint": "Add a video or audio file in the shadowing library first.",
+        "labeled": "Roles set",
+        "unlabeled": "Roles not set",
+        "next": "Next page",
+        "sentences": "{{count}} sentences",
+        "audio": "Audio",
+        "video": "Video"
+      },
+      "clip": {
+        "hint": "Tap the first and the last sentence of your clip.",
+        "summary": "{{lines}} sentences · {{seconds}} s",
+        "none": "No clip selected yet",
+        "start": "Start rehearsal"
+      },
+      "roles": {
+        "role": "Role {{key}}",
+        "count": "{{count}} sentences",
+        "rename": "Rename role {{key}}",
+        "nameFor": "Name for role {{key}}",
+        "save": "Save name",
+        "editShort": "Edit",
+        "heading": "Choose your role",
+        "sentenceRole": "Role of sentence {{n}}"
+      },
+      "result": {
+        "saved": "Recording saved. Total score {{total}}.",
+        "total": "Total score",
+        "pronunciation": "Pronunciation",
+        "fluency": "Fluency",
+        "timing": "Timing",
+        "basisWords": "By time",
+        "basisDuration": "By duration",
+        "basisNone": "No timing score",
+        "stale": "The sentence has changed",
+        "original": "Original",
+        "mine": "Mine",
+        "again": "Record again",
+        "change": "Change clip",
+        "reasons": {
+          "notRecorded": "Not recorded",
+          "noSpeech": "No speech",
+          "failed": "Failed",
+          "timeout": "Timed out",
+          "aborted": "Stopped"
+        }
+      },
+      "stage": {
+        "waiting": "Playing…",
+        "retry": "Video failed to load. Retry"
+      },
+      "rehearsal": {
+        "back": "Back",
+        "youAre": "You are {{role}}",
+        "play": "Rehearse",
+        "record": "Start recording"
+      },
+      "recording": {
+        "yourTurn": "Your turn",
+        "waiting": "Listen for your cue",
+        "progress": "Sentence progress",
+        "stop": "Stop",
+        "confirmTitle": "Stop this take?",
+        "confirmBody": "This run will be thrown away. Your earlier takes are kept.",
+        "keep": "Keep recording",
+        "abandon": "Stop and discard",
+        "interrupted": "Recording stopped (the app went to the background or the mic was taken). Start the take again."
+      },
+      "headphones": {
+        "hint": "Wear headphones for a better score. The other side's lines still play, and yours are muted while you speak.",
+        "ok": "Got it"
+      },
+      "labels": {
+        "suggest": "Smart suggest",
+        "accept": "Use suggestion",
+        "discard": "Discard",
+        "readOnly": "Editors label this material. You can't change the roles.",
+        "draft": "Suggestion ready for {{count}} sentences"
+      },
+      "errors": {
+        "disabled": "Dubbing is turned off.",
+        "notFound": "This material could not be found.",
+        "notReady": "This material is still being prepared.",
+        "rolesLocked": "Editors set the roles for this material.",
+        "badRoles": "The roles could not be saved.",
+        "badClip": "This clip is not valid.",
+        "clipTooLong": "This clip is too long. Pick fewer sentences.",
+        "roleMissing": "This role has no sentences in the clip.",
+        "takeDone": "This take is already finished.",
+        "lineNotInTake": "This sentence is not part of the take.",
+        "lineDone": "This sentence was already recorded.",
+        "assessment": "The recording does not match this sentence.",
+        "timing": "The recording timing is off. Try again.",
+        "aiUnavailable": "AI is unavailable right now.",
+        "aiUserCap": "You have reached today's AI limit.",
+        "aiGlobalCap": "AI is busy today. Try again later.",
+        "unknown": "Something went wrong. Try again."
+      }
+    }
+  }
+}

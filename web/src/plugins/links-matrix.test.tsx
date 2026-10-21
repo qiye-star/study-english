@@ -14,7 +14,7 @@ afterEach(() => setLinkFlags(ALL_OFF));
 
 describe("all-off / all-on matrix", () => {
   it("with every link off only core contributions remain (= today)", () => {
-    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "practiceHeaderActions/changelog.entry", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add"]);
+    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "practiceHeaderActions/changelog.entry", "practiceHome/dubbing.entry", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add"]);
     expect(routesFor(ALL_OFF)).toEqual([]);
   });
 
@@ -28,7 +28,7 @@ describe("all-off / all-on matrix", () => {
     expect(ids("wordActions")).toEqual(["vocabulary.add", "word-actions.more"]);
     expect(ids("wordActionsMenu")).toEqual(["vocabulary.add", "wordbook.adopt", "practice.shadow", "wordbook.card"]);
     expect(ids("dailyTasks")).toEqual(["wordbook.today", "practice.shadow", "chat.talk", "rank.stage", "chat-words.task"]);
-    expect(ids("practiceHome")).toEqual(["daily-tasks.card"]);
+    expect(ids("practiceHome")).toEqual(["daily-tasks.card", "dubbing.entry"]);
     expect(ids("learningSources")).toEqual(["pron.weak", "pron.today"]);
     expect(ids("notebookViews")).toEqual(["mistakes.row", "pron.row"]);
     expect(ids("wordDetailSections")).toEqual(["chat-words.badge"]);

@@ -18,6 +18,7 @@ import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
+import { DubHomeRoute, DubItemRoute } from "~/features/dubbing";
 import { ChangelogPage } from "~/features/changelog";
 import { AccountSettingsPage, BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
 import { GrammarPromptPage } from "~/features/grammar";
@@ -103,6 +104,8 @@ export function AppRoutes() {
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/library" element={<LibraryListPage />} />
             <Route path="/library/:id" element={<LibraryPlayerPage />} />
+            <Route path="/dub" element={<Suspense fallback={null}><DubHomeRoute /></Suspense>} />
+            <Route path="/dub/:itemId" element={<Suspense fallback={null}><DubItemRoute /></Suspense>} />
             <Route path="/account/email" element={<BindEmailPage />} />
             <Route path="/me" element={<MePage />} />
             <Route path="/me/account" element={<AccountSettingsPage />} />

@@ -1,0 +1,111 @@
+{
+  "web": {
+    "dubbing": {
+      "entry": {
+        "title": "影视配音",
+        "hint": "选一段对白,扮演一个角色,逐句打分"
+      },
+      "home": {
+        "title": "配音",
+        "back": "练习",
+        "empty": "还没有可以配音的素材",
+        "emptyHint": "先到跟读库添加一个视频或音频素材。",
+        "labeled": "已标注角色",
+        "unlabeled": "未标注角色",
+        "next": "下一页",
+        "sentences": "{{count}} 句",
+        "audio": "音频",
+        "video": "视频"
+      },
+      "clip": {
+        "hint": "依次点片段的第一句和最后一句。",
+        "summary": "{{lines}} 句 · {{seconds}} 秒",
+        "none": "还没有选择片段",
+        "start": "开始彩排"
+      },
+      "roles": {
+        "role": "角色 {{key}}",
+        "count": "{{count}} 句",
+        "rename": "给角色 {{key}} 改名",
+        "nameFor": "角色 {{key}} 的名字",
+        "save": "保存名字",
+        "editShort": "改名",
+        "heading": "选择你的角色",
+        "sentenceRole": "第 {{n}} 句的角色"
+      },
+      "result": {
+        "saved": "录音已保存,总分 {{total}}。",
+        "total": "总分",
+        "pronunciation": "发音",
+        "fluency": "流利",
+        "timing": "同步",
+        "basisWords": "按时间",
+        "basisDuration": "按时长",
+        "basisNone": "无同步分",
+        "stale": "句子已变化",
+        "original": "原声",
+        "mine": "我的",
+        "again": "再录一遍",
+        "change": "换片段",
+        "reasons": {
+          "notRecorded": "没有录到",
+          "noSpeech": "没有听到声音",
+          "failed": "评测失败",
+          "timeout": "超时",
+          "aborted": "已停止"
+        }
+      },
+      "stage": {
+        "waiting": "播放中…",
+        "retry": "视频加载失败,重试"
+      },
+      "rehearsal": {
+        "back": "返回",
+        "youAre": "你扮演 {{role}}",
+        "play": "彩排",
+        "record": "开始录制"
+      },
+      "recording": {
+        "yourTurn": "轮到你了",
+        "waiting": "听对方的台词,等待你的提示",
+        "progress": "逐句进度",
+        "stop": "停止",
+        "confirmTitle": "要停止这一遍吗?",
+        "confirmBody": "这一遍会被放弃,之前录好的不受影响。",
+        "keep": "继续录制",
+        "abandon": "停止并放弃",
+        "interrupted": "录制已停止(应用切到后台或麦克风被占用)。请重新录这一遍。"
+      },
+      "headphones": {
+        "hint": "戴上耳机效果更好。对方台词照常播放,轮到你时你的原声会静音。",
+        "ok": "知道了"
+      },
+      "labels": {
+        "suggest": "智能建议",
+        "accept": "采用建议",
+        "discard": "放弃",
+        "readOnly": "精选素材的角色由编辑标注,你不能修改。",
+        "draft": "有 {{count}} 句的建议待确认"
+      },
+      "errors": {
+        "disabled": "配音功能已关闭。",
+        "notFound": "找不到这个素材。",
+        "notReady": "素材还在处理中。",
+        "rolesLocked": "精选素材的角色由编辑设定。",
+        "badRoles": "角色保存失败。",
+        "badClip": "这个片段不合法。",
+        "clipTooLong": "片段太长,请少选几句。",
+        "roleMissing": "这个角色在片段里没有台词。",
+        "takeDone": "这次录制已经结束。",
+        "lineNotInTake": "这句不在本次录制里。",
+        "lineDone": "这句已经录过了。",
+        "assessment": "录音与这句对不上。",
+        "timing": "录音时间不对,请再试一次。",
+        "aiUnavailable": "AI 暂时不可用。",
+        "aiUserCap": "今天的 AI 次数已用完。",
+        "aiGlobalCap": "今天 AI 太忙,请稍后再试。",
+        "unknown": "出了点问题,请再试一次。"
+      }
+    }
+  }
+}
