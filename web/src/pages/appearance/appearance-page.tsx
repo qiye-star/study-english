@@ -54,13 +54,6 @@ export function AppearancePage() {
         </SurfaceCard>
 
         <SurfaceCard className={section}>
-          <h2 className={title}>{t("web.appearance.colorMode")}</h2>
-          <SegmentedControl label={t("web.appearance.colorMode")} value={colorScheme} onChange={(v: ColorScheme) => setColorScheme(v)}
-            className="w-full" optionClassName="flex-1"
-            options={COLOR_SCHEMES.map((s) => ({ value: s, label: t(`web.me.colorSchemeOptions.${s}`) }))} />
-        </SurfaceCard>
-
-        <SurfaceCard className={section}>
           <h2 className={title}>
             {t("web.appearance.presets")}
             <span data-testid="appearance-preset-name" className="font-medium">{t(`web.appearance.preset.${theme.preset}`)}</span>
@@ -115,8 +108,15 @@ export function AppearancePage() {
             format={(v) => `${Math.round(v * 100)}%`} onChange={(shadow) => update({ shadow })} />
         </SurfaceCard>
 
-        <SurfaceCard className={section}>
-          <BackgroundPicker initialMode={dark ? "dark" : "light"} />
+        {/* 颜色模式与背景放在同一张卡:先选模式,下面的背景只显示该模式的色板 */}
+        <SurfaceCard data-testid="appearance-background-card" className={section}>
+          <h2 className={title}>{t("web.appearance.colorMode")}</h2>
+          <SegmentedControl label={t("web.appearance.colorMode")} value={colorScheme} onChange={(v: ColorScheme) => setColorScheme(v)}
+            className="w-full" optionClassName="flex-1"
+            options={COLOR_SCHEMES.map((s) => ({ value: s, label: t(`web.me.colorSchemeOptions.${s}`) }))} />
+          <div className="mt-5">
+            <BackgroundPicker />
+          </div>
         </SurfaceCard>
 
         <SurfaceCard className={section}>
