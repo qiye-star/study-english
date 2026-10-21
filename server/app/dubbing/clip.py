@@ -27,10 +27,13 @@ class Seg:
     speaker: str | None = None
 
 
-def check(segs: list[SegLike], seg_from: int, seg_to: int, role: str) -> str | None:
-    """Return the error code for a clip [seg_from, seg_to] played as `role`, or None when it is valid.
+# The sentence window around one of the user's lines (plan L5 R14): the web plays it; the server only reports it.
+WINDOW_BEFORE_MS = 300
+WINDOW_AFTER_MS = 600
 
-    Order: the range first ("clip"), then the size limits ("clip_too_long"), then the role ("role_missing")."""
+
+def check_span(segs: list[SegLike], seg_from: int, seg_to: int) -> str | None:
+    """Range and size only, no role: the error code or None. Used by the suggestion, which may run before any label."""
     if not all(isinstance(v, int) and not isinstance(v, bool) for v in (seg_from, seg_to)):
         return "clip"
     if seg_from < 0 or seg_to < seg_from or seg_to >= len(segs):
@@ -39,6 +42,16 @@ def check(segs: list[SegLike], seg_from: int, seg_to: int, role: str) -> str | N
         return "clip_too_long"
     if segs[seg_to].end_ms - segs[seg_from].start_ms > MAX_MS:
         return "clip_too_long"
+    return None
+
+
+def check(segs: list[SegLike], seg_from: int, seg_to: int, role: str) -> str | None:
+    """Return the error code for a clip [seg_from, seg_to] played as `role`, or None when it is valid.
+
+    Order: the range first ("clip"), then the size limits ("clip_too_long"), then the role ("role_missing")."""
+    problem = check_span(segs, seg_from, seg_to)
+    if problem is not None:
+        return problem
     if role not in ROLE_KEYS or not any(s.speaker == role for s in segs[seg_from:seg_to + 1]):
         return "role_missing"
     return None
