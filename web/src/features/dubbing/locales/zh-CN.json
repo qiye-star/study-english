@@ -1,0 +1,25 @@
+{
+  "web": {
+    "dubbing": {
+      "errors": {
+        "disabled": "配音功能已关闭。",
+        "notFound": "找不到这个素材。",
+        "notReady": "素材还在处理中。",
+        "rolesLocked": "精选素材的角色由编辑设定。",
+        "badRoles": "角色保存失败。",
+        "badClip": "这个片段不合法。",
+        "clipTooLong": "片段太长,请少选几句。",
+        "roleMissing": "这个角色在片段里没有台词。",
+        "takeDone": "这次录制已经结束。",
+        "lineNotInTake": "这句不在本次录制里。",
+        "lineDone": "这句已经录过了。",
+        "assessment": "录音与这句对不上。",
+        "timing": "录音时间不对,请再试一次。",
+        "aiUnavailable": "AI 暂时不可用。",
+        "aiUserCap": "今天的 AI 次数已用完。",
+        "aiGlobalCap": "今天 AI 太忙,请稍后再试。",
+        "unknown": "出了点问题,请再试一次。"
+      }
+    }
+  }
+}

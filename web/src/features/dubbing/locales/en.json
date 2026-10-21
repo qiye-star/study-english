@@ -1,0 +1,25 @@
+{
+  "web": {
+    "dubbing": {
+      "errors": {
+        "disabled": "Dubbing is turned off.",
+        "notFound": "This material could not be found.",
+        "notReady": "This material is still being prepared.",
+        "rolesLocked": "Editors set the roles for this material.",
+        "badRoles": "The roles could not be saved.",
+        "badClip": "This clip is not valid.",
+        "clipTooLong": "This clip is too long. Pick fewer sentences.",
+        "roleMissing": "This role has no sentences in the clip.",
+        "takeDone": "This take is already finished.",
+        "lineNotInTake": "This sentence is not part of the take.",
+        "lineDone": "This sentence was already recorded.",
+        "assessment": "The recording does not match this sentence.",
+        "timing": "The recording timing is off. Try again.",
+        "aiUnavailable": "AI is unavailable right now.",
+        "aiUserCap": "You have reached today's AI limit.",
+        "aiGlobalCap": "AI is busy today. Try again later.",
+        "unknown": "Something went wrong. Try again."
+      }
+    }
+  }
+}
