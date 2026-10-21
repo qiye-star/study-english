@@ -35,7 +35,7 @@ const PROBLEM_KEY: Record<ClipProblem, string> = {
 
 /** 句子列表:点第一句、再点最后一句框出片段(计划 L5 W8)。marker 插在每句前面(角色小标)。 */
 export function ClipPicker({
-  segments, selection, role, limits, onSelect, renderMarker,
+  segments, selection, role, limits, onSelect, renderMarker, poster,
 }: {
   segments: readonly PickSeg[];
   selection: ClipSelection | null;
@@ -43,12 +43,15 @@ export function ClipPicker({
   limits: Pick<DubbingLimits, "maxLines" | "maxMs">;
   onSelect(next: ClipSelection): void;
   renderMarker?(idx: number): ReactNode;
+  /** 封面的临时地址(票据由 kit 取得);没有封面时不显示图片。 */
+  poster?: string | null;
 }) {
   const { t } = useTranslation();
   const readiness = clipReadiness(segments, selection, role, limits);
   const inRange = (idx: number) => selection !== null && selection.to !== null && idx >= selection.from && idx <= selection.to;
   return (
     <section>
+      {poster ? <img src={poster} alt="" className="mb-3 aspect-video w-full rounded-2xl object-cover" /> : null}
       <p className="mb-2 text-[13px] opacity-80">{t("web.dubbing.clip.hint")}</p>
       <ol className="space-y-1.5">
         {segments.map((seg) => (

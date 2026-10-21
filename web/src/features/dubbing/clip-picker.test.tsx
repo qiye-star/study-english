@@ -45,4 +45,16 @@ describe("clip picker (plan L5 W8)", () => {
     render(<ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} renderMarker={(i) => <span>mark {i}</span>} />);
     expect(screen.getByText("mark 1")).toBeInTheDocument();
   });
+
+  it("shows the cover above the sentences when there is one, and nothing when there is not", () => {
+    const { container, rerender } = render(
+      <ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} poster="blob:cover-1" />,
+    );
+    const cover = container.querySelector("img");
+    expect(cover).toHaveAttribute("src", "blob:cover-1");
+    expect(cover).toHaveAttribute("alt", "");
+    expect(cover?.compareDocumentPosition(screen.getByRole("button", { name: /line 0/ }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    rerender(<ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} poster={null} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
 });

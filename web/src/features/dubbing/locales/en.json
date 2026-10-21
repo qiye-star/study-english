@@ -76,6 +76,12 @@
         "abandon": "Stop and discard",
         "interrupted": "Recording stopped (the app went to the background or the mic was taken). Start the take again."
       },
+      "takes": {
+        "title": "Earlier takes",
+        "open": "Open",
+        "score": "Score {{score}}",
+        "unfinished": "Not finished"
+      },
       "headphones": {
         "hint": "Wear headphones for a better score. The other side's lines still play, and yours are muted while you speak.",
         "ok": "Got it"

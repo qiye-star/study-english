@@ -7,7 +7,8 @@ import type { DubbingKit } from "~/features/library";
 import { ClipPicker, clipReadiness, type PickSeg } from "./clip-picker";
 import type { ClipSelection } from "./clip";
 import { useDubbingConfig } from "./config";
-import { getRoles, putRoles, type RoleKey, type RolesState, ROLE_KEYS } from "./dubbing-api";
+import { type DubbingTake, getRoles, getTake, listTakes, putRoles, type RoleKey, type RolesState, ROLE_KEYS } from "./dubbing-api";
+import { reopenedResult, TakeHistory } from "./take-history";
 import { useDubKit } from "./kit-context";
 import { DubResults } from "./dub-results";
 import { DubSession } from "./dub-session";
@@ -31,6 +32,7 @@ export function DubItemPage() {
   const kit = useDubKit();
   const config = useDubbingConfig();
   const [detail, setDetail] = useState<ItemDetail | null>(null);
+  const poster = kit.usePosterUrl(itemId, Boolean(detail?.hasPoster));
   const [roles, setRoles] = useState<RolesState | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [names, setNames] = useState<Partial<Record<RoleKey, string>>>({});
@@ -38,6 +40,25 @@ export function DubItemPage() {
   const [role, setRole] = useState<RoleKey | null>(null);
   const [inSession, setInSession] = useState(false);
   const [done, setDone] = useState<TakeResult | null>(null);
+  const [takes, setTakes] = useState<DubbingTake[]>([]);
+
+  // 之前的录音:每次结束一遍录制后刷新;列表失败就不显示,不挡住选片段。
+  useEffect(() => {
+    let alive = true;
+    listTakes(api, itemId).then(
+      (rows) => { if (alive) setTakes(rows); },
+      () => { if (alive) setTakes([]); },
+    );
+    return () => { alive = false; };
+  }, [api, itemId, done]);
+
+  const openTake = (take: DubbingTake) => {
+    void getTake(api, take.id).catch(() => take).then((full) => {
+      setSelection({ from: take.segFrom, to: take.segTo });
+      setRole(take.role);
+      setDone(reopenedResult(full));
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -131,6 +152,7 @@ export function DubItemPage() {
                   selection={selection}
                   role={role}
                   limits={limits}
+                  poster={poster}
                   onSelect={setSelection}
                   renderMarker={(idx) => (
                     <button
@@ -163,6 +185,7 @@ export function DubItemPage() {
                 >
                   {t("web.dubbing.clip.start")}
                 </button>
+                <TakeHistory takes={takes} onOpen={openTake} />
               </div>
             );
           }}
