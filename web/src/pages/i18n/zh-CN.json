@@ -22,6 +22,7 @@
       "servicesRow": "语音服务"
     },
     "login": { "usernameOrEmail": "用户名或邮箱", "forgotPassword": "忘记密码?", "createAccount": "注册账号", "passwordReset": "密码已重置,请用新密码登录。", "tagline": "每天开口说英语。" },
-    "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
+    "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" },
+    "chatHub": { "title": "对话", "label": "对话分区", "chat": "AI 对话", "rooms": "联机" }
   }
 }
