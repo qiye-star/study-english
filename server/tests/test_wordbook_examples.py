@@ -169,3 +169,61 @@ def test_the_port_module_does_not_import_library_or_activation():
 
     source = inspect.getsource(examples)
     assert "app.library" not in source and "app.activation" not in source
+
+
+# ---- L4 Task 14: the review cloze question may use the learner's own clip (R15, R16) ----
+
+URL = "/api/wordbook"
+
+
+def _example(start: int = 2, end: int = 6) -> ContextExample:
+    return ContextExample(en=TALK_SENTENCE, zh="我每天早上跟邻居聊天。", start=start, end=end,
+                          clip=Clip(item_id=GOOD, start_ms=1000, end_ms=4000))
+
+
+def test_a_library_example_keeps_the_options_and_their_order(cards):
+    from app.wordbook import service
+
+    index, data = cards
+    card = data["talk"]
+    pool = list(data.values())
+    rng_a = quiz.question_rng(UID, "talk", 0)
+    base = quiz.build_question("cloze", card, quiz.pick_distractors(card, pool, "cloze", rng_a), rng_a)
+    rng_b = quiz.question_rng(UID, "talk", 0)
+    with_ex = quiz.build_question("cloze", card, quiz.pick_distractors(card, pool, "cloze", rng_b), rng_b,
+                                  example=_example())
+    assert with_ex.options == base.options
+    assert with_ex.prompt == {"sentence": "I _____ to my neighbor every single morning",
+                              "zh": "我每天早上跟邻居聊天。"}
+    assert with_ex.clip == Clip(item_id=GOOD, start_ms=1000, end_ms=4000)
+    assert base.clip is None
+    assert service.question_out(with_ex)["clip"] == {"item_id": GOOD, "start_ms": 1000, "end_ms": 4000}
+    assert "clip" not in service.question_out(base)  # the key appears only when there is a clip
+
+
+async def test_review_batch_uses_the_clip_only_with_both_switches_on(app, client, tmp_path, monkeypatch):
+    from app.models import LibraryItem, LibrarySegment, SegmentLemma, utcnow
+    from tests.links_helpers import user_id_of
+    from tests.test_wordbook_learn import ans, login, make_due, pin_qtypes
+
+    h = await login(app, client, tmp_path, library_enabled=True, activation_enabled=True)
+    await ans(client, h, key="talk", mode="learn", qtype="meaning", choice="v. 说话；谈话；n. 交谈")
+    await make_due(app, "talk")
+    pin_qtypes(monkeypatch, {"talk": "cloze"})
+    uid = await user_id_of(client, h)
+    async with app.state.sessionmaker() as s:
+        s.add(LibraryItem(id=GOOD, user_id=uid, kind="video", source="upload", title="t", status="ready",
+                          low_confidence=False, created_at=utcnow(), updated_at=utcnow()))
+        s.add(LibrarySegment(item_id=GOOD, idx=0, start_ms=1000, end_ms=4000, text=TALK_SENTENCE, zh="译", flags=None))
+        s.add(SegmentLemma(scope="lib", owner_id=GOOD, idx=0, lemma="talk"))
+        await s.commit()
+    on = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "tz_offset_minutes": 480})).json()
+    talk = next(q for q in on["questions"] if q["key"] == "talk")
+    assert talk["qtype"] == "cloze" and talk["prompt"]["sentence"].startswith("I _____ to my neighbor")
+    assert talk["clip"] == {"item_id": GOOD, "start_ms": 1000, "end_ms": 4000}
+
+    app.state.settings = app.state.settings.model_copy(update={"activation_enabled": False})
+    off = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "tz_offset_minutes": 480})).json()
+    talk_off = next(q for q in off["questions"] if q["key"] == "talk")
+    assert "clip" not in talk_off
+    assert not talk_off["prompt"]["sentence"].startswith("I _____ to my neighbor")
