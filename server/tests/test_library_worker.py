@@ -350,3 +350,30 @@ async def test_real_ffmpeg_end_to_end(app):
     assert (item.status, item.kind, item.media_mime, item.seg_count) == ("ready", "video", "video/mp4", 2)
     info = await Ffmpeg().probe(app.state.library.deps.data_dir / item.media_path, home=src.parent.parent)
     assert (info.vcodec, info.acodec) == ("h264", "aac") and item.poster_path is not None
+
+
+# ---- L4 Task 9: a ready item publishes LibraryItemReady once; a failed one does not ----
+
+def record_ready(app) -> list:
+    from app.core.learning_events import LibraryItemReady
+
+    seen: list = []
+
+    async def handler(event):
+        seen.append(event)
+    app.state.settings = app.state.settings.model_copy(update={"activation_enabled": True})
+    app.state.learning_bus.subscribe(LibraryItemReady, "test.ready", handler, flag="activation_enabled")
+    return seen
+
+
+async def test_a_ready_item_publishes_library_item_ready_and_a_failed_one_does_not(app):
+    use_fakes(app)
+    seen = record_ready(app)
+    item_id = await seed(app, fake_media(6000), subs=SRT)
+    await process(app)
+    await app.state.learning_bus.drain()
+    assert [(e.user_id, e.item_id, e.catalog_id) for e in seen] == [(UID, item_id, None)]
+    await seed(app, fake_media(4000, video=False))  # no subtitles and no recognizer: failed, not ready
+    await process(app)
+    await app.state.learning_bus.drain()
+    assert len(seen) == 1

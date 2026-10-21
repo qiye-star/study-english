@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from sqlalchemy import update
 
+from app.core.learning_events import LibraryItemReady
 from app.library import asr_chunks, limits, paths, segment, sentences as sentences_mod, store, subtitles
 from app.library.errors import Aborted, LibraryError
 from app.library.media import ProbeInfo
@@ -99,6 +100,18 @@ class PipelineDeps:
     clock: Callable[[], datetime]
     # plan 2026-10-13-library-alignment R-A7: user id -> (16 kHz WAV -> TimedText); None = use `transcriber` (text only)
     timed_transcriber: Callable[[int], Callable[[bytes], Awaitable[TimedText]]] | None = None
+    # plan L4 R4: the bus's publish, passed in explicitly (the worker has no request contextvar); None = publish nothing
+    publish: Callable[[Any], bool] | None = None
+
+
+def announce(deps: PipelineDeps, event: Any) -> None:
+    """Publish after a commit; never raises into the pipeline (plan L4 Task 9)."""
+    if deps.publish is None:
+        return
+    try:
+        deps.publish(event)
+    except Exception as exc:  # noqa: BLE001 - a learning bus problem must not fail a library item
+        logger.warning("library publish failed event=%s error=%s", type(event).__name__, type(exc).__name__)
 
 
 class Progress:
@@ -355,6 +368,7 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
         row.error_kind, row.source_url, row.next_run_at, row.attempts = None, None, None, 0
         row.updated_at = deps.clock()
         await s.commit()
+    announce(deps, LibraryItemReady(user_id=item.user_id, item_id=item_id))  # plan L4 Task 9: sentences are committed
     if transcript is not None:
         paths.replace(staged, final / TRANSCRIPT)
     else:

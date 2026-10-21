@@ -13,6 +13,7 @@ from pathlib import Path
 from sqlalchemy import update
 
 from app.core import metering
+from app.core.learning_events import LibraryItemReady
 from app.library import ai, catalog_store, paths, pipeline, segment, sentences as sentences_mod, store, subtitles
 from app.library.errors import Aborted, LibraryError
 from app.library.limits import AI_BATCH_MAX
@@ -311,5 +312,6 @@ async def process(deps: PipelineDeps, catalog_id: str, *, http, translate_templa
         await s.commit()
     if done.rowcount != 1:
         raise Aborted()
+    pipeline.announce(deps, LibraryItemReady(user_id=None, catalog_id=catalog_id))  # plan L4 Task 9: after the commit
     paths.remove_tree(tmp)
     logger.info("library catalog ready catalog=%s", catalog_id)

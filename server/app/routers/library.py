@@ -17,8 +17,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
 
+from app.core import learning_events
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
+from app.core.learning_events import LibraryItemReady
 from app.core.quotas import effective
 from app.library import ai as library_ai
 from app.library import asr_chunks, catalog_store, limits, paths, segment, sentences, store, subtitles
@@ -379,6 +381,7 @@ async def rebuild_item(request: Request, item_id: ItemId, user: User = Depends(l
         await store.write_segments(session, item, built.sentences, flags=built.flags, keep_ai=True)
         item.low_confidence, item.updated_at = built.low_confidence, utcnow()
         await session.commit()
+    learning_events.publish(LibraryItemReady(user_id=item.user_id, item_id=item.id))  # plan L4 Task 9: re-indexed
     segs = await store.segments_of(session, item.id)
     logger.info("library rebuilt item=%s algorithm=%s sentences=%d flagged=%d", item.id, built.algorithm,
                 len(built.sentences), sum(1 for f in built.flags if f))
