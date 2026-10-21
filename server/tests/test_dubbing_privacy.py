@@ -112,7 +112,7 @@ async def test_a_full_pass_leaks_no_sentence_role_name_reply_or_upstream_text(ap
     cid = await make_catalog(app)
     carol = await make_user(app, 6666666, "carol")
     async with app.state.sessionmaker() as s:
-        await add_to_library(s, data_dir_of(app), user_id=carol, catalog_id=cid, now=NOW)
+        await add_to_library(s, app.state.storage, user_id=carol, catalog_id=cid, now=NOW)
     r = await client.put(f"/api/admin/library/catalog/{cid}/roles", headers=operator,
                          json={"names": {"A": "SECRET-ROLE"}, "speakers": [{"idx": 0, "speaker": "A"}]})
     assert r.status_code == 200, r.text

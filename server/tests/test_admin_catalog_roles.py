@@ -57,7 +57,7 @@ async def test_a_save_syncs_the_copies_and_audits_only_numbers(app, client):
     cid = await make_catalog(app)
     uid = await make_user(app, 5555555, "carol")
     async with app.state.sessionmaker() as s:
-        item, _ = await add_to_library(s, data_dir_of(app), user_id=uid, catalog_id=cid, now=NOW)
+        item, _ = await add_to_library(s, app.state.storage, user_id=uid, catalog_id=cid, now=NOW)
     operator = await login_as(app, client, "operator")
     r = await client.put(f"{BASE}/{cid}/roles", headers=operator,
                          json={"names": {"A": "Host", "B": "Guest"},

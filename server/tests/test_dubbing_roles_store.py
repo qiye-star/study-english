@@ -162,7 +162,7 @@ async def test_add_to_library_copies_speakers_and_role_names(app, settings_overr
         await s.commit()
     uid = await _user(app, 22222222)
     async with app.state.sessionmaker() as s:
-        item, created = await catalog_store.add_to_library(s, data_dir_of(app), user_id=uid, catalog_id=cid, now=utcnow())
+        item, created = await catalog_store.add_to_library(s, app.state.storage, user_id=uid, catalog_id=cid, now=utcnow())
         assert created is True
         assert item.role_names == {"A": "Host", "B": "Guest"}
         assert [x.speaker for x in await store.segments_of(s, item.id)] == ["A", "B"]
@@ -174,8 +174,8 @@ async def test_sync_catalog_roles_moves_labels_to_every_copy_but_not_edited_sent
     u1, u2 = await _user(app, 33333333), await _user(app, 44444444)
     async with app.state.sessionmaker() as s:
         for uid in (u1, u2):
-            await catalog_store.add_to_library(s, data_dir_of(app), user_id=uid, catalog_id=cid, now=utcnow())
-        await catalog_store.add_to_library(s, data_dir_of(app), user_id=u1, catalog_id=other, now=utcnow())
+            await catalog_store.add_to_library(s, app.state.storage, user_id=uid, catalog_id=cid, now=utcnow())
+        await catalog_store.add_to_library(s, app.state.storage, user_id=u1, catalog_id=other, now=utcnow())
         await s.commit()
     async with app.state.sessionmaker() as s:
         # u1 edits the first sentence's text: its label must not follow the catalog

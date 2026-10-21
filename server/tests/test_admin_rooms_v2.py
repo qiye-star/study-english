@@ -219,7 +219,7 @@ async def test_admin_playback_uses_sv_audio_files_and_stays_under_room_audio(app
         (await s.get(Room, room["id"])).status = "closed"
         (await s.get(Room, room["id"])).closed_at = NOW - timedelta(days=400)
         await s.commit()
-    settings = app.state.settings
+    settings = app.state.storage
     async with app.state.sessionmaker() as s:
         scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
         assert rel in scan.samples

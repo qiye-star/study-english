@@ -132,4 +132,4 @@ def test_the_migration_chain_has_one_head_after_0028(tmp_path, monkeypatch):
 
     cfg = Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "alembic"))
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0028"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0029"]
