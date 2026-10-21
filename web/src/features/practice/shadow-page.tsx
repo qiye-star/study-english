@@ -13,6 +13,7 @@ import { useAuth } from "~/auth/auth-context";
 import { LQ_FIELD_MULTI, LQ_NOTE, LQ_PAGE, LQ_PRIMARY, LQ_SECONDARY } from "~/components/liquid";
 import { SurfaceCard } from "~/components/surface-card";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { PageHeader } from "~/layout/page-header";
 import { Slot } from "~/lib/extension-points-react";
 import { formatClock } from "~/lib/format-clock";
@@ -107,7 +108,7 @@ export function ShadowPage({ recorderEnv }: { recorderEnv?: RecorderEnv }) {
                 <button type="button" data-testid="practice-listen" data-state={listenState}
                   className={`${BUTTON} border-[0.5px] border-hair bg-surface text-ink active:bg-surface-2 ${LQ_SECONDARY}`}
                   disabled={!reference.trim() || !ai?.defaultTts.model || recorderState !== "idle" || busy}
-                  onClick={() => void tts.play("reference", reference, ai!.defaultTts.model, ai!.defaultTts.voice)}>
+                  onClick={() => { const v = resolveTtsVoice("sentence", ai); void tts.play("reference", reference, v.model, v.voice); }}>
                   {listenState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
                     : listenState === "playing" ? <SquareIcon aria-hidden /> : <Volume2Icon aria-hidden />}
                   {listenState === "playing" ? t("web.practice.stopListening") : t("web.practice.listen")}
