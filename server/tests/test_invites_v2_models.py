@@ -48,7 +48,7 @@ def _tables(db: Path) -> set[str]:
 
 def test_0026_follows_0025_and_the_head_is_0027():
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert script.get_heads() == ["0029"]  # the head moved to 0027 (captcha replay table)
+    assert script.get_heads() == ["0030"]  # the head moved to 0027 (captcha replay table)
     assert script.get_revision("0026").down_revision == "0025"
 
 

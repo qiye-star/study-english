@@ -24,6 +24,7 @@ from app.models import (
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
     AgentTutorSession,
     LibraryAttempt, LibraryItem, LibrarySegment,
+    SegmentLemma, WordUsage,  # L4 (plan 2026-10-21-l4 R2 / R10)
     ChangelogRead, VerificationCode, AvatarReport,
     InviteCode, InviteRedemption,
 )
@@ -53,6 +54,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (LibraryAttempt, "user_id"), (LibraryDub, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
     (ChangelogRead, "user_id"),  # per-user changelog read position (plan 2026-10-14-changelog R-20)
     (AvatarReport, "reporter_id"), (AvatarReport, "avatar_user_id"),  # avatar reports, both roles (plan avatar R-V10)
+    (WordUsage, "user_id"),  # vocabulary activation counters (plan L4 R2)
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
@@ -189,6 +191,8 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     # library sentences reference the user's items, not the user (spec 2026-10-13-video-import §4)
     library_items = list((await session.scalars(select(LibraryItem.id).where(LibraryItem.user_id == user_id))).all())
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id.in_(
+        select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
+    await session.execute(delete(SegmentLemma).where(SegmentLemma.scope == "lib", SegmentLemma.owner_id.in_(  # L4 R10
         select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
     # codes are found by their target: a hidden "already registered" row has no user_id. Before the identity goes.
     await session.execute(delete(VerificationCode).where(

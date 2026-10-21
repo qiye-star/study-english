@@ -1260,3 +1260,33 @@ class CaptchaReplay(Base):
 
     signature: Mapped[str] = mapped_column(String(64), primary_key=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# ---- 词汇激活(L4,plan 2026-10-21-l4-activation-context R2 / R10) ----
+class WordUsage(Base):
+    """学过的词被用出口的计数。只存词元与计数,永不存消息文字;last_session 是会话标识的 sha256 前 16 位。
+    用户删除时级联删除(USER_ROWS);不影响 FSRS 调度(R9)。"""
+    __tablename__ = "word_usage"
+    __table_args__ = (Index("ix_word_usage_user_id_last_used_at", "user_id", "last_used_at"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
+    first_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    shadow_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    session_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_session: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    sources: Mapped[str] = mapped_column(String(32), default="", server_default="")
+
+
+class SegmentLemma(Base):
+    """句子倒排索引:(scope, owner_id, idx) 的句子里出现的词元。scope 为 lib(用户条目)或 cat(精选库条目)。
+    没有外键(两种 owner 共用一张表,SQLite 也无级联);读侧 join 属主表,孤儿不可见。lemma = "#v1" 的 idx=-1 行是建索引标记。"""
+    __tablename__ = "segment_lemma"
+    __table_args__ = (Index("ix_segment_lemma_lemma_scope", "lemma", "scope"),)
+
+    scope: Mapped[str] = mapped_column(String(3), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
