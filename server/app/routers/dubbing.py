@@ -9,13 +9,13 @@ URL 里只有 uuid 与整数序号;查询参数为空;错误文本是固定英�
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path as PathParam, Request
+from fastapi import APIRouter, Depends, Path as PathParam, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
-from app.dubbing import clip, scoring
+from app.dubbing import clip, scoring, takes
 from app.dubbing.errors import api_error
 from app.library import roles as library_roles
 from app.library import roles_ai, store
@@ -141,3 +141,56 @@ async def suggest_roles(item_id: ItemId, payload: ClipIn, request: Request,
         raise api_error(codes.get(e.kind, "ai_unavailable")) from None
     await session.commit()
     return {"speakers": [{"idx": idx, "speaker": letter} for idx, letter in sorted(out.items())]}
+
+
+class TakeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seg_from: int
+    seg_to: int
+    role: str
+
+
+async def take_payload(session: AsyncSession, take) -> dict:
+    segs = await store.segments_of(session, take.item_id)
+    return takes.take_out(take, takes.expected_lines(segs, take), await takes.stale_lines(session, take, segs))
+
+
+@router.post("/items/{item_id}/takes", status_code=201)
+async def create_take(item_id: ItemId, payload: TakeIn, settings: Settings = Depends(require_dubbing),
+                      user: User = Depends(limited_user), session: AsyncSession = Depends(get_session)) -> dict:
+    """R6/R10: one take per run of the clip; `role` is the letter the learner plays (case-insensitive)."""
+    item = await owned(session, user, item_id)
+    role = library_roles.clean_role(payload.role) or ""
+    take = await takes.create(session, item, user_id=user.id, seg_from=payload.seg_from, seg_to=payload.seg_to,
+                              role=role, now=utcnow())
+    await session.commit()
+    logger.info("dubbing take created item=%s", item.id)
+    return {"take": await take_payload(session, take)}
+
+
+@router.get("/items/{item_id}/takes")
+async def list_takes(item_id: ItemId, settings: Settings = Depends(require_dubbing),
+                     user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    item = await owned(session, user, item_id)
+    rows = await takes.list_for_item(session, user.id, item.id)
+    return {"takes": [await take_payload(session, take) for take in rows]}
+
+
+@router.get("/takes/{dub_id}")
+async def get_take(dub_id: ItemId, settings: Settings = Depends(require_dubbing),
+                   user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    take = await takes.get_owned(session, user.id, dub_id)
+    if take is None:
+        raise api_error("not_found")
+    return {"take": await take_payload(session, take)}
+
+
+@router.delete("/takes/{dub_id}", status_code=204)
+async def delete_take(dub_id: ItemId, settings: Settings = Depends(require_dubbing),
+                      user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> Response:
+    take = await takes.get_owned(session, user.id, dub_id)
+    if take is None:
+        raise api_error("not_found")
+    await takes.remove(session, take)
+    await session.commit()
+    return Response(status_code=204)
