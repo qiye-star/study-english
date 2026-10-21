@@ -1,0 +1,34 @@
+{
+  "web": {
+    "activation": {
+      "title": "Dormant words",
+      "meRow": "Dormant words",
+      "meRowCount": "{{count}} learned, not used lately",
+      "segmentLabel": "Word states",
+      "state": {
+        "dormant": "Dormant",
+        "sprouting": "Sprouting",
+        "active": "Active"
+      },
+      "hint": {
+        "dormant": "Learned, but not used in your conversations for a while.",
+        "sprouting": "Used once or twice so far.",
+        "active": "Used across several conversations."
+      },
+      "usedTimes": "Used {{count}} times",
+      "neverUsed": "Not used yet",
+      "lastUsed": "Last used {{date}}",
+      "more": "Load more",
+      "loadFailed": "The list could not be loaded. Please try again later.",
+      "empty": {
+        "title": "No words here yet",
+        "body": "Words you learn show up here once they sit unused for a while."
+      }
+    },
+    "agents": {
+      "step": {
+        "dormant_words": "Dormant words"
+      }
+    }
+  }
+}

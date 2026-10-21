@@ -6,3 +6,4 @@ import "./daily-tasks"; // 2 今日任务聚合卡
 import "./mistakes"; // 3 易错词
 import "./pron-shadow"; // 4 发音弱词 ↔ 跟读
 import "./chat-words"; // 5 对话用到今日词(6 段位点来源只在服务端)
+import "./activation"; // 词汇激活:我的 → 沉睡词、/me/activation(开关 ACTIVATION_ENABLED,默认关)
