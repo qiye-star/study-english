@@ -22,6 +22,7 @@ import { useAuth } from "~/auth/auth-context";
 import { AgentNote, ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
+import { collectPromptHints } from "~/lib/extension-points";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
@@ -32,7 +33,7 @@ import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { formatClock } from "~/lib/format-clock";
 import { coachCandidates, coachNote } from "./coach";
 import { readComposerMode, writeComposerMode, type ComposerMode } from "./composer-mode";
-import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults } from "./chat-request";
+import { HISTORY_LIMIT, buildChatMessages, capRealtimePrompt, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults, withPromptHint } from "./chat-request";
 import { resolveTtsVoice, type TtsVoiceChoice } from "~/settings/tts-voice-pref";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
@@ -178,6 +179,13 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   speakOpeningRef.current = typeof routeOpening === "string" && routeOpening ? routeOpening : null;
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const { api } = useAuth();
+  // 对话提示词补充(计划 L4 Task 16):进入页面时取一次,之后的回合与通话都用这一份;没有登记或取不到就是 null,提示词逐字不变
+  const promptHintRef = useRef<string | null>(null);
+  useEffect(() => {
+    void collectPromptHints(api).then((blocks) => {
+      promptHintRef.current = blocks.length > 0 ? blocks.join("\n\n") : null;
+    });
+  }, [api]);
   const { t } = useTranslation();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
@@ -740,7 +748,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
         trace = withNote(result.trace, result.noteZh);
       } else {
         reply = await streamChatCompletion(api,
-          { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, coach), model: config.model, temperature: config.temperature },
+          { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, withPromptHint(coach ?? "", promptHintRef.current) || null), model: config.model, temperature: config.temperature },
           onDelta, controller.signal);
       }
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
@@ -1423,7 +1431,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
       {call && conversation && realtimeConfig && (
         <RealtimeCallDialog api={api} conversationId={conversation.id} nativeLanguage={canTranslate ? native : undefined} context={call.context} ownsContext={false} partnerName={callPartnerName(config, ai, call.voice)}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
-          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
+          start={{ systemPrompt: capRealtimePrompt(withPromptHint(effectiveSystemPrompt(config), promptHintRef.current)), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />
       )}
     </div>

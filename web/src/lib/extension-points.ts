@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { ApiClient } from "~/api/client"; // type only (erased at runtime): prompt-hint loaders receive the caller's client
 
 /**
  * 扩展点注册表(spec 2026-10-11-learning-links §8):消费方渲染插槽,提供方登记贡献,彼此不导入。
@@ -56,12 +57,48 @@ export function visible(c: Gated, flags: LinkFlags): boolean {
   return true;
 }
 
+/**
+ * 对话提示词补充(计划 L4 Task 16):非 UI 的登记点。每个 loader 给出一段英文指令或 null;取不到、超时、出错都当没有。
+ * 与 UI 点不同,loader 要的 ApiClient 由调用方传入(这里不持有任何客户端)。
+ */
+export const PROMPT_HINT_MAX = 300;
+export const PROMPT_HINT_TIMEOUT_MS = 300;
+export interface PromptHintContribution {
+  id: string;
+  load: (api: ApiClient, signal: AbortSignal) => Promise<string | null>;
+}
+
+/** 先到先得的超时:超时返回 fallback,并让 loader 的信号中止(loader 不理会信号也不会拖住对话)。 */
+function settleWithin<T>(work: Promise<T>, ms: number, fallback: T, abort: () => void): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => { abort(); resolve(fallback); }, ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
 export function createExtensionRegistry() {
   const byPoint = new Map<PointName, Contribution<PointName>[]>();
   const routes: RouteContribution[] = [];
+  const hints: PromptHintContribution[] = [];
   const listeners = new Set<() => void>();
   let flags: LinkFlags = ALL_OFF;
   return {
+    contributePromptHint(c: PromptHintContribution): void {
+      if (hints.some((x) => x.id === c.id)) throw new Error(`duplicate prompt hint ${c.id}`);
+      hints.push(c);
+    },
+    /** 所有登记的补充并行取一次;每段截到 PROMPT_HINT_MAX,空的丢掉。调用方决定缓存(同一会话只取一次)。 */
+    async collectPromptHints(api: ApiClient, timeoutMs: number = PROMPT_HINT_TIMEOUT_MS): Promise<string[]> {
+      if (hints.length === 0) return [];
+      const controller = new AbortController();
+      const results = await Promise.all(hints.map((h) => settleWithin(
+        h.load(api, controller.signal).catch((): null => null), timeoutMs, null, () => controller.abort(),
+      )));
+      return results
+        .map((block) => (typeof block === "string" ? block.trim().slice(0, PROMPT_HINT_MAX) : ""))
+        .filter((block) => block.length > 0);
+    },
     contribute<N extends PointName>(c: Contribution<N>): void {
       const list = byPoint.get(c.point) ?? [];
       if (list.some((x) => x.id === c.id)) throw new Error(`duplicate contribution ${c.point}/${c.id}`);
@@ -99,6 +136,7 @@ export function createExtensionRegistry() {
 const registry = createExtensionRegistry();
 export const {
   contribute, contributeRoute, contributionsFor, routesFor, allRoutes, getLinkFlags, setLinkFlags, subscribeLinkFlags,
+  contributePromptHint, collectPromptHints,
 } = registry;
 
 let slotRenderer = false;
