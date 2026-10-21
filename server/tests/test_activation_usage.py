@@ -151,3 +151,21 @@ async def test_a_concurrent_first_insert_is_retried_once(app):
     await asyncio.gather(handle_chat(app, first), handle_chat(app, second))
     row = (await usage_rows(app))["talk"]
     assert (row.use_count, row.session_count) == (2, 2)
+
+
+async def test_a_saved_realtime_turn_reaches_word_usage_through_the_bus(app, client, auth_headers):
+    """End to end (L4 Task 7): DbMessageStore saves the user turn, publishes after commit, the bus handler counts it."""
+    from app.realtime.realtime_providers import DbMessageStore
+    from tests.test_realtime_providers import new_conversation, user_id
+
+    enable(app)
+    cid = await new_conversation(client, auth_headers)
+    uid = await user_id(client, auth_headers)
+    async with app.state.sessionmaker() as s:  # the registered user exists already: only their learned word
+        s.add(VocabularyItem(user_id=uid, word="talk", source="wordbook:junior", box=0, due_at=AT, created_at=AT))
+        await s.commit()
+    store = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=10, publish=app.state.learning_bus.publish)
+    await store.add_user("we talked a lot")
+    await drain(app)
+    row = (await usage_rows(app, uid))["talk"]
+    assert (row.use_count, row.session_count, row.sources) == (1, 1, "realtime")

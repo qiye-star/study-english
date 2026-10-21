@@ -647,3 +647,67 @@ async def test_db_store_never_logs_content(app, client, auth_headers, caplog):
     with pytest.raises(MessageLimitError):
         await store.add_assistant("SECRET-TEXT")
     assert all("SECRET-TEXT" not in r.getMessage() for r in caplog.records if r.name.startswith("app"))
+
+
+# ---- L4 Task 7: a saved user turn publishes RealtimeTurnFinished (after commit, never fails the call) ----
+
+class _Sink:
+    def __init__(self, result=True, boom=False):
+        self.events = []
+        self.result = result
+        self.boom = boom
+
+    def __call__(self, event):
+        self.events.append(event)
+        if self.boom:
+            raise RuntimeError("bus down")
+        return self.result
+
+
+async def test_saved_user_turn_publishes_once_with_the_saved_id(app, client, auth_headers):
+    from app.core.learning_events import RealtimeTurnFinished
+
+    cid = await new_conversation(client, auth_headers)
+    uid = await user_id(client, auth_headers)
+    sink = _Sink()
+    store = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=10, publish=sink)
+    message_id = await store.add_user("hello there")
+    assert len(sink.events) == 1
+    event = sink.events[0]
+    assert isinstance(event, RealtimeTurnFinished)
+    assert (event.user_id, event.conversation_id, event.message_id, event.text) == (uid, cid, message_id, "hello there")
+    assert "hello there" not in repr(event)
+
+
+async def test_assistant_turns_and_refused_turns_do_not_publish(app, client, auth_headers):
+    cid = await new_conversation(client, auth_headers)
+    uid = await user_id(client, auth_headers)
+    sink = _Sink()
+    store = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=1, publish=sink)
+    await store.add_user("one")
+    with pytest.raises(MessageLimitError):
+        await store.add_user("two")
+    await store.history(5)
+    assert len(sink.events) == 1  # only the first, saved user turn
+    other = DbMessageStore(app.state.sessionmaker, uid + 1, cid, max_messages=10, publish=sink)
+    with pytest.raises(ConversationGoneError):
+        await other.add_user("x")
+    assert len(sink.events) == 1
+    store2 = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=10, publish=sink)
+    await store2.add_assistant("hi")
+    assert len(sink.events) == 1
+
+
+async def test_a_failing_bus_never_breaks_the_saved_turn(app, client, auth_headers):
+    cid = await new_conversation(client, auth_headers)
+    uid = await user_id(client, auth_headers)
+    store = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=10, publish=_Sink(boom=True))
+    message_id = await store.add_user("still saved")
+    assert message_id and (await store.history(5))[-1] == {"role": "user", "content": "still saved"}
+
+
+async def test_without_a_publisher_the_store_is_unchanged(app, client, auth_headers):
+    cid = await new_conversation(client, auth_headers)
+    uid = await user_id(client, auth_headers)
+    store = DbMessageStore(app.state.sessionmaker, uid, cid, max_messages=10)
+    assert await store.add_user("plain") and await store.history(5) == [{"role": "user", "content": "plain"}]
