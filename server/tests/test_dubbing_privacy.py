@@ -117,6 +117,10 @@ async def test_a_full_pass_leaks_no_sentence_role_name_reply_or_upstream_text(ap
                          json={"names": {"A": "SECRET-ROLE"}, "speakers": [{"idx": 0, "speaker": "A"}]})
     assert r.status_code == 200, r.text
 
+    # positive control first: an empty capture would make every absence check below pass for free
+    logging.getLogger("app.dubbing").warning("privacy capture check")
+    assert caplog.records, "no log records were captured"
+    assert any("privacy capture check" in rec.getMessage() for rec in caplog.records)
     text = " ".join(f"{rec.getMessage()} {rec.args!r}" for rec in caplog.records)
     for secret in SECRETS:
         assert secret not in text, secret
