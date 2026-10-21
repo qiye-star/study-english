@@ -323,6 +323,71 @@ def test_tutor_core_modules_are_pure():
             assert ok, f"app/{rel}:{lineno} imports {target}"
 
 
+# ---- L3 FSRS (plan 2026-10-21-l3-fsrs, R1/R13): one adapter imports the `fsrs` package; the SRS modules never log ----
+FSRS_IMPORTER = "app.services.srs_fsrs"
+SRS_MODULES = ("services/scheduling.py", "services/srs_fsrs.py", "services/srs_replay.py")
+
+
+def fsrs_violations(root: Path = APP) -> list[str]:
+    problems: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        current = module_name(path, root)
+        if current == FSRS_IMPORTER:
+            continue
+        where = path.relative_to(root.parent).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, current, path.name == "__init__.py"):
+            if target.split(".")[0] == "fsrs":
+                problems.append(f"{where}:{lineno}: only {FSRS_IMPORTER} may import fsrs")
+    return problems
+
+
+def logging_violations(root: Path = APP, rels: tuple[str, ...] = SRS_MODULES) -> list[str]:
+    """Files that do not exist yet are skipped; each SRS module is checked as soon as it is created."""
+    problems: list[str] = []
+    for rel in rels:
+        path = root / rel
+        if not path.exists():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, module_name(path, root), False):
+            if target.split(".")[0] == "logging":
+                problems.append(f"app/{rel}:{lineno}: SRS modules must not log")
+    return problems
+
+
+def test_only_srs_fsrs_imports_fsrs():
+    assert fsrs_violations() == []
+
+
+def test_srs_modules_do_not_log():
+    assert logging_violations() == []
+
+
+def test_fsrs_scanner_catches_lazy_and_submodule_imports(tmp_path):
+    app = tmp_path / "app"
+    (app / "services").mkdir(parents=True)
+    (app / "wordbook").mkdir(parents=True)
+    for init in (app / "__init__.py", app / "services" / "__init__.py", app / "wordbook" / "__init__.py"):
+        init.write_text("", encoding="utf-8")
+    (app / "services" / "srs_fsrs.py").write_text("import fsrs\nfrom fsrs import Scheduler\n", encoding="utf-8")
+    (app / "services" / "vocabulary.py").write_text("def f():\n    from fsrs import Scheduler\n", encoding="utf-8")
+    (app / "wordbook" / "grading.py").write_text("import fsrs.card\n", encoding="utf-8")
+    found = fsrs_violations(app)
+    assert any(p.startswith("app/services/vocabulary.py:2") for p in found)
+    assert any(p.startswith("app/wordbook/grading.py:1") for p in found)
+    assert not any(p.startswith("app/services/srs_fsrs.py") for p in found)
+
+
+def test_logging_scanner_catches_an_srs_module(tmp_path):
+    app = tmp_path / "app"
+    (app / "services").mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "services" / "__init__.py").write_text("", encoding="utf-8")
+    (app / "services" / "scheduling.py").write_text("import logging\n", encoding="utf-8")
+    assert logging_violations(app) == ["app/services/scheduling.py:1: SRS modules must not log"]
+
+
 def test_library_layer_rules(tmp_path):
     """spec 2026-10-13-video-import §3: library imports only core/models/providers/speech/services; only admin, routers
     and main import it (links, agents, rooms, rank, wordbook, realtime, services, speech and core may not)."""
