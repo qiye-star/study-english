@@ -22,7 +22,7 @@ from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard, meaning_line
-from app.wordbook.grading import grade_blank, srs_grade, worst
+from app.wordbook.grading import grade_blank, review_grade, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
@@ -472,20 +472,22 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
         result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
         outcome, credit = result.outcome, result.credit
         diff = [asdict(d) for d in result.diff] or None
-    grade = srs_grade(outcome, p.hinted)
-    applied, item_id, kind = False, row.item_id if row else None, "practice"
+    grade = srs_grade(outcome, p.hinted)  # the response field stays three-valued (L3 R5)
+    write_grade = review_grade(outcome, p.hinted, qtype=p.qtype, elapsed_ms=p.elapsed_ms, length=len(card.word))
+    applied, item_id, kind, reviewed_at = False, row.item_id if row else None, "practice", None
     if ctx is not None:
         kind = await _learn_kind(session, user_id, card.key)
         item_id = await _create_learned(session, user_id, p.book_id, card, 0, now, ctx)
         applied = True
     elif p.mode == "review" and row is not None:
-        applied, due = await _write_srs(session, user_id, row, grade, now, policy_for(settings, user_id))
+        applied, due = await _write_srs(session, user_id, row, write_grade, now, policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
+        reviewed_at = now if applied else None
     elif p.mode == "learn" and row is not None and row.reps == 0 and p.qtype in CHOICE_QTYPES:
         applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now,
                                         qtype=p.qtype)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
-                          qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
+                          qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now, reviewed_at=reviewed_at)
     await session.commit()
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=p.qtype, outcome=outcome, credit=credit,
@@ -573,6 +575,7 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
     seed = await _spot_seed(session, user_id, p.book_id, row)  # 私有种子:客户端算不出哪些词会被抽查(P-R1)
     pct = settings.wordbook_spot_check_pct
     applied, item_id, kind, outcome, spot = False, row.item_id if row else None, "practice", rating, False
+    reviewed_at = None
     if ctx is not None:
         decision = recall.learn_decision(rating, recall.needs_check(
             rating, seed=seed, user_id=user_id, key=card.key, reps=0, pct=pct, elapsed_ms=p.elapsed_ms))
@@ -599,10 +602,11 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
         applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now,
                                         policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
+        reviewed_at = now if applied else None
     eff = recall.as_rating(outcome)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=recall.RECALL_QTYPE, outcome=outcome, credit=100 if eff == "know" else 0, day=day,
-                          now=now)
+                          now=now, reviewed_at=reviewed_at)
     await session.commit()
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=recall.RECALL_QTYPE, outcome=outcome,
@@ -743,15 +747,16 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         outcome = worst(r.outcome for r in results)
         hinted = any(h for _, h in line.answers)
         credit = round(sum(r.credit for r in results) / len(results))
-        row, kind = known.get(card.key), "blank"
+        row, kind, reviewed_at = known.get(card.key), "blank", None
         if row is not None and card.key not in seen:  # 同一词在一次提交里只写一次盒子
             applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now,
                                             policy_for(settings, user_id))
             kind = "review" if due and applied else "blank"
+            reviewed_at = now if applied else None
         seen.add(card.key)
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,
                               item_id=row.item_id if row else None, qtype=SPELL_QTYPE, outcome=outcome,
-                              credit=credit, day=day, now=now)
+                              credit=credit, day=day, now=now, reviewed_at=reviewed_at)
         answered.append(learning_events.WordAnswered(
             user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=SPELL_QTYPE, outcome=outcome,
             credit=credit, at=now))

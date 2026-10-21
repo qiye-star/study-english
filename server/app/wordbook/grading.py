@@ -91,3 +91,31 @@ def srs_grade(outcome: str, hinted: bool) -> Literal["good", "hard", "forgot"]:
     if outcome == "correct" and not hinted:
         return "good"
     return "hard"
+
+
+# ---- L3 (plan R5): Easy for a fast, clean typed review; the answer's `grade` field stays srs_grade ----
+EASY_BASE_MS = 3000  # 占位,待回放 / 真实数据定稿(L3 R5)
+EASY_PER_CHAR_MS = 350  # 占位
+EASY_QTYPES = ("spell", "dictation")
+
+
+def review_grade(outcome: str, hinted: bool, *, qtype: str, elapsed_ms: int | None, length: int) -> str:
+    """The grade that goes into scheduling. Easy only for an unhinted correct typed answer within the time limit."""
+    if (outcome == "correct" and not hinted and qtype in EASY_QTYPES and elapsed_ms is not None
+            and elapsed_ms <= EASY_BASE_MS + EASY_PER_CHAR_MS * length):
+        return "easy"
+    return srs_grade(outcome, hinted)
+
+
+def event_grade(qtype: str | None, outcome: str, credit: int) -> str | None:
+    """Replay helper: the rating an event stands for, or None for events that are not ratings.
+    Easy cannot be recovered from a stored event (L3 R8), so a fast correct answer reads as good."""
+    if outcome in ("wrong", "unknown"):
+        return "forgot"
+    if outcome in ("know", "know_chk"):
+        return "good"
+    if outcome == "correct":
+        return "good" if credit >= 100 else "hard"
+    if outcome in ("typo", "inflection", "fuzzy"):
+        return "hard"
+    return None
