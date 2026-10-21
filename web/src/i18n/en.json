@@ -6,7 +6,7 @@
       "label": "Announcements", "dismiss": "Dismiss announcement", "readOnly": "Maintenance: read-only for now",
       "maintenanceTitle": "Under maintenance", "maintenanceBody": "We are upgrading the service. Please come back shortly.", "checkAgain": "Check again"
     },
-    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "rooms": "Rooms", "me": "Me" },
+    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "me": "Me" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
       "password": "Password", "submit": "Log in",

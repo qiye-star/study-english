@@ -260,4 +260,9 @@ describe("web architecture boundaries", () => {
     expect(sourceOf("pages/chat-hub.tsx")).not.toContain("~/features/chat");
     expect(CROSS_FEATURE_BASELINE.size).toBe(19);
   });
+
+  it("the layout (bottom nav) no longer knows about rooms (plan L6 R8)", () => {
+    const offenders = files.filter((f) => f.startsWith("layout/") && !isTest(f) && sourceOf(f).includes("~/features/rooms"));
+    expect(offenders).toEqual([]);
+  });
 });

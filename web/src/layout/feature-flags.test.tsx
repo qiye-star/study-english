@@ -28,7 +28,7 @@ const linksTo = (prefix: string) => [...document.querySelectorAll("a[href]")].fi
 describe("feature flags", () => {
   it.each(["practice", "me"] as const)("off: 3 tabs and no rank, rooms or library entry on %s", async (page) => {
     const mock = setup(false, page);
-    await waitFor(() => expect(called(mock, "/api/rank/config") && called(mock, "/api/rooms/config") && called(mock, "/api/library/config")).toBe(true));
+    await waitFor(() => expect(called(mock, "/api/rank/config") && called(mock, "/api/library/config")).toBe(true));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("[data-testid^='nav-']"))).toHaveLength(3);
     expect(screen.queryByTestId("nav-rooms")).toBeNull();
@@ -37,13 +37,15 @@ describe("feature flags", () => {
     expect(linksTo("/rank")).toEqual([]);
     expect(linksTo("/rooms")).toEqual([]);
     expect(called(mock, "/api/rank/me")).toBe(false); // nothing beyond /config is touched when off
+    // 导航不再读联机配置(计划 L6 R9);「我的」页的房间语音一行仍会读
+    expect(called(mock, "/api/rooms/config")).toBe(page === "me");
   });
 
-  it.each(["practice", "me"] as const)("on: 5 tabs and the rank card on %s", async (page) => {
+  it.each(["practice", "me"] as const)("on: 4 tabs (no rooms tab) and the rank card on %s", async (page) => {
     setup(true, page);
-    expect(await screen.findByTestId("nav-rooms")).toBeTruthy();
     expect(await screen.findByTestId("nav-library")).toBeTruthy();
-    for (const id of ["nav-practice", "nav-chat", "nav-rooms", "nav-library", "nav-me"]) expect(screen.getByTestId(id)).toBeTruthy();
+    expect(screen.queryByTestId("nav-rooms")).toBeNull();
+    for (const id of ["nav-practice", "nav-chat", "nav-library", "nav-me"]) expect(screen.getByTestId(id)).toBeTruthy();
     expect(await screen.findByTestId("rank-card")).toBeTruthy();
     expect(linksTo("/rank").length).toBeGreaterThan(0);
   });
