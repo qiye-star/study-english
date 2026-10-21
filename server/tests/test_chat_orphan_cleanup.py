@@ -41,7 +41,7 @@ async def seed(app, user_id, *, source="chat", age=OLD, size=100) -> str:
         s.add(row)
         await s.flush()
         row.audio_path = recordings.recording_relpath(user_id, row.id)
-        recordings.write_recording(app.state.settings.resolved_data_dir, row.audio_path, b"x" * size)
+        await recordings.write_recording(app.state.storage, row.audio_path, b"x" * size)
         await s.commit()
         return row.id
 

@@ -146,7 +146,7 @@ async def test_quota_counts_existing_recordings(app, client, auth_headers, fake)
 
 
 async def test_storage_failure_returns_500_and_no_row(app, client, auth_headers, fake, monkeypatch):
-    def boom(*args, **kwargs):
+    async def boom(*args, **kwargs):
         raise OSError("disk full")
 
     monkeypatch.setattr(recordings, "write_recording", boom)
@@ -164,25 +164,30 @@ def test_absolute_path_rejects_escape(tmp_path):
     assert recordings.absolute_path(tmp_path, "recordings/1/a.wav") == (tmp_path / "recordings/1/a.wav").resolve()
 
 
-def test_write_and_delete_recording(tmp_path):
+async def test_write_and_delete_recording(tmp_path):
+    from app.storage.local import LocalStore
+
+    store = LocalStore(tmp_path)
     rel = recordings.recording_relpath(12345678, "abc")
     assert rel == "recordings/12345678/abc.wav"
-    recordings.write_recording(tmp_path, rel, b"RIFF")
+    await recordings.write_recording(store, rel, b"RIFF")
     assert (tmp_path / rel).read_bytes() == b"RIFF"
     assert not list((tmp_path / "recordings/12345678").glob("*.tmp"))
-    recordings.delete_recording(tmp_path, rel)
+    await recordings.delete_recording(store, rel)
     assert not (tmp_path / rel).exists()
-    recordings.delete_recording(tmp_path, rel)          # 再删不报错
-    recordings.delete_recording(tmp_path, "../x.wav")   # 越界静默
+    await recordings.delete_recording(store, rel)          # 再删不报错
+    await recordings.delete_recording(store, "../x.wav")   # 越界静默
 
 
+# The temp-file guarantees of the local writer now live in tests/test_storage_local.py (LocalStore); these two keep
+# the room-voice helper, which still writes to disk (plan L1 Task 13 removes it).
 def test_failed_replace_leaves_no_tmp_file(tmp_path, monkeypatch):
     def boom(src, dst):
         raise OSError("replace failed")
 
     monkeypatch.setattr(recordings.os, "replace", boom)
     with pytest.raises(OSError):
-        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
+        recordings.write_local_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
     assert files_under(tmp_path) == []
 
 
@@ -193,7 +198,7 @@ def test_failed_write_leaves_no_tmp_file(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "write_bytes", boom)
     with pytest.raises(OSError):
-        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
+        recordings.write_local_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
     assert files_under(tmp_path) == []
 
 

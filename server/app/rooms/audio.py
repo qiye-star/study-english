@@ -11,7 +11,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.services.recordings import absolute_path, delete_recording, write_recording
+from app.services.recordings import absolute_path, delete_local_recording as delete_recording, write_local_recording as write_recording
 from app.speech.asr_stream import wav_to_pcm
 
 logger = logging.getLogger(__name__)

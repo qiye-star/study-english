@@ -1,7 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +8,8 @@ from app.services import recordings
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings
 from app.models import Assessment, Message, User, iso_utc
+from app.storage import BlobNotFound, get_store
+from app.storage.http import blob_response
 
 router = APIRouter(prefix="/api")
 
@@ -75,31 +76,29 @@ async def get_assessment(
 @router.get("/assessments/{assessment_id}/audio")
 async def get_assessment_audio(
     assessment_id: ItemId,
+    request: Request,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
 ):
     row = await owned_assessment(session, user, assessment_id)
-    try:
-        path = recordings.absolute_path(settings.resolved_data_dir, row.audio_path)
-    except ValueError:
+    try:  # plan L1 Task 12: recordings stream from the store (Range included)
+        return await blob_response(get_store(request.app), row.audio_path, request, media_type="audio/wav",
+                                   headers={"Cache-Control": "private, no-store"})
+    except (BlobNotFound, ValueError):
         raise HTTPException(404, "Recording not found")
-    if not path.is_file():
-        raise HTTPException(404, "Recording not found")
-    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private, no-store"})
 
 
 @router.delete("/assessments/{assessment_id}")
 async def delete_assessment(
     assessment_id: ItemId,
+    request: Request,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
 ):
     row = await owned_assessment(session, user, assessment_id)
     relpath = row.audio_path
     await session.execute(update(Message).where(Message.assessment_id == row.id).values(assessment_id=None))
     await session.delete(row)
     await session.commit()
-    recordings.delete_recording(settings.resolved_data_dir, relpath)
+    await recordings.delete_recording(get_store(request.app), relpath)
     return {"id": assessment_id}

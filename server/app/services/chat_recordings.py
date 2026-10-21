@@ -28,16 +28,16 @@ async def drop_assessments(session: AsyncSession, rows: list[Assessment]) -> lis
     return [row.audio_path for row in rows]
 
 
-def remove_files(settings: Settings, relpaths: list[str]) -> None:
+async def remove_files(blobs, relpaths: list[str]) -> None:
     # 先提交数据库、再删文件;删除失败被 delete_recording 吞掉:行已删除,配额已释放,残留文件只占磁盘
     for relpath in relpaths:
         try:
-            recordings.delete_recording(settings.resolved_data_dir, relpath)
+            await recordings.delete_recording(blobs, relpath)
         except Exception:  # never raise after the commit
             logger.warning("Could not remove a chat recording file")
 
 
-async def cleanup_orphan_chat_recordings(session: AsyncSession, settings: Settings, user: User) -> None:
+async def cleanup_orphan_chat_recordings(session: AsyncSession, blobs, settings: Settings, user: User) -> None:
     """Delete the caller's source=chat assessments that no message references and that are older than the grace
     window (a tab died / a late link failed). Rows first, files after the commit. Never raises."""
     try:
@@ -64,4 +64,4 @@ async def cleanup_orphan_chat_recordings(session: AsyncSession, settings: Settin
         except Exception:
             pass
         return
-    remove_files(settings, paths)
+    await remove_files(blobs, paths)

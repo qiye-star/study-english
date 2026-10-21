@@ -30,7 +30,7 @@ async def seed_assessment(app, uid, *, source="practice", text="Hello there", at
     aid = str(uuid.uuid4())
     rel = recording_relpath(uid, aid)
     wav = make_wav()
-    write_recording(app.state.settings.resolved_data_dir, rel, wav)
+    await write_recording(app.state.storage, rel, wav)
     async with app.state.sessionmaker() as s:
         s.add(Assessment(
             id=aid, user_id=uid, reference_text=text, language="en-US", duration_ms=500,

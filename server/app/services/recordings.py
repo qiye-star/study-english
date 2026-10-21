@@ -1,4 +1,7 @@
-"""评测录音的落盘位置与配额统计(数据目录见 Settings.resolved_data_dir)。"""
+"""评测录音的存放键与配额统计(plan L1 Task 12:录音经 `app.state.storage` 存取,键 = recordings/<uid>/<id>.wav)。
+
+`absolute_path` 只给仍然读本地文件的少数位置用(房间语音与管理端房间,Task 13 之后移除);新代码一律用 store。
+"""
 
 import os
 from pathlib import Path
@@ -21,7 +24,13 @@ def absolute_path(data_dir: Path, relpath: str) -> Path:
     return path
 
 
-def write_recording(data_dir: Path, relpath: str, data: bytes) -> None:
+async def write_recording(blobs, relpath: str, data: bytes) -> None:
+    """Store the WAV under its key. Raises ValueError for a bad key and StorageError when the store fails."""
+    await blobs.put_bytes(relpath, data, content_type="audio/wav")
+
+
+def write_local_recording(data_dir: Path, relpath: str, data: bytes) -> None:
+    """Room voice clips are still written to disk until plan L1 Task 13 moves them into the store; nothing else uses this."""
     path = absolute_path(data_dir, relpath)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -36,9 +45,19 @@ def write_recording(data_dir: Path, relpath: str, data: bytes) -> None:
         raise
 
 
-def delete_recording(data_dir: Path, relpath: str) -> None:
+def delete_local_recording(data_dir: Path, relpath: str) -> None:
+    """Counterpart of `write_local_recording` (plan L1 Task 13 removes both)."""
     try:
         absolute_path(data_dir, relpath).unlink(missing_ok=True)
+    except (ValueError, OSError):
+        pass
+
+
+async def delete_recording(blobs, relpath: str) -> None:
+    """Delete one recording; a missing or illegal key is fine, a store failure is logged by the caller's sweep. Never
+    raises (called after commits)."""
+    try:
+        await blobs.delete(relpath)
     except (ValueError, OSError):
         pass
 
