@@ -17,6 +17,29 @@
         "audio": "Audio",
         "video": "Video"
       },
+      "clip": {
+        "hint": "Tap the first and the last sentence of your clip.",
+        "summary": "{{lines}} sentences · {{seconds}} s",
+        "none": "No clip selected yet",
+        "start": "Start rehearsal"
+      },
+      "roles": {
+        "role": "Role {{key}}",
+        "count": "{{count}} sentences",
+        "rename": "Rename role {{key}}",
+        "nameFor": "Name for role {{key}}",
+        "save": "Save name",
+        "editShort": "Edit",
+        "heading": "Choose your role",
+        "sentenceRole": "Role of sentence {{n}}"
+      },
+      "labels": {
+        "suggest": "Smart suggest",
+        "accept": "Use suggestion",
+        "discard": "Discard",
+        "readOnly": "Editors label this material. You can't change the roles.",
+        "draft": "Suggestion ready for {{count}} sentences"
+      },
       "errors": {
         "disabled": "Dubbing is turned off.",
         "notFound": "This material could not be found.",

@@ -20,3 +20,20 @@ export const DubHomeRoute = lazy(async () => {
   }
   return { default: DubHomeWithKit };
 });
+
+export const DubItemRoute = lazy(async () => {
+  const [{ loadDubbingRuntime }, { DubKitProvider }, { DubItemPage }] = await Promise.all([
+    import("./loader"),
+    import("./kit-context"),
+    import("./dub-item-page"),
+  ]);
+  const kit = await loadDubbingRuntime();
+  function DubItemWithKit() {
+    return (
+      <DubKitProvider kit={kit}>
+        <DubItemPage />
+      </DubKitProvider>
+    );
+  }
+  return { default: DubItemWithKit };
+});

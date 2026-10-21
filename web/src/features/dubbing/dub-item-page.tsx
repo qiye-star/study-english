@@ -1,0 +1,135 @@
+import "./locales";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link, Navigate, useParams } from "react-router-dom";
+import { useAuth } from "~/auth/auth-context";
+import type { DubbingKit } from "~/features/library";
+import { ClipPicker, clipReadiness, type PickSeg } from "./clip-picker";
+import type { ClipSelection } from "./clip";
+import { useDubbingConfig } from "./config";
+import { getRoles, putRoles, type RoleKey, type RolesState, ROLE_KEYS } from "./dubbing-api";
+import { useDubKit } from "./kit-context";
+import { RoleLabels } from "./role-labels";
+import { RolePicker } from "./role-picker";
+
+/** `/dub/:itemId`:选片段 → 选角色 → (彩排与录制在 W9 接上)。 */
+type ItemDetail = Awaited<ReturnType<DubbingKit["getItem"]>>;
+
+const FALLBACK_LIMITS = { maxLines: 12, maxMs: 90_000 };
+
+export function DubItemPage() {
+  const { itemId = "" } = useParams();
+  const { t } = useTranslation();
+  const { api } = useAuth();
+  const kit = useDubKit();
+  const config = useDubbingConfig();
+  const [detail, setDetail] = useState<ItemDetail | null>(null);
+  const [roles, setRoles] = useState<RolesState | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [names, setNames] = useState<Partial<Record<RoleKey, string>>>({});
+  const [selection, setSelection] = useState<ClipSelection | null>(null);
+  const [role, setRole] = useState<RoleKey | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setFailed(null);
+    void Promise.all([kit.getItem(api, itemId), getRoles(api, itemId)]).then(
+      ([d, r]) => {
+        if (!alive) return;
+        setDetail(d);
+        setRoles(r);
+        setNames(Object.fromEntries(r.names.map((n) => [n.key, n.name])) as Partial<Record<RoleKey, string>>);
+      },
+      () => { if (alive) setFailed(t("web.dubbing.errors.notFound")); },
+    );
+    return () => { alive = false; };
+  }, [api, kit, itemId, t]);
+
+  const limits = useMemo(() => config?.limits ?? FALLBACK_LIMITS, [config]);
+  if (config && !config.enabled) return <Navigate to="/practice" replace />;
+
+  const rename = (key: RoleKey, name: string | null) => {
+    setNames((prev) => {
+      const next = { ...prev };
+      if (name === null) delete next[key];
+      else next[key] = name;
+      return next;
+    });
+    void putRoles(api, itemId, { names: { [key]: name } }).catch(() => setFailed(t("web.dubbing.errors.badRoles")));
+  };
+
+  return (
+    <div className="min-h-dvh px-4 pb-24 pt-4">
+      <header className="mb-4 flex items-center justify-between">
+        <Link to="/dub" className="text-[13px] opacity-80">{t("web.dubbing.home.back")}</Link>
+        <h1 className="max-w-[60%] truncate text-[16px] font-semibold">{detail?.title ?? ""}</h1>
+        <span className="w-10" />
+      </header>
+
+      {failed ? <p role="alert" className="mb-3 text-[13px]">{failed}</p> : null}
+      {!detail || !roles ? null : (
+        <RoleLabels
+          itemId={itemId}
+          initial={roles.speakers}
+          editable={roles.editable}
+          suggest={config?.suggest === true}
+          clip={selection && selection.to !== null ? { segFrom: selection.from, segTo: selection.to } : null}
+        >
+          {({ speakerOf, cycle, readOnly }) => {
+            const segs: PickSeg[] = detail.segments.map((s) => ({
+              idx: s.idx, startMs: s.startMs, endMs: s.endMs, speaker: speakerOf(s.idx), text: s.text,
+            }));
+            const readiness = clipReadiness(segs, selection, role, limits);
+            const counts = Object.fromEntries(ROLE_KEYS.map((k) => [k, 0])) as Record<RoleKey, number>;
+            if (selection && selection.to !== null) {
+              for (let i = selection.from; i <= selection.to; i++) {
+                const sp = segs[i]?.speaker;
+                if (sp) counts[sp] += 1;
+              }
+            }
+            return (
+              <div className="space-y-4">
+                <ClipPicker
+                  segments={segs}
+                  selection={selection}
+                  role={role}
+                  limits={limits}
+                  onSelect={setSelection}
+                  renderMarker={(idx) => (
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => cycle(idx)}
+                      aria-label={t("web.dubbing.roles.sentenceRole", { n: idx + 1 })}
+                      className="min-w-[2.25rem] rounded-lg bg-white/20 px-1.5 py-0.5 text-[12px] font-semibold"
+                    >
+                      {speakerOf(idx) ?? "·"}
+                    </button>
+                  )}
+                />
+                <section>
+                  <h2 className="mb-2 text-[14px] font-semibold">{t("web.dubbing.roles.heading")}</h2>
+                  <RolePicker
+                    names={names}
+                    counts={counts}
+                    selected={role}
+                    editable={roles.locked === null && roles.editable}
+                    onSelect={setRole}
+                    onRename={rename}
+                  />
+                </section>
+                <button
+                  type="button"
+                  disabled={!readiness.ok || role === null}
+                  className="w-full rounded-2xl bg-white/30 py-3 text-[15px] font-semibold disabled:opacity-40"
+                >
+                  {t("web.dubbing.clip.start")}
+                </button>
+              </div>
+            );
+          }}
+        </RoleLabels>
+      )}
+    </div>
+  );
+}
