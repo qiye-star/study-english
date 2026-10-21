@@ -174,3 +174,36 @@ describe("RoomsLobbyPage", () => {
     }
   });
 });
+
+// 计划 L6 R3:在对话分区里(pages/chat-hub.tsx)大标题换成「对话」,切换条紧跟页头;不传 embedded 时与上面的用例完全一致。
+describe("embedded in the chat hub (plan L6 R3)", () => {
+  beforeEach(() => localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })));
+  afterEach(async () => { localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+
+  function mountEmbedded(enabled: boolean) {
+    const mock = createFetchMock({
+      "GET /api/rooms/config": () => json({ ...V2_CONFIG, enabled }),
+      "GET /api/rooms/mine": () => json({ rooms: [], ended_count: 0 }),
+    });
+    renderWithProviders(<RoomsLobbyPage embedded={{ title: "对话", switcher: <div data-testid="probe-switch" /> }} />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms", path: "/rooms",
+    });
+    return mock;
+  }
+
+  it("uses the given title and puts the switcher between the title and the code input", async () => {
+    mountEmbedded(true);
+    const probe = await screen.findByTestId("probe-switch");
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("对话");
+    expect(heading).not.toHaveTextContent("联机练习");
+    expect(heading.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(probe.compareDocumentPosition(screen.getByTestId("room-code-input")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("still explains when rooms are off", async () => {
+    mountEmbedded(false);
+    expect(await screen.findByText("联机练习未开启。")).toBeTruthy();
+    expect(screen.queryByTestId("room-code-input")).toBeNull();
+  });
+});

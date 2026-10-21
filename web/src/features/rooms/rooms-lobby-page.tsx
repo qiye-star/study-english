@@ -1,5 +1,5 @@
 import { ArchiveIcon, ChevronRightIcon, HourglassIcon, PlusIcon, UsersRoundIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -24,7 +24,8 @@ const formatCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
  * 联机大厅(视觉稿 M1):6 格房间号 + 加入、创建房间、我的房间(进行中的房间;已结束的在 /rooms/ended)。
  * 需房主同意的房间:加入返回待审批请求,房间号下方显示等待卡片(可撤回),同意后自动进入(spec §3.4)。
  */
-export function RoomsLobbyPage() {
+/** `embedded`:放在对话分区里时由 `pages/chat-hub.tsx` 传入(计划 L6 R3);不传 = 与原来相同。 */
+export function RoomsLobbyPage({ embedded }: { embedded?: { title?: string; switcher: ReactNode } } = {}) {
   const { api } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -78,7 +79,8 @@ export function RoomsLobbyPage() {
   }
   return (
     <>
-      <PageHeader large title={t("web.rooms.title")} />
+      <PageHeader large title={embedded?.title ?? t("web.rooms.title")} />
+      {embedded?.switcher}
       <FeatureGate state={state} disabledText={t("web.rooms.disabled")} onRetry={() => setAttempt((n) => n + 1)}>
         <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
           <section aria-labelledby="room-code-label" className="pt-1">
