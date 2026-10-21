@@ -169,3 +169,16 @@ async def test_a_saved_realtime_turn_reaches_word_usage_through_the_bus(app, cli
     await drain(app)
     row = (await usage_rows(app, uid))["talk"]
     assert (row.use_count, row.session_count, row.sources) == (1, 1, "realtime")
+
+
+async def test_a_room_voice_transcript_counts_as_active_use_with_room_as_source(app):
+    """L4 Task 17: RoomVoiceTranscribed counts like a chat message; the session is the room."""
+    from app.core.learning_events import RoomVoiceTranscribed
+
+    enable(app)
+    await seed_user(app, learned=("talk",))
+    app.state.learning_bus.publish(RoomVoiceTranscribed(user_id=UID, room_id="room-1", text="we talked", at=AT))
+    app.state.learning_bus.publish(RoomVoiceTranscribed(user_id=UID, room_id="room-1", text="talked again", at=AT))
+    await drain(app)
+    row = (await usage_rows(app))["talk"]
+    assert (row.use_count, row.session_count, row.sources) == (2, 1, "room")

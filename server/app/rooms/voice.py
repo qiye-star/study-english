@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core import metering
+from app.core.learning_events import RoomVoiceTranscribed
 from app.core.ratelimit import RateLimiter
 from app.models import Room, new_uuid
 from app.rooms import assistant, audio
@@ -67,6 +68,18 @@ class VoiceDeps:
     translate_limiter: RateLimiter  # 20/minute, key user
     retry_limiter: RateLimiter  # 6/minute, key room:user
     agents: Callable[[], Any] | None = None  # () -> the room AgentLane (or None): `on_voice` after every transcription
+    publish: Callable[[Any], bool] | None = None  # L4 Task 17: the learning bus, passed explicitly (None = publish nothing)
+
+
+def _announce(d: "VoiceDeps", sender_id: int, room_id: str, text: str) -> None:
+    """Publish a finished transcript to the learning bus (L4 Task 17). The text is in memory only; a failing bus
+    never reaches the room, and the log carries the exception class only."""
+    if d.publish is None:
+        return
+    try:
+        d.publish(RoomVoiceTranscribed(user_id=sender_id, room_id=room_id, text=text))
+    except Exception as exc:  # noqa: BLE001 - publishing must never fail the transcription
+        logger.warning("room voice publish failed error=%s", type(exc).__name__)
 
 
 def _is_cjk(ch: str) -> bool:
@@ -209,6 +222,8 @@ class VoiceService:
                                                   lang=detect_lang(text) if text else None, now=d.clock())
             if staging:
                 await asyncio.to_thread(audio.delete_file, d.data_dir, staging)
+            if status == "done":
+                _announce(d, sender_id, room_id, text)  # L4 Task 17: after the transcript is stored
             logger.info("room voice transcribed room=%s message=%s status=%s ms=%d",
                         room_id, message_id, status, (time.monotonic() - started) * 1000)
             await self._broadcast_voice(room_id, seq, voice)

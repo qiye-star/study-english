@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.activation import matcher
 from app.activation.states import session_key
-from app.core.learning_events import AssessmentFinished, MessageSent, RealtimeTurnFinished
+from app.core.learning_events import AssessmentFinished, MessageSent, RealtimeTurnFinished, RoomVoiceTranscribed
 from app.models import VocabularyItem, WordUsage
 from app.wordbook.lookup import lookup_service
 
@@ -113,6 +113,14 @@ async def handle_realtime(app, event: RealtimeTurnFinished) -> None:
     app.state.learning_bus.count("activation.realtime", "matched", len(hits))
 
 
+async def handle_room(app, event: RoomVoiceTranscribed) -> None:
+    """A room voice transcript is active use (R7); the session is the room."""
+    hits = await _learned_hits(app, event.user_id, event.text)
+    if hits:
+        await _record_active(app, event.user_id, hits, source="room", session_id=event.room_id, at=event.at)
+    app.state.learning_bus.count("activation.room", "matched", len(hits))
+
+
 async def handle_shadow(app, event: AssessmentFinished) -> None:
     if event.source not in SHADOW_SOURCES:
         return
@@ -127,3 +135,4 @@ def install(app, bus) -> None:
     bus.subscribe(MessageSent, "activation.chat", functools.partial(handle_chat, app), flag=FLAG)
     bus.subscribe(RealtimeTurnFinished, "activation.realtime", functools.partial(handle_realtime, app), flag=FLAG)
     bus.subscribe(AssessmentFinished, "activation.shadow", functools.partial(handle_shadow, app), flag=FLAG)
+    bus.subscribe(RoomVoiceTranscribed, "activation.room", functools.partial(handle_room, app), flag=FLAG)

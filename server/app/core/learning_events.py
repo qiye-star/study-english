@@ -113,7 +113,21 @@ class LibraryItemReady:
     event_id: str = field(default_factory=_event_id)
 
 
-EVENT_TYPES: tuple[type, ...] = (WordAnswered, AssessmentFinished, MessageSent, RealtimeTurnFinished, LibraryItemReady)
+@dataclass(frozen=True)
+class RoomVoiceTranscribed:
+    """房间语音转写成功(INDEX §4 冻结形状 user_id, room_id, text;L4 Task 17)。text 只在内存里,repr=False。"""
+    user_id: int
+    room_id: str
+    text: str = field(repr=False)
+    at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=_event_id)
+
+    def __post_init__(self) -> None:
+        _set(self, "text", self.text[:MAX_TEXT])
+
+
+EVENT_TYPES: tuple[type, ...] = (WordAnswered, AssessmentFinished, MessageSent, RealtimeTurnFinished, LibraryItemReady,
+                                 RoomVoiceTranscribed)
 Handler = Callable[[Any], Awaitable[None]]
 DEFAULT_FLAG = "links_enabled"  # 每个订阅有自己的总开关名;默认是联动的总开关(L4 R3)
 Gate = Callable[[str, int], Awaitable[bool]]
