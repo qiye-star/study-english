@@ -237,22 +237,40 @@ def save_state(path: Path, chunks: list[Chunk]) -> None:
     _write_json(path, {"version": STATE_VERSION, "chunks": [_chunk_json(c) for c in chunks]})
 
 
-def save_transcript(path: Path, chunks: list[Chunk], silences: list[Silence]) -> None:
-    """The recognizer's whole output for a ready item (plan v2 R-V8): every chunk with its text, utterances and words,
-    plus the silence table. Kept in the item directory so sentences can be rebuilt without paying again; deleted with
-    the item. Holds transcript text: never log it, never copy it elsewhere."""
-    _write_json(path, {"version": TRANSCRIPT_VERSION, "chunks": [_chunk_json(c) for c in chunks],
-                       "silences": [[x.start_ms, x.end_ms] for x in silences]})
+def dump_transcript(chunks: list[Chunk], silences: list[Silence]) -> bytes:
+    """The bytes of `transcript.json` (plan L1 Task 9): the recognizer's whole output for a ready item (plan v2 R-V8):
+    every chunk with its text, utterances and words, plus the silence table. Holds transcript text: never log it."""
+    data = {"version": TRANSCRIPT_VERSION, "chunks": [_chunk_json(c) for c in chunks],
+            "silences": [[x.start_ms, x.end_ms] for x in silences]}
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
-def load_transcript(path: Path) -> tuple[list[Chunk], list[Silence]] | None:
+def parse_transcript(raw: bytes) -> tuple[list[Chunk], list[Silence]] | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(raw.decode("utf-8"))
         if data.get("version") != TRANSCRIPT_VERSION:
             return None
         return _chunks_from(data["chunks"]), [Silence(int(a), int(b)) for a, b in data["silences"]]
     except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
         return None
+
+
+def save_transcript(path: Path, chunks: list[Chunk], silences: list[Silence]) -> None:
+    """The recognizer's whole output for a ready item (plan v2 R-V8), written to a local file. Deleted with the item."""
+    _write_json_bytes(path, dump_transcript(chunks, silences))
+
+
+def load_transcript(path: Path) -> tuple[list[Chunk], list[Silence]] | None:
+    try:
+        return parse_transcript(path.read_bytes())
+    except OSError:
+        return None
+
+
+def _write_json_bytes(path: Path, raw: bytes) -> None:
+    tmp = path.with_suffix(".tmp")
+    tmp.write_bytes(raw)
+    os.replace(tmp, path)
 
 
 def slice_wav(path: Path, start_ms: int, end_ms: int) -> bytes:
