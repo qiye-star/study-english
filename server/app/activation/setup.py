@@ -5,6 +5,8 @@
 from fastapi import Depends, HTTPException, Request
 
 from app.activation import usage
+from app.activation.indexer import Indexer
+from app.activation.indexer import install as indexer_install
 from app.core.deps import current_user, limited_user
 from app.models import User
 
@@ -21,6 +23,8 @@ def require_activation(*, limited: bool = False):
 
 
 def install(app) -> None:
-    """Subscriptions for usage counting (chat, realtime, shadow). The sentence indexer and the agents source
-    are added by later tasks of the L4 plan. Every subscription carries flag `activation_enabled`."""
+    """Subscriptions for usage counting (chat, realtime, shadow) and the sentence index (library ready).
+    The agents source is added by a later task of the L4 plan. Every subscription carries flag `activation_enabled`."""
+    app.state.activation_indexer = Indexer(app)
     usage.install(app, app.state.learning_bus)
+    indexer_install(app, app.state.learning_bus)

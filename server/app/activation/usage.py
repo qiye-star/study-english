@@ -30,7 +30,7 @@ def _add_source(current: str | None, source: str) -> str:
     return ",".join(parts)[:SOURCES_MAX]
 
 
-async def _lemma_of(app):
+async def lemma_source(app):
     service = lookup_service(app)
     await service.forms.warm()
     return service.forms.lemma_of
@@ -38,7 +38,7 @@ async def _lemma_of(app):
 
 async def _learned_hits(app, user_id: int, text: str) -> set[str]:
     """文本里出现的已学词(词头)。文本只在内存里参与求交,不落库、不记日志。"""
-    found, truncated = matcher.candidates(text, await _lemma_of(app))
+    found, truncated = matcher.candidates(text, await lemma_source(app))
     if truncated:
         app.state.learning_bus.count("activation.usage", "truncated")
     if not found:
