@@ -38,6 +38,14 @@ export interface TakeSchedulerOptions {
   onInterrupted(): void;
 }
 
+/** 真实的帧调度:requestAnimationFrame(测试里用假件)。 */
+export function createTakeFrames(): TakeFrames {
+  return {
+    request: (fn) => requestAnimationFrame(() => fn()),
+    cancel: (id) => cancelAnimationFrame(id),
+  };
+}
+
 export interface TakeScheduler {
   /** 必须在用户手势的同步阶段调用(iOS 需要)。 */
   start(): void;
