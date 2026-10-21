@@ -11,7 +11,8 @@
     agents     -> core, providers, speech, services (shared agent core: rooms, links, admin, routers and main import it;
                   never rank, rooms, realtime, wordbook, links, admin or routers)
     links      -> core, providers, speech, services, rank, rooms, wordbook, agents (top layer: only routers and main)
-    library    -> core, providers, speech, services (imported media library: only admin, routers and main import it)
+    library    -> core, providers, speech, services (imported media library: only admin, routers, main and dubbing import it)
+    dubbing    -> core, models, providers, speech, services, library (voice-over clips; only admin, routers and main import it)
     admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents, library (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
@@ -25,7 +26,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 
 LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
-          "library", "admin", "routers")
+          "library", "dubbing", "admin", "routers")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -41,12 +42,13 @@ ALLOWED: dict[str, set[str]] = {
     "agents": {"agents", "core", "models", "providers", "speech", "services"},
     "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
     "library": {"library", "core", "models", "providers", "speech", "services"},
+    "dubbing": {"dubbing", "core", "models", "providers", "speech", "services", "library"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-              "agents", "library"},
+              "agents", "library", "dubbing"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links", "agents", "library"},
+                "admin", "links", "agents", "library", "dubbing"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links", "agents", "library"},
+             "routers", "links", "agents", "library", "dubbing"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -386,6 +388,35 @@ def test_logging_scanner_catches_an_srs_module(tmp_path):
     (app / "services" / "__init__.py").write_text("", encoding="utf-8")
     (app / "services" / "scheduling.py").write_text("import logging\n", encoding="utf-8")
     assert logging_violations(app) == ["app/services/scheduling.py:1: SRS modules must not log"]
+def test_dubbing_layer_rules(tmp_path):
+    """plan L5 R25: dubbing imports core, models, providers, speech, services and library only; only routers, admin and
+    main import it; library never imports dubbing (the role labels are the only shared thing, and they live in library)."""
+    app = tmp_path / "app"
+    for pkg in ("dubbing", "library", "admin", "routers", "links", "services", "core"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {  # file -> (source, line of the bad import)
+        "dubbing/a.py": ("from app.routers import library\n", 1),
+        "dubbing/b.py": ("from app.admin import audit\n", 1),
+        "dubbing/c.py": ("from app.links import gate\n", 1),
+        "library/b.py": ("from app.dubbing import takes\n", 1),
+        "services/c.py": ("from app.dubbing import takes\n", 1),
+    }
+    ok = {
+        "dubbing/ok.py": "from app.library import store\nfrom app.services import usage\nfrom app.core import metering\n"
+                         "from app.models import LibraryDub\nfrom app.speech import sentence_split\n",
+        "routers/ok.py": "from app.dubbing import takes\n",
+        "admin/ok.py": "from app.dubbing import takes\n",
+    }
+    for rel, (src, _) in bad.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    for rel, src in ok.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel, (_, line) in bad.items():
+        assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
 
 
 def test_library_layer_rules(tmp_path):

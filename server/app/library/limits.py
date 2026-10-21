@@ -52,6 +52,7 @@ SCOPE_TRANSLATE = "library_translate"  # D8: sentences translated today (subject
 SCOPE_ANALYSIS = "library_analysis"  # D8: sentence analyses today (subject = user id)
 SCOPE_AI_GLOBAL = "library_ai"  # D8: both kinds together, in sentences (subject = "*")
 SCOPE_CATALOG_AI = "library_cat_ai"  # curated catalog: system-paid shared analyses (subject "*")
+SCOPE_DUBBING_SUGGEST = "dubbing_suggest"  # plan L5 R7: role suggestions, sentences per user per day (subject = user id)
 GLOBAL = "*"
 
 

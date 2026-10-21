@@ -34,7 +34,7 @@ from app.library.worker import install as install_library  # imported media libr
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, dubbing, admin_dubbing, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -142,12 +142,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
         library_import,
         library_catalog,  # /api/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
+        dubbing,  # /api/dubbing/* (plan 2026-10-21-l5-dubbing S7); before stubs
         admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents,
         # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
         admin_library,
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): admin_catalog, goes on the next line (before stubs) ---
         admin_catalog,  # /api/admin/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
+        admin_dubbing,  # /api/admin/library/catalog/{id}/roles* (plan L5 S10); before stubs
         admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
         admin_avatars,  # /api/admin/avatar-reports, /api/admin/users/{id}/avatar (plan avatar S7); before stubs
         stubs, admin_web, web,

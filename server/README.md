@@ -610,6 +610,15 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **镜像**:最终阶段以 root 安装 `ffmpeg`(含 `ffprobe`)再切回 `app` 用户;镜像增大多少**未测**(需要 `docker compose build`,按仓库规则只在需要时做,结果写进 `docs/superpowers/plans/2026-10-13-video-import-results.md`)。转码速度取决于机器,**未测**;单条时长上限给它封顶。
 - **单 worker**:队列、票据、分片锁都在进程内,与房间、智能体一样只支持 `--workers 1`。
 
+## 影视配音(计划 2026-10-21-l5-dubbing)
+
+选一段连续句子(占位上限 12 句、90 秒),扮演一个角色,逐句录音并打分。代码在 `app/dubbing/`(纯函数 `clip.py`、`scoring.py`,配音记录 `takes.py`),接口 `routers/dubbing.py`(`/api/dubbing/*`),管理端角色标注 `routers/admin_dubbing.py`;角色的读写与智能建议在 `app/library/roles.py`、`roles_ai.py`。迁移 `0029_dubbing`。
+
+- **开关,默认关**:`DUBBING_ENABLED=false` 时 `GET /api/dubbing/config` 返回 `{"enabled": false, …}`,其余 `/api/dubbing/*` 在登录后返回 404 `Dubbing is disabled`。配音也需要跟读库可用(`LIBRARY_ENABLED` 与 ffmpeg / ffprobe)。管理端的角色标注接口不受此开关影响,可以提前标注。
+- **角色**:句子标 `A`–`F`(手动,或每个片段一次 LLM 建议,只返回草稿,确认后再保存)。精选库的角色由管理员标一次,保存时同步到所有已有副本;副本对学习者只读。智能建议受 `DUBBING_SUGGEST_DAILY_PER_USER`(每人每天句数,默认 120,占位)与全站 `LIBRARY_AI_DAILY_GLOBAL` 约束,提示词 `library.roles` 可在管理端编辑;管理端建议每次最多 40 句,计入 `LIBRARY_CATALOG_AI_DAILY`。
+- **评分**:只调用已有的 `POST /api/speech/assessments`(`source=library`),服务端按保存的评测结果计算同步度。配音的每句成绩计入该句的跟读最好成绩(写进 `library_attempts.dub_id`)。删除配音记录只删记录,评测与录音留在练习历史中。
+- **占位与未验证**:片段上限、句子窗口(前 300 ms、后 600 ms)、±400 ms 容忍、时长比区间、权重 60 / 20 / 20、并发与额度全部是**占位**,未用真实素材校准。同步度依赖讯飞 ISE 的逐词偏移,其起点与精度**未在真实上游核对**(需要用户同意评测费用);Omission 词的偏移未核对。客户端上报的 `rec_start_ms` 与 `voiced_ms` 可以被用户自行调整,只影响本人的成绩。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

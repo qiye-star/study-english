@@ -17,6 +17,7 @@ The FastAPI application package. Layered; each layer may only import the ones be
 | `agents/` | 智能体共用核心:角色、用户设置、上下文来源注册表与并行预取、提示词拼装、过程事件、一次流式调用的编排、每日上限与回合幂等;`memory/`(A2)、`tutor/`(A3)子包 (off unless `AGENTS_ENABLED`; see `agents/CLAUDE.md`) |
 | `links/` | 学习联动(顶层):订阅核心学习事件(`core/learning_events.py`),实现六个联动;只有 routers 与 `main.py` 导入 (off unless `LINKS_ENABLED`; see `links/CLAUDE.md`) |
 | `library/` | 跟读库:上传 / 链接导入的音视频、处理流水线与进程内队列、字幕解析与分句、媒体票据 (off unless `LIBRARY_ENABLED`; see `library/CLAUDE.md`) |
+| `dubbing/` | 影视配音(plan L5):片段规则 `clip.py`、打分 `scoring.py`、配音记录 `takes.py`、固定错误串 `errors.py`; off unless `DUBBING_ENABLED` (see `dubbing/CLAUDE.md`) |
 | `admin/` | admin console (read-write since v2): cookie sessions, roles, CSRF, TOTP/step-up, hash-chained audit, recovery CLI, settings service, doctor/probes, user/room moderation, rank rules/ops, usage, announcements/maintenance, changelog (entries, per-user read position, draft import), backups, prompts; v1 cross-user queries |
 | `routers/` | HTTP/WS endpoints (one `router` per module) |
 | `main.py` | `create_app()` – wires state, middleware and routers |
@@ -64,7 +65,7 @@ its poll loop as `tasks["library"]` and calls `shutdown()` before the engine clo
   `app.asr_stream.websockets` / `app.asr_realtime.websockets` channels; keep those strings.
 - Never log keys, tickets, transcripts or user text; never commit `.env`.
 - Avatar files live in `DATA_DIR/avatars/` and are outside the SQLite backup. Only `services/avatars.py` writes or deletes them; read `avatar_id` through the services, never build a path by hand.
-- Migrations: `alembic/versions/` is linear (head `0027`); `tests/test_migrations.py::test_models_match_migrations`
+- Migrations: `alembic/versions/` is linear (head `0029`); `tests/test_migrations.py::test_models_match_migrations`
   must stay green; every migration needs a SQLite (batch) + Postgres-safe path and a round-trip test.
   `0016_agent_memory` is shared with A3 (A3 appends `agent_tutor_sessions`).
 - Room messages are kept forever (R-6 + owner ruling): nothing outside the M2 retention purge deletes `RoomMessage`;

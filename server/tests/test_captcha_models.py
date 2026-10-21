@@ -48,7 +48,7 @@ def _tables(db: Path) -> set[str]:
 
 def test_head_is_0027_and_follows_0026():
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert script.get_heads() == ["0028"]
+    assert script.get_heads() == ["0029"]
     assert script.get_revision("0027").down_revision == "0026"
 
 

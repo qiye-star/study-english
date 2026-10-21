@@ -14,7 +14,7 @@ from app.library.limits import (
     ACTIVE, AUDIO_EXTENSIONS, FAILED_KEEP_DAYS, LIST_LIMIT, TITLE_MAX, UPLOAD_EXPIRE_HOURS,
 )
 from app.library.segment import Sentence
-from app.models import LibraryAttempt, LibraryItem, LibrarySegment, iso_utc, utcnow
+from app.models import LibraryAttempt, LibraryDub, LibraryItem, LibrarySegment, iso_utc, utcnow
 
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -124,18 +124,26 @@ async def write_segments(session: AsyncSession, item: LibraryItem, sentences: li
     `flags` (plan v2 R-V14): one tuple of codes per sentence. `keep_ai` (rebuild, R-V16): a new sentence whose text is
     the same as an old one keeps that one's translation and analysis."""
     kept: dict[str, tuple] = {}
-    if keep_ai:
-        for old in await segments_of(session, item.id):
-            kept.setdefault(" ".join(old.text.split()), (old.zh, old.zh_lang, old.analysis, old.analysis_lang))
-            session.expunge(old)
+    # L5 R5: a new sentence takes the speaker of the old sentence with the same text (spaces collapsed); repeated
+    # texts pair up in order; nothing left over means no speaker. Old rows are detached so the bulk delete is safe.
+    speakers: dict[str, list[str | None]] = {}
+    for old in await segments_of(session, item.id):
+        key = " ".join(old.text.split())
+        speakers.setdefault(key, []).append(old.speaker)
+        if keep_ai:
+            kept.setdefault(key, (old.zh, old.zh_lang, old.analysis, old.analysis_lang))
+        session.expunge(old)
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item.id))
     rows = []
     for i, s in enumerate(sentences):
         codes = flags[i] if flags is not None and i < len(flags) else ()
-        zh, zh_lang, analysis, analysis_lang = kept.get(" ".join(s.text.split()), (None, None, None, None))
+        key = " ".join(s.text.split())
+        zh, zh_lang, analysis, analysis_lang = kept.get(key, (None, None, None, None))
+        queue = speakers.get(key)
+        speaker = queue.pop(0) if queue else None
         rows.append(LibrarySegment(item_id=item.id, idx=i, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text,
                                    flags=",".join(codes) or None, zh=zh, zh_lang=zh_lang, analysis=analysis,
-                                   analysis_lang=analysis_lang))
+                                   analysis_lang=analysis_lang, speaker=speaker))
     session.add_all(rows)
     item.seg_count = len(sentences)
     item.resume_idx = min(item.resume_idx, max(0, len(sentences) - 1))
@@ -182,6 +190,7 @@ async def set_analysis(session: AsyncSession, item_id: str, idx: int, text: str,
 
 async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
     """Explicit child deletes (SQLite has no FK cascade); caller commits, then removes the files."""
+    await session.execute(delete(LibraryDub).where(LibraryDub.item_id == item_id))  # L5 R23
     await session.execute(delete(LibraryAttempt).where(LibraryAttempt.item_id == item_id))
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item_id))
     await session.execute(delete(LibraryItem).where(LibraryItem.id == item_id))
@@ -338,13 +347,14 @@ async def active_count(session: AsyncSession) -> int:
 # ---- attempts ----
 
 async def add_attempt(session: AsyncSession, *, user_id: int, item_id: str, seg_idx: int, assessment_id: str,
-                      text: str, score: int | None, now: datetime) -> LibraryAttempt:
+                      text: str, score: int | None, now: datetime, dub_id: str | None = None) -> LibraryAttempt:
+    """`dub_id` (plan L5 R10): the dubbing take this line belongs to; a dubbed line counts as a normal attempt."""
     existing = await session.scalar(select(LibraryAttempt).where(LibraryAttempt.item_id == item_id,
                                                                  LibraryAttempt.assessment_id == assessment_id))
     if existing is not None:  # the same assessment posted twice counts once
         return existing
     row = LibraryAttempt(user_id=user_id, item_id=item_id, seg_idx=seg_idx, assessment_id=assessment_id,
-                         text_hash=text_hash(text), score=score, created_at=now)
+                         text_hash=text_hash(text), score=score, created_at=now, dub_id=dub_id)
     session.add(row)
     await session.commit()
     return row

@@ -59,6 +59,9 @@ PROMPTS: dict[str, PromptSpec] = {
     "library.analyze": PromptSpec(
         "library.analyze", "跟读库句子分析", "text", frozenset({"native_language", "learning_language"}), (), 4000,
         sample_fields=("native_language", "text")),
+    "library.roles": PromptSpec(  # plan L5 R7: speaker suggestions for a dubbing clip (default in library/roles_ai.py)
+        "library.roles", "跟读库句子角色建议", "text", frozenset({"text"}), ("<text>", "</text>"), 4000,
+        sample_fields=("text",)),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }

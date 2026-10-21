@@ -1048,6 +1048,8 @@ class LibraryItem(Base):
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 精选库副本(spec 2026-10-14-curated-library E1;无外键,R-SC1)
     catalog_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # L5 R2/R3:角色名 {"A": "名字", …},只存已用到的键;NULL = 没有标注角色
+    role_names: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class LibrarySegment(Base):
@@ -1066,13 +1068,16 @@ class LibrarySegment(Base):
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # plan v2 R-V14:这一句时间可疑的原因(逗号分隔,如 "rate,pause");NULL = 没有;手动改时间后清空
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    # L5 R3:说话人字母 A–F;NULL = 未标注(配音里当「对方」)
+    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
 
 class LibraryAttempt(Base):
     """一次跟读评测的成绩。assessment_id 指向 assessments.id,SET NULL 语义由应用层保证(无外键,兼容 SQLite);
     text_hash = 评测时该句文本的指纹(计划 R-SC14):句子改字或重新分句后,旧成绩不再算在这一句上。"""
     __tablename__ = "library_attempts"
-    __table_args__ = (Index("ix_library_attempts_item_id_seg_idx", "item_id", "seg_idx"),)
+    __table_args__ = (Index("ix_library_attempts_item_id_seg_idx", "item_id", "seg_idx"),
+                      Index("ix_library_attempts_dub_id", "dub_id"))
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -1082,6 +1087,29 @@ class LibraryAttempt(Base):
     text_hash: Mapped[str] = mapped_column(String(16))
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # L5 R2:配音录制里的这一句(无外键,与 assessment_id 同语义;take 删除时置空)
+    dub_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class LibraryDub(Base):
+    """一次影视配音录制(take):一段连续片段、扮演一个角色。`lines` 的形状见 plan L5 R11:
+    `{"<idx>": {assessment_id, pronunciation, fluency, sync, sync_basis, score, onset_ms, ratio_pct}}`。
+    角色名与句子一样是用户内容,不进日志 / 审计 / 计量 / URL(只记 id 与数字)。"""
+    __tablename__ = "library_dubs"
+    __table_args__ = (Index("ix_library_dubs_user_id_item_id_created_at", "user_id", "item_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    item_id: Mapped[str] = mapped_column(ForeignKey("library_items.id", ondelete="CASCADE"))
+    seg_from: Mapped[int] = mapped_column(Integer)
+    seg_to: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(2))
+    status: Mapped[str] = mapped_column(String(10))  # recording / done
+    total_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lines: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---- 精选库(设计文档 2026-10-14-curated-library §5;迁移 0022)----
@@ -1116,6 +1144,7 @@ class CatalogItem(Base):
     seg_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     low_confidence: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     ai_lang: Mapped[str] = mapped_column(String(8), default="zh-CN", server_default="zh-CN")
+    role_names: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # L5 R4:镜像 library_items.role_names
     published: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1137,6 +1166,7 @@ class CatalogSegment(Base):
     analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)  # L5 R4:镜像 library_segments.speaker
 
 
 # ---- 账号 v2 ----

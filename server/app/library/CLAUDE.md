@@ -34,11 +34,13 @@
 - `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → 转码(视频源 `normalize` ≤ 720p / ≤ 1600 kbps 保留画面,音频源 `audio_only`)→ 字幕 / 识别 →
   分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布);有句子且暂存里有 `replace.flag` → 只替换媒体(`_replace_stage`)
 - `catalog_jobs.py` – (计划 SI)`CatalogJobs`(`app.state.catalog`):一次一个、无轮询、`kick()` 触发、启动恢复;`pending` 在 `tests/background.py`
+- `roles.py` – (L5 R3–R5)句子角色 A–F 与角色名:纯函数 `merge` / `roles_out` / `clean_role` / `clean_name`;读写 `apply` / `apply_catalog` / `sync_catalog_roles`(不提交);`write_segments` 承接角色(按压空白后的文字)。角色名与句子一样是用户内容,不进日志
+- `roles_ai.py` – (L5 R7)角色的 LLM 建议:`render` / `parse`(`N. X`,只收 A–F)、用户侧 `suggest`(按句计额度 `dubbing_suggest`,整段预留,失败退还)、管理端 `suggest_catalog`(系统付费,计入 `library_cat_ai`);提示词 `library.roles` 可编辑
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
 ## Allowed dependencies
-`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers` 与 `main.py` 导入本包
-(`tests/test_architecture.py::test_library_layer_rules`)。
+`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers`、`main.py` 与 `dubbing`(L5)导入本包
+(`tests/test_architecture.py::test_library_layer_rules`、`test_dubbing_layer_rules`)。
 
 ## Wiring
 `main.create_app` 调 `worker.install(app)`;lifespan 起 `tasks["library"] = app.state.library.loop()`,关停时
