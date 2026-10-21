@@ -105,7 +105,33 @@ def test_redaction_removes_the_current_s3_secret_value():
         log_buffer.set_secrets([])
 
 
-def test_a_fallback_is_refused_until_the_fallback_store_exists():
+def test_a_fallback_must_differ_from_the_primary_backend(tmp_path):
     with pytest.raises(RuntimeError) as caught:
-        create_app(make_settings(storage_fallback="local"))
-    assert "not available yet" in str(caught.value)
+        create_app(make_settings(data_dir=str(tmp_path), storage_fallback="local"))
+    assert "must differ" in str(caught.value)
+
+
+def test_a_local_primary_with_an_s3_fallback_needs_the_fallback_keys(tmp_path):
+    with pytest.raises(RuntimeError) as caught:
+        create_app(make_settings(data_dir=str(tmp_path), storage_fallback="s3_fallback",
+                                 s3_fallback_bucket="old", s3_fallback_access_key="AK"))
+    assert "S3_FALLBACK_SECRET_KEY" in str(caught.value)
+
+
+def test_an_s3_primary_may_fall_back_to_local_and_the_wrapper_is_installed(tmp_path):
+    from app.storage.fallback import FallbackStore
+
+    app = create_app(make_settings(data_dir=str(tmp_path), storage_backend="s3", s3_bucket="enjoy",
+                                   s3_access_key="AK", s3_secret_key="SK", storage_fallback="local"))
+    store = get_store(app)
+    assert isinstance(store, FallbackStore)
+    assert isinstance(store.primary, S3Store) and isinstance(store.secondary, LocalStore)
+
+
+def test_the_fallback_cannot_point_at_the_same_s3_bucket(tmp_path):
+    with pytest.raises(RuntimeError) as caught:
+        create_app(make_settings(data_dir=str(tmp_path), storage_backend="s3", s3_bucket="enjoy",
+                                 s3_access_key="AK", s3_secret_key="SK", storage_fallback="s3_fallback",
+                                 s3_fallback_bucket="enjoy", s3_fallback_access_key="AK",
+                                 s3_fallback_secret_key="SK"))
+    assert "different endpoint or bucket" in str(caught.value)

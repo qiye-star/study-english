@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.storage.base import BlobStore, StorageError
+from app.storage.fallback import FallbackStore
 from app.storage.local import LocalStore
 from app.storage.s3 import S3Store
 
@@ -35,13 +36,25 @@ def _env_name(profile: str, field: str) -> str:
 
 def validate(settings) -> None:
     """Refuse bad storage settings at startup. Messages name the variables, never the values."""
-    if settings.storage_fallback:
-        raise RuntimeError("storage: the read fallback is not available yet")
     if settings.storage_backend == "s3":
         values = _s3_settings(settings, "s3")
         for field in _REQUIRED:
             if not values[field]:
                 raise RuntimeError(f"storage: {_env_name('s3', field)} is required")
+    fallback = settings.storage_fallback
+    if not fallback:
+        return
+    if fallback == settings.storage_backend:
+        raise RuntimeError("storage: STORAGE_FALLBACK must differ from STORAGE_BACKEND")
+    if fallback == "s3_fallback" and settings.storage_backend == "s3":
+        primary, secondary = _s3_settings(settings, "s3"), _s3_settings(settings, "s3_fallback")
+        if (primary["endpoint"], primary["bucket"]) == (secondary["endpoint"], secondary["bucket"]):
+            raise RuntimeError("storage: the fallback must point at a different endpoint or bucket")
+    if fallback == "s3_fallback":
+        values = _s3_settings(settings, "s3_fallback")
+        for field in _REQUIRED:
+            if not values[field]:
+                raise RuntimeError(f"storage: {_env_name('s3_fallback', field)} is required")
 
 
 def build_store(settings, profile: str) -> BlobStore:
@@ -68,5 +81,8 @@ def install(app: FastAPI) -> None:
     """Called from `create_app` before the library installs. `get_store(app)` reads `app.state.storage` each time."""
     settings = app.state.settings
     validate(settings)
-    app.state.storage = build_store(settings, settings.storage_backend)
+    store = build_store(settings, settings.storage_backend)
+    if settings.storage_fallback:
+        store = FallbackStore(store, build_store(settings, settings.storage_fallback))
+    app.state.storage = store
     app.add_exception_handler(StorageError, _storage_error)
