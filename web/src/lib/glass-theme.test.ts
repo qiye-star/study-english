@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  GLASS_DEFAULTS, GLASS_PRESETS, SAT_CAP, SWATCHES, computeGlassVars, contrastRatio, guardBackground, hslToRgb,
+  GLASS_DEFAULTS, GLASS_PRESETS, GLASS_RANGES, SAT_CAP, SWATCHES, computeGlassVars, contrastRatio, guardBackground, hslToRgb,
   parseGlassTheme, sliderToTint, tintToSlider, withBg, withPatch, withPreset, type GlassTheme, type Rgb,
 } from "./glass-theme";
 
@@ -24,9 +24,9 @@ describe("glass theme model (plan 2026-10-15-liquid-glass L1, INDEX §4.3–4.4)
   });
 
   it("maps the transparency slider (right = clearer) to the tint factor", () => {
-    expect(tintToSlider(1)).toBeCloseTo(43.75);
+    expect(tintToSlider(1)).toBeCloseTo(33.333, 2);
     expect(sliderToTint(0)).toBeCloseTo(1.35);
-    expect(sliderToTint(100)).toBeCloseTo(0.55);
+    expect(sliderToTint(100)).toBeCloseTo(0.3);
     expect(sliderToTint(tintToSlider(0.7))).toBeCloseTo(0.7);
   });
 
@@ -123,6 +123,88 @@ describe("glass theme model (plan 2026-10-15-liquid-glass L1, INDEX §4.3–4.4)
     expect(v["--mat-2-filter"]).toBe("blur(24px) saturate(2)");
     expect(v["--mat-2-bar-filter"]).toBe("blur(24px) saturate(1.3)");
     expect(v["--gx-radius"]).toBe("0.6");
+  });
+});
+
+describe("extended transparency: tint reaches 0.30 (owner request 2026-10-21)", () => {
+  const at = (theme: GlassTheme, dark: boolean) => computeGlassVars(theme, { dark, lite: false });
+  const OVER_STRICT = (fg: Rgb, a: number, bg: Rgb): Rgb => [0, 1, 2].map((i) => Math.round(fg[i] * a + bg[i] * (1 - a))) as Rgb;
+  const MAT_2_RGB = { light: [255, 255, 255] as Rgb, dark: [28, 30, 36] as Rgb };
+  const STRICT_BACKDROP = { light: [0, 0, 0] as Rgb, dark: [255, 255, 255] as Rgb };
+  const TITLE_INK = { light: [17, 19, 24] as Rgb, dark: [243, 244, 246] as Rgb };
+
+  it("the slider's far end is now 0.30 and the mapping stays 0..100 and invertible", () => {
+    expect(GLASS_RANGES.tint).toEqual([0.3, 1.35]);
+    expect(tintToSlider(1.35)).toBeCloseTo(0);
+    expect(tintToSlider(0.3)).toBeCloseTo(100);
+    for (const t of [0.3, 0.4, 0.55, 0.7, 1, 1.2, 1.35]) expect(sliderToTint(tintToSlider(t))).toBeCloseTo(t, 9);
+    for (const s of [0, 25, 50, 63, 100]) expect(tintToSlider(sliderToTint(s))).toBeCloseTo(s, 9);
+    expect(sliderToTint(-5)).toBeCloseTo(1.35);
+    expect(sliderToTint(140)).toBeCloseTo(0.3);
+  });
+
+  it("stored themes: old-range tints load unchanged, the new minimum is reachable and clamps below it", () => {
+    expect(parseGlassTheme({ v: 1, tint: 0.55 }).tint).toBe(0.55);
+    expect(parseGlassTheme({ v: 1, tint: 0.7 }).tint).toBe(0.7);
+    expect(parseGlassTheme({ v: 1, tint: 1.35 }).tint).toBe(1.35);
+    expect(parseGlassTheme({ v: 1, tint: 0.3 }).tint).toBe(0.3);
+    expect(parseGlassTheme({ v: 1, tint: 0.05 }).tint).toBe(0.3);
+    expect(withPatch(GLASS_DEFAULTS, { tint: 0 }).tint).toBe(0.3);
+  });
+
+  it("old saved values in the classic range render exactly as before (floors unchanged at tint >= 0.55)", () => {
+    const old = at({ ...GLASS_DEFAULTS, tint: 0.6 }, false).vars;
+    expect([old["--mat-1-alpha"], old["--mat-2-alpha"], old["--mat-2-bar-alpha"], old["--mat-3-alpha"]]).toEqual(["0.5", "0.55", "0.62", "0.62"]);
+    const full = at({ ...GLASS_DEFAULTS, tint: 1.35 }, false).vars;
+    expect([full["--mat-2-alpha"], full["--mat-2-bar-alpha"], full["--mat-3-alpha"]]).toEqual(["0.837", "0.94", "0.918"]);
+    const darkMid = at({ ...GLASS_DEFAULTS, tint: 0.55 }, true).vars;
+    expect([darkMid["--mat-2-alpha"], darkMid["--mat-2-bar-alpha"], darkMid["--mat-3-alpha"]]).toEqual(["0.5", "0.58", "0.58"]);
+  });
+
+  it("at the new minimum the lowered floors apply to light and dark (chrome/bar/sheet), a1 unchanged", () => {
+    const light = at({ ...GLASS_DEFAULTS, tint: 0.3 }, false);
+    expect([light.vars["--mat-1-alpha"], light.vars["--mat-2-alpha"], light.vars["--mat-2-bar-alpha"], light.vars["--mat-3-alpha"]]).toEqual(["0.5", "0.4", "0.42", "0.36"]);
+    expect(light.floorHit).toBe(true);
+    const dark = at({ ...GLASS_DEFAULTS, tint: 0.3 }, true);
+    expect([dark.vars["--mat-1-alpha"], dark.vars["--mat-2-alpha"], dark.vars["--mat-2-bar-alpha"], dark.vars["--mat-3-alpha"]]).toEqual(["0.04", "0.5", "0.52", "0.4"]);
+  });
+
+  it("alpha never falls below the effective floor and never increases as the slider goes clearer", () => {
+    for (const dark of [false, true]) {
+      let prev: number[] | null = null;
+      for (let t = 0.3; t <= 1.35 + 1e-9; t += 0.01) {
+        const v = at({ ...GLASS_DEFAULTS, tint: t }, dark).vars;
+        const cur = ["--mat-1-alpha", "--mat-2-alpha", "--mat-2-bar-alpha", "--mat-3-alpha"].map((k) => n(v[k]));
+        if (prev) cur.forEach((x, i) => expect(x, `dark=${dark} tint=${t.toFixed(2)} layer ${i}`).toBeGreaterThanOrEqual(prev![i] - 1e-9));
+        prev = cur;
+      }
+    }
+  });
+
+  it("the new floors keep large-title contrast on the bar (>= 3:1, Rev 4 strict backdrop) at the minimum", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const c = at({ ...GLASS_DEFAULTS, tint: 0.3 }, mode === "dark");
+      const bar = OVER_STRICT(MAT_2_RGB[mode], n(c.vars["--mat-2-bar-alpha"]), STRICT_BACKDROP[mode]);
+      expect(contrastRatio(TITLE_INK[mode], bar), `${mode} title on bar`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("the lite and small-blur safety raises still sit on top of the extended floors", () => {
+    const lite = at({ ...GLASS_DEFAULTS, tint: 0.3 }, false);
+    expect(computeGlassVars({ ...GLASS_DEFAULTS, tint: 0.3 }, { dark: false, lite: true }).vars["--mat-2-alpha"]).toBe("0.8");
+    const noBlur = computeGlassVars({ ...GLASS_DEFAULTS, tint: 0.3, blur: 0 }, { dark: false, lite: false }).vars;
+    expect(noBlur["--mat-2-alpha"]).toBe("0.6");
+    expect(noBlur["--mat-3-alpha"]).toBe("0.56");
+    expect(lite.floorHit).toBe(true);
+  });
+
+  it("presets are unchanged: clear, frosted and solid still produce the same values in both modes", () => {
+    const clear = at(GLASS_DEFAULTS, false).vars;
+    expect([clear["--mat-1-alpha"], clear["--mat-2-alpha"], clear["--mat-2-bar-alpha"], clear["--mat-3-alpha"]]).toEqual(["0.5", "0.55", "0.62", "0.62"]);
+    const clearDark = at(GLASS_DEFAULTS, true).vars;
+    expect([clearDark["--mat-1-alpha"], clearDark["--mat-2-alpha"], clearDark["--mat-2-bar-alpha"], clearDark["--mat-3-alpha"]]).toEqual(["0.04", "0.5", "0.58", "0.58"]);
+    const solid = at(withPreset(GLASS_DEFAULTS, "solid"), false).vars;
+    expect([solid["--mat-2-alpha"], solid["--mat-2-bar-alpha"], solid["--mat-3-alpha"]]).toEqual(["0.837", "0.94", "0.918"]);
   });
 });
 

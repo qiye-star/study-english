@@ -23,8 +23,10 @@
       "rim": "Edge highlight",
       "shadow": "Shadow",
       "background": "Background",
-      "editing": "Editing",
-      "mode": { "light": "Light mode", "dark": "Dark mode" },
+      "bgHint": {
+        "light": "Light mode is on, so only light backgrounds are shown here. Switch to dark mode to pick a dark background.",
+        "dark": "Dark mode is on, so only dark backgrounds are shown here. Switch to light mode to pick a light background."
+      },
       "custom": "Custom (saturation up to 30%)",
       "hue": "Hue",
       "sat": "Saturation",

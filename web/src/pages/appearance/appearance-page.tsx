@@ -36,7 +36,7 @@ export function AppearancePage() {
   const lowMemory = isLowMemory();
   const lite = lowMemory || theme.reduced;
   const computed = useMemo(() => computeGlassVars(theme, { dark, lite }), [theme, dark, lite]);
-  /** 默认 / 清透预设本身就落在可读下限上,那不是「用户拖过头」:只在比清透还透时提示 */
+  /** 默认 / 清透预设本身就落在可读下限上,那不是「用户拖过头」:只在比清透还透时提示。floorHit 用的是当前 tint 的有效下限(0.30 处为放宽后的新下限) */
   const atFloor = computed.floorHit && theme.tint < (GLASS_PRESETS.clear.tint ?? 0) - 1e-9;
   const rt = reducedTransparency();
   // App-wide switch, not the per-route pin: entering from a pinned route still has data-glass="pin" for one commit.
@@ -51,13 +51,6 @@ export function AppearancePage() {
         <SurfaceCard strong className="mt-2 p-4">
           <PreviewCard />
           <p className="mt-2.5 text-meta text-ink-2">{t("web.appearance.previewNote")}</p>
-        </SurfaceCard>
-
-        <SurfaceCard className={section}>
-          <h2 className={title}>{t("web.appearance.colorMode")}</h2>
-          <SegmentedControl label={t("web.appearance.colorMode")} value={colorScheme} onChange={(v: ColorScheme) => setColorScheme(v)}
-            className="w-full" optionClassName="flex-1"
-            options={COLOR_SCHEMES.map((s) => ({ value: s, label: t(`web.me.colorSchemeOptions.${s}`) }))} />
         </SurfaceCard>
 
         <SurfaceCard className={section}>
@@ -115,8 +108,15 @@ export function AppearancePage() {
             format={(v) => `${Math.round(v * 100)}%`} onChange={(shadow) => update({ shadow })} />
         </SurfaceCard>
 
-        <SurfaceCard className={section}>
-          <BackgroundPicker initialMode={dark ? "dark" : "light"} />
+        {/* 颜色模式与背景放在同一张卡:先选模式,下面的背景只显示该模式的色板 */}
+        <SurfaceCard data-testid="appearance-background-card" className={section}>
+          <h2 className={title}>{t("web.appearance.colorMode")}</h2>
+          <SegmentedControl label={t("web.appearance.colorMode")} value={colorScheme} onChange={(v: ColorScheme) => setColorScheme(v)}
+            className="w-full" optionClassName="flex-1"
+            options={COLOR_SCHEMES.map((s) => ({ value: s, label: t(`web.me.colorSchemeOptions.${s}`) }))} />
+          <div className="mt-5">
+            <BackgroundPicker />
+          </div>
         </SurfaceCard>
 
         <SurfaceCard className={section}>
