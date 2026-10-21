@@ -148,3 +148,14 @@ def test_choice_info_keys_are_real_choices_with_text():
 def test_in_scope_enums_cover_all_their_choices():
     for key in CHOICE_INFO_FULL:
         assert set(SPECS[key].choice_info) == set(choices_for(key)), key
+
+
+def test_activation_switch_is_a_hot_feature_flag_default_off():
+    # L4 Task 2: ACTIVATION_ENABLED (spec 2026-10-21-object-storage-fsrs-dubbing-design §2.4, plan l4 R17)
+    s = Settings(_env_file=None)
+    assert s.activation_enabled is False
+    spec = SPECS["activation_enabled"]
+    assert (spec.group, spec.kind, spec.label_zh, spec.apply, spec.env_only, spec.secret) == (
+        "features", "bool", "词汇激活", "hot", False, False)
+    assert "沉睡词" in spec.help_zh and spec.danger
+    assert env_name("activation_enabled") == "ACTIVATION_ENABLED"
