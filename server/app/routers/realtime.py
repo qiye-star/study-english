@@ -247,7 +247,8 @@ async def _call(websocket: WebSocket, app, settings: Settings, grant: TicketGran
             return await close(CLOSE_PROTOCOL)
         async with app.state.sessionmaker() as s:
             max_messages = await effective(s, settings, grant.user_id, "max_messages_per_conversation")
-        store = DbMessageStore(app.state.sessionmaker, grant.user_id, grant.conversation_id, max_messages)
+        store = DbMessageStore(app.state.sessionmaker, grant.user_id, grant.conversation_id, max_messages,
+                               publish=app.state.learning_bus.publish)  # plan L4 R4: explicit, the WS has no contextvar
         try:
             await store.history(0)  # existence/ownership check only
         except ConversationGoneError:

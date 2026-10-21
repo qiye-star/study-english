@@ -246,7 +246,8 @@ def install(app) -> LibraryWorker:
                         data_dir=Path(state.settings.resolved_data_dir), storage=lambda: state.storage,
                         tools=Ffmpeg(),
                         fetch=lambda: worker.fetch_stage, transcriber=transcriber, clock=utcnow,
-                        timed_transcriber=timed_transcriber)
+                        timed_transcriber=timed_transcriber,
+                        publish=lambda event: state.learning_bus.publish(event))  # plan L4 R4: read the bus per call
     worker = LibraryWorker(deps)
     state.library = worker
     return worker

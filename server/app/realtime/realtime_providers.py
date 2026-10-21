@@ -28,6 +28,7 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.core.learning_events import RealtimeTurnFinished
 from app.speech.asr import AsrError, RecognizerFactory, realtime_factory
 from app.speech.asr_realtime import volc_stream_factory
 from app.speech.asr_stream import AsrGate
@@ -193,11 +194,13 @@ class DbMessageStore:
     """`MessageStore` over the existing tables. The conversation is re-checked on every call, so a
     conversation deleted (or never owned) during the call raises `ConversationGoneError`."""
 
-    def __init__(self, sessionmaker, user_id: int, conversation_id: str, max_messages: int):
+    def __init__(self, sessionmaker, user_id: int, conversation_id: str, max_messages: int, publish=None):
         self._sm = sessionmaker
         self._user_id = user_id
         self._conversation_id = conversation_id
         self._max = max_messages
+        # L4 R4: the bus's publish, passed in explicitly (no contextvar on a WebSocket). None = publish nothing.
+        self._publish = publish
 
     async def _conversation(self, session) -> Conversation:
         conversation = await session.scalar(select(Conversation).where(
@@ -228,7 +231,19 @@ class DbMessageStore:
                 # deleted between the check and the insert (FK violation)
                 await session.rollback()
                 raise ConversationGoneError() from None
+            if role == "user":
+                self._announce(row.id, text, created)
             return row.id
+
+    def _announce(self, message_id: str, text: str, at) -> None:
+        """Only after the commit; a broken bus never reaches the call (L4 Task 7). The text stays in memory only."""
+        if self._publish is None:
+            return
+        try:
+            self._publish(RealtimeTurnFinished(user_id=self._user_id, conversation_id=self._conversation_id,
+                                               message_id=message_id, text=text, at=at))
+        except Exception as exc:  # noqa: BLE001 - publishing must never fail the saved turn
+            logger.warning("realtime publish failed error=%s", type(exc).__name__)
 
     async def add_user(self, text: str) -> str:
         return await self._add("user", text)

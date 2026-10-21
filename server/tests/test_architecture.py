@@ -13,6 +13,7 @@
     links      -> core, providers, speech, services, rank, rooms, wordbook, agents (top layer: only routers and main)
     library    -> core, providers, speech, services (imported media library: only admin, routers, main and dubbing import it)
     dubbing    -> core, models, providers, speech, services, library (voice-over clips; only admin, routers and main import it)
+    activation -> core, models, providers, speech, services, wordbook, agents (vocabulary activation top layer; only routers and main)
     admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents, library (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
@@ -27,7 +28,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 
 LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
-          "library", "dubbing", "admin", "routers", "storage")
+          "library", "dubbing", "activation", "admin", "routers", "storage")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -44,12 +45,15 @@ ALLOWED: dict[str, set[str]] = {
     "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
     "library": {"library", "core", "models", "providers", "speech", "services", "storage"},
     "dubbing": {"dubbing", "core", "models", "providers", "speech", "services", "library"},
+    # top layer beside links (L4 R1): reads wordbook / agents / services through their public modules, never links,
+    # library, rooms, realtime or rank (their data arrives as events or through app.models)
+    "activation": {"activation", "core", "models", "providers", "speech", "services", "wordbook", "agents"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
               "agents", "library", "dubbing", "storage"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links", "agents", "library", "dubbing", "storage"},
+                "admin", "links", "agents", "library", "dubbing", "activation", "storage"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links", "agents", "library", "dubbing", "storage"},
+             "routers", "links", "agents", "library", "dubbing", "activation", "storage"},
     "storage": {"storage", "core", "models"},
     "__init__": set(),
 }
@@ -218,6 +222,39 @@ def test_links_is_a_top_layer(tmp_path):
                 "app/links/f.py:1", "app/links/g.py:1"):
         assert any(p.startswith(bad) for p in found), bad
     assert not any(p.startswith(("app/links/ok.py", "app/routers/ok.py")) for p in found)
+
+
+def test_activation_is_a_top_layer(tmp_path):
+    """L4 R1: activation is a top layer beside links. Only routers and main import it; it never imports links,
+    library, rooms, realtime or rank (their data reaches it through events or app.models)."""
+    app = tmp_path / "app"
+    for pkg in ("activation", "links", "library", "rooms", "realtime", "rank", "wordbook", "agents", "routers", "core",
+                "services"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "links" / "a.py").write_text("from app.activation import usage\n", encoding="utf-8")
+    (app / "wordbook" / "b.py").write_text("from app.activation import words\n", encoding="utf-8")
+    (app / "agents" / "c.py").write_text("def f():\n    from app.activation import agent_source\n", encoding="utf-8")
+    (app / "library" / "d.py").write_text("from app import activation\n", encoding="utf-8")
+    (app / "services" / "e.py").write_text("import app.activation.states\n", encoding="utf-8")
+    (app / "activation" / "f.py").write_text("from app.links import gate\n", encoding="utf-8")
+    (app / "activation" / "g.py").write_text("from app.library import store\n", encoding="utf-8")
+    (app / "activation" / "h.py").write_text("from app.rooms import voice\n", encoding="utf-8")
+    (app / "activation" / "i.py").write_text("from app.realtime import x\n", encoding="utf-8")
+    (app / "activation" / "j.py").write_text("from app.rank import points\n", encoding="utf-8")
+    (app / "activation" / "ok.py").write_text("from app.wordbook import store, examples\n"
+                                              "from app.agents.context import SourceResult\n"
+                                              "from app.core import learning_events\n"
+                                              "from app.models import WordUsage\n"
+                                              "from app.services import srs_fsrs\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text("from app.activation import setup\n", encoding="utf-8")
+    found = violations(app)
+    for bad in ("app/links/a.py:1", "app/wordbook/b.py:1", "app/agents/c.py:2", "app/library/d.py:1",
+                "app/services/e.py:1", "app/activation/f.py:1", "app/activation/g.py:1", "app/activation/h.py:1",
+                "app/activation/i.py:1", "app/activation/j.py:1"):
+        assert any(p.startswith(bad) for p in found), bad
+    assert not any(p.startswith(("app/activation/ok.py", "app/routers/ok.py")) for p in found), found
 
 
 def test_agents_layer_rules(tmp_path):

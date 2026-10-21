@@ -1,6 +1,7 @@
 """学习事件通道(spec 2026-10-11-learning-links §4):进程内、有界、尽力而为。
 
 发布方在提交之后调用 `publish(event)`,不知道谁在听;订阅方(`app/links`)在启动时 `subscribe`。
+每个订阅带自己的总开关名(默认 `links_enabled`,L4 的 `activation_enabled`),总开关都关时事件不入队。
 只依赖标准库(核心层)。日志只记联动键、事件类名、异常类名;永不记录词、文本、异常消息或用户 id。"""
 import asyncio
 import logging
@@ -88,8 +89,47 @@ class MessageSent:
         _set(self, "text", self.text[:MAX_TEXT])
 
 
-EVENT_TYPES: tuple[type, ...] = (WordAnswered, AssessmentFinished, MessageSent)
+@dataclass(frozen=True)
+class RealtimeTurnFinished:
+    """实时通话里用户一句已保存的转写(L4 R5)。text 只在内存里,与 MessageSent 同样的规则。"""
+    user_id: int
+    conversation_id: str
+    message_id: str
+    text: str = field(repr=False)
+    at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=_event_id)
+
+    def __post_init__(self) -> None:
+        _set(self, "text", self.text[:MAX_TEXT])
+
+
+@dataclass(frozen=True)
+class LibraryItemReady:
+    """跟读库条目完成分句(L4 R5)。用户条目:user_id + item_id;精选库条目:user_id=None + catalog_id。不带任何文字。"""
+    user_id: int | None = None
+    item_id: str | None = None
+    catalog_id: str | None = None
+    at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=_event_id)
+
+
+@dataclass(frozen=True)
+class RoomVoiceTranscribed:
+    """房间语音转写成功(INDEX §4 冻结形状 user_id, room_id, text;L4 Task 17)。text 只在内存里,repr=False。"""
+    user_id: int
+    room_id: str
+    text: str = field(repr=False)
+    at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=_event_id)
+
+    def __post_init__(self) -> None:
+        _set(self, "text", self.text[:MAX_TEXT])
+
+
+EVENT_TYPES: tuple[type, ...] = (WordAnswered, AssessmentFinished, MessageSent, RealtimeTurnFinished, LibraryItemReady,
+                                 RoomVoiceTranscribed)
 Handler = Callable[[Any], Awaitable[None]]
+DEFAULT_FLAG = "links_enabled"  # 每个订阅有自己的总开关名;默认是联动的总开关(L4 R3)
 Gate = Callable[[str, int], Awaitable[bool]]
 _COUNTERS = ("published", "handled", "skipped", "failed", "timeouts", "dropped", "breaker_skipped", "breaker_opens",
              "last_ms")
@@ -123,7 +163,7 @@ class LearningBus:
     def __init__(self, settings: Callable[[], Any], *, clock: Callable[[], float] = time.monotonic) -> None:
         self._settings = settings
         self._clock = clock
-        self._subs: dict[type, list[tuple[str, Handler]]] = {}
+        self._subs: dict[type, list[tuple[str, Handler, str]]] = {}  # event type -> (link, handler, master flag name)
         self._stats: dict[str, _Stats] = {}
         self._queue: deque = deque()
         self._wake = asyncio.Event()
@@ -133,10 +173,10 @@ class LearningBus:
         self._per_user: dict[int, int] = {}  # user_id -> queued events
 
     # ---- wiring ----
-    def subscribe(self, event_type: type, link: str, handler: Handler) -> None:
+    def subscribe(self, event_type: type, link: str, handler: Handler, *, flag: str = DEFAULT_FLAG) -> None:
         if event_type not in EVENT_TYPES:
             raise ValueError(f"unknown event type {getattr(event_type, '__name__', event_type)}")
-        self._subs.setdefault(event_type, []).append((link, handler))
+        self._subs.setdefault(event_type, []).append((link, handler, flag))
         self._stats.setdefault(link, _Stats())
 
     def set_gate(self, gate: Gate | None) -> None:
@@ -147,20 +187,19 @@ class LearningBus:
 
     # ---- publishing ----
     def publish(self, event: Any) -> bool:
+        # Only subscriptions whose own master flag is on count; with none on, the event costs no queue slot (L4 R3).
         settings = self._settings()
-        if not getattr(settings, "links_enabled", False):
-            return False
-        subs = self._subs.get(type(event))
+        subs = [s for s in self._subs.get(type(event), ()) if getattr(settings, s[2], False)]
         if not subs:
             return False
         limit = max(1, _int(settings, "links_queue_max", 1000))
         user = getattr(event, "user_id", None)
         if len(self._queue) >= limit or self._per_user.get(user, 0) >= max(USER_SHARE_MIN, limit // 10):
             self._dropped += 1
-            for link, _ in subs:
+            for link, _, _ in subs:
                 self._stats[link].dropped += 1
             return False
-        for link, _ in subs:
+        for link, _, _ in subs:
             self._stats[link].published += 1
         self._queue.append(event)
         self._per_user[user] = self._per_user.get(user, 0) + 1
@@ -195,8 +234,11 @@ class LearningBus:
     async def _dispatch(self, event: Any) -> None:
         settings = self._settings()
         timeout = max(0.1, _int(settings, "links_handler_timeout_ms", 2000) / 1000)
-        for link, handler in list(self._subs.get(type(event), ())):
+        for link, handler, flag in list(self._subs.get(type(event), ())):
             st = self._stats[link]
+            if not getattr(settings, flag, False):  # switched off after publish: counted, never run
+                st.skipped += 1
+                continue
             if st.open_until:
                 if self._clock() < st.open_until:
                     st.breaker_skipped += 1

@@ -22,6 +22,7 @@ KEYS = {"config", "books", "enrollment", "today", "learn_batch", "answer_choice"
 GOALS_KEYS = {"enrollment_patch", "bonus", "pause", "today_paused", "resume", "reset"}  # 计划 2026-10-11 GS5
 DEFS_KEYS = {"def_lang_patch"}  # 计划 2026-10-12-wordbook-definitions-server P1
 LEARNED_KEYS = {"learned_summary", "learned_list", "learned_card", "free_start", "answer_free"}  # 计划 2026-10-12-wordbook-learned-review S6
+CLIP_KEYS = {"review_cloze_clip"}  # L4 Task 14 (R16): a cloze question carrying the learner's own library clip
 
 
 async def collect(app, client, tmp_path, monkeypatch) -> dict:
@@ -74,6 +75,7 @@ async def collect(app, client, tmp_path, monkeypatch) -> dict:
     out["explain_unavailable"] = (await client.post(f"{URL}/explain", headers=h, json={"key": "talk"})).json()
     out |= await collect_learned(client, h)
     out |= await collect_goals(client, h)
+    out["review_cloze_clip"] = await clip_case(app, client, tmp_path, monkeypatch)
     return out
 
 
@@ -107,11 +109,43 @@ async def collect_goals(client, h) -> dict:
     return out
 
 
+async def clip_case(app, client, tmp_path, monkeypatch) -> dict:
+    """L4 Task 14: a review cloze question whose sentence is the learner's own library clip (both switches on). A second
+    user keeps the main recording's state untouched; the settings are restored afterwards."""
+    from app.models import LibraryItem, LibrarySegment, SegmentLemma, utcnow
+    from tests.test_wordbook_learn import ans, make_due, pin_qtypes
+    from tests.links_helpers import user_id_of
+
+    saved = app.state.settings
+    app.state.settings = saved.model_copy(update={"library_enabled": True, "activation_enabled": True})
+    try:
+        r = await client.post("/api/users", json={"username": "bob", "password": "password123"})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        await client.put(f"{URL}/enrollment", headers=h, json={"book_id": "junior", "order_mode": "book"})
+        await ans(client, h, key="talk", mode="learn", qtype="meaning", choice="v. 说话；谈话；n. 交谈")
+        await make_due(app, "talk")
+        pin_qtypes(monkeypatch, {"talk": "cloze"})
+        uid = await user_id_of(client, h)
+        item_id = "c11acc11-0000-4000-8000-00000000c1a1"
+        async with app.state.sessionmaker() as s:
+            s.add(LibraryItem(id=item_id, user_id=uid, kind="video", source="upload", title="t", status="ready",
+                              low_confidence=False, created_at=utcnow(), updated_at=utcnow()))
+            s.add(LibrarySegment(item_id=item_id, idx=0, start_ms=1000, end_ms=4000,
+                                 text="I talk to my neighbor every single morning", zh="我每天早上跟邻居聊天。",
+                                 flags=None))
+            s.add(SegmentLemma(scope="lib", owner_id=item_id, idx=0, lemma="talk"))
+            await s.commit()
+        body = (await client.post(f"{URL}/review/batch", headers=h, json={"size": 5, "tz_offset_minutes": 480})).json()
+        return next(q for q in body["questions"] if q["key"] == "talk")
+    finally:
+        app.state.settings = saved
+
+
 async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, monkeypatch):
     real = random.Random
     monkeypatch.setattr(random, "Random", lambda seed=0: real(seed))  # 句组抽词固定,样例稳定
     actual = await collect(app, client, tmp_path, monkeypatch)
-    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS | DEFS_KEYS
+    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS | DEFS_KEYS | CLIP_KEYS
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
                            newline="\n")

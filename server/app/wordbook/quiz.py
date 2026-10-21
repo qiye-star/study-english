@@ -3,11 +3,14 @@ import hashlib
 import random
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from app.wordbook.entry import Example, WordCard, meaning_line
 from app.wordbook.index import BookIndex
 from app.wordbook.textnorm import find_form, fold, same_lemma
+
+if TYPE_CHECKING:  # examples.py imports this module, so only the type is named here (L4 R13)
+    from app.wordbook.examples import ContextExample
 
 QType = Literal["meaning", "word", "cloze", "dictation", "spell", "recall"]
 QTYPES: tuple[QType, ...] = ("meaning", "word", "cloze", "dictation", "spell", "recall")
@@ -27,6 +30,7 @@ class Question:
     prompt: dict[str, str]
     options: tuple[str, ...] | None
     length: int | None
+    clip: Any = None  # app.wordbook.examples.Clip when the cloze sentence is the learner's own library sentence (L4 R16)
 
 
 def question_rng(user_id: int, key: str, reps: int) -> random.Random:
@@ -126,7 +130,10 @@ def pick_distractors(target: WordCard, pool: list[WordCard], qtype: QType, rng: 
     return rng.sample(ok, min(n, len(ok)))
 
 
-def build_question(qtype: QType, card: WordCard, distractors: list[WordCard], rng: random.Random) -> Question:
+def build_question(qtype: QType, card: WordCard, distractors: list[WordCard], rng: random.Random, *,
+                   example: "ContextExample | None" = None) -> Question:
+    """`example` (L4 R15): a cloze sentence from the port; it changes only the prompt and the clip, never the options or
+    the random draws, so the question keeps the same choices and order as without it."""
     if qtype == "recall":  # 只给词头与音标;释义在翻面后从词卡显示
         return Question(card.key, qtype, {"word": card.word, "us": card.us or card.uk}, None, None)
     if qtype in ("dictation", "spell"):
@@ -139,12 +146,17 @@ def build_question(qtype: QType, card: WordCard, distractors: list[WordCard], rn
         options = [card.word] + [d.word for d in distractors]
         prompt = {"meaning": meaning_line(card, 40)}
     elif qtype == "cloze":
+        options = [card.word] + [d.word for d in distractors]
+        if example is not None:
+            prompt = {"sentence": example.en[:example.start] + BLANK + example.en[example.end:], "zh": example.zh or ""}
+            rng.shuffle(options)
+            return Question(card.key, qtype, prompt, tuple(options), None, example.clip)
         found = cloze_example(card)
         if found is None:
             raise ValueError("card has no cloze example")
-        example, start, end = found
-        options = [card.word] + [d.word for d in distractors]
-        prompt = {"sentence": example.en[:start] + BLANK + example.en[end:], "zh": example.zh}
+        dictionary_example, start, end = found
+        prompt = {"sentence": dictionary_example.en[:start] + BLANK + dictionary_example.en[end:],
+                  "zh": dictionary_example.zh}
     else:
         raise ValueError(f"unknown qtype {qtype!r}")
     rng.shuffle(options)

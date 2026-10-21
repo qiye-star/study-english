@@ -249,6 +249,40 @@ async def test_delete_user_removes_wordbook_and_link_rows_but_not_other_users(ap
     assert [r.user_id for r in reports] == [None, other]
 
 
+async def test_delete_user_removes_word_usage_and_their_own_segment_lemmas_only(app, client):
+    # L4 Task 3 (R2 / R10): word_usage is cascaded through USER_ROWS; segment_lemma rows of the user's items go with them
+    import uuid
+
+    from app.models import LibraryItem, SegmentLemma, WordUsage, utcnow
+
+    async def seed(uid):
+        now = utcnow()
+        item_id = str(uuid.uuid4())
+        async with app.state.sessionmaker() as s:
+            s.add(WordUsage(user_id=uid, lemma="talk", first_used_at=now, last_used_at=now, use_count=2,
+                            shadow_count=0, session_count=1, last_session="0123456789abcdef", sources="chat"))
+            s.add(LibraryItem(id=item_id, user_id=uid, kind="video", source="upload", title="t", status="ready",
+                              created_at=now, updated_at=now))
+            s.add(SegmentLemma(scope="lib", owner_id=item_id, idx=0, lemma="talk"))
+            await s.commit()
+        return item_id
+
+    uid, ha = await register(client, "dora")
+    other, hb = await register(client, "erin")
+    mine = await seed(uid)
+    theirs = await seed(other)
+    h = await login_as(app, client, "superadmin")
+    await client.post("/api/admin/step-up", headers=h, json={"password": PASSWORD})
+    r = await client.request("DELETE", f"/api/admin/users/{uid}", headers=h,
+                             json={"confirm_username": "dora", "reason": "用户要求注销"})
+    assert r.status_code == 200, r.text
+    async with app.state.sessionmaker() as s:
+        assert await s.scalar(select(func.count()).select_from(WordUsage).where(WordUsage.user_id == uid)) == 0
+        assert await s.scalar(select(func.count()).select_from(WordUsage).where(WordUsage.user_id == other)) == 1
+        assert await s.scalar(select(func.count()).select_from(SegmentLemma).where(SegmentLemma.owner_id == mine)) == 0
+        assert await s.scalar(select(func.count()).select_from(SegmentLemma).where(SegmentLemma.owner_id == theirs)) == 1
+
+
 async def test_delete_user_removes_their_email_identity_and_every_code_for_that_address(app, client):
     """Plan S22: codes are deleted by target (a `reset` row has no user_id), other users' rows stay."""
     from app.models import UserIdentity, VerificationCode

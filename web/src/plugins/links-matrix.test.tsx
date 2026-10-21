@@ -12,15 +12,20 @@ const visibleIds = (f: LinkFlags) => POINT_NAMES.flatMap((p) => contributionsFor
 
 afterEach(() => setLinkFlags(ALL_OFF));
 
+// 词汇激活(plugins/activation)不是联动:它的「我的」一行与 /me/activation 页是核心贡献(永远登记,
+// 页面与一行自己读服务端 ACTIVATION_ENABLED 决定是否显示),所以这里的核心清单多两项,联动相关的断言不变。
+const ACTIVATION_CORE = ["meRows/activation.row"];
+const ACTIVATION_ROUTE = "/me/activation";
+
 describe("all-off / all-on matrix", () => {
   it("with every link off only core contributions remain (= today)", () => {
-    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "practiceHeaderActions/changelog.entry", "practiceHome/dubbing.entry", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add"]);
-    expect(routesFor(ALL_OFF)).toEqual([]);
+    expect(visibleIds(ALL_OFF)).toEqual(["appEffects/links.config", "practiceHeaderActions/changelog.entry", "practiceHome/dubbing.entry", "selectionActions/chat.read-aloud", "wordActions/vocabulary.add", ...ACTIVATION_CORE].sort());
+    expect(routesFor(ALL_OFF).map((r) => r.path)).toEqual([ACTIVATION_ROUTE]);
   });
 
   it("the master switch off hides everything even when every link flag is on", () => {
     expect(visibleIds(flags(() => true, false))).toEqual(visibleIds(ALL_OFF));
-    expect(routesFor(flags(() => true, false))).toEqual([]);
+    expect(routesFor(flags(() => true, false)).map((r) => r.path)).toEqual([ACTIVATION_ROUTE]);
   });
 
   it("with every link on each point has its contributions", () => {
@@ -32,11 +37,11 @@ describe("all-off / all-on matrix", () => {
     expect(ids("learningSources")).toEqual(["pron.weak", "pron.today"]);
     expect(ids("notebookViews")).toEqual(["mistakes.row", "pron.row"]);
     expect(ids("wordDetailSections")).toEqual(["chat-words.badge"]);
-    expect(ids("meRows")).toEqual(["links.row"]);
+    expect(ids("meRows")).toEqual(["activation.row", "links.row"]);
     expect(ids("appEffects")).toEqual(["links.config"]);
     expect(ids("selectionActions")).toEqual(["chat.read-aloud"]);
     expect(ids("practiceHeaderActions")).toEqual(["changelog.entry"]);
-    expect(routesFor(allOn).map((r) => r.path).sort()).toEqual(["/links/mistakes", "/links/weak-words", "/me/links"]);
+    expect(routesFor(allOn).map((r) => r.path).sort()).toEqual(["/links/mistakes", "/links/weak-words", ACTIVATION_ROUTE, "/me/links"]);
   });
 
   it.each(LINK_KEYS)("turning on only %s adds nothing from the other links", (key) => {

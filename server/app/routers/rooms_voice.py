@@ -94,7 +94,8 @@ def install(app, rt: RoomsRuntime) -> None:
         gate=asyncio.Semaphore(settings0.rooms_voice_concurrency),
         upload_limiter=RateLimiter(limits.voice_per_minute, 60),
         translate_limiter=RateLimiter(limits.translate_per_minute, 60),
-        retry_limiter=RateLimiter(limits.retry_per_minute, 60), agents=lambda: rt.agents))
+        retry_limiter=RateLimiter(limits.retry_per_minute, 60), agents=lambda: rt.agents,
+        publish=lambda event: app.state.learning_bus.publish(event)))  # plan L4 Task 17: the transcript count as active use
     rt.voice = service
 
     async def _voice_staging_sweep(rt_: RoomsRuntime, now) -> None:

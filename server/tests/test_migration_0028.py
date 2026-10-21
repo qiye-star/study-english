@@ -127,9 +127,9 @@ def test_downgrade_drops_the_columns_and_keeps_the_leitner_state(tmp_path, monke
     assert _legacy_snapshot(db) == before_legacy
 
 
-def test_the_migration_chain_has_one_head_after_0028(tmp_path, monkeypatch):
+def test_the_migration_chain_has_one_head(tmp_path, monkeypatch):
     from alembic.script import ScriptDirectory
 
     cfg = Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "alembic"))
-    assert ScriptDirectory.from_config(cfg).get_heads() == ["0029"]
+    assert ScriptDirectory.from_config(cfg).get_heads() == ["0030"]  # head moves with each later migration

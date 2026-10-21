@@ -8,8 +8,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path as PathParam, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import learning_events
 from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
+from app.core.learning_events import LibraryItemReady
 from app.library import catalog_store, store
 from app.library.errors import api_error
 from app.models import User, utcnow
@@ -48,6 +50,8 @@ async def add_catalog_item(request: Request, catalog_id: CatalogId, user: User =
                                                            catalog_id=catalog_id, now=utcnow())
     except LookupError:
         raise api_error("catalog_not_found") from None
+    if created:  # plan L4 Task 9: the copy's sentences were committed by add_to_library; only a new copy is indexed
+        learning_events.publish(LibraryItemReady(user_id=user.id, item_id=item.id))
     return {"item": store.item_out(item), "created": created}
 
 

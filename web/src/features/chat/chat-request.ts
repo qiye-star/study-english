@@ -30,6 +30,20 @@ export function effectiveSystemPrompt(config: ConversationConfig): string {
   return [base, levelInstruction(normalizeLevel(config.level))].filter((part) => part.trim()).join("\n\n");
 }
 
+/** 实时通话开始消息里提示词的上限(服务端 `START_LIMITS.systemPrompt`,按码点计;与 features/realtime/protocol.ts 一致)。 */
+export const REALTIME_PROMPT_MAX = 8000;
+
+/** 对话提示词补充(计划 L4 Task 16):把一段补充接在基础提示词后面;没有补充时逐字返回基础提示词。 */
+export function withPromptHint(base: string, hint: string | null): string {
+  if (!hint || !hint.trim()) return base;
+  return [base, hint].filter((part) => part.trim()).join("\n\n");
+}
+
+/** 实时通话的提示词按码点截断,与服务端 `START_LIMITS.systemPrompt` 一致。 */
+export function capRealtimePrompt(text: string): string {
+  return Array.from(text).slice(0, REALTIME_PROMPT_MAX).join("");
+}
+
 export function buildChatMessages(
   config: ConversationConfig,
   history: Array<Pick<ChatMessage, "role" | "content">>,

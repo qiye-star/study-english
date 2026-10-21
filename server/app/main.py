@@ -27,6 +27,8 @@ from app.core.runtime_settings import (
 from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
+from app.activation.setup import install as install_activation  # vocabulary activation (plan L4)
+from app.activation import purge as activation_purge  # orphan sentence-index sweep (plan L4 R10)
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.library.catalog_jobs import install as install_catalog  # curated catalog jobs (plan 2026-10-14 SI)
@@ -35,7 +37,7 @@ from app.storage.config import install as install_storage  # object storage (pla
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, dubbing, admin_dubbing, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    admin_users, admin_web, admin_wordbook, activation, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, dubbing, admin_dubbing, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -62,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
+        tasks["activation_purge"] = asyncio.create_task(activation_purge.daily_loop(app_))  # plan L4 R10 (off by switch)
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         await app_.state.catalog.recover()  # requeue + run interrupted catalog imports
@@ -111,6 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
     agents_runtime(app)  # agents spec §3.3: sources, modes, hooks, idempotency ledger (plan R-C2); the only access is runtime(app)
     install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
+    install_activation(app)  # plan L4: activation subscriptions and the dormant-words agent source (gated by ACTIVATION_ENABLED)
     # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
     install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
     agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
@@ -139,7 +143,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         health, announcements, changelog, sessions, account, avatars, invites_me, captcha, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
-        links, agents, agents_tutor,
+        links, agents, agents_tutor, activation,  # /api/activation/* (plan L4); before stubs
         library,  # /api/library/* (spec 2026-10-13-video-import §9); before stubs
         # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
         library_import,

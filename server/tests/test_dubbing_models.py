@@ -23,10 +23,10 @@ def _cols(con, table: str) -> set[str]:
     return {r[1] for r in con.execute(f"pragma table_info({table})")}
 
 
-def test_head_is_0029_and_follows_the_previous_head(tmp_path, monkeypatch):
+def test_0029_follows_the_previous_head(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0029"]
+    assert script.get_heads() == ["0030"]  # L4 added 0030 on top; 0029 itself is unchanged
     assert script.get_revision("0029").down_revision == "0028"
 
 

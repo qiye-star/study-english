@@ -236,3 +236,22 @@ async def test_logs_carry_no_title_url_or_text(app, caplog):
     await run(app, cid)
     text = " ".join(f"{r.getMessage()} {r.args!r}" for r in caplog.records)
     assert "SECRET" not in text and any("catalog" in r.getMessage() for r in caplog.records)
+
+
+@respx.mock
+async def test_a_catalog_item_that_becomes_ready_publishes_its_catalog_id(app):
+    from app.core.learning_events import LibraryItemReady
+
+    use_fakes(app)
+    app.state.settings = app.state.settings.model_copy(update={"activation_enabled": True})
+    seen: list = []
+
+    async def handler(event):
+        seen.append(event)
+    app.state.learning_bus.subscribe(LibraryItemReady, "test.catalog", handler, flag="activation_enabled")
+    respx.post(LLM).mock(return_value=reply("1. 你好,我的朋友。\n2. 你今天好吗?"))
+    cid = await queued(app)
+    staged_upload(app, cid, fake_media(6000, video=True), SRT)
+    await run(app, cid)
+    await app.state.learning_bus.drain()
+    assert [(e.user_id, e.item_id, e.catalog_id) for e in seen] == [(None, None, cid)]

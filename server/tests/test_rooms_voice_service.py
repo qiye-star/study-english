@@ -500,3 +500,31 @@ async def test_a_failing_hook_never_breaks_the_transcription_and_leaks_nothing(e
     text = "\n".join(r.getMessage() for r in caplog.records if r.name.startswith("app"))
     assert "room voice agent hook failed" in text and "RuntimeError" in text
     assert "SECRET-HOOK-FAIL" not in text and "noodle" not in text
+
+
+# ---- L4 Task 17: a finished room transcript publishes RoomVoiceTranscribed (text in memory only) ----
+
+async def test_a_finished_transcript_publishes_room_voice_transcribed_without_its_text(env):
+    service, room, hub, senders, state, data_dir = env
+    seen = []
+    service.deps.publish = lambda event: seen.append(event) or True
+    await service.upload(room, A, "alice", wav_bytes(3), "p1", None)
+    await hub.drain()
+    assert len(seen) == 1 and type(seen[0]).__name__ == "RoomVoiceTranscribed"
+    assert (seen[0].user_id, seen[0].room_id) == (A, room.id)
+    assert seen[0].text == "I tried the new noodle place."
+    assert "noodle" not in repr(seen[0])
+
+
+async def test_failed_and_empty_transcripts_publish_nothing(env):
+    service, room, hub, senders, state, data_dir = env
+    seen = []
+    service.deps.publish = lambda event: seen.append(event) or True
+    state["fail"] = True
+    await service.upload(room, A, "alice", wav_bytes(3), "p2", None)
+    await hub.drain()
+    state["fail"] = False
+    state["transcript"] = "   "
+    await service.upload(room, A, "alice", wav_bytes(3), "p3", None)
+    await hub.drain()
+    assert seen == []

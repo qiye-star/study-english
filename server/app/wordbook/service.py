@@ -24,6 +24,7 @@ from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard, meaning_line
 from app.wordbook.grading import grade_blank, review_grade, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
+from app.wordbook.examples import provider_for
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
                                pick_distractors, pick_qtype, question_rng, use_recall, free_choice_qtype, free_spellable)
@@ -263,8 +264,11 @@ class AnswerInput:
 
 
 def question_out(q: Question) -> dict:
-    return {"key": q.key, "qtype": q.qtype, "prompt": dict(q.prompt),
-            "options": list(q.options) if q.options is not None else None, "length": q.length}
+    out = {"key": q.key, "qtype": q.qtype, "prompt": dict(q.prompt),
+           "options": list(q.options) if q.options is not None else None, "length": q.length}
+    if q.clip is not None:  # L4 R16: only the learner's own clip; old clients ignore the extra key
+        out["clip"] = {"item_id": q.clip.item_id, "start_ms": q.clip.start_ms, "end_ms": q.clip.end_ms}
+    return out
 
 
 async def _active(session: AsyncSession, ds: DictionaryStore, user_id: int,
@@ -312,12 +316,12 @@ async def _choice_extras(ds: DictionaryStore, user_id: int, p: AnswerInput, card
 
 
 async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype: str, rng, *,
-                    user_id: int | None = None) -> Question:
+                    user_id: int | None = None, example=None) -> Question:
     distractors: list[WordCard] = []
     if qtype in CHOICE_QTYPES:
         pool = await cards_or_fail(ds, index.book_id, candidate_keys(index, card.key, rng))
         distractors = pick_distractors(card, list(pool.values()), qtype, rng)
-    question = build_question(qtype, card, distractors, rng)
+    question = build_question(qtype, card, distractors, rng, example=example)
     if user_id is not None and qtype in OPTION_INFO_QTYPES and question.options is not None:
         # R-A1:出题时记下「选项原文 -> 词键」(与题面同序),答题后回填 option_info;对不上(重复文本等)就不记
         owners = {_option_text(qtype, c): c.key for c in (card, *distractors)}
@@ -359,7 +363,10 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
         rng = question_rng(user_id, card.key, row.reps)
         qtype = "recall" if recall_on and use_recall(user_id, card.key, row.reps, row.box) else pick_qtype(
             row.box, card, rng, tts=tts)
-        questions.append(question_out(await _question(ds, index, card, qtype, rng, user_id=user_id)))
+        example = None  # L4 R13/R15: only a cloze question may take the learner's own sentence (port: no DB for dictionary)
+        if qtype == "cloze":
+            example = await provider_for(settings).cloze_example(session, user_id, card, row.reps)
+        questions.append(question_out(await _question(ds, index, card, qtype, rng, user_id=user_id, example=example)))
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c, ds) for c in cards]}
 
 

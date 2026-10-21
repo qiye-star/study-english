@@ -110,6 +110,8 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("dubbing_enabled", "features", "bool", "影视配音", help_zh="需要先开启跟读库",
        danger="关闭后配音接口返回 404;记录保留"),
     _s("dubbing_suggest_daily_per_user", "library", "int", "配音智能建议每人每天句数", help_zh="占位上限,未校准"),
+    _s("activation_enabled", "features", "bool", "词汇激活", help_zh="关闭 = 没有激活统计、沉睡词页与原片例句",
+       danger="关闭后沉睡词页与激活接口返回 404;统计记录保留"),
     # registration / limits
     _s("registration_mode", "registration", "enum", "注册方式", danger="open 会让任何人注册并消耗上游额度",
        choice_info={
