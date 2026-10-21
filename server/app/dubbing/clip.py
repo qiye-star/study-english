@@ -6,12 +6,12 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+# The role rules live in library/roles.py (library may not import dubbing; dubbing may import library).
+from app.library.roles import MAX_ROLES, NAME_MAX, ROLE_KEYS, clean_name, clean_role  # noqa: F401
+
 # PLACEHOLDER: 12 lines / 90 s are not calibrated against real clips (plan L5 R6). Change only with a plan addendum.
 MAX_LINES = 12
 MAX_MS = 90_000
-ROLE_KEYS = ("A", "B", "C", "D", "E", "F")  # plan L5 R3; a clip never has more roles than this
-MAX_ROLES = 6
-NAME_MAX = 24
 
 
 class SegLike(Protocol):
@@ -54,17 +54,3 @@ def speakers_in(segs: list[SegLike], seg_from: int, seg_to: int) -> list[str]:
     return sorted({s.speaker for s in segs[seg_from:seg_to + 1] if s.speaker in ROLE_KEYS})
 
 
-def clean_role(raw: object) -> str | None:
-    """A role letter, upper-cased and trimmed; anything else (including non-strings) is None."""
-    if not isinstance(raw, str):
-        return None
-    value = raw.strip().upper()
-    return value if value in ROLE_KEYS else None
-
-
-def clean_name(raw: object) -> str | None:
-    """A role display name: spaces collapsed, 1..24 characters. Names are user content: never logged."""
-    if not isinstance(raw, str):
-        return None
-    value = " ".join(raw.split())
-    return value if 1 <= len(value) <= NAME_MAX else None

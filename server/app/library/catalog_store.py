@@ -302,11 +302,11 @@ async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int,
                        media_path=row.media_path, poster_path=row.poster_path, media_mime=row.media_mime,
                        library_bytes=0, upload_total=0, upload_received=0, sub_source=row.sub_source,
                        seg_count=len(segs), low_confidence=row.low_confidence, rebuildable=False,
-                       catalog_id=row.id, created_at=now, updated_at=now)
+                       catalog_id=row.id, role_names=row.role_names, created_at=now, updated_at=now)  # L5 R4
     session.add(item)
     session.add_all(LibrarySegment(item_id=item.id, idx=s.idx, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text,
                                    zh=s.zh, zh_lang=s.zh_lang, analysis=s.analysis, analysis_lang=s.analysis_lang,
-                                   flags=s.flags) for s in segs)
+                                   flags=s.flags, speaker=s.speaker) for s in segs)
     try:
         await session.commit()
     except IntegrityError:

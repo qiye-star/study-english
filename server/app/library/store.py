@@ -124,18 +124,26 @@ async def write_segments(session: AsyncSession, item: LibraryItem, sentences: li
     `flags` (plan v2 R-V14): one tuple of codes per sentence. `keep_ai` (rebuild, R-V16): a new sentence whose text is
     the same as an old one keeps that one's translation and analysis."""
     kept: dict[str, tuple] = {}
-    if keep_ai:
-        for old in await segments_of(session, item.id):
-            kept.setdefault(" ".join(old.text.split()), (old.zh, old.zh_lang, old.analysis, old.analysis_lang))
-            session.expunge(old)
+    # L5 R5: a new sentence takes the speaker of the old sentence with the same text (spaces collapsed); repeated
+    # texts pair up in order; nothing left over means no speaker. Old rows are detached so the bulk delete is safe.
+    speakers: dict[str, list[str | None]] = {}
+    for old in await segments_of(session, item.id):
+        key = " ".join(old.text.split())
+        speakers.setdefault(key, []).append(old.speaker)
+        if keep_ai:
+            kept.setdefault(key, (old.zh, old.zh_lang, old.analysis, old.analysis_lang))
+        session.expunge(old)
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item.id))
     rows = []
     for i, s in enumerate(sentences):
         codes = flags[i] if flags is not None and i < len(flags) else ()
-        zh, zh_lang, analysis, analysis_lang = kept.get(" ".join(s.text.split()), (None, None, None, None))
+        key = " ".join(s.text.split())
+        zh, zh_lang, analysis, analysis_lang = kept.get(key, (None, None, None, None))
+        queue = speakers.get(key)
+        speaker = queue.pop(0) if queue else None
         rows.append(LibrarySegment(item_id=item.id, idx=i, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text,
                                    flags=",".join(codes) or None, zh=zh, zh_lang=zh_lang, analysis=analysis,
-                                   analysis_lang=analysis_lang))
+                                   analysis_lang=analysis_lang, speaker=speaker))
     session.add_all(rows)
     item.seg_count = len(sentences)
     item.resume_idx = min(item.resume_idx, max(0, len(sentences) - 1))
