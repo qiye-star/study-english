@@ -11,7 +11,6 @@ import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query, Request
-from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +24,8 @@ from app.library import asr_chunks, catalog_store, limits, paths, segment, sente
 from app.library.errors import API_ERRORS, LibraryError, api_error, http_error
 from app.library.pipeline import TRANSCRIPT, UPLOADED_SUBS, INPUT_PREFIX
 from app.library.worker import LibraryWorker
-from app.storage import get_store
+from app.storage import BlobNotFound, StorageError, get_store
+from app.storage.http import blob_response
 from app.models import Assessment, LibraryItem, User, utcnow
 from app.services.prompts import prompt_cache
 from app.services.uploads import parse_buffered_form
@@ -291,10 +291,10 @@ async def delete_item(request: Request, item_id: ItemId, user: User = Depends(cu
     return {"deleted": True}
 
 
-def _has_material(data_dir, item: LibraryItem) -> bool:
+async def _has_material(store, data_dir, item: LibraryItem) -> bool:
     if item.source == "link":
         return bool(item.source_url)
-    if item.media_path and (data_dir / item.media_path).is_file():
+    if item.media_path and await store.stat(item.media_path) is not None:
         return True
     tmp = paths.tmp_dir(data_dir, item.id)
     return tmp.is_dir() and any(tmp.glob(INPUT_PREFIX + "*"))
@@ -308,7 +308,7 @@ async def retry_item(request: Request, item_id: ItemId, user: User = Depends(cur
         raise fail("not_failed")
     if not settings.library_available:
         raise fail("unavailable")
-    if not _has_material(settings.resolved_data_dir, item):
+    if not await _has_material(get_store(request.app), settings.resolved_data_dir, item):
         raise fail("no_material")
     item.status, item.stage, item.progress, item.error_kind = "queued", None, 0, None
     item.attempts, item.next_run_at, item.updated_at = 0, None, utcnow()
@@ -341,7 +341,7 @@ async def reprocess_item(request: Request, item_id: ItemId, user: User = Depends
     if not settings.library_asr_available:
         raise fail("asr_unavailable")
     data_dir = settings.resolved_data_dir
-    if not item.media_path or not (data_dir / item.media_path).is_file():
+    if not item.media_path or await get_store(request.app).stat(item.media_path) is None:
         raise fail("no_material")
     now = utcnow()
     need = max(1, math.ceil((item.duration_ms or 0) / 1000))
@@ -368,9 +368,13 @@ async def rebuild_item(request: Request, item_id: ItemId, user: User = Depends(l
     item = await owned(session, user, item_id)
     if item.status != "ready" or item.sub_source != "asr" or not item.rebuildable:
         raise fail("not_rebuildable")
-    path = paths.item_dir(settings.resolved_data_dir, item.user_id, item.id) / TRANSCRIPT
+    blobs = get_store(request.app)
     async with runtime(request).upload_lock(item.id):
-        loaded = await asyncio.to_thread(asr_chunks.load_transcript, path)
+        try:
+            raw = await blobs.get_bytes(paths.transcript_key(item.user_id, item.id), max_bytes=limits.TRANSCRIPT_MAX_BYTES)
+        except (BlobNotFound, StorageError):  # missing, or larger than the ceiling: the same answer as before
+            raw = None
+        loaded = asr_chunks.parse_transcript(raw) if raw is not None else None
         if loaded is None:
             raise fail("not_rebuildable")
         built = await asyncio.to_thread(sentences.build, *loaded)
@@ -409,7 +413,7 @@ async def put_item_subtitles(request: Request, item_id: ItemId, user: User = Dep
         item.sub_source, item.error_kind, item.low_confidence, item.updated_at = "uploaded", None, False, utcnow()
         item.rebuildable = False  # the recognizer's output is no longer the source (R-V8): drop it
         await session.commit()
-        (paths.item_dir(settings.resolved_data_dir, item.user_id, item.id) / TRANSCRIPT).unlink(missing_ok=True)
+        await get_store(request.app).delete(paths.transcript_key(item.user_id, item.id))
         segs = await store.segments_of(session, item.id)
         return {"item": store.item_out(item), "segments": [store.segment_out(s) for s in segs]}
     tmp = paths.tmp_dir(settings.resolved_data_dir, item.id)
@@ -567,8 +571,9 @@ async def media_ticket(request: Request, item_id: ItemId, user: User = Depends(l
 @router.head("/items/{item_id}/media")
 async def media(request: Request, item_id: ItemId, ticket: str | None = Query(None, max_length=128),
                 settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_session)):
-    """No Bearer: the ticket is the credential. Range / If-Range / 416 come from Starlette's FileResponse
-    (pinned by tests/test_library_range.py). Every read re-checks the item and the user (one PK lookup each)."""
+    """No Bearer: the ticket is the credential. Range / If-Range / 416 come from `storage.http.blob_response`
+    (the local backend keeps Starlette's file response; pinned by tests/test_library_range.py and
+    tests/test_storage_range.py). Every read re-checks the item and the user (one PK lookup each)."""
     if not settings.library_enabled:
         raise fail("disabled")
     user_id = runtime(request).tickets.resolve(ticket, item_id)
@@ -578,25 +583,24 @@ async def media(request: Request, item_id: ItemId, ticket: str | None = Query(No
     item = await store.get_owned(session, user_id, item_id)
     if user is None or user.disabled_at is not None or item is None or item.status != "ready" or not item.media_path:
         raise fail("not_found")
-    try:
-        path = paths.absolute(settings.resolved_data_dir, item.media_path)
-    except ValueError:
+    try:  # the ticket and the rows were checked above; only now does the store get touched (plan L1 R8)
+        return await blob_response(get_store(request.app), item.media_path, request,
+                                   media_type=item.media_mime or "application/octet-stream", headers=NO_STORE)
+    except (BlobNotFound, ValueError):
         raise fail("not_found") from None
-    if not path.is_file():
-        raise fail("not_found")
-    return FileResponse(path, media_type=item.media_mime or "application/octet-stream", headers=NO_STORE)
 
 
 @router.get("/items/{item_id}/poster")
-async def poster(item_id: ItemId, user: User = Depends(current_user), settings: Settings = Depends(require_library),
-                 session: AsyncSession = Depends(get_session)):
+async def poster(request: Request, item_id: ItemId, user: User = Depends(current_user),
+                 settings: Settings = Depends(require_library), session: AsyncSession = Depends(get_session)):
     item = await owned(session, user, item_id)
     if not item.poster_path:
         raise fail("not_found")
-    path = paths.absolute(settings.resolved_data_dir, item.poster_path)
-    if not path.is_file():
-        raise fail("not_found")
-    return FileResponse(path, media_type="image/jpeg", headers=NO_STORE)
+    try:
+        return await blob_response(get_store(request.app), item.poster_path, request, media_type="image/jpeg",
+                                   headers=NO_STORE)
+    except (BlobNotFound, ValueError):
+        raise fail("not_found") from None
 
 
 # ---- shadowing attempts ----

@@ -286,7 +286,19 @@ async def _copy_of(session: AsyncSession, user_id: int, catalog_id: str) -> Libr
                                                           LibraryItem.catalog_id == catalog_id))
 
 
-async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int, catalog_id: str,
+async def media_missing_stored(blobs, row: CatalogItem) -> bool:
+    """`media_missing` against the object store (plan L1 Task 10): one HEAD, no directory walk."""
+    if row.status != "ready":
+        return False
+    if not row.media_path:
+        return True
+    try:
+        return await blobs.stat(row.media_path) is None
+    except ValueError:
+        return True
+
+
+async def add_to_library(session: AsyncSession, blobs, *, user_id: int, catalog_id: str,
                          now: datetime) -> tuple[LibraryItem, bool]:
     """(the user's copy, created). A second add returns the existing copy; a racing add loses on the unique index
     and reads the winner back. LookupError when the item is not published / ready / has no media. Commits."""
@@ -294,7 +306,7 @@ async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int,
     if existing is not None:
         return existing, False
     row = await get_published(session, catalog_id)
-    if row is None or media_missing(data_dir, row):
+    if row is None or await media_missing_stored(blobs, row):
         raise LookupError(catalog_id)
     segs = await segments_of(session, row.id)
     item = LibraryItem(id=new_uuid(), user_id=user_id, kind=kind_of(row), source="catalog", title=row.title,

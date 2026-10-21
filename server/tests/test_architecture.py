@@ -265,8 +265,7 @@ BOTO_ALLOWED = ("app/storage/s3.py", "app/storage/config.py")  # R1: the only fi
 # Shrinking allowlists (plan R16). A migration batch removes its own entries; growing one needs a plan change.
 FILE_RESPONSE_ALLOWED = (
     "app/routers/admin.py", "app/routers/admin_catalog.py", "app/routers/admin_ops.py",
-    "app/routers/assessments.py", "app/routers/avatars.py", "app/routers/library.py",
-    "app/routers/library_catalog.py", "app/routers/web.py",
+    "app/routers/assessments.py", "app/routers/avatars.py", "app/routers/web.py",
 )
 DATA_DIR_ALLOWED = (
     "app/admin/catalog_admin.py", "app/admin/housekeeping.py", "app/admin/storage.py", "app/admin/system.py",
