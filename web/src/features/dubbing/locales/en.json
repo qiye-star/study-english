@@ -34,7 +34,26 @@
         "sentenceRole": "Role of sentence {{n}}"
       },
       "result": {
-        "saved": "Recording saved. Total score {{total}}."
+        "saved": "Recording saved. Total score {{total}}.",
+        "total": "Total score",
+        "pronunciation": "Pronunciation",
+        "fluency": "Fluency",
+        "timing": "Timing",
+        "basisWords": "By time",
+        "basisDuration": "By duration",
+        "basisNone": "No timing score",
+        "stale": "The sentence has changed",
+        "original": "Original",
+        "mine": "Mine",
+        "again": "Record again",
+        "change": "Change clip",
+        "reasons": {
+          "notRecorded": "Not recorded",
+          "noSpeech": "No speech",
+          "failed": "Failed",
+          "timeout": "Timed out",
+          "aborted": "Stopped"
+        }
       },
       "stage": {
         "waiting": "Playing…",

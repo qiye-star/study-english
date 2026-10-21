@@ -34,7 +34,26 @@
         "sentenceRole": "第 {{n}} 句的角色"
       },
       "result": {
-        "saved": "录音已保存,总分 {{total}}。"
+        "saved": "录音已保存,总分 {{total}}。",
+        "total": "总分",
+        "pronunciation": "发音",
+        "fluency": "流利",
+        "timing": "同步",
+        "basisWords": "按时间",
+        "basisDuration": "按时长",
+        "basisNone": "无同步分",
+        "stale": "句子已变化",
+        "original": "原声",
+        "mine": "我的",
+        "again": "再录一遍",
+        "change": "换片段",
+        "reasons": {
+          "notRecorded": "没有录到",
+          "noSpeech": "没有听到声音",
+          "failed": "评测失败",
+          "timeout": "超时",
+          "aborted": "已停止"
+        }
       },
       "stage": {
         "waiting": "播放中…",

@@ -9,6 +9,7 @@ import type { ClipSelection } from "./clip";
 import { useDubbingConfig } from "./config";
 import { getRoles, putRoles, type RoleKey, type RolesState, ROLE_KEYS } from "./dubbing-api";
 import { useDubKit } from "./kit-context";
+import { DubResults } from "./dub-results";
 import { DubSession } from "./dub-session";
 import { RoleLabels } from "./role-labels";
 import { RolePicker } from "./role-picker";
@@ -88,6 +89,17 @@ export function DubItemPage() {
               idx: s.idx, startMs: s.startMs, endMs: s.endMs, speaker: speakerOf(s.idx), text: s.text,
             }));
             const readiness = clipReadiness(segs, selection, role, limits);
+            if (done && selection && selection.to !== null) {
+              return (
+                <DubResults
+                  itemId={itemId}
+                  segs={segs}
+                  result={done}
+                  onRetry={() => { setDone(null); setInSession(true); }}
+                  onExit={() => { setDone(null); setInSession(false); }}
+                />
+              );
+            }
             if (inSession && selection && selection.to !== null && role !== null) {
               const roleName = names[role] ?? t("web.dubbing.roles.role", { key: role });
               return (
@@ -143,9 +155,6 @@ export function DubItemPage() {
                     onRename={rename}
                   />
                 </section>
-                {done ? (
-                  <p role="status" className="text-[14px]">{t("web.dubbing.result.saved", { total: done.take.totalScore ?? 0 })}</p>
-                ) : null}
                 <button
                   type="button"
                   disabled={!readiness.ok || role === null}
