@@ -298,6 +298,10 @@ class Settings(BaseSettings):
     library_link_timeout_minutes: int = Field(20, ge=1, le=120)
     library_link_allow_generic: bool = False
     library_ytdlp_cookies_file: str = ""  # env-only;Netscape 格式,含账号会话,等同密钥
+
+    # 影视配音(plan 2026-10-21-l5-dubbing R8/R22);总开关关 = /api/dubbing/* 除 config 外 404;角色管理接口不受影响
+    dubbing_enabled: bool = False
+    dubbing_suggest_daily_per_user: int = Field(120, ge=0, le=5000)  # 占位,未校准
     library_ytdlp_proxy: str = ""  # env-only secret;可能含账号口令
     # D8:每句译文与句子分析(调大模型,花钱);按「句」计的每日额度,命中已存的译文 / 分析不计
     library_ai_enabled: bool = False

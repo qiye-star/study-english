@@ -37,8 +37,8 @@
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
 ## Allowed dependencies
-`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers` 与 `main.py` 导入本包
-(`tests/test_architecture.py::test_library_layer_rules`)。
+`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers`、`main.py` 与 `dubbing`(L5)导入本包
+(`tests/test_architecture.py::test_library_layer_rules`、`test_dubbing_layer_rules`)。
 
 ## Wiring
 `main.create_app` 调 `worker.install(app)`;lifespan 起 `tasks["library"] = app.state.library.loop()`,关停时
