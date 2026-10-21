@@ -35,7 +35,8 @@ Foundation layer used by every other package.
 - `log_buffer.py` – in-memory ring buffer (2000) on the `app` and `uvicorn.error` loggers for the admin log viewer;
   `redact` (ticket/Bearer/key=…/JSON keys/current secret values via `set_secrets`); installed by `configure_logging`
 - `learning_events.py` – learning event channel (learning-links spec §4; standard library only): frozen event
-  dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent`, `LearningBus` (bounded deque,
+  dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent` / `RealtimeTurnFinished` / `LibraryItemReady`
+  (L4: each subscription has its own master flag, `subscribe(..., flag=)`, default `links_enabled`; an event with no live subscription costs no queue slot), `LearningBus` (bounded deque,
   single consumer `run()`, per-handler timeout, circuit breaker, counters, `drain()` for tests/shutdown) and the
   contextvar `bind(bus)` (called by `current_user`) / `publish(event)` (never raises; only after `commit()`)
 - `rank_sources.py` – rank point source registry (learning-links spec §5.1; standard library only): `RankSource`,
