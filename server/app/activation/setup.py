@@ -4,7 +4,7 @@
 """
 from fastapi import Depends, HTTPException, Request
 
-from app.activation import usage
+from app.activation import agent_source, usage
 from app.activation.indexer import Indexer
 from app.activation.indexer import install as indexer_install
 from app.core.deps import current_user, limited_user
@@ -28,3 +28,4 @@ def install(app) -> None:
     app.state.activation_indexer = Indexer(app)
     usage.install(app, app.state.learning_bus)
     indexer_install(app, app.state.learning_bus)
+    agent_source.install(app)  # needs runtime(app): main.create_app calls this after the agents runtime is built
