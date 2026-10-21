@@ -72,7 +72,7 @@ describe("goals-math (spec 2026-10-11 §4)", () => {
   });
 
   it("uses the server's box intervals and backlog limit (estimates and preview share them)", () => {
-    expect([...INTERVAL_DAYS]).toEqual(pyConst("app/services/vocabulary.py", "INTERVAL_DAYS"));
+    expect([...INTERVAL_DAYS]).toEqual(pyConst("app/services/scheduling.py", "INTERVAL_DAYS"));
     expect(BACKLOG_NEW).toBe(pyConst("app/wordbook/plan.py", "BACKLOG_NEW"));
   });
 
