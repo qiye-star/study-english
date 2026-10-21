@@ -293,10 +293,17 @@ def _files_importing(root: Path, names: tuple[str, ...]) -> set[str]:
 
 
 def _files_mentioning(root: Path, word: str) -> set[str]:
+    """Modules outside app/storage that mention `word`: the storage layer itself owns the local root and FileResponse."""
     import re
     pattern = re.compile(rf"\b{word}\b")
-    return {path.relative_to(root.parent).as_posix()
-            for path in root.rglob("*.py") if pattern.search(path.read_text(encoding="utf-8"))}
+    hits = set()
+    for path in root.rglob("*.py"):
+        rel = path.relative_to(root.parent).as_posix()
+        if rel.startswith("app/storage/"):
+            continue
+        if pattern.search(path.read_text(encoding="utf-8")):
+            hits.add(rel)
+    return hits
 
 
 def test_storage_layer_rules(tmp_path):
