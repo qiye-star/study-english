@@ -31,6 +31,7 @@ from app.agents.memory.setup import install as install_memory  # agents memory (
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.library.catalog_jobs import install as install_catalog  # curated catalog jobs (plan 2026-10-14 SI)
 from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
+from app.storage.config import install as install_storage  # object storage (plan 2026-10-21-l1-object-storage)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
     account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
@@ -116,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install, rooms_agents.install)  # + agents (plan A5)
+    install_storage(app)  # L1: app.state.storage (plan 2026-10-21-l1-object-storage); before the library reads it
     install_library(app)  # app.state.library: queue, media tickets, fetch stage (spec 2026-10-13-video-import §6.1)
     # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
     # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---

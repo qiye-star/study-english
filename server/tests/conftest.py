@@ -1,3 +1,4 @@
+import contextlib
 import os
 import shutil
 import tempfile
@@ -60,19 +61,38 @@ def settings_overrides(request):
 
 
 @pytest.fixture
-async def app(settings_overrides):
+def storage_backend(request):
+    """Object store behind `app.state.storage` for this test: "local" (default) or "s3" (moto). Parametrize with
+    `indirect=True` to run a test on both (plan 2026-10-21-l1-object-storage R16)."""
+    return getattr(request, "param", "local")
+
+
+@pytest.fixture
+async def app(settings_overrides, storage_backend):
     application = create_app(make_settings(**settings_overrides))
-    async with application.state.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    yield application
-    try:  # background tasks share the one StaticPool connection: finish them BEFORE the engine goes (tests/background.py)
-        await drain_background(application, timeout=3.0)
-    except TimeoutError:
-        pass
-    await cancel_background(application)
-    await application.state.http.aclose()
-    await application.state.engine.dispose()
+    with contextlib.ExitStack() as stack:
+        if storage_backend == "s3":
+            from tests.storage_helpers import moto_bucket, s3_store
+
+            application.state.storage = s3_store(stack.enter_context(moto_bucket()))
+        async with application.state.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        yield application
+        try:  # background tasks share the one StaticPool connection: finish them BEFORE the engine goes (tests/background.py)
+            await drain_background(application, timeout=3.0)
+        except TimeoutError:
+            pass
+        await cancel_background(application)
+        await application.state.http.aclose()
+        await application.state.engine.dispose()
+
+
+@pytest.fixture
+def store(app):
+    from app.storage import get_store
+
+    return get_store(app)
 
 
 @pytest.fixture
