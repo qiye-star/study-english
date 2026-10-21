@@ -11,6 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path as PathParam, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -20,7 +21,7 @@ from app.dubbing.errors import api_error
 from app.library import roles as library_roles
 from app.library import roles_ai, store
 from app.library.ai import AiUnavailable
-from app.models import LibraryItem, User, utcnow
+from app.models import Assessment, LibraryItem, User, utcnow
 
 router = APIRouter(prefix="/api/dubbing")
 logger = logging.getLogger(__name__)
@@ -194,3 +195,81 @@ async def delete_take(dub_id: ItemId, settings: Settings = Depends(require_dubbi
     await takes.remove(session, take)
     await session.commit()
     return Response(status_code=204)
+
+
+class LineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seg_idx: int
+    assessment_id: str = Field(max_length=36)
+    rec_start_ms: int
+    voiced_ms: int | None = None
+    capture: str = Field(max_length=10)
+
+
+@router.post("/takes/{dub_id}/lines")
+async def post_line(dub_id: ItemId, payload: LineIn, settings: Settings = Depends(require_dubbing),
+                    user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    """R10/R11: one scored sentence of the take. The assessment must be this learner's library assessment of this
+    sentence's text. A replay of the same assessment returns the stored line; another one for the same sentence is 409."""
+    async with takes.lock_for(dub_id):
+        take = await takes.get_owned(session, user.id, dub_id)
+        if take is None:
+            raise api_error("not_found")
+        await session.refresh(take)
+        if take.status != "recording":
+            raise api_error("take_done")
+        segs = await store.segments_of(session, take.item_id)
+        seg_idx = payload.seg_idx
+        if not (take.seg_from <= seg_idx <= take.seg_to) or seg_idx >= len(segs) or segs[seg_idx].speaker != take.role:
+            raise api_error("line_not_in_take")
+        seg = segs[seg_idx]
+        stored = (take.lines or {}).get(str(seg_idx))
+        if stored is not None:
+            if stored.get("assessment_id") == payload.assessment_id:
+                return {"line": takes.line_out(seg_idx, stored)}
+            raise api_error("line_done")
+        assessment = await session.scalar(select(Assessment).where(Assessment.id == payload.assessment_id,
+                                                                   Assessment.user_id == user.id))
+        if assessment is None or assessment.source != "library" or not store.same_text(assessment.reference_text,
+                                                                                       seg.text):
+            raise api_error("assessment")
+        if takes.timing_problem(seg, rec_start_ms=payload.rec_start_ms, voiced_ms=payload.voiced_ms,
+                                capture=payload.capture, duration_ms=assessment.duration_ms):
+            raise api_error("timing")
+        entry = takes.score_line(seg, assessment, rec_start_ms=payload.rec_start_ms, voiced_ms=payload.voiced_ms,
+                                 capture=payload.capture)
+        take.lines = {**(take.lines or {}), str(seg_idx): entry}
+        # the dubbed line is a real practice attempt: it counts toward the sentence's best score (R10)
+        await store.add_attempt(session, user_id=user.id, item_id=take.item_id, seg_idx=seg_idx,
+                                assessment_id=payload.assessment_id, text=seg.text, score=entry["pronunciation"],
+                                now=utcnow(), dub_id=take.id)
+        await session.commit()  # also when add_attempt found an existing attempt and wrote nothing
+    logger.info("dubbing line recorded take=%s seg=%d", take.id, seg_idx)
+    return {"line": takes.line_out(seg_idx, entry)}
+
+
+@router.post("/takes/{dub_id}/finish")
+async def finish_take(dub_id: ItemId, settings: Settings = Depends(require_dubbing),
+                      user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    """R11: totals over the role's sentences; sentences never recorded count as 0 and are marked missing."""
+    async with takes.lock_for(dub_id):
+        take = await takes.get_owned(session, user.id, dub_id)
+        if take is None:
+            raise api_error("not_found")
+        await session.refresh(take)
+        if take.status != "recording":
+            raise api_error("take_done")
+        segs = await store.segments_of(session, take.item_id)
+        expected = takes.expected_lines(segs, take)
+        lines = dict(take.lines or {})
+        for idx in expected:
+            lines.setdefault(str(idx), {"missing": True, "reason": "not_recorded"})
+        total, summary = scoring.take_summary(lines, expected)
+        take.lines = lines
+        take.total_score = total
+        take.summary = summary
+        take.status = "done"
+        take.finished_at = utcnow()
+        await session.commit()
+    logger.info("dubbing take finished take=%s lines=%d", take.id, len(expected))
+    return {"take": await take_payload(session, take)}

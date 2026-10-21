@@ -347,13 +347,14 @@ async def active_count(session: AsyncSession) -> int:
 # ---- attempts ----
 
 async def add_attempt(session: AsyncSession, *, user_id: int, item_id: str, seg_idx: int, assessment_id: str,
-                      text: str, score: int | None, now: datetime) -> LibraryAttempt:
+                      text: str, score: int | None, now: datetime, dub_id: str | None = None) -> LibraryAttempt:
+    """`dub_id` (plan L5 R10): the dubbing take this line belongs to; a dubbed line counts as a normal attempt."""
     existing = await session.scalar(select(LibraryAttempt).where(LibraryAttempt.item_id == item_id,
                                                                  LibraryAttempt.assessment_id == assessment_id))
     if existing is not None:  # the same assessment posted twice counts once
         return existing
     row = LibraryAttempt(user_id=user_id, item_id=item_id, seg_idx=seg_idx, assessment_id=assessment_id,
-                         text_hash=text_hash(text), score=score, created_at=now)
+                         text_hash=text_hash(text), score=score, created_at=now, dub_id=dub_id)
     session.add(row)
     await session.commit()
     return row
