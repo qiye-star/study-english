@@ -13,6 +13,7 @@ from app.library.catalog_import import REPLACE_MARK
 from app.library.errors import LibraryError
 from app.library.pipeline import INPUT_PREFIX, UPLOADED_SUBS
 from app.models import CatalogItem, utcnow
+from app.storage import get_store
 from app.services import usage
 
 logger = logging.getLogger(__name__)
@@ -411,7 +412,7 @@ async def delete(session, app, actor, catalog_id: str, *, reason: str, confirm: 
         await audit.record(session, actor, "catalog.delete", target_type="catalog_item", target_id=catalog_id,
                            after={"refs": 0}, reason=reason)
         await session.commit()
-        paths.remove_catalog_files(data_dir(app), catalog_id)
+        await paths.remove_catalog_files(get_store(app), data_dir(app), catalog_id)
         return {"id": catalog_id, "outcome": "deleted", "refs": 0}
     row.published, row.retired_at, row.updated_at = False, row.retired_at or utcnow(), utcnow()
     await audit.record(session, actor, "catalog.retire", target_type="catalog_item", target_id=row.id,

@@ -169,7 +169,7 @@ async def _anonymise_metering(session, user_id: int) -> None:
     await session.flush()
 
 
-async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_username: str, reason: str,
+async def delete_user(session, actor: Actor, settings, user_id: int, *, store, confirm_username: str, reason: str,
                       now: datetime) -> dict:
     """Deletes the user and everything they own (explicit deletes: SQLite does not enforce FK cascades),
     then their recordings directory. Room messages they sent in other rooms stay (R-6)."""
@@ -214,7 +214,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
                        reason=reason)
     await session.commit()
     _remove_recordings(settings, user_id)
-    library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    await library_paths.remove_user_files(store, settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
     avatars.remove(settings, avatar_id)  # the avatar file; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 

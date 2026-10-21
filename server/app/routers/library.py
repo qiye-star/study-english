@@ -25,6 +25,7 @@ from app.library import asr_chunks, catalog_store, limits, paths, segment, sente
 from app.library.errors import API_ERRORS, LibraryError, api_error, http_error
 from app.library.pipeline import TRANSCRIPT, UPLOADED_SUBS, INPUT_PREFIX
 from app.library.worker import LibraryWorker
+from app.storage import get_store
 from app.models import Assessment, LibraryItem, User, utcnow
 from app.services.prompts import prompt_cache
 from app.services.uploads import parse_buffered_form
@@ -285,7 +286,7 @@ async def delete_item(request: Request, item_id: ItemId, user: User = Depends(cu
     catalog_id = item.catalog_id
     await store.delete_item(session, request.app, item)
     if catalog_id:  # spec 2026-10-14-curated-library R1: the last copy of a retired catalog item lets it go
-        await catalog_store.collect_if_orphan(session, settings.resolved_data_dir, catalog_id)
+        await catalog_store.collect_if_orphan(session, get_store(request.app), settings.resolved_data_dir, catalog_id)
     logger.info("library item deleted item=%s", item_id)
     return {"deleted": True}
 

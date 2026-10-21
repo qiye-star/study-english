@@ -347,23 +347,23 @@ async def delete_rows(session: AsyncSession, catalog_id: str) -> None:
     await session.execute(delete(CatalogItem).where(CatalogItem.id == catalog_id))
 
 
-async def collect_if_orphan(session: AsyncSession, data_dir: Path, catalog_id: str) -> bool:
+async def collect_if_orphan(session: AsyncSession, store, data_dir: Path, catalog_id: str) -> bool:
     """A retired catalog item nobody uses any more: rows and files go. Commits."""
     row = await get(session, catalog_id)
     if row is None or row.retired_at is None or await refs(session, catalog_id) > 0:
         return False
     await delete_rows(session, catalog_id)
     await session.commit()
-    paths.remove_catalog_files(data_dir, catalog_id)
+    await paths.remove_catalog_files(store, data_dir, catalog_id)
     logger.info("library catalog collected catalog=%s", catalog_id)
     return True
 
 
-async def collect_retired(session: AsyncSession, data_dir: Path) -> int:
+async def collect_retired(session: AsyncSession, store, data_dir: Path) -> int:
     ids = list((await session.scalars(select(CatalogItem.id).where(CatalogItem.retired_at.is_not(None)))).all())
     done = 0
     for catalog_id in ids:
-        done += await collect_if_orphan(session, data_dir, catalog_id)
+        done += await collect_if_orphan(session, store, data_dir, catalog_id)
     return done
 
 
@@ -372,6 +372,7 @@ async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
     the catalog rows and files. Assessments in the practice history stay. Returns (copies, users). Commits.
     A running import job must be canceled by the caller first (plan SI)."""
     data_dir = app.state.library.deps.data_dir
+    blobs = app.state.storage
     copies = [(r[0], r[1]) for r in (await session.execute(select(LibraryItem.id, LibraryItem.user_id).where(
         LibraryItem.catalog_id == catalog_id))).all()]
     for item_id, _user_id in copies:
@@ -380,8 +381,8 @@ async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
     await session.commit()
     for item_id, user_id in copies:
         app.state.library.tickets.revoke_item(item_id)
-        paths.remove_item_files(data_dir, user_id, item_id)
-    paths.remove_catalog_files(data_dir, catalog_id)
+        await paths.remove_item_files(blobs, data_dir, user_id, item_id)
+    await paths.remove_catalog_files(blobs, data_dir, catalog_id)
     logger.info("library catalog purged catalog=%s copies=%d", catalog_id, len(copies))
     return len(copies), len({u for _i, u in copies})
 

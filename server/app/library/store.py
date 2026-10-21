@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.library import paths
+from app.storage import get_store
 from app.library.limits import (
     ACTIVE, AUDIO_EXTENSIONS, FAILED_KEEP_DAYS, LIST_LIMIT, TITLE_MAX, UPLOAD_EXPIRE_HOURS,
 )
@@ -218,7 +219,7 @@ async def cancel_item(session: AsyncSession, app, item: LibraryItem) -> bool:
     worker = app.state.library
     await worker.cancel(item.id)
     worker.tickets.revoke_item(item.id)
-    paths.remove_item_files(app.state.library.deps.data_dir, item.user_id, item.id)
+    await paths.remove_item_files(get_store(app), app.state.library.deps.data_dir, item.user_id, item.id)
     await session.execute(update(LibraryItem).where(LibraryItem.id == item.id).values(
         media_path=None, poster_path=None, library_bytes=0, error_kind=None, source_url=None))
     await session.commit()
@@ -236,7 +237,7 @@ async def delete_item(session: AsyncSession, app, item: LibraryItem) -> None:
     await delete_item_rows(session, item_id)
     await session.commit()
     app.state.library.tickets.revoke_item(item_id)
-    paths.remove_item_files(app.state.library.deps.data_dir, user_id, item_id)
+    await paths.remove_item_files(get_store(app), app.state.library.deps.data_dir, user_id, item_id)
 
 
 # ---- the worker's queue ----

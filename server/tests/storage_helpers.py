@@ -55,6 +55,11 @@ async def keys_under(app, prefix: str) -> list[str]:
     return [info.key async for info in get_store(app).list(prefix)]
 
 
+async def keys_under_store(store, prefix: str) -> list[str]:
+    """Sorted keys under `prefix` for a store object (no app needed)."""
+    return sorted([info.key async for info in store.list(prefix)])
+
+
 def quiet_botocore() -> bool:
     return all(logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
                for name in ("botocore", "boto3", "s3transfer", "urllib3"))

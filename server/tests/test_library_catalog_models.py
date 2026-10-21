@@ -114,13 +114,15 @@ def test_catalog_paths_live_beside_user_dirs_and_reject_bad_ids(tmp_path):
     assert not paths.catalog_tmp_dir(tmp_path, CID).is_relative_to(paths.tmp_root(tmp_path))
 
 
-def test_remove_catalog_files_takes_both_dirs_only(tmp_path):
+async def test_remove_catalog_files_takes_both_dirs_only(tmp_path):
+    from app.storage.local import LocalStore
+
     keep = paths.item_dir(tmp_path, 7, CID)
     keep.mkdir(parents=True)
     for d in (paths.catalog_dir(tmp_path, CID), paths.catalog_tmp_dir(tmp_path, CID)):
         d.mkdir(parents=True)
         (d / "x").write_bytes(b"1")
-    paths.remove_catalog_files(tmp_path, CID)
+    await paths.remove_catalog_files(LocalStore(tmp_path), tmp_path, CID)
     assert not paths.catalog_dir(tmp_path, CID).exists() and not paths.catalog_tmp_dir(tmp_path, CID).exists()
     assert keep.is_dir()
 

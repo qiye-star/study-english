@@ -207,11 +207,11 @@ async def test_retired_items_are_collected_only_without_copies(app):
         row = await catalog_store.get(s, cid)
         row.published, row.retired_at = False, utcnow()
         await s.commit()
-        assert await catalog_store.collect_if_orphan(s, data_dir_of(app), cid) is False  # one copy left
+        assert await catalog_store.collect_if_orphan(s, app.state.storage, data_dir_of(app), cid) is False
         assert media_file(app, cid).is_file()
         await store.delete_item_rows(s, item.id)
         await s.commit()
-        assert await catalog_store.collect_retired(s, data_dir_of(app)) == 1
+        assert await catalog_store.collect_retired(s, app.state.storage, data_dir_of(app)) == 1
         assert await catalog_store.get(s, cid) is None
         assert await s.scalar(select(func.count()).select_from(CatalogSegment)) == 0
     assert not media_file(app, cid).exists()
@@ -220,7 +220,7 @@ async def test_retired_items_are_collected_only_without_copies(app):
 async def test_collect_never_touches_live_items(app):
     cid = await make_catalog(app)
     async with app.state.sessionmaker() as s:
-        assert await catalog_store.collect_if_orphan(s, data_dir_of(app), cid) is False
+        assert await catalog_store.collect_if_orphan(s, app.state.storage, data_dir_of(app), cid) is False
     assert media_file(app, cid).is_file()
 
 

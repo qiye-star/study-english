@@ -8,6 +8,7 @@
 
 路径逃逸检查与 `services.recordings.absolute_path` 相同;id 先按形状校验,任何外部输入都拼不出数据目录外的路径。
 """
+import logging
 import os
 import re
 import shutil
@@ -67,14 +68,61 @@ def remove_tree(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
-def remove_item_files(data_dir: Path, user_id: int, item_id: str) -> None:
-    remove_tree(item_dir(data_dir, user_id, item_id))
+# ---- stored keys (plan L1 R2): the same relative paths, used as object keys by every backend ----
+
+def media_key(user_id: int, item_id: str, name: str) -> str:
+    return f"{item_rel(user_id, item_id)}/{name}"
+
+
+def poster_key(user_id: int, item_id: str) -> str:
+    return f"{item_rel(user_id, item_id)}/poster.jpg"
+
+
+def transcript_key(user_id: int, item_id: str) -> str:
+    return f"{item_rel(user_id, item_id)}/{TRANSCRIPT_NAME}"
+
+
+def item_prefix(user_id: int, item_id: str) -> str:
+    return f"{item_rel(user_id, item_id)}/"
+
+
+def user_prefix(user_id: int) -> str:
+    return f"{user_rel(user_id)}/"
+
+
+def catalog_media_key(catalog_id: str, name: str) -> str:
+    return f"{catalog_rel(catalog_id)}/{name}"
+
+
+def catalog_poster_key(catalog_id: str) -> str:
+    return f"{catalog_rel(catalog_id)}/poster.jpg"
+
+
+def catalog_prefix(catalog_id: str) -> str:
+    return f"{catalog_rel(catalog_id)}/"
+
+
+TRANSCRIPT_NAME = "transcript.json"
+_log = logging.getLogger(__name__)
+
+
+async def drop_persistent(store, prefix: str) -> None:
+    """Delete everything under a stored prefix. Runs after the database commit and never raises: a failure is logged
+    with its code only, and the daily sweep is the backstop (plan L1 R6.2)."""
+    try:
+        await store.delete_prefix(prefix)
+    except Exception as exc:  # noqa: BLE001 - deletes after commit must not fail the request
+        _log.warning("library delete failed op=delete_prefix code=%s", getattr(exc, "code", type(exc).__name__))
+
+
+async def remove_item_files(store, data_dir: Path, user_id: int, item_id: str) -> None:
+    await drop_persistent(store, item_prefix(user_id, item_id))
     remove_tree(tmp_dir(data_dir, item_id))
 
 
-def remove_user_files(data_dir: Path, user_id: int, item_ids: list[str]) -> None:
-    """Deleting a user: their whole library directory plus the staging directories of their items."""
-    remove_tree(absolute(data_dir, user_rel(user_id)))
+async def remove_user_files(store, data_dir: Path, user_id: int, item_ids: list[str]) -> None:
+    """Deleting a user: their whole library prefix in the store plus the local staging of their items."""
+    await drop_persistent(store, user_prefix(user_id))
     for item_id in item_ids:
         try:
             remove_tree(tmp_dir(data_dir, item_id))
@@ -123,6 +171,6 @@ def catalog_tmp_dir(data_dir: Path, catalog_id: str) -> Path:
     return absolute(data_dir, catalog_tmp_rel(catalog_id))
 
 
-def remove_catalog_files(data_dir: Path, catalog_id: str) -> None:
-    remove_tree(catalog_dir(data_dir, catalog_id))
+async def remove_catalog_files(store, data_dir: Path, catalog_id: str) -> None:
+    await drop_persistent(store, catalog_prefix(catalog_id))
     remove_tree(catalog_tmp_dir(data_dir, catalog_id))

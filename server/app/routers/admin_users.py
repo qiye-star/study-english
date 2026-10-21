@@ -16,6 +16,7 @@ from app.admin.perms import AdminContext, deny, require, require_operator_step_u
 from app.core.config import Settings
 from app.core.deps import get_session, get_settings
 from app.core.quotas import QUOTA_KEYS, quota_cache
+from app.storage import get_store
 from app.core.secretbox import box_for
 from app.models import utcnow
 from app.rooms.protocol import CLOSE_NOT_FOUND, event
@@ -115,7 +116,7 @@ async def delete_user(user_id: UserId, payload: DeleteIn, request: Request,
                       ctx: AdminContext = Depends(require_step_up), session: AsyncSession = Depends(get_session)):
     settings = request.app.state.settings
     try:
-        result = await users_admin.delete_user(session, ctx.actor, settings, user_id,
+        result = await users_admin.delete_user(session, ctx.actor, settings, user_id, store=get_store(request.app),
                                                confirm_username=payload.confirm_username, reason=payload.reason,
                                                now=utcnow())
     except users_admin.UserAdminError as e:

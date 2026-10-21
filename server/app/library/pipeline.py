@@ -93,6 +93,7 @@ class PipelineDeps:
     sessionmaker: Any
     settings: Callable[[], Any]
     data_dir: Path
+    storage: Callable[[], Any]  # the app's BlobStore, read at run time (plan L1 R3): `lambda: app.state.storage`
     tools: MediaTools
     fetch: Callable[[], FetchStage]  # read at run time: S2 may replace the stage after startup
     transcriber: Callable[[int], Callable[[bytes], Awaitable[str]]]  # user id -> (16 kHz WAV -> text)
