@@ -27,6 +27,9 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      minio-init:  # plan L1 Task 24: only when the `minio` profile is up; absent otherwise
+        condition: service_completed_successfully
+        required: false
     restart: unless-stopped
     # 1Panel:取消注释以加入 1Panel 的 Docker 网络(见文件头说明)
     # networks:
@@ -53,6 +56,40 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # 对象存储(可选,spec 2026-10-21 §1、plan L1 Task 24):开发环境的 MinIO。只绑本机;没有密码默认值以外的凭据时
+  # 请改 MINIO_ROOT_PASSWORD;服务端应使用专用钥匙而不是 root,例如在 MinIO 控制台建一把只读写本桶的钥匙。
+  # 启用:docker compose --profile minio up -d;server/.env 里 STORAGE_BACKEND=s3、S3_ENDPOINT=http://minio:9000、
+  # S3_PATH_STYLE=true、S3_BUCKET=enjoy、S3_ACCESS_KEY / S3_SECRET_KEY(专用钥匙)。桶保持私有(不设匿名策略)。
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z  # 未验证:实现时未拉取镜像;切换前请核对官方发布状态
+    profiles: ["minio"]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-enjoy-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  # 建桶(幂等):等 MinIO 就绪后创建私有桶;不设匿名访问策略。
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z  # 未验证:同上
+    profiles: ["minio"]
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-enjoy-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+      S3_BUCKET: ${S3_BUCKET:-enjoy}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done &&
+        mc mb --ignore-existing "local/$$S3_BUCKET"
+
 # 1Panel:取消注释(该网络由 1Panel 创建;没有时先 docker network create 1panel-network)
 # networks:
 #   1panel-network:
@@ -61,3 +98,4 @@ services:
 volumes:
   enjoy-data:
   pg-data:
+  minio-data:

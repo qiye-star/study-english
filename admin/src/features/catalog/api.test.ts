@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { camel, deletePhrase, fetchCatalog, importLink, patchMeta, purgePhrase, putChunk, startReplace } from "./api";
+import { camel, deletePhrase, exportBundle, fetchCatalog, importBundle, importLink, listBundles, patchMeta, purgePhrase, putChunk, startReplace } from "./api";
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 function stub(body: unknown) {
@@ -46,4 +46,20 @@ describe("catalog admin api", () => {
     expect(out).toEqual({ catalogId: ID, chunkBytes: 8388608 });
   });
   it("camel keeps arrays", () => expect(camel({ a_b: [{ c_d: 1 }] })).toEqual({ aB: [{ cD: 1 }] }));
+  it("exports a bundle with an empty JSON body and reads the counts", async () => {
+    const calls = stub({ catalog_id: ID, segments: 2, bytes: 4096 });
+    expect(await exportBundle(ID)).toEqual({ catalogId: ID, segments: 2, bytes: 4096 });
+    expect(calls[0].url).toBe(`/api/admin/library/catalog/${ID}/bundle`);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({});
+  });
+  it("lists bundles with the importable flag", async () => {
+    stub({ bundles: [{ catalog_id: ID, bytes: 10, exported_at: "2026-10-21T00:00:00+00:00", importable: true }] });
+    expect(await listBundles()).toEqual([{ catalogId: ID, bytes: 10, exportedAt: "2026-10-21T00:00:00+00:00", importable: true }]);
+  });
+  it("imports with a reason and sends it as the only field", async () => {
+    const calls = stub({ id: ID, segments: 2, status: "ready", published: false });
+    expect(await importBundle(ID, "restore")).toEqual({ id: ID, segments: 2, status: "ready", published: false });
+    expect(calls[0].url).toBe(`/api/admin/library/catalog/bundles/${ID}/import`);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ reason: "restore" });
+  });
 });

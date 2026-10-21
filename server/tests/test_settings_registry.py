@@ -11,6 +11,10 @@ EXPECTED_ENV_ONLY = {
     "library_ytdlp_cookies_file", "library_ytdlp_proxy",  # spec 2026-10-13-video-import §5.2
     "identity_pepper",  # accounts v2 (INDEX X9)
     "captcha_secret",  # spec 2026-10-20-captcha-altcha §4
+    # object storage (plan 2026-10-21-l1-object-storage R9)
+    "storage_backend", "storage_fallback", "s3_endpoint", "s3_bucket", "s3_access_key", "s3_secret_key", "s3_region",
+    "s3_path_style", "s3_fallback_endpoint", "s3_fallback_bucket", "s3_fallback_access_key", "s3_fallback_secret_key",
+    "s3_fallback_region", "s3_fallback_path_style",
 }
 EXPECTED_SECRETS = {
     "database_url", "invite_code", "upstream_llm_key", "upstream_tts_key", "upstream_whisper_key", "upstream_grammar_key",
@@ -18,6 +22,7 @@ EXPECTED_SECRETS = {
     "admin_password", "admin_session_secret", "admin_totp_secret", "settings_encryption_key",
     "library_ytdlp_proxy", "identity_pepper", "smtp_password",
     "captcha_secret",  # spec 2026-10-20-captcha-altcha §4
+    "s3_access_key", "s3_secret_key", "s3_fallback_access_key", "s3_fallback_secret_key",  # plan L1 R9
 }
 
 

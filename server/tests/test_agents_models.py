@@ -41,8 +41,8 @@ async def test_deleting_a_user_removes_their_personas_settings_and_reports(app):
         s.add_all([AgentPersonaReport(persona_id=mine.id, reporter_id=10000002, reason="spam", created_at=now),
                    AgentPersonaReport(persona_id=theirs.id, reporter_id=10000001, reason="other", created_at=now)])
         await s.commit()
-        await users_admin.delete_user(s, CLI_ACTOR, app.state.settings, 10000001, confirm_username="u10000001",
-                                      reason="test", now=now)
+        await users_admin.delete_user(s, CLI_ACTOR, app.state.settings, 10000001, store=app.state.storage,
+                                      confirm_username="u10000001", reason="test", now=now)
         assert [p.name for p in (await s.scalars(select(AgentPersona))).all()] == ["Theirs"]
         assert await s.scalar(select(func.count()).select_from(AgentPersonaReport)) == 0
         assert await s.get(AgentUserSettings, 10000001) is None

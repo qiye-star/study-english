@@ -18,6 +18,7 @@ from app.core.secretbox import box_for, fingerprint
 from app.library import urlcheck
 from app.services.identities import email_ready
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
+from app.storage import get_store
 from app.wordbook.books import book_by_id, enabled_books
 
 Level = Literal["error", "warn", "info"]
@@ -32,6 +33,7 @@ CODES = (
     "library_link_proxy_missing", "library_link_dns_private",
     "email_not_configured", "email_console_backend", "binding_without_deadline", "legacy_invite_code",
     "captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers",
+    "storage_s3_unreachable", "storage_fallback_active", "storage_backup_not_uploaded",
 )
 
 
@@ -64,6 +66,11 @@ class Facts:
     library_ytdlp_ok: bool = True  # the yt_dlp module can be found (link import)
     library_cookies: str = "unset"  # LIBRARY_YTDLP_COOKIES_FILE: unset | ok | missing | too_open
     library_dns: str = "unchecked"  # www.youtube.com through the local resolver: unchecked | ok | private | unresolved
+    storage_backend: str = "local"  # STORAGE_BACKEND (plan L1 Task 17); the value is a name, never an endpoint
+    storage_probe: str = "ok"  # probe() of the primary: ok | unreachable | denied | no_bucket | not_writable
+    storage_fallback: str = ""  # STORAGE_FALLBACK ("" when off)
+    storage_fallback_hits: int = 0  # reads served by the fallback since start (this process)
+    backup_unsynced: bool = False  # the newest backup exists locally only (S3 primary)
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -105,6 +112,24 @@ def _library_findings(s, f: Facts) -> list[Finding]:
     elif f.library_cookies == "too_open":
         out.append(Finding("warn", "library_cookies_missing", ("library_ytdlp_cookies_file",),
                            "yt-dlp 的 cookies 文件权限比 0600 宽:它含账号会话,等同密钥,请改为只有服务进程可读"))
+    return out
+
+
+def _storage_findings(f: Facts) -> list[Finding]:
+    """Object storage (plan L1 Task 17). Messages name variables only, never their values."""
+    out = []
+    if f.storage_backend == "s3" and f.storage_probe != "ok":
+        out.append(Finding("error", "storage_s3_unreachable", ("storage_backend", "s3_endpoint", "s3_bucket",
+                                                               "s3_access_key"),
+                           f"对象存储无法访问({f.storage_probe}):检查 S3_ENDPOINT、S3_BUCKET、S3_ACCESS_KEY;"
+                           "在它恢复之前,媒体与录音都读不出来"))
+    if f.storage_fallback:
+        out.append(Finding("warn", "storage_fallback_active", ("storage_fallback",),
+                           f"读回退已启用(本进程回退命中 {f.storage_fallback_hits} 次);"
+                           "确认为 0 后再清空 STORAGE_FALLBACK"))
+    if f.backup_unsynced:
+        out.append(Finding("warn", "storage_backup_not_uploaded", ("storage_backend",),
+                           "最近一份备份只在本机,没有上传到对象存储"))
     return out
 
 
@@ -213,6 +238,7 @@ def diagnose(s, f: Facts) -> list[Finding]:
         out.extend(_library_findings(s, f))
     out.extend(_email_findings(s))
     out.extend(_captcha_findings(s))
+    out.extend(_storage_findings(f))
     rank ={"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
@@ -322,6 +348,20 @@ async def gather_facts(session, app) -> Facts:
     check_dns = (getattr(live, "library_enabled", False) and getattr(live, "library_link_import_enabled", False)
                  and not (getattr(live, "library_ytdlp_proxy", "") or "").strip())
     library_dns = await dns_state() if check_dns else "unchecked"
+    from app.admin import backups  # local import: backups lives in the same layer and imports housekeeping
+    blobs = get_store(app)
+    primary = getattr(blobs, "primary", blobs)
+    try:  # one HEAD on the bucket, bounded; never one per object (plan L1 Task 17)
+        storage_probe = await asyncio.wait_for(primary.probe(), 3.0)
+    except Exception:  # noqa: BLE001 - a timeout or any connection failure is "unreachable"
+        storage_probe = "unreachable"
+    unsynced = False
+    if getattr(primary, "name", "") == "s3":
+        try:
+            listed = await backups.list_all(app.state.settings, blobs)
+            unsynced = bool(listed) and listed[0]["where"] == "local"
+        except Exception:  # noqa: BLE001 - the doctor page still renders; the probe already reports the outage
+            unsynced = False
     return Facts(
         encryption=box_for(base) is not None, superadmins_without_totp=int(without_totp), invalid=dict(hub.invalid),
         drift=tuple(sorted(drift)), pending_restart=tuple(sorted(hub.pending_restart)), login_alarm=alarm is not None,
@@ -333,4 +373,7 @@ async def gather_facts(session, app) -> Facts:
         library_ffmpeg_ok=_library_ffmpeg_ok(), library_ytdlp_ok=_library_ytdlp_ok(),
         library_cookies=_cookies_state(getattr(app.state.settings, "library_ytdlp_cookies_file", "")),
         library_dns=library_dns,
+        storage_backend=getattr(primary, "name", "local"), storage_probe=storage_probe,
+        storage_fallback=getattr(app.state.settings, "storage_fallback", ""),
+        storage_fallback_hits=int(getattr(blobs, "hits", 0)), backup_unsynced=unsynced,
     )

@@ -270,4 +270,5 @@ def test_catalog_admin_urls_carry_only_ids():
                             f"{BASE}/{{catalog_id}}/segments/{{idx}}", f"{BASE}/{{catalog_id}}/delete",
                             f"{BASE}/{{catalog_id}}/purge", f"{BASE}/{{catalog_id}}/media",
                             f"{BASE}/{{catalog_id}}/poster",
-                            f"{BASE}/{{catalog_id}}/roles", f"{BASE}/{{catalog_id}}/roles/suggest"])  # plan L5 S10
+                            f"{BASE}/{{catalog_id}}/roles", f"{BASE}/{{catalog_id}}/roles/suggest",  # plan L5 S10
+                            f"{BASE}/bundles", f"{BASE}/bundles/{{bundle_id}}/import", f"{BASE}/{{catalog_id}}/bundle"])

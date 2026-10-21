@@ -619,6 +619,48 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **评分**:只调用已有的 `POST /api/speech/assessments`(`source=library`),服务端按保存的评测结果计算同步度。配音的每句成绩计入该句的跟读最好成绩(写进 `library_attempts.dub_id`)。删除配音记录只删记录,评测与录音留在练习历史中。
 - **占位与未验证**:片段上限、句子窗口(前 300 ms、后 600 ms)、±400 ms 容忍、时长比区间、权重 60 / 20 / 20、并发与额度全部是**占位**,未用真实素材校准。同步度依赖讯飞 ISE 的逐词偏移,其起点与精度**未在真实上游核对**(需要用户同意评测费用);Omission 词的偏移未核对。客户端上报的 `rec_start_ms` 与 `voiced_ms` 可以被用户自行调整,只影响本人的成绩。
 
+## 对象存储(计划 2026-10-21-l1)
+
+规格:[docs/superpowers/specs/2026-10-21-object-storage-fsrs-dubbing-design.md](../docs/superpowers/specs/2026-10-21-object-storage-fsrs-dubbing-design.md) §1、§5、§6。代码在 `app/storage/`(底层,只有 `services`、`realtime`、`rooms`、`library`、`admin`、`routers` 与 `main.py` 导入)。
+
+- **默认不变**:`STORAGE_BACKEND=local` 时所有文件仍在 `DATA_DIR` 下,磁盘布局与以前逐字节一致。只有你设置 `STORAGE_BACKEND=s3` 才会改用对象存储。
+- **三种档案**:`local`(数据目录);`s3`(主存储,`STORAGE_BACKEND=s3` + `S3_*`);`s3_fallback`(迁移观察期的旧存储,`STORAGE_FALLBACK` + `S3_FALLBACK_*`)。任何 S3 兼容端点都用同一份代码;只靠 API 的公共子集,不用预签名、版本或生命周期。
+- **什么会进对象存储**:库与精选库的媒体、封面、`transcript.json`;评测录音(`recordings/`);房间语音与暂存 WAV(`room_audio/`);头像(`avatars/`);数据库备份(`backups/`,仅 S3 主存储时上传一份副本)。**不会**:ffmpeg / yt-dlp 的暂存目录(仍在本机 `_tmp`)、SQLite 数据库本身、词典文件。
+- **播放**:仍是服务端代理流式(`storage/http.py`),票据每次请求重验,支持 `Range`;本地后端保持 `FileResponse`。预签名 302 不做(R18)。
+- **厂商对照(未验证,切换前在目标端跑一遍冒烟)**:MinIO 与多数自建需要 `S3_PATH_STYLE=true`;AWS、阿里云 OSS、腾讯 COS 多数用 virtual-hosted(`false`);Cloudflare R2 的 `S3_REGION=auto`。阿里云 OSS 的 S3 兼容层对 path-style 与部分 API 有限制,**未验证**。
+- **桶必须私有**:不设匿名读写策略。备份里有用户数据,和媒体一样。
+- **密钥**:`S3_ACCESS_KEY` / `S3_SECRET_KEY`(及回退的同名项)只能写在环境变量里,为专用钥匙(只读写这一个桶),不要用厂商的根账号。它们与 `S3_ENDPOINT` 都不进日志、不进错误信息、不进管理端设置页;管理端 doctor 只报告变量名。
+- **MinIO 开发环境**:`docker compose --profile minio up -d` 会起 `minio` 与建桶的 `minio-init`(只绑本机 `127.0.0.1`,镜像标签**未验证**)。`server/.env` 设 `STORAGE_BACKEND=s3`、`S3_ENDPOINT=http://minio:9000`、`S3_PATH_STYLE=true`、`S3_BUCKET=enjoy` 与专用钥匙。
+
+### 迁移(本地 → S3,或 MinIO → 云厂商)
+
+迁移命令 `python -m app.storage.migrate`:**只复制、不移动**,源数据在整个观察期内保持原样;每个对象复制后比对大小与 sha256;清单(键与摘要)是本机运维文件,不要外传;日志与输出只有计数、字节与错误码。退出码 `0` 全部校验通过且库与存储无差异;`2` 有失败或数据库指向的对象缺失;`3` 前置条件不满足(同一档案、备份失败、PostgreSQL 未确认已 `pg_dump`)。
+
+1. `docker compose exec server python -m app.storage.migrate --from local --to s3 --dry-run`:只建清单与统计,不写目标、不备份。
+2. `docker compose exec server python -m app.storage.migrate --from local --to s3`:先做 SQLite 快照(与管理端备份同名规则,管理端可见),再在线复制;可以中断,重跑只补缺的。PostgreSQL 请先自己 `pg_dump`,再加 `--pg-backup-done`。
+3. 在管理端把 `maintenance_mode` 设为 `read_only`,并等跟读库 / 精选库的处理队列空闲(进行中的条目会在管理端的条目列表里显示)。
+4. 再跑一次同样的命令(增量,只补迁移期间新写入的对象)。
+5. `--verify-only`(只核对,不写)与 `--reconcile-only`(只对账:库里有、存储没有的 → 退出 2;存储有、库里没有的只报告,例如孤儿或观察期删除的副本)。对账**从不删除任何东西**。
+6. 把 `STORAGE_BACKEND=s3`、`STORAGE_FALLBACK=local` 写进 `server/.env` 并重启。读不到的对象会经回退读取并计数。
+7. 关闭维护模式;在管理端「数据」页看「回退命中」,以及 doctor 的 `storage_fallback_active`。
+8. 回退命中长期为 0 后,清空 `STORAGE_FALLBACK` 并重启。源数据何时删除由你决定;迁移命令不删。
+
+**回滚**:把 `STORAGE_BACKEND` 改回 `local` 并重启(源数据未动)。如果切换后已有新写入,先执行 `--from s3 --to local` 把新对象补回本地。
+
+**MinIO → 云厂商**:把旧 MinIO 写进 `S3_FALLBACK_*`,新厂商写进 `S3_*`,然后 `--from s3_fallback --to s3`,其余步骤相同。**切换 = 先迁移对象再改环境变量**,不是只改环境变量。
+
+**隐私后果**(观察期内):被删除的用户或条目,其旧副本仍在源存储里,直到你退役源存储;对账报告会把它们算作「存储有、库里没有」。
+
+### 精选库 bundle(开发 → 生产,不跑流水线)
+
+管理端对一条就绪、未退役的精选条目点「导出 bundle」:在存储里写 `bundles/<条目>/manifest.json`(元数据、句子与译文、媒体与封面的键、字节与 sha256),**不含**任何用户数据、副本数、发布状态或审计。在另一套实例上,先把两个前缀(`library/_catalog/<条目>/`、`bundles/<条目>/`)同步到它的桶(`mc mirror`,**未验证**:它是否保留用户元数据;导入时缺少元数据会流式重算 sha256,所以不影响正确性),再在管理端「从 bundle 导入」选择它并填写理由。导入只建行、不识别、不翻译、不花模型费用,条目默认未发布。
+
+### 管理端与自检
+
+- 数据页显示「存储后端」「回退」「回退命中」(只显示名称,不显示端点或桶名)。
+- 医生页:S3 主存储不可达(错误)、正在使用读回退(警告)、最近一份备份只在本机(警告)。每次只探测一次桶,从不对每个对象发请求。
+- 清理工具(孤儿录音、房间语音)改走存储的 `list` / `delete`;用户删除时录音目录按前缀删除,失败只记录类名,不再因为提交后的删除而报错。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。

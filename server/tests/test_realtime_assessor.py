@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+from app.storage.local import LocalStore
+
 from sqlalchemy import select
 
 from app.models import Assessment, Message
@@ -45,8 +47,9 @@ async def test_assess_without_saving(app, client, auth_headers):
 
 async def test_assess_and_save_links_the_message(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     uid, mid = await setup_message(app, client, auth_headers)
-    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE)
+    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage).assess(mid, PCM, REFERENCE)
     assert out["status"] == "done" and out["assessment_id"]
     async with app.state.sessionmaker() as session:
         message = await session.get(Message, mid)
@@ -58,9 +61,10 @@ async def test_assess_and_save_links_the_message(app, client, auth_headers, tmp_
 
 async def test_quota_and_failures(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     app.state.settings.recording_quota_mb = 0
     uid, mid = await setup_message(app, client, auth_headers)
-    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE)
+    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage).assess(mid, PCM, REFERENCE)
     assert out["status"] == "quota" and out["assessment_id"] is None
     assert not list(tmp_path.rglob("*.wav"))
     failed = await XfyunAssessor(FakeXfyun(XfyunError("x")), app.state.sessionmaker, app.state.settings, uid, save=False).assess(mid, PCM, REFERENCE)
@@ -76,8 +80,9 @@ async def test_audio_is_capped_at_60_seconds(app, client, auth_headers):
 
 async def test_existing_link_is_not_overwritten(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     uid, mid = await setup_message(app, client, auth_headers)
-    assessor = XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True)
+    assessor = XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage)
     first = await assessor.assess(mid, PCM, REFERENCE)
     second = await assessor.assess(mid, PCM, REFERENCE)
     async with app.state.sessionmaker() as session:
@@ -90,19 +95,21 @@ async def test_existing_link_is_not_overwritten(app, client, auth_headers, tmp_p
 
 async def test_deleted_message_reports_no_saved_assessment(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     uid, mid = await setup_message(app, client, auth_headers)
     async with app.state.sessionmaker() as session:
         await session.delete(await session.get(Message, mid))
         await session.commit()
-    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE)
+    out = await XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage).assess(mid, PCM, REFERENCE)
     assert out["status"] == "done" and out["assessment_id"] is None
 
 
 async def test_cancel_during_xfyun_leaves_nothing(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     uid, mid = await setup_message(app, client, auth_headers)
     task = asyncio.create_task(
-        XfyunAssessor(FakeXfyun(delay=5), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE))
+        XfyunAssessor(FakeXfyun(delay=5), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage).assess(mid, PCM, REFERENCE))
     await asyncio.sleep(0.05)
     task.cancel()
     try:
@@ -117,9 +124,10 @@ async def test_cancel_during_xfyun_leaves_nothing(app, client, auth_headers, tmp
 
 async def test_cancel_during_save_keeps_file_and_row_consistent(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     uid, mid = await setup_message(app, client, auth_headers)
     task = asyncio.create_task(
-        XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True).assess(mid, PCM, REFERENCE))
+        XfyunAssessor(FakeXfyun(), app.state.sessionmaker, app.state.settings, uid, save=True, storage=lambda: app.state.storage).assess(mid, PCM, REFERENCE))
     await asyncio.sleep(0)
     for _ in range(50):  # cancel somewhere inside the shielded write
         await asyncio.sleep(0)
@@ -144,6 +152,7 @@ def test_make_assessor_needs_xfyun(app):
 
 async def test_concurrent_saves_for_one_user_never_exceed_the_quota(app, client, auth_headers, tmp_path):
     app.state.settings.data_dir = str(tmp_path)
+    app.state.storage = LocalStore(tmp_path)
     app.state.settings.recording_quota_mb = 1
     app.state.xfyun = FakeXfyun()
     uid, mid = await setup_message(app, client, auth_headers)

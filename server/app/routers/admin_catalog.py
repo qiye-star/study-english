@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
@@ -12,7 +12,10 @@ from app.admin import catalog_admin
 from app.admin.perms import AdminContext, require, require_step_up
 from app.core.deps import get_session
 from app.library import limits, paths
+from app.models import utcnow
 from app.services.uploads import parse_buffered_form
+from app.storage import BlobNotFound, get_store
+from app.storage.http import blob_response
 
 router = APIRouter(prefix="/api/admin/library/catalog")
 CatalogUuid = Annotated[str, Path(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")]
@@ -101,6 +104,27 @@ async def _form_bytes(request: Request, field: str, limit: int) -> bytes | catal
 async def catalog_list(request: Request, _: AdminContext = Depends(require("viewer")),
                        session: AsyncSession = Depends(get_session)):
     return await catalog_admin.list_items(session, request.app)
+
+
+# bundle routes are declared before `/{catalog_id}`, or the UUID check would reject the literal `bundles` (plan L1 T22)
+@router.get("/bundles")
+async def bundles_list(request: Request, _: AdminContext = Depends(require("viewer")),
+                       session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.bundle_list(session, request.app))
+
+
+@router.post("/bundles/{bundle_id}/import")
+async def bundle_import(bundle_id: CatalogUuid, body: ReasonIn, request: Request,
+                        ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.bundle_import(
+        session, request.app, ctx.actor, bundle_id, reason=body.reason.strip(), now=utcnow()))
+
+
+@router.post("/{catalog_id}/bundle")
+async def bundle_export(catalog_id: CatalogUuid, request: Request,
+                        ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.bundle_export(
+        session, request.app, ctx.actor, catalog_id, now=utcnow()))
 
 
 @router.get("/{catalog_id}")
@@ -233,13 +257,11 @@ async def _file(session, request: Request, catalog_id: str, column: str, mime: s
     rel = getattr(row, column)
     if not rel:
         raise catalog_admin.CatalogAdminError(404, "Not Found")
-    try:
-        path = paths.absolute(catalog_admin.data_dir(request.app), rel)
-    except ValueError:
+    try:  # plan L1 Task 11: the admin preview streams from the store, Range included (R8)
+        return await blob_response(get_store(request.app), rel, request,
+                                   media_type=mime or row.media_mime or "application/octet-stream", headers=NO_STORE)
+    except (BlobNotFound, ValueError):
         raise catalog_admin.CatalogAdminError(404, "Not Found") from None
-    if not path.is_file():
-        raise catalog_admin.CatalogAdminError(404, "Not Found")
-    return FileResponse(path, media_type=mime or row.media_mime or "application/octet-stream", headers=NO_STORE)
 
 
 @router.get("/{catalog_id}/media")

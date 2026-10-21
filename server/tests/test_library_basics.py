@@ -27,13 +27,15 @@ def test_layout_and_escape_checks(tmp_path):
         paths.absolute(tmp_path, ".")
 
 
-def test_remove_user_files_takes_the_user_dir_and_their_staging_only(tmp_path):
+async def test_remove_user_files_takes_the_user_dir_and_their_staging_only(tmp_path):
+    from app.storage.local import LocalStore
+
     other = "11111111-2222-4333-8444-555555555555"
     for rel in (f"library/7/{ITEM}/media.mp4", f"library/_tmp/{ITEM}/in.mp4", f"library/8/{other}/media.mp4",
                 f"library/_tmp/{other}/in.mp4"):
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_bytes(b"x")
-    paths.remove_user_files(tmp_path, 7, [ITEM, "not-an-id"])
+    await paths.remove_user_files(LocalStore(tmp_path), tmp_path, 7, [ITEM, "not-an-id"])
     assert not (tmp_path / "library/7").exists() and not (tmp_path / f"library/_tmp/{ITEM}").exists()
     assert (tmp_path / f"library/8/{other}/media.mp4").exists() and (tmp_path / f"library/_tmp/{other}").exists()
 

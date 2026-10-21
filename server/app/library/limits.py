@@ -17,6 +17,9 @@ from app.services import usage
 MB = 1_048_576
 CHUNK_BYTES = 8 * MB  # one upload chunk (spec §8)
 CHUNK_SLACK = 64 * 1024  # multipart framing around one chunk
+# Largest transcript.json read back for re-splitting (plan L1 Task 10). A ceiling, not a measurement: the 600-minute
+# upper bound of LIBRARY_MAX_DURATION_MINUTES at a few words a second, ~100 bytes per word, with margin.
+TRANSCRIPT_MAX_BYTES = 16 * MB
 MAX_PARALLEL_UPLOADS = 2
 UPLOAD_EXTENSIONS = ("mp4", "m4v", "mov", "webm", "mkv", "mp3", "m4a", "aac", "wav", "ogg", "opus", "flac")
 AUDIO_EXTENSIONS = frozenset({"mp3", "m4a", "aac", "wav", "ogg", "opus", "flac"})  # the kind shown until the probe

@@ -87,7 +87,7 @@ def install(app, rt: RoomsRuntime) -> None:
     limits = rt.limits
     service = VoiceService(VoiceDeps(
         store=rt.store, voices=VoiceStore(sm), hub=rt.hub, limits=lambda: rt.limits,
-        data_dir=Path(settings0.resolved_data_dir), store_format=lambda: settings().rooms_voice_store_format,
+        storage=lambda: app.state.storage, store_format=lambda: settings().rooms_voice_store_format,
         available=lambda: settings().rooms_voice_available, llm_available=lambda: settings().rooms_ai_available,
         transcribe=transcribe, complete=complete, consume=consume, refund=refund, quota_mb_for=quota_mb_for,
         daily_for=daily_for, template=template, clock=utcnow,
@@ -186,7 +186,7 @@ async def play_voice(room_id: str, message_id: str, request: Request, user: User
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
     try:
-        content = await asyncio.to_thread(audio.read_file, service.deps.data_dir, path)
+        content = await audio.read_file(service.deps.storage(), path)
     except FileNotFoundError:
         logger.warning("room voice file missing room=%s message=%s", room_id, message_id)
         raise HTTPException(410, "Audio removed") from None

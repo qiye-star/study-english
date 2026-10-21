@@ -50,7 +50,7 @@ class VoiceDeps:
     voices: VoiceStore
     hub: RoomHub
     limits: Callable[[], RoomLimits]  # hot reload: the current limits on every call
-    data_dir: Path
+    storage: Callable[[], Any]  # the app's BlobStore, read per call (plan L1 Task 13): `lambda: app.state.storage`
     store_format: Callable[[], str]  # "mp3" | "wav"
     available: Callable[[], bool]  # settings.rooms_voice_available
     llm_available: Callable[[], bool]  # settings.rooms_ai_available
@@ -143,8 +143,8 @@ class VoiceService:
             staging = audio.staging_relpath(message_id)
             stored = audio.audio_relpath(room.id, message_id, fmt)
             try:
-                await asyncio.to_thread(audio.write_file, d.data_dir, staging, staging_wav)
-                await asyncio.to_thread(audio.write_file, d.data_dir, stored, data)
+                await audio.write_file(d.storage(), staging, staging_wav)
+                await audio.write_file(d.storage(), stored, data)
                 async with d.hub.lock(room.id):
                     msg, _voice = await d.voices.append_voice(
                         room.id, sender_id=sender_id, client_id=client_id, reply_to=reply_to, quote=quote,
@@ -152,7 +152,7 @@ class VoiceService:
                         staging_path=staging, now=now, message_id=message_id, to_agent=to_agent)
             except BaseException as e:
                 for rel in (staging, stored):
-                    await asyncio.to_thread(audio.delete_file, d.data_dir, rel)
+                    await audio.delete_file(d.storage(), rel)
                 await d.refund("room_voice", uid)
                 await d.refund("room_voice_global", GLOBAL)
                 logger.warning("room voice upload failed room=%s error=%s", room.id, type(e).__name__)
@@ -187,7 +187,7 @@ class VoiceService:
             try:
                 if voice.staging_path is None:
                     raise FileNotFoundError("staging")
-                wav = await asyncio.to_thread(audio.read_file, d.data_dir, voice.staging_path)
+                wav = await audio.read_file(d.storage(), voice.staging_path)
                 metering.bind_user(sender_id)
                 with metering.feature_scope(FEATURE):
                     async with d.gate:
@@ -208,7 +208,7 @@ class VoiceService:
             voice = await d.voices.set_transcript(message_id, status=status, transcript=text or None,
                                                   lang=detect_lang(text) if text else None, now=d.clock())
             if staging:
-                await asyncio.to_thread(audio.delete_file, d.data_dir, staging)
+                await audio.delete_file(d.storage(), staging)
             logger.info("room voice transcribed room=%s message=%s status=%s ms=%d",
                         room_id, message_id, status, (time.monotonic() - started) * 1000)
             await self._broadcast_voice(room_id, seq, voice)
@@ -333,7 +333,7 @@ class VoiceService:
         d = self.deps
         stale = await d.voices.stale_staging(now - timedelta(days=d.limits().staging_keep_days))
         for message_id, path in stale:
-            await asyncio.to_thread(audio.delete_file, d.data_dir, path)
+            await audio.delete_file(d.storage(), path)
             await d.voices.clear_staging(message_id)
         if stale:
             logger.info("room voice staging cleaned files=%d", len(stale))

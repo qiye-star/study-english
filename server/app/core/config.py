@@ -345,6 +345,21 @@ class Settings(BaseSettings):
     backup_keep: int = Field(7, ge=1, le=60)
     backup_hour_utc: int = Field(-1, ge=-1, le=23)
     build_sha: str = ""
+    # object storage (plan 2026-10-21-l1-object-storage R9): env-only; secrets come from the environment only
+    storage_backend: Literal["local", "s3"] = "local"
+    storage_fallback: Literal["", "local", "s3_fallback"] = ""  # read-only fallback during a migration window
+    s3_endpoint: str = ""  # empty = the AWS default endpoint
+    s3_bucket: str = ""
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    s3_region: str = "us-east-1"
+    s3_path_style: bool = False
+    s3_fallback_endpoint: str = ""
+    s3_fallback_bucket: str = ""
+    s3_fallback_access_key: str = ""
+    s3_fallback_secret_key: str = ""
+    s3_fallback_region: str = "us-east-1"
+    s3_fallback_path_style: bool = False
 
     @field_validator("azure_speech_region")
     @classmethod

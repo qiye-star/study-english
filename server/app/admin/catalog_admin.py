@@ -3,16 +3,18 @@
 目录是系统内容:管理员可以看标题与句子(R5),但审计只记 id、动作、数字与布尔。数据库读写经 `app.library.catalog_store`
 (车道 SC),任务经 `app.state.catalog`(`CatalogJobs`)。"""
 import logging
+from datetime import datetime
 
 from sqlalchemy import update
 
 from app.admin import audit
 from app.core import config as core_config
-from app.library import ai, catalog_store, limits, paths, store, subtitles, urlcheck
+from app.library import ai, catalog_bundle, catalog_store, limits, paths, store, subtitles, urlcheck
 from app.library.catalog_import import REPLACE_MARK
 from app.library.errors import LibraryError
 from app.library.pipeline import INPUT_PREFIX, UPLOADED_SUBS
 from app.models import CatalogItem, utcnow
+from app.storage import get_store
 from app.services import usage
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ async def row_out(session, app, row: CatalogItem) -> dict:
     refs = await catalog_store.refs(session, row.id)
     translated = (await catalog_store.translated_counts(session, [row]))[row.id]
     return catalog_store.admin_out(row, refs=refs, translated=translated,
-                                   media_missing=catalog_store.media_missing(data_dir(app), row))
+                                   media_missing=await catalog_store.media_missing_stored(get_store(app), row))
 
 
 async def state(session, app) -> dict:
@@ -82,8 +84,9 @@ async def list_items(session, app) -> dict:
     rows = await catalog_store.list_all(session)
     refs = await catalog_store.ref_counts(session, [r.id for r in rows])
     translated = await catalog_store.translated_counts(session, rows)
+    keys = await catalog_store.stored_keys(get_store(app))  # one listing for the whole page (plan L1 Task 11)
     return {"items": [catalog_store.admin_out(r, refs=refs.get(r.id, 0), translated=translated.get(r.id, 0),
-                                              media_missing=catalog_store.media_missing(data_dir(app), r))
+                                              media_missing=catalog_store.media_missing_in(keys, r))
                       for r in rows],
             "state": await state(session, app)}
 
@@ -280,7 +283,7 @@ async def set_published(session, app, actor, catalog_id: str, published: bool) -
             raise _err(409, "Item is retired")
         if row.status != "ready" or row.seg_count <= 0:
             raise _err(409, "Item is not ready")
-        if catalog_store.media_missing(data_dir(app), row):
+        if await catalog_store.media_missing_stored(get_store(app), row):
             raise _err(409, "Media is missing")
         row.published, row.published_at = True, row.published_at or utcnow()
     else:
@@ -326,7 +329,7 @@ async def _stop(session, app, row: CatalogItem) -> bool:
     await jobs(app).cancel(row.id)
     paths.remove_tree(paths.catalog_tmp_dir(data_dir(app), row.id))
     if not restore:
-        paths.remove_tree(paths.catalog_dir(data_dir(app), row.id))
+        await paths.drop_persistent(get_store(app), paths.catalog_prefix(row.id))
         await session.execute(update(CatalogItem).where(CatalogItem.id == row.id).values(
             media_path=None, poster_path=None, media_bytes=0, source_url=None))
         await session.commit()
@@ -411,13 +414,47 @@ async def delete(session, app, actor, catalog_id: str, *, reason: str, confirm: 
         await audit.record(session, actor, "catalog.delete", target_type="catalog_item", target_id=catalog_id,
                            after={"refs": 0}, reason=reason)
         await session.commit()
-        paths.remove_catalog_files(data_dir(app), catalog_id)
+        await paths.remove_catalog_files(get_store(app), data_dir(app), catalog_id)
         return {"id": catalog_id, "outcome": "deleted", "refs": 0}
     row.published, row.retired_at, row.updated_at = False, row.retired_at or utcnow(), utcnow()
     await audit.record(session, actor, "catalog.retire", target_type="catalog_item", target_id=row.id,
                        after={"refs": refs}, reason=reason)
     await session.commit()
     return {"id": row.id, "outcome": "retired", "refs": refs}
+
+
+async def bundle_export(session, app, actor, catalog_id: str, *, now: datetime) -> dict:
+    """Writes the bundle to the store. Audit carries the id and numbers only (plan L1 Task 22)."""
+    try:
+        out = await catalog_bundle.export_bundle(session, get_store(app), catalog_id, now)
+    except catalog_bundle.BundleError as e:
+        raise _err(e.status, e.message) from None
+    await audit.record(session, actor, "catalog.bundle_export", target_type="catalog_item", target_id=catalog_id,
+                       after={"segments": out["segments"], "bytes": out["bytes"]})
+    await session.commit()
+    return out
+
+
+async def bundle_list(session, app) -> dict:
+    """Bundles in the store; `importable` = this installation has no item with that id yet."""
+    listed = await catalog_bundle.list_bundles(get_store(app))
+    out = []
+    for item in listed:
+        present = await session.get(CatalogItem, item["catalog_id"]) is not None
+        out.append({**item, "importable": not present})
+    return {"bundles": out}
+
+
+async def bundle_import(session, app, actor, catalog_id: str, *, reason: str, now: datetime) -> dict:
+    """Imports a bundle (no pipeline, no model spend). The import commits its own rows; the audit row follows."""
+    try:
+        row = await catalog_bundle.import_bundle(session, get_store(app), catalog_id, now)
+    except catalog_bundle.BundleError as e:
+        raise _err(e.status, e.message) from None
+    await audit.record(session, actor, "catalog.bundle_import", target_type="catalog_item", target_id=catalog_id,
+                       after={"segments": row.seg_count}, reason=reason)
+    await session.commit()
+    return {"id": row.id, "segments": row.seg_count, "status": row.status, "published": row.published}
 
 
 async def purge(session, app, actor, catalog_id: str, *, reason: str, confirm: str) -> dict:

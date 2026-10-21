@@ -276,13 +276,14 @@ class XfyunAssessor:
     cancellation): `{"status": "failed"}`. Logs carry kinds only, never transcript text."""
 
     def __init__(self, xfyun, sessionmaker, settings: Settings, user_id: int, save: bool,
-                 lock: asyncio.Lock | None = None):
+                 lock: asyncio.Lock | None = None, *, storage=None):
         self._xfyun = xfyun
         self._lock = lock or asyncio.Lock()
         self._sm = sessionmaker
         self._settings = settings
         self._user_id = user_id
         self._save = save
+        self._storage = storage  # accessor: `lambda: app.state.storage` (plan L1 R3); required when saving
 
     async def assess(self, message_id: str, pcm: bytes, text: str) -> dict:
         pcm = pcm[:ASSESS_MAX_BYTES]
@@ -319,14 +320,14 @@ class XfyunAssessor:
             async with self._lock, self._sm() as session:
                 user = await session.get(User, self._user_id)
                 if user is not None:
-                    await cleanup_orphan_chat_recordings(session, self._settings, user)
+                    await cleanup_orphan_chat_recordings(session, self._storage(), self._settings, user)
                 try:
                     await check_quota(session, self._settings, self._user_id, len(wav))
                 except QuotaExceeded:
                     return {"status": "quota", "result": result, "assessment_id": None}
                 try:
                     assessment_id = await save_assessment(
-                        session, self._settings, self._user_id, wav_bytes=wav, duration=duration,
+                        session, self._settings, self._user_id, store=self._storage(), wav_bytes=wav, duration=duration,
                         reference=reference, language="en", source="chat", result=result)
                 except OSError:
                     logger.warning("Realtime assessment recording could not be written")
@@ -358,4 +359,5 @@ def make_assessor(app, settings: Settings, user_id: int, save: bool) -> XfyunAss
     lock = locks.get(user_id)
     if lock is None:
         lock = locks[user_id] = asyncio.Lock()
-    return XfyunAssessor(xfyun, app.state.sessionmaker, settings, user_id, save, lock=lock)
+    return XfyunAssessor(xfyun, app.state.sessionmaker, settings, user_id, save, lock=lock,
+                         storage=lambda: app.state.storage)

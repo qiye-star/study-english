@@ -19,7 +19,7 @@ from app.admin.perms import AdminContext, require
 from app.core.deps import get_session
 from app.core.quotas import effective
 from app.models import utcnow
-from app.services.recordings import absolute_path
+from app.storage import get_store
 from app.rooms import audio
 from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, MAX_ID, event
 from app.rooms.store import RoomError
@@ -241,13 +241,13 @@ async def update_settings(room_id: RoomId, payload: SettingsIn, request: Request
     return {"settings": rooms_admin.settings_out(room), "changes": changed}
 
 
-def _read_audio(data_dir, relpath: str) -> bytes | None:
+async def _read_audio(blobs, relpath: str) -> bytes | None:
     """A stored voice clip through SV's `audio.read_file`, or None when it is missing, unreadable or not under
-    `<data>/room_audio/` (admin playback never serves assessment recordings or anything else in the data dir)."""
+    `room_audio/` (admin playback never serves assessment recordings or anything else in the store)."""
+    if not relpath.startswith(f"{audio.ROOT}/"):
+        return None
     try:
-        if not absolute_path(data_dir, relpath).is_relative_to((data_dir / audio.ROOT).resolve()):
-            return None
-        return audio.read_file(data_dir, relpath)
+        return await audio.read_file(blobs, relpath)
     except (ValueError, OSError):
         return None
 
@@ -261,7 +261,7 @@ async def play_audio(room_id: RoomId, message_id: Annotated[str, Path(max_length
         raise HTTPException(404, "Message not found")
     if voice.audio_path is None:
         raise HTTPException(410, "Audio purged")
-    data = await asyncio.to_thread(_read_audio, request.app.state.settings.resolved_data_dir, voice.audio_path)
+    data = await _read_audio(get_store(request.app), voice.audio_path)
     if data is None:
         raise HTTPException(404, "Audio not found")
     await audit.record(session, ctx.actor, "room.audio.play", target_type="room_message", target_id=message_id,

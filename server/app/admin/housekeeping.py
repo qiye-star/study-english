@@ -1,9 +1,7 @@
 """数据清理(spec §12):孤儿录音(先扫后删,文件集变化需重扫)、审计清理(不早于保留期,写锚点)、
 每日自动清理过期的管理会话/锁定行/语音 token。孤儿录音只删 `recordings/` 下的文件;房间语音(rooms v2 §12,
 永久保存,只能经此手动工具清理)只删 `room_audio/` 下的文件,从不自动运行。"""
-import asyncio
 import hashlib
-import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -32,61 +30,40 @@ class Scan:
     samples: list[str]
 
 
-def _walk(data_dir: Path, known: set[str], grace: float, now: float) -> list[tuple[str, int]]:
-    root = data_dir / "recordings"
-    if not root.is_dir():
-        return []
-    found = []
-    for dirpath, _dirs, files in os.walk(root):
-        for name in files:
-            path = Path(dirpath) / name
-            rel = path.relative_to(data_dir).as_posix()
-            if rel in known:
-                continue
-            try:
-                stat = path.stat()
-            except OSError:
-                continue
-            if now - stat.st_mtime < grace:
-                continue
-            found.append((rel, stat.st_size))
-    return sorted(found)
-
-
-async def _orphans(session, settings, grace: float) -> list[tuple[str, int]]:
+async def _orphans(session, blobs, grace: float) -> list[tuple[str, int]]:
+    """Objects under `recordings/` that no assessment row references and that are older than `grace` seconds
+    (plan L1 Task 15: one listing of the store, no directory walk)."""
     known = set((await session.scalars(select(Assessment.audio_path))).all())
-    return await asyncio.to_thread(_walk, settings.resolved_data_dir, known, grace, time.time())
+    now = time.time()
+    found = []
+    async for info in blobs.list("recordings/"):
+        if info.key in known or now - info.mtime < grace:
+            continue
+        found.append((info.key, info.size))
+    return sorted(found)
 
 
 def _token(paths: list[str]) -> str:
     return hashlib.sha256("\n".join(sorted(paths)).encode()).hexdigest()
 
 
-async def scan_orphan_recordings(session, settings, *, grace: float = GRACE_SECONDS) -> Scan:
-    found = await _orphans(session, settings, grace)
+async def scan_orphan_recordings(session, blobs, *, grace: float = GRACE_SECONDS) -> Scan:
+    found = await _orphans(session, blobs, grace)
     return Scan(_token([p for p, _ in found]), len(found), sum(b for _, b in found), [p for p, _ in found[:MAX_SAMPLES]])
 
 
-async def delete_orphan_recordings(session, settings, token: str, *, grace: float = GRACE_SECONDS) -> int:
-    found = await _orphans(session, settings, grace)
+async def delete_orphan_recordings(session, blobs, token: str, *, grace: float = GRACE_SECONDS) -> int:
+    found = await _orphans(session, blobs, grace)
     if _token([p for p, _ in found]) != token:
         raise ValueError("Rescan required")
-    root = settings.resolved_data_dir.resolve()
-
-    def remove() -> int:
-        removed = 0
-        for rel, _ in found:
-            path = (root / rel).resolve()
-            if not path.is_relative_to(root / "recordings"):
-                continue
-            try:
-                path.unlink()
+    removed = 0
+    for rel, _ in found:  # keys came from the `recordings/` listing: never anything else
+        try:
+            if await blobs.delete(rel):
                 removed += 1
-            except FileNotFoundError:
-                pass
-        return removed
-
-    return await asyncio.to_thread(remove)
+        except (ValueError, OSError):
+            continue
+    return removed
 
 
 # ---- room voice audio (rooms v2 spec §12): kept forever; this manual, guarded tool is the only deletion path ----
@@ -113,36 +90,7 @@ def _in_room_audio(rel: str | None) -> bool:
     return bool(rel) and rel.replace("\\", "/").startswith(ROOM_AUDIO + "/") and ".." not in rel.split("/")
 
 
-def _room_audio_files(data_dir: Path, known: set[str], rows: list[tuple[str, str, str | None, str | None]],
-                      grace: float, now: float) -> list[_Target]:
-    """Stats the row targets ((kind, rel, message_id, room_id); a missing file counts 0 bytes) and walks
-    `room_audio/` for files no row references (older than `grace` seconds: a file is written before its row)."""
-    out = []
-    for kind, rel, message_id, room_id in rows:
-        try:
-            size = (data_dir / rel).stat().st_size
-        except OSError:
-            size = 0
-        out.append(_Target(rel, size, kind, message_id, room_id))
-    root = data_dir / ROOM_AUDIO
-    if root.is_dir():
-        for dirpath, _dirs, files in os.walk(root):
-            for name in files:
-                path = Path(dirpath) / name
-                rel = path.relative_to(data_dir).as_posix()
-                if rel in known:
-                    continue
-                try:
-                    stat = path.stat()
-                except OSError:
-                    continue
-                if now - stat.st_mtime < grace:
-                    continue
-                out.append(_Target(rel, stat.st_size, "orphan"))
-    return sorted(out, key=lambda t: t.rel)
-
-
-async def _room_audio_targets(session, settings, older_than_days: int, now: datetime, grace: float) -> list[_Target]:
+async def _room_audio_targets(session, blobs, older_than_days: int, now: datetime, grace: float) -> list[_Target]:
     cutoff = now - timedelta(days=older_than_days)
     staging_cutoff = now - timedelta(days=STAGING_KEEP_DAYS)
     ended = (Room.status == "closed") & Room.closed_at.is_not(None)
@@ -157,43 +105,45 @@ async def _room_audio_targets(session, settings, older_than_days: int, now: date
         known.update(p for p in (a, b) if p)
     rows = [("audio", p, mid, rid) for mid, rid, p in audio if _in_room_audio(p)]
     rows += [("staging", p, mid, rid) for mid, rid, p in staging if _in_room_audio(p)]
-    return await asyncio.to_thread(_room_audio_files, settings.resolved_data_dir, known, rows, grace, time.time())
+    # one listing of room_audio/ instead of a HEAD per row (plan L1 R15); a row whose object is gone counts 0 bytes
+    listing = {info.key: info async for info in blobs.list(f"{ROOM_AUDIO}/")}
+    out = []
+    for kind, rel, message_id, room_id in rows:
+        info = listing.get(rel)
+        out.append(_Target(rel, info.size if info else 0, kind, message_id, room_id))
+    for key, info in listing.items():  # orphans: no row references them and they are older than the grace window
+        if key in known or time.time() - info.mtime < grace:
+            continue
+        out.append(_Target(key, info.size, "orphan"))
+    return sorted(out, key=lambda t: t.rel)
 
 
-async def scan_room_audio(session, settings, older_than_days: int, now: datetime, *,
+async def scan_room_audio(session, blobs, older_than_days: int, now: datetime, *,
                           grace: float = GRACE_SECONDS) -> RoomAudioScan:
     """Dry run: audio of rooms ended more than N days ago, orphan files under `room_audio/` and staged WAVs of
     rooms ended more than 7 days ago. Deletes nothing."""
-    found = await _room_audio_targets(session, settings, older_than_days, now, grace)
+    found = await _room_audio_targets(session, blobs, older_than_days, now, grace)
     rooms = {t.room_id for t in found if t.kind == "audio"}
     return RoomAudioScan(_token([t.rel for t in found]), len(found), sum(t.size for t in found),
                          [t.rel for t in found[:MAX_SAMPLES]], rooms=len(rooms))
 
 
-async def purge_room_audio_detail(session, settings, older_than_days: int, token: str, now: datetime, *,
+async def purge_room_audio_detail(session, blobs, older_than_days: int, token: str, now: datetime, *,
                                   grace: float = GRACE_SECONDS, confirm: str | None = None) -> tuple[int, int]:
     """Rescans, requires the scan's token (`ValueError("Rescan required")`) and, when given, the typed phrase
-    `DELETE {count} FILES` (`ValueError("Confirmation required")`); deletes only files under `room_audio/`,
+    `DELETE {count} FILES` (`ValueError("Confirmation required")`); deletes only objects under `room_audio/`,
     then sets `audio_path=NULL, purged_at=now` (transcripts and translations are kept) or clears the staging
     path. Returns (files, bytes). The caller audits and commits."""
-    found = await _room_audio_targets(session, settings, older_than_days, now, grace)
+    found = await _room_audio_targets(session, blobs, older_than_days, now, grace)
     if _token([t.rel for t in found]) != token:
         raise ValueError("Rescan required")
     if confirm is not None and confirm != confirm_phrase(len(found)):
         raise ValueError("Confirmation required")
-    root = settings.resolved_data_dir.resolve()
-
-    def remove() -> None:
-        for t in found:
-            path = (root / t.rel).resolve()
-            if not path.is_relative_to(root / ROOM_AUDIO):
-                continue
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
-
-    await asyncio.to_thread(remove)
+    for t in found:  # keys are `room_audio/` only (`_in_room_audio` and the listing above)
+        try:
+            await blobs.delete(t.rel)
+        except (ValueError, OSError):
+            continue
     for t in found:
         if t.message_id is None:
             continue
@@ -208,9 +158,9 @@ async def purge_room_audio_detail(session, settings, older_than_days: int, token
     return len(found), sum(t.size for t in found)
 
 
-async def purge_room_audio(session, settings, older_than_days: int, token: str, now: datetime, *,
+async def purge_room_audio(session, blobs, older_than_days: int, token: str, now: datetime, *,
                            grace: float = GRACE_SECONDS, confirm: str | None = None) -> int:
-    return (await purge_room_audio_detail(session, settings, older_than_days, token, now, grace=grace,
+    return (await purge_room_audio_detail(session, blobs, older_than_days, token, now, grace=grace,
                                           confirm=confirm))[0]
 
 

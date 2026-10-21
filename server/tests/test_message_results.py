@@ -37,7 +37,7 @@ async def seed_assessment(app, user_id: int, source="chat") -> tuple[str, pathli
     rel = recording_relpath(user_id, aid)
     wav = make_wav()
     data_dir = app.state.settings.resolved_data_dir
-    write_recording(data_dir, rel, wav)
+    await write_recording(app.state.storage, rel, wav)
     async with app.state.sessionmaker() as s:
         s.add(Assessment(id=aid, user_id=user_id, reference_text="She don't like it.", language="en-US", duration_ms=500,
                          audio_bytes=len(wav), scores=SCORES, result={**SCORES, "detail_result": {"words": WORDS}},

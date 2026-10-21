@@ -89,3 +89,12 @@ export const deleteItem = (id: string, reason: string, confirm: string) =>
   request<{ id: string; outcome: "deleted" | "retired"; refs: number }>(`${BASE}/${enc(id)}/delete`, { method: "POST", json: { reason, confirm } });
 export const purgeItem = async (id: string, reason: string, confirm: string) =>
   camel<{ id: string; copiesDeleted: number; users: number }>(await request(`${BASE}/${enc(id)}/purge`, { method: "POST", json: { reason, confirm } }));
+
+/** plan L1 Task 23: bundles (server routers/admin_catalog.py). Export and import never run the pipeline. */
+export interface BundleRow { catalogId: string; bytes: number; exportedAt: string; importable: boolean }
+export const exportBundle = async (id: string) =>
+  camel<{ catalogId: string; segments: number; bytes: number }>(await request(`${BASE}/${enc(id)}/bundle`, { method: "POST", json: {} }));
+export const listBundles = async () => camel<{ bundles: BundleRow[] }>(await request<unknown>(`${BASE}/bundles`)).bundles;
+export const importBundle = async (id: string, reason: string) =>
+  camel<{ id: string; segments: number; status: string; published: boolean }>(
+    await request(`${BASE}/bundles/${enc(id)}/import`, { method: "POST", json: { reason } }));

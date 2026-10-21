@@ -267,16 +267,19 @@ async def translated_counts(session: AsyncSession, rows: list[CatalogItem]) -> d
     return out
 
 
-def media_missing(data_dir: Path, row: CatalogItem) -> bool:
+async def stored_keys(blobs, prefix: str = f"{paths.ROOT}/{paths.CATALOG}/") -> set[str]:
+    """Every stored key under the catalog prefix in ONE listing (plan L1 Task 11): the admin list checks media
+    against this set instead of one HEAD per item."""
+    return {info.key async for info in blobs.list(prefix)}
+
+
+def media_missing_in(keys: set[str], row: CatalogItem) -> bool:
     """Only a ready item can miss its media (e.g. the database was restored without the data volume, spec R10)."""
     if row.status != "ready":
         return False
     if not row.media_path:
         return True
-    try:
-        return not paths.absolute(data_dir, row.media_path).is_file()
-    except ValueError:
-        return True
+    return row.media_path not in keys
 
 
 # ---- copy-on-add (spec D6, E8) ----
@@ -286,7 +289,19 @@ async def _copy_of(session: AsyncSession, user_id: int, catalog_id: str) -> Libr
                                                           LibraryItem.catalog_id == catalog_id))
 
 
-async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int, catalog_id: str,
+async def media_missing_stored(blobs, row: CatalogItem) -> bool:
+    """`media_missing` against the object store (plan L1 Task 10): one HEAD, no directory walk."""
+    if row.status != "ready":
+        return False
+    if not row.media_path:
+        return True
+    try:
+        return await blobs.stat(row.media_path) is None
+    except ValueError:
+        return True
+
+
+async def add_to_library(session: AsyncSession, blobs, *, user_id: int, catalog_id: str,
                          now: datetime) -> tuple[LibraryItem, bool]:
     """(the user's copy, created). A second add returns the existing copy; a racing add loses on the unique index
     and reads the winner back. LookupError when the item is not published / ready / has no media. Commits."""
@@ -294,7 +309,7 @@ async def add_to_library(session: AsyncSession, data_dir: Path, *, user_id: int,
     if existing is not None:
         return existing, False
     row = await get_published(session, catalog_id)
-    if row is None or media_missing(data_dir, row):
+    if row is None or await media_missing_stored(blobs, row):
         raise LookupError(catalog_id)
     segs = await segments_of(session, row.id)
     item = LibraryItem(id=new_uuid(), user_id=user_id, kind=kind_of(row), source="catalog", title=row.title,
@@ -347,23 +362,23 @@ async def delete_rows(session: AsyncSession, catalog_id: str) -> None:
     await session.execute(delete(CatalogItem).where(CatalogItem.id == catalog_id))
 
 
-async def collect_if_orphan(session: AsyncSession, data_dir: Path, catalog_id: str) -> bool:
+async def collect_if_orphan(session: AsyncSession, store, data_dir: Path, catalog_id: str) -> bool:
     """A retired catalog item nobody uses any more: rows and files go. Commits."""
     row = await get(session, catalog_id)
     if row is None or row.retired_at is None or await refs(session, catalog_id) > 0:
         return False
     await delete_rows(session, catalog_id)
     await session.commit()
-    paths.remove_catalog_files(data_dir, catalog_id)
+    await paths.remove_catalog_files(store, data_dir, catalog_id)
     logger.info("library catalog collected catalog=%s", catalog_id)
     return True
 
 
-async def collect_retired(session: AsyncSession, data_dir: Path) -> int:
+async def collect_retired(session: AsyncSession, store, data_dir: Path) -> int:
     ids = list((await session.scalars(select(CatalogItem.id).where(CatalogItem.retired_at.is_not(None)))).all())
     done = 0
     for catalog_id in ids:
-        done += await collect_if_orphan(session, data_dir, catalog_id)
+        done += await collect_if_orphan(session, store, data_dir, catalog_id)
     return done
 
 
@@ -372,6 +387,7 @@ async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
     the catalog rows and files. Assessments in the practice history stay. Returns (copies, users). Commits.
     A running import job must be canceled by the caller first (plan SI)."""
     data_dir = app.state.library.deps.data_dir
+    blobs = app.state.storage
     copies = [(r[0], r[1]) for r in (await session.execute(select(LibraryItem.id, LibraryItem.user_id).where(
         LibraryItem.catalog_id == catalog_id))).all()]
     for item_id, _user_id in copies:
@@ -380,8 +396,8 @@ async def purge(session: AsyncSession, app, catalog_id: str) -> tuple[int, int]:
     await session.commit()
     for item_id, user_id in copies:
         app.state.library.tickets.revoke_item(item_id)
-        paths.remove_item_files(data_dir, user_id, item_id)
-    paths.remove_catalog_files(data_dir, catalog_id)
+        await paths.remove_item_files(blobs, data_dir, user_id, item_id)
+    await paths.remove_catalog_files(blobs, data_dir, catalog_id)
     logger.info("library catalog purged catalog=%s copies=%d", catalog_id, len(copies))
     return len(copies), len({u for _i, u in copies})
 

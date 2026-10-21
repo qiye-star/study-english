@@ -4,8 +4,8 @@
 在线连接(房间 WebSocket、一次性票据)由调用方(routers/admin_users.py)断开:admin 不导入 routers。
 """
 import asyncio
+import logging
 import secrets
-import shutil
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
@@ -29,6 +29,8 @@ from app.models import (
 )
 from app.library import paths as library_paths
 from app.services import avatars, recordings
+
+logger = logging.getLogger(__name__)
 from app.services.identities import EMAIL_PROVIDER
 
 TEMP_PASSWORD_LEN = 16
@@ -169,7 +171,7 @@ async def _anonymise_metering(session, user_id: int) -> None:
     await session.flush()
 
 
-async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_username: str, reason: str,
+async def delete_user(session, actor: Actor, settings, user_id: int, *, store, confirm_username: str, reason: str,
                       now: datetime) -> dict:
     """Deletes the user and everything they own (explicit deletes: SQLite does not enforce FK cascades),
     then their recordings directory. Room messages they sent in other rooms stay (R-6)."""
@@ -213,9 +215,9 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
                               "rooms_transferred": transferred, "rooms_orphaned": orphaned},
                        reason=reason)
     await session.commit()
-    _remove_recordings(settings, user_id)
-    library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
-    avatars.remove(settings, avatar_id)  # the avatar file; after the commit, never raises (R-V10)
+    await _remove_recordings(store, user_id)
+    await library_paths.remove_user_files(store, settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    await avatars.remove(store, avatar_id)  # the avatar object; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 
@@ -282,10 +284,10 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _remove_recordings(settings, user_id: int) -> None:
+async def _remove_recordings(blobs, user_id: int) -> None:
+    """The user's assessment recordings, by prefix, after the commit. A failure is logged by class and never raised
+    (plan L1 Task 15: the old local rmtree raised after the commit; the store path does not)."""
     try:
-        path = recordings.absolute_path(settings.resolved_data_dir, f"recordings/{user_id}")
-    except ValueError:
-        return
-    if path.is_dir():
-        shutil.rmtree(path, ignore_errors=False)
+        await blobs.delete_prefix(f"recordings/{user_id}/")
+    except Exception as exc:  # noqa: BLE001 - after commit
+        logger.warning("user recordings delete failed code=%s", getattr(exc, "code", type(exc).__name__))

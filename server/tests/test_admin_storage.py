@@ -3,6 +3,8 @@ the only deletion path is this manual tool (scan → token → reason + step-up 
 import json
 import os
 import time
+
+from app.storage.local import LocalStore
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -48,7 +50,7 @@ async def test_storage_summary(app, tmp_path):
     (data / "room_audio/_staging").mkdir(parents=True)
     (data / "room_audio/_staging/m9.wav").write_bytes(b"x" * 64)
     async with app.state.sessionmaker() as s:
-        out = await storage_summary(s, data)
+        out = await storage_summary(s, LocalStore(data))
     assert out["room_audio"]["files"] == 1 and out["room_audio"]["bytes"] == 3000
     assert out["room_audio"]["staging_bytes"] == 64
     assert out["room_audio"]["by_month"] == [{"month": "2026-10", "files": 1, "bytes": 3000}]
@@ -58,13 +60,13 @@ async def test_storage_summary(app, tmp_path):
 
 async def test_room_audio_purge_is_scanned_tokened_and_keeps_text(app, tmp_path):
     data = await _seed(app, tmp_path, 400)
-    settings = app.state.settings.model_copy(update={"data_dir": str(data)})
+    blobs = LocalStore(data)
     async with app.state.sessionmaker() as s:
-        scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
+        scan = await housekeeping.scan_room_audio(s, blobs, 365, NOW, grace=0)
         assert scan.count == 2 and scan.bytes == 3010 and scan.rooms == 1
         with pytest.raises(ValueError):
-            await housekeeping.purge_room_audio(s, settings, 365, "wrong", NOW, grace=0)
-        assert await housekeeping.purge_room_audio(s, settings, 365, scan.token, NOW, grace=0) == 2
+            await housekeeping.purge_room_audio(s, blobs, 365, "wrong", NOW, grace=0)
+        assert await housekeeping.purge_room_audio(s, blobs, 365, scan.token, NOW, grace=0) == 2
         await s.commit()
         voice = await s.get(RoomVoice, "m1")
         assert voice.audio_path is None and voice.purged_at is not None and (await s.get(RoomMessage, "m1")).text == "hi"
@@ -73,18 +75,18 @@ async def test_room_audio_purge_is_scanned_tokened_and_keeps_text(app, tmp_path)
 
 async def test_recent_rooms_are_not_purged(app, tmp_path):
     data = await _seed(app, tmp_path, 10)
-    settings = app.state.settings.model_copy(update={"data_dir": str(data)})
+    blobs = LocalStore(data)
     async with app.state.sessionmaker() as s:
-        assert (await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)).count == 1  # only the orphan
+        assert (await housekeeping.scan_room_audio(s, blobs, 365, NOW, grace=0)).count == 1  # only the orphan
         # a file written a moment ago (row not committed yet) is never an orphan
-        assert (await housekeeping.scan_room_audio(s, settings, 365, NOW)).count == 1
+        assert (await housekeeping.scan_room_audio(s, blobs, 365, NOW)).count == 1
         (data / "room_audio/r1/fresh.mp3").write_bytes(b"x")
-        assert (await housekeeping.scan_room_audio(s, settings, 365, NOW)).count == 1
+        assert (await housekeeping.scan_room_audio(s, blobs, 365, NOW)).count == 1
 
 
 async def test_stale_staging_and_open_rooms(app, tmp_path):
     data = await _seed(app, tmp_path, 10)
-    settings = app.state.settings.model_copy(update={"data_dir": str(data)})
+    blobs = LocalStore(data)
     async with app.state.sessionmaker() as s:
         voice = await s.get(RoomVoice, "m1")
         voice.staging_path, voice.status = "room_audio/_staging/m1.wav", "failed"
@@ -92,9 +94,9 @@ async def test_stale_staging_and_open_rooms(app, tmp_path):
     (data / "room_audio/_staging").mkdir(parents=True)
     (data / "room_audio/_staging/m1.wav").write_bytes(b"x" * 100)  # room ended 10 days ago > 7: stale
     async with app.state.sessionmaker() as s:
-        scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
+        scan = await housekeeping.scan_room_audio(s, blobs, 365, NOW, grace=0)
         assert scan.count == 2 and scan.bytes == 110
-        assert await housekeeping.purge_room_audio(s, settings, 365, scan.token, NOW, grace=0) == 2
+        assert await housekeeping.purge_room_audio(s, blobs, 365, scan.token, NOW, grace=0) == 2
         await s.commit()
         voice = await s.get(RoomVoice, "m1")
         assert voice.staging_path is None and voice.audio_path == "room_audio/r1/m1.mp3"  # the MP3 is kept
@@ -103,14 +105,14 @@ async def test_stale_staging_and_open_rooms(app, tmp_path):
 
 async def test_files_outside_room_audio_are_never_touched(app, tmp_path):
     data = await _seed(app, tmp_path, 400)
-    settings = app.state.settings.model_copy(update={"data_dir": str(data)})
+    blobs = LocalStore(data)
     (data / "recordings/7").mkdir(parents=True)
     (data / "recordings/7/a.wav").write_bytes(b"x")
     async with app.state.sessionmaker() as s:
         (await s.get(RoomVoice, "m1")).audio_path = "recordings/7/a.wav"  # a corrupted row must not reach recordings/
         await s.commit()
-        scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
-        await housekeeping.purge_room_audio(s, settings, 365, scan.token, NOW, grace=0)
+        scan = await housekeeping.scan_room_audio(s, blobs, 365, NOW, grace=0)
+        await housekeeping.purge_room_audio(s, blobs, 365, scan.token, NOW, grace=0)
         await s.commit()
     assert (data / "recordings/7/a.wav").exists()
 

@@ -241,9 +241,13 @@ export interface StorageSummary {
   roomAudio: { files: number; bytes: number; stagingBytes: number; byMonth: { month: string; files: number; bytes: number }[] };
   recordings: { files: number; bytes: number };
   topVoiceUsers: { userId: number; username: string | null; bytes: number }[];
+  /** plan L1 Task 26: names only (the server never sends an endpoint or a bucket). fallback is "" when off. */
+  backend: string;
+  fallback: string;
+  fallbackHits: number;
 }
 
-/** 存储用量(viewer):房间语音(永久保存)、暂存 WAV、跟读录音、按月增长、语音存储 Top 10。 */
+/** 存储用量(viewer):房间语音(永久保存)、暂存 WAV、跟读录音、按月增长、语音存储 Top 10、存储后端与回退。 */
 export async function getStorage(): Promise<StorageSummary> {
   const r = await request<any>("/api/admin/storage");
   return {
@@ -255,5 +259,8 @@ export async function getStorage(): Promise<StorageSummary> {
     },
     recordings: r.recordings,
     topVoiceUsers: (r.top_voice_users ?? []).map((u: any) => ({ userId: u.user_id, username: u.username ?? null, bytes: u.bytes })),
+    backend: r.backend ?? "local",
+    fallback: r.fallback ?? "",
+    fallbackHits: r.fallback_hits ?? 0,
   };
 }

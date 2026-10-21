@@ -1,7 +1,4 @@
-"""评测录音的落盘位置与配额统计(数据目录见 Settings.resolved_data_dir)。"""
-
-import os
-from pathlib import Path
+"""评测录音的存放键与配额统计(plan L1 Task 12:录音经 `app.state.storage` 存取,键 = recordings/<uid>/<id>.wav)。"""
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,32 +10,16 @@ def recording_relpath(user_id: int, assessment_id: str) -> str:
     return f"recordings/{user_id}/{assessment_id}.wav"
 
 
-def absolute_path(data_dir: Path, relpath: str) -> Path:
-    root = data_dir.resolve()
-    path = (root / relpath).resolve()
-    if not path.is_relative_to(root):
-        raise ValueError("Recording path escapes the data directory")
-    return path
+async def write_recording(blobs, relpath: str, data: bytes) -> None:
+    """Store the WAV under its key. Raises ValueError for a bad key and StorageError when the store fails."""
+    await blobs.put_bytes(relpath, data, content_type="audio/wav")
 
 
-def write_recording(data_dir: Path, relpath: str, data: bytes) -> None:
-    path = absolute_path(data_dir, relpath)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
+async def delete_recording(blobs, relpath: str) -> None:
+    """Delete one recording; a missing or illegal key is fine, a store failure is logged by the caller's sweep. Never
+    raises (called after commits)."""
     try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
-
-
-def delete_recording(data_dir: Path, relpath: str) -> None:
-    try:
-        absolute_path(data_dir, relpath).unlink(missing_ok=True)
+        await blobs.delete(relpath)
     except (ValueError, OSError):
         pass
 

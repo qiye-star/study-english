@@ -19,6 +19,7 @@
                   (likewise only routers and main may import admin)
 
 `app.models` sits beside core: it may import core only, and every layer may import it.
+    storage    -> core, models             (bottom I/O layer; boto3 lives only in app/storage/s3.py and config.py)
 Lazy (function-level) imports count; so do `from app import x` and relative imports."""
 import ast
 from pathlib import Path
@@ -26,7 +27,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 
 LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
-          "library", "dubbing", "admin", "routers")
+          "library", "dubbing", "admin", "routers", "storage")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -34,21 +35,22 @@ ALLOWED: dict[str, set[str]] = {
     "models": {"core"},
     "providers": {"providers", "core"},
     "speech": {"speech", "core", "models", "providers"},
-    "services": {"services", "core", "models", "providers"},
-    "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
+    "services": {"services", "core", "models", "providers", "storage"},
+    "realtime": {"realtime", "core", "models", "providers", "speech", "services", "storage"},
     "rank": {"rank", "core", "models", "providers", "speech", "services"},
-    "rooms": {"rooms", "core", "models", "providers", "speech", "services", "agents"},
+    "rooms": {"rooms", "core", "models", "providers", "speech", "services", "agents", "storage"},
     "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
     "agents": {"agents", "core", "models", "providers", "speech", "services"},
     "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
-    "library": {"library", "core", "models", "providers", "speech", "services"},
+    "library": {"library", "core", "models", "providers", "speech", "services", "storage"},
     "dubbing": {"dubbing", "core", "models", "providers", "speech", "services", "library"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-              "agents", "library", "dubbing"},
+              "agents", "library", "dubbing", "storage"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links", "agents", "library", "dubbing"},
+                "admin", "links", "agents", "library", "dubbing", "storage"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links", "agents", "library", "dubbing"},
+             "routers", "links", "agents", "library", "dubbing", "storage"},
+    "storage": {"storage", "core", "models"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -256,6 +258,100 @@ def test_agents_layer_rules(tmp_path):
     for rel, (_, line) in bad.items():
         assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
     assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
+
+
+STORAGE_LAYER_IMPORTERS = ("services", "realtime", "rooms", "library", "admin", "routers", "main")
+BOTO_MODULES = {"boto3", "botocore", "s3transfer"}
+BOTO_ALLOWED = ("app/storage/s3.py", "app/storage/config.py")  # R1: the only files that may touch the vendor SDK
+
+# Shrinking allowlists (plan R16). A migration batch removes its own entries; growing one needs a plan change.
+FILE_RESPONSE_ALLOWED = (
+    "app/routers/admin_ops.py", "app/routers/web.py",
+)
+DATA_DIR_ALLOWED = (  # plan L1 Task 18: what is left is local staging (R7), the data volume's disk usage, and config
+    "app/admin/catalog_admin.py",  # catalog upload staging on local disk
+    "app/admin/system.py",  # disk usage of the data volume
+    "app/admin/users_admin.py",  # local staging of a deleted user's items
+    "app/core/config.py", "app/core/settings_registry.py",
+    "app/library/catalog_import.py", "app/library/catalog_jobs.py", "app/library/catalog_store.py",
+    "app/library/paths.py", "app/library/pipeline.py", "app/library/store.py", "app/library/worker.py",
+    "app/routers/library.py",  # chunked upload staging on local disk
+    # wordbook dictionaries use their own directory (WORDBOOK_DATA_DIR), not the object store: not migrated by L1
+    "app/admin/wordbook_admin.py", "app/wordbook/index.py", "app/wordbook/lookup.py", "app/wordbook/service.py",
+)
+
+
+def _files_importing(root: Path, names: tuple[str, ...]) -> set[str]:
+    hits: set[str] = set()
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for _, target in imported_modules(tree, module_name(path, root), path.name == "__init__.py"):
+            if target.split(".")[0] in names:
+                hits.add(path.relative_to(root.parent).as_posix())
+    return hits
+
+
+def _files_mentioning(root: Path, word: str) -> set[str]:
+    """Modules outside app/storage that mention `word`: the storage layer itself owns the local root and FileResponse."""
+    import re
+    pattern = re.compile(rf"\b{word}\b")
+    hits = set()
+    for path in root.rglob("*.py"):
+        rel = path.relative_to(root.parent).as_posix()
+        if rel.startswith("app/storage/"):
+            continue
+        if pattern.search(path.read_text(encoding="utf-8")):
+            hits.add(rel)
+    return hits
+
+
+def test_storage_layer_rules(tmp_path):
+    """plan L1 R1: only services, realtime, rooms, library, admin, routers and main may import storage."""
+    app = tmp_path / "app"
+    for pkg in ("storage", "core", "models", "providers", "speech", "wordbook", "agents", "links", "rank", "services",
+                "library", "routers"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {
+        "core/a.py": "from app.storage import BlobStore\n",
+        "providers/b.py": "from app.storage.base import BlobStore\n",
+        "speech/c.py": "from app.storage import keys\n",
+        "wordbook/d.py": "from app.storage import keys\n",
+        "agents/e.py": "from app.storage import keys\n",
+        "links/f.py": "from app.storage import keys\n",
+        "rank/g.py": "def f():\n    from app.storage import keys\n",
+        "models/h.py": "from app.storage import keys\n",
+    }
+    ok = {
+        "services/ok.py": "from app.storage import BlobStore\n",
+        "library/ok.py": "from app.storage.keys import check_key\n",
+        "routers/ok.py": "from app.storage import get_store\n",
+        "storage/ok.py": "from app.core import config\nfrom app.models import User\n",
+    }
+    for rel, src in {**bad, **ok}.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel in bad:
+        assert any(p.startswith(f"app/{rel}:") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
+
+
+def test_boto3_is_imported_only_inside_the_storage_layer():
+    """plan L1 R1: boto3 / botocore / s3transfer only in app/storage/s3.py and app/storage/config.py; moto never in app/."""
+    hits = _files_importing(APP, tuple(BOTO_MODULES))
+    assert hits <= set(BOTO_ALLOWED), sorted(hits - set(BOTO_ALLOWED))
+    assert _files_importing(APP, ("moto",)) == set()
+
+
+def test_file_response_is_only_used_by_allowed_routers():
+    actual = {p for p in _files_mentioning(APP, "FileResponse")}
+    assert actual <= set(FILE_RESPONSE_ALLOWED), sorted(actual - set(FILE_RESPONSE_ALLOWED))
+
+
+def test_data_dir_is_only_read_by_allowed_modules():
+    actual = _files_mentioning(APP, "data_dir") | _files_mentioning(APP, "resolved_data_dir")
+    assert actual <= set(DATA_DIR_ALLOWED), sorted(actual - set(DATA_DIR_ALLOWED))
 
 
 AGENTS_MEMORY_MAY_IMPORT = ("app.agents.memory", "app.agents.context", "app.agents.settings")

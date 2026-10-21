@@ -153,6 +153,9 @@ export const S = {
     staging: (size: string) => `暂存 ${size}`,
     recordings: (files: number, size: string) => `跟读录音 ${files} 个文件 · ${size}`,
     keepNote: "房间语音永久保存;只能用下方「房间语音清理」手动删除。",
+    backend: (name: string) => `存储后端:${name === "s3" ? "S3 对象存储" : "本地磁盘"}`,
+    fallback: (name: string, hits: number) =>
+      name ? `读回退:${name === "s3" ? "旧 S3" : "本地"} · 回退命中 ${hits} 次` : "读回退:未启用",
     byMonth: "按月增长",
     month: "月份",
     files: "文件",

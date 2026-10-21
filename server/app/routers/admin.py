@@ -2,12 +2,13 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import recordings
 from app.admin import service, user_email_admin
+from app.storage import BlobNotFound, get_store
+from app.storage.http import blob_response
 from app.admin.perms import require
 from app.core.config import Settings
 from app.core.deps import get_session, get_settings
@@ -97,17 +98,15 @@ async def assessment(assessment_id: ItemId, session: AsyncSession = Depends(get_
 @guarded.get("/assessments/{assessment_id}/audio")
 async def assessment_audio(
     assessment_id: ItemId,
+    request: Request,
     session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
 ):
     row, _ = _found(await service.get_assessment_row(session, assessment_id), "Assessment")
-    try:
-        path = recordings.absolute_path(settings.resolved_data_dir, row.audio_path)
-    except ValueError:
+    try:  # plan L1 Task 12: the same store path as the user's own download
+        return await blob_response(get_store(request.app), row.audio_path, request, media_type="audio/wav",
+                                   headers={"Cache-Control": "private, no-store"})
+    except (BlobNotFound, ValueError):
         raise HTTPException(404, "Recording not found")
-    if not path.is_file():
-        raise HTTPException(404, "Recording not found")
-    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private, no-store"})
 
 
 @guarded.get("/users/{user_id}/practice-items")

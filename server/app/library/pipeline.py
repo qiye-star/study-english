@@ -25,6 +25,7 @@ from app.library.errors import Aborted, LibraryError
 from app.library.media import ProbeInfo
 from app.models import LibraryItem
 from app.speech.timed import TimedText
+from app.storage.base import StorageError
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ class PipelineDeps:
     sessionmaker: Any
     settings: Callable[[], Any]
     data_dir: Path
+    storage: Callable[[], Any]  # the app's BlobStore, read at run time (plan L1 R3): `lambda: app.state.storage`
     tools: MediaTools
     fetch: Callable[[], FetchStage]  # read at run time: S2 may replace the stage after startup
     transcriber: Callable[[int], Callable[[bytes], Awaitable[str]]]  # user id -> (16 kHz WAV -> text)
@@ -130,8 +132,9 @@ def _fragments(cues: list[subtitles.Cue]) -> list[segment.Fragment]:
     return [segment.Fragment(c.start_ms, c.end_ms, c.text) for c in cues]
 
 
-async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progress: Progress) -> int:
-    """Fetch (links) or take the upload, probe, normalize and move into the item directory. Returns the duration."""
+async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progress: Progress) -> tuple[int, Path]:
+    """Fetch (links) or take the upload, probe, normalize and put the result into the store. Returns the duration and
+    the local normalized file (still in `tmp/out`, used by recognition in this run)."""
     settings = deps.settings()
     link = item.source == "link"
     t0, t1 = (40, 60) if link else (0, 50)
@@ -174,28 +177,45 @@ async def _media_stage(deps: PipelineDeps, item: LibraryItem, tmp: Path, progres
     poster = out_dir / "poster.jpg"
     has_poster = normalized.kind == "video" and await deps.tools.poster(normalized.path, poster, info.duration_ms,
                                                                         home=tmp)
-    final = paths.item_dir(deps.data_dir, item.user_id, item.id)
-    media_dst = final / normalized.path.name
-    paths.replace(normalized.path, media_dst)
-    poster_dst = final / "poster.jpg"
-    if has_poster:
-        paths.replace(poster, poster_dst)
-    size = paths.file_bytes(media_dst) + (paths.file_bytes(poster_dst) if has_poster else 0)
-    rel = paths.item_rel(item.user_id, item.id)
+    # plan L1 Task 9 / R6: put first, then commit. The staging copy stays on local disk (R7) and is removed with `tmp`.
+    blobs = deps.storage()
+    media_key = paths.media_key(item.user_id, item.id, normalized.path.name)
+    poster_key = paths.poster_key(item.user_id, item.id)
+    written: list[str] = []
+    try:
+        media_info = await blobs.put_file(media_key, normalized.path, content_type=normalized.mime)
+        written.append(media_key)
+        size = media_info.size
+        if has_poster:
+            poster_info = await blobs.put_file(poster_key, poster, content_type="image/jpeg")
+            written.append(poster_key)
+            size += poster_info.size
+    except StorageError as exc:
+        await forget_keys(blobs, written)
+        raise LibraryError("network") from exc
     async with deps.sessionmaker() as s:
         done = await s.execute(update(LibraryItem).where(LibraryItem.id == item.id,
                                                          LibraryItem.status == "processing").values(
-            kind=normalized.kind, duration_ms=info.duration_ms, media_path=f"{rel}/{media_dst.name}",
-            poster_path=f"{rel}/poster.jpg" if has_poster else None, media_mime=normalized.mime,
+            kind=normalized.kind, duration_ms=info.duration_ms, media_path=media_key,
+            poster_path=poster_key if has_poster else None, media_mime=normalized.mime,
             library_bytes=size, updated_at=deps.clock()))
         await s.commit()
     if done.rowcount != 1:
-        paths.remove_tree(final)
+        await forget_keys(blobs, written)  # only the keys this run wrote; never a prefix (a live copy may read them)
         raise Aborted()
     src.unlink(missing_ok=True)  # the original upload / download is not kept (spec §5.1)
     logger.info("library media ready item=%s kind=%s duration_ms=%d bytes=%d", item.id, normalized.kind,
                 info.duration_ms, size)
-    return info.duration_ms
+    return info.duration_ms, normalized.path
+
+
+async def forget_keys(blobs, keys: list[str]) -> None:
+    """Remove objects this run wrote after a failed commit. Logs the code only; never raises."""
+    for key in keys:
+        try:
+            await blobs.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("library cleanup failed op=delete code=%s", getattr(exc, "code", type(exc).__name__))
 
 
 def fetch_request(item: LibraryItem, tmp: Path, settings, progress: Progress) -> FetchRequest:
@@ -308,12 +328,12 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     tmp = paths.tmp_dir(deps.data_dir, item.id)
     tmp.mkdir(parents=True, exist_ok=True)
     progress = Progress(deps, item.id)
-    media = deps.data_dir / item.media_path if item.media_path else None
-    if media is None or not media.is_file():
-        duration_ms = await _media_stage(deps, item, tmp, progress)
+    blobs = deps.storage()
+    local_media: Path | None = None
+    if not item.media_path or not await is_stored(blobs, item.media_path):
+        duration_ms, local_media = await _media_stage(deps, item, tmp, progress)
         async with deps.sessionmaker() as s:
             item = await s.get(LibraryItem, item_id)
-        media = deps.data_dir / item.media_path
     else:
         duration_ms = item.duration_ms or 0
     t0 = 60 if item.source == "link" else 50
@@ -330,7 +350,10 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     elif (tmp / PLATFORM_SUBS).is_file() and (cues := _platform_cues(tmp / PLATFORM_SUBS)):
         sentences, sub_source = segment.build(_fragments(cues)), "platform"
     elif settings.library_asr_available:
-        built, chunks, silences = await _transcribe(deps, item, media, duration_ms, tmp, progress, t0)
+        if local_media is None:  # a resumed item: recognition needs the media locally (R7); staging only, removed below
+            local_media = tmp / f"media{Path(item.media_path).suffix}"
+            await fetch_media(blobs, item.media_path, local_media)
+        built, chunks, silences = await _transcribe(deps, item, local_media, duration_ms, tmp, progress, t0)
         sentences, flags, low_confidence = built.sentences, built.flags, built.low_confidence
         transcript = (chunks, silences)
         sub_source = "asr"
@@ -339,14 +362,9 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
     if not sentences:
         raise LibraryError("no_subtitles")
     await progress.set("segment", 95)
-    final = paths.item_dir(deps.data_dir, item.user_id, item.id)
-    staged = final / (TRANSCRIPT + ".new")
-    if transcript is not None:  # written before the commit, put in place after it (R-V8)
-        await asyncio.to_thread(asr_chunks.save_transcript, staged, *transcript)
     async with deps.sessionmaker() as s:
         row = await s.get(LibraryItem, item_id)
         if row is None or row.status != "processing":
-            staged.unlink(missing_ok=True)
             raise Aborted()
         await store.write_segments(s, row, sentences, flags=flags)
         row.sub_source, row.status, row.stage, row.progress = sub_source, "ready", None, 100
@@ -355,12 +373,35 @@ async def process(deps: PipelineDeps, item_id: str) -> None:
         row.error_kind, row.source_url, row.next_run_at, row.attempts = None, None, None, 0
         row.updated_at = deps.clock()
         await s.commit()
+    # plan L1 Task 9: the transcript is put AFTER the commit (no replace on object storage). A failed put never rolls back
+    # a ready item: the item still plays, it just cannot be re-split any more (`rebuildable` = False).
+    key = paths.transcript_key(item.user_id, item_id)
     if transcript is not None:
-        paths.replace(staged, final / TRANSCRIPT)
+        try:
+            await blobs.put_bytes(key, asr_chunks.dump_transcript(*transcript))
+        except StorageError as exc:
+            logger.warning("library transcript not kept item=%s code=%s", item_id, exc.code)
+            async with deps.sessionmaker() as s:
+                await s.execute(update(LibraryItem).where(LibraryItem.id == item_id).values(rebuildable=False))
+                await s.commit()
     else:
-        (final / TRANSCRIPT).unlink(missing_ok=True)
+        await forget_keys(blobs, [key])
     paths.remove_tree(tmp)
     logger.info("library item ready item=%s sentences=%d sub_source=%s", item_id, len(sentences), sub_source)
+
+
+async def is_stored(blobs, key: str) -> bool:
+    try:
+        return await blobs.stat(key) is not None
+    except StorageError as exc:
+        raise LibraryError("network") from exc
+
+
+async def fetch_media(blobs, key: str, dst: Path) -> None:
+    try:
+        await blobs.download_to(key, dst)
+    except StorageError as exc:
+        raise LibraryError("network") from exc
 
 
 def _platform_cues(path: Path) -> list[subtitles.Cue]:

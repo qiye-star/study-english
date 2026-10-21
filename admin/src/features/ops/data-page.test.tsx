@@ -18,6 +18,7 @@ beforeEach(() => {
     roomAudio: { files: 1, bytes: 3000, stagingBytes: 64, byMonth: [{ month: "2026-10", files: 1, bytes: 3000 }] },
     recordings: { files: 3, bytes: 1048576 },
     topVoiceUsers: [{ userId: 7, username: "lily", bytes: 3000 }],
+    backend: "s3", fallback: "local", fallbackHits: 0,
   });
   vi.mocked(api.listBackups).mockResolvedValue({
     supported: true, hint: null, keep: 7, hourUtc: 3,
@@ -70,6 +71,19 @@ it("shows storage usage for room voice, staging and recordings", async () => {
   expect(within(card).getByText("跟读录音 3 个文件 · 1.00 MB")).toBeInTheDocument();
   expect(within(card).getByRole("row", { name: /2026-10/ })).toHaveTextContent("2.93 KB");
   expect(within(card).getByRole("link", { name: "lily" })).toHaveAttribute("href", "/users/7");
+});
+
+it("shows the storage backend and the read-fallback hits, highlighting hits above zero", async () => {
+  vi.mocked(api.getStorage).mockResolvedValueOnce({
+    roomAudio: { files: 0, bytes: 0, stagingBytes: 0, byMonth: [] }, recordings: { files: 0, bytes: 0 },
+    topVoiceUsers: [], backend: "s3", fallback: "local", fallbackHits: 4,
+  });
+  renderPage();
+  const card = await screen.findByRole("region", { name: "存储" });
+  expect(await within(card).findByTestId("storage-backend")).toHaveTextContent("存储后端:S3 对象存储");
+  expect(within(card).getByTestId("storage-fallback")).toHaveTextContent("读回退:本地 · 回退命中 4 次");
+  expect(within(card).getByTestId("storage-fallback")).toHaveClass("text-warn");
+  expect(JSON.stringify(vi.mocked(api.getStorage).mock.results)).not.toMatch(/endpoint|bucket/i);
 });
 
 it("room audio purge: scan with days, then typed confirmation, reason and token", async () => {

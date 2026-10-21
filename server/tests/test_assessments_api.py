@@ -58,7 +58,7 @@ async def seed(app, uid, n=1) -> list[str]:
             aid = str(uuid.uuid4())
             rel = recording_relpath(uid, aid)
             wav = make_wav()
-            write_recording(data_dir, rel, wav)
+            await write_recording(app.state.storage, rel, wav)
             s.add(Assessment(
                 id=aid, user_id=uid, reference_text=f"Sentence {i}", language="en-US", duration_ms=500,
                 audio_bytes=len(wav), scores=SCORES, result={**SCORES, "detail_result": {"words": []}},
