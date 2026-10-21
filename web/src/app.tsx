@@ -6,6 +6,7 @@ import { AuthProvider } from "~/auth/auth-context";
 import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } from "~/components/announcement-banner";
 import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
+import { ChatHubLayout } from "~/pages/chat-hub";
 import { ConversationPage, ConversationsPage } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage, ShadowPage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
@@ -82,15 +83,15 @@ export function AppRoutes() {
             <Route path="/practice/list" element={<PracticeListPage />} />
             <Route path="/practice/changelog" element={<ChangelogPage />} />
             <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
-            <Route path="/chat" element={<ConversationsPage />} />
+            <Route path="/chat" element={<ChatHubLayout section="chat">{(e) => <ConversationsPage embedded={e} />}</ChatHubLayout>} />
             <Route path="/chat/:id" element={<ConversationPage />} />
             <Route path="/progress" element={<ProgressPage />} />
             <Route path="/vocabulary" element={<VocabularyPage />} />
             <Route path="/rank" element={<RankHomePage />} />
             <Route path="/rank/match/:id" element={<MatchPage />} />
             <Route path="/rank/achievements" element={<AchievementsPage />} />
-            <Route path="/rooms" element={<RoomsLobbyPage />} />
-            <Route path="/rooms/ended" element={<RoomsEndedPage />} />
+            <Route path="/rooms" element={<ChatHubLayout section="rooms">{(e) => <RoomsLobbyPage embedded={e} />}</ChatHubLayout>} />
+            <Route path="/rooms/ended" element={<ChatHubLayout section="rooms-ended">{(e) => <RoomsEndedPage embedded={e} />}</ChatHubLayout>} />
             <Route path="/rooms/r/:roomId" element={<RoomPage />} />
             <Route path="/rooms/r/:roomId/summary" element={<RoomSummaryPage />} />
             <Route path="/rooms/invite/:token" element={<RoomInvitePage />} />

@@ -1,4 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ApiClient } from "~/api/client";
@@ -130,5 +133,21 @@ describe("ChatHubLayout", () => {
     await i18n.changeLanguage("en");
     expect(screen.getByTestId("hub-tab-chat")).toHaveTextContent("AI chat");
     expect(screen.getByTestId("hub-tab-rooms")).toHaveTextContent("Rooms");
+  });
+});
+
+// 路由接线(计划 L6 R7):只有对话区三条路由被包住;路径一个字都不变。
+// 选用源码级断言而不是在 jsdom 里挂载整棵 AppRoutes:后者会拉起懒加载路由与大量请求,而这里只需要钉住路由表。
+describe("app.tsx wraps only the chat-area routes in the hub", () => {
+  const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "app.tsx"), "utf8");
+  const routeLine = (routePath: string) => src.split("\n").find((line) => line.includes(`<Route path="${routePath}" `)) ?? "";
+
+  it.each(["/chat", "/rooms", "/rooms/ended"])("%s is wrapped", (routePath) => {
+    expect(routeLine(routePath)).toContain("<ChatHubLayout");
+  });
+
+  it.each(["/chat/:id", "/rooms/r/:roomId", "/rooms/r/:roomId/summary", "/rooms/invite/:token"])("%s keeps its own element", (routePath) => {
+    expect(routeLine(routePath)).not.toBe("");
+    expect(routeLine(routePath)).not.toContain("ChatHubLayout");
   });
 });
