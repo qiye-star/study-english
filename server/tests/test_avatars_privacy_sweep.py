@@ -22,7 +22,12 @@ from sqlalchemy import select
 
 from app.core import log_buffer
 from app.models import AdminAudit, AvatarReport, SettingRevision
-from app.services.avatars import path_for
+from app.services.avatars import avatar_key
+
+
+def path_for(settings, avatar_id: str):
+    """The local file of an avatar (the sweep runs on the default local backend, rooted at the data directory)."""
+    return settings.resolved_data_dir / avatar_key(avatar_id)
 from tests.accounts_helpers import enable_email, mail_code, register_body
 from tests.admin_helpers import ADMIN_ENABLED, PASSWORD as ADMIN_PASSWORD, login_as
 

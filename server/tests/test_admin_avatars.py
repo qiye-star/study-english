@@ -8,7 +8,12 @@ from PIL import Image
 from sqlalchemy import func, select
 
 from app.models import AdminAudit, AvatarReport
-from app.services.avatars import path_for
+from app.services.avatars import avatar_key
+
+
+def path_for(settings, avatar_id: str):
+    """The local file of an avatar (these tests run on the default local backend, rooted at the data directory)."""
+    return settings.resolved_data_dir / avatar_key(avatar_id)
 from tests.admin_helpers import ADMIN_ENABLED, PASSWORD, login_as
 
 

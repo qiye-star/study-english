@@ -22,6 +22,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.config import Settings
 from app.models import AvatarReport, RoomMember, User
+from app.storage import BlobNotFound
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 OUTPUT_SIDE = 256
@@ -103,35 +104,28 @@ def _check_id(avatar_id: object) -> str:
     return avatar_id
 
 
-def path_for(settings: Settings, avatar_id: str) -> Path:
-    return settings.resolved_data_dir / "avatars" / f"{_check_id(avatar_id)}.webp"
+def avatar_key(avatar_id: str) -> str:
+    """The object key of an avatar: `avatars/<id>.webp` (plan L1 Task 14; the id check runs before any key is built)."""
+    return f"avatars/{_check_id(avatar_id)}.webp"
 
 
-def store(settings: Settings, data: bytes) -> str:
-    """原子写入一张已处理好的头像,返回新的随机 id。先写临时文件再 `os.replace`;失败时不留临时文件。
-    数据库的提交由调用方负责(提交失败时调用 `remove` 删除这里写出的新文件)。"""
+async def save(blobs, data: bytes) -> str:
+    """Store one processed avatar under a fresh random id and return the id. The database commit is the caller's job:
+    if it fails, `remove` deletes the object written here."""
     avatar_id = secrets.token_hex(16)
-    final = path_for(settings, avatar_id)
-    final.parent.mkdir(parents=True, exist_ok=True)
-    tmp = final.with_name(f"{avatar_id}.webp.tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, final)
-    except BaseException:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
+    await blobs.put_bytes(avatar_key(avatar_id), data, content_type="image/webp")
     return avatar_id
 
 
-def remove(settings: Settings, avatar_id: str | None) -> None:
-    """删除一个头像文件;不存在、或 id 不合法时静默返回。绝不在数据库提交之前调用。"""
+async def remove(blobs, avatar_id: str | None) -> None:
+    """Delete one avatar object; a missing or illegal id is a no-op, a store failure is logged by class. Never raises.
+    Never call this before the database commit."""
+    if avatar_id is None:
+        return
     try:
-        path_for(settings, avatar_id).unlink(missing_ok=True)
-    except (ValueError, OSError):
-        pass
+        await blobs.delete(avatar_key(avatar_id))
+    except Exception as exc:  # noqa: BLE001 - after commit: never fail the request
+        logger.warning("avatar delete failed code=%s", getattr(exc, "code", type(exc).__name__))
 
 
 def avatar_url(avatar_id: str | None) -> str | None:
@@ -143,26 +137,26 @@ def avatar_url(avatar_id: str | None) -> str | None:
 
 # ---- 数据库逻辑(计划 S4、S5、S6):会话、设置、用户与时间都是参数,不读 app.state(INDEX X32) ----
 
-async def upload(session: AsyncSession, settings: Settings, user: User, raw: bytes) -> str:
-    """R-V1、R-V2:处理图片、写入新文件、提交数据库,提交成功后才删除旧文件。返回新的相对地址。
-    提交失败时删除刚写出的新文件并回滚,旧头像保持不变。"""
+async def upload(session: AsyncSession, blobs, user: User, raw: bytes) -> str:
+    """R-V1、R-V2:处理图片、写入新对象、提交数据库,提交成功后才删除旧对象。返回新的相对地址。
+    提交失败时删除刚写出的新对象并回滚,旧头像保持不变。"""
     png = await asyncio.to_thread(process, raw)
-    new_id = await asyncio.to_thread(store, settings, png)
+    new_id = await save(blobs, png)
     old_id = user.avatar_id
     user.avatar_id = new_id
     try:
         await session.commit()
     except BaseException:
         await session.rollback()
-        remove(settings, new_id)
+        await remove(blobs, new_id)
         raise
-    remove(settings, old_id)  # after the commit; remove() never raises
+    await remove(blobs, old_id)  # after the commit; remove() never raises
     logger.debug("avatar stored bytes=%d", len(png))
     return avatar_url(new_id)
 
 
-async def clear(session: AsyncSession, settings: Settings, user: User) -> None:
-    """删除自己的头像;没有头像时什么也不做(幂等)。文件在提交之后删除。"""
+async def clear(session: AsyncSession, blobs, user: User) -> None:
+    """删除自己的头像;没有头像时什么也不做(幂等)。对象在提交之后删除。"""
     old_id = user.avatar_id
     if old_id is None:
         return
@@ -172,22 +166,22 @@ async def clear(session: AsyncSession, settings: Settings, user: User) -> None:
     except BaseException:
         await session.rollback()
         raise
-    remove(settings, old_id)
+    await remove(blobs, old_id)
     logger.debug("avatar removed")
 
 
-
-
-async def public_path(session: AsyncSession, settings: Settings, avatar_id: str) -> Path | None:
-    """公开读取(R-V4):只认 `users.avatar_id` 里存在的 id。id 格式不对时在查库和拼路径之前就返回 None;
-    「不存在」「已删除」「不属于任何人」给出同一个答案,不泄露归属。"""
+async def public_read(session: AsyncSession, blobs, avatar_id: str) -> bytes | None:
+    """公开读取(R-V4):只认 `users.avatar_id` 里存在的 id。id 格式不对时在查库之前就返回 None;
+    「不存在」「已删除」「不属于任何人」给出同一个答案,不泄露归属。对象缺失也是 None(由路由给 404)。"""
     if not isinstance(avatar_id, str) or _ID_RE.fullmatch(avatar_id) is None:
         return None
     owner = (await session.execute(select(User.id).where(User.avatar_id == avatar_id))).scalar_one_or_none()
     if owner is None:
         return None
-    path = path_for(settings, avatar_id)
-    return path if path.is_file() else None
+    try:
+        return await blobs.get_bytes(avatar_key(avatar_id), max_bytes=MAX_UPLOAD_BYTES)
+    except BlobNotFound:
+        return None
 
 
 class ReportError(Exception):

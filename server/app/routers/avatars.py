@@ -3,7 +3,7 @@ import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, StrictInt, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
@@ -13,6 +13,7 @@ from app.core.deps import current_user, get_session, get_settings
 from app.models import User, utcnow
 from app.services import avatars
 from app.services.uploads import parse_buffered_form
+from app.storage import get_store
 
 router = APIRouter(prefix="/api")
 
@@ -56,7 +57,7 @@ async def upload_avatar(
         raise HTTPException(422, INVALID)
     raw = await upload.read(avatars.MAX_UPLOAD_BYTES + 1)  # one byte over the limit tells process() it is too large
     try:
-        url = await avatars.upload(session, settings, user, raw)
+        url = await avatars.upload(session, get_store(request.app), user, raw)
     except avatars.AvatarError as exc:
         if exc.kind == "too_large":
             raise HTTPException(413, TOO_LARGE) from None
@@ -66,27 +67,28 @@ async def upload_avatar(
 
 @router.delete("/me/avatar", status_code=204)
 async def delete_avatar(
+    request: Request,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
 ):
     """Remove your avatar. Allowed even while uploads are switched off (R-V3); idempotent."""
-    await avatars.clear(session, settings, user)
+    await avatars.clear(session, get_store(request.app), user)
 
 
 @router.get("/avatars/{avatar_id}")
 async def read_avatar(
     avatar_id: str,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
     """Public: <img> cannot send a Bearer token, so the 128-bit id is the only secret (R-V4)."""
-    path = None
+    content = None
     if settings.avatar_upload_enabled:  # switched off: reads are 404 too (R-V3)
-        path = await avatars.public_path(session, settings, avatar_id)
-    if path is None:
+        content = await avatars.public_read(session, get_store(request.app), avatar_id)
+    if content is None:
         raise HTTPException(404, "Not Found")
-    return FileResponse(path, media_type="image/webp", headers={
+    return Response(content, media_type="image/webp", headers={
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Security-Policy": "default-src 'none'",

@@ -10,6 +10,7 @@ from app.admin import avatars_admin
 from app.admin.perms import AdminContext, require, require_operator_step_up
 from app.core.deps import get_session
 from app.models import utcnow
+from app.storage import get_store
 
 router = APIRouter(prefix="/api/admin")
 
@@ -45,7 +46,7 @@ async def remove_user_avatar(user_id: UserId, payload: ReasonIn, request: Reques
                              ctx: AdminContext = Depends(require_operator_step_up),
                              session: AsyncSession = Depends(get_session)):
     try:
-        return await avatars_admin.remove(session, ctx.actor, request.app.state.settings, user_id,
+        return await avatars_admin.remove(session, ctx.actor, get_store(request.app), user_id,
                                           reason=payload.reason, now=utcnow())
     except avatars_admin.AvatarAdminError as e:
         _fail(e)

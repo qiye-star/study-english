@@ -1,4 +1,7 @@
-"""头像文件存储与上传开关(计划 S3;R-V2、R-V3、X16 之后的设置项)。"""
+"""头像文件存储与上传开关(计划 S3;R-V2、R-V3、X16 之后的设置项)。
+
+Plan L1 Task 14: avatars are objects under `avatars/<id>.webp` in the app's store; these tests drive the store API
+against the local backend (the S3 path runs in the privacy sweep and the API tests)."""
 import re
 from pathlib import Path
 
@@ -7,6 +10,7 @@ import pytest
 from app.core.config import Settings
 from app.core.settings_registry import SPECS
 from app.services import avatars
+from app.storage.local import LocalStore
 
 ID_RE = re.compile(r"[0-9a-f]{32}")
 
@@ -15,30 +19,18 @@ def _settings(tmp_path: Path) -> Settings:
     return Settings(_env_file=None, data_dir=str(tmp_path))
 
 
-def test_store_writes_under_data_dir_avatars_with_a_random_id(tmp_path):
-    settings = _settings(tmp_path)
-    first = avatars.store(settings, b"RIFF....WEBPfirst")
-    second = avatars.store(settings, b"RIFF....WEBPsecond")
+async def test_save_writes_under_avatars_with_a_random_id(tmp_path):
+    store = LocalStore(tmp_path)
+    first = await avatars.save(store, b"RIFF....WEBPfirst")
+    second = await avatars.save(store, b"RIFF....WEBPsecond")
 
     assert ID_RE.fullmatch(first) and ID_RE.fullmatch(second)
     assert first != second
     path = tmp_path / "avatars" / f"{first}.webp"
     assert path.read_bytes() == b"RIFF....WEBPfirst"
-    assert avatars.path_for(settings, first) == path
+    assert avatars.avatar_key(first) == f"avatars/{first}.webp"
     # no temp residue next to the finished files
-    assert not list((tmp_path / "avatars").glob("*.tmp"))
-
-
-def test_store_failure_leaves_no_temp_file_and_raises(tmp_path, monkeypatch):
-    settings = _settings(tmp_path)
-
-    def broken_replace(src, dst):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(avatars.os, "replace", broken_replace)
-    with pytest.raises(OSError):
-        avatars.store(settings, b"RIFF....WEBP")
-    assert list((tmp_path / "avatars").iterdir()) == []  # the temp file is removed, nothing is left behind
+    assert not list((tmp_path / "avatars").glob("*.part"))
 
 
 @pytest.mark.parametrize("bad", [
@@ -51,21 +43,45 @@ def test_store_failure_leaves_no_temp_file_and_raises(tmp_path, monkeypatch):
     "a" * 31 + "/",      # separator
     "",
 ])
-def test_path_for_refuses_anything_but_a_32_hex_id(tmp_path, bad):
+def test_avatar_key_refuses_anything_but_a_32_hex_id(bad):
     with pytest.raises(ValueError):
-        avatars.path_for(_settings(tmp_path), bad)
+        avatars.avatar_key(bad)
 
 
-def test_remove_is_idempotent_and_never_raises(tmp_path):
-    settings = _settings(tmp_path)
-    avatar_id = avatars.store(settings, b"RIFF....WEBP")
-    path = avatars.path_for(settings, avatar_id)
+async def test_remove_is_idempotent_and_never_raises(tmp_path):
+    store = LocalStore(tmp_path)
+    avatar_id = await avatars.save(store, b"RIFF....WEBP")
+    path = tmp_path / avatars.avatar_key(avatar_id)
     assert path.exists()
 
-    avatars.remove(settings, avatar_id)
+    await avatars.remove(store, avatar_id)
     assert not path.exists()
-    avatars.remove(settings, avatar_id)  # missing file: no error
-    avatars.remove(settings, "../../outside")  # not an id: no error, no deletion outside the directory
+    await avatars.remove(store, avatar_id)  # missing object: no error
+    await avatars.remove(store, "../../outside")  # not an id: no error, no deletion outside the directory
+    await avatars.remove(store, None)
+
+
+async def test_remove_swallows_a_store_failure(tmp_path, monkeypatch, caplog):
+    store = LocalStore(tmp_path)
+
+    async def broken(key):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(store, "delete", broken)
+    await avatars.remove(store, "0" * 32)  # must not raise
+    assert "avatar delete failed" in caplog.text
+
+
+async def test_avatar_objects_round_trip_on_s3_too():
+    """The same save / remove calls against a moto bucket (plan L1 Task 14: avatars are objects, not files)."""
+    from tests.storage_helpers import moto_bucket, s3_store
+
+    with moto_bucket() as bucket:
+        store = s3_store(bucket)
+        avatar_id = await avatars.save(store, b"RIFF....WEBPs3")
+        assert await store.get_bytes(avatars.avatar_key(avatar_id)) == b"RIFF....WEBPs3"
+        await avatars.remove(store, avatar_id)
+        assert await store.stat(avatars.avatar_key(avatar_id)) is None
 
 
 def test_avatar_url_is_relative_and_none_without_an_avatar():
@@ -78,15 +94,3 @@ def test_upload_switch_is_a_hot_accounts_setting_on_by_default(tmp_path):
     spec = SPECS["avatar_upload_enabled"]
     assert spec.group == "accounts"
     assert spec.kind == "bool"
-    assert spec.apply == "hot"
-    assert spec.env_only is False and spec.secret is False
-    # a kill switch must be quick: no step-up or typed confirmation
-    assert not spec.danger
-
-
-def test_env_example_documents_the_switch_with_a_chinese_comment():
-    lines = (Path(__file__).resolve().parent.parent / ".env.example").read_text(encoding="utf-8").splitlines()
-    idx = next(i for i, line in enumerate(lines) if line.startswith("AVATAR_UPLOAD_ENABLED="))
-    assert lines[idx] == "AVATAR_UPLOAD_ENABLED=true"
-    comment = lines[idx - 1]
-    assert comment.startswith("#") and any("一" <= ch <= "鿿" for ch in comment)

@@ -215,7 +215,7 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, store, c
     await session.commit()
     _remove_recordings(settings, user_id)
     await library_paths.remove_user_files(store, settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
-    avatars.remove(settings, avatar_id)  # the avatar file; after the commit, never raises (R-V10)
+    await avatars.remove(store, avatar_id)  # the avatar object; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 

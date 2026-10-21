@@ -78,7 +78,7 @@ async def _user(session, user_id: int) -> User:
     return user
 
 
-async def remove(session, actor: Actor, settings, user_id: int, *, reason: str, now: datetime) -> dict:
+async def remove(session, actor: Actor, blobs, user_id: int, *, reason: str, now: datetime) -> dict:
     """清空用户的 `avatar_id`、把该头像的举报置为已处理,写审计并提交;提交后才删除文件(R-V2、R-V7)。"""
     user = await _user(session, user_id)
     old_id = user.avatar_id
@@ -89,7 +89,7 @@ async def remove(session, actor: Actor, settings, user_id: int, *, reason: str, 
     await audit.record(session, actor, "user.avatar.remove", target_type="user", target_id=user_id,
                        after={"removed": True, "reports": resolved}, reason=reason)
     await session.commit()
-    avatars.remove(settings, old_id)  # after the commit; never raises
+    await avatars.remove(blobs, old_id)  # after the commit; never raises
     return {"user_id": user_id, "removed": True, "reports_resolved": resolved}
 
 
