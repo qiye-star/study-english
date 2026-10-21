@@ -15,7 +15,10 @@ Domain logic shared by routers and realtime calls; framework-light, mostly pure 
   (a published `grammar.rules` sets `app.state.grammar_rules` + `grammar_rules_pinned`; it replaces only the
   rules, never `GRAMMAR_OUTPUT_CONTRACT`)
 - `stats.py` – learning-progress aggregation (streaks, scores, weak words)
-- `vocabulary.py` – word normalization and Leitner-box review scheduling
+- `vocabulary.py` – word normalization; the review write points `apply_review` / `apply_lapse` go through the scheduling port (`policy` defaults to Leitner)
+- `scheduling.py` – the scheduling port (L3, pure, no `fsrs` import): Leitner rules (`INTERVAL_DAYS`, `next_review`, re-exported by `vocabulary`), `SchedulingPolicy`, `decide` (writes the Leitner result and the FSRS shadow state; the policy picks which sets `box` / `due_at`), `derive_box` / `seed_stability`, `seeded` (NULL FSRS columns seed from the box), `policy_for` (rollout bucket from `wordbook_fsrs_pct`)
+- `srs_fsrs.py` – the only module that imports the `fsrs` package (pinned 6.3.2): `review`, `retrievability`, `FsrsState`, `RATING`; UTC datetimes only, no fuzzing, no learning steps
+- `srs_replay.py` – offline replay core (pure): `Replay` accumulator and `replay`; predictions are taken before each review; used by `python -m app.admin.fsrs_replay`
 - `provider_clients.py` – FastAPI getters caching `AzureSpeech` / `XfyunIse` on `app.state`
 - `usage.py` – persistent daily counters (`consume`, `remaining`, `refund`) for rank and rooms
 - `identities.py` – login sessions (`revoke_sessions`, `issue_token`, `change_password`) and email identities: `normalize_email` / `identity_key` (R-F1), `subject_hmac` (keyed HMAC, pepper passed in), `encrypt_email` / `decrypt_email`, `mask_email`, `email_ready` (pepper + encryption key + backend), `find_user_by_email`, `bind_email` / `clear_email` (no commit); never logs, errors never carry an address
@@ -50,3 +53,7 @@ Human verification: `uv run pytest -q tests/test_captcha_replay.py`
 - Commit DB rows first, delete files after; file removal must never raise after a commit.
 - Never log recording paths, user text, prompts or keys (prompt versions: key + version only).
 - Tests override `get_xfyun` via `app.dependency_overrides`: keep it importable from here.
+- Only `srs_fsrs.py` may import `fsrs` (`tests/test_architecture.py::test_only_srs_fsrs_imports_fsrs`); the SRS modules never log.
+  With `wordbook_fsrs_pct = 0`, the `box` / `due_at` results must match `tests/fixtures/leitner_golden.json` (flag off = old behaviour).
+- `fsrs` rejects any tzinfo that is not `timezone.utc` (even a fixed UTC offset): always convert with `.astimezone(timezone.utc)`.
+  SQLite returns naive datetimes; `scheduling.seeded` treats them as UTC.

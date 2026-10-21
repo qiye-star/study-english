@@ -141,7 +141,10 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
     setBusy(true);
     setActionError(null);
     try {
-      const result = await submitAnswer(api, { bookId: bookOf(batch, question.key), key: question.key, mode: free ? "free" : "review", qtype: question.qtype, ...input });
+      // 打字题上报作答用时(L3 R14,服务端据此判断 Easy);选择题与快速回忆的请求体不变
+      const timing = !CHOICE.has(question.qtype) && input.elapsedMs === undefined
+        ? { elapsedMs: clampElapsed(now() - shownAt.current) } : {};
+      const result = await submitAnswer(api, { bookId: bookOf(batch, question.key), key: question.key, mode: free ? "free" : "review", qtype: question.qtype, ...input, ...timing });
       if (!mounted.current) return;
       // 抽查:先答这道题,还没写盒子(plan P-R3)
       if (result.outcome === "pending" && result.check) { setCheck(result.check); return; }

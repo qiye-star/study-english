@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
+from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text,
                         UniqueConstraint, false, func, text, true)
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -145,6 +145,11 @@ class VocabularyItem(Base):
     lapses: Mapped[int] = mapped_column(Integer, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # FSRS state (migration 0028, L3 R6): NULL until the first review seeds it from the box. Leitner ignores them.
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fsrs_state: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    last_review: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---- 段位赛与联机练习(设计文档 2026-10-09 §6)----
@@ -717,6 +722,8 @@ class WordbookEvent(Base):
     credit: Mapped[int] = mapped_column(Integer, default=0)  # 0–100
     day: Mapped[str] = mapped_column(String(10))  # 用户本地日 YYYY-MM-DD
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Set only when this event changed a card's schedule (migration 0028, L3 R8); NULL for practice and no-op answers.
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WordbookExplanation(Base):

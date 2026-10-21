@@ -66,3 +66,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
 - 选词词典 `POST /api/dictionary/lookup` 的词只在 POST 体;`lookup.py` 里不许有 logging 调用,`forms.py` 只记行数、不记词(`test_dictionary_lookup.py::test_the_module_is_not_a_logging_site`);不受 `WORDBOOK_ENABLED` 控制;`DictionaryLookup` 随 `dictionary(app)` 的 store 更换(`lookup_service`)。
+- FSRS 灰度(L3):FSRS 模式下盒子由稳定度推导(`scheduling.derive_box`);`plan.py`、`quiz.py`、`learned.py` 按盒子选题型与分档的规则不要改成读 stability。
+  `reviewed_at` 只在调度真的改了卡时写(`_write_srs` 成功、`applied` 为真),自由练习、未到期答对与重复提交都是 NULL。
+  `/answers` 与生词本的响应 `grade` 仍是三值;Easy 只进调度(`grading.review_grade`,仅无提示的正确拼写 / 听写且在时限内)。
+  `set_learn_box` 会清空四列 FSRS 状态,下一次复习按新盒子重播种。`wordbook_fsrs_pct` 默认 0(全员 Leitner),降低即回滚。

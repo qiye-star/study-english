@@ -242,6 +242,9 @@ class Settings(BaseSettings):
     wordbook_autoplay: bool = True
     wordbook_show_example: bool = True
     wordbook_data_dir: str = ""
+    # L3 FSRS rollout (plan 2026-10-21-l3-fsrs R9, R10): 0 = every user keeps the Leitner boxes (the default)
+    wordbook_fsrs_pct: int = Field(0, ge=0, le=100)
+    wordbook_fsrs_retention_pct: int = Field(90, ge=85, le=95)
 
     # 学习联动(spec 2026-10-11-learning-links §7.1);总开关关 = 与未安装联动完全相同
     links_enabled: bool = False
