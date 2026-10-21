@@ -3,12 +3,13 @@
 目录是系统内容:管理员可以看标题与句子(R5),但审计只记 id、动作、数字与布尔。数据库读写经 `app.library.catalog_store`
 (车道 SC),任务经 `app.state.catalog`(`CatalogJobs`)。"""
 import logging
+from datetime import datetime
 
 from sqlalchemy import update
 
 from app.admin import audit
 from app.core import config as core_config
-from app.library import ai, catalog_store, limits, paths, store, subtitles, urlcheck
+from app.library import ai, catalog_bundle, catalog_store, limits, paths, store, subtitles, urlcheck
 from app.library.catalog_import import REPLACE_MARK
 from app.library.errors import LibraryError
 from app.library.pipeline import INPUT_PREFIX, UPLOADED_SUBS
@@ -420,6 +421,40 @@ async def delete(session, app, actor, catalog_id: str, *, reason: str, confirm: 
                        after={"refs": refs}, reason=reason)
     await session.commit()
     return {"id": row.id, "outcome": "retired", "refs": refs}
+
+
+async def bundle_export(session, app, actor, catalog_id: str, *, now: datetime) -> dict:
+    """Writes the bundle to the store. Audit carries the id and numbers only (plan L1 Task 22)."""
+    try:
+        out = await catalog_bundle.export_bundle(session, get_store(app), catalog_id, now)
+    except catalog_bundle.BundleError as e:
+        raise _err(e.status, e.message) from None
+    await audit.record(session, actor, "catalog.bundle_export", target_type="catalog_item", target_id=catalog_id,
+                       after={"segments": out["segments"], "bytes": out["bytes"]})
+    await session.commit()
+    return out
+
+
+async def bundle_list(session, app) -> dict:
+    """Bundles in the store; `importable` = this installation has no item with that id yet."""
+    listed = await catalog_bundle.list_bundles(get_store(app))
+    out = []
+    for item in listed:
+        present = await session.get(CatalogItem, item["catalog_id"]) is not None
+        out.append({**item, "importable": not present})
+    return {"bundles": out}
+
+
+async def bundle_import(session, app, actor, catalog_id: str, *, reason: str, now: datetime) -> dict:
+    """Imports a bundle (no pipeline, no model spend). The import commits its own rows; the audit row follows."""
+    try:
+        row = await catalog_bundle.import_bundle(session, get_store(app), catalog_id, now)
+    except catalog_bundle.BundleError as e:
+        raise _err(e.status, e.message) from None
+    await audit.record(session, actor, "catalog.bundle_import", target_type="catalog_item", target_id=catalog_id,
+                       after={"segments": row.seg_count}, reason=reason)
+    await session.commit()
+    return {"id": row.id, "segments": row.seg_count, "status": row.status, "published": row.published}
 
 
 async def purge(session, app, actor, catalog_id: str, *, reason: str, confirm: str) -> dict:
