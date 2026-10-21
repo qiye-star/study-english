@@ -43,6 +43,7 @@ AW-1(2026-10-12,addressing web C3):`room-page.tsx` 只增加「对象」接线(`
 
 ## Public surface
 `RoomsLobbyPage`、`RoomPage`、`RoomInvitePage`(`/rooms/invite/:token`)、`RoomSummaryPage`(`/rooms/r/:roomId/summary`)、`RoomsEndedPage`(`/rooms/ended`,懒加载)、`fetchRoomsConfig`、`useRoomsEnabled`。
+`RoomsLobbyPage` / `RoomsEndedPage` 收可选 `embedded`(标题 + 切换条,计划 L6 R3);分区外壳在 `pages/chat-hub.tsx`,由 `app.tsx` 包住 `/rooms`、`/rooms/ended`。`useRoomsEnabled` 同一 ApiClient 再次挂载时同步给出已知值(R4)。
 
 ## Allowed dependencies
 `lib/`、`api/`、`components/`、`layout/`、`auth/`、`settings/`、`@renderer/*`、其他 feature 的 `index.ts`(例如 `~/features/chat` 的朗读与翻译)。

@@ -4,7 +4,7 @@ App chrome around authenticated routes.
 
 ## What lives here
 - `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer` and the shadow sheet (`ShadowSheetProvider` wraps the shell, `ShadowSheetHost` sits next to `LookupLayer`; `~/features/practice`).
-- `bottom-nav.tsx` (练习 · 对话 · 联机 · 跟读库 · 我的; rooms and library tabs are controlled by `useRoomsEnabled()` / `useLibraryEnabled()`, at most 5 tabs), `page-header.tsx`.
+- `bottom-nav.tsx` (练习 · 对话 · 跟读库 · 我的; the library tab is controlled by `useLibraryEnabled()`, at most 4 tabs; `对话` has `also: ["/rooms"]` so the whole rooms subtree stays highlighted; the nav does not read the rooms config — 联机 lives in the 对话 section switch, `src/pages/chat-hub.tsx`), `page-header.tsx`.
 - `page-header.tsx`: `large` = root-tab large title + capsule after 60px (liquid); actions/back render once.
 - `glass-route-pin.tsx` — `GlassRoutePin` (in `AppShell`): `data-glass="pin"` on `/library*` and `/practice/changelog` so shared components keep the classic skin there (plan `2026-10-15-liquid-glass`). The shell paints `page-bg` (E0 background, liquid only).
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).
@@ -18,7 +18,7 @@ App chrome around authenticated routes.
 - `cd web && yarn test` (`layout/*.test.ts(x)`).
 
 ## Pitfalls
-- 5 tabs at 360 px are about 72 px each: tab labels stay at most 8 English characters / 4 Chinese characters (`bottom-nav.test.tsx` guards it); change a label together with that test.
+- 4 tabs at 360 px are about 82 px each (class math, not measured on a device): tab labels stay at most 8 English characters / 4 Chinese characters (`bottom-nav.test.tsx` guards it); change a label together with that test.
 - When the appearance is fixed to light/dark, both `theme-color` metas are rewritten to one colour (and restored for "follow system"); iOS home-screen status bar behaviour is not verified on a real device.
 - Safe-area insets and app height matter on iOS standalone PWA; test with the mobile viewport.
 - The bottom tab bar floats (plan `2026-10-14-floating-glass-bottom-bar`): anything that must clear it reads `var(--tab-bar-space)` (`index.css` `:root`: bar height + `--tab-bar-bottom` + 8px gap, safe area included). Never hard-code `3.5rem` or the safe area again; docks and composers inside `<main>` follow `<main>`'s padding automatically. The bar's real blur, contrast over posters and position above the iPhone home indicator are UNVERIFIED on devices.

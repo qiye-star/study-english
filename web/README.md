@@ -74,15 +74,15 @@
 
 ## 段位赛与联机练习(计划 2026-10-09)
 
-两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页没有段位卡,页面加载时只多请求一次 `GET /api/rank/config` 与 `GET /api/rooms/config`(`src/layout/feature-flags.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
+两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页没有段位卡,练习页只多请求一次 `GET /api/rank/config`;`GET /api/rooms/config` 只在进入对话区(`/chat`、`/rooms`、`/rooms/ended`)与「我的」时请求一次(同一 ApiClient 缓存,导航本身不再读取;`src/layout/feature-flags.test.tsx`、`src/layout/bottom-nav.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
 
 - **段位赛**(`src/features/rank`):练习页顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
-- **联机练习**(`src/features/rooms`,底部第 3 个标签「联机」):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
+- **联机练习**(`src/features/rooms`,「对话」标签里的「AI 对话 | 联机」切换;联机关闭时没有切换条;URL 仍是 `/rooms…`,邀请链接不变;切换条在 `src/pages/chat-hub.tsx`):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
 - 与服务端的契约:`src/features/rank/rank-contract.test.ts`、`src/features/rooms/rooms-contract.test.ts` 读取 `server/tests/fixtures/{rank,rooms}_contract.json`(由服务端测试对真实应用录制/核对),逐键绑定 TypeScript 类型。
 - **联机练习 v2**(spec `docs/superpowers/specs/2026-10-10-rooms-v2-design.md`;服务端见 `server/README.md`「联机练习 v2」):创建表单 7 项设置(房间名、场景、水平、加入方式、人数、AI 公开回答、允许语音);「需房主同意」的房间凭号申请、房主在横幅里同意后自动进房;邀请链接与本地生成的二维码(`/rooms/invite/:token`,直接进入);助手改为停靠在输入条上方的面板(三档高度,键盘弹出收成一行,不遮挡聊天);语音消息(与对话页同一手势,上传 16 kHz WAV,服务端存 MP3;转写与翻译全房共享,「转文字」「翻译」手动展开或在「我的」里开自动转文字);引用回复、6 个表情回应、正在输入/正在说话;房间结束后的学习小结(`/rooms/r/:roomId/summary`)。语音与小结各有服务端子开关(默认关)。语音配额为每人每天 200 MB + 100 条。
 - 契约:`src/features/rooms/create/rooms-v2-contract.test.ts`、`extras/extras-contract.test.ts`、`voice/voice-contract.test.ts` 分别核对 `server/tests/fixtures/rooms_v2_{core,summary,voice}_contract.json`。E2E:`e2e/rooms-v2.spec.ts`(两个上下文审批加入、引用、回应、正在输入、助手面板不遮挡、邀请链接第三人进入;语音上传用契约样例应答,零上游成本)。
 - **联机练习 v2 未在真机验证**(iOS Safari 与 Android Chrome 各一台;结果记在 `docs/superpowers/plans/e2e-results.md`「Rooms v2」):按住说话录 10 秒并发送、上滑取消、上滑转文字;对方播放 MP3(iOS `<audio>` 播放 Blob)、语速跟随;键盘弹出时助手面板收成一行与恢复(`visualViewport`);拖动面板三档;切后台/锁屏再回来重连与补齐;二维码被另一台手机扫码打开;邀请链接从微信等应用内浏览器打开;Android 数字键盘粘贴房间号;自动转文字设置在真机上的表现。
-- **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。
+- **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。「对话 / 联机」合并(计划 L6)的设备清单见 `docs/superpowers/plans/10.21-plans/2026-10-21-l6-results.md`,全部未验证。
 - **未在真机验证**:iOS Safari 点输入框页面跳到顶部的修复(`useAppHeight` 在键盘相关事件后 `scrollTo(0,0)` 复位 + 固定 `html` / `body`,计划 `2026-10-13-ios-keyboard-scroll`)。清单见 `docs/superpowers/plans/2026-10-13-ios-keyboard-scroll-device-checklist.md`。
 
 ## 背单词(计划 2026-10-10)

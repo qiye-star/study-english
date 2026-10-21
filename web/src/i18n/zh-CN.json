@@ -6,7 +6,7 @@
       "label": "公告", "dismiss": "关闭公告", "readOnly": "维护中:暂时只能查看",
       "maintenanceTitle": "服务维护中", "maintenanceBody": "我们正在升级服务,请稍后再来。", "checkAgain": "重新检查"
     },
-    "nav": { "label": "主导航", "practice": "练习", "chat": "对话", "rooms": "联机", "me": "我的" },
+    "nav": { "label": "主导航", "practice": "练习", "chat": "对话", "me": "我的" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
       "password": "密码", "submit": "登录",

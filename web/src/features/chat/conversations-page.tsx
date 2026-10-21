@@ -1,5 +1,5 @@
 import { MessagesSquareIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -19,7 +19,11 @@ import { CHAT_SERVER_ERRORS, deleteConversation, listConversations, type Convers
 import { displayName } from "./chat-request";
 import { ScenarioSheet } from "./scenario-sheet";
 
-export function ConversationsPage() {
+/**
+ * `embedded`:放在联机并入的对话分区里时(`pages/chat-hub.tsx`,计划 L6 R3)。
+ * 不传 = 与原来逐字节相同;传了则标题可换、切换条紧跟在页头之后。
+ */
+export function ConversationsPage({ embedded }: { embedded?: { title?: string; switcher: ReactNode } } = {}) {
   const { api } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -86,15 +90,16 @@ export function ConversationsPage() {
   return (
     <div className="flex flex-1 flex-col">
       {liquid ? (
-        <PageHeader large title={t("web.chat.title")} subtitle={items.length ? t("web.chat.listCount", { count: items.length }) : undefined} />
+        <PageHeader large title={embedded?.title ?? t("web.chat.title")} subtitle={items.length ? t("web.chat.listCount", { count: items.length }) : undefined} />
       ) : (
-        <PageHeader title={t("web.chat.title")} actions={
+        <PageHeader title={embedded?.title ?? t("web.chat.title")} actions={
           <button type="button" data-testid="conversation-new" onClick={() => setPickerOpen(true)}
             className="hit-expand mr-1 inline-flex h-8 items-center gap-1 rounded-full bg-blue pl-2.5 pr-3 text-sub font-semibold text-on-blue transition-opacity duration-fast hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <PlusIcon aria-hidden className="h-4 w-4" />{t("web.chat.new")}
           </button>
         } />
       )}
+      {embedded?.switcher}
       {liquid ? <ConversationListLiquid items={items} loaded={loaded} error={error} next={next} loadingMore={loadingMore} onLoadMore={() => next && void load(next)} onDelete={setPendingDelete} onNew={() => setPickerOpen(true)} errorBox={errorBox} /> : (
       <div className="px-gutter pb-6 pt-1">
         {!loaded && <p className="py-10 text-center text-sub text-ink-2">{t("web.common.loading")}</p>}

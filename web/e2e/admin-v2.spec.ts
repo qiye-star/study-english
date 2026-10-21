@@ -38,13 +38,16 @@ async function stepUpIfAsked(page: Page): Promise<void> {
   await expect(dialog).toBeHidden();
 }
 
-const roomsTab = (web: Page) => web.getByTestId("nav-rooms");
+// 联机没有底部标签了(计划 L6):入口是「对话」页顶部的切换条,联机开启时才出现。
+const roomsSection = (web: Page) => web.getByTestId("hub-tab-rooms");
 /** 网页端界面语言默认跟随浏览器(这里两种文案都认) */
 const READ_ONLY_BANNER = /维护中:暂时只能查看|Maintenance: read-only for now/;
 
-test("hot toggle ROOMS_ENABLED off, the web nav follows, revert brings it back", async ({ browser, page: web, request }) => {
+test("hot toggle ROOMS_ENABLED off, the chat hub switch follows, revert brings it back", async ({ browser, page: web, request }) => {
   await signIn(web, request);
-  await expect(roomsTab(web)).toHaveCount(1);
+  await web.goto("/chat");
+  await expect(roomsSection(web)).toHaveCount(1);
+  await expect(web.getByTestId("nav-rooms")).toHaveCount(0);
   const { context, page } = await adminPage(browser);
   try {
     await page.goto("/admin/settings/features");
@@ -57,9 +60,10 @@ test("hot toggle ROOMS_ENABLED off, the web nav follows, revert brings it back",
     await stepUpIfAsked(page);
     await expect(page.getByText(/已保存.修订 #\d+./)).toBeVisible();
 
-    await web.reload();
-    await expect(web.getByTestId("nav-practice")).toBeVisible();
-    await expect(roomsTab(web)).toHaveCount(0);
+    await web.reload(); // 仍在 /chat
+    await expect(web.getByTestId("nav-chat")).toBeVisible();
+    await expect(roomsSection(web)).toHaveCount(0);
+    await expect(web.getByTestId("nav-rooms")).toHaveCount(0);
 
     await page.getByRole("button", { name: "历史" }).click();
     await page.getByRole("button", { name: "撤销此修订" }).first().click();
@@ -76,8 +80,9 @@ test("hot toggle ROOMS_ENABLED off, the web nav follows, revert brings it back",
     await stepUpIfAsked(page);
     await expect(confirm).toBeHidden();
 
-    await web.reload();
-    await expect(roomsTab(web)).toHaveCount(1);
+    await web.reload(); // 仍在 /chat
+    await expect(roomsSection(web)).toHaveCount(1);
+    await expect(web.getByTestId("nav-rooms")).toHaveCount(0);
   } finally {
     await context.close();
   }

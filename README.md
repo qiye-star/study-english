@@ -182,7 +182,7 @@ your.domain { reverse_proxy 127.0.0.1:8000 }
 | `REGISTRATION_MODE` | 示例配置为 `closed`(删掉这一行则为 `open`) | `open` 任何人可注册;`invite` 凭邀请码注册 | `open` 时任何人都能消耗你的额度 |
 | `REALTIME_ENABLED` | 关 | 对话页出现「通话」 | 有:语音合成、大模型、语音识别、发音评测 |
 | `RANK_ENABLED` | 关 | 段位、阶段练习、成就、晋级赛 | 晋级赛有:大模型、语音识别、发音评测 |
-| `ROOMS_ENABLED` | 关 | 底部导航出现「联机」 | 有:`@ai` 与私聊助手用大模型 |
+| `ROOMS_ENABLED` | 关 | 「对话」页顶部出现「AI 对话 / 联机」切换 | 有:`@ai` 与私聊助手用大模型 |
 | ↳ `ROOMS_VOICE_ENABLED` | 关 | 房间里可发语音消息 | 有:语音识别 |
 | ↳ `ROOMS_SUMMARY_ENABLED` | 关 | 房间结束后生成 AI 小结 | 有:大模型 |
 | `WORDBOOK_ENABLED` | 关 | 背单词 | 无 |

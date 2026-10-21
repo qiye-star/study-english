@@ -252,4 +252,17 @@ describe("web architecture boundaries", () => {
     expect(leaks).toEqual([]);
     for (const f of tutor) expect(sourceOf(f), f).not.toMatch(/features\/(wordbook|vocabulary)/);
   });
+
+  it("the chat hub is the only place that knows both chat and rooms (plan L6 R1/R2)", () => {
+    expect(violationsOf("features/chat/x.tsx", 'import { useRoomsEnabled } from "~/features/rooms";')).toHaveLength(1);
+    expect(violationsOf("pages/chat-hub.tsx", 'import { useRoomsEnabled } from "~/features/rooms";')).toEqual([]);
+    expect(violationsOf("layout/x.tsx", 'import { ChatHubLayout } from "~/pages/chat-hub";')).toHaveLength(1);
+    expect(sourceOf("pages/chat-hub.tsx")).not.toContain("~/features/chat");
+    expect(CROSS_FEATURE_BASELINE.size).toBe(19);
+  });
+
+  it("the layout (bottom nav) no longer knows about rooms (plan L6 R8)", () => {
+    const offenders = files.filter((f) => f.startsWith("layout/") && !isTest(f) && sourceOf(f).includes("~/features/rooms"));
+    expect(offenders).toEqual([]);
+  });
 });
