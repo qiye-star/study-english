@@ -1,5 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import i18n from "~/i18n";
@@ -347,5 +348,31 @@ describe("chat list in the liquid skin (plan 2026-10-15-liquid-glass L5-1)", () 
     render(createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) }));
     expect(await screen.findByTestId("conversations-empty")).toHaveTextContent(/./);
     expect(screen.getByTestId("conversations-empty").className).toContain("mat-surface");
+  });
+});
+
+describe("embedded in the chat hub (plan L6 R3)", () => {
+  beforeEach(() => resetServerAiConfigCache());
+  afterEach(() => setLiquid(false));
+  const empty = () => createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) });
+  const render = (mock: ReturnType<typeof createFetchMock>, embedded?: { title?: string; switcher: ReactNode }) =>
+    renderWithProviders(<ConversationsPage embedded={embedded} />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/chat" });
+
+  it.each([false, true])("puts the switcher after the title and before the list (liquid %s)", async (liquid) => {
+    setLiquid(liquid);
+    render(empty(), { title: "对话", switcher: <div data-testid="probe-switch" /> });
+    const probe = await screen.findByTestId("probe-switch");
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("对话");
+    expect(heading.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const emptyState = await screen.findByTestId("conversations-empty");
+    expect(probe.compareDocumentPosition(emptyState) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("conversation-new")).toBeInTheDocument(); // 经典在顶栏,液态是悬浮胶囊
+  });
+
+  it("keeps the own title when only a switcher is passed", async () => {
+    render(empty(), { switcher: <div data-testid="probe-switch" /> });
+    await screen.findByTestId("probe-switch");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(i18n.t("web.chat.title"));
   });
 });
