@@ -1,18 +1,17 @@
 """词汇本:词条规范化与盒子法(Leitner)排期(设计文档 §3.5,计划裁定 R17/R18)。
 除 apply_review(唯一的复习写入点,不提交)外都是纯函数,便于测试。"""
 import unicodedata
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Literal
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import VocabularyItem
+# The Leitner rules live in scheduling (L3 R1); re-exported here so existing imports keep working.
+from app.services.scheduling import INTERVAL_DAYS, MAX_BOX, ReviewOutcome, next_review  # noqa: F401
 
 Grade = Literal["forgot", "hard", "good"]
-INTERVAL_DAYS = (1, 2, 4, 7, 15, 30)  # 下标 = 盒子号
-MAX_BOX = len(INTERVAL_DAYS) - 1
 MAX_WORD = 100
 MAX_MEANING = 1000
 MAX_EXAMPLE = 500
@@ -41,32 +40,6 @@ def validate_word(value: str) -> str:
     if len(word) > MAX_WORD:
         raise ValueError(f"word is longer than {MAX_WORD} characters")
     return word
-
-
-@dataclass(frozen=True)
-class ReviewOutcome:
-    box: int
-    due_at: datetime
-    lapsed: bool
-
-
-def next_review(box: int, grade: str, now: datetime) -> ReviewOutcome:
-    """forgot → 盒 0、明天;hard → 盒不变、该盒间隔减半;good → 盒 +1(封顶 5)、新盒的间隔。
-
-    box 超出 0..5 时夹到范围内;now 必须带时区(UTC)。
-    """
-    if now.tzinfo is None:
-        raise ValueError("now must be timezone-aware")
-    now = now.astimezone(timezone.utc)
-    box = min(max(box, 0), MAX_BOX)
-    if grade == "forgot":
-        return ReviewOutcome(0, now + timedelta(days=INTERVAL_DAYS[0]), True)
-    if grade == "hard":
-        return ReviewOutcome(box, now + timedelta(days=INTERVAL_DAYS[box] / 2), False)
-    if grade == "good":
-        new_box = min(box + 1, MAX_BOX)
-        return ReviewOutcome(new_box, now + timedelta(days=INTERVAL_DAYS[new_box]), False)
-    raise ValueError(f"unknown grade: {grade!r}")
 
 
 async def apply_review(
