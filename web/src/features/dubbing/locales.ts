@@ -12,3 +12,6 @@ export function ensureDubbingI18n(): void {
   i18n.addResourceBundle("en", "translation", en, true, false);
   i18n.addResourceBundle("zh-CN", "translation", zh, true, false);
 }
+
+// 求值时即合并(同 library/locales.ts):每个用到 web.dubbing.* 的模块都 `import "./locales"`。
+ensureDubbingI18n();

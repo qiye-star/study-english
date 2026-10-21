@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = (rel: string) => readFileSync(path.join(here, rel), "utf8");
-const MAIN = ["index.ts", "config.ts", "use-dubbing-enabled.ts"];
+const MAIN = ["index.ts", "config.ts", "use-dubbing-enabled.ts", "lazy-pages.tsx", "register.tsx"];
 const LAZY_ONLY = ["locales", "loader", "kit-context", "dub-home-page", "dub-item-page"];
 const staticImports = (s: string) =>
   [...s.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?\sfrom\s*["']\.\/([^"']+)["']|(?:^|\n)\s*import\s*["']\.\/([^"']+)["']/g)]

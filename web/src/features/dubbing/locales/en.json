@@ -1,6 +1,22 @@
 {
   "web": {
     "dubbing": {
+      "entry": {
+        "title": "Film dubbing",
+        "hint": "Play a clip, take a role, record your lines"
+      },
+      "home": {
+        "title": "Dubbing",
+        "back": "Practice",
+        "empty": "No material to dub yet",
+        "emptyHint": "Add a video or audio file in the shadowing library first.",
+        "labeled": "Roles set",
+        "unlabeled": "Roles not set",
+        "next": "Next page",
+        "sentences": "{{count}} sentences",
+        "audio": "Audio",
+        "video": "Video"
+      },
       "errors": {
         "disabled": "Dubbing is turned off.",
         "notFound": "This material could not be found.",
