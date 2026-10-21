@@ -15,6 +15,7 @@ from app.admin.perms import AdminContext, require, require_step_up, step_up_unti
 from app.core import log_buffer
 from app.core.deps import get_session
 from app.models import AdminAudit
+from app.storage import get_store
 
 router = APIRouter(prefix="/api/admin")
 
@@ -240,7 +241,7 @@ class HousekeepingScanIn(BaseModel):
 @router.get("/storage")
 async def storage_usage(request: Request, _: AdminContext = Depends(require("viewer")),
                         session: AsyncSession = Depends(get_session)):
-    return await storage.storage_summary(session, request.app.state.settings.resolved_data_dir)
+    return await storage.storage_summary(session, get_store(request.app))
 
 
 async def _room_audio_run(body: HousekeepingRunIn, request: Request, ctx: AdminContext, session: AsyncSession):
@@ -250,7 +251,7 @@ async def _room_audio_run(body: HousekeepingRunIn, request: Request, ctx: AdminC
             "older_than_days": f"at least {ROOM_AUDIO_MIN_DAYS}"}}, status_code=422)
     try:
         files, size = await housekeeping.purge_room_audio_detail(
-            session, request.app.state.settings, days, body.token or "", datetime.now(timezone.utc),
+            session, get_store(request.app), days, body.token or "", datetime.now(timezone.utc),
             confirm=body.confirm or "")
     except ValueError as e:
         if str(e) == "Confirmation required":
@@ -270,12 +271,12 @@ async def housekeeping_scan(tool: Tool, request: Request, body: HousekeepingScan
     settings = request.app.state.settings
     if tool == "room_audio":
         days = (body or HousekeepingScanIn()).older_than_days
-        scan = await housekeeping.scan_room_audio(session, settings, days, datetime.now(timezone.utc))
+        scan = await housekeeping.scan_room_audio(session, get_store(request.app), days, datetime.now(timezone.utc))
         return {"token": scan.token, "count": scan.count, "bytes": scan.bytes, "rooms": scan.rooms,
                 "samples": scan.samples, "older_than_days": days,
                 "confirm": housekeeping.confirm_phrase(scan.count)}
     if tool == "orphan_recordings":
-        scan = await housekeeping.scan_orphan_recordings(session, settings)
+        scan = await housekeeping.scan_orphan_recordings(session, get_store(request.app))
         return {"token": scan.token, "count": scan.count, "bytes": scan.bytes, "samples": scan.samples}
     days = settings.admin_audit_retention_days
     return {"retention_days": days, "count": await housekeeping.audit_purgeable(session, days)}
@@ -289,7 +290,7 @@ async def housekeeping_run(tool: Tool, body: HousekeepingRunIn, request: Request
         return await _room_audio_run(body, request, ctx, session)
     if tool == "orphan_recordings":
         try:
-            deleted = await housekeeping.delete_orphan_recordings(session, settings, body.token or "")
+            deleted = await housekeeping.delete_orphan_recordings(session, get_store(request.app), body.token or "")
         except ValueError:
             return JSONResponse({"error": "Rescan required"}, status_code=409)
         await audit.record(session, ctx.actor, "housekeeping.orphan_recordings", target_type="recordings",

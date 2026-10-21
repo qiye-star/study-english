@@ -33,11 +33,11 @@ async def test_orphan_scan_and_guarded_delete(app, client):
     fresh = app.state.settings.resolved_data_dir / "recordings" / str(uid) / "being-written.wav"
     fresh.write_bytes(b"RIFF")
     async with app.state.sessionmaker() as s:
-        scan = await housekeeping.scan_orphan_recordings(s, app.state.settings)
+        scan = await housekeeping.scan_orphan_recordings(s, app.state.storage)
         assert (scan.count, scan.bytes) == (1, 8) and scan.samples == [f"recordings/{uid}/ghost.wav"]
         with pytest.raises(ValueError):
-            await housekeeping.delete_orphan_recordings(s, app.state.settings, "stale-token")
-        assert await housekeeping.delete_orphan_recordings(s, app.state.settings, scan.token) == 1
+            await housekeeping.delete_orphan_recordings(s, app.state.storage, "stale-token")
+        assert await housekeeping.delete_orphan_recordings(s, app.state.storage, scan.token) == 1
     assert not orphan.exists() and fresh.exists()
 
 
