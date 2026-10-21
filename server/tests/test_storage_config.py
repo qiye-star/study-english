@@ -135,3 +135,19 @@ def test_the_fallback_cannot_point_at_the_same_s3_bucket(tmp_path):
                                  s3_fallback_bucket="enjoy", s3_fallback_access_key="AK",
                                  s3_fallback_secret_key="SK"))
     assert "different endpoint or bucket" in str(caught.value)
+
+
+def test_the_compose_example_has_an_optional_minio_profile_bound_to_localhost():
+    """plan L1 Task 24: MinIO and its bucket bootstrap sit behind the `minio` profile, bind to 127.0.0.1 only, and
+    never carry a real password (only the placeholders); the server waits for the bootstrap only when it runs."""
+    from pathlib import Path
+
+    import yaml
+
+    compose = yaml.safe_load((Path(__file__).resolve().parents[2] / "docker-compose.example.yml").read_text("utf-8"))
+    services = compose["services"]
+    assert services["minio"]["profiles"] == ["minio"] and services["minio-init"]["profiles"] == ["minio"]
+    for port in services["minio"]["ports"]:
+        assert str(port).startswith("127.0.0.1:")
+    assert services["server"]["depends_on"]["minio-init"]["required"] is False
+    assert "change-me-minio" in services["minio"]["environment"]["MINIO_ROOT_PASSWORD"]  # placeholder only
