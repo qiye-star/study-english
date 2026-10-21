@@ -23,6 +23,13 @@ def enable(monkeypatch) -> None:
     monkeypatch.setattr(config_module, "media_tools_present", lambda: True)
 
 
+async def item_files(app, user_id: int, item_id: str) -> list[str]:
+    """Stored object keys of one user item (plan L1 Task 7). Works for every backend."""
+    from tests.storage_helpers import keys_under
+
+    return await keys_under(app, f"library/{user_id}/{item_id}/")
+
+
 def library_settings(tmp_path, **extra) -> dict:
     return {"library_enabled": True, "data_dir": str(tmp_path / "data"), **extra}
 

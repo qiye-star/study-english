@@ -1,6 +1,7 @@
 """精选库测试工具:直接写库造一条目录条目(含共享文件),不经过导入流水线(那是车道 SI 的事)。"""
 from app.library import paths
 from app.models import CatalogItem, CatalogSegment, utcnow
+from app.storage import get_store
 
 MEDIA = bytes(range(256)) * 16  # 4096 bytes: enough for Range tests
 POSTER = b"\xff\xd8\xff\xe0fake-jpeg"
@@ -26,10 +27,9 @@ async def make_catalog(app, *, title: str = "Catalog talk", status: str = "ready
         await s.flush()
         rel = paths.catalog_rel(row.id)
         if with_files:
-            folder = paths.catalog_dir(data_dir_of(app), row.id)
-            folder.mkdir(parents=True, exist_ok=True)
-            (folder / name).write_bytes(MEDIA)
-            (folder / "poster.jpg").write_bytes(POSTER)
+            store = get_store(app)  # plan L1 Task 7: files go through the store (LocalStore = the data directory)
+            await store.put_bytes(f"{rel}/{name}", MEDIA, content_type=mime)
+            await store.put_bytes(f"{rel}/poster.jpg", POSTER, content_type="image/jpeg")
         row.media_path, row.poster_path = f"{rel}/{name}", f"{rel}/poster.jpg"
         row.media_bytes = len(MEDIA) + len(POSTER)
         for i, (start, end, text, zh) in enumerate(segments):
@@ -41,4 +41,9 @@ async def make_catalog(app, *, title: str = "Catalog talk", status: str = "ready
 
 
 def media_file(app, catalog_id: str, name: str = "media.m4a"):
+    """Local path only: valid for the default (local) backend. Prefer `media_bytes` / `storage_helpers` otherwise."""
     return paths.catalog_dir(data_dir_of(app), catalog_id) / name
+
+
+async def media_bytes(app, catalog_id: str, name: str = "media.m4a") -> bytes:
+    return await get_store(app).get_bytes(f"{paths.catalog_rel(catalog_id)}/{name}")
