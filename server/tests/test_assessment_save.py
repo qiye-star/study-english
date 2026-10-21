@@ -156,12 +156,14 @@ async def test_storage_failure_returns_500_and_no_row(app, client, auth_headers,
     assert await count_rows(app) == 0
 
 
-def test_absolute_path_rejects_escape(tmp_path):
-    with pytest.raises(ValueError):
-        recordings.absolute_path(tmp_path, "../evil.wav")
-    with pytest.raises(ValueError):
-        recordings.absolute_path(tmp_path, "recordings/../../evil.wav")
-    assert recordings.absolute_path(tmp_path, "recordings/1/a.wav") == (tmp_path / "recordings/1/a.wav").resolve()
+async def test_escaping_keys_are_refused_by_the_store(tmp_path):
+    """The escape check now lives in the storage key rules (tests/test_storage_keys.py) and LocalStore.path_of."""
+    from app.storage.local import LocalStore
+
+    store = LocalStore(tmp_path)
+    for bad in ("../evil.wav", "recordings/../../evil.wav"):
+        with pytest.raises(ValueError):
+            await recordings.write_recording(store, bad, b"x")
 
 
 async def test_write_and_delete_recording(tmp_path):

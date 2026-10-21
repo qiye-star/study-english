@@ -266,15 +266,14 @@ BOTO_ALLOWED = ("app/storage/s3.py", "app/storage/config.py")  # R1: the only fi
 FILE_RESPONSE_ALLOWED = (
     "app/routers/admin_ops.py", "app/routers/web.py",
 )
-DATA_DIR_ALLOWED = (
-    "app/admin/catalog_admin.py", "app/admin/housekeeping.py", "app/admin/storage.py", "app/admin/system.py",
-    "app/admin/users_admin.py", "app/core/config.py", "app/core/settings_registry.py",
+DATA_DIR_ALLOWED = (  # plan L1 Task 18: what is left is local staging (R7), the data volume's disk usage, and config
+    "app/admin/catalog_admin.py",  # catalog upload staging on local disk
+    "app/admin/system.py",  # disk usage of the data volume
+    "app/admin/users_admin.py",  # local staging of a deleted user's items
+    "app/core/config.py", "app/core/settings_registry.py",
     "app/library/catalog_import.py", "app/library/catalog_jobs.py", "app/library/catalog_store.py",
     "app/library/paths.py", "app/library/pipeline.py", "app/library/store.py", "app/library/worker.py",
-    "app/rooms/audio.py", "app/rooms/voice.py", "app/routers/admin.py", "app/routers/admin_catalog.py",
-    "app/routers/admin_ops.py", "app/routers/admin_rooms.py", "app/routers/assessments.py", "app/routers/library.py",
-    "app/routers/library_catalog.py", "app/routers/rooms_voice.py", "app/services/assessment_store.py",
-    "app/services/avatars.py", "app/services/chat_recordings.py", "app/services/recordings.py",
+    "app/routers/library.py",  # chunked upload staging on local disk
     # wordbook dictionaries use their own directory (WORDBOOK_DATA_DIR), not the object store: not migrated by L1
     "app/admin/wordbook_admin.py", "app/wordbook/index.py", "app/wordbook/lookup.py", "app/wordbook/service.py",
 )

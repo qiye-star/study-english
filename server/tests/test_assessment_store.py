@@ -39,8 +39,8 @@ async def test_two_saves_get_distinct_ids_and_files(app, uid, tmp_path):
         b = await save(session, app.state.settings, uid, app.state.storage)
         count = await session.scalar(select(func.count()).select_from(Assessment))
     assert a != b and count == 2
-    assert recordings.absolute_path(tmp_path, recordings.recording_relpath(uid, a)).exists()
-    assert recordings.absolute_path(tmp_path, recordings.recording_relpath(uid, b)).exists()
+    assert (tmp_path / recordings.recording_relpath(uid, a)).exists()
+    assert (tmp_path / recordings.recording_relpath(uid, b)).exists()
 
 
 async def test_commit_failure_deletes_file(app, uid, tmp_path):
