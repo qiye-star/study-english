@@ -6,9 +6,9 @@
 
 ## What lives here
 - `errors.py` – `API_ERRORS` / `api_error`:配音接口的固定英文错误串(契约夹具录给网页)。
-- (S3 起)`clip.py` – 片段规则(纯函数):连续、≤ 12 句、≤ 90 000 ms、角色至少 1 句;占位常量。
-- (S4 起)`scoring.py` – 逐句与整段打分(纯函数):词偏移 → 开口区间、同步度、`line_score`、`take_summary`。
-- (S8 起)`takes.py` – 配音记录的建立、列表、详情、删除与逐句写入(持进程内每 take 的锁)。
+- `clip.py` – 片段规则(纯函数):`check_span`(范围与大小,建议用)、`check`(再加角色)、`mine`、`speakers_in`;占位常量 `MAX_LINES = 12`、`MAX_MS = 90_000`;窗口 `WINDOW_BEFORE_MS` / `WINDOW_AFTER_MS` 只用于下发配置。角色规则(`ROLE_KEYS`、`clean_role`、`clean_name`)实际定义在 `app/library/roles.py`,这里再导出。
+- `scoring.py` – 打分(纯函数,只依赖标准库):`spoken_span`(词偏移 → 开口区间,不可信则 None)、`onset_score`、`ratio_score`、`sync_score`(`words` / `duration` / `none`)、`line_score`(60/20/20,无同步时 75/25)、`take_summary`(缺句计 0)。
+- `takes.py` – 配音记录:`create`、`list_for_item`(最近 20 条)、`get_owned`、`stale_lines`(按 `LibraryAttempt.text_hash` 判断句子已改)、`take_out`、`remove`(只删记录,评测的 `dub_id` 置空);逐句 `score_line` / `timing_problem` / `line_out`;每个 take 一把进程内 `asyncio.Lock`(`lock_for`,与 `library/ai.py` 同一做法)。
 
 ## Allowed dependencies
 `app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`、`app.library`(只读库的句子与成绩)。
