@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import { EmptyState } from "~/components/empty-state";
 import { SegmentedControl, type SegmentedOption } from "~/components/segmented-control";
+import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
 import { ACTIVATION_STATES, fetchWords, type ActivationState, type ActivationWord, type ActivationWords } from "./activation-api";
 import { useActivationConfig } from "./use-activation-config";
@@ -82,7 +83,7 @@ function DormantList() {
       ) : null}
       {items.length > 0 ? (
         <ul className="mt-4 space-y-2" data-testid="activation-list">
-          {items.map((w) => (
+          {items.map((w, i) => (
             <li key={`${w.bookId}:${w.word}`} data-testid="activation-word"
               className="rounded-card border-[0.5px] border-hair bg-surface px-3.5 py-3">
               <p className="text-body font-semibold text-ink">{w.word}</p>
@@ -90,6 +91,10 @@ function DormantList() {
                 {w.useCount > 0 ? t("web.activation.usedTimes", { count: w.useCount }) : t("web.activation.neverUsed")}
                 {w.lastUsedAt ? ` · ${t("web.activation.lastUsed", { date: formatDate(w.lastUsedAt, i18n.language) })}` : null}
               </p>
+              {/* 词卡等单词动作经扩展点插槽提供(plugins/word-actions),这里不导入 features/wordbook */}
+              <div className="mt-2 flex justify-end">
+                <WordActions target={{ word: w.word, source: "progress" }} testId={`activation-word-actions-${i}`} variant="icon" />
+              </div>
             </li>
           ))}
         </ul>

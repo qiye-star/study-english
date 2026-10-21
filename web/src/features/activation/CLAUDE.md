@@ -16,6 +16,7 @@
 ## Pitfalls
 - 词只出现在响应体与页面上;不进 URL、不进日志、不进 `localStorage`。
 - 列表与计数只来自服务端;网页不推断状态,不改服务端的阈值(阈值是占位,未校准)。
-- 词的词卡入口(`wordDetailSections`)本期未接;需要时经扩展点接,不要导入 `features/wordbook`。
+- 每个沉睡词一行带 `<WordActions>`(扩展点 `wordActions`,`lib/extension-points-react`):「更多」面板里的「查看词卡」由 wordbook 的登记处贡献,
+  本 feature 不导入 `features/wordbook`(L4 Task 15)。词卡没开或联动关闭时只剩核心的「加入生词本」。
 - 液态玻璃:页面文字在普通面板上,不新增常驻模糊层。
 - 「我的」一行是核心贡献:链接联动的矩阵测试(`src/plugins/links-matrix.test.tsx`)把它列在核心清单里。

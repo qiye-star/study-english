@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
+import { contribute, type PointProps } from "~/lib/extension-points";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { DormantPage } from "./dormant-page";
@@ -103,5 +104,25 @@ describe("ActivationMeRow", () => {
   it("is absent while the switch is off", async () => {
     setup({ "GET /api/activation/config": () => json({ enabled: false }) }, <ActivationMeRow />);
     await waitFor(() => expect(screen.queryByTestId("activation-me-row")).toBeNull());
+  });
+
+  it("hands each dormant word to the word-action slot, so the word card is reached through the extension point", async () => {
+    const seen: string[] = [];
+    const Probe = ({ target, testId }: PointProps["wordActions"]) => (
+      <button type="button" data-testid={testId} onClick={() => seen.push(target.word)}>probe</button>
+    );
+    contribute({ point: "wordActions", id: "test.activation-probe", component: Probe });
+    setup({
+      ...ON,
+      "GET /api/activation/words": (call) => {
+        const state = call.url.searchParams.get("state");
+        const items = state === "dormant" ? [word("talk"), word("walk")] : [];
+        return json({ state, items, counts: { dormant: 2, sprouting: 0, active: 0 }, next_page: null });
+      },
+    });
+    const probes = await screen.findAllByText("probe"); // one per dormant row; the core "add to vocabulary" button sits beside each
+    expect(probes).toHaveLength(2);
+    await userEvent.click(probes[1]);
+    expect(seen).toEqual(["walk"]);
   });
 });
