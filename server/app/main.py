@@ -28,6 +28,7 @@ from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
 from app.links.setup import install as install_links
 from app.activation.setup import install as install_activation  # vocabulary activation (plan L4)
+from app.activation import purge as activation_purge  # orphan sentence-index sweep (plan L4 R10)
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.library.catalog_jobs import install as install_catalog  # curated catalog jobs (plan 2026-10-14 SI)
@@ -62,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
+        tasks["activation_purge"] = asyncio.create_task(activation_purge.daily_loop(app_))  # plan L4 R10 (off by switch)
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         await app_.state.catalog.recover()  # requeue + run interrupted catalog imports
