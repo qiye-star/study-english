@@ -23,7 +23,7 @@ def _indexes(con, table: str) -> dict[str, bool]:
 def test_head_is_0025_and_0022_follows_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0027"]
+    assert script.get_heads() == ["0029"]
     assert script.get_revision("0022").down_revision == "0021"
 
 
@@ -82,9 +82,10 @@ def test_models_declare_the_frozen_names():
     assert cols == {"id", "title", "level", "tags", "license_note", "source", "source_host", "source_url", "status",
                     "stage", "progress", "error_kind", "upload_total", "upload_received", "duration_ms", "media_path",
                     "poster_path", "media_mime", "media_bytes", "sub_source", "asr_seconds", "seg_count",
-                    "low_confidence", "ai_lang", "published", "published_at", "retired_at", "created_at", "updated_at"}
+                    "low_confidence", "ai_lang", "role_names", "published", "published_at", "retired_at", "created_at",
+                    "updated_at"}  # role_names: plan L5 R2 (0029)
     assert set(CatalogSegment.__table__.columns.keys()) == {"catalog_id", "idx", "start_ms", "end_ms", "text", "zh",
-                                                            "zh_lang", "analysis", "analysis_lang", "flags"}
+                                                            "zh_lang", "analysis", "analysis_lang", "flags", "speaker"}  # plan L5 R2
     assert "catalog_id" in LibraryItem.__table__.columns
     assert not LibraryItem.__table__.columns["catalog_id"].foreign_keys  # R-SC1
 

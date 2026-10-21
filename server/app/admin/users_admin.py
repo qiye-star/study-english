@@ -15,7 +15,7 @@ from app.admin.audit import Actor
 from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
-    AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile,
+    AccessToken, Assessment, Conversation, DailyUsage, LibraryDub, Message, PracticeItem, PromotionMatch, RankProfile,
     RankProfileSnapshot, Room, RoomJoinRequest, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User,
     UserAchievement, UserIdentity, UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
     LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, UserLinkPref,
@@ -50,7 +50,7 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (AgentPersona, "owner_id"), (AgentUserSettings, "user_id"), (AgentPersonaReport, "reporter_id"),
     (AgentMemoryItem, "user_id"), (AgentProfile, "user_id"), (AgentThreadState, "user_id"), (AgentRecap, "user_id"),
     (AgentMemoryTombstone, "user_id"), (AgentTutorSession, "user_id"),
-    (LibraryAttempt, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
+    (LibraryAttempt, "user_id"), (LibraryDub, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
     (ChangelogRead, "user_id"),  # per-user changelog read position (plan 2026-10-14-changelog R-20)
     (AvatarReport, "reporter_id"), (AvatarReport, "avatar_user_id"),  # avatar reports, both roles (plan avatar R-V10)
 )

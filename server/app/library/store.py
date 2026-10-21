@@ -14,7 +14,7 @@ from app.library.limits import (
     ACTIVE, AUDIO_EXTENSIONS, FAILED_KEEP_DAYS, LIST_LIMIT, TITLE_MAX, UPLOAD_EXPIRE_HOURS,
 )
 from app.library.segment import Sentence
-from app.models import LibraryAttempt, LibraryItem, LibrarySegment, iso_utc, utcnow
+from app.models import LibraryAttempt, LibraryDub, LibraryItem, LibrarySegment, iso_utc, utcnow
 
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -182,6 +182,7 @@ async def set_analysis(session: AsyncSession, item_id: str, idx: int, text: str,
 
 async def delete_item_rows(session: AsyncSession, item_id: str) -> None:
     """Explicit child deletes (SQLite has no FK cascade); caller commits, then removes the files."""
+    await session.execute(delete(LibraryDub).where(LibraryDub.item_id == item_id))  # L5 R23
     await session.execute(delete(LibraryAttempt).where(LibraryAttempt.item_id == item_id))
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id == item_id))
     await session.execute(delete(LibraryItem).where(LibraryItem.id == item_id))
