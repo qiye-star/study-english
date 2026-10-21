@@ -3,7 +3,7 @@
 Conversations with the AI tutor: text and voice messages, hold-to-talk, auto-speak TTS, hints, recap, scenarios, levels, bilingual translation, per-turn assessment and grammar.
 
 ## What lives here
-- Pages: `conversations-page.tsx`, `conversation-page.tsx` (orchestration; large).
+- Pages: `conversations-page.tsx` (takes an optional `embedded` = title + 对话分区 switch from `pages/chat-hub.tsx`, plan L6; chat never imports rooms), `conversation-page.tsx` (orchestration; large).
 - `lazy-pages.tsx` — the routed `ConversationPage` is lazy (agents-web R-W2); tests import `./conversation-page` directly.
 - Turns: `use-voice-turn.ts`, `turn-results.ts` (assessment + grammar, late PATCH), `chat-request.ts`, `chat-turns.ts`, `ui-message.ts`.
 - `read-aloud-action.tsx` / `register-selection-actions.tsx` — the select-to-lookup bar's "Read aloud" (core contribution to the `selectionActions` point; registration file imported only by `plugins/core`).
