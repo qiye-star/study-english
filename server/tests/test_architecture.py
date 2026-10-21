@@ -391,6 +391,42 @@ def test_data_dir_is_only_read_by_allowed_modules():
     assert actual <= set(DATA_DIR_ALLOWED), sorted(actual - set(DATA_DIR_ALLOWED))
 
 
+def path_of_callers_outside_storage(root: Path = APP) -> list[str]:
+    """`<store>.path_of(...)` calls outside app/storage (plan L1 Task 18). The receiver must look like a store (or
+    storage), so `backups.path_of(settings, name)`, a different function, is not flagged."""
+    hits: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root.parent).as_posix()
+        if rel.startswith("app/storage/"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "path_of" and "stor" in ast.unparse(node.func.value).lower()):
+                hits.append(f"{rel}:{node.lineno}")
+    return hits
+
+
+def test_local_path_of_is_only_called_inside_the_storage_layer():
+    """plan L1 Task 18: LocalStore.path_of hands out a local path; only app/storage may use it."""
+    assert path_of_callers_outside_storage() == []
+
+
+def test_path_of_scanner_catches_a_store_call_and_ignores_other_path_of(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("routers", "storage"):
+        (app / pkg).mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "routers" / "bad.py").write_text(
+        "def f(request, key):\n    return request.app.state.storage.path_of(key)\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text(
+        "from app.admin import backups\n\ndef f(settings, name):\n    return backups.path_of(settings, name)\n",
+        encoding="utf-8")
+    (app / "storage" / "inside.py").write_text("def f(store, key):\n    return store.path_of(key)\n", encoding="utf-8")
+    found = path_of_callers_outside_storage(app)
+    assert found == ["app/routers/bad.py:2"]
+
+
 AGENTS_MEMORY_MAY_IMPORT = ("app.agents.memory", "app.agents.context", "app.agents.settings")
 AGENTS_MEMORY_IMPORTERS = ("app.agents.memory", "app.agents.tutor", "app.routers", "app.admin", "app.main")
 
