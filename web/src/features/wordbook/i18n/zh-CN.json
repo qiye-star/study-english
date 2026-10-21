@@ -2,6 +2,9 @@
   "web": {
     "wordbook": {
       "title": "背单词",
+      "clip": {
+        "play": "播放原片"
+      },
       "errors": {
         "disabled": "背单词未开启",
         "bookNotFound": "这本词书不存在或已停用",

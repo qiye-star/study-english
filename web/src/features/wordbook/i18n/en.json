@@ -2,6 +2,9 @@
   "web": {
     "wordbook": {
       "title": "Word books",
+      "clip": {
+        "play": "Play the clip"
+      },
       "errors": {
         "disabled": "Word books are not enabled on this server.",
         "bookNotFound": "This word book does not exist or has been turned off.",

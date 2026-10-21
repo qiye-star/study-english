@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@renderer/lib/utils";
 import { SurfaceCard } from "~/components/surface-card";
 import { lookupContextIf } from "~/lib/lookup-context";
+import { ClipButton } from "./clip-button";
 import { infoFor, optionRowView } from "./option-view";
 import { TapLookupHint } from "./tap-lookup-hint";
 import { ListenButton, type ListenProps } from "./word-card";
@@ -87,6 +88,7 @@ export function ChoiceQuestion({ question, onAnswer, result, busy = false, onLis
         <>
           <ClozeSentence sentence={prompt.sentence ?? ""} marked={result !== null} />
           {prompt.zh ? <p className="mt-1 text-sub text-ink-2">{prompt.zh}</p> : null}
+          {question.clip ? <ClipButton clip={question.clip} /> : null}
         </>
       )}
       <ul className="mt-4 flex flex-col gap-2 liquid:gap-2.5">

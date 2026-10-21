@@ -29,7 +29,8 @@ export type DefLang = "both" | "zh" | "en";
 export interface Example { id: string; en: string; zh: string }
 export interface Card { key: string; word: string; us: string; uk: string; senses: Sense[]; phrases: { en: string; zh: string }[]; examples: Example[]; defsEn?: DefEn[] }
 export type QType = "meaning" | "word" | "cloze" | "dictation" | "spell" | "recall";
-export interface Question { key: string; qtype: QType; prompt: { word?: string; us?: string; meaning?: string; sentence?: string; zh?: string }; options: string[] | null; length: number | null }
+/** `clip`(L4 R16): only on a review cloze question whose sentence is the learner's own library clip; old servers omit it. */
+export interface Question { key: string; qtype: QType; prompt: { word?: string; us?: string; meaning?: string; sentence?: string; zh?: string }; options: string[] | null; length: number | null; clip?: { itemId: string; startMs: number; endMs: number } }
 /** 三档自评(spec 2026-10-11-wordbook-recall):盒子由服务端决定。 */
 export type Rating = "know" | "fuzzy" | "unknown";
 export type Outcome = "correct" | "typo" | "inflection" | "wrong";
