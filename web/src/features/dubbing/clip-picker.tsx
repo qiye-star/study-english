@@ -55,15 +55,16 @@ export function ClipPicker({
       <p className="mb-2 text-[13px] opacity-80">{t("web.dubbing.clip.hint")}</p>
       <ol className="space-y-1.5">
         {segments.map((seg) => (
-          <li key={seg.idx}>
+          // marker 与句子按钮并排:按钮里不能再嵌按钮,否则点角色小标会冒泡成"点这一句",把已选的片段清掉。
+          <li key={seg.idx} className={`flex items-start gap-2 rounded-xl px-3 ${inRange(seg.idx) ? "bg-white/25" : "bg-white/10"}`}>
+            {renderMarker ? <span className="shrink-0 self-center">{renderMarker(seg.idx)}</span> : null}
             <button
               type="button"
               aria-pressed={inRange(seg.idx)}
               onClick={() => onSelect(selectRange(selection, seg.idx))}
-              className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left text-[14px] ${inRange(seg.idx) ? "bg-white/25" : "bg-white/10"}`}
+              className="w-full py-2 text-left text-[14px]"
             >
-              {renderMarker ? <span className="shrink-0">{renderMarker(seg.idx)}</span> : null}
-              <span>{seg.text}</span>
+              {seg.text}
             </button>
           </li>
         ))}

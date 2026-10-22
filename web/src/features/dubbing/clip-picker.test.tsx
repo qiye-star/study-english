@@ -46,6 +46,21 @@ describe("clip picker (plan L5 W8)", () => {
     expect(screen.getByText("mark 1")).toBeInTheDocument();
   });
 
+  it("tapping a marker button never changes the clip, and a marker is never nested inside a sentence button", () => {
+    const onSelect = vi.fn();
+    const onMark = vi.fn();
+    const { container } = render(
+      <ClipPicker
+        segments={segs(3)} selection={{ from: 0, to: 2 }} role="A" limits={LIMITS} onSelect={onSelect}
+        renderMarker={(i) => <button type="button" onClick={onMark}>mark {i}</button>}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "mark 1" }));
+    expect(onMark).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(container.querySelectorAll("button button")).toHaveLength(0);
+  });
+
   it("shows the cover above the sentences when there is one, and nothing when there is not", () => {
     const { container, rerender } = render(
       <ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} poster="blob:cover-1" />,
