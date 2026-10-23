@@ -1,19 +1,25 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ZhDefsCover } from "~/components/zh-defs-cover";
 import { ZhToggle } from "~/components/zh-toggle";
+import { useZhDefsMode } from "~/settings/zh-defs-pref";
 import { drawerDefs, enPosLabel, type DictEntry } from "./dictionary";
-import { LOOKUP_WELL } from "./glass";
+import { LOOKUP_WELL, LOOKUP_ZH_COVER } from "./glass";
 
 /**
  * 抽屉里词典命中的显示:词 / 音标 / 原形 / 中文释义 / 英文释义(遵守 def_lang)/ 最多 3 条短语。
  * 偏好「仅英文」且有英文释义时,中文释义与短语译文藏在「中文」按钮后面(计划 2026-10-14-review-bilingual-longpress R-Z4);
  * 按钮状态只属于这一次查词:记的是按下时的 entry 对象,新的查词(新对象)自动复位。不写本机、不写服务端。
+ * 「我的 → 中文释义」选点击后显示时,本来就显示的中文释义由 `ZhDefsCover` 原位盖住(同样按 entry 复位;计划 2026-10-23 R-A4/R-A5)。
  */
 export function DictionaryResult({ entry }: { entry: DictEntry }) {
   const { t } = useTranslation();
   const [peekOf, setPeekOf] = useState<DictEntry | null>(null);
   const peek = peekOf === entry;
   const { zh, en, phraseZh, canPeek } = drawerDefs(entry, peek);
+  const zhMode = useZhDefsMode();
+  // 只盖 peek=false 时本来就显示的中文释义;「中文」chip 带回的中文不再有第二道控件
+  const zhShownByDefault = drawerDefs(entry, false).zh.length > 0;
   return (
     <div data-testid="lookup-dict" className="space-y-2">
       <p className="text-lg font-semibold">
@@ -24,11 +30,13 @@ export function DictionaryResult({ entry }: { entry: DictEntry }) {
         <p className="text-sm text-muted-foreground">{t("web.lookup.lemma")}: {entry.lemma}</p>
       )}
       {zh.length > 0 && (
-        <ul data-testid="lookup-dict-zh" className="space-y-0.5">
-          {zh.map((d, i) => (
-            <li key={`${d.pos}|${d.text}|${i}`}>{d.pos && <span className="mr-1.5 text-sm text-muted-foreground">{d.pos}</span>}{d.text}</li>
-          ))}
-        </ul>
+        <ZhDefsCover active={zhMode === "tap" && zhShownByDefault} resetKey={entry} label={t("web.lookup.zhReveal")} className={LOOKUP_ZH_COVER}>
+          <ul data-testid="lookup-dict-zh" className="space-y-0.5">
+            {zh.map((d, i) => (
+              <li key={`${d.pos}|${d.text}|${i}`}>{d.pos && <span className="mr-1.5 text-sm text-muted-foreground">{d.pos}</span>}{d.text}</li>
+            ))}
+          </ul>
+        </ZhDefsCover>
       )}
       {en.length > 0 && (
         <ul data-testid="lookup-dict-en" className="space-y-0.5 text-sm text-ink-2">
