@@ -48,6 +48,15 @@ class GreetingFacts:
     pron_words: int | None = None  # words with weak pronunciation yesterday
     words: tuple[str, ...] = field(default_factory=tuple)
 
+    def pair(self) -> tuple[str, str] | None:
+        """The slip's original -> corrected pair when it is safe to quote: plain ASCII without markup or sentence marks."""
+        def ok(text):
+            return (bool(text) and text.isascii() and text.isprintable() and not set(text) & set("*<>.!?")
+                    and "http" not in text.lower() and "www" not in text.lower())
+
+        wrong, right = self.slip_wrong, self.slip_right
+        return (wrong, right) if ok(wrong) and ok(right) else None
+
     @property
     def yesterday_mistakes(self) -> int:
         return (self.slip_count or 0) + (self.wrong_words or 0) + (self.pron_words or 0)
