@@ -1,5 +1,5 @@
 import {
-  AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, FastForwardIcon, FileTextIcon, FlameIcon,
+  AudioWaveformIcon, BarChart3Icon, BookOpenIcon, CheckIcon, ChevronRightIcon, ClockIcon, EyeOffIcon, FastForwardIcon, FileTextIcon, FlameIcon,
   LanguagesIcon, PaletteIcon, SmartphoneIcon, SpellCheckIcon, SunMoonIcon, UserRoundIcon, Volume2Icon, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
@@ -32,6 +32,7 @@ import { shouldShowIosInstallHint } from "~/pwa/ios";
 import { useGlassTheme } from "~/settings/glass-theme-store";
 import { useSettings } from "~/settings/settings-context";
 import { COLOR_SCHEMES, type ColorScheme } from "~/settings/color-scheme-pref";
+import { ZH_DEFS_MODES, setZhDefsMode, useZhDefsMode, type ZhDefsMode } from "~/settings/zh-defs-pref";
 
 const APPEARANCE_PATH = "/me/appearance";
 
@@ -137,6 +138,7 @@ export function MePage() {
   const { language, setLanguage, roomVoiceAutoText, setRoomVoiceAutoText, colorScheme, setColorScheme } = useSettings();
   const roomsEnabled = useRoomsEnabled();
   const rate = usePlaybackRate();
+  const zhDefs = useZhDefsMode();
   const [stats, setStats] = useState<Stats | null>(null);
   const id = useId();
   const liquid = useLiquid();
@@ -217,6 +219,11 @@ export function MePage() {
             hint={t("web.me.playbackRateHint")} display={formatPlaybackRate(rate)} value={String(rate)}
             onChange={(v) => setPlaybackRate(Number(v) as PlaybackRate)}>
             {PLAYBACK_RATES.map((r) => <option key={r} value={String(r)}>{formatPlaybackRate(r)}</option>)}
+          </SelectRow>
+          <SelectRow id={`${id}-zh-defs`} testId="me-zh-defs" icon={EyeOffIcon} title={t("web.me.zhDefs")}
+            hint={t("web.me.zhDefsHint")} display={t(`web.me.zhDefsOptions.${zhDefs}`)} value={zhDefs}
+            onChange={(v) => setZhDefsMode(v as ZhDefsMode)}>
+            {ZH_DEFS_MODES.map((m) => <option key={m} value={m}>{t(`web.me.zhDefsOptions.${m}`)}</option>)}
           </SelectRow>
           {roomsEnabled && (
             <SwitchRow id={`${id}-room-voice-text`} testId="me-room-voice-auto-text" icon={FileTextIcon} tone="blue"

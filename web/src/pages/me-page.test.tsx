@@ -8,6 +8,8 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { PLAYBACK_RATE_KEY, resetPlaybackRateForTests } from "~/lib/playback-rate";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { getZhDefsMode, resetZhDefsModeMemory } from "~/settings/zh-defs-pref";
 import { MePage } from "./me-page";
 
 const ROUTES = {
@@ -19,7 +21,7 @@ const ROUTES = {
 };
 
 describe("MePage", () => {
-  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
+  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); resetZhDefsModeMemory(); });
   it("shows the profile card linking to account settings, with no logout on the home", async () => {
     const mock = createFetchMock(ROUTES);
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
@@ -76,6 +78,21 @@ describe("MePage", () => {
     await userEvent.selectOptions(select, "1.25");
     expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
     expect(select).toHaveValue("1.25");
+  });
+  it("sets whether Chinese definitions show automatically or on tap, outside the settings object", async () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const row = screen.getByTestId("me-zh-defs");
+    const rate = screen.getByTestId("me-playback-rate");
+    expect(Boolean(rate.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(row).toHaveValue("auto");
+    expect(row.closest("div")?.parentElement).toHaveTextContent("Show automatically");
+    const settingsBefore = localStorage.getItem("enjoy-web.settings");
+    await userEvent.selectOptions(row, "tap");
+    expect(getZhDefsMode()).toBe("tap");
+    expect(localStorage.getItem(ZH_DEFS_PREF_KEY)).toBe('"tap"');
+    expect(row).toHaveValue("tap");
+    expect(row.closest("div")?.parentElement).toHaveTextContent("Show on tap");
+    expect(localStorage.getItem("enjoy-web.settings")).toBe(settingsBefore);
   });
   it("links to the progress page", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
