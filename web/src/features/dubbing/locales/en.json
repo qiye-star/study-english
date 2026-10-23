@@ -31,7 +31,25 @@
         "save": "Save name",
         "editShort": "Edit",
         "heading": "Choose your role",
-        "sentenceRole": "Role of sentence {{n}}"
+        "sentenceRole": "Role of sentence {{n}}",
+        "label": "{{color}}·{{name}}",
+        "default": {
+          "A": "Alex",
+          "B": "Bella",
+          "C": "Chris",
+          "D": "Dana",
+          "E": "Ethan",
+          "F": "Fiona"
+        },
+        "color": {
+          "red": "Red",
+          "blue": "Blue",
+          "green": "Green",
+          "yellow": "Yellow",
+          "purple": "Purple",
+          "orange": "Orange"
+        },
+        "unassigned": "No role"
       },
       "result": {
         "saved": "Recording saved. Total score {{total}}.",

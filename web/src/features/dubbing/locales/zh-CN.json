@@ -31,7 +31,25 @@
         "save": "保存名字",
         "editShort": "改名",
         "heading": "选择你的角色",
-        "sentenceRole": "第 {{n}} 句的角色"
+        "sentenceRole": "第 {{n}} 句的角色",
+        "label": "{{color}}·{{name}}",
+        "default": {
+          "A": "Alex",
+          "B": "Bella",
+          "C": "Chris",
+          "D": "Dana",
+          "E": "Ethan",
+          "F": "Fiona"
+        },
+        "color": {
+          "red": "红",
+          "blue": "蓝",
+          "green": "绿",
+          "yellow": "黄",
+          "purple": "紫",
+          "orange": "橙"
+        },
+        "unassigned": "未分配"
       },
       "result": {
         "saved": "录音已保存,总分 {{total}}。",
