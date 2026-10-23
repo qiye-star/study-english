@@ -1,0 +1,85 @@
+/*
+ * 今日问候弹窗样式(演示页 docs/design/chat-home-demo-v2.html「问候弹层」)。随弹窗懒加载,不进主包 CSS。
+ * 不使用 backdrop-filter(玻璃层预算,网页计划 FR13);极光是 filter: blur 的色斑。颜色令牌 --greet-* / --aur-* 见 styles/theme.css。
+ */
+.greet {
+  position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; outline: none;
+  color: rgb(var(--ink)); cursor: pointer; -webkit-user-select: none; user-select: none;
+}
+.greet-bg {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(130% 70% at 20% 60%, var(--aur-c), transparent 70%), var(--greet-base);
+}
+.greet-aurora { position: absolute; inset: -30%; filter: blur(64px); }
+.greet-aurora i { position: absolute; border-radius: 50%; will-change: transform; }
+.greet-aurora i:nth-child(1) { width: 75%; height: 42%; left: 2%; top: 6%; background: var(--aur-a); animation: greet-drift1 18s ease-in-out infinite alternate; }
+.greet-aurora i:nth-child(2) { width: 62%; height: 38%; right: 0; top: 24%; background: var(--aur-b); animation: greet-drift2 22s ease-in-out infinite alternate; }
+.greet-aurora i:nth-child(3) { width: 85%; height: 36%; left: -5%; bottom: 14%; background: var(--aur-c); animation: greet-drift3 26s ease-in-out infinite alternate; }
+@keyframes greet-drift1 { to { transform: translate3d(14%, 8%, 0) scale(1.1); } }
+@keyframes greet-drift2 { to { transform: translate3d(-16%, 12%, 0) scale(.92); } }
+@keyframes greet-drift3 { to { transform: translate3d(-8%, -14%, 0) scale(1.12); } }
+.greet-bg::after { /* 颗粒,避免大面积渐变出现色带 */
+  content: ""; position: absolute; inset: 0; opacity: var(--grain-o); mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 前景是居中的一列(手机满宽,宽屏不超过 max-w-screen-sm),安全区内边距 */
+.greet-fg {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  width: 100%; max-width: 40rem; margin: 0 auto; container-type: inline-size;
+  padding: max(32px, calc(env(safe-area-inset-top) + 20px)) 24px calc(20px + env(safe-area-inset-bottom));
+}
+.greet-date { font-size: 12px; font-weight: 500; letter-spacing: .08em; color: var(--greet-ink-2); min-height: 18px; }
+
+/* 3 段:字号随宽度变化,再乘 --gs(useFitGreeting:放不下时按 0.05 缩小,下限 0.72) */
+.greet-lines { --gs: 1; margin: auto 0; padding: 24px 0 6vh; }
+.greet-line { font-size: calc(clamp(17px, 4.8cqw, 20px) * var(--gs)); line-height: 1.55; letter-spacing: -.008em; font-weight: 400; color: rgb(var(--ink-2)); text-wrap: pretty; }
+.greet-line + .greet-line { margin-top: calc(12px * var(--gs)); }
+.greet-lead { font-size: calc(clamp(24px, 7.2cqw, 30px) * var(--gs)); line-height: 1.28; letter-spacing: -.022em; font-weight: 650; color: rgb(var(--ink)); margin-bottom: calc(20px * var(--gs)); }
+.greet-sub { display: block; margin-top: 4px; font-size: calc(14px * max(var(--gs), .86)); line-height: 1.5; letter-spacing: 0; color: var(--greet-ink-2); font-weight: 400; }
+.greet-lead .greet-sub { font-size: calc(15px * max(var(--gs), .86)); margin-top: 8px; }
+@media (max-height: 680px) { .greet-lines { padding: 16px 0 12px; } }
+
+.greet-tk { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+.greet-sp { white-space: pre; }
+.greet-em-run { white-space: nowrap; }
+.greet-em { font-style: normal; font-weight: 600; color: rgb(var(--blue)); }
+.greet-sub .greet-em { color: inherit; font-weight: 500; }
+
+.greet-bottom { display: flex; flex-direction: column; gap: 16px; }
+.greet-foot { display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--hair-2); }
+.greet-shiny {
+  flex: 1; font-size: 12px; color: transparent;
+  background: linear-gradient(120deg, var(--greet-ink-2) 40%, rgb(var(--ink)) 50%, var(--greet-ink-2) 60%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; animation: greet-shine 3.5s linear infinite;
+}
+@keyframes greet-shine { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+/* 跳过:44px 实色胶囊(不模糊),环形倒计时 */
+.greet-skip {
+  display: flex; align-items: center; gap: 8px; height: 44px; min-width: 44px; padding: 0 6px 0 16px; border-radius: 999px; cursor: pointer;
+  background: var(--greet-chip); box-shadow: inset 0 0 0 1px var(--greet-chip-bd); font-size: 13px; font-weight: 600; color: var(--greet-ink-2);
+}
+.greet-skip:focus-visible { outline: 2px solid rgb(var(--ring)); outline-offset: 2px; }
+.greet-ring { width: 32px; height: 32px; position: relative; display: grid; place-items: center; }
+.greet-ring svg { position: absolute; inset: 0; width: 32px; height: 32px; transform: rotate(-90deg); }
+.greet-ring circle { fill: none; stroke-width: 2; }
+.greet-ring-track { stroke: var(--hair); }
+.greet-ring-bar { stroke: rgb(var(--blue)); stroke-linecap: round; stroke-dasharray: 81.68; stroke-dashoffset: 0; }
+.greet-ring-run { animation: greet-countdown var(--dur, 5s) linear forwards; }
+.greet-ring b { font-size: 11px; font-weight: 600; color: var(--greet-ink-2); font-variant-numeric: tabular-nums; }
+@keyframes greet-countdown { to { stroke-dashoffset: 81.68; } }
+
+/* 底部小字数据 */
+.greet-quiet { color: var(--greet-ink-2); }
+.greet-quiet-row { display: flex; flex-wrap: wrap; row-gap: 2px; align-items: center; min-width: 0; max-width: 100%; font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.greet-q { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.greet-q + .greet-q::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .5; margin: 0 3px 0 8px; }
+.greet-q svg { width: 12px; height: 12px; color: rgb(var(--blue)); opacity: .7; flex: none; }
+.greet-q b { font-weight: 600; color: rgb(var(--ink)); }
+
+/* 减弱动效:极光不漂移、不流光;文字淡入由 JS 处理 */
+@media (prefers-reduced-motion: reduce) {
+  .greet-aurora i, .greet-shiny { animation: none; }
+  .greet-shiny { color: var(--greet-ink-2); background: none; }
+}
