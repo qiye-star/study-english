@@ -31,7 +31,7 @@
       "tts": "Text-to-speech models: {{models}}", "ttsDefault": "Default voice: {{voice}}",
       "playbackRate": "Read-aloud speed", "playbackRateHint": "Applies to read-aloud, auto-read, voice messages and the practice sample.",
       "zhDefs": "Chinese definitions",
-      "zhDefsHint": "In new-word cards, reviews and lookups. \"Show on tap\" hides them until you tap.",
+      "zhDefsHint": "In new-word cards, reviews and lookups. \"Show on tap\" hides them until you tap. It applies only where Chinese is shown (Wordbook → definition display: both or Chinese only); with English only, use the 中 button on the card.",
       "zhDefsOptions": { "auto": "Show automatically", "tap": "Show on tap" },
       "logout": "Log out", "install": "Add to Home Screen", "progress": "Learning progress", "vocabulary": "Vocabulary book"
     },

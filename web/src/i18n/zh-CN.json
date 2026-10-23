@@ -31,7 +31,7 @@
       "tts": "语音合成模型:{{models}}", "ttsDefault": "默认音色:{{voice}}",
       "playbackRate": "朗读语速", "playbackRateHint": "作用于朗读、自动朗读、语音消息回放和跟读页的先听范读。",
       "zhDefs": "中文释义",
-      "zhDefsHint": "学新词、复习和查词结果里的中文释义。选「点击后显示」时先藏起,点一下再看。",
+      "zhDefsHint": "学新词、复习和查词结果里的中文释义。选「点击后显示」时先藏起,点一下再看。只对「背单词 → 释义显示」含中文(中英 / 仅中文)的卡片生效;仅英文时仍用卡片上的「中」。",
       "zhDefsOptions": { "auto": "自动显示", "tap": "点击后显示" },
       "logout": "退出登录", "install": "添加到主屏幕", "progress": "学习进度", "vocabulary": "词汇本"
     },
