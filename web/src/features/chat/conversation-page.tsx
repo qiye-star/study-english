@@ -1,5 +1,5 @@
-import { ChevronLeftIcon, ChevronRightIcon, KeyboardIcon, LanguagesIcon, LightbulbIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { ChevronRightIcon, KeyboardIcon, LanguagesIcon, LightbulbIcon, LoaderIcon, MicIcon, SendIcon, SquareIcon, Volume2Icon, XIcon } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import { browserCaptureEnv } from "~/audio/capture";
 import { describeAudioError } from "~/audio/describe-error";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
-import { AgentNote, ChatPersonaControl, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
+import { AgentNote, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
 import { WordActions } from "~/lib/extension-points-react";
@@ -38,7 +38,8 @@ import { GrammarDetails } from "./grammar-details";
 import { HintsSheet, hintKey } from "./hints-sheet";
 import type { DiscardReason } from "~/lib/hold-gesture";
 import { HoldToTalkButton } from "./hold-to-talk-button";
-import { ConversationHeaderActions } from "./conversation-header-actions";
+import { CLASSIC_CHROME } from "./classic-chrome";
+import type { ChromeCtl, ConversationChrome } from "./conversation-chrome";
 import { ConversationSettingsSheet } from "./conversation-settings-sheet";
 import { SentencePracticeSheet } from "./sentence-practice-sheet";
 import { BubbleAction, BubbleActions, MessageBubble } from "./message-bubble";
@@ -162,8 +163,16 @@ function findStoredPair(stored: ChatMessage[], entry: PendingSave, knownTail: st
   return null;
 }
 
-export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: RecorderEnv; realtimeEnv?: RealtimeEnv }) {
-  const { id = "" } = useParams();
+export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chrome = CLASSIC_CHROME }: {
+  recorderEnv?: RecorderEnv;
+  realtimeEnv?: RealtimeEnv;
+  /** 缺省读路由参数 `:id`(旧行为);新对话主页直接传今天的对话 id */
+  conversationId?: string;
+  /** 外框插槽(顶栏、空状态、消息包装……);缺省 = 旧外框 */
+  chrome?: ConversationChrome;
+}) {
+  const params = useParams();
+  const id = conversationId ?? params.id ?? "";
   const location = useLocation();
   const navigate = useNavigate();
   const liquid = useLiquid();
@@ -1204,43 +1213,55 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
   ) : null;
   const subtitle = scenarioInfo || partnerVoice ? <>{scenarioInfo}{scenarioInfo && partnerVoice ? " · " : null}{partnerVoice}</> : undefined;
 
+  const chromeBusy = sending || voiceBusy || !!call || settling || !!tutor;
+  const ctl: ChromeCtl = {
+    conversation, config, options, personaName, saveSettings,
+    toggles: {
+      canTranslate, bilingual: options.bilingual, autoSpeak: autoSpeakOptimistic ?? options.autoSpeak,
+      loaded: !!conversation, bilingualSaving, autoSpeakSaving,
+    },
+    toggleBilingual, toggleAutoSpeak, openSettings: () => setSettingsOpen(true), openRecap: () => setRecapOpen(true), startCall,
+    callState: {
+      canCall: !!realtimeConfig?.enabled && callAudioSupported && aiSettled,
+      callDisabled: !conversation || sending || voiceBusy || !!call || settling,
+      callBlockedReason: unsentShown ? t("web.chat.callBlocked.unsent") : undefined,
+      callButtonRef,
+    },
+    choosePersona,
+    reportPersona: (p) => setPersonaName(p?.name ?? null),
+    reportAgentsOff: setAgentsOff,
+    busy: { sending, voiceBusy, call: !!call, settling, tutor: !!tutor, any: chromeBusy },
+  };
+  const custom = chrome.renderTitle?.(ctl);
+  const onLoadedRef = useRef(chrome.onLoaded);
+  onLoadedRef.current = chrome.onLoaded;
+  const loadedId = conversation?.id;
+  useEffect(() => {
+    if (conversation && conversation.id === loadedId) onLoadedRef.current?.(conversation);
+    // 只在加载到(另一个)会话时通知一次;会话对象随设置保存而变,不重复通知
+  }, [loadedId]);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <GlassTopBar className="absolute inset-x-0 top-0" scrolled={listScrolled}
-        title={conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")}
-        subtitle={liquid ? undefined : subtitle}
-        leading={(
-          <>
-            <IconButton label={t("web.common.back")} onClick={() => navigate("/chat")}>
-              <ChevronLeftIcon />
-            </IconButton>
-            {conversation && (
-              <ChatPersonaControl personaId={conversation.config.agentPersonaId ?? null} disabled={sending || voiceBusy || !!call || settling || !!tutor}
-                onChange={choosePersona} onResolved={(p) => setPersonaName(p?.name ?? null)} onUnavailable={setAgentsOff} />
-            )}
-          </>
-        )}
-        actions={
-          <ConversationHeaderActions canTranslate={canTranslate} bilingual={options.bilingual} autoSpeak={autoSpeakOptimistic ?? options.autoSpeak}
-            loaded={!!conversation} bilingualSaving={bilingualSaving} autoSpeakSaving={autoSpeakSaving}
-            onToggleBilingual={toggleBilingual} onToggleAutoSpeak={toggleAutoSpeak} onOpenSettings={() => setSettingsOpen(true)}
-            onOpenRecap={() => setRecapOpen(true)}
-            canCall={!!realtimeConfig?.enabled && callAudioSupported && aiSettled} callDisabled={!conversation || sending || voiceBusy || !!call || settling}
-            callBlockedReason={unsentShown ? t("web.chat.callBlocked.unsent") : undefined}
-            onCall={startCall} callButtonRef={callButtonRef} />
-        } />
+        title={custom ? custom.title : conversation ? displayName(conversation, t("web.chat.untitled")) : t("web.common.loading")}
+        subtitle={custom ? custom.subtitle : liquid ? undefined : subtitle}
+        leading={chrome.renderLeading(ctl)}
+        actions={chrome.renderActions(ctl)} />
       {/* 底部锚定:内容少时贴着输入条(最新一条在输入条上方 14px),多时正常滚动;顶栏、输入条都浮在列表上 */}
       <div ref={listRef} data-testid="message-list" onScroll={onListScroll}
         className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain px-gutter ${LQ_PAGE}`}
         style={{ paddingTop: "calc(52px + env(safe-area-inset-top) + 12px)", paddingBottom: composerHeight + 14 + (liquid ? 8 : 0) }}>
         <div aria-hidden className="mt-auto" />
+        {chrome.beforeMessages?.(ctl)}
         {liquid && subtitle ? <p data-testid="conversation-subtitle-line" className="text-center text-meta text-ink-2">{subtitle}</p> : null}
         {loadError && <p role="alert" className="text-sub text-red">{loadError}</p>}
+        {conversation && !loadError && messages.length === 0 ? chrome.emptyState?.(ctl) : null}
         {messages.map((m) => {
           const draft = m.voice?.phase === "failed" || m.voice?.phase === "kept";
           const speakState = tts.states[m.key] ?? "idle";
           const translated = !!translations.open[m.key];
-          return (
+          const bubble = (
             <MessageBubble key={m.key} message={m} playbackDisabled={voiceBusy} partnerName={personaName ?? partnerVoice}
               before={m.agent ? (
                 <ProcessCapsule live={m.agent.live} trace={m.agent.trace} generating={m.status === "streaming"}
@@ -1282,6 +1303,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv }: { recorderEnv?: R
               voiceDraft={draft ? { onRetry: () => sendDraft(m.key), onDiscard: () => discardDraft(m.key) } : undefined}
               onRetry={m.role === "assistant" && m.status === "error" && !sending && voice.state === "idle" && m.key === lastKey ? retry : undefined} />
           );
+          return chrome.renderMessage ? <Fragment key={m.key}>{chrome.renderMessage(m, bubble, ctl)}</Fragment> : bubble;
         })}
       </div>
       {/* 输入条(仿微信):提示行(琥珀,在玻璃里)+ 键盘/语音切换 + 按住说话长条或文本框 + 发送/丢弃 */}

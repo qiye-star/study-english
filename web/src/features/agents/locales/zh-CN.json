@@ -52,6 +52,7 @@
         "interrupted": "连接中断,回复没有收完。点重试取回。",
         "timeout": "回复超时,点重试取回。"
       },
+      "radio": { "label": "本对话的角色", "more": "更多角色 / 管理…", "loadFailed": "角色列表没能加载。" },
       "picker": {
         "title": "选择角色",
         "subtitle": "对话和联机房间通用",

@@ -52,6 +52,7 @@
         "interrupted": "The connection dropped before the reply finished. Retry to get it.",
         "timeout": "The reply timed out. Retry to get it."
       },
+      "radio": { "label": "Persona for this chat", "more": "More personas / manage…", "loadFailed": "The persona list could not be loaded." },
       "picker": {
         "title": "Choose a persona",
         "subtitle": "Used in chats and rooms",

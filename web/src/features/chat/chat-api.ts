@@ -49,6 +49,8 @@ export interface ConversationConfig {
   recap?: StoredRecap;
   /** 智能体角色(spec §9.3):有值时回复走 /api/agents/turn;缺省 = 旧路径完全不变(R-W12) */
   agentPersonaId?: string;
+  /** 中文提示(对话级覆盖用户设置;今天的默认对话按问候语言写,chat home R7);网页只经 saveSettings 写,落库是 zh_note */
+  zhNote?: "auto" | "always" | "never";
 }
 
 export interface Conversation {
@@ -57,6 +59,8 @@ export interface Conversation {
   config: ConversationConfig;
   createdAt: string;
   updatedAt: string;
+  /** 每日默认对话的本地日 "YYYY-MM-DD"(服务端给定,不做时区换算);普通对话没有 */
+  dailyDate?: string | null;
 }
 
 export interface MessageAssessment {
@@ -112,8 +116,14 @@ export const CHAT_SERVER_ERRORS: Record<string, string> = {
 
 const conversationPath = (id: string) => `/api/conversations/${encodeURIComponent(id)}`;
 
-export function listConversations(api: ApiClient, page = 1, perPage = 20): Promise<Paged<"conversations", Conversation>> {
-  return api.request("GET", "/api/conversations", { query: { page, per_page: perPage } });
+/** `opts` 只给对话主页的抽屉用:隐藏没回过的旧默认对话(R11);旧调用的请求不变。 */
+export interface ListConversationsOptions { hideIdleDaily?: boolean; tzOffsetMinutes?: number }
+
+export function listConversations(api: ApiClient, page = 1, perPage = 20, opts: ListConversationsOptions = {}): Promise<Paged<"conversations", Conversation>> {
+  const query: Record<string, string | number> = { page, per_page: perPage };
+  if (opts.hideIdleDaily) query.hide_idle_daily = "true";
+  if (opts.tzOffsetMinutes !== undefined) query.tz_offset_minutes = opts.tzOffsetMinutes;
+  return api.request("GET", "/api/conversations", { query });
 }
 
 export function createConversation(api: ApiClient, input: { name?: string; config: Partial<ConversationConfig> }): Promise<Conversation> {

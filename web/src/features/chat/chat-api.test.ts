@@ -75,3 +75,27 @@ describe("chat api", () => {
     }
   });
 });
+
+describe("chat api additions for the chat home", () => {
+  it("listConversations adds the optional drawer query only when asked", async () => {
+    const mock = createFetchMock({ "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }) });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    await listConversations(api, 1, 20, { hideIdleDaily: true, tzOffsetMinutes: 480 });
+    expect(mock.calls[0].url.search).toBe("?page=1&per_page=20&hide_idle_daily=true&tz_offset_minutes=480");
+    await listConversations(api, 2, 20, {});
+    expect(mock.calls[1].url.search).toBe("?page=2&per_page=20");
+  });
+
+  it("reads dailyDate and zhNote from the wire and writes zh_note as snake_case", async () => {
+    const mock = createFetchMock({
+      "GET /api/conversations": () => json({ conversations: [{ id: "c1", name: "2026-10-23", daily_date: "2026-10-23", config: { zh_note: "always" } }], page: 1, next: null }),
+      "PATCH /api/conversations/c1": () => json({ id: "c1", name: "x", config: {} }),
+    });
+    const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
+    const page = await listConversations(api);
+    expect(page.conversations[0].dailyDate).toBe("2026-10-23");
+    expect(page.conversations[0].config.zhNote).toBe("always");
+    await updateConversation(api, "c1", { config: { ...CONFIG, zhNote: "never" } });
+    expect(JSON.parse(mock.calls[1].body as string).config.zh_note).toBe("never");
+  });
+});

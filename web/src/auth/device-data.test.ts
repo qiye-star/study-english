@@ -10,6 +10,8 @@ import { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, clearDeviceData } from "./devic
 import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "~/lib/playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "~/lib/kv-cache";
 import { GLASS_THEME_KEY } from "~/lib/storage";
+import { CHAT_HOME_ROLE_HINT_KEY, CHAT_HOME_SHOWN_KEY } from "~/features/chat/home/chat-home-cache";
+import { getChatHomeState } from "~/features/chat/home/chat-home-store";
 import { getGlassTheme, resetGlassThemeMemory } from "~/settings/glass-theme-store";
 
 describe("clearDeviceData", () => {
@@ -82,5 +84,14 @@ describe("clearDeviceData", () => {
     await kvSet("grammar:v1:0:\"She don't.\"", { hasErrors: false, corrected: "x", errors: [] });
     clearDeviceData();
     await vi.waitFor(async () => expect(await kvGet("grammar:v1:0:\"She don't.\"")).toBeUndefined());
+  });
+
+  it("forgets the chat home markers and today's in-memory result", () => {
+    localStorage.setItem(CHAT_HOME_SHOWN_KEY, "2026-10-23");
+    localStorage.setItem(CHAT_HOME_ROLE_HINT_KEY, "1");
+    clearDeviceData();
+    expect(localStorage.getItem(CHAT_HOME_SHOWN_KEY)).toBeNull();
+    expect(localStorage.getItem(CHAT_HOME_ROLE_HINT_KEY)).toBeNull();
+    expect(getChatHomeState().phase).toBe("idle");
   });
 });

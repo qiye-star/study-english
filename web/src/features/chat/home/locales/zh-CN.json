@@ -1,0 +1,54 @@
+{
+  "web": {
+    "chat": {
+      "home": {
+        "errors": {
+          "invalid": "这项设置没能保存,请重试。",
+          "notFound": "这条问候已经不存在了。",
+          "disabled": "对话主页已关闭。"
+        },
+        "drawer": {
+          "open": "历史对话",
+          "title": "对话",
+          "close": "关闭历史对话",
+          "new": "新建对话",
+          "today": "今日 · 每日对话",
+          "dailyChat": "每日对话",
+          "noPreview": "用英语说一句,开始今天的对话。",
+          "streak": "连续 {{count}} 天",
+          "due": "待复习 {{count}}",
+          "empty": "还没有更早的对话。",
+          "more": "删除这个对话",
+          "deleteTodayConfirm": "删除今天的对话?你在里面的回复会被删除;今天的问候会保留,对话会重新开始。",
+          "deleteFailed": "没能删除对话,请重试。"
+        },
+        "settings": {
+          "title": "对话设置",
+          "description": "本对话的角色、问候与选项。",
+          "role": "角色 · 本对话",
+          "dailyPersona": "以后每天都用这个角色",
+          "global": "每日问候 · 全部对话",
+          "loadFailed": "没能加载问候设置。",
+          "saveFailed": "这项改动没能保存,请重试。",
+          "language": "问候语言",
+          "languageHint": "今天的问候不变,明天起生效;回复提示立即生效。",
+          "trigger": "问候时机",
+          "triggerDaily": "每天首次",
+          "triggerEveryOpen": "每次上线",
+          "triggerOff": "关闭",
+          "triggerHint": {
+            "daily": "每天第一次打开时弹出一次。",
+            "every_open": "每次打开都弹出;对话里不会重复添加消息。",
+            "off": "不再弹出,也不再生成新的问候;已有的保留。"
+          },
+          "stats": "问候里提学习数据",
+          "statsHint": "关闭后,问候不再提连续天数、待复习和错点;今天的问候正文不变,明天起生效。",
+          "thisChat": "本对话",
+          "replay": "重播今天的问候",
+          "replayHint": "再看一遍,不会往对话里添加消息。",
+          "done": "完成"
+        }
+      }
+    }
+  }
+}
