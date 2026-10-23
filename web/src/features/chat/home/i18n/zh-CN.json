@@ -1,0 +1,28 @@
+{
+  "web": {
+    "chat": {
+      "home": {
+        "errors": {
+          "invalid": "这项设置没能保存,请重试。",
+          "notFound": "这条问候已经不存在了。",
+          "disabled": "对话主页已关闭。"
+        },
+        "drawer": {
+          "open": "历史对话",
+          "title": "对话",
+          "close": "关闭历史对话",
+          "new": "新建对话",
+          "today": "今日 · 每日对话",
+          "dailyChat": "每日对话",
+          "noPreview": "用英语说一句,开始今天的对话。",
+          "streak": "连续 {{count}} 天",
+          "due": "待复习 {{count}}",
+          "empty": "还没有更早的对话。",
+          "more": "删除这个对话",
+          "deleteTodayConfirm": "删除今天的对话?你在里面的回复会被删除;今天的问候会保留,对话会重新开始。",
+          "deleteFailed": "没能删除对话,请重试。"
+        }
+      }
+    }
+  }
+}

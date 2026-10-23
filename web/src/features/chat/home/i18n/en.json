@@ -1,0 +1,28 @@
+{
+  "web": {
+    "chat": {
+      "home": {
+        "errors": {
+          "invalid": "That setting could not be saved. Try again.",
+          "notFound": "That greeting no longer exists.",
+          "disabled": "The chat home is switched off."
+        },
+        "drawer": {
+          "open": "Chat history",
+          "title": "Chats",
+          "close": "Close chat history",
+          "new": "New chat",
+          "today": "Today · daily chat",
+          "dailyChat": "Daily chat",
+          "noPreview": "Say something in English to start.",
+          "streak": "Streak {{count}} d",
+          "due": "Due {{count}}",
+          "empty": "No earlier chats yet.",
+          "more": "Delete this chat",
+          "deleteTodayConfirm": "Delete today's chat? Your replies in it will be deleted; today's greeting stays and the chat starts over.",
+          "deleteFailed": "Could not delete the chat. Try again."
+        }
+      }
+    }
+  }
+}
