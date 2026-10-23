@@ -4,7 +4,7 @@ App chrome around authenticated routes.
 
 ## What lives here
 - `app-shell.tsx` — shell with `<Outlet>`, bottom nav, global `LookupLayer` and the shadow sheet (`ShadowSheetProvider` wraps the shell, `ShadowSheetHost` sits next to `LookupLayer`; `~/features/practice`).
-- `bottom-nav.tsx` (练习 · 对话 · 跟读库 · 我的; the library tab is controlled by `useLibraryEnabled()`, at most 4 tabs; `对话` has `also: ["/rooms"]` so the whole rooms subtree stays highlighted; the nav does not read the rooms config — 联机 lives in the 对话 section switch, `src/pages/chat-hub.tsx`), `page-header.tsx`.
+- `bottom-nav.tsx` (对话 · 练习 · 跟读库 · 我的, 对话 is the home page `lib/home-route.ts`; the library tab is controlled by `useLibraryEnabled()`, at most 4 tabs; `对话` has `also: ["/rooms"]` so the whole rooms subtree stays highlighted; the nav does not read the rooms config — 联机 lives in the 对话 section switch, `src/pages/chat-hub.tsx`), `page-header.tsx`.
 - `page-header.tsx`: `large` = root-tab large title + capsule after 60px (liquid); actions/back render once.
 - `glass-route-pin.tsx` — `GlassRoutePin` (in `AppShell`): `data-glass="pin"` on `/library*` and `/practice/changelog` so shared components keep the classic skin there (plan `2026-10-15-liquid-glass`). The shell paints `page-bg` (E0 background, liquid only).
 - `use-app-height.ts` (`--app-height` + `scrollTo(0,0)` reset of the iOS-panned viewport after keyboard events, `KEYBOARD_SETTLE_MS`).

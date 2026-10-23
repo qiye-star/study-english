@@ -26,8 +26,8 @@ export function BottomNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const libraryOn = useLibraryEnabled();
-  // 练习 · 对话 · 跟读库 · 我的(跟读库关闭时少一个;最多 4 个。联机在「对话」里的切换条,计划 L6)
-  const items = [PRACTICE, CHAT, ...(libraryOn ? [LIBRARY] : []), ME];
+  // 对话 · 练习 · 跟读库 · 我的(对话是首页,lib/home-route.ts;跟读库关闭时少一个;最多 4 个。联机在「对话」里的切换条,计划 L6)
+  const items = [CHAT, PRACTICE, ...(libraryOn ? [LIBRARY] : []), ME];
   return (
     <GlassTabBar label={t("web.nav.label")} columns={items.length}>
       {items.map(({ to, icon: Icon, label, testId, also = [] }) => {
