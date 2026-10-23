@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from app.admin import audit
 from app.admin.audit import Actor
+from app.agents.greeting import prompt as greeting_prompt
 from app.core import metering
 from app.core.runtime_settings import bump_revision
 from app.library import ai as library_ai
@@ -63,6 +64,8 @@ def default_body(app, key: str) -> str | None:
         return wordbook_explain.DEFAULT_EXPLAIN_TEMPLATE
     if key in library_ai.DEFAULTS:
         return library_ai.DEFAULTS[key]
+    if key == "chat.daily_greeting":
+        return greeting_prompt.DEFAULT_GREETING_TEMPLATE
     return TEMPLATES_FILE.read_text(encoding="utf-8")
 
 
@@ -111,11 +114,16 @@ async def detail(session, app, key: str) -> dict:
             "default_body": default_body(app, key)}
 
 
-async def create_draft(session, app, actor: Actor, key: str, *, from_version: int | None) -> dict:
+async def create_draft(session, app, actor: Actor, key: str, *, from_version: int | None,
+                       from_default: bool = False) -> dict:
     _spec(key)
+    if from_version is not None and from_default:
+        raise PromptError(422, "Choose one source")
     if await _draft(session, key) is not None:
         raise PromptError(409, "Draft exists")
-    if from_version is not None:
+    if from_default:  # "reset to default": the code default, whatever is published
+        body = default_body(app, key) or ""
+    elif from_version is not None:
         source = await session.scalar(select(PromptVersion).where(
             PromptVersion.key == key, PromptVersion.version == from_version))
         if source is None:
@@ -130,7 +138,7 @@ async def create_draft(session, app, actor: Actor, key: str, *, from_version: in
     session.add(row)
     await session.flush()  # the id is part of the etag
     await audit.record(session, actor, "prompt.draft.create", target_type="prompt", target_id=key,
-                       after={"from_version": from_version})
+                       after={"from_default": True} if from_default else {"from_version": from_version})
     await session.commit()
     return _draft_out(row)
 
@@ -204,6 +212,9 @@ def test_messages(app, key: str, body: str, sample: dict[str, str]) -> tuple[lis
         base_url, api_key = settings.grammar_upstream
         upstream = settings.model_copy(update={"upstream_llm_base_url": base_url, "upstream_llm_key": api_key})
         return req["messages"], settings.resolved_grammar_model, upstream
+    if key.startswith("chat."):  # same rendering as the live greeting (fixed prefix and output contract included)
+        return (greeting_prompt.render_test(grammar.clean_prompt(body), sample), settings.resolved_chat_greeting_model,
+                settings)
     if key.startswith("wordbook."):
         return (wordbook_explain.render_test(grammar.clean_prompt(body), sample), settings.resolved_wordbook_ai_model,
                 settings)

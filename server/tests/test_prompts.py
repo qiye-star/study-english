@@ -68,7 +68,7 @@ def test_static_templates_file_is_valid_and_every_spec_is_consistent():
     assert validate_prompt("config.chat_agent_templates", body) == []
     assert PROMPTS["grammar.rules"].max_chars == MAX_PROMPT_CHARS
     assert set(PROMPTS) == {"grammar.rules", "rooms.assist", "rooms.voice_translate", "rooms.summary",
-                            "wordbook.explain", "library.translate", "library.analyze",
+                            "wordbook.explain", "library.translate", "library.analyze", "chat.daily_greeting",
                             "config.chat_agent_templates"}
 
 
@@ -124,3 +124,32 @@ async def test_invalid_published_grammar_body_is_ignored(app):
         await s.commit()
     await prompts.apply_grammar(app)
     assert app.state.grammar_rules == default_rules and app.state.grammar_rules_pinned is False
+
+
+def test_daily_greeting_spec_and_default_template():
+    from app.agents.greeting.prompt import DEFAULT_GREETING_TEMPLATE
+
+    spec = PROMPTS["chat.daily_greeting"]
+    assert spec.required == {"language_rule", "facts"} and spec.optional == {"persona"}
+    assert spec.boundaries == ("<facts>", "</facts>") and spec.max_chars == 4000
+    assert spec.sample_fields == ("persona", "language", "facts")
+    assert validate_prompt("chat.daily_greeting", DEFAULT_GREETING_TEMPLATE) == []
+    assert len(DEFAULT_GREETING_TEMPLATE) <= 2500
+
+
+@pytest.mark.parametrize("body,code", [
+    ("{facts} <facts></facts>", "missing_fields:language_rule"),
+    ("{language_rule} <facts></facts>", "missing_fields:facts"),
+    ("{language_rule} {facts}", "missing_boundary:<facts>"),
+    ("{language_rule} <facts>{facts}</facts> {nope}", "unknown_fields:nope"),
+    ("{language_rule} <facts>{facts}</facts> {", "invalid_braces"),
+    ("x" * 4001, "too_long"),
+    ("", "empty"),
+])
+def test_daily_greeting_cannot_be_published_when_broken(body, code):
+    assert code in validate_prompt("chat.daily_greeting", body)
+
+
+def test_daily_greeting_template_may_ask_for_five_messages_but_stays_publishable():
+    body = "Write 5 messages of 100 words.\n{language_rule}\n<facts>{facts}</facts>"
+    assert validate_prompt("chat.daily_greeting", body) == []  # the fixed contract and the parser still enforce 3

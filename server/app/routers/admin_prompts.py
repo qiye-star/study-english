@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/admin")
 
 class DraftCreateIn(BaseModel):
     from_version: int | None = None
+    from_default: bool = False  # draft body = the code default (reset to default)
 
 
 class DraftIn(BaseModel):
@@ -65,7 +66,8 @@ async def get_prompt(key: str, request: Request, _: AdminContext = Depends(requi
 async def create_draft(key: str, payload: DraftCreateIn, request: Request,
                        ctx: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
     try:
-        return await pa.create_draft(session, request.app, ctx.actor, key, from_version=payload.from_version)
+        return await pa.create_draft(session, request.app, ctx.actor, key, from_version=payload.from_version,
+                                    from_default=payload.from_default)
     except pa.PromptError as exc:
         return _error(exc)
 

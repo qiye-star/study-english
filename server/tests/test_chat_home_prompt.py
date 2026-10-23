@@ -10,25 +10,15 @@ from app.agents.greeting import prompt as G
 from app.agents.greeting.facts import GreetingFacts
 from app.agents.personas import builtin_by_id
 from app.agents.prompt import SAFETY_PREAMBLE
-from app.services.prompts import PromptSpec, validate_prompt
+from app.services.prompts import validate_prompt
 
 NOW = datetime(2026, 10, 23, 8, 42)
 FULL = GreetingFacts(streak=23, due=12, slip_category="tense", slip_count=2, slip_wrong="have went",
                      slip_right="have gone", wrong_words=3, pron_words=2, words=("talk", "able"))
-SPEC = PromptSpec("chat.daily_greeting", "对话每日问候", "text", frozenset({"language_rule", "facts"}),
-                  ("<facts>", "</facts>"), 4000, sample_fields=("persona", "language", "facts"),
-                  optional=frozenset({"persona"}))
-
-
-@pytest.fixture(autouse=True)
-def _registered_spec(monkeypatch):
-    """The spec S6 registers for real; here it is set per test so the registry stays untouched."""
-    from app.services import prompts
-    monkeypatch.setitem(prompts.PROMPTS, SPEC.key, SPEC)
 
 
 def valid(body):
-    return validate_prompt(SPEC.key, body)
+    return validate_prompt("chat.daily_greeting", body)
 
 
 def render(template=G.DEFAULT_GREETING_TEMPLATE, language="bilingual", facts=FULL, persona=None, stats=True):
