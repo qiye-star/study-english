@@ -8,7 +8,6 @@
           "disabled": "The chat home is switched off."
         },
         "drawer": {
-          "open": "Chat history",
           "title": "Chats",
           "close": "Close chat history",
           "new": "New chat",
@@ -20,17 +19,7 @@
           "empty": "No earlier chats yet.",
           "more": "Delete this chat",
           "deleteTodayConfirm": "Delete today's chat? Your replies in it will be deleted; today's greeting stays and the chat starts over.",
-          "deleteFailed": "Could not delete the chat. Try again.",
-          "todayTag": "Today · Daily chat",
-          "dailyRow": "Daily chat · {{date}}",
-          "delete": "Delete",
-          "deleteToday": "Delete today's chat?",
-          "deleteTodayBody": "Your replies in it will be deleted. Today's greeting is kept and the chat starts over.",
-          "loadMore": "Load more",
-          "loading": "Loading…",
-          "loadFailed": "Could not load your chats.",
-          "retry": "Retry",
-          "rebuildFailed": "Today's chat could not be restarted."
+          "deleteFailed": "Could not delete the chat. Try again."
         },
         "settings": {
           "title": "Chat settings",
@@ -61,9 +50,7 @@
           "thisChat": "This chat",
           "replay": "Replay today's greeting",
           "replayHint": "Shows it again without adding messages.",
-          "done": "Done",
-          "globalFailed": "Could not load these settings.",
-          "retry": "Retry"
+          "done": "Done"
         },
         "greeting": {
           "title": "Today's greeting",
@@ -92,18 +79,12 @@
           "dailyKind": "Daily chat",
           "persona": "{{name}} · {{kind}}"
         },
-        "date": {
-          "today": "Today",
-          "yesterday": "Yesterday",
-          "dailyShort": "{{date}}"
-        },
         "newChat": {
           "title": "New chat",
           "hint": "Pick a role to start. Each chat can have its own role, and you can change it any time.",
           "pickRole": "Choose a role",
           "fromScenario": "Start from a scenario",
-          "justStart": "Start chatting",
-          "createFailed": "Could not start the chat. Please try again."
+          "justStart": "Start chatting"
         },
         "roleHint": {
           "text": "Choose a role here. Each chat can have its own role, and you can change it any time.",
