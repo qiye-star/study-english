@@ -135,6 +135,16 @@
 
 **未在真机验证(液态玻璃):** 低端安卓上 3 层模糊的真实模糊质量与帧率;iOS Safari 底部弹窗进入时的模糊闪烁;顶部胶囊淡入与模糊的配合;自定义背景在户外的可读性;石墨色气泡上的查词高亮;单色答题反馈是否一眼可辨;320–360px 宽度下的大标题;iOS 的 `prefers-reduced-transparency`;不支持 `:is()` / `rgb(r g b / a)` 的旧 WebView。清单见 `docs/superpowers/plans/2026-10-15-liquid-glass-device-checklist.md`。
 
+## 对话主页与每日问候(计划 2026-10-23-chat-home-daily-greeting)
+
+开关 `CHAT_HOME_ENABLED`(服务端,管理端可热改;网页读 `GET /api/chat-home/config`):**关(或配置 404 / 失败 / 超过 3 秒)= 旧界面原样**——`/chat` 是旧会话列表、`/chat/:id` 是旧对话页、`/chat/new` 跳回 `/chat`;旧列表页与旧对话页各自成懒加载块。**开 =** `/chat` 是「今天的对话」(用户本地日,每天新建一个默认对话,角色默认「学习伙伴」),`/chat/:id` 在同一个外框里显示指定对话(从不弹问候),`/chat/new` 是只在本地的新对话草稿(不建服务端对话;[选择角色] / [直接开始] / [从场景开始] 才真正创建,然后 `replace` 到 `/chat/:id`;没有输入框,[直接开始] 等于旧的「自由对话」)。外框:左上角历史按钮 → 左侧浮动抽屉(今天置顶、按最近活动日分组、可删除今天的对话,删除后立即重建并写回问候、不弹窗);标题「今天 · 周五」;右上角通话 + 设置。设置面板:本对话角色(单选 + 「更多角色」)、问候语言(中文 / English / 中英双语)、问候时机(每天首次 / 每次上线 / 关闭)、问候里提学习数据、本对话的双语 / 自动朗读 / 语速、复盘、更多对话设置、重播今天的问候。旧顶栏的「调整」弹出面板只在旧外框里出现。
+
+问候弹窗:只在对话主页 `/chat` 出现(别的页面、深链都不弹;「打开」发生在别处时,本次打开期间第一次进入 `/chat` 再弹)。「打开」= 冷启动,或回到前台且隐藏 ≥ 30 分钟。`daily` 只在服务端 `first_view` 为真且本机今天没弹过时弹(出现时上报 `seen`);`every_open` 每次打开都弹,只重放弹窗、**不追加消息**;`off` 不弹也不生成。重播不调用 `/today`、不上报 `seen`、不写本机标记。弹窗关闭时三行问候飞入对话里对应的问候气泡;气泡是普通助手消息(听 / 翻译 / 跟读 / 查词照旧,朗读的是不含 `*` 的原文)。数据与隐私:`/today` 结果只放内存(登出清空);`localStorage` 只存 `enjoy.chatHome.shown`(日期)与 `enjoy.chatHome.roleHintSeen`(`"1"`);URL 里只有对话 id。主包:路由分发、开关钩子、打开检测的挂载壳在主包里,新主页 / 抽屉 / 设置面板 / 弹窗 / 文案都是懒块;旧会话列表也改成懒块,主包因此比基线小(见 `scripts/main-bundle-baseline.json`)。
+
+E2E:`e2e/chat-home.spec.ts` 需要 E2E 栈开 `CHAT_HOME_ENABLED=true` 与 `CHAT_GREETING_LLM_ENABLED=false`(模板问候,零上游费用),开关关时整个文件跳过;`chat.spec.ts`、`hold-to-talk.spec.ts`、`grammar-prompt.spec.ts`、`progress.spec.ts`、`latency.spec.ts`、`scenario-spot-check.spec.ts` 的进入方式走 `e2e/support/chat.ts`(模式无关,两种开关状态都能过)。`docker-compose.e2e.yml` 与本地未跟踪的 compose 文件不改:这两个变量写进 E2E 栈读取的 `server/.env`(compose 的 `env_file`,已 git 忽略;或起栈后在管理端设置里改,开关可热改)再起栈。守卫(`upstream-guard.ts`)放行 `/api/chat-home/{config,settings,today,greetings/*/seen}`。
+
+**未验证(对话主页):** 全部动画观感与帧率(逐行模糊落下、飞入对齐气泡、极光)、减弱动效下的表现、iPhone PWA / 安卓上的安全区(刘海、Home 横条)、抽屉左滑与 Safari 边缘返回手势、自动朗读(弹窗期间不出声,关闭后点「听」能出声)、320×568 下最长问候不裁切、深色 / 液态皮肤下小字对比度、E2E `chat-home.spec.ts` 与改过入口的老规格(**编写并通过类型检查,未运行**)、真实 LLM 问候的长度与时延。清单见计划 §8。
+
 ## E2E(Playwright,真实上游)
 
     export E2E_INVITE_CODE=$(node -e "console.log(require('crypto').randomBytes(12).toString('hex'))")

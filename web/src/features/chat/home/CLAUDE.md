@@ -6,7 +6,9 @@ Chat home (plan `docs/superpowers/plans/2026-10-23-chat-home-daily-greeting-web.
 - `chat-home-api.ts` — client + types for `/api/chat-home/*` (contract: server plan 5.1), `cleanGreeting` (not exactly 3 valid lines = no greeting), error table.
 - `emphasis.ts` — `*…*` emphasis parser (FR19, same rules as server R17). Render with React nodes only.
 - `chat-home-contract.test.ts` reads the server fixture `server/tests/fixtures/chat_home_contract.json` (test-fixture exception). `chat-home-contract.stub.json` is only a hand-written sample (stable ids like `c-today`) for the store / drawer / sheet / route tests; it is not a contract.
-- Later tasks add the store, open detection, drawer, settings sheet, greeting modal (see the plan's file list).
+- `routes.tsx` (main bundle) → lazy `chat-home-shell.tsx` (today / new / conversation) with `home-chrome.tsx`, `history-drawer.tsx`, `chat-settings-sheet.tsx`, `new-chat.tsx`, `role-hint.tsx`, `empty-day.tsx`; `greeting-popup.ts` = trigger rules (daily / every_open / off, only `kind="today"`), `greeting-modal.tsx` (lazy) + `greeting-fly.ts` (close fly-in), `greeting-group.tsx` (the three greeting bubbles in today's chat).
+- `chat-home-store.ts` (`/today` result, in memory), `chat-home-open.ts` + `open-effect.ts` (app-open detection), `use-chat-home-config.ts` (flag).
+- `test-routes.tsx` — shared harness for the route / parity / group tests (not shipped; nothing imports it).
 
 ## Rules
 - Privacy: URLs carry only conversation ids and fixed paths; query keys are `page`, `per_page`, `hide_idle_daily`, `tz_offset_minutes`. Never log greeting text, facts or messages; errors carry codes only. `localStorage` holds dates and booleans only; the `/today` result lives in memory and is cleared on logout.

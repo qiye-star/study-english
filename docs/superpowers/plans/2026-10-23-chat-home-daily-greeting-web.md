@@ -538,9 +538,23 @@ App 挂载(任何路由) ──► ChatHomeOpenEffect
 
 ## 未验证清单
 
-- 全部网页代码尚未编写;本计划中的组件名、文件名、时长取自演示页与现有代码,执行者以实际测试结果修正细节,不改裁定、接口名与隐私规则。
-- 服务端契约夹具 `server/tests/fixtures/chat_home_contract.json` 尚不存在(服务端 S10 产出);§6.1 的字段名以它为准。
+- 网页代码已按本计划写完并通过 vitest / 类型检查 / 构建(集成分支 `feat/chat-home-integ`);尚未合并、未部署。
+- 服务端契约夹具已存在:`server/tests/fixtures/chat_home_contract.json`;`home/chat-home-contract.test.ts` 直接读它。store / 抽屉 / 设置面板的测试仍用手写样例 `chat-home-contract.stub.json`(稳定 id),它不是契约。
 - 真机(iPhone PWA / Android)上的动画、安全区、抽屉手势、自动朗读——未验证(§8)。
-- E2E `chat-home.spec.ts`——未编写、未运行。
-- 主包增量——未测(预算 +0.5 kB)。
+- E2E `chat-home.spec.ts` 与改成模式无关入口的老规格——已编写并通过类型检查,**未运行**(要用户要求;栈需 `CHAT_HOME_ENABLED=true`、`CHAT_GREETING_LLM_ENABLED=false`)。
+- 主包增量:见下方 Addendum(比基线小,基线已重录)。
 - 问候长度与 `max_tokens` 的「放得下」结论只按演示页 mock 文本逐字计算(服务端 §4 容量核对),未用真实模型输出校准;最长问候在小屏上的排版只在 jsdom 做了结构断言,真机未验证。
+- README 的对话截图(`docs/images/readme/`)未替换:没有可运行的本地演示环境(见 Addendum)。
+
+## Addendum (2026-10-23,集成)
+
+集成时相对本计划正文的偏差(都不改裁定、接口名与隐私规则):
+
+- **新对话草稿没有输入框**:FR6 写「在草稿输入框直接发送」,但对话视图的输入条属于 `ConversationPage`,草稿没有对话可挂。改为空状态里的 [直接开始](= 旧列表的「自由对话」:`{scenario:{id:"free"}, level:"auto"}`),[选择角色] 与 [从场景开始] 不变;智能体关闭时没有 [选择角色] 与设置按钮。
+- **问候组的 testid**:`ConversationPage` 的 `renderMessage` 是逐条调用,无法把三条消息包进同一个容器。每条消息的包装层是 `chat-greeting-line`(带 `data-gl` / `data-greet-target` 序号,供飞入定位),「✦ 今日问候 · 08:42」小标题是唯一的 `chat-greeting-group`(在第 0 条上),组尾数据是 `chat-greeting-facts`。某条消息被删:剩下的各自按问候行渲染,小标题随第 0 条消失。可见文字与存储正文不一致 → 该条退回原气泡。`MessageBubble` 新增可选 `body`(只替换助手气泡的可见内容)。
+- **角色解析**:新外框里没有角色芯片,但页面仍需角色名与「智能体已关闭」,所以 `ChatPersonaControl` 加了 `headless` 属性(只解析,不渲染芯片与选择器)。
+- **文案位置**:问候 / 抽屉 / 设置面板文案在 `home/locales/`(懒加载),不在 `i18n/`(那个 glob 会进主包,约 +1.2 kB)。`settings.language` 改为 `{title, zh, en, bilingual}`,三个语言标签走 i18n(固定写「中文 / English / 中英双语」);无人引用的键已删除。
+- **旧列表页也改成懒块**(`lazy-pages.tsx` 的 `ConversationsPage`,`index.ts` 同名导出不变):为了给新路由分发腾出主包预算。开关关时旧列表首次渲染多一次小块请求,界面不变。
+- **seen 失败的重试**:弹窗出现时 `seen` 失败静默;下一次 `daily` 打开时若本机已标记今天、服务端仍 `first_view`,静默重试一次(不弹)。
+- **主包**:基线 410.03 kB;本分支 404.65 kB(−5.38 kB),`--max-delta=0.5` 通过,已按计划 W13 重录基线。
+- **截图**:没有可运行的本地演示环境(宿主无 node / uv 服务),`docs/images/readme/` 未替换,上线前补。

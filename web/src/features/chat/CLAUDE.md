@@ -4,13 +4,15 @@ Conversations with the AI tutor: text and voice messages, hold-to-talk, auto-spe
 
 ## What lives here
 - Pages: `conversations-page.tsx`, `conversation-page.tsx` (orchestration; large).
-- `lazy-pages.tsx` — the routed `ConversationPage` is lazy (agents-web R-W2); tests import `./conversation-page` directly.
+- `lazy-pages.tsx` — the routed `ConversationPage` and (flag off) `ConversationsPage` are lazy (agents-web R-W2; chat home K5); tests import the page modules directly.
+- `home/` — chat home (`CHAT_HOME_ENABLED`): routes dispatch (`home/routes.tsx`, main bundle, tiny), lazy shell, history drawer, settings sheet, greeting modal / group / fly-in, store + open detection. Rules in `home/CLAUDE.md`; flag off = old pages unchanged.
+- `conversation-chrome.ts` / `classic-chrome.tsx` — `ConversationPage` takes an optional `chrome` (leading / actions / title / beforeMessages / renderMessage / emptyState / onLoaded) and `conversationId`; default = `CLASSIC_CHROME` (DOM unchanged, pinned by `conversation-page*.test.tsx`). The chat home passes `homeChrome(...)`. `MessageBubble` has an optional `body` (visible text of an assistant bubble; actions / TTS keep using `message.content`).
 - Turns: `use-voice-turn.ts`, `turn-results.ts` (assessment + grammar, late PATCH), `chat-request.ts`, `chat-turns.ts`, `ui-message.ts`.
 - `read-aloud-action.tsx` / `register-selection-actions.tsx` — the select-to-lookup bar's "Read aloud" (core contribution to the `selectionActions` point; registration file imported only by `plugins/core`).
 - Speech out: `tts.ts`, `use-tts-player.ts` (sentence queue), `use-auto-speak.ts`, `sentence-stream.ts`, `sentences.ts`.
 - Hold-to-talk: `hold-to-talk-button.tsx` wires voice messages to the shared gesture (`~/lib/hold-gesture` reducer, `~/components/use-hold-gesture`, `~/components/hold-to-talk-bar` UI, shared with realtime calls).
 - Helpers: `hints*.ts(x)`, `recap*.ts(x)`, `scenarios.ts`, `levels.ts`, `coach.ts`, `composer-mode.ts`.
-- `i18n/{en,zh-CN}.json` — this feature's strings.
+- `i18n/{en,zh-CN}.json` — this feature's strings (chat home strings live in `home/locales/`, lazy, NOT in an `i18n/` folder).
 - `trace-save.ts` — shrinks an agent trace to fit the server's 4 KB `agent_trace` limit before it is saved with the reply.
 
 ## Public surface
@@ -23,6 +25,7 @@ Public (`index.ts`): pages, `useTtsPlayer`/`ttsErrorMessage`/`TtsState`, `useMes
 - `cd web && yarn vitest run src/features/chat`
 
 ## Pitfalls
+- Chat home: conversation config keys are snake_case on the wire (`zh_note`, `agent_persona_id`); web code only uses `zhNote` / `agentPersonaId` (ApiClient converts). The greeting popup belongs to `/chat` only; `every_open` and replay never append messages; deleting today's chat rebuilds it without a popup. Keep the main bundle within +0.5 kB for the whole feature (`yarn web:build && cd web && node scripts/check-main-bundle.mjs --max-delta=0.5`).
 - Every auto-speak reply costs a TTS call per sentence.
 - `speakableText()` ends with `speechText()` (`~/lib/speech-text`): Chinese / kana / full-width text is never sent to TTS, Chinese-only text is "nothing to read" (`play()` toast, auto-speak `empty`, queue `push()` skips). `note_zh` / `hint_zh` are never part of any spoken input.
 - Agent conversations (`config.agentPersonaId`) stream from `/api/agents/turn` via `~/features/agents` `runAgentTurn`; the `onDelta` path into sentence-stream/auto-speak is shared with the old path. Without a persona nothing changes (tests pin the request and saved bodies). The teach-me entry and tutor bar are slots (`TUTOR_SLOTS` in `agents/chat-parts.tsx`), not imports.
