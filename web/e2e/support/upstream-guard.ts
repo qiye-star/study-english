@@ -40,7 +40,10 @@ const OWN_ACCOUNT = /^\/api\/(email\/code|password\/reset|avatar-reports|avatars
 // 挑战由网页组件自己取(同源,无查询串);载荷只进 X-Captcha 头,守卫看不到也不记录。
 const OWN_CAPTCHA = /^\/api\/captcha\/(config|challenge)$/;
 
+// 词汇激活与影视配音(main 的 L4 / L5):/config 只读设置;prompt-hint 只读数据库(ACTIVATION_ENABLED 关时 404)。其余路径(词表、角色建议等)不放行。
+const OWN_ACTIVATION_DUBBING = /^\/api\/(activation\/(config|prompt-hint)|dubbing\/config)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname)
-    || OWN_AGENTS.test(pathname) || OWN_ACCOUNT.test(pathname) || OWN_CAPTCHA.test(pathname) || OWN_CHAT_HOME.test(pathname);
+    || OWN_AGENTS.test(pathname) || OWN_ACCOUNT.test(pathname) || OWN_CAPTCHA.test(pathname) || OWN_CHAT_HOME.test(pathname) || OWN_ACTIVATION_DUBBING.test(pathname);
 }

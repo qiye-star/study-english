@@ -26,6 +26,8 @@ describe("e2e upstream guard classification", () => {
     // 智能体(AGENTS_ENABLED 的 E2E 栈,agents-web N2):对话页加载时请求 /config;设置与角色只读写数据库
     "/api/agents/config", "/api/agents/settings", "/api/agents/personas", "/api/agents/personas/p1", "/api/agents/personas/builtin%3Acoach",
     "/api/agents/personas/p1/report",
+    // 词汇激活 / 影视配音:对话页与练习首页加载时请求的只读配置
+    "/api/activation/config", "/api/activation/prompt-hint", "/api/dubbing/config",
     // 对话主页(CHAT_HOME_ENABLED,E2E 栈关掉 LLM 问候):配置、今天的对话、设置、已看过只读写数据库
     "/api/chat-home/config", "/api/chat-home/settings", "/api/chat-home/today", "/api/chat-home/greetings/g1/seen",
     // 账号 v2(accounts e2e):邮箱注册/找回的发码与重置、头像、举报、邀请码与 /me 只读写数据库或本地媒体库
@@ -54,6 +56,7 @@ describe("e2e upstream guard classification", () => {
     "/api/links", "/api/links/configx", "/api/links/wordbook/cards", "/api/links/mistakes/x",
     // 回合、试聊、导师开始会触达 LLM:不放行(E2E 里用 page.route 模拟)
     "/api/agents/turn", "/api/agents/personas/try", "/api/agents/tutor/start", "/api/agents", "/api/agents/configx",
+    "/api/activation", "/api/activation/words", "/api/activation/prompt-hintx", "/api/dubbing", "/api/dubbing/items/i1/roles/suggest",
     "/api/chat-home", "/api/chat-home/configx", "/api/chat-home/today/x", "/api/chat-home/greetings/g1", "/api/chat-home/greetings/g1/seen/x",
     // 账号 v2:只放行确切路径;相近的前缀与管理端路径不放行
     "/api/email/codex", "/api/email", "/api/avatars", "/api/avatars/a/b", "/api/password", "/api/password/reset/x",
