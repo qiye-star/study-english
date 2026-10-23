@@ -8,6 +8,8 @@ import i18n from "~/i18n";
 import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { WordbookLearnPage } from "./learn-page";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { resetZhDefsModeMemory, setZhDefsMode } from "~/settings/zh-defs-pref";
 import { CONFIG, card } from "./test-fixtures";
 
 const play = vi.fn();
@@ -93,9 +95,27 @@ beforeEach(() => {
   localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
   void i18n.changeLanguage("zh-CN");
 });
-afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
+afterEach(() => {
+  localStorage.removeItem("enjoy-web.settings");
+  localStorage.removeItem(ZH_DEFS_PREF_KEY);
+  resetZhDefsModeMemory();
+  void i18n.changeLanguage("en");
+});
 
 describe("WordbookLearnPage", () => {
+  it("covers the Chinese meaning of an opened card when 我的 → 中文释义 is on tap", async () => {
+    const user = userEvent.setup();
+    setZhDefsMode("tap");
+    setup();
+    await screen.findByTestId("word-card");
+    expect(screen.queryByTestId("zh-defs-cover")).toBeNull(); // 遮罩还在
+    await user.click(screen.getByRole("button", { name: "模糊" }));
+    const cover = await screen.findByTestId("zh-defs-cover");
+    expect(cover).toHaveAttribute("data-state", "hidden");
+    await user.click(screen.getByRole("button", { name: "显示中文释义" }));
+    expect(screen.getByText("说话；谈话")).toBeVisible();
+  });
+
   it("covers the meaning, rates, reveals and quizzes fuzzy and unknown words", async () => {
     const user = userEvent.setup();
     const mock = setup();

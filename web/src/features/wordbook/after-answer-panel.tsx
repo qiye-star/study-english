@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { SurfaceCard } from "~/components/surface-card";
+import { ZhDefsCover } from "~/components/zh-defs-cover";
 import { ZhToggle } from "~/components/zh-toggle";
 import { zhReveal } from "./def-lang";
 import { DefinitionsEn } from "./defs-en";
@@ -21,13 +22,15 @@ const MAX_SENSES = 4;
  * - `word`(中→英)/ `cloze`(例句选词,选项也是英文词)/ 键入题 `dictation` / `spell`(没有选项信息,只用批次词卡):正确单词的卡片 `WordCardView` 受控模式(同一个「中文」按钮,不画卡片右上角的「中」)。
  * 词卡优先取批次里的;没有时用答案里正确选项的 `optionInfo` + `phrases` + `example` 拼一张;都没有就什么也不渲染。
  */
-export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek, onListen, listening, canListen }: ListenProps & {
+export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek, zhCover = false, onListen, listening, canListen }: ListenProps & {
   question: Question;
   result: Pick<AnswerResult, "optionInfo" | "correctOption" | "phrases" | "example">;
   card: Card | undefined;
   defLang: DefLang;
   peek: boolean;
   onPeek: () => void;
+  /** 「我的 → 中文释义:点击后显示」:盖住本来就显示的中文释义(`ZhDefsCover`;「仅英文」有英文释义时仍由「中文」带回,计划 2026-10-23 R-A2) */
+  zhCover?: boolean;
 }) {
   const { t } = useTranslation();
   const shown = cardForPanel(card, question, result);
@@ -36,10 +39,11 @@ export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek
   if (question.qtype !== "meaning") {
     return (
       <WordCardView card={shown} defLang={defLang} eyebrow={t("web.wordbookDefs.after.title")} className="mt-3" phrasesOpen={false}
-        peek={peek} onPeek={onPeek} {...listen} />
+        peek={peek} onPeek={onPeek} zhCover={zhCover} {...listen} />
     );
   }
   const { view, phraseZh, chip } = zhReveal(defLang, shown, peek);
+  const zhShownByDefault = zhReveal(defLang, shown, false).view.showSenses;
   return (
     <SurfaceCard data-testid="after-answer-panel" className="mt-3 px-4 pb-3 pt-4">
       <div className="flex min-h-[22px] items-center justify-between gap-2">
@@ -49,14 +53,16 @@ export function AfterAnswerPanel({ question, result, card, defLang, peek, onPeek
       </div>
       <p lang="en" {...lookupContext} className="mt-1 break-words text-title font-semibold">{shown.word}</p>
       {view.showSenses ? (
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {shown.senses.slice(0, MAX_SENSES).map((s, i) => (
-            <li key={i} className="text-body leading-dialogue">
-              {s.pos ? <em className="mr-1.5 font-mono text-meta font-semibold not-italic text-ink-2">{posLabel(s.pos)}</em> : null}
-              {s.text}
-            </li>
-          ))}
-        </ul>
+        <ZhDefsCover active={zhCover && zhShownByDefault} resetKey={shown.key} label={t("web.wordbookDefs.peek.label")} offsetClassName="mt-2">
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {shown.senses.slice(0, MAX_SENSES).map((s, i) => (
+              <li key={i} className="text-body leading-dialogue">
+                {s.pos ? <em className="mr-1.5 font-mono text-meta font-semibold not-italic text-ink-2">{posLabel(s.pos)}</em> : null}
+                {s.text}
+              </li>
+            ))}
+          </ul>
+        </ZhDefsCover>
       ) : null}
       {view.showDefs ? <DefinitionsEn groups={view.groups} className={view.showSenses ? "mt-1.5" : "mt-2"} /> : null}
       {chip ? <ZhToggle pressed={peek} onToggle={onPeek} label={t("web.wordbookDefs.after.zh")} testId="after-zh" className="mt-2.5" /> : null}

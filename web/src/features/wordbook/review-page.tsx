@@ -22,6 +22,7 @@ import { DOCK, GHOST_DOCK, GHOST, PRIMARY } from "./ui";
 import { Dock } from "~/components/dock";
 import { useRankEnabled } from "./use-rank-enabled";
 import { useDefLangValue } from "./use-def-lang";
+import { useZhDefsMode } from "~/settings/zh-defs-pref";
 import { useSpeaker } from "./use-speaker";
 import { useWordbookToday } from "./use-today";
 import { useWordbookConfig } from "./use-wordbook-config";
@@ -73,6 +74,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
   const autoplay = prefs?.autoplay ?? true;
   const showExample = prefs?.showExample ?? true;
   const defLang = useDefLangValue();
+  const zhCover = useZhDefsMode() === "tap";
   const [phase, setPhase] = useState<Phase>(free ? "quiz" : "intro");
   const [batch, setBatch] = useState<Batch | null>(() => (free ? toBatch(free) : null));
   const [error, setError] = useState<unknown>(null);
@@ -296,7 +298,7 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
                 onAnswer={(choice) => void send({ rating: "know", choice })} {...listen} />
             </div>
           ) : (
-            <RecallCard key={`${question.key}:${attempt}`} question={question} card={batch?.cards[question.key]} defLang={defLang}
+            <RecallCard key={`${question.key}:${attempt}`} question={question} card={batch?.cards[question.key]} defLang={defLang} zhCover={zhCover}
               face={answer ? "back" : "front"} rating={answer?.result.rating ?? null} showExample={showExample} {...listen} />
           )
         ) : question && CHOICE.has(question.qtype) ? (
@@ -317,8 +319,8 @@ function ReviewSession({ free }: { free: FreeSet | null }) {
             : answer ? t(`web.wordbook.outcome.${answer.result.outcome}`) : ""}
         </p>
         {(afterQuestion ?? typedAfter) && answer ? (
-          <AfterAnswerPanel question={(afterQuestion ?? typedAfter)!} result={answer.result} card={batch?.cards[(afterQuestion ?? typedAfter)!.key]} defLang={defLang}
-            peek={peekSlot === slot} onPeek={() => setPeekSlot((s) => (s === slot ? null : slot))} {...listen} />
+          <AfterAnswerPanel key={`after:${slot}`} question={(afterQuestion ?? typedAfter)!} result={answer.result} card={batch?.cards[(afterQuestion ?? typedAfter)!.key]} defLang={defLang}
+            peek={peekSlot === slot} onPeek={() => setPeekSlot((s) => (s === slot ? null : slot))} zhCover={zhCover} {...listen} />
         ) : null}
         {actionError ? <p role="alert" className="mt-2 text-sub text-ink">{actionError}</p> : null}
       </div>

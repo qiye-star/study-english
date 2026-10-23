@@ -9,6 +9,8 @@ import { createFetchMock, json, type RecordedCall } from "~/test/fetch-mock";
 import { setLiquid, textOutsidePlates } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { WordbookReviewPage } from "./review-page";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { resetZhDefsModeMemory, setZhDefsMode } from "~/settings/zh-defs-pref";
 import { CONFIG, ENROLLED_TODAY, PLAN, card } from "./test-fixtures";
 
 const play = vi.fn();
@@ -76,7 +78,12 @@ beforeEach(() => {
   localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
   void i18n.changeLanguage("zh-CN");
 });
-afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
+afterEach(() => {
+  localStorage.removeItem("enjoy-web.settings");
+  localStorage.removeItem(ZH_DEFS_PREF_KEY);
+  resetZhDefsModeMemory();
+  void i18n.changeLanguage("en");
+});
 
 describe("WordbookReviewPage", () => {
   it("runs a mixed review, requeues a near miss and summarises", async () => {
@@ -119,6 +126,39 @@ describe("WordbookReviewPage", () => {
     expect(summary).toHaveTextContent("1 个词进入「已掌握」");
     expect(within(summary).queryByTestId("summary-ratings")).toBeNull(); // 没有快速回忆题
     expect(summary).toHaveTextContent("talk");
+  });
+
+  it("on tap: the after-answer Chinese meaning is covered until tapped", async () => {
+    const user = userEvent.setup();
+    setZhDefsMode("tap");
+    setup();
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: /vt\. 接受；承认/ }));
+    const panel = await screen.findByTestId("after-answer-panel");
+    const cover = within(panel).getByTestId("zh-defs-cover");
+    expect(cover).toHaveAttribute("data-state", "hidden");
+    await user.click(within(panel).getByRole("button", { name: "显示中文释义" }));
+    expect(within(panel).getByText("接受；承认")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    expect(await screen.findByText("例句选词")).toBeTruthy();
+    expect(screen.queryByTestId("zh-defs-cover")).toBeNull(); // 揭开的状态不带到下一题
+  });
+
+  it("on tap: the recall back covers the Chinese meaning, and the word's next appearance is hidden again", async () => {
+    const user = userEvent.setup();
+    setZhDefsMode("tap");
+    setup({
+      "POST /api/wordbook/review/batch": () => json(RECALL_BATCH),
+      "POST /api/wordbook/answers": () => json(recallResult("fuzzy")),
+    });
+    await user.click(await screen.findByRole("button", { name: "开始复习 3" }));
+    await user.click(await screen.findByRole("button", { name: "模糊" }));
+    expect(await screen.findByTestId("zh-defs-cover")).toHaveAttribute("data-state", "hidden");
+    await user.click(screen.getByRole("button", { name: "显示中文释义" }));
+    expect(screen.getByTestId("zh-defs-cover")).toHaveAttribute("data-state", "shown");
+    await user.click(screen.getByRole("button", { name: "继续" }));
+    await user.click(await screen.findByRole("button", { name: "模糊" }));
+    expect(await screen.findByTestId("zh-defs-cover")).toHaveAttribute("data-state", "hidden");
   });
 
   it("shows achievements this session unlocked in the summary (spec §11.2, mockup frame 10)", async () => {
