@@ -90,3 +90,55 @@
 .dub-role-card[data-role-color="purple"] { border-left-color: var(--dub-role-e); }
 .dub-role-card[data-role-color="orange"] { border-left-color: var(--dub-role-f); }
 .dub-role-card[aria-pressed="false"] { background: rgb(var(--surface)); }
+
+/* ===== 选段(效果 A 柔和版):淡底整行 + 左侧色条 + 起 / 止小标;状态由 li 的 data-sel 驱动 ===== */
+.dub-clip-row {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--ink) / 0.1);
+}
+.dub-clip-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--dub-sel-bar);
+  opacity: 0;
+}
+.dub-clip-row[data-sel="start"],
+.dub-clip-row[data-sel="mid"],
+.dub-clip-row[data-sel="end"],
+.dub-clip-row[data-sel="single"] {
+  background: var(--dub-sel);
+  border-color: var(--dub-sel-bd);
+}
+.dub-clip-row[data-sel="start"]::before,
+.dub-clip-row[data-sel="mid"]::before,
+.dub-clip-row[data-sel="end"]::before,
+.dub-clip-row[data-sel="single"]::before {
+  opacity: 1;
+}
+.dub-clip-row[data-sel="half"] {
+  border: 1px dashed var(--dub-sel-bar);
+}
+.dub-clip-row[data-sel="half"]::before {
+  opacity: 1;
+}
+.dub-clip-row[data-sel="none"] .dub-clip-text {
+  font-weight: 400;
+}
+.dub-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--dub-mark-bg);
+  color: var(--dub-mark-fg);
+}

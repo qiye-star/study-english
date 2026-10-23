@@ -8,6 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(path.join(here, "dubbing.css"), "utf8");
 const theme = readFileSync(path.join(here, "../../styles/theme.css"), "utf8");
 const identity = readFileSync(path.join(here, "role-identity.tsx"), "utf8");
+const picker = readFileSync(path.join(here, "clip-picker.tsx"), "utf8");
 
 /** 取 `header {` 之后配对大括号里的内容。 */
 function blockOf(source: string, header: RegExp): string {
@@ -54,8 +55,19 @@ function contrast(a: Rgb, b: Rgb): number {
 }
 
 describe("dubbing.css (plan 2026-10-23 R-B3/R-B4)", () => {
-  it("is pulled in by the lazy role-identity module", () => {
+  it("is pulled in by the lazy role-identity and clip-picker modules", () => {
     expect(identity).toContain('import "./dubbing.css";');
+    expect(picker).toContain('import "./dubbing.css";');
+  });
+
+  it("a half selection is a dashed frame, and the selection rules use tokens only (no literal colours)", () => {
+    expect(blockOf(css, /\[data-sel="half"\]\s*\{/)).toContain("dashed");
+    const rules = [...css.matchAll(/^[^{}\n]*\[data-sel=[^{]*\{[^}]*\}/gm)].map((m) => m[0]);
+    expect(rules.length).toBeGreaterThan(3);
+    for (const rule of rules) expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+    const marks = blockOf(css, /^\.dub-mark\s*\{/m);
+    expect(marks).toContain("var(--dub-mark-bg)");
+    expect(marks).toContain("var(--dub-mark-fg)");
   });
 
   it.each([["light", light], ["dark", dark]] as const)("%s defines every token", (_, set) => {

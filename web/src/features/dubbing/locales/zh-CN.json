@@ -21,7 +21,13 @@
         "hint": "依次点片段的第一句和最后一句。",
         "summary": "{{lines}} 句 · {{seconds}} 秒",
         "none": "还没有选择片段",
-        "start": "开始彩排"
+        "start": "开始彩排",
+        "mark": {
+          "start": "起",
+          "end": "止",
+          "both": "起止"
+        },
+        "half": "已选起点：第 {{n}} 句，再点一句作为终点。"
       },
       "roles": {
         "count": "{{count}} 句",
