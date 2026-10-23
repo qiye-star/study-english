@@ -1,0 +1,116 @@
+{
+  "web": {
+    "chat": {
+      "home": {
+        "greeting": {
+          "title": "Today's greeting",
+          "tapHint": "Tap anywhere to continue",
+          "skip": "Skip",
+          "skipAria": "Skip the greeting and go to today's chat",
+          "stats": {
+            "streak": "{{n}}-day streak",
+            "due": "To review: {{n}}",
+            "mistakes": "Yesterday's slip-ups: {{n}}",
+            "streakSr": "{{n}}-day study streak",
+            "dueSr": "{{n}} words to review",
+            "mistakesSr": "{{n}} slip-ups yesterday",
+            "sep": ", "
+          }
+        },
+        "route": {
+          "loading": "Loading chat…",
+          "loadFailed": "Today's chat could not be loaded.",
+          "retry": "Retry"
+        },
+        "bar": {
+          "historyOpen": "Chat history",
+          "settingsOpen": "Chat settings",
+          "today": "Today · {{weekday}}",
+          "dailyKind": "Daily chat",
+          "persona": "{{name}} · {{kind}}"
+        },
+        "drawer": {
+          "title": "Chats",
+          "close": "Close chat history",
+          "new": "New chat",
+          "todayTag": "Today · Daily chat",
+          "dailyRow": "Daily chat · {{date}}",
+          "more": "More actions",
+          "delete": "Delete",
+          "deleteToday": "Delete today's chat?",
+          "deleteTodayBody": "Your replies in it will be deleted. Today's greeting is kept and the chat starts over.",
+          "loadMore": "Load more",
+          "loading": "Loading…",
+          "empty": "No earlier chats yet.",
+          "loadFailed": "Could not load your chats.",
+          "retry": "Retry",
+          "rebuildFailed": "Today's chat could not be restarted.",
+          "noPreview": "No messages yet"
+        },
+        "date": {
+          "today": "Today",
+          "yesterday": "Yesterday",
+          "dailyShort": "{{date}}"
+        },
+        "settings": {
+          "title": "Chat settings",
+          "done": "Done",
+          "role": {
+            "title": "Role · this chat",
+            "more": "More roles / manage…",
+            "daily": "Use this role every day",
+            "dailyHint": "Today's chat and every new daily chat start with it."
+          },
+          "language": {
+            "title": "Greeting language · all chats",
+            "zh": "中文",
+            "en": "English",
+            "bilingual": "中英双语",
+            "group": "Greeting language",
+            "hint": "Today's greeting stays as it is and the new language starts tomorrow. Reply hints change right away."
+          },
+          "trigger": {
+            "title": "When to greet · all chats",
+            "group": "When to greet",
+            "daily": "Daily",
+            "every_open": "Every open",
+            "off": "Off",
+            "dailyHint": "Greets you the first time you open the app each day.",
+            "every_openHint": "Replays today's greeting every time you open the app. No new messages are added.",
+            "offHint": "No pop-up and no new greetings. Existing ones stay in your chats."
+          },
+          "stats": {
+            "label": "Mention my study stats",
+            "hint": "When off, greetings stop mentioning your streak, words to review and slip-ups. Today's greeting text stays as it is and the change starts tomorrow."
+          },
+          "thisChat": {
+            "title": "This chat"
+          },
+          "replay": "Replay today's greeting",
+          "globalFailed": "Could not load these settings.",
+          "retry": "Retry",
+          "saveFailed": "Could not save the setting."
+        },
+        "newChat": {
+          "title": "New chat",
+          "hint": "Pick a role to start. Each chat can have its own role, and you can change it any time.",
+          "pickRole": "Choose a role",
+          "fromScenario": "Start from a scenario",
+          "justStart": "Start chatting",
+          "createFailed": "Could not start the chat. Please try again."
+        },
+        "roleHint": {
+          "text": "Choose a role here. Each chat can have its own role, and you can change it any time.",
+          "gotIt": "Got it"
+        },
+        "emptyDay": {
+          "title": "No messages yet today",
+          "hint": "Say something in English to begin."
+        },
+        "group": {
+          "title": "✦ Today's greeting · {{time}}"
+        }
+      }
+    }
+  }
+}

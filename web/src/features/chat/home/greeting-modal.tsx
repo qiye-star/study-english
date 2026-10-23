@@ -10,6 +10,7 @@ import { greetingTimeline } from "./greeting-tokens";
 import { lineText, type GreetingFacts, type GreetingLanguage, type GreetingLine } from "./greeting-types";
 import { animate, useReducedMotion } from "./motion";
 import "./greeting.css";
+import "./locales";
 
 /** 倒计时长度:从最后一行开始出现时算起(演示页 COUNTDOWN)。 */
 export const COUNTDOWN_MS = 5000;

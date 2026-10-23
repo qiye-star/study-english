@@ -54,16 +54,7 @@
         "assessmentNotConfigured": "Pronunciation assessment is not configured on the server.",
         "configTooLarge": "These settings are too large to save."
       },
-      "callBlocked": { "unsent": "Send, retry or discard the unsent message first, then start the call." },
-      "home": {
-        "greeting": {
-          "title": "Today's greeting", "tapHint": "Tap anywhere to continue", "skip": "Skip", "skipAria": "Skip the greeting and go to today's chat",
-          "stats": {
-            "streak": "{{n}}-day streak", "due": "To review: {{n}}", "mistakes": "Yesterday's slip-ups: {{n}}",
-            "streakSr": "{{n}}-day study streak", "dueSr": "{{n}} words to review", "mistakesSr": "{{n}} slip-ups yesterday", "sep": ", "
-          }
-        }
-      }
+      "callBlocked": { "unsent": "Send, retry or discard the unsent message first, then start the call." }
     }
   }
 }

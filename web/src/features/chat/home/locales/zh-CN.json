@@ -1,0 +1,116 @@
+{
+  "web": {
+    "chat": {
+      "home": {
+        "greeting": {
+          "title": "今日问候",
+          "tapHint": "轻点任意处继续",
+          "skip": "跳过",
+          "skipAria": "跳过问候,进入今天的对话",
+          "stats": {
+            "streak": "连续 {{n}} 天",
+            "due": "{{n}} 词待复习",
+            "mistakes": "昨天 {{n}} 处错点",
+            "streakSr": "连续学习 {{n}} 天",
+            "dueSr": "{{n}} 个词待复习",
+            "mistakesSr": "昨天有 {{n}} 处错点",
+            "sep": ","
+          }
+        },
+        "route": {
+          "loading": "正在加载对话…",
+          "loadFailed": "今天的对话加载失败",
+          "retry": "重试"
+        },
+        "bar": {
+          "historyOpen": "对话历史",
+          "settingsOpen": "对话设置",
+          "today": "今天 · {{weekday}}",
+          "dailyKind": "每日对话",
+          "persona": "{{name}} · {{kind}}"
+        },
+        "drawer": {
+          "title": "对话",
+          "close": "关闭对话历史",
+          "new": "新建对话",
+          "todayTag": "今日 · 每日对话",
+          "dailyRow": "每日对话 · {{date}}",
+          "more": "更多操作",
+          "delete": "删除",
+          "deleteToday": "删除今天的对话?",
+          "deleteTodayBody": "你在里面的回复会被删除;今天的问候会保留,对话会重新开始。",
+          "loadMore": "加载更多",
+          "loading": "正在加载…",
+          "empty": "还没有更早的对话。",
+          "loadFailed": "对话列表加载失败",
+          "retry": "重试",
+          "rebuildFailed": "今天的对话没能重新开始",
+          "noPreview": "还没有消息"
+        },
+        "date": {
+          "today": "今天",
+          "yesterday": "昨天",
+          "dailyShort": "{{date}}"
+        },
+        "settings": {
+          "title": "对话设置",
+          "done": "完成",
+          "role": {
+            "title": "角色 · 本对话",
+            "more": "更多角色 / 管理…",
+            "daily": "以后每天都用这个角色",
+            "dailyHint": "今天的对话和以后每天的新对话都从它开始。"
+          },
+          "language": {
+            "title": "问候语言 · 全局",
+            "zh": "中文",
+            "en": "English",
+            "bilingual": "中英双语",
+            "group": "问候语言",
+            "hint": "今天的问候不变,明天起生效;回复提示立即生效。"
+          },
+          "trigger": {
+            "title": "问候时机 · 全局",
+            "group": "问候时机",
+            "daily": "每天首次",
+            "every_open": "每次上线",
+            "off": "关闭",
+            "dailyHint": "每天第一次打开时问候你。",
+            "every_openHint": "每次打开都重放今天的问候,不会追加新消息。",
+            "offHint": "不再弹出,也不再生成新的问候;已有的保留在对话里。"
+          },
+          "stats": {
+            "label": "问候里提学习数据",
+            "hint": "关闭后,问候不再提连续天数、待复习和错点;今天的问候正文不变,明天起生效。"
+          },
+          "thisChat": {
+            "title": "本对话"
+          },
+          "replay": "重播今天的问候",
+          "globalFailed": "这些设置加载失败",
+          "retry": "重试",
+          "saveFailed": "设置没能保存"
+        },
+        "newChat": {
+          "title": "新对话",
+          "hint": "先选一个角色再开始。每个对话都可以有自己的角色,随时能换。",
+          "pickRole": "选择角色",
+          "fromScenario": "从场景开始",
+          "justStart": "直接开始",
+          "createFailed": "对话没能开始,请重试"
+        },
+        "roleHint": {
+          "text": "在这里选择角色。每个对话都可以有自己的角色,随时能换。",
+          "gotIt": "知道了"
+        },
+        "emptyDay": {
+          "title": "今天还没有聊天",
+          "hint": "用英语说一句吧。"
+        },
+        "group": {
+          "title": "✦ 今日问候 · {{time}}"
+        }
+      }
+    }
+  }
+}

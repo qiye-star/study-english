@@ -33,7 +33,7 @@
 
 /* 3 段:字号随宽度变化,再乘 --gs(useFitGreeting:放不下时按 0.05 缩小,下限 0.72) */
 .greet-lines { --gs: 1; margin: auto 0; padding: 24px 0 6vh; }
-.greet-line { font-size: calc(clamp(17px, 4.8cqw, 20px) * var(--gs)); line-height: 1.55; letter-spacing: -.008em; font-weight: 400; color: rgb(var(--ink-2)); text-wrap: pretty; }
+.greet-line { font-size: calc(clamp(17px, 4.8cqw, 20px) * var(--gs)); line-height: 1.55; letter-spacing: -.008em; font-weight: 400; color: rgb(var(--ink)); text-wrap: pretty; }
 .greet-line + .greet-line { margin-top: calc(12px * var(--gs)); }
 .greet-lead { font-size: calc(clamp(24px, 7.2cqw, 30px) * var(--gs)); line-height: 1.28; letter-spacing: -.022em; font-weight: 650; color: rgb(var(--ink)); margin-bottom: calc(20px * var(--gs)); }
 .greet-sub { display: block; margin-top: 4px; font-size: calc(14px * max(var(--gs), .86)); line-height: 1.5; letter-spacing: 0; color: var(--greet-ink-2); font-weight: 400; }
@@ -43,7 +43,7 @@
 .greet-tk { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
 .greet-sp { white-space: pre; }
 .greet-em-run { white-space: nowrap; }
-.greet-em { font-style: normal; font-weight: 600; color: rgb(var(--blue)); }
+.greet-em { font-style: normal; font-weight: 600; color: var(--greet-em); }
 .greet-sub .greet-em { color: inherit; font-weight: 500; }
 
 .greet-bottom { display: flex; flex-direction: column; gap: 16px; }

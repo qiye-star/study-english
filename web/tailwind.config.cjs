@@ -67,6 +67,9 @@ const colors = {
   "on-graphite": rgb("on-graphite"),
   plate: "var(--plate)",
   scrim: "var(--scrim)",
+  // 每日问候弹窗(计划 2026-10-23-chat-home-daily-greeting-web FR15)
+  greet: { base: "var(--greet-base)", ink: "var(--greet-ink-2)", em: "var(--greet-em)", chip: "var(--greet-chip)", "chip-bd": "var(--greet-chip-bd)" },
+  aur: { a: "var(--aur-a)", b: "var(--aur-b)", c: "var(--aur-c)" },
 };
 
 const SYSTEM_SANS = [

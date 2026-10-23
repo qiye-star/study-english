@@ -61,6 +61,16 @@
   --ink-wash-2: rgba(17, 19, 24, 0.09);
   --plate: rgba(255, 255, 255, 0.9);
   --scrim: rgba(17, 19, 24, 0.24);
+  /* 每日问候弹窗(计划 2026-10-23-chat-home-daily-greeting-web FR15):--greet-base 不透明,弹层下不透出对话;--greet-ink-2 在极光上仍 ≥ 4.5:1(theme.test.ts) */
+  --greet-base: #f6f8fd;
+  --greet-ink-2: #4b5263;
+  --greet-em: #1f4bc4;
+  --greet-chip: rgba(255, 255, 255, 0.55);
+  --greet-chip-bd: rgba(255, 255, 255, 0.9);
+  --aur-a: rgba(36, 86, 219, 0.2);
+  --aur-b: rgba(142, 156, 255, 0.3);
+  --aur-c: rgba(120, 160, 255, 0.18);
+  --grain-o: 0.05;
   --page-top: rgb(246, 247, 248);
   --page-bottom: rgb(232, 234, 237);
   --page-flat: rgb(240, 242, 244);
@@ -168,6 +178,15 @@
   --ink-wash-2: rgba(255, 255, 255, 0.1);
   --plate: rgba(23, 25, 30, 0.9);
   --scrim: rgba(0, 0, 0, 0.5);
+  --greet-base: #0b0d15;
+  --greet-ink-2: #a3a9b6;
+  --greet-em: #8fb0ff;
+  --greet-chip: rgba(255, 255, 255, 0.05);
+  --greet-chip-bd: rgba(255, 255, 255, 0.09);
+  --aur-a: rgba(80, 120, 255, 0.26);
+  --aur-b: rgba(150, 150, 255, 0.2);
+  --aur-c: rgba(70, 110, 230, 0.16);
+  --grain-o: 0.06;
   --page-top: rgb(20, 22, 26);
   --page-bottom: rgb(9, 10, 11);
   --page-flat: rgb(16, 17, 20);

@@ -54,16 +54,7 @@
         "assessmentNotConfigured": "服务器未配置发音评测。",
         "configTooLarge": "设置内容过大,无法保存。"
       },
-      "callBlocked": { "unsent": "请先发送、重试或丢弃未发送的消息,再开始通话。" },
-      "home": {
-        "greeting": {
-          "title": "今日问候", "tapHint": "轻点任意处继续", "skip": "跳过", "skipAria": "跳过问候,进入今天的对话",
-          "stats": {
-            "streak": "连续 {{n}} 天", "due": "{{n}} 词待复习", "mistakes": "昨天 {{n}} 处错点",
-            "streakSr": "连续学习 {{n}} 天", "dueSr": "{{n}} 个词待复习", "mistakesSr": "昨天有 {{n}} 处错点", "sep": ","
-          }
-        }
-      }
+      "callBlocked": { "unsent": "请先发送、重试或丢弃未发送的消息,再开始通话。" }
     }
   }
 }
