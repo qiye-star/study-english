@@ -103,6 +103,9 @@ test("history drawer: opens, closes on Escape, and deleting today's chat rebuild
   await openHistory(page);
   await page.getByTestId("chat-history-today-delete").click();
   await page.getByTestId("conversation-delete-confirm").click();
+  // the drawer stays open after the delete (plan FR7 does not close it); close it to see the rebuilt chat
+  await expect(page.getByTestId("chat-history-today")).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("chat-history-drawer")).toHaveCount(0);
   await expect(page).toHaveURL(/\/chat$/);
   await expect(greetingBubbles(page)).toHaveCount(3);

@@ -7,7 +7,7 @@ import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } 
 import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
 import { ChatHubLayout } from "~/pages/chat-hub";
-import { ChatConversationRoute, ChatIndexRoute, ChatNewRoute, ConversationsPage } from "~/features/chat";
+import { ChatConversationRoute, ChatIndexRoute, ChatNewRoute } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage, ShadowPage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
@@ -85,8 +85,8 @@ export function AppRoutes() {
             <Route path="/practice/list" element={<PracticeListPage />} />
             <Route path="/practice/changelog" element={<ChangelogPage />} />
             <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
-            {/* 开关关 = 旧会话列表,仍包在「对话 / 联机」分区外壳里(plan L6);开 = 对话主页 */}
-            <Route path="/chat" element={<ChatIndexRoute renderOff={() => <ChatHubLayout section="chat">{(e) => <ConversationsPage embedded={e} />}</ChatHubLayout>} />} />
+            {/* 「对话 / 联机」切换条:开关关时在旧列表页头,开时在对话主页的消息列表顶部(plan L6 + chat home) */}
+            <Route path="/chat" element={<ChatHubLayout section="chat">{(e) => <ChatIndexRoute embedded={e} />}</ChatHubLayout>} />
             <Route path="/chat/new" element={<ChatNewRoute />} />
             <Route path="/chat/:id" element={<ChatConversationRoute />} />
             <Route path="/progress" element={<ProgressPage />} />

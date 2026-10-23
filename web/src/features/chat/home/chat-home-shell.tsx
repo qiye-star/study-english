@@ -1,5 +1,5 @@
 import "./locales";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
@@ -42,7 +42,7 @@ function TodayPlaceholder({ error, onRetry, onOpenHistory, historyOpen, historyB
  * 对话主页的新外框(懒加载块,FR1):今天的对话 / 新对话草稿 / 指定对话,共用同一个历史抽屉与设置面板。
  * 同一个 ConversationPage,换的只是外框插槽(顶栏、设置面板、空状态)。问候弹窗只属于 `kind="today"`(只在 /chat 出现,FR10)。
  */
-export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
+export default function ChatHomeShell({ kind, switcher }: { kind: HomeKind; switcher?: ReactNode }) {
   const { t, i18n } = useTranslation();
   const { api } = useAuth();
   const params = useParams();
@@ -69,6 +69,7 @@ export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
     historyOpen, onOpenHistory: () => setHistoryOpen(true), historyButtonRef,
     settingsOpen, onSettingsOpenChange: setSettingsOpen,
     greeting,
+    switcher: kind === "today" ? switcher : undefined,
     onReplay: kind === "today" && home.today?.status === "ready" && greeting ? popup.replay : undefined,
   });
   const openHistory = () => setHistoryOpen(true);

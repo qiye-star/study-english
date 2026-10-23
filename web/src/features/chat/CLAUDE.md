@@ -3,7 +3,7 @@
 Conversations with the AI tutor: text and voice messages, hold-to-talk, auto-speak TTS, hints, recap, scenarios, levels, bilingual translation, per-turn assessment and grammar.
 
 ## What lives here
-- Pages: `conversations-page.tsx` (takes an optional `embedded` = title + 对话分区 switch from `pages/chat-hub.tsx`, plan L6; chat never imports rooms; with the chat home flag off `app.tsx` passes the hub-wrapped list to `ChatIndexRoute` via `renderOff`), `conversation-page.tsx` (orchestration; large).
+- Pages: `conversations-page.tsx` (takes an optional `embedded` = title + 对话分区 switch from `pages/chat-hub.tsx`, plan L6; chat never imports rooms; `app.tsx` wraps `/chat` in `ChatHubLayout` and hands `embedded` to `ChatIndexRoute`: flag off = switch in the list header, flag on = switch at the top of the home message list (`beforeMessages`)), `conversation-page.tsx` (orchestration; large).
 - `lazy-pages.tsx` — the routed `ConversationPage` and (flag off) `ConversationsPage` are lazy (agents-web R-W2; chat home K5); tests import the page modules directly.
 - `home/` — chat home (`CHAT_HOME_ENABLED`): routes dispatch (`home/routes.tsx`, main bundle, tiny), lazy shell, history drawer, settings sheet, greeting modal / group / fly-in, store + open detection. Rules in `home/CLAUDE.md`; flag off = old pages unchanged.
 - `conversation-chrome.ts` / `classic-chrome.tsx` — `ConversationPage` takes an optional `chrome` (leading / actions / title / beforeMessages / renderMessage / emptyState / onLoaded) and `conversationId`; default = `CLASSIC_CHROME` (DOM unchanged, pinned by `conversation-page*.test.tsx`). The chat home passes `homeChrome(...)`. `MessageBubble` has an optional `body` (visible text of an assistant bubble; actions / TTS keep using `message.content`).

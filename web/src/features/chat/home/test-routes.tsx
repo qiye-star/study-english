@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 // 路由级测试共用:把 app.tsx 里的三条 /chat 路由 + 一个跳转探针放进同一棵树,并给出对话页要用的全部桩接口。
 import { Route, Routes, useNavigate } from "react-router-dom";
 import { json, type Handler } from "~/test/fetch-mock";
@@ -24,11 +25,11 @@ function NavProbe(): null {
   return null;
 }
 
-export function ChatRoutesHarness() {
+export function ChatRoutesHarness({ embedded }: { embedded?: ComponentProps<typeof ChatIndexRoute>["embedded"] }) {
   return (
     <>
       <Routes>
-        <Route path="/chat" element={<ChatIndexRoute />} />
+        <Route path="/chat" element={<ChatIndexRoute embedded={embedded} />} />
         <Route path="/chat/new" element={<ChatNewRoute />} />
         <Route path="/chat/:id" element={<ChatConversationRoute />} />
         <Route path="/practice" element={<p data-testid="practice-page">practice</p>} />

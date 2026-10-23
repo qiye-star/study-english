@@ -1,5 +1,6 @@
 import "fake-indexeddb/auto";
-import { act, configure, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import { act, configure, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,10 +22,10 @@ beforeAll(() => {
 beforeEach(() => { resetServerAiConfigCache(); resetChatHomeStore(); resetChatPrefsCache(); localStorage.removeItem(CHAT_HOME_SHOWN_KEY); });
 afterEach(() => { resetChatHomeStore(); localStorage.removeItem(CHAT_HOME_SHOWN_KEY); });
 
-function setup(route: string, extra: Record<string, Handler> = {}) {
+function setup(route: string, extra: Record<string, Handler> = {}, embedded?: ComponentProps<typeof ChatRoutesHarness>["embedded"]) {
   const mock = createFetchMock(chatHomeRoutes(extra));
   const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
-  renderWithProviders(<ChatRoutesHarness />, { api, route, path: "*" });
+  renderWithProviders(<ChatRoutesHarness embedded={embedded} />, { api, route, path: "*" });
   return { ...mock, api };
 }
 const callsTo = (mock: ReturnType<typeof createFetchMock>, method: string, path: string) =>
@@ -60,6 +61,18 @@ describe("chat home routes (CHAT_HOME_ENABLED)", () => {
     expect(callsTo(mock, "GET", "/api/conversations/c1")).toHaveLength(1);
     expect(callsTo(mock, "POST", "/api/chat-home/today")).toHaveLength(0);
     expect(screen.queryByTestId("greeting-modal")).toBeNull();
+  });
+
+  it("on: the chat / rooms switch handed in by app.tsx sits at the top of today's message list (rooms stay reachable)", async () => {
+    setup("/chat", {}, { switcher: <div data-testid="hub-switch" /> });
+    const list = await screen.findByTestId("message-list");
+    expect(await within(list).findByTestId("hub-switch")).toBeInTheDocument();
+  });
+
+  it("on: /chat/:id never shows the switch (only the home page does)", async () => {
+    setup("/chat/c1", {}, { switcher: <div data-testid="hub-switch" /> });
+    await screen.findByText("Trip planning");
+    expect(screen.queryByTestId("hub-switch")).toBeNull();
   });
 
   it("on: /chat/new is the local draft", async () => {

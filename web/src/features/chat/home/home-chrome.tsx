@@ -27,6 +27,8 @@ export interface HomeChromeProps {
   onSettingsOpenChange(open: boolean): void;
   /** 「重播今天的问候」(W10 接线;不传 = 设置面板里没有该入口) */
   onReplay?(): void;
+  /** 「对话 / 联机」切换条(app.tsx 经 ChatHubLayout 传入;联机关闭时为空)。放在消息列表顶部,联机的唯一入口 */
+  switcher?: React.ReactNode;
   /** 首次使用提示(FR8);对话主页上的对话从不显示 */
   hint?: { show: boolean; dismiss(): void };
   /** 今天的问候(store);当前对话 = 今天的默认对话时,它的三条助手消息显示为问候组(FR12) */
@@ -109,6 +111,7 @@ export function homeChrome(p: HomeChromeProps): ConversationChrome {
       return { title, subtitle };
     },
     renderMessage: group ? (m, node, ctl) => (ctl.conversation?.id === p.todayId ? group(m, node, ctl) : node) : undefined,
+    beforeMessages: p.switcher ? () => p.switcher : undefined,
     emptyState: () => <EmptyDay />,
   };
 }

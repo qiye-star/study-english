@@ -113,7 +113,7 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   await page.reload();
   await expect(page.getByTestId("message-user")).toHaveCount(1);
   await expect(page.getByTestId("message-assistant")).toHaveCount(1);
-  await expect(page.getByTestId("message-assistant")).toHaveText(replyText);
+  await expect(page.getByTestId("message-assistant")).toHaveText(replyText, { useInnerText: true }); // replyText is innerText: avatar initial, block breaks and action labels count the same on both sides
 
   // 朗读:真实 TTS 请求 200 + audio/*,按钮状态机经过 loading -> playing(无头环境不出声,但会进入播放态)
   const tts = page.getByTestId("message-assistant").locator("xpath=..").getByTestId("message-tts").last();
