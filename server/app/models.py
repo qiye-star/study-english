@@ -1168,6 +1168,7 @@ class CatalogSegment(Base):
     analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)  # L5 R4:镜像 library_segments.speaker
 
 
 class ChatGreeting(Base):
@@ -1201,7 +1202,6 @@ class ChatPrefs(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     data: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)  # L5 R4:镜像 library_segments.speaker
 
 
 # ---- 账号 v2 ----
