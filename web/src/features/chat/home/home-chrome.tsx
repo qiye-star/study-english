@@ -12,6 +12,8 @@ import { RoleHint } from "./role-hint";
 import { ChatSettingsSheet } from "./chat-settings-sheet";
 import { dailyDateText } from "./date-label";
 import { EmptyDay } from "./empty-day";
+import type { TodayGreeting } from "./chat-home-api";
+import { greetingRenderMessage } from "./greeting-group";
 
 export interface HomeChromeProps {
   t: TFunction;
@@ -27,9 +29,8 @@ export interface HomeChromeProps {
   onReplay?(): void;
   /** 首次使用提示(FR8);对话主页上的对话从不显示 */
   hint?: { show: boolean; dismiss(): void };
-  /** 追加的消息包装(问候组,W9) */
-  renderMessage?: ConversationChrome["renderMessage"];
-  beforeMessages?: ConversationChrome["beforeMessages"];
+  /** 今天的问候(store);当前对话 = 今天的默认对话时,它的三条助手消息显示为问候组(FR12) */
+  greeting?: TodayGreeting | null;
 }
 
 function HomeLeading({ ctl, p }: { ctl: ChromeCtl; p: HomeChromeProps }) {
@@ -91,6 +92,7 @@ const weekdayOf = (lang: string) => new Intl.DateTimeFormat(lang, { weekday: "sh
 
 /** 对话主页的外框(FR4):左 = 历史按钮;中 = 标题(今天 =「今天 · 周五」)+ 副标题(角色名 · 每日对话);右 = 通话 + 设置。 */
 export function homeChrome(p: HomeChromeProps): ConversationChrome {
+  const group = greetingRenderMessage(p.greeting, p.t, p.lang);
   return {
     renderLeading: (ctl) => <HomeLeading ctl={ctl} p={p} />,
     renderActions: (ctl) => <HomeActions ctl={ctl} p={p} />,
@@ -106,8 +108,7 @@ export function homeChrome(p: HomeChromeProps): ConversationChrome {
       const subtitle = name && kind ? p.t("web.chat.home.bar.persona", { name, kind }) : name ?? kind ?? undefined;
       return { title, subtitle };
     },
-    beforeMessages: p.beforeMessages,
-    renderMessage: p.renderMessage,
+    renderMessage: group ? (m, node, ctl) => (ctl.conversation?.id === p.todayId ? group(m, node, ctl) : node) : undefined,
     emptyState: () => <EmptyDay />,
   };
 }

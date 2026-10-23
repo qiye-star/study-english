@@ -37,7 +37,7 @@ export function BubbleActions({ children }: { children: ReactNode }) {
   return <div data-testid="bubble-actions" className="-mx-2 -mb-1.5 mt-1 flex select-none flex-wrap gap-1">{children}</div>;
 }
 
-export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled, partnerName, before, after, note }: {
+export function MessageBubble({ message, onRetry, actions, translation, footer, voiceDraft, playbackDisabled, partnerName, before, after, note, body }: {
   message: UiMessage;
   onRetry?: () => void;
   actions?: ReactNode;
@@ -53,6 +53,8 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
   after?: ReactNode;
   /** 助手气泡正文下方的「中文」折叠(智能体回复的 note_zh;只在完成后显示,不朗读) */
   note?: ReactNode;
+  /** 助手气泡正文的可见内容(缺省 = Markdown 渲染 `message.content`);对话主页的问候组用它显示带强调的问候,动作与朗读仍用原消息内容 */
+  body?: ReactNode;
 }) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
@@ -110,7 +112,7 @@ export function MessageBubble({ message, onRetry, actions, translation, footer, 
           ) : isUser || error ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
           ) : (
-            <MarkdownText content={message.content || "…"} />
+            body ?? <MarkdownText content={message.content || "…"} />
           )}
         </div>
       )}

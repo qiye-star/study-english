@@ -61,6 +61,7 @@ export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
     t, lang: i18n.language, todayId,
     historyOpen, onOpenHistory: () => setHistoryOpen(true), historyButtonRef,
     settingsOpen, onSettingsOpenChange: setSettingsOpen,
+    greeting: home.today?.greeting,
   });
   const openHistory = () => setHistoryOpen(true);
 

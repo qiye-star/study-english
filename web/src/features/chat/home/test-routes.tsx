@@ -10,7 +10,7 @@ const CONFIG = TODAY.conversation.config;
 export const stripStars = (s: string) => s.replace(/\*/g, "");
 /** 问候的三条助手消息(内容 = 去掉强调标记的英文主句,和服务端写入的一致) */
 export const GREETING_MESSAGES = TODAY.greeting.message_ids.map((id, i) => ({
-  id, conversation_id: "c-today", role: "assistant", content: stripStars(TODAY.greeting.lines[i].en),
+  id, conversation_id: "c-today", role: "assistant", content: `${stripStars(TODAY.greeting.lines[i].en)}\n\n${stripStars(TODAY.greeting.lines[i].zh)}`,
   created_at: "2026-10-23T00:42:10Z",
 }));
 
