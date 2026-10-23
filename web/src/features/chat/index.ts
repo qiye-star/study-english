@@ -7,3 +7,4 @@ export { useMessageTranslations, type TranslationState } from "./use-message-tra
 export { sharedTtsCache } from "./tts";
 export { clearHintsMemory } from "./hints";
 export { clearComposerMode } from "./composer-mode";
+export { clearChatHomeCache } from "./home/chat-home-cache";

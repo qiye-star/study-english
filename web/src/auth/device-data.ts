@@ -1,5 +1,5 @@
 import { bumpGrammarRev } from "~/features/grammar";
-import { sharedTtsCache, clearHintsMemory, clearComposerMode } from "~/features/chat";
+import { sharedTtsCache, clearHintsMemory, clearComposerMode, clearChatHomeCache } from "~/features/chat";
 import { kvClear } from "~/lib/kv-cache";
 import { resetPlaybackRate } from "~/lib/playback-rate";
 import { CHANGELOG_PREFS_KEY, GLASS_THEME_KEY, PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, removeKey } from "~/lib/storage";
@@ -46,6 +46,11 @@ export function clearDeviceData(): void {
   }
   try {
     clearHintsMemory();
+  } catch {
+    /* ignore */
+  }
+  try {
+    clearChatHomeCache(); // 对话主页:内存里的今天结果 + 两个本机标记
   } catch {
     /* ignore */
   }
