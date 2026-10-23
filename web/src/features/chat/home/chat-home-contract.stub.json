@@ -1,0 +1,61 @@
+{
+  "_note": "Web-side stub of server/tests/fixtures/chat_home_contract.json (server plan 5.1; the real fixture is produced by server task S10). chat-home-contract.test.ts reads the server fixture when it exists and this stub otherwise.",
+  "config": { "enabled": true, "llm": true },
+  "settings": { "greeting_trigger": "daily", "language": "bilingual", "daily_persona_id": "builtin:partner", "include_stats": true },
+  "today_ready_bilingual": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": {
+      "id": "c-today", "name": "2026-10-23", "daily_date": "2026-10-23",
+      "created_at": "2026-10-23T00:42:00Z", "updated_at": "2026-10-23T00:42:10Z",
+      "config": { "system_prompt": "", "model": "gpt-4o", "temperature": 0.7, "tts_model": "openai/tts-1", "tts_voice": "alloy", "agent_persona_id": "builtin:partner", "zh_note": "always", "bilingual": true, "auto_speak": true }
+    },
+    "greeting": {
+      "id": "g1", "message_ids": ["m1", "m2", "m3"], "source": "llm", "language": "bilingual",
+      "generated_at": "2026-10-23T00:42:10Z",
+      "lines": [
+        { "en": "Good morning, and you're on a *23-day streak* — that steady effort adds up.", "zh": "早上好,你已经连续学了 *23 天*。" },
+        { "en": "You have *12 words* due, and yesterday's slip was *went* — the right form is *gone*.", "zh": "今天有 *12 个词* 待复习,昨天把 gone 说成了 went。" },
+        { "en": "Today, spend *10 minutes* on the present perfect, then clear your review list.", "zh": "先用现在完成时练 *10 分钟*,再复习单词。" }
+      ],
+      "facts": { "streak": 23, "due": 12, "yesterday_mistakes": 2 },
+      "first_view": true
+    }
+  },
+  "today_ready_zh": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": { "id": "c-today", "name": "2026-10-23", "daily_date": "2026-10-23", "created_at": "2026-10-23T00:42:00Z", "updated_at": "2026-10-23T00:42:10Z",
+      "config": { "system_prompt": "", "model": "gpt-4o", "temperature": 0.7, "tts_model": "openai/tts-1", "tts_voice": "alloy", "agent_persona_id": "builtin:partner", "zh_note": "always" } },
+    "greeting": {
+      "id": "g1", "message_ids": ["m1", "m2", "m3"], "source": "template", "language": "zh", "generated_at": "2026-10-23T00:42:10Z",
+      "lines": [{ "zh": "早上好,连续学习 *23 天*。" }, { "zh": "今天有 *12 个词* 待复习。" }, { "zh": "先练 *10 分钟*。" }],
+      "facts": { "streak": 23, "due": 12 },
+      "first_view": false
+    }
+  },
+  "today_ready_no_stats": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": { "id": "c-today", "name": "2026-10-23", "daily_date": "2026-10-23", "created_at": "2026-10-23T00:42:00Z", "updated_at": "2026-10-23T00:42:10Z",
+      "config": { "system_prompt": "", "model": "gpt-4o", "temperature": 0.7, "tts_model": "openai/tts-1", "tts_voice": "alloy", "agent_persona_id": "builtin:partner" } },
+    "greeting": {
+      "id": "g1", "message_ids": ["m1", "m2", "m3"], "source": "llm", "language": "en", "generated_at": "2026-10-23T00:42:10Z",
+      "lines": [{ "en": "Good morning!" }, { "en": "Ready to review?" }, { "en": "Let's practice for *10 minutes*." }],
+      "facts": {},
+      "first_view": true
+    }
+  },
+  "today_pending": {
+    "local_date": "2026-10-23", "status": "pending",
+    "conversation": { "id": "c-today", "name": "2026-10-23", "daily_date": "2026-10-23", "created_at": "2026-10-23T00:42:00Z", "updated_at": "2026-10-23T00:42:00Z",
+      "config": { "system_prompt": "", "model": "gpt-4o", "temperature": 0.7, "tts_model": "openai/tts-1", "tts_voice": "alloy", "agent_persona_id": "builtin:partner" } },
+    "greeting": null
+  },
+  "today_off": {
+    "local_date": "2026-10-23", "status": "off",
+    "conversation": { "id": "c-today", "name": "2026-10-23", "daily_date": "2026-10-23", "created_at": "2026-10-23T00:42:00Z", "updated_at": "2026-10-23T00:42:00Z",
+      "config": { "system_prompt": "", "model": "gpt-4o", "temperature": 0.7, "tts_model": "openai/tts-1", "tts_voice": "alloy", "agent_persona_id": "builtin:partner" } },
+    "greeting": null
+  }
+}
