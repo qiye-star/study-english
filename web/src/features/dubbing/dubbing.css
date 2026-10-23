@@ -1,0 +1,144 @@
+/*
+ * 配音页的视觉令牌与角色身份色(计划 2026-10-23-zh-defs-dub-roles-chat-home,R-B3/R-B4)。
+ * 随懒加载块进入(role-identity.tsx、clip-picker.tsx 导入),不进主包、不改 theme.css:角色色是身份色,不是 theme.css 里「一个色相一个含义」的语义色。
+ * 只在 .dub-root 内生效(dub-item-page.tsx 的根 div);深色跟随 html.dark。
+ * 取值刻意柔和:选中行是淡淡的浅底,不用实心深色或饱和填充;对比度由 dubbing-css.test.ts 守着。
+ */
+
+.dub-root {
+  --dub-sel: #f3f6ff;
+  --dub-sel-bd: #d5ddf7;
+  --dub-sel-bar: #8aa0e8;
+  --dub-mark-bg: #e4eafc;
+  --dub-mark-fg: #2a3f8f;
+  --dub-role-a: #d6383a;
+  --dub-role-b: #2f6fe0;
+  --dub-role-c: #1f9254;
+  --dub-role-d: #b9770a;
+  --dub-role-e: #8a47d6;
+  --dub-role-f: #d2570f;
+  --dub-role-a-soft: #fdeeee;
+  --dub-role-b-soft: #eaf1ff;
+  --dub-role-c-soft: #e6f7ee;
+  --dub-role-d-soft: #fdf4df;
+  --dub-role-e-soft: #f4ecfc;
+  --dub-role-f-soft: #fdefe6;
+}
+
+.dark .dub-root {
+  --dub-sel: #1d2230;
+  --dub-sel-bd: #2f3850;
+  --dub-sel-bar: #6f84c9;
+  --dub-mark-bg: #27304a;
+  --dub-mark-fg: #c9d4ff;
+  --dub-role-a: #ff7a7c;
+  --dub-role-b: #7aaaff;
+  --dub-role-c: #5fd596;
+  --dub-role-d: #f0b44a;
+  --dub-role-e: #c597ff;
+  --dub-role-f: #ff9a5e;
+  --dub-role-a-soft: #4a2325;
+  --dub-role-b-soft: #22335a;
+  --dub-role-c-soft: #1d4231;
+  --dub-role-d-soft: #4a3a14;
+  --dub-role-e-soft: #3c2858;
+  --dub-role-f-soft: #4d2e1a;
+}
+
+/* ===== 角色色点与小标:颜色永远伴随文字(圆点 aria-hidden,名字里带颜色词) ===== */
+.dub-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dub-dot[data-role-color="red"] { background: var(--dub-role-a); }
+.dub-dot[data-role-color="blue"] { background: var(--dub-role-b); }
+.dub-dot[data-role-color="green"] { background: var(--dub-role-c); }
+.dub-dot[data-role-color="yellow"] { background: var(--dub-role-d); }
+.dub-dot[data-role-color="purple"] { background: var(--dub-role-e); }
+.dub-dot[data-role-color="orange"] { background: var(--dub-role-f); }
+
+.dub-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 2px 9px 2px 7px;
+  white-space: nowrap;
+  color: rgb(var(--ink));
+}
+.dub-tag[data-role-color="red"] { background: var(--dub-role-a-soft); }
+.dub-tag[data-role-color="blue"] { background: var(--dub-role-b-soft); }
+.dub-tag[data-role-color="green"] { background: var(--dub-role-c-soft); }
+.dub-tag[data-role-color="yellow"] { background: var(--dub-role-d-soft); }
+.dub-tag[data-role-color="purple"] { background: var(--dub-role-e-soft); }
+.dub-tag[data-role-color="orange"] { background: var(--dub-role-f-soft); }
+
+/* ===== 选角色卡:左边框用角色色,选中用淡底 + 对勾 ===== */
+.dub-role-card {
+  background: var(--dub-sel);
+  border: 1px solid var(--dub-sel-bd);
+  border-left-width: 6px;
+  color: rgb(var(--ink));
+}
+.dub-role-card[data-role-color="red"] { border-left-color: var(--dub-role-a); }
+.dub-role-card[data-role-color="blue"] { border-left-color: var(--dub-role-b); }
+.dub-role-card[data-role-color="green"] { border-left-color: var(--dub-role-c); }
+.dub-role-card[data-role-color="yellow"] { border-left-color: var(--dub-role-d); }
+.dub-role-card[data-role-color="purple"] { border-left-color: var(--dub-role-e); }
+.dub-role-card[data-role-color="orange"] { border-left-color: var(--dub-role-f); }
+.dub-role-card[aria-pressed="false"] { background: rgb(var(--surface)); }
+
+/* ===== 选段(效果 A 柔和版):淡底整行 + 左侧色条 + 起 / 止小标;状态由 li 的 data-sel 驱动 ===== */
+.dub-clip-row {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--ink) / 0.1);
+}
+.dub-clip-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--dub-sel-bar);
+  opacity: 0;
+}
+.dub-clip-row[data-sel="start"],
+.dub-clip-row[data-sel="mid"],
+.dub-clip-row[data-sel="end"],
+.dub-clip-row[data-sel="single"] {
+  background: var(--dub-sel);
+  border-color: var(--dub-sel-bd);
+}
+.dub-clip-row[data-sel="start"]::before,
+.dub-clip-row[data-sel="mid"]::before,
+.dub-clip-row[data-sel="end"]::before,
+.dub-clip-row[data-sel="single"]::before {
+  opacity: 1;
+}
+.dub-clip-row[data-sel="half"] {
+  border: 1px dashed var(--dub-sel-bar);
+}
+.dub-clip-row[data-sel="half"]::before {
+  opacity: 1;
+}
+.dub-clip-row[data-sel="none"] .dub-clip-text {
+  font-weight: 400;
+}
+.dub-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--dub-mark-bg);
+  color: var(--dub-mark-fg);
+}

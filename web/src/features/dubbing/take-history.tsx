@@ -1,6 +1,7 @@
 import "./locales";
 import { useTranslation } from "react-i18next";
-import type { DubbingTake } from "./dubbing-api";
+import type { DubbingTake, RoleKey } from "./dubbing-api";
+import { RoleTag } from "./role-identity";
 import type { TakeResult } from "./take-runner";
 
 /**
@@ -11,7 +12,14 @@ export function reopenedResult(take: DubbingTake): TakeResult {
 }
 
 /** 本人之前的录音(服务端 `GET /api/dubbing/items/{id}/takes`,最近 20 条)。只列出已完成的可以打开。 */
-export function TakeHistory({ takes, onOpen }: { takes: readonly DubbingTake[]; onOpen(take: DubbingTake): void }) {
+export function TakeHistory({
+  takes, names, onOpen,
+}: {
+  takes: readonly DubbingTake[];
+  /** 用户保存的角色名(没有就用默认名)。 */
+  names?: Partial<Record<RoleKey, string>>;
+  onOpen(take: DubbingTake): void;
+}) {
   const { t } = useTranslation();
   if (takes.length === 0) return null;
   return (
@@ -20,7 +28,7 @@ export function TakeHistory({ takes, onOpen }: { takes: readonly DubbingTake[]; 
       <ul className="space-y-1.5">
         {takes.map((take) => (
           <li key={take.id} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-[13px]">
-            <span className="font-semibold">{take.role}</span>
+            <RoleTag role={take.role} custom={names?.[take.role]} />
             <span className="flex-1 opacity-80">{new Date(take.createdAt).toLocaleString()}</span>
             {take.status === "done" ? (
               <>

@@ -154,7 +154,7 @@ export function DubSession(props: DubSessionProps) {
       />
       {phase === "rehearse" ? (
         <>
-          <RehearsalView roleName={roleName} lines={rehearseLines} onRehearse={playRehearsal} onStart={startRecording} onBack={onExit} />
+          <RehearsalView role={role} roleName={roleName} lines={rehearseLines} onRehearse={playRehearsal} onStart={startRecording} onBack={onExit} />
         </>
       ) : (
         <RecordingView

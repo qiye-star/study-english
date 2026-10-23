@@ -21,17 +21,40 @@
         "hint": "依次点片段的第一句和最后一句。",
         "summary": "{{lines}} 句 · {{seconds}} 秒",
         "none": "还没有选择片段",
-        "start": "开始彩排"
+        "start": "开始彩排",
+        "mark": {
+          "start": "起",
+          "end": "止",
+          "both": "起止"
+        },
+        "half": "已选起点：第 {{n}} 句，再点一句作为终点。"
       },
       "roles": {
-        "role": "角色 {{key}}",
         "count": "{{count}} 句",
-        "rename": "给角色 {{key}} 改名",
-        "nameFor": "角色 {{key}} 的名字",
+        "rename": "给{{role}}改名",
+        "nameFor": "{{role}}的名字",
         "save": "保存名字",
         "editShort": "改名",
         "heading": "选择你的角色",
-        "sentenceRole": "第 {{n}} 句的角色"
+        "sentenceRole": "第 {{n}} 句的角色：{{role}}",
+        "label": "{{color}}·{{name}}",
+        "default": {
+          "A": "Alex",
+          "B": "Bella",
+          "C": "Chris",
+          "D": "Dana",
+          "E": "Ethan",
+          "F": "Fiona"
+        },
+        "color": {
+          "red": "红",
+          "blue": "蓝",
+          "green": "绿",
+          "yellow": "黄",
+          "purple": "紫",
+          "orange": "橙"
+        },
+        "unassigned": "未分配"
       },
       "result": {
         "saved": "录音已保存,总分 {{total}}。",

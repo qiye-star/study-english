@@ -21,17 +21,40 @@
         "hint": "Tap the first and the last sentence of your clip.",
         "summary": "{{lines}} sentences · {{seconds}} s",
         "none": "No clip selected yet",
-        "start": "Start rehearsal"
+        "start": "Start rehearsal",
+        "mark": {
+          "start": "Start",
+          "end": "End",
+          "both": "Start–End"
+        },
+        "half": "Start set at sentence {{n}}. Tap another sentence to end the clip."
       },
       "roles": {
-        "role": "Role {{key}}",
         "count": "{{count}} sentences",
-        "rename": "Rename role {{key}}",
-        "nameFor": "Name for role {{key}}",
+        "rename": "Rename {{role}}",
+        "nameFor": "Name for {{role}}",
         "save": "Save name",
         "editShort": "Edit",
         "heading": "Choose your role",
-        "sentenceRole": "Role of sentence {{n}}"
+        "sentenceRole": "Role of sentence {{n}}: {{role}}",
+        "label": "{{color}}·{{name}}",
+        "default": {
+          "A": "Alex",
+          "B": "Bella",
+          "C": "Chris",
+          "D": "Dana",
+          "E": "Ethan",
+          "F": "Fiona"
+        },
+        "color": {
+          "red": "Red",
+          "blue": "Blue",
+          "green": "Green",
+          "yellow": "Yellow",
+          "purple": "Purple",
+          "orange": "Orange"
+        },
+        "unassigned": "No role"
       },
       "result": {
         "saved": "Recording saved. Total score {{total}}.",
