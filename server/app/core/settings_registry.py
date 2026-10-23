@@ -14,7 +14,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("features", "功能开关"), ("registration", "注册与访问"), ("limits", "限流与配额"), ("llm", "大模型"),
     ("grammar", "语法检查"), ("tts", "语音合成"), ("asr", "语音识别"), ("assessment", "发音评测"),
     ("realtime", "实时通话"), ("rank", "段位赛"), ("rooms", "联机练习"), ("wordbook", "背单词"),
-    ("links", "学习联动"), ("agents", "智能体"), ("library", "跟读库"),
+    ("links", "学习联动"), ("agents", "智能体"), ("chat_home", "对话主页"), ("library", "跟读库"),
     ("admin", "管理端"),
     ("ops", "运维与维护"), ("system", "系统(只读)"),
 )
@@ -263,6 +263,14 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("agents_history_chars_max", "agents", "int", "带入历史的总字数上限", help_zh="从最新一条往前取,整条放得下才带入,不截断单条"),
     _s("agents_chat_max_tokens", "agents", "int", "聊天回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
     _s("agents_tutor_max_tokens", "agents", "int", "导师回复 max_tokens", help_zh="同时受 LLM_MAX_TOKENS 约束"),
+    # 对话主页与每日问候(计划 2026-10-23-chat-home-daily-greeting R6、R9)
+    _s("chat_home_enabled", "chat_home", "bool", "对话主页与每日问候",
+       help_zh="关 = /api/chat-home/* 除 config 外 404,网页保持旧对话列表"),
+    _s("chat_greeting_llm_enabled", "chat_home", "bool", "问候用大模型生成",
+       help_zh="关 = 只用模板问候,零上游成本;每人每天最多 1 次调用", danger=_COST),
+    _s("chat_greeting_model", "chat_home", "str", "问候模型", help_zh="留空 = 智能体模型"),
+    _s("chat_greeting_timeout_seconds", "chat_home", "int", "问候生成超时(秒)", help_zh="超时 = 用模板问候"),
+    _s("chat_greeting_global_daily", "chat_home", "int", "全站每日问候生成上限", danger=_COST),
     # 跟读库(设计文档 2026-10-13-video-import §5.2)
     _s("library_asr_enabled", "library", "bool", "无字幕时自动转写", help_zh="用现有语音识别上游;受每日分钟数限制",
        danger=_COST),

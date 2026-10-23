@@ -245,6 +245,13 @@ class Settings(BaseSettings):
     agents_chat_max_tokens: int = Field(300, ge=64, le=2000)  # 计划 R-C9
     agents_tutor_max_tokens: int = Field(350, ge=64, le=2000)
 
+    # 对话主页与每日问候(plan 2026-10-23-chat-home-daily-greeting R6/R9);总开关关 = /api/chat-home/* 除 config 外 404
+    chat_home_enabled: bool = False
+    chat_greeting_llm_enabled: bool = True  # 关 = 只用模板问候,零上游成本
+    chat_greeting_model: str = ""
+    chat_greeting_timeout_seconds: int = Field(6, ge=1, le=20)
+    chat_greeting_global_daily: int = Field(2000, ge=0, le=100000)
+
     # 跟读库(spec 2026-10-13-video-import §5.2);总开关关 = /api/library/* 除 config 外 404
     library_enabled: bool = False
     library_asr_enabled: bool = False
@@ -444,6 +451,10 @@ class Settings(BaseSettings):
     @property
     def resolved_agents_model(self) -> str:
         return self.agents_model.strip() or self.default_llm_model
+
+    @property
+    def resolved_chat_greeting_model(self) -> str:
+        return self.chat_greeting_model.strip() or self.resolved_agents_model
 
     @property
     def resolved_agents_memory_model(self) -> str:
