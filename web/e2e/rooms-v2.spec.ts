@@ -23,7 +23,8 @@ async function member(browser: Browser, contexts: BrowserContext[], request: Par
   contexts.push(context);
   const page = await context.newPage();
   const creds = await signIn(page, request);
-  return { page, name: creds.username };
+  // 其他成员看到的是昵称(邮箱注册的账号有昵称),没有昵称时才是用户名
+  return { page, name: creds.nickname ?? creds.username };
 }
 
 test("rooms v2: approval join, quote, reaction, typing, docked assistant, invite link, voice bubble", async ({ browser, request, browserName }) => {

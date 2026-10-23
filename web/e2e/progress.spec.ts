@@ -17,8 +17,8 @@ test("the progress page shows today's activity", async ({ page, request }) => {
     return (await (await fetch(`/api/conversations/${id}/messages`, { headers: { Authorization: `Bearer ${t}` } })).json()).messages.length;
   }), { timeout: 60_000 }).toBe(2);
 
-  await page.getByTestId("nav-practice").click();
-  await page.getByTestId("practice-progress").click();
+  await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-progress").click();
   const stats = page.waitForResponse((r) => r.url().includes("/api/stats?days=7"));
   await expect(page.getByTestId("progress-messages")).toHaveText("1");
   expect((await stats).url()).toMatch(/tz_offset_minutes=-?\d+/);

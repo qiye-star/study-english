@@ -19,14 +19,14 @@ export function newCredentials() {
 export async function registerViaApi(request: APIRequestContext) {
   if (process.env.E2E_COMPOSE_PROJECT) {
     const a = await registerWithEmailViaApi(request, INVITE_CODE);
-    return { username: a.username, password: a.password, token: a.token };
+    return { username: a.username, password: a.password, token: a.token, nickname: a.nickname };
   }
   const creds = newCredentials();
   const r = await request.post("/api/users", {
     data: { username: creds.username, password: creds.password, invite_code: INVITE_CODE },
   });
   expect(r.status(), await r.text()).toBe(200);
-  return { ...creds, token: (await r.json()).access_token as string };
+  return { ...creds, token: (await r.json()).access_token as string, nickname: undefined as string | undefined };
 }
 
 export async function loginViaUi(page: Page, username: string, password: string): Promise<void> {
