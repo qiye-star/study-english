@@ -24,6 +24,7 @@ from app.core.runtime_settings import (
 )
 from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
+from app.links.greeting_facts import install as install_greeting_facts
 from app.links.setup import install as install_links
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
@@ -98,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_links(app)  # gate + each link's subscriptions (app.links.registry)
     agents_runtime(app)  # agents spec §3.3: sources, modes, hooks, idempotency ledger (plan R-C2); the only access is runtime(app)
     install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
+    install_greeting_facts(app)  # daily greeting: wordbook-backed facts source (plan 2026-10-23 R3)
     # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
     install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
     agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
