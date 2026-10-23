@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { newAccount, registerInUi } from "./support/accounts";
-import { loginViaUi, registerViaApi } from "./support/auth";
+import { HOME_URL, loginViaUi, registerViaApi } from "./support/auth";
 
 test("register in the UI (email code), log out and log back in by username or email", async ({ page }) => {
   // 注册页是两步:邮箱发码 -> 验证码 + 用户名 + 昵称 + 密码 + 邀请码。登录页已没有「注册」切换。
@@ -11,14 +11,14 @@ test("register in the UI (email code), log out and log back in by username or em
   await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
   await loginViaUi(page, account.username, account.password);
-  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page).toHaveURL(HOME_URL);
   await page.getByTestId("nav-me").click();
   await page.getByTestId("me-profile").click();
   await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
   // 登录框同时接受用户名与邮箱
   await loginViaUi(page, account.email, account.password);
-  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page).toHaveURL(HOME_URL);
 });
 
 test("wrong password shows an error", async ({ page, request }) => {

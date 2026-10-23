@@ -10,6 +10,7 @@ test("record, assess with the real service, replay and delete", async ({ page, r
   test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
+  await page.goto("/practice");
   await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
   await page.getByTestId("record-toggle").click();
   await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
@@ -71,6 +72,7 @@ test("going to the background keeps what was recorded", async ({ page, request, 
   test.skip(browserName === "webkit", WEBKIT_NO_RECORDER);
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
+  await page.goto("/practice");
   await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
   await page.getByTestId("record-toggle").click();
   await expect(page.getByTestId("practice-status")).toHaveAttribute("data-state", "recording");
@@ -87,6 +89,7 @@ test("going to the background keeps what was recorded", async ({ page, request, 
 
 test("listen to the reference before reading", async ({ page, request }) => {
   await signIn(page, request);
+  await page.goto("/practice");
   await page.getByTestId("reference-input").fill(SPEECH_REFERENCE);
   const button = page.getByTestId("practice-listen");
   await expect(button).toBeEnabled({ timeout: 30_000 });

@@ -1,6 +1,6 @@
 import { devices, expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 import { bearer, codeFor, fillRegisterStep2, newAccount, newEmail, registerInUi, registerWithEmailViaApi, type RegisteredAccount } from "./support/accounts";
-import { INVITE_CODE, loginViaUi } from "./support/auth";
+import { HOME_URL, INVITE_CODE, loginViaUi } from "./support/auth";
 import { mockUpstreams, type UpstreamMocks } from "./support/mock-upstreams";
 
 /**
@@ -90,7 +90,7 @@ test.describe("accounts", () => {
 
     await page.getByLabel("Verification code", { exact: true }).fill(real);
     await page.getByRole("button", { name: "Create account", exact: true }).click();
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
 
     await openAccountSettings(page);
     await expect(page.getByLabel("Nickname", { exact: true })).toHaveValue(a.nickname);
@@ -104,11 +104,11 @@ test.describe("accounts", () => {
     await guard(page);
     const a = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, a.username, a.password);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
     await logout(page);
 
     await loginViaUi(page, a.email, a.password);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
     await logout(page);
 
     // 已知用户名 + 错密码,与未知用户名 + 任意密码:同一句提示
@@ -144,7 +144,7 @@ test.describe("accounts", () => {
     await expect(page.getByTestId("login-error")).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
     await loginViaUi(page, a.username, NEW_PASSWORD);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
 
     // 重置之前签发的令牌(含注册时拿到的)都被拒绝
     expect((await request.get("/api/me", { headers: bearer(beforeReset) })).status()).toBe(401);
@@ -178,7 +178,7 @@ test.describe("accounts", () => {
     const a = await registerWithEmailViaApi(request, INVITE_CODE);
     const other = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, a.username, a.password);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
     await openAccountSettings(page);
 
     // 「保存」按钮限定在昵称行里(账号页上可能还有其他「保存」)
@@ -231,7 +231,7 @@ test.describe("accounts", () => {
     await guard(page);
     const a = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, a.username, a.password);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
     await openAccountSettings(page);
 
     const picker = page.getByTestId("avatar-file");
@@ -259,7 +259,7 @@ test.describe("accounts", () => {
     await guard(page);
     const owner = await registerWithEmailViaApi(request, INVITE_CODE);
     await loginViaUi(page, owner.username, owner.password);
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
     await openAccountSettings(page);
 
     await page.getByRole("button", { name: "Create my invite code", exact: true }).click();
@@ -281,7 +281,7 @@ test.describe("accounts", () => {
     try {
       const pageA = await guard(await ctxA.newPage());
       await registerFromLink(pageA, link, inviteeA);
-      await expect(pageA).toHaveURL(/\/practice$/);
+      await expect(pageA).toHaveURL(HOME_URL);
       expect(pageA.url()).not.toContain("#invite");
     } finally {
       await ctxA.close();
@@ -316,7 +316,7 @@ test.describe("accounts", () => {
     try {
       const pageNew = await guard(await ctxNew.newPage());
       await registerFromLink(pageNew, `${BASE}/register#invite=${secondCode}`, newAccount());
-      await expect(pageNew).toHaveURL(/\/practice$/);
+      await expect(pageNew).toHaveURL(HOME_URL);
     } finally {
       await ctxNew.close();
     }

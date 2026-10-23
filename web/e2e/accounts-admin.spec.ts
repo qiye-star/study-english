@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { loginViaUi } from "./support/auth";
+import { HOME_URL, loginViaUi } from "./support/auth";
 import { bearer, codeFor, newAccount, newEmail, registerWithEmailViaApi } from "./support/accounts";
 import { mockUpstreams } from "./support/mock-upstreams";
 
@@ -384,7 +384,7 @@ test("forced binding: enforced blocks the API, the web forces the bind page, pen
     const mocksB = await mockUpstreams(pageB);
     try {
       await loginViaUi(pageB, unboundB.username, unboundB.password);
-      await expect(pageB).toHaveURL(/\/practice$/); // 登录完成后落在练习页,不挡
+      await expect(pageB).toHaveURL(HOME_URL); // 登录完成后落在首页,不挡
       await expect(pageB.getByTestId("binding-banner")).toBeVisible();
       await expect(pageB.getByTestId("binding-banner").getByRole("link", { name: "去绑定" })).toBeVisible();
       expect(unexpected(mocksB.unmocked), "no unexpected upstream request (web B)").toEqual([]);

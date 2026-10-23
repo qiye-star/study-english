@@ -24,12 +24,12 @@ async function mount(libraryOn: boolean, route = "/practice") {
 describe("BottomNav", () => {
   it("shows three tabs when the library is off (对话 is the only chat entry)", async () => {
     await mount(false);
-    expect(hrefs()).toEqual(["/practice", "/chat", "/me"]);
+    expect(hrefs()).toEqual(["/chat", "/practice", "/me"]);
   });
 
-  it("adds the library tab between 对话 and 我的 when it is on (spec E9)", async () => {
+  it("adds the library tab between 练习 and 我的 when it is on (spec E9)", async () => {
     await mount(true);
-    expect(hrefs()).toEqual(["/practice", "/chat", "/library", "/me"]);
+    expect(hrefs()).toEqual(["/chat", "/practice", "/library", "/me"]);
     expect(screen.getByTestId("nav-library")).toHaveTextContent("Library");
     expect(screen.getByTestId("nav-library").className).toMatch(/\bmin-h-14\b/);
   });

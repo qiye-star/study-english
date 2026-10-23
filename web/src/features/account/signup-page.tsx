@@ -7,6 +7,7 @@ import { CaptchaField, useCaptchaGate } from "~/components/captcha";
 import { ACCOUNT_ERROR_KEYS } from "./account-api";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail, validateCredentials } from "~/auth/validation";
+import { HOME_PATH } from "~/lib/home-route";
 import { EmailCodeField } from "./email-code-field";
 import { readInviteFragment } from "./invites/invite-link";
 
@@ -43,7 +44,7 @@ export function RegisterPage() {
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
   }, []);
 
-  if (user) return <Navigate to="/practice" replace />;
+  if (user) return <Navigate to={HOME_PATH} replace />;
 
   const sent = sentEmail !== null;
 
@@ -72,7 +73,7 @@ export function RegisterPage() {
       .then(() => {
         // 成功后页面即将卸载:不再求解新的载荷。
         gate.consumed(false);
-        navigate("/practice", { replace: true });
+        navigate(HOME_PATH, { replace: true });
       })
       .catch((err: unknown) => {
         gate.onServerError(err);

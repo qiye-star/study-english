@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { HOME_PATH } from "~/lib/home-route";
 import { isItemGone, resetGoneItems } from "./gone-items";
 import { LibraryPlayerPage } from "./player-page";
 import { CONFIG_OFF_RAW, CONFIG_RAW, SEGMENTS_RAW, detailRaw } from "./test-fixtures";
@@ -53,9 +54,9 @@ function render(detail: Record<string, unknown> | null, extra: Record<string, Ha
 }
 
 describe("LibraryPlayerPage (spec §11.4)", () => {
-  it("goes back to the practice page when the library is off", async () => {
+  it("goes back to the home page when the library is off", async () => {
     render(detailRaw(), {}, CONFIG_OFF_RAW);
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(HOME_PATH));
   });
 
   it("only explains an item that is not ready, without asking for a ticket", async () => {

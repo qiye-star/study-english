@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
+import { HOME_PATH } from "~/lib/home-route";
 import { LoginPage } from "./login-page";
 
 // 外壳分块加载失败:登录页必须保持可用。这里的 import 被拒绝(见 components/captcha/loaders.ts 的说明)。
@@ -25,7 +26,7 @@ function setup(mode: "off" | "adaptive" | "always") {
       <AuthProvider fetchImpl={mock.fetch}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/practice" element={<div>practice home</div>} />
+          <Route path={HOME_PATH} element={<div>home</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -53,13 +54,13 @@ describe("LoginPage when the captcha chunk fails to load", () => {
   it("with the mode off the form still submits and logs in", async () => {
     setup("off");
     await logIn();
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
   });
 
   it("with the mode adaptive and no 428 yet, no captcha is needed, so the form still logs in", async () => {
     setup("adaptive");
     await logIn();
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(screen.queryByText("Could not load")).toBeNull();
   });
 });

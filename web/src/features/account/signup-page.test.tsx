@@ -6,6 +6,7 @@ import { clearAuth } from "~/api/auth-storage";
 import { AuthProvider } from "~/auth/auth-context";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { altchaCalls, resetFakeAltcha, solveCaptcha, widgetElement } from "~/test/captcha-element";
+import { HOME_PATH } from "~/lib/home-route";
 import { RegisterPage } from "./signup-page";
 
 // 组件本体的 altcha 依赖在 jsdom 里替换(真实求解器需要浏览器 WebCrypto 与真实元素)。
@@ -27,7 +28,7 @@ function setup(routes: Parameters<typeof createFetchMock>[0], mode: "off" | "ada
       <AuthProvider fetchImpl={mock.fetch}>
         <Routes>
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/practice" element={<div>practice home</div>} />
+          <Route path={HOME_PATH} element={<div>home</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -119,7 +120,7 @@ describe("RegisterPage", () => {
     await userEvent.type(screen.getByLabelText("Nickname"), "Dan");
     await userEvent.type(screen.getByLabelText("Invite code (optional)"), "INVITE-1");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/users")!.body as string)).toEqual({
       username: "dan", password: "password123", email: "dan@example.com", email_code: "654321", nickname: "Dan", invite_code: "INVITE-1",
     });
@@ -148,7 +149,7 @@ describe("RegisterPage", () => {
     await sendCode("dan@example.com");
     await fillStepTwo();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    await screen.findByText("practice home");
+    await screen.findByText("home");
     const stored = Object.keys(localStorage).map((key) => `${key}=${localStorage.getItem(key)}`).join("\n");
     expect(stored).not.toContain("dan@example.com");
     expect(stored).not.toContain("918273");
@@ -238,7 +239,7 @@ describe("RegisterPage human verification (W4, spec §10)", () => {
 
     solveCaptcha(P2);
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     const create = mock.calls.find((c) => c.url.pathname === "/api/users")!;
     expect(create.headers.get("X-Captcha")).toBe(P2);
     expect(JSON.stringify(create.body)).not.toContain(P2);

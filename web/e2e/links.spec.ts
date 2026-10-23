@@ -37,6 +37,7 @@ test("learning links: daily tasks, mistakes view, word actions menu and the per-
   const auth = { Authorization: `Bearer ${creds.token}` };
   const config = await (await request.get("/api/links/config", { headers: auth })).json();
   expect(config.enabled, "the stack must run with LINKS_ENABLED=true").toBe(true);
+  await page.goto("/practice");
 
   // 1. 练习页「今日任务」卡:还没选书 → 没有「背单词」行;「跟读一句」未完成
   await expect(page.getByTestId("daily-tasks-card")).toBeVisible();

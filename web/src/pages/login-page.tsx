@@ -12,6 +12,7 @@ import { loadCaptchaField } from "~/components/captcha/loaders";
 import { useCaptchaGate } from "~/components/captcha/use-captcha-gate";
 import { useAuth } from "~/auth/auth-context";
 import { validateCredentials } from "~/auth/validation";
+import { HOME_PATH } from "~/lib/home-route";
 
 const LABEL = "text-[13px] font-medium text-ink-2"; // 经 cn 合并:用任意值字号,避免与颜色类冲突
 /** 48px 输入框:surface-2 底、无边框,聚焦时蓝色描边;16px 字号避免 iOS 聚焦缩放 */
@@ -43,7 +44,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const state = location.state as { from?: string; notice?: string } | null;
-  const from = state?.from ?? "/practice";
+  const from = state?.from ?? HOME_PATH;
 
   if (user) return <Navigate to={from} replace />;
 

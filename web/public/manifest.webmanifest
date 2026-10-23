@@ -1,7 +1,7 @@
 {
   "name": "Enjoy 英语练习",
   "short_name": "Enjoy",
-  "start_url": "/practice",
+  "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",

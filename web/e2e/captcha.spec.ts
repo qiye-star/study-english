@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page, type Request as PwRequest } from "@playwright/test";
 import { codeFor, fillRegisterStep2, newAccount, newEmail } from "./support/accounts";
 import { adminSession, captchaHeader, payloadKeys, setCaptchaMode, type CaptchaMode } from "./support/captcha";
-import { INVITE_CODE, loginViaUi } from "./support/auth";
+import { HOME_URL, INVITE_CODE, loginViaUi } from "./support/auth";
 import { mockUpstreams, type UpstreamMocks } from "./support/mock-upstreams";
 
 /**
@@ -167,7 +167,7 @@ test.describe("captcha", () => {
     await solveWidget(page);
     await page.getByLabel("Verification code", { exact: true }).fill(real);
     await page.getByRole("button", { name: "Create account", exact: true }).click();
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
 
     // 所有请求都在本站;挑战请求没有查询串;带头的请求 URL 与请求体里没有载荷
     expect(seen.filter((s) => new URL(s.url).origin !== ORIGIN).map((s) => s.url), "third-party requests").toEqual([]);
@@ -228,7 +228,7 @@ test.describe("captcha", () => {
     await expect(widget(page)).toBeVisible();
     await solveWidget(page);
     await page.getByTestId("login-submit").click();
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
   });
 
   test("d. forgot-password in adaptive: both steps pass through the widget", async ({ page, request }) => {
@@ -252,7 +252,7 @@ test.describe("captcha", () => {
     await expect(widget(page)).toBeVisible();
     await solveWidget(page);
     await page.getByTestId("login-submit").click();
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
   });
 
   test("c2. always: the widget shows at once and login is blocked until solved", async ({ page, request }) => {
@@ -269,7 +269,7 @@ test.describe("captcha", () => {
     await expect(page).toHaveURL(/\/login$/);
     await solveWidget(page);
     await page.getByTestId("login-submit").click();
-    await expect(page).toHaveURL(/\/practice$/);
+    await expect(page).toHaveURL(HOME_URL);
   });
 
   // 服务工作线程会从缓存提供静态资源,page.route 拦不住;这里屏蔽它,让分块请求真正走网络。
