@@ -18,3 +18,4 @@ Playwright specs against the dockerised E2E stack with real upstreams (costs mon
 - A new own-backend endpoint a spec clicks (e.g. the wordbook goals `/bonus`, `/enrollment/{pause,resume,reset}`) must be added to `upstream-guard.ts` and `src/test/e2e-upstream-guard.test.ts`, or the guard aborts the request and it never reaches the server.
 - Type-checked by `yarn web:typecheck` (included in `tsconfig.json`), not run by vitest.
 - 联机没有底部标签(计划 L6):进大厅用 `goto("/rooms")`,或在 `/chat` 点 `hub-tab-rooms`(联机开启时才有切换条)。`nav-rooms` 已不存在。
+- 登录后落在首页 `/chat`(`support/auth.ts` 的 `HOME_URL`,与 `src/lib/home-route.ts` 的 `HOME_PATH` 对应);需要练习页的规格先 `goto("/practice")`。

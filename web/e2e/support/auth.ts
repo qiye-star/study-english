@@ -1,5 +1,8 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { registerWithEmailViaApi } from "./accounts";
+import { HOME_URL, registerWithEmailViaApi } from "./accounts";
+
+// 登录 / 注册成功后的落点是首页「对话」(定义在 accounts.ts 以免互相导入;规格从这里取)。
+export { HOME_URL };
 
 export const INVITE_CODE = process.env.E2E_INVITE_CODE ?? "";
 if (!INVITE_CODE) throw new Error("E2E_INVITE_CODE is not set (see docker-compose.e2e.yml)");
@@ -36,6 +39,6 @@ export async function loginViaUi(page: Page, username: string, password: string)
 export async function signIn(page: Page, request: APIRequestContext) {
   const creds = await registerViaApi(request);
   await loginViaUi(page, creds.username, creds.password);
-  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page).toHaveURL(HOME_URL);
   return creds;
 }

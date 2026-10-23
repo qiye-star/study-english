@@ -69,9 +69,12 @@ export function bearer(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** 登录 / 注册成功后的落点是首页「对话」(src/lib/home-route.ts 的 HOME_PATH;E2E 是 CommonJS 包,不从 src/ 导入)。 */
+export const HOME_URL = /\/chat$/;
+
 /**
  * 在注册页(两步)走完一次真实的 UI 注册:填邮箱 -> 发码 -> 还原码 -> 填验证码、用户名、昵称、密码、邀请码 -> 提交。
- * 成功后停在 /practice(已登录)。表单标签与 signup-page.tsx 一致;页面没有 data-testid,用标签定位。
+ * 成功后停在首页 /chat(已登录)。表单标签与 signup-page.tsx 一致;页面没有 data-testid,用标签定位。
  * 注意:会先 goto("/register"),所以带 #invite 片段的场景请用 spec 内的 registerFromLink。
  */
 export async function registerInUi(page: Page, account = newAccount(), inviteCode: string | null = process.env.E2E_INVITE_CODE ?? ""): Promise<typeof account> {
@@ -82,7 +85,7 @@ export async function registerInUi(page: Page, account = newAccount(), inviteCod
   // inviteCode 为 null 时不碰邀请码字段(供「从链接带入」的场景使用)
   await fillRegisterStep2(page, { ...account, code: codeFor(account.email, "register"), invite: inviteCode ?? undefined });
   await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page).toHaveURL(HOME_URL);
   return account;
 }
 
