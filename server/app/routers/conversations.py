@@ -17,7 +17,8 @@ from app.core.config import Settings
 from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.services.grammar import normalize_grammar
-from app.models import AgentTutorSession, Assessment, Conversation, Message, User, iso_utc, utcnow
+from app.services.stats import local_date
+from app.models import AgentTutorSession, Assessment, ChatGreeting, Conversation, Message, User, iso_utc, utcnow
 from app.services.chat_recordings import IN_CHUNK, _chunks, drop_assessments, remove_files  # noqa: F401
 
 router = APIRouter(prefix="/api")
@@ -93,6 +94,7 @@ def conversation_out(row: Conversation) -> dict:
         "id": row.id,
         "name": row.name,
         "config": row.config,
+        "daily_date": row.daily_date.isoformat() if row.daily_date else None,  # chat home R1; null = an ordinary chat
         "created_at": iso_utc(row.created_at),
         "updated_at": iso_utc(row.updated_at),
     }
@@ -211,13 +213,20 @@ async def owned_conversation(session: AsyncSession, user: User, conversation_id:
 async def list_conversations(
     page: int = Query(1, ge=1, le=10_000),
     per_page: int = Query(20, ge=1, le=50),
+    hide_idle_daily: bool = False,
+    tz_offset_minutes: int = Query(0, ge=-720, le=840),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    where = [Conversation.user_id == user.id]
+    if hide_idle_daily:  # chat home R11: hide (never delete) past default chats the user never replied in
+        replied = select(Message.id).where(Message.conversation_id == Conversation.id, Message.role == "user").exists()
+        where.append(or_(Conversation.daily_date.is_(None),
+                         Conversation.daily_date == local_date(utcnow(), tz_offset_minutes), replied))
     rows = (
         await session.execute(
             select(Conversation)
-            .where(Conversation.user_id == user.id)
+            .where(*where)
             .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
             .offset((page - 1) * per_page)
             .limit(per_page + 1)
@@ -239,7 +248,8 @@ async def create_conversation(
 ):
     _check_config(payload.config)
     count = await session.scalar(
-        select(func.count()).select_from(Conversation).where(Conversation.user_id == user.id)
+        select(func.count()).select_from(Conversation)
+        .where(Conversation.user_id == user.id, Conversation.daily_date.is_(None))  # daily default chats do not count (R12)
     )
     if count >= await effective(session, settings, user.id, "max_conversations"):
         raise HTTPException(429, "Conversation limit reached")
@@ -297,6 +307,9 @@ async def delete_conversation(
     # SQLite 默认不开外键级联,显式删除消息
     await session.execute(delete(Message).where(Message.conversation_id == row.id))
     await session.execute(delete(AgentTutorSession).where(AgentTutorSession.conversation_id == row.id))  # A3 R-T7
+    # chat home R4: a deleted default chat is rebuilt from the stored greeting on the next POST /today (SQLite has no SET NULL)
+    await session.execute(update(ChatGreeting).where(ChatGreeting.conversation_id == row.id)
+                          .values(conversation_id=None, message_ids=[]))
     paths = await drop_assessments(session, chat)
     await drop_conversation(session, row.id)  # agents memory: thread state + recaps go with the chat (plan A2 R-M15)
     await session.delete(row)

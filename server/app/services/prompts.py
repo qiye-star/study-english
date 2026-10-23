@@ -59,6 +59,10 @@ PROMPTS: dict[str, PromptSpec] = {
     "library.analyze": PromptSpec(
         "library.analyze", "跟读库句子分析", "text", frozenset({"native_language", "learning_language"}), (), 4000,
         sample_fields=("native_language", "text")),
+    # 对话每日问候(计划 2026-10-23 R14);默认值与固定前后缀在 app/agents/greeting/prompt.py
+    "chat.daily_greeting": PromptSpec(
+        "chat.daily_greeting", "对话每日问候", "text", frozenset({"language_rule", "facts"}), ("<facts>", "</facts>"), 4000,
+        sample_fields=("persona", "language", "facts"), optional=frozenset({"persona"})),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }

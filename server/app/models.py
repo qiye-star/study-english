@@ -58,11 +58,13 @@ class SpeechToken(Base):
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    __table_args__ = (UniqueConstraint("user_id", "daily_date", name="uq_conversations_user_daily_date"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     config: Mapped[dict] = mapped_column(JSON, default=dict)
+    daily_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # plan 2026-10-23 R1: local day of a daily default chat
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -1111,3 +1113,36 @@ class CatalogSegment(Base):
     analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+
+
+class ChatGreeting(Base):
+    """Daily greeting (plan 2026-10-23 R4): one row per user and local day, exactly 3 lines; facts hold numbers only."""
+    __tablename__ = "chat_greetings"
+    __table_args__ = (UniqueConstraint("user_id", "local_date", name="uq_chat_greetings_user_local_date"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    local_date: Mapped[date] = mapped_column(Date)
+    conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True)
+    message_ids: Mapped[list] = mapped_column(JSON, default=list)  # one per line; no FK: messages can be deleted singly
+    status: Mapped[str] = mapped_column(String(8))  # pending / ready
+    source: Mapped[str | None] = mapped_column(String(8), nullable=True)  # llm / template
+    language: Mapped[str] = mapped_column(String(10))  # zh / en / bilingual
+    persona_id: Mapped[str] = mapped_column(String(64))
+    lines: Mapped[list] = mapped_column(JSON, default=list)  # [{"en": ..., "zh": ...}] x3, keys follow language; *marks* kept
+    prompt_version: Mapped[int | None] = mapped_column(Integer, nullable=True)  # published version used; null = default
+    facts: Mapped[dict] = mapped_column(JSON, default=dict)  # {"streak": 5, "due": 12, ...} numbers only
+    error_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)  # LlmUnavailable.kind / quota / invalid
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ChatPrefs(Base):
+    """Chat-home user settings (one JSON row; per-key validation in app/agents/greeting/prefs.py). No row = defaults."""
+    __tablename__ = "chat_prefs"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

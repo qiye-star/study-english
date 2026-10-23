@@ -1,0 +1,21 @@
+# app/agents/greeting/
+
+Chat home and daily greeting (plan `docs/superpowers/plans/2026-10-23-chat-home-daily-greeting.md`). Off unless
+`CHAT_HOME_ENABLED` (routes in `app/routers/chat_home.py`; this package has no switch checks of its own).
+
+## What lives here
+- `prefs.py` - per-user prefs (`greeting_trigger`, `language`, `daily_persona_id`, `include_stats`): defaults, `load` (drops bad keys), `save` (strict, flush only)
+- `facts.py` - learning-data sources (`streak`, `due_vocab`, `yesterday_*`; `wordbook_today` comes from `app/links/greeting_facts.py`), `gather` (300 ms per source, 600 ms total), `GreetingFacts`, `focus_hint`
+- `prompt.py` / `parse.py` / `templates.py` - pure functions: default template + fixed prefix/contract, output rules (`check_lines`, `normalize_marks`), three-paragraph fallback
+- `service.py` - `ensure_today` (default conversation + greeting, idempotent, one model call at most), `mark_seen`
+
+## Allowed dependencies
+`app.core`, `app.models`, `app.providers`, `app.services`, `app.agents.*`. Never `wordbook / links / rank / rooms / realtime / routers / admin`
+(not even inside functions; `tests/test_architecture.py`). Data that needs the dictionary comes from `app/links/greeting_facts.py` via the registry.
+
+## Privacy
+No words, greeting text, persona text, prompt text or user ids in logs, URLs or errors. Logs carry event name, status, source, error class, counts and ms.
+`chat_greetings.facts` holds numbers only.
+
+## Fixed parts of the prompt
+The `SAFETY_PREAMBLE` prefix and the JSON output contract suffix are appended by code; the admin-editable `chat.daily_greeting` template cannot remove them.

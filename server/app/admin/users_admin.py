@@ -22,7 +22,7 @@ from app.models import (
     WordbookEnrollment, WordbookEvent, WordbookReport,
     AgentPersona, AgentPersonaReport, AgentUserSettings,
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
-    AgentTutorSession,
+    AgentTutorSession, ChatGreeting, ChatPrefs,
     LibraryAttempt, LibraryItem, LibrarySegment,
     ChangelogRead,
 )
@@ -38,6 +38,7 @@ _ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 # the models' / migrations' ON DELETE so SQLite and Postgres end in the same state (tests/test_admin_users.py
 # fails when a new table that references users is missing here). Rooms they own are released first (R-6).
 USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items includes source "wordbook:<book>")
+    (ChatGreeting, "user_id"), (ChatPrefs, "user_id"),  # greetings reference conversations: delete them first (plan 2026-10-23)
     (Conversation, "user_id"), (Assessment, "user_id"), (PracticeItem, "user_id"), (VocabularyItem, "user_id"),
     (AccessToken, "user_id"), (SpeechToken, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
     (PromotionMatch, "user_id"), (UserAchievement, "user_id"), (UserQuotaOverride, "user_id"),

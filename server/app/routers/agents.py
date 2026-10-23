@@ -3,6 +3,7 @@
 URL 里没有词或文本(角色 id 是 uuid / builtin: 键;没有查询参数);请求体与回复从不进日志。"""
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import uuid
 from contextlib import aclosing
@@ -297,11 +298,14 @@ async def turn(body: TurnIn, request: Request, user: User = Depends(limited_user
         raise HTTPException(404, "Tutor is disabled")
     if body.mode == "chat" and not (body.text or "").strip():
         raise HTTPException(422, "Text is required")
-    await owned_conversation(session, user, body.conversation_id)
+    conversation = await owned_conversation(session, user, body.conversation_id)
     persona = await PersonaStore(session).get(user.id, body.persona_id)
     if persona is None:
         raise HTTPException(404, "Persona not found")
     agent = await agent_settings.load(session, user.id)
+    note = (conversation.config or {}).get("zh_note")  # per-conversation override (chat home R7); snake_case key only
+    if note in agent_settings.ZH_NOTES:
+        agent = dataclasses.replace(agent, zh_note=note)
     await session.close()  # the stream opens its own short sessions; do not hold a connection for its duration
     rt = runtime(request.app)
     fp = limits.fingerprint(body.persona_id, body.conversation_id, body.text, body.mode, body.tutor_session_id)

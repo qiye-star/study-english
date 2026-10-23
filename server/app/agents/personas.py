@@ -224,7 +224,7 @@ def _builtins() -> tuple[Persona, ...]:
     items = [
         _builtin("coach", str(coach.get("name") or "英语教练"), str(coach.get("description") or "生成地道的美式英语"),
                  "concise", text(coach, COACH_FALLBACK) + "\n\n" + ENGLISH_ONLY),
-        _builtin("partner", "聊天伙伴", "轻松的英语日常对话,每次三句以内", "friendly", PARTNER_PROMPT + " " + ENGLISH_ONLY),
+        _builtin("partner", "学习伙伴", "轻松的英语日常对话,每次三句以内", "friendly", PARTNER_PROMPT + " " + ENGLISH_ONLY),
         _builtin("reviewer", "写作批改", "逐句分析你的英文写作并给出正式建议", "strict",
                  text(reviewer, REVIEWER_FALLBACK) + "\n\n" + ENGLISH_ONLY),
     ]

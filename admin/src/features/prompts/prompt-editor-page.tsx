@@ -120,7 +120,7 @@ function Editor({ detail, reload }: { detail: PromptDetail; reload: () => void }
       key: "actions", header: "", align: "right",
       render: (v) => canEdit && !draft ? (
         <button type="button" className="btn-quiet btn-sm" disabled={busy !== null}
-          onClick={() => act("rollback", () => createPromptDraft(spec.key, v.version))}>
+          onClick={() => act("rollback", () => createPromptDraft(spec.key, { fromVersion: v.version }))}>
           {S.rollback}
         </button>
       ) : null,
@@ -144,10 +144,18 @@ function Editor({ detail, reload }: { detail: PromptDetail; reload: () => void }
         {canEdit && (
           <div className="flex items-center gap-2">
             {!draft ? (
-              <button type="button" className="btn-primary btn-sm" disabled={busy !== null}
-                onClick={() => act("create", () => createPromptDraft(spec.key))}>
-                {S.createDraft}
-              </button>
+              <>
+                {published && (
+                  <button type="button" className="btn-quiet btn-sm" disabled={busy !== null}
+                    onClick={() => act("reset", () => createPromptDraft(spec.key, { fromDefault: true }))}>
+                    {S.resetToDefault}
+                  </button>
+                )}
+                <button type="button" className="btn-primary btn-sm" disabled={busy !== null}
+                  onClick={() => act("create", () => createPromptDraft(spec.key))}>
+                  {S.createDraft}
+                </button>
+              </>
             ) : (
               <>
                 <button type="button" className="btn-danger btn-sm" disabled={busy !== null} onClick={() => setConfirm("delete")}>

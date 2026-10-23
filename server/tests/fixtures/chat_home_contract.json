@@ -1,0 +1,222 @@
+{
+  "config": {
+    "enabled": true,
+    "llm": true
+  },
+  "settings": {
+    "greeting_trigger": "daily",
+    "language": "bilingual",
+    "daily_persona_id": "builtin:partner",
+    "include_stats": true
+  },
+  "settings_patched": {
+    "greeting_trigger": "daily",
+    "language": "bilingual",
+    "daily_persona_id": "builtin:partner",
+    "include_stats": true
+  },
+  "today_bilingual": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": true,
+        "zh_note": "always",
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "message_ids": [
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000"
+      ],
+      "source": "llm",
+      "language": "bilingual",
+      "generated_at": "2026-01-01T00:00:00Z",
+      "lines": [
+        {
+          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up.",
+          "zh": "早上好！周五上午，你已连续学习 23 天。"
+        },
+        {
+          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*.",
+          "zh": "12 个单词待复习；昨天的错点：have went → have gone。"
+        },
+        {
+          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list.",
+          "zh": "今天先花 10 分钟用现在完成时讲三件事，再过一遍单词。"
+        }
+      ],
+      "facts": {},
+      "first_view": true
+    }
+  },
+  "today_zh": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": false,
+        "zh_note": "always",
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "message_ids": [
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000"
+      ],
+      "source": "llm",
+      "language": "zh",
+      "generated_at": "2026-01-01T00:00:00Z",
+      "lines": [
+        {
+          "zh": "早上好！这个周五上午，你已经连续学了 *23 天*，这份坚持真的很了不起。"
+        },
+        {
+          "zh": "今天有 *12 个单词* 等你复习；昨天在现在完成时里把过去分词错用成了过去式，今天我们把它彻底说对。"
+        },
+        {
+          "zh": "建议先花 *10 分钟*：用现在完成时讲三件你做过的事，再把待复习的单词过一遍，轻松收尾。"
+        }
+      ],
+      "facts": {},
+      "first_view": true
+    }
+  },
+  "today_en": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": false,
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "message_ids": [
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000"
+      ],
+      "source": "llm",
+      "language": "en",
+      "generated_at": "2026-01-01T00:00:00Z",
+      "lines": [
+        {
+          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up."
+        },
+        {
+          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*."
+        },
+        {
+          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list."
+        }
+      ],
+      "facts": {},
+      "first_view": true
+    }
+  },
+  "today_no_stats": {
+    "local_date": "2026-10-23",
+    "status": "ready",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": false,
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "message_ids": [
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000",
+        "00000000-0000-4000-8000-000000000000"
+      ],
+      "source": "llm",
+      "language": "en",
+      "generated_at": "2026-01-01T00:00:00Z",
+      "lines": [
+        {
+          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up."
+        },
+        {
+          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*."
+        },
+        {
+          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list."
+        }
+      ],
+      "facts": {},
+      "first_view": true
+    }
+  },
+  "today_pending": {
+    "local_date": "2026-10-23",
+    "status": "pending",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": true,
+        "zh_note": "always",
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": null
+  },
+  "today_off": {
+    "local_date": "2026-10-23",
+    "status": "off",
+    "conversation": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "2026-10-23",
+      "config": {
+        "auto_speak": true,
+        "bilingual": true,
+        "zh_note": "always",
+        "agent_persona_id": "builtin:partner"
+      },
+      "daily_date": "2026-10-23",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    },
+    "greeting": null
+  },
+  "seen": {
+    "first_seen_at": "2026-01-01T00:00:00Z"
+  }
+}

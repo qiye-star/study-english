@@ -26,6 +26,12 @@ def test_builtins_are_static_public_and_well_formed():
     assert P.builtin_by_id("builtin:waiter").name == "咖啡店店员" and P.builtin_by_id("builtin:nope") is None
 
 
+def test_partner_is_renamed_to_study_partner_keeping_id_and_prompt():
+    partner = P.builtin_by_id("builtin:partner")  # plan 2026-10-23 R15: rename only
+    assert partner.name == "学习伙伴" and partner.id == "builtin:partner"
+    assert partner.prompt.endswith(P.ENGLISH_ONLY) and partner.style == "friendly"
+
+
 def test_coach_comes_from_the_chat_agent_templates():
     rows = json.loads(P.TEMPLATES.read_text(encoding="utf-8"))
     row = next(r for r in rows if r["key"] == "english-coach")

@@ -218,3 +218,102 @@ async def test_message_limit_rejects_whole_batch(client, auth_headers):
     assert r.json() == {"error": "Message limit reached"}
     listed = (await client.get(f"{URL}/{conv['id']}/messages", headers=auth_headers)).json()["messages"]
     assert len(listed) == 2
+
+
+# ---- chat home (plan 2026-10-23 R1, R4, R11, R12) ----
+
+async def seed_daily(app, headers, client, day, *, cid=None, updated=None):
+    from datetime import datetime, timezone
+    from app.models import Conversation
+    uid = int((await client.get("/api/me", headers=headers)).json()["id"])
+    cid = cid or str(uuid.uuid4())
+    at = updated or datetime.now(timezone.utc)
+    async with app.state.sessionmaker() as s:
+        s.add(Conversation(id=cid, user_id=uid, name=day.isoformat(), config={}, daily_date=day, created_at=at, updated_at=at))
+        await s.commit()
+    return cid, uid
+
+
+async def test_daily_date_is_in_the_output_and_clients_cannot_write_it(client, auth_headers):
+    plain = await create(client, auth_headers, name="x", daily_date="2026-01-01", config={})
+    assert plain["daily_date"] is None
+    assert (await client.get(f"{URL}/{plain['id']}", headers=auth_headers)).json()["daily_date"] is None
+    r = await client.patch(f"{URL}/{plain['id']}", headers=auth_headers, json={"daily_date": "2026-01-01"})
+    assert r.json()["daily_date"] is None
+
+
+async def test_hide_idle_daily_hides_but_keeps_idle_past_defaults(app, client, auth_headers):
+    from datetime import datetime, timedelta, timezone
+    today = datetime.now(timezone.utc).date()
+    normal = (await create(client, auth_headers, name="normal"))["id"]
+    idle, _ = await seed_daily(app, auth_headers, client, today - timedelta(days=2))
+    replied, _ = await seed_daily(app, auth_headers, client, today - timedelta(days=3))
+    current, _ = await seed_daily(app, auth_headers, client, today)
+    await add_messages(client, auth_headers, replied, ("assistant", "hi"), ("user", "hello"))
+    everything = (await client.get(URL, headers=auth_headers)).json()["conversations"]
+    assert {c["id"] for c in everything} == {normal, idle, replied, current}
+    hidden = (await client.get(URL, headers=auth_headers, params={"hide_idle_daily": "true"})).json()["conversations"]
+    assert {c["id"] for c in hidden} == {normal, replied, current}  # today's default never hides, even with no messages
+    assert (await client.get(f"{URL}/{idle}", headers=auth_headers)).status_code == 200  # hidden, not deleted
+    assert next(c for c in hidden if c["id"] == current)["daily_date"] == today.isoformat()
+    # the viewer's local day decides which default is "today": 14 h ahead of UTC can already be tomorrow
+    ahead = (await client.get(URL, headers=auth_headers,
+                              params={"hide_idle_daily": "true", "tz_offset_minutes": 840})).json()["conversations"]
+    local_today = (datetime.now(timezone.utc) + timedelta(minutes=840)).date()
+    assert (current in {c["id"] for c in ahead}) == (local_today == today)
+    r = await client.get(URL, headers=auth_headers, params={"tz_offset_minutes": 900})
+    assert r.status_code == 422
+
+
+async def test_listing_order_is_updated_then_id_and_pagination_is_stable_on_ties(app, client, auth_headers):
+    from datetime import date, datetime, timezone
+    at = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    ids = sorted(str(uuid.uuid4()) for _ in range(5))
+    for index, cid in enumerate(ids):
+        await seed_daily(app, auth_headers, client, date(2026, 9, 1 + index), cid=cid, updated=at)
+    seen = []
+    for page in (1, 2, 3):
+        body = (await client.get(URL, headers=auth_headers, params={"page": page, "per_page": 2})).json()
+        seen += [c["id"] for c in body["conversations"]]
+    assert seen == sorted(ids, reverse=True) and len(set(seen)) == 5  # same updated_at: id desc, no repeats, no gaps
+
+
+async def test_a_reply_in_yesterdays_default_moves_it_up_to_today(app, client, auth_headers):
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(days=1)
+    yesterday, _ = await seed_daily(app, auth_headers, client, old.date(), updated=old)
+    other = (await create(client, auth_headers, name="other"))["id"]
+    await asyncio.sleep(TICK)
+    assert (await add_messages(client, auth_headers, yesterday, ("user", "hi again"))).status_code == 200
+    rows = (await client.get(URL, headers=auth_headers, params={"hide_idle_daily": "true"})).json()["conversations"]
+    assert [c["id"] for c in rows][:2] == [yesterday, other]
+    assert rows[0]["updated_at"][:10] == now.date().isoformat() and rows[0]["daily_date"] == old.date().isoformat()
+
+
+@pytest.mark.parametrize("settings_overrides", [{"max_conversations": 1}], indirect=True)
+async def test_daily_defaults_do_not_count_toward_the_conversation_cap(app, client, auth_headers):
+    from datetime import datetime, timedelta, timezone
+    today = datetime.now(timezone.utc).date()
+    for back in range(3):
+        await seed_daily(app, auth_headers, client, today - timedelta(days=back))
+    await create(client, auth_headers, name="the one")  # zero ordinary chats so far: allowed
+    r = await client.post(URL, headers=auth_headers, json={})
+    assert r.status_code == 429 and r.json() == {"error": "Conversation limit reached"}
+
+
+async def test_deleting_a_default_clears_the_greeting_link_but_keeps_the_greeting(app, client, auth_headers):
+    from datetime import datetime, timezone
+    from app.models import ChatGreeting
+    today = datetime.now(timezone.utc).date()
+    cid, uid = await seed_daily(app, auth_headers, client, today)
+    now = datetime.now(timezone.utc)
+    async with app.state.sessionmaker() as s:
+        s.add(ChatGreeting(user_id=uid, local_date=today, conversation_id=cid, message_ids=["m1", "m2", "m3"],
+                           status="ready", language="en", persona_id="builtin:partner", lines=[{"en": "x"}] * 3,
+                           facts={}, created_at=now, updated_at=now))
+        await s.commit()
+    assert (await client.delete(f"{URL}/{cid}", headers=auth_headers)).status_code == 200
+    async with app.state.sessionmaker() as s:
+        row = await s.scalar(select(ChatGreeting))
+        assert row.conversation_id is None and row.message_ids == [] and row.lines == [{"en": "x"}] * 3

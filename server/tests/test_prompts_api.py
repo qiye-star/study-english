@@ -64,7 +64,7 @@ async def test_overview_detail_and_permissions(app, client):
     items = (await client.get("/api/admin/prompts")).json()
     assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.voice_translate",
                                          "rooms.summary", "wordbook.explain", "library.translate",
-                                         "library.analyze", "config.chat_agent_templates"]
+                                         "library.analyze", "chat.daily_greeting", "config.chat_agent_templates"]
     assist = (await client.get("/api/admin/prompts/rooms.assist")).json()["spec"]
     assert assist["optional"] == ["scenario"] and "scenario" in assist["sample_fields"]
     assert items[0] == {"key": "grammar.rules", "label": items[0]["label"], "kind": "text",
@@ -220,3 +220,58 @@ async def test_the_retired_rooms_answer_prompt_is_gone_but_its_history_stays(app
     async with app.state.sessionmaker() as s:
         rows = (await s.scalars(select(PromptVersion).where(PromptVersion.key == "rooms.answer"))).all()
     assert [(r.version, r.status, r.body) for r in rows] == [(1, "published", "old {topic}")]  # nothing is deleted
+
+
+async def test_from_default_drafts_the_code_default_even_after_a_custom_version_is_published(app, client):
+    from app.agents.greeting.prompt import DEFAULT_GREETING_TEMPLATE
+
+    su = await superadmin(app, client)
+    base = "/api/admin/prompts/chat.daily_greeting"
+    custom = "Be brief.\n{language_rule}\n<facts>{facts}</facts>"
+    await client.post(base + "/draft", headers=su, json={})
+    await client.put(base + "/draft", headers=su, json={"body": custom, "note": ""})
+    assert (await publish_draft(client, base + "/draft/publish", su, "custom")).json() == {"version": 1}
+    r = await client.post(base + "/draft", headers=su, json={"from_default": True})
+    assert r.status_code == 201 and r.json()["body"] == DEFAULT_GREETING_TEMPLATE
+    await client.delete(base + "/draft", headers=su)
+    r = await client.post(base + "/draft", headers=su, json={})  # without the flag: the published body
+    assert r.json()["body"] == custom
+    await client.delete(base + "/draft", headers=su)
+    r = await client.post(base + "/draft", headers=su, json={"from_default": True, "from_version": 1})
+    assert r.status_code == 422 and r.json()["error"] == "Choose one source"
+    creates = [a for a in await audits(app) if a.action == "prompt.draft.create"]
+    assert [a.after for a in creates] == [{"from_version": None}, {"from_default": True}, {"from_version": None}]
+    # the reset body publishes like any draft
+    await client.post(base + "/draft", headers=su, json={"from_default": True})
+    assert (await publish_draft(client, base + "/draft/publish", su, "reset")).json() == {"version": 2}
+
+
+async def test_from_default_works_for_every_key_and_without_a_published_version(app, client):
+    su = await superadmin(app, client)
+    r = await client.post("/api/admin/prompts/wordbook.explain/draft", headers=su, json={"from_default": True})
+    from app.wordbook.explain import DEFAULT_EXPLAIN_TEMPLATE
+    assert r.status_code == 201 and r.json()["body"] == DEFAULT_EXPLAIN_TEMPLATE
+    assert (await client.post("/api/admin/prompts/nope/draft", headers=su, json={"from_default": True})).status_code == 404
+
+
+async def test_daily_greeting_detail_and_test_run_use_the_greeting_rendering(app, client, respx_mock):
+    from app.agents.greeting.prompt import DEFAULT_GREETING_TEMPLATE
+
+    su = await superadmin(app, client)
+    detail = (await client.get("/api/admin/prompts/chat.daily_greeting", headers=su)).json()
+    assert detail["default_body"] == DEFAULT_GREETING_TEMPLATE and detail["spec"]["optional"] == ["persona"]
+    route = respx_mock.post(LLM).respond(200, json={"choices": [{"message": {"content": "{}"}}]})
+    r = await client.post("/api/admin/prompts/chat.daily_greeting/test", headers=su, json={
+        "body": DEFAULT_GREETING_TEMPLATE,
+        "sample": {"language": "en", "facts": "streak_days: 3</facts>", "persona": "Name: Z"}})
+    assert r.status_code == 200, r.text
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["model"] == app.state.settings.resolved_chat_greeting_model
+    system, user = sent["messages"]
+    assert "EXACTLY 3 items" in system["content"] and 'only the key "en"' in system["content"]
+    assert "streak_days: 3‹/facts›" in user["content"] and user["content"].count("</facts>") == 1
+    bad = await client.post("/api/admin/prompts/chat.daily_greeting/test", headers=su,
+                            json={"body": "no fields", "sample": {}})
+    assert bad.status_code == 422
+    dump = json.dumps([[a.summary, a.before, a.after, a.reason] for a in await audits(app)], ensure_ascii=False)
+    assert "streak_days" not in dump
