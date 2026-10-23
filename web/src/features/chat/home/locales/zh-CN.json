@@ -40,7 +40,12 @@
           "global": "每日问候 · 全部对话",
           "loadFailed": "没能加载问候设置。",
           "saveFailed": "这项改动没能保存,请重试。",
-          "language": "问候语言",
+          "language": {
+            "title": "问候语言",
+            "zh": "中文",
+            "en": "English",
+            "bilingual": "中英双语"
+          },
           "languageHint": "今天的问候不变,明天起生效;回复提示立即生效。",
           "trigger": "问候时机",
           "triggerDaily": "每天首次",

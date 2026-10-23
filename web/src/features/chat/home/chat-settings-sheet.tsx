@@ -99,9 +99,9 @@ export function ChatSettingsSheet({ open, onOpenChange, ctl, onReplay }: {
 
   const globalDisabled = status === "loading" || !prefs;
   const langOptions = [
-    { value: "zh", label: "中文", testId: "chat-greeting-lang-zh" },
-    { value: "en", label: "English", testId: "chat-greeting-lang-en" },
-    { value: "bilingual", label: "中英双语", testId: "chat-greeting-lang-bilingual" },
+    { value: "zh", label: t("web.chat.home.settings.language.zh"), testId: "chat-greeting-lang-zh" },
+    { value: "en", label: t("web.chat.home.settings.language.en"), testId: "chat-greeting-lang-en" },
+    { value: "bilingual", label: t("web.chat.home.settings.language.bilingual"), testId: "chat-greeting-lang-bilingual" },
   ] as const;
   const triggerOptions = [
     { value: "daily", label: t("web.chat.home.settings.triggerDaily"), testId: "chat-greeting-trigger-daily" },
@@ -137,7 +137,7 @@ export function ChatSettingsSheet({ open, onOpenChange, ctl, onReplay }: {
               </p>
             )}
             <div className="px-3">
-              <SettingSegment<GreetingLanguage> title={t("web.chat.home.settings.language")} value={view.language ?? "bilingual"} options={langOptions}
+              <SettingSegment<GreetingLanguage> title={t("web.chat.home.settings.language.title")} value={view.language ?? "bilingual"} options={langOptions}
                 disabled={globalDisabled} onChange={setLanguage} hint={t("web.chat.home.settings.languageHint")} />
               <SettingSegment<GreetingTrigger> title={t("web.chat.home.settings.trigger")} value={view.greetingTrigger ?? "daily"} options={triggerOptions}
                 disabled={globalDisabled} onChange={(greetingTrigger) => void update({ greetingTrigger })}

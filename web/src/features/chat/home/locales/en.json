@@ -40,7 +40,12 @@
           "global": "Daily greeting · all chats",
           "loadFailed": "Could not load the greeting settings.",
           "saveFailed": "That change could not be saved. Try again.",
-          "language": "Greeting language",
+          "language": {
+            "title": "Greeting language",
+            "zh": "中文",
+            "en": "English",
+            "bilingual": "中英双语"
+          },
           "languageHint": "Today's greeting stays as it is and the new language starts tomorrow; reply hints change right away.",
           "trigger": "When to greet",
           "triggerDaily": "First open of the day",
