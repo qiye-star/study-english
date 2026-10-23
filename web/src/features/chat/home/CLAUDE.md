@@ -5,7 +5,7 @@ Chat home (plan `docs/superpowers/plans/2026-10-23-chat-home-daily-greeting-web.
 ## What lives here
 - `chat-home-api.ts` — client + types for `/api/chat-home/*` (contract: server plan 5.1), `cleanGreeting` (not exactly 3 valid lines = no greeting), error table.
 - `emphasis.ts` — `*…*` emphasis parser (FR19, same rules as server R17). Render with React nodes only.
-- `chat-home-contract.stub.json` — stub of the server contract fixture (swap for `server/tests/fixtures/chat_home_contract.json` when it exists).
+- `chat-home-contract.test.ts` reads the server fixture `server/tests/fixtures/chat_home_contract.json` (test-fixture exception). `chat-home-contract.stub.json` is only a hand-written sample (stable ids like `c-today`) for the store / drawer / sheet / route tests; it is not a contract.
 - Later tasks add the store, open detection, drawer, settings sheet, greeting modal (see the plan's file list).
 
 ## Rules

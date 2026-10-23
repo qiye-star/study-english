@@ -4,11 +4,10 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import type { ConversationConfig } from "../chat-api";
 import { getChatHomeConfig, getChatPrefs, postToday } from "./chat-home-api";
 import { parseEmphasis, stripEmphasis } from "./emphasis";
-// Stub of the server fixture (server plan 5.1). When server/tests/fixtures/chat_home_contract.json lands (task S10),
-// point this import at it (the web/CLAUDE.md fixture exception) and keep the assertions.
-import contract from "./chat-home-contract.stub.json";
+// The server fixture (server plan 5.1; the web/CLAUDE.md test-fixture exception), recorded by the server tests.
+import contract from "../../../../../server/tests/fixtures/chat_home_contract.json";
 
-const TODAY_CASES = ["today_ready_bilingual", "today_ready_zh", "today_ready_no_stats", "today_pending", "today_off"] as const;
+const TODAY_CASES = ["today_bilingual", "today_zh", "today_en", "today_no_stats", "today_pending", "today_off"] as const;
 
 function client(routes: Parameters<typeof createFetchMock>[0]) {
   const mock = createFetchMock(routes);
@@ -45,7 +44,7 @@ describe("chat home contract (server plan 5.1)", () => {
   });
 
   it("conversation.config keys are snake_case on the wire and camelCase in the client (FR0)", async () => {
-    const body = contract.today_ready_bilingual;
+    const body = contract.today_bilingual;
     for (const key of Object.keys(body.conversation.config)) expect(isSnake(key)).toBe(true);
     const { api } = client({ "POST /api/chat-home/today": () => json(body) });
     const config: ConversationConfig = (await postToday(api, { tzOffsetMinutes: 0, clientRequestId: "r" })).conversation.config;
@@ -55,18 +54,18 @@ describe("chat home contract (server plan 5.1)", () => {
   });
 
   it("include_stats=false leaves facts empty", async () => {
-    const { api } = client({ "POST /api/chat-home/today": () => json(contract.today_ready_no_stats) });
+    const { api } = client({ "POST /api/chat-home/today": () => json(contract.today_no_stats) });
     expect((await postToday(api, { tzOffsetMinutes: 0, clientRequestId: "r" })).greeting!.facts).toEqual({});
   });
 
   it("facts keep only known finite numbers (yesterday_mistakes -> yesterdayMistakes)", async () => {
-    const body = { ...contract.today_ready_bilingual, greeting: { ...contract.today_ready_bilingual.greeting, facts: { streak: 3, due: "x", yesterday_mistakes: 2, secret: 1 } } };
+    const body = { ...contract.today_bilingual, greeting: { ...contract.today_bilingual.greeting, facts: { streak: 3, due: "x", yesterday_mistakes: 2, secret: 1 } } };
     const { api } = client({ "POST /api/chat-home/today": () => json(body) });
     expect((await postToday(api, { tzOffsetMinutes: 0, clientRequestId: "r" })).greeting!.facts).toEqual({ streak: 3, yesterdayMistakes: 2 });
   });
 
   it("every line has at most 3 valid emphases and strips to text without asterisks (R17)", async () => {
-    const { api } = client({ "POST /api/chat-home/today": () => json(contract.today_ready_bilingual) });
+    const { api } = client({ "POST /api/chat-home/today": () => json(contract.today_bilingual) });
     const g = (await postToday(api, { tzOffsetMinutes: 0, clientRequestId: "r" })).greeting!;
     for (const line of g.lines) {
       for (const text of [line.en, line.zh]) {
@@ -78,13 +77,13 @@ describe("chat home contract (server plan 5.1)", () => {
   });
 
   it("a greeting with the wrong number of lines or a missing language key counts as no greeting", async () => {
-    const two = { ...contract.today_ready_bilingual, greeting: { ...contract.today_ready_bilingual.greeting, lines: contract.today_ready_bilingual.greeting.lines.slice(0, 2) } };
-    const missingZh = { ...contract.today_ready_bilingual, greeting: { ...contract.today_ready_bilingual.greeting, lines: contract.today_ready_bilingual.greeting.lines.map((l) => ({ en: l.en })) } };
+    const two = { ...contract.today_bilingual, greeting: { ...contract.today_bilingual.greeting, lines: contract.today_bilingual.greeting.lines.slice(0, 2) } };
+    const missingZh = { ...contract.today_bilingual, greeting: { ...contract.today_bilingual.greeting, lines: contract.today_bilingual.greeting.lines.map((l) => ({ en: l.en })) } };
     for (const body of [two, missingZh]) {
       const { api } = client({ "POST /api/chat-home/today": () => json(body) });
       const r = await postToday(api, { tzOffsetMinutes: 0, clientRequestId: "r" });
       expect(r.greeting).toBeNull();
-      expect(r.conversation.id).toBe("c-today"); // the conversation still loads
+      expect(r.conversation.id).toBe(contract.today_bilingual.conversation.id); // the conversation still loads
     }
   });
 });
