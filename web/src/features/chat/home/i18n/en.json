@@ -21,6 +21,32 @@
           "more": "Delete this chat",
           "deleteTodayConfirm": "Delete today's chat? Your replies in it will be deleted; today's greeting stays and the chat starts over.",
           "deleteFailed": "Could not delete the chat. Try again."
+        },
+        "settings": {
+          "title": "Chat settings",
+          "description": "Persona, greeting and options for this chat.",
+          "role": "Persona · this chat",
+          "dailyPersona": "Use this persona every day",
+          "global": "Daily greeting · all chats",
+          "loadFailed": "Could not load the greeting settings.",
+          "saveFailed": "That change could not be saved. Try again.",
+          "language": "Greeting language",
+          "languageHint": "Today's greeting stays as it is and the new language starts tomorrow; reply hints change right away.",
+          "trigger": "When to greet",
+          "triggerDaily": "First open of the day",
+          "triggerEveryOpen": "Every open",
+          "triggerOff": "Off",
+          "triggerHint": {
+            "daily": "Shown once a day, the first time you open the app.",
+            "every_open": "Shown each time you open the app; the chat is not repeated.",
+            "off": "No greeting pops up and no new greeting is written; existing ones stay."
+          },
+          "stats": "Learning numbers in the greeting",
+          "statsHint": "Turn off to stop mentioning streaks, due words and mistakes. Today's greeting text stays; this applies from tomorrow.",
+          "thisChat": "This chat",
+          "replay": "Replay today's greeting",
+          "replayHint": "Shows it again without adding messages.",
+          "done": "Done"
         }
       }
     }

@@ -1,5 +1,6 @@
 import { removeKey } from "~/lib/storage";
 import { resetChatHomeStore } from "./chat-home-store";
+import { resetChatPrefsCache } from "./use-chat-prefs";
 
 /** 本机标记(只存日期 / 布尔,绝不存问候正文或 /today 响应)。 */
 export const CHAT_HOME_SHOWN_KEY = "enjoy.chatHome.shown"; // "YYYY-MM-DD":今天已在本机弹过(daily 防重)
@@ -9,6 +10,11 @@ export const CHAT_HOME_ROLE_HINT_KEY = "enjoy.chatHome.roleHintSeen"; // "1":新
 export function clearChatHomeCache(): void {
   try {
     resetChatHomeStore();
+  } catch {
+    /* ignore */
+  }
+  try {
+    resetChatPrefsCache();
   } catch {
     /* ignore */
   }

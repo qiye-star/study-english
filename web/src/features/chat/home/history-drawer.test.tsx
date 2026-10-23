@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { configure, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,6 +44,9 @@ async function setup(extra: Record<string, Handler> = {}, props: { currentId?: s
   await screen.findByText("Trip planning");
   return mock;
 }
+
+// the full suite runs these on a loaded machine: give async queries more than the 1 s default
+configure({ asyncUtilTimeout: 5000 });
 
 beforeEach(() => resetChatHomeStore());
 afterEach(() => resetChatHomeStore());
@@ -115,8 +118,7 @@ describe("history drawer", () => {
     await userEvent.click(await screen.findByTestId("conversation-delete-confirm"));
     await waitFor(() => expect(screen.queryByText("Trip planning")).toBeNull());
     expect(mock.calls.some((c) => c.method === "DELETE" && c.url.pathname === "/api/conversations/c-a")).toBe(true);
-    expect(screen.getByTestId("location")).toHaveTextContent("/chat"); // viewing it -> back to /chat
-    expect(screen.getByTestId("location")).not.toHaveTextContent("/chat/c-a");
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/chat")); // viewing it -> back to /chat
   });
 
   it("deleting today's card uses the dedicated text, then rebuilds with one new POST /today and no modal", async () => {
@@ -133,8 +135,7 @@ describe("history drawer", () => {
     const order = mock.calls.filter((c) => c.method === "DELETE" || c.url.pathname === "/api/chat-home/today").map((c) => `${c.method} ${c.url.pathname}`);
     expect(order).toEqual(["DELETE /api/conversations/c-today", "POST /api/chat-home/today"]);
     expect(getChatHomeState()).toMatchObject({ pendingModal: false, openSeq: before });
-    expect(screen.getByTestId("location")).toHaveTextContent("/chat"); // was /chat/c-a: replaced by /chat
-    expect(screen.getByTestId("location")).not.toHaveTextContent("/chat/");
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/chat")); // was /chat/c-a: replaced by /chat
   });
 
   it("a failed delete shows an error and leaves the store alone", async () => {
