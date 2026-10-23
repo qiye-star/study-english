@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ApiClient } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
-import { getChatHomeConfig } from "./chat-home-api";
 
 export type ChatHomeStatus = "loading" | "on" | "off";
 
@@ -14,7 +13,8 @@ const cache = new WeakMap<ApiClient, Promise<boolean>>();
 export function loadChatHomeEnabled(api: ApiClient): Promise<boolean> {
   let pending = cache.get(api);
   if (!pending) {
-    pending = getChatHomeConfig(api).then((c) => c.enabled === true, () => {
+    // 直接用 api.request(与 getChatHomeConfig 同一请求):不把整个 chat-home-api 模块拉进主包
+    pending = api.request<{ enabled: boolean }>("GET", "/api/chat-home/config").then((c) => c.enabled === true, () => {
       cache.delete(api);
       return false;
     });

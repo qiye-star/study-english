@@ -13,6 +13,8 @@ Chat home (plan `docs/superpowers/plans/2026-10-23-chat-home-daily-greeting-web.
 - Config keys: the web types say `zhNote` / `agentPersonaId`; `ApiClient` converts to snake_case on the wire (FR0). Never write snake_case keys by hand.
 - Lazy loading: shell, drawer, sheet and modal are lazy chunks; only the flag hook, store, open detection and route dispatch may sit in the main bundle (budget +0.5 kB gzip for the whole feature).
 - No `dangerouslySetInnerHTML` in this folder, no `backdrop-filter` (glass budget), animations via CSS / Web Animations API only (no new dependencies).
+- Strings live in `home/locales/{en,zh-CN}.json` (keys under `web.chat.home.*`), registered lazily by `locales.ts` (each lazy module does `import "./locales"`). Do NOT put them in an `i18n/` folder: that glob is merged into the main bundle (measured about +1.2 kB gzip).
+- Logout: modules that hold per-user state register a reset with `onChatHomeReset` (`chat-home-cache.ts`, tiny, main bundle); `clearChatHomeCache` runs them.
 - Never edit `enjoy/`; no third-party hosts.
 
 ## Test

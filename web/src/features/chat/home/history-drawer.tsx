@@ -1,3 +1,4 @@
+import "./locales";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";

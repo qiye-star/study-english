@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "~/auth/auth-context";
 import { getChatPrefs, patchChatPrefs, type ChatPrefs } from "./chat-home-api";
+import { onChatHomeReset } from "./chat-home-cache";
 
 // 全局问候设置(GET/PATCH /api/chat-home/settings)的模块缓存:打开设置面板时取一次,超过 5 分钟再取;
 // PATCH 成功后用响应覆盖。只放内存,登出清空(clearChatHomeCache)。
@@ -15,6 +16,8 @@ export function resetChatPrefsCache(): void {
   cached = null;
   publish();
 }
+
+onChatHomeReset(resetChatPrefsCache);
 
 export type PrefsStatus = "idle" | "loading" | "ready" | "error";
 

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { ApiClient } from "~/api/client";
 import { localDateString, tzOffsetMinutes } from "~/lib/tz-offset";
 import { postToday, type TodayResult } from "./chat-home-api";
+import { onChatHomeReset } from "./chat-home-cache";
 
 // 今天的 `/today` 结果(只放内存,登出清空;不进 localStorage,不含任何日志输出)。
 // 网络动作(requestToday / rebuildToday)也在这里,打开检测(chat-home-open.ts)只负责「何时调用」。
@@ -124,3 +125,5 @@ export function resetChatHomeStore(): void {
   state = INITIAL;
   listeners.forEach((l) => l());
 }
+
+onChatHomeReset(resetChatHomeStore);

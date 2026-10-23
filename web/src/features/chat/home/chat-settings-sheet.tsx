@@ -1,3 +1,4 @@
+import "./locales";
 import { ChevronRightIcon, ClipboardListIcon, PlayIcon, Settings2Icon, SparklesIcon } from "lucide-react";
 import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { useTranslation } from "react-i18next";
