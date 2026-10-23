@@ -20,7 +20,17 @@
           "empty": "还没有更早的对话。",
           "more": "删除这个对话",
           "deleteTodayConfirm": "删除今天的对话?你在里面的回复会被删除;今天的问候会保留,对话会重新开始。",
-          "deleteFailed": "没能删除对话,请重试。"
+          "deleteFailed": "没能删除对话,请重试。",
+          "todayTag": "今日 · 每日对话",
+          "dailyRow": "每日对话 · {{date}}",
+          "delete": "删除",
+          "deleteToday": "删除今天的对话?",
+          "deleteTodayBody": "你在里面的回复会被删除;今天的问候会保留,对话会重新开始。",
+          "loadMore": "加载更多",
+          "loading": "正在加载…",
+          "loadFailed": "对话列表加载失败",
+          "retry": "重试",
+          "rebuildFailed": "今天的对话没能重新开始"
         },
         "settings": {
           "title": "对话设置",
@@ -46,7 +56,60 @@
           "thisChat": "本对话",
           "replay": "重播今天的问候",
           "replayHint": "再看一遍,不会往对话里添加消息。",
-          "done": "完成"
+          "done": "完成",
+          "globalFailed": "这些设置加载失败",
+          "retry": "重试"
+        },
+        "greeting": {
+          "title": "今日问候",
+          "tapHint": "轻点任意处继续",
+          "skip": "跳过",
+          "skipAria": "跳过问候,进入今天的对话",
+          "stats": {
+            "streak": "连续 {{n}} 天",
+            "due": "{{n}} 词待复习",
+            "mistakes": "昨天 {{n}} 处错点",
+            "streakSr": "连续学习 {{n}} 天",
+            "dueSr": "{{n}} 个词待复习",
+            "mistakesSr": "昨天有 {{n}} 处错点",
+            "sep": ","
+          }
+        },
+        "route": {
+          "loading": "正在加载对话…",
+          "loadFailed": "今天的对话加载失败",
+          "retry": "重试"
+        },
+        "bar": {
+          "historyOpen": "对话历史",
+          "settingsOpen": "对话设置",
+          "today": "今天 · {{weekday}}",
+          "dailyKind": "每日对话",
+          "persona": "{{name}} · {{kind}}"
+        },
+        "date": {
+          "today": "今天",
+          "yesterday": "昨天",
+          "dailyShort": "{{date}}"
+        },
+        "newChat": {
+          "title": "新对话",
+          "hint": "先选一个角色再开始。每个对话都可以有自己的角色,随时能换。",
+          "pickRole": "选择角色",
+          "fromScenario": "从场景开始",
+          "justStart": "直接开始",
+          "createFailed": "对话没能开始,请重试"
+        },
+        "roleHint": {
+          "text": "在这里选择角色。每个对话都可以有自己的角色,随时能换。",
+          "gotIt": "知道了"
+        },
+        "emptyDay": {
+          "title": "今天还没有聊天",
+          "hint": "用英语说一句吧。"
+        },
+        "group": {
+          "title": "✦ 今日问候 · {{time}}"
         }
       }
     }

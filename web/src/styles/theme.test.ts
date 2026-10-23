@@ -126,3 +126,43 @@ describe("theme tokens (redesign v3)", () => {
     for (const set of [root, dark]) expect(contrast(resolve(set, fg), resolve(set, bg))).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+/* 每日问候弹窗令牌(计划 2026-10-23-chat-home-daily-greeting-web FR15、W11) */
+describe("greeting tokens", () => {
+  const GREET = ["--greet-base", "--greet-ink-2", "--greet-em", "--greet-chip", "--greet-chip-bd", "--aur-a", "--aur-b", "--aur-c", "--grain-o"];
+
+  type Rgba = [number, number, number, number];
+  type Rgb = [number, number, number];
+  const color = (value: string): Rgba => {
+    if (value.startsWith("#")) return [...([1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16)) as Rgb), 1];
+    const n = value.match(/[\d.]+/g)!.map(Number);
+    return [n[0], n[1], n[2], n[3] ?? 1];
+  };
+  const rgb = (value: string): Rgb => color(value).slice(0, 3) as Rgb;
+  const over = (top: Rgba, under: Rgba): Rgba => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat(1) as Rgba;
+  /** 底色上叠一块极光(色斑是 64px 模糊的大圆,实际很少重叠,所以取单块最浓处)。 */
+  const under = (set: Record<string, string>, layer: string): Rgb => rgb(over(color(set[layer]), color(set["--greet-base"])).join(","));
+
+  it.each([[":root", root], [".dark", dark]] as const)("%s defines every greeting token", (_, set) => {
+    for (const name of GREET) expect(set, name).toHaveProperty(name);
+  });
+
+  it("keeps the base opaque so the chat never shows through", () => {
+    for (const set of [root, dark]) expect(color(set["--greet-base"])[3]).toBe(1);
+  });
+
+  it.each([["--greet-ink-2"], ["--greet-em"], ["--ink"]])("text %s on every aurora layer has contrast >= 4.5 in light and dark", (name) => {
+    for (const set of [root, dark]) {
+      const fg = name === "--ink" ? resolve(set, name) : rgb(set[name]);
+      for (const layer of ["--aur-a", "--aur-b", "--aur-c"]) expect(contrast(fg, under(set, layer)), `${name} on ${layer}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(fg, rgb(set["--greet-base"]))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("keeps body ink readable even when all three layers overlap", () => {
+    for (const set of [root, dark]) {
+      const stacked = ["--aur-c", "--aur-b", "--aur-a"].reduce((acc, n) => over(color(set[n]), acc), color(set["--greet-base"]));
+      expect(contrast(resolve(set, "--ink"), stacked.slice(0, 3) as Rgb)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
