@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DubbingKit } from "~/features/library";
+import { HOME_PATH } from "~/lib/home-route";
 
 const h = vi.hoisted(() => {
   const request = vi.fn();
@@ -50,7 +51,7 @@ function renderPage() {
       <DubKitProvider kit={fakeKit}>
         <Routes>
           <Route path="/dub" element={<DubHomePage />} />
-          <Route path="/practice" element={<div>practice home</div>} />
+          <Route path={HOME_PATH} element={<div>home</div>} />
         </Routes>
       </DubKitProvider>
       <Where />
@@ -114,11 +115,11 @@ describe("dub home page (plan L5 W7)", () => {
     expect(screen.getByText(/shadowing library/i)).toBeInTheDocument();
   });
 
-  it("when the feature is off, /dub goes back to practice", async () => {
+  it("when the feature is off, /dub goes back to the home page", async () => {
     h.config = { enabled: false, suggest: false, limits: null };
     h.listItems.mockResolvedValue({ items: [], nextCursor: null });
     routeRequests({});
     const { where } = renderPage();
-    await waitFor(() => expect(where()).toBe("/practice"));
+    await waitFor(() => expect(where()).toBe(HOME_PATH));
   });
 });

@@ -7,6 +7,7 @@ import { AuthProvider } from "~/auth/auth-context";
 import { altchaCalls, resetFakeAltcha, solveCaptcha, widgetElement } from "~/test/captcha-element";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { setLiquid } from "~/test/glass";
+import { HOME_PATH } from "~/lib/home-route";
 import { LoginPage } from "./login-page";
 
 // 组件本体的 altcha 依赖在 jsdom 里替换(真实求解器需要浏览器 WebCrypto 与真实元素)。
@@ -23,7 +24,7 @@ function setup(routes: Parameters<typeof createFetchMock>[0], mode: "off" | "ada
       <AuthProvider fetchImpl={mock.fetch}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/practice" element={<div>practice home</div>} />
+          <Route path={HOME_PATH} element={<div>home</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -34,12 +35,12 @@ function setup(routes: Parameters<typeof createFetchMock>[0], mode: "off" | "ada
 describe("LoginPage", () => {
   beforeEach(() => { clearAuth(); localStorage.clear(); });
 
-  it("logs in, stores the token and goes to /practice", async () => {
+  it("logs in, stores the token and goes to the home page", async () => {
     const mock = setup({ "POST /api/sessions": () => json(USER) });
     await userEvent.type(screen.getByTestId("login-username"), " Alice ");
     await userEvent.type(screen.getByTestId("login-password"), "password123");
     await userEvent.click(screen.getByTestId("login-submit"));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/sessions")!.body as string))
       .toEqual({ provider: "password", username: "alice", password: "password123" });
     expect(JSON.parse(localStorage.getItem("enjoy-web.auth")!).token).toBe("tok");
@@ -65,7 +66,7 @@ describe("LoginPage", () => {
     await userEvent.type(screen.getByTestId("login-username"), " Alice@Example.COM ");
     await userEvent.type(screen.getByTestId("login-password"), "password123");
     await userEvent.click(screen.getByTestId("login-submit"));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(JSON.parse(mock.calls.find((c) => c.url.pathname === "/api/sessions")!.body as string))
       .toEqual({ provider: "password", username: "alice@example.com", password: "password123" });
   });
@@ -143,7 +144,7 @@ describe("LoginPage human verification (W7, spec R-C1/R-C8)", () => {
   it("off: renders no widget and makes no challenge request", async () => {
     const mock = setup({ "POST /api/sessions": () => json(USER) });
     await fillAndSubmit();
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(widgetElement()).toBeNull();
     expect(mock.calls.some((c) => c.url.pathname.startsWith("/api/captcha/challenge"))).toBe(false);
   });
@@ -165,7 +166,7 @@ describe("LoginPage human verification (W7, spec R-C1/R-C8)", () => {
     await waitFor(() => expect(widgetElement()).not.toBeNull());
     solveCaptcha(P1);
     await userEvent.click(screen.getByTestId("login-submit"));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     const sessions = mock.calls.filter((c) => c.url.pathname === "/api/sessions");
     expect(sessions[0].headers.has("X-Captcha")).toBe(false);
     expect(sessions[1].headers.get("X-Captcha")).toBe(P1);
@@ -193,7 +194,7 @@ describe("LoginPage human verification (W7, spec R-C1/R-C8)", () => {
     expect(mock.calls.some((c) => c.url.pathname === "/api/sessions")).toBe(false);
     solveCaptcha(P2);
     await userEvent.click(screen.getByTestId("login-submit"));
-    expect(await screen.findByText("practice home")).toBeInTheDocument();
+    expect(await screen.findByText("home")).toBeInTheDocument();
     expect(mock.calls.find((c) => c.url.pathname === "/api/sessions")!.headers.get("X-Captcha")).toBe(P2);
   });
 });

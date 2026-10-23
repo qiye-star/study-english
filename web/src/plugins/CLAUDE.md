@@ -19,7 +19,7 @@
 - `contribute({ point, id, order?, link?, requiresLinks?, component })`:`link` = 该联动有效才可见;`requiresLinks` = 总开关开才可见;
   都不写 = 核心贡献(永远可见)。同一点 id 重复会抛错;按 `order` 再按 `id` 排序。
 - `contributeRoute({ id, path, link? | requiresLinks?, component })`:app.tsx 把全部路由挂在 AppShell 下,由 `LinkRoute`
-  按旗标渲染;旗标未到(仍是 `ALL_OFF` 本身)时什么都不渲染,到了但不可见则回 `/practice`。
+  按旗标渲染;旗标未到(仍是 `ALL_OFF` 本身)时什么都不渲染,到了但不可见则回首页 `HOME_PATH`(`/chat`)。
 - 点与 props:`wordActions`(`WordActionProps`)、`wordActionsMenu`(+ `close`)、`dailyTasks`(`{ today }`)、`practiceHome`、
   `learningSources`(`{ pick }`)、`wordDetailSections`(`{ word }`,词卡未遮罩时才渲染)、`notebookViews`、`meRows`、`appEffects`、
   `selectionActions`(`{ text, testId }`,选词操作条;核心贡献 `chat.read-aloud` = 朗读)、`practiceHeaderActions`(无 props,练习页顶栏「练习清单」图标左边;核心贡献 `changelog.entry`)。

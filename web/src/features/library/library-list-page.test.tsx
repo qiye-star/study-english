@@ -4,6 +4,7 @@ import { ApiClient } from "~/api/client";
 import { setUiLanguage } from "./test-i18n";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { HOME_PATH } from "~/lib/home-route";
 import { LibraryListPage } from "./library-list-page";
 import { CONFIG_OFF_RAW, CONFIG_RAW, itemRaw } from "./test-fixtures";
 
@@ -32,9 +33,9 @@ function render(items: Record<string, unknown>[], extra: Record<string, Handler>
 }
 
 describe("LibraryListPage (spec §11.2)", () => {
-  it("goes back to the practice page when the library is off", async () => {
+  it("goes back to the home page when the library is off", async () => {
     render([], {}, CONFIG_OFF_RAW);
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(HOME_PATH));
   });
 
   it("shows usage, an empty state and the add button", async () => {

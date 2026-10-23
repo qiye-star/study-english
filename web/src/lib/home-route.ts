@@ -1,2 +1,2 @@
 /** 「首页」:登录后的默认落点、兜底路由、功能关闭时的退路。只在这里表达一次;返回键指向「练习页」,不用它。 */
-export const HOME_PATH = "/practice";
+export const HOME_PATH = "/chat";

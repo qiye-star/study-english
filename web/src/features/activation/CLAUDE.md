@@ -1,7 +1,7 @@
 # web/src/features/activation/
 
 词汇激活(plan `docs/superpowers/plans/10.21-plans/2026-10-21-l4-activation-context.md`,Task 15/16)。服务端 `ACTIVATION_ENABLED` 默认关;
-关时 `/api/activation/config` 返回 `enabled: false`,「我的」一行与 `/me/activation` 页都不出现(页面直达时跳回 `/practice`)。
+关时 `/api/activation/config` 返回 `enabled: false`,「我的」一行与 `/me/activation` 页都不出现(页面直达时跳回首页 `/chat`)。
 
 ## What lives here
 - `activation-api.ts` – 接口(`fetchActivationConfig`、`fetchWords(state, page)`、`fetchPromptHint(offset)`)与防御性解析;失败由调用方处理,不弹 toast。

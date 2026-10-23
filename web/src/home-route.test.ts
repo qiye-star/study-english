@@ -20,6 +20,10 @@ function walk(dir: string): string[] {
 }
 
 describe("home route", () => {
+  it("the home page is 对话", () => {
+    expect(HOME_PATH).toBe("/chat");
+  });
+
   it("product code has no hard-coded go-home redirect to /practice", () => {
     const banned = [/Navigate to="\/practice"/, /navigate\("\/practice"/, /\?\? "\/practice"/, /fallback = "\/practice"/];
     const hits = walk(srcRoot).flatMap((file) => {

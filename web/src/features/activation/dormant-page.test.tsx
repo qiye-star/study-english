@@ -6,6 +6,7 @@ import i18n from "~/i18n";
 import { contribute, type PointProps } from "~/lib/extension-points";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { HOME_PATH } from "~/lib/home-route";
 import { DormantPage } from "./dormant-page";
 import { ActivationMeRow } from "./me-row";
 
@@ -31,9 +32,9 @@ afterEach(async () => {
 });
 
 describe("DormantPage", () => {
-  it("sends you back to practice while the switch is off", async () => {
+  it("sends you back to the home page while the switch is off", async () => {
     setup({ "GET /api/activation/config": () => json({ enabled: false }) }, <DormantPage />, { path: "/me/activation" });
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/practice"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(HOME_PATH));
   });
 
   it("renders nothing until the config has arrived", () => {
