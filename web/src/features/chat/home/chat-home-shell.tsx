@@ -1,5 +1,5 @@
 import "./locales";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
@@ -7,8 +7,13 @@ import { ConversationPage } from "../conversation-page";
 import { refreshOnEnter } from "./chat-home-open";
 import { requestToday, useChatHomeState } from "./chat-home-store";
 import { homeChrome } from "./home-chrome";
+import { playGreetingFlyIn } from "./greeting-fly";
+import { useGreetingPopup } from "./greeting-popup";
 import { HistoryDrawer } from "./history-drawer";
 import { NewChat } from "./new-chat";
+
+// 问候弹窗是懒块(计划 K5);它的样式、动画、分词都随它走
+const GreetingModal = lazy(() => import("./greeting-modal").then((m) => ({ default: m.GreetingModal })));
 
 export type HomeKind = "today" | "new" | "conversation";
 
@@ -35,7 +40,7 @@ function TodayPlaceholder({ error, onRetry, onOpenHistory, historyOpen, historyB
 
 /**
  * 对话主页的新外框(懒加载块,FR1):今天的对话 / 新对话草稿 / 指定对话,共用同一个历史抽屉与设置面板。
- * 同一个 ConversationPage,换的只是外框插槽(顶栏、设置面板、空状态)。问候弹窗只属于 `kind="today"`(W10)。
+ * 同一个 ConversationPage,换的只是外框插槽(顶栏、设置面板、空状态)。问候弹窗只属于 `kind="today"`(只在 /chat 出现,FR10)。
  */
 export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
   const { t, i18n } = useTranslation();
@@ -56,12 +61,15 @@ export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, api]);
 
+  const popup = useGreetingPopup(api, kind === "today");
   const todayId = home.today?.conversation.id ?? null;
+  const greeting = home.today?.greeting ?? null;
   const chrome = homeChrome({
     t, lang: i18n.language, todayId,
     historyOpen, onOpenHistory: () => setHistoryOpen(true), historyButtonRef,
     settingsOpen, onSettingsOpenChange: setSettingsOpen,
-    greeting: home.today?.greeting,
+    greeting,
+    onReplay: kind === "today" && home.today?.status === "ready" && greeting ? popup.replay : undefined,
   });
   const openHistory = () => setHistoryOpen(true);
 
@@ -83,6 +91,12 @@ export default function ChatHomeShell({ kind }: { kind: HomeKind }) {
   return (
     <>
       {body}
+      {kind === "today" && popup.mode && home.today && greeting ? (
+        <Suspense fallback={null}>
+          <GreetingModal lines={greeting.lines} language={greeting.language} localDate={home.today.localDate} facts={greeting.facts}
+            mode={popup.mode} onShown={popup.onShown} onClose={popup.close} playExit={(targets) => playGreetingFlyIn(targets)} />
+        </Suspense>
+      ) : null}
       <HistoryDrawer open={historyOpen} onOpenChange={setHistoryOpen} currentId={currentId}
         onCloseAutoFocus={(e) => { e.preventDefault(); historyButtonRef.current?.focus({ preventScroll: true }); }} />
     </>

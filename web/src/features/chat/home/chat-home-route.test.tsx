@@ -8,21 +8,24 @@ import { resetServerAiConfigCache } from "~/api/server-config";
 import { createFetchMock, json, type Handler } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { resetChatHomeStore } from "./chat-home-store";
-import { ChatRoutesHarness, TODAY, chatHomeRoutes, goTo } from "./test-routes";
+import { CHAT_HOME_SHOWN_KEY } from "./chat-home-cache";
+import { requestToday } from "./chat-home-store";
+import { resetChatPrefsCache } from "./use-chat-prefs";
+import { ChatRoutesHarness, FIRST_VIEW, SEEN_TODAY, chatHomeRoutes, goTo } from "./test-routes";
 
 configure({ asyncUtilTimeout: 5000 });
 
 beforeAll(() => {
   Object.assign(HTMLMediaElement.prototype, { pause: vi.fn(), play: vi.fn(() => Promise.resolve()) });
 });
-beforeEach(() => { resetServerAiConfigCache(); resetChatHomeStore(); });
-afterEach(() => resetChatHomeStore());
+beforeEach(() => { resetServerAiConfigCache(); resetChatHomeStore(); resetChatPrefsCache(); localStorage.removeItem(CHAT_HOME_SHOWN_KEY); });
+afterEach(() => { resetChatHomeStore(); localStorage.removeItem(CHAT_HOME_SHOWN_KEY); });
 
 function setup(route: string, extra: Record<string, Handler> = {}) {
   const mock = createFetchMock(chatHomeRoutes(extra));
   const api = new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch });
   renderWithProviders(<ChatRoutesHarness />, { api, route, path: "*" });
-  return mock;
+  return { ...mock, api };
 }
 const callsTo = (mock: ReturnType<typeof createFetchMock>, method: string, path: string) =>
   mock.calls.filter((c) => c.method === method && c.url.pathname === path);
@@ -96,7 +99,7 @@ describe("chat home routes (CHAT_HOME_ENABLED)", () => {
 
   it("a failed /today shows a retry and no invented conversation; the drawer still opens", async () => {
     let n = 0;
-    const mock = setup("/chat", { "POST /api/chat-home/today": () => (++n === 1 ? new Response("boom", { status: 500 }) : json(TODAY)) });
+    const mock = setup("/chat", { "POST /api/chat-home/today": () => (++n === 1 ? new Response("boom", { status: 500 }) : json(SEEN_TODAY)) });
     expect(await screen.findByTestId("chat-home-error")).toBeInTheDocument();
     expect(callsTo(mock, "POST", "/api/conversations")).toHaveLength(0);
     await userEvent.click(screen.getByTestId("chat-home-retry"));
@@ -119,5 +122,139 @@ describe("chat home routes (CHAT_HOME_ENABLED)", () => {
     setup("/chat");
     await userEvent.click(await screen.findByTestId("chat-settings-open"));
     expect(await screen.findByTestId("chat-settings-sheet")).toBeInTheDocument();
+  });
+});
+
+// ---- 问候时机(W10):只在 /chat 弹;daily / every_open / off;重播;删除今天的对话 ----
+const prefs = (greeting_trigger: string) => ({ "GET /api/chat-home/settings": () => json({ greeting_trigger, language: "bilingual", daily_persona_id: "builtin:partner", include_stats: true }) });
+const todayWith = (over: Record<string, unknown>) => ({ ...FIRST_VIEW, greeting: { ...FIRST_VIEW.greeting, ...over } });
+const messagePosts = (mock: ReturnType<typeof createFetchMock>) => mock.calls.filter((c) => c.method === "POST" && c.url.pathname.endsWith("/messages"));
+const seenCalls = (mock: ReturnType<typeof createFetchMock>) => mock.calls.filter((c) => c.url.pathname.endsWith("/seen"));
+
+describe("greeting trigger rules (only on the chat home)", () => {
+  it("a cold start somewhere else pops the greeting the first time /chat is entered, once", async () => {
+    const mock = setup("/practice", { "POST /api/chat-home/today": () => json(FIRST_VIEW) });
+    await requestToday(mock.api, { open: true }); // what the app-open effect does at start
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+    act(() => goTo("/chat"));
+    const modal = await screen.findByTestId("greeting-modal");
+    expect(modal).toHaveAttribute("data-mode", "open");
+    await waitFor(() => expect(seenCalls(mock)).toHaveLength(1));
+    expect(seenCalls(mock)[0].url.pathname).toBe("/api/chat-home/greetings/g1/seen");
+    expect(localStorage.getItem(CHAT_HOME_SHOWN_KEY)).toBe("2026-10-23");
+    await userEvent.click(screen.getByTestId("greeting-skip"));
+    await waitFor(() => expect(screen.queryByTestId("greeting-modal")).toBeNull());
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat");
+    // leaving and coming back in the same app open does not pop it again
+    act(() => goTo("/practice"));
+    act(() => goTo("/chat"));
+    await screen.findByTestId("message-list");
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+    expect(messagePosts(mock)).toHaveLength(0);
+  });
+
+  it("never pops on a deep link, even the one for today's own conversation, and keeps the marker for /chat", async () => {
+    const mock = setup("/chat/c-today", { "POST /api/chat-home/today": () => json(FIRST_VIEW) });
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+    act(() => goTo("/chat"));
+    expect(await screen.findByTestId("greeting-modal")).toBeInTheDocument();
+  });
+
+  it("daily: firstView=false does not pop", async () => {
+    const mock = setup("/chat", { "POST /api/chat-home/today": () => json(todayWith({ first_view: false })) });
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+    expect(seenCalls(mock)).toHaveLength(0);
+  });
+
+  it("daily: a device that already showed today does not pop again, and retries a missed seen once, silently", async () => {
+    localStorage.setItem(CHAT_HOME_SHOWN_KEY, "2026-10-23");
+    const mock = setup("/chat", { "POST /api/chat-home/today": () => json(FIRST_VIEW) });
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    await waitFor(() => expect(seenCalls(mock)).toHaveLength(1));
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+  });
+
+  it("every open: pops even when it was seen, calls seen, and appends no message", async () => {
+    const mock = setup("/chat", { ...prefs("every_open"), "POST /api/chat-home/today": () => json(todayWith({ first_view: false })) });
+    await requestToday(mock.api, { open: true });
+    expect(await screen.findByTestId("greeting-modal")).toBeInTheDocument();
+    await waitFor(() => expect(seenCalls(mock)).toHaveLength(1));
+    expect(messagePosts(mock)).toHaveLength(0);
+    expect(screen.getAllByTestId("chat-greeting-line")).toHaveLength(3); // the chat still has exactly the stored three
+  });
+
+  it("off: no popup (the chat is still today's)", async () => {
+    const mock = setup("/chat", { ...prefs("off"), "POST /api/chat-home/today": () => json(FIRST_VIEW) });
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+    expect(seenCalls(mock)).toHaveLength(0);
+  });
+
+  it("a greeting that is not exactly three lines is treated as no greeting", async () => {
+    const mock = setup("/chat", { "POST /api/chat-home/today": () => json(todayWith({ lines: FIRST_VIEW.greeting.lines.slice(0, 2) })) });
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    expect(screen.queryByTestId("greeting-modal")).toBeNull();
+  });
+
+  it("a failing seen request is silent and the modal still shows", async () => {
+    const mock = setup("/chat", { "POST /api/chat-home/today": () => json(FIRST_VIEW), "POST /api/chat-home/greetings/g1/seen": () => new Response("boom", { status: 500 }) });
+    await requestToday(mock.api, { open: true });
+    expect(await screen.findByTestId("greeting-modal")).toBeInTheDocument();
+    await waitFor(() => expect(seenCalls(mock)).toHaveLength(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("replay: opens the same lines from the settings sheet without /today, seen or any message write; absent for other conversations", async () => {
+    const mock = setup("/chat");
+    await requestToday(mock.api, { open: true });
+    await screen.findByTestId("message-list");
+    mock.calls.length = 0;
+    await userEvent.click(screen.getByTestId("chat-settings-open"));
+    await userEvent.click(await screen.findByTestId("chat-greeting-replay"));
+    const modal = await screen.findByTestId("greeting-modal");
+    expect(modal).toHaveAttribute("data-mode", "replay");
+    expect(screen.getAllByTestId("greeting-line")).toHaveLength(3);
+    expect(mock.calls.filter((c) => c.url.pathname.includes("/today") || c.url.pathname.endsWith("/seen") || c.method === "POST")).toHaveLength(0);
+    await userEvent.click(screen.getByTestId("greeting-skip"));
+    await waitFor(() => expect(screen.queryByTestId("greeting-modal")).toBeNull());
+    expect(screen.getAllByTestId("chat-greeting-line")).toHaveLength(3); // message count unchanged
+
+    act(() => goTo("/chat/c1"));
+    await screen.findByText("Where to?");
+    await userEvent.click(screen.getByTestId("chat-settings-open"));
+    await screen.findByTestId("chat-settings-sheet");
+    expect(screen.queryByTestId("chat-greeting-replay")).toBeNull();
+  });
+
+  it("deleting today's chat from the drawer rebuilds it: DELETE then POST /today once each, no popup, new chat with its three greeting bubbles", async () => {
+    let n = 0;
+    const NEW_ID = "c-rebuilt";
+    const rebuilt = { ...SEEN_TODAY, conversation: { ...SEEN_TODAY.conversation, id: NEW_ID }, greeting: { ...SEEN_TODAY.greeting, id: "g2", message_ids: ["n1", "n2", "n3"], first_view: true } };
+    const mock = setup("/chat", {
+      "POST /api/chat-home/today": () => json(++n === 1 ? SEEN_TODAY : rebuilt),
+      "DELETE /api/conversations/c-today": () => json({ id: "c-today" }),
+      [`GET /api/conversations/${NEW_ID}`]: () => json(rebuilt.conversation),
+      [`GET /api/conversations/${NEW_ID}/messages`]: () => json({ messages: ["n1", "n2", "n3"].map((id, i) => ({ id, conversation_id: NEW_ID, role: "assistant", content: `${rebuilt.greeting.lines[i].en.replace(/\*/g, "")}\n\n${rebuilt.greeting.lines[i].zh.replace(/\*/g, "")}`, created_at: "2026-10-23T00:42:10Z" })) }),
+    });
+    await requestToday(mock.api, { open: true });
+    await screen.findAllByTestId("chat-greeting-line");
+    await userEvent.click(screen.getByTestId("chat-history-open"));
+    await userEvent.click(await screen.findByTestId("chat-history-today-delete"));
+    await userEvent.click(await screen.findByTestId("conversation-delete-confirm"));
+    await waitFor(() => expect(callsTo(mock, "GET", `/api/conversations/${NEW_ID}/messages`).length).toBeGreaterThan(0));
+    expect(callsTo(mock, "DELETE", "/api/conversations/c-today")).toHaveLength(1);
+    expect(callsTo(mock, "POST", "/api/chat-home/today")).toHaveLength(2);
+    expect(screen.queryByTestId("greeting-modal")).toBeNull(); // a rebuild is not an app open, even though firstView is true
+    expect(seenCalls(mock)).toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByTestId("chat-greeting-line")).toHaveLength(3));
+    expect(messagePosts(mock)).toHaveLength(0);
   });
 });

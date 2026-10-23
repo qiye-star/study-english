@@ -7,6 +7,10 @@ import contract from "./chat-home-contract.stub.json";
 export const TODAY = contract.today_ready_bilingual;
 const CONFIG = TODAY.conversation.config;
 
+/** 默认「今天已看过」:路由测试不被弹窗打断;要测弹窗的用例传 `FIRST_VIEW` */
+export const SEEN_TODAY = { ...TODAY, greeting: { ...TODAY.greeting, first_view: false } };
+export const FIRST_VIEW = TODAY;
+
 export const stripStars = (s: string) => s.replace(/\*/g, "");
 /** 问候的三条助手消息(内容 = 去掉强调标记的英文主句,和服务端写入的一致) */
 export const GREETING_MESSAGES = TODAY.greeting.message_ids.map((id, i) => ({
@@ -40,7 +44,7 @@ export function chatHomeRoutes(extra: Record<string, Handler> = {}): Record<stri
     "GET /api/chat-home/config": () => json({ enabled: true, llm: false }),
     "GET /api/chat-home/settings": () => json(contract.settings),
     "PATCH /api/chat-home/settings": (c) => json({ ...contract.settings, ...JSON.parse(String(c.body)) }),
-    "POST /api/chat-home/today": () => json(TODAY),
+    "POST /api/chat-home/today": () => json(SEEN_TODAY),
     "POST /api/chat-home/greetings/g1/seen": () => json({ first_seen_at: "2026-10-23T00:43:00Z" }),
     "GET /api/conversations": () => json({ conversations: [], page: 1, next: null }),
     "GET /api/conversations/c-today": () => json({ ...TODAY.conversation }),

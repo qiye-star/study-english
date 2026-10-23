@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ApiClient } from "~/api/client";
 import { useAuth } from "~/auth/auth-context";
 import { getChatPrefs, patchChatPrefs, type ChatPrefs } from "./chat-home-api";
 import { onChatHomeReset } from "./chat-home-cache";
@@ -18,6 +19,19 @@ export function resetChatPrefsCache(): void {
 }
 
 onChatHomeReset(resetChatPrefsCache);
+
+/** 不经 React 取一次全局设置(问候时机判断用):有缓存直接给,没有就取并缓存;失败返回 null(调用方按默认值处理)。 */
+export async function ensureChatPrefs(api: ApiClient): Promise<ChatPrefs | null> {
+  if (cached) return cached.prefs;
+  try {
+    const prefs = await getChatPrefs(api);
+    cached = { prefs, at: Date.now() };
+    publish();
+    return prefs;
+  } catch {
+    return null;
+  }
+}
 
 export type PrefsStatus = "idle" | "loading" | "ready" | "error";
 
