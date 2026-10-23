@@ -26,6 +26,8 @@ describe("e2e upstream guard classification", () => {
     // 智能体(AGENTS_ENABLED 的 E2E 栈,agents-web N2):对话页加载时请求 /config;设置与角色只读写数据库
     "/api/agents/config", "/api/agents/settings", "/api/agents/personas", "/api/agents/personas/p1", "/api/agents/personas/builtin%3Acoach",
     "/api/agents/personas/p1/report",
+    // 对话主页(CHAT_HOME_ENABLED,E2E 栈关掉 LLM 问候):配置、今天的对话、设置、已看过只读写数据库
+    "/api/chat-home/config", "/api/chat-home/settings", "/api/chat-home/today", "/api/chat-home/greetings/g1/seen",
   ])("lets the page's own backend route %s through", (path) => {
     expect(isOwnBackendPath(path)).toBe(true);
   });
@@ -44,6 +46,7 @@ describe("e2e upstream guard classification", () => {
     "/api/links", "/api/links/configx", "/api/links/wordbook/cards", "/api/links/mistakes/x",
     // 回合、试聊、导师开始会触达 LLM:不放行(E2E 里用 page.route 模拟)
     "/api/agents/turn", "/api/agents/personas/try", "/api/agents/tutor/start", "/api/agents", "/api/agents/configx",
+    "/api/chat-home", "/api/chat-home/configx", "/api/chat-home/today/x", "/api/chat-home/greetings/g1", "/api/chat-home/greetings/g1/seen/x",
   ])("blocks %s, which may reach an upstream", (path) => {
     expect(isOwnBackendPath(path)).toBe(false);
   });

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { registerViaApi, signIn } from "./support/auth";
-import { headerOption } from "./support/header";
+import { startChat, expectChatCount, deleteFirstChat, expectNoChats, openChatList } from "./support/chat";
+import { closeHeaderOptions, headerOption } from "./support/header";
 import { SPEECH_WAV, useFakeMicrophone } from "./support/fake-mic";
 import { composerMode, recordByKeyboard } from "./support/mic";
 
@@ -38,13 +39,7 @@ async function expectStableCount(read: () => number, expected: number): Promise<
     .toBe(expected);
 }
 
-async function newConversation(page: Page): Promise<string> {
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId("scenario-free").click();
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
-  return page.url().split("/").pop()!;
-}
+const newConversation = (page: Page): Promise<string> => startChat(page);
 
 async function sendText(page: Page, text: string): Promise<void> {
   const count = await page.getByTestId("message-assistant").count();
@@ -61,13 +56,7 @@ async function authedStatus(page: Page, path: string): Promise<number> {
   }, path);
 }
 
-async function newScenario(page: Page, id: string): Promise<string> {
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId(`scenario-${id}`).click();
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
-  return page.url().split("/").pop()!;
-}
+const newScenario = (page: Page, id: string): Promise<string> => startChat(page, id);
 
 /** 记录所有朗读按钮 data-state 的变化(元素可能稍后才出现,所以观察整个 body)。 */
 async function recordTtsStates(page: Page): Promise<void> {
@@ -97,13 +86,11 @@ async function autoReadOutcome(page: Page): Promise<string> {
 test("chat: stream, persist, read aloud and delete", async ({ page, request, browserName }) => {
   await useFakeMicrophone(page, browserName);
   await signIn(page, request);
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId("scenario-free").click();
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+  await startChat(page);
   // R27:关掉自动朗读,本用例验证的是手动朗读的状态机(自动朗读见下方新用例)
   await (await headerOption(page, "conversation-autospeak")).click();
   await expect(await headerOption(page, "conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+  await closeHeaderOptions(page);
   const conversationId = page.url().split("/").pop()!;
 
   // 持久化写入(POST .../messages)在流结束后发生;先挂好监听,刷新前等它完成,避免竞态
@@ -150,14 +137,14 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
   const states = await page.evaluate(() => (window as unknown as { __ttsStates: string[] }).__ttsStates);
   expect(states).not.toContain("error");
 
-  await page.getByTestId("nav-chat").click();
-  await expect(page.getByTestId("conversation-item")).toHaveCount(1);
-  await page.getByTestId("conversation-delete").first().click();
-  await page.getByTestId("conversation-delete-confirm").click();
-  await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  await openChatList(page);
+  await expectChatCount(page, 1);
+  await deleteFirstChat(page);
+  await expectNoChats(page);
   // 服务端确实删除:刷新后仍为空,且按 id 查询返回 404
   await page.reload();
-  await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  await openChatList(page);
+  await expectNoChats(page);
   const gone = await page.evaluate(async (id) => {
     const token = JSON.parse(localStorage.getItem("enjoy-web.auth")!).token;
     return (await fetch(`/api/conversations/${id}`, { headers: { Authorization: `Bearer ${token}` } })).status;
@@ -167,9 +154,7 @@ test("chat: stream, persist, read aloud and delete", async ({ page, request, bro
 
 test("composer stays visible on a phone-sized screen", async ({ page, request }) => {
   await signIn(page, request);
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId("scenario-free").click();
+  await startChat(page);
   await page.getByTestId("chat-input").focus();
   const input = await page.getByTestId("chat-input").boundingBox();
   const viewport = page.viewportSize()!;
@@ -242,10 +227,9 @@ test("voice message: transcript, streamed reply, pronunciation and grammar badge
   await expect(page.getByTestId("shadow-sheet")).toHaveCount(0);
 
   // 删除对话:对话评测与录音一并删除(文件是否删除在门槛 5 里用 docker exec 复核)
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-delete").first().click();
-  await page.getByTestId("conversation-delete-confirm").click();
-  await expect(page.getByTestId("conversations-empty")).toBeVisible();
+  await openChatList(page);
+  await deleteFirstChat(page);
+  await expectNoChats(page);
   expect(await authedStatus(page, `/api/assessments/${assessmentId}`)).toBe(404);
   expect(await authedStatus(page, `/api/assessments/${assessmentId}/audio`)).toBe(404);
   console.log(`voice: deleted assessment ${assessmentId}`);
@@ -297,6 +281,7 @@ test("translation on demand is cached when toggled; bilingual mode translates ne
 
   await (await headerOption(page, "conversation-bilingual")).click();
   await expect(await headerOption(page, "conversation-bilingual")).toHaveAttribute("aria-pressed", "true");
+  await closeHeaderOptions(page);
   await sendText(page, "And one about the sun?");
   await expect(page.getByTestId("message-translation")).toHaveCount(2, { timeout: 60_000 });
   await expect(page.getByTestId("message-translation").last()).toContainText(/[一-鿿]/, { timeout: 60_000 });
@@ -355,6 +340,7 @@ test("scenario: the opening line is saved and read aloud, replies are read aloud
 
   await (await headerOption(page, "conversation-autospeak")).click();
   await expect(await headerOption(page, "conversation-autospeak")).toHaveAttribute("aria-pressed", "false");
+  await closeHeaderOptions(page);
   const afterOff = speech;
   await sendText(page, "And a croissant, too.");
   await expectStableCount(() => speech, afterOff);

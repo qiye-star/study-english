@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
-import { headerOption } from "./support/header";
+import { startChat } from "./support/chat";
+import { closeHeaderOptions, headerOption } from "./support/header";
 import { composerMode, recordFor } from "./support/mic";
 
 // 只在 E2E_LATENCY=1 时运行(需要真实上游;结果写进 docs/superpowers/plans/2026-10-07-voice-latency.md)。
@@ -13,9 +14,7 @@ test("latency: release → transcript and reply → first audio", async ({ page,
   test.skip(browserName !== "chromium", "fake microphone file is a Chromium flag");
   test.setTimeout(RUNS * (HOLD_MS + 90_000) + 60_000);
   await signIn(page, request);
-  await page.goto("/chat");
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId("scenario-free").click();
+  await startChat(page);
   await composerMode(page, "voice");
   await expect(page.getByTestId("chat-mic")).toBeEnabled();
   const results: unknown[] = [];
@@ -27,6 +26,7 @@ test("latency: release → transcript and reply → first audio", async ({ page,
     await expect(page.getByTestId("chat-mic")).toHaveAttribute("data-state", "idle");
     await (await headerOption(page, "conversation-autospeak")).click(); // 停掉正在进行的朗读:关
     await (await headerOption(page, "conversation-autospeak")).click(); // 再打开,下一轮照常自动朗读
+    await closeHeaderOptions(page);
   }
   const spans = await page.evaluate(() =>
     ((window as unknown as { __enjoyLatency: Array<{ spans: Record<string, number> }> }).__enjoyLatency).map((r) => r.spans));

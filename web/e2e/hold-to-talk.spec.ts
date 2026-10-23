@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
-import { headerOption } from "./support/header";
+import { startChat } from "./support/chat";
+import { closeHeaderOptions, headerOption } from "./support/header";
 import { mockUpstreams, quiet, TRANSCRIPT, type UpstreamMocks } from "./support/mock-upstreams";
 import { composerMode } from "./support/mic";
 import { touchHold } from "./support/touch";
@@ -19,13 +20,11 @@ test.describe("hold to talk (touch)", () => {
   test.beforeEach(async ({ page, request }) => {
     mocks = await mockUpstreams(page); // 在登录/导航之前注册,页面的任何请求都经过守卫
     await signIn(page, request);
-    await page.goto("/chat");
-    await page.getByTestId("conversation-new").click();
-    await page.getByTestId("scenario-free").click();
-    await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/);
+    await startChat(page);
     if ((await (await headerOption(page, "conversation-autospeak")).getAttribute("aria-pressed")) === "true") {
       await (await headerOption(page, "conversation-autospeak")).click(); // 本用例不验证朗读
     }
+    await closeHeaderOptions(page);
     await composerMode(page, "voice"); // 输入栏默认是文字模式:切到"按住 说话"长条
     await expect(page.getByTestId("chat-mic")).toBeEnabled();
   });

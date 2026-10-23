@@ -25,7 +25,11 @@ const OWN_LINKS = /^\/api\/links\/(config|prefs|today|mistakes|mistakes\/dismiss
 // /turn、/personas/try(LLM)与 /tutor/*(可能出题调用 LLM)不放行;记忆端点由 agents-memory 计划追加。
 const OWN_AGENTS = /^\/api\/agents\/(config|settings|personas|personas\/(?!try$)[^/]+|personas\/[^/]+\/report)$/;
 
+// 对话主页(CHAT_HOME_ENABLED):每次打开请求 /config、/today(E2E 栈 CHAT_GREETING_LLM_ENABLED=false 时问候走模板,不调用 LLM)、
+// 设置与「已看过」只读写数据库。开着 LLM 问候的栈里 /today 会触达上游,所以那样的栈不能用守卫跑这些规格。
+const OWN_CHAT_HOME = /^\/api\/chat-home\/(config|settings|today|greetings\/[^/]+\/seen)$/;
+
 export function isOwnBackendPath(pathname: string): boolean {
   return OWN_BACKEND.test(pathname) || OWN_BACKEND_EXACT.has(pathname) || OWN_WORDBOOK.test(pathname) || OWN_LINKS.test(pathname)
-    || OWN_AGENTS.test(pathname);
+    || OWN_AGENTS.test(pathname) || OWN_CHAT_HOME.test(pathname);
 }

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./support/auth";
+import { startChat } from "./support/chat";
 
 async function readPrompt(page: Page): Promise<{ prompt: string | null; default_prompt: string; max_length: number }> {
   return page.evaluate(async () => {
@@ -26,9 +27,7 @@ test("grammar prompt: prefilled default, save a custom version, check with it, r
   await expect(page.getByTestId("grammar-prompt-status")).toHaveAttribute("data-custom", "true");
   expect((await readPrompt(page)).prompt).toBe(custom);
 
-  await page.getByTestId("nav-chat").click();
-  await page.getByTestId("conversation-new").click();
-  await page.getByTestId("scenario-free").click();
+  await startChat(page);
   const grammar = page.waitForResponse((r) => r.url().endsWith("/api/ai/grammar"), { timeout: 120_000 });
   await page.getByTestId("chat-input").fill("I have a apple and she have two.");
   await page.getByTestId("chat-send").click();
