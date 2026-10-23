@@ -24,14 +24,13 @@
         "start": "开始彩排"
       },
       "roles": {
-        "role": "角色 {{key}}",
         "count": "{{count}} 句",
-        "rename": "给角色 {{key}} 改名",
-        "nameFor": "角色 {{key}} 的名字",
+        "rename": "给{{role}}改名",
+        "nameFor": "{{role}}的名字",
         "save": "保存名字",
         "editShort": "改名",
         "heading": "选择你的角色",
-        "sentenceRole": "第 {{n}} 句的角色",
+        "sentenceRole": "第 {{n}} 句的角色：{{role}}",
         "label": "{{color}}·{{name}}",
         "default": {
           "A": "Alex",

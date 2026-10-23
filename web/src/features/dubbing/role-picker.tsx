@@ -1,7 +1,9 @@
 import "./locales";
 import { useState } from "react";
+import { CheckIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ROLE_KEYS, type RoleKey } from "./dubbing-api";
+import { ROLE_COLOR, RoleDot, roleLabel } from "./role-identity";
 
 /** 角色名最多 24 个字符(计划 L5 W8)。 */
 export const ROLE_NAME_MAX = 24;
@@ -34,7 +36,7 @@ export function RolePicker({
     <ul className="space-y-2">
       {ROLE_KEYS.map((role) => {
         const count = counts[role] ?? 0;
-        const label = names[role] ?? t("web.dubbing.roles.role", { key: role });
+        const label = roleLabel(t, role, names[role]);
         return (
           <li key={role} className="flex items-center gap-2">
             <button
@@ -42,15 +44,20 @@ export function RolePicker({
               disabled={count === 0}
               aria-pressed={selected === role}
               onClick={() => onSelect(role)}
-              className={`flex flex-1 items-center justify-between rounded-2xl px-4 py-3 text-left ${selected === role ? "bg-white/25" : "bg-white/10"} disabled:opacity-40`}
+              data-role-color={ROLE_COLOR[role]}
+              className="dub-role-card flex flex-1 items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left disabled:opacity-40"
             >
-              <span className="text-[15px] font-medium">{label}</span>
-              <span className="text-[12px] opacity-80">{t("web.dubbing.roles.count", { count })}</span>
+              <span className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
+                <RoleDot role={role} />
+                <span className="truncate">{label}</span>
+                {selected === role ? <CheckIcon data-testid="role-check" aria-hidden="true" className="h-4 w-4 shrink-0" /> : null}
+              </span>
+              <span className="shrink-0 text-[12px] opacity-80">{t("web.dubbing.roles.count", { count })}</span>
             </button>
             {editable ? (
               <button
                 type="button"
-                aria-label={t("web.dubbing.roles.rename", { key: role })}
+                aria-label={t("web.dubbing.roles.rename", { role: label })}
                 onClick={() => {
                   setEditing(role);
                   setDraft(names[role] ?? "");
@@ -63,7 +70,7 @@ export function RolePicker({
             {editable && editing === role ? (
               <div className="flex items-center gap-1">
                 <input
-                  aria-label={t("web.dubbing.roles.nameFor", { key: role })}
+                  aria-label={t("web.dubbing.roles.nameFor", { role: label })}
                   maxLength={ROLE_NAME_MAX}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}

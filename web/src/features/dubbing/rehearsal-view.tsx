@@ -1,6 +1,8 @@
 import "./locales";
 import { useTranslation } from "react-i18next";
+import type { RoleKey } from "./dubbing-api";
 import { HeadphoneHint } from "./headphone-hint";
+import { RoleDot } from "./role-identity";
 
 export interface RehearsalLine {
   idx: number;
@@ -11,12 +13,13 @@ export interface RehearsalLine {
 
 /**
  * 彩排页(计划 L5 W9):按片段播放(不静音、1.0 倍速),自己的句子加强显示。
- * roleName 是调用方已经算好的显示名(角色名,或「角色 A」)。
+ * roleName 是调用方已经算好的显示名(「红·Alex」);role 可选,有就在名字前画色点。
  * 「开始录制」在点按的同一个事件里调用 onStart(手势保留,iOS 需要)。
  */
 export function RehearsalView({
-  roleName, lines, onRehearse, onStart, onBack,
+  role, roleName, lines, onRehearse, onStart, onBack,
 }: {
+  role?: RoleKey;
   roleName: string;
   lines: readonly RehearsalLine[];
   onRehearse(): void;
@@ -28,7 +31,10 @@ export function RehearsalView({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button type="button" onClick={onBack} className="text-[13px] opacity-80">{t("web.dubbing.rehearsal.back")}</button>
-        <p className="text-[14px] font-semibold">{t("web.dubbing.rehearsal.youAre", { role: roleName })}</p>
+        <p className="flex items-center gap-2 text-[14px] font-semibold">
+          {role ? <RoleDot role={role} /> : null}
+          {t("web.dubbing.rehearsal.youAre", { role: roleName })}
+        </p>
         <span className="w-10" />
       </div>
       <HeadphoneHint />

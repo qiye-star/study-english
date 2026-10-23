@@ -20,10 +20,15 @@ describe("take history (plan L5 W10, reopen)", () => {
     const row = take({});
     render(<TakeHistory takes={[row]} onOpen={onOpen} />);
     expect(screen.getByText("Earlier takes")).toBeInTheDocument();
-    expect(screen.getByText("B")).toBeInTheDocument();
+    expect(screen.getByText("Blue·Bella")).toBeInTheDocument();
     expect(screen.getByText("Score 82")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(onOpen).toHaveBeenCalledWith(row);
+  });
+
+  it("shows a saved custom name next to the role colour", () => {
+    render(<TakeHistory takes={[take({})]} names={{ B: "Narrator" }} onOpen={() => {}} />);
+    expect(screen.getByText("Blue·Narrator")).toBeInTheDocument();
   });
 
   it("marks an unfinished take without offering to open it", () => {

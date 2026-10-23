@@ -67,6 +67,18 @@ describe("role labels (plan L5 W8)", () => {
     expect(h.request).toHaveBeenCalledWith("PUT", `/api/dubbing/items/${ITEM}/roles`, { json: { speakers: [{ idx: 0, speaker: "B" }] } });
   });
 
+  it("only the letters A..F (or null) go over the wire, never a display name", async () => {
+    render(<Harness />);
+    const first = screen.getByRole("button", { name: "sentence 0" });
+    for (let i = 0; i < 6; i++) fireEvent.click(first);
+    await act(async () => { await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS); });
+    expect(h.request).toHaveBeenLastCalledWith("PUT", `/api/dubbing/items/${ITEM}/roles`, { json: { speakers: [{ idx: 0, speaker: "F" }] } });
+    fireEvent.click(first);
+    await act(async () => { await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS); });
+    expect(h.request).toHaveBeenLastCalledWith("PUT", `/api/dubbing/items/${ITEM}/roles`, { json: { speakers: [{ idx: 0, speaker: null }] } });
+    expect(JSON.stringify(h.request.mock.calls)).not.toMatch(/Alex|Bella|Red|Blue/);
+  });
+
   it("a copy of a catalog item is read-only: no cycling, no suggest button, and a note", () => {
     render(<Harness editable={false} suggest clip={{ segFrom: 0, segTo: 2 }} />);
     expect(screen.getByTestId("ro")).toHaveTextContent("ro");

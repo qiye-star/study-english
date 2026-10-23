@@ -14,6 +14,7 @@ import { DubResults } from "./dub-results";
 import { DubSession } from "./dub-session";
 import { RoleLabels } from "./role-labels";
 import { RolePicker } from "./role-picker";
+import { RoleTag, roleLabel } from "./role-identity";
 import type { TakeResult } from "./take-runner";
 
 /** `/dub/:itemId`:选片段 → 选角色 → 彩排 → 录制(会话在 dub-session.tsx)。 */
@@ -89,7 +90,7 @@ export function DubItemPage() {
   };
 
   return (
-    <div className="min-h-dvh px-4 pb-24 pt-4">
+    <div className="dub-root min-h-dvh px-4 pb-24 pt-4">
       <header className="mb-4 flex items-center justify-between">
         <Link to="/dub" className="text-[13px] opacity-80">{t("web.dubbing.home.back")}</Link>
         <h1 className="max-w-[60%] truncate text-[16px] font-semibold">{detail?.title ?? ""}</h1>
@@ -122,7 +123,7 @@ export function DubItemPage() {
               );
             }
             if (inSession && selection && selection.to !== null && role !== null) {
-              const roleName = names[role] ?? t("web.dubbing.roles.role", { key: role });
+              const roleName = roleLabel(t, role, names[role]);
               return (
                 <DubSession
                   itemId={itemId}
@@ -154,17 +155,22 @@ export function DubItemPage() {
                   limits={limits}
                   poster={poster}
                   onSelect={setSelection}
-                  renderMarker={(idx) => (
-                    <button
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() => cycle(idx)}
-                      aria-label={t("web.dubbing.roles.sentenceRole", { n: idx + 1 })}
-                      className="min-w-[2.25rem] rounded-lg bg-white/20 px-1.5 py-0.5 text-[12px] font-semibold"
-                    >
-                      {speakerOf(idx) ?? "·"}
-                    </button>
-                  )}
+                  renderMarker={(idx) => {
+                    const sp = speakerOf(idx);
+                    return (
+                      <button
+                        type="button"
+                        disabled={readOnly}
+                        onClick={() => cycle(idx)}
+                        aria-label={t("web.dubbing.roles.sentenceRole", {
+                          n: idx + 1, role: sp ? roleLabel(t, sp, names[sp]) : t("web.dubbing.roles.unassigned"),
+                        })}
+                        className="flex min-h-tap min-w-[2.25rem] items-center justify-center rounded-lg bg-white/20 px-1.5 text-[12px] font-semibold"
+                      >
+                        {sp ? <RoleTag role={sp} custom={names[sp]} /> : "·"}
+                      </button>
+                    );
+                  }}
                 />
                 <section>
                   <h2 className="mb-2 text-[14px] font-semibold">{t("web.dubbing.roles.heading")}</h2>
@@ -185,7 +191,7 @@ export function DubItemPage() {
                 >
                   {t("web.dubbing.clip.start")}
                 </button>
-                <TakeHistory takes={takes} onOpen={openTake} />
+                <TakeHistory takes={takes} names={names} onOpen={openTake} />
               </div>
             );
           }}

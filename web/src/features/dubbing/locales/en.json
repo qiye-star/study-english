@@ -24,14 +24,13 @@
         "start": "Start rehearsal"
       },
       "roles": {
-        "role": "Role {{key}}",
         "count": "{{count}} sentences",
-        "rename": "Rename role {{key}}",
-        "nameFor": "Name for role {{key}}",
+        "rename": "Rename {{role}}",
+        "nameFor": "Name for {{role}}",
         "save": "Save name",
         "editShort": "Edit",
         "heading": "Choose your role",
-        "sentenceRole": "Role of sentence {{n}}",
+        "sentenceRole": "Role of sentence {{n}}: {{role}}",
         "label": "{{color}}·{{name}}",
         "default": {
           "A": "Alex",

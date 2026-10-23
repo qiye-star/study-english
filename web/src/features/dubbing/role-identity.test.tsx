@@ -39,6 +39,11 @@ describe("role identity (plan 2026-10-23 R-B1)", () => {
     expect(container.querySelector('[data-role-color="green"]')).not.toBeNull();
   });
 
+  it("the per-sentence role label reads as colour · name, or says there is no role", () => {
+    expect(en("web.dubbing.roles.sentenceRole", { n: 3, role: roleLabel(en, "C") })).toBe("Role of sentence 3: Green·Chris");
+    expect(zh("web.dubbing.roles.sentenceRole", { n: 3, role: zh("web.dubbing.roles.unassigned") })).toBe("第 3 句的角色：未分配");
+  });
+
   it("never spells 'Role A' / '角色 A' anywhere", () => {
     for (const k of ROLE_KEYS) {
       expect(roleLabel(en, k)).not.toMatch(/Role [A-F]/);

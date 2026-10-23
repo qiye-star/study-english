@@ -75,3 +75,18 @@
 .dub-tag[data-role-color="yellow"] { background: var(--dub-role-d-soft); }
 .dub-tag[data-role-color="purple"] { background: var(--dub-role-e-soft); }
 .dub-tag[data-role-color="orange"] { background: var(--dub-role-f-soft); }
+
+/* ===== 选角色卡:左边框用角色色,选中用淡底 + 对勾 ===== */
+.dub-role-card {
+  background: var(--dub-sel);
+  border: 1px solid var(--dub-sel-bd);
+  border-left-width: 6px;
+  color: rgb(var(--ink));
+}
+.dub-role-card[data-role-color="red"] { border-left-color: var(--dub-role-a); }
+.dub-role-card[data-role-color="blue"] { border-left-color: var(--dub-role-b); }
+.dub-role-card[data-role-color="green"] { border-left-color: var(--dub-role-c); }
+.dub-role-card[data-role-color="yellow"] { border-left-color: var(--dub-role-d); }
+.dub-role-card[data-role-color="purple"] { border-left-color: var(--dub-role-e); }
+.dub-role-card[data-role-color="orange"] { border-left-color: var(--dub-role-f); }
+.dub-role-card[aria-pressed="false"] { background: rgb(var(--surface)); }

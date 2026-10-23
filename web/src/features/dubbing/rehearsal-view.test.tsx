@@ -32,7 +32,14 @@ describe("rehearsal view (plan L5 W9)", () => {
   });
 
   it("names the role being played, using the label the caller passes", () => {
-    render(<RehearsalView roleName="Role A" lines={LINES} onRehearse={() => {}} onStart={() => {}} onBack={() => {}} />);
-    expect(screen.getByText("You are Role A")).toBeInTheDocument();
+    render(<RehearsalView roleName="Red·Alex" lines={LINES} onRehearse={() => {}} onStart={() => {}} onBack={() => {}} />);
+    expect(screen.getByText("You are Red·Alex")).toBeInTheDocument();
+  });
+
+  it("draws the role's colour dot when it knows the role", () => {
+    const { container, rerender } = render(<RehearsalView roleName="Red·Alex" lines={LINES} onRehearse={() => {}} onStart={() => {}} onBack={() => {}} />);
+    expect(container.querySelector("[data-role-color]")).toBeNull();
+    rerender(<RehearsalView role="A" roleName="Red·Alex" lines={LINES} onRehearse={() => {}} onStart={() => {}} onBack={() => {}} />);
+    expect(container.querySelector('[data-role-color="red"][aria-hidden="true"]')).not.toBeNull();
   });
 });

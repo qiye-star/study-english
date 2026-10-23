@@ -24,6 +24,7 @@ Film-clip role-play dubbing (plan `docs/superpowers/plans/10.21-plans/2026-10-21
 - `cd web && yarn vitest run src/features/dubbing`; architecture: `yarn vitest run src/architecture.test.ts`.
 
 ## Pitfalls
+- Roles appear on screen only as `RoleTag` (colour dot + colour word + name); the wire and storage stay A–F. Never spell "Role A" / 「角色 A」 anywhere again.
 - Tickets (media URL, realtime tickets) are secrets: never print or log them.
 - Sentence text, role names and assessment text never go into URLs or logs; only uuids and integers go into paths.
 - A 404 from `/api/dubbing/*` means off; a 429 is the AI daily limit; a 503 from `/roles/suggest` is "AI unavailable". Classify by status, never by the message text.
